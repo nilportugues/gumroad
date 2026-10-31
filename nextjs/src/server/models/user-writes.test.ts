@@ -11,10 +11,12 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { createJobsRuntime } from "../jobs/runtime.ts";
 import { parseRubyJson, type JsonValue } from "../jobs/sidekiq/ruby-json.ts";
+import { esRecorder } from "../search/__fixtures__/job-harness.ts";
 import { recordingSidekiqRedis, rubyRuntimeRegistry, sequentialJids, snapshotRedis, type RedisSnapshot } from "../../worker/jobs/__fixtures__/golden.ts";
 import { sqlReplay, type Statement } from "../../worker/jobs/__fixtures__/sql-replay.ts";
 
 import { withJobsRuntime } from "./concerns/job-runtime.ts";
+import { resetLinkCollaborators, setLinkCollaborators } from "./link.ts";
 import { execute } from "./sql.ts";
 import { setSellerProfileCacheForTesting } from "./seller-profile.ts";
 import { fireRiskEvent, fireRiskEventBang, resetRiskCollaborators, setRiskCollaborators, type RiskEvent, type TransitionParams } from "./user-risk.ts";
@@ -28,6 +30,7 @@ export type UserWritesCase = {
   redis: RedisSnapshot;
   cache: [string, string][];
   rows: Record<string, { fields: string[]; rows: JsonValue[][] }>;
+  es?: { method: string; path: string; query: string | null; body: string | null }[];
 };
 export const userWritesGolden = parseRubyJson(readFileSync(new URL("./__fixtures__/user-writes.golden.json", import.meta.url), "utf8")) as unknown as {
   now: number;
@@ -97,6 +100,17 @@ export const USER_WRITE_ACTIONS: Record<string, () => Promise<unknown>> = {
     await execute(Prisma.sql`UPDATE \`users\` SET \`users\`.\`user_risk_state\` = 'suspended_for_tos_violation' WHERE \`users\`.\`id\` = 5`);
     await fireRiskEventBang(user, "mark_compliant", { author_name: "iffy" }, { now });
   },
+  "suspend_for_fraud! revokes mobile sessions, bans products, deletes the custom domain and schedules the cascade": fire("suspend_for_fraud", { author_name: "iffy" }),
+  "suspend_for_tos_violation! from the account cascade skips its own job and filters the gmail address": fire("suspend_for_tos_violation", {
+    author_name: "suspend_sellers_other_accounts",
+    skip_transition_callback: "suspend_sellers_other_accounts",
+  }),
+  "suspend_for_fraud! rolls back when the custom domain is not unique": fire("suspend_for_fraud", { author_name: "iffy" }),
+  "suspend_for_fraud! rolls back when a product raises": fire("suspend_for_fraud", { author_name: "iffy" }),
+  "a verified seller cannot be suspended": fire("suspend_for_fraud", { author_name: "iffy" }),
+  "mark_compliant! clearing a suspension unbans deleted products too": fire("mark_compliant", { author_name: "iffy", clear_suspension: true }),
+  "mark_compliant! records hold_released for each currently linked provider": fire("mark_compliant", { author_name: "iffy" }),
+  "mark_compliant! records hold_released once when no verification is linked": fire("mark_compliant", { author_name: "iffy" }),
   "an event with no transition from the current state": fire("mark_not_reviewed", { author_name: "iffy" }),
   "a verified seller cannot be flagged": fire("flag_for_fraud", { author_name: "iffy" }),
   "a transition without an author rolls back": fire("flag_for_fraud"),
@@ -130,6 +144,7 @@ afterAll(async () => {
 afterEach(() => {
   resetUserCollaborators();
   resetRiskCollaborators();
+  resetLinkCollaborators();
 });
 
 describe("User writes", () => {
@@ -151,6 +166,16 @@ describe("User writes", () => {
       const cache: [string, string][] = [];
       setSellerProfileCacheForTesting({ delete: async (name) => void cache.push(["cache_delete", name]) });
       setUserCollaborators({ now });
+      // No case turns on a Flipper gate or reads $redis through a product save.
+      setLinkCollaborators({
+        isFeatureEnabled: async () => false,
+        redis: () => {
+          throw new Error("unexpected $redis read");
+        },
+        cacheDelete: async (name) => void cache.push(["cache_delete", name]),
+      });
+      const es = esRecorder();
+      process.env.MOBILE_API_OAUTH_APPLICATION_UID = "test-mobile-api-oauth-app-uid";
       setRiskCollaborators({
         sadd: (key, member) => sidekiqRedis.pipeline().sadd(key, member).exec(),
         srem: (key, member) => sidekiqRedis.pipeline().srem(key, member).exec(),
@@ -160,10 +185,13 @@ describe("User writes", () => {
         await withJobsRuntime(runtime, USER_WRITE_ACTIONS[c.name]!);
       } catch (e) {
         error = e;
+      } finally {
+        es.restore();
       }
       expect(sql.log).toEqual(sql.expected);
       expect(error === null ? null : (error as Error).message).toEqual(c.error?.message ?? null);
       expect(cache).toEqual(c.cache);
+      expect(es.requests).toEqual(c.es ?? []);
       expect(await snapshot()).toEqual(c.redis);
     });
   }

@@ -10,16 +10,19 @@
 #     REDIS_HOST=127.0.0.1:6379/9 SIDEKIQ_REDIS_HOST=127.0.0.1:6379/9 RPUSH_REDIS_HOST=127.0.0.1:6379/9 \
 #     RACK_ATTACK_REDIS_HOST=127.0.0.1:6379/9 bundle exec rails runner nextjs/scripts/golden/user-writes.rb
 #
-# Elasticsearch, DynamoDB and S3 are never reached by these cases, so the app boots without them.
+# DynamoDB and S3 are never reached by these cases; Elasticsearch is a local socket that answers 200.
 require_relative "support/rails_cases"
 include RailsCases
+capture_elasticsearch!
 
 OUT = Rails.root.join("nextjs/src/server/models/__fixtures__/user-writes.golden.json")
 NOW = Time.utc(2025, 11, 1, 12, 30, 45, 123_000)
 SEEDED_AT = "2025-01-01 00:00:00"
 TABLES = %w[users comments versions seller_profiles links events social_connect_verifications platform_blocks custom_domains
             feature_announcement_newsletter_cutovers followers affiliates carts bank_accounts merchant_accounts payments
-            active_storage_attachments purchases affiliate_requests].freeze
+            active_storage_attachments purchases affiliate_requests prices variant_categories base_variants product_installment_plans
+            product_cached_values offer_codes bundle_products oauth_applications oauth_access_tokens oauth_device_authorizations
+            user_youtube_identities user_instagram_identities user_tiktok_identities].freeze
 
 def user_row(id, **overrides)
   {
@@ -182,6 +185,108 @@ cases << run("the non-bang event returns false and adds an error", seed: { users
   result = user.mark_not_reviewed(author_name: "iffy")
   # Surfaces the return value and the error the event leaves behind.
   raise [result, user.errors.details[:user_risk_state], user.errors.full_messages].inspect
+end
+
+def product_row(id, **overrides)
+  { id:, user_id: 5, name: "Product #{id}", unique_permalink: "perm#{("a".ord + id).chr}", price_cents: 100, created_at: SEEDED_AT, updated_at: SEEDED_AT }.merge(overrides)
+end
+
+def price_row(id, link_id, **overrides)
+  { id:, link_id:, price_cents: 100, currency: "usd", created_at: SEEDED_AT, updated_at: SEEDED_AT }.merge(overrides)
+end
+
+def oauth_application_row(id, uid)
+  { id:, name: "App #{id}", uid:, secret: "secret#{id}", redirect_uri: "https://example.com/cb", scopes: "mobile_api", created_at: SEEDED_AT, updated_at: SEEDED_AT }
+end
+
+MOBILE_UID = OauthApplication::MOBILE_API_OAUTH_APPLICATION_UID
+LEGACY_MOBILE_UID = OauthApplication::LEGACY_MOBILE_API_OAUTH_APPLICATION_UID
+
+cases << run("suspend_for_fraud! revokes mobile sessions, bans products, deletes the custom domain and schedules the cascade", seed: {
+  users: [user_row(5)],
+  # Product 10 has no price, so its save fails validation and the suspension goes on without it.
+  links: [product_row(9), product_row(10)],
+  prices: [price_row(1, 9)],
+  oauth_applications: [oauth_application_row(2, MOBILE_UID), oauth_application_row(3, LEGACY_MOBILE_UID), oauth_application_row(4, "third-party")],
+  oauth_access_tokens: [
+    { id: 1, resource_owner_id: 5, application_id: 2, token: "t1", scopes: "mobile_api", created_at: SEEDED_AT },
+    { id: 2, resource_owner_id: 5, application_id: 3, token: "t2", scopes: "mobile_api", created_at: SEEDED_AT },
+    { id: 3, resource_owner_id: 5, application_id: 4, token: "t3", scopes: "mobile_api", created_at: SEEDED_AT },
+    { id: 4, resource_owner_id: 5, application_id: 2, token: "t4", scopes: "mobile_api", created_at: SEEDED_AT, revoked_at: SEEDED_AT },
+  ],
+  oauth_device_authorizations: [
+    { id: 1, oauth_application_id: 2, resource_owner_id: 5, status: "approved", device_code_digest: "d1", user_code_digest: "u1", scopes: "mobile_api", expires_at: SEEDED_AT, created_at: SEEDED_AT, updated_at: SEEDED_AT },
+    { id: 2, oauth_application_id: 2, resource_owner_id: 5, status: "pending", device_code_digest: "d2", user_code_digest: "u2", scopes: "mobile_api", expires_at: SEEDED_AT, created_at: SEEDED_AT, updated_at: SEEDED_AT },
+  ],
+  custom_domains: [{ id: 3, user_id: 5, domain: "shop.example.com", created_at: SEEDED_AT, updated_at: SEEDED_AT }],
+}) do
+  User.find(5).suspend_for_fraud!(author_name: "iffy")
+end
+
+cases << run("suspend_for_tos_violation! from the account cascade skips its own job and filters the gmail address", seed: {
+  users: [user_row(5, email: "seller.five@gmail.com", user_risk_state: "flagged_for_tos_violation")],
+  links: [product_row(9, price_cents: 0, banned_at: "2025-06-01 00:00:00")],
+  prices: [price_row(1, 9, price_cents: 0)],
+  custom_domains: [{ id: 3, user_id: 5, domain: "WWW.Example.org ", created_at: SEEDED_AT, updated_at: SEEDED_AT }],
+}) do
+  User.find(5).suspend_for_tos_violation!(author_name: "suspend_sellers_other_accounts", skip_transition_callback: :suspend_sellers_other_accounts)
+end
+
+# Deleting the domain validates its uniqueness, so another seller's alive bare domain blocks the
+# whole suspension.
+cases << run("suspend_for_fraud! rolls back when the custom domain is not unique", seed: {
+  users: [user_row(5)],
+  custom_domains: [
+    { id: 3, user_id: 5, domain: "www.example.org", created_at: SEEDED_AT, updated_at: SEEDED_AT },
+    { id: 4, user_id: 6, domain: "example.org", created_at: SEEDED_AT, updated_at: SEEDED_AT },
+  ],
+}) do
+  User.find(5).suspend_for_fraud!(author_name: "iffy")
+end
+
+cases << run("suspend_for_fraud! rolls back when a product raises", seed: {
+  users: [user_row(5)],
+  links: [product_row(9, flags: (1 << 18) | (1 << 1), native_type: "membership", subscription_duration: 0)],
+  prices: [price_row(1, 9, price_cents: 0, recurrence: "monthly")],
+  variant_categories: [{ id: 2, link_id: 9, title: "Tier" }],
+}) do
+  User.find(5).suspend_for_fraud!(author_name: "iffy")
+end
+
+cases << run("a verified seller cannot be suspended", seed: { users: [user_row(5, **VERIFIED)] }) do
+  User.find(5).suspend_for_fraud!(author_name: "iffy")
+end
+
+# One product: the seller's is_recommendable reindex reads the user once per product here, but
+# once per batch under the job query cache this harness records without.
+cases << run("mark_compliant! clearing a suspension unbans deleted products too", seed: {
+  users: [user_row(5, user_risk_state: "suspended_for_tos_violation")],
+  links: [product_row(9, banned_at: "2025-06-01 00:00:00", deleted_at: "2025-06-01 00:00:00")],
+  prices: [price_row(1, 9)],
+}) do
+  User.find(5).mark_compliant!(author_name: "iffy", clear_suspension: true)
+end
+
+cases << run("mark_compliant! records hold_released for each currently linked provider", seed: {
+  users: [user_row(5, twitter_user_id: "77")],
+  social_connect_verifications: [
+    { id: 1, user_id: 5, platform: "twitter", uid: "77", last_verified_at: SEEDED_AT, created_at: SEEDED_AT, updated_at: SEEDED_AT },
+    { id: 2, user_id: 5, platform: "youtube", uid: "yt", last_verified_at: SEEDED_AT, created_at: SEEDED_AT, updated_at: SEEDED_AT },
+    { id: 3, user_id: 5, platform: "instagram", uid: "ig-old", last_verified_at: SEEDED_AT, created_at: SEEDED_AT, updated_at: SEEDED_AT },
+    { id: 4, user_id: 5, platform: "tiktok", uid: "tt", last_verified_at: SEEDED_AT, superseded_at: SEEDED_AT, created_at: SEEDED_AT, updated_at: SEEDED_AT },
+  ],
+  user_youtube_identities: [{ id: 1, user_id: 5, channel_id: "yt", created_at: SEEDED_AT, updated_at: SEEDED_AT }],
+  user_instagram_identities: [{ id: 1, user_id: 5, instagram_user_id: "ig-new", created_at: SEEDED_AT, updated_at: SEEDED_AT }],
+  user_tiktok_identities: [{ id: 1, user_id: 5, tiktok_open_id: "tt", created_at: SEEDED_AT, updated_at: SEEDED_AT }],
+}) do
+  User.find(5).mark_compliant!(author_name: "iffy")
+end
+
+cases << run("mark_compliant! records hold_released once when no verification is linked", seed: {
+  users: [user_row(5)],
+  social_connect_verifications: [{ id: 1, user_id: 5, platform: "youtube", uid: "yt", last_verified_at: SEEDED_AT, created_at: SEEDED_AT, updated_at: SEEDED_AT }],
+}) do
+  User.find(5).mark_compliant!(author_name: "iffy")
 end
 
 # Time.now.to_f as travel_to stubs it, which is what Sidekiq stamps on payloads.
