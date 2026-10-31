@@ -1,0 +1,102 @@
+// SidekiqUniqueJobs::Locksmith#lock and #unlock over the gem's own Lua (rendered verbatim into
+// unique-jobs-lua.generated.ts), so Ruby and Node contend for the same digest keys with the same
+// atomic steps: queue.lua, LMOVE queued→primed, lock.lua.
+import { createHash } from "node:crypto";
+
+import type { Redis } from "ioredis";
+
+import { rubyFloatToS } from "./ruby-json.ts";
+import { type SidekiqItem, UNIQUE_JOBS } from "./item.ts";
+import { LOCK_LUA, QUEUE_LUA, UNLOCK_LUA } from "./unique-jobs-lua.generated.ts";
+
+const SCRIPTS = { queue: QUEUE_LUA, lock: LOCK_LUA, unlock: UNLOCK_LUA } as const;
+type ScriptName = keyof typeof SCRIPTS;
+const SHAS = Object.fromEntries(Object.entries(SCRIPTS).map(([name, source]) => [name, createHash("sha1").update(source).digest("hex")])) as Record<
+  ScriptName,
+  string
+>;
+
+// Locksmith::CLOCK_DRIFT_FACTOR
+const CLOCK_DRIFT_FACTOR = 0.01;
+
+export function lockKeys(digest: string): string[] {
+  return [
+    digest,
+    `${digest}:QUEUED`,
+    `${digest}:PRIMED`,
+    `${digest}:LOCKED`,
+    `${digest}:INFO`,
+    "uniquejobs:changelog",
+    "uniquejobs:digests",
+    "uniquejobs:expiring_digests",
+  ];
+}
+
+const redisVersions = new WeakMap<Redis, Promise<string>>();
+function redisVersion(redis: Redis): Promise<string> {
+  let version = redisVersions.get(redis);
+  if (!version) {
+    version = redis.info("server").then((info) => info.match(/^redis_version:(\S+)/m)?.[1] ?? "0.0.0");
+    redisVersions.set(redis, version);
+  }
+  return version;
+}
+
+// Locksmith#argv plus Script::Caller#do_call's injected arguments, stringified as redis-client
+// would: nil/false become 0, Floats use Float#to_s.
+async function argv(redis: Redis, item: SidekiqItem, script: ScriptName, now: number): Promise<string[]> {
+  const ttl = typeof item.lock_ttl === "number" ? Math.trunc(item.lock_ttl) : 0;
+  const at = item.at as { value: number } | undefined;
+  return [
+    String(item.jid),
+    String(ttl * 1000),
+    String(item.lock),
+    String(typeof item.lock_limit === "number" ? item.lock_limit : 1),
+    at ? rubyFloatToS(at.value) : "",
+    rubyFloatToS(now),
+    "0",
+    String(UNIQUE_JOBS.maxHistory),
+    script,
+    await redisVersion(redis),
+  ];
+}
+
+async function callScript(redis: Redis, script: ScriptName, item: SidekiqItem, now: number): Promise<string | null> {
+  const keys = lockKeys(String(item.lock_digest));
+  const args = await argv(redis, item, script, now);
+  try {
+    return (await redis.evalsha(SHAS[script], keys.length, ...keys, ...args)) as string | null;
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.startsWith("NOSCRIPT")) throw error;
+    return (await redis.eval(SCRIPTS[script], keys.length, ...keys, ...args)) as string | null;
+  }
+}
+
+// Locksmith#lock without `wait`, which is how the client middleware calls it. Returns false when
+// another job holds the digest; the caller then applies the on_conflict strategy.
+export async function acquireClientLock(redis: Redis, item: SidekiqItem, now: number): Promise<boolean> {
+  const jid = String(item.jid);
+  const [digest] = lockKeys(String(item.lock_digest));
+  if ((await redis.hexists(`${digest}:LOCKED`, jid)) === 1) return true;
+
+  const started = performance.now();
+  const queued = await callScript(redis, "queue", item, now);
+  if (queued !== jid && queued !== "1") return false;
+
+  const pttl = typeof item.lock_ttl === "number" ? Math.trunc(item.lock_ttl) * 1000 : 0;
+  const validity = pttl - (performance.now() - started) - (pttl + 2) * CLOCK_DRIFT_FACTOR;
+  if (!(validity >= 0 || pttl === 0)) return false;
+
+  // `unlock.lua` leaves a "1" in QUEUED to wake waiters, so the popped value may be that marker.
+  const primed = await redis.lmove(`${digest}:QUEUED`, `${digest}:PRIMED`, "RIGHT", "LEFT");
+  if (primed !== jid && primed !== "1") return false;
+
+  return (await callScript(redis, "lock", item, now)) !== null;
+}
+
+// Locksmith#unlock, for the Node worker running a job whose lock was taken on enqueue.
+export async function releaseLock(redis: Redis, item: SidekiqItem, now = Date.now() / 1000): Promise<boolean> {
+  const [digest] = lockKeys(String(item.lock_digest));
+  if ((await redis.hexists(`${digest}:LOCKED`, String(item.jid))) === 0) return false;
+  return (await callScript(redis, "unlock", item, now)) === item.jid;
+}

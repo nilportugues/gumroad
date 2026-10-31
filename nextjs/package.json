@@ -14,14 +14,18 @@
     "parity": "tsc -p parity && vitest run --config parity/vitest.config.ts",
     "prisma:generate-schema": "node scripts/schema-rb-to-prisma.ts ../db/schema.rb prisma/schema.prisma",
     "prisma:check-drift": "node scripts/schema-rb-to-prisma.ts ../db/schema.rb prisma/schema.prisma && git diff --exit-code prisma/schema.prisma",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "jobs:generate": "node scripts/generate-job-registry.ts",
+    "jobs:check-drift": "node scripts/generate-job-registry.ts --check",
+    "worker": "node src/worker/index.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1161.0",
     "@elastic/elasticsearch": "^7.17.14",
     "@prisma/client": "^6.19.0",
     "@sentry/node": "^10.78.0",
-    "ioredis": "^5.11.1",
+    "bullmq": "^6.5.3",
+    "ioredis": "^6.0.0",
     "next": "^16.0.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
@@ -31,8 +35,10 @@
     "@types/node": "^24.0.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
+    "cron-parser": "^5.10.2",
     "prisma": "^6.19.0",
     "typescript": "~5.9.0",
-    "vitest": "^3.2.0"
+    "vitest": "^3.2.0",
+    "yaml": "^2.9.1"
   }
 }
