@@ -22,6 +22,7 @@ function makeStore(users: User[], { memberships = [] as TeamMembership[], impers
   return {
     findUserById: async (id) => users.find((u) => u.id === id) ?? null,
     findAliveUserById: async (id) => users.find((u) => u.id === id && u.deleted_at === null) ?? null,
+    findUserForLogin: async () => null,
     switchableMemberships: async (userId) =>
       memberships.filter((m) => m.user_id === userId && m.deleted_at === null && users.some((u) => u.id === m.seller_id && u.deleted_at === null)),
     impersonatedUserId: async (adminId) => impersonations.get(adminId) ?? null,

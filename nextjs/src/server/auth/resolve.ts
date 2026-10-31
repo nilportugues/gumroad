@@ -18,6 +18,8 @@ export type ResolveInput = {
   sessionCookieName: string;
   store: AuthStore;
   now?: Date;
+  // LoginsController skips invalidate_session_if_necessary, so logout still finds the user.
+  skipSessionInvalidation?: boolean;
 };
 
 // Rails writes cookies while resolving these (sign_out, reset_current_seller). A server component
@@ -39,7 +41,7 @@ export function railsLoggedInUser(context: RequestContext): User | null {
   return context.impersonatedUser ?? context.loggedInUser;
 }
 
-export async function resolveAuth({ cookies, secrets, sessionCookieName, store, now = new Date() }: ResolveInput): Promise<ResolvedAuth> {
+export async function resolveAuth({ cookies, secrets, sessionCookieName, store, now = new Date(), skipSessionInvalidation = false }: ResolveInput): Promise<ResolvedAuth> {
   const effects: ResolveEffects = { signOut: false, clearCurrentSeller: false };
 
   const warden = await authenticate(cookies, secrets, sessionCookieName, store, now);
@@ -52,7 +54,7 @@ export async function resolveAuth({ cookies, secrets, sessionCookieName, store, 
   // invalidate_session_if_necessary checks logged_in_user, so an impersonated user's
   // invalidation also ends the admin's session. Kept as Rails does it.
   const invalidatedAt = loggedInUser.last_active_sessions_invalidated_at;
-  if (invalidatedAt && !(lastSignInAt !== null && lastSignInAt >= Math.floor(invalidatedAt.getTime() / 1000))) {
+  if (!skipSessionInvalidation && invalidatedAt && !(lastSignInAt !== null && lastSignInAt >= Math.floor(invalidatedAt.getTime() / 1000))) {
     effects.signOut = true;
     return { context: SIGNED_OUT, effects, authenticatedVia: null };
   }

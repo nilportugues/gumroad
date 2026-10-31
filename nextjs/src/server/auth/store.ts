@@ -11,6 +11,9 @@ export type AuthStore = {
   findUserById(id: bigint): Promise<User | null>;
   // User.alive.find_by(id:)
   findAliveUserById(id: bigint): Promise<User | null>;
+  // LoginsController#create: `User.where(email:).first || User.where(username:).first`, so deleted
+  // users are found (and then refused) and ties go to the lowest id. Case follows the column collation.
+  findUserForLogin(identifier: string): Promise<User | null>;
   // User#user_memberships_not_deleted_and_ordered: `switchable` (not deleted, seller alive),
   // most recently accessed first.
   switchableMemberships(userId: bigint): Promise<TeamMembership[]>;
@@ -34,6 +37,12 @@ function redisClient(): Redis {
 export const prismaAuthStore: AuthStore = {
   findUserById: (id) => db.user.findUnique({ where: { id } }),
   findAliveUserById: (id) => db.user.findFirst({ where: { id, deleted_at: null } }),
+  async findUserForLogin(identifier) {
+    return (
+      (await db.user.findFirst({ where: { email: identifier }, orderBy: { id: "asc" } })) ??
+      (await db.user.findFirst({ where: { username: identifier }, orderBy: { id: "asc" } }))
+    );
+  },
   async switchableMemberships(userId) {
     const memberships = await db.teamMembership.findMany({
       where: { user_id: userId, deleted_at: null },
