@@ -38,6 +38,12 @@ against a scratch Redis and records the digests, the exact payload bytes and the
 state for each case. `sidekiq/wire.test.ts` matches the payloads byte for byte;
 `jobs.integration.test.ts` replays every push from Node and compares the whole Redis keyspace.
 
+`push-bulk.ts` is `Sidekiq::Client.push_bulk` / `perform_bulk`: one `normalize_item`, then a copy
+per args entry with its own jid and `at` (an integer `at` schedules even when it is not in the
+future), each through the unique-jobs lock, and one pipelined push per batch. A Node-owned class
+goes to BullMQ item by item and returns the jid, where Ruby's bridge returns nil.
+`__fixtures__/generate-push-bulk-golden.rb` and `push-bulk.integration.test.ts` prove it.
+
 Known limits, enforced by `ruby-json.ts` throwing rather than diverging:
 
 - JavaScript has no integral floats, so `1.0` in args is written `1` unless wrapped in `RubyFloat`.
