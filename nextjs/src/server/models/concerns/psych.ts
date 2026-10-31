@@ -10,7 +10,10 @@ import { floatValue, isPlainHash, isRubyFloat, RubyFloat, rubyFloatToS, RubySymb
 
 // A Hash whose keys are not all strings (Ruby allows any key; JS objects do not).
 export class RubyHash {
-  constructor(readonly entries: [YamlValue, YamlValue][]) {}
+  readonly entries: [YamlValue, YamlValue][];
+  constructor(entries: [YamlValue, YamlValue][]) {
+    this.entries = entries;
+  }
 }
 export type YamlValue = RubyValue | RubyHash | YamlValue[] | { [key: string]: YamlValue };
 
