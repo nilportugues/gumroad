@@ -2,8 +2,8 @@ import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import credentialsGolden from "./__fixtures__/credentials.golden.json" with { type: "json" };
 import globalConfigGolden from "./__fixtures__/global-config.golden.json" with { type: "json" };
-import { digConfig, getConfig, getConfigValue, setCredentialsForTesting } from "./config";
-import { decryptEncryptedFile, parseCredentialsYaml } from "./credentials";
+import { digConfig, getConfig, getConfigValue, setCredentialsForTesting } from "./config.ts";
+import { decryptEncryptedFile, parseCredentialsYaml } from "./credentials.ts";
 
 type GoldenCase = {
   env: Record<string, string>;

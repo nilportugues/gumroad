@@ -1,4 +1,4 @@
-import { railsEnv, type RailsEnv } from "./rails-env";
+import { railsEnv, type RailsEnv } from "./rails-env.ts";
 
 // The part of config/domain.rb the infra adapters need (CSP, asset host). Routing-specific
 // constants (valid request hosts, CORS origins, discover domain) belong to the routing proxy.

@@ -2,7 +2,7 @@
 // that is not bcrypt (pre-Devise sha256 accounts) fails instead of raising.
 import bcrypt from "bcryptjs";
 
-import { getConfig } from "../infra/config";
+import { getConfig } from "../infra/config.ts";
 
 // BCrypt::Password.valid_hash?
 const BCRYPT_HASH = /^\$[0-9a-z]{2,}\$[0-9]{2,}\$[A-Za-z0-9./]{53,}$/;

@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it } from "vitest";
 
-import { isFeatureEnabled } from "./flipper";
-import { closeAllRedis, getNamespacedRedis, getRedis } from "./redis";
+import { isFeatureEnabled } from "./flipper.ts";
+import { closeAllRedis, getNamespacedRedis, getRedis } from "./redis.ts";
 
 // Runs only against a live Redis: SMOKE_REDIS_HOST=localhost:6379/9 npx vitest run redis.smoke.
 // Expects Rails (or flipper-redis) to have run, on that database:

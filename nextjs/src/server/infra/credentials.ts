@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { parse as parseYaml } from "yaml";
 
-import { railsEnv, railsRoot } from "./rails-env";
+import { railsEnv, railsRoot } from "./rails-env.ts";
 
 // Port of Rails.application.credentials: ActiveSupport::EncryptedConfiguration over
 // config/credentials/<env>.yml.enc (or config/credentials.yml.enc), keyed by RAILS_MASTER_KEY or

@@ -1,11 +1,11 @@
 import type { TeamMembership, User } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 
-import { deriveRailsCookieSecrets, writeEncryptedCookie, writeSignedCookie } from "./rails-cookies";
-import { CURRENT_SELLER_COOKIE_NAME, REMEMBER_COOKIE_NAME } from "./rails-session-config";
-import { railsLoggedInUser, resolveAuth } from "./resolve";
-import type { AuthStore } from "./store";
-import { UserFlags } from "../models/user";
+import { deriveRailsCookieSecrets, writeEncryptedCookie, writeSignedCookie } from "./rails-cookies.ts";
+import { CURRENT_SELLER_COOKIE_NAME, REMEMBER_COOKIE_NAME } from "./rails-session-config.ts";
+import { railsLoggedInUser, resolveAuth } from "./resolve.ts";
+import type { AuthStore } from "./store.ts";
+import { UserFlags } from "../models/user.ts";
 
 const secrets = deriveRailsCookieSecrets("c".repeat(128));
 const SESSION = "_gumroad_app_session_test";

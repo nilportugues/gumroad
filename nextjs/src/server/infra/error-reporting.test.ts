@@ -1,7 +1,7 @@
 import type { ErrorEvent, NodeOptions } from "@sentry/node";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { sentryOptions } from "./error-reporting";
+import { sentryOptions } from "./error-reporting.ts";
 
 type TransactionEvent = Parameters<NonNullable<NodeOptions["beforeSendTransaction"]>>[0];
 

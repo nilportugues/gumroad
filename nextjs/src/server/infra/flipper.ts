@@ -2,8 +2,8 @@ import { crc32 } from "node:zlib";
 
 import type { Redis } from "ioredis";
 
-import { notifyError } from "./error-reporting";
-import { getRedis } from "./redis";
+import { notifyError } from "./error-reporting.ts";
+import { getRedis } from "./redis.ts";
 
 // Read-only port of Flipper 1.3 over the Redis adapter Rails configures in
 // config/initializers/feature_toggle.rb (flipper-redis on $redis, no key prefix), wrapped in

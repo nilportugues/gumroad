@@ -1,11 +1,11 @@
 // The route gate the proxy uses in deployed environments: Flipper decides whether a converted route
 // is on, and the Rails session cookie says whether the visitor is signed in. Every failure answers
 // in the direction that sends the request to Rails, which can always serve it.
-import type { ProxyRequestInfo, RouteGate } from "../lib/navigation/proxy/gate";
-import { readEncryptedCookie, readSignedCookie, type RailsCookieSecrets } from "./auth/rails-cookies";
-import { railsCookieSecrets, railsSessionCookieName, REMEMBER_COOKIE_NAME } from "./auth/rails-session-config";
-import { parseRememberCookie, wardenUserFromSession } from "./auth/warden";
-import { isFeatureEnabled as flipperIsFeatureEnabled, userActor } from "./infra/flipper";
+import type { ProxyRequestInfo, RouteGate } from "../lib/navigation/proxy/gate.ts";
+import { readEncryptedCookie, readSignedCookie, type RailsCookieSecrets } from "./auth/rails-cookies.ts";
+import { railsCookieSecrets, railsSessionCookieName, REMEMBER_COOKIE_NAME } from "./auth/rails-session-config.ts";
+import { parseRememberCookie, wardenUserFromSession } from "./auth/warden.ts";
+import { isFeatureEnabled as flipperIsFeatureEnabled, userActor } from "./infra/flipper.ts";
 
 type Deps = {
   secrets: () => RailsCookieSecrets;

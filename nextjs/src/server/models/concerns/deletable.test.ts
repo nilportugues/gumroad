@@ -1,11 +1,11 @@
 import type { Follower } from "@prisma/client";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { defineModel } from "../runtime/define-model";
-import { RecordInvalid } from "../runtime/errors";
-import { fakeDatabase } from "../runtime/testing";
-import { validatesPresenceOf } from "../runtime/validators";
-import { alive, deletable, deleted } from "./deletable";
+import { defineModel } from "../runtime/define-model.ts";
+import { RecordInvalid } from "../runtime/errors.ts";
+import { fakeDatabase } from "../runtime/testing.ts";
+import { validatesPresenceOf } from "../runtime/validators.ts";
+import { alive, deletable, deleted } from "./deletable.ts";
 
 let db: ReturnType<typeof fakeDatabase>;
 const seen: boolean[] = [];

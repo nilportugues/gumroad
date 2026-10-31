@@ -2,13 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { RequestContext } from "@/server/auth/context";
 
-import { formAuthenticityToken, globalCsrfToken, maskToken, unmaskToken } from "./csrf";
-import { domainConfig } from "./domain";
-import { categoryProps, enumConstant, findCategoryBySlug, helpCenterData } from "./help-center";
-import { deepMerge } from "./load-page";
-import { MetaTag, MetaTagBuilder, pageTitle, parameterize } from "./meta-tags";
-import type { SharedPropsPorts } from "./ports";
-import { applicationMetaTags, isMobile, preferredLanguages, sharedProps } from "./shared";
+import { formAuthenticityToken, globalCsrfToken, maskToken, unmaskToken } from "./csrf.ts";
+import { domainConfig } from "./domain.ts";
+import { categoryProps, enumConstant, findCategoryBySlug, helpCenterData } from "./help-center.ts";
+import { deepMerge } from "./load-page.ts";
+import { MetaTag, MetaTagBuilder, pageTitle, parameterize } from "./meta-tags.ts";
+import type { SharedPropsPorts } from "./ports.ts";
+import { applicationMetaTags, isMobile, preferredLanguages, sharedProps } from "./shared.ts";
 
 const signedOut: RequestContext = { loggedInUser: null, currentSeller: null, impersonatedUser: null };
 

@@ -5,10 +5,10 @@ import { randomBytes } from "node:crypto";
 import type { RequestContext } from "@/server/auth/context";
 import { getConfig } from "@/server/infra/config";
 
-import { formAuthenticityToken } from "./csrf";
-import { assetHost, type DomainConfig } from "./domain";
-import { MetaTagBuilder, defaultPageTitle, pageTitle } from "./meta-tags";
-import type { SharedPropsPorts } from "./ports";
+import { formAuthenticityToken } from "./csrf.ts";
+import { assetHost, type DomainConfig } from "./domain.ts";
+import { MetaTagBuilder, defaultPageTitle, pageTitle } from "./meta-tags.ts";
+import type { SharedPropsPorts } from "./ports.ts";
 
 const STRIPE_API_VERSION_TEST = "2023-10-16";
 const STRIPE_API_VERSION = "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;";

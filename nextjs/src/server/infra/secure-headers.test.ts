@@ -1,8 +1,8 @@
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import golden from "./__fixtures__/secure-headers.golden.json" with { type: "json" };
-import { setCredentialsForTesting } from "./config";
-import { domainConfig } from "./domain";
+import { setCredentialsForTesting } from "./config.ts";
+import { domainConfig } from "./domain.ts";
 import {
   appendCspDirectives,
   defaultCspDirectives,
@@ -10,7 +10,7 @@ import {
   overrideCspDirectives,
   secureHeaders,
   type SecureHeadersOptions,
-} from "./secure-headers";
+} from "./secure-headers.ts";
 
 // Vectors were produced by secure_headers 7.3.0 loading the real domain.rb, aws.rb and
 // secure_headers.rb in each Rails env (generators/secure_headers.rb).

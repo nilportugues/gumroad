@@ -10,9 +10,9 @@
 // run_after_transaction_callbacks_in_order_defined = false.
 import { Prisma } from "@prisma/client";
 
-import { AbortChain, RecordInvalid, RecordNotDestroyed, RecordNotSaved } from "./errors";
-import { ModelRecord, type Row } from "./record";
-import { participate, transaction, type Action, type Tx } from "./transaction";
+import { AbortChain, RecordInvalid, RecordNotDestroyed, RecordNotSaved } from "./errors.ts";
+import { ModelRecord, type Row } from "./record.ts";
+import { participate, transaction, type Action, type Tx } from "./transaction.ts";
 
 export type { Action };
 export type CallbackContext = { tx: Tx };
@@ -101,6 +101,8 @@ async function runChain<R extends Row>(chain: Callback<R>[] | undefined, record:
   }
 }
 
+const runningCommits = new WeakMap<object, { action: Action | null }>();
+
 export type SaveOptions = { validate?: boolean; now?: () => Date };
 
 export function defineModel<R extends Row>(def: ModelDefinition<R>) {
@@ -131,9 +133,20 @@ export function defineModel<R extends Row>(def: ModelDefinition<R>) {
     const snapshot = { newRecord: record.newRecord, destroyed: record.destroyed, id: record.get("id") };
     return participate(record, action, () => ({
       commit: async (finalAction) => {
-        // Reverse definition order (run_after_transaction_callbacks_in_order_defined = false).
-        for (const cb of [...(def.afterCommit ?? [])].reverse()) {
-          if (applies(cb, record, finalAction)) await cb.run(record, { tx: null as unknown as Tx });
+        // committed! clears the record's trigger flags when it finishes, and `on:` is checked per
+        // callback: once a callback saves the record again, the rest of the outer chain is skipped.
+        const outer = runningCommits.get(record);
+        const state = { action: finalAction as Action | null };
+        runningCommits.set(record, state);
+        try {
+          // Reverse definition order (run_after_transaction_callbacks_in_order_defined = false).
+          for (const cb of [...(def.afterCommit ?? [])].reverse()) {
+            if (state.action && applies(cb, record, state.action)) await cb.run(record, { tx: null as unknown as Tx });
+          }
+        } finally {
+          if (outer) outer.action = null;
+          if (outer) runningCommits.set(record, outer);
+          else runningCommits.delete(record);
         }
       },
       rollback: async (finalAction) => {

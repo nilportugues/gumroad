@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { closeAllRedis, getNamespacedRedis, getRedis, namespacedKey, redisUrl } from "./redis";
+import { closeAllRedis, getNamespacedRedis, getRedis, namespacedKey, redisUrl } from "./redis.ts";
 
 describe("Redis URLs match the Rails initializers", () => {
   const savedEnv = { ...process.env };

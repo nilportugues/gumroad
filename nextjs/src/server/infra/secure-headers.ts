@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 
-import { domainConfig, type DomainConfig } from "./domain";
-import { storageConfig, type StorageConfig } from "./storage";
+import { domainConfig, type DomainConfig } from "./domain.ts";
+import { storageConfig, type StorageConfig } from "./storage.ts";
 
 // Port of config/initializers/secure_headers.rb rendered the way secure_headers 7.3 renders it.
 // Only source-list directives are supported, which is all the Rails config uses.

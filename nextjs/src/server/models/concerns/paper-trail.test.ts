@@ -2,14 +2,14 @@ import type { Follower } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { defineModel } from "../runtime/define-model";
-import { ModelRecord, type Row } from "../runtime/record";
-import { fakeDatabase } from "../runtime/testing";
+import { defineModel } from "../runtime/define-model.ts";
+import { ModelRecord, type Row } from "../runtime/record.ts";
+import { fakeDatabase } from "../runtime/testing.ts";
 import golden from "./__fixtures__/paper-trail.golden.json" with { type: "json" };
-import { activeSupportJsonEncode, buildVersion, hasPaperTrail, setPaperTrailEnabled, withPaperTrailRequest, type ColumnType, type Resolved } from "./paper-trail";
-import { hashFrom, type YamlValue } from "./psych";
-import { RubyFloat } from "./ruby-values";
-import { yamlColumn } from "./serialized-columns";
+import { activeSupportJsonEncode, buildVersion, hasPaperTrail, setPaperTrailEnabled, withPaperTrailRequest, type ColumnType, type Resolved } from "./paper-trail.ts";
+import { hashFrom, type YamlValue } from "./psych.ts";
+import { RubyFloat } from "./ruby-values.ts";
+import { yamlColumn } from "./serialized-columns.ts";
 
 // Vectors come from paper_trail 17 itself (scripts/golden/paper-trail.rb).
 type Tagged =

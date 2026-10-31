@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { deriveRailsCookieSecrets, writeEncryptedCookie, writeSignedCookie } from "./auth/rails-cookies";
-import { newWardenSession } from "./auth/warden";
-import { createRailsRouteGate } from "./proxy-gate";
+import { deriveRailsCookieSecrets, writeEncryptedCookie, writeSignedCookie } from "./auth/rails-cookies.ts";
+import { newWardenSession } from "./auth/warden.ts";
+import { createRailsRouteGate } from "./proxy-gate.ts";
 
 const secrets = deriveRailsCookieSecrets("test-secret-key-base");
 const SESSION = "_gumroad_app_session_test";

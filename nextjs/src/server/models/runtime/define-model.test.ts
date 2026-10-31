@@ -1,11 +1,11 @@
 import type { Follower } from "@prisma/client";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { defineModel, type Callback } from "./define-model";
-import { abort, RecordInvalid } from "./errors";
-import { fakeDatabase } from "./testing";
-import { transaction } from "./transaction";
-import { validatesPresenceOf } from "./validators";
+import { defineModel, type Callback } from "./define-model.ts";
+import { abort, RecordInvalid } from "./errors.ts";
+import { fakeDatabase } from "./testing.ts";
+import { transaction } from "./transaction.ts";
+import { validatesPresenceOf } from "./validators.ts";
 
 let db: ReturnType<typeof fakeDatabase>;
 let log: string[];

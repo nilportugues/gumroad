@@ -1,7 +1,7 @@
 // What Warden and Devise keep in the Rails session and remember cookie for the :user scope.
 import { randomBytes, timingSafeEqual } from "node:crypto";
 
-import { authenticatableSalt } from "./devise-password";
+import { authenticatableSalt } from "./devise-password.ts";
 
 export const WARDEN_USER_KEY = "warden.user.user.key";
 export const WARDEN_SCOPE_SESSION_KEY = "warden.user.user.session";

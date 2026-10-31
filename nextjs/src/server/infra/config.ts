@@ -1,6 +1,6 @@
 // Contract owned by WS-06. Port of lib/utilities/global_config.rb: ENV first, then Rails
 // credentials (`FOO__BAR` reads credentials.foo.bar), with Ruby's `presence` semantics.
-import { type Credentials, loadCredentials } from "./credentials";
+import { type Credentials, loadCredentials } from "./credentials.ts";
 
 let credentialsCache: Credentials | undefined;
 

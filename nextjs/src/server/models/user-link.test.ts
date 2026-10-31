@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { LinkFlags, Links } from "./link";
-import { fakeDatabase } from "./runtime/testing";
+import { LinkFlags, Links } from "./link.ts";
+import { fakeDatabase } from "./runtime/testing.ts";
 
 let db: ReturnType<typeof fakeDatabase>;
 

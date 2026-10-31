@@ -3,13 +3,13 @@
 import type { TeamMembership, User } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 
-import { authorize } from "./authorize";
-import { balancePolicy } from "./balance";
-import { dashboardPolicy } from "./dashboard";
-import { installmentPolicy } from "./installment";
-import { MembershipNotFoundError, NotAuthorizedError, type SellerContext } from "./seller-context";
-import { settingsPasswordUserPolicy } from "./settings/password-user";
-import { settingsTeamMembershipPolicy } from "./settings/team-membership";
+import { authorize } from "./authorize.ts";
+import { balancePolicy } from "./balance.ts";
+import { dashboardPolicy } from "./dashboard.ts";
+import { installmentPolicy } from "./installment.ts";
+import { MembershipNotFoundError, NotAuthorizedError, type SellerContext } from "./seller-context.ts";
+import { settingsPasswordUserPolicy } from "./settings/password-user.ts";
+import { settingsTeamMembershipPolicy } from "./settings/team-membership.ts";
 
 let nextId = 1n;
 const now = new Date();

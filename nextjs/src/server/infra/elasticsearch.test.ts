@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { indexName, productPageViewIndexForTimestamp, useEsAliases } from "./elasticsearch";
+import { indexName, productPageViewIndexForTimestamp, useEsAliases } from "./elasticsearch.ts";
 
 describe("Elasticsearch index names match the Rails models", () => {
   const savedEnv = { ...process.env };

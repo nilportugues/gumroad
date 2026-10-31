@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { modelForRubyClass, reflectOnAssociation } from "./associations";
+import { modelForRubyClass, reflectOnAssociation } from "./associations.ts";
 
 describe("association manifest", () => {
   it("models a plain belongs_to with its Prisma field", () => {

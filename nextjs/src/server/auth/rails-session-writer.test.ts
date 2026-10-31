@@ -2,12 +2,12 @@ import type { User } from "@prisma/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import golden from "./__fixtures__/rails-cookies.golden.json" with { type: "json" };
-import { readEncryptedCookie } from "./rails-cookies";
-import { railsCookieSecrets } from "./rails-session-config";
-import { railsSignInCookie, railsSignOutCookies } from "./rails-session-writer";
-import { isSameOriginRequest, safeRedirectPath } from "./redirects";
-import { resolveAuth } from "./resolve";
-import type { AuthStore } from "./store";
+import { readEncryptedCookie } from "./rails-cookies.ts";
+import { railsCookieSecrets } from "./rails-session-config.ts";
+import { railsSignInCookie, railsSignOutCookies } from "./rails-session-writer.ts";
+import { isSameOriginRequest, safeRedirectPath } from "./redirects.ts";
+import { resolveAuth } from "./resolve.ts";
+import type { AuthStore } from "./store.ts";
 
 const production = { railsEnv: "production", branchDeployment: false, domain: undefined };
 const now = new Date("2026-10-31T12:00:00Z");

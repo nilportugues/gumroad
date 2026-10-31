@@ -7,7 +7,7 @@ import {
   readSignedCookie,
   writeEncryptedCookie,
   writeSignedCookie,
-} from "./rails-cookies";
+} from "./rails-cookies.ts";
 
 // Vectors come from ActionDispatch's own cookie jar: __fixtures__/generate-rails-cookies.rb.
 const secrets = deriveRailsCookieSecrets(golden.secret_key_base);

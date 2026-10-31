@@ -1,5 +1,5 @@
 // app/policies/balance_policy.rb
-import { requireUser, roleAccountantFor, roleAdminFor, roleSupportFor, type SellerContext } from "./seller-context";
+import { requireUser, roleAccountantFor, roleAdminFor, roleSupportFor, type SellerContext } from "./seller-context.ts";
 
 export const balancePolicy = {
   index(context: SellerContext): boolean {

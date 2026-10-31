@@ -2,9 +2,9 @@
 // app/models/concerns/user/team.rb, which every policy is built from.
 import type { TeamMembership, User } from "@prisma/client";
 
-import type { RequestContext } from "../auth/context";
-import { railsLoggedInUser } from "../auth/resolve";
-import { prismaAuthStore, type AuthStore } from "../auth/store";
+import type { RequestContext } from "../auth/context.ts";
+import { railsLoggedInUser } from "../auth/resolve.ts";
+import { prismaAuthStore, type AuthStore } from "../auth/store.ts";
 
 export const TEAM_ROLES = ["owner", "accountant", "admin", "marketing", "support"] as const;
 export type TeamRole = (typeof TEAM_ROLES)[number];

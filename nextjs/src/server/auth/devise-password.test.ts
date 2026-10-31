@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import golden from "./__fixtures__/rails-cookies.golden.json" with { type: "json" };
-import { authenticatableSalt, digestPassword, validPassword } from "./devise-password";
+import { authenticatableSalt, digestPassword, validPassword } from "./devise-password.ts";
 
 // Hashes and verdicts come from Devise::Encryptor 4.9.4 on bcrypt-ruby 3.1.22.
 describe("Devise password parity", () => {

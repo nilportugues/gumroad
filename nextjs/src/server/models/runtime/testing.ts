@@ -1,8 +1,8 @@
 // Test double for the Prisma transaction client: records every write so model-service tests
 // can assert on SQL-level effects and callback order without a database.
-import type { Delegate } from "./define-model";
-import type { Row } from "./record";
-import { setTransactionRunner, type Tx } from "./transaction";
+import type { Delegate } from "./define-model.ts";
+import type { Row } from "./record.ts";
+import { setTransactionRunner, type Tx } from "./transaction.ts";
 
 export type Write = { model: string; op: "create" | "update" | "delete"; id: unknown; data?: Record<string, unknown> };
 

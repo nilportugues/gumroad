@@ -2,11 +2,11 @@
 // models/README.md lists what is still Ruby-only.
 import type { Link } from "@prisma/client";
 
-import { defineFlags } from "../../lib/flags";
+import { defineFlags } from "../../lib/flags.ts";
 
-import { deletable } from "./concerns/deletable";
-import { hasPaperTrail } from "./concerns/paper-trail";
-import { defineModel } from "./runtime/define-model";
+import { deletable } from "./concerns/deletable.ts";
+import { hasPaperTrail } from "./concerns/paper-trail.ts";
+import { defineModel } from "./runtime/define-model.ts";
 import {
   isBlank,
   validatesFormatOf,
@@ -14,7 +14,7 @@ import {
   validatesLengthOf,
   validatesPresenceOf,
   validatesUniquenessOf,
-} from "./runtime/validators";
+} from "./runtime/validators.ts";
 
 export const CUSTOM_PERMALINK_MAX_LENGTH = 255;
 export const MAX_NAME_LENGTH = 255;

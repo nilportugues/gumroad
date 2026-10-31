@@ -1,5 +1,5 @@
 // Pundit's `authorize(record, :query?)`: raise unless the policy allows it.
-import { NotAuthorizedError, type SellerContext } from "./seller-context";
+import { NotAuthorizedError, type SellerContext } from "./seller-context.ts";
 
 export type PolicyQuery<R = undefined> = (context: SellerContext, record: R) => boolean;
 

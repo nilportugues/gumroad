@@ -1,5 +1,5 @@
-import { getConfig } from "./config";
-import { railsEnv, type RailsEnv } from "./rails-env";
+import { getConfig } from "./config.ts";
+import { railsEnv, type RailsEnv } from "./rails-env.ts";
 
 // Constants from config/initializers/aws.rb, cloudflare.rb and cdn_url_map.rb, computed from the
 // same config so both apps sign for, and link to, the same buckets and distributions.

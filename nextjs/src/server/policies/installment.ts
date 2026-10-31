@@ -1,5 +1,5 @@
 // app/policies/installment_policy.rb (the Posts section)
-import { requireUser, roleAccountantFor, roleAdminFor, roleMarketingFor, roleSupportFor, type SellerContext } from "./seller-context";
+import { requireUser, roleAccountantFor, roleAdminFor, roleMarketingFor, roleSupportFor, type SellerContext } from "./seller-context.ts";
 
 function index(context: SellerContext): boolean {
   const c = requireUser(context);

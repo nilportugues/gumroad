@@ -2,8 +2,8 @@
 // model services can replace the direct Prisma calls.
 import type { TeamMembership, User } from "@prisma/client";
 
-import { db } from "../../lib/db";
-import { getRedis } from "../infra/redis";
+import { db } from "../../lib/db.ts";
+import { getRedis } from "../infra/redis.ts";
 
 export type AuthStore = {
   // User.find_by(id:): deleted users included, as User.serialize_from_session does.

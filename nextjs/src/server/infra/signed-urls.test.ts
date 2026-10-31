@@ -11,8 +11,8 @@ import {
   signedCloudfrontUrl,
   signedDownloadUrlForS3KeyAndFilename,
   signedUrlValidityTimeForFileSize,
-} from "./signed-urls";
-import type { StorageConfig } from "./storage";
+} from "./signed-urls.ts";
+import type { StorageConfig } from "./storage.ts";
 
 // Vectors were produced by app/helpers/signed_url_helper.rb with aws-sdk-s3 1.157.0, a fake RSA key
 // and a frozen clock (generators/signed_urls.rb).

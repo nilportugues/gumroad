@@ -1,7 +1,7 @@
 import * as Sentry from "@sentry/node";
 
-import { getConfig } from "./config";
-import { railsEnv } from "./rails-env";
+import { getConfig } from "./config.ts";
+import { railsEnv } from "./rails-env.ts";
 
 // Rails reports to Sentry only (config/initializers/sentry.rb, app/services/error_notifier.rb).
 

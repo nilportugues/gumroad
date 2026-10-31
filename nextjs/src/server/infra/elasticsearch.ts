@@ -1,6 +1,6 @@
 import { Client } from "@elastic/elasticsearch";
 
-import { railsEnv } from "./rails-env";
+import { railsEnv } from "./rails-env.ts";
 
 // Port of config/initializers/elasticsearch.rb and the index names each Elasticsearch::Model sets.
 // The local stack runs ES 7.9, so this stays on the v7 client.

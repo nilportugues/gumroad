@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import golden from "./__fixtures__/flags.golden.json" with { type: "json" };
-import { defineFlags } from "./flags";
+import { defineFlags } from "./flags.ts";
 
 // Vectors come from flag_shih_tzu itself with ActiveRecord's MySQL quoting
 // (nextjs/scripts/golden/flags.rb), one entry per `has_flags` call in app/models.

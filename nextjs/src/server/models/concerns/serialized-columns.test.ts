@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import golden from "./__fixtures__/serialize.golden.json" with { type: "json" };
-import { hashFrom, type YamlValue } from "./psych";
-import { RubyFloat, RubySymbol } from "./ruby-values";
-import { jsonColumn, yamlColumn, type ObjectClass } from "./serialized-columns";
+import { hashFrom, type YamlValue } from "./psych.ts";
+import { RubyFloat, RubySymbol } from "./ruby-values.ts";
+import { jsonColumn, yamlColumn, type ObjectClass } from "./serialized-columns.ts";
 
 // Vectors come from ActiveRecord's own serialized attribute type (scripts/golden/serialize.rb).
 type Tagged = null | boolean | string | Tagged[] | { $int: string } | { $float: string } | { $sym: string } | { $hash: [Tagged, Tagged][] } | { $error: string };

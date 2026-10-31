@@ -3,10 +3,10 @@ import path from "node:path";
 
 import { HeadObjectCommand, S3Client } from "@aws-sdk/client-s3";
 
-import { getConfig } from "./config";
+import { getConfig } from "./config.ts";
 import approximations from "./i18n-approximations.json" with { type: "json" };
-import { getRedis } from "./redis";
-import { storageConfig, type StorageConfig } from "./storage";
+import { getRedis } from "./redis.ts";
+import { storageConfig, type StorageConfig } from "./storage.ts";
 
 // Port of app/helpers/signed_url_helper.rb. Times are seconds; `now` is injectable for parity tests.
 

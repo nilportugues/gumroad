@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import golden from "./__fixtures__/obfuscate-ids.golden.json" with { type: "json" };
-import { decrypt, decryptNumeric, encrypt, encryptNumeric } from "./obfuscate-ids";
+import { decrypt, decryptNumeric, encrypt, encryptNumeric } from "./obfuscate-ids.ts";
 
 // Vectors were produced by running app/modules/obfuscate_ids.rb itself with these keys.
 const keys = { cipherKey: "test-cipher-key", numericCipherKey: 123456789 };

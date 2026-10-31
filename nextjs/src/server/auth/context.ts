@@ -3,11 +3,11 @@ import type { User } from "@prisma/client";
 import { cookies } from "next/headers";
 import { cache } from "react";
 
-import { railsCookieSecrets, railsSessionCookieName } from "./rails-session-config";
-import { resolveAuth } from "./resolve";
-import { prismaAuthStore } from "./store";
+import { railsCookieSecrets, railsSessionCookieName } from "./rails-session-config.ts";
+import { resolveAuth } from "./resolve.ts";
+import { prismaAuthStore } from "./store.ts";
 
-export { railsLoggedInUser } from "./resolve";
+export { railsLoggedInUser } from "./resolve.ts";
 
 export type RequestContext = {
   // The person behind the session (an admin while impersonating).

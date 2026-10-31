@@ -11,21 +11,21 @@ import { createHash, randomBytes, randomInt } from "node:crypto";
 
 import { Prisma, type User } from "@prisma/client";
 
-import { defineFlags } from "../../lib/flags";
-import { domainConfig } from "../infra/domain";
-import { notifyError } from "../infra/error-reporting";
-import { isFeatureEnabled } from "../infra/flipper";
-import { getRedis } from "../infra/redis";
-import { enqueue, type EnqueueOptions, type JobClass, type JsonValue } from "../jobs/enqueue";
+import { defineFlags } from "../../lib/flags.ts";
+import { domainConfig } from "../infra/domain.ts";
+import { notifyError } from "../infra/error-reporting.ts";
+import { isFeatureEnabled } from "../infra/flipper.ts";
+import { getRedis } from "../infra/redis.ts";
+import { enqueue, type EnqueueOptions, type JobClass, type JsonValue } from "../jobs/enqueue.ts";
 
-import { deletable } from "./concerns/deletable";
-import { hasPaperTrail } from "./concerns/paper-trail";
-import { RubyHash, type YamlValue } from "./concerns/psych";
-import { isRubyFloat } from "./concerns/ruby-values";
-import { rubyJsonGenerate, rubyJsonParse } from "./concerns/serialized-columns";
-import { defineModel, type Callback, type CallbackContext, type SaveOptions } from "./runtime/define-model";
-import type { ModelRecord } from "./runtime/record";
-import { currentTransaction, participate, type Tx } from "./runtime/transaction";
+import { deletable } from "./concerns/deletable.ts";
+import { hasPaperTrail } from "./concerns/paper-trail.ts";
+import { RubyHash, type YamlValue } from "./concerns/psych.ts";
+import { isRubyFloat } from "./concerns/ruby-values.ts";
+import { rubyJsonGenerate, rubyJsonParse } from "./concerns/serialized-columns.ts";
+import { defineModel, type Callback, type CallbackContext, type SaveOptions } from "./runtime/define-model.ts";
+import type { ModelRecord } from "./runtime/record.ts";
+import { currentTransaction, participate, type Tx } from "./runtime/transaction.ts";
 import {
   isBlank,
   rubyLength,
@@ -34,7 +34,7 @@ import {
   validatesLengthOf,
   validatesNumericalityOf,
   validatesUniquenessOf,
-} from "./runtime/validators";
+} from "./runtime/validators.ts";
 import USER_DATA from "./user-data.generated.json" with { type: "json" };
 
 export type UserRecord = ModelRecord<User>;
@@ -208,7 +208,7 @@ const DEFAULT_COLLABORATORS: UserCollaborators = {
     return 0;
   },
   now: () => new Date(),
-  readDb: async () => (await import("../../lib/db")).db,
+  readDb: async () => (await import("../../lib/db.ts")).db,
   // rand(9_999_999_999_999).to_s
   randomExternalId: () => String(randomInt(0, 9_999_999_999_999)),
   // Devise.friendly_token: SecureRandom.urlsafe_base64(15).tr("lIO0", "sxyz")
@@ -528,7 +528,7 @@ const reconfirmationRequired = (record: UserRecord) =>
 
 // Devise's `password=`: the plaintext lives on the instance only.
 export async function setPassword(record: UserRecord, password: string | null, confirmation?: string | null): Promise<void> {
-  const { digestPassword } = await import("../auth/devise-password");
+  const { digestPassword } = await import("../auth/devise-password.ts");
   record.ivars.password = password;
   if (confirmation !== undefined) record.ivars.password_confirmation = confirmation;
   if (!isBlank(password)) record.set("encrypted_password", await digestPassword(password!));

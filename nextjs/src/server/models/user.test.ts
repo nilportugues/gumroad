@@ -7,11 +7,11 @@ import { readFileSync } from "node:fs";
 import type { User } from "@prisma/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { domainConfig } from "../infra/domain";
+import { domainConfig } from "../infra/domain.ts";
 
-import { RubyHash, type YamlValue } from "./concerns/psych";
-import { rubyJsonParse } from "./concerns/serialized-columns";
-import { currentTransaction, setTransactionRunner, type Tx } from "./runtime/transaction";
+import { RubyHash, type YamlValue } from "./concerns/psych.ts";
+import { rubyJsonParse } from "./concerns/serialized-columns.ts";
+import { currentTransaction, setTransactionRunner, type Tx } from "./runtime/transaction.ts";
 import {
   isBlockedUsername,
   isDisposableEmail,
@@ -30,7 +30,7 @@ import {
   UserFlags,
   Users,
   type UserRecord,
-} from "./user";
+} from "./user.ts";
 
 type GoldenCase = {
   name: string;

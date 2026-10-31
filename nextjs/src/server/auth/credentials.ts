@@ -2,9 +2,9 @@
 // the same refusal. Signing in (trackable columns, remember cookie, guest cart merge) is WS-10's.
 import type { User } from "@prisma/client";
 
-import { deviseConfig, validPassword, type DeviseConfig } from "./devise-password";
-import type { AuthStore } from "./store";
-import { UserFlags } from "../models/user";
+import { deviseConfig, validPassword, type DeviseConfig } from "./devise-password.ts";
+import type { AuthStore } from "./store.ts";
+import { UserFlags } from "../models/user.ts";
 
 // Rails shows these verbatim, so the codes and messages stay distinct as they are there.
 export const LOGIN_ERRORS = {
@@ -19,8 +19,11 @@ export const LOGIN_ERRORS = {
 export type LoginErrorCode = keyof typeof LOGIN_ERRORS;
 
 export class LoginError extends Error {
-  constructor(readonly code: LoginErrorCode) {
+  readonly code: LoginErrorCode;
+
+  constructor(code: LoginErrorCode) {
     super(LOGIN_ERRORS[code]);
+    this.code = code;
     this.name = "LoginError";
   }
 }

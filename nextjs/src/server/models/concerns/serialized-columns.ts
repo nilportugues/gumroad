@@ -5,9 +5,9 @@
 //   YAML: asset_previews.oembed, user_compliance_info.verticals (Array), sales_exports.query (Hash),
 //         sales_export_chunks.purchase_ids / custom_fields / purchases_data (Array)
 //   JSON: totp_credentials.recovery_codes, and json_data on every model including JsonData
-import { hashFrom, psychDump, psychSafeLoad, RubyHash, type YamlValue } from "./psych";
-import { jsonFloatToS } from "./ruby-json-float";
-import { floatValue, isPlainHash, isRubyFloat, RubyFloat, RubySymbol } from "./ruby-values";
+import { hashFrom, psychDump, psychSafeLoad, RubyHash, type YamlValue } from "./psych.ts";
+import { jsonFloatToS } from "./ruby-json-float.ts";
+import { floatValue, isPlainHash, isRubyFloat, RubyFloat, RubySymbol } from "./ruby-values.ts";
 
 export type ObjectClass = "Object" | "Array" | "Hash";
 

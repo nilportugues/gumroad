@@ -3,12 +3,12 @@
 // Impersonate and CurrentSeller concerns, in the order Rails runs them.
 import type { User } from "@prisma/client";
 
-import type { RequestContext } from "./context";
-import { readEncryptedCookie, readSignedCookie, type RailsCookieSecrets } from "./rails-cookies";
-import { CURRENT_SELLER_COOKIE_NAME, REMEMBER_COOKIE_NAME } from "./rails-session-config";
-import type { AuthStore } from "./store";
-import { UserFlags } from "../models/user";
-import { parseRememberCookie, rememberCookieValid, wardenUserFromSession } from "./warden";
+import type { RequestContext } from "./context.ts";
+import { readEncryptedCookie, readSignedCookie, type RailsCookieSecrets } from "./rails-cookies.ts";
+import { CURRENT_SELLER_COOKIE_NAME, REMEMBER_COOKIE_NAME } from "./rails-session-config.ts";
+import type { AuthStore } from "./store.ts";
+import { UserFlags } from "../models/user.ts";
+import { parseRememberCookie, rememberCookieValid, wardenUserFromSession } from "./warden.ts";
 
 export type CookieSource = { get(name: string): string | undefined };
 

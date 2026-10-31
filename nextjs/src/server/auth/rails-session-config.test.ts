@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { railsSessionCookieDomain, railsSessionCookieName } from "./rails-session-config";
-import { monthsBefore, newWardenSession, wardenUserFromSession } from "./warden";
+import { railsSessionCookieDomain, railsSessionCookieName } from "./rails-session-config.ts";
+import { monthsBefore, newWardenSession, wardenUserFromSession } from "./warden.ts";
 
 const env = (railsEnv: string, branchDeployment = false, domain?: string) => ({ railsEnv, branchDeployment, domain });
 

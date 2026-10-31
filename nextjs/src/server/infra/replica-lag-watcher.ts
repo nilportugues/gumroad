@@ -38,19 +38,27 @@ export const monotonicSeconds = () => performance.now() / 1000;
 const sleepSeconds = (seconds: number) => new Promise((resolve) => setTimeout(resolve, seconds * 1000));
 const pluralizeSecond = (count: number) => (count === 1 ? "second" : "seconds");
 
+type ReplicaLagWatcherDeps = {
+  hosts: () => string[];
+  connect: (host: string) => ReplicaConnection;
+  now: () => number;
+  sleep: (seconds: number) => Promise<unknown>;
+  log: (line: string) => void;
+};
+
 export class ReplicaLagWatcher {
   private connections: ReplicaConnection[] | undefined;
   private lastCheckedAt: number | undefined;
 
+  // A plain field, not a parameter property: the worker runs under Node's type stripping, which
+  // rejects parameter properties.
+  private readonly deps: ReplicaLagWatcherDeps;
+
   constructor(
-    private readonly deps: {
-      hosts: () => string[];
-      connect: (host: string) => ReplicaConnection;
-      now: () => number;
-      sleep: (seconds: number) => Promise<unknown>;
-      log: (line: string) => void;
-    } = { hosts: () => replicasHosts(), connect: prismaReplicaConnection, now: monotonicSeconds, sleep: sleepSeconds, log: console.info },
-  ) {}
+    deps: ReplicaLagWatcherDeps = { hosts: () => replicasHosts(), connect: prismaReplicaConnection, now: monotonicSeconds, sleep: sleepSeconds, log: console.info },
+  ) {
+    this.deps = deps;
+  }
 
   async watch(overrides: ReplicaLagOptions = {}): Promise<void> {
     const hosts = this.deps.hosts();

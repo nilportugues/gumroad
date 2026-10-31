@@ -97,7 +97,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "AlertOnStalledPostEmailBlastsJob": {
     "file": "app/sidekiq/alert_on_stalled_post_email_blasts_job.rb",
@@ -310,7 +310,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "BlockObjectWorker": {
     "file": "app/sidekiq/block_object_worker.rb",
@@ -322,7 +322,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "BlockSuspendedAccountIpWorker": {
     "file": "app/sidekiq/block_suspended_account_ip_worker.rb",
@@ -346,7 +346,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "CacheProductDataWorker": {
     "file": "app/sidekiq/cache_product_data_worker.rb",
@@ -712,7 +712,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "DeleteGuardianStripePersonJob": {
     "file": "app/sidekiq/delete_guardian_stripe_person_job.rb",
@@ -736,7 +736,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "DeleteOldProcessedStripeEventsJob": {
     "file": "app/sidekiq/delete_old_processed_stripe_events_job.rb",
@@ -748,7 +748,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "DeleteOldSentEmailInfoRecordsJob": {
     "file": "app/sidekiq/delete_old_sent_email_info_records_job.rb",
@@ -760,7 +760,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "DeleteOldUnusedEventsWorker": {
     "file": "app/sidekiq/delete_old_unused_events_worker.rb",
@@ -772,7 +772,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "DeleteOldVersionsRecordsWorker": {
     "file": "app/sidekiq/delete_old_versions_records_worker.rb",
@@ -796,7 +796,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "DeleteProductFilesArchivesWorker": {
     "file": "app/sidekiq/delete_product_files_archives_worker.rb",
@@ -928,7 +928,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "recurringLockMaxAttempt": 600,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "DisputeEvidenceDueSoonReminderJob": {
     "file": "app/sidekiq/dispute_evidence_due_soon_reminder_job.rb",
@@ -1054,7 +1054,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ExpireTranscodedVideosJob": {
     "file": "app/sidekiq/expire_transcoded_videos_job.rb",
@@ -1283,7 +1283,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "FreeTrialExpiringReminderWorker": {
     "file": "app/sidekiq/free_trial_expiring_reminder_worker.rb",
@@ -2025,7 +2025,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ReconcileClientConfirmedChargeJob": {
     "file": "app/sidekiq/reconcile_client_confirmed_charge_job.rb",
@@ -2117,7 +2117,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RecoverPendingRefundFeeRetentionJob": {
     "file": "app/sidekiq/recover_pending_refund_fee_retention_job.rb",
@@ -3477,7 +3477,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "recurringLockMaxAttempt": 3600,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "UnblockObjectWorker": {
     "file": "app/sidekiq/unblock_object_worker.rb",
@@ -3489,7 +3489,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "UnstickStuckInProgressPurchasesJob": {
     "file": "app/sidekiq/unstick_stuck_in_progress_purchases_job.rb",
@@ -3590,7 +3590,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "UpdatePayoutStatusWorker": {
     "file": "app/sidekiq/update_payout_status_worker.rb",

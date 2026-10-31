@@ -5,12 +5,15 @@
 // scalars with Psych's ScalarScanner.
 import { isMap, isScalar, isSeq, parseDocument, Scalar as YamlScalar, type Node as YamlNode } from "yaml";
 
-import { tokenize } from "./psych-scalar-scanner";
-import { floatValue, isPlainHash, isRubyFloat, RubyFloat, rubyFloatToS, RubySymbol, type RubyValue } from "./ruby-values";
+import { tokenize } from "./psych-scalar-scanner.ts";
+import { floatValue, isPlainHash, isRubyFloat, RubyFloat, rubyFloatToS, RubySymbol, type RubyValue } from "./ruby-values.ts";
 
 // A Hash whose keys are not all strings (Ruby allows any key; JS objects do not).
 export class RubyHash {
-  constructor(readonly entries: [YamlValue, YamlValue][]) {}
+  readonly entries: [YamlValue, YamlValue][];
+  constructor(entries: [YamlValue, YamlValue][]) {
+    this.entries = entries;
+  }
 }
 export type YamlValue = RubyValue | RubyHash | YamlValue[] | { [key: string]: YamlValue };
 

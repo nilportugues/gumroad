@@ -1,7 +1,7 @@
 // The Set-Cookie side of the bridge: sign a user into Rails, or clear what Rails' sign-out clears.
 import type { User } from "@prisma/client";
 
-import { writeEncryptedCookie } from "./rails-cookies";
+import { writeEncryptedCookie } from "./rails-cookies.ts";
 import {
   DASHBOARD_PREFERENCE_COOKIE_NAME,
   railsCookieSecrets,
@@ -12,8 +12,8 @@ import {
   REMEMBER_COOKIE_NAME,
   type CookieOptions,
   type RailsEnv,
-} from "./rails-session-config";
-import { newWardenSession } from "./warden";
+} from "./rails-session-config.ts";
+import { newWardenSession } from "./warden.ts";
 
 export type CookieToSet = { name: string; value: string; options: CookieOptions };
 

@@ -5,11 +5,17 @@
 // Non-integral JS numbers are always Floats; integral ones and bigints are Integers.
 
 export class RubyFloat {
-  constructor(readonly value: number) {}
+  readonly value: number;
+  constructor(value: number) {
+    this.value = value;
+  }
 }
 
 export class RubySymbol {
-  constructor(readonly name: string) {}
+  readonly name: string;
+  constructor(name: string) {
+    this.name = name;
+  }
 }
 
 export type RubyValue =

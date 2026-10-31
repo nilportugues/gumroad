@@ -1,4 +1,4 @@
-import type { CookieSource } from "./resolve";
+import type { CookieSource } from "./resolve.ts";
 
 // Rack percent-encodes cookie values; the first occurrence of a name wins, as in Rack.
 export function cookiesFromHeader(header: string | null): CookieSource {

@@ -12,7 +12,7 @@ import {
   resetFlipperStateForTesting,
   UnsupportedFlipperGateError,
   userActor,
-} from "./flipper";
+} from "./flipper.ts";
 
 vi.mock("./error-reporting", () => ({ notifyError: vi.fn() }));
 

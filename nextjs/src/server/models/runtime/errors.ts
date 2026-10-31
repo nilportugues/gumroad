@@ -90,8 +90,12 @@ export class Errors {
 
 // ActiveRecord::RecordInvalid, raised by save!/create!.
 export class RecordInvalid extends Error {
-  constructor(readonly errors: Errors) {
+  // A plain field, not a parameter property: the worker runs under Node's type stripping.
+  readonly errors: Errors;
+
+  constructor(errors: Errors) {
     super(`Validation failed: ${errors.fullMessages().join(", ")}`);
+    this.errors = errors;
     this.name = "RecordInvalid";
   }
 }

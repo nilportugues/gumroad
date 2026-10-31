@@ -1,9 +1,9 @@
 import type { User } from "@prisma/client";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { authorizePassword, LoginError } from "./credentials";
-import { digestPassword } from "./devise-password";
-import { UserFlags } from "../models/user";
+import { authorizePassword, LoginError } from "./credentials.ts";
+import { digestPassword } from "./devise-password.ts";
+import { UserFlags } from "../models/user.ts";
 
 const config = { pepper: "pepper", stretches: 4 };
 let hash: string;

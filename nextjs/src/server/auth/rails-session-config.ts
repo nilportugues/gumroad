@@ -1,8 +1,8 @@
 // Port of config/initializers/session_store.rb and the cookie options Rails derives from it.
 import { createHash } from "node:crypto";
 
-import { getConfig } from "../infra/config";
-import { deriveRailsCookieSecrets, type RailsCookieSecrets } from "./rails-cookies";
+import { getConfig } from "../infra/config.ts";
+import { deriveRailsCookieSecrets, type RailsCookieSecrets } from "./rails-cookies.ts";
 
 const BASE_SESSION_COOKIE_NAME = "_gumroad_app_session";
 const BRANCH_COOKIE_SUFFIX_LENGTH = 32;

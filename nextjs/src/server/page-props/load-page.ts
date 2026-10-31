@@ -4,10 +4,10 @@ import { headers } from "next/headers";
 
 import { getRequestContext, type RequestContext } from "@/server/auth/context";
 
-import { domainConfig, type DomainConfig } from "./domain";
-import { MetaTagBuilder } from "./meta-tags";
-import { sharedPropsPorts } from "./ports";
-import { applicationMetaTags, authenticityToken, sharedProps } from "./shared";
+import { domainConfig, type DomainConfig } from "./domain.ts";
+import { MetaTagBuilder } from "./meta-tags.ts";
+import { sharedPropsPorts } from "./ports.ts";
+import { applicationMetaTags, authenticityToken, sharedProps } from "./shared.ts";
 
 const isHash = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;

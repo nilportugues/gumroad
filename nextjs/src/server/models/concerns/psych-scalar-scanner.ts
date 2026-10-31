@@ -1,6 +1,6 @@
 // Port of Psych::ScalarScanner#tokenize (psych 5.2.6, strict_integer: false): how a plain YAML
 // scalar is typed on load, and therefore which strings Psych must quote on dump.
-import { RubyFloat, RubySymbol } from "./ruby-values";
+import { RubyFloat, RubySymbol } from "./ruby-values.ts";
 
 export type Token =
   | { kind: "string"; value: string }
