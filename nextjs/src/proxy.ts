@@ -4,14 +4,18 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { decideRoute } from "@/lib/navigation/proxy/decide";
-import { routeGate } from "@/lib/navigation/proxy/gate";
+import { routeGate, setRouteGate } from "@/lib/navigation/proxy/gate";
 import { compileRouteTable, type RouteTable } from "@/lib/navigation/proxy/route-table";
 import { getRequiredConfig } from "@/server/infra/config";
 import { domainConfig } from "@/server/page-props/domain";
+import { railsRouteGate } from "@/server/proxy-gate";
 
 import routeTable from "../routes.json";
 
 const routes = compileRouteTable(routeTable as RouteTable);
+
+// NEXTJS_ROUTE_FLAGS keeps the env-var gate for local runs without Redis or a Rails session.
+if (process.env.NEXTJS_ROUTE_FLAGS === undefined) setRouteGate(railsRouteGate);
 
 // Rails' request.host: the last X-Forwarded-Host entry wins over Host.
 function originalHost(request: NextRequest): string {

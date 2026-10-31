@@ -43,10 +43,6 @@ const config: NextConfig = {
       "@inertiajs/core": navigationCompat,
       "$next-routes": "./src/lib/navigation/routes.ts",
       ...Object.fromEntries(sharedPackages.map((name) => [name, `./node_modules/${name}`])),
-      // Local rendering before the Rails-session bridge (WS-03) exists; never set in deployed envs.
-      ...(process.env.NEXTJS_SIGNED_OUT_CONTEXT === "1"
-        ? { "@/server/auth/context": "./src/server/page-props/dev/signed-out-request-context.ts" }
-        : {}),
     },
     rules: {
       // Vite turns `$assets/...` images into URL strings; Next would turn them into objects.

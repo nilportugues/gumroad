@@ -1,10 +1,9 @@
 // The reads auth needs, behind an interface so the resolution logic is unit-testable and WS-02's
-// model services and WS-06's Redis client can replace the direct Prisma and ioredis calls.
+// model services can replace the direct Prisma calls.
 import type { TeamMembership, User } from "@prisma/client";
-import { Redis } from "ioredis";
 
 import { db } from "../../lib/db";
-import { getConfig } from "../infra/config";
+import { getRedis } from "../infra/redis";
 
 export type AuthStore = {
   // User.find_by(id:): deleted users included, as User.serialize_from_session does.
@@ -27,12 +26,7 @@ export type AuthStore = {
 
 const impersonationKey = (adminUserId: bigint) => `impersonated_user_by_admin_${adminUserId}`;
 
-let redis: Redis | undefined;
-// config/redis.rb: `Redis.new(url: "redis://#{ENV["REDIS_HOST"]}")`, no namespace.
-function redisClient(): Redis {
-  redis ??= new Redis(`redis://${getConfig("REDIS_HOST") ?? "127.0.0.1:6379"}`, { lazyConnect: true, maxRetriesPerRequest: 1 });
-  return redis;
-}
+const redisClient = () => getRedis("main");
 
 export const prismaAuthStore: AuthStore = {
   findUserById: (id) => db.user.findUnique({ where: { id } }),

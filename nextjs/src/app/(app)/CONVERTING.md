@@ -52,7 +52,7 @@ injects the `Routes` global, turns `$assets/...` imports into URL strings and de
 ## 5. Verify
 
 - `npx tsc --noEmit`, `npx vitest run`, `npx next build`.
-- Locally: `NEXTJS_SIGNED_OUT_CONTEXT=1 NEXTJS_ROUTE_FLAGS=<flag> NEXTJS_ASSUME_SIGNED_OUT=1
+- Locally: `NEXTJS_ROUTE_FLAGS=<flag> NEXTJS_ASSUME_SIGNED_OUT=1
   RAILS_ORIGIN=http://localhost:3000 npm run dev` and open the page on port 3100.
 - Parity: diff the props against Rails' Inertia JSON for the same request
   (`curl -H 'X-Inertia: true' -H 'X-Inertia-Version: ...'` against Rails), ignoring

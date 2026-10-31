@@ -1,5 +1,5 @@
-// What the proxy asks before serving a route from Next.js. WS-06 replaces the flag lookup with
-// Flipper and WS-03 the session probe with the Rails-session bridge, via `setRouteGate`.
+// What the proxy asks before serving a route from Next.js. Deployed environments use
+// server/proxy-gate.ts (Flipper and the Rails session); envRouteGate is for local runs.
 export type ProxyRequestInfo = {
   method: string;
   url: URL;
@@ -14,7 +14,7 @@ export interface RouteGate {
   isSignedIn(request: ProxyRequestInfo): Promise<boolean | null>;
 }
 
-// Until Flipper is ported, flags are turned on locally with NEXTJS_ROUTE_FLAGS=flag_a,flag_b.
+// Local runs turn flags on with NEXTJS_ROUTE_FLAGS=flag_a,flag_b.
 export const envRouteGate: RouteGate = {
   async isFlagEnabled(flag) {
     return (process.env.NEXTJS_ROUTE_FLAGS ?? "").split(",").map((name) => name.trim()).includes(flag);
