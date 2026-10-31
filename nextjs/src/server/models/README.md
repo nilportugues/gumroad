@@ -61,7 +61,9 @@ bundle exec ruby nextjs/scripts/golden/user.rb          # __fixtures__/user.gold
 ```
 
 `src/worker/jobs/__fixtures__/generate-model-jobs-golden.rb` pins its own gems (see its header) and
-needs a scratch Redis database for the unique-jobs locks.
+needs a scratch Redis database for the unique-jobs locks. So do `generate-comment-golden.rb` and
+`generate-reputation-golden.rb` (Flipper, $redis and a MemCacheStore over a fake Dalli server), and
+`scripts/golden/rails-cache.rb` (`src/server/cache/__fixtures__/rails-cache.golden.json`).
 
 ## Known gaps
 
@@ -71,6 +73,22 @@ needs a scratch Redis database for the unique-jobs locks.
   Versions of JSON columns can differ from Rails for such values.
 - No `touch`, so `has_paper_trail`'s `on_touch` callback is not ported.
 - `json_data` accessors (`attr_json_data_accessor`) and `stripped_fields` are not ported yet.
+- PaperTrail's `object` on an update lists the attributes ActiveModel's LazyAttributeSet had
+  materialized (written or dirty-checked) first, then the rest in column order. Only models that
+  record that order in `ivars[MATERIALIZED_ATTRIBUTES]` (so far `comment.ts`) match Rails; the others
+  write column order, which differs from Rails for updates of loaded records.
+
+### `Comment` (`comment.ts`)
+
+Ported from comment.rb, ancestry 4.3.3 (`has_ancestry cache_depth: true`), JsonData, Deletable and
+`has_paper_trail`, in Rails' callback order; golden: `src/worker/jobs/__fixtures__/comment.golden.json`
+(`generate-comment-golden.rb` runs the real model on the fake mysql2 driver). Refused with
+`NotPortedError`, before any write: `destroy` (ancestry's `:destroy` orphan strategy), changing
+`ancestry` on a stored comment (`update_descendants_with_new_ancestry`), writing `json_data` on a
+stored comment (`merge_json_data_with_current_row`), and creating a root `user_submitted` comment
+(its after_commit sends `CommentMailer.notify_seller_of_new_comment`). Not ported:
+`mark_subtree_deleted!`/`mark_subtree_undeleted!`, the `was_alive_before_marking_subtree_deleted`
+accessor, ExternalId, and ancestry's navigation scopes.
 
 ### `User` (`user.ts`)
 
@@ -114,6 +132,10 @@ Still Ruby-only on `User`:
 - `Mail::Address#domain` is reproduced for addresses EMAIL_REGEX accepts and `Name <addr>`; other
   shapes follow the golden vectors only.
 
+- `WarmSellerReputationSummaryJob` builds its Rails.cache key from `products.cache_key_with_version`,
+  whose version ends in `MAX(links.updated_at)` to the microsecond. If the driver hands that back as a
+  Date, sub-millisecond digits read as zero and Node fills a different cache slot than Rails (same
+  aggregate, one extra query per 10 minutes). The $redis snapshot it writes is unaffected.
 - JS Dates hold milliseconds, so microseconds read from a `datetime(6)` column are lost. Writes that
   need them (`Date#end_of_day`) use `MicroDate`, which assumes Prisma sends a Date as its
   `toISOString()`; check that against MySQL before relying on it outside the golden tests.

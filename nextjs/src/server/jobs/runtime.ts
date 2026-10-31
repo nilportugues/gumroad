@@ -6,6 +6,7 @@ import type { Redis } from "ioredis";
 
 import { BULLMQ_PREFIX } from "./bullmq/options.ts";
 import { bullmqRedisUrl, createRedis, sidekiqRedisUrl } from "./redis.ts";
+import { closeBlockingConnections } from "./sidekiq/unique-lock.ts";
 import { JOB_REGISTRY } from "./registry.generated.ts";
 import type { JobDefinition } from "./registry-types.ts";
 
@@ -46,6 +47,7 @@ export function createJobsRuntime(options: {
     newJid: options.newJid ?? (() => randomBytes(12).toString("hex")),
     async close() {
       await Promise.all([...queues.values()].map((queue) => queue.close()));
+      closeBlockingConnections(options.sidekiqRedis);
     },
   };
 }

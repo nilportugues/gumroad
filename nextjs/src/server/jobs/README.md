@@ -55,9 +55,16 @@ marked ported until their backoff is ported (the worker refuses to start).
 
 Uniqueness for Node-run jobs uses the same unique-jobs keys as Ruby, not BullMQ's deduplication,
 so a Ruby enqueue and a Node enqueue of the same job keep deduplicating while both exist. The
-worker releases `until_executed` after every attempt and `until_executing` before the run, as the
-gem's server middleware does. `while_executing` and `until_and_while_executing` are not supported
-on Node yet.
+worker runs every lock type's server half as the gem's server middleware does (`processor.ts`):
+it re-prepares the fetched item (`prepareServerItem`: no `at`, digest recomputed), releases
+`until_executed` after every attempt and `until_executing` before the run, and holds the
+`<digest>:RUN` runtime lock around the run for `while_executing` and `until_and_while_executing`,
+blocking up to `lock_timeout` (at least one second) on a borrowed connection. A runtime conflict
+applies the server `on_conflict` (`log`, `raise`, `reschedule`, or none); `replace` and `reject`
+are refused at worker start. `__fixtures__/generate-server-locks-golden.rb` records the real gem's
+keyspace for each case, including two jobs contending, and `server-locks.integration.test.ts`
+replays it. The gem's death handler (delete the digest when retries are exhausted) and its orphan
+reaper are not ported.
 
 Node-owned cron entries become BullMQ job schedulers named after the `sidekiq_schedule.yml` key,
 in UTC. The lock a sidekiq-cron push would take is taken when the fire starts.

@@ -72,9 +72,45 @@ async function callScript(redis: Redis, script: ScriptName, item: SidekiqItem, n
   }
 }
 
-// Locksmith#lock without `wait`, which is how the client middleware calls it. Returns false when
-// another job holds the digest; the caller then applies the on_conflict strategy.
-export async function acquireClientLock(redis: Redis, item: SidekiqItem, now: number): Promise<boolean> {
+// LockConfig#timeout: `lock_timeout` defaults to 0 when absent, but an explicit nil stays nil.
+function configTimeout(item: SidekiqItem): number | null {
+  if (!("lock_timeout" in item)) return 0;
+  return typeof item.lock_timeout === "number" ? Math.trunc(item.lock_timeout) : null;
+}
+
+// How Locksmith pops the primed token. `undefined` is LMOVE; a number is BLMOVE's timeout in
+// seconds. primed_sync waits only when the job sets a positive lock_timeout; primed_async
+// (runtime locks, and lock(wait:)) always blocks, for at least a second.
+type PopMode = { primed: "sync" } | { primed: "async"; wait?: number };
+
+function popTimeout(item: SidekiqItem, mode: PopMode): number | undefined {
+  const timeout = configTimeout(item);
+  if (mode.primed === "async") return Math.trunc(mode.wait ?? timeout ?? 0) || 1;
+  return timeout === null || timeout > 0 ? (timeout ?? undefined) : undefined;
+}
+
+// BLMOVE blocks its connection, so it never runs on the shared one: each waiter borrows a
+// duplicate, as the gem's Concurrent::Promises future borrows a pooled connection.
+const idleBlocking = new WeakMap<Redis, Redis[]>();
+
+async function withBlockingConnection<T>(redis: Redis, fn: (connection: Redis) => Promise<T>): Promise<T> {
+  let idle = idleBlocking.get(redis);
+  if (!idle) idleBlocking.set(redis, (idle = []));
+  const connection = idle.pop() ?? redis.duplicate();
+  try {
+    return await fn(connection);
+  } finally {
+    idle.push(connection);
+  }
+}
+
+export function closeBlockingConnections(redis: Redis): void {
+  for (const connection of idleBlocking.get(redis) ?? []) connection.disconnect();
+  idleBlocking.delete(redis);
+}
+
+// Locksmith#lock! up to the lock.lua call: true once this jid holds the digest.
+async function lockBang(redis: Redis, item: SidekiqItem, now: number, mode: PopMode): Promise<boolean> {
   const jid = String(item.jid);
   const [digest] = lockKeys(String(item.lock_digest));
   if ((await redis.hexists(`${digest}:LOCKED`, jid)) === 1) return true;
@@ -88,10 +124,38 @@ export async function acquireClientLock(redis: Redis, item: SidekiqItem, now: nu
   if (!(validity >= 0 || pttl === 0)) return false;
 
   // `unlock.lua` leaves a "1" in QUEUED to wake waiters, so the popped value may be that marker.
-  const primed = await redis.lmove(`${digest}:QUEUED`, `${digest}:PRIMED`, "RIGHT", "LEFT");
+  const wait = popTimeout(item, mode);
+  const primed =
+    wait === undefined
+      ? await redis.lmove(`${digest}:QUEUED`, `${digest}:PRIMED`, "RIGHT", "LEFT")
+      : await withBlockingConnection(redis, (connection) => connection.blmove(`${digest}:QUEUED`, `${digest}:PRIMED`, "RIGHT", "LEFT", wait));
   if (primed !== jid && primed !== "1") return false;
 
   return (await callScript(redis, "lock", item, now)) !== null;
+}
+
+// Locksmith#lock without `wait`, which is how the client middleware calls it. Returns false when
+// another job holds the digest; the caller then applies the on_conflict strategy.
+export function acquireClientLock(redis: Redis, item: SidekiqItem, now: number): Promise<boolean> {
+  return lockBang(redis, item, now, { primed: "sync" });
+}
+
+// Locksmith#lock(wait:), the relock after a failed run.
+export function relock(redis: Redis, item: SidekiqItem, now: number, wait: number): Promise<boolean> {
+  return lockBang(redis, item, now, { primed: "async", wait });
+}
+
+// Locksmith#execute: takes the lock (blocking up to lock_timeout), runs `body` and, as every
+// lock's execute block does in its `ensure`, unlocks afterwards. False when the lock was not
+// taken, so the caller applies the server on_conflict strategy.
+export async function executeLocked(redis: Redis, item: SidekiqItem, now: () => number, body: () => Promise<void>): Promise<boolean> {
+  if (!(await lockBang(redis, item, now(), { primed: "async" }))) return false;
+  try {
+    await body();
+  } finally {
+    await releaseLock(redis, item, now());
+  }
+  return true;
 }
 
 // Locksmith#unlock, for the Node worker running a job whose lock was taken on enqueue.

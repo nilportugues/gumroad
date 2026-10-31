@@ -505,7 +505,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "CreateCanadaMonthlySalesReportJob": {
     "file": "app/sidekiq/create_canada_monthly_sales_report_job.rb",
@@ -898,7 +898,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "DispatchPendingFailedRefundExceptionsJob": {
     "file": "app/sidekiq/dispatch_pending_failed_refund_exceptions_job.rb",
@@ -2503,7 +2503,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "recurringLockMaxAttempt": 1800,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RemoveDeletedFilesFromS3Job": {
     "file": "app/sidekiq/remove_deleted_files_from_s3_job.rb",
@@ -3785,7 +3785,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   }
 } as const satisfies Record<string, JobDefinition>;
 

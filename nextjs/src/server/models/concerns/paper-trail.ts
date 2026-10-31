@@ -198,8 +198,19 @@ const UPDATE_TIMESTAMPS = ["updated_at", "updated_on"];
 
 export type Resolved = Required<Omit<PaperTrailOptions, "columnTypes">> & { columnTypes: Record<string, ColumnType> };
 
+// A loaded record's `attributes` lists the attributes ActiveModel::LazyAttributeSet materialized
+// (written or dirty-checked) first, in that order, then the rest in column order. Models that
+// track it put the materialized names in `ivars[MATERIALIZED_ATTRIBUTES]`; others get column order.
+export const MATERIALIZED_ATTRIBUTES = "materialized_attributes";
+
+function attributeOrder(record: ModelRecord): string[] {
+  const columns = Object.keys(record.attributes);
+  const first = (record.ivars[MATERIALIZED_ATTRIBUTES] as string[] | undefined) ?? [];
+  return [...new Set([...first.filter((k) => columns.includes(k)), ...columns])];
+}
+
 function encodeObject(record: ModelRecord, config: Resolved, valueOf: (name: string) => unknown): string {
-  const names = Object.keys(record.attributes).filter((k) => !config.skip.includes(k));
+  const names = attributeOrder(record).filter((k) => !config.skip.includes(k));
   return `{${names.map((k) => `${encodeString(k)}:${encodeAttribute(config.columnTypes[k], valueOf(k))}`).join(",")}}`;
 }
 
@@ -268,6 +279,10 @@ export function buildVersion(event: VersionEvent, record: ModelRecord, config: R
     object,
     object_changes: objectChanges,
     created_at: createdAt,
+    // partial_inserts is off, so a version written outside a request still names these columns.
+    remote_ip: null,
+    request_path: null,
+    request_uuid: null,
     ...request.controllerInfo,
   };
 }

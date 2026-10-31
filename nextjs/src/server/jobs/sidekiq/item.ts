@@ -84,6 +84,35 @@ export function lockDigest(item: { class: string; queue: string; lock_args: Json
 
 // SidekiqUniqueJobs::Job.prepare, then the WhileExecuting constructor's digest suffix.
 function prepareUniqueItem(item: SidekiqItem, definition: JobDefinition, now: number): void {
+  prepareLockFields(item, definition, now);
+  if (serverLockType(item, definition) === "while_executing") item.lock_digest = runtimeLockDigest(String(item.lock_digest));
+}
+
+// Lock::WhileExecuting::RUN_SUFFIX, which the runtime lock's constructor appends once.
+export function runtimeLockDigest(digest: string): string {
+  return digest.endsWith(":RUN") ? digest : `${digest}:RUN`;
+}
+
+// The lock class both middlewares pick: OptionsWithFallback#lock_type reads the class's
+// sidekiq_options before the item, so a `.set(lock:)` only applies to classes without one.
+export function serverLockType(item: SidekiqItem, definition: JobDefinition): string | undefined {
+  const lock = definition.options.lock ?? item.lock;
+  return typeof lock === "string" && lock !== "" ? lock : undefined;
+}
+
+// The item as SidekiqUniqueJobs::Middleware::Server sees it: Sidekiq's atomic_push drops `at`
+// before a job reaches its queue, and Job.prepare runs again over the fetched payload. The
+// runtime lock's `:RUN` suffix is left to the caller, as Lock::WhileExecuting.new adds it.
+export function prepareServerItem(fetched: SidekiqItem, definition: JobDefinition): SidekiqItem {
+  const { at: _at, ...item } = fetched;
+  const lockType = serverLockType(item, definition);
+  if (lockType === undefined) return item;
+  item.lock ??= lockType;
+  prepareLockFields(item, definition, 0);
+  return item;
+}
+
+function prepareLockFields(item: SidekiqItem, definition: JobDefinition, now: number): void {
   const options = jobOptions(definition);
 
   item.lock_timeout = "lock_timeout" in definition.options ? (options.lock_timeout ?? null) : UNIQUE_JOBS.lockTimeout;
@@ -96,8 +125,7 @@ function prepareUniqueItem(item: SidekiqItem, definition: JobDefinition, now: nu
   item.lock_prefix = UNIQUE_JOBS.lockPrefix;
   item.lock_args = lockArgsFor(item);
   const uniqueAcrossQueues = Boolean(item.unique_across_queues ?? options.unique_across_queues);
-  const digest = lockDigest({ class: String(item.class), queue: String(item.queue), lock_args: item.lock_args }, uniqueAcrossQueues);
-  item.lock_digest = item.lock === "while_executing" ? `${digest}:RUN` : digest;
+  item.lock_digest = lockDigest({ class: String(item.class), queue: String(item.queue), lock_args: item.lock_args }, uniqueAcrossQueues);
 }
 
 export function takesClientLock(item: SidekiqItem): boolean {

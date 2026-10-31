@@ -1,4 +1,5 @@
 // Handlers for every class in src/server/jobs/ported-jobs.ts, keyed by Ruby class name.
+import { contentModerationAdminCommentJob, detectLegalEntityCountryDriftJob, releaseChargebackRatePayoutPausesJob } from "./comment-jobs.ts";
 import { deleteExpiredProductCachedValuesWorker, deleteOldUnusedEventsWorker, deleteProcessedWorkflowInstallmentScheduleIntentsJob } from "./batched-cleanup-jobs.ts";
 import { forceFinishLongRunningCommunityChatRecapRunsJob, triggerCommunityChatRecapRunJob } from "./community-chat-recap-jobs.ts";
 import { deleteOldPingDeliveriesJob, deleteOldProcessedStripeEventsJob, deleteOldSentEmailInfoRecordsJob } from "./delete-old-records-jobs.ts";
@@ -14,6 +15,7 @@ import { blockEmailDomainsWorker, blockObjectWorker, unblockObjectWorker } from 
 import { alertOnStalledAbandonedCartEmailsJob, buildTaxRateCacheWorker, recoverAusBacktaxesFromStripeAccountsJob } from "./scheduled-check-jobs.ts";
 import { syncStripeBusinessProfileUrlWorker } from "./sync-stripe-business-profile-url-worker.ts";
 import { updateCurrenciesWorker } from "./update-currencies-worker.ts";
+import { warmSellerReputationSummaryJob } from "./warm-seller-reputation-summary-job.ts";
 import { recalculateRecentWishlistFollowerCountJob } from "./wishlist-jobs.ts";
 import type { JobHandler } from "./types.ts";
 
@@ -22,6 +24,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   BlockEmailDomainsWorker: blockEmailDomainsWorker,
   BlockObjectWorker: blockObjectWorker,
   BuildTaxRateCacheWorker: buildTaxRateCacheWorker,
+  ContentModerationAdminCommentJob: contentModerationAdminCommentJob,
   DeleteExpiredProductCachedValuesWorker: deleteExpiredProductCachedValuesWorker,
   DeleteOldPingDeliveriesJob: deleteOldPingDeliveriesJob,
   DeleteOldProcessedStripeEventsJob: deleteOldProcessedStripeEventsJob,
@@ -29,6 +32,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   DeleteOldUnusedEventsWorker: deleteOldUnusedEventsWorker,
   DeleteOldVersionsRecordsWorker: deleteOldVersionsRecordsWorker,
   DeleteProcessedWorkflowInstallmentScheduleIntentsJob: deleteProcessedWorkflowInstallmentScheduleIntentsJob,
+  DetectLegalEntityCountryDriftJob: detectLegalEntityCountryDriftJob,
   DispatchPendingWorkflowInstallmentScheduleIntentsJob: dispatchPendingWorkflowInstallmentScheduleIntentsJob,
   EnqueueMarketingXReconnectEmailJob: enqueueMarketingXReconnectEmailJob,
   ExpireStampedPdfsJob: expireStampedPdfsJob,
@@ -39,9 +43,11 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   SellerUpdatesWorker: sellerUpdatesWorker,
   RecalculateRecentWishlistFollowerCountJob: recalculateRecentWishlistFollowerCountJob,
   RecoverAusBacktaxesFromStripeAccountsJob: recoverAusBacktaxesFromStripeAccountsJob,
+  ReleaseChargebackRatePayoutPausesJob: releaseChargebackRatePayoutPausesJob,
   SyncStripeBusinessProfileUrlWorker: syncStripeBusinessProfileUrlWorker,
   TriggerCommunityChatRecapRunJob: triggerCommunityChatRecapRunJob,
   UnblockObjectWorker: unblockObjectWorker,
   UpdateCurrenciesWorker: updateCurrenciesWorker,
   UpdateLargeSellersSalesCountJob: updateLargeSellersSalesCountJob,
+  WarmSellerReputationSummaryJob: warmSellerReputationSummaryJob,
 };
