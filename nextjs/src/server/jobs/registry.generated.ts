@@ -784,7 +784,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "DeleteProcessedWorkflowInstallmentScheduleIntentsJob": {
     "file": "app/sidekiq/delete_processed_workflow_installment_schedule_intents_job.rb",
