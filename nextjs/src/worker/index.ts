@@ -15,7 +15,7 @@ import { runBridge } from "./bridge.ts";
 import { syncCronSchedulers } from "./cron.ts";
 import { JOB_HANDLERS } from "./jobs/index.ts";
 import type { JobHandler } from "./jobs/types.ts";
-import { createProcessor, SUPPORTED_NODE_LOCKS } from "./processor.ts";
+import { createProcessor, unsupportedLock } from "./processor.ts";
 
 const DEFAULT_QUEUES = ["critical", "default", "low", "exports"];
 const DEFAULT_CONCURRENCY = 5;
@@ -26,8 +26,8 @@ export function validatePortedJobs(ported: readonly string[], handlers: Record<s
     const { definition } = resolveJobClass(name);
     if (definition.runtime !== "node") problems.push(`${name} is not marked runtime: node; run npm run jobs:generate`);
     if (!handlers[name]) problems.push(`${name} has no handler in src/worker/jobs`);
-    const lock = definition.options.lock;
-    if (!SUPPORTED_NODE_LOCKS.has(typeof lock === "string" ? lock : undefined)) problems.push(`${name} uses lock ${String(lock)}, not supported on Node yet`);
+    const lockProblem = unsupportedLock(definition);
+    if (lockProblem) problems.push(`${name} ${lockProblem}`);
     if (definition.customRetryIn) problems.push(`${name} defines sidekiq_retry_in; port its backoff first`);
     // BullMQ has no counterpart wired in yet, so a port would silently drop the hook.
     if (definition.retriesExhausted) problems.push(`${name} defines sidekiq_retries_exhausted, not supported on Node yet`);
