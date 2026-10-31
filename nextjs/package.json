@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "prisma:generate-schema": "node scripts/schema-rb-to-prisma.ts ../db/schema.rb prisma/schema.prisma",
-    "prisma:check-drift": "node scripts/schema-rb-to-prisma.ts ../db/schema.rb prisma/schema.prisma && git diff --exit-code prisma/schema.prisma",
+    "prisma:extract-associations": "cd .. && bundle exec ruby nextjs/scripts/extract-associations.rb",
+    "prisma:check-drift": "node scripts/schema-rb-to-prisma.ts ../db/schema.rb prisma/schema.prisma && git diff --exit-code prisma/schema.prisma prisma/relations/manifest.json",
     "postinstall": "prisma generate"
   },
   "dependencies": {
