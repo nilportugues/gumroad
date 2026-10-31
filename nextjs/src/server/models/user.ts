@@ -16,17 +16,20 @@ import { domainConfig } from "../infra/domain.ts";
 import { notifyError } from "../infra/error-reporting.ts";
 import { isFeatureEnabled } from "../infra/flipper.ts";
 import { getRedis } from "../infra/redis.ts";
-import { enqueue, type EnqueueOptions, type JobClass, type JsonValue } from "../jobs/enqueue.ts";
+import type { EnqueueOptions, JobClass, JsonValue } from "../jobs/enqueue.ts";
 import { deliverDeviseNotification } from "../mail/devise-notification.ts";
 
 import { deletable } from "./concerns/deletable.ts";
-import { currentJobsRuntime } from "./concerns/job-runtime.ts";
+import { currentJobsRuntime, performAsync, performBulk } from "./concerns/job-runtime.ts";
 import { hasPaperTrail } from "./concerns/paper-trail.ts";
 import { RubyHash, type YamlValue } from "./concerns/psych.ts";
 import { isRubyFloat } from "./concerns/ruby-values.ts";
 import { rubyJsonGenerate, rubyJsonParse } from "./concerns/serialized-columns.ts";
 import { defineModel, type Callback, type CallbackContext, type SaveOptions } from "./runtime/define-model.ts";
-import type { ModelRecord } from "./runtime/record.ts";
+import { RecordNotFound } from "./runtime/errors.ts";
+import { ASSOCIATION_CACHE, type ModelRecord } from "./runtime/record.ts";
+import { buildSellerProfile, findSellerProfile, SellerProfiles, type SellerProfileRecord } from "./seller-profile.ts";
+import { castRow, column, findInBatches, selectRows, table } from "./sql.ts";
 import { currentTransaction, participate, type Tx } from "./runtime/transaction.ts";
 import {
   isBlank,
@@ -168,6 +171,8 @@ export type DeviseNotification = "confirmation_instructions" | "email_changed";
 
 export type UserCollaborators = {
   enqueue(jobClass: JobClass, args: JsonValue[], options?: EnqueueOptions): Promise<unknown>;
+  // FooJob.perform_bulk
+  enqueueBulk(jobClass: JobClass, argsList: JsonValue[][]): Promise<unknown>;
   // $redis SISMEMBER, for GmailAbuseFilter.exists?.
   sismember(key: string, member: string): Promise<number>;
   isFeatureEnabled(name: string, actor?: string | null): Promise<boolean>;
@@ -192,7 +197,9 @@ export type UserCollaborators = {
 const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 
 const DEFAULT_COLLABORATORS: UserCollaborators = {
-  enqueue: (jobClass, args, options) => enqueue(jobClass, args, options),
+  // FooJob.perform_async: through the job's runtime inside a Node job, else the process's.
+  enqueue: (jobClass, args, options) => performAsync(jobClass, args, options),
+  enqueueBulk: (jobClass, argsList) => performBulk(jobClass, argsList),
   sismember: (key, member) => getRedis("main").sismember(key, member),
   isFeatureEnabled: (name, actor) => isFeatureEnabled(name, actor),
   async pwnedCount(password) {
@@ -429,15 +436,17 @@ function toHash(value: YamlValue): RubyHash | null {
 export function jsonData(record: UserRecord): RubyHash {
   const ivars = record.ivars as Record<symbol, JsonDataState | undefined>;
   let state = ivars[JSON_DATA];
-  if (!state || rubyJsonGenerate(state.hash) !== record.get("json_data")) {
-    const raw = record.get("json_data");
+  const raw = record.get("json_data");
+  if (!state || rubyJsonGenerate(state.hash) !== raw) {
     const parsed = raw == null ? null : rubyJsonParse(raw);
     const hash = parsed == null ? new RubyHash([]) : toHash(parsed);
     if (!hash) throw new Error("json_data must be a hash");
     state = { hash };
     ivars[JSON_DATA] = state;
   }
-  record.set("json_data", rubyJsonGenerate(state.hash));
+  // `self[:json_data] ||= {}` writes only when the column is nil; the rest edits the hash in place.
+  if (raw == null) record.set("json_data", rubyJsonGenerate(state.hash));
+  else record.untracked(() => record.set("json_data", rubyJsonGenerate(state.hash)));
   return state.hash;
 }
 
@@ -456,7 +465,7 @@ export function setJsonDataForAttr(record: UserRecord, key: string, value: YamlV
   const entry = hash.entries.find(([k]) => k === key);
   if (entry) entry[1] = value;
   else hash.entries.push([key, value]);
-  record.set("json_data", rubyJsonGenerate(hash));
+  record.untracked(() => record.set("json_data", rubyJsonGenerate(hash)));
 }
 
 const payoutFrequency = (record: UserRecord) => jsonDataForAttr(record, "payout_frequency", PAYOUT_FREQUENCIES.WEEKLY);
@@ -521,6 +530,63 @@ export async function unpaidBalanceCents(record: UserRecord, tx: Pick<Tx, "$quer
   );
   return row?.sum == null ? 0n : BigInt(row.sum.toString());
 }
+
+// ---------------------------------------------------------------------------------------------
+// Associations the save callbacks load. They stay on the instance (@association_cache) until reload.
+
+type Cached = { foreignKey: unknown; row: unknown };
+
+function associations(record: UserRecord): Map<string, Cached> {
+  let entries = record.ivars[ASSOCIATION_CACHE] as Map<string, Cached> | undefined;
+  if (!entries) {
+    entries = new Map();
+    record.ivars[ASSOCIATION_CACHE] = entries;
+  }
+  return entries;
+}
+
+// User#seller_profile: `super || build_seller_profile`. The built profile stays on the instance,
+// so the next save of this user inserts it (has_one autosave).
+export async function sellerProfile(record: UserRecord): Promise<SellerProfileRecord> {
+  const cache = associations(record);
+  const cached = cache.get("seller_profile");
+  if (cached?.row) return cached.row as SellerProfileRecord;
+  const profile = (record.newRecord ? null : await findSellerProfile(record.get("id"))) ?? buildSellerProfile(record.get("id"));
+  cache.set("seller_profile", { foreignKey: record.get("id"), row: profile });
+  return profile;
+}
+
+const PROFILE_PREVIEW_PROPERTIES = ["font", "background_color", "highlight_color"];
+
+async function sellerProfileStyleSaved(record: UserRecord): Promise<boolean> {
+  const saved = (await sellerProfile(record)).savedChanges;
+  return PROFILE_PREVIEW_PROPERTIES.some((k) => k in saved);
+}
+
+// has_one_attached :avatar: `avatar.attached?` loads the attachment once per instance.
+async function loadAvatarAttachment(record: UserRecord): Promise<void> {
+  const cache = associations(record);
+  if (cache.has("avatar_attachment") || record.newRecord) return;
+  const [row] = await selectRows(
+    Prisma.sql`SELECT ${Prisma.raw("`active_storage_attachments`.*")} FROM ${table("active_storage_attachments")} WHERE ${column("active_storage_attachments", "record_id")} = ${record.get("id")} AND ${column("active_storage_attachments", "record_type")} = ${"User"} AND ${column("active_storage_attachments", "name")} = ${"avatar"} LIMIT 1`,
+  );
+  cache.set("avatar_attachment", { foreignKey: record.get("id"), row: row ?? null });
+}
+
+// autosave_associated_records_for_seller_profile (save_has_one_association): only a loaded
+// profile that is new or points at another user is saved, with validation, and a failed save
+// does not roll the user back.
+const AUTOSAVE_SELLER_PROFILE: Callback<User> = {
+  name: "autosave_associated_records_for_seller_profile",
+  async run(record, ctx) {
+    const profile = associations(record).get("seller_profile")?.row as SellerProfileRecord | undefined;
+    if (!profile || profile.destroyed) return;
+    const key = record.get("id");
+    if (!profile.newRecord && !profile.attributeChanged("seller_id")) return;
+    if (profile.get("seller_id") !== key) profile.set("seller_id", key);
+    await SellerProfiles.save(profile, { now: ctx.now });
+  },
+};
 
 // ---------------------------------------------------------------------------------------------
 // Devise
@@ -714,8 +780,9 @@ const VALIDATIONS: Callback<User>[] = [
       record.errors.add("base", "Please enter a valid Facebook Pixel ID");
     },
   },
-  // validate :avatar_is_valid only checks a newly attached avatar; Node does not attach files yet.
-  { name: "validate :avatar_is_valid", run: () => undefined },
+  // validate :avatar_is_valid only checks a newly attached avatar, and Node attaches no files, but
+  // `avatar.attached?` still loads the attachment.
+  { name: "validate :avatar_is_valid", run: loadAvatarAttachment },
   {
     name: "validate :payout_frequency_is_valid",
     run(record) {
@@ -850,6 +917,7 @@ function productSearchChangeList(record: UserRecord, changed: (attribute: keyof 
   return list;
 }
 
+// `links.ids`
 async function productIds(tx: Pick<Tx, "$queryRaw">, userId: unknown): Promise<bigint[]> {
   const rows = await tx.$queryRaw<{ id: bigint }[]>(Prisma.sql`SELECT \`links\`.\`id\` FROM \`links\` WHERE \`links\`.\`user_id\` = ${userId}`);
   return rows.map((r) => BigInt(r.id));
@@ -870,7 +938,7 @@ const makeAffiliateApplies = (record: UserRecord, confirmedAtChanged: boolean) =
 const REFUSE_UNPORTED_SIDE_EFFECTS: Callback<User> = {
   name: "refuse_unported_side_effects",
   async run(record, { tx }) {
-    if (makeAffiliateApplies(record, record.attributeChanged("confirmed_at")) && isDefault("makeRequestersAffiliates")) {
+    if (record.untracked(() => makeAffiliateApplies(record, record.attributeChanged("confirmed_at"))) && isDefault("makeRequestersAffiliates")) {
       if ((await approvedAffiliateRequestIds(tx, record.get("email")!)).length > 0) {
         throw new NotPortedError("AffiliateRequest#make_requester_an_affiliate!", "app/models/user.rb:1918 make_affiliate_of_the_matching_approved_affiliate_requests");
       }
@@ -1021,6 +1089,7 @@ const base = defineModel<User>({
     { name: "previously_new_record", run: (r) => void (r.ivars.previously_new_record = true) },
     { name: "devise skip_reconfirmation_in_callback!", if: sendConfirmationNotification, run: (r) => void (r.ivars.skip_reconfirmation_in_callback = true) },
     ...paperTrail.afterCreate,
+    AUTOSAVE_SELLER_PROFILE,
     { name: "create_global_affiliate!", run: (r, ctx) => collaborators.createGlobalAffiliate(r, ctx) },
     { name: "create_refund_policy!", run: (r, ctx) => collaborators.createRefundPolicy(r, ctx) },
   ],
@@ -1032,17 +1101,14 @@ const base = defineModel<User>({
       run: (r) => collaborators.sendDeviseNotification(r, "email_changed", { to: r.attributeBeforeLastSave("email") }),
     },
     ...paperTrail.afterUpdate,
+    AUTOSAVE_SELLER_PROFILE,
     {
       name: "clear_products_cache",
-      if: (r) =>
-        LINK_PROPERTIES.some((p) => p in r.savedChanges) ||
-        tiktokPixelIdChangedInJsonData(r) ||
-        ((r.ivars.seller_profile_saved_changes as string[] | undefined) ?? []).some((k) => ["font", "background_color", "highlight_color"].includes(k)),
       async run(record, { tx }) {
+        if (!(LINK_PROPERTIES.some((p) => p in record.savedChanges) || tiktokPixelIdChangedInJsonData(record) || (await sellerProfileStyleSaved(record)))) return;
         const ids = await productIds(tx, record.get("id"));
         try {
-          // perform_bulk: one push of every product, sharing one enqueue time.
-          for (const id of ids) await collaborators.enqueue("InvalidateProductCacheWorker", [id]);
+          await collaborators.enqueueBulk("InvalidateProductCacheWorker", ids.map((id) => [id]));
         } catch (error) {
           if (!isRedisTransportError(error)) throw error;
           notifyError(error, { user_id: record.get("id") });
@@ -1061,11 +1127,13 @@ const base = defineModel<User>({
     },
     {
       name: "update_product_search_index!",
-      async run(record, { tx }) {
+      async run(record) {
         const changeList = productSearchChangeList(record, (a) => record.savedChangeTo(a), (f) => savedChangeToFlag(record, f));
         if (changeList.length === 0) return;
-        const ids = await productIds(tx, record.get("id"));
-        if (ids.length > 0) await collaborators.enqueueProductIndexUpdates(record, ids, changeList);
+        // products.find_each; a throw here rolls the save back.
+        await findInBatches<{ id: bigint }>("links", Prisma.sql`${column("links", "user_id")} = ${record.get("id")}`, 1000, async (rows) => {
+          await collaborators.enqueueProductIndexUpdates(record, rows.map((r) => BigInt(r.id)), changeList);
+        });
       },
     },
     {
@@ -1171,12 +1239,14 @@ const base = defineModel<User>({
     {
       name: "generate_subscribe_preview",
       on: ["create", "update"],
-      if: (r) =>
-        Boolean(r.ivars.previously_new_record) ||
-        ["name", "username", "bio"].some((k) => k in r.savedChanges) ||
-        ((r.ivars.seller_profile_saved_changes as string[] | undefined) ?? []).some((k) => ["font", "background_color", "highlight_color"].includes(k)) ||
-        Boolean(r.ivars.avatar_changed),
       async run(record) {
+        // should_subscribe_preview_be_regenerated?
+        const regenerate =
+          Boolean(record.ivars.previously_new_record) ||
+          ["name", "username", "bio"].some((k) => k in record.savedChanges) ||
+          (await sellerProfileStyleSaved(record)) ||
+          Boolean(record.ivars.avatar_changed);
+        if (!regenerate) return;
         try {
           await collaborators.enqueue("GenerateSubscribePreviewJob", [record.get("id")]);
         } catch (error) {
@@ -1269,6 +1339,19 @@ export const Users = {
 };
 
 export const UserDeletable = deletable(base);
+
+// User.find_by(id:)
+export async function findUser(id: unknown): Promise<UserRecord | null> {
+  const [row] = await selectRows(Prisma.sql`SELECT ${Prisma.raw("`users`.*")} FROM ${table("users")} WHERE ${column("users", "id")} = ${id} LIMIT 1`);
+  return row ? Users.load(castRow<User>("User", row)) : null;
+}
+
+// User.find(id)
+export async function findUserBang(id: unknown): Promise<UserRecord> {
+  const user = await findUser(id);
+  if (!user) throw new RecordNotFound(`Couldn't find User with 'id'=${String(id)}`);
+  return user;
+}
 
 // User::LowBalanceFraudCheck#enable_refunds! / #disable_refunds!
 export async function enableRefundsBang(record: UserRecord): Promise<UserRecord> {

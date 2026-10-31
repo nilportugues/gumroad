@@ -24,6 +24,17 @@ export function performAsync(jobClass: string, args: JsonValue[], options?: Enqu
   return enqueueWith(storage.getStore() ?? jobsRuntime(), jobClass, args, options);
 }
 
+// `FooJob.perform_bulk(args_list)` (Sidekiq 7.3 push_bulk): normalize_item draws a jid it never
+// uses, even for an empty list, then every job gets its own jid and passes the client middleware.
+// One LPUSH of them all leaves Redis as one LPUSH each does, so they go through performAsync.
+export async function performBulk(jobClass: string, argsList: JsonValue[][]): Promise<(string | null)[]> {
+  const runtime = storage.getStore() ?? jobsRuntime();
+  runtime.newJid();
+  const jids: (string | null)[] = [];
+  for (const args of argsList) jids.push(await enqueueWith(runtime, jobClass, args));
+  return jids;
+}
+
 // after_commit_everywhere 1.4: once the outermost transaction commits, or at once outside one.
 // A rolled-back transaction drops the callback.
 export async function afterCommitEverywhere(fn: () => Promise<unknown>): Promise<void> {

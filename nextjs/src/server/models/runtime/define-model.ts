@@ -10,12 +10,14 @@
 // run_after_transaction_callbacks_in_order_defined = false.
 import { Prisma } from "@prisma/client";
 
-import { AbortChain, RecordInvalid, RecordNotDestroyed, RecordNotSaved } from "./errors.ts";
-import { ModelRecord, type Row } from "./record.ts";
+import { castRow, column, quoteName, selectRows, table, tableName } from "../sql.ts";
+import { AbortChain, RecordInvalid, RecordNotDestroyed, RecordNotFound, RecordNotSaved } from "./errors.ts";
+import { ASSOCIATION_CACHE, ModelRecord, type Row } from "./record.ts";
 import { participate, transaction, type Action, type Tx } from "./transaction.ts";
 
 export type { Action };
-export type CallbackContext = { tx: Tx };
+// `now` is the clock of the save that runs the callback, for the records it saves in turn.
+export type CallbackContext = { tx: Tx; now?: () => Date };
 
 export type Callback<R extends Row> = {
   // The Ruby method name, kept so ordering can be checked against the Ruby source.
@@ -175,7 +177,7 @@ export function defineModel<R extends Row>(def: ModelDefinition<R>) {
     const now = options.now ?? (() => new Date());
     return transaction(
       async (tx) => {
-        const ctx = { tx };
+        const ctx = { tx, now };
         const action: Action = record.newRecord ? "create" : "update";
         const p = participant(record, action);
         if (options.validate !== false && !(await valid(record, ctx))) return false;
@@ -197,13 +199,18 @@ export function defineModel<R extends Row>(def: ModelDefinition<R>) {
             p.triggered = true;
             await runChain(def.afterCreate, record, action, ctx);
           } else {
-            if (def.recordTimestamps !== false && record.hasChangesToSave()) {
+            // Timestamp#_update_record stamps before the update callbacks and Callbacks#_update_record
+            // again inside them, so a change made only by a before_update is stamped too.
+            const recordUpdateTimestamps = () => {
+              if (def.recordTimestamps === false || !record.hasChangesToSave()) return;
               const current = now();
               for (const f of getFields()) {
                 if (UPDATE_TIMESTAMP_COLUMNS.includes(f.name) && !record.attributeChanged(f.name)) record.set(f.name, timestampFor(current, f.datetimePrecision) as R[keyof R & string]);
               }
-            }
+            };
+            recordUpdateTimestamps();
             await runChain(def.beforeUpdate, record, action, ctx);
+            recordUpdateTimestamps();
             const changed = record.changedAttributeNames();
             if (changed.length > 0) await def.delegate(tx).update({ where: { id: record.get("id") }, data: writableAttributes(record, changed) });
             record.changesApplied();
@@ -250,10 +257,47 @@ export function defineModel<R extends Row>(def: ModelDefinition<R>) {
     );
   }
 
+  // Persistence#reload (`lock: true` for lock!): a fresh row, with the association cache and the
+  // attribute set replaced as `find` builds them.
+  async function reload(record: ModelRecord<R>, options: { lock?: boolean } = {}): Promise<ModelRecord<R>> {
+    const name = tableName(def.prismaModel);
+    const [row] = await selectRows(
+      Prisma.sql`SELECT ${Prisma.raw(`${quoteName(name)}.*`)} FROM ${table(name)} WHERE ${column(name, "id")} = ${record.get("id")} LIMIT 1${options.lock ? Prisma.raw(" FOR UPDATE") : Prisma.empty}`,
+    );
+    if (!row) throw new RecordNotFound(`Couldn't find ${def.rubyClass}`);
+    record.replaceFromDatabase(castRow<R>(def.prismaModel, row));
+    delete record.ivars[ASSOCIATION_CACHE];
+    record.ivars.previously_new_record = false;
+    return record;
+  }
+
+  // Locking::Pessimistic#lock!
+  async function lockBang(record: ModelRecord<R>): Promise<ModelRecord<R>> {
+    if (!record.persisted) return record;
+    if (record.hasChangesToSave()) {
+      throw new Error(
+        `Locking a record with unpersisted changes is not supported. Use \`save\` to persist the changes, or \`reload\` to discard them explicitly. Changed attributes: ${record
+          .changedAttributeNames()
+          .map((n) => JSON.stringify(n))
+          .join(", ")}.`,
+      );
+    }
+    return reload(record, { lock: true });
+  }
+
   return {
     definition: def,
     build,
     load,
+    reload,
+    lockBang,
+    // Locking::Pessimistic#with_lock: lock! inside a (joined) transaction.
+    withLock<T>(record: ModelRecord<R>, fn: () => Promise<T>): Promise<T> {
+      return transaction(async () => {
+        await lockBang(record);
+        return fn();
+      });
+    },
     // `valid?` outside a save still runs inside a transaction so uniqueness checks see a client.
     valid: (record: ModelRecord<R>) => transaction((tx) => valid(record, { tx })),
     save,

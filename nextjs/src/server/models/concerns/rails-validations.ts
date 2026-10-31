@@ -3,12 +3,14 @@
 import { Prisma } from "@prisma/client";
 
 import type { Callback, CallbackContext } from "../runtime/define-model.ts";
-import type { ModelRecord, Row } from "../runtime/record.ts";
+import { ASSOCIATION_CACHE, type ModelRecord, type Row } from "../runtime/record.ts";
 import { castRow, column, table } from "../sql.ts";
 
-const ASSOCIATION_CACHE = "associations";
-
 type Cached = { foreignKey: unknown; row: Row | null };
+
+export function associationCache<R extends Row>(record: ModelRecord<R>): Map<string, Cached> {
+  return cache(record);
+}
 
 function cache<R extends Row>(record: ModelRecord<R>): Map<string, Cached> {
   let entries = record.ivars[ASSOCIATION_CACHE] as Map<string, Cached> | undefined;

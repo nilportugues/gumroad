@@ -9,7 +9,7 @@
 // creating a root `user_submitted` comment, whose after_commit mails the seller (CommentMailer).
 import { type Comment, Prisma } from "@prisma/client";
 
-import { hasPaperTrail, MATERIALIZED_ATTRIBUTES } from "./concerns/paper-trail.ts";
+import { hasPaperTrail } from "./concerns/paper-trail.ts";
 import { isAdult } from "./concerns/adult-keyword-detector.ts";
 import { deletable } from "./concerns/deletable.ts";
 import { loadBelongsTo } from "./concerns/rails-validations.ts";
@@ -90,37 +90,12 @@ export function normalizeContent(text: string): string {
   return text.replace(RUBY_STRIP_LEADING, "").replace(RUBY_STRIP_TRAILING, "").replace(THREE_OR_MORE_LINEBREAKS, "$1$1");
 }
 
-// Which attributes a loaded comment's LazyAttributeSet has materialized, in order (see
-// MATERIALIZED_ATTRIBUTES): the caller's writes, then what the callbacks write or dirty-check,
-// until `_update_record` scans every attribute and fixes the order for good.
-type Materialized = { names: string[]; complete: boolean };
-
-function materialize(record: CommentRecord, name: string): void {
-  if (record.newRecord) return;
-  let state = record.ivars.materialized as Materialized | undefined;
-  if (!state) {
-    state = { names: record.changedAttributeNames(), complete: false };
-    record.ivars.materialized = state;
-  }
-  if (state.complete || state.names.includes(name)) return;
-  state.names.push(name);
-  record.ivars[MATERIALIZED_ATTRIBUTES] = state.names;
-}
-
-function completeMaterialization(record: CommentRecord): void {
-  if (record.newRecord) return;
-  (record.ivars.materialized as Materialized).complete = true;
-}
-
-const contentChanged = (record: CommentRecord) => {
-  materialize(record, "content");
-  return record.attributeChanged("content");
-};
+const contentChanged = (record: CommentRecord) => record.attributeChanged("content");
 
 function refuseUnported(record: CommentRecord): void {
-  if (record.persisted && record.attributeChanged("ancestry"))
+  if (record.persisted && record.untracked(() => record.attributeChanged("ancestry")))
     throw new NotPortedError("Moving a comment (ancestry's update_descendants_with_new_ancestry)", "ancestry 4.3.3 instance_methods.rb:9");
-  if (record.persisted && record.attributeChanged("json_data"))
+  if (record.persisted && record.untracked(() => record.attributeChanged("json_data")))
     throw new NotPortedError("Writing json_data on a stored comment (JsonData#merge_json_data_with_current_row)", "app/models/concerns/json_data.rb");
   if (record.newRecord && record.get("comment_type") === COMMENT_TYPES.USER_SUBMITTED && isRoot(record))
     throw new NotPortedError("CommentMailer.notify_seller_of_new_comment", "app/models/comment.rb:107 notify_seller_of_new_comment");
@@ -130,7 +105,6 @@ function refuseUnported(record: CommentRecord): void {
 const cacheDepth: Callback<Comment> = {
   name: "cache_depth",
   run(record) {
-    materialize(record, "ancestry_depth");
     record.set("ancestry_depth", depth(record));
   },
 };
@@ -198,10 +172,7 @@ export const Comments = defineModel<Comment>({
     { name: "refuse what is not ported", run: refuseUnported },
     {
       name: "merge_json_data_with_current_row",
-      if: (record) => {
-        materialize(record, "json_data");
-        return record.persisted && record.attributeChanged("json_data");
-      },
+      if: (record) => record.persisted && record.attributeChanged("json_data"),
       run: refuseUnported,
     },
     cacheDepth,
@@ -212,7 +183,6 @@ export const Comments = defineModel<Comment>({
         record.set("content", normalizeContent(record.get("content") ?? ""));
       },
     },
-    { name: "(ActiveRecord scans every attribute for changes)", run: completeMaterialization },
   ],
   afterCreate: [...paperTrail.afterCreate],
   afterUpdate: [...paperTrail.afterUpdate],
