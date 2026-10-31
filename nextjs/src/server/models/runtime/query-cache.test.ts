@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 
 import { sqlReplay, type Statement } from "../../../worker/jobs/__fixtures__/sql-replay.ts";
 import { execute, findInBatches, selectRows } from "../sql.ts";
+import { fenceNewsletterCutover } from "../user.ts";
 import { cache, clearQueryCache, connectedTo, queryCacheClient, SIDEKIQ_EXECUTOR, uncached, WEB_EXECUTOR, withExecutor, type Role } from "./query-cache.ts";
 import { transaction } from "./transaction.ts";
 
@@ -130,5 +131,23 @@ describe("query cache", () => {
       await client.$queryRaw(Prisma.sql`SELECT 1`);
     });
     expect(reads).toEqual(["SELECT 1", "SELECT 1"]);
+  });
+
+  // Under Puma's single pool, so that only `uncached` (not the proxy's switch to the primary) keeps
+  // the fence from reusing the earlier read.
+  it("leaves the newsletter cutover fence's reads uncached, as fence_account_change does", async () => {
+    const official = "SELECT `users`.`id` FROM `users` WHERE `users`.`external_id` = '6282492303727' LIMIT 1";
+    const sql = sqlReplay([
+      { sql: official, result: { fields: ["id"], rows: [] } },
+      { sql: "BEGIN" },
+      { sql: "SELECT `feature_announcement_newsletter_cutovers`.`seller_id` FROM `feature_announcement_newsletter_cutovers` WHERE `feature_announcement_newsletter_cutovers`.`state` != 'retired'", result: { fields: ["seller_id"], rows: [] } },
+      { sql: official, result: { fields: ["id"], rows: [] } },
+      { sql: "COMMIT" },
+    ]);
+    await withExecutor(async () => {
+      await selectRows(Prisma.raw(official));
+      await transaction((tx) => fenceNewsletterCutover(tx, ["a@example.com"]));
+    });
+    expect(sql.log).toEqual(sql.expected);
   });
 });
