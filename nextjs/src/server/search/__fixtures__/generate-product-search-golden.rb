@@ -7,10 +7,14 @@
 # (answered from the case's script by a local socket) and the Sidekiq Redis state it left.
 #
 # Each case runs with a fresh query cache, as a Sidekiq job or request does (the Rails executor
-# enables it), so a statement repeated within a case is sent once.
+# enables it), so a statement repeated within a case is sent once. Job cases run as production
+# Sidekiq runs them (scripts/golden/support/sidekiq_executor.rb).
+#
+# The factories draw emails, password hashes and encrypted columns at random, so a regeneration
+# rewrites those row values even when no statement changes.
 #
 #   # gumroad_ws37: an empty copy of gumroad_test's schema. Every table is truncated first.
-#   RAILS_ENV=test DATABASE_NAME=gumroad_ws37 TEST_DATABASE_NAME=gumroad_ws37 DISABLE_TEST_REDIS_ISOLATION=1 \
+#   USE_DB_WORKER_REPLICAS=true RAILS_ENV=test DATABASE_NAME=gumroad_ws37 TEST_DATABASE_NAME=gumroad_ws37 DISABLE_TEST_REDIS_ISOLATION=1 \
 #     REDIS_HOST=localhost:6379/13 SIDEKIQ_REDIS_HOST=localhost:6379/13 \
 #     bin/rails runner nextjs/src/server/search/__fixtures__/generate-product-search-golden.rb
 abort "Refusing to run outside the test environment" unless Rails.env.test?
@@ -20,6 +24,7 @@ abort "Refusing to flush Redis db 0" if Sidekiq.redis { _1.call("CLIENT", "INFO"
 require "factory_bot"
 require "socket"
 require "active_support/testing/time_helpers"
+require_relative "../../../../scripts/golden/support/sidekiq_executor"
 FactoryBot.definition_file_paths << Rails.root.join("spec", "support", "factories")
 FactoryBot.reload
 include FactoryBot::Syntax::Methods
@@ -151,7 +156,7 @@ ensure
 end
 
 # Runs `block` as one job or request would: a fresh query cache, nothing else captured.
-def run(name, es: [], features: [], args: nil, setup: nil)
+def run(name, es: [], features: [], args: nil, setup: nil, sidekiq: false)
   with_features(features) do
     flush_sidekiq!
     setup&.call
@@ -164,7 +169,7 @@ def run(name, es: [], features: [], args: nil, setup: nil)
     result = nil
     SqlCapture.on = true
     begin
-      result = yield
+      result = sidekiq ? SidekiqExecutor.perform { yield } : yield
     rescue StandardError => e
       error = { "class" => e.class.name, "message" => e.message }
       warn "#{name}: #{e.class}: #{e.message}\n  #{e.backtrace.first(8).join("\n  ")}" if ENV["SCRATCH"]
@@ -279,7 +284,7 @@ UNAVAILABLE = [503, { "error" => "unavailable" }].freeze
 def send_to_es(name, args, es: [], trailing: false)
   key = SendToElasticsearchWorker.trailing_key(args)
   setup = trailing ? -> { Sidekiq.redis { _1.call("SET", key, "1", "EX", 600) } } : nil
-  run(name, es:, args:, setup:) { SendToElasticsearchWorker.new.perform(*args) }.merge(trailing ? { "trailing_key" => key } : {})
+  run(name, es:, args:, setup:, sidekiq: true) { SendToElasticsearchWorker.new.perform(*args) }.merge(trailing ? { "trailing_key" => key } : {})
 end
 
 golden["jobs"] = {}
@@ -299,9 +304,9 @@ golden["jobs"]["SendToElasticsearchWorker"] = [
 
 refresh = lambda do |klass|
   [
-    run("seller with several products, one update fails", es: [UPDATED, UNAVAILABLE, UPDATED, UPDATED, UPDATED], args: [seller.id]) { klass.new.perform(seller.id) },
-    run("seller with one product", es: [UPDATED], args: [rich_seller.id]) { klass.new.perform(rich_seller.id) },
-    run("missing user", args: [9_999]) { klass.new.perform(9_999) },
+    run("seller with several products, one update fails", es: [UPDATED, UNAVAILABLE, UPDATED, UPDATED, UPDATED], sidekiq: true, args: [seller.id]) { klass.new.perform(seller.id) },
+    run("seller with one product", es: [UPDATED], sidekiq: true, args: [rich_seller.id]) { klass.new.perform(rich_seller.id) },
+    run("missing user", sidekiq: true, args: [9_999]) { klass.new.perform(9_999) },
   ]
 end
 golden["jobs"]["RefreshUserProductsRecommendationEligibilityJob"] = refresh.call(RefreshUserProductsRecommendationEligibilityJob)
@@ -313,10 +318,10 @@ ReindexRecommendableProductsWorker.send(:remove_const, :SCROLL_SIZE)
 ReindexRecommendableProductsWorker.const_set(:SCROLL_SIZE, golden["reindex_scroll_size"])
 def page(scroll_id, *ids) = [200, { "_scroll_id" => scroll_id, "hits" => { "hits" => ids.map { { "_index" => "products", "_id" => _1.to_s, "_score" => nil } } } }]
 golden["jobs"]["ReindexRecommendableProductsWorker"] = [
-  run("two pages", es: [page("s1", rich.id, plain.id), page("s2", versions.id), [200, { "succeeded" => true }]], args: []) { ReindexRecommendableProductsWorker.new.perform },
-  run("a full last page scrolls once more", es: [page("s1", rich.id, plain.id), page("s2"), [200, {}]], args: []) { ReindexRecommendableProductsWorker.new.perform },
-  run("no hits", es: [page("s0"), [200, {}]], args: []) { ReindexRecommendableProductsWorker.new.perform },
-  run("scroll fails", es: [page("s1", rich.id, plain.id), UNAVAILABLE], args: []) { ReindexRecommendableProductsWorker.new.perform },
+  run("two pages", es: [page("s1", rich.id, plain.id), page("s2", versions.id), [200, { "succeeded" => true }]], sidekiq: true, args: []) { ReindexRecommendableProductsWorker.new.perform },
+  run("a full last page scrolls once more", es: [page("s1", rich.id, plain.id), page("s2"), [200, {}]], sidekiq: true, args: []) { ReindexRecommendableProductsWorker.new.perform },
+  run("no hits", es: [page("s0"), [200, {}]], sidekiq: true, args: []) { ReindexRecommendableProductsWorker.new.perform },
+  run("scroll fails", es: [page("s1", rich.id, plain.id), UNAVAILABLE], sidekiq: true, args: []) { ReindexRecommendableProductsWorker.new.perform },
 ]
 
 # User#update_product_search_index!: Node receives the product ids, so the first statement (the

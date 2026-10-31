@@ -7,7 +7,7 @@ import { createJobsRuntime, type JobsRuntime } from "../../jobs/runtime.ts";
 import { JOB_REGISTRY } from "../../jobs/registry.generated.ts";
 import type { JobDefinition } from "../../jobs/registry-types.ts";
 import { type JsonValue, RubyFloat } from "../../jobs/sidekiq/ruby-json.ts";
-import { sequentialJids } from "../../../worker/jobs/__fixtures__/golden.ts";
+import { asSidekiqJob, sequentialJids } from "../../../worker/jobs/__fixtures__/golden.ts";
 import { sqlReplay } from "../../../worker/jobs/__fixtures__/sql-replay.ts";
 import type { JobHandler } from "../../../worker/jobs/types.ts";
 import type { SidekiqItem } from "../../jobs/sidekiq/item.ts";
@@ -107,7 +107,7 @@ export async function replayJobCase(golden: SearchCase, handler: JobHandler, opt
   const runtime = goldenSearchRuntime(sidekiq.redis, options.registry ?? JOB_REGISTRY);
   let error: { class: string; message: string } | null = null;
   try {
-    await handler(golden.args ?? [], { jid: "f".repeat(24), item: {} as SidekiqItem, attemptsMade: 0, runtime });
+    await asSidekiqJob(() => handler(golden.args ?? [], { jid: "f".repeat(24), item: {} as SidekiqItem, attemptsMade: 0, runtime }), searchGolden.now);
   } catch (e) {
     error = { class: (e as Error).name, message: (e as Error).message };
     if (process.env.DEBUG_SEARCH) console.log(e);

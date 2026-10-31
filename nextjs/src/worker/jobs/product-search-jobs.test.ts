@@ -28,7 +28,7 @@ describe.skipIf(!url)("product indexing jobs", () => {
   for (const [job, body] of Object.entries(bodies)) {
     describe(job, () => {
       for (const c of productGolden.jobs[job]!) {
-        it(c.name, () => replayProductCase(c, redis, (deps) => body(c.args, deps)));
+        it(c.name, () => replayProductCase(c, redis, (deps) => body(c.args, deps), { sidekiq: true }));
       }
     });
   }

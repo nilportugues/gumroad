@@ -15,7 +15,7 @@ import { sequentialJids } from "../../../worker/jobs/__fixtures__/golden.ts";
 import { sqlReplay, type Statement } from "../../../worker/jobs/__fixtures__/sql-replay.ts";
 import type { ProductDocumentDeps } from "../documents/product.ts";
 import { esJson } from "../es-json.ts";
-import { withExecutor } from "../../models/runtime/query-cache.ts";
+import { SIDEKIQ_EXECUTOR, WEB_EXECUTOR, withExecutor } from "../../models/runtime/query-cache.ts";
 import { esRecorder } from "./job-harness.ts";
 import type { EsRequestRecord } from "./search-golden.ts";
 
@@ -100,7 +100,7 @@ export async function replayProductCase(
   c: ProductCase,
   redis: Redis | null,
   body: (deps: ProductDocumentDeps) => Promise<JsonValue | void>,
-  options: { statements?: Statement[] } = {},
+  options: { statements?: Statement[]; sidekiq?: boolean } = {},
 ): Promise<void> {
   const statements = options.statements ?? c.statements;
   const sql = sqlReplay(statements);
@@ -114,7 +114,8 @@ export async function replayProductCase(
   let error: { class: string; message: string } | null = null;
   let result: JsonValue | void = undefined;
   try {
-    const run = () => withExecutor(() => body(goldenDeps(c)));
+    const executor = options.sidekiq ? { ...SIDEKIQ_EXECUTOR, now: () => productGolden.now * 1000 } : WEB_EXECUTOR;
+    const run = () => withExecutor(() => body(goldenDeps(c)), executor);
     result = await (runtime ? withJobsRuntime(runtime, run) : run());
   } catch (e) {
     error = { class: (e as Error).name, message: (e as Error).message };
