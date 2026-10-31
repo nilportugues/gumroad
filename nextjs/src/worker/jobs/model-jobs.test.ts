@@ -4,7 +4,18 @@
 //   JOBS_REDIS_URL=redis://127.0.0.1:6379/12 npm test
 import { Prisma } from "@prisma/client";
 import { Redis } from "ioredis";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+
+// The generator stubs `perform_async` to return nil for some cases, as a dropping client
+// middleware would; `dropped` lists the job classes whose pushes the current case drops.
+const dropped = vi.hoisted(() => new Set<string>());
+vi.mock("../../server/models/concerns/job-runtime.ts", async (importOriginal) => {
+  const original = await importOriginal<typeof import("../../server/models/concerns/job-runtime.ts")>();
+  const performAsync: typeof original.performAsync = (jobClass, args, options) =>
+    dropped.has(jobClass) ? Promise.resolve(null) : original.performAsync(jobClass, args, options);
+  return { ...original, performAsync };
+});
+const DROPPED_PUSHES: Record<string, string[]> = { "an enqueue that is dropped releases the claim": ["ScheduleWorkflowInstallmentJob"] };
 
 import { createJobsRuntime } from "../../server/jobs/runtime.ts";
 import { JOB_REGISTRY } from "../../server/jobs/registry.generated.ts";
@@ -18,6 +29,7 @@ import { blockEmailDomainsWorkerWith, blockObjectWorkerWith, unblockObjectWorker
 import { forceFinishLongRunningCommunityChatRecapRunsJobWith, triggerCommunityChatRecapRunJobWith } from "./community-chat-recap-jobs.ts";
 import { expireStampedPdfsJobWith, updateLargeSellersSalesCountJobWith } from "./large-seller-and-stamped-pdf-jobs.ts";
 import { recalculateRecentWishlistFollowerCountJobWith } from "./wishlist-jobs.ts";
+import { dispatchPendingWorkflowInstallmentScheduleIntentsJobWith } from "./dispatch-workflow-intents-job.ts";
 import { isAdult } from "../../server/models/concerns/adult-keyword-detector.ts";
 import type { JobDeps } from "./support/job-deps.ts";
 import type { JobHandler } from "./types.ts";
@@ -43,6 +55,7 @@ const PORTS: Record<string, Factory> = {
   UpdateLargeSellersSalesCountJob: (deps) => updateLargeSellersSalesCountJobWith(deps),
   ExpireStampedPdfsJob: (deps) => expireStampedPdfsJobWith(deps),
   RecalculateRecentWishlistFollowerCountJob: (deps) => recalculateRecentWishlistFollowerCountJobWith(deps),
+  DispatchPendingWorkflowInstallmentScheduleIntentsJob: (deps) => dispatchPendingWorkflowInstallmentScheduleIntentsJobWith(deps),
 };
 
 // The golden ran with every job in Ruby, so enqueues here go to Sidekiq whatever the registry says.
@@ -89,10 +102,13 @@ async function replay(name: string, c: ModelJobCase) {
   });
 
   let error: unknown = null;
+  for (const jobClass of DROPPED_PUSHES[c.name] ?? []) dropped.add(jobClass);
   try {
     await handler(c.args, contextFor(runtime));
   } catch (e) {
     error = e;
+  } finally {
+    dropped.clear();
   }
   expect(sql.log).toEqual(sql.expected);
   expect(error === null ? null : (error as Error).message).toEqual(c.error?.message ?? null);
