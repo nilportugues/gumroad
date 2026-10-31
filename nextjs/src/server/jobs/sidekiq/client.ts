@@ -5,8 +5,8 @@ import { createHash } from "node:crypto";
 
 import type { Redis } from "ioredis";
 
-import { type SidekiqItem, takesClientLock } from "./item.ts";
-import { dumpRubyJson, type JsonValue, RubyFloat, rubyFloatToS } from "./ruby-json.ts";
+import { scheduledAtToS, type SidekiqItem, takesClientLock } from "./item.ts";
+import { dumpRubyJson, type JsonValue, RubyFloat } from "./ruby-json.ts";
 import { acquireClientLock } from "./unique-lock.ts";
 
 export class UniqueJobConflictError extends Error {}
@@ -61,19 +61,35 @@ export type PushCommand = { kind: "schedule"; score: string; payload: string } |
 // What Sidekiq::Client#atomic_push writes for one item: scheduled jobs go to the `schedule` zset
 // scored by `at` (and lose `at`/`enqueued_at`), the rest get `enqueued_at` and go to their queue.
 export function sidekiqPushCommand(item: SidekiqItem, now: number): PushCommand {
-  if (item.at instanceof RubyFloat) {
+  if (Object.hasOwn(item, "at")) {
     const { at, enqueued_at: _enqueuedAt, ...payload } = item;
-    return { kind: "schedule", score: rubyFloatToS(at.value), payload: dumpRubyJson(payload) };
+    return { kind: "schedule", score: scheduledAtToS(at!), payload: dumpRubyJson(payload) };
   }
   return { kind: "queue", queue: String(item.queue), payload: dumpRubyJson({ ...item, enqueued_at: new RubyFloat(now) }) };
 }
 
 // Pushes without taking a lock: for items whose lock is already held.
 export async function rawPushToSidekiq(redis: Redis, item: SidekiqItem, now: number): Promise<void> {
-  const command = sidekiqPushCommand(item, now);
+  await rawPushAllToSidekiq(redis, [item], now);
+}
+
+// Sidekiq::Client#raw_push of several payloads in one pipeline. The first payload decides where all
+// of them go, as atomic_push checks only `payloads.first`: one ZADD, or one SADD and one LPUSH.
+export async function rawPushAllToSidekiq(redis: Redis, items: SidekiqItem[], now: number): Promise<void> {
+  if (items.length === 0) return;
   const pipeline = redis.pipeline();
-  if (command.kind === "schedule") pipeline.zadd("schedule", command.score, command.payload);
-  else pipeline.sadd("queues", command.queue).lpush(`queue:${command.queue}`, command.payload);
+  if (Object.hasOwn(items[0]!, "at")) {
+    const pairs = items.flatMap((item) => {
+      const command = sidekiqPushCommand(item, now);
+      if (command.kind !== "schedule") throw new Error(`${String(item.class)}: a bulk push mixes scheduled and immediate jobs`);
+      return [command.score, command.payload];
+    });
+    pipeline.zadd("schedule", ...pairs);
+  } else {
+    const queue = String(items[0]!.queue);
+    const payloads = items.map((item) => dumpRubyJson({ ...item, enqueued_at: new RubyFloat(now) }));
+    pipeline.sadd("queues", queue).lpush(`queue:${queue}`, ...payloads);
+  }
   const results = await pipeline.exec();
   const failed = results?.find(([error]) => error);
   if (failed) throw failed[0];
