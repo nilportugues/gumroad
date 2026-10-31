@@ -27,13 +27,23 @@ describe("premailer-rails", () => {
     });
   }
 
-  it("refuses markup libxml2 would restructure instead of guessing", () => {
-    const wrap = (body: string) =>
-      `<!DOCTYPE html><html><head><meta content="text/html; charset=UTF-8" http-equiv="Content-Type"></head><body>${body}</body></html>`;
-    expect(() => premailerRails(wrap("<p><div>x</div></p>"), () => "")).toThrow(UnsupportedHtmlError);
-    expect(() => premailerRails(wrap("<b><p>x</p></b>"), () => "")).toThrow(UnsupportedHtmlError);
-    expect(() => premailerRails(wrap("<div>x"), () => "")).toThrow(UnsupportedHtmlError);
-    expect(() => premailerRails(wrap("&copy;"), () => "")).toThrow(UnsupportedHtmlError);
+  // Recorded from Premailer::Rails::CustomizedPremailer (premailer-rails 1.12, premailer 1.29,
+  // Nokogiri 1.19.3) on the same documents.
+  const head = '<!DOCTYPE html>\n<html>\n<head><meta content="text/html; charset=UTF-8" http-equiv="Content-Type"></head>\n';
+  it.each([
+    ["<p><div>x</div></p>", "x", `${head}<body>\n<p></p>\n<div>x</div>\n</body>\n</html>\n`],
+    ["<b><p>x</p></b>", "x", `${head}<body>\n<b></b><p>x</p>\n</body>\n</html>\n`],
+    ["<div>x", "x", `${head}<body><div>x</div></body>\n</html>\n`],
+    ["&copy;", "©", `${head}<body>©</body>\n</html>\n`],
+    ["<table><td>a<p>b</table>c", "ab\n\nc", `${head}<body>\n<table><td>a<p>b</p>\n</td></table>c</body>\n</html>\n`],
+  ])("restructures %s as libxml2 does", (body, text, html) => {
+    const wrapped = `<!DOCTYPE html><html><head><meta content="text/html; charset=UTF-8" http-equiv="Content-Type"></head><body>${body}</body></html>`;
+    expect(premailerRails(wrapped, () => "")).toEqual({ text, html });
+  });
+
+  it("refuses markup inside <style> that premailer would re-parse", () => {
+    const html = `<!DOCTYPE html><html><head><meta content="text/html; charset=UTF-8" http-equiv="Content-Type"><style>p::after { content: "&" }</style></head><body></body></html>`;
+    expect(() => parseHtml(html)).toThrow(UnsupportedHtmlError);
   });
 });
 
