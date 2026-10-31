@@ -11,11 +11,11 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 import { Prisma } from "@prisma/client";
 
-import type { Callback, CallbackContext } from "../runtime/define-model";
-import type { ModelRecord, Row } from "../runtime/record";
-import { RubyHash } from "./psych";
-import { jsonFloatToS } from "./ruby-json-float";
-import { floatValue, isRubyFloat, RubyFloat, RubySymbol } from "./ruby-values";
+import type { Callback, CallbackContext } from "../runtime/define-model.ts";
+import type { ModelRecord, Row } from "../runtime/record.ts";
+import { RubyHash } from "./psych.ts";
+import { jsonFloatToS } from "./ruby-json-float.ts";
+import { floatValue, isRubyFloat, RubyFloat, RubySymbol } from "./ruby-values.ts";
 
 export type ColumnType = "integer" | "float" | "decimal" | "boolean" | "string" | "text" | "json" | "date" | "datetime";
 export type VersionEvent = "create" | "update" | "destroy";

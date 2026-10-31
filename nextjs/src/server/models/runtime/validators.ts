@@ -3,8 +3,8 @@
 // "must exist" check of a required belongs_to.
 import { Prisma } from "@prisma/client";
 
-import type { Action, Callback, CallbackContext } from "./define-model";
-import type { ModelRecord, Row } from "./record";
+import type { Action, Callback, CallbackContext } from "./define-model.ts";
+import type { ModelRecord, Row } from "./record.ts";
 
 type Common<R extends Row> = {
   on?: Action | Action[];

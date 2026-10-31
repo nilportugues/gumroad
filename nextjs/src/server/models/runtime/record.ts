@@ -2,7 +2,7 @@
 // ActiveModel::Dirty change tracking and the new/persisted/destroyed state (activerecord 8.1).
 import { Prisma } from "@prisma/client";
 
-import { Errors } from "./errors";
+import { Errors } from "./errors.ts";
 
 export type Row = Record<string, unknown>;
 export type Change = [before: unknown, after: unknown];

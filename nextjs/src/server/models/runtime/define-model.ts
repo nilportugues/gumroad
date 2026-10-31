@@ -10,9 +10,9 @@
 // run_after_transaction_callbacks_in_order_defined = false.
 import { Prisma } from "@prisma/client";
 
-import { AbortChain, RecordInvalid, RecordNotDestroyed, RecordNotSaved } from "./errors";
-import { ModelRecord, type Row } from "./record";
-import { participate, transaction, type Action, type Tx } from "./transaction";
+import { AbortChain, RecordInvalid, RecordNotDestroyed, RecordNotSaved } from "./errors.ts";
+import { ModelRecord, type Row } from "./record.ts";
+import { participate, transaction, type Action, type Tx } from "./transaction.ts";
 
 export type { Action };
 export type CallbackContext = { tx: Tx };

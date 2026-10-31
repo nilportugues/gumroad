@@ -1,8 +1,8 @@
 // Port of app/modules/deletable.rb: soft deletion through deleted_at.
 import { Prisma } from "@prisma/client";
 
-import type { ModelService, SaveOptions } from "../runtime/define-model";
-import type { ModelRecord, Row } from "../runtime/record";
+import type { ModelService, SaveOptions } from "../runtime/define-model.ts";
+import type { ModelRecord, Row } from "../runtime/record.ts";
 
 type DeletableRow = Row & { deleted_at: Date | null };
 

@@ -26,7 +26,7 @@ type State = { tx: Tx; participants: Map<object, Participant> };
 const storage = new AsyncLocalStorage<State>();
 
 let runner: TransactionRunner = async (fn) => {
-  const { db } = await import("@/lib/db");
+  const { db } = await import("../../../lib/db.ts");
   return db.$transaction(fn);
 };
 
