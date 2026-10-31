@@ -9,11 +9,42 @@
 #   cache       Rails.cache deletes and writes
 #   rows        the touched tables afterwards, for the Node run against a real database
 #   seed        the INSERTs that set the case up, so Node can start from the same rows
+#   es          with capture_elasticsearch!, every Elasticsearch request (answered 200 {})
+#   redis_before  with `setup:`, the scratch Redis the case started from
 #
 # Sidekiq-unique-jobs is switched on (the test environment turns it off) and SecureRandom.hex(12)
 # is sequential, so jids and lock digests are reproducible.
 require_relative "rails_recorder"
 require_relative "sidekiq_executor"
+require "socket"
+
+# A local socket in place of Elasticsearch: records each request and answers 200 {}.
+module EsCapture
+  class << self
+    def requests = (@requests ||= [])
+
+    def start
+      server = TCPServer.new("127.0.0.1", 0)
+      Thread.new { loop { serve(server.accept) } }
+      server.addr[1]
+    end
+
+    def serve(socket)
+      method, target = socket.gets.split(" ")
+      headers = {}
+      while (line = socket.gets) && line != "\r\n"
+        key, value = line.split(": ", 2)
+        headers[key.downcase] = value.strip
+      end
+      body = headers["content-length"] ? socket.read(headers["content-length"].to_i) : nil
+      path, query = target.split("?", 2)
+      requests << { "method" => method, "path" => path, "query" => query, "body" => body }
+      socket.write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}")
+    ensure
+      socket.close
+    end
+  end
+end
 
 module RailsCases
   include ActiveSupport::Testing::TimeHelpers
@@ -38,6 +69,17 @@ module RailsCases
 
   def redis = (@redis ||= Redis.new(url: REDIS_URL))
 
+  # Points every searchable model at EsCapture; cases then record their requests under "es".
+  def capture_elasticsearch!
+    port = EsCapture.start
+    client = Elasticsearch::Client.new(host: "http://127.0.0.1:#{port}", retry_on_failure: 5, transport_options: { request: { timeout: 15 } })
+    Object.send(:remove_const, :EsClient)
+    Object.const_set(:EsClient, client)
+    Elasticsearch::Model.client = client
+    [Link, Purchase, Installment, AudienceMember, ConfirmedFollowerEvent, ProductPageView].each { _1.__elasticsearch__.client = client }
+    @capture_es = true
+  end
+
   def quoted_insert(table, row)
     c = ActiveRecord::Base.connection
     "INSERT INTO #{c.quote_table_name(table)} (#{row.keys.map { c.quote_column_name(_1) }.join(", ")}) VALUES (#{row.values.map { c.quote(_1) }.join(", ")})"
@@ -56,16 +98,20 @@ module RailsCases
     { "fields" => result.columns, "rows" => result.rows.map { |row| row.map { RailsRecorder.encode_value(_1) } } }
   end
 
-  # Runs `block` as one case. `tables` are truncated first and dumped afterwards.
+  # Runs `block` as one case. `tables` are truncated first and dumped afterwards; `setup` runs after
+  # the Redis flush and before recording starts (Flipper gates live in that Redis).
   #
   # `sidekiq: true` runs it as production Sidekiq runs a job (sidekiq_executor.rb), query cache on; the
   # generator must then run with USE_DB_WORKER_REPLICAS=true. Otherwise it runs with the cache off,
   # as a model method called outside any executor does.
-  def capture(name, now:, tables:, seed: {}, sidekiq: false, **extra)
+  def capture(name, now:, tables:, seed: {}, setup: nil, sidekiq: false, **extra)
     seed_sql = reset(tables, seed)
     redis.flushdb
+    setup&.call
+    redis_before = setup ? snapshot_redis(redis) : nil
     Rails.cache.clear
     $jid_seq = 0
+    EsCapture.requests.clear
     error = nil
     cache = []
     subscriber = ActiveSupport::Notifications.subscribe(/\Acache_(delete|write)\.active_support\z/) do |event, *, payload|
@@ -88,6 +134,8 @@ module RailsCases
     {
       "name" => name, "seed" => seed_sql, "error" => error, "statements" => statements,
       "redis" => snapshot_redis(redis), "cache" => cache, "rows" => tables.to_h { [_1, dump(_1)] }.reject { |_, dumped| dumped["rows"].empty? }
-    }.merge(extra.transform_keys(&:to_s))
+    }.merge(@capture_es ? { "es" => EsCapture.requests.dup } : {})
+     .merge(redis_before ? { "redis_before" => redis_before } : {})
+     .merge(extra.transform_keys(&:to_s))
   end
 end

@@ -21,6 +21,14 @@ import { deliverDeviseNotification } from "../mail/devise-notification.ts";
 
 import { deletable } from "./concerns/deletable.ts";
 import { currentJobsRuntime, performAsync, performBulk } from "./concerns/job-runtime.ts";
+import {
+  jsonData as sharedJsonData,
+  jsonDataForAttr as sharedJsonDataForAttr,
+  jsonGet,
+  mergeJsonDataWithCurrentRow,
+  setJsonDataForAttr as sharedSetJsonDataForAttr,
+  toHash,
+} from "./concerns/json-data.ts";
 import { hasPaperTrail } from "./concerns/paper-trail.ts";
 import { RubyHash, type YamlValue } from "./concerns/psych.ts";
 import { isRubyFloat } from "./concerns/ruby-values.ts";
@@ -422,51 +430,17 @@ export function isBlockedUsername(username: unknown, email: string | null | unde
 // ---------------------------------------------------------------------------------------------
 // json_data (JsonData concern)
 
-type JsonDataState = { hash: RubyHash };
-const JSON_DATA = Symbol("json_data");
-
-function toHash(value: YamlValue): RubyHash | null {
-  if (value instanceof RubyHash) return value;
-  if (value !== null && typeof value === "object" && !Array.isArray(value) && !isRubyFloat(value)) return new RubyHash(Object.entries(value));
-  return null;
-}
-
-// JsonData#json_data: `self[:json_data] ||= {}`, and raises unless it is a Hash. Reading it also
-// makes Rails compare the re-serialized value with the stored text, so the attribute is rewritten
-// with the canonical JSON here; a NULL or differently formatted column then counts as changed.
+// JsonData, shared with the other models that include it.
 export function jsonData(record: UserRecord): RubyHash {
-  const ivars = record.ivars as Record<symbol, JsonDataState | undefined>;
-  let state = ivars[JSON_DATA];
-  const raw = record.get("json_data");
-  if (!state || rubyJsonGenerate(state.hash) !== raw) {
-    const parsed = raw == null ? null : rubyJsonParse(raw);
-    const hash = parsed == null ? new RubyHash([]) : toHash(parsed);
-    if (!hash) throw new Error("json_data must be a hash");
-    state = { hash };
-    ivars[JSON_DATA] = state;
-  }
-  // `self[:json_data] ||= {}` writes only when the column is nil; the rest edits the hash in place.
-  if (raw == null) record.set("json_data", rubyJsonGenerate(state.hash));
-  else record.untracked(() => record.set("json_data", rubyJsonGenerate(state.hash)));
-  return state.hash;
+  return sharedJsonData(record);
 }
 
-function jsonGet(hash: RubyHash, key: string): YamlValue | undefined {
-  return hash.entries.find(([k]) => k === key)?.[1];
-}
-
-// json_data_for_attr: the stored value when present, else the default.
 export function jsonDataForAttr(record: UserRecord, key: string, fallback: YamlValue = null): YamlValue {
-  const value = jsonGet(jsonData(record), key);
-  return value === undefined || isBlank(value) ? fallback : value;
+  return sharedJsonDataForAttr(record, key, fallback);
 }
 
 export function setJsonDataForAttr(record: UserRecord, key: string, value: YamlValue): void {
-  const hash = jsonData(record);
-  const entry = hash.entries.find(([k]) => k === key);
-  if (entry) entry[1] = value;
-  else hash.entries.push([key, value]);
-  record.untracked(() => record.set("json_data", rubyJsonGenerate(hash)));
+  sharedSetJsonDataForAttr(record, key, value);
 }
 
 const payoutFrequency = (record: UserRecord) => jsonDataForAttr(record, "payout_frequency", PAYOUT_FREQUENCIES.WEEKLY);
@@ -947,37 +921,7 @@ const REFUSE_UNPORTED_SIDE_EFFECTS: Callback<User> = {
   },
 };
 
-// JsonData#merge_json_data_with_current_row: rebase this instance's json_data delta onto the row.
-const MERGE_JSON_DATA: Callback<User> = {
-  name: "merge_json_data_with_current_row",
-  if: (r) => r.persisted && r.attributeChanged("json_data"),
-  async run(record, { tx }) {
-    const was = record.attributeInDatabase("json_data");
-    const wasParsed = was == null ? null : rubyJsonParse(was);
-    const base = toHash(wasParsed as YamlValue) ?? new RubyHash([]);
-    const mine = jsonData(record);
-    const [row] = await tx.$queryRaw<{ json_data: string | null }[]>(
-      Prisma.sql`SELECT \`users\`.\`json_data\` FROM \`users\` WHERE \`users\`.\`id\` = ${record.get("id")} LIMIT 1 FOR UPDATE`,
-    );
-    const currentText = row?.json_data ?? null;
-    const current = currentText == null ? null : rubyJsonParse(currentText);
-    if (current == null) return;
-    const merged = toHash(current) ?? new RubyHash([]);
-    const keys = [...new Set([...base.entries.map(([k]) => k as string), ...mine.entries.map(([k]) => k as string)])];
-    for (const key of keys) {
-      const b = jsonGet(base, key);
-      const m = jsonGet(mine, key);
-      if ((b === undefined) === (m === undefined) && (b === undefined || rubyJsonGenerate(b) === rubyJsonGenerate(m!))) continue;
-      const index = merged.entries.findIndex(([k]) => k === key);
-      if (m !== undefined) {
-        if (index === -1) merged.entries.push([key, m]);
-        else merged.entries[index]![1] = m;
-      } else if (index !== -1) merged.entries.splice(index, 1);
-    }
-    (record.ivars as Record<symbol, JsonDataState>)[JSON_DATA] = { hash: merged };
-    record.set("json_data", rubyJsonGenerate(merged));
-  },
-};
+const MERGE_JSON_DATA = mergeJsonDataWithCurrentRow<User>("users");
 
 const enableFlags = (name: string, flags: UserFlag[], unless?: Callback<User>["unless"]): Callback<User> => ({
   name,

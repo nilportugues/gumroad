@@ -4,6 +4,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
 import { enqueueWith, type EnqueueOptions } from "../../jobs/enqueue.ts";
+import { performBulkWith } from "../../jobs/push-bulk.ts";
 import { jobsRuntime, type JobsRuntime } from "../../jobs/runtime.ts";
 import type { JsonValue } from "../../jobs/sidekiq/ruby-json.ts";
 import { currentTransaction, participate } from "../runtime/transaction.ts";
@@ -24,15 +25,10 @@ export function performAsync(jobClass: string, args: JsonValue[], options?: Enqu
   return enqueueWith(storage.getStore() ?? jobsRuntime(), jobClass, args, options);
 }
 
-// `FooJob.perform_bulk(args_list)` (Sidekiq 7.3 push_bulk): normalize_item draws a jid it never
-// uses, even for an empty list, then every job gets its own jid and passes the client middleware.
-// One LPUSH of them all leaves Redis as one LPUSH each does, so they go through performAsync.
-export async function performBulk(jobClass: string, argsList: JsonValue[][]): Promise<(string | null)[]> {
-  const runtime = storage.getStore() ?? jobsRuntime();
-  runtime.newJid();
-  const jids: (string | null)[] = [];
-  for (const args of argsList) jids.push(await enqueueWith(runtime, jobClass, args));
-  return jids;
+// `FooJob.perform_bulk(args_list)`. Not a loop of performAsync: push_bulk's payloads carry
+// "class" before "args", perform_async's the other way round.
+export function performBulk(jobClass: string, argsList: JsonValue[][]): Promise<(string | null)[]> {
+  return performBulkWith(storage.getStore() ?? jobsRuntime(), jobClass, argsList);
 }
 
 // after_commit_everywhere 1.4: once the outermost transaction commits, or at once outside one.

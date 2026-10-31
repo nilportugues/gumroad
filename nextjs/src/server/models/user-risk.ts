@@ -2,21 +2,25 @@
 // User::Risk callbacks it runs (app/modules/user/risk.rb), on state_machines-activerecord 0.10.
 // An event runs as one transaction: before callbacks, the save, then every after callback, so
 // a callback that raises rolls the whole transition back.
-import { Prisma, type Comment, type PlatformBlock } from "@prisma/client";
+import { Prisma, type Comment, type Link, type PlatformBlock } from "@prisma/client";
 
 import { getRedis } from "../infra/redis.ts";
 
 import { afterCommitEverywhere, performAsync } from "./concerns/job-runtime.ts";
+import { setAssociation } from "./concerns/rails-validations.ts";
 import { COMMENT_TYPES, Comments } from "./comment.ts";
+import { aliveCustomDomainOf, CustomDomainDeletable } from "./custom-domain.ts";
 import { Events } from "./event.ts";
+import { bannedAtValue, Links, type LinkRecord } from "./link.ts";
+import { firstPartyMobileApplications, revokeAccessTokensFor } from "./oauth-application.ts";
 import { PlatformBlocks, unblockPlatformBlock } from "./platform-block.ts";
 import { transaction } from "./runtime/transaction.ts";
-import { castRow, column, columnIn, findInBatches, selectRows, table } from "./sql.ts";
+import { isBlank } from "./runtime/validators.ts";
+import { castRow, column, columnIn, findInBatches, quoteName, selectRows, table } from "./sql.ts";
 import {
   findUserBang,
   nameOrUsername,
   normalizeGmailAddress,
-  NotPortedError,
   RISK_STATES,
   setFlag,
   subdomain,
@@ -108,7 +112,7 @@ type Options = { now?: () => Date };
 type Transition = { event: RiskEvent; from: string | null; to: string; params: TransitionParams | undefined; now: () => Date };
 
 // Time.current.to_fs(:formatted_date_full_month): "%B %-d, %Y", and config.time_zone is UTC.
-const formattedDateFullMonth = (date: Date) => `${MONTHS[date.getUTCMonth()]} ${date.getUTCDate()}, ${date.getUTCFullYear()}`;
+export const formattedDateFullMonth = (date: Date) => `${MONTHS[date.getUTCMonth()]} ${date.getUTCDate()}, ${date.getUTCFullYear()}`;
 // String#humanize on a state name.
 const humanize = (name: string) => name.charAt(0).toUpperCase() + name.slice(1).replaceAll("_", " ");
 const firstWord = (name: string) => name.match(/^[^_]*/u)![0];
@@ -139,16 +143,10 @@ async function fire(user: UserRecord, event: RiskEvent, params: TransitionParams
     user.errors.add("user_risk_state", "invalid_transition", { message: `cannot transition via "${humanEvent}"`, event: humanEvent, state: from });
     return false;
   }
-  if ((RISK_STATES.SUSPENDED as readonly string[]).includes(to)) {
-    // invalidate_active_sessions! revokes Doorkeeper tokens, disable_links_and_tell_chat saves every
-    // product and delete_custom_domain! is unported; refusing before the transaction opens leaves
-    // none of the suspension's immediate Sidekiq pushes behind.
-    throw new NotPortedError(`User#${event}!`, "app/models/user.rb:504 after_transition any => suspended_*");
-  }
   // before_transition any => flagged/suspended, :do => :not_verified?. It is the first callback for
   // those targets and reads no rows, so halting here matches Rails' lazily-opened transaction,
   // which never sends BEGIN.
-  if (to.startsWith("flagged_") && user.get("verified")) {
+  if ((to.startsWith("flagged_") || to.startsWith("suspended_")) && user.get("verified")) {
     if (bang) throw new InvalidTransition(event, from, "Transition halted");
     return false;
   }
@@ -209,13 +207,27 @@ async function rebaseFlagsOntoLockedRow(user: UserRecord): Promise<void> {
 const SUSPENDED = RISK_STATES.SUSPENDED as readonly (string | null)[];
 const FLAGGED = RISK_STATES.FLAGGED as readonly (string | null)[];
 
-// The after_transition list of user.rb, in declaration order. The suspended targets never get
-// here (see fire).
+const SUSPEND_JOB_DELAY_SECONDS = 5;
+
+// The after_transition list of user.rb, in declaration order.
 async function runAfterCallbacks(user: UserRecord, t: Transition): Promise<void> {
   const fromSuspended = SUSPENDED.includes(t.from);
+  const toSuspended = SUSPENDED.includes(t.to);
+  if (toSuspended) {
+    await invalidateActiveSessions(user, t.now);
+    await setLinksBannedAt(user, bannedAtValue(t.now()), t.now);
+  }
   await addUserComment(user, t);
   if (t.to === "flagged_for_tos_violation") await addProductComment(user, t);
-  if (FLAGGED.includes(t.to)) await addToGmailAbuseFilter(user);
+  if (toSuspended) {
+    const id = user.get("id");
+    const delay = { delaySeconds: SUSPEND_JOB_DELAY_SECONDS };
+    if (t.params?.skip_transition_callback !== "suspend_sellers_other_accounts") await performAsync("SuspendAccountsWithPaymentAddressWorker", [id], delay);
+    await performAsync("BlockSuspendedAccountIpWorker", [id], delay);
+    await performAsync("RemoveSuspendedAccountFollowsWorker", [id], delay);
+    await deleteCustomDomain(user, t.now);
+  }
+  if (FLAGGED.includes(t.to) || toSuspended) await addToGmailAbuseFilter(user);
   if (t.to === "compliant") {
     setFlag(user, "refunds_disabled", false);
     await Users.saveBang(user, { now: t.now });
@@ -224,7 +236,7 @@ async function runAfterCallbacks(user: UserRecord, t: Transition): Promise<void>
     await afterCommitEverywhere(() => performAsync("LiftPlatformStripePauseJob", [id]));
   }
   const toCleared = t.to === "compliant" || t.to === "on_probation";
-  if (fromSuspended && toCleared) await enableLinks(user);
+  if (fromSuspended && toCleared) await setLinksBannedAt(user, null, t.now);
   if ((fromSuspended || t.from === "not_reviewed") && toCleared) await unblockSellerIp(user, t.now);
   if (fromSuspended && t.to === "compliant" && t.params?.skip_transition_callback !== "enable_sellers_other_accounts") await enableSellersOtherAccounts(user, t.now);
   if (fromSuspended && toCleared && subdomain(user)) await performAsync("CreateStripeApplePayDomainWorker", [user.get("id")]);
@@ -237,6 +249,8 @@ const COMMENT_CONTENT: Record<string, (author: string | null, date: string) => s
   on_probation: (a, d) => `Probated (payouts suspended) by ${a} on ${d}`,
   flagged_for_tos_violation: (a, d) => `Flagged for a policy violation by ${a} on ${d}`,
   flagged_for_fraud: (a, d) => `Flagged for fraud by ${a} on ${d}`,
+  suspended_for_tos_violation: (a, d) => `Suspended for a policy violation by ${a} on ${d}`,
+  suspended_for_fraud: (a, d) => `Suspended for fraud by ${a} on ${d}`,
 };
 const COMMENT_TYPE: Record<string, string> = {
   compliant: COMMENT_TYPES.COMPLIANT,
@@ -244,6 +258,8 @@ const COMMENT_TYPE: Record<string, string> = {
   on_probation: COMMENT_TYPES.ON_PROBATION,
   flagged_for_fraud: COMMENT_TYPES.FLAGGED,
   flagged_for_tos_violation: COMMENT_TYPES.FLAGGED,
+  suspended_for_fraud: COMMENT_TYPES.SUSPENDED,
+  suspended_for_tos_violation: COMMENT_TYPES.SUSPENDED,
 };
 
 async function findProductName(productId: unknown): Promise<string | null> {
@@ -306,39 +322,109 @@ async function removeFromGmailAbuseFilter(user: UserRecord): Promise<void> {
   await collaborators.srem(GMAIL_ABUSE_REDIS_KEY, normalized);
 }
 
-// SocialConnectFunnel.record_hold_released!(user, surface: "mark_compliant"). Ruby rescues every
-// StandardError here; only the refusal below escapes, since it means Node could not decide.
+// SocialConnectVerification#currently_linked?'s reads: `user.<platform>_identity` (has_one, kept
+// on the user instance once loaded).
+const IDENTITIES: Record<string, { table: string; column: string }> = {
+  youtube: { table: "user_youtube_identities", column: "channel_id" },
+  instagram: { table: "user_instagram_identities", column: "instagram_user_id" },
+  tiktok: { table: "user_tiktok_identities", column: "tiktok_open_id" },
+};
+const IDENTITY_CACHE = Symbol("identities");
+
+async function identityValue(user: UserRecord, platform: string): Promise<unknown> {
+  const ivars = user.ivars as Record<symbol, Map<string, Record<string, unknown> | null> | undefined>;
+  const cache = (ivars[IDENTITY_CACHE] ??= new Map());
+  const { table: identities, column: name } = IDENTITIES[platform]!;
+  if (!cache.has(platform)) {
+    const [row] = await selectRows<Record<string, unknown>>(
+      Prisma.sql`SELECT ${Prisma.raw(`${quoteName(identities)}.*`)} FROM ${table(identities)} WHERE ${column(identities, "user_id")} = ${user.get("id")} LIMIT 1`,
+    );
+    cache.set(platform, row ?? null);
+  }
+  return cache.get(platform)?.[name] ?? null;
+}
+
+async function currentlyLinked(user: UserRecord, verification: { platform: string | null; uid: unknown; superseded_at: unknown }): Promise<boolean> {
+  if (verification.superseded_at != null) return false;
+  const platform = verification.platform ?? "";
+  let value: unknown;
+  if (platform === "twitter") value = user.get("twitter_user_id");
+  else if (platform in IDENTITIES) value = await identityValue(user, platform);
+  else return false;
+  return !isBlank(value) && String(value) === String(verification.uid ?? "");
+}
+
+// SocialConnectFunnel.record_hold_released!(user, surface: "mark_compliant"), which rescues and
+// logs every StandardError, as SocialConnectFunnel.record! does for each event.
 async function recordSocialConnectHoldReleased(user: UserRecord, now: () => Date): Promise<void> {
   const userId = user.get("id");
   const surface = "mark_compliant";
-  const [offer] = await selectRows<Record<string, Date | null>>(
-    Prisma.sql`SELECT MAX(${column("events", "created_at")}) FROM ${table("events")} WHERE ${column("events", "user_id")} = ${userId} AND ${column("events", "event_name")} = 'social_connect_offered'`,
-  );
-  const verifications = await selectRows(
-    Prisma.sql`SELECT ${Prisma.raw("`social_connect_verifications`.*")} FROM ${table("social_connect_verifications")} WHERE ${column("social_connect_verifications", "user_id")} = ${userId} AND ${column("social_connect_verifications", "superseded_at")} IS NULL`,
-  );
-  if (verifications.length > 0) {
-    // currently_linked? reads the YouTube/Instagram/TikTok identity tables.
-    throw new NotPortedError("SocialConnectVerification#currently_linked?", "app/models/social_connect_verification.rb:28");
-  }
+  const log = (error: unknown, what = "hold_released") =>
+    console.error(`SocialConnectFunnel ${what} failed for user ${String(userId)}: ${(error as Error).name}: ${(error as Error).message}`);
   try {
-    const provider = "none";
+    const [offer] = await selectRows<Record<string, Date | null>>(
+      Prisma.sql`SELECT MAX(${column("events", "created_at")}) FROM ${table("events")} WHERE ${column("events", "user_id")} = ${userId} AND ${column("events", "event_name")} = 'social_connect_offered'`,
+    );
+    const verifications = await selectRows<{ platform: string | null; uid: unknown; superseded_at: unknown }>(
+      Prisma.sql`SELECT ${Prisma.raw("`social_connect_verifications`.*")} FROM ${table("social_connect_verifications")} WHERE ${column("social_connect_verifications", "user_id")} = ${userId} AND ${column("social_connect_verifications", "superseded_at")} IS NULL`,
+    );
+    const linked: string[] = [];
+    for (const verification of verifications) {
+      if ((await currentlyLinked(user, verification)) && !linked.includes(verification.platform!)) linked.push(verification.platform!);
+    }
     const lastOfferAt = offer ? (Object.values(offer)[0] ?? null) : null;
     const since = lastOfferAt ? Prisma.sql` AND (created_at >= ${lastOfferAt})` : Prisma.empty;
-    const [exists] = await selectRows(
-      Prisma.sql`SELECT 1 AS one FROM ${table("events")} WHERE ${column("events", "user_id")} = ${userId} AND ${column("events", "event_name")} = 'social_connect_hold_released' AND ${column("events", "parent_referrer")} = ${provider} AND ${column("events", "view_url")} = ${surface}${since} LIMIT 1`,
-    );
-    if (exists) return;
-    await Events.createBang({ event_name: "social_connect_hold_released", user_id: BigInt(userId as bigint), parent_referrer: provider, view_url: surface, referrer: null } as never, { now });
+    for (const provider of linked.length === 0 ? ["none"] : linked) {
+      const [exists] = await selectRows(
+        Prisma.sql`SELECT 1 AS one FROM ${table("events")} WHERE ${column("events", "user_id")} = ${userId} AND ${column("events", "event_name")} = 'social_connect_hold_released' AND ${column("events", "parent_referrer")} = ${provider} AND ${column("events", "view_url")} = ${surface}${since} LIMIT 1`,
+      );
+      if (exists) continue;
+      try {
+        await Events.createBang({ event_name: "social_connect_hold_released", user_id: BigInt(userId as bigint), parent_referrer: provider, view_url: surface, referrer: null } as never, { now });
+      } catch (error) {
+        log(error, `hold_released/${provider}`);
+      }
+    }
   } catch (error) {
-    if (error instanceof NotPortedError) throw error;
-    console.error(`SocialConnectFunnel hold_released failed for user ${String(userId)}: ${(error as Error).name}: ${(error as Error).message}`);
+    log(error);
   }
 }
 
-async function enableLinks(user: UserRecord): Promise<void> {
-  const links = await selectRows(Prisma.sql`SELECT ${Prisma.raw("`links`.*")} FROM ${table("links")} WHERE ${column("links", "user_id")} = ${user.get("id")}`);
-  if (links.length > 0) throw new NotPortedError("Link#update(banned_at: nil)", "app/modules/user/risk.rb enable_links_and_tell_chat");
+// invalidate_active_sessions!
+async function invalidateActiveSessions(user: UserRecord, now: () => Date): Promise<void> {
+  await Users.updateBang(user, { last_active_sessions_invalidated_at: new Date(Math.floor(now().getTime() / 1000) * 1000) }, { now });
+  for (const application of await firstPartyMobileApplications()) await revokeAccessTokensFor(application, user.get("id"), now);
+}
+
+const LINKS = Symbol("links");
+
+// `user.links`: loaded once per user instance, each product with the user as its inverse.
+async function userLinks(user: UserRecord): Promise<LinkRecord[]> {
+  const ivars = user.ivars as Record<symbol, LinkRecord[] | undefined>;
+  if (ivars[LINKS]) return ivars[LINKS];
+  const rows = await selectRows(Prisma.sql`SELECT ${Prisma.raw("`links`.*")} FROM ${table("links")} WHERE ${column("links", "user_id")} = ${user.get("id")}`);
+  const links = rows.map((row) => {
+    const link = Links.load(castRow<Link>("Link", row));
+    // Setting the inverse reads the foreign key, which PaperTrail's object order then shows.
+    link.attributeChanged("user_id");
+    setAssociation(link, "user", link.get("user_id"), user.attributes);
+    return link;
+  });
+  ivars[LINKS] = links;
+  return links;
+}
+
+// disable_links_and_tell_chat / enable_links_and_tell_chat: `link.update(banned_at:)`, whose
+// false return (an invalid product) is ignored.
+async function setLinksBannedAt(user: UserRecord, bannedAt: Date | null, now: () => Date): Promise<void> {
+  for (const link of await userLinks(user)) await Links.update(link, { banned_at: bannedAt }, { now });
+}
+
+// delete_custom_domain!
+async function deleteCustomDomain(user: UserRecord, now: () => Date): Promise<void> {
+  const domain = await aliveCustomDomainOf(user.get("id"), user.attributes);
+  if (domain === null) return;
+  await CustomDomainDeletable.markDeletedBang(domain, { now });
 }
 
 async function unblockSellerIp(user: UserRecord, now: () => Date): Promise<void> {

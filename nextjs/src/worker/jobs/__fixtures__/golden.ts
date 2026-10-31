@@ -59,6 +59,7 @@ export function contextFor(runtime: JobsRuntime): JobContext {
 export function recordingSidekiqRedis(): { redis: Redis; snapshot(): RedisSnapshot } {
   const lists = new Map<string, string[]>();
   const sets = new Map<string, Set<string>>();
+  const zsets = new Map<string, Map<string, number>>();
   const pipeline = () => {
     const ops: (() => void)[] = [];
     const chain = {
@@ -75,6 +76,10 @@ export function recordingSidekiqRedis(): { redis: Redis; snapshot(): RedisSnapsh
       },
       lpush(key: string, value: string) {
         ops.push(() => lists.set(key, [value, ...(lists.get(key) ?? [])]));
+        return chain;
+      },
+      zadd(key: string, score: number | string, member: string) {
+        ops.push(() => zsets.set(key, (zsets.get(key) ?? new Map()).set(member, Number(score))));
         return chain;
       },
       async exec() {
@@ -98,6 +103,7 @@ export function recordingSidekiqRedis(): { redis: Redis; snapshot(): RedisSnapsh
     const result: RedisSnapshot = {};
     for (const [key, value] of lists) result[key] = { type: "list", value, expires: false };
     for (const [key, value] of sets) result[key] = { type: "set", value: [...value].sort(), expires: false };
+    for (const [key, value] of zsets) result[key] = { type: "zset", value: [...value].sort((a, b) => a[1] - b[1] || (a[0] < b[0] ? -1 : 1)), expires: false };
     return Object.fromEntries(Object.entries(result).sort(([a], [b]) => (a < b ? -1 : 1)));
   };
   return { redis, snapshot };
