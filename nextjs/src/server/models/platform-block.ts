@@ -3,6 +3,7 @@
 import { Prisma, type PlatformBlock } from "@prisma/client";
 
 import { afterCommitEverywhere, performAsync } from "./concerns/job-runtime.ts";
+import { advance, type Duration } from "./concerns/ruby-time.ts";
 import { isBlank, validatesInclusionOf } from "./runtime/validators.ts";
 import { defineModel } from "./runtime/define-model.ts";
 import type { ModelRecord } from "./runtime/record.ts";
@@ -80,10 +81,16 @@ async function createOrFindByBang(objectType: string | null, objectValue: string
 
 // `PlatformBlock.add!`. `objectType` is nil when a caller passed an unknown type key.
 export async function addPlatformBlock(
-  { objectType, objectValue, by = null, expiresInSeconds = null }: { objectType: string | null; objectValue: string; by?: unknown; expiresInSeconds?: number | null },
+  {
+    objectType,
+    objectValue,
+    by = null,
+    expiresInSeconds = null,
+    expiresIn = null,
+  }: { objectType: string | null; objectValue: string; by?: unknown; expiresInSeconds?: number | null; expiresIn?: Duration | null },
   now: () => Date = () => new Date(),
 ): Promise<ModelRecord<PlatformBlock>> {
-  if (String(objectType ?? "") === PLATFORM_BLOCK_TYPES.ip_address && isBlank(expiresInSeconds)) {
+  if (String(objectType ?? "") === PLATFORM_BLOCK_TYPES.ip_address && isBlank(expiresInSeconds) && !expiresIn) {
     throw new ArgumentError("expires_in is required when blocking an ip_address");
   }
   const at = now();
@@ -93,7 +100,8 @@ export async function addPlatformBlock(
     {
       blocked_at: at,
       blocked_by: by == null ? null : BigInt(by as number),
-      expires_at: isBlank(expiresInSeconds) ? null : new Date(at.getTime() + Number(expiresInSeconds) * 1000),
+      // A calendar Duration (`6.months`) advances the date; a bare number of seconds adds them.
+      expires_at: expiresIn ? advance(at, expiresIn) : isBlank(expiresInSeconds) ? null : new Date(at.getTime() + Number(expiresInSeconds) * 1000),
     },
     { now },
   );

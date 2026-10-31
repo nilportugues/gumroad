@@ -116,6 +116,16 @@ export class RecordNotDestroyed extends Error {
   }
 }
 
+// ActiveRecord::RecordNotFound.
+export class RecordNotFound extends Error {
+  readonly rubyClass = "ActiveRecord::RecordNotFound";
+
+  constructor(message: string) {
+    super(message);
+    this.name = "RecordNotFound";
+  }
+}
+
 // `throw :abort` inside a before_* callback.
 export class AbortChain extends Error {
   constructor() {

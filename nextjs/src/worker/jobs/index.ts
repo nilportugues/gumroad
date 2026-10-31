@@ -28,6 +28,8 @@ import {
   syncStripeBusinessProfileUrlJob,
 } from "./stripe-jobs.ts";
 import { blockEmailDomainsWorker, blockObjectWorker, unblockObjectWorker } from "./platform-block-jobs.ts";
+import { blockSuspendedAccountIpWorker, checkPaymentAddressWorker } from "./risk-jobs.ts";
+import { liftPlatformStripePauseJob, liftPlatformStripePauseJobRetriesExhausted, liftPlatformStripePauseJobRetryIn } from "./lift-platform-stripe-pause-job.ts";
 import { alertOnStalledAbandonedCartEmailsJob, buildTaxRateCacheWorker, recoverAusBacktaxesFromStripeAccountsJob } from "./scheduled-check-jobs.ts";
 import { syncStripeBusinessProfileUrlWorker } from "./sync-stripe-business-profile-url-worker.ts";
 import { updateCurrenciesWorker } from "./update-currencies-worker.ts";
@@ -41,7 +43,9 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   BackfillMerchantAccountRecommendationEligibilityJob: backfillMerchantAccountRecommendationEligibilityJob,
   BlockEmailDomainsWorker: blockEmailDomainsWorker,
   BlockObjectWorker: blockObjectWorker,
+  BlockSuspendedAccountIpWorker: blockSuspendedAccountIpWorker,
   BuildTaxRateCacheWorker: buildTaxRateCacheWorker,
+  CheckPaymentAddressWorker: checkPaymentAddressWorker,
   ContentModerationAdminCommentJob: contentModerationAdminCommentJob,
   CreateStripeApplePayDomainWorker: createStripeApplePayDomainWorker,
   DeleteExpiredProductCachedValuesWorker: deleteExpiredProductCachedValuesWorker,
@@ -60,6 +64,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   ExpireStampedPdfsJob: expireStampedPdfsJob,
   ForceFinishLongRunningCommunityChatRecapRunsJob: forceFinishLongRunningCommunityChatRecapRunsJob,
   HandleSnsAwsConfigEventWorker: handleSnsAwsConfigEventWorker,
+  LiftPlatformStripePauseJob: liftPlatformStripePauseJob,
   LogResendEventJob: logResendEventJob,
   LogSendgridEventWorker: logSendgridEventWorker,
   SellerUpdatesWorker: sellerUpdatesWorker,
@@ -83,8 +88,11 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
 
 // `sidekiq_retry_in` and `sidekiq_retries_exhausted` blocks of ported jobs, keyed by Ruby class name.
 // The worker refuses to start when a ported job defines one in Ruby and has none here.
-export const JOB_RETRY_IN: Record<string, RetryIn> = {};
+export const JOB_RETRY_IN: Record<string, RetryIn> = {
+  LiftPlatformStripePauseJob: liftPlatformStripePauseJobRetryIn,
+};
 
 export const JOB_RETRIES_EXHAUSTED: Record<string, RetriesExhausted> = {
   CreateStripeApplePayDomainWorker: createStripeApplePayDomainWorkerRetriesExhausted,
+  LiftPlatformStripePauseJob: liftPlatformStripePauseJobRetriesExhausted,
 };

@@ -334,7 +334,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "BuildTaxRateCacheWorker": {
     "file": "app/sidekiq/build_tax_rate_cache_worker.rb",
@@ -468,7 +468,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "CollectUnclaimedBalancesOfInactiveStripeAccountsJob": {
     "file": "app/sidekiq/collect_unclaimed_balances_of_inactive_stripe_accounts_job.rb",
@@ -1669,7 +1669,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": true,
     "retriesExhausted": true,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "LogResendEventJob": {
     "file": "app/sidekiq/log_resend_event_job.rb",

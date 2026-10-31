@@ -15,6 +15,7 @@ import { withJobsRuntime } from "./concerns/job-runtime.ts";
 import { RubyHash, type YamlValue } from "./concerns/psych.ts";
 import { rubyJsonParse } from "./concerns/serialized-columns.ts";
 import { currentTransaction, setTransactionRunner, type Tx } from "./runtime/transaction.ts";
+import { setSqlClient } from "./sql.ts";
 import {
   isBlockedUsername,
   isDisposableEmail,
@@ -140,11 +141,15 @@ let enqueued: Enqueued[];
 
 beforeEach(() => {
   db = new FakeMysql();
+  setSqlClient(() => db.tx as never);
   enqueued = [];
   setUserCollaborators({
     enqueue: async (jobClass, args, options) => {
       enqueued.push({ jobClass, args, ...(options ? { options } : {}), inTransaction: currentTransaction() !== null });
       return "jid";
+    },
+    enqueueBulk: async (jobClass, argsList) => {
+      for (const args of argsList) enqueued.push({ jobClass, args, inTransaction: currentTransaction() !== null });
     },
     sismember: async (_, member) => (golden.gmail_abuse.includes(member) ? 1 : 0),
     isFeatureEnabled: async () => false,
@@ -410,7 +415,8 @@ describe("Users.save on an existing seller", () => {
   });
 
   it("hands the seller's products to the product index update", async () => {
-    db.on(/SELECT `links`.`id` FROM `links`/u, () => [{ id: 11n }]);
+    // products.find_each
+    db.on(/SELECT `links`.\* FROM `links`/u, () => [{ id: 11n }]);
     const updates: [bigint[], string[]][] = [];
     setUserCollaborators({ enqueueProductIndexUpdates: async (_user, ids, changeList) => void updates.push([ids, changeList]) });
     const user = existingSeller();

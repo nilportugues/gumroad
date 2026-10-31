@@ -65,6 +65,11 @@ needs a scratch Redis database for the unique-jobs locks. So do `generate-commen
 `generate-reputation-golden.rb` (Flipper, $redis and a MemCacheStore over a fake Dalli server), and
 `scripts/golden/rails-cache.rb` (`src/server/cache/__fixtures__/rails-cache.golden.json`).
 
+`scripts/golden/user-writes.rb`, `risk-jobs.rb` and `lift-platform-stripe-pause.rb` boot the whole app
+with `rails runner` against a scratch database and Redis db (see `user-writes.rb`'s header): they
+truncate and seed the tables a case uses, run the real model or job, and record every statement and
+its answer with `support/rails_recorder.rb`. They record with the query cache off (see below).
+
 ## Known gaps
 
 - Record attributes are not type-cast on assignment. Code that sets a datetime must truncate it to the
@@ -74,9 +79,15 @@ needs a scratch Redis database for the unique-jobs locks. So do `generate-commen
 - No `touch`, so `has_paper_trail`'s `on_touch` callback is not ported.
 - `json_data` accessors (`attr_json_data_accessor`) and `stripped_fields` are not ported yet.
 - PaperTrail's `object` on an update lists the attributes ActiveModel's LazyAttributeSet had
-  materialized (written or dirty-checked) first, then the rest in column order. Only models that
-  record that order in `ivars[MATERIALIZED_ATTRIBUTES]` (so far `comment.ts`) match Rails; the others
-  write column order, which differs from Rails for updates of loaded records.
+  materialized (written or dirty-checked) first, then the rest in column order. `Record` tracks that
+  order for every model; reads a callback makes only to decide something Rails decides without
+  touching the attribute belong in `record.untracked(...)`.
+- No query cache. Sidekiq runs Rails jobs inside the executor, which enables ActiveRecord's query
+  cache (and `lib/mysql2_proxy_routing.rb` clears it whenever the serving pool changes), so Rails
+  skips a SELECT it already ran since the last write. Node sends it again: same answers, extra reads.
+  The goldens record with `ActiveRecord::Base.uncached` to match.
+- Transactions are Prisma interactive transactions, whose default timeout is 5 seconds; Rails has
+  none. A long risk transition (cascading sibling releases) can hit it.
 
 ### `Comment` (`comment.ts`)
 
@@ -114,21 +125,20 @@ write when they would run after commit):
 
 Still Ruby-only on `User`:
 
-- Both state machines: `user_risk_state` (user.rb:497-563, transitions and their 20 callbacks into
-  Risk, comments, IP blocks, Gmail abuse filter, sessions, custom domains) and `tier_state`
-  (user.rb:565-590). Only the predicates (`isSuspended`, `isFlagged`, ...) are ported.
-- Avatar: `has_one_attached :avatar` with `set_avatar_changed` (user.rb:212-215) and
-  `validate :avatar_is_valid` (user.rb:377). Node attaches no files, so both are no-ops here.
-- `seller_profile.saved_changes` in the `clear_products_cache` and `generate_subscribe_preview`
-  conditions (user.rb:483, 2011): callers pass them as `ivars.seller_profile_saved_changes`. Rails'
-  `seller_profile` also builds an unsaved profile there, which a later save of the same instance
-  inserts; that is not reproduced.
-- `perform_bulk` in `clear_products_cache` enqueues one job per product rather than one push, so
-  the jobs' `created_at` can differ by milliseconds.
+- `user_risk_state` (`user-risk.ts`, golden `__fixtures__/user-writes.golden.json`) is ported except
+  for the suspending events: `suspend_for_fraud!`/`suspend_for_tos_violation!` throw
+  `NotPortedError` before any SQL (`invalidate_active_sessions!` revokes Doorkeeper tokens,
+  `disable_links_and_tell_chat` saves products, `delete_custom_domain!`). A transition also refuses
+  inside its transaction, which rolls it back, when clearing a suspension would unban products
+  (`enable_links_and_tell_chat` with products) and when the seller has current
+  `social_connect_verifications` (`currently_linked?` reads the identity tables).
+- `tier_state` (user.rb:565-590).
+- Avatar: `has_one_attached :avatar` with `set_avatar_changed` (user.rb:212-215). Node attaches no
+  files; `validate :avatar_is_valid` only runs its attachment read.
 - `json_data` values compare by their JSON text in the merge, where Ruby compares values (1 vs 1.0).
 - Instance methods beyond the ones jobs need: the payout, balance, stats, tax, compliance,
   team, social login, avatar URL and communities methods (user.rb:247-1760 and app/modules/user).
-  `deactivate!`, `invalidate_active_sessions!`, `with_lock` and the risk transitions in particular.
+  `deactivate!` and `invalidate_active_sessions!` in particular.
 - `Mail::Address#domain` is reproduced for addresses EMAIL_REGEX accepts and `Name <addr>`; other
   shapes follow the golden vectors only.
 

@@ -5,6 +5,9 @@ import { Prisma } from "@prisma/client";
 import { Errors } from "./errors.ts";
 
 export type Row = Record<string, unknown>;
+
+// The ivar holding loaded associations (@association_cache), which reload discards.
+export const ASSOCIATION_CACHE = "associations";
 export type Change = [before: unknown, after: unknown];
 
 // Rails compares type-cast values, so a Date or Decimal with the same value is not a change.
@@ -28,11 +31,64 @@ export class ModelRecord<R extends Row = Row> {
   readonly ivars: Record<string, unknown> = {};
   #attributes: R;
   #inDatabase: R;
+  // ActiveModel::LazyAttributeSet: a loaded record materializes an attribute when it is written or
+  // dirty-checked (a plain read does not), and changes_applied fixes that order for good. It is the
+  // order of `attributes` after a save, so PaperTrail's `object` follows it. A new record's
+  // attributes come from the column defaults, already in column order.
+  #order: string[];
+  #lazy: boolean;
+  #untracked = 0;
 
   constructor(attributes: R, options: { newRecord: boolean; inDatabase?: R }) {
     this.#attributes = { ...attributes };
     this.#inDatabase = { ...(options.inDatabase ?? attributes) };
     this.newRecord = options.newRecord;
+    this.#lazy = !options.newRecord;
+    this.#order = this.#lazy ? [] : Object.keys(attributes);
+  }
+
+  #touch(name: string): void {
+    if (this.#lazy && this.#untracked === 0 && !this.#order.includes(name)) this.#order.push(name);
+  }
+
+  // Anything that calls `attributes.keys` (has_changes_to_save?, changed, changes) touches every
+  // attribute in column order.
+  materializeAll(): void {
+    if (!this.#lazy || this.#untracked > 0) return;
+    for (const name of Object.keys(this.#attributes)) if (!this.#order.includes(name)) this.#order.push(name);
+  }
+
+  // The order `attributes` returns: a lazy set still answers in column order.
+  attributeOrder(): string[] {
+    return this.#lazy ? Object.keys(this.#attributes) : [...this.#order, ...Object.keys(this.#attributes).filter((k) => !this.#order.includes(k))];
+  }
+
+  // Checks the port makes that Ruby does not (guards for unported work, assertions), so they must
+  // not materialize anything.
+  untracked<T>(fn: () => T): T {
+    this.#untracked++;
+    try {
+      return fn();
+    } finally {
+      this.#untracked--;
+    }
+  }
+
+  // `reload`: a fresh LazyAttributeSet from the row, as `find` returns it.
+  replaceFromDatabase(row: R): void {
+    this.#attributes = { ...row };
+    this.#inDatabase = { ...row };
+    this.newRecord = false;
+    this.#lazy = true;
+    this.#order = [];
+  }
+
+  // clear_attribute_changes: the current values become the database values.
+  clearAttributeChanges(names: (keyof R & string)[]): void {
+    for (const name of names) {
+      this.#touch(name);
+      this.#inDatabase[name] = this.#attributes[name];
+    }
   }
 
   get attributes(): Readonly<R> {
@@ -44,11 +100,12 @@ export class ModelRecord<R extends Row = Row> {
   }
 
   set<K extends keyof R & string>(name: K, value: R[K]): void {
+    this.#touch(name);
     this.#attributes[name] = value;
   }
 
   assign(values: Partial<R>): void {
-    for (const [k, v] of Object.entries(values)) this.#attributes[k as keyof R] = v as R[keyof R];
+    for (const [k, v] of Object.entries(values)) this.set(k as keyof R & string, v as R[keyof R & string]);
   }
 
   get persisted(): boolean {
@@ -56,15 +113,18 @@ export class ModelRecord<R extends Row = Row> {
   }
 
   attributeInDatabase<K extends keyof R & string>(name: K): R[K] {
+    this.#touch(name);
     return this.#inDatabase[name];
   }
 
   // `<attr>_was`: for a new record every attribute "was" its default, as in Rails.
   attributeWas<K extends keyof R & string>(name: K): R[K] {
+    this.#touch(name);
     return this.#inDatabase[name];
   }
 
   attributeChanged(name: keyof R & string, opts: { from?: unknown; to?: unknown } = {}): boolean {
+    this.#touch(name);
     const was = this.#inDatabase[name];
     const now = this.#attributes[name];
     if (sameValue(was, now)) return false;
@@ -75,6 +135,7 @@ export class ModelRecord<R extends Row = Row> {
 
   // Column order, as ActiveModel::AttributeMutationTracker#changed_attribute_names returns them.
   changedAttributeNames(): (keyof R & string)[] {
+    this.materializeAll();
     return (Object.keys(this.#attributes) as (keyof R & string)[]).filter((k) => this.attributeChanged(k));
   }
 
@@ -105,6 +166,8 @@ export class ModelRecord<R extends Row = Row> {
   changesApplied(): void {
     this.savedChanges = this.changes();
     this.#inDatabase = { ...this.#attributes };
+    this.#order = [...this.#order, ...Object.keys(this.#attributes).filter((k) => !this.#order.includes(k))];
+    this.#lazy = false;
   }
 
   // Replaces attributes with what the database returned (e.g. the autoincrement id).
