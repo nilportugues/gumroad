@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "spec": "spec/controllers/healthcheck_controller_spec.rb",
+  "example": "HealthcheckController GET 'payouts' when a stale entry sits alongside a fresh one returns 503 and prunes only the stale entry",
+  "sessionCookie": "_gumroad_app_session_test",
+  "exchanges": [
+    {
+      "seed": {
+        "tables": {},
+        "autoIncrement": {}
+      },
+      "request": {
+        "source": "controller",
+        "method": "GET",
+        "path": "/healthcheck/payouts",
+        "headers": {
+          "host": "app.test.gumroad.com:31337",
+          "user-agent": "Rails Testing"
+        },
+        "remoteIp": "0.0.0.0"
+      },
+      "response": {
+        "status": 503,
+        "headers": {
+          "content-type": "text/plain; charset=utf-8",
+          "x-gr": "DEV",
+          "x-revision": "no-revision"
+        },
+        "cookies": {
+          "_gumroad_guid": {
+            "value": "baf89c44-b8eb-4631-8c39-fd9df7b0469f",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          }
+        },
+        "body": "Payouts: batch in flight"
+      },
+      "db": {},
+      "jobs": [],
+      "mails": [],
+      "http": []
+    }
+  ]
+}
