@@ -4,6 +4,7 @@
 // this list has no handler in src/worker/jobs.
 export const PORTED_JOBS: readonly string[] = [
   "AlertOnStalledAbandonedCartEmailsJob",
+  "BackfillMerchantAccountRecommendationEligibilityJob",
   "BlockEmailDomainsWorker",
   "BlockObjectWorker",
   "BuildTaxRateCacheWorker",
@@ -17,6 +18,7 @@ export const PORTED_JOBS: readonly string[] = [
   "DeleteProcessedWorkflowInstallmentScheduleIntentsJob",
   "DetectLegalEntityCountryDriftJob",
   "DispatchPendingWorkflowInstallmentScheduleIntentsJob",
+  "ElasticsearchIndexerWorker",
   "EnqueueMarketingXReconnectEmailJob",
   "ExpireStampedPdfsJob",
   "ForceFinishLongRunningCommunityChatRecapRunsJob",
@@ -26,6 +28,7 @@ export const PORTED_JOBS: readonly string[] = [
   "SellerUpdatesWorker",
   "RecalculateRecentWishlistFollowerCountJob",
   "RecoverAusBacktaxesFromStripeAccountsJob",
+  "ReindexSubscriptionCurrentEmailWorker",
   "ReleaseChargebackRatePayoutPausesJob",
   "SyncStripeBusinessProfileUrlWorker",
   "TriggerCommunityChatRecapRunJob",

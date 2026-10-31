@@ -5,11 +5,13 @@ import { forceFinishLongRunningCommunityChatRecapRunsJob, triggerCommunityChatRe
 import { deleteOldPingDeliveriesJob, deleteOldProcessedStripeEventsJob, deleteOldSentEmailInfoRecordsJob } from "./delete-old-records-jobs.ts";
 import { deleteOldVersionsRecordsWorker } from "./delete-old-versions-records-worker.ts";
 import { dispatchPendingWorkflowInstallmentScheduleIntentsJob } from "./dispatch-workflow-intents-job.ts";
+import { elasticsearchIndexerWorker } from "./elasticsearch-indexer-worker.ts";
 import { enqueueMarketingXReconnectEmailJob } from "./enqueue-marketing-x-reconnect-email-job.ts";
 import { handleSnsAwsConfigEventWorker } from "./handle-sns-aws-config-event-worker.ts";
 import { expireStampedPdfsJob, updateLargeSellersSalesCountJob } from "./large-seller-and-stamped-pdf-jobs.ts";
 import { logResendEventJob } from "./log-resend-event-job.ts";
 import { logSendgridEventWorker } from "./log-sendgrid-event-worker.ts";
+import { backfillMerchantAccountRecommendationEligibilityJob, reindexSubscriptionCurrentEmailWorker } from "./search-reindex-jobs.ts";
 import { sellerUpdatesWorker } from "./seller-updates-worker.ts";
 import { blockEmailDomainsWorker, blockObjectWorker, unblockObjectWorker } from "./platform-block-jobs.ts";
 import { alertOnStalledAbandonedCartEmailsJob, buildTaxRateCacheWorker, recoverAusBacktaxesFromStripeAccountsJob } from "./scheduled-check-jobs.ts";
@@ -21,6 +23,7 @@ import type { JobHandler } from "./types.ts";
 
 export const JOB_HANDLERS: Record<string, JobHandler> = {
   AlertOnStalledAbandonedCartEmailsJob: alertOnStalledAbandonedCartEmailsJob,
+  BackfillMerchantAccountRecommendationEligibilityJob: backfillMerchantAccountRecommendationEligibilityJob,
   BlockEmailDomainsWorker: blockEmailDomainsWorker,
   BlockObjectWorker: blockObjectWorker,
   BuildTaxRateCacheWorker: buildTaxRateCacheWorker,
@@ -34,6 +37,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   DeleteProcessedWorkflowInstallmentScheduleIntentsJob: deleteProcessedWorkflowInstallmentScheduleIntentsJob,
   DetectLegalEntityCountryDriftJob: detectLegalEntityCountryDriftJob,
   DispatchPendingWorkflowInstallmentScheduleIntentsJob: dispatchPendingWorkflowInstallmentScheduleIntentsJob,
+  ElasticsearchIndexerWorker: elasticsearchIndexerWorker,
   EnqueueMarketingXReconnectEmailJob: enqueueMarketingXReconnectEmailJob,
   ExpireStampedPdfsJob: expireStampedPdfsJob,
   ForceFinishLongRunningCommunityChatRecapRunsJob: forceFinishLongRunningCommunityChatRecapRunsJob,
@@ -43,6 +47,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   SellerUpdatesWorker: sellerUpdatesWorker,
   RecalculateRecentWishlistFollowerCountJob: recalculateRecentWishlistFollowerCountJob,
   RecoverAusBacktaxesFromStripeAccountsJob: recoverAusBacktaxesFromStripeAccountsJob,
+  ReindexSubscriptionCurrentEmailWorker: reindexSubscriptionCurrentEmailWorker,
   ReleaseChargebackRatePayoutPausesJob: releaseChargebackRatePayoutPausesJob,
   SyncStripeBusinessProfileUrlWorker: syncStripeBusinessProfileUrlWorker,
   TriggerCommunityChatRecapRunJob: triggerCommunityChatRecapRunJob,

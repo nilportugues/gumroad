@@ -247,7 +247,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "BackfillOrphanedShownProductsInProfileSectionsJob": {
     "file": "app/sidekiq/backfill_orphaned_shown_products_in_profile_sections_job.rb",
@@ -964,7 +964,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "EmailOutstandingBalancesCsvWorker": {
     "file": "app/sidekiq/email_outstanding_balances_csv_worker.rb",
@@ -2450,7 +2450,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ReindexUserElasticsearchDataWorker": {
     "file": "app/sidekiq/reindex_user_elasticsearch_data_worker.rb",
