@@ -7,7 +7,7 @@ import type { RequestContext } from "./context";
 import { readEncryptedCookie, readSignedCookie, type RailsCookieSecrets } from "./rails-cookies";
 import { CURRENT_SELLER_COOKIE_NAME, REMEMBER_COOKIE_NAME } from "./rails-session-config";
 import type { AuthStore } from "./store";
-import { authUserFlags } from "./user-flags";
+import { UserFlags } from "../models/user";
 import { parseRememberCookie, rememberCookieValid, wardenUserFromSession } from "./warden";
 
 export type CookieSource = { get(name: string): string | undefined };
@@ -85,7 +85,7 @@ async function authenticate(cookies: CookieSource, secrets: RailsCookieSecrets, 
 // Impersonate#impersonated_user: only team members (Gumroad staff) can impersonate, and only alive
 // users can be impersonated.
 async function findImpersonatedUser(currentUser: User, store: AuthStore): Promise<User | null> {
-  if (!authUserFlags.isSet(currentUser.flags, "is_team_member")) return null;
+  if (!UserFlags.isSet(currentUser.flags, "is_team_member")) return null;
   const id = await store.impersonatedUserId(currentUser.id);
   if (id === null || !/^\d+$/.test(id)) return null;
   return store.findAliveUserById(BigInt(id));

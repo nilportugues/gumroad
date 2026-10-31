@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import { authorizePassword, LoginError } from "./credentials";
 import { digestPassword } from "./devise-password";
-import { authUserFlags } from "./user-flags";
+import { UserFlags } from "../models/user";
 
 const config = { pepper: "pepper", stretches: 4 };
 let hash: string;
@@ -46,7 +46,7 @@ describe("authorizePassword (LoginsController#create)", () => {
   });
 
   it("sends two-factor users to Rails rather than skipping their challenge", async () => {
-    const twoFactor = user({ flags: authUserFlags.set(1n, "two_factor_authentication_enabled", true) });
+    const twoFactor = user({ flags: UserFlags.set(1n, "two_factor_authentication_enabled", true) });
     expect(await codeFor(authorizePassword({ login_identifier: "seller", password: "right password" }, storeWith(twoFactor), config))).toBe("two_factor_required");
   });
 });

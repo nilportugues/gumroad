@@ -4,7 +4,7 @@ import type { User } from "@prisma/client";
 
 import { deviseConfig, validPassword, type DeviseConfig } from "./devise-password";
 import type { AuthStore } from "./store";
-import { authUserFlags } from "./user-flags";
+import { UserFlags } from "../models/user";
 
 // Rails shows these verbatim, so the codes and messages stay distinct as they are there.
 export const LOGIN_ERRORS = {
@@ -39,6 +39,6 @@ export async function authorizePassword(
   if (user.deleted_at) throw new LoginError("deleted_account");
   // Rails would skip the challenge for a remembered browser or a known IP. Without that port,
   // signing in here would bypass 2FA, so every 2FA user is sent to Rails.
-  if (authUserFlags.isSet(user.flags, "two_factor_authentication_enabled")) throw new LoginError("two_factor_required");
+  if (UserFlags.isSet(user.flags, "two_factor_authentication_enabled")) throw new LoginError("two_factor_required");
   return user;
 }

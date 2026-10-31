@@ -5,7 +5,7 @@ import { deriveRailsCookieSecrets, writeEncryptedCookie, writeSignedCookie } fro
 import { CURRENT_SELLER_COOKIE_NAME, REMEMBER_COOKIE_NAME } from "./rails-session-config";
 import { railsLoggedInUser, resolveAuth } from "./resolve";
 import type { AuthStore } from "./store";
-import { authUserFlags } from "./user-flags";
+import { UserFlags } from "../models/user";
 
 const secrets = deriveRailsCookieSecrets("c".repeat(128));
 const SESSION = "_gumroad_app_session_test";
@@ -140,7 +140,7 @@ describe("resolveAuth", () => {
   });
 
   describe("impersonation", () => {
-    const admin = () => makeUser({ flags: authUserFlags.set(1n, "is_team_member", true) });
+    const admin = () => makeUser({ flags: UserFlags.set(1n, "is_team_member", true) });
 
     it("acts as the impersonated user when a team member has one in Redis", async () => {
       const staff = admin();
