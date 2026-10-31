@@ -440,7 +440,7 @@ redis { |conn| conn.call("FLUSHDB") }
 
 # BigDecimal#to_s and the AdultKeywordDetector are pure; record them directly.
 decimals = %w[0 0.0725 0.1 1.5 0.0000001 1 10 123.456 -0.5 0.00001 100000000 1.23e-20 7.25]
-adult_texts = ["Lewd things", "Some NSFW-Art", "nsfw", "NSFWArt", "Gifts", "kinky", "Kink", "BreastInflation", "breast inflation", "ABDL", "joi", "Joint", "pin-up", "Ahegao!", "", nil, "Ünïcode lewd", "FutaMilking", "fetish123"]
+adult_texts = ["Lewd things", "Some NSFW-Art", "nsfw", "NSFWArt", "Gifts", "kinky", "Kink", "BreastInflation", "breast inflation", "ABDL", "joi", "Joint", "pin-up", "Ahegao!", "", nil, "Ünïcode lewd", "FutaMilking", "fetish123", "élewd", "lewdé", "Élewd", "İLEWD", "lewd\u0301", "  "]
 golden = {
   "generated_with" => { "ruby" => RUBY_VERSION, "activerecord" => ActiveRecord.version.to_s, "sidekiq" => Sidekiq::VERSION, "sidekiq_unique_jobs" => SidekiqUniqueJobs::VERSION },
   "now" => FIXED_NOW.to_f,

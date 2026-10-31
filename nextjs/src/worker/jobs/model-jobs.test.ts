@@ -16,6 +16,9 @@ import { deleteExpiredProductCachedValuesWorkerWith, deleteOldUnusedEventsWorker
 import { alertOnStalledAbandonedCartEmailsJobWith, bigDecimalToS, buildTaxRateCacheWorkerWith, recoverAusBacktaxesFromStripeAccountsJobWith } from "./scheduled-check-jobs.ts";
 import { blockEmailDomainsWorkerWith, blockObjectWorkerWith, unblockObjectWorkerWith } from "./platform-block-jobs.ts";
 import { forceFinishLongRunningCommunityChatRecapRunsJobWith, triggerCommunityChatRecapRunJobWith } from "./community-chat-recap-jobs.ts";
+import { expireStampedPdfsJobWith, updateLargeSellersSalesCountJobWith } from "./large-seller-and-stamped-pdf-jobs.ts";
+import { recalculateRecentWishlistFollowerCountJobWith } from "./wishlist-jobs.ts";
+import { isAdult } from "../../server/models/concerns/adult-keyword-detector.ts";
 import type { JobDeps } from "./support/job-deps.ts";
 import type { JobHandler } from "./types.ts";
 
@@ -37,6 +40,9 @@ const PORTS: Record<string, Factory> = {
   UnblockObjectWorker: (deps) => unblockObjectWorkerWith(deps),
   ForceFinishLongRunningCommunityChatRecapRunsJob: (deps) => forceFinishLongRunningCommunityChatRecapRunsJobWith(deps),
   TriggerCommunityChatRecapRunJob: (deps) => triggerCommunityChatRecapRunJobWith(deps),
+  UpdateLargeSellersSalesCountJob: (deps) => updateLargeSellersSalesCountJobWith(deps),
+  ExpireStampedPdfsJob: (deps) => expireStampedPdfsJobWith(deps),
+  RecalculateRecentWishlistFollowerCountJob: (deps) => recalculateRecentWishlistFollowerCountJobWith(deps),
 };
 
 // The golden ran with every job in Ruby, so enqueues here go to Sidekiq whatever the registry says.
@@ -105,5 +111,11 @@ for (const [name, cases] of Object.entries(modelJobsGolden.jobs)) {
 describe("BigDecimal#to_s under ActiveSupport", () => {
   it.each(modelJobsGolden.big_decimal_to_s)("%s", (input, expected) => {
     expect(bigDecimalToS(new Prisma.Decimal(input))).toBe(expected);
+  });
+});
+
+describe("AdultKeywordDetector.adult?", () => {
+  it.each(modelJobsGolden.adult_keyword_detector)("%s", (text, expected) => {
+    expect(isAdult(text)).toBe(expected);
   });
 });
