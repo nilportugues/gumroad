@@ -7,8 +7,8 @@ import path from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { RubySymbol } from "../models/concerns/ruby-values.ts";
-import { StripeClient, sleepTime, rubyInspect } from "./client.ts";
+import { rubyInspect, RubySymbol } from "../models/concerns/ruby-values.ts";
+import { StripeClient, sleepTime } from "./client.ts";
 import { STRIPE_API_VERSION, stripeConfigFromEnv, type StripeConfig } from "./config.ts";
 import { urlEncode } from "./encode.ts";
 import { StripeError } from "./errors.ts";

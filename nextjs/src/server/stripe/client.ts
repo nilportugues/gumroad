@@ -8,6 +8,7 @@ import https from "node:https";
 import os from "node:os";
 import { gunzipSync, inflateSync } from "node:zlib";
 
+import { rubyInspect } from "../models/concerns/ruby-values.ts";
 import { encodeParameters, objectsToIds, type StripeParams } from "./encode.ts";
 import { stripeConfigFromEnv, type StripeConfig } from "./config.ts";
 import {
@@ -88,27 +89,6 @@ const NETWORK_MESSAGES: Record<NetworkError["kind"], string> = {
 };
 
 const BINDINGS_VERSION = "gumroad-nextjs";
-
-// Ruby's String#inspect for the response bodies quoted in "Invalid response object" errors.
-export function rubyInspect(value: string): string {
-  let out = '"';
-  for (const char of value) {
-    const code = char.codePointAt(0)!;
-    if (char === '"' || char === "\\") out += `\\${char}`;
-    else if (char === "\n") out += "\\n";
-    else if (char === "\t") out += "\\t";
-    else if (char === "\r") out += "\\r";
-    else if (char === "\f") out += "\\f";
-    else if (char === "\v") out += "\\v";
-    else if (char === "\b") out += "\\b";
-    else if (char === "\x07") out += "\\a";
-    else if (char === "\x1b") out += "\\e";
-    else if (code < 0x20 || code === 0x7f) out += `\\x${code.toString(16).toUpperCase().padStart(2, "0")}`;
-    else out += char;
-  }
-  // `#{`, `#$` and `#@` are escaped so the result reads back as the same String.
-  return `${out.replace(/#(?=[{$@])/gu, "\\#")}"`;
-}
 
 function generalApiError(status: number, body: string): APIError {
   return new APIError(`Invalid response object from API: ${rubyInspect(body)} (HTTP response code was ${status})`, { httpStatus: status, httpBody: body });
