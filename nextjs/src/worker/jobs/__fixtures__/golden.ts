@@ -59,6 +59,13 @@ export function recordingSidekiqRedis(): { redis: Redis; snapshot(): RedisSnapsh
         ops.push(() => sets.set(key, (sets.get(key) ?? new Set()).add(member)));
         return chain;
       },
+      srem(key: string, member: string) {
+        ops.push(() => {
+          sets.get(key)?.delete(member);
+          if (sets.get(key)?.size === 0) sets.delete(key);
+        });
+        return chain;
+      },
       lpush(key: string, value: string) {
         ops.push(() => lists.set(key, [value, ...(lists.get(key) ?? [])]));
         return chain;

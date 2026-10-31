@@ -65,16 +65,20 @@ module RailsCases
     cache = []
     subscriber = ActiveSupport::Notifications.subscribe(/\Acache_(delete|write)\.active_support\z/) { |event, *, payload| cache << [event.split(".").first, payload[:key]] }
     statements = travel_to(now, with_usec: true) do
-      RailsRecorder.recording do
-        yield
-      rescue StandardError => e
-        error = { "class" => e.class.name, "message" => e.message }
+      # rails runner (like a Sidekiq job) runs inside the executor, which turns the query cache on.
+      # The Node runtime has no query cache, so record without it; see the models README.
+      ActiveRecord::Base.uncached do
+        RailsRecorder.recording do
+          yield
+        rescue StandardError => e
+          error = { "class" => e.class.name, "message" => e.message }
+        end
       end
     end
     ActiveSupport::Notifications.unsubscribe(subscriber)
     {
       "name" => name, "seed" => seed_sql, "error" => error, "statements" => statements,
-      "redis" => snapshot_redis(redis), "cache" => cache, "rows" => tables.to_h { [_1, dump(_1)] }
+      "redis" => snapshot_redis(redis), "cache" => cache, "rows" => tables.to_h { [_1, dump(_1)] }.reject { |_, dumped| dumped["rows"].empty? }
     }.merge(extra.transform_keys(&:to_s))
   end
 end

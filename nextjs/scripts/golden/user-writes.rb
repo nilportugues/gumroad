@@ -78,6 +78,112 @@ cases << run("an invalid update rolls back", seed: { users: [user_row(5)] }) do
   User.find(5).update!(name: "a:b")
 end
 
+REFUNDS_DISABLED = 1 << 7
+VERIFIED = { verified: 1 }.freeze
+
+cases << run("flag_for_fraud! comments and adds the gmail variant to the abuse filter", seed: { users: [user_row(5, email: "Sel.ler5+x@gmail.com")] }) do
+  User.find(5).flag_for_fraud!(author_name: "check_payment_address")
+end
+
+cases << run("flag_for_tos_violation! in bulk, authored by an admin", seed: { users: [user_row(5), user_row(7, name: "Admin")] }) do
+  User.find(5).flag_for_tos_violation!(author_id: 7, bulk: true)
+end
+
+cases << run("flag_for_tos_violation! for one product comments on it", seed: {
+  users: [user_row(5, tos_violation_reason: "spam")],
+  links: [{ id: 9, user_id: 5, name: "Ebook", unique_permalink: "abc", price_cents: 100, created_at: SEEDED_AT, updated_at: SEEDED_AT }],
+}) do
+  User.find(5).flag_for_tos_violation!(author_name: "iffy", product_id: 9)
+end
+
+cases << run("put_on_probation! with custom content", seed: { users: [user_row(5)] }) do
+  User.find(5).put_on_probation!(author_name: "iffy", content: "Held for review")
+end
+
+cases << run("mark_not_reviewed! from probation", seed: { users: [user_row(5, user_risk_state: "on_probation")] }) do
+  User.find(5).mark_not_reviewed!(author_name: "iffy")
+end
+
+cases << run("mark_compliant! from flagged enables refunds and lifts the platform pause after commit", seed: {
+  users: [user_row(5, email: "seller5@gmail.com", user_risk_state: "flagged_for_fraud", flags: REFUNDS_DISABLED)],
+}) do
+  User.find(5).mark_compliant!(author_name: "iffy")
+end
+
+cases << run("mark_compliant! rebases flags onto the locked row", seed: { users: [user_row(5, flags: PAUSED_BY_SYSTEM | REFUNDS_DISABLED)] }) do
+  user = User.find(5)
+  User.where(id: 5).update_all(flags: REFUNDS_DISABLED)
+  user.mark_compliant!(author_name: "iffy")
+end
+
+cases << run("mark_compliant! records hold_released once per offer", seed: {
+  users: [user_row(5)],
+  events: [
+    { id: 1, event_name: "social_connect_offered", user_id: 5, parent_referrer: "twitter", view_url: "profile", created_at: "2025-06-01 00:00:00", updated_at: "2025-06-01 00:00:00" },
+    { id: 2, event_name: "social_connect_hold_released", user_id: 5, parent_referrer: "none", view_url: "mark_compliant", created_at: "2025-07-01 00:00:00", updated_at: "2025-07-01 00:00:00" },
+  ],
+}) do
+  User.find(5).mark_compliant!(author_name: "iffy")
+end
+
+cases << run("mark_compliant! clearing a suspension unblocks the IP, re-adds the Apple Pay domain and releases cascade siblings", seed: {
+  users: [
+    user_row(5, user_risk_state: "suspended_for_fraud", payment_address: "shared@example.com", last_sign_in_ip: "10.0.0.1"),
+    user_row(6, user_risk_state: "suspended_for_fraud", payment_address: "shared@example.com"),
+    user_row(8, user_risk_state: "suspended_for_tos_violation", payment_address: "shared@example.com"),
+  ],
+  comments: [
+    { id: 1, commentable_id: 6, commentable_type: "User", author_name: "suspend_sellers_other_accounts", comment_type: "suspended", content: "Suspended", created_at: SEEDED_AT, updated_at: SEEDED_AT },
+    { id: 2, commentable_id: 8, commentable_type: "User", author_name: "iffy", comment_type: "suspended", content: "Suspended", created_at: SEEDED_AT, updated_at: SEEDED_AT },
+  ],
+  platform_blocks: [{ id: 4, object_type: "ip_address", object_value: "10.0.0.1", blocked_at: SEEDED_AT, expires_at: "2026-01-01 00:00:00", created_at: SEEDED_AT, updated_at: SEEDED_AT }],
+}) do
+  User.find(5).mark_compliant!(author_name: "iffy", clear_suspension: true)
+end
+
+cases << run("mark_compliant! releases siblings that share a bank account fingerprint", seed: {
+  users: [
+    user_row(5, user_risk_state: "suspended_for_fraud"),
+    user_row(9, user_risk_state: "suspended_for_fraud"),
+  ],
+  bank_accounts: [
+    { id: 1, user_id: 5, type: "AchAccount", stripe_fingerprint: "fp1", created_at: SEEDED_AT, updated_at: SEEDED_AT },
+    { id: 2, user_id: 5, type: "AchAccount", stripe_fingerprint: "", created_at: SEEDED_AT, updated_at: SEEDED_AT },
+    { id: 3, user_id: 9, type: "AchAccount", stripe_fingerprint: "fp0", created_at: SEEDED_AT, updated_at: SEEDED_AT },
+    { id: 4, user_id: 9, type: "AchAccount", stripe_fingerprint: "fp1", created_at: SEEDED_AT, updated_at: SEEDED_AT },
+  ],
+  comments: [
+    { id: 1, commentable_id: 9, commentable_type: "User", author_name: "suspend_sellers_other_accounts", comment_type: "suspended", content: "Suspended", created_at: SEEDED_AT, updated_at: SEEDED_AT },
+  ],
+}) do
+  User.find(5).mark_compliant!(author_id: 5, clear_suspension: true)
+end
+
+cases << run("mark_compliant! refuses to clear a suspension the caller did not authorize", seed: { users: [user_row(5)] }) do
+  user = User.find(5)
+  User.where(id: 5).update_all(user_risk_state: "suspended_for_tos_violation")
+  user.mark_compliant!(author_name: "iffy")
+end
+
+cases << run("an event with no transition from the current state", seed: { users: [user_row(5)] }) do
+  User.find(5).mark_not_reviewed!(author_name: "iffy")
+end
+
+cases << run("a verified seller cannot be flagged", seed: { users: [user_row(5, **VERIFIED)] }) do
+  User.find(5).flag_for_fraud!(author_name: "iffy")
+end
+
+cases << run("a transition without an author rolls back", seed: { users: [user_row(5)] }) do
+  User.find(5).flag_for_fraud!
+end
+
+cases << run("the non-bang event returns false and adds an error", seed: { users: [user_row(5, user_risk_state: "compliant")] }) do
+  user = User.find(5)
+  result = user.mark_not_reviewed(author_name: "iffy")
+  # Surfaces the return value and the error the event leaves behind.
+  raise [result, user.errors.details[:user_risk_state], user.errors.full_messages].inspect
+end
+
 # Time.now.to_f as travel_to stubs it, which is what Sidekiq stamps on payloads.
 now_f = travel_to(NOW, with_usec: true) { Time.now.to_f }
 File.write(OUT, JSON.pretty_generate({ "now" => now_f, "cases" => cases }) + "\n")
