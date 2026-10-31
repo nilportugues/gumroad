@@ -30,11 +30,18 @@ export function stripeConnectMeta(jsonData: unknown): unknown {
 export const isStripeConnectAccount = (account: MerchantAccountRow) =>
   account.charge_processor_id === STRIPE_CHARGE_PROCESSOR_ID && account.user_id != null && stripeConnectMeta(account.json_data) === "true";
 
-// User#stripe_account: loads `merchant_accounts.alive.charge_processor_alive.stripe` and picks the
-// first non-Connect account in Ruby.
-export async function stripeAccountOf(userId: unknown): Promise<MerchantAccountRow | null> {
-  const accounts = await selectRows<MerchantAccountRow>(
+// MerchantAccount#is_a_gumroad_managed_stripe_account?
+export const isGumroadManagedStripeAccount = (account: MerchantAccountRow) =>
+  account.charge_processor_id === STRIPE_CHARGE_PROCESSOR_ID && stripeConnectMeta(account.json_data) !== "true";
+
+// `user.merchant_accounts.alive.charge_processor_alive.stripe`
+export function aliveStripeAccountsOf(userId: unknown): Promise<MerchantAccountRow[]> {
+  return selectRows<MerchantAccountRow>(
     Prisma.sql`SELECT ${Prisma.raw("`merchant_accounts`.*")} FROM ${table("merchant_accounts")} WHERE ${column("merchant_accounts", "user_id")} = ${userId} AND ${column("merchant_accounts", "deleted_at")} IS NULL AND ${column("merchant_accounts", "charge_processor_alive_at")} IS NOT NULL AND ${column("merchant_accounts", "charge_processor_deleted_at")} IS NULL AND ${column("merchant_accounts", "charge_processor_id")} = ${STRIPE_CHARGE_PROCESSOR_ID}`,
   );
-  return accounts.find((account) => !isStripeConnectAccount(account)) ?? null;
+}
+
+// User#stripe_account: the first non-Connect account of those, picked in Ruby.
+export async function stripeAccountOf(userId: unknown): Promise<MerchantAccountRow | null> {
+  return (await aliveStripeAccountsOf(userId)).find((account) => !isStripeConnectAccount(account)) ?? null;
 }

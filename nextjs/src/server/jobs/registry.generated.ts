@@ -1669,7 +1669,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": true,
     "retriesExhausted": true,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "LogResendEventJob": {
     "file": "app/sidekiq/log_resend_event_job.rb",
