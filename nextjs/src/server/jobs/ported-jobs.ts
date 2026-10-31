@@ -4,6 +4,7 @@
 // this list has no handler in src/worker/jobs.
 export const PORTED_JOBS: readonly string[] = [
   "EnqueueMarketingXReconnectEmailJob",
+  "HandleSnsAwsConfigEventWorker",
   "LogResendEventJob",
   "LogSendgridEventWorker",
   "SyncStripeBusinessProfileUrlWorker",

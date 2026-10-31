@@ -1583,7 +1583,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "HandleSnsMediaconvertEventWorker": {
     "file": "app/sidekiq/handle_sns_mediaconvert_event_worker.rb",
