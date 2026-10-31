@@ -82,13 +82,14 @@ on read, `merge_json_data_with_current_row`), `save_external_id`, the `before_cr
 and the `after_commit` jobs (`GenerateUsernameJob`, `UpdatePurchaseEmailToMatchAccountWorker`,
 `ReindexSubscriptionCurrentEmailWorker`, `GenerateSubscribePreviewJob`).
 
+Devise's confirmation, reconfirmation and email-changed mails go out through
+`src/server/mail/devise-notification.ts`, which pushes the same `deliver_later` job Ruby does.
+
 Reached through `userCollaborators`, whose defaults throw `NotPortedError` (checked before any
 write when they would run after commit):
 
 - `after_create :create_global_affiliate!`, `:create_refund_policy!` (user.rb:409-410): GlobalAffiliate
   and SellerRefundPolicy models. Until they land, no User can be created in Node.
-- Devise mail (confirmation, reconfirmation, email changed): UserSignupMailer. Any email change on a
-  persisted user is postponed into `unconfirmed_email` and mails, so it is refused too.
 - `update_product_search_index!` (user.rb:1904): `Link#enqueue_index_update_for` / ProductIndexingService.
 - `update_audience_members_affiliates` (user.rb:1994): AudienceMember.
 - `update_alive_cart_email` (user.rb:1888): Cart.
