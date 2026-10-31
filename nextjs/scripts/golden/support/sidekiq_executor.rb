@@ -42,7 +42,11 @@ module SidekiqExecutor
     end
 
     def perform(&block)
-      Thread.new { wrap(&block) }.value
+      # The case's error is the caller's to record.
+      Thread.new do
+        Thread.current.report_on_exception = false
+        wrap(&block)
+      end.value
     end
 
     private

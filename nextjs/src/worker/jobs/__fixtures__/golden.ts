@@ -9,6 +9,7 @@ import type { JobDefinition } from "../../../server/jobs/registry-types.ts";
 import { createJobsRuntime, type JobsRuntime } from "../../../server/jobs/runtime.ts";
 import type { SidekiqItem } from "../../../server/jobs/sidekiq/item.ts";
 import { type JsonValue, parseRubyJson } from "../../../server/jobs/sidekiq/ruby-json.ts";
+import { SIDEKIQ_EXECUTOR, withExecutor } from "../../../server/models/runtime/query-cache.ts";
 import type { JobContext } from "../types.ts";
 
 export type RedisSnapshot = Record<string, { type: string; value?: JsonValue; count?: number; expires: boolean }>;
@@ -40,6 +41,12 @@ export function goldenRuntime(sidekiqRedis: Redis, registry?: Record<string, Job
 // checking the Sidekiq payload the enqueue would build.
 export function rubyRuntimeRegistry(): Record<string, JobDefinition> {
   return Object.fromEntries(Object.entries(JOB_REGISTRY).map(([name, definition]) => [name, { ...definition, runtime: "ruby" } as JobDefinition]));
+}
+
+// Runs a handler as the processor does: inside the Sidekiq executor, so its reads share the query
+// cache. The generators freeze the clock, so mysql2_proxy's proxy_delay never runs out.
+export function asSidekiqJob<T>(fn: () => Promise<T>, nowSeconds: number): Promise<T> {
+  return withExecutor(fn, { ...SIDEKIQ_EXECUTOR, now: () => nowSeconds * 1000 });
 }
 
 export function contextFor(runtime: JobsRuntime): JobContext {

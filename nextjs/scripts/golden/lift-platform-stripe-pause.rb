@@ -2,7 +2,8 @@
 
 # Produces nextjs/src/worker/jobs/__fixtures__/lift-platform-stripe-pause.golden.json: the real
 # LiftPlatformStripePauseJob (perform, sidekiq_retry_in and sidekiq_retries_exhausted) against a
-# scratch database, with Stripe answered by the local capture server. Run it like user-writes.rb.
+# scratch database, with Stripe answered by the local capture server. Each case runs as a Sidekiq job
+# (support/sidekiq_executor.rb). Run it like user-writes.rb, adding USE_DB_WORKER_REPLICAS=true.
 require_relative "support/rails_cases"
 require_relative "../../src/server/stripe/__fixtures__/capture_server"
 include RailsCases
@@ -69,7 +70,7 @@ def run(name, args: [5], seed: {}, stripe: [], &block)
   SERVER.requests.clear
   SERVER.responses = stripe.dup
   block ||= -> { LiftPlatformStripePauseJob.new.perform(*args) }
-  result = capture(name, now: NOW, tables: TABLES, seed:, args:, &block)
+  result = capture(name, now: NOW, tables: TABLES, seed:, sidekiq: true, args:, &block)
   result.merge("stripe" => { "responses" => stripe, "requests" => SERVER.requests.map { _1.slice("method", "path", "query", "body") } })
 end
 

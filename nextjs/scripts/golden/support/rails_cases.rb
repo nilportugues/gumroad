@@ -13,13 +13,14 @@
 # Sidekiq-unique-jobs is switched on (the test environment turns it off) and SecureRandom.hex(12)
 # is sequential, so jids and lock digests are reproducible.
 require_relative "rails_recorder"
+require_relative "sidekiq_executor"
 
 module RailsCases
   include ActiveSupport::Testing::TimeHelpers
 
   REDIS_URL = ENV.fetch("SIDEKIQ_REDIS_HOST").then { "redis://#{_1}" }
   abort "Refusing to run against Redis db 0" if REDIS_URL.end_with?("/0") || !REDIS_URL.match?(%r{/\d+\z})
-  abort "Refusing to run against #{ActiveRecord::Base.connection_db_config.database}" unless ActiveRecord::Base.connection_db_config.database.end_with?("_ws36")
+  abort "Refusing to run against #{ActiveRecord::Base.connection_db_config.database}" unless ActiveRecord::Base.connection_db_config.database.match?(/_ws\d+\z/)
 
   def self.included(_)
     Sidekiq::Testing.disable! if defined?(Sidekiq::Testing)
@@ -56,23 +57,31 @@ module RailsCases
   end
 
   # Runs `block` as one case. `tables` are truncated first and dumped afterwards.
-  def capture(name, now:, tables:, seed: {}, **extra)
+  #
+  # `sidekiq: true` runs it as production Sidekiq runs a job (sidekiq_executor.rb), query cache on; the
+  # generator must then run with USE_DB_WORKER_REPLICAS=true. Otherwise it runs with the cache off,
+  # as a model method called outside any executor does.
+  def capture(name, now:, tables:, seed: {}, sidekiq: false, **extra)
     seed_sql = reset(tables, seed)
     redis.flushdb
     Rails.cache.clear
     $jid_seq = 0
     error = nil
     cache = []
-    subscriber = ActiveSupport::Notifications.subscribe(/\Acache_(delete|write)\.active_support\z/) { |event, *, payload| cache << [event.split(".").first, payload[:key]] }
+    subscriber = ActiveSupport::Notifications.subscribe(/\Acache_(delete|write)\.active_support\z/) do |event, *, payload|
+      # mysql2_proxy routes through its own NullStore, not Rails.cache.
+      cache << [event.split(".").first, payload[:key]] unless payload[:store] == "ActiveSupport::Cache::NullStore"
+    end
     statements = travel_to(now, with_usec: true) do
-      # rails runner (like a Sidekiq job) runs inside the executor, which turns the query cache on.
-      # The Node runtime has no query cache, so record without it; see the models README.
-      ActiveRecord::Base.uncached do
-        RailsRecorder.recording do
-          yield
-        rescue StandardError => e
-          error = { "class" => e.class.name, "message" => e.message }
+      RailsRecorder.recording do
+        if sidekiq
+          SidekiqExecutor.perform { yield }
+        else
+          # rails runner wraps the whole script in the executor; a model case runs without it.
+          ActiveRecord::Base.uncached { yield }
         end
+      rescue StandardError => e
+        error = { "class" => e.class.name, "message" => e.message }
       end
     end
     ActiveSupport::Notifications.unsubscribe(subscriber)
