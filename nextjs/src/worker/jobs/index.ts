@@ -7,6 +7,8 @@ import { deleteOldVersionsRecordsWorker } from "./delete-old-versions-records-wo
 import { dispatchPendingWorkflowInstallmentScheduleIntentsJob } from "./dispatch-workflow-intents-job.ts";
 import { elasticsearchIndexerWorker } from "./elasticsearch-indexer-worker.ts";
 import { enqueueMarketingXReconnectEmailJob } from "./enqueue-marketing-x-reconnect-email-job.ts";
+import { disputeEvidenceDueSoonReminderJob } from "./dispute-evidence-due-soon-reminder-job.ts";
+import { sendMarketingXReconnectEmailJob } from "./send-marketing-x-reconnect-email-job.ts";
 import { handleSnsAwsConfigEventWorker } from "./handle-sns-aws-config-event-worker.ts";
 import { expireStampedPdfsJob, updateLargeSellersSalesCountJob } from "./large-seller-and-stamped-pdf-jobs.ts";
 import { logResendEventJob } from "./log-resend-event-job.ts";
@@ -46,6 +48,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   DeleteStripeApplePayDomainWorker: deleteStripeApplePayDomainWorker,
   DetectLegalEntityCountryDriftJob: detectLegalEntityCountryDriftJob,
   DispatchPendingWorkflowInstallmentScheduleIntentsJob: dispatchPendingWorkflowInstallmentScheduleIntentsJob,
+  DisputeEvidenceDueSoonReminderJob: disputeEvidenceDueSoonReminderJob,
   ElasticsearchIndexerWorker: elasticsearchIndexerWorker,
   EnqueueMarketingXReconnectEmailJob: enqueueMarketingXReconnectEmailJob,
   ExpireStampedPdfsJob: expireStampedPdfsJob,
@@ -58,6 +61,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   RecoverAusBacktaxesFromStripeAccountsJob: recoverAusBacktaxesFromStripeAccountsJob,
   ReindexSubscriptionCurrentEmailWorker: reindexSubscriptionCurrentEmailWorker,
   ReleaseChargebackRatePayoutPausesJob: releaseChargebackRatePayoutPausesJob,
+  SendMarketingXReconnectEmailJob: sendMarketingXReconnectEmailJob,
   SyncStripeBusinessProfileUrlJob: syncStripeBusinessProfileUrlJob,
   SyncStripeBusinessProfileUrlWorker: syncStripeBusinessProfileUrlWorker,
   TriggerCommunityChatRecapRunJob: triggerCommunityChatRecapRunJob,

@@ -54,7 +54,7 @@ describe.skipIf(!url)("EnqueueMarketingXReconnectEmailJob against Redis", () => 
   });
 
   it.each(golden.enqueue_marketing_x_reconnect_email_job.map((c) => [c.name!, c] as const))("%s", async (_name, c) => {
-    const runtime = goldenRuntime(redis);
+    const runtime = goldenRuntime(redis, rubyRuntimeRegistry());
     if (c.name === "delivery already locked") {
       await enqueueWith(runtime, "SendMarketingXReconnectEmailJob", c.args);
     }
