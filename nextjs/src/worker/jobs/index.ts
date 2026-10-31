@@ -31,6 +31,7 @@ import { blockEmailDomainsWorker, blockObjectWorker, unblockObjectWorker } from 
 import { blockSuspendedAccountIpWorker, checkPaymentAddressWorker } from "./risk-jobs.ts";
 import { liftPlatformStripePauseJob, liftPlatformStripePauseJobRetriesExhausted, liftPlatformStripePauseJobRetryIn } from "./lift-platform-stripe-pause-job.ts";
 import { alertOnStalledAbandonedCartEmailsJob, buildTaxRateCacheWorker, recoverAusBacktaxesFromStripeAccountsJob } from "./scheduled-check-jobs.ts";
+import { suspendAccountsWithPaymentAddressWorker, suspendUsersWorker } from "./suspend-jobs.ts";
 import { syncStripeBusinessProfileUrlWorker } from "./sync-stripe-business-profile-url-worker.ts";
 import { updateCurrenciesWorker } from "./update-currencies-worker.ts";
 import { warmSellerReputationSummaryJob } from "./warm-seller-reputation-summary-job.ts";
@@ -77,6 +78,8 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   ReindexSubscriptionCurrentEmailWorker: reindexSubscriptionCurrentEmailWorker,
   ReleaseChargebackRatePayoutPausesJob: releaseChargebackRatePayoutPausesJob,
   SendMarketingXReconnectEmailJob: sendMarketingXReconnectEmailJob,
+  SuspendAccountsWithPaymentAddressWorker: suspendAccountsWithPaymentAddressWorker,
+  SuspendUsersWorker: suspendUsersWorker,
   SyncStripeBusinessProfileUrlJob: syncStripeBusinessProfileUrlJob,
   SyncStripeBusinessProfileUrlWorker: syncStripeBusinessProfileUrlWorker,
   TriggerCommunityChatRecapRunJob: triggerCommunityChatRecapRunJob,

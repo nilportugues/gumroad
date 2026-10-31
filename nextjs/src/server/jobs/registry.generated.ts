@@ -3329,7 +3329,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SuspendUsersWorker": {
     "file": "app/sidekiq/suspend_users_worker.rb",
@@ -3341,7 +3341,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SyncGuardianToStripeJob": {
     "file": "app/sidekiq/sync_guardian_to_stripe_job.rb",

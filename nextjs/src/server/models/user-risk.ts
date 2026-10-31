@@ -112,7 +112,7 @@ type Options = { now?: () => Date };
 type Transition = { event: RiskEvent; from: string | null; to: string; params: TransitionParams | undefined; now: () => Date };
 
 // Time.current.to_fs(:formatted_date_full_month): "%B %-d, %Y", and config.time_zone is UTC.
-const formattedDateFullMonth = (date: Date) => `${MONTHS[date.getUTCMonth()]} ${date.getUTCDate()}, ${date.getUTCFullYear()}`;
+export const formattedDateFullMonth = (date: Date) => `${MONTHS[date.getUTCMonth()]} ${date.getUTCDate()}, ${date.getUTCFullYear()}`;
 // String#humanize on a state name.
 const humanize = (name: string) => name.charAt(0).toUpperCase() + name.slice(1).replaceAll("_", " ");
 const firstWord = (name: string) => name.match(/^[^_]*/u)![0];
