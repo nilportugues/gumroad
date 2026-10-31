@@ -236,7 +236,11 @@ const DEFAULT_COLLABORATORS: UserCollaborators = {
   // User::AsyncDeviseNotification: every caller runs after the save, where Ruby sends at once.
   sendDeviseNotification: async (user, notification, args) =>
     void (await deliverDeviseNotification(currentJobsRuntime(), { id: user.get("id"), unconfirmedEmail: user.get("unconfirmed_email") }, notification, args)),
-  enqueueProductIndexUpdates: notPorted("Link#enqueue_index_update_for (ProductIndexingService)", "app/models/user.rb:1904 update_product_search_index!"),
+  // Imported on use: the product document pulls in the search stack, which plain User saves never need.
+  enqueueProductIndexUpdates: async (_user, productIds, changeList) => {
+    const { enqueueIndexUpdatesFor } = await import("../search/product-indexing.ts");
+    await enqueueIndexUpdatesFor(productIds, changeList, { now: () => collaborators.now(), featureActive: (name, actor) => collaborators.isFeatureEnabled(name, actor) });
+  },
   updateAudienceMembersAffiliates: notPorted("AudienceMember affiliate details", "app/models/user.rb:1994 update_audience_members_affiliates"),
   updateAliveCartEmail: notPorted("Cart#update!", "app/models/user.rb:1888 update_alive_cart_email"),
   makeRequestersAffiliates: notPorted("AffiliateRequest#make_requester_an_affiliate!", "app/models/user.rb:1918 make_affiliate_of_the_matching_approved_affiliate_requests"),
@@ -866,13 +870,6 @@ const makeAffiliateApplies = (record: UserRecord, confirmedAtChanged: boolean) =
 const REFUSE_UNPORTED_SIDE_EFFECTS: Callback<User> = {
   name: "refuse_unported_side_effects",
   async run(record, { tx }) {
-    if (record.persisted && isDefault("enqueueProductIndexUpdates")) {
-      const changed = (a: keyof User & string) => record.attributeChanged(a);
-      const flagChanged = (f: UserFlag) => UserFlags.isSet(record.attributeInDatabase("flags"), f) !== UserFlags.isSet(record.get("flags"), f);
-      if (productSearchChangeList(record, changed, flagChanged).length > 0 && (await productIds(tx, record.get("id"))).length > 0) {
-        throw new NotPortedError("Link#enqueue_index_update_for (ProductIndexingService)", "app/models/user.rb:1904 update_product_search_index!");
-      }
-    }
     if (makeAffiliateApplies(record, record.attributeChanged("confirmed_at")) && isDefault("makeRequestersAffiliates")) {
       if ((await approvedAffiliateRequestIds(tx, record.get("email")!)).length > 0) {
         throw new NotPortedError("AffiliateRequest#make_requester_an_affiliate!", "app/models/user.rb:1918 make_affiliate_of_the_matching_approved_affiliate_requests");

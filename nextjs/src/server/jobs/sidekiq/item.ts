@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 
 import { LOCK_ARGS } from "../lock-args.ts";
 import type { JobDefinition, SidekiqOptionValue } from "../registry-types.ts";
-import { dumpRubyJson, type JsonValue, RubyFloat } from "./ruby-json.ts";
+import { dumpRubyJson, type JsonValue, RubyFloat, rubyFloatToS } from "./ruby-json.ts";
 
 export type SidekiqItem = Record<string, JsonValue>;
 
@@ -65,6 +65,29 @@ export function buildSidekiqItem(input: BuildItemInput): SidekiqItem {
   return item;
 }
 
+export class SidekiqArgumentError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ArgumentError";
+  }
+}
+
+// Sidekiq::JobUtil#normalize_item for a hash whose "class" is the job's Class (so its
+// sidekiq_options are the defaults), as Sidekiq::Client#push and #push_bulk call it. Keys keep the
+// order `defaults.merge(item)` gives them. `newJid` runs only when the item has no jid.
+export function normalizeItem(definition: JobDefinition, item: SidekiqItem, newJid: () => string, now: number): SidekiqItem {
+  if (!Object.hasOwn(item, "class") || !Object.hasOwn(item, "args")) throw new SidekiqArgumentError("Job must be a Hash with 'class' and 'args' keys");
+  if (!Array.isArray(item.args)) throw new SidekiqArgumentError("Job args must be an Array");
+  const normalized: SidekiqItem = { ...jobOptions(definition), ...item };
+  if (normalized.queue === null || normalized.queue === undefined || normalized.queue === "") throw new SidekiqArgumentError("Job must include a valid queue name");
+  if (normalized.jid === null || normalized.jid === undefined || normalized.jid === false) normalized.jid = newJid();
+  normalized.class = String(normalized.class);
+  normalized.queue = String(normalized.queue);
+  if (normalized.retry_for !== null && normalized.retry_for !== undefined && normalized.retry_for !== false) normalized.retry_for = Math.trunc(Number(normalized.retry_for));
+  if (normalized.created_at === null || normalized.created_at === undefined || normalized.created_at === false) normalized.created_at = new RubyFloat(now);
+  return normalized;
+}
+
 function lockArgsFor(item: SidekiqItem): JsonValue[] {
   const args = item.args as JsonValue[];
   const custom = LOCK_ARGS[String(item.class)];
@@ -83,7 +106,7 @@ export function lockDigest(item: { class: string; queue: string; lock_args: Json
 }
 
 // SidekiqUniqueJobs::Job.prepare, then the WhileExecuting constructor's digest suffix.
-function prepareUniqueItem(item: SidekiqItem, definition: JobDefinition, now: number): void {
+export function prepareUniqueItem(item: SidekiqItem, definition: JobDefinition, now: number): void {
   prepareLockFields(item, definition, now);
   if (serverLockType(item, definition) === "while_executing") item.lock_digest = runtimeLockDigest(String(item.lock_digest));
 }
@@ -118,7 +141,7 @@ function prepareLockFields(item: SidekiqItem, definition: JobDefinition, now: nu
   item.lock_timeout = "lock_timeout" in definition.options ? (options.lock_timeout ?? null) : UNIQUE_JOBS.lockTimeout;
 
   const ttl = (item.lock_ttl ?? options.lock_ttl ?? UNIQUE_JOBS.lockTtl) as number | null;
-  const at = item.at instanceof RubyFloat ? item.at.value : undefined;
+  const at = scheduledAt(item);
   const untilScheduled = at === undefined ? 0 : Math.trunc(at) - Math.trunc(now);
   item.lock_ttl = ttl === null ? null : Math.trunc(ttl) + untilScheduled;
 
@@ -126,6 +149,24 @@ function prepareLockFields(item: SidekiqItem, definition: JobDefinition, now: nu
   item.lock_args = lockArgsFor(item);
   const uniqueAcrossQueues = Boolean(item.unique_across_queues ?? options.unique_across_queues);
   item.lock_digest = lockDigest({ class: String(item.class), queue: String(item.queue), lock_args: item.lock_args }, uniqueAcrossQueues);
+}
+
+// The item's `at`, which Sidekiq takes as any Numeric: perform_in writes a Float, push_bulk callers
+// usually pass an Integer. undefined when the job is not scheduled.
+export function scheduledAt(item: SidekiqItem): number | undefined {
+  const at = item.at;
+  if (at === undefined || at === null) return undefined;
+  if (at instanceof RubyFloat) return at.value;
+  if (typeof at === "number" || typeof at === "bigint") return Number(at);
+  throw new TypeError(`${String(item.class)}: at must be Numeric`);
+}
+
+// `item["at"].to_s`: the schedule score and the lock score. A JS number with a fraction is a Float.
+export function scheduledAtToS(at: JsonValue): string {
+  if (at instanceof RubyFloat) return rubyFloatToS(at.value);
+  if (typeof at === "bigint" || (typeof at === "number" && Number.isInteger(at))) return String(at);
+  if (typeof at === "number") return rubyFloatToS(at);
+  throw new TypeError("at must be Numeric");
 }
 
 export function takesClientLock(item: SidekiqItem): boolean {

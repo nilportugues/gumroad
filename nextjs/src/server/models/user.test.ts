@@ -409,11 +409,13 @@ describe("Users.save on an existing seller", () => {
     expect(db.sql(/^UPDATE `followers`/u)[0]!.values).toEqual([new Date("2026-10-31T12:00:00Z"), 55n]);
   });
 
-  it("refuses a save that would reindex the seller's products", async () => {
+  it("hands the seller's products to the product index update", async () => {
     db.on(/SELECT `links`.`id` FROM `links`/u, () => [{ id: 11n }]);
+    const updates: [bigint[], string[]][] = [];
+    setUserCollaborators({ enqueueProductIndexUpdates: async (_user, ids, changeList) => void updates.push([ids, changeList]) });
     const user = existingSeller();
-    await expect(Users.updateBang(user, { name: "Renamed" })).rejects.toThrow(/ProductIndexingService/u);
-    expect(db.committed).toEqual([]);
+    await Users.updateBang(user, { name: "Renamed" });
+    expect(updates).toEqual([[[11n], ["rated_as_adult", "creator_name"]]]);
   });
 
   it("clears the reset password token when the password changes", async () => {

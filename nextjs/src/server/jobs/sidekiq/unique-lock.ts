@@ -6,7 +6,7 @@ import { createHash } from "node:crypto";
 import type { Redis } from "ioredis";
 
 import { rubyFloatToS } from "./ruby-json.ts";
-import { type SidekiqItem, UNIQUE_JOBS } from "./item.ts";
+import { scheduledAtToS, type SidekiqItem, UNIQUE_JOBS } from "./item.ts";
 import { LOCK_LUA, QUEUE_LUA, UNLOCK_LUA } from "./unique-jobs-lua.generated.ts";
 
 const SCRIPTS = { queue: QUEUE_LUA, lock: LOCK_LUA, unlock: UNLOCK_LUA } as const;
@@ -46,13 +46,12 @@ function redisVersion(redis: Redis): Promise<string> {
 // would: nil/false become 0, Floats use Float#to_s.
 async function argv(redis: Redis, item: SidekiqItem, script: ScriptName, now: number): Promise<string[]> {
   const ttl = typeof item.lock_ttl === "number" ? Math.trunc(item.lock_ttl) : 0;
-  const at = item.at as { value: number } | undefined;
   return [
     String(item.jid),
     String(ttl * 1000),
     String(item.lock),
     String(typeof item.lock_limit === "number" ? item.lock_limit : 1),
-    at ? rubyFloatToS(at.value) : "",
+    item.at === undefined || item.at === null ? "" : scheduledAtToS(item.at),
     rubyFloatToS(now),
     "0",
     String(UNIQUE_JOBS.maxHistory),

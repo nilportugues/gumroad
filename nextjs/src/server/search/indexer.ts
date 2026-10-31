@@ -56,7 +56,7 @@ type ModelClass = {
 };
 
 // The classes `class_name` constantizes to. Link (Product::Searchable) is indexed through
-// ProductIndexingService, never this worker, and its document is not ported.
+// ProductIndexingService (product-indexing.ts), never this worker, so this path stays unported.
 const CLASSES: Record<string, ModelClass> = {
   Purchase: { model: "Purchase", table: "purchases", find: (id) => PurchaseRecord.find(id) },
   Installment: { model: "Installment", table: "installments", find: (id) => InstallmentRecord.find(id) },

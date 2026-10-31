@@ -13,6 +13,12 @@ import { handleSnsAwsConfigEventWorker } from "./handle-sns-aws-config-event-wor
 import { expireStampedPdfsJob, updateLargeSellersSalesCountJob } from "./large-seller-and-stamped-pdf-jobs.ts";
 import { logResendEventJob } from "./log-resend-event-job.ts";
 import { logSendgridEventWorker } from "./log-sendgrid-event-worker.ts";
+import {
+  refreshMerchantAccountProductsRecommendationEligibilityJob,
+  refreshUserProductsRecommendationEligibilityJob,
+  reindexRecommendableProductsWorker,
+  sendToElasticsearchWorker,
+} from "./product-search-jobs.ts";
 import { backfillMerchantAccountRecommendationEligibilityJob, reindexSubscriptionCurrentEmailWorker } from "./search-reindex-jobs.ts";
 import { sellerUpdatesWorker } from "./seller-updates-worker.ts";
 import {
@@ -57,8 +63,12 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   LogResendEventJob: logResendEventJob,
   LogSendgridEventWorker: logSendgridEventWorker,
   SellerUpdatesWorker: sellerUpdatesWorker,
+  SendToElasticsearchWorker: sendToElasticsearchWorker,
   RecalculateRecentWishlistFollowerCountJob: recalculateRecentWishlistFollowerCountJob,
   RecoverAusBacktaxesFromStripeAccountsJob: recoverAusBacktaxesFromStripeAccountsJob,
+  RefreshMerchantAccountProductsRecommendationEligibilityJob: refreshMerchantAccountProductsRecommendationEligibilityJob,
+  RefreshUserProductsRecommendationEligibilityJob: refreshUserProductsRecommendationEligibilityJob,
+  ReindexRecommendableProductsWorker: reindexRecommendableProductsWorker,
   ReindexSubscriptionCurrentEmailWorker: reindexSubscriptionCurrentEmailWorker,
   ReleaseChargebackRatePayoutPausesJob: releaseChargebackRatePayoutPausesJob,
   SendMarketingXReconnectEmailJob: sendMarketingXReconnectEmailJob,

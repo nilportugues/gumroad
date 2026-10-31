@@ -108,7 +108,6 @@ write when they would run after commit):
 
 - `after_create :create_global_affiliate!`, `:create_refund_policy!` (user.rb:409-410): GlobalAffiliate
   and SellerRefundPolicy models. Until they land, no User can be created in Node.
-- `update_product_search_index!` (user.rb:1904): `Link#enqueue_index_update_for` / ProductIndexingService.
 - `update_audience_members_affiliates` (user.rb:1994): AudienceMember.
 - `update_alive_cart_email` (user.rb:1888): Cart.
 - `make_affiliate_of_the_matching_approved_affiliate_requests` (user.rb:1918): AffiliateRequest.

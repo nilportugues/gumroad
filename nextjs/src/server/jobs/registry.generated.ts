@@ -2271,7 +2271,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RefreshSitemapDailyWorker": {
     "file": "app/sidekiq/refresh_sitemap_daily_worker.rb",
@@ -2314,7 +2314,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RefreshWishlistSitemapDailyWorker": {
     "file": "app/sidekiq/refresh_wishlist_sitemap_daily_worker.rb",
@@ -2413,7 +2413,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ReindexSellerOfferCodesJob": {
     "file": "app/sidekiq/reindex_seller_offer_codes_job.rb",
@@ -3133,7 +3133,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SendWishlistUpdatedEmailsJob": {
     "file": "app/sidekiq/send_wishlist_updated_emails_job.rb",

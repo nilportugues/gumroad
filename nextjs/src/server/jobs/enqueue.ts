@@ -7,8 +7,8 @@ import { JOB_REGISTRY, type JobClass } from "./registry.generated.ts";
 import type { JobDefinition, SidekiqOptionValue } from "./registry-types.ts";
 import { type JobsRuntime, jobsRuntime } from "./runtime.ts";
 import { lockForPush, pushToSidekiq } from "./sidekiq/client.ts";
-import { buildSidekiqItem, type SidekiqItem, takesClientLock } from "./sidekiq/item.ts";
-import { dumpRubyJson, type JsonValue, RubyFloat } from "./sidekiq/ruby-json.ts";
+import { buildSidekiqItem, scheduledAt, type SidekiqItem, takesClientLock } from "./sidekiq/item.ts";
+import { dumpRubyJson, type JsonValue } from "./sidekiq/ruby-json.ts";
 import { releaseLock } from "./sidekiq/unique-lock.ts";
 
 export type { JobClass } from "./registry.generated.ts";
@@ -42,7 +42,8 @@ export function resolveJobClass(
 // enqueues; the unique lock, if any, is already held.
 export async function addToBullmq(runtime: JobsRuntime, definition: JobDefinition, item: SidekiqItem): Promise<void> {
   const now = runtime.now();
-  const delayMs = item.at instanceof RubyFloat ? Math.max(0, Math.round((item.at.value - now) * 1000)) : 0;
+  const at = scheduledAt(item);
+  const delayMs = at === undefined ? 0 : Math.max(0, Math.round((at - now) * 1000));
   const data: BridgedJobData = { sidekiq: dumpRubyJson(item) };
   await runtime.queue(String(item.queue)).add(String(item.class), data, bullJobOptions(definition, item, delayMs));
 }
