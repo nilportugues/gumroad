@@ -1,0 +1,4274 @@
+// GENERATED from db/schema.rb (version 2026_12_23_000005) by scripts/schema-rb-to-prisma.ts. Do not edit.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider     = "mysql"
+  url          = env("DATABASE_URL")
+  // The database has no foreign keys by policy; relations are enforced in application code.
+  relationMode = "prisma"
+}
+
+model ActiveStorageAttachment {
+  id BigInt @id @default(autoincrement())
+  name String @db.VarChar(191)
+  record_type String @db.VarChar(191)
+  record_id BigInt
+  blob_id BigInt
+  created_at DateTime @db.DateTime(0)
+
+  @@index([blob_id], map: "index_active_storage_attachments_on_blob_id")
+  @@unique([record_type, record_id, name, blob_id], map: "index_active_storage_attachments_uniqueness")
+  @@map("active_storage_attachments")
+}
+
+model ActiveStorageBlob {
+  id BigInt @id @default(autoincrement())
+  key String @db.VarChar(191)
+  filename String @db.VarChar(191)
+  content_type String? @db.VarChar(191)
+  metadata String? @db.Text
+  byte_size BigInt
+  checksum String? @db.VarChar(191)
+  created_at DateTime @db.DateTime(0)
+  service_name String @db.VarChar(255)
+
+  @@unique([key], map: "index_active_storage_blobs_on_key")
+  @@map("active_storage_blobs")
+}
+
+model ActiveStorageVariantRecord {
+  id BigInt @id @default(autoincrement())
+  blob_id BigInt
+  variation_digest String @db.VarChar(255)
+
+  @@unique([blob_id, variation_digest], map: "index_active_storage_variant_records_uniqueness")
+  @@map("active_storage_variant_records")
+}
+
+model AdminActionCallInfo {
+  id BigInt @id @default(autoincrement())
+  controller_name String @db.VarChar(255)
+  action_name String @db.VarChar(255)
+  call_count Int @default(0)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([controller_name, action_name], map: "index_admin_action_call_infos_on_controller_name_and_action_name")
+  @@map("admin_action_call_infos")
+}
+
+model AdminApiAuditLog {
+  id BigInt @id @default(autoincrement())
+  actor_user_id BigInt
+  admin_api_token_id BigInt
+  action String @db.VarChar(255)
+  target_type String? @db.VarChar(255)
+  target_id BigInt?
+  target_external_id String? @db.VarChar(255)
+  route String @db.VarChar(255)
+  http_method String @db.VarChar(255)
+  params_snapshot Json?
+  request_id String? @db.VarChar(255)
+  response_status Int?
+  error_class String? @db.VarChar(255)
+  created_at DateTime @db.DateTime(6)
+
+  @@index([actor_user_id, created_at], map: "index_admin_api_audit_logs_on_actor_user_id_and_created_at")
+  @@index([admin_api_token_id, created_at], map: "idx_on_admin_api_token_id_created_at_95eabf5e0d")
+  @@index([created_at], map: "index_admin_api_audit_logs_on_created_at")
+  @@index([target_type, target_id, created_at], map: "idx_on_target_type_target_id_created_at_bc67bbc74b")
+  @@map("admin_api_audit_logs")
+}
+
+model AdminApiAuthorizationCode {
+  id BigInt @id @default(autoincrement())
+  actor_user_id BigInt
+  admin_api_token_id BigInt?
+  code_hash String @db.VarChar(64)
+  code_challenge String @db.VarChar(255)
+  expires_at DateTime @db.DateTime(6)
+  used_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([actor_user_id, created_at], map: "idx_admin_api_auth_codes_actor_created")
+  @@index([admin_api_token_id], map: "idx_admin_api_auth_codes_token")
+  @@unique([code_hash], map: "idx_admin_api_auth_codes_code_hash")
+  @@index([expires_at], map: "idx_admin_api_auth_codes_expires")
+  @@map("admin_api_authorization_codes")
+}
+
+model AdminApiToken {
+  id BigInt @id @default(autoincrement())
+  external_id String @db.VarChar(21)
+  actor_user_id BigInt
+  token_hash String @db.VarChar(64)
+  last_used_at DateTime? @db.DateTime(6)
+  revoked_at DateTime? @db.DateTime(6)
+  expires_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  scope String @default("admin") @db.VarChar(32)
+
+  @@index([actor_user_id], map: "index_admin_api_tokens_on_actor_user_id")
+  @@index([expires_at], map: "index_admin_api_tokens_on_expires_at")
+  @@unique([external_id], map: "index_admin_api_tokens_on_external_id")
+  @@index([revoked_at], map: "index_admin_api_tokens_on_revoked_at")
+  @@unique([token_hash], map: "index_admin_api_tokens_on_token_hash")
+  @@map("admin_api_tokens")
+}
+
+model AffiliateCredit {
+  id Int @id @default(autoincrement())
+  oauth_application_id Int?
+  basis_points Int?
+  amount_cents Int?
+  affiliate_user_id Int?
+  seller_id Int?
+  created_at DateTime @db.DateTime(0)
+  updated_at DateTime @db.DateTime(0)
+  purchase_id Int?
+  link_id Int?
+  affiliate_credit_success_balance_id Int?
+  affiliate_credit_chargeback_balance_id Int?
+  affiliate_credit_refund_balance_id Int?
+  affiliate_id Int?
+  fee_cents BigInt @default(0)
+  is_direct_affiliate_credit Boolean @default(false)
+
+  @@index([affiliate_credit_chargeback_balance_id], map: "idx_affiliate_credits_on_affiliate_credit_chargeback_balance_id")
+  @@index([affiliate_credit_refund_balance_id], map: "index_affiliate_credits_on_affiliate_credit_refund_balance_id")
+  @@index([affiliate_credit_success_balance_id], map: "index_affiliate_credits_on_affiliate_credit_success_balance_id")
+  @@index([affiliate_id], map: "index_affiliate_credits_on_affiliate_id")
+  @@index([affiliate_user_id, affiliate_credit_refund_balance_id, affiliate_credit_chargeback_balance_id, affiliate_credit_success_balance_id, amount_cents], map: "idx_affiliate_credits_on_user_and_balances_and_amount")
+  @@index([affiliate_user_id], map: "index_affiliate_credits_on_affiliate_user_id")
+  @@index([link_id, affiliate_id, affiliate_credit_chargeback_balance_id, affiliate_credit_refund_balance_id, amount_cents], map: "idx_affiliate_credits_on_link_affiliate_balances_amount")
+  @@index([oauth_application_id], map: "index_affiliate_credits_on_oauth_application_id")
+  @@index([purchase_id], map: "index_affiliate_credits_on_purchase_id")
+  @@index([seller_id], map: "index_affiliate_credits_on_seller_id")
+  @@map("affiliate_credits")
+}
+
+model AffiliatePartialRefund {
+  id Int @id @default(autoincrement())
+  amount_cents Int? @default(0)
+  purchase_id Int
+  total_credit_cents Int? @default(0)
+  affiliate_user_id Int?
+  seller_id Int?
+  affiliate_id Int?
+  balance_id Int?
+  affiliate_credit_id Int?
+  created_at DateTime? @db.DateTime(0)
+  updated_at DateTime? @db.DateTime(0)
+  fee_cents BigInt? @default(0)
+
+  @@index([affiliate_credit_id], map: "index_affiliate_partial_refunds_on_affiliate_credit_id")
+  @@index([affiliate_id], map: "index_affiliate_partial_refunds_on_affiliate_id")
+  @@index([affiliate_user_id], map: "index_affiliate_partial_refunds_on_affiliate_user_id")
+  @@index([balance_id], map: "index_affiliate_partial_refunds_on_balance_id")
+  @@index([purchase_id], map: "index_affiliate_partial_refunds_on_purchase_id")
+  @@index([seller_id], map: "index_affiliate_partial_refunds_on_seller_id")
+  @@map("affiliate_partial_refunds")
+}
+
+model AffiliateRequest {
+  id BigInt @id @default(autoincrement())
+  seller_id BigInt
+  name String @db.VarChar(100)
+  email String @db.VarChar(255)
+  promotion_text String @db.MediumText
+  locale String @default("en") @db.VarChar(255)
+  state String? @db.VarChar(255)
+  state_transitioned_at DateTime? @db.DateTime(0)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([seller_id], map: "index_affiliate_requests_on_seller_id")
+  @@map("affiliate_requests")
+}
+
+model Affiliate {
+  id Int @id @default(autoincrement())
+  seller_id Int?
+  affiliate_user_id Int?
+  affiliate_basis_points Int?
+  created_at DateTime? @db.DateTime(0)
+  updated_at DateTime? @db.DateTime(0)
+  deleted_at DateTime? @db.DateTime(0)
+  flags Int @default(0)
+  destination_url String? @db.VarChar(2083)
+  type String @db.VarChar(255)
+
+  @@index([affiliate_user_id], map: "index_affiliates_on_affiliate_user_id")
+  @@index([seller_id], map: "index_affiliates_on_seller_id")
+  @@map("affiliates")
+}
+
+model AffiliatesLink {
+  id Int @id @default(autoincrement())
+  affiliate_id Int?
+  link_id Int?
+  created_at DateTime? @db.DateTime(0)
+  updated_at DateTime? @db.DateTime(0)
+  affiliate_basis_points Int?
+  destination_url String? @db.VarChar(255)
+  flags BigInt @default(0)
+  workflow_schedule_token String? @db.VarChar(255)
+
+  @@unique([affiliate_id, link_id], map: "index_affiliates_links_on_affiliate_id_and_link_id")
+  @@index([affiliate_id], map: "index_affiliates_links_on_affiliate_id")
+  @@index([link_id], map: "index_affiliates_links_on_link_id")
+  @@index([workflow_schedule_token], map: "index_affiliates_links_on_workflow_schedule_token")
+  @@map("affiliates_links")
+}
+
+model AiConversation {
+  id BigInt @id @default(autoincrement())
+  seller_id BigInt
+  title String? @db.VarChar(255)
+  deleted_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([seller_id, deleted_at, updated_at, id], map: "index_ai_conversations_latest_per_seller")
+  @@index([seller_id], map: "index_ai_conversations_on_seller_id")
+  @@map("ai_conversations")
+}
+
+model AiMessage {
+  id BigInt @id @default(autoincrement())
+  ai_conversation_id BigInt
+  role String @db.VarChar(255)
+  content String @db.MediumText
+  metadata Json?
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([ai_conversation_id], map: "index_ai_messages_on_ai_conversation_id")
+  @@map("ai_messages")
+}
+
+model AssetPreview {
+  id BigInt @id @default(autoincrement())
+  link_id BigInt?
+  guid String? @db.VarChar(255)
+  oembed String? @db.Text
+  created_at DateTime? @db.DateTime(0)
+  updated_at DateTime? @db.DateTime(0)
+  deleted_at DateTime? @db.DateTime(0)
+  position Int?
+  unsplash_url String? @db.VarChar(255)
+
+  @@index([deleted_at], map: "index_asset_previews_on_deleted_at")
+  @@index([link_id], map: "index_asset_previews_on_link_id")
+  @@map("asset_previews")
+}
+
+model AudienceMember {
+  id BigInt @id @default(autoincrement())
+  seller_id BigInt
+  email String @db.VarChar(255)
+  details Json?
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  customer Boolean @default(false)
+  follower Boolean @default(false)
+  affiliate Boolean @default(false)
+  min_paid_cents Int?
+  max_paid_cents Int?
+  min_created_at DateTime? @db.DateTime(0)
+  max_created_at DateTime? @db.DateTime(0)
+  min_purchase_created_at DateTime? @db.DateTime(0)
+  max_purchase_created_at DateTime? @db.DateTime(0)
+  follower_created_at DateTime? @db.DateTime(0)
+  min_affiliate_created_at DateTime? @db.DateTime(0)
+  max_affiliate_created_at DateTime? @db.DateTime(0)
+
+  @@index([email(length: 191)], map: "idx_audience_on_email")
+  @@index([seller_id, customer, follower, affiliate], map: "idx_audience_on_seller_and_types")
+  @@unique([seller_id, email], map: "index_audience_members_on_seller_id_and_email")
+  @@index([seller_id, follower_created_at], map: "idx_audience_on_seller_and_follower_created_at")
+  @@index([seller_id, min_affiliate_created_at, max_affiliate_created_at], map: "idx_audience_on_seller_and_minmax_affiliate_created_at")
+  @@index([seller_id, min_created_at, max_created_at], map: "idx_audience_on_seller_and_minmax_created_at")
+  @@index([seller_id, min_paid_cents, max_paid_cents], map: "idx_audience_on_seller_and_minmax_paid_cents")
+  @@index([seller_id, min_purchase_created_at, max_purchase_created_at], map: "idx_audience_on_seller_and_minmax_purchase_created_at")
+  @@index([seller_id], map: "idx_audience_on_seller_id")
+  @@map("audience_members")
+}
+
+model AustraliaBacktaxEmailInfo {
+  id BigInt @id @default(autoincrement())
+  user_id BigInt?
+  email_name String? @db.VarChar(255)
+  sent_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([user_id], map: "index_australia_backtax_email_infos_on_user_id")
+  @@map("australia_backtax_email_infos")
+}
+
+model BacktaxAgreement {
+  id BigInt @id @default(autoincrement())
+  user_id BigInt
+  jurisdiction String? @db.VarChar(255)
+  signature String? @db.VarChar(255)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  flags BigInt @default(0)
+
+  @@index([user_id], map: "index_backtax_agreements_on_user_id")
+  @@map("backtax_agreements")
+}
+
+model BacktaxCollection {
+  id BigInt @id @default(autoincrement())
+  user_id BigInt
+  backtax_agreement_id BigInt
+  amount_cents Int?
+  amount_cents_usd Int?
+  currency String? @db.VarChar(255)
+  stripe_transfer_id String? @db.VarChar(255)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([backtax_agreement_id], map: "index_backtax_collections_on_backtax_agreement_id")
+  @@index([user_id], map: "index_backtax_collections_on_user_id")
+  @@map("backtax_collections")
+}
+
+model BalanceTransaction {
+  id Int @id @default(autoincrement())
+  created_at DateTime? @db.DateTime(0)
+  updated_at DateTime? @db.DateTime(0)
+  user_id Int?
+  merchant_account_id Int?
+  balance_id Int?
+  purchase_id Int?
+  dispute_id Int?
+  refund_id Int?
+  credit_id Int?
+  occurred_at DateTime? @db.DateTime(0)
+  issued_amount_currency String? @db.VarChar(255)
+  issued_amount_gross_cents Int?
+  issued_amount_net_cents Int?
+  holding_amount_currency String? @db.VarChar(255)
+  holding_amount_gross_cents Int?
+  holding_amount_net_cents Int?
+
+  @@index([balance_id], map: "index_balance_transactions_on_balance_id")
+  @@index([credit_id], map: "index_balance_transactions_on_credit_id")
+  @@index([dispute_id], map: "index_balance_transactions_on_dispute_id")
+  @@index([merchant_account_id], map: "index_balance_transactions_on_merchant_account_id")
+  @@index([purchase_id], map: "index_balance_transactions_on_purchase_id")
+  @@index([refund_id], map: "index_balance_transactions_on_refund_id")
+  @@index([user_id], map: "index_balance_transactions_on_user_id")
+  @@map("balance_transactions")
+}
+
+model Balance {
+  id Int @id @default(autoincrement())
+  user_id Int?
+  date DateTime? @db.Date
+  amount_cents Int? @default(0)
+  state String? @db.VarChar(255)
+  created_at DateTime @db.DateTime(0)
+  updated_at DateTime @db.DateTime(0)
+  merchant_account_id Int? @default(1)
+  currency String? @default("usd") @db.VarChar(255)
+  holding_currency String? @default("usd") @db.VarChar(255)
+  holding_amount_cents Int? @default(0)
+
+  @@index([state, merchant_account_id, date, user_id], map: "index_balances_on_state_merchant_account_date_for_payouts")
+  @@index([state, user_id, amount_cents], map: "index_balances_on_state_user_id_amount_cents")
+  @@index([user_id, merchant_account_id, date], map: "index_on_user_merchant_account_date")
+  @@map("balances")
+}
+
+model BankAccount {
+  id Int @id @default(autoincrement())
+  user_id Int?
+  bank_number String? @db.VarChar(255)
+  account_number Bytes? @db.Blob
+  state String? @db.VarChar(255)
+  created_at DateTime @db.DateTime(0)
+  updated_at DateTime @db.DateTime(0)
+  account_number_last_four String? @db.VarChar(255)
+  account_holder_full_name String? @db.VarChar(255)
+  deleted_at DateTime? @db.DateTime(0)
+  type String? @default("AchAccount") @db.VarChar(255)
+  branch_code String? @db.VarChar(255)
+  account_type String? @db.VarChar(255)
+  stripe_bank_account_id String? @db.VarChar(255)
+  stripe_fingerprint String? @db.VarChar(255)
+  stripe_connect_account_id String? @db.VarChar(255)
+  country String? @db.VarChar(191)
+  credit_card_id Int?
+
+  @@index([stripe_fingerprint], map: "index_bank_accounts_on_stripe_fingerprint")
+  @@index([user_id], map: "index_ach_accounts_on_user_id")
+  @@map("bank_accounts")
+}
+
+model Bank {
+  id Int @id @default(autoincrement())
+  routing_number String? @db.VarChar(255)
+  name String? @db.VarChar(255)
+
+  @@index([routing_number], map: "index_banks_on_routing_number")
+  @@map("banks")
+}
+
+model BaseVariantIntegration {
+  id BigInt @id @default(autoincrement())
+  base_variant_id BigInt
+  integration_id BigInt
+  deleted_at DateTime? @db.DateTime(0)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([base_variant_id], map: "index_base_variant_integrations_on_base_variant_id")
+  @@index([integration_id], map: "index_base_variant_integrations_on_integration_id")
+  @@map("base_variant_integrations")
+}
+
+model BaseVariant {
+  id Int @id @default(autoincrement())
+  variant_category_id Int?
+  price_difference_cents Int?
+  name String? @db.VarChar(255)
+  max_purchase_count Int?
+  deleted_at DateTime? @db.DateTime(0)
+  created_at DateTime? @db.DateTime(0)
+  updated_at DateTime? @db.DateTime(0)
+  type String? @default("Variant") @db.VarChar(255)
+  link_id Int?
+  custom_sku String? @db.VarChar(255)
+  flags Int @default(0)
+  description String? @db.VarChar(255)
+  position_in_category Int?
+  customizable_price Boolean?
+  subscription_price_change_effective_date DateTime? @db.Date
+  subscription_price_change_message String? @db.LongText
+  duration_in_minutes Int?
+  sales_count_for_inventory_cache Int @default(0)
+
+  @@index([link_id], map: "index_base_variants_on_link_id")
+  @@index([variant_category_id], map: "index_variants_on_variant_category_id")
+  @@map("base_variants")
+}
+
+model BaseVariantsProductFile {
+  id Int @id @default(autoincrement())
+  base_variant_id Int?
+  product_file_id Int?
+
+  @@index([base_variant_id], map: "index_base_variants_product_files_on_base_variant_id")
+  @@index([product_file_id], map: "index_base_variants_product_files_on_product_file_id")
+  @@map("base_variants_product_files")
+}
+
+model BaseVariantsPurchas {
+  id Int @id @default(autoincrement())
+  purchase_id Int?
+  base_variant_id Int?
+
+  @@index([base_variant_id], map: "index_purchases_variants_on_variant_id")
+  @@index([purchase_id], map: "index_purchases_variants_on_purchase_id")
+  @@map("base_variants_purchases")
+}
+
+model BillingDetail {
+  id BigInt @id @default(autoincrement())
+  purchaser_id BigInt
+  full_name String @db.VarChar(255)
+  business_name String? @db.VarChar(255)
+  business_id String? @db.VarChar(255)
+  street_address String @db.VarChar(255)
+  city String @db.VarChar(255)
+  state String? @db.VarChar(255)
+  zip_code String @db.VarChar(255)
+  country_code String @db.VarChar(2)
+  additional_notes String? @db.Text
+  auto_email_invoice_enabled Boolean @default(true)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([purchaser_id], map: "index_billing_details_on_purchaser_id")
+  @@map("billing_details")
+}
+
+model BlockedCustomerObject {
+  id BigInt @id @default(autoincrement())
+  seller_id BigInt
+  object_type String @db.VarChar(255)
+  object_value String @db.VarChar(255)
+  buyer_email String? @db.VarChar(255)
+  blocked_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([buyer_email], map: "index_blocked_customer_objects_on_buyer_email")
+  @@unique([seller_id, object_type, object_value], map: "idx_blocked_customer_objects_on_seller_and_object_type_and_value")
+  @@index([seller_id], map: "index_blocked_customer_objects_on_seller_id")
+  @@map("blocked_customer_objects")
+}
+
+model BundleProductPurchas {
+  id BigInt @id @default(autoincrement())
+  bundle_purchase_id BigInt
+  product_purchase_id BigInt
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([bundle_purchase_id], map: "index_bundle_product_purchases_on_bundle_purchase_id")
+  @@index([product_purchase_id], map: "index_bundle_product_purchases_on_product_purchase_id")
+  @@map("bundle_product_purchases")
+}
+
+model BundleProduct {
+  id BigInt @id @default(autoincrement())
+  bundle_id BigInt
+  product_id BigInt
+  variant_id BigInt?
+  quantity Int
+  deleted_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  position Int?
+
+  @@index([bundle_id], map: "index_bundle_products_on_bundle_id")
+  @@index([product_id], map: "index_bundle_products_on_product_id")
+  @@index([variant_id], map: "index_bundle_products_on_variant_id")
+  @@map("bundle_products")
+}
+
+model CachedSalesRelatedProductsInfo {
+  id BigInt @id @default(autoincrement())
+  product_id BigInt
+  counts Json?
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([product_id], map: "index_cached_sales_related_products_infos_on_product_id")
+  @@map("cached_sales_related_products_infos")
+}
+
+model CallAvailability {
+  id BigInt @id @default(autoincrement())
+  call_id BigInt
+  start_time DateTime? @db.DateTime(6)
+  end_time DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([call_id], map: "index_call_availabilities_on_call_id")
+  @@map("call_availabilities")
+}
+
+model CallLimitationInfo {
+  id BigInt @id @default(autoincrement())
+  call_id BigInt
+  minimum_notice_in_minutes Int?
+  maximum_calls_per_day Int?
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([call_id], map: "index_call_limitation_infos_on_call_id")
+  @@map("call_limitation_infos")
+}
+
+model Call {
+  id BigInt @id @default(autoincrement())
+  purchase_id BigInt?
+  call_url String? @db.VarChar(1024)
+  start_time DateTime? @db.DateTime(6)
+  end_time DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  google_calendar_event_id String? @db.VarChar(255)
+
+  @@index([purchase_id], map: "index_calls_on_purchase_id")
+  @@map("calls")
+}
+
+model CartProduct {
+  id BigInt @id @default(autoincrement())
+  cart_id BigInt
+  product_id BigInt
+  option_id BigInt?
+  affiliate_id BigInt?
+  accepted_offer_id BigInt?
+  price BigInt
+  quantity Int
+  recurrence String? @db.VarChar(255)
+  recommended_by String? @db.VarChar(255)
+  rent Boolean @default(false)
+  url_parameters Json?
+  referrer String @db.LongText
+  recommender_model_name String? @db.VarChar(255)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  deleted_at DateTime? @db.DateTime(6)
+  call_start_time DateTime? @db.DateTime(6)
+  accepted_offer_details Json?
+  pay_in_installments Boolean @default(false)
+
+  @@unique([cart_id, product_id, deleted_at], map: "index_cart_products_on_cart_id_and_product_id_and_deleted_at")
+  @@index([cart_id], map: "index_cart_products_on_cart_id")
+  @@index([deleted_at, cart_id], map: "index_cart_products_on_deleted_at_and_cart_id")
+  @@index([product_id], map: "index_cart_products_on_product_id")
+  @@map("cart_products")
+}
+
+model Cart {
+  id BigInt @id @default(autoincrement())
+  user_id BigInt?
+  order_id BigInt?
+  return_url String? @db.LongText
+  discount_codes Json?
+  reject_ppp_discount Boolean @default(false)
+  deleted_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  email String? @db.VarChar(255)
+  browser_guid String? @db.VarChar(255)
+  ip_address String? @db.VarChar(255)
+
+  @@index([browser_guid], map: "index_carts_on_browser_guid")
+  @@index([created_at], map: "index_carts_on_created_at")
+  @@index([deleted_at, updated_at], map: "index_carts_on_deleted_at_and_updated_at")
+  @@index([email], map: "index_carts_on_email")
+  @@index([order_id], map: "index_carts_on_order_id")
+  @@index([updated_at], map: "index_carts_on_updated_at")
+  @@index([user_id], map: "index_carts_on_user_id")
+  @@map("carts")
+}
+
+model ChargePresentment {
+  id BigInt @id @default(autoincrement())
+  charge_id BigInt
+  processor String @db.VarChar(255)
+  presentment_currency String @db.VarChar(255)
+  presentment_total_cents BigInt
+  presentment_gumroad_amount_cents BigInt
+  stripe_fx_quote_id String? @db.VarChar(255)
+  stripe_fx_quote_expires_at DateTime? @db.DateTime(6)
+  fx_rate Decimal? @db.Decimal(30, 15)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  rounding_delta_cents BigInt @default(0)
+
+  @@unique([charge_id], map: "index_charge_presentments_on_charge_id")
+  @@index([stripe_fx_quote_id], map: "index_charge_presentments_on_stripe_fx_quote_id")
+  @@map("charge_presentments")
+}
+
+model ChargePurchas {
+  id BigInt @id @default(autoincrement())
+  charge_id BigInt
+  purchase_id BigInt
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([charge_id], map: "index_charge_purchases_on_charge_id")
+  @@index([purchase_id], map: "index_charge_purchases_on_purchase_id")
+  @@map("charge_purchases")
+}
+
+model Charge {
+  id BigInt @id @default(autoincrement())
+  order_id BigInt
+  seller_id BigInt
+  processor String? @db.VarChar(255)
+  processor_transaction_id String? @db.VarChar(255)
+  payment_method_fingerprint String? @db.VarChar(255)
+  credit_card_id BigInt?
+  merchant_account_id BigInt?
+  amount_cents BigInt?
+  gumroad_amount_cents BigInt?
+  processor_fee_cents BigInt?
+  processor_fee_currency String? @db.VarChar(255)
+  paypal_order_id String? @db.VarChar(255)
+  stripe_payment_intent_id String? @db.VarChar(255)
+  stripe_setup_intent_id String? @db.VarChar(255)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  disputed_at DateTime? @db.DateTime(6)
+  dispute_reversed_at DateTime? @db.DateTime(6)
+  flags BigInt @default(0)
+
+  @@index([credit_card_id], map: "index_charges_on_credit_card_id")
+  @@index([merchant_account_id], map: "index_charges_on_merchant_account_id")
+  @@index([order_id], map: "index_charges_on_order_id")
+  @@unique([paypal_order_id], map: "index_charges_on_paypal_order_id")
+  @@unique([processor_transaction_id], map: "index_charges_on_processor_transaction_id")
+  @@index([seller_id], map: "index_charges_on_seller_id")
+  @@index([stripe_payment_intent_id], map: "index_charges_on_stripe_payment_intent_id")
+  @@map("charges")
+}
+
+model CollaboratorInvitation {
+  id BigInt @id @default(autoincrement())
+  collaborator_id BigInt
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([collaborator_id], map: "index_collaborator_invitations_on_collaborator_id")
+  @@map("collaborator_invitations")
+}
+
+model Comment {
+  id BigInt @id @default(autoincrement())
+  commentable_id BigInt?
+  commentable_type String? @db.VarChar(255)
+  author_id BigInt?
+  author_name String? @db.VarChar(255)
+  content String? @db.MediumText
+  comment_type String? @db.VarChar(255)
+  json_data String? @db.MediumText
+  created_at DateTime @db.DateTime(0)
+  updated_at DateTime @db.DateTime(0)
+  deleted_at DateTime? @db.DateTime(0)
+  purchase_id BigInt?
+  ancestry String? @db.VarChar(255)
+  ancestry_depth Int @default(0)
+  idempotency_key String? @db.VarChar(255)
+
+  @@index([ancestry], map: "index_comments_on_ancestry")
+  @@index([comment_type, commentable_type, created_at, commentable_id], map: "index_comments_on_comment_type_and_created_at")
+  @@index([commentable_id, commentable_type], map: "index_comments_on_commentable_id_and_commentable_type")
+  @@unique([commentable_type, commentable_id, idempotency_key], map: "index_comments_on_commentable_and_idempotency_key")
+  @@index([purchase_id], map: "index_comments_on_purchase_id")
+  @@map("comments")
+}
+
+model CommissionFile {
+  id BigInt @id @default(autoincrement())
+  url String? @db.VarChar(1024)
+  commission_id BigInt
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([commission_id], map: "index_commission_files_on_commission_id")
+  @@map("commission_files")
+}
+
+model Commission {
+  id BigInt @id @default(autoincrement())
+  status String? @db.VarChar(255)
+  deposit_purchase_id BigInt?
+  completion_purchase_id BigInt?
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([completion_purchase_id], map: "index_commissions_on_completion_purchase_id")
+  @@index([deposit_purchase_id], map: "index_commissions_on_deposit_purchase_id")
+  @@map("commissions")
+}
+
+model Community {
+  id BigInt @id @default(autoincrement())
+  resource_type String @db.VarChar(255)
+  resource_id BigInt
+  seller_id BigInt
+  deleted_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([deleted_at], map: "index_communities_on_deleted_at")
+  @@unique([resource_type, resource_id, seller_id, deleted_at], map: "idx_on_resource_type_resource_id_seller_id_deleted__23a67b41cb")
+  @@index([resource_type, resource_id], map: "index_communities_on_resource")
+  @@index([seller_id], map: "index_communities_on_seller_id")
+  @@map("communities")
+}
+
+model CommunityChatMessage {
+  id BigInt @id @default(autoincrement())
+  community_id BigInt
+  user_id BigInt
+  content String @db.LongText
+  deleted_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([community_id], map: "index_community_chat_messages_on_community_id")
+  @@index([deleted_at], map: "index_community_chat_messages_on_deleted_at")
+  @@index([user_id], map: "index_community_chat_messages_on_user_id")
+  @@map("community_chat_messages")
+}
+
+model CommunityChatRecapRun {
+  id BigInt @id @default(autoincrement())
+  recap_frequency String @db.VarChar(255)
+  from_date DateTime @db.DateTime(6)
+  to_date DateTime @db.DateTime(6)
+  recaps_count Int @default(0)
+  finished_at DateTime? @db.DateTime(6)
+  notified_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([recap_frequency, from_date, to_date], map: "idx_on_recap_frequency_from_date_to_date_2ed29d569d")
+  @@index([recap_frequency], map: "index_community_chat_recap_runs_on_recap_frequency")
+  @@map("community_chat_recap_runs")
+}
+
+model CommunityChatRecap {
+  id BigInt @id @default(autoincrement())
+  community_chat_recap_run_id BigInt
+  community_id BigInt?
+  seller_id BigInt?
+  summarized_message_count Int @default(0)
+  summary String? @db.LongText
+  status String @default("pending") @db.VarChar(255)
+  error_message String? @db.VarChar(255)
+  input_token_count Int @default(0)
+  output_token_count Int @default(0)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([community_chat_recap_run_id], map: "index_community_chat_recaps_on_community_chat_recap_run_id")
+  @@index([community_id], map: "index_community_chat_recaps_on_community_id")
+  @@index([seller_id], map: "index_community_chat_recaps_on_seller_id")
+  @@index([status], map: "index_community_chat_recaps_on_status")
+  @@map("community_chat_recaps")
+}
+
+model CommunityNotificationSetting {
+  id BigInt @id @default(autoincrement())
+  user_id BigInt
+  seller_id BigInt
+  recap_frequency String? @db.VarChar(255)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([recap_frequency], map: "index_community_notification_settings_on_recap_frequency")
+  @@index([seller_id], map: "index_community_notification_settings_on_seller_id")
+  @@unique([user_id, seller_id], map: "index_community_notification_settings_on_user_id_and_seller_id")
+  @@index([user_id], map: "index_community_notification_settings_on_user_id")
+  @@map("community_notification_settings")
+}
+
+/// charset: latin1
+model ComputedSalesAnalyticsDay {
+  id Int @id @default(autoincrement())
+  key String @db.VarChar(191)
+  data String? @db.MediumText
+  created_at DateTime @db.DateTime(0)
+  updated_at DateTime @db.DateTime(0)
+
+  @@unique([key], map: "index_computed_sales_analytics_days_on_key")
+  @@map("computed_sales_analytics_days")
+}
+
+model ConsumptionEvent {
+  id BigInt @id @default(autoincrement())
+  product_file_id BigInt?
+  url_redirect_id BigInt?
+  purchase_id BigInt?
+  event_type String? @db.VarChar(255)
+  platform String? @db.VarChar(255)
+  flags Int @default(0)
+  json_data String? @db.Text
+  created_at DateTime? @db.DateTime(0)
+  updated_at DateTime? @db.DateTime(0)
+  link_id BigInt?
+  consumed_at DateTime? @db.DateTime(0)
+  media_location_basis_points Int?
+
+  @@index([link_id], map: "index_consumption_events_on_link_id")
+  @@index([product_file_id], map: "index_consumption_events_on_product_file_id")
+  @@index([purchase_id], map: "index_consumption_events_on_purchase_id")
+  @@map("consumption_events")
+}
+
+model CreditCard {
+  id Int @id @default(autoincrement())
+  card_type String? @db.VarChar(255)
+  expiry_month Int?
+  expiry_year Int?
+  stripe_customer_id String? @db.VarChar(255)
+  visual String? @db.VarChar(255)
+  created_at DateTime? @db.DateTime(0)
+  updated_at DateTime? @db.DateTime(0)
+  stripe_fingerprint String? @db.VarChar(255)
+  cvc_check_failed Boolean?
+  card_country String? @db.VarChar(255)
+  stripe_card_id String? @db.VarChar(255)
+  card_bin String? @db.VarChar(255)
+  preorder_id Int?
+  card_data_handling_mode String? @db.VarChar(255)
+  charge_processor_id String? @db.VarChar(255)
+  braintree_customer_id String? @db.VarChar(255)
+  funding_type String? @db.VarChar(191)
+  paypal_billing_agreement_id String? @db.VarChar(191)
+  processor_payment_method_id String? @db.VarChar(255)
+  json_data Json?
+  payment_method_type String? @db.VarChar(255)
+  stripe_account_id String? @db.VarChar(255)
+  recurring_authorization_verified_at DateTime? @db.DateTime(6)
+  recurring_authorization_currency String? @db.VarChar(255)
+  recurring_authorization_max_amount_cents Int?
+
+  @@index([preorder_id], map: "index_credit_cards_on_preorder_id")
+  @@index([stripe_fingerprint], map: "index_credit_cards_on_stripe_fingerprint")
+  @@map("credit_cards")
+}
+
+model Credit {
+  id Int @id @default(autoincrement())
+  user_id Int?
+  amount_cents Int?
+  balance_id Int?
+  created_at DateTime @db.DateTime(0)
+  updated_at DateTime @db.DateTime(0)
+  crediting_user_id Int?
+  chargebacked_purchase_id Int?
+  merchant_account_id Int? @default(1)
+  dispute_id Int?
+  returned_payment_id Int?
+  refund_id Int?
+  financing_paydown_purchase_id Int?
+  fee_retention_refund_id Int?
+  backtax_agreement_id BigInt?
+  json_data String? @db.Text
+  reason String? @db.Text
+  failed_refund_id BigInt?
+
+  @@index([balance_id], map: "index_credits_on_balance_id")
+  @@index([dispute_id], map: "index_credits_on_dispute_id")
+  @@index([failed_refund_id], map: "index_credits_on_failed_refund_id")
+  @@index([user_id, created_at, id], map: "index_credits_on_user_id_and_created_at_and_id")
+  @@map("credits")
+}
+
+model CustomDomain {
+  id Int @id @default(autoincrement())
+  user_id Int?
+  domain String? @db.VarChar(255)
+  created_at DateTime? @db.DateTime(0)
+  updated_at DateTime? @db.DateTime(0)
+  ssl_certificate_issued_at DateTime? @db.DateTime(0)
+  deleted_at DateTime? @db.DateTime(0)
+  state String @default("unverified") @db.VarChar(255)
+  failed_verification_attempts_count Int @default(0)
+  product_id BigInt?
+  routable Boolean?
+  routability_checked_at DateTime? @db.DateTime(6)
+
+  @@index([domain], map: "index_custom_domains_on_domain")
+  @@index([product_id], map: "index_custom_domains_on_product_id")
+  @@index([ssl_certificate_issued_at], map: "index_custom_domains_on_ssl_certificate_issued_at")
+  @@index([user_id], map: "index_custom_domains_on_user_id")
+  @@map("custom_domains")
+}
+
+model CustomField {
+  id BigInt @id @default(autoincrement())
+  field_type String? @db.VarChar(255)
+  name String? @db.VarChar(255)
+  required Boolean? @default(false)
+  global Boolean? @default(false)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  seller_id BigInt
+  flags BigInt @default(0)
+
+  @@index([seller_id], map: "index_custom_fields_on_seller_id")
+  @@map("custom_fields")
+}
+
+model CustomFieldsProduct {
+  id BigInt @id @default(autoincrement())
+  custom_field_id BigInt
+  product_id BigInt
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([custom_field_id], map: "index_custom_fields_products_on_custom_field_id")
+  @@index([product_id], map: "index_custom_fields_products_on_product_id")
+  @@map("custom_fields_products")
+}
+
+model DashboardNavPromotion {
+  id BigInt @id @default(autoincrement())
+  user_id BigInt
+  nav_item String @db.VarChar(255)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([user_id, nav_item], map: "index_dashboard_nav_promotions_on_user_id_and_nav_item")
+  @@map("dashboard_nav_promotions")
+}
+
+model Device {
+  id Int @id @default(autoincrement())
+  token String @db.VarChar(255)
+  app_version String? @db.VarChar(255)
+  device_type String @default("ios") @db.VarChar(255)
+  user_id Int
+  created_at DateTime @db.DateTime(0)
+  updated_at DateTime @db.DateTime(0)
+  app_type String @default("consumer") @db.VarChar(255)
+
+  @@index([app_type, user_id], map: "index_devices_on_app_type_and_user_id")
+  @@unique([token, device_type], map: "index_devices_on_token_and_device_type")
+  @@index([user_id], map: "index_devices_on_user_id")
+  @@map("devices")
+}
+
+model DiscoverSearchSuggestion {
+  id BigInt @id @default(autoincrement())
+  discover_search_id BigInt?
+  deleted_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([discover_search_id], map: "index_discover_search_suggestions_on_discover_search_id")
+  @@map("discover_search_suggestions")
+}
+
+model DiscoverSearch {
+  id BigInt @id @default(autoincrement())
+  query String? @db.VarChar(255)
+  taxonomy_id BigInt?
+  user_id BigInt?
+  ip_address String? @db.VarChar(255)
+  browser_guid String? @db.VarChar(255)
+  autocomplete Boolean @default(false)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  clicked_resource_type String? @db.VarChar(255)
+  clicked_resource_id BigInt?
+
+  @@index([browser_guid], map: "index_discover_searches_on_browser_guid")
+  @@index([clicked_resource_type, clicked_resource_id], map: "index_discover_searches_on_clicked_resource")
+  @@index([created_at], map: "index_discover_searches_on_created_at")
+  @@index([ip_address], map: "index_discover_searches_on_ip_address")
+  @@index([query], map: "index_discover_searches_on_query")
+  @@index([user_id], map: "index_discover_searches_on_user_id")
+  @@map("discover_searches")
+}
+
+model DisputeEvidence {
+  id BigInt @id @default(autoincrement())
+  dispute_id BigInt
+  purchased_at DateTime? @db.DateTime(6)
+  customer_purchase_ip String? @db.VarChar(255)
+  customer_email String? @db.VarChar(255)
+  customer_name String? @db.VarChar(255)
+  billing_address String? @db.VarChar(255)
+  shipping_address String? @db.VarChar(255)
+  shipped_at DateTime? @db.DateTime(6)
+  shipping_carrier String? @db.VarChar(255)
+  shipping_tracking_number String? @db.VarChar(255)
+  uncategorized_text String? @db.Text
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  product_description String? @db.Text
+  cancellation_policy_disclosure String? @db.Text
+  refund_policy_disclosure String? @db.Text
+  cancellation_rebuttal String? @db.Text
+  refund_refusal_explanation String? @db.Text
+  seller_contacted_at DateTime? @db.DateTime(6)
+  seller_submitted_at DateTime? @db.DateTime(6)
+  resolved_at DateTime? @db.DateTime(6)
+  resolution String? @default("unknown") @db.VarChar(255)
+  error_message String? @db.VarChar(255)
+  access_activity_log String? @db.Text
+  reason_for_winning String? @db.Text
+
+  @@unique([dispute_id], map: "index_dispute_evidences_on_dispute_id")
+  @@index([resolved_at], map: "index_dispute_evidences_on_resolved_at")
+  @@map("dispute_evidences")
+}
+
+model Dispute {
+  id Int @id @default(autoincrement())
+  purchase_id Int?
+  charge_processor_id String? @db.VarChar(255)
+  charge_processor_dispute_id String? @db.VarChar(255)
+  reason String? @db.VarChar(255)
+  state String? @db.VarChar(255)
+  initiated_at DateTime? @db.DateTime(0)
+  closed_at DateTime? @db.DateTime(0)
+  formalized_at DateTime? @db.DateTime(0)
+  won_at DateTime? @db.DateTime(0)
+  lost_at DateTime? @db.DateTime(0)
+  created_at DateTime? @db.DateTime(0)
+  updated_at DateTime? @db.DateTime(0)
+  service_charge_id Int?
+  seller_id BigInt?
+  event_created_at DateTime? @db.DateTime(6)
+  charge_id BigInt?
+  formalized_side_effects_finished_at DateTime? @db.DateTime(6)
+
+  @@index([charge_id], map: "index_disputes_on_charge_id")
+  @@index([event_created_at], map: "index_disputes_on_event_created_at")
+  @@index([purchase_id], map: "index_disputes_on_purchase_id")
+  @@index([seller_id, event_created_at], map: "index_disputes_on_seller_id_and_event_created_at")
+  @@index([seller_id, lost_at], map: "index_disputes_on_seller_id_and_lost_at")
+  @@index([seller_id, won_at], map: "index_disputes_on_seller_id_and_won_at")
+  @@index([service_charge_id], map: "index_disputes_on_service_charge_id")
+  @@index([won_at], map: "index_disputes_on_won_at")
+  @@map("disputes")
+}
+
+model DropboxFile {
+  id Int @id @default(autoincrement())
+  state String? @db.VarChar(255)
+  dropbox_url String? @db.VarChar(2000)
+  expires_at DateTime? @db.DateTime(0)
+  deleted_at DateTime? @db.DateTime(0)
+  user_id Int?
+  product_file_id Int?
+  link_id Int?
+  json_data String? @db.MediumText
+  s3_url String? @db.VarChar(2000)
+  created_at DateTime? @db.DateTime(0)
+  updated_at DateTime? @db.DateTime(0)
+
+  @@index([link_id], map: "index_dropbox_files_on_link_id")
+  @@index([product_file_id], map: "index_dropbox_files_on_product_file_id")
+  @@index([user_id], map: "index_dropbox_files_on_user_id")
+  @@map("dropbox_files")
+}
+
+model EmailInfoCharge {
+  id BigInt @id @default(autoincrement())
+  email_info_id BigInt
+  charge_id BigInt
+
+  @@index([charge_id], map: "index_email_info_charges_on_charge_id")
+  @@index([email_info_id], map: "index_email_info_charges_on_email_info_id")
+  @@map("email_info_charges")
+}
+
+model EmailInfo {
+  id BigInt @id @default(autoincrement())
+  purchase_id BigInt?
+  installment_id BigInt?
+  type String? @db.VarChar(255)
+  email_name String? @db.VarChar(255)
+  state String? @db.VarChar(255)
+  sent_at DateTime? @db.DateTime(0)
+  delivered_at DateTime? @db.DateTime(0)
+  opened_at DateTime? @db.DateTime(0)
+
+  @@index([installment_id, purchase_id], map: "index_email_infos_on_installment_id_and_purchase_id")
+  @@index([purchase_id], map: "index_email_infos_on_purchase_id")
+  @@map("email_infos")
+}
+
+/// charset: latin1
+model Event {
+  id Int @id @default(autoincrement())
+  visit_id Int?
+  ip_address String? @db.VarChar(255)
+  event_name String? @db.VarChar(255)
+  user_id Int?
+  link_id Int?
+  created_at DateTime? @db.DateTime(0)
+  updated_at DateTime? @db.DateTime(0)
+  referrer String? @db.VarChar(255)
+  parent_referrer String? @db.VarChar(255)
+  language String? @db.VarChar(255)
+  browser String? @db.VarChar(255)
+  is_mobile Boolean? @default(false)
+  email String? @db.VarChar(255)
+  purchase_id Int?
+  price_cents Int?
+  credit_card_id Int?
+  card_type String? @db.VarChar(255)
+  card_visual String? @db.VarChar(255)
+  purchase_state String? @db.VarChar(255)
+  billing_zip String? @db.VarChar(255)
+  chargeback Boolean? @default(false)
+  refunded Boolean? @default(false)
+  view_url String? @db.VarChar(255)
+  fingerprint String? @db.VarChar(255)
+  ip_country String? @db.VarChar(255)
+  ip_longitude Float? @db.Float
+  ip_latitude Float? @db.Float
+  is_modal Boolean?
+  friend_actions String? @db.Text
+  browser_fingerprint String? @db.VarChar(255)
+  browser_plugins String? @db.VarChar(255)
+  browser_guid String? @db.VarChar(255)
+  referrer_domain String? @db.VarChar(255)
+  ip_state String? @db.VarChar(255)
+  active_test_path_assignments String? @db.VarChar(255)
+  service_charge_id Int?
+
+  @@index([browser_guid], map: "index_events_on_browser_guid")
+  @@index([created_at], map: "index_events_on_created_at")
+  @@index([event_name, link_id, created_at], map: "index_events_on_event_name_and_link_id")
+  @@index([ip_address], map: "index_events_on_ip_address")
+  @@index([link_id], map: "index_events_on_link_id")
+  @@index([purchase_id], map: "index_events_on_purchase_id")
+  @@index([service_charge_id], map: "index_events_on_service_charge_id")
+  @@index([user_id], map: "index_events_on_user_id")
+  @@index([visit_id], map: "index_events_on_visit_id")
+  @@map("events")
+}
+
+model FailedRefundException {
+  id BigInt @id @default(autoincrement())
+  refund_id BigInt
+  owner String @db.VarChar(255)
+  notification_room String @db.VarChar(255)
+  state String @default("pending") @db.VarChar(255)
+  due_at DateTime @db.DateTime(6)
+  balance_reversed Boolean @default(false)
+  notification_failures Int @default(0)
+  notification_sent_at DateTime? @db.DateTime(6)
+  resolved_at DateTime? @db.DateTime(6)
+  resolution String? @db.Text
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([refund_id], map: "index_failed_refund_exceptions_on_refund_id")
+  @@index([state, due_at], map: "idx_failed_refund_exceptions_on_state_due_at")
+  @@index([state, notification_sent_at], map: "idx_failed_refund_exceptions_pending_notification")
+  @@map("failed_refund_exceptions")
+}
+
+model FeatureAnnouncementCampaign {
+  id BigInt @id @default(autoincrement())
+  key String @db.VarChar(64)
+  subject String @db.VarChar(255)
+  body String @db.Text
+  reply_to String @db.VarChar(255)
+  audience String @db.VarChar(64)
+  state String @db.VarChar(16)
+  content_digest String? @db.VarChar(64)
+  approved_by_id BigInt?
+  approved_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([key], map: "index_feature_announcement_campaigns_on_key")
+  @@map("feature_announcement_campaigns")
+}
+
+model FeatureAnnouncementDelivery {
+  id BigInt @id @default(autoincrement())
+  campaign String @db.VarChar(64)
+  user_id BigInt
+  email String @db.VarChar(255)
+  state String @db.VarChar(16)
+  reason String? @db.VarChar(64)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([campaign, email], map: "index_feature_announcement_deliveries_on_campaign_and_email")
+  @@index([campaign, state], map: "index_feature_announcement_deliveries_on_campaign_and_state")
+  @@unique([campaign, user_id], map: "index_feature_announcement_deliveries_on_campaign_and_user_id")
+  @@map("feature_announcement_deliveries")
+}
+
+model FeatureAnnouncementNewsletterCutover {
+  id BigInt @id @default(autoincrement())
+  seller_id BigInt
+  state String @db.VarChar(16)
+  cutoff_at DateTime @db.DateTime(6)
+  counts Json?
+  verified_sources Json?
+  eligible_count Int @default(0)
+  migrated_count Int @default(0)
+  cursor_follower_id BigInt @default(0)
+  error String? @db.VarChar(255)
+  retired_at DateTime? @db.DateTime(6)
+  retirement_coverage Json?
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([seller_id], map: "index_feature_announcement_newsletter_cutovers_on_seller_id")
+  @@map("feature_announcement_newsletter_cutovers")
+}
+
+model FeatureAnnouncementSubscription {
+  id BigInt @id @default(autoincrement())
+  user_id BigInt
+  subscribed Boolean
+  version Int @default(1)
+  source String @db.VarChar(32)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([user_id], map: "index_feature_announcement_subscriptions_on_user_id")
+  @@map("feature_announcement_subscriptions")
+}
+
+model Follower {
+  id Int @id @default(autoincrement())
+  followed_id Int
+  email String? @db.VarChar(255)
+  created_at DateTime? @db.DateTime(0)
+  updated_at DateTime? @db.DateTime(0)
+  follower_user_id Int?
+  source String? @db.VarChar(255)
+  source_product_id Int?
+  confirmed_at DateTime? @db.DateTime(0)
+  deleted_at DateTime? @db.DateTime(0)
+
+  @@unique([email, followed_id], map: "index_followers_on_email_and_followed_id")
+  @@index([followed_id, confirmed_at], map: "index_followers_on_followed_id_and_confirmed_at")
+  @@index([followed_id, email], map: "index_follows_on_followed_id_and_email")
+  @@index([follower_user_id, deleted_at], map: "index_followers_on_follower_user_id_and_deleted_at")
+  @@map("followers")
+}
+
+model FriendlyIdSlug {
+  id Int @id @default(autoincrement())
+  slug String @db.VarChar(191)
+  sluggable_id Int
+  sluggable_type String? @db.VarChar(50)
+  scope String? @db.VarChar(191)
+  created_at DateTime? @db.DateTime(0)
+
+  @@unique([slug(length: 70), sluggable_type, scope(length: 70)], map: "index_friendly_id_slugs_on_slug_and_sluggable_type_and_scope")
+  @@index([slug(length: 140), sluggable_type], map: "index_friendly_id_slugs_on_slug_and_sluggable_type")
+  @@index([sluggable_type, sluggable_id], map: "index_friendly_id_slugs_on_sluggable_type_and_sluggable_id")
+  @@map("friendly_id_slugs")
+}
+
+model Gift {
+  id BigInt @id @default(autoincrement())
+  giftee_purchase_id BigInt?
+  gifter_purchase_id BigInt?
+  link_id BigInt?
+  state String? @db.VarChar(255)
+  gift_note String? @db.LongText
+  giftee_email String? @db.VarChar(255)
+  gifter_email String? @db.VarChar(255)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  flags BigInt @default(0)
+
+  @@index([giftee_email], map: "index_gifts_on_giftee_email")
+  @@index([giftee_purchase_id], map: "index_gifts_on_giftee_purchase_id")
+  @@index([gifter_email], map: "index_gifts_on_gifter_email")
+  @@index([gifter_purchase_id], map: "index_gifts_on_gifter_purchase_id")
+  @@map("gifts")
+}
+
+model Guardian {
+  id BigInt @id @default(autoincrement())
+  user_id BigInt
+  first_name String? @db.VarChar(255)
+  last_name String? @db.VarChar(255)
+  email String? @db.VarChar(255)
+  phone String? @db.VarChar(255)
+  date_of_birth DateTime? @db.Date
+  street_address String? @db.VarChar(255)
+  city String? @db.VarChar(255)
+  state String? @db.VarChar(255)
+  zip_code String? @db.VarChar(255)
+  country String? @db.VarChar(255)
+  country_code String? @db.VarChar(255)
+  nationality String? @db.VarChar(255)
+  individual_tax_id Bytes? @db.Blob
+  stripe_person_id String? @db.VarChar(255)
+  stripe_tos_accepted Boolean @default(false)
+  stripe_tos_ip String? @db.VarChar(255)
+  stripe_tos_accepted_at DateTime? @db.DateTime(6)
+  deleted_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([stripe_person_id], map: "index_guardians_on_stripe_person_id")
+  @@index([user_id], map: "index_guardians_on_user_id")
+  @@map("guardians")
+}
+
+model GumheadUsageEvent {
+  id BigInt @id @default(autoincrement())
+  user_id BigInt
+  model String @db.VarChar(255)
+  input_tokens BigInt @default(0)
+  output_tokens BigInt @default(0)
+  cache_creation_input_tokens BigInt @default(0)
+  cache_creation_1h_input_tokens BigInt @default(0)
+  cache_read_input_tokens BigInt @default(0)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([user_id, created_at], map: "index_gumhead_usage_events_on_user_id_and_created_at")
+  @@map("gumhead_usage_events")
+}
+
+model GumroadDailyAnalytic {
+  id BigInt @id @default(autoincrement())
+  period_ended_at DateTime @db.DateTime(6)
+  gumroad_price_cents Int
+  gumroad_fee_cents Int
+  creators_with_sales Int
+  gumroad_discover_price_cents Int
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([period_ended_at], map: "index_gumroad_daily_analytics_on_period_ended_at")
+  @@map("gumroad_daily_analytics")
+}
+
+model ImportedCustomer {
+  id Int @id @default(autoincrement())
+  email String? @db.VarChar(255)
+  purchase_date DateTime? @db.DateTime(0)
+  link_id Int?
+  importing_user_id Int?
+  created_at DateTime @db.DateTime(0)
+  updated_at DateTime @db.DateTime(0)
+  deleted_at DateTime? @db.DateTime(0)
+
+  @@index([email], map: "index_imported_customers_on_email")
+  @@index([importing_user_id], map: "index_imported_customers_on_importing_user_id")
+  @@index([link_id, purchase_date], map: "index_imported_customers_on_link_id_and_purchase_date")
+  @@index([link_id], map: "index_imported_customers_on_link_id")
+  @@map("imported_customers")
+}
+
+model InstallmentEvent {
+  id Int @id @default(autoincrement())
+  event_id Int?
+  installment_id Int?
+
+  @@index([event_id], map: "index_installment_events_on_event_id")
+  @@unique([installment_id, event_id], map: "index_installment_events_on_installment_id_and_event_id")
+  @@map("installment_events")
+}
+
+model InstallmentPlanSnapshot {
+  id BigInt @id @default(autoincrement())
+  payment_option_id Int
+  number_of_installments Int
+  recurrence String @db.VarChar(255)
+  total_price_cents Int
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([payment_option_id], map: "index_installment_plan_snapshots_on_payment_option_id")
+  @@map("installment_plan_snapshots")
+}
+
+model InstallmentRule {
+  id Int @id @default(autoincrement())
+  installment_id Int?
+  delayed_delivery_time Int?
+  to_be_published_at DateTime? @db.DateTime(0)
+  version Int @default(0)
+  deleted_at DateTime? @db.DateTime(0)
+  created_at DateTime? @db.DateTime(0)
+  updated_at DateTime? @db.DateTime(0)
+  time_period String? @db.VarChar(255)
+
+  @@unique([installment_id], map: "index_installment_rules_on_installment_id")
+  @@map("installment_rules")
+}
+
+model Installment {
+  id Int @id @default(autoincrement())
+  link_id Int?
+  message String? @db.LongText
+  url String? @db.LongText
+  created_at DateTime @db.DateTime(0)
+  updated_at DateTime @db.DateTime(0)
+  name String? @db.VarChar(255)
+  published_at DateTime? @db.DateTime(0)
+  deleted_at DateTime? @db.DateTime(0)
+  flags Int @default(0)
+  seller_id Int?
+  installment_type String? @db.VarChar(255)
+  json_data String? @db.MediumText
+  customer_count Int?
+  workflow_id Int?
+  call_to_action_text String? @db.VarChar(2083)
+  call_to_action_url String? @db.VarChar(2083)
+  cover_image_url String? @db.VarChar(255)
+  base_variant_id Int?
+  slug String? @db.VarChar(255)
+  installment_events_count Int? @default(0)
+
+  @@index([base_variant_id], map: "index_installments_on_base_variant_id")
+  @@index([created_at], map: "index_installments_on_created_at")
+  @@index([link_id], map: "index_installments_on_link_id")
+  @@index([seller_id, installment_type, published_at], map: "index_installments_on_seller_id_and_type_and_published_at")
+  @@index([seller_id, link_id], map: "index_installments_on_seller_id_and_link_id")
+  @@unique([slug], map: "index_installments_on_slug")
+  @@index([workflow_id], map: "index_installments_on_workflow_id")
+  @@map("installments")
+}
+
+model Integration {
+  id BigInt @id @default(autoincrement())
+  api_key String? @db.VarChar(255)
+  json_data String? @db.Text
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  flags BigInt @default(0)
+  type String? @db.VarChar(255)
+
+  @@map("integrations")
+}
+
+model Invite {
+  id Int @id @default(autoincrement())
+  sender_id Int?
+  receiver_email String? @db.VarChar(255)
+  receiver_id Int?
+  invite_state String? @db.VarChar(255)
+  created_at DateTime @db.DateTime(0)
+  updated_at DateTime @db.DateTime(0)
+
+  @@unique([receiver_id], map: "index_invites_on_receiver_id")
+  @@index([sender_id], map: "index_invites_on_sender_id")
+  @@map("invites")
+}
+
+model LargeSeller {
+  id Int @id @default(autoincrement())
+  user_id Int
+  sales_count Int @default(0)
+  created_at DateTime @db.DateTime(0)
+  updated_at DateTime @db.DateTime(0)
+
+  @@index([updated_at], map: "index_large_sellers_on_updated_at")
+  @@unique([user_id], map: "index_large_sellers_on_user_id")
+  @@map("large_sellers")
+}
+
+model LastReadCommunityChatMessage {
+  id BigInt @id @default(autoincrement())
+  user_id BigInt
+  community_id BigInt
+  community_chat_message_id BigInt
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([community_chat_message_id], map: "idx_on_community_chat_message_id_f9e10450e2")
+  @@index([community_id], map: "index_last_read_community_chat_messages_on_community_id")
+  @@unique([user_id, community_id], map: "idx_on_user_id_community_id_45efa2a41c")
+  @@index([user_id], map: "index_last_read_community_chat_messages_on_user_id")
+  @@map("last_read_community_chat_messages")
+}
+
+model LaterChargePresentment {
+  id BigInt @id @default(autoincrement())
+  owner_type String @db.VarChar(255)
+  owner_id BigInt
+  processor String @db.VarChar(255)
+  presentment_currency String @db.VarChar(255)
+  presentment_price_cents BigInt
+  signup_currency_units_per_usd Decimal @db.Decimal(30, 15)
+  effective_from DateTime @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  canonical_price_cents BigInt
+
+  @@index([owner_type, owner_id, effective_from], map: "index_later_charge_presentments_on_owner_and_effective")
+  @@map("later_charge_presentments")
+}
+
+model LegacyPermalink {
+  id BigInt @id @default(autoincrement())
+  permalink String @db.VarChar(255)
+  product_id BigInt
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([permalink], map: "index_legacy_permalinks_on_permalink")
+  @@index([product_id], map: "index_legacy_permalinks_on_product_id")
+  @@map("legacy_permalinks")
+}
+
+model Licens {
+  id Int @id @default(autoincrement())
+  link_id Int?
+  purchase_id Int?
+  serial String? @db.VarChar(255)
+  trial_expires_at DateTime? @db.DateTime(0)
+  uses Int? @default(0)
+  json_data String? @db.VarChar(255)
+  deleted_at DateTime? @db.DateTime(0)
+  flags Int? @default(0)
+  created_at DateTime @db.DateTime(0)
+  updated_at DateTime @db.DateTime(0)
+  imported_customer_id Int?
+  disabled_at DateTime? @db.DateTime(0)
+
+  @@index([imported_customer_id], map: "index_licenses_on_imported_customer_id")
+  @@index([link_id], map: "index_licenses_on_link_id")
+  @@index([purchase_id], map: "index_licenses_on_purchase_id")
+  @@unique([serial], map: "index_licenses_on_serial")
+  @@map("licenses")
+}
+
+model Link {
+  id BigInt @id @default(autoincrement())
+  user_id BigInt?
+  name String @db.VarChar(255)
+  unique_permalink String? @db.VarChar(255)
+  preview_url String? @db.MediumText
+  description String? @db.MediumText
+  purchase_type Int? @default(0)
+  created_at DateTime? @db.DateTime(0)
+  updated_at DateTime? @db.DateTime(6)
+  purchase_disabled_at DateTime? @db.DateTime(0)
+  deleted_at DateTime? @db.DateTime(0)
+  price_cents Int?
+  price_currency_type String? @default("usd") @db.VarChar(255)
+  customizable_price Boolean?
+  max_purchase_count Int?
+  bad_card_counter Int? @default(0)
+  require_shipping Boolean? @default(false)
+  last_partner_sync DateTime? @db.DateTime(0)
+  preview_oembed String? @db.MediumText
+  showcaseable Boolean? @default(false)
+  custom_receipt String? @db.MediumText
+  custom_filetype String? @db.VarChar(255)
+  filetype String? @default("link") @db.VarChar(255)
+  filegroup String? @default("url") @db.VarChar(255)
+  size BigInt?
+  bitrate Int?
+  framerate Int?
+  pagelength Int?
+  duration Int?
+  width Int?
+  height Int?
+  custom_permalink String? @db.VarChar(255)
+  common_color String? @db.VarChar(255)
+  suggested_price_cents Int?
+  banned_at DateTime? @db.DateTime(0)
+  risk_score Int?
+  risk_score_updated_at DateTime? @db.DateTime(0)
+  draft Boolean? @default(false)
+  flags BigInt @default(0)
+  subscription_duration Int?
+  json_data String? @db.MediumText
+  external_mapping_id String? @db.VarChar(255)
+  affiliate_application_id BigInt?
+  rental_price_cents Int?
+  duration_in_months Int?
+  migrated_to_tiered_pricing_at DateTime? @db.DateTime(0)
+  free_trial_duration_unit Int?
+  free_trial_duration_amount Int?
+  content_updated_at DateTime? @db.DateTime(0)
+  taxonomy_id BigInt?
+  native_type String @default("digital") @db.VarChar(255)
+  discover_fee_per_thousand Int @default(100)
+  support_email String? @db.VarChar(255)
+  default_offer_code_id BigInt?
+  sales_count_for_inventory_cache Int @default(0)
+  first_published_at DateTime? @db.DateTime(6)
+
+  @@index([banned_at], map: "index_links_on_banned_at")
+  @@index([custom_permalink(length: 191)], map: "index_links_on_custom_permalink")
+  @@index([default_offer_code_id], map: "index_links_on_default_offer_code_id")
+  @@index([deleted_at], map: "index_links_on_deleted_at")
+  @@index([showcaseable], map: "index_links_on_showcaseable")
+  @@index([taxonomy_id], map: "index_links_on_taxonomy_id")
+  @@index([unique_permalink(length: 191)], map: "index_links_on_unique_permalink")
+  @@index([user_id, updated_at], map: "index_links_on_user_id_and_updated_at")
+  @@index([user_id], map: "index_links_on_user_id")
+  @@map("links")
+}
+
+model MarketingAction {
+  id BigInt @id @default(autoincrement())
+  user_id BigInt
+  link_id BigInt
+  utm_link_id BigInt?
+  channel String @db.VarChar(255)
+  status String @default("recommended") @db.VarChar(255)
+  idempotency_key String @db.VarChar(255)
+  copy String? @db.Text
+  external_post_id String? @db.VarChar(255)
+  external_url String? @db.VarChar(255)
+  error_code String? @db.VarChar(255)
+  approved_at DateTime? @db.DateTime(6)
+  queued_at DateTime? @db.DateTime(6)
+  posted_at DateTime? @db.DateTime(6)
+  reconnect_notified_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([idempotency_key], map: "index_marketing_actions_on_idempotency_key")
+  @@index([link_id, channel, status], map: "index_marketing_actions_on_link_id_and_channel_and_status")
+  @@index([link_id], map: "index_marketing_actions_on_link_id")
+  @@index([user_id], map: "index_marketing_actions_on_user_id")
+  @@index([utm_link_id], map: "index_marketing_actions_on_utm_link_id")
+  @@map("marketing_actions")
+}
+
+model MarketingHoldoutAssignment {
+  id BigInt @id @default(autoincrement())
+  user_id BigInt
+  prior_sales_bucket String @db.VarChar(255)
+  marketing_holdout Boolean
+  marketing_holdout_assigned_at DateTime @db.DateTime(6)
+
+  @@unique([user_id], map: "index_marketing_holdout_assignments_on_user_id")
+  @@map("marketing_holdout_assignments")
+}
+
+model MediaLocation {
+  id BigInt @id @default(autoincrement())
+  product_file_id BigInt
+  url_redirect_id BigInt
+  purchase_id BigInt
+  product_id BigInt
+  consumed_at DateTime? @db.DateTime(0)
+  platform String? @db.VarChar(255)
+  location Int
+  content_length Int?
+  unit String? @db.VarChar(255)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  epub_cfi String? @db.Text
+
+  @@index([product_file_id], map: "index_media_locations_on_product_file_id")
+  @@index([product_id, updated_at], map: "index_media_locations_on_product_id_and_updated_at")
+  @@index([purchase_id, product_file_id, consumed_at], map: "index_media_locations_on_purchase_id_product_file_id_consumed_at")
+  @@index([purchase_id], map: "index_media_locations_on_purchase_id")
+  @@map("media_locations")
+}
+
+model MerchantAccount {
+  id BigInt @id @default(autoincrement())
+  user_id BigInt?
+  acquirer_id String? @db.VarChar(255)
+  acquirer_merchant_id String? @db.VarChar(255)
+  charge_processor_id String? @db.VarChar(255)
+  charge_processor_merchant_id String? @db.VarChar(255)
+  json_data String? @db.Text
+  created_at DateTime? @db.DateTime(0)
+  updated_at DateTime? @db.DateTime(0)
+  deleted_at DateTime? @db.DateTime(0)
+  charge_processor_verified_at DateTime? @db.DateTime(0)
+  country String? @default("US") @db.VarChar(255)
+  currency String? @default("usd") @db.VarChar(255)
+  charge_processor_deleted_at DateTime? @db.DateTime(0)
+  charge_processor_alive_at DateTime? @db.DateTime(0)
+
+  @@index([charge_processor_merchant_id], map: "index_merchant_accounts_on_charge_processor_merchant_id")
+  @@index([user_id], map: "index_merchant_accounts_on_user_id")
+  @@map("merchant_accounts")
+}
+
+model OauthAccessGrant {
+  id Int @id @default(autoincrement())
+  resource_owner_id Int
+  application_id Int
+  token String @db.VarChar(255)
+  expires_in Int
+  redirect_uri String @db.VarChar(255)
+  created_at DateTime @db.DateTime(0)
+  revoked_at DateTime? @db.DateTime(0)
+  scopes String @default("") @db.VarChar(255)
+  code_challenge String? @db.VarChar(255)
+  code_challenge_method String? @db.VarChar(255)
+  resource String? @db.VarChar(255)
+
+  @@index([application_id, revoked_at], map: "index_oauth_access_grants_on_application_id_and_revoked_at")
+  @@index([created_at], map: "index_oauth_access_grants_on_created_at")
+  @@index([resource_owner_id, application_id], map: "idx_on_resource_owner_id_application_id_1b7397c458")
+  @@unique([token], map: "index_oauth_access_grants_on_token")
+  @@map("oauth_access_grants")
+}
+
+model OauthAccessToken {
+  id Int @id @default(autoincrement())
+  resource_owner_id Int?
+  application_id Int
+  token String @db.VarChar(255)
+  refresh_token String? @db.VarChar(255)
+  expires_in Int?
+  revoked_at DateTime? @db.DateTime(0)
+  created_at DateTime @db.DateTime(0)
+  scopes String? @db.VarChar(255)
+  resource String? @db.VarChar(255)
+  team_membership_id BigInt?
+
+  @@index([application_id, revoked_at], map: "index_oauth_access_tokens_on_application_id_and_revoked_at")
+  @@unique([refresh_token], map: "index_oauth_access_tokens_on_refresh_token")
+  @@index([resource_owner_id], map: "index_oauth_access_tokens_on_resource_owner_id")
+  @@index([team_membership_id], map: "index_oauth_access_tokens_on_team_membership_id")
+  @@unique([token], map: "index_oauth_access_tokens_on_token")
+  @@map("oauth_access_tokens")
+}
+
+model OauthApplication {
+  id Int @id @default(autoincrement())
+  name String @db.VarChar(255)
+  uid String @db.VarChar(255)
+  secret String @db.VarChar(255)
+  redirect_uri String @db.VarChar(255)
+  created_at DateTime @db.DateTime(0)
+  updated_at DateTime @db.DateTime(0)
+  owner_id Int?
+  owner_type String? @default("User") @db.VarChar(255)
+  affiliate_basis_points Int?
+  deleted_at DateTime? @db.DateTime(0)
+  scopes String @default("") @db.VarChar(255)
+  confidential Boolean @default(false)
+  device_authorization_enabled Boolean @default(false)
+  is_first_party_agent_app Boolean @default(false)
+  mcp_dynamic_client Boolean @default(false)
+
+  @@index([owner_id, owner_type, is_first_party_agent_app], map: "index_oauth_applications_on_owner_and_first_party_agent")
+  @@index([owner_id, owner_type], map: "index_oauth_applications_on_owner_id_and_owner_type")
+  @@unique([uid], map: "index_oauth_applications_on_uid")
+  @@map("oauth_applications")
+}
+
+model OauthDeviceAuthorization {
+  id BigInt @id @default(autoincrement())
+  oauth_application_id Int
+  resource_owner_id Int?
+  access_token_id Int?
+  device_code_digest String @db.VarChar(255)
+  user_code_digest String @db.VarChar(255)
+  scopes String @db.VarChar(255)
+  status String @default("pending") @db.VarChar(255)
+  expires_at DateTime @db.DateTime(6)
+  last_polled_at DateTime? @db.DateTime(6)
+  poll_count Int @default(0)
+  poll_interval_seconds Int @default(5)
+  approved_at DateTime? @db.DateTime(6)
+  denied_at DateTime? @db.DateTime(6)
+  consumed_at DateTime? @db.DateTime(6)
+  created_ip_address String? @db.VarChar(255)
+  approved_ip_address String? @db.VarChar(255)
+  denied_ip_address String? @db.VarChar(255)
+  last_poll_ip_address String? @db.VarChar(255)
+  created_user_agent String? @db.VarChar(255)
+  approved_user_agent String? @db.VarChar(255)
+  denied_user_agent String? @db.VarChar(255)
+  last_poll_user_agent String? @db.VarChar(255)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([access_token_id], map: "index_oauth_device_authorizations_on_access_token_id")
+  @@unique([device_code_digest], map: "index_oauth_device_authorizations_on_device_code_digest")
+  @@index([oauth_application_id], map: "index_oauth_device_authorizations_on_oauth_application_id")
+  @@index([resource_owner_id], map: "index_oauth_device_authorizations_on_resource_owner_id")
+  @@index([status, expires_at], map: "index_oauth_device_authorizations_on_status_and_expires_at")
+  @@unique([user_code_digest], map: "index_oauth_device_authorizations_on_user_code_digest")
+  @@map("oauth_device_authorizations")
+}
+
+model OfferCode {
+  id Int @id @default(autoincrement())
+  link_id Int?
+  name String? @db.VarChar(255)
+  amount_cents Int?
+  max_purchase_count Int?
+  deleted_at DateTime? @db.DateTime(0)
+  created_at DateTime @db.DateTime(0)
+  updated_at DateTime @db.DateTime(0)
+  amount_percentage Int?
+  user_id Int
+  currency_type String? @db.VarChar(255)
+  code String? @db.VarChar(255)
+  universal Boolean @default(false)
+  valid_at DateTime? @db.DateTime(0)
+  expires_at DateTime? @db.DateTime(0)
+  minimum_quantity Int?
+  duration_in_months Int?
+  minimum_amount_cents Int?
+  flags BigInt @default(0)
+  existing_customers_only Boolean @default(false)
+  new_customers_only Boolean @default(false)
+  ownership_duration_tiers Json?
+  auto_apply Boolean @default(false)
+  sale_label String? @db.VarChar(255)
+
+  @@index([code, link_id], map: "index_offer_codes_on_code_and_link_id")
+  @@index([link_id], map: "index_offer_codes_on_link_id")
+  @@index([name(length: 191), link_id], map: "index_offer_codes_on_name_and_link_id")
+  @@index([universal], map: "index_offer_codes_on_universal")
+  @@index([user_id], map: "index_offer_codes_on_user_id")
+  @@map("offer_codes")
+}
+
+model OfferCodesExcludedProduct {
+  id BigInt @id @default(autoincrement())
+  offer_code_id BigInt
+  product_id BigInt
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([offer_code_id, product_id], map: "index_offer_codes_excluded_products_on_code_and_product")
+  @@index([product_id], map: "index_offer_codes_excluded_products_on_product_id")
+  @@map("offer_codes_excluded_products")
+}
+
+model OfferCodesOwnershipProduct {
+  id BigInt @id @default(autoincrement())
+  offer_code_id BigInt
+  product_id BigInt
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([offer_code_id], map: "index_offer_codes_ownership_products_on_offer_code_id")
+  @@index([product_id], map: "index_offer_codes_ownership_products_on_product_id")
+  @@map("offer_codes_ownership_products")
+}
+
+model OfferCodesProduct {
+  id BigInt @id @default(autoincrement())
+  offer_code_id BigInt?
+  product_id BigInt?
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([offer_code_id], map: "index_offer_codes_products_on_offer_code_id")
+  @@index([product_id], map: "index_offer_codes_products_on_product_id")
+  @@map("offer_codes_products")
+}
+
+model OfferCodesVariant {
+  id BigInt @id @default(autoincrement())
+  offer_code_id BigInt
+  variant_id BigInt
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([offer_code_id, variant_id], map: "index_offer_codes_variants_on_code_and_variant")
+  @@index([variant_id], map: "index_offer_codes_variants_on_variant_id")
+  @@map("offer_codes_variants")
+}
+
+model OrderPurchas {
+  id BigInt @id @default(autoincrement())
+  order_id BigInt
+  purchase_id BigInt
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([order_id], map: "index_order_purchases_on_order_id")
+  @@index([purchase_id], map: "index_order_purchases_on_purchase_id")
+  @@map("order_purchases")
+}
+
+model Order {
+  id BigInt @id @default(autoincrement())
+  purchaser_id BigInt?
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  flags BigInt @default(0)
+  review_reminder_scheduled_at DateTime? @db.DateTime(6)
+
+  @@index([purchaser_id], map: "index_orders_on_purchaser_id")
+  @@map("orders")
+}
+
+model Page {
+  id BigInt @id @default(autoincrement())
+  pageable_type String @db.VarChar(255)
+  pageable_id BigInt
+  custom_html String? @db.LongText
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  slug String? @db.VarChar(255)
+  title String? @db.VarChar(255)
+  content String? @db.LongText
+  seo_title String? @db.VarChar(255)
+  seo_description String? @db.Text
+
+  @@unique([pageable_type, pageable_id, slug], map: "index_pages_on_pageable_and_slug")
+  @@map("pages")
+}
+
+model PaymentOption {
+  id Int @id @default(autoincrement())
+  subscription_id Int?
+  price_id Int?
+  created_at DateTime? @db.DateTime(0)
+  updated_at DateTime? @db.DateTime(0)
+  deleted_at DateTime? @db.DateTime(0)
+  flags Int @default(0)
+  product_installment_plan_id BigInt?
+
+  @@index([price_id], map: "index_payment_options_on_price_id")
+  @@index([product_installment_plan_id], map: "index_payment_options_on_product_installment_plan_id")
+  @@index([subscription_id], map: "index_payment_options_on_subscription_id")
+  @@map("payment_options")
+}
+
+model Payment {
+  id BigInt @id @default(autoincrement())
+  user_id BigInt?
+  state String? @db.VarChar(255)
+  created_at DateTime? @db.DateTime(0)
+  updated_at DateTime? @db.DateTime(0)
+  txn_id String? @db.VarChar(255)
+  processor_fee_cents Int?
+  correlation_id String? @db.VarChar(255)
+  processor String? @db.VarChar(255)
+  amount_cents BigInt?
+  payment_address String? @db.VarChar(255)
+  payout_period_end_date DateTime? @db.Date
+  bank_account_id BigInt?
+  amount_cents_in_local_currency Int?
+  stripe_connect_account_id String? @db.VarChar(255)
+  stripe_transfer_id String? @db.VarChar(255)
+  stripe_internal_transfer_id String? @db.VarChar(255)
+  currency String? @default("usd") @db.VarChar(255)
+  flags Int @default(0)
+  json_data String? @db.Text
+  failure_reason String? @db.VarChar(191)
+  processor_reversing_payout_id String? @db.VarChar(255)
+
+  @@index([stripe_transfer_id], map: "index_payments_on_stripe_transfer_id")
+  @@index([user_id], map: "index_payments_on_user_id")
+  @@map("payments")
+}
+
+model PaymentsBalance {
+  id Int @id @default(autoincrement())
+  payment_id Int?
+  balance_id Int?
+  created_at DateTime @db.DateTime(0)
+  updated_at DateTime @db.DateTime(0)
+
+  @@index([balance_id], map: "index_payments_balances_on_balance_id")
+  @@index([payment_id], map: "index_payments_balances_on_payment_id")
+  @@map("payments_balances")
+}
+
+model PingDelivery {
+  id BigInt @id @default(autoincrement())
+  attempt Int @default(1)
+  created_at DateTime @db.DateTime(6)
+  error_class String? @db.VarChar(255)
+  post_url String @db.VarChar(255)
+  purchase_id BigInt?
+  resource_name String @db.VarChar(255)
+  response_code Int?
+  subscription_id BigInt?
+  succeeded Boolean @default(false)
+  user_id BigInt
+
+  @@index([created_at], map: "index_ping_deliveries_on_created_at")
+  @@index([purchase_id, created_at], map: "index_ping_deliveries_on_purchase_id_and_created_at")
+  @@index([user_id, created_at], map: "index_ping_deliveries_on_user_id_and_created_at")
+  @@map("ping_deliveries")
+}
+
+model PiracyReport {
+  id BigInt @id @default(autoincrement())
+  external_id String @db.VarChar(21)
+  seller_id BigInt
+  product_id BigInt
+  source String @db.VarChar(16)
+  ticket_url String? @db.VarChar(1024)
+  state String @db.VarChar(32)
+  url String @db.VarChar(2048)
+  normalized_url_digest String @db.VarChar(64)
+  recipient_name String? @db.VarChar(255)
+  recipient_email String? @db.VarChar(255)
+  recipient_source_url String? @db.VarChar(2048)
+  screening_verdict String? @db.VarChar(16)
+  screening_checks Json?
+  screened_at DateTime? @db.DateTime(6)
+  notice_text String? @db.Text
+  notice_digest String? @db.VarChar(64)
+  signed_at DateTime? @db.DateTime(6)
+  signed_by_name String? @db.VarChar(255)
+  signature_statement_version String? @db.VarChar(255)
+  signed_ip String? @db.VarChar(255)
+  reply_token String? @db.VarChar(255)
+  sent_at DateTime? @db.DateTime(6)
+  sent_message_id String? @db.VarChar(255)
+  sent_to_email String? @db.VarChar(255)
+  last_contact_email String? @db.VarChar(255)
+  delivered_at DateTime? @db.DateTime(6)
+  delivery_failed_at DateTime? @db.DateTime(6)
+  counter_notice_body String? @db.Text
+  counter_notice_received_on DateTime? @db.Date
+  counter_notice_forwarded_at DateTime? @db.DateTime(6)
+  outcome String? @db.VarChar(255)
+  outcome_reason String? @db.Text
+  resolved_at DateTime? @db.DateTime(6)
+  outcome_notified_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([counter_notice_received_on, seller_id], map: "idx_on_counter_notice_received_on_seller_id_3ebe3a3950")
+  @@unique([external_id], map: "index_piracy_reports_on_external_id")
+  @@unique([product_id, normalized_url_digest], map: "index_piracy_reports_on_product_id_and_normalized_url_digest")
+  @@unique([reply_token], map: "index_piracy_reports_on_reply_token")
+  @@index([seller_id, created_at], map: "index_piracy_reports_on_seller_id_and_created_at")
+  @@index([state], map: "index_piracy_reports_on_state")
+  @@map("piracy_reports")
+}
+
+model PlatformBlock {
+  id BigInt @id @default(autoincrement())
+  object_type String @db.VarChar(50)
+  object_value String @db.VarChar(320)
+  blocked_at DateTime? @db.DateTime(6)
+  expires_at DateTime? @db.DateTime(6)
+  blocked_by BigInt?
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([object_type, object_value], map: "index_platform_blocks_on_type_and_value")
+  @@index([object_value], map: "index_platform_blocks_on_value")
+  @@map("platform_blocks")
+}
+
+model PostEmailBlast {
+  id BigInt @id @default(autoincrement())
+  post_id BigInt
+  seller_id BigInt
+  requested_at DateTime? @db.DateTime(6)
+  started_at DateTime? @db.DateTime(6)
+  first_email_delivered_at DateTime? @db.DateTime(6)
+  last_email_delivered_at DateTime? @db.DateTime(6)
+  delivery_count Int? @default(0)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  completed_at DateTime? @db.DateTime(6)
+  recipient_filter String? @db.VarChar(255)
+  expired_at DateTime? @db.DateTime(6)
+  expiry_reason String? @db.VarChar(255)
+
+  @@index([post_id, requested_at], map: "index_post_email_blasts_on_post_id_and_requested_at")
+  @@index([requested_at], map: "index_post_email_blasts_on_requested_at")
+  @@index([seller_id, requested_at], map: "index_post_email_blasts_on_seller_id_and_requested_at")
+  @@map("post_email_blasts")
+}
+
+model PreorderLink {
+  id BigInt @id @default(autoincrement())
+  link_id BigInt?
+  state String? @db.VarChar(255)
+  release_at DateTime? @db.DateTime(0)
+  url String? @db.VarChar(255)
+  custom_filetype String? @db.VarChar(255)
+  created_at DateTime @db.DateTime(0)
+  updated_at DateTime @db.DateTime(0)
+
+  @@index([link_id], map: "index_preorder_links_on_link_id")
+  @@map("preorder_links")
+}
+
+model Preorder {
+  id Int @id @default(autoincrement())
+  preorder_link_id Int
+  seller_id Int
+  purchaser_id Int?
+  state String @db.VarChar(255)
+  created_at DateTime @db.DateTime(0)
+  updated_at DateTime @db.DateTime(0)
+
+  @@index([preorder_link_id], map: "index_preorders_on_preorder_link_id")
+  @@index([purchaser_id], map: "index_preorders_on_purchaser_id")
+  @@index([seller_id], map: "index_preorders_on_seller_id")
+  @@map("preorders")
+}
+
+model Price {
+  id Int @id @default(autoincrement())
+  link_id Int?
+  price_cents Int @default(0)
+  currency String? @default("usd") @db.VarChar(255)
+  recurrence String? @db.VarChar(255)
+  created_at DateTime? @db.DateTime(0)
+  updated_at DateTime? @db.DateTime(0)
+  deleted_at DateTime? @db.DateTime(0)
+  flags Int @default(0)
+  variant_id Int?
+  suggested_price_cents Int?
+
+  @@index([link_id], map: "index_prices_on_link_id")
+  @@index([variant_id], map: "index_prices_on_variant_id")
+  @@map("prices")
+}
+
+model ProcessedStripeEvent {
+  id BigInt @id @default(autoincrement())
+  event_id String @db.VarChar(255)
+  event_type String? @db.VarChar(255)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([event_id], map: "index_processed_stripe_events_on_event_id")
+  @@map("processed_stripe_events")
+}
+
+model ProcessorPaymentIntent {
+  id BigInt @id @default(autoincrement())
+  purchase_id BigInt
+  intent_id String @db.VarChar(255)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([intent_id], map: "index_processor_payment_intents_on_intent_id")
+  @@unique([purchase_id], map: "index_processor_payment_intents_on_purchase_id")
+  @@map("processor_payment_intents")
+}
+
+model ProductBuildSave {
+  id BigInt @id @default(autoincrement())
+  purchase_id BigInt
+  data Json
+  byte_size Int @default(0)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  key_versions Json?
+
+  @@unique([purchase_id], map: "index_product_build_saves_on_purchase_id")
+  @@map("product_build_saves")
+}
+
+model ProductBuild {
+  id BigInt @id @default(autoincrement())
+  product_id BigInt
+  public_id String @db.VarChar(21)
+  number Int
+  status String @default("uploaded") @db.VarChar(16)
+  source_url String @db.VarChar(1024)
+  storage_key String @db.VarChar(1024)
+  byte_size BigInt
+  product_file_id BigInt?
+  promoted_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  site_unpacked_at DateTime? @db.DateTime(6)
+  site_file_count Int?
+  site_byte_size BigInt?
+  site_unpack_error String? @db.Text
+
+  @@index([product_file_id], map: "index_product_builds_on_product_file_id")
+  @@unique([product_id, number], map: "index_product_builds_on_product_id_and_number")
+  @@unique([product_id, source_url(length: 191)], map: "index_product_builds_on_product_id_and_source_url")
+  @@index([product_id, status], map: "index_product_builds_on_product_id_and_status")
+  @@unique([public_id], map: "index_product_builds_on_public_id")
+  @@index([storage_key(length: 191)], map: "index_product_builds_on_storage_key")
+  @@map("product_builds")
+}
+
+model ProductCachedValue {
+  id BigInt @id @default(autoincrement())
+  product_id BigInt
+  expired Boolean @default(false)
+  successful_sales_count Int?
+  remaining_for_sale_count Int?
+  monthly_recurring_revenue Decimal? @db.Decimal(10, 2)
+  revenue_pending Decimal? @db.Decimal(10, 2)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  total_usd_cents BigInt? @default(0)
+
+  @@index([expired], map: "index_product_cached_values_on_expired")
+  @@index([product_id], map: "index_product_cached_values_on_product_id")
+  @@map("product_cached_values")
+}
+
+model ProductFileDownloadGrant {
+  id BigInt @id @default(autoincrement())
+  url_redirect_id BigInt
+  product_file_id BigInt
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([url_redirect_id, product_file_id], map: "index_product_file_download_grants_on_redirect_and_file")
+  @@map("product_file_download_grants")
+}
+
+model ProductFile {
+  id BigInt @id @default(autoincrement())
+  link_id BigInt?
+  url String? @db.VarChar(1024)
+  filetype String? @db.VarChar(255)
+  filegroup String? @db.VarChar(255)
+  size BigInt?
+  bitrate Int?
+  framerate Int?
+  pagelength Int?
+  duration Int?
+  width Int?
+  height Int?
+  flags BigInt @default(0)
+  json_data String? @db.LongText
+  deleted_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  position Int?
+  installment_id BigInt?
+  display_name String? @db.VarChar(1024)
+  deleted_from_cdn_at DateTime? @db.DateTime(6)
+  description String? @db.Text
+  folder_id BigInt?
+  stampable_pdf Boolean?
+  isbn String? @db.VarChar(255)
+
+  @@index([deleted_at], map: "index_product_files_on_deleted_at")
+  @@index([deleted_from_cdn_at], map: "index_product_files_on_deleted_from_cdn_at")
+  @@index([installment_id], map: "index_product_files_on_installment_id")
+  @@index([link_id], map: "index_product_files_on_link_id")
+  @@index([url(length: 768)], map: "index_product_files_on_url")
+  @@map("product_files")
+}
+
+model ProductFilesArchive {
+  id BigInt @id @default(autoincrement())
+  deleted_at DateTime? @db.DateTime(6)
+  link_id BigInt?
+  installment_id BigInt?
+  product_files_archive_state String? @db.VarChar(255)
+  created_at DateTime? @db.DateTime(6)
+  updated_at DateTime? @db.DateTime(6)
+  url String? @db.VarChar(1024)
+  deleted_from_cdn_at DateTime? @db.DateTime(6)
+  variant_id BigInt?
+  digest String? @db.VarChar(255)
+  folder_id String? @db.VarChar(255)
+
+  @@index([deleted_at], map: "index_product_files_archives_on_deleted_at")
+  @@index([deleted_from_cdn_at], map: "index_product_files_archives_on_deleted_from_cdn_at")
+  @@index([folder_id], map: "index_product_files_archives_on_folder_id")
+  @@index([installment_id], map: "index_product_files_archives_on_installment_id")
+  @@index([link_id], map: "index_product_files_archives_on_link_id")
+  @@index([variant_id], map: "index_product_files_archives_on_variant_id")
+  @@map("product_files_archives")
+}
+
+model ProductFilesFilesArchive {
+  id Int @id @default(autoincrement())
+  product_file_id Int?
+  product_files_archive_id Int?
+
+  @@index([product_files_archive_id], map: "index_product_files_files_archives_on_product_files_archive_id")
+  @@map("product_files_files_archives")
+}
+
+model ProductFolder {
+  id BigInt @id @default(autoincrement())
+  product_id BigInt?
+  name String @db.VarChar(255)
+  position Int?
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  deleted_at DateTime? @db.DateTime(0)
+
+  @@index([product_id], map: "index_product_folders_on_product_id")
+  @@map("product_folders")
+}
+
+model ProductInstallmentPlan {
+  id BigInt @id @default(autoincrement())
+  link_id BigInt
+  number_of_installments Int
+  recurrence String @db.VarChar(255)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  deleted_at DateTime? @db.DateTime(6)
+
+  @@index([deleted_at], map: "index_product_installment_plans_on_deleted_at")
+  @@index([link_id], map: "index_product_installment_plans_on_link_id")
+  @@map("product_installment_plans")
+}
+
+model ProductIntegration {
+  id BigInt @id @default(autoincrement())
+  product_id BigInt
+  integration_id BigInt
+  deleted_at DateTime? @db.DateTime(0)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([integration_id], map: "index_product_integrations_on_integration_id")
+  @@index([product_id], map: "index_product_integrations_on_product_id")
+  @@map("product_integrations")
+}
+
+model ProductPermalinkRedirect {
+  id BigInt @id @default(autoincrement())
+  product_id BigInt
+  seller_id BigInt
+  permalink String @db.VarChar(255)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([product_id], map: "index_product_permalink_redirects_on_product_id")
+  @@unique([seller_id, permalink], map: "idx_product_permalink_redirects_on_seller_and_permalink")
+  @@map("product_permalink_redirects")
+}
+
+model ProductReviewRespons {
+  id BigInt @id @default(autoincrement())
+  user_id BigInt
+  product_review_id BigInt
+  message String? @db.Text
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([product_review_id], map: "index_product_review_responses_on_product_review_id")
+  @@index([user_id], map: "index_product_review_responses_on_user_id")
+  @@map("product_review_responses")
+}
+
+model ProductReviewStat {
+  id Int @id @default(autoincrement())
+  link_id Int?
+  reviews_count Int @default(0)
+  average_rating Float @default(0.0) @db.Float
+  ratings_of_one_count Int? @default(0)
+  ratings_of_two_count Int? @default(0)
+  ratings_of_three_count Int? @default(0)
+  ratings_of_four_count Int? @default(0)
+  ratings_of_five_count Int? @default(0)
+  created_at DateTime @db.DateTime(0)
+  updated_at DateTime @db.DateTime(0)
+
+  @@unique([link_id], map: "index_product_review_stats_on_link_id")
+  @@map("product_review_stats")
+}
+
+model ProductReviewVideo {
+  id BigInt @id @default(autoincrement())
+  product_review_id BigInt
+  approval_status String? @default("pending_review") @db.VarChar(255)
+  deleted_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([deleted_at], map: "index_product_review_videos_on_deleted_at")
+  @@index([product_review_id], map: "index_product_review_videos_on_product_review_id")
+  @@map("product_review_videos")
+}
+
+model ProductReview {
+  id BigInt @id @default(autoincrement())
+  purchase_id BigInt?
+  rating Int?
+  created_at DateTime @db.DateTime(0)
+  updated_at DateTime @db.DateTime(0)
+  link_id BigInt?
+  message String? @db.Text
+  /// GENERATED: "if((`message` is null),false,true)" — never write this column
+  has_message Boolean?
+  deleted_at DateTime? @db.DateTime(6)
+  seller_notified_at DateTime? @db.DateTime(6)
+  anonymous Boolean?
+
+  @@index([link_id, has_message, created_at], map: "idx_on_link_id_has_message_created_at_2fcf6c0c64")
+  @@unique([purchase_id], map: "index_product_reviews_on_purchase_id")
+  @@map("product_reviews")
+}
+
+model ProductSalesHold {
+  id BigInt @id @default(autoincrement())
+  external_id String @db.VarChar(21)
+  product_id BigInt
+  held_by_id BigInt
+  unpublished_listing Boolean @default(false)
+  released_at DateTime? @db.DateTime(6)
+  released_by_id BigInt?
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([external_id], map: "index_product_sales_holds_on_external_id")
+  @@index([product_id, released_at], map: "index_product_sales_holds_on_product_id_and_released_at")
+  @@map("product_sales_holds")
+}
+
+model ProductTagging {
+  id Int @id @default(autoincrement())
+  tag_id Int?
+  product_id Int?
+  created_at DateTime? @db.DateTime(0)
+  updated_at DateTime? @db.DateTime(0)
+
+  @@index([product_id], map: "index_product_taggings_on_product_id")
+  @@index([tag_id], map: "index_product_taggings_on_tag_id")
+  @@map("product_taggings")
+}
+
+model ProductVariantDeletionAudit {
+  id BigInt @id @default(autoincrement())
+  actor_user_id BigInt
+  product_id BigInt
+  route String @db.VarChar(255)
+  intent_source String @db.VarChar(255)
+  deleted_variant_external_ids Json?
+  deleted_variant_category_external_ids Json?
+  affected_variant_external_ids Json?
+  confirmed_affected_variant_external_ids Json?
+  deleted_variant_count Int @default(0)
+  affected_variant_count Int @default(0)
+  confirmed_affected_variant_count Int @default(0)
+  unconfirmed_affected_variant_count Int @default(0)
+  alive_child_variant_count Int @default(0)
+  revision_token String? @db.VarChar(255)
+  correlation_id String? @db.VarChar(64)
+  created_at DateTime @db.DateTime(6)
+
+  @@index([actor_user_id, created_at], map: "idx_on_actor_user_id_created_at_0b984cfaae")
+  @@index([intent_source, created_at], map: "idx_on_intent_source_created_at_69e15c2c5d")
+  @@index([product_id, created_at], map: "idx_on_product_id_created_at_cea2c3e72d")
+  @@map("product_variant_deletion_audits")
+}
+
+model PublicFile {
+  id BigInt @id @default(autoincrement())
+  seller_id BigInt?
+  resource_type String @db.VarChar(255)
+  resource_id BigInt
+  public_id String @db.VarChar(255)
+  display_name String @db.VarChar(255)
+  original_file_name String @db.VarChar(255)
+  file_type String? @db.VarChar(255)
+  file_group String? @db.VarChar(255)
+  deleted_at DateTime? @db.DateTime(6)
+  scheduled_for_deletion_at DateTime? @db.DateTime(6)
+  json_data String? @db.Text
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([deleted_at], map: "index_public_files_on_deleted_at")
+  @@index([file_group], map: "index_public_files_on_file_group")
+  @@index([file_type], map: "index_public_files_on_file_type")
+  @@unique([public_id], map: "index_public_files_on_public_id")
+  @@index([resource_type, resource_id], map: "index_public_files_on_resource")
+  @@index([scheduled_for_deletion_at], map: "index_public_files_on_scheduled_for_deletion_at")
+  @@index([seller_id], map: "index_public_files_on_seller_id")
+  @@map("public_files")
+}
+
+model PurchaseCustomFieldFile {
+  id BigInt @id @default(autoincrement())
+  url String? @db.VarChar(255)
+  purchase_custom_field_id BigInt
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([purchase_custom_field_id], map: "index_purchase_custom_field_files_on_purchase_custom_field_id")
+  @@map("purchase_custom_field_files")
+}
+
+model PurchaseCustomField {
+  id BigInt @id @default(autoincrement())
+  purchase_id BigInt
+  field_type String @db.VarChar(255)
+  name String @db.VarChar(255)
+  value String? @db.Text
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  bundle_product_id BigInt?
+  custom_field_id BigInt?
+  flags BigInt @default(0)
+
+  @@index([custom_field_id], map: "index_purchase_custom_fields_on_custom_field_id")
+  @@index([purchase_id], map: "index_purchase_custom_fields_on_purchase_id")
+  @@map("purchase_custom_fields")
+}
+
+model PurchaseEarlyFraudWarning {
+  id BigInt @id @default(autoincrement())
+  purchase_id BigInt?
+  processor_id String @db.VarChar(255)
+  dispute_id BigInt?
+  refund_id BigInt?
+  fraud_type String @db.VarChar(255)
+  actionable Boolean
+  charge_risk_level String @db.VarChar(255)
+  processor_created_at DateTime @db.DateTime(6)
+  resolution String? @default("unknown") @db.VarChar(255)
+  resolved_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  resolution_message String? @db.VarChar(255)
+  charge_id BigInt?
+
+  @@unique([charge_id], map: "index_purchase_early_fraud_warnings_on_charge_id")
+  @@unique([processor_id], map: "index_purchase_early_fraud_warnings_on_processor_id")
+  @@unique([purchase_id], map: "index_purchase_early_fraud_warnings_on_purchase_id")
+  @@map("purchase_early_fraud_warnings")
+}
+
+model PurchaseIntegration {
+  id BigInt @id @default(autoincrement())
+  purchase_id BigInt
+  integration_id BigInt
+  deleted_at DateTime? @db.DateTime(0)
+  discord_user_id String? @db.VarChar(255)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([integration_id], map: "index_purchase_integrations_on_integration_id")
+  @@index([purchase_id], map: "index_purchase_integrations_on_purchase_id")
+  @@map("purchase_integrations")
+}
+
+model PurchaseOfferCodeDiscount {
+  id BigInt @id @default(autoincrement())
+  purchase_id BigInt
+  offer_code_id BigInt
+  offer_code_amount Int
+  offer_code_is_percent Boolean @default(false)
+  pre_discount_minimum_price_cents Int
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  duration_in_months Int?
+  once_per_cart Boolean @default(false)
+  pre_discount_displayed_price_cents Int?
+  once_per_cart_allocation_id String? @db.VarChar(255)
+
+  @@index([offer_code_id], map: "index_purchase_offer_code_discounts_on_offer_code_id")
+  @@index([once_per_cart_allocation_id], map: "index_poc_discounts_on_once_per_cart_allocation_id")
+  @@unique([purchase_id], map: "index_purchase_offer_code_discounts_on_purchase_id")
+  @@map("purchase_offer_code_discounts")
+}
+
+model PurchasePaymentFlow {
+  id BigInt @id @default(autoincrement())
+  purchase_id BigInt
+  payment_details_source String @db.VarChar(255)
+  payment_details_transport String @db.VarChar(255)
+  stripe_payment_method_type String @db.VarChar(255)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([payment_details_source], map: "index_purchase_payment_flows_on_payment_details_source")
+  @@unique([purchase_id], map: "index_purchase_payment_flows_on_purchase_id")
+  @@map("purchase_payment_flows")
+}
+
+model PurchasePresentment {
+  id BigInt @id @default(autoincrement())
+  purchase_id BigInt
+  charge_presentment_id BigInt?
+  processor String @db.VarChar(255)
+  presentment_currency String @db.VarChar(255)
+  presentment_price_cents BigInt
+  presentment_tip_cents BigInt @default(0)
+  presentment_seller_tax_cents BigInt @default(0)
+  presentment_gumroad_tax_cents BigInt @default(0)
+  presentment_shipping_cents BigInt @default(0)
+  presentment_total_cents BigInt
+  presentment_gumroad_amount_cents BigInt
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([charge_presentment_id], map: "index_purchase_presentments_on_charge_presentment_id")
+  @@unique([purchase_id], map: "index_purchase_presentments_on_purchase_id")
+  @@map("purchase_presentments")
+}
+
+model PurchaseRefundPolicy {
+  id BigInt @id @default(autoincrement())
+  purchase_id BigInt
+  title String @db.VarChar(255)
+  fine_print String? @db.Text
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  max_refund_period_in_days Int?
+
+  @@index([purchase_id], map: "index_purchase_refund_policies_on_purchase_id")
+  @@map("purchase_refund_policies")
+}
+
+model PurchaseSalesTaxInfo {
+  id Int @id @default(autoincrement())
+  purchase_id Int?
+  elected_country_code String? @db.VarChar(255)
+  card_country_code String? @db.VarChar(255)
+  ip_country_code String? @db.VarChar(255)
+  country_code String? @db.VarChar(255)
+  postal_code String? @db.VarChar(255)
+  ip_address String? @db.VarChar(255)
+  business_vat_id String? @db.VarChar(191)
+  state_code String? @db.VarChar(255)
+
+  @@index([purchase_id], map: "index_purchase_sales_tax_infos_on_purchase_id")
+  @@map("purchase_sales_tax_infos")
+}
+
+model PurchaseTaxjarInfo {
+  id BigInt @id @default(autoincrement())
+  purchase_id BigInt
+  combined_tax_rate Decimal? @db.Decimal(8, 7)
+  county_tax_rate Decimal? @db.Decimal(8, 7)
+  city_tax_rate Decimal? @db.Decimal(8, 7)
+  state_tax_rate Decimal? @db.Decimal(8, 7)
+  jurisdiction_state String? @db.VarChar(255)
+  jurisdiction_county String? @db.VarChar(255)
+  jurisdiction_city String? @db.VarChar(255)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  gst_tax_rate Decimal? @db.Decimal(8, 7)
+  pst_tax_rate Decimal? @db.Decimal(8, 7)
+  qst_tax_rate Decimal? @db.Decimal(8, 7)
+
+  @@index([purchase_id], map: "index_purchase_taxjar_infos_on_purchase_id")
+  @@map("purchase_taxjar_infos")
+}
+
+model PurchaseUrlParameter {
+  id BigInt @id @default(autoincrement())
+  purchase_id BigInt
+  params Json
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([purchase_id], map: "index_purchase_url_parameters_on_purchase_id")
+  @@map("purchase_url_parameters")
+}
+
+model PurchaseWalletType {
+  id BigInt @id @default(autoincrement())
+  purchase_id BigInt
+  wallet_type String @db.VarChar(255)
+
+  @@unique([purchase_id], map: "index_purchase_wallet_types_on_purchase_id")
+  @@index([wallet_type], map: "index_purchase_wallet_types_on_wallet_type")
+  @@map("purchase_wallet_types")
+}
+
+model Purchas {
+  id BigInt @id @default(autoincrement())
+  seller_id BigInt?
+  created_at DateTime? @db.DateTime(0)
+  updated_at DateTime? @db.DateTime(0)
+  fee_cents Int?
+  link_id BigInt?
+  email String? @db.Text
+  price_cents Int?
+  displayed_price_cents Int?
+  displayed_price_currency_type String? @default("usd") @db.VarChar(255)
+  rate_converted_to_usd String? @db.VarChar(255)
+  street_address String? @db.VarChar(255)
+  city String? @db.VarChar(255)
+  state String? @db.VarChar(255)
+  zip_code String? @db.VarChar(255)
+  country String? @db.VarChar(255)
+  full_name String? @db.VarChar(255)
+  credit_card_id BigInt?
+  purchaser_id BigInt?
+  purchaser_type String? @default("User") @db.VarChar(255)
+  session_id String? @db.VarChar(255)
+  ip_address String? @db.VarChar(255)
+  is_mobile Boolean?
+  stripe_refunded Boolean?
+  stripe_transaction_id String? @db.VarChar(255)
+  stripe_fingerprint String? @db.VarChar(255)
+  stripe_card_id String? @db.VarChar(255)
+  can_contact Boolean? @default(true)
+  referrer String? @db.VarChar(255)
+  stripe_status String? @db.VarChar(255)
+  variants String? @db.Text
+  chargeback_date DateTime? @db.DateTime(0)
+  webhook_failed Boolean? @default(false)
+  failed Boolean? @default(false)
+  card_type String? @db.VarChar(255)
+  card_visual String? @db.VarChar(255)
+  purchase_state String? @db.VarChar(255)
+  processor_fee_cents Int?
+  succeeded_at DateTime? @db.DateTime(0)
+  card_country String? @db.VarChar(255)
+  stripe_error_code String? @db.VarChar(255)
+  browser_guid String? @db.VarChar(255)
+  error_code String? @db.VarChar(255)
+  card_bin String? @db.VarChar(255)
+  custom_fields String? @db.Text
+  ip_country String? @db.VarChar(255)
+  ip_state String? @db.VarChar(255)
+  purchase_success_balance_id BigInt?
+  purchase_chargeback_balance_id BigInt?
+  purchase_refund_balance_id BigInt?
+  flags BigInt @default(0)
+  offer_code_id BigInt?
+  subscription_id BigInt?
+  preorder_id BigInt?
+  card_expiry_month Int?
+  card_expiry_year Int?
+  tax_cents Int? @default(0)
+  affiliate_credit_cents Int? @default(0)
+  credit_card_zipcode String? @db.VarChar(255)
+  json_data String? @db.VarChar(4096)
+  card_data_handling_mode String? @db.VarChar(255)
+  charge_processor_id String? @db.VarChar(255)
+  total_transaction_cents Int?
+  gumroad_tax_cents Int?
+  zip_tax_rate_id BigInt?
+  quantity Int @default(1)
+  merchant_account_id BigInt?
+  shipping_cents Int? @default(0)
+  affiliate_id BigInt?
+  processor_fee_cents_currency String? @default("usd") @db.VarChar(255)
+  stripe_partially_refunded Boolean? @default(false)
+  paypal_order_id String? @db.VarChar(191)
+  rental_expired Boolean?
+  processor_payment_intent_id String? @db.VarChar(255)
+  processor_setup_intent_id String? @db.VarChar(255)
+  price_id BigInt?
+  recommended_by String? @db.VarChar(255)
+  deleted_at DateTime? @db.DateTime(0)
+
+  @@index([affiliate_id, created_at], map: "index_purchases_on_affiliate_id_and_created_at")
+  @@index([browser_guid], map: "index_purchases_on_browser_guid")
+  @@index([card_type, card_visual, created_at, stripe_fingerprint], map: "index_purchases_on_card_type_visual_date_fingerprint")
+  @@index([card_type, card_visual, stripe_fingerprint], map: "index_purchases_on_card_type_visual_fingerprint")
+  @@index([created_at], map: "index_purchases_on_created_at")
+  @@index([email(length: 191)], map: "index_purchases_on_email_long")
+  @@index([full_name], map: "index_purchases_on_full_name")
+  @@index([ip_address], map: "index_purchases_on_ip_address")
+  @@index([link_id, purchase_state, created_at], map: "index_purchases_on_link_id_and_purchase_state_and_created_at")
+  @@index([link_id], map: "index_purchases_on_link_id")
+  @@index([offer_code_id], map: "index_purchases_on_offer_code_id")
+  @@index([paypal_order_id], map: "index_purchases_on_paypal_order_id")
+  @@index([preorder_id], map: "index_purchases_on_preorder_id")
+  @@index([purchase_chargeback_balance_id], map: "index_purchase_chargeback_balance_id")
+  @@index([purchase_refund_balance_id], map: "index_purchase_refund_balance_id")
+  @@index([purchase_state, created_at], map: "index_purchases_on_purchase_state_and_created_at")
+  @@index([purchase_success_balance_id], map: "index_purchase_success_balance_id")
+  @@index([purchaser_id], map: "index_purchases_on_purchaser_id")
+  @@index([rental_expired], map: "index_purchases_on_rental_expired")
+  @@index([seller_id, chargeback_date], map: "index_purchases_on_seller_id_and_chargeback_date")
+  @@index([seller_id, purchase_state, created_at], map: "index_purchases_on_seller_id_and_purchase_state_and_created_at")
+  @@index([seller_id, succeeded_at], map: "index_purchases_on_seller_id_and_succeeded_at")
+  @@index([seller_id], map: "index_purchases_on_seller_id")
+  @@index([stripe_fingerprint], map: "index_purchases_on_stripe_fingerprint")
+  @@index([stripe_transaction_id], map: "index_purchases_on_stripe_transaction_id")
+  @@index([subscription_id], map: "index_purchases_on_subscription_id")
+  @@map("purchases")
+}
+
+model PurchasingPowerParityInfo {
+  id BigInt @id @default(autoincrement())
+  purchase_id BigInt
+  factor Int?
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([purchase_id], map: "index_purchasing_power_parity_infos_on_purchase_id")
+  @@map("purchasing_power_parity_infos")
+}
+
+model RecommendedPurchaseInfo {
+  id Int @id @default(autoincrement())
+  created_at DateTime? @db.DateTime(0)
+  updated_at DateTime? @db.DateTime(0)
+  purchase_id Int?
+  recommended_link_id Int?
+  recommended_by_link_id Int?
+  recommendation_type String? @db.VarChar(255)
+  flags Int @default(0)
+  discover_fee_per_thousand Int?
+  recommender_model_name String? @db.VarChar(255)
+
+  @@index([purchase_id], map: "index_recommended_purchase_infos_on_purchase_id")
+  @@index([recommended_by_link_id], map: "index_recommended_purchase_infos_on_recommended_by_link_id")
+  @@index([recommended_link_id], map: "index_recommended_purchase_infos_on_recommended_link_id")
+  @@map("recommended_purchase_infos")
+}
+
+model RecurringService {
+  id Int @id @default(autoincrement())
+  created_at DateTime? @db.DateTime(0)
+  updated_at DateTime? @db.DateTime(0)
+  user_id Int?
+  type String? @db.VarChar(191)
+  price_cents Int?
+  recurrence Int?
+  failed_at DateTime? @db.DateTime(0)
+  cancelled_at DateTime? @db.DateTime(0)
+  state String? @db.VarChar(191)
+  json_data String? @db.VarChar(191)
+
+  @@index([user_id], map: "index_recurring_services_on_user_id")
+  @@map("recurring_services")
+}
+
+model RefundPolicy {
+  id BigInt @id @default(autoincrement())
+  seller_id BigInt
+  product_id BigInt?
+  title String? @db.VarChar(255)
+  fine_print String? @db.Text
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  max_refund_period_in_days Int?
+
+  @@unique([product_id], map: "index_refund_policies_on_product_id")
+  @@index([seller_id], map: "index_refund_policies_on_seller_id")
+  @@map("refund_policies")
+}
+
+model Refund {
+  id BigInt @id @default(autoincrement())
+  amount_cents Int? @default(0)
+  purchase_id BigInt?
+  created_at DateTime @db.DateTime(0)
+  updated_at DateTime @db.DateTime(0)
+  refunding_user_id BigInt?
+  creator_tax_cents Int?
+  gumroad_tax_cents Int?
+  total_transaction_cents Int?
+  json_data String? @db.MediumText
+  link_id BigInt?
+  status String? @default("succeeded") @db.VarChar(191)
+  processor_refund_id String? @db.VarChar(191)
+  fee_cents Int?
+  flags BigInt @default(0)
+  seller_id BigInt?
+  fee_retention_recoverable Boolean @default(false)
+
+  @@index([created_at], map: "index_refunds_on_created_at")
+  @@index([fee_retention_recoverable], map: "index_refunds_on_fee_retention_recoverable")
+  @@index([link_id], map: "index_refunds_on_link_id")
+  @@index([processor_refund_id], map: "index_refunds_on_processor_refund_id")
+  @@index([purchase_id], map: "index_refunds_on_purchase_id")
+  @@index([seller_id, created_at], map: "index_refunds_on_seller_id_and_created_at")
+  @@map("refunds")
+}
+
+model ResourceSubscription {
+  id Int @id @default(autoincrement())
+  oauth_application_id Int
+  user_id Int
+  resource_name String @db.VarChar(255)
+  post_url String? @db.VarChar(255)
+  created_at DateTime @db.DateTime(0)
+  updated_at DateTime @db.DateTime(0)
+  deleted_at DateTime? @db.DateTime(0)
+  content_type String? @default("application/x-www-form-urlencoded") @db.VarChar(255)
+
+  @@index([oauth_application_id], map: "index_resource_subscriptions_on_oauth_application_id")
+  @@index([user_id], map: "index_resource_subscriptions_on_user_id")
+  @@map("resource_subscriptions")
+}
+
+model RichContent {
+  id BigInt @id @default(autoincrement())
+  entity_id BigInt
+  entity_type String @db.VarChar(255)
+  description Json
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  deleted_at DateTime? @db.DateTime(0)
+  title String? @db.VarChar(255)
+  position Int @default(0)
+
+  @@index([entity_id, entity_type], map: "index_rich_contents_on_entity_id_and_entity_type")
+  @@map("rich_contents")
+}
+
+model SalesExportChunk {
+  id BigInt @id @default(autoincrement())
+  export_id BigInt
+  purchase_ids String? @db.LongText
+  custom_fields String? @db.Text
+  purchases_data String? @db.LongText
+  processed Boolean @default(false)
+  revision String? @db.VarChar(255)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([export_id], map: "index_sales_export_chunks_on_export_id")
+  @@map("sales_export_chunks")
+}
+
+model SalesExport {
+  id BigInt @id @default(autoincrement())
+  recipient_id BigInt
+  query String? @db.Text
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([recipient_id], map: "index_sales_exports_on_recipient_id")
+  @@map("sales_exports")
+}
+
+model SalesRelatedProductsInfo {
+  id BigInt @id @default(autoincrement())
+  smaller_product_id BigInt
+  larger_product_id BigInt
+  sales_count Int @default(0)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([larger_product_id, sales_count], map: "index_larger_product_id_and_sales_count")
+  @@unique([smaller_product_id, larger_product_id], map: "index_smaller_and_larger_product_ids")
+  @@index([smaller_product_id, sales_count], map: "index_smaller_product_id_and_sales_count")
+  @@map("sales_related_products_infos")
+}
+
+model ScheduledPayout {
+  id BigInt @id @default(autoincrement())
+  user_id BigInt
+  action String @db.VarChar(255)
+  delay_days Int @default(21)
+  scheduled_at DateTime @db.DateTime(6)
+  status String @default("pending") @db.VarChar(255)
+  created_by_id BigInt?
+  executed_at DateTime? @db.DateTime(6)
+  payout_amount_cents BigInt
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  processor String? @db.VarChar(255)
+
+  @@index([created_by_id], map: "index_scheduled_payouts_on_created_by_id")
+  @@index([status, scheduled_at], map: "index_scheduled_payouts_on_status_and_scheduled_at")
+  @@index([user_id], map: "index_scheduled_payouts_on_user_id")
+  @@map("scheduled_payouts")
+}
+
+model SelfServiceAffiliateProduct {
+  id BigInt @id @default(autoincrement())
+  seller_id BigInt
+  product_id BigInt
+  enabled Boolean @default(false)
+  affiliate_basis_points Int
+  destination_url String? @db.VarChar(2083)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([product_id], map: "index_self_service_affiliate_products_on_product_id")
+  @@index([seller_id], map: "index_self_service_affiliate_products_on_seller_id")
+  @@map("self_service_affiliate_products")
+}
+
+model SellerPlanOffer {
+  id BigInt @id @default(autoincrement())
+  user_id BigInt
+  product_id BigInt?
+  arm String @db.VarChar(255)
+  price_cents Int
+  status String @default("offered") @db.VarChar(255)
+  stripe_checkout_session_id String? @db.VarChar(255)
+  stripe_customer_id String? @db.VarChar(255)
+  stripe_subscription_id String? @db.VarChar(255)
+  offered_at DateTime @db.DateTime(6)
+  activated_at DateTime? @db.DateTime(6)
+  canceled_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([stripe_subscription_id], map: "index_seller_plan_offers_on_stripe_subscription_id")
+  @@unique([user_id], map: "index_seller_plan_offers_on_user_id")
+  @@map("seller_plan_offers")
+}
+
+model SellerProfileSection {
+  id BigInt @id @default(autoincrement())
+  seller_id BigInt
+  header String? @db.VarChar(255)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  flags BigInt @default(0)
+  json_data Json?
+  type String @default("SellerProfileProductsSection") @db.VarChar(255)
+  product_id BigInt?
+
+  @@index([product_id], map: "index_seller_profile_sections_on_product_id")
+  @@index([seller_id], map: "index_seller_profile_sections_on_seller_id")
+  @@map("seller_profile_sections")
+}
+
+model SellerProfile {
+  id BigInt @id @default(autoincrement())
+  seller_id BigInt
+  highlight_color String? @db.VarChar(255)
+  background_color String? @db.VarChar(255)
+  font String? @db.VarChar(255)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  json_data Json?
+  border_radius String? @db.VarChar(255)
+  button_hover String? @db.VarChar(255)
+  seo_title String? @db.VarChar(255)
+  seo_description String? @db.Text
+
+  @@index([seller_id], map: "index_seller_profiles_on_seller_id")
+  @@map("seller_profiles")
+}
+
+model SentAbandonedCartEmail {
+  id BigInt @id @default(autoincrement())
+  cart_id BigInt
+  installment_id BigInt
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([cart_id, installment_id], map: "index_sent_abandoned_cart_emails_on_cart_id_and_installment_id")
+  @@index([installment_id], map: "index_sent_abandoned_cart_emails_on_installment_id")
+  @@map("sent_abandoned_cart_emails")
+}
+
+/// charset: latin1
+model SentEmailInfo {
+  id Int @id @default(autoincrement())
+  key String @db.VarChar(40)
+  created_at DateTime @db.DateTime(0)
+  updated_at DateTime @db.DateTime(0)
+
+  @@index([created_at], map: "index_sent_email_infos_on_created_at")
+  @@unique([key], map: "index_sent_email_infos_on_key")
+  @@map("sent_email_infos")
+}
+
+model SentPostEmail {
+  id BigInt @id @default(autoincrement())
+  post_id BigInt
+  email String @db.VarChar(255)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([email], map: "index_sent_post_emails_on_email")
+  @@unique([post_id, email], map: "index_sent_post_emails_on_post_id_and_email")
+  @@map("sent_post_emails")
+}
+
+model ServiceCharge {
+  id Int @id @default(autoincrement())
+  created_at DateTime? @db.DateTime(0)
+  updated_at DateTime? @db.DateTime(0)
+  user_id Int?
+  recurring_service_id Int?
+  charge_cents Int?
+  charge_cents_currency String? @default("usd") @db.VarChar(191)
+  state String? @db.VarChar(191)
+  succeeded_at DateTime? @db.DateTime(0)
+  credit_card_id Int?
+  card_expiry_month Int?
+  card_expiry_year Int?
+  card_data_handling_mode String? @db.VarChar(191)
+  card_bin String? @db.VarChar(191)
+  card_type String? @db.VarChar(191)
+  card_country String? @db.VarChar(191)
+  card_zip_code String? @db.VarChar(191)
+  card_visual String? @db.VarChar(191)
+  charge_processor_id String? @db.VarChar(191)
+  charge_processor_fee_cents Int?
+  charge_processor_fee_cents_currency String? @default("usd") @db.VarChar(191)
+  charge_processor_transaction_id String? @db.VarChar(191)
+  charge_processor_fingerprint String? @db.VarChar(191)
+  charge_processor_card_id String? @db.VarChar(191)
+  charge_processor_status String? @db.VarChar(191)
+  charge_processor_error_code String? @db.VarChar(191)
+  charge_processor_refunded Boolean @default(false)
+  chargeback_date DateTime? @db.DateTime(0)
+  json_data String? @db.VarChar(191)
+  error_code String? @db.VarChar(191)
+  merchant_account_id Int?
+  browser_guid String? @db.VarChar(191)
+  ip_address String? @db.VarChar(191)
+  ip_country String? @db.VarChar(191)
+  ip_state String? @db.VarChar(191)
+  session_id String? @db.VarChar(191)
+  flags Int @default(0)
+  discount_code String? @db.VarChar(100)
+  processor_payment_intent_id String? @db.VarChar(255)
+
+  @@index([card_type, card_visual, charge_processor_fingerprint], map: "index_service_charges_on_card_type_visual_fingerprint")
+  @@index([card_type, card_visual, created_at, charge_processor_fingerprint], map: "index_service_charges_on_card_type_visual_date_fingerprint")
+  @@index([created_at], map: "index_service_charges_on_created_at")
+  @@index([recurring_service_id], map: "index_service_charges_on_recurring_service_id")
+  @@index([user_id], map: "index_service_charges_on_user_id")
+  @@map("service_charges")
+}
+
+model Shipment {
+  id Int @id @default(autoincrement())
+  purchase_id Int?
+  ship_state String? @db.VarChar(255)
+  shipped_at DateTime? @db.DateTime(0)
+  created_at DateTime? @db.DateTime(0)
+  updated_at DateTime? @db.DateTime(0)
+  tracking_number String? @db.VarChar(255)
+  carrier String? @db.VarChar(255)
+  tracking_url String? @db.VarChar(2083)
+
+  @@index([purchase_id], map: "index_shipments_on_purchase_id")
+  @@map("shipments")
+}
+
+model ShippingDestination {
+  id Int @id @default(autoincrement())
+  link_id Int?
+  user_id Int?
+  country_code String @db.VarChar(255)
+  one_item_rate_cents Int
+  multiple_items_rate_cents Int
+  flags Int @default(0)
+  json_data String? @db.MediumText
+  deleted_at DateTime? @db.DateTime(0)
+  created_at DateTime? @db.DateTime(6)
+  updated_at DateTime? @db.DateTime(6)
+
+  @@index([link_id], map: "index_shipping_destinations_on_link_id")
+  @@index([user_id], map: "index_shipping_destinations_on_user_id")
+  @@map("shipping_destinations")
+}
+
+model ShippingExclusion {
+  id BigInt @id @default(autoincrement())
+  product_id BigInt
+  country_code String @db.VarChar(255)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([product_id, country_code], map: "index_shipping_exclusions_on_product_id_and_country_code")
+  @@map("shipping_exclusions")
+}
+
+/// charset: latin1
+model SignupEvent {
+  id BigInt @id @default(autoincrement())
+  visit_id Int?
+  ip_address String? @db.VarChar(255)
+  user_id Int?
+  created_at DateTime? @db.DateTime(0)
+  updated_at DateTime? @db.DateTime(0)
+  referrer String? @db.VarChar(255)
+  parent_referrer String? @db.VarChar(255)
+  language String? @db.VarChar(255)
+  browser String? @db.VarChar(255)
+  is_mobile Boolean? @default(false)
+  email String? @db.VarChar(255)
+  view_url String? @db.VarChar(255)
+  fingerprint String? @db.VarChar(255)
+  ip_country String? @db.VarChar(255)
+  ip_longitude Float? @db.Float
+  ip_latitude Float? @db.Float
+  is_modal Boolean?
+  browser_fingerprint String? @db.VarChar(255)
+  browser_plugins String? @db.VarChar(255)
+  browser_guid String? @db.VarChar(255)
+  referrer_domain String? @db.VarChar(255)
+  ip_state String? @db.VarChar(255)
+  active_test_path_assignments String? @db.VarChar(255)
+  event_name String? @db.VarChar(255)
+  link_id Int?
+  purchase_id Int?
+  price_cents Int?
+  credit_card_id Int?
+  card_type String? @db.VarChar(255)
+  card_visual String? @db.VarChar(255)
+  purchase_state Boolean? @default(false)
+  billing_zip String? @db.VarChar(255)
+  chargeback Boolean? @default(false)
+  refunded Boolean?
+
+  @@index([browser_guid], map: "index_events_on_browser_guid")
+  @@index([created_at], map: "index_events_on_created_at")
+  @@index([ip_address], map: "index_events_on_ip_address")
+  @@index([user_id], map: "index_events_on_user_id")
+  @@index([visit_id], map: "index_events_on_visit_id")
+  @@map("signup_events")
+}
+
+model SkusVariant {
+  id Int @id @default(autoincrement())
+  variant_id Int?
+  sku_id Int?
+
+  @@index([sku_id], map: "index_skus_variants_on_sku_id")
+  @@index([variant_id], map: "index_skus_variants_on_variant_id")
+  @@map("skus_variants")
+}
+
+model SocialConnectVerification {
+  id BigInt @id @default(autoincrement())
+  user_id BigInt
+  platform String @db.VarChar(255)
+  uid String @db.VarChar(255)
+  handle String? @db.VarChar(255)
+  account_created_at DateTime? @db.DateTime(6)
+  follower_count BigInt?
+  post_count BigInt?
+  last_posted_at DateTime? @db.DateTime(6)
+  last_verified_at DateTime @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  superseded_at DateTime? @db.DateTime(6)
+
+  @@index([platform, uid], map: "index_social_connect_verifications_on_platform_and_uid")
+  @@unique([user_id, platform, uid], map: "index_scv_on_user_id_platform_and_uid")
+  @@index([user_id, platform], map: "index_social_connect_verifications_on_user_id_and_platform")
+  @@map("social_connect_verifications")
+}
+
+model SocialScoreShadowEvaluation {
+  id BigInt @id @default(autoincrement())
+  user_id BigInt
+  evaluated_on DateTime @db.Date
+  hold_source String @db.VarChar(255)
+  unpaid_balance_cents BigInt
+  score Int
+  would_have_released Boolean @default(false)
+  signals Json?
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([evaluated_on, would_have_released], map: "index_sse_on_evaluated_on_and_would_have_released")
+  @@unique([user_id, evaluated_on], map: "index_sse_on_user_id_and_evaluated_on")
+  @@map("social_score_shadow_evaluations")
+}
+
+model StaffPickedProduct {
+  id BigInt @id @default(autoincrement())
+  product_id BigInt
+  deleted_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([product_id], map: "index_staff_picked_products_on_product_id")
+  @@map("staff_picked_products")
+}
+
+model StampedPdf {
+  id BigInt @id @default(autoincrement())
+  url_redirect_id BigInt?
+  product_file_id BigInt?
+  url String? @db.VarChar(1024)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  deleted_at DateTime? @db.DateTime(6)
+  deleted_from_cdn_at DateTime? @db.DateTime(6)
+
+  @@index([created_at], map: "index_stamped_pdfs_on_created_at")
+  @@index([deleted_at], map: "index_stamped_pdfs_on_deleted_at")
+  @@index([deleted_from_cdn_at], map: "index_stamped_pdfs_on_deleted_from_cdn_at")
+  @@index([product_file_id], map: "index_stamped_pdfs_on_product_file_id")
+  @@index([url(length: 768)], map: "index_stamped_pdfs_on_url")
+  @@index([url_redirect_id], map: "index_stamped_pdfs_on_url_redirect_id")
+  @@map("stamped_pdfs")
+}
+
+model StripeApplePayDomain {
+  id BigInt @id @default(autoincrement())
+  user_id BigInt
+  domain String @db.VarChar(255)
+  stripe_id String @db.VarChar(255)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([domain], map: "index_stripe_apple_pay_domains_on_domain")
+  @@index([user_id], map: "index_stripe_apple_pay_domains_on_user_id")
+  @@map("stripe_apple_pay_domains")
+}
+
+model SubscriptionEvent {
+  id BigInt @id @default(autoincrement())
+  subscription_id BigInt
+  event_type Int
+  occurred_at DateTime @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  seller_id BigInt?
+
+  @@index([seller_id, occurred_at], map: "index_subscription_events_on_seller_id_and_occurred_at")
+  @@index([subscription_id], map: "index_subscription_events_on_subscription_id")
+  @@map("subscription_events")
+}
+
+model SubscriptionPlanChange {
+  id BigInt @id @default(autoincrement())
+  subscription_id BigInt
+  base_variant_id BigInt?
+  recurrence String @db.VarChar(191)
+  perceived_price_cents Int
+  deleted_at DateTime? @db.DateTime(0)
+  created_at DateTime @db.DateTime(0)
+  updated_at DateTime @db.DateTime(0)
+  quantity Int @default(1)
+  flags BigInt @default(0)
+  effective_on DateTime? @db.Date
+  notified_subscriber_at DateTime? @db.DateTime(6)
+  notification_claim_id String? @db.VarChar(36)
+  notification_claimed_at DateTime? @db.DateTime(6)
+
+  @@index([base_variant_id], map: "index_subscription_plan_changes_on_base_variant_id")
+  @@index([subscription_id], map: "index_subscription_plan_changes_on_subscription_id")
+  @@map("subscription_plan_changes")
+}
+
+model Subscription {
+  id BigInt @id @default(autoincrement())
+  link_id BigInt?
+  user_id BigInt?
+  cancelled_at DateTime? @db.DateTime(6)
+  failed_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  flags BigInt @default(0)
+  user_requested_cancellation_at DateTime? @db.DateTime(6)
+  charge_occurrence_count Int?
+  ended_at DateTime? @db.DateTime(6)
+  last_payment_option_id BigInt?
+  credit_card_id BigInt?
+  deactivated_at DateTime? @db.DateTime(6)
+  free_trial_ends_at DateTime? @db.DateTime(6)
+  seller_id BigInt?
+  token String? @db.VarChar(255)
+  token_expires_at DateTime? @db.DateTime(6)
+  business_vat_id String? @db.VarChar(191)
+  stripe_mandate_id String? @db.VarChar(255)
+
+  @@index([cancelled_at], map: "index_subscriptions_on_cancelled_at")
+  @@index([deactivated_at], map: "index_subscriptions_on_deactivated_at")
+  @@index([ended_at], map: "index_subscriptions_on_ended_at")
+  @@index([failed_at], map: "index_subscriptions_on_failed_at")
+  @@index([link_id, flags], map: "index_subscriptions_on_link_id_and_flags")
+  @@index([link_id], map: "index_subscriptions_on_link_id")
+  @@index([seller_id, created_at], map: "index_subscriptions_on_seller_id_and_created_at")
+  @@index([user_id], map: "index_subscriptions_on_user_id")
+  @@map("subscriptions")
+}
+
+model SubtitleFile {
+  id BigInt @id @default(autoincrement())
+  url String? @db.VarChar(1024)
+  language String? @db.VarChar(255)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  product_file_id BigInt?
+  deleted_at DateTime? @db.DateTime(6)
+  size Int?
+  deleted_from_cdn_at DateTime? @db.DateTime(6)
+
+  @@index([deleted_at], map: "index_subtitle_files_on_deleted_at")
+  @@index([product_file_id], map: "index_subtitle_files_on_product_file_id")
+  @@index([url(length: 768)], map: "index_subtitle_files_on_url")
+  @@map("subtitle_files")
+}
+
+model Tag {
+  id Int @id @default(autoincrement())
+  name String? @db.VarChar(100)
+  created_at DateTime? @db.DateTime(0)
+  updated_at DateTime? @db.DateTime(0)
+  humanized_name String? @db.VarChar(191)
+  flagged_at DateTime? @db.DateTime(0)
+  taggings_count Int @default(0)
+
+  @@index([name, taggings_count], map: "index_tags_on_name_and_taggings_count")
+  @@map("tags")
+}
+
+model TaxRemittance {
+  id BigInt @id @default(autoincrement())
+  authority String @db.VarChar(255)
+  jurisdiction String @db.VarChar(255)
+  period String @db.VarChar(255)
+  currency String @db.VarChar(3)
+  target_amount_cents BigInt?
+  usd_amount_cents BigInt
+  rail String @default("wise") @db.VarChar(255)
+  transfer_id String? @db.VarChar(255)
+  status String @default("draft") @db.VarChar(255)
+  attempt Int @default(1)
+  paid_at DateTime? @db.DateTime(6)
+  qbo_journal_entry_ref String? @db.VarChar(255)
+  notes String? @db.Text
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([authority, period, attempt], map: "index_tax_remittances_on_authority_and_period_and_attempt")
+  @@unique([rail, transfer_id], map: "index_tax_remittances_on_rail_and_transfer_id")
+  @@index([status, period], map: "index_tax_remittances_on_status_and_period")
+  @@map("tax_remittances")
+}
+
+model Taxonomy {
+  id BigInt @id @default(autoincrement())
+  parent_id BigInt?
+  slug String @db.VarChar(255)
+
+  // EXPRESSION INDEX index_taxonomies_on_parent_id_and_slug (unique): (ifnull(`parent_id`,0)), `slug`
+  @@index([parent_id], map: "index_taxonomies_on_parent_id")
+  @@map("taxonomies")
+}
+
+model TaxonomyAttribute {
+  id BigInt @id @default(autoincrement())
+  taxonomy_id BigInt
+  name String @db.VarChar(255)
+  label String @db.VarChar(255)
+  value_type String @db.VarChar(255)
+  values Json?
+  position Int @default(0)
+  active Boolean @default(true)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([taxonomy_id, name], map: "index_taxonomy_attributes_on_taxonomy_id_and_name")
+  @@index([taxonomy_id], map: "index_taxonomy_attributes_on_taxonomy_id")
+  @@map("taxonomy_attributes")
+}
+
+model TaxonomyHierarchy {
+  ancestor_id BigInt
+  descendant_id BigInt
+  generations Int
+
+  @@id([ancestor_id, descendant_id, generations])
+  @@unique([ancestor_id, descendant_id, generations], map: "taxonomy_anc_desc_idx")
+  @@index([descendant_id], map: "taxonomy_desc_idx")
+  @@map("taxonomy_hierarchies")
+}
+
+model TaxonomyStat {
+  id BigInt @id @default(autoincrement())
+  taxonomy_id BigInt
+  creators_count Int @default(0)
+  products_count Int @default(0)
+  sales_count Int @default(0)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  recent_sales_count Int? @default(0)
+
+  @@index([taxonomy_id], map: "index_taxonomy_stats_on_taxonomy_id")
+  @@map("taxonomy_stats")
+}
+
+model TeamInvitation {
+  id BigInt @id @default(autoincrement())
+  seller_id BigInt
+  email String @db.VarChar(255)
+  role String @db.VarChar(255)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  expires_at DateTime @db.DateTime(6)
+  accepted_at DateTime? @db.DateTime(6)
+  deleted_at DateTime? @db.DateTime(6)
+
+  @@index([seller_id], map: "index_team_invitations_on_seller_id")
+  @@map("team_invitations")
+}
+
+model TeamMembership {
+  id BigInt @id @default(autoincrement())
+  seller_id BigInt
+  user_id BigInt
+  role String @db.VarChar(255)
+  last_accessed_at DateTime? @db.DateTime(0)
+  deleted_at DateTime? @db.DateTime(0)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([seller_id], map: "index_team_memberships_on_seller_id")
+  @@index([user_id], map: "index_team_memberships_on_user_id")
+  @@map("team_memberships")
+}
+
+model ThirdPartyAnalytic {
+  id Int @id @default(autoincrement())
+  user_id Int?
+  link_id Int?
+  analytics_code String? @db.Text
+  deleted_at DateTime? @db.DateTime(0)
+  created_at DateTime? @db.DateTime(0)
+  updated_at DateTime? @db.DateTime(0)
+  name String? @db.VarChar(255)
+  location String? @default("receipt") @db.VarChar(255)
+
+  @@index([link_id], map: "index_third_party_analytics_on_link_id")
+  @@index([user_id], map: "index_third_party_analytics_on_user_id")
+  @@map("third_party_analytics")
+}
+
+model Thumbnail {
+  id BigInt @id @default(autoincrement())
+  product_id Int?
+  deleted_at DateTime? @db.DateTime(0)
+  guid String? @db.VarChar(255)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  unsplash_url String? @db.VarChar(255)
+
+  @@index([product_id], map: "index_thumbnails_on_product_id")
+  @@map("thumbnails")
+}
+
+model Tip {
+  id BigInt @id @default(autoincrement())
+  purchase_id BigInt
+  value_cents Int
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  value_usd_cents Int @default(0)
+
+  @@index([purchase_id], map: "index_tips_on_purchase_id")
+  @@map("tips")
+}
+
+model TopSeller {
+  id BigInt @id @default(autoincrement())
+  user_id BigInt
+  sales_usd BigInt @default(0)
+  sales_count BigInt @default(0)
+  rank Int
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([rank], map: "index_top_sellers_on_rank")
+  @@unique([user_id], map: "index_top_sellers_on_user_id")
+  @@map("top_sellers")
+}
+
+model TosAgreement {
+  id Int @id @default(autoincrement())
+  user_id Int?
+  ip String? @db.VarChar(255)
+  created_at DateTime? @db.DateTime(0)
+
+  @@index([user_id], map: "index_tos_agreements_on_user_id")
+  @@map("tos_agreements")
+}
+
+model TotpCredential {
+  id BigInt @id @default(autoincrement())
+  user_id BigInt
+  otp_secret String @db.VarChar(255)
+  confirmed_at DateTime? @db.DateTime(6)
+  recovery_codes String? @db.Text
+  recovery_codes_generated_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([user_id], map: "index_totp_credentials_on_user_id")
+  @@map("totp_credentials")
+}
+
+model TranscodedVideo {
+  id BigInt @id @default(autoincrement())
+  link_id BigInt?
+  original_video_key String? @db.VarChar(1024)
+  transcoded_video_key String? @db.VarChar(2048)
+  job_id String? @db.VarChar(255)
+  state String? @db.VarChar(255)
+  created_at DateTime @db.DateTime(0)
+  updated_at DateTime @db.DateTime(0)
+  product_file_id BigInt?
+  flags Int @default(0)
+  deleted_from_cdn_at DateTime? @db.DateTime(0)
+  deleted_at DateTime? @db.DateTime(6)
+  last_accessed_at DateTime? @db.DateTime(6)
+  streamable_type String? @db.VarChar(255)
+  streamable_id BigInt?
+
+  @@index([deleted_at], map: "index_transcoded_videos_on_deleted_at")
+  @@index([deleted_from_cdn_at], map: "index_transcoded_videos_on_deleted_from_cdn_at")
+  @@index([job_id], map: "index_transcoded_videos_on_job_id")
+  @@index([last_accessed_at], map: "index_transcoded_videos_on_last_accessed_at")
+  @@index([link_id], map: "index_transcoded_videos_on_link_id")
+  @@index([original_video_key(length: 768)], map: "index_transcoded_videos_on_original_video_key")
+  @@index([product_file_id], map: "index_transcoded_videos_on_product_file_id")
+  @@index([streamable_type, streamable_id], map: "index_transcoded_videos_on_streamable")
+  @@index([transcoded_video_key(length: 768)], map: "index_transcoded_videos_on_transcoded_video_key")
+  @@map("transcoded_videos")
+}
+
+model UpsellPurchas {
+  id BigInt @id @default(autoincrement())
+  upsell_id BigInt
+  purchase_id BigInt
+  selected_product_id BigInt?
+  upsell_variant_id BigInt?
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([purchase_id], map: "index_upsell_purchases_on_purchase_id")
+  @@index([selected_product_id], map: "index_upsell_purchases_on_selected_product_id")
+  @@index([upsell_id], map: "index_upsell_purchases_on_upsell_id")
+  @@index([upsell_variant_id], map: "index_upsell_purchases_on_upsell_variant_id")
+  @@map("upsell_purchases")
+}
+
+model UpsellVariant {
+  id BigInt @id @default(autoincrement())
+  upsell_id BigInt
+  selected_variant_id BigInt
+  offered_variant_id BigInt
+  deleted_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([offered_variant_id], map: "index_upsell_variants_on_offered_variant_id")
+  @@index([selected_variant_id], map: "index_upsell_variants_on_selected_variant_id")
+  @@index([upsell_id], map: "index_upsell_variants_on_upsell_id")
+  @@map("upsell_variants")
+}
+
+model Upsell {
+  id BigInt @id @default(autoincrement())
+  seller_id BigInt
+  product_id BigInt
+  variant_id BigInt?
+  offer_code_id BigInt?
+  name String? @db.VarChar(255)
+  cross_sell Boolean
+  text String? @db.VarChar(255)
+  description String? @db.Text
+  deleted_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  universal Boolean @default(false)
+  flags Int @default(0)
+  paused Boolean @default(false)
+
+  @@index([offer_code_id], map: "index_upsells_on_offer_code_id")
+  @@index([product_id], map: "index_upsells_on_offered_product_id")
+  @@index([seller_id], map: "index_upsells_on_seller_id")
+  @@index([variant_id], map: "index_upsells_on_offered_variant_id")
+  @@map("upsells")
+}
+
+model UpsellsSelectedProduct {
+  id BigInt @id @default(autoincrement())
+  upsell_id BigInt
+  selected_product_id BigInt
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([selected_product_id], map: "index_upsells_selected_products_on_product_id")
+  @@index([upsell_id], map: "index_upsells_selected_products_on_upsell_id")
+  @@map("upsells_selected_products")
+}
+
+model UrlRedirect {
+  id BigInt @id @default(autoincrement())
+  uses Int? @default(0)
+  expires_at DateTime? @db.DateTime(0)
+  created_at DateTime? @db.DateTime(0)
+  updated_at DateTime? @db.DateTime(0)
+  purchase_id BigInt?
+  token String @db.VarChar(255)
+  link_id BigInt?
+  flags Int @default(0)
+  installment_id BigInt?
+  subscription_id BigInt?
+  preorder_id BigInt?
+  imported_customer_id BigInt?
+  rental_first_viewed_at DateTime? @db.DateTime(0)
+
+  @@index([imported_customer_id], map: "index_url_redirects_on_imported_customer_id")
+  @@index([installment_id, imported_customer_id], map: "index_url_redirects_on_installment_id_and_imported_customer_id")
+  @@index([installment_id, purchase_id], map: "index_url_redirects_on_installment_id_and_purchase_id")
+  @@index([installment_id, subscription_id], map: "index_url_redirects_on_installment_id_and_subscription_id")
+  @@index([preorder_id], map: "index_url_redirects_on_preorder_id")
+  @@index([purchase_id], map: "index_url_redirects_on_purchase_id")
+  @@index([subscription_id], map: "index_url_redirects_on_subscription_id")
+  @@unique([token], map: "index_url_redirects_on_token")
+  @@map("url_redirects")
+}
+
+model UserComplianceInfo {
+  id Int @id @default(autoincrement())
+  user_id Int?
+  full_name String? @db.VarChar(255)
+  street_address String? @db.VarChar(255)
+  city String? @db.VarChar(255)
+  state String? @db.VarChar(255)
+  zip_code String? @db.VarChar(255)
+  country String? @db.VarChar(255)
+  telephone_number String? @db.VarChar(255)
+  vertical String? @db.VarChar(255)
+  is_business Boolean?
+  has_sold_before Boolean?
+  individual_tax_id Bytes? @db.Blob
+  json_data String? @db.Text
+  flags Int @default(0)
+  created_at DateTime @db.DateTime(0)
+  updated_at DateTime @db.DateTime(0)
+  business_name String? @db.VarChar(255)
+  business_street_address String? @db.VarChar(255)
+  business_city String? @db.VarChar(255)
+  business_state String? @db.VarChar(255)
+  business_zip_code String? @db.VarChar(255)
+  business_country String? @db.VarChar(255)
+  business_type String? @db.VarChar(255)
+  business_tax_id Bytes? @db.Blob
+  birthday DateTime? @db.Date
+  deleted_at DateTime? @db.DateTime(0)
+  dba String? @db.VarChar(255)
+  verticals String? @db.Text
+  first_name String? @db.VarChar(255)
+  last_name String? @db.VarChar(255)
+  stripe_identity_document_id String? @db.VarChar(255)
+  guardian_id BigInt?
+
+  @@index([guardian_id], map: "index_user_compliance_info_on_guardian_id")
+  @@index([user_id], map: "index_user_compliance_info_on_user_id")
+  @@map("user_compliance_info")
+}
+
+model UserComplianceInfoRequest {
+  id Int @id @default(autoincrement())
+  created_at DateTime? @db.DateTime(0)
+  updated_at DateTime? @db.DateTime(0)
+  user_id Int?
+  field_needed String? @db.VarChar(255)
+  due_at DateTime? @db.DateTime(0)
+  state String? @db.VarChar(255)
+  provided_at DateTime? @db.DateTime(0)
+  json_data String? @db.Text
+  flags Int @default(0)
+
+  @@index([user_id, state], map: "index_user_compliance_info_requests_on_user_id_and_state")
+  @@map("user_compliance_info_requests")
+}
+
+model UserExternalAuthentication {
+  id BigInt @id @default(autoincrement())
+  user_id BigInt
+  provider String @db.VarChar(255)
+  uid String @db.VarChar(255)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([provider, uid], map: "index_user_external_authentications_on_provider_and_uid")
+  @@index([user_id], map: "index_user_external_authentications_on_user_id")
+  @@map("user_external_authentications")
+}
+
+model UserInstagramIdentity {
+  id BigInt @id @default(autoincrement())
+  user_id BigInt
+  instagram_user_id String @db.VarChar(255)
+  handle String? @db.VarChar(255)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([instagram_user_id], map: "index_user_instagram_identities_on_instagram_user_id")
+  @@unique([user_id], map: "index_user_instagram_identities_on_user_id")
+  @@map("user_instagram_identities")
+}
+
+model UserTaxForm {
+  id BigInt @id @default(autoincrement())
+  user_id BigInt
+  tax_year Int
+  tax_form_type String @db.VarChar(255)
+  json_data String? @db.Text
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([user_id, tax_year, tax_form_type], map: "index_user_tax_forms_on_user_id_and_tax_year_and_tax_form_type")
+  @@index([user_id], map: "index_user_tax_forms_on_user_id")
+  @@map("user_tax_forms")
+}
+
+model UserTiktokIdentity {
+  id BigInt @id @default(autoincrement())
+  user_id BigInt
+  tiktok_open_id String @db.VarChar(255)
+  handle String? @db.VarChar(255)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([tiktok_open_id], map: "index_user_tiktok_identities_on_tiktok_open_id")
+  @@unique([user_id], map: "index_user_tiktok_identities_on_user_id")
+  @@map("user_tiktok_identities")
+}
+
+model UserYoutubeIdentity {
+  id BigInt @id @default(autoincrement())
+  user_id BigInt
+  channel_id String @db.VarChar(255)
+  handle String? @db.VarChar(255)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([channel_id], map: "index_user_youtube_identities_on_channel_id")
+  @@unique([user_id], map: "index_user_youtube_identities_on_user_id")
+  @@map("user_youtube_identities")
+}
+
+model User {
+  id BigInt @id @default(autoincrement())
+  email String? @default("") @db.VarChar(255)
+  encrypted_password String @default("") @db.VarChar(128)
+  reset_password_token String? @db.VarChar(255)
+  reset_password_sent_at DateTime? @db.DateTime(0)
+  remember_created_at DateTime? @db.DateTime(0)
+  sign_in_count Int? @default(0)
+  current_sign_in_at DateTime? @db.DateTime(0)
+  last_sign_in_at DateTime? @db.DateTime(0)
+  current_sign_in_ip String? @db.VarChar(255)
+  last_sign_in_ip String? @db.VarChar(255)
+  created_at DateTime? @db.DateTime(0)
+  updated_at DateTime? @db.DateTime(0)
+  name String? @db.VarChar(255)
+  payment_address String? @db.VarChar(255)
+  confirmed_at DateTime? @db.DateTime(0)
+  confirmation_token String? @db.VarChar(255)
+  confirmation_sent_at DateTime? @db.DateTime(0)
+  unconfirmed_email String? @db.VarChar(255)
+  provider String? @db.VarChar(255)
+  twitter_user_id String? @db.VarChar(255)
+  facebook_uid String? @db.VarChar(255)
+  deleted_at DateTime? @db.DateTime(0)
+  payment_notification Boolean? @default(true)
+  currency_type String? @default("usd") @db.VarChar(255)
+  bio String? @db.MediumText
+  username String? @db.VarChar(255)
+  credit_card_id BigInt?
+  profile_picture_url String? @db.VarChar(255)
+  country String? @db.VarChar(255)
+  state String? @db.VarChar(255)
+  city String? @db.VarChar(255)
+  zip_code String? @db.VarChar(255)
+  street_address String? @db.VarChar(255)
+  facebook_access_token String? @db.VarChar(1024)
+  verified Boolean?
+  manage_pages Boolean? @default(false)
+  banned_at DateTime? @db.DateTime(0)
+  weekly_notification Boolean? @default(true)
+  external_id String? @db.VarChar(255)
+  account_created_ip String? @db.VarChar(255)
+  twitter_oauth_token String? @db.VarChar(255)
+  twitter_oauth_secret String? @db.VarChar(255)
+  notification_endpoint String? @db.MediumText
+  locale String? @default("en") @db.VarChar(255)
+  flags BigInt @default(1)
+  google_analytics_id String? @db.VarChar(255)
+  timezone String @default("Pacific Time (US & Canada)") @db.VarChar(255)
+  user_risk_state String? @db.VarChar(255)
+  tos_violation_reason String? @db.VarChar(255)
+  kindle_email String? @db.VarChar(255)
+  json_data String? @db.MediumText
+  support_email String? @db.VarChar(255)
+  google_analytics_domains String? @db.VarChar(255)
+  recommendation_type String @db.VarChar(255)
+  facebook_pixel_id String? @db.VarChar(191)
+  split_payment_by_cents Int?
+  last_active_sessions_invalidated_at DateTime? @db.DateTime(0)
+  otp_secret_key String? @db.VarChar(255)
+  facebook_meta_tag String? @db.VarChar(255)
+  tier_state Int? @default(0)
+  orientation_priority_tag String? @db.VarChar(255)
+  notification_content_type String? @default("application/x-www-form-urlencoded") @db.VarChar(255)
+  google_uid String? @db.VarChar(255)
+  purchasing_power_parity_limit Int?
+  twitter_handle String? @db.VarChar(255)
+
+  @@index([account_created_ip], map: "index_users_on_account_created_ip")
+  @@index([confirmation_token(length: 191)], map: "index_users_on_confirmation_token")
+  @@index([created_at], map: "index_users_on_created_at")
+  @@index([current_sign_in_ip], map: "index_users_on_current_sign_in_ip")
+  @@index([email(length: 191)], map: "index_users_on_email")
+  @@index([external_id(length: 191)], map: "index_users_on_external_id")
+  @@index([facebook_uid(length: 191)], map: "index_users_on_facebook_uid")
+  @@index([google_uid], map: "index_users_on_google_uid")
+  @@index([last_sign_in_ip], map: "index_users_on_last_sign_in_ip")
+  @@index([name], map: "index_users_on_name")
+  @@index([payment_address, user_risk_state], map: "index_users_on_payment_address_and_user_risk_state")
+  @@index([reset_password_token], map: "index_users_on_reset_password_token")
+  @@index([support_email], map: "index_users_on_support_email")
+  @@index([tos_violation_reason], map: "index_users_on_tos_violation_reason")
+  @@index([twitter_oauth_token], map: "index_users_on_twitter_oauth_token")
+  @@index([twitter_user_id(length: 191)], map: "index_users_on_twitter_user_id")
+  @@index([unconfirmed_email(length: 191)], map: "index_users_on_unconfirmed_email")
+  @@index([user_risk_state], map: "index_users_on_user_risk_state")
+  @@index([username(length: 191)], map: "index_users_on_username")
+  @@map("users")
+}
+
+model UtmLinkDrivenSale {
+  id BigInt @id @default(autoincrement())
+  utm_link_id BigInt
+  utm_link_visit_id BigInt
+  purchase_id BigInt
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([purchase_id], map: "index_utm_link_driven_sales_on_purchase_id")
+  @@index([utm_link_id], map: "index_utm_link_driven_sales_on_utm_link_id")
+  @@unique([utm_link_visit_id, purchase_id], map: "idx_on_utm_link_visit_id_purchase_id_c31951f65f")
+  @@index([utm_link_visit_id], map: "index_utm_link_driven_sales_on_utm_link_visit_id")
+  @@map("utm_link_driven_sales")
+}
+
+model UtmLinkVisit {
+  id BigInt @id @default(autoincrement())
+  utm_link_id BigInt
+  user_id BigInt?
+  referrer String? @db.VarChar(255)
+  ip_address String @db.VarChar(255)
+  user_agent String? @db.VarChar(255)
+  browser_guid String @db.VarChar(255)
+  country_code String? @db.VarChar(255)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([browser_guid], map: "index_utm_link_visits_on_browser_guid")
+  @@index([created_at], map: "index_utm_link_visits_on_created_at")
+  @@index([user_id], map: "index_utm_link_visits_on_user_id")
+  @@index([utm_link_id], map: "index_utm_link_visits_on_utm_link_id")
+  @@map("utm_link_visits")
+}
+
+model UtmLink {
+  id BigInt @id @default(autoincrement())
+  seller_id BigInt
+  title String @db.VarChar(255)
+  target_resource_type String @db.VarChar(255)
+  target_resource_id BigInt?
+  permalink String @db.VarChar(255)
+  utm_campaign String @db.VarChar(200)
+  utm_medium String @db.VarChar(200)
+  utm_source String @db.VarChar(200)
+  utm_term String? @db.VarChar(200)
+  utm_content String? @db.VarChar(200)
+  first_click_at DateTime? @db.DateTime(6)
+  last_click_at DateTime? @db.DateTime(6)
+  total_clicks Int @default(0)
+  unique_clicks Int @default(0)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  deleted_at DateTime? @db.DateTime(0)
+  disabled_at DateTime? @db.DateTime(0)
+  ip_address String? @db.VarChar(255)
+  browser_guid String? @db.VarChar(255)
+
+  @@index([deleted_at], map: "index_utm_links_on_deleted_at")
+  @@unique([permalink], map: "index_utm_links_on_permalink")
+  @@unique([seller_id, utm_source(length: 100), utm_medium(length: 100), utm_campaign(length: 100), utm_term(length: 100), utm_content(length: 100), target_resource_type, target_resource_id], map: "index_utm_links_on_utm_fields_and_target_resource")
+  @@index([seller_id], map: "index_utm_links_on_seller_id")
+  @@index([target_resource_type, target_resource_id], map: "index_utm_links_on_target_resource_type_and_target_resource_id")
+  @@index([utm_campaign], map: "index_utm_links_on_utm_campaign")
+  @@map("utm_links")
+}
+
+model VariantCategory {
+  id Int @id @default(autoincrement())
+  link_id Int?
+  deleted_at DateTime? @db.DateTime(0)
+  title String? @db.VarChar(255)
+  flags Int @default(0)
+
+  @@index([link_id], map: "index_variant_categories_on_link_id")
+  @@map("variant_categories")
+}
+
+model Version {
+  id BigInt @id @default(autoincrement())
+  item_type String @db.VarChar(191)
+  item_id BigInt
+  event String @db.VarChar(191)
+  whodunnit String? @db.VarChar(191)
+  object String? @db.LongText
+  created_at DateTime? @db.DateTime(6)
+  remote_ip String? @db.VarChar(191)
+  request_path String? @db.Text
+  request_uuid String? @db.VarChar(191)
+  object_changes String? @db.LongText
+
+  @@index([item_type, item_id], map: "index_versions_on_item_type_and_item_id")
+  @@map("versions")
+}
+
+model VideoFile {
+  id BigInt @id @default(autoincrement())
+  record_type String @db.VarChar(255)
+  record_id BigInt
+  url String? @db.VarChar(255)
+  filetype String? @db.VarChar(255)
+  width Int?
+  height Int?
+  duration Int?
+  bitrate Int?
+  framerate Int?
+  size Int?
+  flags Int? @default(0)
+  deleted_at DateTime? @db.DateTime(6)
+  deleted_from_cdn_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  user_id BigInt
+
+  @@index([record_type, record_id], map: "index_video_files_on_record")
+  @@index([user_id], map: "index_video_files_on_user_id")
+  @@map("video_files")
+}
+
+model WaitlistEntry {
+  id BigInt @id @default(autoincrement())
+  created_at DateTime @db.DateTime(6)
+  follower_id Int
+  product_id BigInt
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([follower_id, product_id], map: "index_waitlist_entries_on_follower_id_and_product_id")
+  @@index([product_id], map: "index_waitlist_entries_on_product_id")
+  @@map("waitlist_entries")
+}
+
+model WatchedUser {
+  id BigInt @id @default(autoincrement())
+  user_id BigInt
+  created_by_id BigInt?
+  revenue_threshold_cents BigInt
+  revenue_cents BigInt @default(0)
+  unpaid_balance_cents BigInt @default(0)
+  last_synced_at DateTime? @db.DateTime(6)
+  notes String? @db.Text
+  deleted_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([created_by_id], map: "index_watched_users_on_created_by_id")
+  @@index([user_id, deleted_at], map: "index_watched_users_on_user_id_and_deleted_at")
+  @@map("watched_users")
+}
+
+model WebauthnCredential {
+  id BigInt @id @default(autoincrement())
+  user_id BigInt
+  webauthn_id String @db.Text
+  webauthn_id_sha256 String @db.VarChar(64)
+  public_key String @db.Text
+  sign_count BigInt @default(0)
+  nickname String @db.VarChar(255)
+  last_used_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([user_id], map: "index_webauthn_credentials_on_user_id")
+  @@unique([webauthn_id_sha256], map: "index_webauthn_credentials_on_webauthn_id_sha256")
+  @@map("webauthn_credentials")
+}
+
+model WishlistFollower {
+  id BigInt @id @default(autoincrement())
+  wishlist_id BigInt
+  follower_user_id BigInt
+  deleted_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([follower_user_id], map: "index_wishlist_followers_on_follower_user_id")
+  @@index([wishlist_id], map: "index_wishlist_followers_on_wishlist_id")
+  @@map("wishlist_followers")
+}
+
+model WishlistProduct {
+  id BigInt @id @default(autoincrement())
+  wishlist_id BigInt
+  product_id BigInt
+  variant_id BigInt?
+  recurrence String? @db.VarChar(255)
+  quantity Int
+  rent Boolean
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  deleted_at DateTime? @db.DateTime(6)
+
+  @@index([product_id], map: "index_wishlist_products_on_product_id")
+  @@index([variant_id], map: "index_wishlist_products_on_variant_id")
+  @@index([wishlist_id], map: "index_wishlist_products_on_wishlist_id")
+  @@map("wishlist_products")
+}
+
+model Wishlist {
+  id BigInt @id @default(autoincrement())
+  user_id BigInt
+  name String @db.VarChar(255)
+  deleted_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  followers_last_contacted_at DateTime? @db.DateTime(6)
+  description String? @db.Text
+  flags Int @default(0)
+  recommendable Boolean @default(false)
+  follower_count Int @default(0)
+  recent_follower_count Int @default(0)
+
+  @@index([recommendable, recent_follower_count], map: "index_wishlists_on_recommendable_and_recent_follower_count")
+  @@index([user_id], map: "index_wishlists_on_user_id")
+  @@map("wishlists")
+}
+
+model WorkflowInstallmentScheduleIntent {
+  id BigInt @id @default(autoincrement())
+  token String @db.VarChar(255)
+  installment_id Int
+  rule_version Int
+  old_delayed_delivery_time Int?
+  cutoff_reference_time DateTime @db.DateTime(6)
+  expected_published_at DateTime? @db.DateTime(6)
+  dispatch_token String? @db.VarChar(255)
+  dispatch_expires_at DateTime? @db.DateTime(6)
+  fanout_token String? @db.VarChar(255)
+  fanout_expires_at DateTime? @db.DateTime(6)
+  processed_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([installment_id], map: "index_workflow_installment_schedule_intents_on_installment_id")
+  @@index([processed_at, dispatch_expires_at, fanout_expires_at], map: "index_workflow_intent_on_pending_dispatch")
+  @@unique([token], map: "index_workflow_installment_schedule_intents_on_token")
+  @@map("workflow_installment_schedule_intents")
+}
+
+model Workflow {
+  id Int @id @default(autoincrement())
+  name String? @db.VarChar(1024)
+  seller_id Int?
+  link_id Int?
+  workflow_type String? @db.VarChar(255)
+  published_at DateTime? @db.DateTime(0)
+  deleted_at DateTime? @db.DateTime(0)
+  created_at DateTime? @db.DateTime(0)
+  updated_at DateTime? @db.DateTime(0)
+  base_variant_id Int?
+  json_data String? @db.Text
+  first_published_at DateTime? @db.DateTime(0)
+  flags BigInt @default(0)
+
+  @@index([base_variant_id], map: "index_workflows_on_base_variant_id")
+  @@index([link_id], map: "index_workflows_on_link_id")
+  @@index([seller_id], map: "index_workflows_on_seller_id")
+  @@index([workflow_type, published_at], map: "index_workflows_on_workflow_type_and_published_at")
+  @@map("workflows")
+}
+
+model YearlyStat {
+  id BigInt @id @default(autoincrement())
+  user_id BigInt
+  analytics_data Json
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([user_id], map: "index_yearly_stats_on_user_id")
+  @@map("yearly_stats")
+}
+
+model ZipTaxRate {
+  id Int @id @default(autoincrement())
+  combined_rate Decimal? @db.Decimal(8, 7)
+  county_rate Decimal? @db.Decimal(8, 7)
+  city_rate Decimal? @db.Decimal(8, 7)
+  state String? @db.VarChar(255)
+  state_rate Decimal? @db.Decimal(8, 7)
+  tax_region_code String? @db.VarChar(255)
+  tax_region_name String? @db.VarChar(255)
+  zip_code String? @db.VarChar(255)
+  created_at DateTime @db.DateTime(0)
+  updated_at DateTime @db.DateTime(0)
+  special_rate Decimal? @db.Decimal(8, 7)
+  flags Int @default(0)
+  country String @db.VarChar(255)
+  user_id Int?
+  deleted_at DateTime? @db.DateTime(0)
+  json_data String? @db.Text
+
+  @@index([country, deleted_at, state], map: "index_zip_tax_rates_on_country_and_deleted_at_and_state")
+  @@index([user_id], map: "index_zip_tax_rates_on_user_id")
+  @@index([zip_code], map: "index_zip_tax_rates_on_zip_code")
+  @@map("zip_tax_rates")
+}
