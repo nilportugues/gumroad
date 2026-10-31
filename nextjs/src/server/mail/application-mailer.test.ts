@@ -121,15 +121,22 @@ describe("ApplicationMailer", () => {
   const run = async (c: MessageCase) => {
     const replay = sqlReplay(c.statements);
     const router = goldenRouter({ features: c.features, redis: c.redis_before, rands: c.rands_used });
-    const rendered = await renderNodeMailer(c.mailer, c.method, c.job_args.map(deserializeArgument), { router, randomIv: goldenIvs() });
-    return { rendered, replay, router };
+    const fallback: Record<string, [string, number]> = {};
+    const rendered = await renderNodeMailer(c.mailer, c.method, c.job_args.map(deserializeArgument), {
+      router,
+      randomIv: goldenIvs(),
+      now: () => new Date(golden.now),
+      redisSetEx: async (key, value, seconds) => (fallback[key] = [value, seconds]),
+    });
+    return { rendered, replay, router, fallback };
   };
 
   for (const c of golden.cases.messages) {
     it(`delivers ${c.mailer}#${c.method} (${c.name}) as Rails does`, async () => {
-      const { rendered, replay, router } = await run(c);
+      const { rendered, replay, router, fallback } = await run(c);
       expect(replay.log).toEqual(replay.expected);
       expect(Object.fromEntries(router.redis)).toEqual(c.redis_after);
+      expect(fallback).toEqual(c.fallback_after);
       if (c.delivered.length === 0) {
         expect(rendered).toBeNull();
         return;

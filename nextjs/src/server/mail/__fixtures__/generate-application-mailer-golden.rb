@@ -40,6 +40,8 @@ SMTP_SECRETS = {
   "RESEND_CUSTOMERS_API_KEY" => "re-customers-key",
   "RESEND_CUSTOMERS_LEVEL_2_API_KEY" => "re-customers-level-2-key",
   "MAILER_HEADERS_ENCRYPTION_KEY_V1" => "ws35-golden-header-key",
+  "OBFUSCATE_IDS_CIPHER_KEY" => "ws40-golden-obfuscate-key",
+  "OBFUSCATE_IDS_NUMERIC_CIPHER_KEY" => "123456789",
 }.freeze
 
 ENV["RAILS_ENV"] = "production"
@@ -348,6 +350,7 @@ def record_message(name, mailer, method, args, features: {}, redis: {}, rands: [
     "returned_message" => result.is_a?(Mail::Message),
     "delivered" => $delivered.dup,
     "redis_after" => $redis.keys("mail_router:*").sort.to_h { [_1, $redis.get(_1)] },
+    "fallback_after" => $redis.keys("email_router_fallback:*").sort.to_h { [_1, [$redis.get(_1), $redis.ttl(_1)]] },
   }
 end
 
@@ -424,6 +427,21 @@ COMMENT_CONTENT = [
   Comment.insert!({ id: 501, commentable_id: 401, commentable_type: "Installment", author_name: "Buyer", content: "Nice post!", comment_type: "user_submitted",
                     created_at: Time.utc(2026, 10, 3, 21, 7, 0), updated_at: FIXED_NOW, **comment })
   messages << record_message(name, CommentMailer, :notify_seller_of_new_comment, [501], features:)
+end
+
+# TwoFactorAuthenticationMailer#authentication_token
+[
+  ["2fa_default", { email: "user@example.com" }, [101]],
+  ["2fa_provider_nil", { email: "user@example.com" }, [101, Hash.ruby2_keywords_hash({ email_provider: nil })]],
+  ["2fa_resend", { email: "user@example.com" }, [101, Hash.ruby2_keywords_hash({ email_provider: "resend" })]],
+  ["2fa_sendgrid", { email: "user@example.com" }, [101, Hash.ruby2_keywords_hash({ email_provider: "sendgrid" })]],
+  ["2fa_gmx_resend", { email: "user@gmx.de" }, [101, Hash.ruby2_keywords_hash({ email_provider: "resend" })]],
+  ["2fa_invalid_email", { email: "not-an-email" }, [101]],
+  ["2fa_lowercase_padded_secret", { email: "user@example.com", otp_secret_key: "mfrggzdfmztwq2lk====", external_id: "123" }, [101]],
+].each do |name, user, args|
+  reset!
+  insert_user(id: 101, otp_secret_key: "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP", **user)
+  messages << record_message(name, TwoFactorAuthenticationMailer, :authentication_token, args)
 end
 cases["messages"] = messages
 

@@ -24,7 +24,8 @@ import type { RubyValue } from "./ruby-value.ts";
 export const noreplyEmail = () => `noreply@${defaultEmailDomain()}`;
 export const noreplyEmailWithName = () => `Gumroad <${noreplyEmail()}>`;
 
-export type MailerDeps = { router?: RouterDeps; randomIv?: RandomIv };
+// `now` is Time.now; `redisSetEx` stands in for `$redis.set(key, value, ex:)`.
+export type MailerDeps = { router?: RouterDeps; randomIv?: RandomIv; now?: () => Date; redisSetEx?: (key: string, value: string, seconds: number) => Promise<unknown> };
 
 // What a mailer method hands to `mail`, plus the name and arguments ActionMailer passed to
 // #process (MailerInfo puts them in the headers).

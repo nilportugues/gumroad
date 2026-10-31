@@ -22,6 +22,7 @@ import { MailViewNotPortedError } from "./views.ts";
 import { notifySellerOfNewComment } from "./mailers/comment-mailer.ts";
 import { marketingXReconnect } from "./mailers/creator-mailer.ts";
 import { receiverSignedUp } from "./mailers/invite-mailer.ts";
+import { authenticationToken } from "./mailers/two-factor-authentication-mailer.ts";
 import { confirmationInstructions, type DeviseMailOptions, emailChanged, type SignupMailUser } from "./mailers/user-signup-mailer.ts";
 import { sendSmtp, SmtpError, type SmtpSettings } from "./smtp.ts";
 
@@ -72,6 +73,17 @@ function keywords(args: RubyValue[], names: string[]): Record<string, RubyValue>
   return out;
 }
 
+// `authentication_token(user_id, email_provider: nil)`; the keyword hash is absent when the
+// caller passed no keywords.
+function twoFactorArguments(args: RubyValue[]): [number | bigint, string | null] {
+  const [userId, options, ...rest] = args;
+  if (rest.length > 0) throw new MailJobArgumentsError("arity");
+  if (options === undefined) return [integerArgument(userId), null];
+  const { email_provider: provider = null } = keywords([options], ["email_provider"]);
+  if (provider !== null && typeof provider !== "string") throw new MailJobArgumentsError(`email_provider ${JSON.stringify(provider)} not ported`);
+  return [integerArgument(userId), provider];
+}
+
 // Mailer methods the Node worker renders. Everything else stays with Rails.
 const NODE_MAILERS: Record<string, Record<string, MailerMethod>> = {
   CommentMailer: {
@@ -83,6 +95,12 @@ const NODE_MAILERS: Record<string, Record<string, MailerMethod>> = {
   },
   InviteMailer: {
     receiver_signed_up: (args, deps) => (args.length === 1 ? receiverSignedUp(integerArgument(args[0]), deps) : Promise.reject(new MailJobArgumentsError("arity"))),
+  },
+  TwoFactorAuthenticationMailer: {
+    authentication_token: (args, deps) => {
+      const [userId, emailProvider] = twoFactorArguments(args);
+      return authenticationToken(userId, emailProvider, args, deps);
+    },
   },
   UserSignupMailer: {
     confirmation_instructions: async ([user, token, options]) => confirmationInstructions(await locateUser(user), token as string, deviseOptions(options)),
