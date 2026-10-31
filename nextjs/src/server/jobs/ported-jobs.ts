@@ -7,6 +7,7 @@ export const PORTED_JOBS: readonly string[] = [
   "BackfillMerchantAccountRecommendationEligibilityJob",
   "BlockEmailDomainsWorker",
   "BlockObjectWorker",
+  "BlockSuspendedAccountIpWorker",
   "BuildTaxRateCacheWorker",
   "ContentModerationAdminCommentJob",
   "CreateStripeApplePayDomainWorker",

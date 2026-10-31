@@ -28,6 +28,7 @@ import {
   syncStripeBusinessProfileUrlJob,
 } from "./stripe-jobs.ts";
 import { blockEmailDomainsWorker, blockObjectWorker, unblockObjectWorker } from "./platform-block-jobs.ts";
+import { blockSuspendedAccountIpWorker } from "./risk-jobs.ts";
 import { alertOnStalledAbandonedCartEmailsJob, buildTaxRateCacheWorker, recoverAusBacktaxesFromStripeAccountsJob } from "./scheduled-check-jobs.ts";
 import { syncStripeBusinessProfileUrlWorker } from "./sync-stripe-business-profile-url-worker.ts";
 import { updateCurrenciesWorker } from "./update-currencies-worker.ts";
@@ -41,6 +42,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   BackfillMerchantAccountRecommendationEligibilityJob: backfillMerchantAccountRecommendationEligibilityJob,
   BlockEmailDomainsWorker: blockEmailDomainsWorker,
   BlockObjectWorker: blockObjectWorker,
+  BlockSuspendedAccountIpWorker: blockSuspendedAccountIpWorker,
   BuildTaxRateCacheWorker: buildTaxRateCacheWorker,
   ContentModerationAdminCommentJob: contentModerationAdminCommentJob,
   CreateStripeApplePayDomainWorker: createStripeApplePayDomainWorker,

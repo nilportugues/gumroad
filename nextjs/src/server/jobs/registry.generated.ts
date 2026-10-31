@@ -334,7 +334,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "BuildTaxRateCacheWorker": {
     "file": "app/sidekiq/build_tax_rate_cache_worker.rb",
