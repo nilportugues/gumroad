@@ -108,6 +108,40 @@ class Link < ApplicationRecord; end
 class Purchase < ApplicationRecord; end
 class Installment < ApplicationRecord; end
 
+# The methods DetectLegalEntityCountryDriftJob reads, lifted from their files so they are the real
+# ones; loading the whole models would need Strongbox keys and half the app.
+def ruby_method(path, name)
+  source = File.read(File.join(ROOT, path))
+  source[/^( +)def #{Regexp.escape(name)}(?=[\s(]).*?^\1end$/m] or raise "no #{name} in #{path}"
+end
+module StripeChargeProcessor
+  def self.charge_processor_id = "stripe"
+end
+module PaypalChargeProcessor
+  def self.charge_processor_id = "paypal"
+end
+module BraintreeChargeProcessor
+  def self.charge_processor_id = "braintree"
+end
+load_app("app/models/concerns/charge_processable.rb")
+class MerchantAccount < ApplicationRecord
+  include Deletable
+  include JsonData
+  include ChargeProcessable
+  belongs_to :user, optional: true
+  File.read(File.join(ROOT, "app/models/merchant_account.rb")).lines.grep(/\A  scope :(charge_processor_alive|stripe),/).each { class_eval(_1) }
+  %w[is_a_stripe_connect_account? is_a_gumroad_managed_stripe_account?].each { class_eval(ruby_method("app/models/merchant_account.rb", _1)) }
+end
+class User
+  has_many :merchant_accounts
+  class_eval(ruby_method("app/models/user.rb", "stripe_account"))
+end
+class UserComplianceInfo < ApplicationRecord
+  self.table_name = "user_compliance_info"
+  belongs_to :user, optional: true
+  class_eval(ruby_method("app/models/user_compliance_info.rb", "legal_entity_country_code"))
+end
+
 module ContentModeration; end
 load_app("app/services/content_moderation/moderate_record_service.rb")
 load_app("app/services/adult_keyword_detector.rb")
@@ -127,7 +161,7 @@ def stub_job(class_name, path)
 end
 stub_job("ReleaseChargebackRatePayoutPauseForSellerJob", "app/sidekiq/release_chargeback_rate_payout_pause_for_seller_job.rb")
 
-%w[content_moderation_admin_comment_job release_chargeback_rate_payout_pauses_job].each { load_app("app/sidekiq/#{_1}.rb") }
+%w[content_moderation_admin_comment_job release_chargeback_rate_payout_pauses_job detect_legal_entity_country_drift_job].each { load_app("app/sidekiq/#{_1}.rb") }
 
 def redis(&) = Sidekiq.redis(&)
 
@@ -282,6 +316,29 @@ job_cases["ReleaseChargebackRatePayoutPausesJob"] = [
     ReleaseChargebackRatePayoutPausesJob.new.perform
     nil
   end,
+]
+
+info_fields = %w[id user_id country_code business_country_code is_business]
+info = ->(*row) { ["SELECT `user_compliance_info`.*", rows(info_fields, row)] }
+account_fields = %w[id user_id charge_processor_id charge_processor_merchant_id country json_data deleted_at charge_processor_alive_at charge_processor_deleted_at]
+alive_at = t["2025-01-01"]
+managed = ->(id, country) { [id, 5, "stripe", "acct_#{id}", country, nil, nil, alive_at, nil] }
+connect = ->(id, country) { [id, 5, "stripe", "acct_#{id}", country, '{"meta":{"stripe_connect":"true"}}', nil, alive_at, nil] }
+accounts = ->(*list) { ["SELECT `merchant_accounts`.*", rows(account_fields, *list)] }
+user_lookup = ["SELECT `users`.*", user_row.(5)]
+drift = ->(name, responder, id = 3) { capture(name, responder, args: [id]) { DetectLegalEntityCountryDriftJob.new.perform(id); nil } }
+job_cases["DetectLegalEntityCountryDriftJob"] = [
+  drift.("compliance info not found", script()),
+  drift.("no user on the compliance info", script(info.(3, nil, "DE", nil, false))),
+  drift.("user missing", script(info.(3, 5, "DE", nil, false))),
+  drift.("no derived country", script(info.(3, 5, nil, nil, false), user_lookup)),
+  drift.("blank business country falls back to the individual one", script(info.(3, 5, "", "", true), user_lookup)),
+  drift.("no stripe account", script(info.(3, 5, "DE", nil, false), user_lookup)),
+  drift.("only a Stripe Connect account", script(info.(3, 5, "DE", nil, false), user_lookup, accounts.(connect.(40, "US")))),
+  drift.("account country blank", script(info.(3, 5, "DE", nil, false), user_lookup, accounts.(managed.(41, nil)))),
+  drift.("countries match", script(info.(3, 5, "DE", nil, false), user_lookup, accounts.(managed.(41, "DE")))),
+  drift.("business country drifted", script(info.(3, 5, "DE", "FR", true), [/\ASELECT `users`.*/, [user_row.(5), user_row.(5)]], accounts.(connect.(40, "US"), managed.(41, "DE")), exists.("users"))),
+  drift.("drift already noted", script(info.(3, 5, "DE", nil, false), [/\ASELECT `users`.*/, [user_row.(5), user_row.(5)]], accounts.(managed.(41, "US")), [/\ASELECT 1 AS one FROM `comments`/, rows(["one"], [1])])),
 ]
 
 normalize = ["", "plain", "  padded  ", "\n\n\nlead", "a\n\n\nb", "a\n\nb", "a\r\n\r\n\r\nb", "a\r\n\nb", "a\r\n\n\nb", "a\n\r\n\r\nb", "a\u2028\u2028\u2028b",

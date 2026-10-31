@@ -15,6 +15,7 @@ export const PORTED_JOBS: readonly string[] = [
   "DeleteOldUnusedEventsWorker",
   "DeleteOldVersionsRecordsWorker",
   "DeleteProcessedWorkflowInstallmentScheduleIntentsJob",
+  "DetectLegalEntityCountryDriftJob",
   "DispatchPendingWorkflowInstallmentScheduleIntentsJob",
   "EnqueueMarketingXReconnectEmailJob",
   "ExpireStampedPdfsJob",

@@ -1,5 +1,5 @@
 // Handlers for every class in src/server/jobs/ported-jobs.ts, keyed by Ruby class name.
-import { contentModerationAdminCommentJob, releaseChargebackRatePayoutPausesJob } from "./comment-jobs.ts";
+import { contentModerationAdminCommentJob, detectLegalEntityCountryDriftJob, releaseChargebackRatePayoutPausesJob } from "./comment-jobs.ts";
 import { deleteExpiredProductCachedValuesWorker, deleteOldUnusedEventsWorker, deleteProcessedWorkflowInstallmentScheduleIntentsJob } from "./batched-cleanup-jobs.ts";
 import { forceFinishLongRunningCommunityChatRecapRunsJob, triggerCommunityChatRecapRunJob } from "./community-chat-recap-jobs.ts";
 import { deleteOldPingDeliveriesJob, deleteOldProcessedStripeEventsJob, deleteOldSentEmailInfoRecordsJob } from "./delete-old-records-jobs.ts";
@@ -31,6 +31,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   DeleteOldUnusedEventsWorker: deleteOldUnusedEventsWorker,
   DeleteOldVersionsRecordsWorker: deleteOldVersionsRecordsWorker,
   DeleteProcessedWorkflowInstallmentScheduleIntentsJob: deleteProcessedWorkflowInstallmentScheduleIntentsJob,
+  DetectLegalEntityCountryDriftJob: detectLegalEntityCountryDriftJob,
   DispatchPendingWorkflowInstallmentScheduleIntentsJob: dispatchPendingWorkflowInstallmentScheduleIntentsJob,
   EnqueueMarketingXReconnectEmailJob: enqueueMarketingXReconnectEmailJob,
   ExpireStampedPdfsJob: expireStampedPdfsJob,

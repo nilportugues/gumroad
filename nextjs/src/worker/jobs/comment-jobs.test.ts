@@ -17,7 +17,7 @@ import { RecordInvalid } from "../../server/models/runtime/errors.ts";
 import { castRow, column, selectRows, table } from "../../server/models/sql.ts";
 import { contextFor, recordingSidekiqRedis, sequentialJids, snapshotRedis, type RedisSnapshot } from "./__fixtures__/golden.ts";
 import { sqlReplay, type Statement } from "./__fixtures__/sql-replay.ts";
-import { contentModerationAdminCommentJobWith, releaseChargebackRatePayoutPausesJobWith } from "./comment-jobs.ts";
+import { contentModerationAdminCommentJobWith, detectLegalEntityCountryDriftJobWith, releaseChargebackRatePayoutPausesJobWith } from "./comment-jobs.ts";
 
 type Outcome = { saved: boolean; full_messages: string[]; attributes: Record<string, JsonValue> };
 type GoldenCase = { name: string; args?: JsonValue[]; error?: { class: string; message: string }; result?: Outcome; statements: Statement[]; redis: RedisSnapshot };
@@ -141,6 +141,7 @@ describe("Comment", () => {
 const PORTS: Record<string, typeof contentModerationAdminCommentJobWith> = {
   ContentModerationAdminCommentJob: contentModerationAdminCommentJobWith,
   ReleaseChargebackRatePayoutPausesJob: releaseChargebackRatePayoutPausesJobWith,
+  DetectLegalEntityCountryDriftJob: detectLegalEntityCountryDriftJobWith,
 };
 const rubyRegistry: Record<string, JobDefinition> = Object.fromEntries(
   Object.entries(JOB_REGISTRY).map(([name, definition]) => [name, { ...definition, runtime: "ruby" } as JobDefinition]),

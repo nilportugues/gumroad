@@ -898,7 +898,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "DispatchPendingFailedRefundExceptionsJob": {
     "file": "app/sidekiq/dispatch_pending_failed_refund_exceptions_job.rb",
