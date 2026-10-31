@@ -17,6 +17,13 @@ class SidekiqNodeBridge
     File.expand_path("../nextjs/src/server/jobs/node-owned-jobs.generated.json", __dir__)
   end
 
+  # Diverting without a Node worker running would strand jobs in INBOX with no error, so the
+  # bridge is opt-in per deploy. Off in tests, like sidekiq-unique-jobs, so specs keep asserting
+  # on `Job.jobs`.
+  def self.enabled?
+    ENV["NODE_JOB_WORKER"] == "enabled" && !Rails.env.test?
+  end
+
   def self.node_owned
     @node_owned ||= JSON.parse(File.read(NODE_OWNED_PATH)).to_set.freeze
   end
