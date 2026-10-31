@@ -31,6 +31,14 @@ const NODE_MAILERS: Record<string, Record<string, MailerMethod>> = {
   },
 };
 
+// "Mailer#method" pairs Node can deliver. lib/sidekiq_node_bridge.rb diverts Ruby's deliveries of
+// these through node-owned-mailers.generated.json, which a test keeps equal to this list.
+export function nodeMailerMethods(): string[] {
+  return Object.entries(NODE_MAILERS)
+    .flatMap(([mailer, methods]) => Object.keys(methods).map((method) => `${mailer}#${method}`))
+    .sort();
+}
+
 // Rollout switch: until it is on, every delivery, from Node or Ruby, is left to Rails.
 export function mailRoute(mailer: string, method: string): MailJobRoute {
   if (getConfig("NODE_MAIL_DELIVERY") !== "enabled" || railsEnv() !== "production") return "ruby";
