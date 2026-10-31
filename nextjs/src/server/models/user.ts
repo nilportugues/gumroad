@@ -17,8 +17,10 @@ import { notifyError } from "../infra/error-reporting.ts";
 import { isFeatureEnabled } from "../infra/flipper.ts";
 import { getRedis } from "../infra/redis.ts";
 import { enqueue, type EnqueueOptions, type JobClass, type JsonValue } from "../jobs/enqueue.ts";
+import { deliverDeviseNotification } from "../mail/devise-notification.ts";
 
 import { deletable } from "./concerns/deletable.ts";
+import { currentJobsRuntime } from "./concerns/job-runtime.ts";
 import { hasPaperTrail } from "./concerns/paper-trail.ts";
 import { RubyHash, type YamlValue } from "./concerns/psych.ts";
 import { isRubyFloat } from "./concerns/ruby-values.ts";
@@ -231,7 +233,9 @@ const DEFAULT_COLLABORATORS: UserCollaborators = {
   },
   createGlobalAffiliate: notPorted("GlobalAffiliate creation (has_one :global_affiliate)", "app/models/user.rb:409 after_create :create_global_affiliate!"),
   createRefundPolicy: notPorted("SellerRefundPolicy creation (has_one :refund_policy)", "app/models/user.rb:410 after_create :create_refund_policy!"),
-  sendDeviseNotification: notPorted("Devise mail (UserSignupMailer)", "app/modules/user/async_devise_notification.rb"),
+  // User::AsyncDeviseNotification: every caller runs after the save, where Ruby sends at once.
+  sendDeviseNotification: async (user, notification, args) =>
+    void (await deliverDeviseNotification(currentJobsRuntime(), { id: user.get("id"), unconfirmedEmail: user.get("unconfirmed_email") }, notification, args)),
   enqueueProductIndexUpdates: notPorted("Link#enqueue_index_update_for (ProductIndexingService)", "app/models/user.rb:1904 update_product_search_index!"),
   updateAudienceMembersAffiliates: notPorted("AudienceMember affiliate details", "app/models/user.rb:1994 update_audience_members_affiliates"),
   updateAliveCartEmail: notPorted("Cart#update!", "app/models/user.rb:1888 update_alive_cart_email"),
@@ -862,12 +866,6 @@ const makeAffiliateApplies = (record: UserRecord, confirmedAtChanged: boolean) =
 const REFUSE_UNPORTED_SIDE_EFFECTS: Callback<User> = {
   name: "refuse_unported_side_effects",
   async run(record, { tx }) {
-    if (record.newRecord && sendConfirmationNotification(record) && isDefault("sendDeviseNotification")) {
-      throw new NotPortedError("Confirmation instructions mail", "devise confirmable after_commit :send_on_create_confirmation_instructions");
-    }
-    if (record.persisted && postponeEmailChange(record) && isDefault("sendDeviseNotification")) {
-      throw new NotPortedError("Reconfirmation and email-changed mail", "devise confirmable before_update :postpone_email_change_until_confirmation_and_regenerate_confirmation_token");
-    }
     if (record.persisted && isDefault("enqueueProductIndexUpdates")) {
       const changed = (a: keyof User & string) => record.attributeChanged(a);
       const flagChanged = (f: UserFlag) => UserFlags.isSet(record.attributeInDatabase("flags"), f) !== UserFlags.isSet(record.get("flags"), f);
@@ -1131,7 +1129,8 @@ const base = defineModel<User>({
       if: reconfirmationRequired,
       run: (r) => collaborators.sendDeviseNotification(r, "confirmation_instructions", { token: r.ivars.raw_confirmation_token, to: r.get("unconfirmed_email") }),
     },
-    // send_pending_devise_notifications: Node sends nothing through Devise, so nothing is pending.
+    // send_pending_devise_notifications: Devise only queues a notification while the record is new or
+    // dirty, and every Node caller runs after the save, so nothing is ever pending.
     { name: "send_pending_devise_notifications", run: () => undefined },
     {
       name: "reindex_subscription_current_email",

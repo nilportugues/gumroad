@@ -7,7 +7,9 @@ import { addToBullmq, resolveJobClass } from "../server/jobs/enqueue.ts";
 import type { JobsRuntime } from "../server/jobs/runtime.ts";
 import { rawPushToSidekiq } from "../server/jobs/sidekiq/client.ts";
 import type { SidekiqItem } from "../server/jobs/sidekiq/item.ts";
-import { parseRubyJson } from "../server/jobs/sidekiq/ruby-json.ts";
+import { type JsonValue, parseRubyJson } from "../server/jobs/sidekiq/ruby-json.ts";
+import { ACTIVE_JOB_WRAPPER, MAIL_DELIVERY_JOB, pushMailDeliveryItem } from "../server/mail/active-job.ts";
+import { mailRoute } from "../server/mail/delivery.ts";
 
 export const BRIDGE_INBOX = "nextjs:bridge:inbox";
 export const BRIDGE_PROCESSING = "nextjs:bridge:processing";
@@ -15,6 +17,11 @@ const POLL_TIMEOUT_SECONDS = 5;
 
 export async function forwardBridgedJob(runtime: JobsRuntime, raw: string): Promise<void> {
   const item = parseRubyJson(raw) as SidekiqItem;
+  if (item.class === ACTIVE_JOB_WRAPPER) {
+    const job = (item.args as Record<string, JsonValue>[])[0];
+    const [mailer, method] = (job?.job_class === MAIL_DELIVERY_JOB ? job.arguments : []) as string[];
+    return pushMailDeliveryItem(runtime, item, mailer && method ? mailRoute(mailer, method) : "ruby");
+  }
   const { definition } = resolveJobClass(String(item.class), runtime.registry);
   if (definition.runtime === "node") return addToBullmq(runtime, definition, item);
   // Rails read a stale node-owned list (the job moved back to Ruby): its lock is already held,

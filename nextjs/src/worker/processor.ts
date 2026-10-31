@@ -9,6 +9,8 @@ import type { JobsRuntime } from "../server/jobs/runtime.ts";
 import { prepareServerItem, runtimeLockDigest, type SidekiqItem, serverLockType } from "../server/jobs/sidekiq/item.ts";
 import { type JsonValue, parseRubyJson, RubyFloat } from "../server/jobs/sidekiq/ruby-json.ts";
 import { executeLocked, relock, releaseLock } from "../server/jobs/sidekiq/unique-lock.ts";
+import { ACTIVE_JOB_WRAPPER } from "../server/mail/active-job.ts";
+import { runActiveJob } from "./jobs/active-job.ts";
 import type { JobHandler } from "./jobs/types.ts";
 
 export const SUPPORTED_NODE_LOCKS: ReadonlySet<string | undefined> = new Set([
@@ -81,6 +83,7 @@ export function createProcessor(runtime: JobsRuntime, handlers: Record<string, J
     // A scheduler fire is a template; each fire is its own job, as each sidekiq-cron push is.
     if (job.data.cron) fetched.jid = job.id ?? runtime.newJid();
 
+    if (fetched.class === ACTIVE_JOB_WRAPPER) return runActiveJob(runtime, fetched);
     const handler = handlers[String(fetched.class)];
     if (!handler) throw new Error(`No Node handler for ${String(fetched.class)}`);
     const { definition } = resolveJobClass(String(fetched.class), runtime.registry);

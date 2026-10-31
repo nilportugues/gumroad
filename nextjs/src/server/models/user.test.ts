@@ -9,6 +9,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { domainConfig } from "../infra/domain.ts";
 
+import type { JobsRuntime } from "../jobs/runtime.ts";
+
+import { withJobsRuntime } from "./concerns/job-runtime.ts";
 import { RubyHash, type YamlValue } from "./concerns/psych.ts";
 import { rubyJsonParse } from "./concerns/serialized-columns.ts";
 import { currentTransaction, setTransactionRunner, type Tx } from "./runtime/transaction.ts";
@@ -331,11 +334,45 @@ describe("Users.save on an existing seller", () => {
     ]);
   });
 
-  it("refuses an email change before writing anything while Devise's reconfirmation mail is not ported", async () => {
-    const user = existingSeller();
-    await expect(Users.updateBang(user, { email: "other@example.com" })).rejects.toBeInstanceOf(NotPortedError);
-    expect(db.committed).toEqual([]);
-    expect(enqueued).toEqual([]);
+  it("sends Devise's email-changed and reconfirmation mails through Sidekiq as deliver_later does", async () => {
+    // Records what rawPushToSidekiq writes; mail/active-job.test.ts pins the payload bytes.
+    const pushes: { score: string; payload: Record<string, unknown>; inTransaction: boolean }[] = [];
+    const pipeline = {
+      zadd(_key: string, score: string, payload: string) {
+        pushes.push({ score, payload: JSON.parse(payload) as Record<string, unknown>, inTransaction: currentTransaction() !== null });
+        return pipeline;
+      },
+      exec: async () => [],
+    };
+    const runtime = { now: () => 1793448000.5, newJid: () => "jid", sidekiqRedis: { pipeline: () => pipeline } } as unknown as JobsRuntime;
+    const user = existingSeller({ confirmation_token: "old" });
+
+    await withJobsRuntime(runtime, () => Users.updateBang(user, { email: "other@example.com" }));
+
+    const mails = pushes.map(({ payload, score, inTransaction }) => {
+      const job = (payload.args as Record<string, unknown>[])[0]!;
+      return { queue: payload.queue, score, arguments: job.arguments, inTransaction };
+    });
+    expect(mails).toEqual([
+      {
+        queue: "critical",
+        score: "1793448003.5",
+        arguments: ["UserSignupMailer", "email_changed", "deliver_now", { args: [{ _aj_globalid: "gid://gumroad/User/7" }, { to: "seller@example.com", _aj_symbol_keys: ["to"] }], _aj_ruby2_keywords: ["args"] }],
+        // Devise's after_update callback: Ruby enqueues it inside the transaction.
+        inTransaction: true,
+      },
+      {
+        queue: "critical",
+        score: "1793448003.5",
+        arguments: [
+          "UserSignupMailer",
+          "confirmation_instructions",
+          "deliver_now",
+          { args: [{ _aj_globalid: "gid://gumroad/User/7" }, "friendly-token", { to: "other@example.com", _aj_symbol_keys: ["to"] }], _aj_ruby2_keywords: ["args"] },
+        ],
+        inTransaction: false,
+      },
+    ]);
   });
 
   it("postpones an email change into unconfirmed_email with a fresh confirmation token", async () => {
@@ -392,7 +429,7 @@ describe("Users.save on an existing seller", () => {
 describe("Users.create", () => {
   const signup = { email: "new@example.com", encrypted_password: "$2a$hash" };
 
-  it("is refused before any write while GlobalAffiliate and the signup mail are not ported", async () => {
+  it("is refused before any write while GlobalAffiliate is not ported", async () => {
     const user = Users.build(signup);
     user.ivars.password = "secret-password";
     await expect(Users.saveBang(user)).rejects.toBeInstanceOf(NotPortedError);
