@@ -124,6 +124,27 @@ stored comment (`merge_json_data_with_current_row`), and creating a root `user_s
 `mark_subtree_deleted!`/`mark_subtree_undeleted!`, the `was_alive_before_marking_subtree_deleted`
 accessor, ExternalId, and ancestry's navigation scopes.
 
+### `Link` (`link.ts`)
+
+Ported for `link.update(banned_at:)`, the one product save the risk flows make (golden:
+`__fixtures__/link-writes.golden.json`): every validation and callback of link.rb and its concerns
+that runs on that update, in Rails' order, including the after-commit search update. The guard
+refuses with `NotPortedError` before any SQL: creating or destroying a product, changing anything
+but `banned_at`, a product without `unique_permalink`, a non-USD price whose rate is not cached
+(`CurrencyHelper#query_rate` falls back to HTTP), and an installment plan on a bundle
+(`validate_bundle_content_eligibility`). Money messages come from `link-data.generated.json`,
+which `scripts/golden/link-writes.rb` writes from the app's own formatter.
+
+### `CustomDomain` (`custom-domain.ts`)
+
+Ported for `mark_deleted!` on an alive domain (golden: the suspension cases of
+`__fixtures__/user-writes.golden.json`), with `stripped_fields`, every validation and the
+`GenerateSslCertificate` job the stripped domain can trigger. `PublicSuffix.valid?`/`.parse` are in
+`concerns/public-suffix.ts`, on the rule list of the bundled gem (`public-suffix-list.generated.json`,
+golden `concerns/__fixtures__/public-suffix.golden.json`). Every other save refuses before SQL.
+
+`ScheduledPayout` (`scheduled-payout.ts`) is ported for `create!` only.
+
 ### `User` (`user.ts`)
 
 Ported, in Rails' callback order: every validation and `before_validation` of user.rb and its
@@ -148,20 +169,18 @@ write when they would run after commit):
 
 Still Ruby-only on `User`:
 
-- `user_risk_state` (`user-risk.ts`, golden `__fixtures__/user-writes.golden.json`) is ported except
-  for the suspending events: `suspend_for_fraud!`/`suspend_for_tos_violation!` throw
-  `NotPortedError` before any SQL (`invalidate_active_sessions!` revokes Doorkeeper tokens,
-  `disable_links_and_tell_chat` saves products, `delete_custom_domain!`). A transition also refuses
-  inside its transaction, which rolls it back, when clearing a suspension would unban products
-  (`enable_links_and_tell_chat` with products) and when the seller has current
-  `social_connect_verifications` (`currently_linked?` reads the identity tables).
+- `user_risk_state` (`user-risk.ts`, golden `__fixtures__/user-writes.golden.json`) is fully
+  ported, suspensions included: `invalidate_active_sessions!` (Doorkeeper revocation for the
+  first-party mobile apps, `oauth-application.ts`), `disable_links_and_tell_chat` and
+  `enable_links_and_tell_chat` through `Link#update`, `delete_custom_domain!` through
+  `CustomDomain#mark_deleted!`, and `currently_linked?` for `record_hold_released!`.
 - `tier_state` (user.rb:565-590).
 - Avatar: `has_one_attached :avatar` with `set_avatar_changed` (user.rb:212-215). Node attaches no
   files; `validate :avatar_is_valid` only runs its attachment read.
 - `json_data` values compare by their JSON text in the merge, where Ruby compares values (1 vs 1.0).
 - Instance methods beyond the ones jobs need: the payout, balance, stats, tax, compliance,
   team, social login, avatar URL and communities methods (user.rb:247-1760 and app/modules/user).
-  `deactivate!` and `invalidate_active_sessions!` in particular.
+  `deactivate!` and `current_payout_processor` in particular.
 - `Mail::Address#domain` is reproduced for addresses EMAIL_REGEX accepts and `Name <addr>`; other
   shapes follow the golden vectors only.
 
