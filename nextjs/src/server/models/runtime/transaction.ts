@@ -25,9 +25,13 @@ type State = { tx: Tx; participants: Map<object, Participant> };
 
 const storage = new AsyncLocalStorage<State>();
 
+// ActiveRecord never aborts a running transaction, so Prisma's 5s default would roll back work
+// Rails completes. maxWait mirrors the pool's checkout_timeout (5s, unset in database.yml).
+const TRANSACTION_OPTIONS = { maxWait: 5_000, timeout: 2_147_483_647 };
+
 let runner: TransactionRunner = async (fn) => {
   const { db } = await import("../../../lib/db.ts");
-  return db.$transaction(fn);
+  return db.$transaction(fn, TRANSACTION_OPTIONS);
 };
 
 // Tests swap in a fake client; production uses the shared PrismaClient.

@@ -86,8 +86,6 @@ its answer with `support/rails_recorder.rb`. They record with the query cache of
   cache (and `lib/mysql2_proxy_routing.rb` clears it whenever the serving pool changes), so Rails
   skips a SELECT it already ran since the last write. Node sends it again: same answers, extra reads.
   The goldens record with `ActiveRecord::Base.uncached` to match.
-- Transactions are Prisma interactive transactions, whose default timeout is 5 seconds; Rails has
-  none. A long risk transition (cascading sibling releases) can hit it.
 
 ### `Comment` (`comment.ts`)
 
