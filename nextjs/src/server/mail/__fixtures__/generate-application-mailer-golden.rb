@@ -70,6 +70,10 @@ ActionMailer::Base.logger = nil
 ActiveJob::Base.logger = Logger.new(nil)
 
 require "active_support/testing/time_helpers"
+
+# Message-IDs embed the host name; pin it so goldens don't record the machine they ran on.
+require "socket"
+Socket.singleton_class.prepend(Module.new { def gethostname = "mail-host.example" })
 include ActiveSupport::Testing::TimeHelpers
 FIXED_NOW = Time.utc(2026, 10, 31, 12, 0, 0)
 travel_to(FIXED_NOW)

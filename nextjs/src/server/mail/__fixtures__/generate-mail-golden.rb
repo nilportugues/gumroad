@@ -170,6 +170,10 @@ module Net
   class SMTPServerBusy < StandardError; end unless defined?(Net::SMTPServerBusy)
 end
 require File.join(ROOT, "app/jobs/mail_delivery_job.rb")
+
+# Message-IDs embed the host name; pin it so goldens don't record the machine they ran on.
+require "socket"
+Socket.singleton_class.prepend(Module.new { def gethostname = "mail-host.example" })
 ActionMailer::Base.delivery_job = MailDeliveryJob
 
 # --- models ----------------------------------------------------------------------------------------
