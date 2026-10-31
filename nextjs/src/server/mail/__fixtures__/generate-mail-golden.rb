@@ -153,6 +153,8 @@ require DEVISE.join("lib/devise/controllers/scoped_views.rb").to_s
 require DEVISE.join("lib/devise/mailers/helpers.rb").to_s
 I18n.load_path += [DEVISE.join("config/locales/en.yml").to_s, File.join(ROOT, "config/locales/devise.en.yml")]
 I18n.available_locales = [:en]
+# Rails sets this from config.time_zone, which defaults to "UTC"; ActiveJob serializes its name.
+Time.zone_default = Time.find_zone!("UTC")
 
 class ApplicationMailer < ActionMailer::Base
   NOREPLY_EMAIL = "noreply@#{DEFAULT_EMAIL_DOMAIN}"
