@@ -20,7 +20,7 @@ const DROPPED_PUSHES: Record<string, string[]> = { "an enqueue that is dropped r
 import { createJobsRuntime } from "../../server/jobs/runtime.ts";
 import { JOB_REGISTRY } from "../../server/jobs/registry.generated.ts";
 import type { JobDefinition } from "../../server/jobs/registry-types.ts";
-import { contextFor, recordingSidekiqRedis, sequentialJids, snapshotRedis, type RedisSnapshot } from "./__fixtures__/golden.ts";
+import { asSidekiqJob, contextFor, recordingSidekiqRedis, sequentialJids, snapshotRedis, type RedisSnapshot } from "./__fixtures__/golden.ts";
 import { goldenNow, modelJobsGolden, sqlReplay, type ModelJobCase } from "./__fixtures__/sql-replay.ts";
 import { deleteOldPingDeliveriesJobWith, deleteOldProcessedStripeEventsJobWith, deleteOldSentEmailInfoRecordsJobWith } from "./delete-old-records-jobs.ts";
 import { deleteExpiredProductCachedValuesWorkerWith, deleteOldUnusedEventsWorkerWith, deleteProcessedWorkflowInstallmentScheduleIntentsJobWith } from "./batched-cleanup-jobs.ts";
@@ -104,7 +104,7 @@ async function replay(name: string, c: ModelJobCase) {
   let error: unknown = null;
   for (const jobClass of DROPPED_PUSHES[c.name] ?? []) dropped.add(jobClass);
   try {
-    await handler(c.args, contextFor(runtime));
+    await asSidekiqJob(() => handler(c.args, contextFor(runtime)), modelJobsGolden.now);
   } catch (e) {
     error = e;
   } finally {

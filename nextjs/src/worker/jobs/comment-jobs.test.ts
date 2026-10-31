@@ -15,7 +15,7 @@ import { parseRubyJson, type JsonValue } from "../../server/jobs/sidekiq/ruby-js
 import { CommentDeletable, Comments, normalizeContent, type CommentRecord } from "../../server/models/comment.ts";
 import { RecordInvalid } from "../../server/models/runtime/errors.ts";
 import { castRow, column, selectRows, table } from "../../server/models/sql.ts";
-import { contextFor, recordingSidekiqRedis, sequentialJids, snapshotRedis, type RedisSnapshot } from "./__fixtures__/golden.ts";
+import { asSidekiqJob, contextFor, recordingSidekiqRedis, sequentialJids, snapshotRedis, type RedisSnapshot } from "./__fixtures__/golden.ts";
 import { sqlReplay, type Statement } from "./__fixtures__/sql-replay.ts";
 import { contentModerationAdminCommentJobWith, detectLegalEntityCountryDriftJobWith, releaseChargebackRatePayoutPausesJobWith } from "./comment-jobs.ts";
 
@@ -180,7 +180,7 @@ for (const [name, cases] of Object.entries(golden.jobs)) {
         const handler = PORTS[name]!({ now, watchReplicaLag: sql.watch });
         let error: unknown = null;
         try {
-          await handler(c.args ?? [], contextFor(runtime));
+          await asSidekiqJob(() => handler(c.args ?? [], contextFor(runtime)), golden.now);
         } catch (e) {
           error = e;
         }

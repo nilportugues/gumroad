@@ -31,6 +31,7 @@ require "sidekiq"
 require "sidekiq_unique_jobs"
 require "fugit"
 require_relative "fake_mysql"
+require_relative "../../../../scripts/golden/support/sidekiq_executor"
 
 ROOT = File.expand_path("../../../../..", __dir__)
 REDIS_URL = ENV.fetch("REDIS_URL", "redis://127.0.0.1:6379/12")
@@ -87,7 +88,8 @@ schema = FakeMysql::SchemaCapture.load(File.join(ROOT, "db/schema.rb"))
 FakeMysql.schema = schema.tables
 FakeMysql.indexes = schema.indexes
 ActiveRecord::Base.logger = nil
-ActiveRecord::Base.establish_connection(adapter: "mysql2", database: "gumroad_test", encoding: "utf8mb4", collation: "utf8mb4_unicode_ci")
+# Production Sidekiq's pools (USE_DB_WORKER_REPLICAS=true); every case runs as a job on them.
+SidekiqExecutor.establish_proxy_connection(adapter: "mysql2", database: "gumroad_test", encoding: "utf8mb4", collation: "utf8mb4_unicode_ci")
 # A non-numeric column default needs a SHOW CREATE TABLE to tell a literal from a function; they
 # are all literals in the tables used here.
 ActiveRecord::ConnectionAdapters::Mysql2Adapter.class_eval { private def default_type(*) = :literal }
@@ -118,6 +120,7 @@ def load_app(path) = load(File.join(ROOT, path))
 class ApplicationRecord < ActiveRecord::Base
   self.abstract_class = true
 end
+SidekiqExecutor.connect_application_record!
 class User < ApplicationRecord
   has_many :sales, class_name: "Purchase", foreign_key: :seller_id
 end
@@ -241,7 +244,7 @@ def run(name, klass, args, responder)
   Redis::Namespace.writes.clear
   error = nil
   statements = FakeMysql.run(responder) do
-    klass.new.perform(*args)
+    SidekiqExecutor.perform { klass.new.perform(*args) }
   rescue StandardError => e
     error = { "class" => e.class.name, "message" => e.message }
   end

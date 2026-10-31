@@ -13,7 +13,7 @@ import { resetFlipperStateForTesting } from "../../server/infra/flipper.ts";
 import { JOB_REGISTRY } from "../../server/jobs/registry.generated.ts";
 import { createJobsRuntime } from "../../server/jobs/runtime.ts";
 import { parseRubyJson, type JsonValue } from "../../server/jobs/sidekiq/ruby-json.ts";
-import { contextFor, recordingSidekiqRedis, sequentialJids } from "./__fixtures__/golden.ts";
+import { asSidekiqJob, contextFor, recordingSidekiqRedis, sequentialJids } from "./__fixtures__/golden.ts";
 import { sqlReplay, type Statement } from "./__fixtures__/sql-replay.ts";
 import { warmSellerReputationSummaryJobWith } from "./warm-seller-reputation-summary-job.ts";
 
@@ -87,7 +87,7 @@ describe("WarmSellerReputationSummaryJob", () => {
 
     let error: unknown = null;
     try {
-      for (let i = 0; i < c.runs; i++) await handler(c.args, contextFor(runtime));
+      for (let i = 0; i < c.runs; i++) await asSidekiqJob(() => handler(c.args, contextFor(runtime)), golden.now);
     } catch (e) {
       error = e;
     }

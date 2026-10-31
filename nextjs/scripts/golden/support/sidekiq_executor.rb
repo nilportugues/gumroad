@@ -30,7 +30,7 @@ module SidekiqExecutor
 
       config = config.transform_keys(&:to_s)
       ActiveRecord::Base.configurations = {
-        "test" => { "primary" => config.merge("adapter" => "mysql2_proxy"), "primary_replica" => config.merge("replica" => true) },
+        ActiveRecord::ConnectionHandling::DEFAULT_ENV.call => { "primary" => config.merge("adapter" => "mysql2_proxy"), "primary_replica" => config.merge("replica" => true) },
       }
       ActiveRecord::Base.establish_connection(:primary)
       @standalone = true
