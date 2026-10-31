@@ -71,6 +71,22 @@ needs a scratch Redis database for the unique-jobs locks.
   Versions of JSON columns can differ from Rails for such values.
 - No `touch`, so `has_paper_trail`'s `on_touch` callback is not ported.
 - `json_data` accessors (`attr_json_data_accessor`) and `stripped_fields` are not ported yet.
+- PaperTrail's `object` on an update lists the attributes ActiveModel's LazyAttributeSet had
+  materialized (written or dirty-checked) first, then the rest in column order. Only models that
+  record that order in `ivars[MATERIALIZED_ATTRIBUTES]` (so far `comment.ts`) match Rails; the others
+  write column order, which differs from Rails for updates of loaded records.
+
+### `Comment` (`comment.ts`)
+
+Ported from comment.rb, ancestry 4.3.3 (`has_ancestry cache_depth: true`), JsonData, Deletable and
+`has_paper_trail`, in Rails' callback order; golden: `src/worker/jobs/__fixtures__/comment.golden.json`
+(`generate-comment-golden.rb` runs the real model on the fake mysql2 driver). Refused with
+`NotPortedError`, before any write: `destroy` (ancestry's `:destroy` orphan strategy), changing
+`ancestry` on a stored comment (`update_descendants_with_new_ancestry`), writing `json_data` on a
+stored comment (`merge_json_data_with_current_row`), and creating a root `user_submitted` comment
+(its after_commit sends `CommentMailer.notify_seller_of_new_comment`). Not ported:
+`mark_subtree_deleted!`/`mark_subtree_undeleted!`, the `was_alive_before_marking_subtree_deleted`
+accessor, ExternalId, and ancestry's navigation scopes.
 
 ### `User` (`user.ts`)
 
