@@ -221,7 +221,7 @@ function renderTable(table: Table): string {
       const stored = col.opts.type?.replace(":", "") ?? "string";
       const { type, attrs } = prismaType({ ...col, type: stored }, table.name);
       lines.push(`  /// GENERATED: ${col.opts.as ?? ""} — never write this column`);
-      lines.push(`  ${col.name} ${type}? ${attrs.join(" ")}`.trimEnd());
+      lines.push(`  ${col.name} ${type}${col.opts.null === "false" ? "" : "?"} ${attrs.join(" ")}`.trimEnd());
       continue;
     }
     const { type, attrs } = prismaType(col, table.name);
