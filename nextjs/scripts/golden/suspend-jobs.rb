@@ -1,7 +1,8 @@
 # frozen_string_literal: true
 
 # Produces nextjs/src/worker/jobs/__fixtures__/suspend-jobs.golden.json: the jobs that suspend
-# sellers in bulk, run by the real app against a scratch database. Run it like user-writes.rb.
+# sellers in bulk, run by the real app against a scratch database, each case as a Sidekiq job
+# (support/sidekiq_executor.rb). Run it like user-writes.rb, adding USE_DB_WORKER_REPLICAS=true.
 require_relative "support/rails_cases"
 include RailsCases
 capture_elasticsearch!
@@ -32,7 +33,7 @@ end
 VERIFIED = { verified: true }.freeze
 
 def run(name, job, args, seed: {})
-  capture(name, now: NOW, tables: TABLES, seed:, job:, args:) { job.constantize.new.perform(*args) }
+  capture(name, now: NOW, tables: TABLES, seed:, sidekiq: true, job:, args:) { job.constantize.new.perform(*args) }
 end
 
 cases = []

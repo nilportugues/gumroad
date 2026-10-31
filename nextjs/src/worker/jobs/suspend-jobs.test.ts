@@ -14,7 +14,7 @@ import { setSellerProfileCacheForTesting } from "../../server/models/seller-prof
 import { resetRiskCollaborators, setRiskCollaborators } from "../../server/models/user-risk.ts";
 import { resetUserCollaborators, setUserCollaborators } from "../../server/models/user.ts";
 import { esRecorder } from "../../server/search/__fixtures__/job-harness.ts";
-import { contextFor, recordingSidekiqRedis, rubyRuntimeRegistry, sequentialJids, snapshotRedis, type RedisSnapshot } from "./__fixtures__/golden.ts";
+import { asSidekiqJob, contextFor, recordingSidekiqRedis, rubyRuntimeRegistry, sequentialJids, snapshotRedis, type RedisSnapshot } from "./__fixtures__/golden.ts";
 import { sqlReplay, type Statement } from "./__fixtures__/sql-replay.ts";
 import { suspendAccountsWithPaymentAddressWorkerWith, suspendUsersWorkerWith } from "./suspend-jobs.ts";
 
@@ -98,7 +98,7 @@ async function run(job: keyof typeof HANDLERS, args: JsonValue[], locks: boolean
   const es = esRecorder();
   let error: unknown = null;
   try {
-    await HANDLERS[job](args, contextFor(runtime));
+    await asSidekiqJob(() => HANDLERS[job](args, contextFor(runtime)), golden.now);
   } catch (e) {
     error = e;
   } finally {
