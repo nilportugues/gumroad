@@ -61,7 +61,9 @@ bundle exec ruby nextjs/scripts/golden/user.rb          # __fixtures__/user.gold
 ```
 
 `src/worker/jobs/__fixtures__/generate-model-jobs-golden.rb` pins its own gems (see its header) and
-needs a scratch Redis database for the unique-jobs locks.
+needs a scratch Redis database for the unique-jobs locks. So do `generate-comment-golden.rb` and
+`generate-reputation-golden.rb` (Flipper, $redis and a MemCacheStore over a fake Dalli server), and
+`scripts/golden/rails-cache.rb` (`src/server/cache/__fixtures__/rails-cache.golden.json`).
 
 ## Known gaps
 
@@ -130,6 +132,10 @@ Still Ruby-only on `User`:
 - `Mail::Address#domain` is reproduced for addresses EMAIL_REGEX accepts and `Name <addr>`; other
   shapes follow the golden vectors only.
 
+- `WarmSellerReputationSummaryJob` builds its Rails.cache key from `products.cache_key_with_version`,
+  whose version ends in `MAX(links.updated_at)` to the microsecond. If the driver hands that back as a
+  Date, sub-millisecond digits read as zero and Node fills a different cache slot than Rails (same
+  aggregate, one extra query per 10 minutes). The $redis snapshot it writes is unaffected.
 - JS Dates hold milliseconds, so microseconds read from a `datetime(6)` column are lost. Writes that
   need them (`Date#end_of_day`) use `MicroDate`, which assumes Prisma sends a Date as its
   `toISOString()`; check that against MySQL before relying on it outside the golden tests.

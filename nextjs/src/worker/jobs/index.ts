@@ -15,6 +15,7 @@ import { blockEmailDomainsWorker, blockObjectWorker, unblockObjectWorker } from 
 import { alertOnStalledAbandonedCartEmailsJob, buildTaxRateCacheWorker, recoverAusBacktaxesFromStripeAccountsJob } from "./scheduled-check-jobs.ts";
 import { syncStripeBusinessProfileUrlWorker } from "./sync-stripe-business-profile-url-worker.ts";
 import { updateCurrenciesWorker } from "./update-currencies-worker.ts";
+import { warmSellerReputationSummaryJob } from "./warm-seller-reputation-summary-job.ts";
 import { recalculateRecentWishlistFollowerCountJob } from "./wishlist-jobs.ts";
 import type { JobHandler } from "./types.ts";
 
@@ -48,4 +49,5 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   UnblockObjectWorker: unblockObjectWorker,
   UpdateCurrenciesWorker: updateCurrenciesWorker,
   UpdateLargeSellersSalesCountJob: updateLargeSellersSalesCountJob,
+  WarmSellerReputationSummaryJob: warmSellerReputationSummaryJob,
 };

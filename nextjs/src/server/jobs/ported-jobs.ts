@@ -32,4 +32,5 @@ export const PORTED_JOBS: readonly string[] = [
   "UnblockObjectWorker",
   "UpdateCurrenciesWorker",
   "UpdateLargeSellersSalesCountJob",
+  "WarmSellerReputationSummaryJob",
 ];
