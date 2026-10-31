@@ -11,6 +11,8 @@ require "bigdecimal"
 
 module RailsRecorder
   SCHEMA_STATEMENT = /\A(SET |SHOW |SELECT @@|SELECT database\(\))|information_schema/
+  # OauthApplication#with_bounded_lock_wait reads and sets the session's lock wait inside a case.
+  CASE_STATEMENT = /innodb_lock_wait_timeout/
 
   class << self
     attr_accessor :log
@@ -26,7 +28,7 @@ module RailsRecorder
     end
 
     def record(client, sql, result)
-      return if @log.nil? || sql.match?(SCHEMA_STATEMENT)
+      return if @log.nil? || (sql.match?(SCHEMA_STATEMENT) && !sql.match?(CASE_STATEMENT))
 
       entry = { "sql" => sql }
       entry["result"] =
@@ -43,7 +45,7 @@ module RailsRecorder
     end
 
     def record_error(sql, error)
-      return if @log.nil? || sql.match?(SCHEMA_STATEMENT)
+      return if @log.nil? || (sql.match?(SCHEMA_STATEMENT) && !sql.match?(CASE_STATEMENT))
 
       @log << { "sql" => sql, "result" => { "error" => { "number" => error.error_number, "message" => error.message } } }
     end
