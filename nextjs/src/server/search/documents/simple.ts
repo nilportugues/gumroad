@@ -46,7 +46,10 @@ const PURCHASE_DETAIL_KEYS = ["id", "product_id", "variant_ids", "price_cents", 
 const AFFILIATE_DETAIL_KEYS = ["id", "product_id", "created_at"];
 
 export class InstallmentRecord {
-  constructor(readonly row: Row) {}
+  readonly row: Row;
+  constructor(row: Row) {
+    this.row = row;
+  }
 
   static async find(id: unknown): Promise<InstallmentRecord | null> {
     const row = await findById("Installment", "installments", id);
@@ -76,7 +79,10 @@ function slice(hash: JsonValue, keys: string[]): JsonValue {
 }
 
 export class AudienceMemberRecord {
-  constructor(readonly row: Row) {}
+  readonly row: Row;
+  constructor(row: Row) {
+    this.row = row;
+  }
 
   static async find(id: unknown): Promise<AudienceMemberRecord | null> {
     const row = await findById("AudienceMember", "audience_members", id);

@@ -174,6 +174,7 @@
   "purchase_documents": [
     {
       "name": "original subscription purchase",
+      "args": null,
       "error": null,
       "result": {
         "id": 1,
@@ -1371,10 +1372,15 @@
         }
       ],
       "es": [],
+      "es_responses": [],
+      "features": [],
+      "ignore_404": [],
+      "slept": [],
       "redis": {}
     },
     {
       "name": "recurring charge of a recommended, chargeback-reversed sale",
+      "args": null,
       "error": null,
       "result": {
         "id": 2,
@@ -2191,10 +2197,15 @@
         }
       ],
       "es": [],
+      "es_responses": [],
+      "features": [],
+      "ignore_404": [],
+      "slept": [],
       "redis": {}
     },
     {
       "name": "gift subscription whose member has no account",
+      "args": null,
       "error": null,
       "result": {
         "id": 3,
@@ -3085,10 +3096,15 @@
         }
       ],
       "es": [],
+      "es_responses": [],
+      "features": [],
+      "ignore_404": [],
+      "slept": [],
       "redis": {}
     },
     {
       "name": "plain sale with no email",
+      "args": null,
       "error": null,
       "result": {
         "id": 4,
@@ -3791,10 +3807,15 @@
         }
       ],
       "es": [],
+      "es_responses": [],
+      "features": [],
+      "ignore_404": [],
+      "slept": [],
       "redis": {}
     },
     {
       "name": "missing product",
+      "args": null,
       "error": {
         "class": "NoMethodError",
         "message": "undefined method 'attributes' for nil"
@@ -4184,10 +4205,15 @@
         }
       ],
       "es": [],
+      "es_responses": [],
+      "features": [],
+      "ignore_404": [],
+      "slept": [],
       "redis": {}
     },
     {
       "name": "only some fields",
+      "args": null,
       "error": null,
       "result": {
         "email": "buyer@example.com",
@@ -4569,12 +4595,17 @@
         }
       ],
       "es": [],
+      "es_responses": [],
+      "features": [],
+      "ignore_404": [],
+      "slept": [],
       "redis": {}
     }
   ],
   "installment_documents": [
     {
       "name": "installment",
+      "args": null,
       "error": null,
       "result": {
         "id": 60,
@@ -4651,10 +4682,15 @@
         }
       ],
       "es": [],
+      "es_responses": [],
+      "features": [],
+      "ignore_404": [],
+      "slept": [],
       "redis": {}
     },
     {
       "name": "installment fields",
+      "args": null,
       "error": null,
       "result": {
         "selected_flags": [
@@ -4724,12 +4760,17 @@
         }
       ],
       "es": [],
+      "es_responses": [],
+      "features": [],
+      "ignore_404": [],
+      "slept": [],
       "redis": {}
     }
   ],
   "audience_member_documents": [
     {
       "name": "audience member",
+      "args": null,
       "error": null,
       "result": {
         "seller_id": 4,
@@ -4843,10 +4884,15 @@
         }
       ],
       "es": [],
+      "es_responses": [],
+      "features": [],
+      "ignore_404": [],
+      "slept": [],
       "redis": {}
     },
     {
       "name": "audience member without details",
+      "args": null,
       "error": null,
       "result": {
         "seller_id": 4,
@@ -4935,9 +4981,4498 @@
         }
       ],
       "es": [],
+      "es_responses": [],
+      "features": [],
+      "ignore_404": [],
+      "slept": [],
       "redis": {}
     }
   ],
+  "jobs": {
+    "ElasticsearchIndexerWorker": [
+      {
+        "name": "index a purchase",
+        "args": [
+          "index",
+          {
+            "record_id": 1,
+            "class_name": "Purchase"
+          }
+        ],
+        "error": null,
+        "result": {
+          "result": "created"
+        },
+        "statements": [
+          {
+            "sql": "SELECT `purchases`.* FROM `purchases` WHERE `purchases`.`id` = 1 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "seller_id",
+                "created_at",
+                "updated_at",
+                "fee_cents",
+                "link_id",
+                "email",
+                "price_cents",
+                "displayed_price_cents",
+                "displayed_price_currency_type",
+                "rate_converted_to_usd",
+                "street_address",
+                "city",
+                "state",
+                "zip_code",
+                "country",
+                "full_name",
+                "credit_card_id",
+                "purchaser_id",
+                "purchaser_type",
+                "session_id",
+                "ip_address",
+                "is_mobile",
+                "stripe_refunded",
+                "stripe_transaction_id",
+                "stripe_fingerprint",
+                "stripe_card_id",
+                "can_contact",
+                "referrer",
+                "stripe_status",
+                "variants",
+                "chargeback_date",
+                "webhook_failed",
+                "failed",
+                "card_type",
+                "card_visual",
+                "purchase_state",
+                "processor_fee_cents",
+                "succeeded_at",
+                "card_country",
+                "stripe_error_code",
+                "browser_guid",
+                "error_code",
+                "card_bin",
+                "custom_fields",
+                "ip_country",
+                "ip_state",
+                "purchase_success_balance_id",
+                "purchase_chargeback_balance_id",
+                "purchase_refund_balance_id",
+                "flags",
+                "offer_code_id",
+                "subscription_id",
+                "preorder_id",
+                "card_expiry_month",
+                "card_expiry_year",
+                "tax_cents",
+                "affiliate_credit_cents",
+                "credit_card_zipcode",
+                "json_data",
+                "card_data_handling_mode",
+                "charge_processor_id",
+                "total_transaction_cents",
+                "gumroad_tax_cents",
+                "zip_tax_rate_id",
+                "quantity",
+                "merchant_account_id",
+                "shipping_cents",
+                "affiliate_id",
+                "processor_fee_cents_currency",
+                "stripe_partially_refunded",
+                "paypal_order_id",
+                "rental_expired",
+                "processor_payment_intent_id",
+                "processor_setup_intent_id",
+                "price_id",
+                "recommended_by",
+                "deleted_at"
+              ],
+              "rows": [
+                [
+                  1,
+                  4,
+                  {
+                    "$time": "2025-01-02T03:04:05.000678Z"
+                  },
+                  null,
+                  120,
+                  3,
+                  "Buyer@Example.COM",
+                  1000,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  "",
+                  "Buyer Name",
+                  null,
+                  5,
+                  null,
+                  null,
+                  null,
+                  null,
+                  false,
+                  null,
+                  null,
+                  null,
+                  true,
+                  "https://www.Google.com/search?q=%E2%9C%93",
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  "paypal",
+                  "PP@Example.com",
+                  "successful",
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  "United States",
+                  "CA",
+                  null,
+                  null,
+                  null,
+                  0,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  0,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT SUM(`refunds`.`amount_cents`) FROM `refunds` WHERE `refunds`.`purchase_id` = 1 AND (refunds.status IS NULL OR refunds.status NOT IN ('failed', 'canceled') OR COALESCE(refunds.json_data->>'$.balance_reversed_on_failure', 'false') != 'true')",
+            "result": {
+              "fields": [],
+              "rows": []
+            }
+          },
+          {
+            "sql": "SELECT SUM(`refunds`.`fee_cents`) FROM `refunds` WHERE `refunds`.`purchase_id` = 1 AND (refunds.status IS NULL OR refunds.status NOT IN ('failed', 'canceled') OR COALESCE(refunds.json_data->>'$.balance_reversed_on_failure', 'false') != 'true')",
+            "result": {
+              "fields": [],
+              "rows": []
+            }
+          },
+          {
+            "sql": "SELECT SUM(`refunds`.`creator_tax_cents`) FROM `refunds` WHERE `refunds`.`purchase_id` = 1 AND (refunds.status IS NULL OR refunds.status NOT IN ('failed', 'canceled') OR COALESCE(refunds.json_data->>'$.balance_reversed_on_failure', 'false') != 'true')",
+            "result": {
+              "fields": [],
+              "rows": []
+            }
+          },
+          {
+            "sql": "SELECT `licenses`.* FROM `licenses` WHERE `licenses`.`purchase_id` = 1 LIMIT 1",
+            "result": {
+              "fields": [],
+              "rows": []
+            }
+          },
+          {
+            "sql": "SELECT `base_variants`.`id` FROM `base_variants` INNER JOIN `base_variants_purchases` ON `base_variants`.`id` = `base_variants_purchases`.`base_variant_id` WHERE `base_variants_purchases`.`purchase_id` = 1",
+            "result": {
+              "fields": [],
+              "rows": []
+            }
+          },
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 4 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "email",
+                "encrypted_password",
+                "reset_password_token",
+                "reset_password_sent_at",
+                "remember_created_at",
+                "sign_in_count",
+                "current_sign_in_at",
+                "last_sign_in_at",
+                "current_sign_in_ip",
+                "last_sign_in_ip",
+                "created_at",
+                "updated_at",
+                "name",
+                "payment_address",
+                "confirmed_at",
+                "confirmation_token",
+                "confirmation_sent_at",
+                "unconfirmed_email",
+                "provider",
+                "twitter_user_id",
+                "facebook_uid",
+                "deleted_at",
+                "payment_notification",
+                "currency_type",
+                "bio",
+                "username",
+                "credit_card_id",
+                "profile_picture_url",
+                "country",
+                "state",
+                "city",
+                "zip_code",
+                "street_address",
+                "facebook_access_token",
+                "verified",
+                "manage_pages",
+                "banned_at",
+                "weekly_notification",
+                "external_id",
+                "account_created_ip",
+                "twitter_oauth_token",
+                "twitter_oauth_secret",
+                "notification_endpoint",
+                "locale",
+                "flags",
+                "google_analytics_id",
+                "timezone",
+                "user_risk_state",
+                "tos_violation_reason",
+                "kindle_email",
+                "json_data",
+                "support_email",
+                "google_analytics_domains",
+                "recommendation_type",
+                "facebook_pixel_id",
+                "split_payment_by_cents",
+                "last_active_sessions_invalidated_at",
+                "otp_secret_key",
+                "facebook_meta_tag",
+                "tier_state",
+                "orientation_priority_tag",
+                "notification_content_type",
+                "google_uid",
+                "purchasing_power_parity_limit",
+                "twitter_handle"
+              ],
+              "rows": [
+                [
+                  4,
+                  "s@example.com",
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  "Seller",
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT distinct link_id FROM `purchases` WHERE `purchases`.`seller_id` = 4 AND `purchases`.`email` = 'Buyer@Example.COM'",
+            "result": {
+              "fields": [
+                "link_id"
+              ],
+              "rows": [
+                [
+                  3
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "select distinct base_variant_id from base_variants_purchases\nwhere purchase_id IN (SELECT `purchases`.`id` FROM `purchases` WHERE `purchases`.`seller_id` = 4 AND `purchases`.`email` = 'Buyer@Example.COM')\n",
+            "result": {
+              "fields": [
+                "base_variant_id"
+              ],
+              "rows": [
+                [
+                  21
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `affiliate_credits`.* FROM `affiliate_credits` WHERE `affiliate_credits`.`purchase_id` = 1 AND `affiliate_credits`.`is_direct_affiliate_credit` = FALSE LIMIT 1",
+            "result": {
+              "fields": [],
+              "rows": []
+            }
+          },
+          {
+            "sql": "SELECT `affiliate_credits`.* FROM `affiliate_credits` WHERE `affiliate_credits`.`purchase_id` = 1 AND `affiliate_credits`.`is_direct_affiliate_credit` = TRUE LIMIT 1",
+            "result": {
+              "fields": [],
+              "rows": []
+            }
+          },
+          {
+            "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 3 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "name",
+                "unique_permalink",
+                "preview_url",
+                "description",
+                "purchase_type",
+                "created_at",
+                "updated_at",
+                "purchase_disabled_at",
+                "deleted_at",
+                "price_cents",
+                "price_currency_type",
+                "customizable_price",
+                "max_purchase_count",
+                "bad_card_counter",
+                "require_shipping",
+                "last_partner_sync",
+                "preview_oembed",
+                "showcaseable",
+                "custom_receipt",
+                "custom_filetype",
+                "filetype",
+                "filegroup",
+                "size",
+                "bitrate",
+                "framerate",
+                "pagelength",
+                "duration",
+                "width",
+                "height",
+                "custom_permalink",
+                "common_color",
+                "suggested_price_cents",
+                "banned_at",
+                "risk_score",
+                "risk_score_updated_at",
+                "draft",
+                "flags",
+                "subscription_duration",
+                "json_data",
+                "external_mapping_id",
+                "affiliate_application_id",
+                "rental_price_cents",
+                "duration_in_months",
+                "migrated_to_tiered_pricing_at",
+                "free_trial_duration_unit",
+                "free_trial_duration_amount",
+                "content_updated_at",
+                "taxonomy_id",
+                "native_type",
+                "discover_fee_per_thousand",
+                "support_email",
+                "default_offer_code_id",
+                "sales_count_for_inventory_cache",
+                "first_published_at"
+              ],
+              "rows": [
+                [
+                  3,
+                  4,
+                  "Prod <b>&",
+                  "abc",
+                  null,
+                  "<h2>What you get</h2><p>Fish &amp; Chips<br>daily</p><!-- hidden --><ul><li>one</li><li>two</li></ul>",
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  12,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "email",
+                "encrypted_password",
+                "reset_password_token",
+                "reset_password_sent_at",
+                "remember_created_at",
+                "sign_in_count",
+                "current_sign_in_at",
+                "last_sign_in_at",
+                "current_sign_in_ip",
+                "last_sign_in_ip",
+                "created_at",
+                "updated_at",
+                "name",
+                "payment_address",
+                "confirmed_at",
+                "confirmation_token",
+                "confirmation_sent_at",
+                "unconfirmed_email",
+                "provider",
+                "twitter_user_id",
+                "facebook_uid",
+                "deleted_at",
+                "payment_notification",
+                "currency_type",
+                "bio",
+                "username",
+                "credit_card_id",
+                "profile_picture_url",
+                "country",
+                "state",
+                "city",
+                "zip_code",
+                "street_address",
+                "facebook_access_token",
+                "verified",
+                "manage_pages",
+                "banned_at",
+                "weekly_notification",
+                "external_id",
+                "account_created_ip",
+                "twitter_oauth_token",
+                "twitter_oauth_secret",
+                "notification_endpoint",
+                "locale",
+                "flags",
+                "google_analytics_id",
+                "timezone",
+                "user_risk_state",
+                "tos_violation_reason",
+                "kindle_email",
+                "json_data",
+                "support_email",
+                "google_analytics_domains",
+                "recommendation_type",
+                "facebook_pixel_id",
+                "split_payment_by_cents",
+                "last_active_sessions_invalidated_at",
+                "otp_secret_key",
+                "facebook_meta_tag",
+                "tier_state",
+                "orientation_priority_tag",
+                "notification_content_type",
+                "google_uid",
+                "purchasing_power_parity_limit",
+                "twitter_handle"
+              ],
+              "rows": [
+                [
+                  5,
+                  "b@example.com",
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null
+                ]
+              ]
+            }
+          }
+        ],
+        "es": [
+          {
+            "method": "PUT",
+            "path": "/purchases/_doc/1",
+            "query": null,
+            "body": "{\"id\":1,\"can_contact\":true,\"chargeback_date\":null,\"country_or_ip_country\":\"United States\",\"created_at\":\"2025-01-02T03:04:05Z\",\"latest_charge_date\":null,\"email\":\"buyer@example.com\",\"email_domain\":\"example.com\",\"subscription_current_email\":null,\"subscription_current_email_domain\":null,\"paypal_email\":\"pp@example.com\",\"fee_cents\":120,\"full_name\":\"Buyer Name\",\"not_chargedback_or_chargedback_reversed\":true,\"not_refunded_except_subscriptions\":true,\"not_subscription_or_original_subscription_purchase\":true,\"successful_authorization_or_without_preorder\":true,\"price_cents\":1000,\"purchase_state\":\"successful\",\"amount_refunded_cents\":0,\"fee_refunded_cents\":0,\"tax_refunded_cents\":0,\"selected_flags\":[],\"stripe_refunded\":false,\"tax_cents\":0,\"monthly_recurring_revenue\":null,\"ip_country\":\"United States\",\"ip_state\":\"CA\",\"referrer_domain\":\"google.com\",\"license_serial\":null,\"license_uses\":null,\"variant_ids\":[],\"product_ids_from_same_seller_purchased_by_purchaser\":[3],\"variant_ids_from_same_seller_purchased_by_purchaser\":[21],\"affiliate_credit_id\":null,\"affiliate_credit_affiliate_user_id\":null,\"affiliate_credit_amount_cents\":null,\"affiliate_credit_fee_cents\":null,\"affiliate_credit_amount_partially_refunded_cents\":null,\"affiliate_credit_fee_partially_refunded_cents\":null,\"direct_affiliate_credit_affiliate_user_id\":null,\"direct_affiliate_credit_amount_cents\":null,\"direct_affiliate_credit_fee_cents\":null,\"direct_affiliate_credit_amount_partially_refunded_cents\":null,\"direct_affiliate_credit_fee_partially_refunded_cents\":null,\"product_id\":3,\"product_unique_permalink\":\"abc\",\"product_name\":\"Prod \\u003cb\\u003e\\u0026\",\"product_description\":\"What you get Fish \\u0026 Chips daily one two\",\"seller_id\":4,\"seller_name\":\"Seller\",\"purchaser_id\":5,\"subscription_id\":null,\"subscription_cancelled_at\":null,\"subscription_deactivated_at\":null,\"taxonomy_id\":12}"
+          }
+        ],
+        "es_responses": [
+          [
+            201,
+            {
+              "result": "created"
+            }
+          ]
+        ],
+        "features": [],
+        "ignore_404": [],
+        "slept": [],
+        "redis": {}
+      },
+      {
+        "name": "update purchase fields on an index that ignores 404s",
+        "args": [
+          "update",
+          {
+            "record_id": 1,
+            "class_name": "Purchase",
+            "fields": [
+              "email",
+              "referrer_domain",
+              "product_name"
+            ]
+          }
+        ],
+        "error": null,
+        "result": {
+          "error": "document_missing_exception"
+        },
+        "statements": [
+          {
+            "sql": "SELECT `purchases`.* FROM `purchases` WHERE `purchases`.`id` = 1 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "seller_id",
+                "created_at",
+                "updated_at",
+                "fee_cents",
+                "link_id",
+                "email",
+                "price_cents",
+                "displayed_price_cents",
+                "displayed_price_currency_type",
+                "rate_converted_to_usd",
+                "street_address",
+                "city",
+                "state",
+                "zip_code",
+                "country",
+                "full_name",
+                "credit_card_id",
+                "purchaser_id",
+                "purchaser_type",
+                "session_id",
+                "ip_address",
+                "is_mobile",
+                "stripe_refunded",
+                "stripe_transaction_id",
+                "stripe_fingerprint",
+                "stripe_card_id",
+                "can_contact",
+                "referrer",
+                "stripe_status",
+                "variants",
+                "chargeback_date",
+                "webhook_failed",
+                "failed",
+                "card_type",
+                "card_visual",
+                "purchase_state",
+                "processor_fee_cents",
+                "succeeded_at",
+                "card_country",
+                "stripe_error_code",
+                "browser_guid",
+                "error_code",
+                "card_bin",
+                "custom_fields",
+                "ip_country",
+                "ip_state",
+                "purchase_success_balance_id",
+                "purchase_chargeback_balance_id",
+                "purchase_refund_balance_id",
+                "flags",
+                "offer_code_id",
+                "subscription_id",
+                "preorder_id",
+                "card_expiry_month",
+                "card_expiry_year",
+                "tax_cents",
+                "affiliate_credit_cents",
+                "credit_card_zipcode",
+                "json_data",
+                "card_data_handling_mode",
+                "charge_processor_id",
+                "total_transaction_cents",
+                "gumroad_tax_cents",
+                "zip_tax_rate_id",
+                "quantity",
+                "merchant_account_id",
+                "shipping_cents",
+                "affiliate_id",
+                "processor_fee_cents_currency",
+                "stripe_partially_refunded",
+                "paypal_order_id",
+                "rental_expired",
+                "processor_payment_intent_id",
+                "processor_setup_intent_id",
+                "price_id",
+                "recommended_by",
+                "deleted_at"
+              ],
+              "rows": [
+                [
+                  1,
+                  4,
+                  {
+                    "$time": "2025-01-02T03:04:05.000678Z"
+                  },
+                  null,
+                  120,
+                  3,
+                  "Buyer@Example.COM",
+                  1000,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  "",
+                  "Buyer Name",
+                  null,
+                  5,
+                  null,
+                  null,
+                  null,
+                  null,
+                  false,
+                  null,
+                  null,
+                  null,
+                  true,
+                  "https://www.Google.com/search?q=%E2%9C%93",
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  "paypal",
+                  "PP@Example.com",
+                  "successful",
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  "United States",
+                  "CA",
+                  null,
+                  null,
+                  null,
+                  0,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  0,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 3 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "name",
+                "unique_permalink",
+                "preview_url",
+                "description",
+                "purchase_type",
+                "created_at",
+                "updated_at",
+                "purchase_disabled_at",
+                "deleted_at",
+                "price_cents",
+                "price_currency_type",
+                "customizable_price",
+                "max_purchase_count",
+                "bad_card_counter",
+                "require_shipping",
+                "last_partner_sync",
+                "preview_oembed",
+                "showcaseable",
+                "custom_receipt",
+                "custom_filetype",
+                "filetype",
+                "filegroup",
+                "size",
+                "bitrate",
+                "framerate",
+                "pagelength",
+                "duration",
+                "width",
+                "height",
+                "custom_permalink",
+                "common_color",
+                "suggested_price_cents",
+                "banned_at",
+                "risk_score",
+                "risk_score_updated_at",
+                "draft",
+                "flags",
+                "subscription_duration",
+                "json_data",
+                "external_mapping_id",
+                "affiliate_application_id",
+                "rental_price_cents",
+                "duration_in_months",
+                "migrated_to_tiered_pricing_at",
+                "free_trial_duration_unit",
+                "free_trial_duration_amount",
+                "content_updated_at",
+                "taxonomy_id",
+                "native_type",
+                "discover_fee_per_thousand",
+                "support_email",
+                "default_offer_code_id",
+                "sales_count_for_inventory_cache",
+                "first_published_at"
+              ],
+              "rows": [
+                [
+                  3,
+                  4,
+                  "Prod <b>&",
+                  "abc",
+                  null,
+                  "<h2>What you get</h2><p>Fish &amp; Chips<br>daily</p><!-- hidden --><ul><li>one</li><li>two</li></ul>",
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  12,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null
+                ]
+              ]
+            }
+          }
+        ],
+        "es": [
+          {
+            "method": "POST",
+            "path": "/purchases/_update/1",
+            "query": null,
+            "body": "{\"doc\":{\"email\":\"buyer@example.com\",\"referrer_domain\":\"google.com\",\"product_name\":\"Prod \\u003cb\\u003e\\u0026\"}}"
+          }
+        ],
+        "es_responses": [
+          [
+            404,
+            {
+              "error": "document_missing_exception"
+            }
+          ]
+        ],
+        "features": [],
+        "ignore_404": [
+          "purchases",
+          "other"
+        ],
+        "slept": [],
+        "redis": {}
+      },
+      {
+        "name": "update raises on a 404 elsewhere",
+        "args": [
+          "update",
+          {
+            "record_id": 60,
+            "class_name": "Installment",
+            "fields": [
+              "name"
+            ]
+          }
+        ],
+        "error": {
+          "class": "Elasticsearch::Transport::Transport::Errors::NotFound",
+          "message": "[404] {\"error\":\"document_missing_exception\"}"
+        },
+        "result": null,
+        "statements": [
+          {
+            "sql": "SELECT `installments`.* FROM `installments` WHERE `installments`.`id` = 60 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "link_id",
+                "message",
+                "url",
+                "created_at",
+                "updated_at",
+                "name",
+                "published_at",
+                "deleted_at",
+                "flags",
+                "seller_id",
+                "installment_type",
+                "json_data",
+                "customer_count",
+                "workflow_id",
+                "call_to_action_text",
+                "call_to_action_url",
+                "cover_image_url",
+                "base_variant_id",
+                "slug",
+                "installment_events_count"
+              ],
+              "rows": [
+                [
+                  60,
+                  null,
+                  "<p>Body &amp; more</p>",
+                  null,
+                  {
+                    "$time": "2025-01-01T00:00:00.000005Z"
+                  },
+                  null,
+                  "Hello <world>",
+                  {
+                    "$time": "2025-01-03T10:00:00.000000Z"
+                  },
+                  null,
+                  1284,
+                  4,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null
+                ]
+              ]
+            }
+          }
+        ],
+        "es": [
+          {
+            "method": "POST",
+            "path": "/installments/_update/60",
+            "query": null,
+            "body": "{\"doc\":{\"name\":\"Hello \\u003cworld\\u003e\"}}"
+          }
+        ],
+        "es_responses": [
+          [
+            404,
+            {
+              "error": "document_missing_exception"
+            }
+          ]
+        ],
+        "features": [],
+        "ignore_404": [
+          "purchases"
+        ],
+        "slept": [],
+        "redis": {}
+      },
+      {
+        "name": "delete ignores a missing document",
+        "args": [
+          "delete",
+          {
+            "record_id": 60,
+            "class_name": "Installment"
+          }
+        ],
+        "error": null,
+        "result": {
+          "result": "not_found"
+        },
+        "statements": [],
+        "es": [
+          {
+            "method": "DELETE",
+            "path": "/installments/_doc/60",
+            "query": null,
+            "body": null
+          }
+        ],
+        "es_responses": [
+          [
+            404,
+            {
+              "result": "not_found"
+            }
+          ]
+        ],
+        "features": [],
+        "ignore_404": [],
+        "slept": [],
+        "redis": {}
+      },
+      {
+        "name": "delete raises on a server error",
+        "args": [
+          "delete",
+          {
+            "record_id": 60,
+            "class_name": "Installment"
+          }
+        ],
+        "error": {
+          "class": "Elasticsearch::Transport::Transport::Errors::InternalServerError",
+          "message": "[500] {\"error\":\"boom\"}"
+        },
+        "result": null,
+        "statements": [],
+        "es": [
+          {
+            "method": "DELETE",
+            "path": "/installments/_doc/60",
+            "query": null,
+            "body": null
+          }
+        ],
+        "es_responses": [
+          [
+            500,
+            {
+              "error": "boom"
+            }
+          ]
+        ],
+        "features": [],
+        "ignore_404": [],
+        "slept": [],
+        "redis": {}
+      },
+      {
+        "name": "index an audience member body the caller built",
+        "args": [
+          "index",
+          {
+            "record_id": 90,
+            "class_name": "AudienceMember",
+            "body": {
+              "seller_id": 4,
+              "email": "x&y@example.com"
+            }
+          }
+        ],
+        "error": null,
+        "result": {},
+        "statements": [],
+        "es": [
+          {
+            "method": "PUT",
+            "path": "/audience_members/_doc/90",
+            "query": null,
+            "body": "{\"seller_id\":4,\"email\":\"x\\u0026y@example.com\"}"
+          }
+        ],
+        "es_responses": [],
+        "features": [],
+        "ignore_404": [],
+        "slept": [],
+        "redis": {}
+      },
+      {
+        "name": "index a confirmed follower event",
+        "args": [
+          "index",
+          {
+            "class_name": "ConfirmedFollowerEvent",
+            "id": "00000000-0000-4000-8000-000000000001",
+            "body": {
+              "follower_id": 7,
+              "followed_user_id": 4,
+              "follower_user_id": null,
+              "email": "f@example.com",
+              "name": "added",
+              "timestamp": "2025-11-01T00:00:00Z"
+            }
+          }
+        ],
+        "error": null,
+        "result": {},
+        "statements": [],
+        "es": [
+          {
+            "method": "PUT",
+            "path": "/confirmed_follower_events/_doc/00000000-0000-4000-8000-000000000001",
+            "query": null,
+            "body": "{\"follower_id\":7,\"followed_user_id\":4,\"follower_user_id\":null,\"email\":\"f@example.com\",\"name\":\"added\",\"timestamp\":\"2025-11-01T00:00:00Z\"}"
+          }
+        ],
+        "es_responses": [],
+        "features": [],
+        "ignore_404": [],
+        "slept": [],
+        "redis": {}
+      },
+      {
+        "name": "index a product page view",
+        "args": [
+          "index",
+          {
+            "class_name": "ProductPageView",
+            "id": "pv1",
+            "body": {
+              "product_id": 3,
+              "timestamp": "2025-10-31T23:59:59Z",
+              "url": "https://example.com/l/abc?x=<1>"
+            }
+          }
+        ],
+        "error": null,
+        "result": {},
+        "statements": [],
+        "es": [
+          {
+            "method": "PUT",
+            "path": "/product_page_views/_doc/pv1",
+            "query": null,
+            "body": "{\"product_id\":3,\"timestamp\":\"2025-10-31T23:59:59Z\",\"url\":\"https://example.com/l/abc?x=\\u003c1\\u003e\"}"
+          }
+        ],
+        "es_responses": [],
+        "features": [],
+        "ignore_404": [],
+        "slept": [],
+        "redis": {}
+      },
+      {
+        "name": "index an installment",
+        "args": [
+          "index",
+          {
+            "record_id": 60,
+            "class_name": "Installment"
+          }
+        ],
+        "error": null,
+        "result": {},
+        "statements": [
+          {
+            "sql": "SELECT `installments`.* FROM `installments` WHERE `installments`.`id` = 60 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "link_id",
+                "message",
+                "url",
+                "created_at",
+                "updated_at",
+                "name",
+                "published_at",
+                "deleted_at",
+                "flags",
+                "seller_id",
+                "installment_type",
+                "json_data",
+                "customer_count",
+                "workflow_id",
+                "call_to_action_text",
+                "call_to_action_url",
+                "cover_image_url",
+                "base_variant_id",
+                "slug",
+                "installment_events_count"
+              ],
+              "rows": [
+                [
+                  60,
+                  null,
+                  "<p>Body &amp; more</p>",
+                  null,
+                  {
+                    "$time": "2025-01-01T00:00:00.000005Z"
+                  },
+                  null,
+                  "Hello <world>",
+                  {
+                    "$time": "2025-01-03T10:00:00.000000Z"
+                  },
+                  null,
+                  1284,
+                  4,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null
+                ]
+              ]
+            }
+          }
+        ],
+        "es": [
+          {
+            "method": "PUT",
+            "path": "/installments/_doc/60",
+            "query": null,
+            "body": "{\"id\":60,\"message\":\"\\u003cp\\u003eBody \\u0026amp; more\\u003c/p\\u003e\",\"name\":\"Hello \\u003cworld\\u003e\",\"seller_id\":4,\"workflow_id\":null,\"created_at\":\"2025-01-01T00:00:00Z\",\"deleted_at\":null,\"published_at\":\"2025-01-03T10:00:00Z\",\"selected_flags\":[\"DEPRECATED_stream_only\",\"send_emails\",\"allow_comments\"]}"
+          }
+        ],
+        "es_responses": [],
+        "features": [],
+        "ignore_404": [],
+        "slept": [],
+        "redis": {}
+      },
+      {
+        "name": "update an audience member",
+        "args": [
+          "update",
+          {
+            "record_id": 90,
+            "class_name": "AudienceMember",
+            "fields": [
+              "purchases",
+              "follower_id",
+              "affiliates",
+              "email"
+            ]
+          }
+        ],
+        "error": null,
+        "result": {},
+        "statements": [
+          {
+            "sql": "SELECT `audience_members`.* FROM `audience_members` WHERE `audience_members`.`id` = 90 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "seller_id",
+                "email",
+                "details",
+                "created_at",
+                "updated_at",
+                "customer",
+                "follower",
+                "affiliate",
+                "min_paid_cents",
+                "max_paid_cents",
+                "min_created_at",
+                "max_created_at",
+                "min_purchase_created_at",
+                "max_purchase_created_at",
+                "follower_created_at",
+                "min_affiliate_created_at",
+                "max_affiliate_created_at"
+              ],
+              "rows": [
+                [
+                  90,
+                  4,
+                  "fan@example.com",
+                  "{\"purchases\":[{\"id\":1,\"product_id\":3,\"variant_ids\":[21],\"price_cents\":1000,\"created_at\":\"2025-01-02T03:04:05Z\",\"country\":\"US\",\"subscription_cancelled\":false,\"license_uses\":2,\"extra\":\"dropped\"},{\"id\":2,\"product_id\":8,\"price_cents\":0,\"created_at\":\"2025-01-03T03:04:05Z\"}],\"follower\":{\"id\":70,\"created_at\":\"2025-01-01T00:00:00Z\"},\"affiliates\":[{\"id\":80,\"product_id\":3,\"created_at\":\"2025-01-04T00:00:00Z\",\"other\":1}]}",
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  {
+                    "$time": "2025-01-05T00:00:00.000000Z"
+                  },
+                  true,
+                  true,
+                  false,
+                  0,
+                  1000,
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  {
+                    "$time": "2025-01-04T00:00:00.000000Z"
+                  },
+                  {
+                    "$time": "2025-01-02T03:04:05.000000Z"
+                  },
+                  {
+                    "$time": "2025-01-03T03:04:05.000000Z"
+                  },
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  {
+                    "$time": "2025-01-04T00:00:00.000000Z"
+                  },
+                  {
+                    "$time": "2025-01-04T00:00:00.000000Z"
+                  }
+                ]
+              ]
+            }
+          }
+        ],
+        "es": [
+          {
+            "method": "POST",
+            "path": "/audience_members/_update/90",
+            "query": null,
+            "body": "{\"doc\":{\"purchases\":[{\"id\":1,\"product_id\":3,\"variant_ids\":[21],\"price_cents\":1000,\"created_at\":\"2025-01-02T03:04:05Z\",\"country\":\"US\",\"subscription_cancelled\":false,\"license_uses\":2},{\"id\":2,\"product_id\":8,\"price_cents\":0,\"created_at\":\"2025-01-03T03:04:05Z\"}],\"follower_id\":70,\"affiliates\":[{\"id\":80,\"product_id\":3,\"created_at\":\"2025-01-04T00:00:00Z\"}],\"email\":\"fan@example.com\"}}"
+          }
+        ],
+        "es_responses": [],
+        "features": [],
+        "ignore_404": [],
+        "slept": [],
+        "redis": {}
+      },
+      {
+        "name": "drops retired Balance jobs",
+        "args": [
+          "update",
+          {
+            "record_id": 1,
+            "class_name": "Balance",
+            "fields": [
+              "amount_cents"
+            ]
+          }
+        ],
+        "error": null,
+        "result": null,
+        "statements": [],
+        "es": [],
+        "es_responses": [],
+        "features": [],
+        "ignore_404": [],
+        "slept": [],
+        "redis": {}
+      },
+      {
+        "name": "unknown operation does nothing",
+        "args": [
+          "reindex",
+          {
+            "record_id": 1,
+            "class_name": "Purchase"
+          }
+        ],
+        "error": null,
+        "result": null,
+        "statements": [],
+        "es": [],
+        "es_responses": [],
+        "features": [],
+        "ignore_404": [],
+        "slept": [],
+        "redis": {}
+      },
+      {
+        "name": "unknown class",
+        "args": [
+          "index",
+          {
+            "record_id": 1,
+            "class_name": "Nope"
+          }
+        ],
+        "error": {
+          "class": "NameError",
+          "message": "uninitialized constant Nope"
+        },
+        "result": null,
+        "statements": [],
+        "es": [],
+        "es_responses": [],
+        "features": [],
+        "ignore_404": [],
+        "slept": [],
+        "redis": {}
+      },
+      {
+        "name": "missing id",
+        "args": [
+          "delete",
+          {
+            "class_name": "Purchase"
+          }
+        ],
+        "error": {
+          "class": "KeyError",
+          "message": "key not found: \"id\""
+        },
+        "result": null,
+        "statements": [],
+        "es": [],
+        "es_responses": [],
+        "features": [],
+        "ignore_404": [],
+        "slept": [],
+        "redis": {}
+      },
+      {
+        "name": "missing purchase keeps its retries",
+        "args": [
+          "update",
+          {
+            "record_id": 77,
+            "class_name": "Purchase",
+            "fields": [
+              "email"
+            ]
+          }
+        ],
+        "error": {
+          "class": "ActiveRecord::RecordNotFound",
+          "message": "Couldn't find Purchase with 'id'=77"
+        },
+        "result": null,
+        "statements": [
+          {
+            "sql": "SELECT `purchases`.* FROM `purchases` WHERE `purchases`.`id` = 77 LIMIT 1",
+            "result": {
+              "fields": [],
+              "rows": []
+            }
+          }
+        ],
+        "es": [],
+        "es_responses": [],
+        "features": [],
+        "ignore_404": [],
+        "slept": [],
+        "redis": {}
+      },
+      {
+        "name": "deleted audience member is done",
+        "args": [
+          "index",
+          {
+            "record_id": 91,
+            "class_name": "AudienceMember"
+          }
+        ],
+        "error": null,
+        "result": null,
+        "statements": [
+          {
+            "sql": "SELECT `audience_members`.* FROM `audience_members` WHERE `audience_members`.`id` = 91 LIMIT 1",
+            "result": {
+              "fields": [],
+              "rows": []
+            }
+          },
+          {
+            "sql": "SELECT 1 AS one FROM `audience_members` WHERE `audience_members`.`id` = 91 LIMIT 1",
+            "result": {
+              "fields": [],
+              "rows": []
+            }
+          }
+        ],
+        "es": [],
+        "es_responses": [],
+        "features": [],
+        "ignore_404": [],
+        "slept": [],
+        "redis": {}
+      },
+      {
+        "name": "audience member on a lagging replica retries",
+        "args": [
+          "update",
+          {
+            "record_id": 91,
+            "class_name": "AudienceMember",
+            "fields": [
+              "email"
+            ]
+          }
+        ],
+        "error": {
+          "class": "ActiveRecord::RecordNotFound",
+          "message": "Couldn't find AudienceMember with 'id'=91"
+        },
+        "result": null,
+        "statements": [
+          {
+            "sql": "SELECT `audience_members`.* FROM `audience_members` WHERE `audience_members`.`id` = 91 LIMIT 1",
+            "result": {
+              "fields": [],
+              "rows": []
+            }
+          },
+          {
+            "sql": "SELECT 1 AS one FROM `audience_members` WHERE `audience_members`.`id` = 91 LIMIT 1",
+            "result": {
+              "fields": [
+                "one"
+              ],
+              "rows": [
+                [
+                  1
+                ]
+              ]
+            }
+          }
+        ],
+        "es": [],
+        "es_responses": [],
+        "features": [],
+        "ignore_404": [],
+        "slept": [],
+        "redis": {}
+      },
+      {
+        "name": "update_by_query waits when delayed",
+        "args": [
+          "update_by_query",
+          {
+            "source_record_id": 1,
+            "query": {
+              "bool": {
+                "filter": [
+                  {
+                    "term": {
+                      "seller_id": 4
+                    }
+                  },
+                  {
+                    "term": {
+                      "email.raw": "<b>@example.com"
+                    }
+                  }
+                ],
+                "must_not": [
+                  {
+                    "term": {
+                      "id": 1
+                    }
+                  }
+                ]
+              }
+            },
+            "class_name": "Purchase",
+            "fields": [
+              "product_ids_from_same_seller_purchased_by_purchaser",
+              "variant_ids_from_same_seller_purchased_by_purchaser"
+            ]
+          }
+        ],
+        "error": null,
+        "result": null,
+        "statements": [],
+        "es": [],
+        "es_responses": [],
+        "features": [
+          "esiw_delay_ubqs"
+        ],
+        "ignore_404": [],
+        "slept": [],
+        "redis": {
+          "schedule": {
+            "type": "zset",
+            "value": [
+              [
+                "{\"retry\":10,\"queue\":\"default\",\"backtrace\":true,\"class\":\"ElasticsearchIndexerWorker\",\"args\":[\"update_by_query\",{\"source_record_id\":1,\"query\":{\"bool\":{\"filter\":[{\"term\":{\"seller_id\":4}},{\"term\":{\"email.raw\":\"<b>@example.com\"}}],\"must_not\":[{\"term\":{\"id\":1}}]}},\"class_name\":\"Purchase\",\"fields\":[\"product_ids_from_same_seller_purchased_by_purchaser\",\"variant_ids_from_same_seller_purchased_by_purchaser\"]}],\"jid\":\"000000000000000000000001\",\"created_at\":1761955200.1230001}",
+                1761978034.1230001
+              ]
+            ],
+            "expires": false
+          }
+        }
+      },
+      {
+        "name": "update_by_query",
+        "args": [
+          "update_by_query",
+          {
+            "source_record_id": 1,
+            "query": {
+              "bool": {
+                "filter": [
+                  {
+                    "term": {
+                      "seller_id": 4
+                    }
+                  },
+                  {
+                    "term": {
+                      "email.raw": "<b>@example.com"
+                    }
+                  }
+                ],
+                "must_not": [
+                  {
+                    "term": {
+                      "id": 1
+                    }
+                  }
+                ]
+              }
+            },
+            "class_name": "Purchase",
+            "fields": [
+              "product_ids_from_same_seller_purchased_by_purchaser",
+              "variant_ids_from_same_seller_purchased_by_purchaser"
+            ]
+          }
+        ],
+        "error": null,
+        "result": null,
+        "statements": [
+          {
+            "sql": "SELECT `purchases`.* FROM `purchases` WHERE `purchases`.`id` = 1 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "seller_id",
+                "created_at",
+                "updated_at",
+                "fee_cents",
+                "link_id",
+                "email",
+                "price_cents",
+                "displayed_price_cents",
+                "displayed_price_currency_type",
+                "rate_converted_to_usd",
+                "street_address",
+                "city",
+                "state",
+                "zip_code",
+                "country",
+                "full_name",
+                "credit_card_id",
+                "purchaser_id",
+                "purchaser_type",
+                "session_id",
+                "ip_address",
+                "is_mobile",
+                "stripe_refunded",
+                "stripe_transaction_id",
+                "stripe_fingerprint",
+                "stripe_card_id",
+                "can_contact",
+                "referrer",
+                "stripe_status",
+                "variants",
+                "chargeback_date",
+                "webhook_failed",
+                "failed",
+                "card_type",
+                "card_visual",
+                "purchase_state",
+                "processor_fee_cents",
+                "succeeded_at",
+                "card_country",
+                "stripe_error_code",
+                "browser_guid",
+                "error_code",
+                "card_bin",
+                "custom_fields",
+                "ip_country",
+                "ip_state",
+                "purchase_success_balance_id",
+                "purchase_chargeback_balance_id",
+                "purchase_refund_balance_id",
+                "flags",
+                "offer_code_id",
+                "subscription_id",
+                "preorder_id",
+                "card_expiry_month",
+                "card_expiry_year",
+                "tax_cents",
+                "affiliate_credit_cents",
+                "credit_card_zipcode",
+                "json_data",
+                "card_data_handling_mode",
+                "charge_processor_id",
+                "total_transaction_cents",
+                "gumroad_tax_cents",
+                "zip_tax_rate_id",
+                "quantity",
+                "merchant_account_id",
+                "shipping_cents",
+                "affiliate_id",
+                "processor_fee_cents_currency",
+                "stripe_partially_refunded",
+                "paypal_order_id",
+                "rental_expired",
+                "processor_payment_intent_id",
+                "processor_setup_intent_id",
+                "price_id",
+                "recommended_by",
+                "deleted_at"
+              ],
+              "rows": [
+                [
+                  1,
+                  4,
+                  {
+                    "$time": "2025-01-02T03:04:05.000678Z"
+                  },
+                  null,
+                  120,
+                  3,
+                  "Buyer@Example.COM",
+                  1000,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  "",
+                  "Buyer Name",
+                  null,
+                  5,
+                  null,
+                  null,
+                  null,
+                  null,
+                  false,
+                  null,
+                  null,
+                  null,
+                  true,
+                  "https://www.Google.com/search?q=%E2%9C%93",
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  "paypal",
+                  "PP@Example.com",
+                  "successful",
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  "United States",
+                  "CA",
+                  null,
+                  null,
+                  null,
+                  0,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  0,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 4 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "email",
+                "encrypted_password",
+                "reset_password_token",
+                "reset_password_sent_at",
+                "remember_created_at",
+                "sign_in_count",
+                "current_sign_in_at",
+                "last_sign_in_at",
+                "current_sign_in_ip",
+                "last_sign_in_ip",
+                "created_at",
+                "updated_at",
+                "name",
+                "payment_address",
+                "confirmed_at",
+                "confirmation_token",
+                "confirmation_sent_at",
+                "unconfirmed_email",
+                "provider",
+                "twitter_user_id",
+                "facebook_uid",
+                "deleted_at",
+                "payment_notification",
+                "currency_type",
+                "bio",
+                "username",
+                "credit_card_id",
+                "profile_picture_url",
+                "country",
+                "state",
+                "city",
+                "zip_code",
+                "street_address",
+                "facebook_access_token",
+                "verified",
+                "manage_pages",
+                "banned_at",
+                "weekly_notification",
+                "external_id",
+                "account_created_ip",
+                "twitter_oauth_token",
+                "twitter_oauth_secret",
+                "notification_endpoint",
+                "locale",
+                "flags",
+                "google_analytics_id",
+                "timezone",
+                "user_risk_state",
+                "tos_violation_reason",
+                "kindle_email",
+                "json_data",
+                "support_email",
+                "google_analytics_domains",
+                "recommendation_type",
+                "facebook_pixel_id",
+                "split_payment_by_cents",
+                "last_active_sessions_invalidated_at",
+                "otp_secret_key",
+                "facebook_meta_tag",
+                "tier_state",
+                "orientation_priority_tag",
+                "notification_content_type",
+                "google_uid",
+                "purchasing_power_parity_limit",
+                "twitter_handle"
+              ],
+              "rows": [
+                [
+                  4,
+                  "s@example.com",
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  "Seller",
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT distinct link_id FROM `purchases` WHERE `purchases`.`seller_id` = 4 AND `purchases`.`email` = 'Buyer@Example.COM'",
+            "result": {
+              "fields": [
+                "link_id"
+              ],
+              "rows": [
+                [
+                  3
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "select distinct base_variant_id from base_variants_purchases\nwhere purchase_id IN (SELECT `purchases`.`id` FROM `purchases` WHERE `purchases`.`seller_id` = 4 AND `purchases`.`email` = 'Buyer@Example.COM')\n",
+            "result": {
+              "fields": [
+                "base_variant_id"
+              ],
+              "rows": [
+                [
+                  21
+                ]
+              ]
+            }
+          }
+        ],
+        "es": [
+          {
+            "method": "POST",
+            "path": "/purchases/_update_by_query",
+            "query": null,
+            "body": "{\"script\":{\"source\":\"for (item in params.new_values) { ctx._source[item.key] = item.value; }\",\"params\":{\"new_values\":[{\"key\":\"product_ids_from_same_seller_purchased_by_purchaser\",\"value\":[3]},{\"key\":\"variant_ids_from_same_seller_purchased_by_purchaser\",\"value\":[21]}]}},\"query\":{\"bool\":{\"filter\":[{\"term\":{\"seller_id\":4}},{\"term\":{\"email.raw\":\"\\u003cb\\u003e@example.com\"}}],\"must_not\":[{\"term\":{\"id\":1}}]}}}"
+          }
+        ],
+        "es_responses": [
+          [
+            200,
+            {
+              "updated": 2
+            }
+          ]
+        ],
+        "features": [],
+        "ignore_404": [],
+        "slept": [],
+        "redis": {}
+      },
+      {
+        "name": "update_by_query scrolls after a conflict",
+        "args": [
+          "update_by_query",
+          {
+            "source_record_id": 1,
+            "query": {
+              "bool": {
+                "filter": [
+                  {
+                    "term": {
+                      "seller_id": 4
+                    }
+                  },
+                  {
+                    "term": {
+                      "email.raw": "<b>@example.com"
+                    }
+                  }
+                ],
+                "must_not": [
+                  {
+                    "term": {
+                      "id": 1
+                    }
+                  }
+                ]
+              }
+            },
+            "class_name": "Purchase",
+            "fields": [
+              "taxonomy_id"
+            ]
+          }
+        ],
+        "error": null,
+        "result": {},
+        "statements": [
+          {
+            "sql": "SELECT `purchases`.* FROM `purchases` WHERE `purchases`.`id` = 1 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "seller_id",
+                "created_at",
+                "updated_at",
+                "fee_cents",
+                "link_id",
+                "email",
+                "price_cents",
+                "displayed_price_cents",
+                "displayed_price_currency_type",
+                "rate_converted_to_usd",
+                "street_address",
+                "city",
+                "state",
+                "zip_code",
+                "country",
+                "full_name",
+                "credit_card_id",
+                "purchaser_id",
+                "purchaser_type",
+                "session_id",
+                "ip_address",
+                "is_mobile",
+                "stripe_refunded",
+                "stripe_transaction_id",
+                "stripe_fingerprint",
+                "stripe_card_id",
+                "can_contact",
+                "referrer",
+                "stripe_status",
+                "variants",
+                "chargeback_date",
+                "webhook_failed",
+                "failed",
+                "card_type",
+                "card_visual",
+                "purchase_state",
+                "processor_fee_cents",
+                "succeeded_at",
+                "card_country",
+                "stripe_error_code",
+                "browser_guid",
+                "error_code",
+                "card_bin",
+                "custom_fields",
+                "ip_country",
+                "ip_state",
+                "purchase_success_balance_id",
+                "purchase_chargeback_balance_id",
+                "purchase_refund_balance_id",
+                "flags",
+                "offer_code_id",
+                "subscription_id",
+                "preorder_id",
+                "card_expiry_month",
+                "card_expiry_year",
+                "tax_cents",
+                "affiliate_credit_cents",
+                "credit_card_zipcode",
+                "json_data",
+                "card_data_handling_mode",
+                "charge_processor_id",
+                "total_transaction_cents",
+                "gumroad_tax_cents",
+                "zip_tax_rate_id",
+                "quantity",
+                "merchant_account_id",
+                "shipping_cents",
+                "affiliate_id",
+                "processor_fee_cents_currency",
+                "stripe_partially_refunded",
+                "paypal_order_id",
+                "rental_expired",
+                "processor_payment_intent_id",
+                "processor_setup_intent_id",
+                "price_id",
+                "recommended_by",
+                "deleted_at"
+              ],
+              "rows": [
+                [
+                  1,
+                  4,
+                  {
+                    "$time": "2025-01-02T03:04:05.000678Z"
+                  },
+                  null,
+                  120,
+                  3,
+                  "Buyer@Example.COM",
+                  1000,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  "",
+                  "Buyer Name",
+                  null,
+                  5,
+                  null,
+                  null,
+                  null,
+                  null,
+                  false,
+                  null,
+                  null,
+                  null,
+                  true,
+                  "https://www.Google.com/search?q=%E2%9C%93",
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  "paypal",
+                  "PP@Example.com",
+                  "successful",
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  "United States",
+                  "CA",
+                  null,
+                  null,
+                  null,
+                  0,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  0,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 3 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "name",
+                "unique_permalink",
+                "preview_url",
+                "description",
+                "purchase_type",
+                "created_at",
+                "updated_at",
+                "purchase_disabled_at",
+                "deleted_at",
+                "price_cents",
+                "price_currency_type",
+                "customizable_price",
+                "max_purchase_count",
+                "bad_card_counter",
+                "require_shipping",
+                "last_partner_sync",
+                "preview_oembed",
+                "showcaseable",
+                "custom_receipt",
+                "custom_filetype",
+                "filetype",
+                "filegroup",
+                "size",
+                "bitrate",
+                "framerate",
+                "pagelength",
+                "duration",
+                "width",
+                "height",
+                "custom_permalink",
+                "common_color",
+                "suggested_price_cents",
+                "banned_at",
+                "risk_score",
+                "risk_score_updated_at",
+                "draft",
+                "flags",
+                "subscription_duration",
+                "json_data",
+                "external_mapping_id",
+                "affiliate_application_id",
+                "rental_price_cents",
+                "duration_in_months",
+                "migrated_to_tiered_pricing_at",
+                "free_trial_duration_unit",
+                "free_trial_duration_amount",
+                "content_updated_at",
+                "taxonomy_id",
+                "native_type",
+                "discover_fee_per_thousand",
+                "support_email",
+                "default_offer_code_id",
+                "sales_count_for_inventory_cache",
+                "first_published_at"
+              ],
+              "rows": [
+                [
+                  3,
+                  4,
+                  "Prod <b>&",
+                  "abc",
+                  null,
+                  "<h2>What you get</h2><p>Fish &amp; Chips<br>daily</p><!-- hidden --><ul><li>one</li><li>two</li></ul>",
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  12,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null
+                ]
+              ]
+            }
+          }
+        ],
+        "es": [
+          {
+            "method": "POST",
+            "path": "/purchases/_update_by_query",
+            "query": null,
+            "body": "{\"script\":{\"source\":\"for (item in params.new_values) { ctx._source[item.key] = item.value; }\",\"params\":{\"new_values\":[{\"key\":\"taxonomy_id\",\"value\":12}]}},\"query\":{\"bool\":{\"filter\":[{\"term\":{\"seller_id\":4}},{\"term\":{\"email.raw\":\"\\u003cb\\u003e@example.com\"}}],\"must_not\":[{\"term\":{\"id\":1}}]}}}"
+          },
+          {
+            "method": "POST",
+            "path": "/purchases/_search",
+            "query": "_source=false&scroll=1m&size=100&sort=_doc",
+            "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"seller_id\":4}},{\"term\":{\"email.raw\":\"\\u003cb\\u003e@example.com\"}}],\"must_not\":[{\"term\":{\"id\":1}}]}}}"
+          },
+          {
+            "method": "POST",
+            "path": "/purchases/_update_by_query",
+            "query": null,
+            "body": "{\"script\":{\"source\":\"for (item in params.new_values) { ctx._source[item.key] = item.value; }\",\"params\":{\"new_values\":[{\"key\":\"taxonomy_id\",\"value\":12}]}},\"query\":{\"terms\":{\"_id\":[\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\",\"8\",\"9\",\"10\",\"11\",\"12\",\"13\",\"14\",\"15\",\"16\",\"17\",\"18\",\"19\",\"20\",\"21\",\"22\",\"23\",\"24\",\"25\",\"26\",\"27\",\"28\",\"29\",\"30\",\"31\",\"32\",\"33\",\"34\",\"35\",\"36\",\"37\",\"38\",\"39\",\"40\",\"41\",\"42\",\"43\",\"44\",\"45\",\"46\",\"47\",\"48\",\"49\",\"50\",\"51\",\"52\",\"53\",\"54\",\"55\",\"56\",\"57\",\"58\",\"59\",\"60\",\"61\",\"62\",\"63\",\"64\",\"65\",\"66\",\"67\",\"68\",\"69\",\"70\",\"71\",\"72\",\"73\",\"74\",\"75\",\"76\",\"77\",\"78\",\"79\",\"80\",\"81\",\"82\",\"83\",\"84\",\"85\",\"86\",\"87\",\"88\",\"89\",\"90\",\"91\",\"92\",\"93\",\"94\",\"95\",\"96\",\"97\",\"98\",\"99\",\"100\"]}}}"
+          },
+          {
+            "method": "POST",
+            "path": "/purchases/_update_by_query",
+            "query": null,
+            "body": "{\"script\":{\"source\":\"for (item in params.new_values) { ctx._source[item.key] = item.value; }\",\"params\":{\"new_values\":[{\"key\":\"taxonomy_id\",\"value\":12}]}},\"query\":{\"terms\":{\"_id\":[\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\",\"8\",\"9\",\"10\",\"11\",\"12\",\"13\",\"14\",\"15\",\"16\",\"17\",\"18\",\"19\",\"20\",\"21\",\"22\",\"23\",\"24\",\"25\",\"26\",\"27\",\"28\",\"29\",\"30\",\"31\",\"32\",\"33\",\"34\",\"35\",\"36\",\"37\",\"38\",\"39\",\"40\",\"41\",\"42\",\"43\",\"44\",\"45\",\"46\",\"47\",\"48\",\"49\",\"50\",\"51\",\"52\",\"53\",\"54\",\"55\",\"56\",\"57\",\"58\",\"59\",\"60\",\"61\",\"62\",\"63\",\"64\",\"65\",\"66\",\"67\",\"68\",\"69\",\"70\",\"71\",\"72\",\"73\",\"74\",\"75\",\"76\",\"77\",\"78\",\"79\",\"80\",\"81\",\"82\",\"83\",\"84\",\"85\",\"86\",\"87\",\"88\",\"89\",\"90\",\"91\",\"92\",\"93\",\"94\",\"95\",\"96\",\"97\",\"98\",\"99\",\"100\"]}}}"
+          },
+          {
+            "method": "POST",
+            "path": "/_search/scroll",
+            "query": "scroll=1m",
+            "body": "{\"scroll_id\":\"c2Nyb2xsPT0=\"}"
+          },
+          {
+            "method": "POST",
+            "path": "/purchases/_update_by_query",
+            "query": null,
+            "body": "{\"script\":{\"source\":\"for (item in params.new_values) { ctx._source[item.key] = item.value; }\",\"params\":{\"new_values\":[{\"key\":\"taxonomy_id\",\"value\":12}]}},\"query\":{\"terms\":{\"_id\":[\"101\",\"102\"]}}}"
+          },
+          {
+            "method": "DELETE",
+            "path": "/_search/scroll/c2Vjb25k",
+            "query": null,
+            "body": null
+          }
+        ],
+        "es_responses": [
+          [
+            409,
+            {
+              "error": {
+                "type": "version_conflict_engine_exception"
+              },
+              "status": 409
+            }
+          ],
+          [
+            200,
+            {
+              "_scroll_id": "c2Nyb2xsPT0=",
+              "hits": {
+                "hits": [
+                  {
+                    "_id": "1"
+                  },
+                  {
+                    "_id": "2"
+                  },
+                  {
+                    "_id": "3"
+                  },
+                  {
+                    "_id": "4"
+                  },
+                  {
+                    "_id": "5"
+                  },
+                  {
+                    "_id": "6"
+                  },
+                  {
+                    "_id": "7"
+                  },
+                  {
+                    "_id": "8"
+                  },
+                  {
+                    "_id": "9"
+                  },
+                  {
+                    "_id": "10"
+                  },
+                  {
+                    "_id": "11"
+                  },
+                  {
+                    "_id": "12"
+                  },
+                  {
+                    "_id": "13"
+                  },
+                  {
+                    "_id": "14"
+                  },
+                  {
+                    "_id": "15"
+                  },
+                  {
+                    "_id": "16"
+                  },
+                  {
+                    "_id": "17"
+                  },
+                  {
+                    "_id": "18"
+                  },
+                  {
+                    "_id": "19"
+                  },
+                  {
+                    "_id": "20"
+                  },
+                  {
+                    "_id": "21"
+                  },
+                  {
+                    "_id": "22"
+                  },
+                  {
+                    "_id": "23"
+                  },
+                  {
+                    "_id": "24"
+                  },
+                  {
+                    "_id": "25"
+                  },
+                  {
+                    "_id": "26"
+                  },
+                  {
+                    "_id": "27"
+                  },
+                  {
+                    "_id": "28"
+                  },
+                  {
+                    "_id": "29"
+                  },
+                  {
+                    "_id": "30"
+                  },
+                  {
+                    "_id": "31"
+                  },
+                  {
+                    "_id": "32"
+                  },
+                  {
+                    "_id": "33"
+                  },
+                  {
+                    "_id": "34"
+                  },
+                  {
+                    "_id": "35"
+                  },
+                  {
+                    "_id": "36"
+                  },
+                  {
+                    "_id": "37"
+                  },
+                  {
+                    "_id": "38"
+                  },
+                  {
+                    "_id": "39"
+                  },
+                  {
+                    "_id": "40"
+                  },
+                  {
+                    "_id": "41"
+                  },
+                  {
+                    "_id": "42"
+                  },
+                  {
+                    "_id": "43"
+                  },
+                  {
+                    "_id": "44"
+                  },
+                  {
+                    "_id": "45"
+                  },
+                  {
+                    "_id": "46"
+                  },
+                  {
+                    "_id": "47"
+                  },
+                  {
+                    "_id": "48"
+                  },
+                  {
+                    "_id": "49"
+                  },
+                  {
+                    "_id": "50"
+                  },
+                  {
+                    "_id": "51"
+                  },
+                  {
+                    "_id": "52"
+                  },
+                  {
+                    "_id": "53"
+                  },
+                  {
+                    "_id": "54"
+                  },
+                  {
+                    "_id": "55"
+                  },
+                  {
+                    "_id": "56"
+                  },
+                  {
+                    "_id": "57"
+                  },
+                  {
+                    "_id": "58"
+                  },
+                  {
+                    "_id": "59"
+                  },
+                  {
+                    "_id": "60"
+                  },
+                  {
+                    "_id": "61"
+                  },
+                  {
+                    "_id": "62"
+                  },
+                  {
+                    "_id": "63"
+                  },
+                  {
+                    "_id": "64"
+                  },
+                  {
+                    "_id": "65"
+                  },
+                  {
+                    "_id": "66"
+                  },
+                  {
+                    "_id": "67"
+                  },
+                  {
+                    "_id": "68"
+                  },
+                  {
+                    "_id": "69"
+                  },
+                  {
+                    "_id": "70"
+                  },
+                  {
+                    "_id": "71"
+                  },
+                  {
+                    "_id": "72"
+                  },
+                  {
+                    "_id": "73"
+                  },
+                  {
+                    "_id": "74"
+                  },
+                  {
+                    "_id": "75"
+                  },
+                  {
+                    "_id": "76"
+                  },
+                  {
+                    "_id": "77"
+                  },
+                  {
+                    "_id": "78"
+                  },
+                  {
+                    "_id": "79"
+                  },
+                  {
+                    "_id": "80"
+                  },
+                  {
+                    "_id": "81"
+                  },
+                  {
+                    "_id": "82"
+                  },
+                  {
+                    "_id": "83"
+                  },
+                  {
+                    "_id": "84"
+                  },
+                  {
+                    "_id": "85"
+                  },
+                  {
+                    "_id": "86"
+                  },
+                  {
+                    "_id": "87"
+                  },
+                  {
+                    "_id": "88"
+                  },
+                  {
+                    "_id": "89"
+                  },
+                  {
+                    "_id": "90"
+                  },
+                  {
+                    "_id": "91"
+                  },
+                  {
+                    "_id": "92"
+                  },
+                  {
+                    "_id": "93"
+                  },
+                  {
+                    "_id": "94"
+                  },
+                  {
+                    "_id": "95"
+                  },
+                  {
+                    "_id": "96"
+                  },
+                  {
+                    "_id": "97"
+                  },
+                  {
+                    "_id": "98"
+                  },
+                  {
+                    "_id": "99"
+                  },
+                  {
+                    "_id": "100"
+                  }
+                ]
+              }
+            }
+          ],
+          [
+            409,
+            {
+              "error": {
+                "type": "version_conflict_engine_exception"
+              },
+              "status": 409
+            }
+          ],
+          [
+            200,
+            {}
+          ],
+          [
+            200,
+            {
+              "_scroll_id": "c2Vjb25k",
+              "hits": {
+                "hits": [
+                  {
+                    "_id": "101"
+                  },
+                  {
+                    "_id": "102"
+                  }
+                ]
+              }
+            }
+          ],
+          [
+            200,
+            {}
+          ],
+          [
+            200,
+            {}
+          ]
+        ],
+        "features": [],
+        "ignore_404": [],
+        "slept": [
+          1
+        ],
+        "redis": {}
+      },
+      {
+        "name": "update_by_query with nothing to scroll",
+        "args": [
+          "update_by_query",
+          {
+            "source_record_id": 1,
+            "query": {
+              "bool": {
+                "filter": [
+                  {
+                    "term": {
+                      "seller_id": 4
+                    }
+                  },
+                  {
+                    "term": {
+                      "email.raw": "<b>@example.com"
+                    }
+                  }
+                ],
+                "must_not": [
+                  {
+                    "term": {
+                      "id": 1
+                    }
+                  }
+                ]
+              }
+            },
+            "class_name": "Purchase",
+            "fields": [
+              "taxonomy_id"
+            ]
+          }
+        ],
+        "error": null,
+        "result": {},
+        "statements": [
+          {
+            "sql": "SELECT `purchases`.* FROM `purchases` WHERE `purchases`.`id` = 1 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "seller_id",
+                "created_at",
+                "updated_at",
+                "fee_cents",
+                "link_id",
+                "email",
+                "price_cents",
+                "displayed_price_cents",
+                "displayed_price_currency_type",
+                "rate_converted_to_usd",
+                "street_address",
+                "city",
+                "state",
+                "zip_code",
+                "country",
+                "full_name",
+                "credit_card_id",
+                "purchaser_id",
+                "purchaser_type",
+                "session_id",
+                "ip_address",
+                "is_mobile",
+                "stripe_refunded",
+                "stripe_transaction_id",
+                "stripe_fingerprint",
+                "stripe_card_id",
+                "can_contact",
+                "referrer",
+                "stripe_status",
+                "variants",
+                "chargeback_date",
+                "webhook_failed",
+                "failed",
+                "card_type",
+                "card_visual",
+                "purchase_state",
+                "processor_fee_cents",
+                "succeeded_at",
+                "card_country",
+                "stripe_error_code",
+                "browser_guid",
+                "error_code",
+                "card_bin",
+                "custom_fields",
+                "ip_country",
+                "ip_state",
+                "purchase_success_balance_id",
+                "purchase_chargeback_balance_id",
+                "purchase_refund_balance_id",
+                "flags",
+                "offer_code_id",
+                "subscription_id",
+                "preorder_id",
+                "card_expiry_month",
+                "card_expiry_year",
+                "tax_cents",
+                "affiliate_credit_cents",
+                "credit_card_zipcode",
+                "json_data",
+                "card_data_handling_mode",
+                "charge_processor_id",
+                "total_transaction_cents",
+                "gumroad_tax_cents",
+                "zip_tax_rate_id",
+                "quantity",
+                "merchant_account_id",
+                "shipping_cents",
+                "affiliate_id",
+                "processor_fee_cents_currency",
+                "stripe_partially_refunded",
+                "paypal_order_id",
+                "rental_expired",
+                "processor_payment_intent_id",
+                "processor_setup_intent_id",
+                "price_id",
+                "recommended_by",
+                "deleted_at"
+              ],
+              "rows": [
+                [
+                  1,
+                  4,
+                  {
+                    "$time": "2025-01-02T03:04:05.000678Z"
+                  },
+                  null,
+                  120,
+                  3,
+                  "Buyer@Example.COM",
+                  1000,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  "",
+                  "Buyer Name",
+                  null,
+                  5,
+                  null,
+                  null,
+                  null,
+                  null,
+                  false,
+                  null,
+                  null,
+                  null,
+                  true,
+                  "https://www.Google.com/search?q=%E2%9C%93",
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  "paypal",
+                  "PP@Example.com",
+                  "successful",
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  "United States",
+                  "CA",
+                  null,
+                  null,
+                  null,
+                  0,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  0,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 3 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "name",
+                "unique_permalink",
+                "preview_url",
+                "description",
+                "purchase_type",
+                "created_at",
+                "updated_at",
+                "purchase_disabled_at",
+                "deleted_at",
+                "price_cents",
+                "price_currency_type",
+                "customizable_price",
+                "max_purchase_count",
+                "bad_card_counter",
+                "require_shipping",
+                "last_partner_sync",
+                "preview_oembed",
+                "showcaseable",
+                "custom_receipt",
+                "custom_filetype",
+                "filetype",
+                "filegroup",
+                "size",
+                "bitrate",
+                "framerate",
+                "pagelength",
+                "duration",
+                "width",
+                "height",
+                "custom_permalink",
+                "common_color",
+                "suggested_price_cents",
+                "banned_at",
+                "risk_score",
+                "risk_score_updated_at",
+                "draft",
+                "flags",
+                "subscription_duration",
+                "json_data",
+                "external_mapping_id",
+                "affiliate_application_id",
+                "rental_price_cents",
+                "duration_in_months",
+                "migrated_to_tiered_pricing_at",
+                "free_trial_duration_unit",
+                "free_trial_duration_amount",
+                "content_updated_at",
+                "taxonomy_id",
+                "native_type",
+                "discover_fee_per_thousand",
+                "support_email",
+                "default_offer_code_id",
+                "sales_count_for_inventory_cache",
+                "first_published_at"
+              ],
+              "rows": [
+                [
+                  3,
+                  4,
+                  "Prod <b>&",
+                  "abc",
+                  null,
+                  "<h2>What you get</h2><p>Fish &amp; Chips<br>daily</p><!-- hidden --><ul><li>one</li><li>two</li></ul>",
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  12,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null
+                ]
+              ]
+            }
+          }
+        ],
+        "es": [
+          {
+            "method": "POST",
+            "path": "/purchases/_update_by_query",
+            "query": null,
+            "body": "{\"script\":{\"source\":\"for (item in params.new_values) { ctx._source[item.key] = item.value; }\",\"params\":{\"new_values\":[{\"key\":\"taxonomy_id\",\"value\":12}]}},\"query\":{\"bool\":{\"filter\":[{\"term\":{\"seller_id\":4}},{\"term\":{\"email.raw\":\"\\u003cb\\u003e@example.com\"}}],\"must_not\":[{\"term\":{\"id\":1}}]}}}"
+          },
+          {
+            "method": "POST",
+            "path": "/purchases/_search",
+            "query": "_source=false&scroll=1m&size=100&sort=_doc",
+            "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"seller_id\":4}},{\"term\":{\"email.raw\":\"\\u003cb\\u003e@example.com\"}}],\"must_not\":[{\"term\":{\"id\":1}}]}}}"
+          },
+          {
+            "method": "DELETE",
+            "path": "/_search/scroll/c2Nyb2xsPT0%3D",
+            "query": null,
+            "body": null
+          }
+        ],
+        "es_responses": [
+          [
+            409,
+            {
+              "error": {
+                "type": "version_conflict_engine_exception"
+              },
+              "status": 409
+            }
+          ],
+          [
+            200,
+            {
+              "_scroll_id": "c2Nyb2xsPT0=",
+              "hits": {
+                "hits": []
+              }
+            }
+          ],
+          [
+            200,
+            {}
+          ]
+        ],
+        "features": [],
+        "ignore_404": [],
+        "slept": [],
+        "redis": {}
+      },
+      {
+        "name": "update_by_query gives up after ten conflicts",
+        "args": [
+          "update_by_query",
+          {
+            "source_record_id": 1,
+            "query": {
+              "bool": {
+                "filter": [
+                  {
+                    "term": {
+                      "seller_id": 4
+                    }
+                  },
+                  {
+                    "term": {
+                      "email.raw": "<b>@example.com"
+                    }
+                  }
+                ],
+                "must_not": [
+                  {
+                    "term": {
+                      "id": 1
+                    }
+                  }
+                ]
+              }
+            },
+            "class_name": "Purchase",
+            "fields": [
+              "taxonomy_id"
+            ]
+          }
+        ],
+        "error": {
+          "class": "Elasticsearch::Transport::Transport::Errors::Conflict",
+          "message": "[409] {\"error\":{\"type\":\"version_conflict_engine_exception\"},\"status\":409}"
+        },
+        "result": null,
+        "statements": [
+          {
+            "sql": "SELECT `purchases`.* FROM `purchases` WHERE `purchases`.`id` = 1 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "seller_id",
+                "created_at",
+                "updated_at",
+                "fee_cents",
+                "link_id",
+                "email",
+                "price_cents",
+                "displayed_price_cents",
+                "displayed_price_currency_type",
+                "rate_converted_to_usd",
+                "street_address",
+                "city",
+                "state",
+                "zip_code",
+                "country",
+                "full_name",
+                "credit_card_id",
+                "purchaser_id",
+                "purchaser_type",
+                "session_id",
+                "ip_address",
+                "is_mobile",
+                "stripe_refunded",
+                "stripe_transaction_id",
+                "stripe_fingerprint",
+                "stripe_card_id",
+                "can_contact",
+                "referrer",
+                "stripe_status",
+                "variants",
+                "chargeback_date",
+                "webhook_failed",
+                "failed",
+                "card_type",
+                "card_visual",
+                "purchase_state",
+                "processor_fee_cents",
+                "succeeded_at",
+                "card_country",
+                "stripe_error_code",
+                "browser_guid",
+                "error_code",
+                "card_bin",
+                "custom_fields",
+                "ip_country",
+                "ip_state",
+                "purchase_success_balance_id",
+                "purchase_chargeback_balance_id",
+                "purchase_refund_balance_id",
+                "flags",
+                "offer_code_id",
+                "subscription_id",
+                "preorder_id",
+                "card_expiry_month",
+                "card_expiry_year",
+                "tax_cents",
+                "affiliate_credit_cents",
+                "credit_card_zipcode",
+                "json_data",
+                "card_data_handling_mode",
+                "charge_processor_id",
+                "total_transaction_cents",
+                "gumroad_tax_cents",
+                "zip_tax_rate_id",
+                "quantity",
+                "merchant_account_id",
+                "shipping_cents",
+                "affiliate_id",
+                "processor_fee_cents_currency",
+                "stripe_partially_refunded",
+                "paypal_order_id",
+                "rental_expired",
+                "processor_payment_intent_id",
+                "processor_setup_intent_id",
+                "price_id",
+                "recommended_by",
+                "deleted_at"
+              ],
+              "rows": [
+                [
+                  1,
+                  4,
+                  {
+                    "$time": "2025-01-02T03:04:05.000678Z"
+                  },
+                  null,
+                  120,
+                  3,
+                  "Buyer@Example.COM",
+                  1000,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  "",
+                  "Buyer Name",
+                  null,
+                  5,
+                  null,
+                  null,
+                  null,
+                  null,
+                  false,
+                  null,
+                  null,
+                  null,
+                  true,
+                  "https://www.Google.com/search?q=%E2%9C%93",
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  "paypal",
+                  "PP@Example.com",
+                  "successful",
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  "United States",
+                  "CA",
+                  null,
+                  null,
+                  null,
+                  0,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  0,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 3 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "name",
+                "unique_permalink",
+                "preview_url",
+                "description",
+                "purchase_type",
+                "created_at",
+                "updated_at",
+                "purchase_disabled_at",
+                "deleted_at",
+                "price_cents",
+                "price_currency_type",
+                "customizable_price",
+                "max_purchase_count",
+                "bad_card_counter",
+                "require_shipping",
+                "last_partner_sync",
+                "preview_oembed",
+                "showcaseable",
+                "custom_receipt",
+                "custom_filetype",
+                "filetype",
+                "filegroup",
+                "size",
+                "bitrate",
+                "framerate",
+                "pagelength",
+                "duration",
+                "width",
+                "height",
+                "custom_permalink",
+                "common_color",
+                "suggested_price_cents",
+                "banned_at",
+                "risk_score",
+                "risk_score_updated_at",
+                "draft",
+                "flags",
+                "subscription_duration",
+                "json_data",
+                "external_mapping_id",
+                "affiliate_application_id",
+                "rental_price_cents",
+                "duration_in_months",
+                "migrated_to_tiered_pricing_at",
+                "free_trial_duration_unit",
+                "free_trial_duration_amount",
+                "content_updated_at",
+                "taxonomy_id",
+                "native_type",
+                "discover_fee_per_thousand",
+                "support_email",
+                "default_offer_code_id",
+                "sales_count_for_inventory_cache",
+                "first_published_at"
+              ],
+              "rows": [
+                [
+                  3,
+                  4,
+                  "Prod <b>&",
+                  "abc",
+                  null,
+                  "<h2>What you get</h2><p>Fish &amp; Chips<br>daily</p><!-- hidden --><ul><li>one</li><li>two</li></ul>",
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  12,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null
+                ]
+              ]
+            }
+          }
+        ],
+        "es": [
+          {
+            "method": "POST",
+            "path": "/purchases/_update_by_query",
+            "query": null,
+            "body": "{\"script\":{\"source\":\"for (item in params.new_values) { ctx._source[item.key] = item.value; }\",\"params\":{\"new_values\":[{\"key\":\"taxonomy_id\",\"value\":12}]}},\"query\":{\"bool\":{\"filter\":[{\"term\":{\"seller_id\":4}},{\"term\":{\"email.raw\":\"\\u003cb\\u003e@example.com\"}}],\"must_not\":[{\"term\":{\"id\":1}}]}}}"
+          },
+          {
+            "method": "POST",
+            "path": "/purchases/_search",
+            "query": "_source=false&scroll=1m&size=100&sort=_doc",
+            "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"seller_id\":4}},{\"term\":{\"email.raw\":\"\\u003cb\\u003e@example.com\"}}],\"must_not\":[{\"term\":{\"id\":1}}]}}}"
+          },
+          {
+            "method": "POST",
+            "path": "/purchases/_update_by_query",
+            "query": null,
+            "body": "{\"script\":{\"source\":\"for (item in params.new_values) { ctx._source[item.key] = item.value; }\",\"params\":{\"new_values\":[{\"key\":\"taxonomy_id\",\"value\":12}]}},\"query\":{\"terms\":{\"_id\":[\"5\"]}}}"
+          },
+          {
+            "method": "POST",
+            "path": "/purchases/_update_by_query",
+            "query": null,
+            "body": "{\"script\":{\"source\":\"for (item in params.new_values) { ctx._source[item.key] = item.value; }\",\"params\":{\"new_values\":[{\"key\":\"taxonomy_id\",\"value\":12}]}},\"query\":{\"terms\":{\"_id\":[\"5\"]}}}"
+          },
+          {
+            "method": "POST",
+            "path": "/purchases/_update_by_query",
+            "query": null,
+            "body": "{\"script\":{\"source\":\"for (item in params.new_values) { ctx._source[item.key] = item.value; }\",\"params\":{\"new_values\":[{\"key\":\"taxonomy_id\",\"value\":12}]}},\"query\":{\"terms\":{\"_id\":[\"5\"]}}}"
+          },
+          {
+            "method": "POST",
+            "path": "/purchases/_update_by_query",
+            "query": null,
+            "body": "{\"script\":{\"source\":\"for (item in params.new_values) { ctx._source[item.key] = item.value; }\",\"params\":{\"new_values\":[{\"key\":\"taxonomy_id\",\"value\":12}]}},\"query\":{\"terms\":{\"_id\":[\"5\"]}}}"
+          },
+          {
+            "method": "POST",
+            "path": "/purchases/_update_by_query",
+            "query": null,
+            "body": "{\"script\":{\"source\":\"for (item in params.new_values) { ctx._source[item.key] = item.value; }\",\"params\":{\"new_values\":[{\"key\":\"taxonomy_id\",\"value\":12}]}},\"query\":{\"terms\":{\"_id\":[\"5\"]}}}"
+          },
+          {
+            "method": "POST",
+            "path": "/purchases/_update_by_query",
+            "query": null,
+            "body": "{\"script\":{\"source\":\"for (item in params.new_values) { ctx._source[item.key] = item.value; }\",\"params\":{\"new_values\":[{\"key\":\"taxonomy_id\",\"value\":12}]}},\"query\":{\"terms\":{\"_id\":[\"5\"]}}}"
+          },
+          {
+            "method": "POST",
+            "path": "/purchases/_update_by_query",
+            "query": null,
+            "body": "{\"script\":{\"source\":\"for (item in params.new_values) { ctx._source[item.key] = item.value; }\",\"params\":{\"new_values\":[{\"key\":\"taxonomy_id\",\"value\":12}]}},\"query\":{\"terms\":{\"_id\":[\"5\"]}}}"
+          },
+          {
+            "method": "POST",
+            "path": "/purchases/_update_by_query",
+            "query": null,
+            "body": "{\"script\":{\"source\":\"for (item in params.new_values) { ctx._source[item.key] = item.value; }\",\"params\":{\"new_values\":[{\"key\":\"taxonomy_id\",\"value\":12}]}},\"query\":{\"terms\":{\"_id\":[\"5\"]}}}"
+          },
+          {
+            "method": "POST",
+            "path": "/purchases/_update_by_query",
+            "query": null,
+            "body": "{\"script\":{\"source\":\"for (item in params.new_values) { ctx._source[item.key] = item.value; }\",\"params\":{\"new_values\":[{\"key\":\"taxonomy_id\",\"value\":12}]}},\"query\":{\"terms\":{\"_id\":[\"5\"]}}}"
+          },
+          {
+            "method": "POST",
+            "path": "/purchases/_update_by_query",
+            "query": null,
+            "body": "{\"script\":{\"source\":\"for (item in params.new_values) { ctx._source[item.key] = item.value; }\",\"params\":{\"new_values\":[{\"key\":\"taxonomy_id\",\"value\":12}]}},\"query\":{\"terms\":{\"_id\":[\"5\"]}}}"
+          }
+        ],
+        "es_responses": [
+          [
+            409,
+            {
+              "error": {
+                "type": "version_conflict_engine_exception"
+              },
+              "status": 409
+            }
+          ],
+          [
+            200,
+            {
+              "_scroll_id": "c2Nyb2xsPT0=",
+              "hits": {
+                "hits": [
+                  {
+                    "_id": "5"
+                  }
+                ]
+              }
+            }
+          ],
+          [
+            409,
+            {
+              "error": {
+                "type": "version_conflict_engine_exception"
+              },
+              "status": 409
+            }
+          ],
+          [
+            409,
+            {
+              "error": {
+                "type": "version_conflict_engine_exception"
+              },
+              "status": 409
+            }
+          ],
+          [
+            409,
+            {
+              "error": {
+                "type": "version_conflict_engine_exception"
+              },
+              "status": 409
+            }
+          ],
+          [
+            409,
+            {
+              "error": {
+                "type": "version_conflict_engine_exception"
+              },
+              "status": 409
+            }
+          ],
+          [
+            409,
+            {
+              "error": {
+                "type": "version_conflict_engine_exception"
+              },
+              "status": 409
+            }
+          ],
+          [
+            409,
+            {
+              "error": {
+                "type": "version_conflict_engine_exception"
+              },
+              "status": 409
+            }
+          ],
+          [
+            409,
+            {
+              "error": {
+                "type": "version_conflict_engine_exception"
+              },
+              "status": 409
+            }
+          ],
+          [
+            409,
+            {
+              "error": {
+                "type": "version_conflict_engine_exception"
+              },
+              "status": 409
+            }
+          ],
+          [
+            409,
+            {
+              "error": {
+                "type": "version_conflict_engine_exception"
+              },
+              "status": 409
+            }
+          ],
+          [
+            409,
+            {
+              "error": {
+                "type": "version_conflict_engine_exception"
+              },
+              "status": 409
+            }
+          ]
+        ],
+        "features": [],
+        "ignore_404": [],
+        "slept": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "redis": {}
+      },
+      {
+        "name": "update_by_query refuses nested fields",
+        "args": [
+          "update_by_query",
+          {
+            "source_record_id": 1,
+            "query": {
+              "bool": {
+                "filter": [
+                  {
+                    "term": {
+                      "seller_id": 4
+                    }
+                  },
+                  {
+                    "term": {
+                      "email.raw": "<b>@example.com"
+                    }
+                  }
+                ],
+                "must_not": [
+                  {
+                    "term": {
+                      "id": 1
+                    }
+                  }
+                ]
+              }
+            },
+            "class_name": "Purchase",
+            "fields": [
+              "taxonomy_id",
+              "a.b"
+            ]
+          }
+        ],
+        "error": {
+          "class": "RuntimeError",
+          "message": "Updating nested fields ('a.b') by query is not supported"
+        },
+        "result": null,
+        "statements": [
+          {
+            "sql": "SELECT `purchases`.* FROM `purchases` WHERE `purchases`.`id` = 1 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "seller_id",
+                "created_at",
+                "updated_at",
+                "fee_cents",
+                "link_id",
+                "email",
+                "price_cents",
+                "displayed_price_cents",
+                "displayed_price_currency_type",
+                "rate_converted_to_usd",
+                "street_address",
+                "city",
+                "state",
+                "zip_code",
+                "country",
+                "full_name",
+                "credit_card_id",
+                "purchaser_id",
+                "purchaser_type",
+                "session_id",
+                "ip_address",
+                "is_mobile",
+                "stripe_refunded",
+                "stripe_transaction_id",
+                "stripe_fingerprint",
+                "stripe_card_id",
+                "can_contact",
+                "referrer",
+                "stripe_status",
+                "variants",
+                "chargeback_date",
+                "webhook_failed",
+                "failed",
+                "card_type",
+                "card_visual",
+                "purchase_state",
+                "processor_fee_cents",
+                "succeeded_at",
+                "card_country",
+                "stripe_error_code",
+                "browser_guid",
+                "error_code",
+                "card_bin",
+                "custom_fields",
+                "ip_country",
+                "ip_state",
+                "purchase_success_balance_id",
+                "purchase_chargeback_balance_id",
+                "purchase_refund_balance_id",
+                "flags",
+                "offer_code_id",
+                "subscription_id",
+                "preorder_id",
+                "card_expiry_month",
+                "card_expiry_year",
+                "tax_cents",
+                "affiliate_credit_cents",
+                "credit_card_zipcode",
+                "json_data",
+                "card_data_handling_mode",
+                "charge_processor_id",
+                "total_transaction_cents",
+                "gumroad_tax_cents",
+                "zip_tax_rate_id",
+                "quantity",
+                "merchant_account_id",
+                "shipping_cents",
+                "affiliate_id",
+                "processor_fee_cents_currency",
+                "stripe_partially_refunded",
+                "paypal_order_id",
+                "rental_expired",
+                "processor_payment_intent_id",
+                "processor_setup_intent_id",
+                "price_id",
+                "recommended_by",
+                "deleted_at"
+              ],
+              "rows": [
+                [
+                  1,
+                  4,
+                  {
+                    "$time": "2025-01-02T03:04:05.000678Z"
+                  },
+                  null,
+                  120,
+                  3,
+                  "Buyer@Example.COM",
+                  1000,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  "",
+                  "Buyer Name",
+                  null,
+                  5,
+                  null,
+                  null,
+                  null,
+                  null,
+                  false,
+                  null,
+                  null,
+                  null,
+                  true,
+                  "https://www.Google.com/search?q=%E2%9C%93",
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  "paypal",
+                  "PP@Example.com",
+                  "successful",
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  "United States",
+                  "CA",
+                  null,
+                  null,
+                  null,
+                  0,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  0,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 3 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "name",
+                "unique_permalink",
+                "preview_url",
+                "description",
+                "purchase_type",
+                "created_at",
+                "updated_at",
+                "purchase_disabled_at",
+                "deleted_at",
+                "price_cents",
+                "price_currency_type",
+                "customizable_price",
+                "max_purchase_count",
+                "bad_card_counter",
+                "require_shipping",
+                "last_partner_sync",
+                "preview_oembed",
+                "showcaseable",
+                "custom_receipt",
+                "custom_filetype",
+                "filetype",
+                "filegroup",
+                "size",
+                "bitrate",
+                "framerate",
+                "pagelength",
+                "duration",
+                "width",
+                "height",
+                "custom_permalink",
+                "common_color",
+                "suggested_price_cents",
+                "banned_at",
+                "risk_score",
+                "risk_score_updated_at",
+                "draft",
+                "flags",
+                "subscription_duration",
+                "json_data",
+                "external_mapping_id",
+                "affiliate_application_id",
+                "rental_price_cents",
+                "duration_in_months",
+                "migrated_to_tiered_pricing_at",
+                "free_trial_duration_unit",
+                "free_trial_duration_amount",
+                "content_updated_at",
+                "taxonomy_id",
+                "native_type",
+                "discover_fee_per_thousand",
+                "support_email",
+                "default_offer_code_id",
+                "sales_count_for_inventory_cache",
+                "first_published_at"
+              ],
+              "rows": [
+                [
+                  3,
+                  4,
+                  "Prod <b>&",
+                  "abc",
+                  null,
+                  "<h2>What you get</h2><p>Fish &amp; Chips<br>daily</p><!-- hidden --><ul><li>one</li><li>two</li></ul>",
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  12,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null
+                ]
+              ]
+            }
+          }
+        ],
+        "es": [],
+        "es_responses": [],
+        "features": [],
+        "ignore_404": [],
+        "slept": [],
+        "redis": {}
+      },
+      {
+        "name": "update_by_query raises other errors",
+        "args": [
+          "update_by_query",
+          {
+            "source_record_id": 1,
+            "query": {
+              "bool": {
+                "filter": [
+                  {
+                    "term": {
+                      "seller_id": 4
+                    }
+                  },
+                  {
+                    "term": {
+                      "email.raw": "<b>@example.com"
+                    }
+                  }
+                ],
+                "must_not": [
+                  {
+                    "term": {
+                      "id": 1
+                    }
+                  }
+                ]
+              }
+            },
+            "class_name": "Purchase",
+            "fields": [
+              "taxonomy_id"
+            ]
+          }
+        ],
+        "error": {
+          "class": "Elasticsearch::Transport::Transport::Errors::BadRequest",
+          "message": "[400] {\"error\":\"parsing_exception\"}"
+        },
+        "result": null,
+        "statements": [
+          {
+            "sql": "SELECT `purchases`.* FROM `purchases` WHERE `purchases`.`id` = 1 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "seller_id",
+                "created_at",
+                "updated_at",
+                "fee_cents",
+                "link_id",
+                "email",
+                "price_cents",
+                "displayed_price_cents",
+                "displayed_price_currency_type",
+                "rate_converted_to_usd",
+                "street_address",
+                "city",
+                "state",
+                "zip_code",
+                "country",
+                "full_name",
+                "credit_card_id",
+                "purchaser_id",
+                "purchaser_type",
+                "session_id",
+                "ip_address",
+                "is_mobile",
+                "stripe_refunded",
+                "stripe_transaction_id",
+                "stripe_fingerprint",
+                "stripe_card_id",
+                "can_contact",
+                "referrer",
+                "stripe_status",
+                "variants",
+                "chargeback_date",
+                "webhook_failed",
+                "failed",
+                "card_type",
+                "card_visual",
+                "purchase_state",
+                "processor_fee_cents",
+                "succeeded_at",
+                "card_country",
+                "stripe_error_code",
+                "browser_guid",
+                "error_code",
+                "card_bin",
+                "custom_fields",
+                "ip_country",
+                "ip_state",
+                "purchase_success_balance_id",
+                "purchase_chargeback_balance_id",
+                "purchase_refund_balance_id",
+                "flags",
+                "offer_code_id",
+                "subscription_id",
+                "preorder_id",
+                "card_expiry_month",
+                "card_expiry_year",
+                "tax_cents",
+                "affiliate_credit_cents",
+                "credit_card_zipcode",
+                "json_data",
+                "card_data_handling_mode",
+                "charge_processor_id",
+                "total_transaction_cents",
+                "gumroad_tax_cents",
+                "zip_tax_rate_id",
+                "quantity",
+                "merchant_account_id",
+                "shipping_cents",
+                "affiliate_id",
+                "processor_fee_cents_currency",
+                "stripe_partially_refunded",
+                "paypal_order_id",
+                "rental_expired",
+                "processor_payment_intent_id",
+                "processor_setup_intent_id",
+                "price_id",
+                "recommended_by",
+                "deleted_at"
+              ],
+              "rows": [
+                [
+                  1,
+                  4,
+                  {
+                    "$time": "2025-01-02T03:04:05.000678Z"
+                  },
+                  null,
+                  120,
+                  3,
+                  "Buyer@Example.COM",
+                  1000,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  "",
+                  "Buyer Name",
+                  null,
+                  5,
+                  null,
+                  null,
+                  null,
+                  null,
+                  false,
+                  null,
+                  null,
+                  null,
+                  true,
+                  "https://www.Google.com/search?q=%E2%9C%93",
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  "paypal",
+                  "PP@Example.com",
+                  "successful",
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  "United States",
+                  "CA",
+                  null,
+                  null,
+                  null,
+                  0,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  0,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 3 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "name",
+                "unique_permalink",
+                "preview_url",
+                "description",
+                "purchase_type",
+                "created_at",
+                "updated_at",
+                "purchase_disabled_at",
+                "deleted_at",
+                "price_cents",
+                "price_currency_type",
+                "customizable_price",
+                "max_purchase_count",
+                "bad_card_counter",
+                "require_shipping",
+                "last_partner_sync",
+                "preview_oembed",
+                "showcaseable",
+                "custom_receipt",
+                "custom_filetype",
+                "filetype",
+                "filegroup",
+                "size",
+                "bitrate",
+                "framerate",
+                "pagelength",
+                "duration",
+                "width",
+                "height",
+                "custom_permalink",
+                "common_color",
+                "suggested_price_cents",
+                "banned_at",
+                "risk_score",
+                "risk_score_updated_at",
+                "draft",
+                "flags",
+                "subscription_duration",
+                "json_data",
+                "external_mapping_id",
+                "affiliate_application_id",
+                "rental_price_cents",
+                "duration_in_months",
+                "migrated_to_tiered_pricing_at",
+                "free_trial_duration_unit",
+                "free_trial_duration_amount",
+                "content_updated_at",
+                "taxonomy_id",
+                "native_type",
+                "discover_fee_per_thousand",
+                "support_email",
+                "default_offer_code_id",
+                "sales_count_for_inventory_cache",
+                "first_published_at"
+              ],
+              "rows": [
+                [
+                  3,
+                  4,
+                  "Prod <b>&",
+                  "abc",
+                  null,
+                  "<h2>What you get</h2><p>Fish &amp; Chips<br>daily</p><!-- hidden --><ul><li>one</li><li>two</li></ul>",
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  12,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null
+                ]
+              ]
+            }
+          }
+        ],
+        "es": [
+          {
+            "method": "POST",
+            "path": "/purchases/_update_by_query",
+            "query": null,
+            "body": "{\"script\":{\"source\":\"for (item in params.new_values) { ctx._source[item.key] = item.value; }\",\"params\":{\"new_values\":[{\"key\":\"taxonomy_id\",\"value\":12}]}},\"query\":{\"bool\":{\"filter\":[{\"term\":{\"seller_id\":4}},{\"term\":{\"email.raw\":\"\\u003cb\\u003e@example.com\"}}],\"must_not\":[{\"term\":{\"id\":1}}]}}}"
+          }
+        ],
+        "es_responses": [
+          [
+            400,
+            {
+              "error": "parsing_exception"
+            }
+          ]
+        ],
+        "features": [],
+        "ignore_404": [],
+        "slept": [],
+        "redis": {}
+      }
+    ]
+  },
   "referrer_domains": [
     [
       null,

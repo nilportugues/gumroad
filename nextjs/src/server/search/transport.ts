@@ -29,6 +29,19 @@ export type EsRequest = {
 
 export type EsResponse = { status: number; body: unknown };
 
+// Transport::Errors::HTTP_STATUSES: the class each status raises.
+const HTTP_STATUSES: Record<number, string> = {
+  300: "MultipleChoices", 301: "MovedPermanently", 302: "Found", 303: "SeeOther", 304: "NotModified", 305: "UseProxy",
+  307: "TemporaryRedirect", 308: "PermanentRedirect", 400: "BadRequest", 401: "Unauthorized", 402: "PaymentRequired",
+  403: "Forbidden", 404: "NotFound", 405: "MethodNotAllowed", 406: "NotAcceptable", 407: "ProxyAuthenticationRequired",
+  408: "RequestTimeout", 409: "Conflict", 410: "Gone", 411: "LengthRequired", 412: "PreconditionFailed",
+  413: "RequestEntityTooLarge", 414: "RequestURITooLong", 415: "UnsupportedMediaType", 416: "RequestedRangeNotSatisfiable",
+  417: "ExpectationFailed", 418: "ImATeapot", 421: "TooManyConnectionsFromThisIP", 426: "UpgradeRequired",
+  450: "BlockedByWindowsParentalControls", 494: "RequestHeaderTooLarge", 497: "HTTPToHTTPS", 499: "ClientClosedRequest",
+  500: "InternalServerError", 501: "NotImplemented", 502: "BadGateway", 503: "ServiceUnavailable", 504: "GatewayTimeout",
+  505: "HTTPVersionNotSupported", 506: "VariantAlsoNegotiates", 510: "NotExtended",
+};
+
 // Elasticsearch::Transport::Transport::ServerError and its per-status subclasses
 // (Errors::NotFound, Errors::Conflict, ...): "[<status>] <response body>".
 export class EsServerError extends Error {
@@ -36,7 +49,8 @@ export class EsServerError extends Error {
   readonly responseBody: string;
   constructor(status: number, responseBody: string) {
     super(`[${status}] ${responseBody}`);
-    this.name = "EsServerError";
+    const name = HTTP_STATUSES[status];
+    this.name = name ? `Elasticsearch::Transport::Transport::Errors::${name}` : "Elasticsearch::Transport::Transport::ServerError";
     this.status = status;
     this.responseBody = responseBody;
   }

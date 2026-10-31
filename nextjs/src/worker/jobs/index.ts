@@ -5,6 +5,7 @@ import { forceFinishLongRunningCommunityChatRecapRunsJob, triggerCommunityChatRe
 import { deleteOldPingDeliveriesJob, deleteOldProcessedStripeEventsJob, deleteOldSentEmailInfoRecordsJob } from "./delete-old-records-jobs.ts";
 import { deleteOldVersionsRecordsWorker } from "./delete-old-versions-records-worker.ts";
 import { dispatchPendingWorkflowInstallmentScheduleIntentsJob } from "./dispatch-workflow-intents-job.ts";
+import { elasticsearchIndexerWorker } from "./elasticsearch-indexer-worker.ts";
 import { enqueueMarketingXReconnectEmailJob } from "./enqueue-marketing-x-reconnect-email-job.ts";
 import { handleSnsAwsConfigEventWorker } from "./handle-sns-aws-config-event-worker.ts";
 import { expireStampedPdfsJob, updateLargeSellersSalesCountJob } from "./large-seller-and-stamped-pdf-jobs.ts";
@@ -34,6 +35,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   DeleteProcessedWorkflowInstallmentScheduleIntentsJob: deleteProcessedWorkflowInstallmentScheduleIntentsJob,
   DetectLegalEntityCountryDriftJob: detectLegalEntityCountryDriftJob,
   DispatchPendingWorkflowInstallmentScheduleIntentsJob: dispatchPendingWorkflowInstallmentScheduleIntentsJob,
+  ElasticsearchIndexerWorker: elasticsearchIndexerWorker,
   EnqueueMarketingXReconnectEmailJob: enqueueMarketingXReconnectEmailJob,
   ExpireStampedPdfsJob: expireStampedPdfsJob,
   ForceFinishLongRunningCommunityChatRecapRunsJob: forceFinishLongRunningCommunityChatRecapRunsJob,

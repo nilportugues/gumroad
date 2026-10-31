@@ -60,8 +60,8 @@ export function scroll(params: { scrollId: string; scroll: string }): Promise<Es
   return perform({ method: "POST", path: "/_search/scroll", query: { scroll: params.scroll }, body: esJson({ scroll_id: params.scrollId }) });
 }
 
-export function clearScroll(scrollId: string): Promise<EsResponse> {
-  return perform({ method: "DELETE", path: `/_search/scroll/${segment(scrollId)}` });
+export function clearScroll(scrollId: string | null): Promise<EsResponse> {
+  return perform({ method: "DELETE", path: scrollId === null ? "/_search/scroll" : `/_search/scroll/${segment(scrollId)}` });
 }
 
 // `indices.exists?`: HEAD, and a 404 is `false` rather than an error.

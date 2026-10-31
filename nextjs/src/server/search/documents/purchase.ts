@@ -74,7 +74,10 @@ const lower = (value: unknown) => (value === null || value === undefined ? null 
 class Memo<T> {
   private loaded = false;
   private value: T | undefined;
-  constructor(private readonly load: () => Promise<T>) {}
+  private readonly load: () => Promise<T>;
+  constructor(load: () => Promise<T>) {
+    this.load = load;
+  }
   async get(): Promise<T> {
     if (!this.loaded) {
       this.value = await this.load();

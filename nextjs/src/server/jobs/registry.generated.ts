@@ -964,7 +964,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "EmailOutstandingBalancesCsvWorker": {
     "file": "app/sidekiq/email_outstanding_balances_csv_worker.rb",

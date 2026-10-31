@@ -268,6 +268,14 @@ end
 load_app("app/models/confirmed_follower_event.rb")
 load_app("app/models/product_page_view.rb")
 
+# One database here, so `connected_to(role: :writing)` only runs its block.
+def ApplicationRecord.connected_to(**) = yield
+$slept = []
+module Kernel
+  def sleep(seconds) = $slept << seconds
+end
+load_app("app/sidekiq/elasticsearch_indexer_worker.rb")
+
 # --- running a case -------------------------------------------------------------------------------
 def redis(&) = Sidekiq.redis(&)
 
@@ -303,10 +311,11 @@ def script(*rules)
 end
 
 # Runs `block` with fresh Redis, SQL log and ES log; `es` scripts the ES answers in order.
-def run(name, responder, es: [], redis_setup: nil, features: [], &block)
+def run(name, responder, es: [], ignore_404: [], features: [], args: nil, &block)
   redis { |conn| conn.call("FLUSHDB") }
-  redis_setup&.call
+  ignore_404.each { |index| redis { |conn| conn.call("SADD", RedisKey.elasticsearch_indexer_worker_ignore_404_errors_on_indices, index) } }
   Feature.enabled = features
+  $slept.clear
   $jid_seq = 0
   EsCapture.requests.clear
   EsCapture.responses = es.dup
@@ -317,7 +326,10 @@ def run(name, responder, es: [], redis_setup: nil, features: [], &block)
   rescue StandardError => e
     error = { "class" => e.class.name, "message" => e.message }; warn e.backtrace.first(6) if ENV["SCRATCH"]
   end
-  { "name" => name, "error" => error, "result" => result, "statements" => statements, "es" => EsCapture.requests.dup, "redis" => snapshot }
+  {
+    "name" => name, "args" => args, "error" => error, "result" => result, "statements" => statements, "es" => EsCapture.requests.dup,
+    "es_responses" => es, "features" => features.map(&:to_s), "ignore_404" => ignore_404, "slept" => $slept.dup, "redis" => snapshot.except(RedisKey.elasticsearch_indexer_worker_ignore_404_errors_on_indices),
+  }
 end
 
 def t(string) = Time.utc(*string.scan(/\d+/).map(&:to_i))
@@ -443,6 +455,52 @@ AUDIENCE_MEMBER = {
 golden["audience_member_documents"] = [
   run("audience member", script([sql_rule("audience_members"), table_rows("audience_members", AUDIENCE_MEMBER)])) { AudienceMember.find(90).as_indexed_json },
   run("audience member without details", script([sql_rule("audience_members"), table_rows("audience_members", AUDIENCE_MEMBER.merge(details: nil))])) { AudienceMember.find(90).as_indexed_json },
+]
+
+# --- jobs -----------------------------------------------------------------------------------------
+def job(name, klass, args, responder = script, **options) = run(name, responder, args:, **options) { klass.new.perform(*args) }
+
+PURCHASE_1 = script(
+  [sql_rule("purchases", "`purchases`.`id` = 1 "), table_rows("purchases", ORIGINAL.merge(subscription_id: nil, flags: 0))],
+  [sql_rule("users", "= 4"), table_rows("users", SELLER)],
+  [sql_rule("users", "= 5"), table_rows("users", { id: 5, email: "b@example.com" })],
+  [sql_rule("links"), table_rows("links", PRODUCT)],
+  [/\ASELECT distinct link_id/, rows(["link_id"], [3])],
+  [/\Aselect distinct base_variant_id/, rows(["base_variant_id"], [21])],
+)
+EVENT_BODY = { "follower_id" => 7, "followed_user_id" => 4, "follower_user_id" => nil, "email" => "f@example.com", "name" => "added", "timestamp" => "2025-11-01T00:00:00Z" }.freeze
+UBQ_QUERY = { "bool" => { "filter" => [{ "term" => { "seller_id" => 4 } }, { "term" => { "email.raw" => "<b>@example.com" } }], "must_not" => [{ "term" => { "id" => 1 } }] } }.freeze
+UBQ_PARAMS = { "source_record_id" => 1, "query" => UBQ_QUERY, "class_name" => "Purchase", "fields" => %w[product_ids_from_same_seller_purchased_by_purchaser variant_ids_from_same_seller_purchased_by_purchaser] }.freeze
+def hits(*ids, scroll_id: "c2Nyb2xsPT0=") = [200, { "_scroll_id" => scroll_id, "hits" => { "hits" => ids.map { { "_id" => _1.to_s } } } }]
+CONFLICT = [409, { "error" => { "type" => "version_conflict_engine_exception" }, "status" => 409 }].freeze
+
+golden["jobs"] = {}
+golden["jobs"]["ElasticsearchIndexerWorker"] = [
+  job("index a purchase", ElasticsearchIndexerWorker, ["index", { "record_id" => 1, "class_name" => "Purchase" }], PURCHASE_1, es: [[201, { "result" => "created" }]]),
+  job("update purchase fields on an index that ignores 404s", ElasticsearchIndexerWorker, ["update", { "record_id" => 1, "class_name" => "Purchase", "fields" => %w[email referrer_domain product_name] }], PURCHASE_1, ignore_404: %w[purchases other], es: [[404, { "error" => "document_missing_exception" }]]),
+  job("update raises on a 404 elsewhere", ElasticsearchIndexerWorker, ["update", { "record_id" => 60, "class_name" => "Installment", "fields" => %w[name] }], script([sql_rule("installments"), table_rows("installments", INSTALLMENT)]), ignore_404: %w[purchases], es: [[404, { "error" => "document_missing_exception" }]]),
+  job("delete ignores a missing document", ElasticsearchIndexerWorker, ["delete", { "record_id" => 60, "class_name" => "Installment" }], es: [[404, { "result" => "not_found" }]]),
+  job("delete raises on a server error", ElasticsearchIndexerWorker, ["delete", { "record_id" => 60, "class_name" => "Installment" }], es: [[500, { "error" => "boom" }]]),
+  job("index an audience member body the caller built", ElasticsearchIndexerWorker, ["index", { "record_id" => 90, "class_name" => "AudienceMember", "body" => { "seller_id" => 4, "email" => "x&y@example.com" } }]),
+  job("index a confirmed follower event", ElasticsearchIndexerWorker, ["index", { "class_name" => "ConfirmedFollowerEvent", "id" => "00000000-0000-4000-8000-000000000001", "body" => EVENT_BODY }]),
+  job("index a product page view", ElasticsearchIndexerWorker, ["index", { "class_name" => "ProductPageView", "id" => "pv1", "body" => { "product_id" => 3, "timestamp" => "2025-10-31T23:59:59Z", "url" => "https://example.com/l/abc?x=<1>" } }]),
+  job("index an installment", ElasticsearchIndexerWorker, ["index", { "record_id" => 60, "class_name" => "Installment" }], script([sql_rule("installments"), table_rows("installments", INSTALLMENT)])),
+  job("update an audience member", ElasticsearchIndexerWorker, ["update", { "record_id" => 90, "class_name" => "AudienceMember", "fields" => %w[purchases follower_id affiliates email] }], script([sql_rule("audience_members"), table_rows("audience_members", AUDIENCE_MEMBER)])),
+  job("drops retired Balance jobs", ElasticsearchIndexerWorker, ["update", { "record_id" => 1, "class_name" => "Balance", "fields" => ["amount_cents"] }]),
+  job("unknown operation does nothing", ElasticsearchIndexerWorker, ["reindex", { "record_id" => 1, "class_name" => "Purchase" }]),
+  job("unknown class", ElasticsearchIndexerWorker, ["index", { "record_id" => 1, "class_name" => "Nope" }]),
+  job("missing id", ElasticsearchIndexerWorker, ["delete", { "class_name" => "Purchase" }]),
+  job("missing purchase keeps its retries", ElasticsearchIndexerWorker, ["update", { "record_id" => 77, "class_name" => "Purchase", "fields" => ["email"] }]),
+  job("deleted audience member is done", ElasticsearchIndexerWorker, ["index", { "record_id" => 91, "class_name" => "AudienceMember" }]),
+  job("audience member on a lagging replica retries", ElasticsearchIndexerWorker, ["update", { "record_id" => 91, "class_name" => "AudienceMember", "fields" => ["email"] }], script(["SELECT `audience_members`.*", rows([])], ["SELECT 1 AS one", rows(["one"], [1])])),
+  job("update_by_query waits when delayed", ElasticsearchIndexerWorker, ["update_by_query", UBQ_PARAMS], features: [:esiw_delay_ubqs]),
+  job("update_by_query", ElasticsearchIndexerWorker, ["update_by_query", UBQ_PARAMS], PURCHASE_1, es: [[200, { "updated" => 2 }]]),
+  job("update_by_query scrolls after a conflict", ElasticsearchIndexerWorker, ["update_by_query", UBQ_PARAMS.merge("fields" => ["taxonomy_id"])], PURCHASE_1,
+      es: [CONFLICT, hits(*1..100), CONFLICT, [200, {}], hits(101, 102, scroll_id: "c2Vjb25k"), [200, {}], [200, {}]]),
+  job("update_by_query with nothing to scroll", ElasticsearchIndexerWorker, ["update_by_query", UBQ_PARAMS.merge("fields" => ["taxonomy_id"])], PURCHASE_1, es: [CONFLICT, hits, [200, {}]]),
+  job("update_by_query gives up after ten conflicts", ElasticsearchIndexerWorker, ["update_by_query", UBQ_PARAMS.merge("fields" => ["taxonomy_id"])], PURCHASE_1, es: [CONFLICT, hits(5), *Array.new(10) { CONFLICT }]),
+  job("update_by_query refuses nested fields", ElasticsearchIndexerWorker, ["update_by_query", UBQ_PARAMS.merge("fields" => %w[taxonomy_id a.b])], PURCHASE_1),
+  job("update_by_query raises other errors", ElasticsearchIndexerWorker, ["update_by_query", UBQ_PARAMS.merge("fields" => ["taxonomy_id"])], PURCHASE_1, es: [[400, { "error" => "parsing_exception" }]]),
 ]
 
 # --- pure helpers ---------------------------------------------------------------------------------

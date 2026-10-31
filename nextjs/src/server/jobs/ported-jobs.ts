@@ -17,6 +17,7 @@ export const PORTED_JOBS: readonly string[] = [
   "DeleteProcessedWorkflowInstallmentScheduleIntentsJob",
   "DetectLegalEntityCountryDriftJob",
   "DispatchPendingWorkflowInstallmentScheduleIntentsJob",
+  "ElasticsearchIndexerWorker",
   "EnqueueMarketingXReconnectEmailJob",
   "ExpireStampedPdfsJob",
   "ForceFinishLongRunningCommunityChatRecapRunsJob",
