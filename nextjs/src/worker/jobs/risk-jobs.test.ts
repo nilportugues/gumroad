@@ -9,7 +9,7 @@ import { parseRubyJson, type JsonValue } from "../../server/jobs/sidekiq/ruby-js
 import { resetRiskCollaborators, setRiskCollaborators } from "../../server/models/user-risk.ts";
 import { resetUserCollaborators, setUserCollaborators } from "../../server/models/user.ts";
 import { setSellerProfileCacheForTesting } from "../../server/models/seller-profile.ts";
-import { contextFor, recordingSidekiqRedis, rubyRuntimeRegistry, sequentialJids, type RedisSnapshot } from "./__fixtures__/golden.ts";
+import { asSidekiqJob, contextFor, recordingSidekiqRedis, rubyRuntimeRegistry, sequentialJids, type RedisSnapshot } from "./__fixtures__/golden.ts";
 import { sqlReplay, type Statement } from "./__fixtures__/sql-replay.ts";
 import { blockSuspendedAccountIpWorkerWith, checkPaymentAddressWorkerWith } from "./risk-jobs.ts";
 
@@ -50,7 +50,7 @@ describe("risk jobs", () => {
       });
       let error: unknown = null;
       try {
-        await HANDLERS[c.job as keyof typeof HANDLERS](c.args, contextFor(runtime));
+        await asSidekiqJob(() => HANDLERS[c.job as keyof typeof HANDLERS](c.args, contextFor(runtime)), golden.now);
       } catch (e) {
         error = e;
       }

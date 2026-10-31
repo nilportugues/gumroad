@@ -27,9 +27,10 @@ import { isRubyFloat } from "./concerns/ruby-values.ts";
 import { rubyJsonGenerate, rubyJsonParse } from "./concerns/serialized-columns.ts";
 import { defineModel, type Callback, type CallbackContext, type SaveOptions } from "./runtime/define-model.ts";
 import { RecordNotFound } from "./runtime/errors.ts";
+import { connectedTo, uncached } from "./runtime/query-cache.ts";
 import { ASSOCIATION_CACHE, type ModelRecord } from "./runtime/record.ts";
 import { buildSellerProfile, findSellerProfile, SellerProfiles, type SellerProfileRecord } from "./seller-profile.ts";
-import { castRow, column, findInBatches, selectRows, table } from "./sql.ts";
+import { castRow, column, connection, findInBatches, selectRows, table } from "./sql.ts";
 import { currentTransaction, participate, type Tx } from "./runtime/transaction.ts";
 import {
   isBlank,
@@ -217,7 +218,7 @@ const DEFAULT_COLLABORATORS: UserCollaborators = {
     return 0;
   },
   now: () => new Date(),
-  readDb: async () => (await import("../../lib/db.ts")).db,
+  readDb: () => connection() as Promise<Pick<Tx, "$queryRaw">>,
   // rand(9_999_999_999_999).to_s
   randomExternalId: () => String(randomInt(0, 9_999_999_999_999)),
   // Devise.friendly_token: SecureRandom.urlsafe_base64(15).tr("lIO0", "sxyz")
@@ -1281,8 +1282,13 @@ function newsletterEligibilityChanged(record: UserRecord): boolean {
   );
 }
 
-// FeatureAnnouncementNewsletterCutover.fence_account_change
-export async function fenceNewsletterCutover(tx: Tx, emails: (string | null)[]): Promise<void> {
+// FeatureAnnouncementNewsletterCutover.fence_account_change, which reads in
+// `connected_to(role: :writing) { uncached { ... } }`.
+export function fenceNewsletterCutover(tx: Tx, emails: (string | null)[]): Promise<void> {
+  return connectedTo("writing", () => uncached(() => fenceAccountChange(tx, emails)));
+}
+
+async function fenceAccountChange(tx: Tx, emails: (string | null)[]): Promise<void> {
   const cutovers = await tx.$queryRaw<{ seller_id: bigint }[]>(
     Prisma.sql`SELECT \`feature_announcement_newsletter_cutovers\`.\`seller_id\` FROM \`feature_announcement_newsletter_cutovers\` WHERE \`feature_announcement_newsletter_cutovers\`.\`state\` != 'retired'`,
   );

@@ -11,7 +11,7 @@ import { parseRubyJson, type JsonValue } from "../../server/jobs/sidekiq/ruby-js
 import { isRecordNotUnique } from "../../server/models/sql.ts";
 import { setStripeClientForTesting, StripeClient, type TransportRequest } from "../../server/stripe/client.ts";
 import { stripeConfigFromEnv } from "../../server/stripe/config.ts";
-import { contextFor, recordingSidekiqRedis, rubyRuntimeRegistry, sequentialJids, type RedisSnapshot } from "./__fixtures__/golden.ts";
+import { asSidekiqJob, contextFor, recordingSidekiqRedis, rubyRuntimeRegistry, sequentialJids, type RedisSnapshot } from "./__fixtures__/golden.ts";
 import { sqlReplay, type Statement } from "./__fixtures__/sql-replay.ts";
 import {
   createStripeApplePayDomainWorkerRetriesExhausted,
@@ -109,7 +109,7 @@ for (const [name, cases] of Object.entries(golden.jobs)) {
 
       let error: unknown = null;
       try {
-        await PORTS[name]!({ now })(c.args, contextFor(runtime));
+        await asSidekiqJob(() => PORTS[name]!({ now })(c.args, contextFor(runtime)), golden.now);
       } catch (e) {
         error = e;
       }

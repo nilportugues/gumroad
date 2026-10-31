@@ -11,6 +11,7 @@
 import { Prisma } from "@prisma/client";
 
 import { castRow, column, quoteName, selectRows, table, tableName } from "../sql.ts";
+import { clearQueryCache } from "./query-cache.ts";
 import { AbortChain, RecordInvalid, RecordNotDestroyed, RecordNotFound, RecordNotSaved } from "./errors.ts";
 import { ASSOCIATION_CACHE, ModelRecord, type Row } from "./record.ts";
 import { participate, transaction, type Action, type Tx } from "./transaction.ts";
@@ -260,6 +261,7 @@ export function defineModel<R extends Row>(def: ModelDefinition<R>) {
   // Persistence#reload (`lock: true` for lock!): a fresh row, with the association cache and the
   // attribute set replaced as `find` builds them.
   async function reload(record: ModelRecord<R>, options: { lock?: boolean } = {}): Promise<ModelRecord<R>> {
+    clearQueryCache();
     const name = tableName(def.prismaModel);
     const [row] = await selectRows(
       Prisma.sql`SELECT ${Prisma.raw(`${quoteName(name)}.*`)} FROM ${table(name)} WHERE ${column(name, "id")} = ${record.get("id")} LIMIT 1${options.lock ? Prisma.raw(" FOR UPDATE") : Prisma.empty}`,

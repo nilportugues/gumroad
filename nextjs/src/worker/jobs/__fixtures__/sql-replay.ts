@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 
 import { Prisma } from "@prisma/client";
 
-import { MicroDate } from "../../../server/models/concerns/ruby-time.ts";
+import { quote, renderSql } from "../../../server/models/runtime/quoting.ts";
 import { setSqlClient, type SqlClient } from "../../../server/models/sql.ts";
 import { setTransactionRunner, type Tx } from "../../../server/models/runtime/transaction.ts";
 import { parseRubyJson, type JsonValue } from "../../../server/jobs/sidekiq/ruby-json.ts";
@@ -35,33 +35,7 @@ export const modelJobsGolden = parseRubyJson(readFileSync(new URL("model-jobs.go
 export const GOLDEN_NOW = new Date(Math.round(modelJobsGolden.now * 1000));
 export const goldenNow = () => new Date(GOLDEN_NOW.getTime());
 
-
-// quoted_date: the fraction only when there is one. A MicroDate carries its own microseconds.
-function formatTime(date: Date): string {
-  const iso = date.toISOString();
-  const micros = date instanceof MicroDate ? date.microseconds : date.getUTCMilliseconds() * 1000;
-  return `${iso.slice(0, 10)} ${iso.slice(11, 19)}${micros > 0 ? `.${String(micros).padStart(6, "0")}` : ""}`;
-}
-
-// ActiveRecord::ConnectionAdapters::MySQL::Quoting#quote (mysql2 escape for strings).
-export function quote(value: unknown): string {
-  if (value === null || value === undefined) return "NULL";
-  if (value === true) return "TRUE";
-  if (value === false) return "FALSE";
-  if (typeof value === "number" || typeof value === "bigint") return String(value);
-  if (Prisma.Decimal.isDecimal(value)) return (value as Prisma.Decimal).toString();
-  if (value instanceof Date) return `'${formatTime(value)}'`;
-  if (typeof value === "string") {
-    const escaped = value.replace(/[\0\n\r\\'"\x1a]/gu, (c) => ({ "\0": "\\0", "\n": "\\n", "\r": "\\r", "\\": "\\\\", "'": "\\'", '"': '\\"', "\x1a": "\\Z" })[c]!);
-    return `'${escaped}'`;
-  }
-  throw new Error(`cannot quote ${String(value)}`);
-}
-
-export function renderSql(sql: Prisma.Sql): string {
-  let i = 0;
-  return sql.sql.replace(/\?/gu, () => quote(sql.values[i++]));
-}
+export { quote, renderSql };
 
 function decode(value: Value): unknown {
   if (value !== null && typeof value === "object" && !Array.isArray(value)) {

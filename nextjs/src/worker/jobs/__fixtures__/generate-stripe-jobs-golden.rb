@@ -28,6 +28,7 @@ require "sidekiq"
 require "sidekiq_unique_jobs"
 require "stripe"
 require_relative "fake_mysql"
+require_relative "../../../../scripts/golden/support/sidekiq_executor"
 require_relative "../../../server/stripe/__fixtures__/capture_server"
 
 ROOT = File.expand_path("../../../../..", __dir__)
@@ -41,11 +42,19 @@ class Time
   end
 end
 $jid_seq = 0
+$uuid_seq = 0
 module SecureRandom
   def self.hex(n = nil)
     return super unless n == 12
     $jid_seq += 1
     format("%024x", $jid_seq)
+  end
+
+  # Stripe's idempotency keys, which the tests compare by shape only: pinned so a regeneration
+  # does not rewrite them.
+  def self.uuid
+    $uuid_seq += 1
+    format("00000000-0000-4000-8000-%012d", $uuid_seq)
   end
 end
 
@@ -54,6 +63,8 @@ module Rails
   def self.logger = (@logger ||= Logger.new($log_io = StringIO.new))
   def self.env = ActiveSupport::StringInquirer.new("production")
 end
+# The telemetry header's request_duration_ms, also compared by shape only.
+Stripe::Util.singleton_class.prepend(Module.new { def monotonic_time = 0.0 })
 ActiveRecord.default_timezone = :utc
 Time.zone_default = Time.find_zone!("UTC")
 Time.zone = "UTC"
@@ -70,7 +81,8 @@ schema = FakeMysql::SchemaCapture.load(File.join(ROOT, "db/schema.rb"))
 FakeMysql.schema = schema.tables
 FakeMysql.indexes = schema.indexes
 ActiveRecord::Base.logger = nil
-ActiveRecord::Base.establish_connection(adapter: "mysql2", database: "gumroad_test", encoding: "utf8mb4", collation: "utf8mb4_unicode_ci")
+# Production Sidekiq's pools (USE_DB_WORKER_REPLICAS=true); every case runs as a job on them.
+SidekiqExecutor.establish_proxy_connection(adapter: "mysql2", database: "gumroad_test", encoding: "utf8mb4", collation: "utf8mb4_unicode_ci")
 ActiveRecord::ConnectionAdapters::Mysql2Adapter.class_eval { private def default_type(*) = :literal }
 
 # A statement fails as MySQL would fail it (1062 is a duplicate key).
@@ -125,6 +137,7 @@ end
 class ApplicationRecord < ActiveRecord::Base
   self.abstract_class = true
 end
+SidekiqExecutor.connect_application_record!
 module StripeChargeProcessor
   def self.charge_processor_id = "stripe"
 end
@@ -194,6 +207,7 @@ $server = server
 def capture(name, responder, stripe: [], args: nil)
   redis { |conn| conn.call("FLUSHDB") }
   $jid_seq = 0
+  $uuid_seq = 0
   $sleeps = []
   ErrorNotifier.notifications.clear
   Stripe::StripeClient.current_thread_context.default_client = nil
@@ -203,7 +217,7 @@ def capture(name, responder, stripe: [], args: nil)
   $log_io&.rewind
   error = nil
   statements = FakeMysql.run(responder) do
-    yield
+    SidekiqExecutor.perform { yield }
   rescue StandardError => e
     error = { "class" => e.class.name, "message" => e.message }
   end

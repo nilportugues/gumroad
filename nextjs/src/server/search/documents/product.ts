@@ -1,20 +1,19 @@
 // Product::Searchable#as_indexed_json / #build_search_update (app/modules/product/searchable.rb)
 // and the link.rb, prices.rb, stats.rb, recommendations.rb, user.rb and taxonomy_attribute.rb reads
-// they make, statement for statement. Reads go through the query cache (query-cache.ts) as they do
-// under the Rails executor; an association is loaded once per record, a relation on every call.
+// they make, statement for statement. Reads go through the query cache (models/runtime/query-cache.ts)
+// as they do under the Rails executor; an association is loaded once per record, a relation on every call.
 import { Prisma } from "@prisma/client";
 
 import { userActor } from "../../infra/flipper.ts";
 import { isAdult } from "../../models/concerns/adult-keyword-detector.ts";
 import { ago } from "../../models/concerns/ruby-time.ts";
 import { isStripeConnectAccount, type MerchantAccountRow } from "../../models/merchant-account.ts";
-import { castRow } from "../../models/sql.ts";
+import { castRow, selectRows } from "../../models/sql.ts";
 import type { Row } from "../../models/runtime/record.ts";
 import approximations from "../../infra/i18n-approximations.json" with { type: "json" };
 import { search } from "../api.ts";
 import { indexName } from "../../infra/elasticsearch.ts";
 import { type JsonValue, RubyFloat, timeAsJson } from "../es-json.ts";
-import { cachedSelect } from "../query-cache.ts";
 import { isBlank, jsonColumn } from "../rows.ts";
 
 // Product::Searchable::SEARCH_FIELDS, in the order as_indexed_json writes them.
@@ -162,7 +161,7 @@ function linkJsonData(value: unknown): Record<string, JsonValue> | null {
 }
 
 const findRow = async (model: Prisma.ModelName, table: string, id: unknown): Promise<Row | null> => {
-  const [row] = await cachedSelect<Row>(Prisma.sql`SELECT ${raw(`\`${table}\`.*`)} FROM ${raw(`\`${table}\``)} WHERE ${raw(`\`${table}\`.\`id\``)} = ${id} LIMIT 1`);
+  const [row] = await selectRows<Row>(Prisma.sql`SELECT ${raw(`\`${table}\`.*`)} FROM ${raw(`\`${table}\``)} WHERE ${raw(`\`${table}\`.\`id\``)} = ${id} LIMIT 1`);
   return row ? castRow(model, row) : null;
 };
 
@@ -284,7 +283,7 @@ export class ProductRecord {
         return row.description as JsonValue;
       case "tags":
         return (
-          await cachedSelect<{ name: string }>(
+          await selectRows<{ name: string }>(
             Prisma.sql`SELECT \`tags\`.\`name\` FROM \`tags\` INNER JOIN \`product_taggings\` ON \`tags\`.\`id\` = \`product_taggings\`.\`tag_id\` WHERE \`product_taggings\`.\`product_id\` = ${this.id} ORDER BY \`product_taggings\`.\`tag_id\` ASC`,
           )
         ).map((tag) => tag.name);
@@ -324,7 +323,7 @@ export class ProductRecord {
         return [
           ...new Set(
             (
-              await cachedSelect<{ filetype: string | null }>(
+              await selectRows<{ filetype: string | null }>(
                 Prisma.sql`SELECT \`product_files\`.\`filetype\` FROM \`product_files\` WHERE \`product_files\`.\`link_id\` = ${this.id} AND \`product_files\`.\`deleted_at\` IS NULL`,
               )
             ).map((file) => file.filetype),
@@ -372,14 +371,14 @@ export class ProductRecord {
   }
 
   private reviewStat(): Promise<Row | null> {
-    this.reviewStatMemo ??= cachedSelect<Row>(
+    this.reviewStatMemo ??= selectRows<Row>(
       Prisma.sql`SELECT \`product_review_stats\`.* FROM \`product_review_stats\` WHERE \`product_review_stats\`.\`link_id\` = ${this.id} LIMIT 1`,
     ).then(([stat]) => (stat ? castRow("ProductReviewStat", stat) : null));
     return this.reviewStatMemo;
   }
 
   private staffPick(): Promise<Row | null> {
-    this.staffPickMemo ??= cachedSelect<Row>(
+    this.staffPickMemo ??= selectRows<Row>(
       Prisma.sql`SELECT \`staff_picked_products\`.* FROM \`staff_picked_products\` WHERE \`staff_picked_products\`.\`product_id\` = ${this.id} LIMIT 1`,
     ).then(([pick]) => (pick ? castRow("StaffPickedProduct", pick) : null));
     return this.staffPickMemo;
@@ -387,7 +386,7 @@ export class ProductRecord {
 
   // Product::Prices#prices_for_currency: `alive_prices.where(currency: price_currency_type)`.
   private async pricesForCurrency(): Promise<Row[]> {
-    const rows = await cachedSelect<Row>(
+    const rows = await selectRows<Row>(
       Prisma.sql`SELECT \`prices\`.* FROM \`prices\` WHERE \`prices\`.\`link_id\` = ${this.id} AND \`prices\`.\`deleted_at\` IS NULL AND \`prices\`.\`currency\` = ${this.row.price_currency_type}`,
     );
     return rows.map((price) => castRow("BasePrice", price));
@@ -418,13 +417,13 @@ export class ProductRecord {
   // quotes as strings, and an empty list as NULL.
   private async currentBaseVariants(select: "*" | "price_difference_cents"): Promise<Row[]> {
     const categoryIds = (
-      await cachedSelect<{ id: unknown }>(
+      await selectRows<{ id: unknown }>(
         Prisma.sql`SELECT \`variant_categories\`.\`id\` FROM \`variant_categories\` WHERE \`variant_categories\`.\`link_id\` = ${this.id} AND \`variant_categories\`.\`deleted_at\` IS NULL`,
       )
     ).map((category) => String(category.id));
     const list = categoryIds.length === 0 ? raw("NULL") : Prisma.join(categoryIds, ", ");
     const columns = raw(select === "*" ? "`base_variants`.*" : "`base_variants`.`price_difference_cents`");
-    return cachedSelect<Row>(
+    return selectRows<Row>(
       Prisma.sql`SELECT ${columns} FROM \`base_variants\` WHERE \`base_variants\`.\`deleted_at\` IS NULL AND (link_id = ${String(this.id)} OR variant_category_id IN (${list}))`,
     );
   }
@@ -440,13 +439,13 @@ export class ProductRecord {
       });
     } else if (this.purchaseType === "rent_only") {
       prices = (
-        await cachedSelect<{ price_cents: number }>(
+        await selectRows<{ price_cents: number }>(
           Prisma.sql`SELECT \`prices\`.\`price_cents\` FROM \`prices\` WHERE \`prices\`.\`link_id\` = ${this.id} AND \`prices\`.\`deleted_at\` IS NULL AND ((\`prices\`.\`flags\` & 1 = 1)) AND \`prices\`.\`currency\` = ${this.row.price_currency_type}`,
         )
       ).map((price) => price.price_cents);
     } else {
       prices = (
-        await cachedSelect<{ price_cents: number }>(
+        await selectRows<{ price_cents: number }>(
           Prisma.sql`SELECT \`prices\`.\`price_cents\` FROM \`prices\` WHERE \`prices\`.\`link_id\` = ${this.id} AND \`prices\`.\`deleted_at\` IS NULL AND ((\`prices\`.\`flags\` & 1 = 0))`,
         )
       ).map((price) => price.price_cents);
@@ -460,7 +459,7 @@ export class ProductRecord {
     const tierIds = (await this.tiersForNewBuyers()).map(idOf);
     if (tierIds.length === 0) return [];
     const variantIds = tierIds.length === 1 ? Prisma.sql`= ${tierIds[0]}` : Prisma.sql`IN (${Prisma.join(tierIds, ", ")})`;
-    const prices = await cachedSelect<{ price_cents: number }>(
+    const prices = await selectRows<{ price_cents: number }>(
       Prisma.sql`SELECT \`prices\`.\`price_cents\` FROM \`prices\` WHERE \`prices\`.\`variant_id\` ${variantIds} AND \`prices\`.\`deleted_at\` IS NULL AND ((\`prices\`.\`flags\` & 1 = 0))`,
     );
     return [...new Set(prices.map((price) => price.price_cents))];
@@ -469,7 +468,7 @@ export class ProductRecord {
   // Product::Prices#tiers_for_new_buyers: `tiers.alive`, less the tiers closed to new buyers.
   private async tiersForNewBuyers(): Promise<Row[]> {
     const tiers = (
-      await cachedSelect<Row>(
+      await selectRows<Row>(
         Prisma.sql`SELECT \`base_variants\`.* FROM \`base_variants\` INNER JOIN \`variant_categories\` ON \`base_variants\`.\`variant_category_id\` = \`variant_categories\`.\`id\` WHERE \`base_variants\`.\`type\` = 'Variant' AND \`variant_categories\`.\`link_id\` = ${this.id} AND \`variant_categories\`.\`deleted_at\` IS NULL AND \`variant_categories\`.\`title\` = 'Tier' AND \`base_variants\`.\`deleted_at\` IS NULL AND \`base_variants\`.\`deleted_at\` IS NULL`,
       )
     ).map((tier) => castRow("BaseVariant", tier));
@@ -496,11 +495,11 @@ export class ProductRecord {
 
   // Link#product_and_universal_offer_codes, sorted by created_at.
   private async productAndUniversalOfferCodes(): Promise<Row[]> {
-    const productCodes = await cachedSelect<Row>(
+    const productCodes = await selectRows<Row>(
       Prisma.sql`SELECT \`offer_codes\`.* FROM \`offer_codes\` INNER JOIN \`offer_codes_products\` ON \`offer_codes\`.\`id\` = \`offer_codes_products\`.\`offer_code_id\` WHERE \`offer_codes_products\`.\`product_id\` = ${this.id} AND \`offer_codes\`.\`deleted_at\` IS NULL`,
     );
     const user = await this.requireUser("offer_codes");
-    const universalCodes = await cachedSelect<Row>(
+    const universalCodes = await selectRows<Row>(
       Prisma.sql`SELECT \`offer_codes\`.* FROM \`offer_codes\` WHERE \`offer_codes\`.\`user_id\` = ${user.id} AND (universal = 1 and (currency_type = ${this.row.price_currency_type} or currency_type is null)) AND \`offer_codes\`.\`deleted_at\` IS NULL AND (NOT EXISTS (SELECT 1 FROM offer_codes_excluded_products WHERE offer_codes_excluded_products.offer_code_id = offer_codes.id AND offer_codes_excluded_products.product_id = ${String(this.id)}))`,
     );
     const createdAt = (code: Row) => new Date(code.created_at as Date | string).getTime();
@@ -529,7 +528,7 @@ export class ProductRecord {
   private async taxonomyAttributes(): Promise<Row[]> {
     const taxonomy = await this.taxonomy();
     if (!taxonomy) return [];
-    this.taxonomyAttributesMemo ??= cachedSelect<Row>(
+    this.taxonomyAttributesMemo ??= selectRows<Row>(
       Prisma.sql`SELECT \`taxonomy_attributes\`.* FROM \`taxonomy_attributes\` WHERE \`taxonomy_attributes\`.\`taxonomy_id\` = ${taxonomy.id} AND \`taxonomy_attributes\`.\`active\` = TRUE ORDER BY \`taxonomy_attributes\`.\`position\` ASC, \`taxonomy_attributes\`.\`id\` ASC`,
     ).then((rows) => rows.map((attribute) => castRow("TaxonomyAttribute", attribute)));
     return this.taxonomyAttributesMemo;
@@ -548,7 +547,7 @@ export class ProductRecord {
     const reasons: boolean[] = [this.alive, !flag(this.flags, LINK_FLAG.archived), flag(this.flags, LINK_FLAG.display_product_reviews)];
     const max = this.row.max_purchase_count;
     if (max != null) {
-      const [row] = await cachedSelect<{ sales_count_for_inventory_cache: unknown }>(
+      const [row] = await selectRows<{ sales_count_for_inventory_cache: unknown }>(
         Prisma.sql`SELECT \`links\`.\`sales_count_for_inventory_cache\` FROM \`links\` WHERE \`links\`.\`id\` = ${this.id} LIMIT 1`,
       );
       reasons.push(Number(row?.sales_count_for_inventory_cache ?? 0) < Number(max));
@@ -556,7 +555,7 @@ export class ProductRecord {
       reasons.push(true);
     }
     reasons.push((await this.taxonomy()) !== null);
-    const sale = await cachedSelect(
+    const sale = await selectRows(
       Prisma.sql`SELECT 1 AS one FROM \`purchases\` WHERE \`purchases\`.\`link_id\` = ${this.id} AND \`purchases\`.\`purchase_state\` = 'successful' AND (purchases.stripe_refunded IS NULL OR purchases.stripe_refunded = 0) AND (purchases.chargeback_date IS NULL OR (purchases.chargeback_date IS NOT NULL AND purchases.flags & '512' != 0)) LIMIT 1`,
     );
     reasons.push(sale.length > 0);
@@ -572,7 +571,7 @@ function username(user: Row): unknown {
 }
 
 const merchantAccounts = (userId: unknown, processor: string) =>
-  cachedSelect<MerchantAccountRow>(
+  selectRows<MerchantAccountRow>(
     Prisma.sql`SELECT \`merchant_accounts\`.* FROM \`merchant_accounts\` WHERE \`merchant_accounts\`.\`user_id\` = ${userId} AND \`merchant_accounts\`.\`deleted_at\` IS NULL AND \`merchant_accounts\`.\`charge_processor_alive_at\` IS NOT NULL AND \`merchant_accounts\`.\`charge_processor_deleted_at\` IS NULL AND \`merchant_accounts\`.\`charge_processor_id\` = ${processor}`,
   );
 
@@ -580,7 +579,7 @@ const merchantAccounts = (userId: unknown, processor: string) =>
 // account, or a PayPal account that can take charges, checked in that order.
 async function payoutFilled(user: Row): Promise<boolean> {
   if (!isBlank(user.payment_address)) return true;
-  const bankAccounts = await cachedSelect(
+  const bankAccounts = await selectRows(
     Prisma.sql`SELECT \`bank_accounts\`.* FROM \`bank_accounts\` WHERE \`bank_accounts\`.\`user_id\` = ${user.id} AND \`bank_accounts\`.\`deleted_at\` IS NULL ORDER BY \`bank_accounts\`.\`id\` ASC LIMIT 1`,
   );
   if (bankAccounts.length > 0) return true;

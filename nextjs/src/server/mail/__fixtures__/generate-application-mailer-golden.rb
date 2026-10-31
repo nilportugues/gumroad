@@ -6,7 +6,10 @@
 # with only the SMTP socket replaced by a recorder. Nothing here re-implements Ruby behaviour.
 #
 #   mysql -uroot -e 'CREATE DATABASE gumroad_ws35'   # then load db/schema.rb's tables into it
-#   bundle exec ruby nextjs/src/server/mail/__fixtures__/generate-application-mailer-golden.rb
+#   USE_DB_WORKER_REPLICAS=true bundle exec ruby nextjs/src/server/mail/__fixtures__/generate-application-mailer-golden.rb
+#
+# The jobs run as production Sidekiq runs them (scripts/golden/support/sidekiq_executor.rb), so the
+# query cache is on.
 #
 # Environment it needs (defaults shown): DATABASE_NAME=gumroad_ws35, REDIS_DB=6 (flushed). The
 # remaining secrets come from .env.test; the SMTP credentials and the X-GUM header key are fixed
@@ -70,6 +73,7 @@ ActionMailer::Base.logger = nil
 ActiveJob::Base.logger = Logger.new(nil)
 
 require "active_support/testing/time_helpers"
+require File.join(ROOT, "nextjs/scripts/golden/support/sidekiq_executor")
 
 # Message-IDs embed the host name; pin it so goldens don't record the machine they ran on.
 require "socket"
@@ -349,6 +353,8 @@ end
 
 # Warm the schema cache so the recorded statements are the mailers' and jobs' own.
 [User, Link, Marketing::Action, Invite].each { _1.columns; _1.first }
+# Likewise open the job thread's replica and primary connections, which the pools then reuse.
+SidekiqExecutor.perform { User.first; User.transaction { User.first } }
 
 today = Date.current.to_s
 messages = []
@@ -398,7 +404,7 @@ def run_job(name, klass, args)
   $delivered.clear
   error = nil
   statements = capture_sql do
-    klass.new.perform(*args)
+    SidekiqExecutor.perform { klass.new.perform(*args) }
   rescue => e
     error = { "class" => e.class.name, "message" => e.message }
   end

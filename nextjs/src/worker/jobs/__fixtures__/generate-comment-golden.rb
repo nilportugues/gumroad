@@ -30,6 +30,7 @@ require "paper_trail"
 require "paper_trail/frameworks/active_record"
 require "ancestry"
 require_relative "fake_mysql"
+require_relative "../../../../scripts/golden/support/sidekiq_executor"
 
 ROOT = File.expand_path("../../../../..", __dir__)
 REDIS_URL = ENV.fetch("REDIS_URL", "redis://127.0.0.1:6379/12")
@@ -77,7 +78,8 @@ schema = FakeMysql::SchemaCapture.load(File.join(ROOT, "db/schema.rb"))
 FakeMysql.schema = schema.tables
 FakeMysql.indexes = schema.indexes
 ActiveRecord::Base.logger = nil
-ActiveRecord::Base.establish_connection(adapter: "mysql2", database: "gumroad_test", encoding: "utf8mb4", collation: "utf8mb4_unicode_ci")
+# Production Sidekiq's pools (USE_DB_WORKER_REPLICAS=true); every case runs as a job on them.
+SidekiqExecutor.establish_proxy_connection(adapter: "mysql2", database: "gumroad_test", encoding: "utf8mb4", collation: "utf8mb4_unicode_ci")
 ActiveRecord::ConnectionAdapters::Mysql2Adapter.class_eval { private def default_type(*) = :literal }
 
 module ReplicaLagWatcher
@@ -97,6 +99,7 @@ def load_app(path) = load(File.join(ROOT, path))
 class ApplicationRecord < ActiveRecord::Base
   self.abstract_class = true
 end
+SidekiqExecutor.connect_application_record!
 class User < ApplicationRecord
   include FlagShihTzu
   # user.rb's bit for is_team_member; the other flags are not read here.
@@ -195,14 +198,14 @@ def script(*rules)
   end
 end
 
-def capture(name, responder, args: nil)
+def capture(name, responder, args: nil, sidekiq: false)
   redis { |conn| conn.call("FLUSHDB") }
   $jid_seq = 0
   CommentMailer.deliveries.clear
   error = nil
   result = nil
   statements = FakeMysql.run(responder) do
-    result = yield
+    result = sidekiq ? SidekiqExecutor.perform { yield } : yield
   rescue StandardError => e
     error = { "class" => e.class.name, "message" => e.message }
   end
@@ -300,19 +303,19 @@ end
 
 job_cases = {}
 job_cases["ContentModerationAdminCommentJob"] = [
-  capture("user not found", script(), args: [5, "Blocked: nsfw"]) { ContentModerationAdminCommentJob.new.perform(5, "Blocked: nsfw") },
-  capture("writes the note", script(["SELECT `users`.*", user_row.(5)], exists.("users")), args: [5, "Blocked: nsfw\n\n\n\nproduct"]) do
+  capture("user not found", script(), sidekiq: true, args: [5, "Blocked: nsfw"]) { ContentModerationAdminCommentJob.new.perform(5, "Blocked: nsfw") },
+  capture("writes the note", script(["SELECT `users`.*", user_row.(5)], exists.("users")), sidekiq: true, args: [5, "Blocked: nsfw\n\n\n\nproduct"]) do
     ContentModerationAdminCommentJob.new.perform(5, "Blocked: nsfw\n\n\n\nproduct")
     nil
   end,
-  capture("a note within the dedup window", script(["SELECT `users`.*", user_row.(5)], [/\ASELECT 1 AS one FROM `comments`/, rows(["one"], [1])]), args: [5, "Blocked"]) do
+  capture("a note within the dedup window", script(["SELECT `users`.*", user_row.(5)], [/\ASELECT 1 AS one FROM `comments`/, rows(["one"], [1])]), sidekiq: true, args: [5, "Blocked"]) do
     ContentModerationAdminCommentJob.new.perform(5, "Blocked")
   end,
 ]
 candidate_fields = %w[id commentable_id]
 job_cases["ReleaseChargebackRatePayoutPausesJob"] = [
-  capture("no candidates", script(), args: []) { ReleaseChargebackRatePayoutPausesJob.new.perform },
-  capture("one job per seller across batches", script([/\ASELECT `comments`.`id`, `comments`.`commentable_id`/, [rows(candidate_fields, *(1..1000).map { [_1, 100 + (_1 % 3)] }), rows(candidate_fields, [1001, 100], [1002, 205])]]), args: []) do
+  capture("no candidates", script(), sidekiq: true, args: []) { ReleaseChargebackRatePayoutPausesJob.new.perform },
+  capture("one job per seller across batches", script([/\ASELECT `comments`.`id`, `comments`.`commentable_id`/, [rows(candidate_fields, *(1..1000).map { [_1, 100 + (_1 % 3)] }), rows(candidate_fields, [1001, 100], [1002, 205])]]), sidekiq: true, args: []) do
     ReleaseChargebackRatePayoutPausesJob.new.perform
     nil
   end,
@@ -326,7 +329,7 @@ managed = ->(id, country) { [id, 5, "stripe", "acct_#{id}", country, nil, nil, a
 connect = ->(id, country) { [id, 5, "stripe", "acct_#{id}", country, '{"meta":{"stripe_connect":"true"}}', nil, alive_at, nil] }
 accounts = ->(*list) { ["SELECT `merchant_accounts`.*", rows(account_fields, *list)] }
 user_lookup = ["SELECT `users`.*", user_row.(5)]
-drift = ->(name, responder, id = 3) { capture(name, responder, args: [id]) { DetectLegalEntityCountryDriftJob.new.perform(id); nil } }
+drift = ->(name, responder, id = 3) { capture(name, responder, sidekiq: true, args: [id]) { DetectLegalEntityCountryDriftJob.new.perform(id); nil } }
 job_cases["DetectLegalEntityCountryDriftJob"] = [
   drift.("compliance info not found", script()),
   drift.("no user on the compliance info", script(info.(3, nil, "DE", nil, false))),

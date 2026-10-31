@@ -44,6 +44,7 @@ require "loofah"
 require "prism"
 require "activerecord-mysql-index-hint"
 require_relative "../../../worker/jobs/__fixtures__/fake_mysql"
+require_relative "../../../../scripts/golden/support/sidekiq_executor"
 
 ROOT = File.expand_path("../../../../..", __dir__)
 REDIS_URL = ENV.fetch("REDIS_URL", "redis://127.0.0.1:6379/6")
@@ -90,7 +91,8 @@ schema = FakeMysql::SchemaCapture.load(File.join(ROOT, "db/schema.rb"))
 FakeMysql.schema = schema.tables
 FakeMysql.indexes = schema.indexes
 ActiveRecord::Base.logger = nil
-ActiveRecord::Base.establish_connection(adapter: "mysql2", database: "gumroad_test", encoding: "utf8mb4", collation: "utf8mb4_unicode_ci")
+# Production Sidekiq's pools (USE_DB_WORKER_REPLICAS=true); every case runs as a job on them.
+SidekiqExecutor.establish_proxy_connection(adapter: "mysql2", database: "gumroad_test", encoding: "utf8mb4", collation: "utf8mb4_unicode_ci")
 ActiveRecord::ConnectionAdapters::Mysql2Adapter.class_eval { private def default_type(*) = :literal }
 
 # --- Elasticsearch: a socket that records requests and answers from a script ---------------------
@@ -203,6 +205,7 @@ load_app("app/modules/elasticsearch_model_async_callbacks.rb")
 class ApplicationRecord < ActiveRecord::Base
   self.abstract_class = true
 end
+SidekiqExecutor.connect_application_record!
 
 module BasePrice
   module Recurrence; end
@@ -329,7 +332,7 @@ def script(*rules)
 end
 
 # Runs `block` with fresh Redis, SQL log and ES log; `es` scripts the ES answers in order.
-def run(name, responder, es: [], ignore_404: [], features: [], args: nil, &block)
+def run(name, responder, es: [], ignore_404: [], features: [], args: nil, sidekiq: false, &block)
   redis { |conn| conn.call("FLUSHDB") }
   ignore_404.each { |index| redis { |conn| conn.call("SADD", RedisKey.elasticsearch_indexer_worker_ignore_404_errors_on_indices, index) } }
   Feature.enabled = features
@@ -340,7 +343,7 @@ def run(name, responder, es: [], ignore_404: [], features: [], args: nil, &block
   error = nil
   result = nil
   statements = FakeMysql.run(responder) do
-    result = block.call
+    result = sidekiq ? SidekiqExecutor.perform(&block) : block.call
   rescue StandardError => e
     error = { "class" => e.class.name, "message" => e.message }; warn e.backtrace.first(6) if ENV["SCRATCH"]
   end
@@ -476,7 +479,7 @@ golden["audience_member_documents"] = [
 ]
 
 # --- jobs -----------------------------------------------------------------------------------------
-def job(name, klass, args, responder = script, **options) = run(name, responder, args:, **options) { klass.new.perform(*args) }
+def job(name, klass, args, responder = script, **options) = run(name, responder, args:, sidekiq: true, **options) { klass.new.perform(*args) }
 
 PURCHASE_1 = script(
   [sql_rule("purchases", "`purchases`.`id` = 1 "), table_rows("purchases", ORIGINAL.merge(subscription_id: nil, flags: 0))],

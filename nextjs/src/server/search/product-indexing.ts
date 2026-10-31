@@ -8,14 +8,14 @@ import { Prisma } from "@prisma/client";
 import { indexName } from "../infra/elasticsearch.ts";
 import { afterCommitEverywhere, currentJobsRuntime, performAsync } from "../models/concerns/job-runtime.ts";
 import { ago } from "../models/concerns/ruby-time.ts";
-import { findInBatches } from "../models/sql.ts";
+import { findInBatches, selectRows } from "../models/sql.ts";
+import { withExecutor } from "../models/runtime/query-cache.ts";
 import type { Row } from "../models/runtime/record.ts";
 import { pushBulkWith } from "../jobs/push-bulk.ts";
 import { clearScroll, indexDocument, scroll, search, updateDocument } from "./api.ts";
 import { type ProductDocumentDeps, ProductRecord } from "./documents/product.ts";
 import { esJson, type JsonValue } from "./es-json.ts";
 import { RecordNotFound } from "./indexer.ts";
-import { cachedSelect, withQueryCache } from "./query-cache.ts";
 import type { EsResponse } from "./transport.ts";
 
 const SEND_TO_ELASTICSEARCH_WORKER = "SendToElasticsearchWorker";
@@ -51,7 +51,7 @@ function castId(id: JsonValue | undefined): bigint | null {
 async function findProduct(id: JsonValue | undefined, deps: ProductIndexingDeps): Promise<ProductRecord | null> {
   const cast = castId(id);
   if (cast === null) {
-    await cachedSelect(Prisma.sql`SELECT \`links\`.* FROM \`links\` WHERE \`links\`.\`id\` IS NULL LIMIT 1`);
+    await selectRows(Prisma.sql`SELECT \`links\`.* FROM \`links\` WHERE \`links\`.\`id\` IS NULL LIMIT 1`);
     return null;
   }
   return ProductRecord.find(cast, deps);
@@ -85,7 +85,7 @@ export async function performProductIndexing(
 // them in order, as Ruby's per-product callbacks run back to back at commit, under one query cache.
 export function enqueueIndexUpdatesFor(productIds: readonly (bigint | number)[], changedSearchFields: string[], deps: ProductIndexingDeps): Promise<void> {
   return afterCommitEverywhere(() =>
-    withQueryCache(async () => {
+    withExecutor(async () => {
       for (const id of productIds) await updateFoundProduct(id, changedSearchFields, deps);
     }),
   );
@@ -121,7 +121,7 @@ export async function sendToElasticsearch(args: JsonValue[], deps: ProductIndexi
 // RefreshUserProductsRecommendationEligibilityJob / RefreshMerchantAccountProductsRecommendationEligibilityJob#perform
 export async function refreshProductsRecommendationEligibility(userId: JsonValue | undefined, deps: ProductIndexingDeps): Promise<void> {
   const cast = castId(userId);
-  const [user] = await cachedSelect<Row>(
+  const [user] = await selectRows<Row>(
     cast === null
       ? Prisma.sql`SELECT \`users\`.* FROM \`users\` WHERE \`users\`.\`id\` IS NULL LIMIT 1`
       : Prisma.sql`SELECT \`users\`.* FROM \`users\` WHERE \`users\`.\`id\` = ${cast} LIMIT 1`,
@@ -160,7 +160,7 @@ export async function reindexRecommendableProducts(deps: ProductIndexingDeps & {
     const recentSaleIds = new Set<string>();
     if (ids.length > 0) {
       const productIds = ids.length === 1 ? Prisma.sql`= ${ids[0]}` : Prisma.sql`IN (${Prisma.join(ids, ", ")})`;
-      const rows = await cachedSelect<{ link_id: unknown }>(
+      const rows = await selectRows<{ link_id: unknown }>(
         Prisma.sql`SELECT \`purchases\`.\`link_id\` FROM \`purchases\` WHERE \`purchases\`.\`link_id\` ${productIds} GROUP BY \`purchases\`.\`link_id\` HAVING (max(created_at) >= ${ago(DEFAULT_SALES_VOLUME_RECENTNESS, deps.now())})`,
       );
       for (const row of rows) recentSaleIds.add(String(row.link_id));

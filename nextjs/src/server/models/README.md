@@ -68,7 +68,36 @@ needs a scratch Redis database for the unique-jobs locks. So do `generate-commen
 `scripts/golden/user-writes.rb`, `risk-jobs.rb` and `lift-platform-stripe-pause.rb` boot the whole app
 with `rails runner` against a scratch database and Redis db (see `user-writes.rb`'s header): they
 truncate and seed the tables a case uses, run the real model or job, and record every statement and
-its answer with `support/rails_recorder.rb`. They record with the query cache off (see below).
+its answer with `support/rails_recorder.rb`. Job cases record as production Sidekiq runs them (see
+below); `user-writes.rb` saves outside any executor, so with the query cache off.
+
+## Query cache
+
+`runtime/query-cache.ts` is ActiveRecord 8.1's query cache. `withExecutor(fn, options)` is
+`Rails.application.executor.wrap`: the worker's processor wraps every job in it with
+`SIDEKIQ_EXECUTOR`, and a request handler would use `WEB_EXECUTOR`. Inside it, raw SELECTs through
+`sql.ts` or a client from `queryCacheClient` are keyed on their rendered SQL (LRU of 100 per pool),
+answered with fresh copies, and dropped by any write or rollback; locking reads, `find_in_batches`
+loads and `uncached` blocks bypass it, and `reload` clears it. `SIDEKIQ_EXECUTOR` also emulates
+production Sidekiq's `mysql2_proxy` pools (USE_DB_WORKER_REPLICAS=true): a separate replica store
+for `connectedTo("reading")`, and the cache cleared whenever `lib/mysql2_proxy_routing.rb` would
+switch the pool serving a SELECT. `runtime/__fixtures__/query-cache.golden.json` pins both
+executors against the real adapter (`scripts/golden/query-cache.rb`).
+
+Job goldens run each case through `scripts/golden/support/sidekiq_executor.rb` (a thread of its
+own, the Rails reloader, the proxy pools), and their tests replay inside `asSidekiqJob`. Goldens of
+model calls recorded outside any executor (`user-writes`, the comment model cases, the `search`
+golden's document builders) keep the cache off, and so do their tests.
+
+Known differences from Rails:
+
+- Rails keeps the proxy's last-write clock and serving pool per Sidekiq thread, across jobs; Node
+  starts each job fresh.
+- Reads Node runs concurrently within one job are not deduplicated; Rails runs them in sequence.
+- Typed Prisma reads (`findUnique` and friends) are not cached.
+- Any trailing lock clause marks a read as locking, where Rails looks at the relation's `lock`, so a
+  hand-written `find_by_sql("... FOR UPDATE")` would be cached there and not here. No such call is
+  ported.
 
 ## Known gaps
 
@@ -82,10 +111,6 @@ its answer with `support/rails_recorder.rb`. They record with the query cache of
   materialized (written or dirty-checked) first, then the rest in column order. `Record` tracks that
   order for every model; reads a callback makes only to decide something Rails decides without
   touching the attribute belong in `record.untracked(...)`.
-- No query cache. Sidekiq runs Rails jobs inside the executor, which enables ActiveRecord's query
-  cache (and `lib/mysql2_proxy_routing.rb` clears it whenever the serving pool changes), so Rails
-  skips a SELECT it already ran since the last write. Node sends it again: same answers, extra reads.
-  The goldens record with `ActiveRecord::Base.uncached` to match.
 
 ### `Comment` (`comment.ts`)
 

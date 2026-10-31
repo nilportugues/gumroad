@@ -14,7 +14,7 @@ import { resetUserCollaborators, setUserCollaborators } from "../../server/model
 import { StripeClient, setStripeClientForTesting, type TransportRequest } from "../../server/stripe/client.ts";
 import { stripeConfigFromEnv } from "../../server/stripe/config.ts";
 import type { SidekiqItem } from "../../server/jobs/sidekiq/item.ts";
-import { contextFor, recordingSidekiqRedis, rubyRuntimeRegistry, sequentialJids, type RedisSnapshot } from "./__fixtures__/golden.ts";
+import { asSidekiqJob, contextFor, recordingSidekiqRedis, rubyRuntimeRegistry, sequentialJids, type RedisSnapshot } from "./__fixtures__/golden.ts";
 import { sqlReplay, type Statement } from "./__fixtures__/sql-replay.ts";
 import {
   liftPlatformStripePauseJobRetriesExhaustedWith,
@@ -95,7 +95,7 @@ describe("LiftPlatformStripePauseJob", () => {
       let error: unknown = null;
       try {
         const context = contextFor(runtime);
-        await (RUNS[c.name] ? RUNS[c.name]!(context) : liftPlatformStripePauseJobWith({ now })(c.args, context));
+        await asSidekiqJob(() => (RUNS[c.name] ? RUNS[c.name]!(context) : liftPlatformStripePauseJobWith({ now })(c.args, context)), golden.now);
       } catch (e) {
         error = e;
       }
