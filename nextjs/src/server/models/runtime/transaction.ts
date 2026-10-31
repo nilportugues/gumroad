@@ -5,6 +5,8 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 import type { Prisma } from "@prisma/client";
 
+import { noteRollback, queryCacheClient } from "./query-cache.ts";
+
 export type Tx = Prisma.TransactionClient;
 export type TransactionRunner = <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>;
 export type Action = "create" | "update" | "destroy";
@@ -55,15 +57,21 @@ export async function transaction<T>(fn: (tx: Tx) => Promise<T>, options: { retu
   const participants = new Map<object, Participant>();
   let result!: T;
   let rolledBack = false;
+  // ActiveRecord begins lazily, so a transaction that sent nothing has nothing to roll back.
+  let materialized = false;
   try {
-    await runner(async (tx) =>
-      storage.run({ tx, participants }, async () => {
+    await runner(async (rawTx) => {
+      const tx = queryCacheClient(rawTx, () => {
+        materialized = true;
+      });
+      return storage.run({ tx, participants }, async () => {
         result = await fn(tx);
         if (options.returningStatus && (result as unknown) === false) throw new RollbackSignal();
-      }),
-    );
+      });
+    });
   } catch (error) {
     rolledBack = true;
+    if (materialized) noteRollback();
     for (const p of participants.values()) p.restore();
     for (const p of participants.values()) await p.rollback(p.destroyed ? "destroy" : p.firstAction);
     if (!(error instanceof RollbackSignal)) throw error;

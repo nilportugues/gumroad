@@ -15,7 +15,7 @@ import { sequentialJids } from "../../../worker/jobs/__fixtures__/golden.ts";
 import { sqlReplay, type Statement } from "../../../worker/jobs/__fixtures__/sql-replay.ts";
 import type { ProductDocumentDeps } from "../documents/product.ts";
 import { esJson } from "../es-json.ts";
-import { withQueryCache } from "../query-cache.ts";
+import { withExecutor } from "../../models/runtime/query-cache.ts";
 import { esRecorder } from "./job-harness.ts";
 import type { EsRequestRecord } from "./search-golden.ts";
 
@@ -114,7 +114,7 @@ export async function replayProductCase(
   let error: { class: string; message: string } | null = null;
   let result: JsonValue | void = undefined;
   try {
-    const run = () => withQueryCache(() => body(goldenDeps(c)));
+    const run = () => withExecutor(() => body(goldenDeps(c)));
     result = await (runtime ? withJobsRuntime(runtime, run) : run());
   } catch (e) {
     error = { class: (e as Error).name, message: (e as Error).message };

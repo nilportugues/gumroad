@@ -29,7 +29,7 @@ import { defineModel, type Callback, type CallbackContext, type SaveOptions } fr
 import { RecordNotFound } from "./runtime/errors.ts";
 import { ASSOCIATION_CACHE, type ModelRecord } from "./runtime/record.ts";
 import { buildSellerProfile, findSellerProfile, SellerProfiles, type SellerProfileRecord } from "./seller-profile.ts";
-import { castRow, column, findInBatches, selectRows, table } from "./sql.ts";
+import { castRow, column, connection, findInBatches, selectRows, table } from "./sql.ts";
 import { currentTransaction, participate, type Tx } from "./runtime/transaction.ts";
 import {
   isBlank,
@@ -217,7 +217,7 @@ const DEFAULT_COLLABORATORS: UserCollaborators = {
     return 0;
   },
   now: () => new Date(),
-  readDb: async () => (await import("../../lib/db.ts")).db,
+  readDb: () => connection() as Promise<Pick<Tx, "$queryRaw">>,
   // rand(9_999_999_999_999).to_s
   randomExternalId: () => String(randomInt(0, 9_999_999_999_999)),
   // Devise.friendly_token: SecureRandom.urlsafe_base64(15).tr("lIO0", "sxyz")

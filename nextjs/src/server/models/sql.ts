@@ -1,9 +1,10 @@
 // Raw statements for model code and jobs that need ActiveRecord's exact SQL (batching, locks,
 // grouped aggregates), and the casts that turn `$queryRaw` rows into the shapes Prisma's typed
 // client returns. Statements run on the open transaction when there is one, as ActiveRecord's
-// connection would.
+// connection would, and through the query cache (runtime/query-cache.ts).
 import { Prisma, type PrismaClient } from "@prisma/client";
 
+import { queryCacheClient, uncached } from "./runtime/query-cache.ts";
 import type { Row } from "./runtime/record.ts";
 import { currentTransaction } from "./runtime/transaction.ts";
 
@@ -16,8 +17,9 @@ export function setSqlClient(next: () => SqlClient | Promise<SqlClient>): void {
   client = next;
 }
 
-async function connection(): Promise<SqlClient> {
-  return (currentTransaction() as SqlClient | null) ?? (await client());
+// ActiveRecord::Base.connection: the open transaction, else the shared client.
+export async function connection(): Promise<SqlClient> {
+  return (currentTransaction() as SqlClient | null) ?? queryCacheClient(await client());
 }
 
 export async function selectRows<T = Row>(sql: Prisma.Sql): Promise<T[]> {
@@ -35,7 +37,8 @@ export const table = (name: string) => Prisma.raw(quoteName(name));
 export const column = (tableName: string, name: string) => Prisma.raw(`${quoteName(tableName)}.${quoteName(name)}`);
 
 // `find_in_batches` / `find_each` over `SELECT table.*` (activerecord 8.1): ORDER BY id LIMIT n,
-// then `AND id > <last id>`, stopping after a short batch.
+// then `AND id > <last id>`, stopping after a short batch. Batch loads skip the query cache
+// (`skip_query_cache!`); the block does not.
 export async function findInBatches<T extends Row>(
   tableName: string,
   where: Prisma.Sql | null,
@@ -47,8 +50,8 @@ export async function findInBatches<T extends Row>(
   for (;;) {
     const conditions = [where, after === null ? null : Prisma.sql`${id} > ${after}`].filter((c): c is Prisma.Sql => c !== null);
     const clause = conditions.length === 0 ? Prisma.empty : Prisma.sql` WHERE ${Prisma.join(conditions, " AND ")}`;
-    const rows = await selectRows<T>(
-      Prisma.sql`SELECT ${Prisma.raw(`${quoteName(tableName)}.*`)} FROM ${table(tableName)}${clause} ORDER BY ${id} ASC LIMIT ${Prisma.raw(String(batchSize))}`,
+    const rows = await uncached(() =>
+      selectRows<T>(Prisma.sql`SELECT ${Prisma.raw(`${quoteName(tableName)}.*`)} FROM ${table(tableName)}${clause} ORDER BY ${id} ASC LIMIT ${Prisma.raw(String(batchSize))}`),
     );
     if (rows.length === 0) return;
     await each(rows);

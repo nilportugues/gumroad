@@ -10,7 +10,6 @@ import {
   reindexRecommendableProducts,
   sendToElasticsearch,
 } from "../../server/search/product-indexing.ts";
-import { withQueryCache } from "../../server/search/query-cache.ts";
 import { checkArity } from "./arity.ts";
 import type { JobHandler } from "./types.ts";
 
@@ -21,14 +20,13 @@ export const defaultProductIndexingDeps: ProductIndexingDeps = {
 
 type Body = (args: Parameters<JobHandler>[0], deps: ProductIndexingDeps & { scrollSize?: number }) => Promise<void>;
 
-// The Rails executor wraps every job: its enqueues go through the worker's runtime and its reads
-// share one query cache.
+// Enqueues go through the worker's runtime; the processor runs the job under the query cache.
 function productJob(min: number, max: number, body: Body) {
   return (overrides: Partial<ProductIndexingDeps & { scrollSize: number }> = {}): JobHandler => {
     const deps = { ...defaultProductIndexingDeps, ...overrides };
     return async (args, context) => {
       checkArity(args, min, max);
-      await withJobsRuntime(context.runtime, () => withQueryCache(() => body(args, deps)));
+      await withJobsRuntime(context.runtime, () => body(args, deps));
     };
   };
 }

@@ -2,6 +2,7 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { db } from "../../lib/db.ts";
+import { queryCacheClient } from "../../server/models/runtime/query-cache.ts";
 import { replicaLagWatcher } from "../../server/infra/replica-lag-watcher.ts";
 import { checkArity } from "./arity.ts";
 import type { JobHandler } from "./types.ts";
@@ -27,4 +28,4 @@ export function deleteOldVersionsRecordsWorkerWith(deps: Deps): JobHandler {
   };
 }
 
-export const deleteOldVersionsRecordsWorker = deleteOldVersionsRecordsWorkerWith({ db: () => db, watchReplicaLag: () => replicaLagWatcher().watch() });
+export const deleteOldVersionsRecordsWorker = deleteOldVersionsRecordsWorkerWith({ db: () => queryCacheClient(db), watchReplicaLag: () => replicaLagWatcher().watch() });

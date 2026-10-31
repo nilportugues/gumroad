@@ -10,6 +10,7 @@ import { prepareServerItem, runtimeLockDigest, type SidekiqItem, serverLockType 
 import { type JsonValue, parseRubyJson, RubyFloat } from "../server/jobs/sidekiq/ruby-json.ts";
 import { executeLocked, relock, releaseLock } from "../server/jobs/sidekiq/unique-lock.ts";
 import { ACTIVE_JOB_WRAPPER } from "../server/mail/active-job.ts";
+import { SIDEKIQ_EXECUTOR, withExecutor } from "../server/models/runtime/query-cache.ts";
 import { runActiveJob } from "./jobs/active-job.ts";
 import type { JobHandler } from "./jobs/types.ts";
 import { handleFailure, type RetryHooks } from "./retry.ts";
@@ -86,10 +87,12 @@ export function createProcessor(runtime: JobsRuntime, handlers: Record<string, J
     const fetched = parseRubyJson(job.data.sidekiq) as SidekiqItem;
     // A scheduler fire is a template; each fire is its own job, as each sidekiq-cron push is.
     if (job.data.cron) fetched.jid = job.id ?? runtime.newJid();
+    // Sidekiq::Rails::Reloader runs JobRetry#local, the server middleware and the job inside the
+    // Rails executor, which turns the query cache on; JobRetry#global stays outside it.
     // ActiveJob keeps its own retry semantics (runActiveJob); JobRetry below is Sidekiq::Job's.
-    if (fetched.class === ACTIVE_JOB_WRAPPER) return runActiveJob(runtime, fetched);
+    if (fetched.class === ACTIVE_JOB_WRAPPER) return withExecutor(() => runActiveJob(runtime, fetched), SIDEKIQ_EXECUTOR);
     try {
-      await runJob(job, fetched);
+      await withExecutor(() => runJob(job, fetched), SIDEKIQ_EXECUTOR);
     } catch (error) {
       // JobRetry#local wraps the server middleware, so the lock is already released here.
       const { definition } = resolveJobClass(String(fetched.class), runtime.registry);
