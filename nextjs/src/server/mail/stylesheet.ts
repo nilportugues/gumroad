@@ -41,7 +41,7 @@ export function unwrapLayers(css: string): string {
   return output;
 }
 
-type ViteManifest = Record<string, { file: string; css?: string[] }>;
+type ViteManifest = Record<string, { file: string; css?: string[]; imports?: string[] }>;
 
 let manifestCache: { publicDir: string; manifest: ViteManifest } | undefined;
 const cssCache = new Map<string, string>();
@@ -60,13 +60,19 @@ function viteManifest(): ViteManifest {
   return manifestCache.manifest;
 }
 
-// ApplicationHelper#vite_entrypoint_stylesheet_tag's hrefs for an entrypoint, with the asset host
+// ApplicationHelper#vite_entrypoint_stylesheet_tag's hrefs for an entrypoint: vite_ruby's
+// resolve_entries stylesheets (the entry's CSS, then its direct imports'), with the asset host
 // stylesheet_link_tag prepends.
 export function entrypointStylesheetHrefs(name: string): string[] {
-  const entry = viteManifest()[`entrypoints/${name}.ts`];
-  if (!entry?.css?.length) throw new StylesheetNotPortedError(`no stylesheet for entrypoints/${name}.ts in the Vite manifest`);
+  const manifest = viteManifest();
+  const entry = manifest[`entrypoints/${name}.ts`];
+  if (!entry) throw new StylesheetNotPortedError(`entrypoints/${name}.ts is not in the Vite manifest`);
+  const imports = (entry.imports ?? []).map((key) => manifest[key]);
+  const files = [...new Set([entry, ...imports].flatMap((item) => item?.css ?? []))];
+  // With no CSS the helper falls back to vite_stylesheet_tag of the .scss entry, a dev-server path.
+  if (!files.length) throw new StylesheetNotPortedError(`no stylesheet for entrypoints/${name}.ts in the Vite manifest`);
   const host = domainConfig().assetHost ?? "";
-  return entry.css.map((file) => `${host}/vite/${file}`);
+  return files.map((file) => `${host}/vite/${file}`);
 }
 
 // EmailStylesheetLoader.load for an href under public/, with CSSHelper's production cache.
