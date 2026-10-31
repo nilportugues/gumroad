@@ -2810,7 +2810,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "recurringLockMaxAttempt": 21600,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SendAutoInvoiceEmailJob": {
     "file": "app/sidekiq/send_auto_invoice_email_job.rb",

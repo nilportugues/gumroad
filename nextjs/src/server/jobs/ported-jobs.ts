@@ -8,6 +8,7 @@ export const PORTED_JOBS: readonly string[] = [
   "HandleSnsAwsConfigEventWorker",
   "LogResendEventJob",
   "LogSendgridEventWorker",
+  "SellerUpdatesWorker",
   "SyncStripeBusinessProfileUrlWorker",
   "UpdateCurrenciesWorker",
 ];
