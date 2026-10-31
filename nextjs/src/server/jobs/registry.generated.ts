@@ -600,7 +600,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": true,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "CreateStripeMerchantAccountWorker": {
     "file": "app/sidekiq/create_stripe_merchant_account_worker.rb",
@@ -844,7 +844,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "DeleteWishlistProductsJob": {
     "file": "app/sidekiq/delete_wishlist_products_job.rb",
@@ -3371,7 +3371,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SyncStripeBusinessProfileUrlWorker": {
     "file": "app/sidekiq/sync_stripe_business_profile_url_worker.rb",

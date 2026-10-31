@@ -13,6 +13,12 @@ import { logResendEventJob } from "./log-resend-event-job.ts";
 import { logSendgridEventWorker } from "./log-sendgrid-event-worker.ts";
 import { backfillMerchantAccountRecommendationEligibilityJob, reindexSubscriptionCurrentEmailWorker } from "./search-reindex-jobs.ts";
 import { sellerUpdatesWorker } from "./seller-updates-worker.ts";
+import {
+  createStripeApplePayDomainWorker,
+  createStripeApplePayDomainWorkerRetriesExhausted,
+  deleteStripeApplePayDomainWorker,
+  syncStripeBusinessProfileUrlJob,
+} from "./stripe-jobs.ts";
 import { blockEmailDomainsWorker, blockObjectWorker, unblockObjectWorker } from "./platform-block-jobs.ts";
 import { alertOnStalledAbandonedCartEmailsJob, buildTaxRateCacheWorker, recoverAusBacktaxesFromStripeAccountsJob } from "./scheduled-check-jobs.ts";
 import { syncStripeBusinessProfileUrlWorker } from "./sync-stripe-business-profile-url-worker.ts";
@@ -29,6 +35,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   BlockObjectWorker: blockObjectWorker,
   BuildTaxRateCacheWorker: buildTaxRateCacheWorker,
   ContentModerationAdminCommentJob: contentModerationAdminCommentJob,
+  CreateStripeApplePayDomainWorker: createStripeApplePayDomainWorker,
   DeleteExpiredProductCachedValuesWorker: deleteExpiredProductCachedValuesWorker,
   DeleteOldPingDeliveriesJob: deleteOldPingDeliveriesJob,
   DeleteOldProcessedStripeEventsJob: deleteOldProcessedStripeEventsJob,
@@ -36,6 +43,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   DeleteOldUnusedEventsWorker: deleteOldUnusedEventsWorker,
   DeleteOldVersionsRecordsWorker: deleteOldVersionsRecordsWorker,
   DeleteProcessedWorkflowInstallmentScheduleIntentsJob: deleteProcessedWorkflowInstallmentScheduleIntentsJob,
+  DeleteStripeApplePayDomainWorker: deleteStripeApplePayDomainWorker,
   DetectLegalEntityCountryDriftJob: detectLegalEntityCountryDriftJob,
   DispatchPendingWorkflowInstallmentScheduleIntentsJob: dispatchPendingWorkflowInstallmentScheduleIntentsJob,
   ElasticsearchIndexerWorker: elasticsearchIndexerWorker,
@@ -50,6 +58,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   RecoverAusBacktaxesFromStripeAccountsJob: recoverAusBacktaxesFromStripeAccountsJob,
   ReindexSubscriptionCurrentEmailWorker: reindexSubscriptionCurrentEmailWorker,
   ReleaseChargebackRatePayoutPausesJob: releaseChargebackRatePayoutPausesJob,
+  SyncStripeBusinessProfileUrlJob: syncStripeBusinessProfileUrlJob,
   SyncStripeBusinessProfileUrlWorker: syncStripeBusinessProfileUrlWorker,
   TriggerCommunityChatRecapRunJob: triggerCommunityChatRecapRunJob,
   UnblockObjectWorker: unblockObjectWorker,
@@ -62,4 +71,6 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
 // The worker refuses to start when a ported job defines one in Ruby and has none here.
 export const JOB_RETRY_IN: Record<string, RetryIn> = {};
 
-export const JOB_RETRIES_EXHAUSTED: Record<string, RetriesExhausted> = {};
+export const JOB_RETRIES_EXHAUSTED: Record<string, RetriesExhausted> = {
+  CreateStripeApplePayDomainWorker: createStripeApplePayDomainWorkerRetriesExhausted,
+};

@@ -36,9 +36,10 @@ type GoldenCase = {
 const golden = JSON.parse(readFileSync(new URL("./__fixtures__/server-locks.golden.json", import.meta.url), "utf8")) as { now: number; cases: GoldenCase[] };
 
 const base = { file: "", sidekiqJob: true, customLockArgs: false, customRetryIn: false, retriesExhausted: false, runtime: "ruby" } as const;
-// The two synthetic classes of generate-server-locks-golden.rb; the others are real jobs.
+// The two synthetic classes of generate-server-locks-golden.rb; the others are real jobs, run as
+// Ruby so a reschedule lands in Sidekiq's schedule as it did when the golden was recorded.
 const registry: Record<string, JobDefinition> = {
-  ...(JOB_REGISTRY as Record<string, JobDefinition>),
+  ...Object.fromEntries(Object.entries(JOB_REGISTRY).map(([name, definition]) => [name, { ...definition, runtime: "ruby" } as JobDefinition])),
   WhileExecutingLogJob: { ...base, options: { queue: "default", lock: "while_executing", on_conflict: "log" } },
   UntilAndWhileExecutingJob: {
     ...base,

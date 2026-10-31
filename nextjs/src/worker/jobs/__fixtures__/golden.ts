@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs";
 
 import type { Redis } from "ioredis";
 
+import { JOB_REGISTRY } from "../../../server/jobs/registry.generated.ts";
+import type { JobDefinition } from "../../../server/jobs/registry-types.ts";
 import { createJobsRuntime, type JobsRuntime } from "../../../server/jobs/runtime.ts";
 import type { SidekiqItem } from "../../../server/jobs/sidekiq/item.ts";
 import { type JsonValue, parseRubyJson } from "../../../server/jobs/sidekiq/ruby-json.ts";
@@ -30,8 +32,14 @@ export function sequentialJids(): () => string {
   return () => (++seq).toString(16).padStart(24, "0");
 }
 
-export function goldenRuntime(sidekiqRedis: Redis): JobsRuntime {
-  return createJobsRuntime({ sidekiqRedis, bullmqRedis: sidekiqRedis, now: () => golden.now, newJid: sequentialJids() });
+export function goldenRuntime(sidekiqRedis: Redis, registry?: Record<string, JobDefinition>): JobsRuntime {
+  return createJobsRuntime({ sidekiqRedis, bullmqRedis: sidekiqRedis, registry, now: () => golden.now, newJid: sequentialJids() });
+}
+
+// The registry with every class still run by Ruby, so a golden recorded before a port keeps
+// checking the Sidekiq payload the enqueue would build.
+export function rubyRuntimeRegistry(): Record<string, JobDefinition> {
+  return Object.fromEntries(Object.entries(JOB_REGISTRY).map(([name, definition]) => [name, { ...definition, runtime: "ruby" } as JobDefinition]));
 }
 
 export function contextFor(runtime: JobsRuntime): JobContext {

@@ -28,9 +28,18 @@ function retrieve<T>(collectionPath: string) {
   };
 }
 
+// CGI.escape(nil)
+function escapeId(id: string | null | undefined): string {
+  if (id == null) throw new TypeError("no implicit conversion of nil into String");
+  return cgiEscape(id);
+}
+
 export const Account = {
-  retrieve: retrieve<Stripe.Account>("/v1/accounts"),
-  update: (id: string, params: StripeParams = {}, opts: RequestOptions = {}) => call<Stripe.Account>("post", `/v1/accounts/${cgiEscape(id)}`, params, opts),
+  // A nil id retrieves the platform's own account (`/v1/account`).
+  retrieve: (id: IdOrParams | null | undefined, opts: RequestOptions = {}) =>
+    id == null ? call<Stripe.Account>("get", "/v1/account", {}, opts) : retrieve<Stripe.Account>("/v1/accounts")(id, opts),
+  update: (id: string | null | undefined, params: StripeParams = {}, opts: RequestOptions = {}) =>
+    call<Stripe.Account>("post", `/v1/accounts/${escapeId(id)}`, params, opts),
 };
 
 export const Payout = {
