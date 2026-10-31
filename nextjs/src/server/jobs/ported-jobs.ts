@@ -9,6 +9,7 @@ export const PORTED_JOBS: readonly string[] = [
   "BlockObjectWorker",
   "BlockSuspendedAccountIpWorker",
   "BuildTaxRateCacheWorker",
+  "CheckPaymentAddressWorker",
   "ContentModerationAdminCommentJob",
   "CreateStripeApplePayDomainWorker",
   "DeleteExpiredProductCachedValuesWorker",

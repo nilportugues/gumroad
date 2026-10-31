@@ -28,7 +28,7 @@ import {
   syncStripeBusinessProfileUrlJob,
 } from "./stripe-jobs.ts";
 import { blockEmailDomainsWorker, blockObjectWorker, unblockObjectWorker } from "./platform-block-jobs.ts";
-import { blockSuspendedAccountIpWorker } from "./risk-jobs.ts";
+import { blockSuspendedAccountIpWorker, checkPaymentAddressWorker } from "./risk-jobs.ts";
 import { liftPlatformStripePauseJob, liftPlatformStripePauseJobRetriesExhausted, liftPlatformStripePauseJobRetryIn } from "./lift-platform-stripe-pause-job.ts";
 import { alertOnStalledAbandonedCartEmailsJob, buildTaxRateCacheWorker, recoverAusBacktaxesFromStripeAccountsJob } from "./scheduled-check-jobs.ts";
 import { syncStripeBusinessProfileUrlWorker } from "./sync-stripe-business-profile-url-worker.ts";
@@ -45,6 +45,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   BlockObjectWorker: blockObjectWorker,
   BlockSuspendedAccountIpWorker: blockSuspendedAccountIpWorker,
   BuildTaxRateCacheWorker: buildTaxRateCacheWorker,
+  CheckPaymentAddressWorker: checkPaymentAddressWorker,
   ContentModerationAdminCommentJob: contentModerationAdminCommentJob,
   CreateStripeApplePayDomainWorker: createStripeApplePayDomainWorker,
   DeleteExpiredProductCachedValuesWorker: deleteExpiredProductCachedValuesWorker,

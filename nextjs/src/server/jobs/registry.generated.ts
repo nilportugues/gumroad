@@ -468,7 +468,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "CollectUnclaimedBalancesOfInactiveStripeAccountsJob": {
     "file": "app/sidekiq/collect_unclaimed_balances_of_inactive_stripe_accounts_job.rb",

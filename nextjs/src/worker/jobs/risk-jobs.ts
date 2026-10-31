@@ -59,8 +59,5 @@ export const blockSuspendedAccountIpWorkerWith = modelJob({ min: 1 }, async ([us
   await addPlatformBlock({ objectType: PLATFORM_BLOCK_TYPES.ip_address, objectValue: ip!, expiresIn: { months: IP_ADDRESS_BLOCKING_DURATION_IN_MONTHS } }, deps.now);
 });
 
-// Not registered (PORTED_JOBS / JOB_HANDLERS) yet: flagging a compliant seller who has products reaches
-// update_product_search_index!, which Node still refuses, and this job has retry: 0, so a refusal
-// would drop the check instead of leaving it to Ruby.
 export const checkPaymentAddressWorker = checkPaymentAddressWorkerWith();
 export const blockSuspendedAccountIpWorker = blockSuspendedAccountIpWorkerWith();
