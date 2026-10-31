@@ -4,8 +4,7 @@
 # real indexing code makes. Loaded as-is: Purchase::Searchable, Installment::Searchable,
 # AudienceMember::Searchable, SearchIndexModelCommon, ElasticsearchModelAsyncCallbacks,
 # ElasticsearchIndexerWorker, ReindexSubscriptionCurrentEmailWorker,
-# BackfillMerchantAccountRecommendationEligibilityJob, ReindexRecommendableProductsWorker,
-# lib/utilities/referrer.rb and the purchase.rb / subscription.rb / user.rb / link.rb declarations
+# BackfillMerchantAccountRecommendationEligibilityJob, lib/utilities/referrer.rb and the purchase.rb / subscription.rb / user.rb / link.rb declarations
 # and methods the documents read (cut out with Prism, never retyped). The models run on
 # ActiveRecord 8.1's Mysql2Adapter over the fake driver (../../../worker/jobs/__fixtures__/fake_mysql.rb),
 # EsClient on elasticsearch 7.11.2 against a local socket that records each request and answers
@@ -275,6 +274,25 @@ module Kernel
   def sleep(seconds) = $slept << seconds
 end
 load_app("app/sidekiq/elasticsearch_indexer_worker.rb")
+load_app("app/sidekiq/reindex_subscription_current_email_worker.rb")
+
+module StripeChargeProcessor
+  def self.charge_processor_id = "stripe"
+end
+module PaypalChargeProcessor
+  def self.charge_processor_id = "paypal"
+end
+load_app("app/models/concerns/charge_processable.rb")
+class MerchantAccount < ApplicationRecord
+  include ChargeProcessable
+  serialize :json_data, coder: JSON
+end
+# Enqueued, not run: only its sidekiq_options (the unique lock) matter here.
+class RefreshMerchantAccountProductsRecommendationEligibilityJob
+  include Sidekiq::Job
+  class_eval(Prism.parse(source("app/sidekiq/refresh_merchant_account_products_recommendation_eligibility_job.rb")).value.statements.body.first.body.body.find { _1.is_a?(Prism::CallNode) && _1.name == :sidekiq_options }.slice)
+end
+load_app("app/sidekiq/backfill_merchant_account_recommendation_eligibility_job.rb")
 
 # --- running a case -------------------------------------------------------------------------------
 def redis(&) = Sidekiq.redis(&)
@@ -501,6 +519,44 @@ golden["jobs"]["ElasticsearchIndexerWorker"] = [
   job("update_by_query gives up after ten conflicts", ElasticsearchIndexerWorker, ["update_by_query", UBQ_PARAMS.merge("fields" => ["taxonomy_id"])], PURCHASE_1, es: [CONFLICT, hits(5), *Array.new(10) { CONFLICT }]),
   job("update_by_query refuses nested fields", ElasticsearchIndexerWorker, ["update_by_query", UBQ_PARAMS.merge("fields" => %w[taxonomy_id a.b])], PURCHASE_1),
   job("update_by_query raises other errors", ElasticsearchIndexerWorker, ["update_by_query", UBQ_PARAMS.merge("fields" => ["taxonomy_id"])], PURCHASE_1, es: [[400, { "error" => "parsing_exception" }]]),
+]
+
+def subscription_rules(*batches)
+  script(
+    [sql_rule("users", "= 5 "), table_rows("users", { id: 5, email: "b@example.com" })],
+    [/\ASELECT `purchases`\.`id` FROM `purchases`/, batches.map { |ids| rows(["id"], *ids.map { [_1] }) }],
+  )
+end
+golden["jobs"]["ReindexSubscriptionCurrentEmailWorker"] = [
+  job("missing user", ReindexSubscriptionCurrentEmailWorker, [5]),
+  job("user without memberships", ReindexSubscriptionCurrentEmailWorker, [5], subscription_rules([])),
+  job("original membership purchases", ReindexSubscriptionCurrentEmailWorker, [5], subscription_rules([11, 12])),
+  job("more than one batch", ReindexSubscriptionCurrentEmailWorker, [5], subscription_rules((1..1000).to_a, [1001])),
+]
+
+def merchant_account(id, user_id, processor, json_data) = { id:, user_id:, charge_processor_id: processor, json_data:, charge_processor_merchant_id: "acct_#{id}" }
+def merchant_rules(*batches) = script([sql_rule("merchant_accounts"), batches.map { |b| table_rows("merchant_accounts", *b) }])
+golden["jobs"]["BackfillMerchantAccountRecommendationEligibilityJob"] = [
+  job("no disconnected accounts", BackfillMerchantAccountRecommendationEligibilityJob, [], merchant_rules([])),
+  job("connected payout accounts", BackfillMerchantAccountRecommendationEligibilityJob, [], merchant_rules([
+    merchant_account(1, 10, "paypal", nil),
+    merchant_account(2, 11, "stripe", '{"meta":{"stripe_connect":"true"}}'),
+    merchant_account(3, 12, "stripe", '{"meta":{"stripe_connect":"false"}}'),
+    merchant_account(4, 13, "stripe", nil),
+    merchant_account(5, 14, "stripe", "[1]"),
+    merchant_account(6, 15, "stripe", '"x"'),
+    merchant_account(7, 10, "paypal", "{}"),
+    merchant_account(8, 16, "stripe", "{}"),
+    merchant_account(9, 17, "stripe", "null"),
+    merchant_account(10, 18, "stripe", ""),
+    merchant_account(11, 19, "stripe", '{"meta":{"stripe_connect":true}}'),
+  ])),
+  job("unparseable json_data", BackfillMerchantAccountRecommendationEligibilityJob, [], merchant_rules([merchant_account(1, 10, "stripe", "{nope")])),
+  job("meta that is not a hash", BackfillMerchantAccountRecommendationEligibilityJob, [], merchant_rules([merchant_account(1, 10, "stripe", '{"meta":"x"}')])),
+  job("a user per batch, and the refresh lock", BackfillMerchantAccountRecommendationEligibilityJob, [], merchant_rules(
+    (1..500).map { merchant_account(_1, 10 + (_1 % 2), "paypal", nil) },
+    [merchant_account(501, 10, "paypal", nil), merchant_account(502, 12, "stripe", '{"meta":{"stripe_connect":"true"}}')],
+  )),
 ]
 
 # --- pure helpers ---------------------------------------------------------------------------------
