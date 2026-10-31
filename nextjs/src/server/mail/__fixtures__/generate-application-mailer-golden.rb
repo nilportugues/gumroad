@@ -165,7 +165,7 @@ end
 # --- fixtures --------------------------------------------------------------------------------------
 def reset!
   conn = ActiveRecord::Base.connection
-  %w[users links invites marketing_actions installments comments].each { |t| conn.execute("DELETE FROM #{t}") }
+  %w[users links invites marketing_actions installments comments communities community_chat_recap_runs community_chat_recaps].each { |t| conn.execute("DELETE FROM #{t}") }
   $redis.flushdb
   $rands.clear
   $rands_used.clear
@@ -355,7 +355,7 @@ def record_message(name, mailer, method, args, features: {}, redis: {}, rands: [
 end
 
 # Warm the schema cache so the recorded statements are the mailers' and jobs' own.
-[User, Link, Marketing::Action, Invite, Installment, Comment].each { _1.columns; _1.first }
+[User, Link, Marketing::Action, Invite, Installment, Comment, Community, CommunityChatRecapRun, CommunityChatRecap].each { _1.columns; _1.first }
 # Likewise open the job thread's replica and primary connections, which the pools then reuse.
 SidekiqExecutor.perform { User.first; User.transaction { User.first } }
 
@@ -442,6 +442,32 @@ end
   reset!
   insert_user(id: 101, otp_secret_key: "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP", **user)
   messages << record_message(name, TwoFactorAuthenticationMailer, :authentication_token, args)
+end
+
+# CommunityChatRecapMailer#community_chat_recap_notification
+RECAP_SUMMARY = [
+  "<ul><li>Talked about <strong>pricing</strong> at https://example.com/pricing?a=1&b=2</li><li><em>New</em> launch, see www.example.org</li></ul>",
+  "<p onclick=\"x()\">Para</p> <script>alert(1)</script> <a href=\"javascript:alert(1)\" title=\"t\">bad</a> <img src=x> & more",
+].join("\n")
+[
+  ["recap_daily", { name: "Seller Name" }, { email: "member@example.com" }, ["daily", Time.utc(2026, 10, 30), Time.utc(2026, 10, 30, 23, 59, 59)], [[3, nil], [1, "Second <b>bold</b> recap"]], {}],
+  ["recap_weekly_same_month", { name: "Seller" }, { email: "member@example.com", unconfirmed_email: "member-new@example.com" }, ["weekly", Time.utc(2026, 3, 22), Time.utc(2026, 3, 28)], [[0, RECAP_SUMMARY]], {}],
+  ["recap_weekly_cross_month", { name: "A seller whose name runs long" }, { email: "member@example.com" }, ["weekly", Time.utc(2026, 3, 29), Time.utc(2026, 4, 4)], [[12, "Short"]], {}],
+  ["recap_weekly_cross_year", { name: nil }, { email: "member@example.com" }, ["weekly", Time.utc(2025, 12, 28), Time.utc(2026, 1, 3)], [[2, ""]], {}],
+  ["recap_resend", { name: "Tom & Jerry's <Shop>" }, { email: "member@example.com" }, ["daily", Time.utc(2026, 1, 9, 5), Time.utc(2026, 1, 9, 23)], [[1, nil]], { "resend" => true, "force_resend" => true }],
+].each do |name, seller, member, (frequency, from, to), recaps, features|
+  reset!
+  insert_user(id: 201, **seller)
+  insert_user(id: 202, **member)
+  CommunityChatRecapRun.insert!({ id: 61, recap_frequency: frequency, from_date: from, to_date: to, finished_at: FIXED_NOW, created_at: FIXED_NOW, updated_at: FIXED_NOW })
+  recap_ids = recaps.each_with_index.map do |(count, summary), i|
+    insert_link(id: 301 + i, user_id: 201, name: i.zero? ? "Course & <Guide>" : "Product #{301 + i}")
+    Community.insert!({ id: 71 + i, resource_type: "Link", resource_id: 301 + i, seller_id: 201, created_at: FIXED_NOW, updated_at: FIXED_NOW })
+    CommunityChatRecap.insert!({ id: 81 + i, community_chat_recap_run_id: 61, community_id: 71 + i, seller_id: 201, summarized_message_count: count,
+                                 summary: summary || "Members discussed the launch.", status: "finished", created_at: FIXED_NOW, updated_at: FIXED_NOW })
+    81 + i
+  end
+  messages << record_message(name, CommunityChatRecapMailer, :community_chat_recap_notification, [202, 201, recap_ids.reverse], features:)
 end
 cases["messages"] = messages
 

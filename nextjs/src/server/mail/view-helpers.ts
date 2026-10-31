@@ -69,7 +69,7 @@ export function distanceOfTimeInWords(seconds: number): string {
   throw new ViewHelperNotPortedError(`distance_of_time_in_words for ${distanceInMinutes} minutes`);
 }
 
-type LinkOptions = { class?: string; target?: string };
+type LinkOptions = { class?: string; target?: string; style?: string };
 
 // link_to(name, url, class:, target:): the html options in the order given, then href, each
 // escaped as tag_options does.
@@ -79,4 +79,17 @@ export function linkTo(name: string, url: string, options: LinkOptions = {}): st
     .map(([key, value]) => ` ${key}="${h(value)}"`)
     .join("");
   return `<a${attributes} href="${h(url)}">${h(name)}</a>`;
+}
+
+// pluralize(count, singular) for an Integer count; `plural` is what ActiveSupport's inflector
+// returns for `singular`.
+export function pluralize(count: number, singular: string, plural: string): string {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+// String#truncate(length) with the default "..." omission and no separator, counted in characters.
+export function truncate(text: string, length: number): string {
+  const chars = Array.from(text);
+  if (chars.length <= length) return text;
+  return `${chars.slice(0, length - 3).join("")}...`;
 }

@@ -20,6 +20,7 @@ import { StylesheetNotPortedError } from "./stylesheet.ts";
 import { ViewHelperNotPortedError } from "./view-helpers.ts";
 import { MailViewNotPortedError } from "./views.ts";
 import { notifySellerOfNewComment } from "./mailers/comment-mailer.ts";
+import { communityChatRecapNotification } from "./mailers/community-chat-recap-mailer.ts";
 import { marketingXReconnect } from "./mailers/creator-mailer.ts";
 import { receiverSignedUp } from "./mailers/invite-mailer.ts";
 import { authenticationToken } from "./mailers/two-factor-authentication-mailer.ts";
@@ -89,6 +90,12 @@ const NODE_MAILERS: Record<string, Record<string, MailerMethod>> = {
   CommentMailer: {
     notify_seller_of_new_comment: (args, deps) =>
       args.length === 1 ? notifySellerOfNewComment(integerArgument(args[0]), deps) : Promise.reject(new MailJobArgumentsError("arity")),
+  },
+  CommunityChatRecapMailer: {
+    community_chat_recap_notification: ([userId, sellerId, recapIds, ...rest], deps) => {
+      if (rest.length > 0 || !Array.isArray(recapIds)) return Promise.reject(new MailJobArgumentsError("arity"));
+      return communityChatRecapNotification(integerArgument(userId), integerArgument(sellerId), recapIds.map(integerArgument), deps);
+    },
   },
   CreatorMailer: {
     marketing_x_reconnect: (args, deps) => marketingXReconnect(integerArgument(keywords(args, ["marketing_action_id"]).marketing_action_id), deps),

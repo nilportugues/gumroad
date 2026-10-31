@@ -29,6 +29,11 @@ export const MailerRoutes = {
     if (slug === null || slug === "") throw new UrlGenerationError("No route matches custom_domain_view_post: missing required key [:slug]");
     return `${domainConfig().protocol}://${hostOf(host)}/p/${escapeSegment(slug)}`;
   },
+  // community_url(seller_id, community_id, query): get "/communities/:seller_id/:community_id"
+  community(sellerId: string | null, communityId: string, query: Record<string, string> = {}): string {
+    if (sellerId === null || sellerId === "") throw new UrlGenerationError("No route matches community: missing required key [:seller_id]");
+    return mailerUrl(`/communities/${escapeSegment(sellerId)}/${escapeSegment(communityId)}`, query);
+  },
   // settings_main_url(anchor:)
   settingsMain(anchor: string): string {
     return `${mailerUrl("/settings")}#${anchor}`;
