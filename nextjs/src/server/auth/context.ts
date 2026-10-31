@@ -1,5 +1,13 @@
 // Contract owned by WS-03. Other workstreams import this; keep the signature stable.
 import type { User } from "@prisma/client";
+import { cookies } from "next/headers";
+import { cache } from "react";
+
+import { railsCookieSecrets, railsSessionCookieName } from "./rails-session-config";
+import { resolveAuth } from "./resolve";
+import { prismaAuthStore } from "./store";
+
+export { railsLoggedInUser } from "./resolve";
 
 export type RequestContext = {
   // The person behind the session (an admin while impersonating).
@@ -9,6 +17,21 @@ export type RequestContext = {
   impersonatedUser: User | null;
 };
 
+// The Rails session cookie is the source of truth while login lives in Rails: logging out there
+// logs out here on the next request. Note that Rails' `logged_in_user` is
+// `railsLoggedInUser(context)`, not `context.loggedInUser`, which is Rails' `current_user`.
 export async function getRequestContext(): Promise<RequestContext> {
-  throw new Error("getRequestContext is not implemented yet (WS-03)");
+  return resolvePerRequest();
 }
+
+// React's cache() scopes this to one server render; outside a render it simply runs each time.
+const resolvePerRequest = cache(async (): Promise<RequestContext> => {
+  const jar = await cookies();
+  const { context } = await resolveAuth({
+    cookies: { get: (name) => jar.get(name)?.value },
+    secrets: railsCookieSecrets(),
+    sessionCookieName: railsSessionCookieName(),
+    store: prismaAuthStore,
+  });
+  return context;
+});
