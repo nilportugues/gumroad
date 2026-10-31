@@ -3,6 +3,8 @@
 // __fixtures__/mail.golden.json pins the payload.
 import { randomUUID } from "node:crypto";
 
+import { addToBullmq } from "../jobs/enqueue.ts";
+import type { JobDefinition } from "../jobs/registry-types.ts";
 import type { JobsRuntime } from "../jobs/runtime.ts";
 import { rawPushToSidekiq } from "../jobs/sidekiq/client.ts";
 import type { SidekiqItem } from "../jobs/sidekiq/item.ts";
@@ -90,11 +92,71 @@ export function buildMailDeliveryItem(input: DeliverLaterInput, identity: MailJo
   };
 }
 
-// Pushes to Sidekiq, where Rails delivers it, exactly as `deliver_later` from Ruby would. Returns
-// the ActiveJob job_id.
-export async function deliverLater(runtime: JobsRuntime, input: DeliverLaterInput): Promise<string> {
+// MailDeliveryJob's retry_on list, as ActiveJob keys exception_executions by `exceptions.to_s`.
+export const MAIL_RETRY_ON: readonly string[] = ["Net::OpenTimeout", "Net::ReadTimeout", "Net::SMTPServerBusy", "EOFError"];
+const MAIL_RETRY_KEY = `[${MAIL_RETRY_ON.join(", ")}]`;
+const MAIL_RETRY_ATTEMPTS = 10;
+// ActiveJob::Base.retry_jitter
+const RETRY_JITTER = 0.15;
+
+// retry_on's handler, run after the attempt that raised one of MAIL_RETRY_ON: the same job with
+// the attempt counted, rescheduled with :polynomially_longer, or null once the attempts are spent
+// and the error propagates to Sidekiq's own retry. `item` is the wrapper item that attempt ran.
+export function retryMailDeliveryItem(item: SidekiqItem, identity: { jid: string; now: number; random?: () => number }): SidekiqItem | null {
+  const job = (item.args as Record<string, JsonValue>[])[0]!;
+  const previous = (job.exception_executions ?? {}) as Record<string, JsonValue>;
+  const count = Number(previous[MAIL_RETRY_KEY] ?? 0) + 1;
+  if (count >= MAIL_RETRY_ATTEMPTS) return null;
+  const base = count ** 4;
+  const at = identity.now + base + (identity.random ?? Math.random)() * base * RETRY_JITTER + 2;
+  const retried: Record<string, JsonValue> = {
+    ...job,
+    // JobWrapper#perform merges the Sidekiq jid in before ActiveJob deserializes the job.
+    provider_job_id: String(item.jid),
+    // perform_now counts the attempt before running it.
+    executions: Number(job.executions ?? 0) + 1,
+    exception_executions: { ...previous, [MAIL_RETRY_KEY]: count },
+    enqueued_at: iso8601Nanos(identity.now),
+    scheduled_at: iso8601Nanos(at),
+  };
+  return {
+    retry: 25,
+    queue: String(job.queue_name),
+    backtrace: true,
+    wrapped: MAIL_DELIVERY_JOB,
+    args: [retried],
+    at: new RubyFloat(at),
+    class: ACTIVE_JOB_WRAPPER,
+    jid: identity.jid,
+    created_at: new RubyFloat(identity.now),
+  };
+}
+
+// The registry entry BullMQ options are built from: JobWrapper declares no sidekiq_options, so
+// only config/initializers/sidekiq.rb's defaults (already on the item) apply.
+export const ACTIVE_JOB_WRAPPER_DEFINITION: JobDefinition = {
+  file: "sidekiq/lib/active_job/queue_adapters/sidekiq_adapter.rb",
+  sidekiqJob: true,
+  options: {},
+  customLockArgs: false,
+  customRetryIn: false,
+  retriesExhausted: false,
+  runtime: "node",
+};
+
+export type MailJobRoute = "node" | "ruby";
+
+// Where a mail delivery job goes: BullMQ when the Node worker delivers that mailer method,
+// otherwise Sidekiq, where Rails delivers it exactly as for a Ruby `deliver_later`.
+export async function pushMailDeliveryItem(runtime: JobsRuntime, item: SidekiqItem, route: MailJobRoute): Promise<void> {
+  if (route === "node") return addToBullmq(runtime, ACTIVE_JOB_WRAPPER_DEFINITION, item);
+  return rawPushToSidekiq(runtime.sidekiqRedis, item, runtime.now());
+}
+
+// Returns the ActiveJob job_id. `route` comes from delivery.ts's mailRoute.
+export async function deliverLater(runtime: JobsRuntime, input: DeliverLaterInput, route: MailJobRoute = "ruby"): Promise<string> {
   const now = runtime.now();
   const item = buildMailDeliveryItem(input, { jobId: randomUUID(), jid: runtime.newJid(), now });
-  await rawPushToSidekiq(runtime.sidekiqRedis, item, now);
+  await pushMailDeliveryItem(runtime, item, route);
   return String((item.args as Record<string, JsonValue>[])[0]!.job_id);
 }

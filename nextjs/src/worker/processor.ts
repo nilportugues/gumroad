@@ -7,6 +7,8 @@ import type { JobsRuntime } from "../server/jobs/runtime.ts";
 import type { SidekiqItem } from "../server/jobs/sidekiq/item.ts";
 import { type JsonValue, parseRubyJson } from "../server/jobs/sidekiq/ruby-json.ts";
 import { acquireClientLock, releaseLock } from "../server/jobs/sidekiq/unique-lock.ts";
+import { ACTIVE_JOB_WRAPPER } from "../server/mail/active-job.ts";
+import { runActiveJob } from "./jobs/active-job.ts";
 import type { JobHandler } from "./jobs/types.ts";
 
 // Lock types the Node worker honours. while_executing and until_and_while_executing need the
@@ -19,6 +21,7 @@ export function createProcessor(runtime: JobsRuntime, handlers: Record<string, J
     // A scheduler fire is a template; each fire is its own job, as each sidekiq-cron push is.
     if (job.data.cron) item.jid = job.id ?? runtime.newJid();
 
+    if (item.class === ACTIVE_JOB_WRAPPER) return runActiveJob(runtime, item);
     const handler = handlers[String(item.class)];
     if (!handler) throw new Error(`No Node handler for ${String(item.class)}`);
     const run = () => handler(item.args as JsonValue[], { jid: String(item.jid), item, attemptsMade: job.attemptsMade, runtime });
