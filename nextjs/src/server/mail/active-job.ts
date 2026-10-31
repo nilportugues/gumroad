@@ -26,10 +26,13 @@ export type ActiveJobArgument =
   | string
   | ActiveJobArgument[]
   | { readonly globalId: { readonly model: string; readonly id: number | bigint } }
-  | { readonly symbolKeys: Readonly<Record<string, ActiveJobArgument>> };
+  | { readonly symbolKeys: Readonly<Record<string, ActiveJobArgument>> }
+  // Keyword arguments (a ruby2_keywords-flagged Hash), as `Mailer.method(key: value)` passes them.
+  | { readonly keywords: Readonly<Record<string, ActiveJobArgument>> };
 
 export const record = (model: string, id: number | bigint): ActiveJobArgument => ({ globalId: { model, id } });
 export const symbolHash = (hash: Record<string, ActiveJobArgument>): ActiveJobArgument => ({ symbolKeys: hash });
+export const keywordArgs = (hash: Record<string, ActiveJobArgument>): ActiveJobArgument => ({ keywords: hash });
 
 export function serializeArgument(argument: ActiveJobArgument): JsonValue {
   if (argument === null || typeof argument !== "object") {
@@ -38,9 +41,10 @@ export function serializeArgument(argument: ActiveJobArgument): JsonValue {
   }
   if (Array.isArray(argument)) return argument.map(serializeArgument);
   if ("globalId" in argument) return { _aj_globalid: `gid://${GLOBAL_ID_APP}/${argument.globalId.model}/${argument.globalId.id}` };
-  const hash = argument.symbolKeys;
+  const hash = "keywords" in argument ? argument.keywords : argument.symbolKeys;
   for (const key of Object.keys(hash)) if (key.startsWith("_aj_")) throw new Error(`reserved ActiveJob key ${key}`);
-  return { ...Object.fromEntries(Object.entries(hash).map(([key, value]) => [key, serializeArgument(value)])), _aj_symbol_keys: Object.keys(hash) };
+  const marker = "keywords" in argument ? "_aj_ruby2_keywords" : "_aj_symbol_keys";
+  return { ...Object.fromEntries(Object.entries(hash).map(([key, value]) => [key, serializeArgument(value)])), [marker]: Object.keys(hash) };
 }
 
 // Time#iso8601(9) in UTC for an epoch in float seconds; Ruby's Time carries the microseconds a

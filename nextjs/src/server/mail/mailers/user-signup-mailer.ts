@@ -1,7 +1,7 @@
 // app/mailers/user_signup_mailer.rb over Devise::Mailer, with app/views/user_signup_mailer.
 // Devise::Mailer is not an ApplicationMailer: no X-GUM headers or provider routing, and it
 // sends through config.action_mailer.smtp_settings (SendGrid, the gumroad domain).
-import type { MimeMessage } from "../mime.ts";
+import type { RenderedMail } from "../compose.ts";
 import { emailLayout, h, headerSection, mailerUrl, MailViewNotPortedError } from "../views.ts";
 
 // ApplicationMailer::NOREPLY_EMAIL_WITH_NAME, which config/initializers/devise.rb sets as
@@ -19,8 +19,7 @@ export type SignupMailUser = {
 // Devise's opts hash. A present key overrides the default even when blank, as Hash#merge does.
 export type DeviseMailOptions = { to?: string | null };
 
-// The message before premailer adds its text part.
-export type RenderedMail = Omit<MimeMessage, "parts" | "to"> & { to: string | null; html: string };
+export type { RenderedMail };
 
 const blank = (value: string | null | undefined) => value === null || value === undefined || !/[^\s]/u.test(value);
 

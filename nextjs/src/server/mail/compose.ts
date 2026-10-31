@@ -1,11 +1,15 @@
 // What ActionMailer does between a mailer method and the SMTP transaction: premailer-rails'
 // delivering_email hook, Mail::Message#encoded, and the SMTP envelope.
-import type { RenderedMail } from "./mailers/user-signup-mailer.ts";
-import { encodeMessage, type MimeIdentity, newIdentity } from "./mime.ts";
+import type { DeliveryMethodOptions } from "./mailer-info.ts";
+import { encodeMessage, type MimeIdentity, type MimeMessage, newIdentity } from "./mime.ts";
 import { premailerRails, type StylesheetLoader } from "./premailer/premailer.ts";
 import { loadEmailStylesheet } from "./stylesheet.ts";
 
-export type ComposedMail = { encoded: string; envelopeFrom: string; envelopeTo: string[] };
+// The message before premailer adds its text part. `smtp` is the message's delivery_method_options;
+// without it the mail goes through config.action_mailer.smtp_settings, as Devise's do.
+export type RenderedMail = Omit<MimeMessage, "parts" | "to"> & { to: string | null; html: string; smtp?: DeliveryMethodOptions };
+
+export type ComposedMail = { encoded: string; envelopeFrom: string; envelopeTo: string[]; smtp?: DeliveryMethodOptions };
 
 // Mail::Address#address for the forms mime.ts accepts.
 const bareAddress = (address: string) => /<([^>]+)>$/u.exec(address)?.[1] ?? address;
@@ -32,5 +36,5 @@ export function composeMail(
     },
     options.identity ?? newIdentity(),
   );
-  return { encoded, envelopeFrom: bareAddress(rendered.from), envelopeTo: [bareAddress(rendered.to)] };
+  return { encoded, envelopeFrom: bareAddress(rendered.from), envelopeTo: [bareAddress(rendered.to)], ...(rendered.smtp ? { smtp: rendered.smtp } : {}) };
 }

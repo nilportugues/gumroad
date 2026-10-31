@@ -48,10 +48,11 @@ describe("encodeMessage", () => {
     });
   }
 
-  it("refuses headers the gem would fold or encode", () => {
+  it("refuses headers the gem would RFC 2047-encode or decode", () => {
     const base = { from: "a@example.com", to: ["b@example.com"], parts: [{ contentType: "text/plain" as const, body: "x" }, { contentType: "text/html" as const, body: "y" }] };
     expect(() => encodeMessage({ ...base, subject: "Café" })).toThrow(MimeNotPortedError);
-    expect(() => encodeMessage({ ...base, subject: "x".repeat(80) })).toThrow(MimeNotPortedError);
+    expect(() => encodeMessage({ ...base, subject: "=?UTF-8?Q?x?=" })).toThrow(MimeNotPortedError);
+    expect(() => encodeMessage({ ...base, subject: "line\nbreak" })).toThrow(MimeNotPortedError);
     expect(() => encodeMessage({ ...base, subject: "ok", to: ["Ünï <b@example.com>"] })).toThrow(MimeNotPortedError);
     expect(() => encodeMessage({ ...base, subject: "ok", to: ["b@example.com", "c@example.com"] })).toThrow(MimeNotPortedError);
   });

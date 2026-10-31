@@ -941,7 +941,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "DuplicateProductWorker": {
     "file": "app/sidekiq/duplicate_product_worker.rb",
@@ -2946,7 +2946,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SendMembershipsPriceUpdateEmailsJob": {
     "file": "app/sidekiq/send_memberships_price_update_emails_job.rb",
