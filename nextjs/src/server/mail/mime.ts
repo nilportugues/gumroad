@@ -1,6 +1,6 @@
 // Mail::Message#encoded (mail 2.9) for the messages our mailers build: plain ASCII headers and
-// text/* parts under multipart/alternative. Anything the gem would fold or RFC 2047-encode
-// is refused, since a near miss there changes what the recipient's client shows.
+// text/* parts under multipart/alternative. Anything the gem would RFC 2047-encode is refused,
+// since a near miss there changes what the recipient's client shows.
 import { randomInt } from "node:crypto";
 import { hostname } from "node:os";
 
@@ -69,13 +69,34 @@ function checkAddress(address: string): string {
   return address;
 }
 
-// Unstructured fields the gem would leave on one line untouched.
-function unstructured(name: string, value: string): string {
-  const line = `${name}: ${value}`;
-  if (!/^[\x20-\x7e]*$/u.test(value) || line.length > 78 || value !== value.trim() || /\s{2}/u.test(value)) {
-    throw new MimeNotPortedError(`header would be folded or encoded: ${name}`);
+// UnstructuredField#encoded for an ASCII value: split on single spaces and tabs, then refilled
+// greedily to 78 columns, the first line counting "Name: ". Non-ASCII values would be RFC 2047
+// encoded and "=?" would be decoded first, so both are refused.
+export function unstructured(name: string, value: string): string {
+  if (!/^[\x20-\x7e\t]+$/u.test(value) || value.includes("=?") || !/[^ \t]/u.test(value)) {
+    throw new MimeNotPortedError(`header would be encoded: ${name}`);
   }
-  return line;
+  const words = value.split(/[ \t]/u);
+  // String#split drops trailing empty fields.
+  while (words.at(-1) === "") words.pop();
+  const lines: string[] = [];
+  let prepend = name.length + 2;
+  while (words.length > 0) {
+    const limit = 78 - prepend;
+    let line = "";
+    let first = true;
+    while (words.length > 0) {
+      const word = words[0]!;
+      if (line !== "" && line.length + word.length + 1 > limit) break;
+      words.shift();
+      if (first) first = false;
+      else line += " ";
+      line += word;
+    }
+    lines.push(line);
+    prepend = 0;
+  }
+  return `${name}: ${lines.join("\r\n ")}`;
 }
 
 const blank = (s: string) => !/[^ \t\r\n\f\v]/u.test(s);
