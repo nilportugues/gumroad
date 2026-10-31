@@ -1,4 +1,5 @@
 // Handlers for every class in src/server/jobs/ported-jobs.ts, keyed by Ruby class name.
+import { contentModerationAdminCommentJob, releaseChargebackRatePayoutPausesJob } from "./comment-jobs.ts";
 import { deleteExpiredProductCachedValuesWorker, deleteOldUnusedEventsWorker, deleteProcessedWorkflowInstallmentScheduleIntentsJob } from "./batched-cleanup-jobs.ts";
 import { forceFinishLongRunningCommunityChatRecapRunsJob, triggerCommunityChatRecapRunJob } from "./community-chat-recap-jobs.ts";
 import { deleteOldPingDeliveriesJob, deleteOldProcessedStripeEventsJob, deleteOldSentEmailInfoRecordsJob } from "./delete-old-records-jobs.ts";
@@ -22,6 +23,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   BlockEmailDomainsWorker: blockEmailDomainsWorker,
   BlockObjectWorker: blockObjectWorker,
   BuildTaxRateCacheWorker: buildTaxRateCacheWorker,
+  ContentModerationAdminCommentJob: contentModerationAdminCommentJob,
   DeleteExpiredProductCachedValuesWorker: deleteExpiredProductCachedValuesWorker,
   DeleteOldPingDeliveriesJob: deleteOldPingDeliveriesJob,
   DeleteOldProcessedStripeEventsJob: deleteOldProcessedStripeEventsJob,
@@ -39,6 +41,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   SellerUpdatesWorker: sellerUpdatesWorker,
   RecalculateRecentWishlistFollowerCountJob: recalculateRecentWishlistFollowerCountJob,
   RecoverAusBacktaxesFromStripeAccountsJob: recoverAusBacktaxesFromStripeAccountsJob,
+  ReleaseChargebackRatePayoutPausesJob: releaseChargebackRatePayoutPausesJob,
   SyncStripeBusinessProfileUrlWorker: syncStripeBusinessProfileUrlWorker,
   TriggerCommunityChatRecapRunJob: triggerCommunityChatRecapRunJob,
   UnblockObjectWorker: unblockObjectWorker,
