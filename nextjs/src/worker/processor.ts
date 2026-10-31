@@ -21,7 +21,7 @@ export function createProcessor(runtime: JobsRuntime, handlers: Record<string, J
 
     const handler = handlers[String(item.class)];
     if (!handler) throw new Error(`No Node handler for ${String(item.class)}`);
-    const run = () => handler(item.args as JsonValue[], { jid: String(item.jid), item, attemptsMade: job.attemptsMade });
+    const run = () => handler(item.args as JsonValue[], { jid: String(item.jid), item, attemptsMade: job.attemptsMade, runtime });
     const lock = typeof item.lock === "string" ? item.lock : undefined;
 
     switch (lock) {

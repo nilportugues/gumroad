@@ -29,6 +29,8 @@ export function validatePortedJobs(ported: readonly string[], handlers: Record<s
     const lock = definition.options.lock;
     if (!SUPPORTED_NODE_LOCKS.has(typeof lock === "string" ? lock : undefined)) problems.push(`${name} uses lock ${String(lock)}, not supported on Node yet`);
     if (definition.customRetryIn) problems.push(`${name} defines sidekiq_retry_in; port its backoff first`);
+    // BullMQ has no counterpart wired in yet, so a port would silently drop the hook.
+    if (definition.retriesExhausted) problems.push(`${name} defines sidekiq_retries_exhausted, not supported on Node yet`);
   }
   for (const name of Object.keys(handlers)) if (!ported.includes(name)) problems.push(`handler ${name} is not listed in ported-jobs.ts`);
   if (problems.length) throw new Error(`Cannot start the worker:\n  ${problems.join("\n  ")}`);
