@@ -14,6 +14,11 @@ export function withJobsRuntime<T>(runtime: JobsRuntime, fn: () => Promise<T>): 
   return storage.run(runtime, fn);
 }
 
+// The runtime enqueues from this call stack go through: the job's inside a handler, else the process's.
+export function currentJobsRuntime(): JobsRuntime {
+  return storage.getStore() ?? jobsRuntime();
+}
+
 // The jid, or null where `perform_async` returns nil (a unique lock dropped the push).
 export function performAsync(jobClass: string, args: JsonValue[], options?: EnqueueOptions): Promise<string | null> {
   return enqueueWith(storage.getStore() ?? jobsRuntime(), jobClass, args, options);
