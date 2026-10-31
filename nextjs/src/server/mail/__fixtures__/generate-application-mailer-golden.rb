@@ -163,7 +163,7 @@ end
 # --- fixtures --------------------------------------------------------------------------------------
 def reset!
   conn = ActiveRecord::Base.connection
-  %w[users links invites marketing_actions].each { |t| conn.execute("DELETE FROM #{t}") }
+  %w[users links invites marketing_actions installments comments].each { |t| conn.execute("DELETE FROM #{t}") }
   $redis.flushdb
   $rands.clear
   $rands_used.clear
@@ -352,7 +352,7 @@ def record_message(name, mailer, method, args, features: {}, redis: {}, rands: [
 end
 
 # Warm the schema cache so the recorded statements are the mailers' and jobs' own.
-[User, Link, Marketing::Action, Invite].each { _1.columns; _1.first }
+[User, Link, Marketing::Action, Invite, Installment, Comment].each { _1.columns; _1.first }
 # Likewise open the job thread's replica and primary connections, which the pools then reuse.
 SidekiqExecutor.perform { User.first; User.transaction { User.first } }
 
@@ -397,6 +397,34 @@ end
 end
 reset!
 messages << record_message("reconnect_missing_action", CreatorMailer, :marketing_x_reconnect, [Hash.ruby2_keywords_hash({ marketing_action_id: 99 })])
+
+# CommentMailer#notify_seller_of_new_comment
+COMMENT_CONTENT = [
+  "Loved it! See https://example.com/a?b=1&c=2, www.example.org and write to fan@example.com.",
+  "",
+  "<b>bold</b> <script>alert(1)</script> & \"quotes\" <a href=\"http://x.com\">http://x.com</a> <pre>www.pre.example.com</pre>",
+  "(http://example.com/Pikachu_(Electric)) <p>unclosed <div>block",
+].join("\n")
+[
+  ["comment_sendgrid", { username: "seller_name", email: "seller@example.com" }, {}, {}, {}],
+  ["comment_resend", { username: "seller", email: "seller@example.com", unconfirmed_email: "seller-new@example.com" }, {}, {}, { "resend" => true, "force_resend" => true }],
+  ["comment_no_username", { email: "seller@example.com" }, {}, {}, {}],
+  ["comment_markup", { username: "seller", email: "seller@example.com" }, { name: "Tom & Jerry's <Guide>", slug: "tom-jerry" },
+   { author_name: "<i>Fan</i> & co", content: COMMENT_CONTENT, created_at: Time.utc(2026, 1, 9, 0, 5, 59) }, {}],
+  ["comment_no_author_name", { username: "seller", email: "seller@example.com" }, {}, { author_name: nil, author_id: 202 }, {}],
+  ["comment_noon", { username: "seller", email: "seller@example.com" }, { slug: "a b/c?d" }, { content: "plain text, no links", created_at: Time.utc(2026, 12, 31, 12, 0, 0) }, {}],
+  ["comment_unicode", { username: "seller", email: "seller@example.com" }, {},
+   { author_name: "Zoë", content: "Café ☕ https://例え.jp/パス\r\nwww.ünï.example.com\r\n\r\n\r\n end" }, {}],
+  ["comment_long_subject",{ username: "seller", email: "seller@example.com" }, { name: "A post whose name is long enough to push the subject past the folding limit" }, {}, {}],
+].each do |name, seller, installment, comment, features|
+  reset!
+  insert_user(id: 201, **seller)
+  Installment.insert!({ id: 401, seller_id: 201, name: "Post 401", message: "<p>m</p>", slug: "post-401", installment_type: "audience",
+                        created_at: FIXED_NOW, updated_at: FIXED_NOW, **installment })
+  Comment.insert!({ id: 501, commentable_id: 401, commentable_type: "Installment", author_name: "Buyer", content: "Nice post!", comment_type: "user_submitted",
+                    created_at: Time.utc(2026, 10, 3, 21, 7, 0), updated_at: FIXED_NOW, **comment })
+  messages << record_message(name, CommentMailer, :notify_seller_of_new_comment, [501], features:)
+end
 cases["messages"] = messages
 
 # --- jobs ------------------------------------------------------------------------------------------

@@ -17,7 +17,9 @@ import { UnsupportedHtmlError } from "./premailer/html.ts";
 import { UnsupportedSelectorError } from "./premailer/selector.ts";
 import { deserializeArgument, GlobalIdRef, MailArgumentNotPortedError, RubyHash, RubySymbol, type RubyValue } from "./ruby-value.ts";
 import { StylesheetNotPortedError } from "./stylesheet.ts";
+import { ViewHelperNotPortedError } from "./view-helpers.ts";
 import { MailViewNotPortedError } from "./views.ts";
+import { notifySellerOfNewComment } from "./mailers/comment-mailer.ts";
 import { marketingXReconnect } from "./mailers/creator-mailer.ts";
 import { receiverSignedUp } from "./mailers/invite-mailer.ts";
 import { confirmationInstructions, type DeviseMailOptions, emailChanged, type SignupMailUser } from "./mailers/user-signup-mailer.ts";
@@ -72,6 +74,10 @@ function keywords(args: RubyValue[], names: string[]): Record<string, RubyValue>
 
 // Mailer methods the Node worker renders. Everything else stays with Rails.
 const NODE_MAILERS: Record<string, Record<string, MailerMethod>> = {
+  CommentMailer: {
+    notify_seller_of_new_comment: (args, deps) =>
+      args.length === 1 ? notifySellerOfNewComment(integerArgument(args[0]), deps) : Promise.reject(new MailJobArgumentsError("arity")),
+  },
   CreatorMailer: {
     marketing_x_reconnect: (args, deps) => marketingXReconnect(integerArgument(keywords(args, ["marketing_action_id"]).marketing_action_id), deps),
   },
@@ -127,7 +133,7 @@ const defaultDeps: MailDeliveryDeps = {
 const RESCUED: readonly string[] = ["Net::SMTPAuthenticationError", "Net::SMTPSyntaxError", "Net::SMTPFatalError"];
 
 // Input the port cannot reproduce exactly; Rails renders those.
-const NOT_PORTED = [MailJobArgumentsError, MailArgumentNotPortedError, MailViewNotPortedError, MimeNotPortedError, StylesheetNotPortedError, UnsupportedHtmlError, UnsupportedSelectorError];
+const NOT_PORTED = [MailJobArgumentsError, MailArgumentNotPortedError, MailViewNotPortedError, ViewHelperNotPortedError, MimeNotPortedError, StylesheetNotPortedError, UnsupportedHtmlError, UnsupportedSelectorError];
 export const isNotPorted = (error: unknown) => NOT_PORTED.some((type) => error instanceof type);
 
 // Render and compose: undefined when the method sends nothing, null when Mail would refuse the
