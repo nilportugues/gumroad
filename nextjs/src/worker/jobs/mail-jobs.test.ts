@@ -8,7 +8,7 @@ import { parseRubyJson, type JsonValue } from "../../server/jobs/sidekiq/ruby-js
 import { golden, goldenRouter, useGoldenEnvironment } from "../../server/mail/__fixtures__/application-mailer-golden.ts";
 import type { ComposedMail } from "../../server/mail/compose.ts";
 import { SmtpError } from "../../server/mail/smtp.ts";
-import { contextFor, recordingSidekiqRedis, sequentialJids } from "./__fixtures__/golden.ts";
+import { asSidekiqJob, contextFor, recordingSidekiqRedis, sequentialJids } from "./__fixtures__/golden.ts";
 import { sqlReplay } from "./__fixtures__/sql-replay.ts";
 import { disputeEvidenceDueSoonReminderJob } from "./dispute-evidence-due-soon-reminder-job.ts";
 import { sendMarketingXReconnectEmailJobWith } from "./send-marketing-x-reconnect-email-job.ts";
@@ -49,7 +49,7 @@ describe("SendMarketingXReconnectEmailJob", () => {
 
       let error: unknown = null;
       try {
-        await handler(c.args, contextFor(runtime));
+        await asSidekiqJob(() => handler(c.args, contextFor(runtime)), now.getTime() / 1000);
       } catch (e) {
         error = e;
       }
