@@ -8,4 +8,5 @@ export const PORTED_JOBS: readonly string[] = [
   "LogResendEventJob",
   "LogSendgridEventWorker",
   "SyncStripeBusinessProfileUrlWorker",
+  "UpdateCurrenciesWorker",
 ];

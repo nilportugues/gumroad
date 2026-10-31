@@ -4,6 +4,7 @@ import { handleSnsAwsConfigEventWorker } from "./handle-sns-aws-config-event-wor
 import { logResendEventJob } from "./log-resend-event-job.ts";
 import { logSendgridEventWorker } from "./log-sendgrid-event-worker.ts";
 import { syncStripeBusinessProfileUrlWorker } from "./sync-stripe-business-profile-url-worker.ts";
+import { updateCurrenciesWorker } from "./update-currencies-worker.ts";
 import type { JobHandler } from "./types.ts";
 
 export const JOB_HANDLERS: Record<string, JobHandler> = {
@@ -12,4 +13,5 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   LogResendEventJob: logResendEventJob,
   LogSendgridEventWorker: logSendgridEventWorker,
   SyncStripeBusinessProfileUrlWorker: syncStripeBusinessProfileUrlWorker,
+  UpdateCurrenciesWorker: updateCurrenciesWorker,
 };

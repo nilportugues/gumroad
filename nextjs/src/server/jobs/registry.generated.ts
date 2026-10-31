@@ -3553,7 +3553,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "UpdateInstallmentEventsCountCacheWorker": {
     "file": "app/sidekiq/update_installment_events_count_cache_worker.rb",
