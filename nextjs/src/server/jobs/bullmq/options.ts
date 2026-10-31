@@ -32,10 +32,6 @@ export function sidekiqBackoffMs(attemptsMade: number, random: () => number = Ma
 export const SIDEKIQ_BACKOFF = "sidekiq";
 
 export function bullJobOptions(definition: JobDefinition, item: SidekiqItem, delayMs: number): JobsOptions {
-  if (definition.customRetryIn) {
-    // The job's sidekiq_retry_in block must be ported alongside it; see README.
-    throw new Error(`${String(item.class)} defines sidekiq_retry_in; port its backoff before running it on Node`);
-  }
   return {
     jobId: String(item.jid),
     attempts: attemptsFor(item.retry),

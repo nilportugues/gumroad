@@ -12,6 +12,7 @@ import { executeLocked, relock, releaseLock } from "../server/jobs/sidekiq/uniqu
 import { ACTIVE_JOB_WRAPPER } from "../server/mail/active-job.ts";
 import { runActiveJob } from "./jobs/active-job.ts";
 import type { JobHandler } from "./jobs/types.ts";
+import { handleFailure, type RetryHooks } from "./retry.ts";
 
 export const SUPPORTED_NODE_LOCKS: ReadonlySet<string | undefined> = new Set([
   undefined,
@@ -77,13 +78,28 @@ async function onServerConflict(runtime: JobsRuntime, item: SidekiqItem, definit
   await strategy(runtime, item, definition);
 }
 
-export function createProcessor(runtime: JobsRuntime, handlers: Record<string, JobHandler>) {
+const NO_HOOKS: RetryHooks = { retryIn: {}, retriesExhausted: {} };
+
+export function createProcessor(runtime: JobsRuntime, handlers: Record<string, JobHandler>, hooks: RetryHooks = NO_HOOKS) {
+  const runJob = createLockedRun(runtime, handlers);
   return async (job: Job<BridgedJobData>): Promise<void> => {
     const fetched = parseRubyJson(job.data.sidekiq) as SidekiqItem;
     // A scheduler fire is a template; each fire is its own job, as each sidekiq-cron push is.
     if (job.data.cron) fetched.jid = job.id ?? runtime.newJid();
-
+    // ActiveJob keeps its own retry semantics (runActiveJob); JobRetry below is Sidekiq::Job's.
     if (fetched.class === ACTIVE_JOB_WRAPPER) return runActiveJob(runtime, fetched);
+    try {
+      await runJob(job, fetched);
+    } catch (error) {
+      // JobRetry#local wraps the server middleware, so the lock is already released here.
+      const { definition } = resolveJobClass(String(fetched.class), runtime.registry);
+      throw await handleFailure(error, { item: fetched, definition, attemptsMade: job.attemptsMade, runtime, hooks });
+    }
+  };
+}
+
+function createLockedRun(runtime: JobsRuntime, handlers: Record<string, JobHandler>) {
+  return async (job: Job<BridgedJobData>, fetched: SidekiqItem): Promise<void> => {
     const handler = handlers[String(fetched.class)];
     if (!handler) throw new Error(`No Node handler for ${String(fetched.class)}`);
     const { definition } = resolveJobClass(String(fetched.class), runtime.registry);

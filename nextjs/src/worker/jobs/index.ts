@@ -19,6 +19,7 @@ import { syncStripeBusinessProfileUrlWorker } from "./sync-stripe-business-profi
 import { updateCurrenciesWorker } from "./update-currencies-worker.ts";
 import { warmSellerReputationSummaryJob } from "./warm-seller-reputation-summary-job.ts";
 import { recalculateRecentWishlistFollowerCountJob } from "./wishlist-jobs.ts";
+import type { RetriesExhausted, RetryIn } from "../retry.ts";
 import type { JobHandler } from "./types.ts";
 
 export const JOB_HANDLERS: Record<string, JobHandler> = {
@@ -56,3 +57,9 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   UpdateLargeSellersSalesCountJob: updateLargeSellersSalesCountJob,
   WarmSellerReputationSummaryJob: warmSellerReputationSummaryJob,
 };
+
+// `sidekiq_retry_in` and `sidekiq_retries_exhausted` blocks of ported jobs, keyed by Ruby class name.
+// The worker refuses to start when a ported job defines one in Ruby and has none here.
+export const JOB_RETRY_IN: Record<string, RetryIn> = {};
+
+export const JOB_RETRIES_EXHAUSTED: Record<string, RetriesExhausted> = {};
