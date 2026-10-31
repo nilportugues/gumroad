@@ -17,6 +17,13 @@ the order Rails does and writes through the Prisma transaction client.
 - `associations.ts`: the association reflections of every Ruby model, read from
   `prisma/relations/manifest.json`.
 - `user.ts`, `link.ts`: the first model services.
+- The small models behind the Node job ports (`platform-block.ts`, `wishlist.ts`, ...). These need
+  ActiveRecord's exact statements, so they read through `sql.ts` (raw `SELECT table.*`,
+  `find_in_batches`, Arel's `IN`) and validate associations with `concerns/rails-validations.ts`.
+  `concerns/job-runtime.ts` gives them `perform_async` and `AfterCommitEverywhere`, and
+  `concerns/ruby-time.ts` ActiveSupport's date arithmetic. Their tests replay
+  `src/worker/jobs/__fixtures__/model-jobs.golden.json`, recorded from the real models under
+  ActiveRecord 8.1 with a stub mysql2 driver (`generate-model-jobs-golden.rb` next to it).
 - `../../lib/flags.ts`: `has_flags` (flag_shih_tzu).
 
 ## Defining a model
@@ -51,6 +58,9 @@ bundle exec ruby nextjs/scripts/golden/paper-trail.rb   # concerns/__fixtures__/
 bundle exec ruby nextjs/scripts/golden/flags.rb         # lib/__fixtures__/flags.golden.json
 ```
 
+`src/worker/jobs/__fixtures__/generate-model-jobs-golden.rb` pins its own gems (see its header) and
+needs a scratch Redis database for the unique-jobs locks.
+
 ## Known gaps
 
 - Record attributes are not type-cast on assignment. Code that sets a datetime must truncate it to the
@@ -59,6 +69,34 @@ bundle exec ruby nextjs/scripts/golden/flags.rb         # lib/__fixtures__/flags
   Versions of JSON columns can differ from Rails for such values.
 - No `touch`, so `has_paper_trail`'s `on_touch` callback is not ported.
 - `json_data` accessors (`attr_json_data_accessor`) and `stripped_fields` are not ported yet.
+
+- JS Dates hold milliseconds, so microseconds read from a `datetime(6)` column are lost. Writes that
+  need them (`Date#end_of_day`) use `MicroDate`, which assumes Prisma sends a Date as its
+  `toISOString()`; check that against MySQL before relying on it outside the golden tests.
+- `runtime/validators.ts`: `validatesUniquenessOf` puts the scope before `id != ?` and lacks the
+  unique-index skip of ActiveRecord 8.1, and `validatesAssociatedPresence` is not what a required
+  `belongs_to` does under `belongs_to_required_validates_foreign_key = true` (which loads the parent
+  on every save). `concerns/rails-validations.ts` has versions that match Rails; move callers over.
+- No savepoints, so `create_or_find_by!` inside an outer transaction is not ported.
+
+Still Ruby-only on the job-port models (app/models/...):
+
+- `sent_email_info.rb:20` `mailer_key_digest`, and `mailer_exists?`/`ensure_mailer_uniqueness` on it
+  (they hash Ruby's `Array#to_s` of arbitrary mailer arguments).
+- `ping_delivery.rb:19` `as_props` (needs `Purchase#external_id_numeric`).
+- `workflow_installment_schedule_intent.rb:19` `enqueue!`, `:79` `mark_processed`, `:94`
+  `mark_processed!`, `:104` `claim_fanout!`, `:113` `begin_fanout`, `:135` `renew_fanout`, `:148`
+  `defer_fanout`.
+- `event.rb:4` `TimestampScopes`, `:40` `user_external_id`.
+- `product_cached_value.rb:18` `assign_cached_values` (reads `Link` metrics), so the before_create
+  aborts and rows cannot be created from Node.
+- `zip_tax_rate.rb:14-15` the `json_data` accessors.
+- `community_chat_recap_run.rb:13` `between`, `:22` `check_if_finished!`.
+- `large_seller.rb:17` `create_if_warranted` (takes a `User`).
+- `stamped_pdf.rb:12` `user`, plus `S3Retrievable` and `CdnDeletable#mark_deleted_from_cdn`.
+- `wishlist.rb:27-57` `find_by_url_slug`, `seo_indexable(?)`, `url_slug`, `followed_by?`,
+  `wishlist_products_for_email`, `ExternalId` and `Wishlist::StructuredData`. `WishlistFollower` and
+  `CommunityChatMessage` have no model service; the jobs query them directly.
 
 Still Ruby-only on `User`: `stripped_fields`, the username/email uniqueness and format validators,
 `timezone`/`currency_type`/`recommendation_type` inclusion, every `validate :method`, password
