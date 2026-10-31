@@ -50,8 +50,16 @@ Known limits, enforced by `ruby-json.ts` throwing rather than diverging:
 One BullMQ queue per Sidekiq queue (`critical`, `default`, `low`, `exports`, `long`) under the
 `bull:` prefix. `retry: N` becomes `attempts: N + 1`, with Sidekiq's default backoff
 (`count**4 + 15 + rand(10) * (count + 1)` seconds). `retry: false` drops the job on failure; other
-failures are kept for 180 days, as the dead set keeps them. Jobs with `sidekiq_retry_in` cannot be
-marked ported until their backoff is ported (the worker refuses to start).
+failures are kept for 180 days, as the dead set keeps them.
+
+`src/worker/retry.ts` is Sidekiq 7.3.4's `JobRetry`: a job's `sidekiq_retry_in` block goes in
+`JOB_RETRY_IN` (seconds, `"discard"` or `"kill"`; jitter is still added, nil or non-positive keeps
+the default) and its `sidekiq_retries_exhausted` block in `JOB_RETRIES_EXHAUSTED`. The exhausted
+hook runs after the last allowed retry fails (on the first failure for `retry: 0`, never for
+`retry: false`), outside the lock middleware as in Sidekiq, with the `msg` Sidekiq builds
+(`error_message`, `error_class`, `retry_count`, `failed_at`/`retried_at`); a hook that raises is
+logged. The worker refuses to start a ported job whose Ruby class defines either block without
+its port. Not reproduced: an exhausted hook's `:discard` (BullMQ keeps the failed job anyway).
 
 Uniqueness for Node-run jobs uses the same unique-jobs keys as Ruby, not BullMQ's deduplication,
 so a Ruby enqueue and a Node enqueue of the same job keep deduplicating while both exist. The

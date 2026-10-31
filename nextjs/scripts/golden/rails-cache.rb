@@ -95,7 +95,13 @@ end
 # --- Zlib -------------------------------------------------------------------------------------
 lcg = 12_345
 pseudo_random = Array.new(1500) { lcg = (lcg * 1_103_515_245 + 12_345) % 2**31; lcg >> 16 & 0xff }.pack("C*")
-deflate_inputs = ["", "a", "abc" * 1000, Marshal.dump((1..500).to_a), pseudo_random, ("lorem ipsum dolor sit amet " * 80)]
+# Large values exercise the lazy-match and window paths where Node's bundled zlib and Ruby's diverge.
+large_text = (1..1500).map { |i| "product-#{i}:#{i * 7919 % 1000}|" }.join
+lcg = 54_321
+low_entropy = Array.new(30_000) { lcg = (lcg * 1_103_515_245 + 12_345) % 2**31; (lcg >> 16 & 0x0f) + 0x41 }.pack("C*")
+large_marshal = Marshal.dump((1..300).map { |i| { id: i, name: "seller #{i}", cents: i * 137 } })
+deflate_inputs = ["", "a", "abc" * 1000, Marshal.dump((1..500).to_a), pseudo_random, ("lorem ipsum dolor sit amet " * 80),
+                  large_text, low_entropy, large_marshal]
 deflate = deflate_inputs.map { |input| { "input" => hex(input), "output" => hex(Zlib::Deflate.deflate(input)) } }
 
 # --- Entry coder + Dalli value ---------------------------------------------------------------
@@ -115,6 +121,9 @@ entry_cases = [
   [pseudo_random, nil, nil, 1024],
   [nil, nil, nil, 1024],
   [{ url: "u", key: "k" }, $now.to_f + 300, nil, 1024],
+  [large_text, nil, nil, 1024],
+  [low_entropy, nil, "v2", 1024],
+  [(1..300).map { |i| { id: i, name: "seller #{i}", cents: i * 137 } }, nil, nil, 1024],
 ]
 entries = entry_cases.map do |value, expires_at, version, threshold|
   entry = ActiveSupport::Cache::Entry.new(value, expires_at:, version:)

@@ -13,14 +13,17 @@ import { bullmqRedisUrl, createRedis, sidekiqRedisUrl } from "../server/jobs/red
 import { createJobsRuntime, type JobsRuntime } from "../server/jobs/runtime.ts";
 import { runBridge } from "./bridge.ts";
 import { syncCronSchedulers } from "./cron.ts";
-import { JOB_HANDLERS } from "./jobs/index.ts";
+import { JOB_HANDLERS, JOB_RETRIES_EXHAUSTED, JOB_RETRY_IN } from "./jobs/index.ts";
 import type { JobHandler } from "./jobs/types.ts";
 import { createProcessor, unsupportedLock } from "./processor.ts";
+import { retryDelayMs, type RetryHooks } from "./retry.ts";
 
 const DEFAULT_QUEUES = ["critical", "default", "low", "exports"];
 const DEFAULT_CONCURRENCY = 5;
 
-export function validatePortedJobs(ported: readonly string[], handlers: Record<string, JobHandler>): void {
+const DEFAULT_HOOKS: RetryHooks = { retryIn: JOB_RETRY_IN, retriesExhausted: JOB_RETRIES_EXHAUSTED };
+
+export function validatePortedJobs(ported: readonly string[], handlers: Record<string, JobHandler>, hooks: RetryHooks = DEFAULT_HOOKS): void {
   const problems: string[] = [];
   for (const name of ported) {
     const { definition } = resolveJobClass(name);
@@ -28,11 +31,16 @@ export function validatePortedJobs(ported: readonly string[], handlers: Record<s
     if (!handlers[name]) problems.push(`${name} has no handler in src/worker/jobs`);
     const lockProblem = unsupportedLock(definition);
     if (lockProblem) problems.push(`${name} ${lockProblem}`);
-    if (definition.customRetryIn) problems.push(`${name} defines sidekiq_retry_in; port its backoff first`);
-    // BullMQ has no counterpart wired in yet, so a port would silently drop the hook.
-    if (definition.retriesExhausted) problems.push(`${name} defines sidekiq_retries_exhausted, not supported on Node yet`);
+    // A port without the hook would silently fall back to the default backoff or drop the hook.
+    if (definition.customRetryIn && !hooks.retryIn[name]) problems.push(`${name} defines sidekiq_retry_in; port it into JOB_RETRY_IN`);
+    if (definition.retriesExhausted && !hooks.retriesExhausted[name]) {
+      problems.push(`${name} defines sidekiq_retries_exhausted; port it into JOB_RETRIES_EXHAUSTED`);
+    }
   }
   for (const name of Object.keys(handlers)) if (!ported.includes(name)) problems.push(`handler ${name} is not listed in ported-jobs.ts`);
+  for (const name of [...Object.keys(hooks.retryIn), ...Object.keys(hooks.retriesExhausted)]) {
+    if (!handlers[name]) problems.push(`retry hook for ${name} has no handler`);
+  }
   if (problems.length) throw new Error(`Cannot start the worker:\n  ${problems.join("\n  ")}`);
 }
 
@@ -42,12 +50,13 @@ export async function startWorker(options: {
   runtime: JobsRuntime;
   queues: readonly string[];
   handlers?: Record<string, JobHandler>;
+  hooks?: RetryHooks;
   bridge?: boolean;
   prefix?: string;
 }): Promise<StartedWorker> {
   const { runtime, queues } = options;
   const handlers = options.handlers ?? JOB_HANDLERS;
-  const processor = createProcessor(runtime, handlers);
+  const processor = createProcessor(runtime, handlers, options.hooks ?? DEFAULT_HOOKS);
   const connections: Redis[] = [];
   const track = (connection: Redis) => (connections.push(connection), connection);
   const workers = queues.map(
@@ -58,9 +67,9 @@ export async function startWorker(options: {
         prefix: options.prefix ?? BULLMQ_PREFIX,
         concurrency: Number(getConfig(`WORKER_CONCURRENCY_${queue.toUpperCase()}`) ?? DEFAULT_CONCURRENCY),
         settings: {
-          backoffStrategy: (attemptsMade, type) => {
+          backoffStrategy: (attemptsMade, type, error) => {
             if (type !== SIDEKIQ_BACKOFF) throw new Error(`Unknown backoff ${String(type)}`);
-            return sidekiqBackoffMs(attemptsMade);
+            return retryDelayMs(error) ?? sidekiqBackoffMs(attemptsMade);
           },
         },
       }),

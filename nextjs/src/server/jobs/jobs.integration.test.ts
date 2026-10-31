@@ -27,6 +27,7 @@ const registry: Record<string, JobDefinition> = {
   // Same class name as NodeLockedJob would have on the Ruby side before it was ported.
   RubyLockedJob: { ...base, runtime: "ruby", options: { retry: 1, queue: "low", lock: "until_executed" } },
   RetryStubJob: { ...base, runtime: "ruby", options: { retry: false, queue: "low" } },
+  RetryInJob: { ...base, runtime: "node", customRetryIn: true, retriesExhausted: true, options: { retry: 1, queue: "low", lock: "until_executed" } },
   UntilExecutedWithTtlJob: { ...base, runtime: "ruby", options: { retry: 5, queue: "default", lock: "until_executed", lock_ttl: 900 } },
 };
 registry.RetryFalseJob = registry.RetryStubJob!;
@@ -189,6 +190,39 @@ describe.skipIf(!url)("jobs against Redis", () => {
     expect(run).toEqual({ className: "LogResendEventJob", args: [12345678901234567n], jid: "abc123abc123abc123abc123" });
     expect(await redis.llen("nextjs:bridge:processing")).toBe(0);
   });
+
+  it("delays a retry by sidekiq_retry_in and runs sidekiq_retries_exhausted after the last one", async () => {
+    const exhausted: { msg: JsonValue; message: string; digests: number }[] = [];
+    worker = await startWorker({
+      runtime,
+      queues: ["low"],
+      handlers: {
+        RetryInJob: async (args, context) => {
+          await recordingHandler("RetryInJob")(args, context);
+          throw new Error(`attempt ${context.attemptsMade}`);
+        },
+      },
+      hooks: {
+        // One second (plus jitter) instead of Sidekiq's 15+.
+        retryIn: { RetryInJob: () => 1 },
+        retriesExhausted: {
+          RetryInJob: async (msg, error) => {
+            // JobRetry runs outside the unique-jobs middleware: the until_executed lock is gone.
+            exhausted.push({ msg, message: (error as Error).message, digests: await redis.zcard("uniquejobs:digests") });
+          },
+        },
+      },
+      prefix: "ws05test",
+    });
+    const jid = await enqueueWith(runtime, "RetryInJob", [5]);
+    const [entry] = await waitFor(() => (exhausted.length ? exhausted : undefined), 25_000);
+    expect(ran.map((run) => run.jid)).toEqual([jid, jid]);
+    expect(entry!.message).toBe("attempt 1");
+    expect(entry!.digests).toBe(0);
+    expect(entry!.msg).toMatchObject({ class: "RetryInJob", args: [5], retry_count: 1, error_message: "attempt 1", error_class: "Error" });
+    const failed = await runtime.queue("low").getFailed();
+    expect(failed.map((job) => job.id)).toEqual([jid]);
+  }, 30_000);
 
   it("schedules Node-owned cron entries and removes stale ones", async () => {
     const schedule = [{ name: "node_cron", cron: "*/5 * * * *", class: "NodeLockedJob", args: ["x"] }];

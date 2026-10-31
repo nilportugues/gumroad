@@ -60,3 +60,24 @@ export function rubyFloatToS(value: number): string {
 export function isPlainHash(value: unknown): value is { [key: string]: RubyValue } {
   return typeof value === "object" && value !== null && !Array.isArray(value) && !(value instanceof RubyFloat) && !(value instanceof RubySymbol);
 }
+
+// String#inspect (for messages that quote a string, as Ruby's exceptions do).
+export function rubyInspect(value: string): string {
+  let out = '"';
+  for (const char of value) {
+    const code = char.codePointAt(0)!;
+    if (char === '"' || char === "\\") out += `\\${char}`;
+    else if (char === "\n") out += "\\n";
+    else if (char === "\t") out += "\\t";
+    else if (char === "\r") out += "\\r";
+    else if (char === "\f") out += "\\f";
+    else if (char === "\v") out += "\\v";
+    else if (char === "\b") out += "\\b";
+    else if (char === "\x07") out += "\\a";
+    else if (char === "\x1b") out += "\\e";
+    else if (code < 0x20 || code === 0x7f) out += `\\x${code.toString(16).toUpperCase().padStart(2, "0")}`;
+    else out += char;
+  }
+  // `#{`, `#$` and `#@` are escaped so the result reads back as the same String.
+  return `${out.replace(/#(?=[{$@])/gu, "\\#")}"`;
+}

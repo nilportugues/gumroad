@@ -15,6 +15,7 @@ import {
   withType,
 } from "../../server/models/comment.ts";
 import { performAsync } from "../../server/models/concerns/job-runtime.ts";
+import { STRIPE_CHARGE_PROCESSOR_ID, stripeAccountOf, stripeConnectMeta } from "../../server/models/merchant-account.ts";
 import { ago } from "../../server/models/concerns/ruby-time.ts";
 import { transaction } from "../../server/models/runtime/transaction.ts";
 import { column, selectRows, table } from "../../server/models/sql.ts";
@@ -67,24 +68,9 @@ export const releaseChargebackRatePayoutPausesJobWith = modelJob({ min: 0 }, asy
 
 export const LEGAL_ENTITY_COUNTRY_DRIFT_AUTHOR = "legal-entity-country-drift";
 const LEGAL_ENTITY_COUNTRY_DRIFT_DEDUP_WINDOW = { days: 30 } as const;
-const STRIPE = "stripe";
-
 // String#blank? (/\A[[:space:]]*\z/) for the string columns this job reads.
 const blank = (value: unknown) => value == null || (typeof value === "string" && value.trim() === "");
 
-// MerchantAccount#json_data.dig("meta", "stripe_connect"). JsonData's JSON coder reads a blank
-// column as nil, which json_data turns into {}.
-function stripeConnectMeta(jsonData: unknown): unknown {
-  const data: unknown = typeof jsonData === "string" ? (jsonData.trim() === "" ? null : JSON.parse(jsonData)) : jsonData;
-  if (data == null) return undefined;
-  if (typeof data !== "object" || Array.isArray(data)) throw new Error("json_data must be a hash");
-  const meta = (data as Record<string, unknown>).meta;
-  if (meta == null) return undefined;
-  if (typeof meta !== "object" || Array.isArray(meta)) throw new TypeError("json_data meta is not a Hash");
-  return (meta as Record<string, unknown>).stripe_connect;
-}
-
-type MerchantAccountRow = { user_id: unknown; charge_processor_id: unknown; charge_processor_merchant_id: unknown; country: unknown; json_data: unknown };
 type ComplianceInfoRow = { user_id: unknown; country_code: unknown; business_country_code: unknown; is_business: unknown };
 
 export const detectLegalEntityCountryDriftJobWith = modelJob({ min: 1 }, async ([complianceInfoId], deps) => {
@@ -102,13 +88,9 @@ export const detectLegalEntityCountryDriftJobWith = modelJob({ min: 1 }, async (
   const derivedCountry = isBusiness && info.business_country_code != null ? info.business_country_code : info.country_code;
   if (blank(derivedCountry)) return;
 
-  // User#stripe_account loads the relation and picks the first non-Connect account in Ruby.
-  const accounts = await selectRows<MerchantAccountRow>(
-    Prisma.sql`SELECT ${Prisma.raw("`merchant_accounts`.*")} FROM ${table("merchant_accounts")} WHERE ${column("merchant_accounts", "user_id")} = ${user.id} AND ${column("merchant_accounts", "deleted_at")} IS NULL AND ${column("merchant_accounts", "charge_processor_alive_at")} IS NOT NULL AND ${column("merchant_accounts", "charge_processor_deleted_at")} IS NULL AND ${column("merchant_accounts", "charge_processor_id")} = ${STRIPE}`,
-  );
-  const account = accounts.find((a) => !(a.charge_processor_id === STRIPE && a.user_id != null && stripeConnectMeta(a.json_data) === "true"));
+  const account = await stripeAccountOf(user.id);
   if (!account) return;
-  if (!(account.charge_processor_id === STRIPE && stripeConnectMeta(account.json_data) !== "true")) return;
+  if (!(account.charge_processor_id === STRIPE_CHARGE_PROCESSOR_ID && stripeConnectMeta(account.json_data) !== "true")) return;
 
   const accountCountry = account.country;
   if (blank(accountCountry) || accountCountry === derivedCountry) return;

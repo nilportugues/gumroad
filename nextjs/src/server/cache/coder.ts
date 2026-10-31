@@ -2,7 +2,12 @@
 // (cache_format_version = 7.1, Marshal71WithFallback + Zlib), which Dalli then Marshal.dumps
 // once more as a binary String with FLAG_SERIALIZED, because MemCacheStore configures Dalli with
 // `serializer: Marshal, compress: false` and never passes `raw: true` for ordinary writes.
-import { deflateSync, inflateSync } from "node:zlib";
+// pako, not node:zlib: Node bundles Chromium's zlib, whose match finder can emit a different (equally
+// valid) stream for the same input, so entries Node wrote would not be byte-identical to Ruby's.
+// Inflating is the same on every build.
+import { inflateSync } from "node:zlib";
+
+import pako from "pako";
 
 import { marshalDump, marshalLoad, MarshalRefusedError, RubyAsciiString, type MarshalValue } from "./marshal.ts";
 
@@ -42,7 +47,7 @@ function stringPayload(value: MarshalValue): [number, Buffer] | undefined {
 export function dumpEntry(entry: CacheEntry, threshold: number): Buffer {
   let [type, payload] = stringPayload(entry.value) ?? [OBJECT_DUMP_TYPE, marshalDump(entry.value)];
   if (payload.length >= threshold) {
-    const compressed = deflateSync(payload);
+    const compressed = Buffer.from(pako.deflate(payload));
     if (compressed.length < payload.length) {
       payload = compressed;
       type |= COMPRESSED_FLAG;

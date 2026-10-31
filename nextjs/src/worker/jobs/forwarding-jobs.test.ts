@@ -6,7 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { enqueueWith } from "../../server/jobs/enqueue.ts";
 import { UniqueJobConflictError } from "../../server/jobs/sidekiq/client.ts";
 import { dumpRubyJson } from "../../server/jobs/sidekiq/ruby-json.ts";
-import { contextFor, golden, goldenRuntime, recordingSidekiqRedis, snapshotRedis } from "./__fixtures__/golden.ts";
+import { contextFor, golden, goldenRuntime, recordingSidekiqRedis, rubyRuntimeRegistry, snapshotRedis } from "./__fixtures__/golden.ts";
 import { enqueueMarketingXReconnectEmailJob } from "./enqueue-marketing-x-reconnect-email-job.ts";
 import { logSendgridEventWorker } from "./log-sendgrid-event-worker.ts";
 import { syncStripeBusinessProfileUrlWorker } from "./sync-stripe-business-profile-url-worker.ts";
@@ -24,7 +24,8 @@ describe("SyncStripeBusinessProfileUrlWorker", () => {
     "pushes what Ruby pushes for %s",
     async (_label, c) => {
       const { redis, snapshot } = recordingSidekiqRedis();
-      await syncStripeBusinessProfileUrlWorker(c.args, contextFor(goldenRuntime(redis)));
+      // SyncStripeBusinessProfileUrlJob now runs in Node; this checks the payload Ruby recorded.
+      await syncStripeBusinessProfileUrlWorker(c.args, contextFor(goldenRuntime(redis, rubyRuntimeRegistry())));
       expect(snapshot()).toEqual(c.redis);
     },
   );

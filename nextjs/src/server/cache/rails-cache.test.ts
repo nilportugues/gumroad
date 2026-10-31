@@ -3,6 +3,8 @@
 import { readFileSync } from "node:fs";
 import { deflateSync, inflateSync } from "node:zlib";
 
+import pako from "pako";
+
 import { describe, expect, it } from "vitest";
 
 import { dalliRetrieve, dalliStore, dumpEntry, loadEntry } from "./coder.ts";
@@ -139,44 +141,28 @@ describe("Marshal subset", () => {
   });
 });
 
-// Node bundles Chromium's zlib, whose match finder differs from the zlib 1.2.12 Ruby links: the
-// streams are equally valid and inflate on both sides, but are not always byte-identical.
-const DEFLATE_BYTE_IDENTICAL = [true, true, true, false, true, true];
-
+// The coder deflates with pako. Node's own zlib (Chromium's build) is checked only to show why:
+// its streams inflate on both sides but are not always the bytes Ruby's zlib writes.
 describe("Zlib::Deflate.deflate", () => {
-  it.each(golden.deflate.map((c, i) => [i, c] as const))("case %i interoperates with Ruby", (i, c) => {
+  it.each(golden.deflate.map((c, i) => [i, c] as const))("case %i is byte-identical to Ruby", (_i, c) => {
     const input = Buffer.from(c.input, "hex");
-    const ours = deflateSync(input);
-    expect(inflateSync(Buffer.from(c.output, "hex"))).toEqual(input);
-    expect(inflateSync(ours)).toEqual(input);
-    expect(ours.toString("hex") === c.output).toBe(DEFLATE_BYTE_IDENTICAL[i]);
+    expect(Buffer.from(pako.deflate(input)).toString("hex")).toBe(c.output);
+    expect(inflateSync(deflateSync(input))).toEqual(input);
+  });
+
+  it("includes inputs where node:zlib differs from Ruby", () => {
+    expect(golden.deflate.some((c) => deflateSync(Buffer.from(c.input, "hex")).toString("hex") !== c.output)).toBe(true);
   });
 });
-
-// A compressed 7.1 entry with its payload inflated, so entries compare across zlib builds.
-function canonicalEntry(hex: string): string {
-  const dumped = Buffer.from(hex, "hex");
-  if (dumped[0] !== 0x00 || dumped[1] !== 0x11 || !(dumped[2]! & 0x80)) return hex;
-  const versionLength = Math.max(dumped.readInt32LE(11), 0);
-  const header = Buffer.from(dumped.subarray(0, 15 + versionLength));
-  header[2] = header[2]! & 0x7f;
-  return `deflated:${Buffer.concat([header, inflateSync(dumped.subarray(15 + versionLength))]).toString("hex")}`;
-}
-
-function canonicalDalli(hex: string, flags: number): string {
-  return canonicalEntry(dalliRetrieve(Buffer.from(hex, "hex"), flags).toString("hex"));
-}
 
 describe("ActiveSupport::Cache::Coder (7.1) and Dalli's value", () => {
   it.each(golden.entries.map((c, i) => [i, c] as const))("entry %i", (_i, c) => {
     const entry = { value: build(c.value), expiresAt: c.expires_at, version: c.version };
     const dumped = dumpEntry(entry, c.threshold ?? Infinity);
-    expect(canonicalEntry(dumped.toString("hex"))).toBe(canonicalEntry(c.coder));
-    if (!canonicalEntry(c.coder).startsWith("deflated:")) expect(dumped.toString("hex")).toBe(c.coder);
+    expect(dumped.toString("hex")).toBe(c.coder);
     const wrapped = dalliStore(dumped);
     expect(wrapped.flags).toBe(c.flags);
-    expect(canonicalDalli(wrapped.value.toString("hex"), wrapped.flags)).toBe(canonicalDalli(c.dalli, c.flags));
-    if (!canonicalEntry(c.coder).startsWith("deflated:")) expect(wrapped.value.toString("hex")).toBe(c.dalli);
+    expect(wrapped.value.toString("hex")).toBe(c.dalli);
 
     const loaded = loadEntry(dalliRetrieve(Buffer.from(c.dalli, "hex"), c.flags));
     expect({ value: toDesc(loaded.value()), expires_at: loaded.expiresAt, version: loaded.version }).toEqual(c.loaded);
@@ -269,14 +255,11 @@ describe("MemCacheStore semantics", () => {
           break;
       }
       const label = `step ${index} (${step.op} ${JSON.stringify(step.name).slice(0, 40)})`;
-      const canonicalOps = (list: (string | number)[][]) =>
-        list.map((op) => (op.length === 5 ? [...op.slice(0, 4), canonicalDalli(String(op[4]), Number(op[2]))] : op));
-      expect({ label, result, blockRan, ops: canonicalOps(ops) }).toEqual({ label, result: step.result, blockRan: step.block_ran, ops: canonicalOps(step.ops) });
+      expect({ label, result, blockRan, ops }).toEqual({ label, result: step.result, blockRan: step.block_ran, ops: step.ops });
       const state = Object.fromEntries(
-        [...memory.entries].filter(([, entry]) => entry.expiresAt === null || entry.expiresAt > Math.floor(now)).sort(([a], [b]) => (a < b ? -1 : 1)).map(([key, entry]) => [key, { value: canonicalDalli(entry.value.toString("hex"), entry.flags), flags: entry.flags, exptime: entry.exptime }]),
+        [...memory.entries].filter(([, entry]) => entry.expiresAt === null || entry.expiresAt > Math.floor(now)).sort(([a], [b]) => (a < b ? -1 : 1)).map(([key, entry]) => [key, { value: entry.value.toString("hex"), flags: entry.flags, exptime: entry.exptime }]),
       );
-      const expected = Object.fromEntries(Object.entries(step.memcached).map(([key, entry]) => [key, { ...entry, value: canonicalDalli(entry.value, entry.flags) }]));
-      expect(state).toEqual(expected);
+      expect(state).toEqual(step.memcached);
     }
   });
 
