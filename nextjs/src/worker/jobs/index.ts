@@ -4,6 +4,7 @@ import { enqueueMarketingXReconnectEmailJob } from "./enqueue-marketing-x-reconn
 import { handleSnsAwsConfigEventWorker } from "./handle-sns-aws-config-event-worker.ts";
 import { logResendEventJob } from "./log-resend-event-job.ts";
 import { logSendgridEventWorker } from "./log-sendgrid-event-worker.ts";
+import { sellerUpdatesWorker } from "./seller-updates-worker.ts";
 import { syncStripeBusinessProfileUrlWorker } from "./sync-stripe-business-profile-url-worker.ts";
 import { updateCurrenciesWorker } from "./update-currencies-worker.ts";
 import type { JobHandler } from "./types.ts";
@@ -14,6 +15,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   HandleSnsAwsConfigEventWorker: handleSnsAwsConfigEventWorker,
   LogResendEventJob: logResendEventJob,
   LogSendgridEventWorker: logSendgridEventWorker,
+  SellerUpdatesWorker: sellerUpdatesWorker,
   SyncStripeBusinessProfileUrlWorker: syncStripeBusinessProfileUrlWorker,
   UpdateCurrenciesWorker: updateCurrenciesWorker,
 };
