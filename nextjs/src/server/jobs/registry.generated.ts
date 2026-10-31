@@ -1015,7 +1015,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ExecuteScheduledPayoutsJob": {
     "file": "app/sidekiq/execute_scheduled_payouts_job.rb",
@@ -1693,7 +1693,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "LowBalanceFraudCheckWorker": {
     "file": "app/sidekiq/low_balance_fraud_check_worker.rb",
@@ -3383,7 +3383,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SyncStuckPayoutsJob": {
     "file": "app/sidekiq/sync_stuck_payouts_job.rb",
