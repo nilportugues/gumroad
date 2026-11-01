@@ -31,6 +31,13 @@ export function ago(duration: Duration, now: Date): Date {
   return advance(now, negated);
 }
 
+// `Time#to_f`: the time in nanoseconds as a double, divided by 1e9. For a time with milliseconds this is
+// not always the double nearest to the instant (1762000245.123 reads back as 1762000245.1230001), and
+// Sidekiq scores a scheduled job with it.
+export function rubyTimeToF(time: Date): number {
+  return Number(BigInt(time.getTime()) * 1_000_000n) / 1e9;
+}
+
 // What a `datetime` column without fractional seconds keeps of a Time: ActiveRecord floors the
 // value when it casts it for a typed `where(created_at: ...)`. Raw `where("... < ?", time)` does not.
 export function truncateToSeconds(time: Date): Date {

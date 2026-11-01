@@ -2,6 +2,7 @@
 // `enqueue("FooJob", args)`): ported jobs go to BullMQ, the rest to Sidekiq in its wire format.
 // Either way the sidekiq-unique-jobs lock is taken in the Sidekiq Redis, so a Node enqueue and a
 // Ruby enqueue of the same job deduplicate against each other.
+import { rubyTimeToF } from "../models/concerns/ruby-time.ts";
 import { bullJobOptions } from "./bullmq/options.ts";
 import { JOB_REGISTRY, type JobClass } from "./registry.generated.ts";
 import type { JobDefinition, SidekiqOptionValue } from "./registry-types.ts";
@@ -51,7 +52,7 @@ export async function addToBullmq(runtime: JobsRuntime, definition: JobDefinitio
 export async function enqueueWith(runtime: JobsRuntime, jobClass: string, args: JsonValue[], options: EnqueueOptions = {}): Promise<string | null> {
   const { className, definition } = resolveJobClass(jobClass, runtime.registry);
   const now = runtime.now();
-  const at = options.at ? options.at.getTime() / 1000 : options.delaySeconds !== undefined ? now + options.delaySeconds : undefined;
+  const at = options.at ? rubyTimeToF(options.at) : options.delaySeconds !== undefined ? now + options.delaySeconds : undefined;
   const item = buildSidekiqItem({
     className,
     definition,

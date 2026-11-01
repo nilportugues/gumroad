@@ -50,6 +50,7 @@ import { syncStripeBusinessProfileUrlWorker } from "./sync-stripe-business-profi
 import { updateCurrenciesWorker } from "./update-currencies-worker.ts";
 import { warmSellerReputationSummaryJob } from "./warm-seller-reputation-summary-job.ts";
 import { recalculateRecentWishlistFollowerCountJob } from "./wishlist-jobs.ts";
+import { flushInstallmentDeliveredDeltasJob, scheduleAffiliateWorkflowJobsJob, scheduleWorkflowEmailsWorker, sendWorkflowInstallmentRescheduleJob, updateInstallmentEventsCountCacheWorker } from "./workflow-jobs.ts";
 import {
   createMissingPurchaseEventsWorker,
   expireRentalPurchasesWorker,
@@ -93,6 +94,11 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   DetectLegalEntityCountryDriftJob: detectLegalEntityCountryDriftJob,
   DispatchPendingFailedRefundExceptionsJob: dispatchPendingFailedRefundExceptionsJob,
   DispatchPendingWorkflowInstallmentScheduleIntentsJob: dispatchPendingWorkflowInstallmentScheduleIntentsJob,
+  FlushInstallmentDeliveredDeltasJob: flushInstallmentDeliveredDeltasJob,
+  ScheduleAffiliateWorkflowJobsJob: scheduleAffiliateWorkflowJobsJob,
+  ScheduleWorkflowEmailsWorker: scheduleWorkflowEmailsWorker,
+  SendWorkflowInstallmentRescheduleJob: sendWorkflowInstallmentRescheduleJob,
+  UpdateInstallmentEventsCountCacheWorker: updateInstallmentEventsCountCacheWorker,
   DisputeEvidenceDueSoonReminderJob: disputeEvidenceDueSoonReminderJob,
   ElasticsearchIndexerWorker: elasticsearchIndexerWorker,
   ExpireRentalPurchasesWorker: expireRentalPurchasesWorker,
