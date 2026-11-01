@@ -138,7 +138,7 @@ describe("performMailDelivery", () => {
     process.env.NODE_MAIL_DELIVERY = "enabled";
     try {
       expect(mailRoute("UserSignupMailer", "email_changed")).toBe("node");
-      expect(mailRoute("CustomerMailer", "receipt")).toBe("ruby");
+      expect(mailRoute("CustomerMailer", "auto_invoice")).toBe("ruby");
     } finally {
       delete process.env.NODE_MAIL_DELIVERY;
     }

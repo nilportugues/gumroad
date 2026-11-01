@@ -307,7 +307,7 @@ ${payment.notes.map((note) => `      <div>\n        ${h(note)}\n      </div>\n`)
       subject,
       html,
       deliveryMethodOptions: options,
-      recordIds: { purchaseId: purchase.id },
+      recordIds: { purchaseId: purchase.id, emailName: "receipt" },
     },
     deps,
   );

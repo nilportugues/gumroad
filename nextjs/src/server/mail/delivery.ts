@@ -7,6 +7,7 @@ import { railsEnv } from "../infra/rails-env.ts";
 import type { JobsRuntime } from "../jobs/runtime.ts";
 import type { SidekiqItem } from "../jobs/sidekiq/item.ts";
 import type { JsonValue } from "../jobs/sidekiq/ruby-json.ts";
+import { markCustomerEmailSent } from "../models/email-info.ts";
 import { selectRows } from "../models/sql.ts";
 import { MAIL_RETRY_ON, type MailJobRoute, pushMailDeliveryItem, retryMailDeliveryItem } from "./active-job.ts";
 import type { MailerDeps } from "./application-mailer.ts";
@@ -195,6 +196,8 @@ export type MailDeliveryDeps = {
   log(message: string): void;
   random?: () => number;
   mailer?: MailerDeps;
+  // Time.current, for the CustomerEmailInfo the observer writes
+  now?: () => Date;
 };
 
 const defaultDeps: MailDeliveryDeps = {
@@ -216,16 +219,22 @@ export async function composeNodeMail(mailer: string, method: string, args: Ruby
   return rendered === null ? undefined : composeMail(rendered);
 }
 
+// EmailDeliveryObserver::HandleCustomerEmailInfo, which runs after the SMTP hand-off. `receipt` is the only ported mail
+// whose headers name a purchase.
+async function deliveredEmail(mail: ComposedMail, now: () => Date): Promise<void> {
+  const ids = mail.recordIds;
+  if (ids?.purchaseId != null && ids.emailName !== undefined) await markCustomerEmailSent(ids.purchaseId, ids.emailName, now());
+}
+
 // `deliver_now` of an already composed message: true when Mail returned the message, false when
 // RescueSmtpErrors swallowed the failure. Retryable SMTP errors propagate.
-export async function sendComposed(mail: ComposedMail | null, deps: Pick<MailDeliveryDeps, "send" | "log">): Promise<boolean> {
+export async function sendComposed(mail: ComposedMail | null, deps: Pick<MailDeliveryDeps, "send" | "log"> & { now?: () => Date }): Promise<boolean> {
   if (mail === null) {
     deps.log(`Mailer Error: #<ArgumentError: SMTP To address may not be blank: ${JSON.stringify([])}>`);
     return false;
   }
   try {
     await deps.send(mail);
-    return true;
   } catch (error) {
     if (error instanceof SmtpError && RESCUED.includes(error.rubyClass)) {
       deps.log(`Mailer Error: #<${error.rubyClass}: ${error.message}>`);
@@ -233,6 +242,8 @@ export async function sendComposed(mail: ComposedMail | null, deps: Pick<MailDel
     }
     throw error;
   }
+  await deliveredEmail(mail, deps.now ?? (() => new Date()));
+  return true;
 }
 
 export const defaultMailDeliveryDeps = defaultDeps;

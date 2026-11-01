@@ -265,7 +265,7 @@ export type MailerHeaders = [string, string][];
 
 // HeaderBuilder#determine_receipt_record_ids for a receipt the mailer has already looked up: the purchase or
 // the charge it normalises to, neither when the mail names none.
-export type ReceiptRecordIds = { purchaseId?: number | bigint | null; chargeId?: number | bigint | null };
+export type ReceiptRecordIds = { purchaseId?: number | bigint | null; chargeId?: number | bigint | null; emailName?: string };
 
 export function buildHeaders(input: { mailerClass: string; mailerMethod: string; mailerArgs: RubyValue[]; emailProvider: EmailProvider; randomIv?: RandomIv; recordIds?: ReceiptRecordIds }): MailerHeaders {
   const { mailerClass, mailerMethod, emailProvider } = input;

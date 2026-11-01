@@ -3035,7 +3035,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": true,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SendRemindersForOutstandingUserComplianceInfoRequestsWorker": {
     "file": "app/sidekiq/send_reminders_for_outstanding_user_compliance_info_requests_worker.rb",

@@ -224,7 +224,7 @@ end
 
 # --- fixtures --------------------------------------------------------------------------------------
 TABLES = %w[users links purchases subscriptions url_redirects purchase_presentments calls refunds prices charges charge_purchases orders order_purchases
-            customer_email_infos email_infos thumbnails gifts preorders base_variants base_variants_purchases purchase_custom_fields purchase_refund_policies tips product_files].freeze
+            customer_email_infos email_infos product_files thumbnails gifts preorders base_variants base_variants_purchases purchase_custom_fields purchase_refund_policies tips product_files].freeze
 def reset!
   conn = ActiveRecord::Base.connection
   TABLES.each { |t| conn.execute("DELETE FROM #{t}") if conn.table_exists?(t) }
@@ -393,6 +393,64 @@ refused << record_message("receipt_auto_linked_field", CustomerMailer, :receipt,
 reset!
 errors << record_error("receipt_missing_purchase", CustomerMailer, :receipt, [404])
 
-cases = { "messages" => messages, "errors" => errors, "refused" => refused }
+# --- SendPurchaseReceiptJob: the job as Sidekiq runs it, the mail inline ------------------------------------------
+def record_job(name, args, features: {}, meta: {})
+  $delivered.clear
+  $iv_seq = 0
+  $ivs_used.clear
+  $rands_used.clear
+  features.each_key { Feature.activate(_1) }
+  error = nil
+  statements = nil
+  SidekiqExecutor.perform do
+    statements = capture_sql do
+      SendPurchaseReceiptJob.new.perform(*args)
+    rescue => e
+      error = { "class" => e.class.name, "message" => e.message }
+    end
+  end
+  {
+    **meta,
+    "name" => name,
+    "args" => args,
+    "statements" => statements,
+    "error" => error,
+    "features" => features.keys,
+    "rands_used" => $rands_used.dup,
+    "ivs" => $ivs_used.dup,
+    "delivered" => $delivered.dup,
+    "stamp_jobs" => Sidekiq.redis { |c| c.lrange("queue:long", 0, -1) },
+    "email_infos" => EmailInfo.order(:id).map { |info| info.attributes.slice("purchase_id", "type", "email_name", "state").merge("sent_at" => info.sent_at&.iso8601) },
+  }
+end
+
+jobs = []
+def job_setup(**args)
+  Sidekiq.redis { |c| c.del("queue:long") }
+  setup(**args)
+end
+job_setup(purchase: PRICE)
+jobs << record_job("job_basic", [401], meta: seed_mailer_level(201, :cache, :level_1))
+job_setup(purchase: PRICE)
+jobs << record_job("job_resend_provider", [401], features: RESEND, meta: seed_mailer_level(201, :cache, :level_1))
+job_setup(purchase: PRICE)
+CustomerEmailInfo.insert!({ purchase_id: 401, type: "CustomerEmailInfo", email_name: "receipt", state: "delivered", sent_at: FIXED_NOW - 1.hour })
+jobs << record_job("job_already_sent", [401], meta: seed_mailer_level(201, :cache, :level_1))
+job_setup(purchase: PRICE)
+CustomerEmailInfo.insert!({ purchase_id: 401, type: "CustomerEmailInfo", email_name: "receipt", state: "delivered", sent_at: FIXED_NOW - 1.hour })
+jobs << record_job("job_resend_requested", [401, true], meta: seed_mailer_level(201, :cache, :level_1))
+job_setup(purchase: PRICE.merge(flags: 67_108_864))
+jobs << record_job("job_bundle_product_purchase", [401], meta: seed_mailer_level(201, :cache, :level_1))
+job_setup(purchase: PRICE, redirect: false)
+jobs << record_job("job_without_url_redirect", [401], meta: seed_mailer_level(201, :cache, :level_1))
+job_setup(purchase: PRICE)
+jobs << record_job("job_missing_purchase", [404])
+job_setup(purchase: PRICE, seller: { recommendation_type: "own_products" })
+jobs << record_job("job_recommending_seller", [401], meta: seed_mailer_level(201, :cache, :level_1))
+job_setup(purchase: PRICE)
+ProductFile.insert!({ link_id: 301, url: "https://example.com/a.pdf", filetype: "pdf", flags: 16, created_at: FIXED_NOW, updated_at: FIXED_NOW })
+jobs << record_job("job_stampable_pdf", [401], meta: seed_mailer_level(201, :cache, :level_1))
+
+cases = { "messages" => messages, "errors" => errors, "refused" => refused, "jobs" => jobs }
 File.write(File.join(FIXTURES, "receipt-mailer.golden.json"), JSON.pretty_generate({ "now" => FIXED_NOW.iso8601, "secrets" => SMTP_SECRETS, "cases" => cases }) + "\n")
 puts "wrote #{messages.size} messages, #{errors.size} errors, #{refused.size} refused"
