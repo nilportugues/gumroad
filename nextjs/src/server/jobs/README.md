@@ -176,3 +176,20 @@ leaves nothing queued; a failure part-way flushes the batches already judged, as
 
 `perform_in` and `perform_at` build the item without Setter, so their payload has `class` before `args` and no `at` when
 the time is not in the future; `scheduled` in `BuildItemInput` selects that shape.
+
+## Ported refund and dispute jobs (WS-49)
+
+`refund-dispute-jobs.ts` ports `FightDisputesJob`, `DispatchPendingFailedRefundExceptionsJob`, `NotifyFailedRefundExceptionJob` and
+`RefundUnpaidPurchasesWorker` in full. `ErrorNotifier.notify` goes to Sentry (`notifyError`); the Ruby jobs pass `context:` as a
+keyword, so Sentry's extra scope is `{ context: {...} }` and the port keeps that shape. `FightDisputeJob` and `RefundPurchaseWorker`
+(what these push) stay in Ruby: both end in charge-processor calls.
+
+Hand-backs, all before the job's first write:
+
+- `RecoverPendingRefundFeeRetentionJob`: an empty sweep, or refunds whose fee is no longer pending, run in Node
+  (`purchase.with_lock { reload.fee_retention_pending }`, and Ruby's per-refund rescue that reports and moves on). The first
+  refund still pending goes to Rails, which looks up Stripe transfers and writes ledger rows; a refund Node reported before that
+  is reported again by Rails.
+- `CreateMissingDisputeEvidenceJob`: an empty scan runs in Node; a dispute in it goes to Rails (evidence attachments, the
+  processor's deadline, the seller's notice).
+- A job argument that is not an Integer or its digits (`FailedRefundException.find("abc")`).

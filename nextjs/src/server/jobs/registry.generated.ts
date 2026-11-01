@@ -576,7 +576,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "recurringLockMaxAttempt": 3600,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "CreateMissingPurchaseEventsWorker": {
     "file": "app/sidekiq/create_missing_purchase_events_worker.rb",
@@ -913,7 +913,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "recurringLockMaxAttempt": 600,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "DispatchPendingWorkflowInstallmentScheduleIntentsJob": {
     "file": "app/sidekiq/dispatch_pending_workflow_installment_schedule_intents_job.rb",
@@ -1194,7 +1194,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "recurringLockMaxAttempt": 1200,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "FinalizeBuyerPresentmentChargeJob": {
     "file": "app/sidekiq/finalize_buyer_presentment_charge_job.rb",
@@ -1755,7 +1755,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "OrderReviewReminderJob": {
     "file": "app/sidekiq/order_review_reminder_job.rb",
@@ -2132,7 +2132,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "recurringLockMaxAttempt": 2700,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RecoverStrandedBuyersJob": {
     "file": "app/sidekiq/recover_stranded_buyers_job.rb",
@@ -2376,7 +2376,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": true,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RegenerateCreatorAnalyticsCacheWorker": {
     "file": "app/sidekiq/regenerate_creator_analytics_cache_worker.rb",

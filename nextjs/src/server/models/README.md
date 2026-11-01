@@ -320,3 +320,31 @@ Still Ruby-only on `Link`: permalink generation and locking, `user` presence, `d
 
 - `BalanceTransaction#update_balance!` retries a lock wait timeout like Rails (3 attempts, 0.5 s × attempt
   backoff), but that path has no golden: the money goldens never hit a lock timeout.
+
+### `Refund`, `FailedRefundException`, `Dispute`, `DisputeEvidence` (WS-49)
+
+Read side first, for the jobs in `src/worker/jobs/refund-dispute-jobs.ts`. Golden:
+`worker/jobs/__fixtures__/refund-dispute-jobs.golden.json` (`scripts/golden/refund-dispute-jobs.rb`: every job as a Sidekiq job,
+with the statements, Redis, ErrorNotifier reports and errors recorded) and
+`models/__fixtures__/dispute-evidence-window.golden.json` (`scripts/golden/dispute-evidence-window.rb`).
+
+- `refund.ts`: `Refunds` is a record that refuses every save (`NotPortedError`), so a port that would write a refund hands the
+  job back. Ported: the `purchase` and `failed_refund_exception.refund` belongs_to loads (cached per record), the `JsonData`
+  readers (`jsonDataForAttr` follows `json_data_for_attr`, blank is nil; `rubyToI` is `Object#to_i`), `retained_fee_cents`,
+  `scope :pending_fee_retention`, `Credit.where(fee_retention_refund:).failed_refund_fee_reversals.exists?` and `external_id`.
+  Still Ruby-only: `retain_fee`, `record_fee_retention_failure!`, `collect_pending_fee_retention!`, `write_off_fee_retention!`,
+  `count_fee_retention_attempt!`, `sync_fee_retention_recoverable` and the `effective`/`reversed_failures` scopes.
+- `failed-refund-exception.ts`: the model (validations in Rails' order, the three scopes, `escalate!`,
+  `update!(notification_sent_at:)`, `increment!(:notification_failures)`). The `GlobalConfig`-backed `default_owner`,
+  `response_sla` and `default_notification_room` belong to the code that creates exceptions (Ruby).
+- `dispute-evidence.ts`: the seller's evidence window (`window_duration` with the weekend extension, `seller_response_due_at`,
+  `window_open?`, `hours_left_in_window`, `seller_response_reminder_at`) and the `seller_contacted`/`not_resolved` scopes.
+  `latest_window_start`, `claim_seller_contacted_window!` and every write stay in Ruby. `dispute.ts`: the state lists, the
+  `includes(:dispute)` preload and `CreateMissingDisputeEvidenceJob`'s relation. The dispute state machine, formalization side
+  effects and dispute credits are Ruby.
+- Not ported, and not needed by the jobs above: the refund and dispute `BalanceTransaction`/`Credit` paths (`create_for_refund!`,
+  `create_for_dispute_won!`, ...). The code that writes them (`RefundPurchaseWorker`, the dispute events of
+  `HandleStripeEventWorker`, `Purchase::HandleFailedRefundService`) calls the charge processor first, so it stays Ruby until the
+  checkout and refund workstreams; extend the credit golden then.
+- `datetime(6)` columns (`due_at`, `notification_sent_at`, `seller_contacted_at`, `event_created_at`) are JavaScript Dates:
+  microseconds are lost on read, and a stamp Node writes has millisecond precision where Ruby's `Time.current` has microseconds.
