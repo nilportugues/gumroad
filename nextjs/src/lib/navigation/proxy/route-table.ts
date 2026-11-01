@@ -16,6 +16,8 @@ export type RouteEntry = {
   methods?: string[];
   // Only while the logged-in shared props (WS-03 policies, presenters) are unported.
   signedOutOnly?: boolean;
+  // A page that needs a signed-in visitor (Devise's authenticate_user!): a signed-out request stays with Rails.
+  signedInOnly?: boolean;
   // An Inertia page (server/page-props/pages.ts): Next.js also answers its X-Inertia requests,
   // with the JSON and 409 inertia_rails sends. Other routes' X-Inertia requests go to Rails.
   inertia?: boolean;
@@ -51,6 +53,7 @@ export function compileRouteTable(table: RouteTable): CompiledRoute[] {
       hosts: entry.hosts ?? "gumroad",
       methods: entry.methods ?? DEFAULT_METHODS,
       signedOutOnly: entry.signedOutOnly ?? false,
+      signedInOnly: entry.signedInOnly ?? false,
       inertia: entry.inertia ?? false,
     };
   });

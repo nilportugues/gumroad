@@ -129,6 +129,6 @@ describe("matchPagePath", () => {
 
   it("does not match a format suffix or another path", () => {
     expect(matchPagePath("/help/article/10-dealing-with-vat.html")).toBeNull();
-    expect(matchPagePath("/settings")).toBeNull();
+    expect(matchPagePath("/discover")).toBeNull();
   });
 });

@@ -1,8 +1,10 @@
 // An X-Inertia request for a page Next.js serves: the JSON `render inertia:` sends instead of HTML,
 // and the 409 InertiaRails::Middleware answers when the client's asset version is stale. The proxy
 // rewrites such requests to /gr-inertia and names the original URL in x-gr-page-url.
+import { domainConfig } from "../page-props/domain.ts";
 import { matchPagePath, PAGES } from "../page-props/pages.ts";
 import { railsJson } from "../page-props/inertia-json.ts";
+import { defaultUrlOptions } from "../page-props/load-page.ts";
 import { PAGE_URL_HEADER } from "../page-props/render-state.ts";
 import { renderPage } from "../page-props/render-page.ts";
 import { type ActionResult, processAction, RoutingError } from "./application-controller.ts";
@@ -17,7 +19,7 @@ export async function inertiaPageResponse(incoming: Request): Promise<Response> 
   const protocol = incoming.headers.get("x-forwarded-proto") ?? "http";
   const request = new Request(new URL(target, `${protocol}://${host}`), { method: incoming.method, headers: incoming.headers });
 
-  return processAction(request, {}, async ({ request: railsRequest, takeRenderState }): Promise<ActionResult> => {
+  return processAction(request, {}, async ({ request: railsRequest, context, takeRenderState }): Promise<ActionResult> => {
     const match = matchPagePath(railsRequest.path);
     if (!match) throw new RoutingError("Not Found");
     const spec = PAGES[match.pattern]!;
@@ -25,7 +27,9 @@ export async function inertiaPageResponse(incoming: Request): Promise<Response> 
     // No asset version is configured, so any version the client sends is stale. Rails runs the
     // controller first, then replaces its response; the flash is kept.
     const stale = railsRequest.method === "GET" && incoming.headers.has("x-inertia-version");
-    const redirect = spec.redirect?.(match.params);
+    const config = domainConfig(process.env);
+    const url = new URL(fullpath(railsRequest), `${railsRequest.protocol}${railsRequest.hostWithPort}`);
+    const redirect = spec.redirect?.(match.params) ?? (await spec.guard?.({ context, config, url, urlOptions: defaultUrlOptions(url, config) })) ?? null;
     if (stale) return { forceRefresh: `${railsRequest.protocol}${railsRequest.hostWithPort}${fullpath(railsRequest)}`, rescued: !!redirect };
     if (redirect) return redirect;
 

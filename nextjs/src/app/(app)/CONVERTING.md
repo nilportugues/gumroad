@@ -150,3 +150,23 @@ user. Nothing per page: `pageEnvelope`/`processAction` and `loadPage` do it all.
 - `import.meta.glob` (Vite-only) in a page's import graph fails to build.
 - Mutations still go to Rails over the Inertia protocol (`useForm.post` etc.); once an endpoint is
   ported, return a redirect from a route handler or use a server action.
+
+## Pages behind authentication and authorization
+
+A page that needs a signed-in visitor (`authenticate_user!`) and a Pundit verdict registers a `guard`
+next to its `props` in `pages.ts` (see `server/page-props/settings/pages.ts`):
+
+- `guard({ context, config, url, urlOptions })` returns a `Redirected` or null. It runs after `redirect`
+  and before the render, in the proxy (`proxy-preflight.ts`, to decide whether the route handler must
+  answer) and in the X-Inertia handler. `Redirected.flash` is what the action put in `flash[:alert]`;
+  the Rails chain writes it into the session cookie. Use `rescued: true`, as for any `rescue_from`.
+- `settingsGuard` ports `Sellers::BaseController` (`require_account_email`, `authenticate_user!`), the
+  controller's `authorize` and `PunditAuthorization#user_not_authorized` (the flash naming the role,
+  or the profile redirect for `Settings::Main::UserPolicy#show?`).
+- routes.json: `"signedInOnly": true` sends a signed-out request to Rails (Devise's failure app,
+  `?next=` and its flash are Rails'). A signed-out request that reaches the guard anyway throws.
+- The policies are plain functions in `server/policies/settings/`; `settingsPages` (the `settings_pages`
+  inertia_share) is evaluated for every Settings page.
+- Type checking: `src/types/rails-app-types.d.ts` pulls in the ambient declarations the Rails app's
+  tsconfig gives `app/javascript`. A page whose component graph is large still shows errors that come
+  from the shared components themselves (React types resolved from the Rails app's `node_modules`).
