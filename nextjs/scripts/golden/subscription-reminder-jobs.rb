@@ -26,6 +26,19 @@ TABLES = %w[users links subscriptions payment_options prices purchases installme
             offer_codes offer_codes_products offer_codes_excluded_products offer_codes_ownership_products offer_codes_variants
             purchase_offer_code_discounts base_variants base_variants_purchases variant_categories tips].freeze
 
+# WS-52: the compliance records Stripe Connect routing reads.
+EXTRA_TABLES = %w[user_compliance_info].freeze
+
+# The commands sent to the `ppp` Redis namespace while a case is recorded (PurchasingPowerParityService).
+module PppCommandLog
+  def call(command, config)
+    ($ppp_commands << command.map(&:to_s)) if $ppp_commands && RailsRecorder.log && command[1].to_s.start_with?("ppp:")
+    super
+  end
+end
+RedisClient.register(PppCommandLog)
+$ppp_commands = nil
+
 Stripe.api_base = "http://127.0.0.1:9"
 Stripe.max_network_retries = 0
 
@@ -126,11 +139,14 @@ AutoInvoiceEligibility.singleton_class.prepend(EligibilityCount)
 def run(name, job, args, seed: {}, features: [], now: NOW, setup: nil)
   $uuid_seq = 0
   $eligibility_statements = nil
-  result = capture(name, now:, tables: TABLES, seed: base_seed(**seed), setup: lambda {
+  $ppp_commands = []
+  result = capture(name, now:, tables: TABLES + EXTRA_TABLES, seed: base_seed(**seed), setup: lambda {
     features.each { |feature| Feature.activate_user(feature, User.find(1)) }
     setup&.call
   }, sidekiq: true, job:, args:, case_now: now.to_f) { job.constantize.new.perform(*args) }
   result["eligibility_statements"] = $eligibility_statements if $eligibility_statements
+  result["ppp_commands"] = $ppp_commands if $ppp_commands.any?
+  $ppp_commands = nil
   # Cases replay against recorded answers, not a database, so the seed and the final rows stay out.
   result.delete("rows")
   result.delete("seed")
@@ -711,7 +727,7 @@ seeds["a universal existing-customers code limited to an option, with an exclude
   { offer_codes: [existing.(universal: true)], links: [link_row(1), link_row(5, unique_permalink: "p5")], offer_codes_excluded_products: [{ offer_code_id: 2, product_id: 5, created_at: SEEDED_AT, updated_at: SEEDED_AT }] }, option_rows.())
 seeds["an existing-customers code limited to an option whose category is gone"] = merge_seeds(membership(original: owner), { offer_codes: [existing.()], offer_codes_products: [on_product(2)] }, option_rows.(category_id: 99))
 
-HAND_BACK = ->(name) { (name.include?("the seller enabled it") && !name.include?("with an offer code") && !name.include?("opted out")) || name == "a tiered code whose tiers are not an array" }
+HAND_BACK = ->(name) { name == "a tiered code whose tiers are not an array" }
 seeds.each { |name, seed| both.(name, seed, hand_back: HAND_BACK.(name)) }
 
 # Several subscriptions through one sweep: the codes are read once per subscription, the query cache answers repeats.
@@ -721,6 +737,89 @@ cases << run("missing charge: a batch mixing renewal codes, an installment plan 
   membership(21, paid_at: overdue, original: { displayed_price_cents: 0 }),
   { offer_codes: [existing.()], offer_codes_products: [on_product(2)], product_installment_plans: plan[:product_installment_plans] },
 ))
+
+# --- WS-52: purchasing power parity factors ------------------------------------------------------------------
+# The factor comes from the `ppp` Redis namespace (set by `setup:` and recorded as redis_before), by the
+# country `ip_country` names, floored at the seller's own limit.
+ppp_redis = ->(values) { -> { values.each { |key, value| value.is_a?(Array) ? $redis.rpush(key, value) : $redis.set(key, value) } } }
+ppp_original = { flags: ORIGINAL_SUBSCRIPTION_PURCHASE | IS_INSTALLMENT_PAYMENT | PPP_DISCOUNTED }
+ppp_plan = lambda do |country: "India", limit: nil, original: {}, **options|
+  installments.(original: ppp_original.merge(ip_country: country).merge(original), **options).tap { _1[:users] = [user_row(1, flags: 4, purchasing_power_parity_limit: limit), user_row(2)] }
+end
+ppp_scenarios = {
+  "the country has a factor" => [ppp_plan.(), { "ppp:IN" => "0.4" }],
+  "the factor is not a whole number of cents" => [ppp_plan.(country: "Brazil"), { "ppp:BR" => "0.65" }],
+  "the seller limit raises the factor" => [ppp_plan.(limit: 20), { "ppp:IN" => "0.4" }],
+  "the seller limit is below the factor" => [ppp_plan.(limit: 50), { "ppp:IN" => "0.7" }],
+  "the seller limit is zero" => [ppp_plan.(limit: 0), { "ppp:IN" => "0.4" }],
+  "the seller limit is 100" => [ppp_plan.(limit: 100), { "ppp:IN" => "0.4" }],
+  "no factor is stored" => [ppp_plan.(), {}],
+  "an empty factor is stored" => [ppp_plan.(), { "ppp:IN" => "" }],
+  "the stored factor is not a number" => [ppp_plan.(), { "ppp:IN" => "abc" }],
+  "the stored factor is zero" => [ppp_plan.(), { "ppp:IN" => "0" }],
+  "the stored factor is above one" => [ppp_plan.(), { "ppp:IN" => "1.5" }],
+  "the stored factor has spaces" => [ppp_plan.(), { "ppp:IN" => " 0.4 " }],
+  "the key holds a list, so the read fails" => [ppp_plan.(), { "ppp:IN" => %w[0.4] }],
+  "the key holds a list and the seller has a limit" => [ppp_plan.(limit: 30), { "ppp:IN" => %w[0.4] }],
+  "the country is stored under its long name" => [ppp_plan.(country: "Türkiye"), { "ppp:TR" => "0.45" }],
+  "the country is stored under an old name" => [ppp_plan.(country: "Turkey"), { "ppp:TR" => "0.45" }],
+  "the country is stored under another case" => [ppp_plan.(country: "INDIA"), { "ppp:IN" => "0.4" }],
+  "the country is stored with accents stripped" => [ppp_plan.(country: "Cote d'Ivoire"), { "ppp:CI" => "0.5" }],
+  "the country is unknown" => [ppp_plan.(country: "Narnia"), { "ppp:IN" => "0.4" }],
+  "the country is blank" => [ppp_plan.(country: ""), { "ppp:IN" => "0.4" }],
+  "the country is missing" => [ppp_plan.(country: nil), { "ppp:IN" => "0.4" }],
+  "the country is Kosovo" => [ppp_plan.(country: "Kosovo"), { "ppp:XK" => "0.5" }],
+  "quantity of three" => [ppp_plan.(original: { quantity: 3 }), { "ppp:IN" => "0.4" }],
+  "the second payment" => [ppp_plan.(paid_at: [NOW - 33 * DAY]), { "ppp:IN" => "0.4" }],
+  "the last payment" => [ppp_plan.(paid_at: [NOW - 33 * DAY, NOW - 63 * DAY]), { "ppp:IN" => "0.4" }],
+  "an installment plan snapshot" => [ppp_plan.(snap: true), { "ppp:IN" => "0.4" }],
+  "a tiny price lifts to the currency minimum" => [ppp_plan.(link: { price_cents: 90 }, prices: [price_row(1, "monthly", price_cents: 90)]), { "ppp:IN" => "0.4" }],
+  "a price in yen" => [ppp_plan.(link: { price_currency_type: "jpy", price_cents: 30_000 }, prices: [price_row(1, "monthly", price_cents: 30_000, currency: "jpy")]), { "ppp:IN" => "0.4" }],
+  "the product opted out" => [ppp_plan.(link: { flags: 1 << 26 }), { "ppp:IN" => "0.4" }],
+  "an offer code replaces the factor" => [ppp_plan.(original: { offer_code_id: 1 }, extra: { offer_codes: [code_row(1, amount_percentage: 10)], offer_codes_products: [on_product(1)] }), { "ppp:IN" => "0.4" }],
+  "the seller account is gone" => [ppp_plan.(original: { seller_id: 99 }), { "ppp:IN" => "0.4" }],
+  "the seller account is gone and the read fails" => [ppp_plan.(original: { seller_id: 99 }), { "ppp:IN" => %w[0.4] }],
+  "the purchase belongs to another seller" => [ppp_plan.(original: { seller_id: 3 }).tap { _1[:users] << user_row(3, purchasing_power_parity_limit: 40) }, { "ppp:IN" => "0.4" }],
+}
+ppp_scenarios.each do |name, (seed, redis)|
+  price_case.("purchasing power parity: #{name}", seed, setup: ppp_redis.(redis))
+  sweep_case.("purchasing power parity: #{name}", seed, setup: ppp_redis.(redis))
+end
+
+# --- WS-52: Stripe Connect routing (User#merchant_migration_enabled?) -----------------------------------------
+# A seller who turned on `merchant_migration` is routed to Connect by the country of the compliance record.
+def compliance_row(id, **o) = { id:, user_id: 1, country: "United States", is_business: false, created_at: SEEDED_AT, updated_at: SEEDED_AT }.merge(o)
+connect_account = merchant_account_row(3, user_id: 1, json_data: { meta: { stripe_connect: "true" } }.to_json)
+routing = lambda do |name, rows, job: FT, features: [], **opts|
+  seed = job == FT ? membership(free_trial_ends_at: trial_end, flags: RENEWAL_DISABLED_INDIAN_MANDATE) : membership(paid_at: paid_a_month_ago, flags: RENEWAL_DISABLED_INDIAN_MANDATE)
+  seed = seed.merge(merchant_accounts: [merchant_account_row(1), merchant_account_row(2, user_id: 1), connect_account], user_compliance_info: rows)
+  cases << run("#{job == FT ? "free trial" : "declined"}: Connect routing, #{name}", job, [1], features: [:merchant_migration, :india_card_mandate_reliability] + features, seed:, **opts)
+end
+LEGAL_ENTITY_ROUTING = :stripe_connect_routing_by_legal_entity_country
+[FT, CD].each do |job|
+  routing.("no compliance record", [], job:)
+  routing.("a supported country", [compliance_row(1)], job:)
+  routing.("a country Connect does not support", [compliance_row(1, country: "India")], job:)
+  routing.("an old name of a supported country", [compliance_row(1, country: "Czech Republic")], job:)
+  routing.("an unknown country", [compliance_row(1, country: "Narnia")], job:)
+  routing.("a blank country", [compliance_row(1, country: "")], job:)
+  routing.("no country", [compliance_row(1, country: nil)], job:)
+  routing.("a deleted record only", [compliance_row(1, deleted_at: SEEDED_AT)], job:)
+  routing.("the newest alive record wins", [compliance_row(1, country: "India"), compliance_row(2), compliance_row(3, country: "Canada", deleted_at: SEEDED_AT)], job:)
+  routing.("the newest alive record is unsupported", [compliance_row(1), compliance_row(2, country: "India")], job:)
+  routing.("a business in a supported country, individual country unsupported", [compliance_row(1, country: "India", is_business: true, business_country: "Germany")], job:)
+  routing.("a business in a supported country, legal entity routing on", [compliance_row(1, country: "India", is_business: true, business_country: "Germany")], job:, features: [LEGAL_ENTITY_ROUTING])
+  routing.("a business in an unsupported country, legal entity routing on", [compliance_row(1, country: "United States", is_business: true, business_country: "India")], job:, features: [LEGAL_ENTITY_ROUTING])
+  routing.("a business with no business country, legal entity routing on", [compliance_row(1, country: "France", is_business: true)], job:, features: [LEGAL_ENTITY_ROUTING])
+  routing.("a business with an unknown business country, legal entity routing on", [compliance_row(1, country: "France", is_business: true, business_country: "Narnia")], job:, features: [LEGAL_ENTITY_ROUTING])
+  routing.("an individual with a business country, legal entity routing on", [compliance_row(1, country: "India", is_business: false, business_country: "Germany")], job:, features: [LEGAL_ENTITY_ROUTING])
+  routing.("is_business unset, legal entity routing on", [compliance_row(1, country: "India", is_business: nil, business_country: "Germany")], job:, features: [LEGAL_ENTITY_ROUTING])
+  routing.("a supported country, legal entity routing on", [compliance_row(1)], job:, features: [LEGAL_ENTITY_ROUTING])
+end
+cases << run("free trial: Connect routing, merchant_migration off", FT, [1], features: [:india_card_mandate_reliability, LEGAL_ENTITY_ROUTING],
+  seed: membership(free_trial_ends_at: trial_end, flags: RENEWAL_DISABLED_INDIAN_MANDATE).merge(merchant_accounts: [merchant_account_row(1), merchant_account_row(2, user_id: 1), connect_account], user_compliance_info: [compliance_row(1)]))
+cases << run("free trial: Connect routing, no Connect account", FT, [1], features: [:merchant_migration, :india_card_mandate_reliability],
+  seed: membership(free_trial_ends_at: trial_end, flags: RENEWAL_DISABLED_INDIAN_MANDATE).merge(user_compliance_info: [compliance_row(1)]))
 
 File.write(DATA_OUT, JSON.pretty_generate({ "cross_border_payouts_countries" => Country.const_get(:CROSS_BORDER_PAYOUTS_COUNTRIES).map(&:alpha2).sort }) + "\n")
 now_f = travel_to(NOW, with_usec: true) { Time.now.to_f }

@@ -172,13 +172,8 @@ call each other as the Ruby does, repeats included, so cache hits and the statem
 
 Refused with `NotPortedError` (so the job is handed back to Rails before its first write):
 
-- `current_subscription_price_cents` of an installment plan whose original purchase was discounted for purchasing power
-  parity by a seller who enabled it, with no offer code: that price multiplies by `PurchasingPowerParityService#get_factor`
-  (the country factors in Redis and `Compliance::Countries`), which is not ported.
 - An offer code whose `ownership_duration_tiers` is not an Array of Hashes, or whose tiers start in the same month (the
   validations rule both out; `sort_by` is not stable).
-- `merchant_migration_enabled?` for a seller with the `merchant_migration` flag on and a compliance record (it needs
-  Stripe Connect's country lists).
 - A Charge without a successful purchase (`Charge#purchaser` is a delegation to `purchase_as_chargeable`).
 - Mailer arguments whose Ruby `#inspect` is not ported (`SentEmailInfo.mailer_key_digest` takes Integers, nil, booleans and
   plain ASCII Strings).
@@ -215,6 +210,38 @@ milliseconds; a comparison with `Time.current` within a millisecond of equal cou
 `SentEmailInfo` is complete: `key_exists?`, `set_key!`, `mailer_key_digest`, `mailer_exists?`, `ensure_mailer_uniqueness`.
 `charge.ts` is `Charge::Chargeable.find_by_purchase_or_charge!` and `AutoInvoiceEligibility`; `row-reads.ts` the shared
 `belongs_to`/`find_by(id:)` statements.
+
+#### Countries, purchasing power parity and Stripe Connect routing (WS-52)
+
+`compliance-countries.ts` is the lookup half of `Compliance::Countries` over `countries.generated.json`, which
+`scripts/golden/countries.rb` writes from the real `countries` gem with `config/initializers/countries.rb` applied (names,
+alpha2/alpha3, currency, the Unaccent table, `COUNTRIES_SUPPORTED_BY_STRIPE_CONNECT`, the blocked lists). `findByName`
+reproduces `ISO3166::Country.find_country_by_any_name`: the query and every searched name go through `parse_value` (drop
+`(`, `)`, `[]` and `,`, unaccent, lower case each character on its own: Ruby does not use the final sigma), and the country
+that comes last in the gem's order wins a name two countries share. `countries.test.ts` replays 9,255 probes, the parsed name
+index and the normalization vectors Ruby recorded (`__fixtures__/countries.golden.json`) and fails when the gem version in
+`Gemfile.lock`, the initializer, `lib/utilities/compliance/countries.rb` or the Stripe Connect list change: re-run the script.
+Not ported: subdivisions, `for_select*`, the tax lists, Japan's prefectures.
+
+`purchasing-power-parity.ts` is `PurchasingPowerParityService` (`get_factor`, `get_all_countries_factors`, `set_factor`) over
+the `ppp` Redis namespace, and `User#min_ppp_factor`. Every Redis error falls back to the unadjusted factor, as Ruby's
+`REDIS_TRANSPORT_ERRORS` rescue does; the stored value goes through `String#to_f`. Golden: `__fixtures__/purchasing-power-parity.golden.json`
+(279 cases with the Redis commands the service sent). `PurchaseRecord` multiplies a PPP-discounted price by the factor of
+`alpha2(ip_country)` (memoized per record, the seller loaded where `purchasing_power_parity_factor` loads it); 4,000 seeded
+vectors from the real `Purchase#minimum_paid_price_cents` are in `offer-code-pricing-vectors.golden.json`
+(`minimum_paid_price_ppp`), and the `purchasing power parity:` cases of the subscription reminder golden check the statements
+and the `ppp` Redis commands.
+
+`stripe-connect-routing.ts` derives a compliance record's `country_code`, `business_country_code` and
+`legal_entity_country_code` from the stored country names, and `merchant_migration_enabled?` uses them
+(`User#stripe_connect_routing_country_code`, switched by the `stripe_connect_routing_by_legal_entity_country` feature). The
+`Connect routing:` cases of the subscription reminder golden run the real code over `user_compliance_info` rows.
+
+`UpdatePurchasingPowerParityFactorsWorker` (`worker/jobs/update-purchasing-power-parity-factors-worker.ts`) downloads the World
+Bank zip with `lib/ruby-open-uri.ts` (open-uri's redirect, loop and status rules), reads it with `lib/ruby-zip.ts` and
+`lib/ruby-csv.ts`, and rounds with `rubyFloatRoundDigits` (`Float#round(2)`: 45,000 vectors). It hands the job back before the
+first write for what those readers do not reproduce: a damaged, ZIP64 or encrypted zip, a CSV the csv gem calls malformed or
+with a bare carriage return or mixed line breaks, and a year header `Integer()` reads in a form other than plain decimal.
 
 #### Subscription writes (WS-47)
 

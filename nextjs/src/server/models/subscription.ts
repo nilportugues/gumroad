@@ -19,7 +19,8 @@ import { aliveStripeAccountsOf, isStripeConnectAccount, type MerchantAccountRow 
 import { isChargedbackNotReversedOrRefunded, PURCHASES } from "./purchase.ts";
 import { findById, findOneBy } from "./row-reads.ts";
 import { castRow, column, quoteName, selectRows, table } from "./sql.ts";
-import { NotPortedError, UserFlags } from "./user.ts";
+import { isSupportedByStripeConnect, LEGAL_ENTITY_COUNTRY_ROUTING_FEATURE, stripeConnectRoutingCountryCode, type ComplianceInfoCountries } from "./stripe-connect-routing.ts";
+import { UserFlags } from "./user.ts";
 import { PurchaseFlags } from "../search/flags.ts";
 import { currentSubscriptionPriceCents } from "./subscription-pricing.ts";
 
@@ -206,8 +207,7 @@ export class SubscriptionRecord {
     return this.deps.featureActive(name, this.sellerActor(seller));
   }
 
-  // `seller.merchant_migration_enabled?` (User::FeatureStatus). A seller with compliance info needs
-  // the country lists of Stripe Connect routing, which Node does not have.
+  // `seller.merchant_migration_enabled?` (User::FeatureStatus)
   async merchantMigrationEnabled(seller: User): Promise<boolean> {
     if (UserFlags.isSet(seller.flags, "check_merchant_account_is_linked")) return true;
     if (!(await this.deps.featureActive(MERCHANT_MIGRATION_FEATURE, userActor(seller.id)))) return false;
@@ -216,7 +216,9 @@ export class SubscriptionRecord {
       Prisma.sql`SELECT ${star("user_compliance_info")} FROM ${table("user_compliance_info")} WHERE ${column("user_compliance_info", "user_id")} = ${seller.id} AND ${column("user_compliance_info", "deleted_at")} IS NULL ORDER BY ${column("user_compliance_info", "id")} DESC LIMIT 1`,
     );
     if (info === undefined) return false;
-    throw new NotPortedError("User#stripe_connect_routing_country_code", "app/modules/user/feature_status.rb:23");
+    // `stripe_connect_routing_country_code`
+    const legalEntityRouting = await this.deps.featureActive(LEGAL_ENTITY_COUNTRY_ROUTING_FEATURE, userActor(seller.id));
+    return isSupportedByStripeConnect(stripeConnectRoutingCountryCode(info as ComplianceInfoCountries, legalEntityRouting));
   }
 
   // `seller.stripe_connect_account`

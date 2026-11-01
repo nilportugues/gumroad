@@ -136,54 +136,71 @@ Fake = Struct.new(:nth, :snapshot, :plan) do
   def installment_plan = plan
 end
 
+# Purchase#minimum_paid_price_cents for the inputs of `v`; `ppp_factor` is what purchasing_power_parity_factor answers.
+def price_answer(v)
+  code = case v["code"]
+         when "percent" then OfferCode.new(amount_percentage: v["code_amount"], once_per_cart: v["once_per_cart"])
+         when "cents" then OfferCode.new(amount_cents: v["code_amount"], once_per_cart: v["once_per_cart"])
+  end
+  purchase = Purchase.new(quantity: v["quantity"], is_original_subscription_purchase: true, is_installment_payment: v["installment"], is_commission_completion_purchase: v["completion"],
+                          is_purchasing_power_parity_discounted: v["ppp"])
+  link = Link.new(price_currency_type: v["currency"], native_type: v["commission_product"] ? "commission" : "digital")
+  link.define_singleton_method(:purchasing_power_parity_enabled?) { v["ppp_enabled"] }
+  snapshot = v["snapshot"] ? InstallmentPlanSnapshot.new(total_price_cents: v["snapshot_total"], number_of_installments: v["snapshot_installments"]) : nil
+  plan = v["plan"] ? ProductInstallmentPlan.new(number_of_installments: v["number_of_installments"]) : nil
+  subscription = Fake.new(v["nth"], snapshot, plan)
+  purchase.define_singleton_method(:link) { link }
+  purchase.define_singleton_method(:subscription) { subscription }
+  purchase.define_singleton_method(:minimum_paid_price_cents_per_unit_before_discount) { v["unit"] }
+  purchase.define_singleton_method(:offer_code_for_pricing) { code }
+  purchase.define_singleton_method(:offer_code_applies_to_selected_variant?) { v["applies"] }
+  purchase.define_singleton_method(:purchasing_power_parity_factor) { v.fetch("ppp_factor", 0.35) }
+  answer { purchase.minimum_paid_price_cents }
+end
+
+def price_inputs
+  {
+    "quantity" => pick(1, 1, int(1..4)),
+    "unit" => pick(int(0..500_000), int(-300..5000), 999, 3001, 0),
+    "code" => pick(nil, nil, "percent", "cents"),
+    "code_amount" => pick(int(0..100), int(0..130), int(0..900_000), int(0..5000), 100, 0),
+    "once_per_cart" => chance(0.4),
+    "applies" => chance(0.85),
+    "currency" => pick(*CURRENCIES),
+    "completion" => chance(0.1),
+    "commission_product" => chance(0.1),
+    "installment" => chance(0.45),
+    "ppp" => chance(0.2),
+    "ppp_enabled" => chance(0.5),
+    "nth" => int(0..5),
+    "number_of_installments" => int(1..6),
+    "snapshot" => chance(0.4),
+    "snapshot_total" => int(1..200_000),
+    "snapshot_installments" => int(1..6),
+    "plan" => chance(0.95),
+  }
+end
+
 price_vectors = vectors("minimum_paid_price", 4000) do
   loop do
-    v = {
-      "quantity" => pick(1, 1, int(1..4)),
-      "unit" => pick(int(0..500_000), int(-300..5000), 999, 3001, 0),
-      "code" => pick(nil, nil, "percent", "cents"),
-      "code_amount" => pick(int(0..100), int(0..130), int(0..900_000), int(0..5000), 100, 0),
-      "once_per_cart" => chance(0.4),
-      "applies" => chance(0.85),
-      "currency" => pick(*CURRENCIES),
-      "completion" => chance(0.1),
-      "commission_product" => chance(0.1),
-      "installment" => chance(0.45),
-      "ppp" => chance(0.2),
-      "ppp_enabled" => chance(0.5),
-      "nth" => int(0..5),
-      "number_of_installments" => int(1..6),
-      "snapshot" => chance(0.4),
-      "snapshot_total" => int(1..200_000),
-      "snapshot_installments" => int(1..6),
-      "plan" => chance(0.95),
-    }
-    # The factor of a PPP-discounted price needs Redis and the country list, which Node hands back.
+    v = price_inputs
+    # The factor of a PPP-discounted price is read from Redis; the vectors below cover it.
     next if v["ppp"] && v["ppp_enabled"] && v["code"].nil?
 
-    code = case v["code"]
-           when "percent" then OfferCode.new(amount_percentage: v["code_amount"], once_per_cart: v["once_per_cart"])
-           when "cents" then OfferCode.new(amount_cents: v["code_amount"], once_per_cart: v["once_per_cart"])
-    end
-    purchase = Purchase.new(quantity: v["quantity"], is_original_subscription_purchase: true, is_installment_payment: v["installment"], is_commission_completion_purchase: v["completion"],
-                            is_purchasing_power_parity_discounted: v["ppp"])
-    link = Link.new(price_currency_type: v["currency"], native_type: v["commission_product"] ? "commission" : "digital")
-    link.define_singleton_method(:purchasing_power_parity_enabled?) { v["ppp_enabled"] }
-    snapshot = v["snapshot"] ? InstallmentPlanSnapshot.new(total_price_cents: v["snapshot_total"], number_of_installments: v["snapshot_installments"]) : nil
-    plan = v["plan"] ? ProductInstallmentPlan.new(number_of_installments: v["number_of_installments"]) : nil
-    subscription = Fake.new(v["nth"], snapshot, plan)
-    purchase.define_singleton_method(:link) { link }
-    purchase.define_singleton_method(:subscription) { subscription }
-    purchase.define_singleton_method(:minimum_paid_price_cents_per_unit_before_discount) { v["unit"] }
-    purchase.define_singleton_method(:offer_code_for_pricing) { code }
-    purchase.define_singleton_method(:offer_code_applies_to_selected_variant?) { v["applies"] }
-    purchase.define_singleton_method(:purchasing_power_parity_factor) { 0.35 }
-    break v.merge("price" => answer { purchase.minimum_paid_price_cents })
+    break v.merge("price" => price_answer(v))
   end
 end
 
+# A PPP-discounted price of a product that enabled PPP, with no offer code: the factor multiplies the total.
+# Drawn after every other family, so the vectors above keep their values.
+ppp_vectors = vectors("minimum_paid_price_ppp", 4000) do
+  v = price_inputs.merge("ppp" => true, "ppp_enabled" => true, "code" => nil)
+  v["ppp_factor"] = pick(0.35, 0.4, 0.5, 0.55, 0.65, 0.8, 0.99, 1.0, 0.0, int(1..99) / 100.0, RNG.rand.round(14), 0.30000000000000004)
+  v.merge("price" => price_answer(v))
+end
+
 families = { "amounts" => amount_vectors, "months_since" => months_vectors, "tiers" => tier_vectors, "installments" => installment_vectors,
-             "tiered_pwyw" => pwyw_vectors, "discounted_totals" => discounted_vectors, "minimum_paid_price" => price_vectors }
+             "tiered_pwyw" => pwyw_vectors, "discounted_totals" => discounted_vectors, "minimum_paid_price" => price_vectors, "minimum_paid_price_ppp" => ppp_vectors }
 # One vector per line.
 File.write(OUT, "{\n\"now\": #{NOW.to_f.to_json},\n#{families.map { |name, rows| "\"#{name}\": [\n#{rows.map(&:to_json).join(",\n")}\n]" }.join(",\n")}\n}\n")
 puts "wrote #{OUT.relative_path_from(Rails.root)} (#{COUNTS.map { |name, n| "#{n} #{name}" }.join(", ")})"

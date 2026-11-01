@@ -3,6 +3,7 @@
 import { domainConfig } from "../infra/domain.ts";
 import { getConfig } from "../infra/config.ts";
 import { railsEnv } from "../infra/rails-env.ts";
+import { countryByAlpha2 } from "../models/compliance-countries.ts";
 import { entrypointStylesheetHrefs } from "./stylesheet.ts";
 
 export class MailViewNotPortedError extends Error {}
@@ -34,13 +35,13 @@ export function mailerUrl(path: string, query: Record<string, string> = {}): str
   return `${protocol}://${domain}${path}${search ? `?${search}` : ""}`;
 }
 
-// config/initializers/gumroad.rb GumroadAddress.full. ADDRESS_COUNTRY is looked up as alpha3 by
-// the countries gem; only the US default is ported.
+// config/initializers/gumroad.rb GumroadAddress.full. ADDRESS_COUNTRY is an alpha2 code (`ISO3166::Country[...]`
+// upcases it); the address prints its alpha3. A code no country has leaves Ruby's COUNTRY nil.
 export function gumroadAddressFull(): string {
-  const country = getConfig("ADDRESS_COUNTRY", "US");
-  if (country !== "US") throw new MailViewNotPortedError(`ADDRESS_COUNTRY ${country}`);
+  const country = countryByAlpha2(getConfig("ADDRESS_COUNTRY", "US"));
+  if (country === null) throw new MailViewNotPortedError("ADDRESS_COUNTRY that is not a country code");
   const zipPlusFour = `${getConfig("ADDRESS_ZIP", "94104")}-${getConfig("ADDRESS_ZIP_PLUS_FOUR", "5401")}`;
-  return `${getConfig("ADDRESS_STREET", "548 Market St")}, ${getConfig("ADDRESS_CITY", "San Francisco")}, ${getConfig("ADDRESS_STATE", "CA")} ${zipPlusFour}, USA`;
+  return `${getConfig("ADDRESS_STREET", "548 Market St")}, ${getConfig("ADDRESS_CITY", "San Francisco")}, ${getConfig("ADDRESS_STATE", "CA")} ${zipPlusFour}, ${country.alpha3}`;
 }
 
 // layouts/mailers/_header_section.html.erb via MailerHelper#header_section, without a subheading.

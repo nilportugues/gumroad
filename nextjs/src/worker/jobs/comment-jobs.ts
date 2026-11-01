@@ -19,6 +19,7 @@ import { STRIPE_CHARGE_PROCESSOR_ID, stripeAccountOf, stripeConnectMeta } from "
 import { ago } from "../../server/models/concerns/ruby-time.ts";
 import { transaction } from "../../server/models/runtime/transaction.ts";
 import { column, selectRows, table } from "../../server/models/sql.ts";
+import { type ComplianceInfoCountries, legalEntityCountryCode } from "../../server/models/stripe-connect-routing.ts";
 import { modelJob } from "./support/job-deps.ts";
 
 // User::SYSTEM_PAYOUT_PAUSE_COMMENT_AUTHORS[:high_chargeback_rate] (app/modules/user/risk.rb).
@@ -71,7 +72,7 @@ const LEGAL_ENTITY_COUNTRY_DRIFT_DEDUP_WINDOW = { days: 30 } as const;
 // String#blank? (/\A[[:space:]]*\z/) for the string columns this job reads.
 const blank = (value: unknown) => value == null || (typeof value === "string" && value.trim() === "");
 
-type ComplianceInfoRow = { user_id: unknown; country_code: unknown; business_country_code: unknown; is_business: unknown };
+type ComplianceInfoRow = ComplianceInfoCountries & { user_id: unknown };
 
 export const detectLegalEntityCountryDriftJobWith = modelJob({ min: 1 }, async ([complianceInfoId], deps) => {
   const [info] = await selectRows<ComplianceInfoRow>(
@@ -83,9 +84,8 @@ export const detectLegalEntityCountryDriftJobWith = modelJob({ min: 1 }, async (
   const [user] = await selectRows<{ id: unknown }>(userSql(false));
   if (!user) return;
 
-  // `(business_country_code if is_business?) || country_code`, where Ruby's "" is truthy.
-  const isBusiness = info.is_business != null && info.is_business !== false && Number(info.is_business) !== 0;
-  const derivedCountry = isBusiness && info.business_country_code != null ? info.business_country_code : info.country_code;
+  // UserComplianceInfo#legal_entity_country_code: the code of the country the record names.
+  const derivedCountry = legalEntityCountryCode(info);
   if (blank(derivedCountry)) return;
 
   const account = await stripeAccountOf(user.id);

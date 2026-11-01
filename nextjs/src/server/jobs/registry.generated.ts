@@ -3654,7 +3654,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "UpdateSalesRelatedProductsInfosJob": {
     "file": "app/sidekiq/update_sales_related_products_infos_job.rb",

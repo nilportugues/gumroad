@@ -6015,15 +6015,15 @@
               "fields": [
                 "id",
                 "user_id",
-                "country_code",
-                "business_country_code",
+                "country",
+                "business_country",
                 "is_business"
               ],
               "rows": [
                 [
                   3,
                   null,
-                  "DE",
+                  "Germany",
                   null,
                   false
                 ]
@@ -6046,15 +6046,15 @@
               "fields": [
                 "id",
                 "user_id",
-                "country_code",
-                "business_country_code",
+                "country",
+                "business_country",
                 "is_business"
               ],
               "rows": [
                 [
                   3,
                   5,
-                  "DE",
+                  "Germany",
                   null,
                   false
                 ]
@@ -6073,7 +6073,7 @@
         "deliveries": []
       },
       {
-        "name": "no derived country",
+        "name": "no country",
         "args": [
           3
         ],
@@ -6084,8 +6084,8 @@
               "fields": [
                 "id",
                 "user_id",
-                "country_code",
-                "business_country_code",
+                "country",
+                "business_country",
                 "is_business"
               ],
               "rows": [
@@ -6123,7 +6123,7 @@
         "deliveries": []
       },
       {
-        "name": "blank business country falls back to the individual one",
+        "name": "a country name no country has",
         "args": [
           3
         ],
@@ -6134,8 +6134,58 @@
               "fields": [
                 "id",
                 "user_id",
-                "country_code",
-                "business_country_code",
+                "country",
+                "business_country",
+                "is_business"
+              ],
+              "rows": [
+                [
+                  3,
+                  5,
+                  "Narnia",
+                  null,
+                  false
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "flags",
+                "name",
+                "username"
+              ],
+              "rows": [
+                [
+                  5,
+                  0,
+                  "Seller 5",
+                  "seller5"
+                ]
+              ]
+            }
+          }
+        ],
+        "redis": {},
+        "deliveries": []
+      },
+      {
+        "name": "blank country and blank business country",
+        "args": [
+          3
+        ],
+        "statements": [
+          {
+            "sql": "SELECT `user_compliance_info`.* FROM `user_compliance_info` WHERE `user_compliance_info`.`id` = 3 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "country",
+                "business_country",
                 "is_business"
               ],
               "rows": [
@@ -6184,15 +6234,15 @@
               "fields": [
                 "id",
                 "user_id",
-                "country_code",
-                "business_country_code",
+                "country",
+                "business_country",
                 "is_business"
               ],
               "rows": [
                 [
                   3,
                   5,
-                  "DE",
+                  "Germany",
                   null,
                   false
                 ]
@@ -6241,15 +6291,15 @@
               "fields": [
                 "id",
                 "user_id",
-                "country_code",
-                "business_country_code",
+                "country",
+                "business_country",
                 "is_business"
               ],
               "rows": [
                 [
                   3,
                   5,
-                  "DE",
+                  "Germany",
                   null,
                   false
                 ]
@@ -6322,15 +6372,15 @@
               "fields": [
                 "id",
                 "user_id",
-                "country_code",
-                "business_country_code",
+                "country",
+                "business_country",
                 "is_business"
               ],
               "rows": [
                 [
                   3,
                   5,
-                  "DE",
+                  "Germany",
                   null,
                   false
                 ]
@@ -6403,17 +6453,730 @@
               "fields": [
                 "id",
                 "user_id",
-                "country_code",
-                "business_country_code",
+                "country",
+                "business_country",
                 "is_business"
               ],
               "rows": [
                 [
                   3,
                   5,
-                  "DE",
+                  "Germany",
                   null,
                   false
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "flags",
+                "name",
+                "username"
+              ],
+              "rows": [
+                [
+                  5,
+                  0,
+                  "Seller 5",
+                  "seller5"
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`user_id` = 5 AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_id` = 'stripe'",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "charge_processor_id",
+                "charge_processor_merchant_id",
+                "country",
+                "json_data",
+                "deleted_at",
+                "charge_processor_alive_at",
+                "charge_processor_deleted_at"
+              ],
+              "rows": [
+                [
+                  41,
+                  5,
+                  "stripe",
+                  "acct_41",
+                  "DE",
+                  null,
+                  null,
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  null
+                ]
+              ]
+            }
+          }
+        ],
+        "redis": {},
+        "deliveries": []
+      },
+      {
+        "name": "the country name is matched in any case and without accents",
+        "args": [
+          3
+        ],
+        "statements": [
+          {
+            "sql": "SELECT `user_compliance_info`.* FROM `user_compliance_info` WHERE `user_compliance_info`.`id` = 3 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "country",
+                "business_country",
+                "is_business"
+              ],
+              "rows": [
+                [
+                  3,
+                  5,
+                  "TÜRKIYE",
+                  null,
+                  false
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "flags",
+                "name",
+                "username"
+              ],
+              "rows": [
+                [
+                  5,
+                  0,
+                  "Seller 5",
+                  "seller5"
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`user_id` = 5 AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_id` = 'stripe'",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "charge_processor_id",
+                "charge_processor_merchant_id",
+                "country",
+                "json_data",
+                "deleted_at",
+                "charge_processor_alive_at",
+                "charge_processor_deleted_at"
+              ],
+              "rows": [
+                [
+                  41,
+                  5,
+                  "stripe",
+                  "acct_41",
+                  "TR",
+                  null,
+                  null,
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  null
+                ]
+              ]
+            }
+          }
+        ],
+        "redis": {},
+        "deliveries": []
+      },
+      {
+        "name": "a former country name resolves to its code",
+        "args": [
+          3
+        ],
+        "statements": [
+          {
+            "sql": "SELECT `user_compliance_info`.* FROM `user_compliance_info` WHERE `user_compliance_info`.`id` = 3 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "country",
+                "business_country",
+                "is_business"
+              ],
+              "rows": [
+                [
+                  3,
+                  5,
+                  "Czech Republic",
+                  null,
+                  false
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "flags",
+                "name",
+                "username"
+              ],
+              "rows": [
+                [
+                  5,
+                  0,
+                  "Seller 5",
+                  "seller5"
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`user_id` = 5 AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_id` = 'stripe'",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "charge_processor_id",
+                "charge_processor_merchant_id",
+                "country",
+                "json_data",
+                "deleted_at",
+                "charge_processor_alive_at",
+                "charge_processor_deleted_at"
+              ],
+              "rows": [
+                [
+                  41,
+                  5,
+                  "stripe",
+                  "acct_41",
+                  "CZ",
+                  null,
+                  null,
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  null
+                ]
+              ]
+            }
+          }
+        ],
+        "redis": {},
+        "deliveries": []
+      },
+      {
+        "name": "a former country name drifted",
+        "args": [
+          3
+        ],
+        "statements": [
+          {
+            "sql": "SELECT `user_compliance_info`.* FROM `user_compliance_info` WHERE `user_compliance_info`.`id` = 3 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "country",
+                "business_country",
+                "is_business"
+              ],
+              "rows": [
+                [
+                  3,
+                  5,
+                  "Czech Republic",
+                  null,
+                  false
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "flags",
+                "name",
+                "username"
+              ],
+              "rows": [
+                [
+                  5,
+                  0,
+                  "Seller 5",
+                  "seller5"
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`user_id` = 5 AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_id` = 'stripe'",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "charge_processor_id",
+                "charge_processor_merchant_id",
+                "country",
+                "json_data",
+                "deleted_at",
+                "charge_processor_alive_at",
+                "charge_processor_deleted_at"
+              ],
+              "rows": [
+                [
+                  41,
+                  5,
+                  "stripe",
+                  "acct_41",
+                  "DE",
+                  null,
+                  null,
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  null
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "BEGIN",
+            "result": {
+              "affected": 0
+            }
+          },
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1 FOR UPDATE",
+            "result": {
+              "fields": [
+                "id",
+                "flags",
+                "name",
+                "username"
+              ],
+              "rows": [
+                [
+                  5,
+                  0,
+                  "Seller 5",
+                  "seller5"
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT 1 AS one FROM `comments` WHERE `comments`.`commentable_id` = 5 AND `comments`.`commentable_type` = 'User' AND `comments`.`comment_type` = 'note' AND `comments`.`author_name` = 'legal-entity-country-drift' AND `comments`.`content` = 'Legal-entity country CZ does not match the Stripe account country DE (acct_41). Compliance resync to Stripe will fail for this seller until the account is recreated in the correct country; Stripe cannot change an existing account\\'s country.' AND (created_at > '2025-10-02 00:00:00.123000') LIMIT 1",
+            "result": {
+              "fields": [],
+              "rows": []
+            }
+          },
+          {
+            "sql": "SELECT 1 AS one FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "one"
+              ],
+              "rows": [
+                [
+                  1
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "INSERT INTO `comments` (`commentable_id`, `commentable_type`, `author_id`, `author_name`, `content`, `comment_type`, `json_data`, `created_at`, `updated_at`, `deleted_at`, `purchase_id`, `ancestry`, `ancestry_depth`, `idempotency_key`) VALUES (5, 'User', NULL, 'legal-entity-country-drift', 'Legal-entity country CZ does not match the Stripe account country DE (acct_41). Compliance resync to Stripe will fail for this seller until the account is recreated in the correct country; Stripe cannot change an existing account\\'s country.', 'note', NULL, '2025-11-01 00:00:00', '2025-11-01 00:00:00', NULL, NULL, NULL, 0, NULL)",
+            "result": {
+              "affected": 1,
+              "last_id": 1001
+            }
+          },
+          {
+            "sql": "INSERT INTO `versions` (`item_type`, `item_id`, `event`, `whodunnit`, `object`, `created_at`, `remote_ip`, `request_path`, `request_uuid`, `object_changes`) VALUES ('Comment', 1001, 'create', NULL, NULL, '2025-11-01 00:00:00', NULL, NULL, NULL, '{\\\"id\\\":[null,1001],\\\"commentable_id\\\":[null,5],\\\"commentable_type\\\":[null,\\\"User\\\"],\\\"author_name\\\":[null,\\\"legal-entity-country-drift\\\"],\\\"content\\\":[null,\\\"Legal-entity country CZ does not match the Stripe account country DE (acct_41). Compliance resync to Stripe will fail for this seller until the account is recreated in the correct country; Stripe cannot change an existing account\\'s country.\\\"],\\\"comment_type\\\":[null,\\\"note\\\"],\\\"created_at\\\":[null,\\\"2025-11-01T00:00:00Z\\\"],\\\"updated_at\\\":[null,\\\"2025-11-01T00:00:00Z\\\"]}')",
+            "result": {
+              "affected": 1,
+              "last_id": 1002
+            }
+          },
+          {
+            "sql": "COMMIT",
+            "result": {
+              "affected": 0
+            }
+          }
+        ],
+        "redis": {},
+        "deliveries": []
+      },
+      {
+        "name": "an individual ignores the business country",
+        "args": [
+          3
+        ],
+        "statements": [
+          {
+            "sql": "SELECT `user_compliance_info`.* FROM `user_compliance_info` WHERE `user_compliance_info`.`id` = 3 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "country",
+                "business_country",
+                "is_business"
+              ],
+              "rows": [
+                [
+                  3,
+                  5,
+                  "Germany",
+                  "France",
+                  false
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "flags",
+                "name",
+                "username"
+              ],
+              "rows": [
+                [
+                  5,
+                  0,
+                  "Seller 5",
+                  "seller5"
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`user_id` = 5 AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_id` = 'stripe'",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "charge_processor_id",
+                "charge_processor_merchant_id",
+                "country",
+                "json_data",
+                "deleted_at",
+                "charge_processor_alive_at",
+                "charge_processor_deleted_at"
+              ],
+              "rows": [
+                [
+                  41,
+                  5,
+                  "stripe",
+                  "acct_41",
+                  "DE",
+                  null,
+                  null,
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  null
+                ]
+              ]
+            }
+          }
+        ],
+        "redis": {},
+        "deliveries": []
+      },
+      {
+        "name": "a business with no flag set ignores the business country",
+        "args": [
+          3
+        ],
+        "statements": [
+          {
+            "sql": "SELECT `user_compliance_info`.* FROM `user_compliance_info` WHERE `user_compliance_info`.`id` = 3 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "country",
+                "business_country",
+                "is_business"
+              ],
+              "rows": [
+                [
+                  3,
+                  5,
+                  "Germany",
+                  "France",
+                  null
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "flags",
+                "name",
+                "username"
+              ],
+              "rows": [
+                [
+                  5,
+                  0,
+                  "Seller 5",
+                  "seller5"
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`user_id` = 5 AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_id` = 'stripe'",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "charge_processor_id",
+                "charge_processor_merchant_id",
+                "country",
+                "json_data",
+                "deleted_at",
+                "charge_processor_alive_at",
+                "charge_processor_deleted_at"
+              ],
+              "rows": [
+                [
+                  41,
+                  5,
+                  "stripe",
+                  "acct_41",
+                  "DE",
+                  null,
+                  null,
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  null
+                ]
+              ]
+            }
+          }
+        ],
+        "redis": {},
+        "deliveries": []
+      },
+      {
+        "name": "a business uses its business country",
+        "args": [
+          3
+        ],
+        "statements": [
+          {
+            "sql": "SELECT `user_compliance_info`.* FROM `user_compliance_info` WHERE `user_compliance_info`.`id` = 3 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "country",
+                "business_country",
+                "is_business"
+              ],
+              "rows": [
+                [
+                  3,
+                  5,
+                  "Germany",
+                  "France",
+                  true
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "flags",
+                "name",
+                "username"
+              ],
+              "rows": [
+                [
+                  5,
+                  0,
+                  "Seller 5",
+                  "seller5"
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`user_id` = 5 AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_id` = 'stripe'",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "charge_processor_id",
+                "charge_processor_merchant_id",
+                "country",
+                "json_data",
+                "deleted_at",
+                "charge_processor_alive_at",
+                "charge_processor_deleted_at"
+              ],
+              "rows": [
+                [
+                  41,
+                  5,
+                  "stripe",
+                  "acct_41",
+                  "FR",
+                  null,
+                  null,
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  null
+                ]
+              ]
+            }
+          }
+        ],
+        "redis": {},
+        "deliveries": []
+      },
+      {
+        "name": "a business with an unknown business country falls back to the country",
+        "args": [
+          3
+        ],
+        "statements": [
+          {
+            "sql": "SELECT `user_compliance_info`.* FROM `user_compliance_info` WHERE `user_compliance_info`.`id` = 3 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "country",
+                "business_country",
+                "is_business"
+              ],
+              "rows": [
+                [
+                  3,
+                  5,
+                  "Germany",
+                  "Narnia",
+                  true
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "flags",
+                "name",
+                "username"
+              ],
+              "rows": [
+                [
+                  5,
+                  0,
+                  "Seller 5",
+                  "seller5"
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`user_id` = 5 AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_id` = 'stripe'",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "charge_processor_id",
+                "charge_processor_merchant_id",
+                "country",
+                "json_data",
+                "deleted_at",
+                "charge_processor_alive_at",
+                "charge_processor_deleted_at"
+              ],
+              "rows": [
+                [
+                  41,
+                  5,
+                  "stripe",
+                  "acct_41",
+                  "DE",
+                  null,
+                  null,
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  null
+                ]
+              ]
+            }
+          }
+        ],
+        "redis": {},
+        "deliveries": []
+      },
+      {
+        "name": "a business with a blank business country falls back to the country",
+        "args": [
+          3
+        ],
+        "statements": [
+          {
+            "sql": "SELECT `user_compliance_info`.* FROM `user_compliance_info` WHERE `user_compliance_info`.`id` = 3 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "country",
+                "business_country",
+                "is_business"
+              ],
+              "rows": [
+                [
+                  3,
+                  5,
+                  "Germany",
+                  "",
+                  true
                 ]
               ]
             }
@@ -6484,16 +7247,16 @@
               "fields": [
                 "id",
                 "user_id",
-                "country_code",
-                "business_country_code",
+                "country",
+                "business_country",
                 "is_business"
               ],
               "rows": [
                 [
                   3,
                   5,
-                  "DE",
-                  "FR",
+                  "Germany",
+                  "France",
                   true
                 ]
               ]
@@ -6643,15 +7406,15 @@
               "fields": [
                 "id",
                 "user_id",
-                "country_code",
-                "business_country_code",
+                "country",
+                "business_country",
                 "is_business"
               ],
               "rows": [
                 [
                   3,
                   5,
-                  "DE",
+                  "Germany",
                   null,
                   false
                 ]

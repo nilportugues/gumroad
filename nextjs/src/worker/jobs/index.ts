@@ -48,6 +48,7 @@ import { alertOnStalledAbandonedCartEmailsJob, buildTaxRateCacheWorker, recoverA
 import { suspendAccountsWithPaymentAddressWorker, suspendUsersWorker } from "./suspend-jobs.ts";
 import { syncStripeBusinessProfileUrlWorker } from "./sync-stripe-business-profile-url-worker.ts";
 import { updateCurrenciesWorker } from "./update-currencies-worker.ts";
+import { updatePurchasingPowerParityFactorsWorker } from "./update-purchasing-power-parity-factors-worker.ts";
 import { warmSellerReputationSummaryJob } from "./warm-seller-reputation-summary-job.ts";
 import { recalculateRecentWishlistFollowerCountJob } from "./wishlist-jobs.ts";
 import { flushInstallmentDeliveredDeltasJob, scheduleAffiliateWorkflowJobsJob, scheduleWorkflowEmailsWorker, sendWorkflowInstallmentRescheduleJob, updateInstallmentEventsCountCacheWorker } from "./workflow-jobs.ts";
@@ -147,6 +148,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   UpdateCurrenciesWorker: updateCurrenciesWorker,
   UpdateLargeSellersSalesCountJob: updateLargeSellersSalesCountJob,
   UpdatePurchaseHealthcheckThresholdJob: updatePurchaseHealthcheckThresholdJob,
+  UpdatePurchasingPowerParityFactorsWorker: updatePurchasingPowerParityFactorsWorker,
   UpdateSellerRefundEligibilityJob: updateSellerRefundEligibilityJob,
   WarmSellerReputationSummaryJob: warmSellerReputationSummaryJob,
 };
