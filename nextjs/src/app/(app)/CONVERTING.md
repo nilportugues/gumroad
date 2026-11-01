@@ -313,3 +313,30 @@ The query builders live in `src/server/search/`; each is a pure function returni
 - `purchase-search.ts`: `PurchaseSearchService`, including the long-email-token fallback request. `purchase-search.golden.json`.
 - `following.ts`, `civil-time.ts`: `CreatorAnalytics::Following` (time zone day starts, `D3` labels) and the `ConfirmedFollowerEvent` activity search. `following.golden.json`.
 - Not ported: the Discover, `Products/Discover`, Customers, Audience, Churn, Analytics and Dashboard page renders. Discover needs `ProductPresenter.card_for_web`, `WishlistPresenter`, `RecommendedWishlistsService` and the `DiscoverSearch` write; the seller pages share `check_payment_details` (Redis plus a Stripe call) and the `DashboardPreference` after_action cookie, which `PageSpec` cannot set yet.
+
+## Agent, piracy reports, dispute evidence and the invoice redirect (WS-75)
+
+GET renders only; recorded by `spec/requests/{agent,piracy_reports,dispute_evidence}_signed_in_spec.rb` and
+`generate_invoice_redirect_spec.rb`, replayed by `parity/__tests__/ws75-pages.replay.test.ts`.
+
+- **Flags**: `nextjs_agent` (`/agent`), `nextjs_piracy_reports` (`/dashboard/piracy_reports`, `/new`, `/:id`),
+  `nextjs_dispute_evidence` and `nextjs_dispute_evidence_success` (`/purchases/:purchase_id/dispute_evidence[/success]`),
+  `nextjs_generate_invoice_redirect` (`/purchases/:purchase_id/generate_invoice`).
+- **Agent** (`page-props/agent/pages.ts`): the role gate is `userPolicy.viewStoreAgent`; `eligible` is the store-agent
+  predicate the shared props already use. A seller who has earned access (the Elasticsearch sales aggregate) is covered by the
+  `purchase-sales` golden, not by a replay.
+- **Piracy reports** (`page-props/piracy-reports/pages.ts`): `set_product`/`set_report` run before `authorize`, as in Rails, so
+  an unknown product or report redirects to `/products` for any role. `PiracyReports::Eligibility` is read in SQL; the replays leave
+  the Elasticsearch-backed earned-access bar unmet.
+- **Dispute evidence** (`page-props/dispute-evidence/pages.ts`): the filters are `authenticate_user!`, `set_purchase`
+  (`SecureExternalId` token first, then the external id; `models/secure-external-id.ts` gained `decryptSecureExternalId`),
+  `set_dispute_evidence` and `check_if_needs_redirect`; the props reload the records from the route param because the filter
+  state travels in a header and must stay small. The hours left and the deadline depend on whether the 72 hour window touches a
+  weekend, so the replay ignores those props (the window arithmetic has its own golden).
+  `NotPortedError`: a buyer-currency presentment on the disputed purchase or charge (`StripeChargeProcessor.format_charge_presentment_amount`).
+- **generate_invoice** is a Rack-level `redirect`, so it is an App Router route handler (`route.ts`) with the middleware headers and
+  none of the controller's cookies. Known difference: a query string with literal `[]` comes back percent-encoded, because Next
+  normalizes `request.url`.
+- **Not converted**: Communities (needs the `scroll` prop type, `PaginatedCommunityChatMessagesPresenter`, `accessible_communities_ids` and
+  `Community#thumbnail_url`), `Purchases/Invoices/New` (`InvoicePresenter::OrderInfo`/`SupplierInfo` tax and VAT rules), and the
+  `UrlRedirects/*` pages (S3 signed locations, stamped PDFs, consumption events written in after_actions, the download page layout props).
