@@ -3,20 +3,23 @@
 // still current, and the post is still sendable.
 // Golden: __fixtures__/post-email-sends.golden.json (scripts/golden/post-email-sends.rb).
 //
-// Handed back to Rails, before the job's first write: a rule version Redis does not hold (or holds as pending), and a
-// reschedule whose filters or reference time Node does not read (see installment-reschedule.ts).
-import type { InstallmentRule, User } from "@prisma/client";
+// Handed back to Rails, before the job's first write: a reschedule whose filters or reference time Node does not read (see
+// installment-reschedule.ts).
+import { Prisma, type InstallmentRule, type User } from "@prisma/client";
+import type { Redis } from "ioredis";
 
 import { beforeSideEffects, HandBackToRuby } from "../../server/jobs/hand-back.ts";
 import type { JsonValue } from "../../server/jobs/sidekiq/ruby-json.ts";
 import { getRedis } from "../../server/infra/redis.ts";
-import { cachedVersionState } from "../../server/models/installment-rule.ts";
+import { cachedVersionState, cacheVersionBang } from "../../server/models/installment-rule.ts";
 import { InstallmentPost } from "../../server/models/installment-post.ts";
 import { currentRecipientReferenceTime, recipientMatchesCurrentAudience, rescheduleWithCurrentRule, type RecipientIds } from "../../server/models/installment-reschedule.ts";
 import { retiredFor, sendInstallmentFromWorkflowForAffiliateUser, sendInstallmentFromWorkflowForFollower, sendInstallmentFromWorkflowForMemberCancellation, sendInstallmentFromWorkflowForPurchase, defaultSendDeps, type SendDeps } from "../../server/models/installment-send.ts";
 import { defaultPostEmailDeps, type PostEmailDeps } from "../../server/models/post-email-api.ts";
 import { findOneBy, recordIdFrom } from "../../server/models/row-reads.ts";
 import { connectedTo } from "../../server/models/runtime/query-cache.ts";
+import { transaction } from "../../server/models/runtime/transaction.ts";
+import { castRow, column, selectRows, table } from "../../server/models/sql.ts";
 import { NotPortedError, RISK_STATES } from "../../server/models/user.ts";
 import { type JobDeps, modelJob } from "./support/job-deps.ts";
 import type { Installment } from "@prisma/client";
@@ -40,6 +43,38 @@ function present(value: JsonValue | undefined): boolean {
 // `with_primary_database(pinned)`
 const withPrimary = <T>(pinned: boolean, fn: () => Promise<T>) => (pinned ? connectedTo("writing", fn) : fn());
 
+// `current_rule_version(installment_id)`: the cached version, or (cache empty, pending, or unreadable) the rule's, read under
+// a lock and cached. A Redis failure falls back to the rule's own version.
+async function currentRuleVersion(installmentId: bigint, redis: Redis): Promise<number | null> {
+  let cacheReadFailed = false;
+  let pending = false;
+  try {
+    const [cached, isPending] = await cachedVersionState(installmentId, redis);
+    pending = isPending;
+    if (cached !== null && !pending) return cached;
+  } catch {
+    cacheReadFailed = true;
+  }
+
+  const effective = await connectedTo("writing", () =>
+    transaction(async () => {
+      const [row] = await selectRows(
+        Prisma.sql`SELECT ${Prisma.raw("`installment_rules`.*")} FROM ${table("installment_rules")} WHERE ${column("installment_rules", "installment_id")} = ${installmentId} LIMIT 1 FOR UPDATE`,
+      );
+      const rule = row === undefined ? null : castRow<InstallmentRule>("InstallmentRule", row);
+      if (rule === null) return null;
+      if (cacheReadFailed) return rule.version;
+      try {
+        return await cacheVersionBang(rule, redis);
+      } catch {
+        return rule.version;
+      }
+    }),
+  );
+  if (effective === null && pending) throw new RuleNotCommittedError();
+  return effective;
+}
+
 async function findInstallmentAndRule(installmentId: bigint): Promise<[Installment | null, InstallmentRule | null]> {
   const installment = await findOneBy<Installment>("Installment", "id", installmentId, true);
   return [installment, installment === null ? null : await findOneBy<InstallmentRule>("InstallmentRule", "installment_id", installment.id)];
@@ -58,19 +93,13 @@ export const sendWorkflowInstallmentWorkerWith = (overrides: Partial<JobDeps> = 
     let reference: string | null = rescheduleReferenceTime ?? null;
     const sendDeps: SendDeps = { ...defaultSendDeps({ ...defaultPostEmailDeps(), now: deps.now, ...send }), ...(send.subscriptionDeps ? { subscriptionDeps: send.subscriptionDeps } : {}) };
 
-    const { installmentId, expectedRuleVersion, version } = await beforeSideEffects(async () => {
+    const { installmentId, version } = await beforeSideEffects(async () => {
       const id = recordIdFrom(installmentIdArg, "Installment.find_by");
       if (typeof versionArg !== "number") throw new NotPortedError(`a rule version that is not an Integer (${JSON.stringify(versionArg)})`, "send_workflow_installment_worker.rb");
-      let cached: [number | null, boolean];
-      try {
-        cached = await cachedVersionState(id, send.redis?.() ?? getRedis("main"));
-      } catch {
-        throw new NotPortedError("InstallmentRule.cache_version! after a failed cache read", "send_workflow_installment_worker.rb:62");
-      }
-      // A rule the cache does not hold (or holds as a pending write) is read under a lock and cached: that is Ruby's.
-      if (cached[0] === null || cached[1]) throw new NotPortedError("InstallmentRule.cache_version!", "send_workflow_installment_worker.rb:62");
-      return { installmentId: id, expectedRuleVersion: cached[0], version: versionArg };
+      return { installmentId: id, version: versionArg };
     });
+    const expectedRuleVersion = await currentRuleVersion(installmentId, send.redis?.() ?? getRedis("main"));
+    if (expectedRuleVersion === null) return;
 
     let primaryPinned = expectedRuleVersion !== version || present(reference);
     let [installment, rule] = await withPrimary(primaryPinned, () => findInstallmentAndRule(installmentId));

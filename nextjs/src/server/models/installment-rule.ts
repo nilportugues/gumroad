@@ -29,6 +29,38 @@ export async function cachedVersionState(installmentId: number | bigint, redis: 
   return [version === null || version === undefined ? null : rubyToI(version), owner !== null && owner !== undefined && owner.trim() !== ""];
 }
 
+// InstallmentRule::CACHE_COMMITTED_VERSION_SCRIPT, byte for byte
+export const CACHE_COMMITTED_VERSION_SCRIPT = `local current = redis.call("GET", KEYS[1])
+local owner = redis.call("GET", KEYS[2])
+if current and tonumber(current) > tonumber(ARGV[1]) then
+  return tonumber(current)
+end
+if owner and (ARGV[2] == "" or owner ~= ARGV[2]) then
+  return current and tonumber(current) or false
+end
+redis.call("SET", KEYS[1], ARGV[1], "EX", ARGV[3])
+redis.call("DEL", KEYS[2])
+return tonumber(ARGV[1])
+`;
+
+// `InstallmentRule.cache_committed_version!(installment_id:, version:, expected_pending_token:, expires_in:)`: the version the
+// cache holds afterwards, or nil when a pending write holds the key and nothing is cached.
+export async function cacheCommittedVersion(
+  installmentId: number | bigint,
+  version: number,
+  redis: Redis = getRedis("main"),
+  { expectedPendingToken = "", expiresIn = INSTALLMENT_RULE_VERSION_CACHE_TTL_SECONDS }: { expectedPendingToken?: string; expiresIn?: number } = {},
+): Promise<number | null> {
+  const result = await redis.eval(CACHE_COMMITTED_VERSION_SCRIPT, 2, ruleVersionKey(installmentId), rulePendingTokenKey(installmentId), String(version), expectedPendingToken, String(expiresIn));
+  return result === null || result === undefined ? null : rubyToI(String(result));
+}
+
+// `rule.cache_version!`: nothing for a rule without an installment.
+export async function cacheVersionBang(rule: { installment_id: number | bigint | null; version: number }, redis: Redis = getRedis("main")): Promise<number | null> {
+  if (rule.installment_id === null) return null;
+  return cacheCommittedVersion(rule.installment_id, rule.version, redis);
+}
+
 // `displayable_time_duration`: the delay back in the unit the creator picked (`(delay / period).to_i`).
 // A rule whose `time_period` is none of the four has no period, which Ruby fails on.
 export function displayableTimeDuration(rule: { delayed_delivery_time: number | null; time_period: string | null }): number {
