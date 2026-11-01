@@ -121,10 +121,13 @@ export type AudienceRelation =
 
 // A scoped query that builds its `WHERE` from conditions joined with AND.
 class Scope {
-  constructor(
-    readonly conditions: readonly string[],
-    readonly joins: readonly string[] = [],
-  ) {}
+  readonly conditions: readonly string[];
+  readonly joins: readonly string[];
+
+  constructor(conditions: readonly string[], joins: readonly string[] = []) {
+    this.conditions = conditions;
+    this.joins = joins;
+  }
 
   where(condition: string): Scope {
     return new Scope([...this.conditions, condition], this.joins);

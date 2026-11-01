@@ -433,3 +433,40 @@ and the member cancellation scheduling of `SetSubscriptionAsDeactivatedWorker`. 
 - Not ported: the sends (`Installment#send_installment_from_workflow_for_*`, `PostEmailApi`), `Installment` as a runtime model (publish, schedule,
   `WorkflowInstallmentScheduleIntent.enqueue!` and the `Workflow#publish!`/`schedule_installment` writes), `Workflow#mark_deleted!`,
   `InstallmentRule`'s version callbacks.
+
+### Audience filters, installment writes and the jobs they unblock (WS-63)
+
+Supersedes the "Not ported" and hand-back lines of the WS-51 section above for everything listed here.
+
+- `audience-member.ts`: `AudienceMember.normalize_filter_params` and `AudienceMember.filter`, every SQL branch, as the text ActiveRecord's `to_sql`
+  writes (`filterAudience` returns the fragments, `audienceSql` / `firstSql` / `countSql` are the statements `to_sql`, `first`, `count` and
+  `limit(n).count` send). Bound values are quoted as strings (`> '500'`, `IN ('4', '5')`), hash conditions as typed values. Golden:
+  `__fixtures__/audience-member-filter.golden.json` (`scripts/golden/audience-member-filter.rb`, 548 param/option combinations).
+- `installment-audience.ts`: `Installment#audience_members_filter_params`. Stored dates are turned into the seller's time zone with
+  `concerns/rails-time-zone.ts` (`time-zones.generated.json` maps ActiveSupport's zone names to tz identifiers; checked against ActiveSupport for all
+  152 zones on 11 dates, DST gaps included; an ambiguous local midnight takes the earlier instant). Node reads the ISO 8601 forms the filters are stored
+  in; anything `Date.parse` would accept beyond them, a variant id that does not decode, a price filter stored as a string, and the has-not-clicked
+  reference (it asks DynamoDB) throw `NotPortedError`. Ruby quirk kept: a product permalink that resolves to no product leaves the filter empty, which
+  matches everyone (only `waitlisted_products` guards against it).
+- `installment-reschedule.ts`: the reschedule half of `SendWorkflowInstallmentWorker` (`current_recipient_reference_time`,
+  `recipient_matches_current_audience?` for purchases, followers, affiliates and cancelled memberships, `reschedule_with_current_rule`), and
+  `workflowDeliveryReferenceTime` in `installment-send.ts`. Golden: `worker/jobs/__fixtures__/installment-sends.golden.json`
+  (`scripts/golden/installment-sends.rb`, 83 cases: production-mode mail, provider recorders, audience member rows).
+- `installment-rule.ts` gained `CACHE_COMMITTED_VERSION_SCRIPT` and `cacheVersionBang` (`InstallmentRule#cache_version!`), which
+  `SendWorkflowInstallmentWorker#current_rule_version` runs for a rule the cache does not hold. The pending-version scripts and the rule's save
+  callbacks are still Ruby's.
+- `installment-emailable.ts`: `Installment.emailable_posts_for_purchase` (the three-way UNION), for `SendLastPostJob`.
+- `direct-affiliate.ts`: `DirectAffiliate#schedule_workflow_jobs`, with the `includes(:affiliate)` / `includes(:product)` preloads of the job that calls it.
+  Golden: `schedule-affiliate-workflows.golden.json` (40 cases).
+- `workflow-resubscribed-memberships.ts`: `reschedule_pending_resubscribed_memberships`, with the preloads of `find_in_batches ... preload(...)` filling
+  the `PurchaseRecord` memo. A workflow that excludes buyers of other products (`ResubscriptionExclusionProbe`), a filter Node does not judge, and a
+  batch of 1000 restarted memberships are decided before the intent's fanout is claimed, so the job hands back untouched. Golden: the "delay edit" cases of
+  `schedule-workflow-installment.golden.json` (73 cases).
+- `installment-writes.ts`: `Installment#publish!`, `#unpublish!` and `#mark_deleted!` as a `defineModel` with the validations and callbacks a save runs
+  (paper_trail `versions` row, `ElasticsearchIndexerWorker` four seconds after commit). Golden: `publish-scheduled-post.golden.json`
+  (`scripts/golden/publish-scheduled-post.rb`, 27 cases). Left to Rails, with `NotPortedError` before the first write: a post that emails its audience
+  (`validate_sending_limit_for_sellers` counts it in Elasticsearch, and the publish is followed by a `PostEmailBlast`), a post with files
+  (`transcode_videos!`), a call to action, a message the sanitizer would have to judge, a post without a slug (friendly_id), and a seller content
+  moderation would review (the `content_moderation` kill switch on and the seller not a VIP; the review asks an AI model).
+- Not ported: `Workflow#publish!`, `#unpublish!` and `#mark_deleted!`, `InstallmentRule#advance_version!` and the rule's save callbacks (pending
+  version scripts), `UrlRedirect` creation for posts with files, `Installment` creation.

@@ -2,10 +2,10 @@
 //   app/sidekiq/schedule_workflow_emails_worker.rb
 //   app/sidekiq/update_installment_events_count_cache_worker.rb
 //   app/sidekiq/flush_installment_delivered_deltas_job.rb
-//   app/sidekiq/send_workflow_installment_reschedule_job.rb (its guard; the send itself is Ruby's)
-//   app/sidekiq/schedule_affiliate_workflow_jobs_job.rb (the sweep, and a token with no assignments)
-// `SendWorkflowInstallmentWorker`, which these enqueue, still runs in Rails.
-// Golden: __fixtures__/workflow-jobs.golden.json (scripts/golden/workflow-jobs.rb).
+//   app/sidekiq/send_workflow_installment_reschedule_job.rb (its guard, then SendWorkflowInstallmentWorker)
+//   app/sidekiq/schedule_affiliate_workflow_jobs_job.rb
+// Golden: __fixtures__/workflow-jobs.golden.json (scripts/golden/workflow-jobs.rb), and for a token with assignments
+// __fixtures__/schedule-affiliate-workflows.golden.json (scripts/golden/schedule-affiliate-workflows.rb).
 import { Prisma, type Installment, type ProductAffiliate } from "@prisma/client";
 import type { Redis } from "ioredis";
 
