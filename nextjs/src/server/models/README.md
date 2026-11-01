@@ -511,3 +511,27 @@ four entry points, and codes that soft-fail to their ISO code). `moneyFormatterF
 `formattedAmountInCurrency`, `formatChargePresentmentAmount` and `symbolFor` are exact over that grid. Known quirks kept: negatives print `$-1.00`,
 `with_currency` prints the id the currency was found by (`"yen"` prints `YEN`), KRW and HUF use 100 subunits, HALF_UP rounding.
 `email-info.ts` is the `CustomerEmailInfo` write (`build_for_purchase` then `mark_sent!`); the charge variant (`EmailInfoCharge`) is not ported.
+
+### SaveInstallmentService and Workflow::ManageService (WS-82)
+
+Goldens: `__fixtures__/save-installment.golden.json` (`scripts/golden/save-installment.rb`, 108 cases: every statement, Sidekiq push and Elasticsearch request of the
+real services in a request-like executor), replayed by `save-installment.test.ts` (needs `JOBS_REDIS_URL`).
+
+- `save-installment.ts`: create and update of a post (strong parameters in the permit list's order, which fixes the `json_data` key order; `add_and_validate_filters`
+  with `created_after`/`created_before` as the seller's zone writes them; publish, schedule with `PublishScheduledPostJob.perform_at`, `PostEmailBlast`, profile post
+  sections under `with_profile_sections_lock` in `seller-profile-sections.ts`, the product reindex for a product post). `friendly-id.ts` is friendly_id 5.5.1's slug
+  candidates, reserved words and `String#parameterize` (ASCII names; the query cache serves the repeated slug probe, as in Rails).
+- `Installment` can now be created: friendly_id `set_slug` (before_validation and before_save), the reserved-word validation, `after_create` paper trail and the
+  `index` Elasticsearch job two seconds after commit.
+- `html-fragment.ts`: `SaveContentUpsellsService#from_html` rewrites every message through `Nokogiri::HTML.fragment(...).to_html`. Node proves the messages libxml2 returns
+  byte for byte (p, headings, inline tags, br/hr/img, pre, blockquote with simple attributes) and throws for the rest (lists get newlines, unclosed tags are closed,
+  entities and URIs are rewritten).
+- `workflow-manage.ts`: `Workflow::ManageService` and the product lookup of `WorkflowsController`; a workflow's emails follow its audience until the first publish.
+- Left to Rails (`NotPortedError` before the first write): a post with files (`SaveFilesService`/`save_files!`: S3 and ProductFile), a message with an upsell card, markup
+  Nokogiri would rewrite, a preview email, a variant post or workflow, a "has not clicked" filter, the default abandoned cart email of a new abandoned cart workflow,
+  a filter date or publish time in a format `Date.parse`/`TimeZone#parse` reads beyond ISO 8601, a price filter in a currency other than USD, and a posts section whose
+  `json_data` breaks its schema.
+- Commit callbacks follow Rails when two instances of a row save in one transaction (`run_commit_callbacks_on_first_saved_instances_in_transaction`): `before_commit`
+  runs on the last instance saved and `after_commit` on the first. A workflow that syncs its emails and then publishes them therefore enqueues no Elasticsearch update
+  (the first instance's change tracker never ran). `runtime/transaction.ts` models it with `identity` and `prepare`.
+- The goldens run the services in a Sidekiq-style executor (replicas on); a Puma worker has one pool, so its query cache can serve a read the golden shows twice. Only reads differ.
