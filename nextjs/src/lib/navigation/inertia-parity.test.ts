@@ -115,7 +115,7 @@ async function runReal(core: typeof import("@inertiajs/core"), sequence: (typeof
   const initialPage = { component: sequence.path === "/deep" ? "Deep/Index" : "Items/Index", props: { errors: {}, ...sequence.initial }, url: sequence.path, version: null };
   window.history.replaceState(null, "", sequence.path);
   let current: Page = initialPage as Page;
-  await core.router.init({
+  await (core.router as unknown as { init: (options: unknown) => Promise<void> }).init({
     initialPage: initialPage as never,
     resolveComponent: async () => ({}),
     swapComponent: async ({ page }: { page: unknown }) => {

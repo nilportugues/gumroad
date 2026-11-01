@@ -152,10 +152,8 @@ user. Nothing per page: `pageEnvelope`/`processAction` and `loadPage` do it all.
 
 ## Not covered yet (convert by hand)
 
-- `InertiaRails.merge`/`scroll` (append-on-paginate) and `optional` props: `router.reload({ only })`
-  re-renders every prop, so pages that page through lists by merging need a client fetch or a
-  server action instead.
-- `<InfiniteScroll>` and `<Form>` throw; `useRemember` uses sessionStorage instead of history state.
+- `InertiaRails.scroll` and `<InfiniteScroll>`: the server emits no `scrollProps`, so Communities (the one
+  page that uses it) is not convertible yet. `<Form>` throws as well; `useRemember` uses sessionStorage instead of history state.
 - `import.meta.glob` (Vite-only) in a page's import graph fails to build.
 - Mutations still go to Rails over the Inertia protocol (`useForm.post` etc.); once an endpoint is
   ported, return a redirect from a route handler or use a server action.
@@ -224,10 +222,7 @@ controllers run filters of their own, so their `PageSpec` carries `options` (`co
   + `RequireAccountEmail` + the action's `authorize`, with Pundit's flash redirect.
 - `lazy`, `optional` and `merge` (`page-props/lazy-props.ts`) are `-> {}`, `InertiaRails.optional` and
   `InertiaRails.merge`: resolved after the partial-reload filter, so a prop a response leaves out is never
-  computed; `mergeProps` is written into the page object. The client side of merge (appending the reloaded
-  list to the held one) is **not** in the compat layer yet: `router.reload({ data })` still re-renders every
-  prop and does not change the URL, so pages that page through a merged list (`/followers`,
-  `/dashboard/utm_links`) are not ready to flag on.
+  computed; `mergeProps` is written into the page object. The client side is in `lib/navigation/partial-reload.ts` (see "Partial reloads and merge props" below).
 - The visited dashboard nav item is promoted by the render after it built the props
   (`RenderState.promoteNavItemPath`), as Rails promotes in an after_action.
 
@@ -280,3 +275,28 @@ Not ported, not in `routes.json`:
 - **Social connections.** `?social_connect_origin` writes the return token into the session from the
   page's `options.filters` (`controllers/settings-pages.ts`), after running the page's guard so that a
   refused request leaves the session alone.
+
+## Partial reloads and merge props (WS-67)
+
+`router.reload`/`router.visit` with `only`, `except` or `reset` (or `preserveUrl`) on the page the visitor is on do not
+navigate: they GET the page's X-Inertia endpoint with `X-Inertia-Partial-Component/Data/Except` and `X-Inertia-Reset`,
+and merge the answer into the held props as @inertiajs/core 2.3 does (`mergeProps` append, `prependProps`,
+`deepMergeProps`, `matchPropsOn`; props the response leaves out keep their value), then move the URL with
+`history.pushState`/`replaceState` unless `preserveUrl`. A reload with `data` but no `only` navigates to the new
+query string. `lib/navigation/inertia-parity.test.ts` drives the real @inertiajs/core router and the compat router against
+one server and compares headers, props and URL (skipped when the Rails app's node_modules is absent). The route must be
+`"inertia": true`, since the request is answered by the `/gr-inertia` handler. `/followers` and
+`/dashboard/utm_links` can be flagged on.
+
+## Emails pages (WS-67)
+
+`/emails` (301 to the scheduled or published tab, in the guard after `authorize`), `/emails/published|scheduled|drafts`,
+`/emails/new` and `/emails/:id/edit` (flag `nextjs_emails`; GET renders only). Props in `server/page-props/emails/`:
+`PaginatedInstallmentsPresenter` (SQL for the lists, Elasticsearch for `query`, search body in `installment-search.ts` proven by
+`__fixtures__/installment-search.golden.json`), the non-workflow `InstallmentPresenter#props` (profile sections, delivery state read from
+the blast's Redis keys, non-opener resends) and the form context. Parity: `spec/requests/emails_signed_in_spec.rb`, replayed by
+`audience-pages.replay.test.ts`, which rebuilds the `installments` Elasticsearch index from each fixture's rows.
+
+Throw `NotPortedError` (500): a post with attached files (`ProductFile#as_json`), a post without a name (`strip_tags` + `truncate`),
+a `page`/`query` parameter that is an array or hash. A `quota_deferred_until` is a Redis timestamp the replayer does not move, so
+`delivery.scheduled_for` is ignored in the comparison.

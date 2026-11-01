@@ -20,6 +20,7 @@ import type { PageGuard } from "./guards.ts";
 import type { PreflightOutcome, PreflightRequest } from "./preflight.ts";
 import { PUBLIC_PAGES } from "./public-pages.ts";
 import { AUDIENCE_PAGES } from "./audience/pages.ts";
+import { EMAILS_PAGES } from "./emails/pages.ts";
 import type { ActionContext } from "./load-page.ts";
 import { DASHBOARD_PAGES } from "./dashboard-pages.ts";
 import { OAUTH_APPLICATION_PAGES, SETTINGS_PAGES } from "./settings/pages.ts";
@@ -53,6 +54,7 @@ const baseMetaTags = ({ meta }: ActionContext) => {
 
 export const PAGES: Record<string, PageSpec> = {
   ...AUDIENCE_PAGES,
+  ...EMAILS_PAGES,
   "/help": {
     component: "HelpCenter/Articles/Index",
     props: (_, action) => {

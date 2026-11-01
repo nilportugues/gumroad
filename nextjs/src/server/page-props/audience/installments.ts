@@ -74,17 +74,13 @@ export type PropsOptions = {
   workflowTrigger: string | null;
 };
 
-// InstallmentPresenter#props, for an email that belongs to a workflow.
-export async function workflowInstallmentProps({ seller, installment, context, workflowTrigger }: PropsOptions): Promise<Record<string, unknown>> {
+// The attributes InstallmentPresenter#props starts from, up to the product permalink: the same for a
+// post and for a workflow email.
+export async function installmentBaseProps({ seller, installment, context }: Omit<PropsOptions, "workflowTrigger">): Promise<Record<string, unknown>> {
   if ((await aliveProductFileCount(installment.id)) > 0) throw new NotPortedError("InstallmentPresenter#props for an email with files (ProductFile#as_json)");
   const flags = installment.flags;
   const published = installment.published_at !== null;
   const json = parseJsonData(installment.json_data);
-  const rule = context.rule;
-  if (rule === null) throw new NotPortedError("InstallmentPresenter#props for a workflow email without an installment rule");
-  const duration = displayableTimeDuration(rule);
-  const period = rule.time_period ?? "";
-  const humanized = period === "" ? "" : period.charAt(0).toUpperCase() + period.slice(1);
 
   const props: Record<string, unknown> = {
     name: displayedName(installment),
@@ -110,13 +106,26 @@ export async function workflowInstallmentProps({ seller, installment, context, w
     allow_comments: flagSet(flags, FLAG.allowComments),
     display_type: published ? "published" : flagSet(flags, FLAG.readyToPublish) ? "scheduled" : "draft",
   };
-  // `attrs.merge!(installment.json_filters)`, then `except(:paid_more_than, :paid_less_than)`
-  const { paid_more_than: _more, paid_less_than: _less, ...filters } = jsonFilters({ jsonData: () => json }, seller);
-  Object.assign(props, filters);
+  // `attrs.merge!(installment.json_filters)`, then (at the end) `except(:paid_more_than, :paid_less_than)`
+  Object.assign(props, jsonFilters({ jsonData: () => json }, seller));
   if (installment.installment_type === "product" || installment.installment_type === "variant") {
     props.unique_permalink = context.permalink;
     if (installment.installment_type === "variant") props.variant_external_id = context.variantExternalId;
   }
+  return props;
+}
+
+// InstallmentPresenter#props, for an email that belongs to a workflow.
+export async function workflowInstallmentProps({ seller, installment, context, workflowTrigger }: PropsOptions): Promise<Record<string, unknown>> {
+  const flags = installment.flags;
+  const published = installment.published_at !== null;
+  const rule = context.rule;
+  if (rule === null) throw new NotPortedError("InstallmentPresenter#props for a workflow email without an installment rule");
+  const props = await installmentBaseProps({ seller, installment, context });
+  const duration = displayableTimeDuration(rule);
+  const period = rule.time_period ?? "";
+  const humanized = period === "" ? "" : period.charAt(0).toUpperCase() + period.slice(1);
+
   Object.assign(props, {
     published_once_already: flagSet(flags, FLAG.workflowInstallmentPublishedOnceAlready) || published,
     member_cancellation: memberCancellationTrigger(installment, workflowTrigger),
@@ -125,7 +134,8 @@ export async function workflowInstallmentProps({ seller, installment, context, w
     delayed_delivery_time_period: rule.time_period,
     displayed_delayed_delivery_time_period: duration === 1 ? humanized : `${humanized}s`,
   });
-  return props;
+  const { paid_more_than: _more, paid_less_than: _less, ...rest } = props;
+  return rest;
 }
 
 export { castBoolean };
