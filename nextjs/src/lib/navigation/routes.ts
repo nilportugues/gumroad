@@ -362,3 +362,25 @@ export const short_link_url = url("/l/:id(.:format)");
 export const workflow_emails_path = path("/workflows/:workflow_id/emails(.:format)");
 export const workflow_path = path("/workflows/:id(.:format)");
 export const workflows_path = path("/workflows(.:format)");
+
+// Seller dashboard pages (WS-58).
+export const affiliates_path = path("/affiliates(.:format)");
+export const onboarding_affiliates_path = path("/affiliates/onboarding(.:format)");
+export const collaborators_path = path("/collaborators(.:format)");
+export const collaborator_path = path("/collaborators/:id(.:format)");
+export const new_collaborator_path = path("/collaborators/new(.:format)");
+export const edit_collaborator_path = path("/collaborators/:id/edit(.:format)");
+export const collaborators_incomings_path = path("/collaborators/incomings(.:format)");
+export const affiliate_path = path("/affiliates/:id(.:format)");
+export const new_affiliate_path = path("/affiliates/new(.:format)");
+export const edit_affiliate_path = path("/affiliates/:id/edit(.:format)");
+export const export_affiliates_path = path("/affiliates/export(.:format)");
+export const statistics_affiliate_path = path("/affiliates/:id/statistics(.:format)");
+export const affiliate_request_path = path("/affiliate_requests/:id(.:format)");
+export const approve_all_affiliate_requests_path = path("/affiliate_requests/approve_all(.:format)");
+export const affiliate_requests_onboarding_form_path = path("/affiliate_requests/onboarding_form(.:format)");
+export const custom_domain_new_affiliate_request_url = url("/affiliates(.:format)");
+export const balance_path = path("/payouts(.:format)");
+export const tax_center_path = path("/payouts/taxes(.:format)");
+export const download_tax_form_path = path("/payouts/taxes/:year/:form_type/download(.:format)");
+export const tax_form_transaction_report_path = path("/payouts/taxes/:year/transaction_report(.:format)");
