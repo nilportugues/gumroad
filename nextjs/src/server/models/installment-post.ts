@@ -53,6 +53,15 @@ export class InstallmentPost {
     return this.row.id;
   }
 
+  // `json_data`, parsed on first use (WithFiltering reads its filters from it)
+  jsonData(): ReturnType<typeof parseJsonData> {
+    return parseJsonData(this.row.json_data);
+  }
+
+  recipientType(): string | null {
+    return this.row.installment_type;
+  }
+
   flag(name: Parameters<typeof InstallmentFlags.isSet>[1]): boolean {
     return InstallmentFlags.isSet(this.row.flags, name);
   }

@@ -86,8 +86,6 @@ const HANDED_BACK: Record<string, "before" | "claim"> = {
   "guard: no cached version": "before",
   "guard: installment does not exist": "before",
   "guard: pending version": "before",
-  "guard: cached version differs from the job's": "before",
-  "guard: reschedule reference time": "before",
   "purchase: custom seller profile": "claim",
   "purchase: message with a code block": "claim",
   "purchase: message with an upsell": "claim",

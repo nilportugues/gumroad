@@ -2934,7 +2934,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SendMarketingXReconnectEmailJob": {
     "file": "app/sidekiq/send_marketing_x_reconnect_email_job.rb",

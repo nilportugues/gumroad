@@ -17,7 +17,8 @@ OUT = Rails.root.join("nextjs/src/worker/jobs/__fixtures__/schedule-workflow-ins
 NOW = Time.utc(2025, 11, 1, 12, 30, 45, 123_000)
 SEEDED_AT = "2025-01-01 00:00:00"
 PUBLISHED_AT = "2025-10-30 09:00:00"
-TABLES = %w[users links workflows installments installment_rules workflow_installment_schedule_intents versions].freeze
+TABLES = %w[users links workflows installments installment_rules workflow_installment_schedule_intents versions purchases subscriptions subscription_events
+            base_variants base_variants_purchases licenses].freeze
 
 Stripe.api_base = "http://127.0.0.1:9"
 Stripe.max_network_retries = 0
@@ -111,6 +112,54 @@ cases << run("member cancellation workflow for past customers", seed: { workflow
 cases << run("member cancellation workflow, delay edit", seed: { workflows: [workflow_row(trigger: "member_cancellation", flags: 1)], workflow_installment_schedule_intents: [intent_row(old_delayed_delivery_time: 1800)] })
 cases << run("a fanout of its own already runs", seed: { workflow_installment_schedule_intents: [intent_row(fanout_token: "fanout-old", fanout_expires_at: at(NOW + 600))] })
 cases << run("an expired fanout is taken over", seed: { workflow_installment_schedule_intents: [intent_row(fanout_token: "fanout-old", fanout_expires_at: at(NOW - 600))] })
+
+# --- a delay edit re-schedules the memberships that restarted since (reschedule_pending_resubscribed_memberships) -----------------
+def purchase_row(id = 1, **overrides)
+  { id:, link_id: 1, seller_id: 1, email: "buyer#{id}@example.com", purchase_state: "successful", price_cents: 500, displayed_price_cents: 500, quantity: 1,
+    flags: 1 << 2, country: "United States", ip_country: "United States", created_at: "2025-01-01 00:00:00", updated_at: SEEDED_AT }.merge(overrides)
+end
+
+def subscription_row(id = 1, **overrides)
+  { id:, link_id: 1, user_id: 2, seller_id: 1, flags: 0, created_at: SEEDED_AT, updated_at: SEEDED_AT }.merge(overrides)
+end
+
+def event_row(id, subscription_id, type, occurred_at, **overrides)
+  { id:, subscription_id:, event_type: type, occurred_at: at(occurred_at), seller_id: 1, created_at: SEEDED_AT, updated_at: SEEDED_AT }.merge(overrides)
+end
+
+# a membership that lapsed 3 days before it restarted `restarted_ago` ago; bought 5 minutes before it lapsed, so that its reference time is recent
+def membership(id = 1, restarted_ago: 20 * 60, lapse: 3 * DAY, subscription: {}, purchase: {})
+  restarted = NOW - restarted_ago
+  { subscriptions: [subscription_row(id, **subscription)], purchases: [purchase_row(id, subscription_id: id, created_at: at(restarted - lapse - 300), **purchase)],
+    subscription_events: [event_row(id * 10, id, 0, restarted - lapse), event_row(id * 10 + 1, id, 1, restarted)] }
+end
+
+def merge_seeds(*seeds) = seeds.each_with_object({}) { |seed, all| seed.each { |table, rows| (all[table] ||= []).concat(rows) } }
+edit = { workflow_installment_schedule_intents: [intent_row(old_delayed_delivery_time: 1800)] }
+cases << run("delay edit: no membership restarted", seed: edit)
+cases << run("delay edit: a membership restarted since", seed: merge_seeds(edit, membership()))
+cases << run("delay edit: a membership restarted before the cutoff", seed: merge_seeds(edit, membership(restarted_ago: 3 * HOUR)))
+cases << run("delay edit: a membership that is not alive", seed: merge_seeds(edit, membership(subscription: { cancelled_at: at(NOW - 60) })))
+cases << run("delay edit: a membership with a pending cancellation", seed: merge_seeds(edit, membership(subscription: { cancelled_at: at(NOW + DAY) })))
+cases << run("delay edit: a membership of another product", seed: merge_seeds(edit, { links: [link_row, link_row(2)] }, membership(subscription: { link_id: 2 }, purchase: { link_id: 2 })))
+cases << run("delay edit: a membership of another seller", seed: merge_seeds(edit, { users: [user_row(1), user_row(2)] }, membership(subscription: { seller_id: 2 })))
+cases << run("delay edit: a membership without an original purchase", seed: merge_seeds(edit, membership().merge(purchases: [])))
+cases << run("delay edit: a membership that never lapsed", seed: merge_seeds(edit, membership().merge(subscription_events: [event_row(11, 1, 1, NOW - 20 * 60)])))
+cases << run("delay edit: a membership that lapsed but never restarted", seed: merge_seeds(edit, membership().merge(subscription_events: [event_row(10, 1, 0, NOW - DAY)])))
+cases << run("delay edit: restarts of a membership that has none since the cutoff", seed: merge_seeds(edit, membership(restarted_ago: 20 * 60).merge(subscription_events: [event_row(10, 1, 0, NOW - 40 * DAY), event_row(11, 1, 1, NOW - 3 * HOUR), event_row(12, 1, 0, NOW - 2 * HOUR)])))
+cases << run("delay edit: a restart event of a seller-less subscription", seed: merge_seeds(edit, membership().merge(subscription_events: [event_row(10, 1, 0, NOW - 3 * DAY), event_row(11, 1, 1, NOW - 20 * 60, seller_id: nil)])))
+cases << run("delay edit: two memberships", seed: merge_seeds(edit, membership(), membership(2, restarted_ago: 10 * 60)))
+cases << run("delay edit: the delay would not have elapsed", seed: merge_seeds({ workflow_installment_schedule_intents: [intent_row(old_delayed_delivery_time: 1800, cutoff_reference_time: at(NOW + 2 * DAY))] }, membership(restarted_ago: 20 * 60)))
+cases << run("delay edit: a post for new customers published after the restart", seed: merge_seeds(edit, { installments: [installment_row(flags: installment_flags(:send_emails, :is_for_new_customers_of_workflow), published_at: at(NOW - 5 * 60))] }, membership()))
+cases << run("delay edit: a post for new customers published before the restart", seed: merge_seeds(edit, { installments: [installment_row(flags: installment_flags(:send_emails, :is_for_new_customers_of_workflow), published_at: "2025-01-02 00:00:00")] }, membership()))
+cases << run("delay edit: a workflow the membership does not meet", seed: merge_seeds(edit, { workflows: [workflow_row(json_data: { paid_more_than_cents: 600 }.to_json)] }, membership()))
+cases << run("delay edit: a workflow for the product's variants", seed: merge_seeds(edit, { workflows: [workflow_row(workflow_type: "variant", link_id: 1, base_variant_id: 1)], base_variants: [{ id: 1, variant_category_id: 1, name: "V", link_id: 1, type: "Variant", flags: 0, created_at: SEEDED_AT, updated_at: SEEDED_AT }] }, membership(), { base_variants_purchases: [{ base_variant_id: 1, purchase_id: 1 }] }))
+cases << run("delay edit: a seller workflow", seed: merge_seeds(edit, { workflows: [workflow_row(workflow_type: "seller", link_id: nil)], installments: [installment_row(installment_type: "seller", link_id: nil)] }, membership()))
+cases << run("delay edit: an audience workflow", seed: merge_seeds(edit, { workflows: [workflow_row(workflow_type: "audience", link_id: nil)], installments: [installment_row(installment_type: "audience", link_id: nil)] }, membership()))
+cases << run("delay edit: a follower workflow", seed: merge_seeds(edit, { workflows: [workflow_row(workflow_type: "follower", link_id: nil)], installments: [installment_row(installment_type: "follower", link_id: nil)] }, membership()))
+cases << run("delay edit: a workflow with purchase filters", seed: merge_seeds(edit, { workflows: [workflow_row(json_data: { bought_from: "United States", paid_more_than_cents: 100 }.to_json)] }, membership()))
+cases << run("delay edit: a workflow that excludes buyers of a product", seed: merge_seeds(edit, { workflows: [workflow_row(json_data: { not_bought_products: %w[p2] }.to_json)], links: [link_row, link_row(2)] }, membership()))
+cases << run("delay edit: a membership with a license", seed: merge_seeds(edit, { workflows: [workflow_row(json_data: { minimum_license_uses: 1 }.to_json)] }, membership(), { licenses: [{ id: 1, link_id: 1, purchase_id: 1, uses: 2, serial: "SER-1", flags: 0, created_at: SEEDED_AT, updated_at: SEEDED_AT }] }))
 
 # --- Workflow#schedule_installment and WorkflowInstallmentScheduleIntent.enqueue!, called directly ---------------------
 def direct(name, kind, params = {}, seed: {}, now: NOW, &block)

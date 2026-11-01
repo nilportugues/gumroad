@@ -3,9 +3,8 @@
 // still current, and the post is still sendable.
 // Golden: __fixtures__/post-email-sends.golden.json (scripts/golden/post-email-sends.rb).
 //
-// Handed back to Rails, before the job's first write: a rule version Redis does not hold (or holds as pending),
-// and every path that reschedules an out-of-date job (a version that moved, a reschedule reference time), which
-// matches the recipient against the current audience (AudienceMember.filter).
+// Handed back to Rails, before the job's first write: a rule version Redis does not hold (or holds as pending), and a
+// reschedule whose filters or reference time Node does not read (see installment-reschedule.ts).
 import type { InstallmentRule, User } from "@prisma/client";
 
 import { beforeSideEffects, HandBackToRuby } from "../../server/jobs/hand-back.ts";
@@ -13,6 +12,7 @@ import type { JsonValue } from "../../server/jobs/sidekiq/ruby-json.ts";
 import { getRedis } from "../../server/infra/redis.ts";
 import { cachedVersionState } from "../../server/models/installment-rule.ts";
 import { InstallmentPost } from "../../server/models/installment-post.ts";
+import { currentRecipientReferenceTime, recipientMatchesCurrentAudience, rescheduleWithCurrentRule, type RecipientIds } from "../../server/models/installment-reschedule.ts";
 import { retiredFor, sendInstallmentFromWorkflowForAffiliateUser, sendInstallmentFromWorkflowForFollower, sendInstallmentFromWorkflowForMemberCancellation, sendInstallmentFromWorkflowForPurchase, defaultSendDeps, type SendDeps } from "../../server/models/installment-send.ts";
 import { defaultPostEmailDeps, type PostEmailDeps } from "../../server/models/post-email-api.ts";
 import { findOneBy, recordIdFrom } from "../../server/models/row-reads.ts";
@@ -52,6 +52,10 @@ export const sendWorkflowInstallmentWorkerWith = (overrides: Partial<JobDeps> = 
     const [installmentIdArg, versionArg, purchaseId, followerId, affiliateUserId = null, subscriptionId = null, referenceTimeArg = null] = args;
     const recipientIds = [purchaseId, followerId, affiliateUserId, subscriptionId];
     const rescheduleReferenceTime = recipientIds.filter(present).length === 1 ? referenceTimeArg : null;
+    if (rescheduleReferenceTime !== null && rescheduleReferenceTime !== undefined && typeof rescheduleReferenceTime !== "string") {
+      throw new HandBackToRuby(`a reschedule reference time that is not a String (${JSON.stringify(rescheduleReferenceTime)})`);
+    }
+    let reference: string | null = rescheduleReferenceTime ?? null;
     const sendDeps: SendDeps = { ...defaultSendDeps({ ...defaultPostEmailDeps(), now: deps.now, ...send }), ...(send.subscriptionDeps ? { subscriptionDeps: send.subscriptionDeps } : {}) };
 
     const { installmentId, expectedRuleVersion, version } = await beforeSideEffects(async () => {
@@ -68,7 +72,7 @@ export const sendWorkflowInstallmentWorkerWith = (overrides: Partial<JobDeps> = 
       return { installmentId: id, expectedRuleVersion: cached[0], version: versionArg };
     });
 
-    let primaryPinned = expectedRuleVersion !== version || present(rescheduleReferenceTime);
+    let primaryPinned = expectedRuleVersion !== version || present(reference);
     let [installment, rule] = await withPrimary(primaryPinned, () => findInstallmentAndRule(installmentId));
     if (installment === null || rule === null || rule.version !== version) {
       primaryPinned = true;
@@ -91,12 +95,36 @@ export const sendWorkflowInstallmentWorkerWith = (overrides: Partial<JobDeps> = 
       if (installment.published_at === null) return;
 
       // An out-of-date job re-checks the recipient against the current audience and reschedules itself.
-      if (rule.version !== version || present(rescheduleReferenceTime)) {
-        throw new HandBackToRuby("rescheduling a workflow installment against the current audience (AudienceMember.filter)");
+      const ids: RecipientIds = { purchaseId, followerId, affiliateUserId, subscriptionId };
+      const rescheduleDeps = { now: sendDeps.now, subscriptionDeps: sendDeps.subscriptionDeps };
+      if (rule.version !== version) {
+        const resolved = await beforeSideEffects(async () => {
+          const current = await currentRecipientReferenceTime(post, ids, rescheduleDeps);
+          if (reference === null || present(purchaseId)) reference = current;
+          if (reference === null) return null;
+          if (!(await recipientMatchesCurrentAudience(post, ids, reference, rescheduleDeps))) return null;
+          return reference;
+        });
+        if (resolved !== null) await rescheduleWithCurrentRule(post, rule, version, ids, resolved);
+        return;
+      }
+      if (present(purchaseId) && present(reference)) {
+        const rescheduled = await beforeSideEffects(async () => {
+          const current = await currentRecipientReferenceTime(post, ids, rescheduleDeps);
+          if (current === null || !present(current) || current === reference) return "unchanged" as const;
+          return (await recipientMatchesCurrentAudience(post, ids, current, rescheduleDeps)) ? current : null;
+        });
+        if (rescheduled !== "unchanged") {
+          if (rescheduled !== null) await rescheduleWithCurrentRule(post, rule, version, ids, rescheduled);
+          return;
+        }
+      }
+      if (present(reference)) {
+        if (!(await beforeSideEffects(() => recipientMatchesCurrentAudience(post, ids, reference!, rescheduleDeps)))) return;
       }
 
       if (present(purchaseId) && !present(followerId) && !present(affiliateUserId) && !present(subscriptionId)) {
-        await sendInstallmentFromWorkflowForPurchase(post, recordIdFrom(purchaseId, "Purchase.find"), null, sendDeps);
+        await sendInstallmentFromWorkflowForPurchase(post, recordIdFrom(purchaseId, "Purchase.find"), reference, sendDeps);
       } else if (present(followerId) && !present(purchaseId) && !present(affiliateUserId) && !present(subscriptionId)) {
         await sendInstallmentFromWorkflowForFollower(post, Number(recordIdFrom(followerId, "Follower.find_by")), sendDeps);
       } else if (present(affiliateUserId) && !present(purchaseId) && !present(followerId) && !present(subscriptionId)) {

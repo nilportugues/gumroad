@@ -25,6 +25,7 @@ import { NotPortedError } from "../../server/models/user.ts";
 import { schedulableInstallments, SEND_WORKFLOW_INSTALLMENT_WORKER, type WorkflowPush } from "../../server/models/workflow-scheduling.ts";
 import { aliveWorkflowsOfLink, aliveWorkflowsOfSeller, RECIPIENT_TYPES } from "../../server/models/workflow.ts";
 import { checkArity } from "./arity.ts";
+import { sendWorkflowInstallmentWorkerWith } from "./send-workflow-installment-worker.ts";
 import { type JobDeps, modelJob } from "./support/job-deps.ts";
 
 // `Purchase#all_workflows`: the product's workflows, then the seller's seller and audience ones. The
@@ -156,18 +157,15 @@ function present(value: JsonValue | undefined): boolean {
   return true;
 }
 
-// The job returns unless exactly one recipient is set, and otherwise runs SendWorkflowInstallmentWorker
-// (which sends mail and is not ported): that case goes back to Rails.
-export const sendWorkflowInstallmentRescheduleJobWith = (overrides: Partial<JobDeps> = {}) => {
-  const run = modelJob({ min: 7 }, async (args) => {
+// The job returns unless exactly one recipient is set, and otherwise runs SendWorkflowInstallmentWorker with the reference time.
+export const sendWorkflowInstallmentRescheduleJobWith = (overrides: Partial<JobDeps> = {}, send: Parameters<typeof sendWorkflowInstallmentWorkerWith>[1] = {}) => {
+  const worker = sendWorkflowInstallmentWorkerWith(overrides, send);
+  return modelJob({ min: 7 }, async (args, _deps, context) => {
     checkArity(args, 7);
     const [, , purchaseId, followerId, affiliateUserId, subscriptionId] = args;
     if ([purchaseId, followerId, affiliateUserId, subscriptionId].filter(present).length !== 1) return;
-    await beforeSideEffects(() => {
-      throw new NotPortedError("SendWorkflowInstallmentWorker#perform", "send_workflow_installment_worker.rb:11");
-    });
-  });
-  return run(overrides);
+    await worker(args, context);
+  })(overrides);
 };
 
 // ----- ScheduleAffiliateWorkflowJobsJob
