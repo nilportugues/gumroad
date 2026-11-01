@@ -6,6 +6,8 @@ import { type CompiledRoute, matchRoute } from "./route-table";
 
 export type RouteDecision =
   | { action: "next"; route: CompiledRoute | null }
+  // An X-Inertia request for a page Next.js serves: answered with the Inertia JSON (or 409).
+  | { action: "inertia"; route: CompiledRoute }
   // Next's client router asked for a flight payload of a Rails page: answer with something that is not
   // one, and the client falls back to a full page load, instead of Rails rendering the page twice.
   | { action: "hard-navigation" }
@@ -25,14 +27,17 @@ export async function decideRoute(
   const isFlightRequest = request.headers.get("rsc") === "1";
   const toRails: RouteDecision = isFlightRequest ? { action: "hard-navigation" } : { action: "rails" };
 
-  // The navigation compat module speaks Inertia only to Rails (see router.ts); Next never does.
-  if (request.headers.get("x-inertia") === "true") return { action: "rails" };
+  // The navigation compat module speaks Inertia only to Rails (see router.ts), so these requests come
+  // from pages Rails still serves.
+  const isInertiaRequest = request.headers.get("x-inertia") === "true";
 
   const hostname = request.url.hostname;
   const route = matchRoute(routes, request.method, request.url.pathname, classifyHost(hostname, config));
   if (!route) return toRails;
-  if (route.flag === null) return { action: "next", route };
-  if (!(await gate.isFlagEnabled(route.flag, request))) return toRails;
-  if (route.signedOutOnly && (await gate.isSignedIn(request)) !== false) return toRails;
+  if (route.flag !== null) {
+    if (!(await gate.isFlagEnabled(route.flag, request))) return toRails;
+    if (route.signedOutOnly && (await gate.isSignedIn(request)) !== false) return toRails;
+  }
+  if (isInertiaRequest) return route.inertia ? { action: "inertia", route } : { action: "rails" };
   return { action: "next", route };
 }
