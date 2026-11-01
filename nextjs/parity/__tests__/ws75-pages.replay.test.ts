@@ -20,13 +20,15 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES_ROOT = "parity/fixtures/requests";
-const SPEC_DIRS = ["agent_signed_in_spec", "piracy_reports_signed_in_spec", "generate_invoice_redirect_spec"].filter((dir) => existsSync(path.join(FIXTURES_ROOT, dir)));
+const SPEC_DIRS = ["agent_signed_in_spec", "piracy_reports_signed_in_spec", "generate_invoice_redirect_spec", "dispute_evidence_signed_in_spec"].filter((dir) => existsSync(path.join(FIXTURES_ROOT, dir)));
 // Every flag in routes.json that a dashboard page sits behind.
-const ROUTE_FLAGS = ["nextjs_agent", "nextjs_piracy_reports", "nextjs_generate_invoice_redirect"];
+const ROUTE_FLAGS = ["nextjs_agent", "nextjs_piracy_reports", "nextjs_generate_invoice_redirect", "nextjs_dispute_evidence", "nextjs_dispute_evidence_success"];
 const FIRST_COMPILE_TIMEOUT_MS = 240_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
 const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1];
+const secureIdVersion = /^SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION=(.+)$/m.exec(envTest)?.[1];
+const secureIdKey = /^SECURE_EXTERNAL_ID__KEYS__1=(.+)$/m.exec(envTest)?.[1];
 const stripeKey = /^STRIPE_PUBLIC_KEY_TEST=(.+)$/m.exec(envTest)?.[1];
 
 // Next.js owns what it renders and caches: Vite asset preloads, `vary`, and the per-response random
@@ -51,6 +53,13 @@ const COMPARE = {
     "response.inertia.props._inertia_meta.2.content",
     "response.inertia.props._inertia_meta.1.content",
     "response.json.props._inertia_meta.1.content",
+    // The hours left and the deadline depend on whether the window touches a weekend, so on the weekday
+    // of the run; the window arithmetic is pinned by the dispute-evidence-window golden.
+    "response.inertia.props.dispute_evidence.duration_left_to_submit_evidence_formatted",
+    "response.inertia.props.dispute_evidence.seller_response_due_at",
+    "response.inertia.props.seller_response_due_at_formatted",
+    "response.json.props.dispute_evidence.duration_left_to_submit_evidence_formatted",
+    "response.json.props.dispute_evidence.seller_response_due_at",
     // Rails renders its debug exception page for a 404 in the test environment.
     "response.body",
     "response.json.props.csp_nonce",
@@ -85,6 +94,7 @@ describe.skipIf(!url)("WS-75 pages parity", () => {
       RAILS_ENV: "test",
       OBFUSCATE_IDS_CIPHER_KEY: obfuscateKey ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
+      ...(secureIdVersion && secureIdKey ? { SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION: secureIdVersion, SECURE_EXTERNAL_ID__KEYS__1: secureIdKey } : {}),
       ...(stripeKey ? { STRIPE_PUBLIC_KEY_TEST: stripeKey } : {}),
       NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS.join(","),
       RAILS_ORIGIN: "http://rails.invalid",

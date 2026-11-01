@@ -43,7 +43,7 @@ const isoDate = (value: Date) => value.toISOString().slice(0, 10);
 function longUrl(product: Link, owner: User): string {
   const config = domainConfig(process.env);
   const host = userSubdomainWithProtocol(owner) ?? `${config.protocol}://${config.domain}`;
-  const permalink = product.custom_permalink && !isBlank(product.custom_permalink) ? product.custom_permalink : product.unique_permalink;
+  const permalink = product.custom_permalink !== null && !isBlank(product.custom_permalink) ? product.custom_permalink : (product.unique_permalink ?? "");
   return `${host}/l/${encodeURIComponent(permalink)}`;
 }
 
@@ -231,7 +231,7 @@ export const PIRACY_REPORT_PAGES: Record<string, PageSpec> = {
           counter_notice_received_on: report.counter_notice_received_on && isoDate(report.counter_notice_received_on),
           outcome: report.outcome,
         },
-        product: { name: product.name, url: longUrl(product, (await db.user.findUnique({ where: { id: product.user_id } }))!) },
+        product: { name: product.name, url: longUrl(product, (await db.user.findUnique({ where: { id: product.user_id ?? -1n } }))!) },
         confirmations: SIGNATURE_CONFIRMATIONS.map(([key, text]) => ({ key, text })),
         confirmations_version: SIGNATURE_STATEMENT_VERSION,
         monthly_limit: MONTHLY_LIMIT,

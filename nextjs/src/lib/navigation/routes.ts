@@ -428,3 +428,7 @@ export const piracy_report_path = path("/dashboard/piracy_reports/:id(.:format)"
 export const piracy_reports_path = path("/dashboard/piracy_reports(.:format)");
 export const sign_piracy_report_path = path("/dashboard/piracy_reports/:id/sign(.:format)");
 export const cancel_piracy_report_path = path("/dashboard/piracy_reports/:id/cancel(.:format)");
+
+// Dispute evidence page (WS-75).
+export const purchase_dispute_evidence_path = path("/purchases/:purchase_id/dispute_evidence(.:format)");
+export const success_purchase_dispute_evidence_path = path("/purchases/:purchase_id/dispute_evidence/success(.:format)");
