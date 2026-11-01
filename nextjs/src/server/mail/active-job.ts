@@ -61,6 +61,9 @@ export type DeliverLaterInput = {
   args: ActiveJobArgument[];
   queue?: string;
   waitSeconds?: number;
+  // A MailDeliveryJob subclass that takes more keyword arguments than `args:` (SubscriptionCancellationEmailJob).
+  jobClass?: string;
+  extraKeywords?: Record<string, ActiveJobArgument>;
 };
 
 export type MailJobIdentity = { jobId: string; jid: string; now: number };
@@ -69,13 +72,20 @@ export type MailJobIdentity = { jobId: string; jid: string; now: number };
 export function buildMailDeliveryItem(input: DeliverLaterInput, identity: MailJobIdentity): SidekiqItem {
   const queue = input.queue ?? DELIVER_LATER_QUEUE;
   const at = input.waitSeconds !== undefined ? identity.now + input.waitSeconds : undefined;
+  const jobClass = input.jobClass ?? MAIL_DELIVERY_JOB;
+  const extra = input.extraKeywords ?? {};
   const job: Record<string, JsonValue> = {
-    job_class: MAIL_DELIVERY_JOB,
+    job_class: jobClass,
     job_id: identity.jobId,
     provider_job_id: null,
     queue_name: queue,
     priority: null,
-    arguments: [input.mailer, input.method, "deliver_now", { args: input.args.map(serializeArgument), _aj_ruby2_keywords: ["args"] }],
+    arguments: [
+      input.mailer,
+      input.method,
+      "deliver_now",
+      { args: input.args.map(serializeArgument), ...Object.fromEntries(Object.entries(extra).map(([key, value]) => [key, serializeArgument(value)])), _aj_ruby2_keywords: ["args", ...Object.keys(extra)] },
+    ],
     executions: 0,
     exception_executions: {},
     locale: "en",
@@ -87,7 +97,7 @@ export function buildMailDeliveryItem(input: DeliverLaterInput, identity: MailJo
     retry: 25,
     queue,
     backtrace: true,
-    wrapped: MAIL_DELIVERY_JOB,
+    wrapped: jobClass,
     args: [job],
     ...(at === undefined ? {} : { at: new RubyFloat(at) }),
     class: ACTIVE_JOB_WRAPPER,

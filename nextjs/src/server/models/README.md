@@ -188,6 +188,27 @@ milliseconds; a comparison with `Time.current` within a millisecond of equal cou
 `charge.ts` is `Charge::Chargeable.find_by_purchase_or_charge!` and `AutoInvoiceEligibility`; `row-reads.ts` the shared
 `belongs_to`/`find_by(id:)` statements.
 
+#### Subscription writes (WS-47)
+
+`subscription-writes.ts` is `Subscription` as a runtime model (`Subscriptions`) for updates of a stored row, plus
+`with_lock`, `deactivate!`, `end_subscription!` and `unsubscribe_and_fail!`; `subscription-event.ts` is `SubscriptionEvent`
+(`create_interruption_event`). Callbacks run in Rails' order: validations (required seller, `must_have_payment_option`,
+installment plans), `end_indian_card_mandate_hold`, PaperTrail, `create_interruption_event`, the inventory counter
+`UPDATE`s, and after commit (reverse order) the audience-member refresh, `PostToPingEndpointsWorker` and the
+`ElasticsearchIndexerWorker` pushes of `update_purchase_index` (with TransactionalAttributeChangeTracker's
+`attributes_committed`). `subscriptionView(record)` is the WS-46 `SubscriptionRecord` over the same record and association
+cache, so `with_lock`'s reload drops what was loaded. `Subscriptions.save` of a new row and `destroy` refuse with
+`NotPortedError`. `SubscriptionCancellationEmailJob` is pushed through `deliverLater` (`jobClass`/`extraKeywords`).
+Goldens: `worker/jobs/__fixtures__/subscription-writes-jobs.golden.json` (`scripts/golden/subscription-writes-jobs.rb`).
+
+Handed back to Rails before the first write: a failed charge on the card of a mandate-reliable merchant account
+(`indian_card_mandate_error_status`, `refresh_indian_card_mandate!` call Stripe); a seller with a member cancellation
+workflow when the subscription is cancelled (`Workflow#applies_to_purchase?`, `SendWorkflowInstallmentWorker`); a
+subscription cancelled while the job waited for its lock. For a cancelled subscription Node reads the seller's workflows
+before `BEGIN`, where Rails reads them after the commit (`readWorkflowsForCancellation`), so the hand-back decision is made
+before anything is written. `Time.current` is a JavaScript Date, so `deactivated_at` and friends lose microseconds.
+Purchase.inventory_pending_create_commit_ids is always empty in Node (no purchase is created there).
+
 ### Money: `CurrencyHelper`, `Credit`, `BalanceTransaction`, `Balance`, `BacktaxCollection`
 
 `concerns/currency-helper.ts` is `get_rate`/`query_rate` (the `currencies` Redis namespace, refilled from
