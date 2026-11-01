@@ -78,7 +78,7 @@ describe("pageEnvelope", () => {
   });
 
   it("round-trips the render state through the header", async () => {
-    const state = { csrfToken: "t", flash: { notice: "Hi" }, inertiaErrors: {}, mobileParam: null, mobileAppWebView: true, clearHistory: false };
+    const state = { csrfToken: "t", flash: { notice: "Hi" }, inertiaErrors: {}, mobileParam: null, mobileAppWebView: true, promptPasskeySetup: 7, clearHistory: false };
     expect(decodeRenderState(encodeRenderState(state))).toEqual(state);
     expect(decodeRenderState("not base64 json")).toBeNull();
     expect(decodeRenderState(null)).toBeNull();

@@ -13,6 +13,8 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import { readEncryptedCookie, writeEncryptedCookie } from "../auth/rails-cookies.ts";
+import { railsLoggedInUser, type ResolvedAuth } from "../auth/resolve.ts";
+import { prismaAuthStore } from "../auth/store.ts";
 import {
   railsCookieSecrets,
   railsSessionCookieName,
@@ -28,7 +30,21 @@ import { domainConfig } from "../page-props/domain.ts";
 import { rubyUriParse } from "../models/concerns/ruby-uri.ts";
 import { advance } from "../models/concerns/ruby-time.ts";
 import { redirectUrlFor } from "../services/subdomain-redirector.ts";
+import { NotPortedError } from "../page-props/not-ported.ts";
 import { setCookieHeader } from "./rack-cookies.ts";
+import {
+  CURRENT_SELLER_COOKIE_NAME,
+  dashboardNavRequest,
+  deleteCookieHeader,
+  deletesCookie,
+  promoteVisitedNavItem,
+  REMEMBER_COOKIE_NAME,
+  refuseSuspendedWrite,
+  resolveRequestAuth,
+  seedDashboardNavItems,
+  SIGN_OUT_FLASH,
+  suspendedWriteRequest,
+} from "./signed-in-filters.ts";
 import { isPresent, queryParam, type RailsRequest, railsRequest } from "./rails-request.ts";
 
 // `inertia`: rendered by inertia_rails, which appends X-Inertia to Vary.
@@ -57,6 +73,8 @@ export type RenderState = {
   inertiaErrors: Record<string, string>;
   mobileParam: unknown;
   mobileAppWebView: unknown;
+  // session[:prompt_passkey_setup]: the user id LoginsController marked at sign-in.
+  promptPasskeySetup: unknown;
   clearHistory: boolean;
 };
 
@@ -209,6 +227,12 @@ export type Chain = {
   session: Session;
   csrfToken: string;
   guid: string | null;
+  auth: ResolvedAuth;
+  // Set-Cookie lines the cookie jar writes outside the controller's response (Devise and
+  // verify_current_seller deleting cookies), which survive a response swapped by inertia_rails.
+  cookies: string[];
+  // sign_out cleared the session, so the CSRF token it held is gone.
+  sessionCleared: boolean;
 };
 
 const isHash = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
@@ -228,6 +252,7 @@ export function takeRenderState(chain: Chain): RenderState {
     inertiaErrors: stringEntries(data.inertia_errors),
     mobileParam: data.mobile_param,
     mobileAppWebView: data.mobile_app_web_view,
+    promptPasskeySetup: data.prompt_passkey_setup,
     clearHistory: data.inertia_clear_history === true,
   };
   if ("flash" in data) data.flash = null;
@@ -245,7 +270,23 @@ export async function beforeActions(request: RailsRequest, options: ActionOption
   // set_csrf_meta_tags: form_authenticity_token reads the session's token or mints one.
   const csrfToken =
     typeof session.data._csrf_token === "string" ? session.data._csrf_token : randomBytes(AUTHENTICITY_TOKEN_LENGTH).toString("base64url");
-  const chain: Chain = { request, now, headers, session, csrfToken, guid: null };
+  const auth = await resolveRequestAuth(request, now);
+  // Devise's rememberable strategy signs the visitor in by writing the session and the tracked
+  // sign-in fields, which is Rails' to do: the proxy sends such requests there.
+  if (auth.authenticatedVia === "remember_cookie") throw new NotPortedError("Devise's remember-cookie sign-in");
+  const chain: Chain = { request, now, headers, session, csrfToken, guid: null, auth, cookies: [], sessionCleared: false };
+
+  // verify_current_seller, then seed_dashboard_nav_items.
+  if (auth.effects.clearCurrentSeller) chain.cookies.push(deleteCookieHeader(CURRENT_SELLER_COOKIE_NAME, { domain: allDomain(request.host) }));
+  // A session about to be ended still sees these filters first.
+  const { loggedInUser, currentSeller, impersonatedUser } = auth.effects.signedOut
+    ? { loggedInUser: auth.effects.signedOut.user, currentSeller: auth.effects.signedOut.seller, impersonatedUser: auth.effects.signedOut.impersonating ? auth.effects.signedOut.user : null }
+    : auth.context;
+  if (loggedInUser && currentSeller && dashboardNavRequest(request, config.validRequestHosts, impersonatedUser !== null)) {
+    await seedDashboardNavItems(loggedInUser, currentSeller);
+  }
+
+  if (auth.effects.signOut) return endSession(chain, config.validRequestHosts);
 
   if (!options.skip?.includes("redirect_to_custom_subdomain")) {
     const redirect = await redirectUrlFor(request);
@@ -253,11 +294,13 @@ export async function beforeActions(request: RailsRequest, options: ActionOption
       headers.set("location", redirectLocation(request, redirect));
       headers.set("content-type", "text/html; charset=utf-8");
       commitSession(chain);
+      for (const cookie of chain.cookies) headers.append("set-cookie", cookie);
       return { status: 302, headers, body: "" };
     }
   }
 
-  setSignupReferrer(request, session, config.rootDomain);
+  if (!railsLoggedInUser(auth.context)) setSignupReferrer(request, session, config.rootDomain);
+  if (suspendedWriteRequest(auth, request)) refuseSuspendedWrite();
   chain.guid = gumroadGuidCookie(request, now);
   if (!RECOMMENDER_MODELS.includes(session.data.recommender_model_name as string)) {
     session.data.recommender_model_name = RECOMMENDER_MODELS[Math.floor(Math.random() * RECOMMENDER_MODELS.length)];
@@ -265,12 +308,28 @@ export async function beforeActions(request: RailsRequest, options: ActionOption
   return chain;
 }
 
+// invalidate_session_if_necessary: Devise's sign_out (forget_me!, the remember cookie, the session),
+// then a flash and a redirect to the login page. Other hosts carry on signed out; not ported.
+async function endSession(chain: Chain, validRequestHosts: string[]): Promise<ControllerResponse> {
+  const { request, headers, session, now } = chain;
+  if (!validRequestHosts.includes(request.host)) throw new NotPortedError("invalidate_session_if_necessary outside the app hosts");
+  await prismaAuthStore.forgetRememberedLogins(chain.auth.effects.signedOut!.user.id, now);
+  if (deletesCookie(request, REMEMBER_COOKIE_NAME)) chain.cookies.push(deleteCookieHeader(REMEMBER_COOKIE_NAME, { domain: allDomain(request.host), httpOnly: true }));
+  session.data = { session_id: session.data.session_id, flash: { discard: [], flashes: { warning: SIGN_OUT_FLASH } } };
+  chain.sessionCleared = true;
+  headers.set("location", redirectLocation(request, "/login"));
+  headers.set("content-type", "text/html; charset=utf-8");
+  commitSession(chain);
+  for (const cookie of chain.cookies) headers.append("set-cookie", cookie);
+  return { status: 302, headers, body: "" };
+}
+
 export const halted = (outcome: Chain | ControllerResponse): outcome is ControllerResponse => !("session" in outcome);
 
 const xsrfCookie = (chain: Chain) => setCookieHeader(XSRF_TOKEN_COOKIE, { value: formAuthenticityToken(chain.csrfToken), path: "/", sameSite: "lax" });
 
-function commitSession({ request, headers, session, csrfToken, now }: Chain): void {
-  session.data._csrf_token = csrfToken;
+function commitSession({ request, headers, session, csrfToken, now, sessionCleared }: Chain): void {
+  if (!sessionCleared) session.data._csrf_token = csrfToken;
   headers.append("set-cookie", sessionCookie(request, session, now));
 }
 
@@ -282,6 +341,7 @@ export function afterActions(chain: Chain, result: ActionResult): ControllerResp
     if (chain.guid) replaced.append("set-cookie", chain.guid);
     if (!result.rescued) replaced.append("set-cookie", xsrfCookie(chain));
     commitSession({ ...chain, headers: replaced });
+    for (const cookie of chain.cookies) replaced.append("set-cookie", cookie);
     return { status: 409, headers: replaced, body: "" };
   }
   if ("location" in result) {
@@ -302,7 +362,16 @@ export function afterActions(chain: Chain, result: ActionResult): ControllerResp
     headers.append("set-cookie", xsrfCookie(chain));
   }
   commitSession(chain);
+  for (const cookie of chain.cookies) headers.append("set-cookie", cookie);
   return { status: result.status, headers, body: "location" in result ? "" : result.body };
+}
+
+// PromotesDashboardNavItems#promote_visited_nav_item
+async function promoteVisit({ auth, request }: Chain, status: number): Promise<void> {
+  const { loggedInUser, impersonatedUser } = auth.context;
+  if (!loggedInUser || status < 200 || status > 299) return;
+  if (!dashboardNavRequest(request, domainConfig(process.env).validRequestHosts, impersonatedUser !== null)) return;
+  await promoteVisitedNavItem(loggedInUser, request.path);
 }
 
 async function runChain(
@@ -314,7 +383,9 @@ async function runChain(
   const chain = await beforeActions(request, options, now);
   if (halted(chain)) return chain;
   const result = await action({ request, takeRenderState: () => takeRenderState(chain) });
-  return afterActions(chain, result);
+  const response = afterActions(chain, result);
+  await promoteVisit(chain, response.status);
+  return response;
 }
 
 // Rack::ETag, then Rack::ConditionalGet.
@@ -454,6 +525,7 @@ export async function pageEnvelope(incoming: Request, options: ActionOptions = {
     if (halted(chain)) return wrap(chain.headers, chain.status, null);
     const renderState = takeRenderState(chain);
     const { headers } = afterActions(chain, { status: 200, body: "", contentType: "text/html; charset=utf-8", inertia: true });
+    await promoteVisit(chain, 200);
     applySecureHeaders(request, headers);
     applyCorsVary(headers);
     return { headers, renderState };

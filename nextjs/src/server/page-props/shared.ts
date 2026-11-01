@@ -5,6 +5,7 @@ import { randomBytes } from "node:crypto";
 import type { RequestContext } from "@/server/auth/context";
 import { getConfig } from "@/server/infra/config";
 
+import { requestCookies } from "../controllers/rack-cookies.ts";
 import { formAuthenticityToken } from "./csrf.ts";
 import { assetHost, type DomainConfig } from "./domain.ts";
 import { MetaTagBuilder, defaultPageTitle, pageTitle } from "./meta-tags.ts";
@@ -15,6 +16,7 @@ const STRIPE_API_VERSION = "2023-10-16; risk_in_requirements_beta=v1; retrieve_t
 const STRIPE_PUBLIC_KEY_PROD_DEFAULT = "pk_live_Db80xIzLPWhKo1byPrnERmym";
 const STRIPE_PUBLIC_KEY_TEST_DEFAULT = "pk_test_ehGPKw3JPRHYiqEEjgJ02ULC";
 const DEFAULT_LOCALE = "en-US";
+const MOBILE_APP_COOKIE = "is_gumroad_mobile_app";
 
 // InertiaRendering::FLASH_STATUSES, loudest first.
 const FLASH_STATUSES = [
@@ -151,7 +153,10 @@ export async function sharedProps({
   // `inertia_share if: :user_signed_in?`: Devise's current_user, the admin while impersonating.
   if (context.loggedInUser) {
     props.current_user = await ports.presenters.currentUser(context);
-    props.prompt_passkey_setup = await ports.presenters.showPasskeySetupPrompt(context);
+    props.prompt_passkey_setup = await ports.presenters.showPasskeySetupPrompt(context, {
+      promptedUserId: await ports.session.value("prompt_passkey_setup"),
+      mobileAppCookie: requestCookies(request.headers.get("cookie")).get(MOBILE_APP_COOKIE),
+    });
   }
   if (mobileAppWebView) {
     const searchDisplay = request.url.searchParams.get("display");

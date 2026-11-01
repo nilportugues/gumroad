@@ -27,6 +27,9 @@ export type ResolveInput = {
 export type ResolveEffects = {
   // Rails would sign_out: the session was invalidated after it was created.
   signOut: boolean;
+  // What sign_out ends: the Warden user (Devise's current_user, not the impersonated one) and the
+  // seller and impersonation the filters before it still saw.
+  signedOut: { user: User; seller: User; impersonating: boolean } | null;
   // Rails would delete current_seller_id: it named a seller this user cannot act for.
   clearCurrentSeller: boolean;
 };
@@ -42,7 +45,7 @@ export function railsLoggedInUser(context: RequestContext): User | null {
 }
 
 export async function resolveAuth({ cookies, secrets, sessionCookieName, store, now = new Date(), skipSessionInvalidation = false }: ResolveInput): Promise<ResolvedAuth> {
-  const effects: ResolveEffects = { signOut: false, clearCurrentSeller: false };
+  const effects: ResolveEffects = { signOut: false, signedOut: null, clearCurrentSeller: false };
 
   const warden = await authenticate(cookies, secrets, sessionCookieName, store, now);
   if (!warden) return { context: SIGNED_OUT, effects, authenticatedVia: null };
@@ -51,15 +54,19 @@ export async function resolveAuth({ cookies, secrets, sessionCookieName, store, 
   const impersonatedUser = await findImpersonatedUser(currentUser, store);
   const loggedInUser = impersonatedUser ?? currentUser;
 
+  // verify_current_seller is registered ahead of invalidate_session_if_necessary, so a stale
+  // current_seller_id cookie is dropped even when the session is about to end.
+  const currentSeller = await resolveCurrentSeller(cookies, secrets, loggedInUser, store, now, effects);
+
   // invalidate_session_if_necessary checks logged_in_user, so an impersonated user's
   // invalidation also ends the admin's session. Kept as Rails does it.
   const invalidatedAt = loggedInUser.last_active_sessions_invalidated_at;
   if (!skipSessionInvalidation && invalidatedAt && !(lastSignInAt !== null && lastSignInAt >= Math.floor(invalidatedAt.getTime() / 1000))) {
     effects.signOut = true;
+    effects.signedOut = { user: currentUser, seller: currentSeller, impersonating: impersonatedUser !== null };
     return { context: SIGNED_OUT, effects, authenticatedVia: null };
   }
 
-  const currentSeller = await resolveCurrentSeller(cookies, secrets, loggedInUser, store, now, effects);
   return { context: { loggedInUser: currentUser, currentSeller, impersonatedUser }, effects, authenticatedVia: via };
 }
 

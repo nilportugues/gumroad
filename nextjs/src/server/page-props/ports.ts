@@ -1,12 +1,12 @@
 // Shared props need data owned by other workstreams. Each piece sits behind a port with a safe default
 // so pages can be converted now; the owning workstream registers the real implementation at boot.
 import type { RequestContext } from "@/server/auth/context";
+import { isFeatureEnabled, userActor } from "@/server/infra/flipper";
 
-export class NotPortedError extends Error {
-  constructor(what: string) {
-    super(`${what} is not ported to Next.js yet`);
-  }
-}
+import { NotPortedError } from "./not-ported.ts";
+import { signedInPresenters } from "./signed-in/presenters.ts";
+
+export { NotPortedError };
 
 // The Rails session (WS-03 decrypts it).
 export interface RailsSessionPort {
@@ -16,8 +16,8 @@ export interface RailsSessionPort {
   consumeFlash(): Promise<Record<string, string>>;
   // inertia_rails keeps validation errors from a redirect in session[:inertia_errors].
   consumeInertiaErrors(): Promise<Record<string, string>>;
-  // session[:mobile_param] ("0"/"1") and session[:mobile_app_web_view].
-  value(key: "mobile_param" | "mobile_app_web_view"): Promise<unknown>;
+  // session[:mobile_param] ("0"/"1"), session[:mobile_app_web_view] and session[:prompt_passkey_setup].
+  value(key: "mobile_param" | "mobile_app_web_view" | "prompt_passkey_setup"): Promise<unknown>;
 }
 
 // Flipper (WS-06). `actor` is a users row for per-user gates.
@@ -31,7 +31,8 @@ export interface SignedInPresentersPort {
   loggedInUser(context: RequestContext): Promise<Record<string, unknown>>;
   currentSeller(context: RequestContext): Promise<Record<string, unknown>>;
   currentUser(context: RequestContext): Promise<Record<string, unknown>>;
-  showPasskeySetupPrompt(context: RequestContext): Promise<boolean>;
+  // `promptedUserId`: session[:prompt_passkey_setup]; `mobileAppCookie`: cookies[:is_gumroad_mobile_app].
+  showPasskeySetupPrompt(context: RequestContext, input: { promptedUserId: unknown; mobileAppCookie: string | null | undefined }): Promise<boolean>;
   // `seller.disable_third_party_analytics?` (a User flag) for PageMeta::Analytics.
   thirdPartyAnalyticsDisabled(seller: NonNullable<RequestContext["currentSeller"]>): Promise<boolean>;
 }
@@ -42,10 +43,6 @@ export type SharedPropsPorts = {
   presenters: SignedInPresentersPort;
 };
 
-const notPorted = (what: string) => async (): Promise<never> => {
-  throw new NotPortedError(what);
-};
-
 const defaults: SharedPropsPorts = {
   session: {
     rawCsrfToken: async () => null,
@@ -53,15 +50,8 @@ const defaults: SharedPropsPorts = {
     consumeInertiaErrors: async () => ({}),
     value: async () => undefined,
   },
-  // Flipper answers false for a feature nobody has enabled.
-  flags: { isActive: async () => false },
-  presenters: {
-    loggedInUser: notPorted("logged_in_user props"),
-    currentSeller: notPorted("current_seller props"),
-    currentUser: notPorted("current_user props"),
-    showPasskeySetupPrompt: notPorted("prompt_passkey_setup"),
-    thirdPartyAnalyticsDisabled: notPorted("User#disable_third_party_analytics?"),
-  },
+  flags: { isActive: (feature, actor) => isFeatureEnabled(feature, actor ? userActor(actor.id) : undefined) },
+  presenters: signedInPresenters,
 };
 
 let ports: SharedPropsPorts = defaults;

@@ -37,6 +37,7 @@ export async function decideRoute(
   if (route.flag !== null) {
     if (!(await gate.isFlagEnabled(route.flag, request))) return toRails;
     if (route.signedOutOnly && (await gate.isSignedIn(request)) !== false) return toRails;
+    if (await gate.signsInViaRememberCookie?.(request)) return toRails;
   }
   if (isInertiaRequest) return route.inertia ? { action: "inertia", route } : { action: "rails" };
   return { action: "next", route };
