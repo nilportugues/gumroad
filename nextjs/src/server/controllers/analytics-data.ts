@@ -19,8 +19,8 @@ const ADD_EMAIL_MESSAGE = "Please add an email address to your account before co
 const DEFAULT_RANGE_DAYS = 29;
 const JSON_TYPE = "application/json; charset=utf-8";
 
-// `render json:`; Vary: Accept is only added while the request's params were never read.
-const json = (value: unknown, status = 200, paramsRead = true): Rendered => ({ status, body: esJson(value as JsonValue), contentType: JSON_TYPE, paramsRead });
+// `render json:` answers Vary: Accept (params_read is not set by `params[...]` reads on this request).
+const json = (value: unknown, status = 200, paramsRead = false): Rendered => ({ status, body: esJson(value as JsonValue), contentType: JSON_TYPE, paramsRead });
 
 // ApplicationController#strip_timestamp_location: `timestamp.gsub(/([^(]+).*/, '\1').strip`, nil for nil.
 // A shape whose gsub the port does not model (a leading "(" or a line break) goes to Rails.
@@ -47,7 +47,7 @@ function accountEmailRequired({ context, request }: ActionContext): ActionResult
   if (!user || user.email || user.unconfirmed_email || context.impersonatedUser) return null;
   switch (requestFormat(request)) {
     case "json":
-      return { ...json({ success: false, error_message: ADD_EMAIL_MESSAGE }, 403, false), rescued: true };
+      return { ...json({ success: false, error_message: ADD_EMAIL_MESSAGE }, 403), rescued: true };
     case "html":
       return { status: 302, location: "/settings", flash: { warning: ADD_EMAIL_MESSAGE }, rescued: true };
     default:
