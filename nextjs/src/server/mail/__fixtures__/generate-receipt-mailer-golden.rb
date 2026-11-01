@@ -236,7 +236,7 @@ end
 
 # --- fixtures --------------------------------------------------------------------------------------
 TABLES = %w[users links purchases subscriptions url_redirects purchase_presentments calls refunds prices charges charge_purchases orders order_purchases
-            customer_email_infos email_infos product_files thumbnails gifts preorders base_variants base_variants_purchases purchase_custom_fields purchase_refund_policies tips cached_sales_related_products_infos bundle_products product_review_stats active_storage_attachments active_storage_blobs asset_previews custom_domains offer_codes variant_categories affiliates zip_tax_rates purchase_taxjar_infos].freeze
+            customer_email_infos email_infos product_files thumbnails gifts preorders base_variants base_variants_purchases purchase_custom_fields purchase_refund_policies tips cached_sales_related_products_infos bundle_products product_review_stats active_storage_attachments active_storage_blobs asset_previews custom_domains offer_codes variant_categories affiliates zip_tax_rates purchase_taxjar_infos licenses].freeze
 def reset!
   conn = ActiveRecord::Base.connection
   TABLES.each { |t| conn.execute("DELETE FROM #{t}") if conn.table_exists?(t) }
@@ -408,7 +408,6 @@ end
 PRICE = { price_cents: 500, total_transaction_cents: 500, displayed_price_cents: 500 }.freeze
 refuse(refused, "rental", purchase: PRICE.merge(flags: 16384))
 refuse(refused, "bundle", purchase: PRICE.merge(flags: 33_554_432), link: { flags: 33_554_432 })
-refuse(refused, "licensed", link: { flags: 64 }, purchase: PRICE)
 refuse(refused, "membership", link: { flags: 2, native_type: "membership" }, purchase: PRICE)
 refuse(refused, "unknown_currency", purchase: PRICE.merge(displayed_price_currency_type: "xxx", rate_converted_to_usd: "1.0"))
 refuse(refused, "call", link: { native_type: "call" }, purchase: PRICE)
@@ -622,6 +621,53 @@ taxed("tax_canada_split", country: "US", rate: 0.13, into: refused, extra: -> {
   PurchaseTaxjarInfo.insert!({ purchase_id: 401, combined_tax_rate: 0.13, gst_tax_rate: 0.05, pst_tax_rate: 0.08, created_at: FIXED_NOW, updated_at: FIXED_NOW })
 })
 taxed("tax_creator_tax_rate", country: "DE", rate: 0.19, into: refused, zip: { user_id: 201, json_data: { "invoice_sales_tax_id" => "DE123" } })
+
+
+# --- Licence keys and the other plain native types (WS-85) --------------------------------------------------------
+LICENSED = 64 # Link flag 7, is_licensed
+
+def insert_license(purchase_id:, link_id:, serial:)
+  License.insert!({ purchase_id:, link_id:, serial:, created_at: FIXED_NOW, updated_at: FIXED_NOW })
+end
+
+def licensed(name, link: {}, purchase: {}, serial: "A1B2C3D4-E5F6A7B8-C9D0E1F2-A3B4C5D6", into: nil, redirect: true)
+  setup(link: { flags: LICENSED }.merge(link), purchase: PRICE.merge(purchase), redirect:)
+  insert_license(purchase_id: 401, link_id: 301, serial:) if serial
+  yield if block_given?
+  (into || $messages) << record_message("receipt_#{name}", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
+end
+
+licensed("licensed_basic")
+licensed("licensed_without_license_row", serial: nil)
+licensed("licensed_physical", link: { flags: LICENSED | 128, require_shipping: true }, purchase: SHIPPING.merge(shipping_cents: 0), redirect: false)
+licensed("licensed_free", purchase: { price_cents: 0, total_transaction_cents: 0, displayed_price_cents: 0 })
+licensed("licensed_quantity", purchase: { quantity: 2, price_cents: 1000, total_transaction_cents: 1000, displayed_price_cents: 1000 })
+# A licensed product with versions reads the versions' content, which the port does not.
+licensed("licensed_with_versions", into: refused) do
+  insert_variant(id: 701, link_id: 301, name: "Premium")
+  attach_variant(401, 701)
+  ActiveRecord::Base.connection.execute("INSERT INTO variant_categories (id, link_id, title) VALUES (801, 301, 'Version')")
+  ActiveRecord::Base.connection.execute("UPDATE base_variants SET variant_category_id = 801 WHERE id = 701")
+end
+
+# Native types whose receipt is the plain product one.
+%w[newsletter podcast audiobook physical].each do |native_type|
+  setup(link: { native_type: }, purchase: PRICE)
+  messages << record_message("receipt_native_type_#{native_type}", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
+end
+
+# Coffee: a donation, no download button, no variant or quantity lines.
+setup(link: { native_type: "coffee" }, purchase: PRICE, redirect: false)
+messages << record_message("receipt_coffee", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
+setup(link: { native_type: "coffee" }, purchase: PRICE.merge(quantity: 2, price_cents: 1000, total_transaction_cents: 1000, displayed_price_cents: 1000))
+insert_variant(id: 701, link_id: 301, name: "Large")
+attach_variant(401, 701)
+messages << record_message("receipt_coffee_with_redirect_variant_and_quantity", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
+setup(link: { native_type: "coffee" }, purchase: PRICE.merge(price_cents: 700, total_transaction_cents: 700, displayed_price_cents: 700), redirect: false)
+Tip.insert!({ purchase_id: 401, value_cents: 200, value_usd_cents: 200, created_at: FIXED_NOW, updated_at: FIXED_NOW })
+messages << record_message("receipt_coffee_tip", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
+setup(link: { native_type: "coffee", price_currency_type: "eur" }, purchase: PRICE.merge(displayed_price_cents: 450, displayed_price_currency_type: "eur", rate_converted_to_usd: "0.9"), redirect: false)
+messages << record_message("receipt_coffee_eur", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
 
 # Errors.
 reset!

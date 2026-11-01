@@ -87,6 +87,8 @@ export type ReceiptData = {
   // PaymentInfo#today_tax_price_attributes: null when the purchase is not taxable
   taxLines: TaxLine[] | null;
   urlRedirectToken: string | null;
+  // Purchase#license_key
+  licenseKey: string | null;
   variantNames: string[] | null;
   tipValueCents: number | null;
   customFields: ReceiptCustomField[];
@@ -113,9 +115,9 @@ const NOT_PORTED_PURCHASE_FLAGS = [
   "is_multiseat_license",
 ] as const;
 
-const NOT_PORTED_LINK_FLAGS = ["is_recurring_billing", "is_in_preorder_state", "is_licensed", "is_bundle", "free_trial_enabled", "is_tiered_membership", "is_multiseat_license"] as const;
+const NOT_PORTED_LINK_FLAGS = ["is_recurring_billing", "is_in_preorder_state", "is_bundle", "free_trial_enabled", "is_tiered_membership", "is_multiseat_license"] as const;
 // Link::NATIVE_TYPES whose thumbnail, wording and attributes are the plain product ones; a physical product is a digital one with is_physical.
-const SUPPORTED_NATIVE_TYPES = ["digital", "course", "ebook"];
+const SUPPORTED_NATIVE_TYPES = ["digital", "course", "ebook", "newsletter", "podcast", "audiobook", "physical", "coffee"];
 
 // The receipts below render exactly as Rails does; the rest go back to Rails.
 export function assertSupported(data: ReceiptData): void {
@@ -256,20 +258,21 @@ export function paymentInfo(data: ReceiptData, invoiceLink: string) {
 
 export function itemInfo(data: ReceiptData, customReceiptText: string | null) {
   const { purchase, link } = data;
+  const coffee = link.native_type === "coffee";
   const notes: string[] = [];
   if (linkFlag(link, "is_physical")) notes.push("Your order will ship shortly. The creator will notify you when your package is on its way.");
 
   const general: Attribute[] = [];
-  if (data.variantNames !== null && data.variantNames.length > 0) {
+  if (data.variantNames !== null && data.variantNames.length > 0 && !coffee) {
     const names = data.variantNames;
     // variant_names_displayable
     general.push({ label: "Variant", text: names.length === 1 && names[0] === "Untitled" ? "" : names.join(", ") });
   }
   if (purchase.price_cents !== 0 || purchase.shipping_cents !== 0) {
-    general.push({ label: "Product price", text: formatJustPriceInCents(Math.trunc(purchase.displayed_price_cents / purchase.quantity) - (data.tipValueCents ?? 0), purchase.displayed_price_currency_type!) });
+    general.push({ label: coffee ? "Donation" : "Product price", text: formatJustPriceInCents(Math.trunc(purchase.displayed_price_cents / purchase.quantity) - (data.tipValueCents ?? 0), purchase.displayed_price_currency_type!) });
   }
   if (data.tipValueCents !== null) general.push({ label: "Tip", text: formatJustPriceInCents(data.tipValueCents, purchase.displayed_price_currency_type!) });
-  if (purchase.quantity > 1) general.push({ label: "Quantity", text: String(purchase.quantity) });
+  if (purchase.quantity > 1 && !coffee) general.push({ label: "Quantity", text: String(purchase.quantity) });
   for (const field of data.customFields) {
     if (field.type === "checkbox") general.push({ label: field.name, text: field.value ? "Yes" : "No" });
     else if (field.type === "text") general.push({ label: field.name, text: String(field.value) });
@@ -280,7 +283,8 @@ export function itemInfo(data: ReceiptData, customReceiptText: string | null) {
   return {
     notes,
     customReceiptNote: customReceiptText,
-    showDownloadButton: data.urlRedirectToken !== null,
+    licenseKey: data.licenseKey,
+    showDownloadButton: data.urlRedirectToken !== null && !coffee,
     generalAttributes: general,
   };
 }

@@ -5,6 +5,7 @@
 // Rails reads in the order the view asks; this reads in that order too, so the first occurrence of each distinct
 // statement lands in the same place (repeats are query-cache hits in both).
 import { Prisma } from "@prisma/client";
+import { LinkFlags } from "../../models/link.ts";
 import { getUsdCents, rubyStringToF } from "../../models/concerns/currency-helper.ts";
 import type { Charge, Purchase } from "@prisma/client";
 
@@ -54,6 +55,8 @@ import {
 
 type Id = number | bigint;
 
+const linkFlagSet = (link: ReceiptLinkRow, name: Parameters<typeof LinkFlags.isSet>[1]) => LinkFlags.isSet(link.flags ?? 0, name);
+
 // RedisKey.recommended_products_associated_product_ids_limit
 const ASSOCIATED_PRODUCT_IDS_LIMIT_KEY = "recommended_products_associated_product_ids_limit";
 
@@ -75,7 +78,7 @@ async function loadReceiptData(purchase: ReceiptPurchaseRow & Record<string, unk
   const link = await findRow<ReceiptLinkRow>("links", purchase.link_id);
   if (!link) throw new TypeError("undefined method 'name' for nil");
 
-  const data: ReceiptData = { purchase, link, seller, displayedPriceUsdCents: 0, taxLines: null, urlRedirectToken: null, variantNames: null, tipValueCents: null, customFields: [], refundPolicy: null };
+  const data: ReceiptData = { purchase, link, seller, displayedPriceUsdCents: 0, taxLines: null, urlRedirectToken: null, licenseKey: null, variantNames: null, tipValueCents: null, customFields: [], refundPolicy: null };
   return { data, supportEmails: supportEmails.map((row) => row.support_email) };
 }
 
@@ -98,6 +101,18 @@ async function loadItemData(data: ReceiptData): Promise<void> {
     data.urlRedirectToken = String(redirect.token);
     const flags = Number(redirect.flags ?? 0);
     if ((flags & 1) !== 0 || redirect.is_rental === true) throw new MailViewNotPortedError("download button for a rental");
+  }
+  if (linkFlagSet(data.link, "is_licensed")) {
+    // Purchase#uses_license_key?: a licensed product with versions keeps its key only when the versions' content has a
+    // license-key block, which is read from rich content the port does not.
+    if (!linkFlagSet(data.link, "is_physical")) {
+      const [version] = await rows(
+        Prisma.sql`SELECT 1 AS one FROM ${table("base_variants")} INNER JOIN ${table("variant_categories")} ON ${column("base_variants", "variant_category_id")} = ${column("variant_categories", "id")} WHERE ${column("base_variants", "type")} = 'Variant' AND ${column("variant_categories", "link_id")} = ${data.link.id} AND ${column("variant_categories", "deleted_at")} IS NULL AND ${column("base_variants", "deleted_at")} IS NULL LIMIT 1`,
+      );
+      if (version) throw new MailViewNotPortedError("license key of a product with versions");
+    }
+    const [license] = await byPurchase("licenses", purchase.id, true);
+    data.licenseKey = isBlank(license?.serial as string | null | undefined) ? null : String(license!.serial);
   }
   const [call] = await byPurchase("calls", purchase.id, true);
   if (call) throw new MailViewNotPortedError("receipt for a call");
@@ -197,7 +212,7 @@ function itemSection(item: ReturnType<typeof itemInfo>, card: Card, data: Receip
 <div class="details">
 ${notes}
 ${customNote}
-${/* license key */ ""}
+${item.licenseKey === null ? "" : `    <h4>License key</h4>\n    <pre style="text-align: center; white-space: pre-wrap;">\n      <code>${h(item.licenseKey)}</code>\n    </pre>\n`}
 ${download}
   ${attributesPartial([])}
   ${attributesPartial(item.generalAttributes)}

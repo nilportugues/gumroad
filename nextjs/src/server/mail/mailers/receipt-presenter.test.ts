@@ -15,7 +15,7 @@ const data = (purchase: Partial<ReceiptData["purchase"]> = {}, link: Partial<Rec
   },
   link: { id: 301, user_id: 201, name: "Guide", unique_permalink: "guide", custom_permalink: null, support_email: null, json_data: null, flags: 0, native_type: "digital", price_currency_type: "usd", require_shipping: false, ...link },
   seller: { id: 201, name: "Seller", username: "seller", email: "seller@example.com", unconfirmed_email: null, support_email: null, external_id: "8000000000201", recommendation_type: "no_recommendations", ...seller },
-  displayedPriceUsdCents: 500, taxLines: null, urlRedirectToken: null, variantNames: null, tipValueCents: null, customFields: [], refundPolicy: null,
+  displayedPriceUsdCents: 500, taxLines: null, urlRedirectToken: null, licenseKey: null, variantNames: null, tipValueCents: null, customFields: [], refundPolicy: null,
 });
 
 describe("assertSupported", () => {
