@@ -55,6 +55,8 @@ export type InertiaPage = {
   version: string | null;
   encryptHistory: boolean;
   clearHistory: boolean;
+  // Props left out of the first response, by group: the client fetches each group with a partial reload.
+  deferredProps?: Record<string, string[]>;
   // Props the client appends to what it holds (`InertiaRails.merge`); absent when there are none.
   mergeProps?: string[];
   href: string;
@@ -132,7 +134,7 @@ export async function loadPage(
 
   await applicationMetaTags(meta, { context, config, csrfToken, ports });
   const actionProps = await action({ context, config, meta, url: request.url, headers: requestHeaders, urlOptions: defaultUrlOptions(request.url, config), state: state?.pageState ?? {}, renderState: state });
-  const { props: pageProps, mergeProps } = await resolveLazyProps(actionProps, partialRequest(component, requestHeaders));
+  const { props: pageProps, mergeProps, deferredProps } = await resolveLazyProps(actionProps, partialRequest(component, requestHeaders));
   const shared = await sharedProps({ context, config, request, meta, csrfToken, ports, mobileAppWebView });
   const errors = await ports.session.consumeInertiaErrors();
   // promote_visited_nav_item runs after Rails renders, so the props above do not list the visit.
@@ -149,6 +151,7 @@ export async function loadPage(
     version: null,
     encryptHistory: false,
     clearHistory: state?.clearHistory ?? false,
+    ...(Object.keys(deferredProps).length > 0 ? { deferredProps } : {}),
     ...(mergeProps.length > 0 ? { mergeProps } : {}),
     href: request.url.href,
   };

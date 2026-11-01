@@ -4,10 +4,10 @@
 // them to what it already holds.
 const KIND = Symbol("lazyProp");
 
-type Kind = "lazy" | "optional" | "merge";
-export type LazyProp = { [KIND]: Kind; resolve: () => unknown };
+type Kind = "lazy" | "optional" | "merge" | "defer";
+export type LazyProp = { [KIND]: Kind; resolve: () => unknown; group?: string };
 
-const wrap = (kind: Kind, resolve: () => unknown): LazyProp => ({ [KIND]: kind, resolve });
+const wrap = (kind: Kind, resolve: () => unknown, group?: string): LazyProp => ({ [KIND]: kind, resolve, group });
 
 // `-> { ... }`
 export const lazy = (resolve: () => unknown): LazyProp => wrap("lazy", resolve);
@@ -15,6 +15,11 @@ export const lazy = (resolve: () => unknown): LazyProp => wrap("lazy", resolve);
 export const optional = (resolve: () => unknown): LazyProp => wrap("optional", resolve);
 // `InertiaRails.merge { ... }`
 export const merge = (resolve: () => unknown): LazyProp => wrap("merge", resolve);
+
+// `InertiaRails.defer(group:) { ... }`: left out of the first response, listed in `deferredProps`, and
+// fetched by the client's follow-up partial reload.
+export const DEFAULT_DEFER_GROUP = "default";
+export const defer = (resolve: () => unknown, group = DEFAULT_DEFER_GROUP): LazyProp => wrap("defer", resolve, group);
 
 export const isLazyProp = (value: unknown): value is LazyProp => value !== null && typeof value === "object" && KIND in value;
 export const lazyKind = (value: LazyProp): Kind => value[KIND];
@@ -31,19 +36,22 @@ const keep = (key: string, partial: NonNullable<PartialRequest>) =>
 export async function resolveLazyProps(
   props: Record<string, unknown>,
   partial: PartialRequest,
-): Promise<{ props: Record<string, unknown>; mergeProps: string[] }> {
+): Promise<{ props: Record<string, unknown>; mergeProps: string[]; deferredProps: Record<string, string[]> }> {
   const resolved: Record<string, unknown> = {};
   const mergeProps: string[] = [];
+  const deferredProps: Record<string, string[]> = {};
   for (const [key, value] of Object.entries(props)) {
     if (!isLazyProp(value)) {
       resolved[key] = value;
       continue;
     }
     const kind = lazyKind(value);
-    if (kind === "optional" && !partial) continue;
+    // A response to a partial reload of the component never lists the deferred props again.
+    if (kind === "defer" && !partial) (deferredProps[value.group ?? DEFAULT_DEFER_GROUP] ??= []).push(key);
+    if ((kind === "optional" || kind === "defer") && !partial) continue;
     if (partial && !keep(key, partial)) continue;
     resolved[key] = await value.resolve();
     if (kind === "merge" && !(partial?.reset ?? []).includes(key)) mergeProps.push(key);
   }
-  return { props: resolved, mergeProps };
+  return { props: resolved, mergeProps, deferredProps };
 }
