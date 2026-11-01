@@ -53,6 +53,15 @@ export class InstallmentPost {
     return this.row.id;
   }
 
+  // `json_data`, parsed on first use (WithFiltering reads its filters from it)
+  jsonData(): ReturnType<typeof parseJsonData> {
+    return parseJsonData(this.row.json_data);
+  }
+
+  recipientType(): string | null {
+    return this.row.installment_type;
+  }
+
   flag(name: Parameters<typeof InstallmentFlags.isSet>[1]): boolean {
     return InstallmentFlags.isSet(this.row.flags, name);
   }
@@ -136,6 +145,15 @@ export class InstallmentPost {
       );
       return rows.length > 0;
     });
+  }
+
+  // `alive_product_files`: the post's live files in their order
+  aliveProductFiles(): Promise<Record<string, unknown>[]> {
+    return this.loaded("alive_product_files", () =>
+      selectRows(
+        Prisma.sql`SELECT ${Prisma.raw("`product_files`.*")} FROM ${table("product_files")} WHERE ${column("product_files", "installment_id")} = ${this.row.id} AND ${column("product_files", "deleted_at")} IS NULL ORDER BY ${column("product_files", "position")} ASC`,
+      ),
+    );
   }
 
   // `user.seller_profile`: the seller's row, if any (Ruby builds a default one when there is none)

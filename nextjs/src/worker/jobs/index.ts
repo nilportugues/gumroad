@@ -53,6 +53,8 @@ import { warmSellerReputationSummaryJob } from "./warm-seller-reputation-summary
 import { recalculateRecentWishlistFollowerCountJob } from "./wishlist-jobs.ts";
 import { sendWorkflowInstallmentWorker } from "./send-workflow-installment-worker.ts";
 import { scheduleWorkflowInstallmentJob } from "./schedule-workflow-installment-job.ts";
+import { publishScheduledPostJob } from "./publish-scheduled-post-job.ts";
+import { sendLastPostJob } from "./send-last-post-job.ts";
 import { flushInstallmentDeliveredDeltasJob, scheduleAffiliateWorkflowJobsJob, scheduleWorkflowEmailsWorker, sendWorkflowInstallmentRescheduleJob, updateInstallmentEventsCountCacheWorker } from "./workflow-jobs.ts";
 import {
   createMissingPurchaseEventsWorker,
@@ -103,6 +105,8 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   ScheduleWorkflowInstallmentJob: scheduleWorkflowInstallmentJob,
   SendWorkflowInstallmentRescheduleJob: sendWorkflowInstallmentRescheduleJob,
   SendWorkflowInstallmentWorker: sendWorkflowInstallmentWorker,
+  SendLastPostJob: sendLastPostJob,
+  PublishScheduledPostJob: publishScheduledPostJob,
   UpdateInstallmentEventsCountCacheWorker: updateInstallmentEventsCountCacheWorker,
   DisputeEvidenceDueSoonReminderJob: disputeEvidenceDueSoonReminderJob,
   ElasticsearchIndexerWorker: elasticsearchIndexerWorker,

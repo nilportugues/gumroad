@@ -33,6 +33,7 @@ const ALL_SUCCESS_STATES = ["preorder_authorization_successful", "successful", "
 const NEWSLETTER_SELLER_EXTERNAL_ID = "6282492303727";
 const CHARGEBACK_REVERSED_FLAG = 512;
 const MINUTE_MS = 60_000;
+const SEND_WORKFLOW_INSTALLMENT_RESCHEDULE_JOB = "SendWorkflowInstallmentRescheduleJob";
 
 export type SendDeps = PostEmailDeps & { subscriptionDeps: SubscriptionDeps };
 
@@ -73,7 +74,7 @@ async function needsNewsletterAdmission(post: InstallmentPost): Promise<boolean>
 
 // `SentPostEmail.ensure_uniqueness(post:, email:, source:)`: the claim is written only while the row it was read
 // from still holds the address, under a share lock; a claim somebody else holds skips the send.
-async function ensureUniqueness(post: InstallmentPost, email: string | null, source: { table: string; id: bigint | number }, deps: SendDeps, send: () => Promise<void>): Promise<void> {
+export async function ensureUniqueness(post: InstallmentPost, email: string | null, source: { table: string; id: bigint | number }, deps: SendDeps, send: () => Promise<void>): Promise<void> {
   if (!present(email)) return;
   let claimed: boolean;
   try {
@@ -133,8 +134,21 @@ async function sendEmail(post: InstallmentPost, recipient: Recipient, deps: Send
   }
 }
 
+// `PostEmailApi.process(post:, recipients: [recipient])` called directly (SendLastPostJob): no cache, no newsletter admission.
+export async function sendPostEmailDirect(post: InstallmentPost, recipient: Recipient, deps: SendDeps): Promise<void> {
+  try {
+    await processPostEmail({ post, recipients: [recipient] }, deps);
+  } catch (error) {
+    if (error instanceof PostEmailNotPortedError) {
+      await deleteClaim(post, recipient.email);
+      throw new HandBackToRuby(error.message);
+    }
+    throw error;
+  }
+}
+
 // `generate_url_redirect_for_*(...) if has_files?`: Node does not create UrlRedirects.
-async function refuseFiles(post: InstallmentPost, recipient: Recipient): Promise<void> {
+export async function refuseFiles(post: InstallmentPost, recipient: Recipient): Promise<void> {
   if (!(await post.hasFiles())) return;
   await deleteClaim(post, recipient.email);
   throw new HandBackToRuby("a post with files (UrlRedirect)");
@@ -162,19 +176,25 @@ async function latestEventAt(subscriptionId: bigint, eventType: number): Promise
   return row === undefined ? null : new Date(row.occurred_at);
 }
 
-// `expected_delivery_time(sale)`: the purchase (moved by the time a membership was lapsed) plus the rule's delay.
-async function expectedDeliveryTime(post: InstallmentPost, rule: Rule | null, sale: Purchase, subscription: SubscriptionRecord | null): Promise<Date> {
+// `workflow_delivery_reference_time(sale)`: the purchase time, moved by the time a membership was lapsed.
+export async function workflowDeliveryReferenceTime(post: InstallmentPost, sale: Purchase, subscription: SubscriptionRecord | null): Promise<Date> {
   if (sale.created_at === null) throw new TypeError("undefined method 'created_at' for nil");
-  if (rule === null) return sale.created_at;
-  if (rule.delayed_delivery_time === null) throw new TypeError("nil can't be coerced into Integer");
-  let reference = sale.created_at;
   const workflow = await post.workflow();
   if (workflow !== null && subscription !== null) {
     const restarted = await latestEventAt(subscription.id, 1);
     // last_deactivated_at: the subscription's own column, else its latest deactivated event
     const deactivated = restarted === null ? null : (subscription.row.deactivated_at ?? (await latestEventAt(subscription.id, 0)));
-    if (restarted !== null && deactivated !== null) reference = new Date(sale.created_at.getTime() + (restarted.getTime() - deactivated.getTime()));
+    if (restarted !== null && deactivated !== null) return new Date(sale.created_at.getTime() + (restarted.getTime() - deactivated.getTime()));
   }
+  return sale.created_at;
+}
+
+// `expected_delivery_time(sale)`: the reference time plus the rule's delay.
+async function expectedDeliveryTime(post: InstallmentPost, rule: Rule | null, sale: Purchase, subscription: SubscriptionRecord | null): Promise<Date> {
+  if (sale.created_at === null) throw new TypeError("undefined method 'created_at' for nil");
+  if (rule === null) return sale.created_at;
+  if (rule.delayed_delivery_time === null) throw new TypeError("nil can't be coerced into Integer");
+  const reference = await workflowDeliveryReferenceTime(post, sale, subscription);
   return new Date(reference.getTime() + rule.delayed_delivery_time * 1000);
 }
 
@@ -218,8 +238,9 @@ export async function sendInstallmentFromWorkflowForPurchase(post: InstallmentPo
   if (deps.now().getTime() < expected.getTime()) {
     // Too soon (a membership that was ended and restarted): try again a minute after it is due.
     const args: (number | bigint | null | string)[] = [post.id, rule!.version, Number(sale.id), null];
-    if (present(rescheduleReferenceTime)) throw new PostEmailNotPortedError("a reschedule reference time");
-    await performAsync(SEND_WORKFLOW_INSTALLMENT_WORKER, args as never, { at: new Date(expected.getTime() + MINUTE_MS) });
+    const rescheduling = present(rescheduleReferenceTime);
+    if (rescheduling) args.push(null, null, rescheduleReferenceTime);
+    await performAsync(rescheduling ? SEND_WORKFLOW_INSTALLMENT_RESCHEDULE_JOB : SEND_WORKFLOW_INSTALLMENT_WORKER, args as never, { at: new Date(expected.getTime() + MINUTE_MS) });
     return;
   }
   await ensureUniqueness(post, sale.email, { table: "purchases", id: sale.id }, deps, async () => {

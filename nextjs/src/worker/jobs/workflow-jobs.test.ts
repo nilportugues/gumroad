@@ -84,8 +84,7 @@ const handlers = (c: Case): Record<string, JobHandler> => {
   };
 };
 
-// Reschedules with exactly one recipient run SendWorkflowInstallmentWorker, which Node leaves to Rails.
-const handsBack = (c: Case) => (c.job === "SendWorkflowInstallmentRescheduleJob" && c.name === "reschedule: one recipient") || c.name === "affiliates: token with an assignment";
+const handsBack = (_c: Case) => false;
 
 const isWorkflowRead = (statement: Statement) => statement.sql.startsWith("SELECT `workflows`.*");
 const WORKFLOWS_SQL = "SELECT `workflows`.* FROM `workflows` WHERE `workflows`.`seller_id` = 1 AND `workflows`.`deleted_at` IS NULL AND `workflows`.`workflow_type` IN ('seller', 'product', 'variant')";

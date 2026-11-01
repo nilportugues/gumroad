@@ -83,11 +83,6 @@ const featureActive = (before: RedisSnapshot) => async (name: string, actor: str
 // Cases Node leaves to Rails, with where it stops: "before" any write, "claim" after the SentPostEmail row is
 // written (and deleted again).
 const HANDED_BACK: Record<string, "before" | "claim"> = {
-  "guard: no cached version": "before",
-  "guard: installment does not exist": "before",
-  "guard: pending version": "before",
-  "guard: cached version differs from the job's": "before",
-  "guard: reschedule reference time": "before",
   "purchase: custom seller profile": "claim",
   "purchase: message with a code block": "claim",
   "purchase: message with an upsell": "claim",

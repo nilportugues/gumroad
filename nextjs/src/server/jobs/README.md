@@ -214,3 +214,23 @@ Hand-backs, all before the job's first write:
   token with no assignments run in Node.
 - Any of the above (and `SetSubscriptionAsDeactivatedWorker`'s member cancellation workflows) when a workflow filter holds a value Node does not
   judge; see `models/README.md`.
+
+## Installment writes and the jobs they unblock (WS-63)
+
+Supersedes the hand-back lists of the WS-51 section for what follows. Models: see `models/README.md`.
+
+- `SendWorkflowInstallmentWorker` reads the rule version like Ruby (`current_rule_version`: cache, pending token, a locked read of the rule that is
+  cached with the Lua script) and no longer hands back a stale version or a reschedule reference time: it matches the recipient against the current
+  audience (`AudienceMember.filter`) and queues `SendWorkflowInstallmentRescheduleJob`. What it still hands back, before its first write: a filter or
+  reference time Node does not read (`installment-reschedule.ts`). After its `SentPostEmail` claim: the cases of WS-59 (a post with files, a seller in
+  the newsletter cutover, a template Node cannot render).
+- `SendWorkflowInstallmentRescheduleJob` runs the worker for exactly one recipient.
+- `ScheduleAffiliateWorkflowJobsJob` with a token schedules each affiliate's workflows. An affiliate is judged in full before its first push, so a
+  hand-back leaves nothing queued for it. Affiliates before it were completed and their token cleared, so Rails, rerunning the job, finds only the
+  assignments still holding the token. That is the one hand-back in this file that comes after a write, and it is safe for that reason.
+- `ScheduleWorkflowInstallmentJob` re-schedules restarted memberships after a delay edit (`workflow-resubscribed-memberships.ts`). Workflows that exclude
+  buyers of other products go back to Rails before the fanout is claimed: claiming first would make Rails skip the intent.
+- `SendLastPostJob`: a post with files hands back after the claim (deleted again), as the worker does.
+- `PublishScheduledPostJob`: guards in Node; `publish!` runs in Node for a post that does not email its audience. The rest hands back from inside the
+  lock, before the publish writes (the transaction rolls back). Posts that email their audience are the common case for scheduled posts, so this job
+  mostly hands back until the sending-limit count (Elasticsearch) and `PostEmailBlast` are ported.

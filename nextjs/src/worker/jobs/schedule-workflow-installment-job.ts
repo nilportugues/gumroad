@@ -2,16 +2,18 @@
 // published or whose delay was edited) and asks the workflow to fan it out to its recipients.
 // Golden: __fixtures__/schedule-workflow-installment.golden.json (scripts/golden/schedule-workflow-installment.rb).
 //
-// A delay edit also re-schedules the memberships that restarted since (`reschedule_pending_resubscribed_memberships`),
-// which Node does not port: that intent goes back to Rails before its fanout is claimed, with nothing written.
+// A delay edit also re-schedules the memberships that restarted since (`reschedule_pending_resubscribed_memberships`). A workflow
+// that excludes buyers of other products, or whose filters Node does not read, goes back to Rails before the fanout is claimed.
 import { Prisma, type Installment, type Workflow, type WorkflowInstallmentScheduleIntent } from "@prisma/client";
 
-import { HandBackToRuby } from "../../server/jobs/hand-back.ts";
+import { beforeSideEffects } from "../../server/jobs/hand-back.ts";
 import { InstallmentPost } from "../../server/models/installment-post.ts";
 import { findById } from "../../server/models/row-reads.ts";
 import { clearQueryCache, connectedTo } from "../../server/models/runtime/query-cache.ts";
 import { transaction } from "../../server/models/runtime/transaction.ts";
 import { castRow, column, selectRows, table } from "../../server/models/sql.ts";
+import { defaultSubscriptionDeps } from "../../server/models/subscription.ts";
+import { assertMembershipsReschedulable, reschedulePendingResubscribedMemberships, reschedulesMemberships } from "../../server/models/workflow-resubscribed-memberships.ts";
 import { WORKFLOW_INSTALLMENT_SCHEDULE_INTENTS, WorkflowInstallmentScheduleIntents } from "../../server/models/workflow-installment-schedule-intent.ts";
 import { claimFanoutBang, fanoutClaimable, markProcessedBang } from "../../server/models/workflow-installment-schedule-writes.ts";
 import { scheduleInstallment } from "../../server/models/workflow-schedule-installment.ts";
@@ -103,14 +105,19 @@ export const scheduleWorkflowInstallmentJobWith = (overrides: Partial<JobDeps & 
         }
 
         const oldDelayedDeliveryTime = intent.get("old_delayed_delivery_time");
-        // `reschedule_pending_resubscribed_memberships` returns at once for a member cancellation workflow and for
-        // one whose recipients are not customers or the audience.
-        const reschedulesMemberships = !workflow.memberCancellationTrigger && ["seller", "product", "variant", "audience"].includes(workflow.row.workflow_type ?? "");
-        if (oldDelayedDeliveryTime !== null && reschedulesMemberships && fanoutClaimable(intent, deps.now())) {
-          throw new HandBackToRuby("re-scheduling the memberships that restarted since a delay edit (reschedule_pending_resubscribed_memberships)");
+        // Memberships that restarted since a delay edit are rescheduled after the fanout is claimed; what Node cannot judge
+        // there is decided first, while the intent can still go back to Rails untouched.
+        if (oldDelayedDeliveryTime !== null && reschedulesMemberships(workflow) && fanoutClaimable(intent, deps.now())) {
+          await beforeSideEffects(() => assertMembershipsReschedulable(workflow!));
         }
         const fanoutToken = await claimFanoutBang(intent, intentDeps);
         if (fanoutToken === null) return;
+        if (oldDelayedDeliveryTime !== null) {
+          await reschedulePendingResubscribedMemberships(post, workflow, rule, oldDelayedDeliveryTime, intent.get("cutoff_reference_time"), {
+            subscriptionDeps: { now: deps.now, featureActive: defaultSubscriptionDeps.featureActive },
+            notEnqueued: (message) => new FanoutNotEnqueuedError(message),
+          });
+        }
 
         const result = await scheduleInstallment(workflow, installmentRow!, {
           oldDelayedDeliveryTime,

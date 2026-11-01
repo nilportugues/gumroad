@@ -2,12 +2,12 @@
 // ScheduleAffiliateWorkflowJobsJob re-dispatches. A token is claimed by rewriting it to
 // "<unix time>:<uuid>"; a claim older than the lease is taken over again. Creating assignments (which
 // assigns the first token) stays in Ruby. Golden: worker/jobs/__fixtures__/workflow-jobs.golden.json.
-import { Prisma } from "@prisma/client";
+import { Prisma, type ProductAffiliate } from "@prisma/client";
 
 import { performAsync } from "./concerns/job-runtime.ts";
 import { advance } from "./concerns/ruby-time.ts";
 import { transaction } from "./runtime/transaction.ts";
-import { column, columnIn, execute, selectRows, table } from "./sql.ts";
+import { castRow, column, columnIn, execute, selectRows, table } from "./sql.ts";
 
 export const PRODUCT_AFFILIATES = "affiliates_links";
 // ProductAffiliate::WORKFLOW_SCHEDULE_DISPATCH_LEASE
@@ -56,6 +56,18 @@ export async function pendingWorkflowScheduleTokens(): Promise<string[]> {
 // (the preloads are not ported).
 export async function assignmentsOfToken(token: string): Promise<{ id: number }[]> {
   return selectRows<{ id: number }>(Prisma.sql`SELECT ${star} FROM ${table(PRODUCT_AFFILIATES)} WHERE ${tokenColumn()} = ${token}`);
+}
+
+// `where(workflow_schedule_token:).includes(:affiliate, :product).to_a`: the assignments, then their affiliates, then the
+// products the schedulers read (`withProducts`).
+export async function assignmentRowsOfToken(token: string): Promise<ProductAffiliate[]> {
+  const rows = await selectRows(Prisma.sql`SELECT ${star} FROM ${table(PRODUCT_AFFILIATES)} WHERE ${tokenColumn()} = ${token}`);
+  return rows.map((row) => castRow<ProductAffiliate>("ProductAffiliate", row));
+}
+
+// `ProductAffiliate.where(id: ids, workflow_schedule_token: token).update_all(workflow_schedule_token: nil)`
+export async function clearWorkflowSchedule(ids: number[], token: string): Promise<void> {
+  await execute(Prisma.sql`UPDATE ${table(PRODUCT_AFFILIATES)} SET ${tokenColumn()} = NULL WHERE ${columnIn(PRODUCT_AFFILIATES, "id", ids)} AND ${tokenColumn()} = ${token}`);
 }
 
 // `claim_workflow_schedule(token)`: the new token, or null when no assignment holds the old one.

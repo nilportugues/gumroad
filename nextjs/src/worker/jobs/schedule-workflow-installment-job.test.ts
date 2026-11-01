@@ -39,17 +39,29 @@ const golden = parseRubyJson(readFileSync(new URL("./__fixtures__/schedule-workf
 const url = process.env.JOBS_REDIS_URL;
 if (url && /\/0$|^[^/]*\/\/[^/]+$/u.test(url)) throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
 let redis: Redis | undefined;
+// The keys scripts/golden/schedule-workflow-installment.rb ran with (a variant workflow reads external variant ids)
+const KEYS = { OBFUSCATE_IDS_CIPHER_KEY: "ws59-golden-obfuscate-key", OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "123456789" };
+const savedKeys: Record<string, string | undefined> = {};
 beforeAll(() => {
+  for (const [key, value] of Object.entries(KEYS)) {
+    savedKeys[key] = process.env[key];
+    process.env[key] = value;
+  }
   if (url) redis = new Redis(url);
 });
 afterAll(async () => {
+  for (const [key, value] of Object.entries(savedKeys)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
   if (!redis) return;
   await redis.flushdb();
   redis.disconnect();
 });
 
-// A delay edit also re-schedules the memberships that restarted; Node leaves that to Rails.
-const HANDED_BACK = new Set(["new customer workflow, delay edit", "new customer workflow, delay edit of a new customers only post"]);
+// A delay edit also re-schedules the memberships that restarted; a workflow that excludes buyers of other products reads
+// through a probe batch Node does not port, so that intent goes back to Rails before its fanout is claimed.
+const HANDED_BACK = new Set(["delay edit: a workflow that excludes buyers of a product"]);
 
 const sequentialUuid = () => {
   let seq = 0;
