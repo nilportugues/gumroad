@@ -13,15 +13,15 @@ import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
-import { redisSeeder } from "../src/session";
+import { reencryptCookies, redisSeeder } from "../src/session";
 
 // Replays the OAuth and integrations stream (WS-10b): spec/requests/social_callbacks_parity_spec.rb and its siblings. The last exchange of
 // each fixture is sent to `next dev` with the stream's flags on; a stand-in Rails receives whatever Node hands back.
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
-const SPECS = ["social_callbacks_parity_spec"];
-const ROUTE_FLAGS = "nextjs_social_callbacks";
+const SPECS = ["social_callbacks_parity_spec", "connections_signed_in_spec"];
+const ROUTE_FLAGS = "nextjs_social_callbacks,nextjs_connections_unlink";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 // The secrets spec/requests/social_callbacks_parity_spec.rb stubs.
@@ -40,6 +40,8 @@ const COMPARE = {
     "response.cookies.XSRF-TOKEN.value",
     "db.versions",
     "db.users.updated.*.changes.updated_at",
+    "db.dashboard_nav_promotions.inserted.*.created_at",
+    "db.dashboard_nav_promotions.inserted.*.updated_at",
     "http",
   ],
 };
@@ -113,7 +115,8 @@ describe.skipIf(!url)("OAuth and integrations", () => {
     redis: { reset: (entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0]) => redisSeeder(redis).reset(entries) },
     transport: httpTransport(server.baseUrl),
     interceptHttp: false,
-    rewriteRequest: (request: Parameters<typeof resignTiktok>[0] & Record<string, unknown>, _fixture: unknown, now: Date) => resignTiktok(request, name, now) as never,
+    rewriteRequest: (request: Parameters<typeof reencryptCookies>[0], loaded: Parameters<typeof reencryptCookies>[1], now: Date) =>
+      resignTiktok(reencryptCookies(request, loaded, SECRET_KEY_BASE, now) as never, name, now) as never,
     compare: COMPARE,
   });
 
@@ -140,7 +143,7 @@ describe.skipIf(!url)("OAuth and integrations", () => {
       try {
         const fixture = loadFixture(file);
         // Whatever Node cannot prove goes to Rails whole, before its first write.
-        if (name.includes("hands-a-") || name.includes("not-an-object")) {
+        if (/-hands-/u.test(name) || name.includes("not-an-object")) {
           handedBack.length = 0;
           const handed = await replayFixtureExchange(fixture, index, replayOptions(name));
           const request = fixture.exchanges[index]!.request;
