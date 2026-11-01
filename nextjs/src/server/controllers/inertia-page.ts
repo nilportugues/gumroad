@@ -5,10 +5,31 @@ import { matchPagePath, PAGES } from "../page-props/pages.ts";
 import { railsJson } from "../page-props/inertia-json.ts";
 import { PAGE_URL_HEADER } from "../page-props/render-state.ts";
 import { renderPage } from "../page-props/render-page.ts";
-import { type ActionResult, processAction, RoutingError } from "./application-controller.ts";
+import { type ActionOptions, type ActionResult, type Chain, type ForceRefresh, processAction, RoutingError } from "./application-controller.ts";
 import { fullpath } from "./rails-request.ts";
 
 export const INERTIA_PAGE_PATH = "/gr-inertia";
+
+// inertia_rails replaces whatever the controller answered to a GET carrying an X-Inertia-Version
+// (any version is stale) with the 409, so a filter that halts is answered with it too.
+function staleSafe(options: ActionOptions = {}, incoming: Request): ActionOptions {
+  if (incoming.method !== "GET" || !incoming.headers.has("x-inertia-version")) return options;
+  const forceRefresh = (chain: Chain): ForceRefresh => ({
+    forceRefresh: `${chain.request.protocol}${chain.request.hostWithPort}${fullpath(chain.request)}`,
+    rescued: true,
+  });
+  const { prepended, filters } = options;
+  return {
+    ...options,
+    prepended: prepended && (async (chain) => ((await prepended(chain)) ? forceRefresh(chain) : null)),
+    filters:
+      filters &&
+      (async (chain) => {
+        const outcome = await filters(chain);
+        return "halt" in outcome ? { halt: forceRefresh(chain) } : outcome;
+      }),
+  };
+}
 
 export async function inertiaPageResponse(incoming: Request): Promise<Response> {
   const target = incoming.headers.get(PAGE_URL_HEADER);
@@ -17,7 +38,8 @@ export async function inertiaPageResponse(incoming: Request): Promise<Response> 
   const protocol = incoming.headers.get("x-forwarded-proto") ?? "http";
   const request = new Request(new URL(target, `${protocol}://${host}`), { method: incoming.method, headers: incoming.headers });
 
-  return processAction(request, {}, async ({ request: railsRequest, takeRenderState }): Promise<ActionResult> => {
+  const pattern = matchPagePath(new URL(target, "http://localhost").pathname)?.pattern;
+  return processAction(request, staleSafe(pattern ? PAGES[pattern]?.options : undefined, incoming), async ({ request: railsRequest, takeRenderState }): Promise<ActionResult> => {
     const match = matchPagePath(railsRequest.path);
     if (!match) throw new RoutingError("Not Found");
     const spec = PAGES[match.pattern]!;

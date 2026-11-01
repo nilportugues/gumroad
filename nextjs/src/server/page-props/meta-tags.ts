@@ -103,6 +103,22 @@ export class MetaTagBuilder {
     return this.tags.get(headKey);
   }
 
+  keys(): string[] {
+    return [...this.tags.keys()];
+  }
+
+  // A before_action declared again in a subclass runs last (Rails drops the earlier declaration), so
+  // the tags it sets are created after the ones the callbacks that stayed in place set.
+  moveToEnd(headKeys: string[]): this {
+    for (const headKey of headKeys) {
+      const tag = this.tags.get(headKey);
+      if (!tag) continue;
+      this.tags.delete(headKey);
+      this.tags.set(headKey, tag);
+    }
+    return this;
+  }
+
   toJSON(): SerializedMetaTag[] {
     return [...this.tags.values()].map((tag) => tag.toJSON());
   }

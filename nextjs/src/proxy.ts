@@ -10,6 +10,7 @@ import { pageEnvelope } from "@/server/controllers/application-controller";
 import { INERTIA_PAGE_PATH } from "@/server/controllers/inertia-page";
 import { getRequiredConfig } from "@/server/infra/config";
 import { domainConfig } from "@/server/page-props/domain";
+import { PAGES } from "@/server/page-props/pages";
 import { encodeRenderState, PAGE_URL_HEADER, RENDER_STATE_HEADER } from "@/server/page-props/render-state";
 import { railsRouteGate } from "@/server/proxy-gate";
 import { redirectsBeforeRendering } from "@/server/proxy-preflight";
@@ -56,8 +57,9 @@ export async function proxy(request: NextRequest) {
 
     // An App Router page cannot set headers or cookies, so the Rails envelope is built here and
     // attached to the response the page renders (see pageEnvelope).
-    const envelope = await pageEnvelope(request);
-    if ("response" in envelope) return envelope.response.headers.has("location") ? viaHandler() : envelope.response;
+    const envelope = await pageEnvelope(request, PAGES[decision.route.pattern]?.options);
+    // The handler answers a redirect or a bare 400 (a before_action's `head`) through processAction.
+    if ("response" in envelope) return envelope.response.headers.has("location") || envelope.response.status === 400 ? viaHandler() : envelope.response;
     forwarded.set(RENDER_STATE_HEADER, encodeRenderState(envelope.renderState));
     const response = NextResponse.next({ request: { headers: forwarded } });
     envelope.headers.delete("content-type");

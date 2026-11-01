@@ -3,7 +3,9 @@
 // X-Inertia route handler (JSON), and both must answer exactly as the Rails action does.
 import * as Routes from "@/lib/navigation/routes";
 
-import type { Redirected } from "../controllers/application-controller.ts";
+import type { ActionOptions, Redirected } from "../controllers/application-controller.ts";
+import { LOGIN_OPTIONS, SECURE_REDIRECT_OPTIONS, SIGNUP_OPTIONS, TWO_FACTOR_OPTIONS } from "../controllers/auth-pages.ts";
+import { loginPageProps, secureRedirectPageProps, signupPageProps, twoFactorPageProps } from "./auth-pages.ts";
 import { assetHost } from "./domain.ts";
 import {
   articleProps,
@@ -22,8 +24,11 @@ export type PageSpec = {
   // Redirects Rails sends before it renders: before_actions and rescue_from. `rescued` skips the
   // after_actions, as it does for a halted chain and for a rescued exception.
   redirect?: (params: Params) => Redirected | null;
-  props: (params: Params, action: ActionContext) => Record<string, unknown>;
+  props: (params: Params, action: ActionContext) => Record<string, unknown> | Promise<Record<string, unknown>>;
   mobileAppWebView?: boolean;
+  // The controller's filters beyond ApplicationController's (see ActionOptions): both the proxy's
+  // envelope and the X-Inertia handler run the chain with them.
+  options?: ActionOptions;
 };
 
 const helpCenterRoot = (): Redirected => ({ status: 302, location: Routes.help_center_root_path(), rescued: true });
@@ -75,6 +80,12 @@ export const PAGES: Record<string, PageSpec> = {
       return articleProps(article, { urlOptions, assetHost: assetHost(action.config) });
     },
   },
+  // LoginsController#new, Signup, two-factor and secure redirect: filters in controllers/auth-pages.ts.
+  "/login": { component: "Logins/New", options: LOGIN_OPTIONS, props: (_, action) => loginPageProps(action) },
+  "/oauth/login": { component: "Logins/New", options: LOGIN_OPTIONS, props: (_, action) => loginPageProps(action) },
+  "/signup": { component: "Signup/New", options: SIGNUP_OPTIONS, props: (_, action) => signupPageProps(action) },
+  "/two-factor": { component: "TwoFactorAuthentication/Show", options: TWO_FACTOR_OPTIONS, props: (_, action) => twoFactorPageProps(action) },
+  "/secure_url_redirect": { component: "SecureRedirect/New", options: SECURE_REDIRECT_OPTIONS, props: (_, action) => secureRedirectPageProps(action) },
   "/help/category/:slug": {
     component: "HelpCenter/Categories/Show",
     redirect: ({ slug }) => (findCategoryBySlug(slug!) ? null : helpCenterRoot()),
