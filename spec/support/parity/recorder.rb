@@ -18,6 +18,7 @@ module Parity
     FORMAT_VERSION = 1
     FIXTURES_DIR = ENV.fetch("PARITY_FIXTURES_DIR") { File.expand_path("../../../nextjs/parity/fixtures", __dir__) }
     RECORDED_TYPES = %i[request controller].freeze
+    DEBUG_PAGE_BODY = "<rails exception debug page, not recorded: the replay ignores a 404 body>"
     MAX_SLUG_LENGTH = 120
 
     # Per-request or random values, or ones Rails emits for itself. Keep in sync with
@@ -243,7 +244,11 @@ module Parity
           "headers" => Canonical.json(headers.except("location", *VOLATILE_RESPONSE_HEADERS).sort.to_h, now),
           "cookies" => set_cookies(headers["set-cookie"], now).presence,
         }.compact
-        out.merge(response_body(response, headers["content-type"].to_s, now))
+        out.merge(response_body(response, headers["content-type"].to_s, now)).tap do |json|
+          # The test environment answers an error with its exception debug page, which names local paths;
+          # replays compare an error page's status and headers, never that body.
+          json["body"] = DEBUG_PAGE_BODY if response.status >= 400 && json["body"].is_a?(String) && json["body"].include?(Rails.root.to_s)
+        end
       end
 
       def set_cookies(header, now)
