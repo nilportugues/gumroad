@@ -26,6 +26,14 @@ import {
 import { backfillMerchantAccountRecommendationEligibilityJob, reindexSubscriptionCurrentEmailWorker } from "./search-reindex-jobs.ts";
 import { sellerUpdatesWorker } from "./seller-updates-worker.ts";
 import {
+  chargeDeclinedReminderWorker,
+  findSubscriptionsWithMissingChargeWorker,
+  freeTrialExpiringReminderWorker,
+  recurringChargeReminderWorker,
+  reviewReminderJob,
+  sendAutoInvoiceEmailJob,
+} from "./subscription-reminder-jobs.ts";
+import {
   createStripeApplePayDomainWorker,
   createStripeApplePayDomainWorkerRetriesExhausted,
   deleteStripeApplePayDomainWorker,
@@ -60,6 +68,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   BlockSuspendedAccountIpWorker: blockSuspendedAccountIpWorker,
   BuildTaxRateCacheWorker: buildTaxRateCacheWorker,
   CheckPaymentAddressWorker: checkPaymentAddressWorker,
+  ChargeDeclinedReminderWorker: chargeDeclinedReminderWorker,
   ContentModerationAdminCommentJob: contentModerationAdminCommentJob,
   CreateMissingPurchaseEventsWorker: createMissingPurchaseEventsWorker,
   CreateStripeApplePayDomainWorker: createStripeApplePayDomainWorker,
@@ -79,6 +88,8 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   EnqueueMarketingXReconnectEmailJob: enqueueMarketingXReconnectEmailJob,
   ExpireStampedPdfsJob: expireStampedPdfsJob,
   FindExpiredSubscriptionsToSetAsDeactivatedWorker: findExpiredSubscriptionsToSetAsDeactivatedWorker,
+  FindSubscriptionsWithMissingChargeWorker: findSubscriptionsWithMissingChargeWorker,
+  FreeTrialExpiringReminderWorker: freeTrialExpiringReminderWorker,
   ForceFinishLongRunningCommunityChatRecapRunsJob: forceFinishLongRunningCommunityChatRecapRunsJob,
   HandleSnsAwsConfigEventWorker: handleSnsAwsConfigEventWorker,
   HandleStripeAutodebitForNegativeBalance: handleStripeAutodebitForNegativeBalance,
@@ -90,12 +101,15 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   SendToElasticsearchWorker: sendToElasticsearchWorker,
   RecalculateRecentWishlistFollowerCountJob: recalculateRecentWishlistFollowerCountJob,
   RecoverAusBacktaxFromStripeAccountJob: recoverAusBacktaxFromStripeAccountJob,
+  RecurringChargeReminderWorker: recurringChargeReminderWorker,
   RecoverAusBacktaxesFromStripeAccountsJob: recoverAusBacktaxesFromStripeAccountsJob,
   RefreshMerchantAccountProductsRecommendationEligibilityJob: refreshMerchantAccountProductsRecommendationEligibilityJob,
   RefreshUserProductsRecommendationEligibilityJob: refreshUserProductsRecommendationEligibilityJob,
   ReindexRecommendableProductsWorker: reindexRecommendableProductsWorker,
   ReindexSubscriptionCurrentEmailWorker: reindexSubscriptionCurrentEmailWorker,
   ReleaseChargebackRatePayoutPausesJob: releaseChargebackRatePayoutPausesJob,
+  ReviewReminderJob: reviewReminderJob,
+  SendAutoInvoiceEmailJob: sendAutoInvoiceEmailJob,
   SendCommunityChatRecapNotificationsJob: sendCommunityChatRecapNotificationsJob,
   SendMarketingXReconnectEmailJob: sendMarketingXReconnectEmailJob,
   SendRentalExpiresSoonEmailWorker: sendRentalExpiresSoonEmailWorker,

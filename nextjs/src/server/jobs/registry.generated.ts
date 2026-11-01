@@ -419,7 +419,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ChargePreorderWorker": {
     "file": "app/sidekiq/charge_preorder_worker.rb",
@@ -1244,7 +1244,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "FlushDeliveredEmailInfosJob": {
     "file": "app/sidekiq/flush_delivered_email_infos_job.rb",
@@ -1301,7 +1301,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "GenerateCanadaSalesReportJob": {
     "file": "app/sidekiq/generate_canada_sales_report_job.rb",
@@ -2165,7 +2165,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RecurringChargeWorker": {
     "file": "app/sidekiq/recurring_charge_worker.rb",
@@ -2720,7 +2720,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ScheduleAbandonedCartEmailsJob": {
     "file": "app/sidekiq/schedule_abandoned_cart_emails_job.rb",
@@ -2823,7 +2823,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SendBundlesMarketingEmailJob": {
     "file": "app/sidekiq/send_bundles_marketing_email_job.rb",
