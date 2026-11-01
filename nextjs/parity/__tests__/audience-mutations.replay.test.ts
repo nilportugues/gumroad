@@ -157,7 +157,12 @@ describe.skipIf(!url)("mutations of the emails and workflows pages", () => {
     compare: name.includes("404") ? { ignore: [...COMPARE.ignore, "response.body"] } : name.includes("publishes-a-workflow")
         ? // SecureRandom.uuid tokens of the schedule intents and the jobs that carry them
           { ignore: [...COMPARE.ignore, "db.workflow_installment_schedule_intents.inserted.*.token", "db.workflow_installment_schedule_intents.inserted.*.dispatch_token", "jobs.*.args.*"] }
-        : name.includes("numeric-suffix") ? { ignore: [...COMPARE.ignore, "db.installments.inserted.*.slug"] } : COMPARE,
+        : name.includes("numeric-suffix") ? { ignore: [...COMPARE.ignore, "db.installments.inserted.*.slug"] }
+        : name.includes("schedules-an-email")
+          ? // The posted 2099 date canonicalizes to hours from now, which shrinks as the fixture ages;
+            // save-installment.golden.json pins the stored value.
+            { ignore: [...COMPARE.ignore, "db.installment_rules.inserted.*.to_be_published_at"] }
+          : COMPARE,
     file,
   });
 
