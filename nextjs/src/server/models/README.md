@@ -164,7 +164,7 @@ Still Ruby-only: everything else in purchase.rb (4.6k lines of callbacks, money 
 `recurrence`/`period` (the price, or the installment plan and its snapshot), `end_time_of_subscription`,
 `end_time_of_last_paid_period`, `overdue_for_charge?`, `seconds_overdue_for_charge`, `indian_card_mandate_held?`,
 `send_renewal_reminders?`, `india_card_mandate_reliability_enabled?` (renewal merchant account, Flipper, the order's
-purchase count) and `current_subscription_price_cents`. `belongs_to`/`has_one` associations load once per record, as in
+purchase count) and `current_subscription_price_cents` (see "Renewal pricing" below). `belongs_to`/`has_one` associations load once per record, as in
 ActiveRecord; relation reads (`purchases.last`, `successful_purchases`) query every time and lean on the query cache. Methods
 call each other as the Ruby does, repeats included, so cache hits and the statements after a cache clear match.
 `Time + n.months` is `advance` (day clamped to the target month's end: 31 January + 1 month is 28 February, 29 February
@@ -172,14 +172,42 @@ call each other as the Ruby does, repeats included, so cache hits and the statem
 
 Refused with `NotPortedError` (so the job is handed back to Rails before its first write):
 
-- `current_subscription_price_cents` for an installment plan, for an original purchase with an offer code or a
-  `purchase_offer_code_discount`, and when the product or its seller has a renewal-eligible offer code (the discount maths in
-  `compute_auto_renewal_offer_code`). The plain case is `original_purchase.displayed_price_cents`.
+- `current_subscription_price_cents` of an installment plan whose original purchase was discounted for purchasing power
+  parity by a seller who enabled it, with no offer code: that price multiplies by `PurchasingPowerParityService#get_factor`
+  (the country factors in Redis and `Compliance::Countries`), which is not ported.
+- An offer code whose `ownership_duration_tiers` is not an Array of Hashes, or whose tiers start in the same month (the
+  validations rule both out; `sort_by` is not stable).
 - `merchant_migration_enabled?` for a seller with the `merchant_migration` flag on and a compliance record (it needs
   Stripe Connect's country lists).
 - A Charge without a successful purchase (`Charge#purchaser` is a delegation to `purchase_as_chargeable`).
 - Mailer arguments whose Ruby `#inspect` is not ported (`SentEmailInfo.mailer_key_digest` takes Integers, nil, booleans and
   plain ASCII Strings).
+
+#### Renewal pricing (WS-48)
+
+`subscription-pricing.ts` is `Subscription#current_subscription_price_cents`: an installment plan charges
+`original_purchase.minimum_paid_price_cents`; a membership charges the original purchase's price, less the discount it keeps
+(`reuse_original_discount_on_next_charge?`, `discount_applies_to_next_charge?` and the pay-what-you-want undo of a tiered code
+in `cached_tiered_pwyw_renewal_pre_discount_total_cents`) or the best renewal-eligible code (`compute_auto_renewal_offer_code`:
+the product's, the seller's universal ones and the original tiered code, each checked by `eligible_auto_renewal_offer_code?`
+and `evaluate_for_buyer`). `offer-code.ts` is the read side of `OfferCode`: `amount_off`, `original_price`, tiers, usage limits
+(`times_used`, `active_once_per_cart_reservations`), `discount`, `ownership_months_for`. `purchase-pricing.ts` is the part of
+`Purchase` it needs: `minimum_paid_price_cents` for a purchase that is not a recurring or pre-order charge,
+`displayed_price_cents_before_offer_code`, `minimum_paid_price_cents_per_unit_before_discount`, `offer_code_for_pricing`
+and `offer_code_applies_to_selected_variant?`.
+
+Integer cents, with the Float steps Ruby has (`price * (percentage / 100.0)`, the commission deposit) rounded half away from
+zero by `rubyRound` (`concerns/ruby-numeric.ts`, `Math.round` rounds a negative half up). `PurchaseRecord` and
+`OfferCodeRecord` load each association once, like the ActiveRecord objects; the original purchase's `subscription` is the
+subscription it was loaded through (`has_one` sets the inverse), so its `last_payment_option` and `price` are shared. Methods
+send the statements the Ruby does even when the answer is not read (`OfferCode#discount` loads the products only to list their
+ids; a fixed code reads the unit price it never uses), because the query cache and the statement list both depend on them.
+
+Golden: the `price:` cases of `worker/jobs/__fixtures__/subscription-reminder-jobs.golden.json` run
+`current_subscription_price_cents` alone (the cents and every statement), and the `missing charge:` cases run the sweep around
+it. The arithmetic is also checked on 12,300 seeded inputs against the real Ruby methods
+(`__fixtures__/offer-code-pricing-vectors.golden.json`, `scripts/golden/offer-code-pricing-vectors.rb`; test:
+`models/offer-code-pricing.test.ts`).
 
 Time is a JavaScript Date, so microseconds in `datetime(6)` columns (`free_trial_ends_at`, `cancelled_at`) are rounded to
 milliseconds; a comparison with `Time.current` within a millisecond of equal could differ.

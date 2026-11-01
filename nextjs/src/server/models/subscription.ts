@@ -1,6 +1,7 @@
 // Read side of app/models/subscription.rb: the flags and the scopes the deactivation sweep uses, and
 // the period logic the reminder jobs read (`alive?`, `end_time_of_subscription`, `overdue_for_charge?`,
-// free trials, recurrence and `current_subscription_price_cents` for the shapes Node can price).
+// free trials, recurrence and `current_subscription_price_cents`, whose offer-code and installment-plan pricing lives in
+// subscription-pricing.ts).
 // Nothing here writes a subscriptions row.
 //
 // A `SubscriptionRecord` mirrors one loaded ActiveRecord object: `belongs_to` and `has_one`
@@ -20,6 +21,7 @@ import { findById, findOneBy } from "./row-reads.ts";
 import { castRow, column, quoteName, selectRows, table } from "./sql.ts";
 import { NotPortedError, UserFlags } from "./user.ts";
 import { PurchaseFlags } from "../search/flags.ts";
+import { currentSubscriptionPriceCents } from "./subscription-pricing.ts";
 
 export const SUBSCRIPTIONS = "subscriptions";
 
@@ -447,30 +449,8 @@ export class SubscriptionRecord {
 
   // ----- price
 
-  // `current_subscription_price_cents` for a membership with no offer code anywhere near it. Any
-  // discount, tier price or installment plan needs OfferCode and Purchase price logic that is not
-  // ported, and raises NotPortedError (before the caller has written anything).
-  async currentSubscriptionPriceCents(): Promise<number | null> {
-    if (this.flag("is_installment_plan")) throw new NotPortedError("Subscription#current_subscription_price_cents for an installment plan", "subscription.rb:221");
-    const original = await this.originalPurchase();
-    if (original === null) throw nilReceiver("purchase_offer_code_discount");
-    const discount = await this.loaded("original_discount", () => findOneBy<Record<string, unknown>>("PurchaseOfferCodeDiscount", "purchase_id", original.id));
-    if (discount !== null || original.offer_code_id !== null) throw new NotPortedError("a subscription renewed with an offer code", "subscription.rb:1959");
-
-    // compute_auto_renewal_offer_code(user): candidates are the product's and the seller's renewal-eligible codes.
-    await this.user();
-    const link = await this.link();
-    if (link !== null) {
-      const owner = await this.loaded("link_user", () => findById<User>("User", link.user_id));
-      if (owner === null) throw nilReceiver("offer_codes");
-      const productCodes = await selectRows(
-        Prisma.sql`SELECT ${star("offer_codes")} FROM ${table("offer_codes")} INNER JOIN ${table("offer_codes_products")} ON ${column("offer_codes", "id")} = ${column("offer_codes_products", "offer_code_id")} WHERE ${column("offer_codes_products", "product_id")} = ${link.id} AND ${column("offer_codes", "deleted_at")} IS NULL AND (existing_customers_only = '1' OR JSON_LENGTH(ownership_duration_tiers) > 0)`,
-      );
-      const universalCodes = await selectRows(
-        Prisma.sql`SELECT ${star("offer_codes")} FROM ${table("offer_codes")} WHERE ${column("offer_codes", "user_id")} = ${owner.id} AND (universal = 1 and (currency_type = ${link.price_currency_type} or currency_type is null)) AND ${column("offer_codes", "deleted_at")} IS NULL AND (NOT EXISTS (SELECT 1 FROM offer_codes_excluded_products WHERE offer_codes_excluded_products.offer_code_id = offer_codes.id AND offer_codes_excluded_products.product_id = ${String(link.id)})) AND (existing_customers_only = '1' OR JSON_LENGTH(ownership_duration_tiers) > 0)`,
-      );
-      if (productCodes.length + universalCodes.length > 0) throw new NotPortedError("a subscription whose product has renewal offer codes", "subscription.rb:1867");
-    }
-    return original.displayed_price_cents;
+  // `current_subscription_price_cents`: subscription-pricing.ts.
+  currentSubscriptionPriceCents(): Promise<number | null> {
+    return currentSubscriptionPriceCents(this);
   }
 }

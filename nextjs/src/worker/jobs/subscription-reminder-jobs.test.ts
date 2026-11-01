@@ -3,6 +3,8 @@
 // statements Rails sent, given the same answers, queue the same Sidekiq payloads and fail with the
 // same errors. Cases Node hands back stop at the last statement it can decide on, which must be a
 // prefix of Rails' statements, with nothing pushed.
+// The `price:` cases run Subscription#current_subscription_price_cents on its own (Ws48PriceProbe in
+// the script) and also pin the cents it answered.
 // Cases that push a unique job need JOBS_REDIS_URL (a scratch database) and are skipped without it.
 import { readFileSync } from "node:fs";
 
@@ -10,9 +12,12 @@ import { Redis } from "ioredis";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { evaluateFeature, parseGateValues } from "../../server/infra/flipper.ts";
+import { beforeSideEffects } from "../../server/jobs/hand-back.ts";
 import { createJobsRuntime } from "../../server/jobs/runtime.ts";
 import { parseRubyJson, RubyFloat, type JsonValue } from "../../server/jobs/sidekiq/ruby-json.ts";
 import { mailerKeyDigest } from "../../server/models/sent-email-info.ts";
+import { findByIdBang, recordIdFrom } from "../../server/models/row-reads.ts";
+import { defaultSubscriptionDeps, SubscriptionRecord } from "../../server/models/subscription.ts";
 import { asSidekiqJob, contextFor, recordingSidekiqRedis, rubyRuntimeRegistry, sequentialJids, snapshotRedis, type RedisSnapshot } from "./__fixtures__/golden.ts";
 import { sqlReplay, type Statement } from "./__fixtures__/sql-replay.ts";
 import {
@@ -35,6 +40,10 @@ type Case = {
   redis: RedisSnapshot;
   redis_before: RedisSnapshot;
   eligibility_statements?: number;
+  // The cents a `price:` case answered.
+  result?: number | null;
+  // Node cannot price the case (it hands the job back to Rails).
+  hand_back?: boolean;
 };
 const golden = parseRubyJson(readFileSync(new URL("./__fixtures__/subscription-reminder-jobs.golden.json", import.meta.url), "utf8")) as unknown as {
   digests: [JsonValue[], string][];
@@ -51,10 +60,17 @@ function featureActive(before: RedisSnapshot) {
 
 const caseNow = (c: Case) => (typeof c.case_now === "number" ? c.case_now : c.case_now.value);
 
+let probeResult: number | null | undefined;
+
 const handlers = (c: Case): Record<string, JobHandler> => {
   const now = () => new Date(Math.round(caseNow(c) * 1000));
   const extras = { featureActive: featureActive(c.redis_before) };
   return {
+    Ws48PriceProbe: async (args) => {
+      const subscription = await findByIdBang<Record<string, unknown>>("Subscription", recordIdFrom(args[0], "Subscription.find"));
+      // A price Node cannot work out hands the job back, as the sweep does.
+      probeResult = await beforeSideEffects(() => new SubscriptionRecord(subscription as never, { now, featureActive: extras.featureActive ?? defaultSubscriptionDeps.featureActive }).currentSubscriptionPriceCents());
+    },
     FreeTrialExpiringReminderWorker: freeTrialExpiringReminderWorkerWith({ now }, extras),
     ChargeDeclinedReminderWorker: chargeDeclinedReminderWorkerWith({ now }, extras),
     RecurringChargeReminderWorker: recurringChargeReminderWorkerWith({ now }, extras),
@@ -64,10 +80,9 @@ const handlers = (c: Case): Record<string, JobHandler> => {
   };
 };
 
-// Pricing a renewal with an offer code or an installment plan is not ported, and CustomerMailer.auto_invoice
-// is delivered inline by Rails.
-const handsBack = (c: Case) =>
-  (c.eligibility_statements !== undefined && c.statements.length > c.eligibility_statements) || (c.job === "FindSubscriptionsWithMissingChargeWorker" && /offer code|installment plan/u.test(c.name));
+// CustomerMailer.auto_invoice is delivered inline by Rails, and a purchasing-power-parity price needs
+// the country factors.
+const handsBack = (c: Case) => (c.eligibility_statements !== undefined && c.statements.length > c.eligibility_statements) || c.hand_back === true;
 
 const withoutJobIds = (value: unknown) => JSON.stringify(value).replace(/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}/gu, "JOB_ID");
 const takesLocks = (redis: RedisSnapshot) => Object.keys(redis).some((key) => key.startsWith("uniquejobs"));
@@ -112,6 +127,7 @@ describe("subscription reminder jobs", () => {
       }
       const runtime = createJobsRuntime({ sidekiqRedis, bullmqRedis: sidekiqRedis, registry: rubyRuntimeRegistry(), now: () => caseNow(c), newJid: sequentialJids() });
       let error: unknown = null;
+      probeResult = undefined;
       try {
         await asSidekiqJob(() => handlers(c)[c.job]!(c.args, contextFor(runtime)), caseNow(c));
       } catch (e) {
@@ -127,6 +143,7 @@ describe("subscription reminder jobs", () => {
       }
       expect(sql.log).toEqual(sql.expected);
       expect(error === null ? null : (error as Error).message).toEqual(c.error?.message ?? null);
+      if (c.job === "Ws48PriceProbe" && c.error === null) expect(probeResult).toEqual(c.result);
       expect(JSON.parse(withoutJobIds(await snapshot()))).toEqual(JSON.parse(withoutJobIds(withoutSetup(c.redis, c.redis_before))));
     });
   }
