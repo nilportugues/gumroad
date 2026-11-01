@@ -66,7 +66,7 @@ export type ActionResult = Rendered | Redirected | ForceRefresh;
 // `raise ActionController::RoutingError, "Not Found"` (ApplicationController#e404).
 export class RoutingError extends Error {}
 
-export type BeforeAction = "redirect_to_custom_subdomain";
+export type BeforeAction = "redirect_to_custom_subdomain" | "check_suspended";
 
 // The request is one Rails serves: the port cannot prove what it would answer, so the whole request
 // goes to Rails instead of a guess.
@@ -357,7 +357,7 @@ export async function beforeActions(request: RailsRequest, options: ActionOption
   }
 
   if (!railsLoggedInUser(auth.context)) setSignupReferrer(request, session, config.rootDomain);
-  if (suspendedWriteRequest(auth, request)) return refuseSuspendedWrite(chain);
+  if (!options.skip?.includes("check_suspended") && suspendedWriteRequest(auth, request)) return refuseSuspendedWrite(chain);
   chain.guid = gumroadGuidCookie(request, now);
   if (!RECOMMENDER_MODELS.includes(session.data.recommender_model_name as string)) {
     session.data.recommender_model_name = RECOMMENDER_MODELS[Math.floor(Math.random() * RECOMMENDER_MODELS.length)];
