@@ -19,6 +19,9 @@ const sharedPackages = [
   "@radix-ui/react-popover",
   "@radix-ui/react-slot",
   "class-variance-authority",
+  "classnames",
+  "clipboard",
+  "date-fns",
   "cn",
 ];
 

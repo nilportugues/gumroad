@@ -20,6 +20,7 @@ import type { PreflightOutcome, PreflightRequest } from "./preflight.ts";
 import { PUBLIC_PAGES } from "./public-pages.ts";
 import { AUDIENCE_PAGES } from "./audience/pages.ts";
 import type { ActionContext } from "./load-page.ts";
+import { DASHBOARD_PAGES } from "./dashboard-pages.ts";
 import { SETTINGS_PAGES } from "./settings/pages.ts";
 
 type Params = Record<string, string>;
@@ -116,6 +117,7 @@ export const PAGES: Record<string, PageSpec> = {
   },
   ...SETTINGS_PAGES,
   ...PUBLIC_PAGES,
+  ...DASHBOARD_PAGES,
 };
 
 // ArticlesController#index
