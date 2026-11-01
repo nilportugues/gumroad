@@ -37,12 +37,23 @@ const COMPARE = {
     "response.headers.link",
     "response.headers.vary",
     "response.cookies.XSRF-TOKEN.value",
+    // Minted per response.
+    "response.inertia.props.csp_nonce",
+    "response.inertia.props.authenticity_token",
+    "response.inertia.props._inertia_meta.2.content",
+    "response.json.props.csp_nonce",
+    "response.json.props.authenticity_token",
+    "response.json.props._inertia_meta.2.content",
     "response.cookies.__profilin",
     "db.versions",
   ],
 };
 
 type Case = { name: string; file: string; index: number; served: boolean; status: number; ignore: string[] };
+
+// The fixtures whose page the port renders (byte parity of status, headers, cookies and the Inertia page); every
+// other request that would render is handed back to Rails and must reach the stand-in origin.
+const RENDERED = new Set(["on-a-seller-subdomain-renders-a-digital-product"]);
 
 // The route gate (hostKindOf) sends a host that no alive seller owns to Rails whole: its catch-all is the 404.
 const GATE_HANDS_BACK = new Set(["product-page-on-a-seller-subdomain-is-a-404-for-a-product-of-a-deleted-seller"]);
@@ -58,7 +69,7 @@ const cases: Case[] = readdirSync(DIR)
     // The cookie's value is the time it was set.
     const affiliate = Object.keys(response.cookies ?? {}).filter((name) => name.startsWith("_gumroad_affiliate_id_"));
     const name = file.replace(/\.json$/, "");
-    return { name, file: path.join(DIR, file), index, served: served && !GATE_HANDS_BACK.has(name), status: response.status, ignore: affiliate.map((name) => `response.cookies.${name}.value`) };
+    return { name, file: path.join(DIR, file), index, served: (served || RENDERED.has(name.replace(/^product-page-/, ""))) && !GATE_HANDS_BACK.has(name), status: response.status, ignore: affiliate.map((name) => `response.cookies.${name}.value`) };
   });
 
 describe.skipIf(!url)("Product page parity", () => {
@@ -87,6 +98,11 @@ describe.skipIf(!url)("Product page parity", () => {
       NEXTJS_ROUTE_FLAGS: "nextjs_product_page",
       RAILS_ORIGIN: `http://127.0.0.1:${(rails.address() as AddressInfo).port}`,
       SECRET_KEY_BASE,
+      // The keys the test environment of the recording configured (.env.test).
+      ...(envTest.match(/^(STRIPE_PUBLIC_KEY_TEST|RECAPTCHA_MONEY_SITE_KEY)=(.+)$/gm) ?? []).reduce<Record<string, string>>((env, line) => {
+        const [name, ...value] = line.split("=");
+        return { ...env, [name!]: value.join("=") };
+      }, {}),
       DATABASE_URL: url!,
       REDIS_HOST: redisHost,
     });

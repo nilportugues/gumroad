@@ -488,3 +488,5 @@ export const analytics_data_by_date_path = path("/analytics/data/by_date(.:forma
 export const analytics_data_by_state_path = path("/analytics/data/by_state(.:format)");
 export const analytics_data_by_referral_path = path("/analytics/data/by_referral(.:format)");
 export const export_purchases_path = path("/purchases/export(.:format)");
+export const edit_link_url = url("/products/:id/edit(.:format)");
+export const sections_link_path = path("/links/:id/sections(.:format)");
