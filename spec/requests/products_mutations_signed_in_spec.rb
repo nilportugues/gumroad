@@ -148,6 +148,57 @@ describe "Products mutations when signed in", type: :request do
     expect(product.reload.purchase_disabled_at).to be_nil
   end
 
+  it "deletes a product and schedules the cleanup of what it held", parity: true do
+    product
+    log_in(seller)
+
+    send_json(:delete, link_path(product.unique_permalink))
+
+    expect(response.parsed_body).to eq("success" => true)
+    expect(product.reload).to be_deleted
+  end
+
+  it "cancels the subscriptions of a deleted membership later", parity: true do
+    membership = create(:membership_product, user: seller, unique_permalink: "delmem")
+    create(:subscription, link: membership)
+    log_in(seller)
+
+    send_json(:delete, link_path(membership.unique_permalink))
+
+    expect(response.parsed_body).to eq("success" => true)
+    expect(CancelSubscriptionsForProductWorker.jobs.size).to eq(1)
+  end
+
+  it "answers 404 when deleting a product of another seller", parity: true do
+    other = create(:product, unique_permalink: "notmine")
+    log_in(seller)
+
+    send_json(:delete, link_path(other.unique_permalink))
+
+    expect(response).to have_http_status(:not_found)
+    expect(other.reload).not_to be_deleted
+  end
+
+  it "does not let a support team member delete a product", parity: true do
+    product
+    team_member(TeamMembership::ROLE_SUPPORT)
+
+    send_json(:delete, link_path(product.unique_permalink))
+
+    expect(response).to have_http_status(:unauthorized)
+    expect(product.reload).not_to be_deleted
+  end
+
+  it "hands a deletion of a product shown in a profile section back to Rails", parity: true do
+    section = create(:seller_profile_products_section, seller:, shown_products: [product.id])
+    log_in(seller)
+
+    send_json(:delete, link_path(product.unique_permalink))
+
+    expect(response.parsed_body).to eq("success" => true)
+    expect(section.reload.shown_products).to eq([])
+  end
+
   it "unpublishes a tiered membership", parity: true do
     membership = create(:membership_product, user: seller, unique_permalink: "tiermem")
     log_in(seller)

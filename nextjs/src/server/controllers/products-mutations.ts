@@ -4,7 +4,9 @@
 import { Prisma, type Link, type User } from "@prisma/client";
 
 import { railsLoggedInUser } from "../auth/resolve.ts";
-import { LinkFlags, Links, type LinkRecord } from "../models/link.ts";
+import { LinkDeletable, LinkFlags, Links, type LinkRecord } from "../models/link.ts";
+import { performAsync } from "../models/concerns/job-runtime.ts";
+import { SubscriptionFlags } from "../models/subscription.ts";
 import { castRow, column, selectRows, table } from "../models/sql.ts";
 import { NotPortedError } from "../models/user.ts";
 import { notAllowedMessage } from "../page-props/settings/guard.ts";
@@ -81,7 +83,55 @@ const startedAt = (): (() => Date) => {
   return () => at;
 };
 
+const DELETE_JOBS_DELAY_SECONDS = 10 * 60;
+
+// What Link#delete! also touches, which the port does not write: refuse before the first write.
+async function refuseUnportedDeleteSideEffects(product: LinkRecord): Promise<void> {
+  const id = product.get("id");
+  const present = async (sql: Prisma.Sql) => (await selectRows(sql)).length > 0;
+  if (
+    await present(
+      Prisma.sql`SELECT 1 FROM ${table("seller_profile_sections")} WHERE ${column("seller_profile_sections", "seller_id")} = ${product.get("user_id")} AND (
+        (${column("seller_profile_sections", "type")} = 'SellerProfileFeaturedProductSection' AND CAST(JSON_EXTRACT(${column("seller_profile_sections", "json_data")}, "$.featured_product_id") AS UNSIGNED) = ${id})
+        OR (${column("seller_profile_sections", "type")} = 'SellerProfileProductsSection' AND JSON_CONTAINS(JSON_EXTRACT(${column("seller_profile_sections", "json_data")}, "$.shown_products"), CAST(${id} AS JSON)))) LIMIT 1`,
+    )
+  ) {
+    throw new NotPortedError("Link#delete! on a product shown in a profile section", "app/models/link.rb:2167");
+  }
+  if (await present(Prisma.sql`SELECT 1 FROM ${table("custom_domains")} WHERE ${column("custom_domains", "product_id")} = ${id} AND ${column("custom_domains", "deleted_at")} IS NULL LIMIT 1`)) {
+    throw new NotPortedError("Link#delete! of a product with a custom domain", "app/models/link.rb:565");
+  }
+  if (await present(Prisma.sql`SELECT 1 FROM ${table("public_files")} WHERE ${column("public_files", "resource_id")} = ${id} AND ${column("public_files", "resource_type")} = 'Link' AND ${column("public_files", "deleted_at")} IS NULL LIMIT 1`)) {
+    throw new NotPortedError("Link#delete! of a product with public files", "app/models/link.rb:566");
+  }
+}
+
 registerMutations(
+  {
+    method: "DELETE",
+    pattern: "/links/:id",
+    json: true,
+    async run(input) {
+      const found = await find(input, "ownership", (context) => authorize(linkPolicy.destroy, context));
+      if (found.halt) return found.halt;
+      await refuseUnportedDeleteSideEffects(found.product);
+      const now = startedAt();
+      const product = found.product;
+      const id = product.get("id");
+      await LinkDeletable.markDeletedBang(product, { now });
+      // Subscription.active: not a test subscription, not failed or ended, not cancelled before now
+      const [active] = await selectRows(
+        Prisma.sql`SELECT 1 FROM ${table("subscriptions")} WHERE ${column("subscriptions", "link_id")} = ${id} AND ${SubscriptionFlags.condition("is_test_subscription", false)} AND ${column("subscriptions", "failed_at")} IS NULL AND ${column("subscriptions", "ended_at")} IS NULL AND (${column("subscriptions", "cancelled_at")} IS NULL OR ${column("subscriptions", "cancelled_at")} > ${now()}) LIMIT 1`,
+      );
+      const delayed = { delaySeconds: DELETE_JOBS_DELAY_SECONDS };
+      if (active) await performAsync("CancelSubscriptionsForProductWorker", [id], delayed);
+      await performAsync("DeleteProductFilesWorker", [id], delayed);
+      await performAsync("DeleteProductRichContentWorker", [id], delayed);
+      await performAsync("DeleteProductFilesArchivesWorker", [id, null], delayed);
+      await performAsync("DeleteWishlistProductsJob", [id], delayed);
+      return json({ success: true });
+    },
+  },
   {
     method: "POST",
     pattern: "/products/archived",

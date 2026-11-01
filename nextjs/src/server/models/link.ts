@@ -46,11 +46,12 @@ const REPUTATION_SUMMARY_FEATURE = "seller_reputation_summary";
 // Product::Searchable::ATTRIBUTE_TO_SEARCH_FIELDS_MAP, for the columns a ported update can change.
 const ATTRIBUTE_TO_SEARCH_FIELDS: Record<string, string[]> = {
   purchase_disabled_at: ["is_recommendable", "is_alive_on_profile", "is_alive"],
+  deleted_at: ["is_recommendable", "is_alive_on_profile", "is_alive"],
   banned_at: ["is_recommendable", "is_alive_on_profile", "is_alive"],
   archived: ["is_recommendable", "is_alive_on_profile"],
 };
 // The columns an update may change; Rails' own callbacks also write updated_at and json_data. `flags` is ported for the archived bit only.
-const PORTED_CHANGES = ["banned_at", "purchase_disabled_at", "flags"];
+const PORTED_CHANGES = ["banned_at", "purchase_disabled_at", "flags", "deleted_at"];
 const ARCHIVED_BIT = 1n << 4n;
 
 export const NATIVE_TYPES_TO_TAX_CODE = {
