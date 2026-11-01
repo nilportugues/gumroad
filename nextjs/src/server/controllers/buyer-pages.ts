@@ -95,6 +95,8 @@ export type SignedInPage = {
   authorize: (context: SellerContext) => boolean;
   // Filters the controller declares after authenticate_user!, before the action.
   beforeAction?: (chain: Chain, context: AuthorizedSellerContext) => Promise<Redirected | null>;
+  // The action's own redirects, after `authorize` and before it renders.
+  action?: (chain: Chain, context: AuthorizedSellerContext) => Promise<Redirected | null>;
   // What the action reads from the request and hands the props (`action.state`).
   state?: (chain: Chain, context: AuthorizedSellerContext) => Promise<Record<string, unknown>>;
 };
@@ -122,6 +124,8 @@ export function signedInFilters(page: SignedInPage) {
       const switched = new URLSearchParams(chain.request.queryString).has("account_switched");
       return { halt: { status: 302, location: "/dashboard", rescued: true, ...(switched ? {} : { flash: { alert: notAllowedMessage(context) } }) } };
     }
+    const redirected = await page.action?.(chain, signedIn);
+    if (redirected) return { halt: redirected };
     return { state: (await page.state?.(chain, signedIn)) ?? {} };
   };
 }
