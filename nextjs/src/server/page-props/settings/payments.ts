@@ -40,7 +40,7 @@ import { isFlagged, isOnProbation, isSuspended, jsonDataForAttr, payoutsPausedBy
 import { settingsPaymentsUserPolicy } from "../../policies/settings/payments-user.ts";
 import { settingsProfilePolicy } from "../../policies/settings/profile.ts";
 import type { SellerContext } from "../../policies/seller-context.ts";
-import { nativePayoutsSupported, noPayoutRailInComplianceCountry } from "../signed-in/data.ts";
+import { guardianHasCompletedInfo, nativePayoutsSupported, noPayoutRailInComplianceCountry } from "../signed-in/data.ts";
 import { NotPortedError } from "../not-ported.ts";
 import DATA from "./payments-data.generated.json" with { type: "json" };
 import { settingsPages } from "./presenter.ts";
@@ -600,28 +600,6 @@ function complianceInfoDetails(info: ComplianceInfo["row"]) {
   };
 }
 
-// Guardian#has_completed_info?
-function guardianCompleted(guardian: Guardian): boolean {
-  if (guardian.deleted_at !== null) return false;
-  const code = present(guardian.country_code ?? undefined) ? guardian.country_code : alpha2ByName(guardian.country);
-  const stateRequired = (C.countriesWithStateList as string[]).includes(code ?? "");
-  return (
-    present(guardian.first_name ?? undefined) &&
-    present(guardian.last_name ?? undefined) &&
-    present(guardian.email ?? undefined) &&
-    guardian.date_of_birth !== null &&
-    present(guardian.street_address ?? undefined) &&
-    present(guardian.city ?? undefined) &&
-    (!stateRequired || present(guardian.state ?? undefined)) &&
-    present(guardian.zip_code ?? undefined) &&
-    present(guardian.country ?? undefined) &&
-    !isStrongboxBlank(guardian.individual_tax_id) &&
-    guardian.stripe_tos_accepted &&
-    guardian.stripe_tos_accepted_at !== null &&
-    present(guardian.stripe_tos_ip ?? undefined)
-  );
-}
-
 // GuardianPresenter#props
 const guardianProps = (guardian: Guardian) => ({
   id: externalId(guardian.id),
@@ -638,7 +616,7 @@ const guardianProps = (guardian: Guardian) => ({
   nationality: guardian.nationality,
   has_individual_tax_id: !isStrongboxBlank(guardian.individual_tax_id),
   accepted_terms: guardian.stripe_tos_accepted && guardian.stripe_tos_accepted_at !== null && present(guardian.stripe_tos_ip ?? undefined),
-  has_completed_info: guardianCompleted(guardian),
+  has_completed_info: guardianHasCompletedInfo(guardian),
 });
 
 // SettingsPresenter#legal_guardian_details
@@ -655,7 +633,7 @@ async function legalGuardianDetails(facts: Facts) {
   const code = countryCode(row);
   const required = underAge && supported.includes(code ?? "");
   const unsupported = underAge && present(code ?? undefined) && !supported.includes(code ?? "");
-  const requirementMet = unsupported ? false : required ? guardian !== null && guardianCompleted(guardian) : true;
+  const requirementMet = unsupported ? false : required ? guardian !== null && guardianHasCompletedInfo(guardian) : true;
   return {
     required,
     unsupported,

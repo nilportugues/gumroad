@@ -1,0 +1,4674 @@
+{
+  "version": 1,
+  "spec": "spec/requests/settings_payments_profile_signed_in_spec.rb",
+  "example": "Payments, profile and application settings when signed in payments shows an Australian seller who owes backtaxes and has opted in",
+  "sessionCookie": "_gumroad_app_session_test",
+  "secretKeyBase": "af376e19a54e25cdf38852f5081c44e7a6056c086180acdf0b024eb3a5074d00b66c6d0699f70e1f71b754317d52726c9af34bec18125982883b4df68e3d64e8",
+  "exchanges": [
+    {
+      "seed": {
+        "tables": {
+          "affiliates": {
+            "columns": {
+              "id": "int",
+              "seller_id": "int",
+              "affiliate_user_id": "int",
+              "affiliate_basis_points": "int",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "flags": "int",
+              "destination_url": "varchar",
+              "type": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": null,
+                "affiliate_user_id": 1,
+                "affiliate_basis_points": 1000,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "flags": 0,
+                "destination_url": null,
+                "type": "GlobalAffiliate"
+              },
+              {
+                "id": 2,
+                "seller_id": null,
+                "affiliate_user_id": 2,
+                "affiliate_basis_points": 1000,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "flags": 0,
+                "destination_url": null,
+                "type": "GlobalAffiliate"
+              }
+            ]
+          },
+          "australia_backtax_email_infos": {
+            "columns": {
+              "id": "bigint",
+              "user_id": "bigint",
+              "email_name": "varchar",
+              "sent_at": "datetime",
+              "created_at": "datetime",
+              "updated_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "email_name": "email_for_taxes_owed",
+                "sent_at": "<now>",
+                "created_at": "<now>",
+                "updated_at": "<now>"
+              }
+            ]
+          },
+          "backtax_agreements": {
+            "columns": {
+              "id": "bigint",
+              "user_id": "bigint",
+              "jurisdiction": "varchar",
+              "signature": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "flags": "bigint"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "jurisdiction": "AUSTRALIA",
+                "signature": "Edgar Gumstein",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "flags": 0
+              }
+            ]
+          },
+          "balances": {
+            "columns": {
+              "id": "int",
+              "user_id": "int",
+              "date": "date",
+              "amount_cents": "int",
+              "state": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "merchant_account_id": "int",
+              "currency": "varchar",
+              "holding_currency": "varchar",
+              "holding_amount_cents": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "date": "<today>",
+                "amount_cents": 1000,
+                "state": "unpaid",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "merchant_account_id": 1,
+                "currency": "usd",
+                "holding_currency": "usd",
+                "holding_amount_cents": 1000
+              }
+            ]
+          },
+          "comments": {
+            "columns": {
+              "id": "bigint",
+              "commentable_id": "bigint",
+              "commentable_type": "varchar",
+              "author_id": "bigint",
+              "author_name": "varchar",
+              "content": "mediumtext",
+              "comment_type": "varchar",
+              "json_data": "mediumtext",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "purchase_id": "bigint",
+              "ancestry": "varchar",
+              "ancestry_depth": "int",
+              "idempotency_key": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "commentable_id": 1,
+                "commentable_type": "User",
+                "author_id": 2,
+                "author_name": null,
+                "content": "issued $1 credit.",
+                "comment_type": "credit",
+                "json_data": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "purchase_id": null,
+                "ancestry": null,
+                "ancestry_depth": 0,
+                "idempotency_key": null
+              }
+            ]
+          },
+          "credits": {
+            "columns": {
+              "id": "int",
+              "user_id": "int",
+              "amount_cents": "int",
+              "balance_id": "int",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "crediting_user_id": "int",
+              "chargebacked_purchase_id": "int",
+              "merchant_account_id": "int",
+              "dispute_id": "int",
+              "returned_payment_id": "int",
+              "refund_id": "int",
+              "financing_paydown_purchase_id": "int",
+              "fee_retention_refund_id": "int",
+              "backtax_agreement_id": "bigint",
+              "json_data": "text",
+              "reason": "text",
+              "failed_refund_id": "bigint"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "amount_cents": 100,
+                "balance_id": 1,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "crediting_user_id": 2,
+                "chargebacked_purchase_id": null,
+                "merchant_account_id": 1,
+                "dispute_id": null,
+                "returned_payment_id": null,
+                "refund_id": null,
+                "financing_paydown_purchase_id": null,
+                "fee_retention_refund_id": null,
+                "backtax_agreement_id": 1,
+                "json_data": null,
+                "reason": null,
+                "failed_refund_id": null
+              }
+            ]
+          },
+          "merchant_accounts": {
+            "columns": {
+              "id": "bigint",
+              "user_id": "bigint",
+              "acquirer_id": "varchar",
+              "acquirer_merchant_id": "varchar",
+              "charge_processor_id": "varchar",
+              "charge_processor_merchant_id": "varchar",
+              "json_data": "text",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "charge_processor_verified_at": "datetime",
+              "country": "varchar",
+              "currency": "varchar",
+              "charge_processor_deleted_at": "datetime",
+              "charge_processor_alive_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": null,
+                "acquirer_id": null,
+                "acquirer_merchant_id": null,
+                "charge_processor_id": "stripe",
+                "charge_processor_merchant_id": "000000009",
+                "json_data": "{}",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "charge_processor_verified_at": null,
+                "country": "US",
+                "currency": "usd",
+                "charge_processor_deleted_at": null,
+                "charge_processor_alive_at": "<now>"
+              }
+            ]
+          },
+          "refund_policies": {
+            "columns": {
+              "id": "bigint",
+              "seller_id": "bigint",
+              "product_id": "bigint",
+              "title": "varchar",
+              "fine_print": "text",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "max_refund_period_in_days": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": 1,
+                "product_id": null,
+                "title": null,
+                "fine_print": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "max_refund_period_in_days": 30
+              },
+              {
+                "id": 2,
+                "seller_id": 2,
+                "product_id": null,
+                "title": null,
+                "fine_print": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "max_refund_period_in_days": 30
+              }
+            ]
+          },
+          "user_compliance_info": {
+            "columns": {
+              "id": "int",
+              "user_id": "int",
+              "full_name": "varchar",
+              "street_address": "varchar",
+              "city": "varchar",
+              "state": "varchar",
+              "zip_code": "varchar",
+              "country": "varchar",
+              "telephone_number": "varchar",
+              "vertical": "varchar",
+              "is_business": "tinyint",
+              "has_sold_before": "tinyint",
+              "individual_tax_id": "blob",
+              "json_data": "text",
+              "flags": "int",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "business_name": "varchar",
+              "business_street_address": "varchar",
+              "business_city": "varchar",
+              "business_state": "varchar",
+              "business_zip_code": "varchar",
+              "business_country": "varchar",
+              "business_type": "varchar",
+              "business_tax_id": "blob",
+              "birthday": "date",
+              "deleted_at": "datetime",
+              "dba": "varchar",
+              "verticals": "text",
+              "first_name": "varchar",
+              "last_name": "varchar",
+              "stripe_identity_document_id": "varchar",
+              "guardian_id": "bigint"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "full_name": null,
+                "street_address": "address_full_match",
+                "city": "San Francisco",
+                "state": "NSW",
+                "zip_code": "2000",
+                "country": "Australia",
+                "telephone_number": null,
+                "vertical": null,
+                "is_business": 0,
+                "has_sold_before": 0,
+                "individual_tax_id": {
+                  "$base64": "bLP3rHk1BwPnNtGKBfkptEiD6pCxwKtzTy6bYVNTQaxYIOcvXTQVRxChclPMMZHquSIPBIfzi7b72qOEcGvL1SYYRhotM/XbXwAGR1hR5mfDmFXj4XC5L1Pj/mWYBbNqzQKTHx+qpjiSWQvkG74dexhCxGB5mStwb55+i1UDPaFgwRjyWWoedGbDQwV9IDtWvazpq7LSJHb4XKlER1sDj7yQ3/PGK5SReQsZFPdlbSQNNNSFXujszZM+0px6EkosonsdFtpCUS27pou1M73/AhZBoWAzZtg6kKhBN4/b99U9xY5KpWx/qbzjTena8tLU49qnAzWJulcBIdTiHQbcLw=="
+                },
+                "json_data": "{\"phone\":\"0000000000\"}",
+                "flags": 0,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "business_name": null,
+                "business_street_address": null,
+                "business_city": null,
+                "business_state": null,
+                "business_zip_code": null,
+                "business_country": null,
+                "business_type": null,
+                "business_tax_id": null,
+                "birthday": "<today-45960d>",
+                "deleted_at": null,
+                "dba": "Chuckster",
+                "verticals": "---\n- publishing\n",
+                "first_name": "Chuck",
+                "last_name": "Bartowski",
+                "stripe_identity_document_id": null,
+                "guardian_id": null
+              }
+            ]
+          },
+          "users": {
+            "columns": {
+              "id": "bigint",
+              "email": "varchar",
+              "encrypted_password": "varchar",
+              "reset_password_token": "varchar",
+              "reset_password_sent_at": "datetime",
+              "remember_created_at": "datetime",
+              "sign_in_count": "int",
+              "current_sign_in_at": "datetime",
+              "last_sign_in_at": "datetime",
+              "current_sign_in_ip": "varchar",
+              "last_sign_in_ip": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "name": "varchar",
+              "payment_address": "varchar",
+              "confirmed_at": "datetime",
+              "confirmation_token": "varchar",
+              "confirmation_sent_at": "datetime",
+              "unconfirmed_email": "varchar",
+              "provider": "varchar",
+              "twitter_user_id": "varchar",
+              "facebook_uid": "varchar",
+              "deleted_at": "datetime",
+              "payment_notification": "tinyint",
+              "currency_type": "varchar",
+              "bio": "mediumtext",
+              "username": "varchar",
+              "credit_card_id": "bigint",
+              "profile_picture_url": "varchar",
+              "country": "varchar",
+              "state": "varchar",
+              "city": "varchar",
+              "zip_code": "varchar",
+              "street_address": "varchar",
+              "facebook_access_token": "varchar",
+              "verified": "tinyint",
+              "manage_pages": "tinyint",
+              "banned_at": "datetime",
+              "weekly_notification": "tinyint",
+              "external_id": "varchar",
+              "account_created_ip": "varchar",
+              "twitter_oauth_token": "varchar",
+              "twitter_oauth_secret": "varchar",
+              "notification_endpoint": "mediumtext",
+              "locale": "varchar",
+              "flags": "bigint",
+              "google_analytics_id": "varchar",
+              "timezone": "varchar",
+              "user_risk_state": "varchar",
+              "tos_violation_reason": "varchar",
+              "kindle_email": "varchar",
+              "json_data": "mediumtext",
+              "support_email": "varchar",
+              "google_analytics_domains": "varchar",
+              "recommendation_type": "varchar",
+              "facebook_pixel_id": "varchar",
+              "split_payment_by_cents": "int",
+              "last_active_sessions_invalidated_at": "datetime",
+              "otp_secret_key": "varchar",
+              "facebook_meta_tag": "varchar",
+              "tier_state": "int",
+              "orientation_priority_tag": "varchar",
+              "notification_content_type": "varchar",
+              "google_uid": "varchar",
+              "purchasing_power_parity_limit": "int",
+              "twitter_handle": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "email": "edgar8f2e92fc_49@gumroad.com",
+                "encrypted_password": "$2a$04$4NSoWTb/Ac.ajI402XCIPeE1RHrpzD6h5ouix/8jrr2Cp3Xy.xAHW",
+                "reset_password_token": null,
+                "reset_password_sent_at": null,
+                "remember_created_at": null,
+                "sign_in_count": 0,
+                "current_sign_in_at": null,
+                "last_sign_in_at": null,
+                "current_sign_in_ip": "75.79.24.255",
+                "last_sign_in_ip": "80.167.253.17",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "name": "Payments Seller",
+                "payment_address": "edgarf79c80a3_50@gumroad.com",
+                "confirmed_at": "<now>",
+                "confirmation_token": null,
+                "confirmation_sent_at": null,
+                "unconfirmed_email": null,
+                "provider": null,
+                "twitter_user_id": null,
+                "facebook_uid": null,
+                "deleted_at": null,
+                "payment_notification": 1,
+                "currency_type": "usd",
+                "bio": null,
+                "username": "paymentsseller",
+                "credit_card_id": null,
+                "profile_picture_url": null,
+                "country": null,
+                "state": null,
+                "city": null,
+                "zip_code": null,
+                "street_address": null,
+                "facebook_access_token": null,
+                "verified": null,
+                "manage_pages": 0,
+                "banned_at": null,
+                "weekly_notification": 1,
+                "external_id": "1539100048134",
+                "account_created_ip": "142.179.2.66",
+                "twitter_oauth_token": null,
+                "twitter_oauth_secret": null,
+                "notification_endpoint": null,
+                "locale": "en",
+                "flags": 35274566697025,
+                "google_analytics_id": null,
+                "timezone": "Pacific Time (US & Canada)",
+                "user_risk_state": "not_reviewed",
+                "tos_violation_reason": null,
+                "kindle_email": null,
+                "json_data": "{\"au_backtax_owed_cents\":15000,\"au_backtax_sales_cents\":250050}",
+                "support_email": null,
+                "google_analytics_domains": null,
+                "recommendation_type": "own_products",
+                "facebook_pixel_id": null,
+                "split_payment_by_cents": null,
+                "last_active_sessions_invalidated_at": null,
+                "otp_secret_key": "ZVB2EROZH4RNBJ76YXKWYSPX55Y46WL5",
+                "facebook_meta_tag": null,
+                "tier_state": 0,
+                "orientation_priority_tag": null,
+                "notification_content_type": "application/x-www-form-urlencoded",
+                "google_uid": null,
+                "purchasing_power_parity_limit": null,
+                "twitter_handle": null
+              },
+              {
+                "id": 2,
+                "email": "edgar69b87efe_51@gumroad.com",
+                "encrypted_password": "$2a$04$INNNvHNGv5MtOrJ34t6DxebAij9AByk19AL8uddPFZYvu.XuBXawi",
+                "reset_password_token": null,
+                "reset_password_sent_at": null,
+                "remember_created_at": null,
+                "sign_in_count": 0,
+                "current_sign_in_at": null,
+                "last_sign_in_at": null,
+                "current_sign_in_ip": "4.227.38.158",
+                "last_sign_in_ip": "3.175.180.160",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "name": null,
+                "payment_address": "edgarc70b4765_52@gumroad.com",
+                "confirmed_at": "<now>",
+                "confirmation_token": null,
+                "confirmation_sent_at": null,
+                "unconfirmed_email": null,
+                "provider": null,
+                "twitter_user_id": null,
+                "facebook_uid": null,
+                "deleted_at": null,
+                "payment_notification": 1,
+                "currency_type": "usd",
+                "bio": null,
+                "username": "edgar3aea5df85",
+                "credit_card_id": null,
+                "profile_picture_url": null,
+                "country": null,
+                "state": null,
+                "city": null,
+                "zip_code": null,
+                "street_address": null,
+                "facebook_access_token": null,
+                "verified": null,
+                "manage_pages": 0,
+                "banned_at": null,
+                "weekly_notification": 1,
+                "external_id": "4437770330208",
+                "account_created_ip": "137.102.43.30",
+                "twitter_oauth_token": null,
+                "twitter_oauth_secret": null,
+                "notification_endpoint": null,
+                "locale": "en",
+                "flags": 35274566697025,
+                "google_analytics_id": null,
+                "timezone": "Pacific Time (US & Canada)",
+                "user_risk_state": "not_reviewed",
+                "tos_violation_reason": null,
+                "kindle_email": null,
+                "json_data": "{}",
+                "support_email": null,
+                "google_analytics_domains": null,
+                "recommendation_type": "own_products",
+                "facebook_pixel_id": null,
+                "split_payment_by_cents": null,
+                "last_active_sessions_invalidated_at": null,
+                "otp_secret_key": "ESSILMJ23RU5AMNXJLYQIN7RAQYMFSXP",
+                "facebook_meta_tag": null,
+                "tier_state": 0,
+                "orientation_priority_tag": null,
+                "notification_content_type": "application/x-www-form-urlencoded",
+                "google_uid": null,
+                "purchasing_power_parity_limit": null,
+                "twitter_handle": null
+              }
+            ]
+          }
+        },
+        "autoIncrement": {
+          "affiliates": 3,
+          "australia_backtax_email_infos": 2,
+          "backtax_agreements": 2,
+          "balances": 2,
+          "comments": 2,
+          "credits": 2,
+          "merchant_accounts": 2,
+          "refund_policies": 3,
+          "user_compliance_info": 2,
+          "users": 3
+        }
+      },
+      "redis": {
+        "disable_braintree_sales": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "disable_braintree_sales",
+            "paypal_payout_fee",
+            "seller_refund_policy_new_users_enabled",
+            "store_discover_searches"
+          ]
+        },
+        "paypal_payout_fee": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "seller_refund_policy_new_users_enabled": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "store_discover_searches": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        }
+      },
+      "request": {
+        "source": "request",
+        "method": "GET",
+        "path": "/help/category/219-after-your-purchase",
+        "headers": {
+          "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
+          "host": "app.test.gumroad.com:31337"
+        },
+        "remoteIp": "127.0.0.1"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "max-age=0, private, must-revalidate",
+          "content-type": "text/html; charset=utf-8",
+          "link": "</vite-test/assets/entrypoints/design-DzT6_PG0.css>; rel=preload; as=style; crossorigin=anonymous; nopush,</vite-test/assets/entrypoints/base.ts-D5KbKx4A.js>; rel=modulepreload; as=script; crossorigin=; nopush",
+          "vary": "X-Inertia, Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-original-headers-class": "Rack::Headers",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": {
+          "XSRF-TOKEN": {
+            "value": "aFmRCdpRH1UcfMxb_D0dUSsiyn2CfLPkT-3D_8kSQfjSLarqVXycKzwWq3gGabKYuQJSRb-gBSbTRpIR-7-DCg",
+            "path": "/",
+            "samesite": "lax",
+            "httponly": true
+          },
+          "_gumroad_app_session_test": {
+            "value": "qvkEtPCSKZ0VSFvi0QtmId4DLY2/mX5FDyaOIaV8A4joJ6wtjmu//fbK4ceAnQLdleYEu8jRqB8o5Zs5WybV9VwSP6AvFy5ntev+pvPOG43RZ8ZqwJt+y0WT8/VYk58Wt8TeRzLO4YbCo7BNBjRLgQ2sgyLrNBjExHyBb88EYUce+fv6T0yAQHjG+htRGVAGm0ZuOS5iaa0OHOel6HLU7f/MJ1J+Lp4ni9nDnAV5FkgwqXAjvG4RZRZ4QApymngjeKOTNVthZuXIVBhGJg9rt4Z1E4pxdDXNag3ZTz7qZqv5AtA3Ji7KVYXDpnwaZ0a6c/EKDAQZTkXdInFZtIFlAGuJ8t/d7JAEgjP/HPslRe0w03ilEycljdLNlG6dJNnzPLaK--6dQqTZQjjBdtWwIU--eypWP37E9qedrMTA7cXuHw==",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          },
+          "_gumroad_guid": {
+            "value": "<volatile>",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          }
+        },
+        "inertia": {
+          "component": "HelpCenter/Categories/Show",
+          "props": {
+            "errors": {},
+            "design_settings": {
+              "font": {
+                "name": "ABC Favorit",
+                "url": "http://app.test.gumroad.com:31337/fonts/ABCFavorit-Regular.woff2"
+              }
+            },
+            "domain_settings": {
+              "scheme": "http",
+              "app_domain": "app.test.gumroad.com:31337",
+              "root_domain": "test.gumroad.com:31337",
+              "short_domain": "short-domain.test.gumroad.com:31337",
+              "discover_domain": "test.gumroad.com:31337",
+              "third_party_analytics_domain": "analytics.test.gumroad.com",
+              "api_domain": "api.test.gumroad.com:31337"
+            },
+            "user_agent_info": {
+              "is_mobile": false
+            },
+            "logged_in_user": null,
+            "current_seller": null,
+            "csp_nonce": "uhZ/j0YYS5FYkHygyvLp+FpLVlm01IAqlKOLuZXg//0=",
+            "locale": "en-US",
+            "feature_flags": {
+              "disable_stripe_signup": false
+            },
+            "authenticity_token": "kuZdEjPSHg_r-kF8El3RAMeXizE7yMMalz1yh_wK4oIokmbxvP-dccuQJl_oCX7JVbcTCQYUddgLliNpzqcgcA",
+            "flash": null,
+            "title": "Accessing your purchase - Gumroad Help Center",
+            "category": {
+              "title": "Accessing your purchase",
+              "slug": "219-after-your-purchase",
+              "articles": [
+                {
+                  "title": "Your Gumroad Library",
+                  "url": "/help/article/198-your-gumroad-library"
+                },
+                {
+                  "title": "How do I access my purchase?",
+                  "url": "/help/article/199-how-do-i-access-my-purchase"
+                },
+                {
+                  "title": "How to open ZIP and RAR files",
+                  "url": "/help/article/206-how-to-open-zip-and-rar-files"
+                },
+                {
+                  "title": "How do I send my purchases to Kindle?",
+                  "url": "/help/article/208-how-do-i-send-my-gumroad-purchase-to-my-kindle"
+                },
+                {
+                  "title": "How do I send my purchase to Dropbox?",
+                  "url": "/help/article/210-send-your-purchase-to-dropbox"
+                },
+                {
+                  "title": "When will my purchase be shipped?",
+                  "url": "/help/article/215-when-will-my-purchase-be-shipped"
+                },
+                {
+                  "title": "Guide to memberships",
+                  "url": "/help/article/278-guide-to-memberships"
+                },
+                {
+                  "title": "Rate and review your purchase",
+                  "url": "/help/article/344-rate-and-review-your-purchase"
+                },
+                {
+                  "title": "Casting videos to your TV",
+                  "url": "/help/article/350-casting-videos-to-your-tv"
+                }
+              ]
+            },
+            "sidebar_categories": [
+              {
+                "title": "Accessing your purchase",
+                "slug": "219-after-your-purchase",
+                "url": "/help/category/219-after-your-purchase"
+              },
+              {
+                "title": "Before you buy",
+                "slug": "220-before-you-buy",
+                "url": "/help/category/220-before-you-buy"
+              },
+              {
+                "title": "Receipts and refunds",
+                "slug": "337-receipts-and-refunds",
+                "url": "/help/category/337-receipts-and-refunds"
+              },
+              {
+                "title": "Issues with your purchase",
+                "slug": "338-issues-with-your-purchase",
+                "url": "/help/category/338-issues-with-your-purchase"
+              }
+            ],
+            "_inertia_meta": [
+              {
+                "tagName": "title",
+                "headKey": "title",
+                "innerContent": "Accessing your purchase - Gumroad Help Center"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-csrf-param",
+                "name": "csrf-param",
+                "content": "authenticity_token"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-csrf-token",
+                "name": "csrf-token",
+                "content": "KqA3pcwFbmV4daA8-8CvI1djnBvQq5yROcFCqLFFnUiQ1AxGQyjtG1gfxx8BlADqxUMEI-13KlOlahNGg-hfug"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-charset",
+                "charset": "utf-8"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-fb-app_id",
+                "property": "fb:app_id"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-fb-page_id",
+                "property": "fb:page_id",
+                "content": "http://www.facebook.com/gumroad"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-environment",
+                "property": "gr:environment",
+                "content": "test"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-image",
+                "property": "og:image",
+                "content": "/images/opengraph_image.png"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-image-alt",
+                "property": "og:image:alt",
+                "content": "Gumroad"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-title",
+                "property": "og:title",
+                "content": "Gumroad"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-site_name",
+                "property": "og:site_name",
+                "content": "Gumroad"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-viewport",
+                "name": "viewport",
+                "content": "initial-scale = 1.0, width = device-width"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-stripe-pk",
+                "property": "stripe:pk",
+                "value": "pk_test_51SNEgsIBOqvOFDrfzBydwy0Ca4j1Xgs7pQsbp2zsyWqHezN7yu3TRignvBqDEc6gn8y98bX8HRv8gKJ8Q45w2t6N00ofXBsMBF"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-stripe-api_version",
+                "property": "stripe:api_version",
+                "value": "2023-10-16"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-twitter-site",
+                "property": "twitter:site",
+                "content": "@gumroad"
+              },
+              {
+                "tagName": "link",
+                "headKey": "link-1644e96d",
+                "type": "application/opensearchdescription+xml",
+                "rel": "search",
+                "href": "/opensearch.xml",
+                "title": "Gumroad"
+              },
+              {
+                "tagName": "link",
+                "headKey": "shortcut-icon",
+                "rel": "shortcut icon",
+                "href": "/images/pink-icon.png"
+              },
+              {
+                "tagName": "link",
+                "headKey": "apple-touch-icon",
+                "rel": "apple-touch-icon",
+                "href": "/images/pink-icon.png"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-google_analytics-enabled",
+                "property": "gr:google_analytics:enabled",
+                "content": "true"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-fb_pixel-enabled",
+                "property": "gr:fb_pixel:enabled",
+                "content": "true"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-tiktok_pixel-enabled",
+                "property": "gr:tiktok_pixel:enabled",
+                "content": "true"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-logged_in_user-id",
+                "property": "gr:logged_in_user:id"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-page-type",
+                "property": "gr:page:type"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-type",
+                "property": "og:type",
+                "content": "website"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-twitter-card",
+                "name": "twitter:card",
+                "content": "summary"
+              },
+              {
+                "tagName": "link",
+                "headKey": "canonical",
+                "rel": "canonical",
+                "href": "http://app.test.gumroad.com:31337/help/category/219-after-your-purchase"
+              }
+            ]
+          },
+          "url": "/help/category/219-after-your-purchase",
+          "version": null,
+          "encryptHistory": false,
+          "clearHistory": false
+        }
+      },
+      "db": {},
+      "jobs": [],
+      "mails": [],
+      "http": []
+    },
+    {
+      "seed": {
+        "tables": {
+          "affiliates": {
+            "columns": {
+              "id": "int",
+              "seller_id": "int",
+              "affiliate_user_id": "int",
+              "affiliate_basis_points": "int",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "flags": "int",
+              "destination_url": "varchar",
+              "type": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": null,
+                "affiliate_user_id": 1,
+                "affiliate_basis_points": 1000,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "flags": 0,
+                "destination_url": null,
+                "type": "GlobalAffiliate"
+              },
+              {
+                "id": 2,
+                "seller_id": null,
+                "affiliate_user_id": 2,
+                "affiliate_basis_points": 1000,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "flags": 0,
+                "destination_url": null,
+                "type": "GlobalAffiliate"
+              }
+            ]
+          },
+          "australia_backtax_email_infos": {
+            "columns": {
+              "id": "bigint",
+              "user_id": "bigint",
+              "email_name": "varchar",
+              "sent_at": "datetime",
+              "created_at": "datetime",
+              "updated_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "email_name": "email_for_taxes_owed",
+                "sent_at": "<now>",
+                "created_at": "<now>",
+                "updated_at": "<now>"
+              }
+            ]
+          },
+          "backtax_agreements": {
+            "columns": {
+              "id": "bigint",
+              "user_id": "bigint",
+              "jurisdiction": "varchar",
+              "signature": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "flags": "bigint"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "jurisdiction": "AUSTRALIA",
+                "signature": "Edgar Gumstein",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "flags": 0
+              }
+            ]
+          },
+          "balances": {
+            "columns": {
+              "id": "int",
+              "user_id": "int",
+              "date": "date",
+              "amount_cents": "int",
+              "state": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "merchant_account_id": "int",
+              "currency": "varchar",
+              "holding_currency": "varchar",
+              "holding_amount_cents": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "date": "<today>",
+                "amount_cents": 1000,
+                "state": "unpaid",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "merchant_account_id": 1,
+                "currency": "usd",
+                "holding_currency": "usd",
+                "holding_amount_cents": 1000
+              }
+            ]
+          },
+          "comments": {
+            "columns": {
+              "id": "bigint",
+              "commentable_id": "bigint",
+              "commentable_type": "varchar",
+              "author_id": "bigint",
+              "author_name": "varchar",
+              "content": "mediumtext",
+              "comment_type": "varchar",
+              "json_data": "mediumtext",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "purchase_id": "bigint",
+              "ancestry": "varchar",
+              "ancestry_depth": "int",
+              "idempotency_key": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "commentable_id": 1,
+                "commentable_type": "User",
+                "author_id": 2,
+                "author_name": null,
+                "content": "issued $1 credit.",
+                "comment_type": "credit",
+                "json_data": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "purchase_id": null,
+                "ancestry": null,
+                "ancestry_depth": 0,
+                "idempotency_key": null
+              }
+            ]
+          },
+          "credits": {
+            "columns": {
+              "id": "int",
+              "user_id": "int",
+              "amount_cents": "int",
+              "balance_id": "int",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "crediting_user_id": "int",
+              "chargebacked_purchase_id": "int",
+              "merchant_account_id": "int",
+              "dispute_id": "int",
+              "returned_payment_id": "int",
+              "refund_id": "int",
+              "financing_paydown_purchase_id": "int",
+              "fee_retention_refund_id": "int",
+              "backtax_agreement_id": "bigint",
+              "json_data": "text",
+              "reason": "text",
+              "failed_refund_id": "bigint"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "amount_cents": 100,
+                "balance_id": 1,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "crediting_user_id": 2,
+                "chargebacked_purchase_id": null,
+                "merchant_account_id": 1,
+                "dispute_id": null,
+                "returned_payment_id": null,
+                "refund_id": null,
+                "financing_paydown_purchase_id": null,
+                "fee_retention_refund_id": null,
+                "backtax_agreement_id": 1,
+                "json_data": null,
+                "reason": null,
+                "failed_refund_id": null
+              }
+            ]
+          },
+          "merchant_accounts": {
+            "columns": {
+              "id": "bigint",
+              "user_id": "bigint",
+              "acquirer_id": "varchar",
+              "acquirer_merchant_id": "varchar",
+              "charge_processor_id": "varchar",
+              "charge_processor_merchant_id": "varchar",
+              "json_data": "text",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "charge_processor_verified_at": "datetime",
+              "country": "varchar",
+              "currency": "varchar",
+              "charge_processor_deleted_at": "datetime",
+              "charge_processor_alive_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": null,
+                "acquirer_id": null,
+                "acquirer_merchant_id": null,
+                "charge_processor_id": "stripe",
+                "charge_processor_merchant_id": "000000009",
+                "json_data": "{}",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "charge_processor_verified_at": null,
+                "country": "US",
+                "currency": "usd",
+                "charge_processor_deleted_at": null,
+                "charge_processor_alive_at": "<now>"
+              }
+            ]
+          },
+          "refund_policies": {
+            "columns": {
+              "id": "bigint",
+              "seller_id": "bigint",
+              "product_id": "bigint",
+              "title": "varchar",
+              "fine_print": "text",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "max_refund_period_in_days": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": 1,
+                "product_id": null,
+                "title": null,
+                "fine_print": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "max_refund_period_in_days": 30
+              },
+              {
+                "id": 2,
+                "seller_id": 2,
+                "product_id": null,
+                "title": null,
+                "fine_print": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "max_refund_period_in_days": 30
+              }
+            ]
+          },
+          "user_compliance_info": {
+            "columns": {
+              "id": "int",
+              "user_id": "int",
+              "full_name": "varchar",
+              "street_address": "varchar",
+              "city": "varchar",
+              "state": "varchar",
+              "zip_code": "varchar",
+              "country": "varchar",
+              "telephone_number": "varchar",
+              "vertical": "varchar",
+              "is_business": "tinyint",
+              "has_sold_before": "tinyint",
+              "individual_tax_id": "blob",
+              "json_data": "text",
+              "flags": "int",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "business_name": "varchar",
+              "business_street_address": "varchar",
+              "business_city": "varchar",
+              "business_state": "varchar",
+              "business_zip_code": "varchar",
+              "business_country": "varchar",
+              "business_type": "varchar",
+              "business_tax_id": "blob",
+              "birthday": "date",
+              "deleted_at": "datetime",
+              "dba": "varchar",
+              "verticals": "text",
+              "first_name": "varchar",
+              "last_name": "varchar",
+              "stripe_identity_document_id": "varchar",
+              "guardian_id": "bigint"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "full_name": null,
+                "street_address": "address_full_match",
+                "city": "San Francisco",
+                "state": "NSW",
+                "zip_code": "2000",
+                "country": "Australia",
+                "telephone_number": null,
+                "vertical": null,
+                "is_business": 0,
+                "has_sold_before": 0,
+                "individual_tax_id": {
+                  "$base64": "bLP3rHk1BwPnNtGKBfkptEiD6pCxwKtzTy6bYVNTQaxYIOcvXTQVRxChclPMMZHquSIPBIfzi7b72qOEcGvL1SYYRhotM/XbXwAGR1hR5mfDmFXj4XC5L1Pj/mWYBbNqzQKTHx+qpjiSWQvkG74dexhCxGB5mStwb55+i1UDPaFgwRjyWWoedGbDQwV9IDtWvazpq7LSJHb4XKlER1sDj7yQ3/PGK5SReQsZFPdlbSQNNNSFXujszZM+0px6EkosonsdFtpCUS27pou1M73/AhZBoWAzZtg6kKhBN4/b99U9xY5KpWx/qbzjTena8tLU49qnAzWJulcBIdTiHQbcLw=="
+                },
+                "json_data": "{\"phone\":\"0000000000\"}",
+                "flags": 0,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "business_name": null,
+                "business_street_address": null,
+                "business_city": null,
+                "business_state": null,
+                "business_zip_code": null,
+                "business_country": null,
+                "business_type": null,
+                "business_tax_id": null,
+                "birthday": "<today-45960d>",
+                "deleted_at": null,
+                "dba": "Chuckster",
+                "verticals": "---\n- publishing\n",
+                "first_name": "Chuck",
+                "last_name": "Bartowski",
+                "stripe_identity_document_id": null,
+                "guardian_id": null
+              }
+            ]
+          },
+          "users": {
+            "columns": {
+              "id": "bigint",
+              "email": "varchar",
+              "encrypted_password": "varchar",
+              "reset_password_token": "varchar",
+              "reset_password_sent_at": "datetime",
+              "remember_created_at": "datetime",
+              "sign_in_count": "int",
+              "current_sign_in_at": "datetime",
+              "last_sign_in_at": "datetime",
+              "current_sign_in_ip": "varchar",
+              "last_sign_in_ip": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "name": "varchar",
+              "payment_address": "varchar",
+              "confirmed_at": "datetime",
+              "confirmation_token": "varchar",
+              "confirmation_sent_at": "datetime",
+              "unconfirmed_email": "varchar",
+              "provider": "varchar",
+              "twitter_user_id": "varchar",
+              "facebook_uid": "varchar",
+              "deleted_at": "datetime",
+              "payment_notification": "tinyint",
+              "currency_type": "varchar",
+              "bio": "mediumtext",
+              "username": "varchar",
+              "credit_card_id": "bigint",
+              "profile_picture_url": "varchar",
+              "country": "varchar",
+              "state": "varchar",
+              "city": "varchar",
+              "zip_code": "varchar",
+              "street_address": "varchar",
+              "facebook_access_token": "varchar",
+              "verified": "tinyint",
+              "manage_pages": "tinyint",
+              "banned_at": "datetime",
+              "weekly_notification": "tinyint",
+              "external_id": "varchar",
+              "account_created_ip": "varchar",
+              "twitter_oauth_token": "varchar",
+              "twitter_oauth_secret": "varchar",
+              "notification_endpoint": "mediumtext",
+              "locale": "varchar",
+              "flags": "bigint",
+              "google_analytics_id": "varchar",
+              "timezone": "varchar",
+              "user_risk_state": "varchar",
+              "tos_violation_reason": "varchar",
+              "kindle_email": "varchar",
+              "json_data": "mediumtext",
+              "support_email": "varchar",
+              "google_analytics_domains": "varchar",
+              "recommendation_type": "varchar",
+              "facebook_pixel_id": "varchar",
+              "split_payment_by_cents": "int",
+              "last_active_sessions_invalidated_at": "datetime",
+              "otp_secret_key": "varchar",
+              "facebook_meta_tag": "varchar",
+              "tier_state": "int",
+              "orientation_priority_tag": "varchar",
+              "notification_content_type": "varchar",
+              "google_uid": "varchar",
+              "purchasing_power_parity_limit": "int",
+              "twitter_handle": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "email": "edgar8f2e92fc_49@gumroad.com",
+                "encrypted_password": "$2a$04$4NSoWTb/Ac.ajI402XCIPeE1RHrpzD6h5ouix/8jrr2Cp3Xy.xAHW",
+                "reset_password_token": null,
+                "reset_password_sent_at": null,
+                "remember_created_at": null,
+                "sign_in_count": 0,
+                "current_sign_in_at": null,
+                "last_sign_in_at": null,
+                "current_sign_in_ip": "75.79.24.255",
+                "last_sign_in_ip": "80.167.253.17",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "name": "Payments Seller",
+                "payment_address": "edgarf79c80a3_50@gumroad.com",
+                "confirmed_at": "<now>",
+                "confirmation_token": null,
+                "confirmation_sent_at": null,
+                "unconfirmed_email": null,
+                "provider": null,
+                "twitter_user_id": null,
+                "facebook_uid": null,
+                "deleted_at": null,
+                "payment_notification": 1,
+                "currency_type": "usd",
+                "bio": null,
+                "username": "paymentsseller",
+                "credit_card_id": null,
+                "profile_picture_url": null,
+                "country": null,
+                "state": null,
+                "city": null,
+                "zip_code": null,
+                "street_address": null,
+                "facebook_access_token": null,
+                "verified": null,
+                "manage_pages": 0,
+                "banned_at": null,
+                "weekly_notification": 1,
+                "external_id": "1539100048134",
+                "account_created_ip": "142.179.2.66",
+                "twitter_oauth_token": null,
+                "twitter_oauth_secret": null,
+                "notification_endpoint": null,
+                "locale": "en",
+                "flags": 35274566697025,
+                "google_analytics_id": null,
+                "timezone": "Pacific Time (US & Canada)",
+                "user_risk_state": "not_reviewed",
+                "tos_violation_reason": null,
+                "kindle_email": null,
+                "json_data": "{\"au_backtax_owed_cents\":15000,\"au_backtax_sales_cents\":250050}",
+                "support_email": null,
+                "google_analytics_domains": null,
+                "recommendation_type": "own_products",
+                "facebook_pixel_id": null,
+                "split_payment_by_cents": null,
+                "last_active_sessions_invalidated_at": null,
+                "otp_secret_key": "ZVB2EROZH4RNBJ76YXKWYSPX55Y46WL5",
+                "facebook_meta_tag": null,
+                "tier_state": 0,
+                "orientation_priority_tag": null,
+                "notification_content_type": "application/x-www-form-urlencoded",
+                "google_uid": null,
+                "purchasing_power_parity_limit": null,
+                "twitter_handle": null
+              },
+              {
+                "id": 2,
+                "email": "edgar69b87efe_51@gumroad.com",
+                "encrypted_password": "$2a$04$INNNvHNGv5MtOrJ34t6DxebAij9AByk19AL8uddPFZYvu.XuBXawi",
+                "reset_password_token": null,
+                "reset_password_sent_at": null,
+                "remember_created_at": null,
+                "sign_in_count": 0,
+                "current_sign_in_at": null,
+                "last_sign_in_at": null,
+                "current_sign_in_ip": "4.227.38.158",
+                "last_sign_in_ip": "3.175.180.160",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "name": null,
+                "payment_address": "edgarc70b4765_52@gumroad.com",
+                "confirmed_at": "<now>",
+                "confirmation_token": null,
+                "confirmation_sent_at": null,
+                "unconfirmed_email": null,
+                "provider": null,
+                "twitter_user_id": null,
+                "facebook_uid": null,
+                "deleted_at": null,
+                "payment_notification": 1,
+                "currency_type": "usd",
+                "bio": null,
+                "username": "edgar3aea5df85",
+                "credit_card_id": null,
+                "profile_picture_url": null,
+                "country": null,
+                "state": null,
+                "city": null,
+                "zip_code": null,
+                "street_address": null,
+                "facebook_access_token": null,
+                "verified": null,
+                "manage_pages": 0,
+                "banned_at": null,
+                "weekly_notification": 1,
+                "external_id": "4437770330208",
+                "account_created_ip": "137.102.43.30",
+                "twitter_oauth_token": null,
+                "twitter_oauth_secret": null,
+                "notification_endpoint": null,
+                "locale": "en",
+                "flags": 35274566697025,
+                "google_analytics_id": null,
+                "timezone": "Pacific Time (US & Canada)",
+                "user_risk_state": "not_reviewed",
+                "tos_violation_reason": null,
+                "kindle_email": null,
+                "json_data": "{}",
+                "support_email": null,
+                "google_analytics_domains": null,
+                "recommendation_type": "own_products",
+                "facebook_pixel_id": null,
+                "split_payment_by_cents": null,
+                "last_active_sessions_invalidated_at": null,
+                "otp_secret_key": "ESSILMJ23RU5AMNXJLYQIN7RAQYMFSXP",
+                "facebook_meta_tag": null,
+                "tier_state": 0,
+                "orientation_priority_tag": null,
+                "notification_content_type": "application/x-www-form-urlencoded",
+                "google_uid": null,
+                "purchasing_power_parity_limit": null,
+                "twitter_handle": null
+              }
+            ]
+          }
+        },
+        "autoIncrement": {
+          "affiliates": 3,
+          "australia_backtax_email_infos": 2,
+          "backtax_agreements": 2,
+          "balances": 2,
+          "comments": 2,
+          "credits": 2,
+          "merchant_accounts": 2,
+          "refund_policies": 3,
+          "user_compliance_info": 2,
+          "users": 3
+        }
+      },
+      "redis": {
+        "disable_braintree_sales": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "disable_braintree_sales",
+            "paypal_payout_fee",
+            "seller_refund_policy_new_users_enabled",
+            "store_discover_searches"
+          ]
+        },
+        "paypal_payout_fee": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "seller_refund_policy_new_users_enabled": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "store_discover_searches": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        }
+      },
+      "request": {
+        "source": "request",
+        "method": "POST",
+        "path": "/login",
+        "headers": {
+          "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
+          "content-type": "application/x-www-form-urlencoded",
+          "host": "app.test.gumroad.com:31337"
+        },
+        "cookies": {
+          "XSRF-TOKEN": "aFmRCdpRH1UcfMxb_D0dUSsiyn2CfLPkT-3D_8kSQfjSLarqVXycKzwWq3gGabKYuQJSRb-gBSbTRpIR-7-DCg",
+          "_gumroad_app_session_test": "qvkEtPCSKZ0VSFvi0QtmId4DLY2/mX5FDyaOIaV8A4joJ6wtjmu//fbK4ceAnQLdleYEu8jRqB8o5Zs5WybV9VwSP6AvFy5ntev+pvPOG43RZ8ZqwJt+y0WT8/VYk58Wt8TeRzLO4YbCo7BNBjRLgQ2sgyLrNBjExHyBb88EYUce+fv6T0yAQHjG+htRGVAGm0ZuOS5iaa0OHOel6HLU7f/MJ1J+Lp4ni9nDnAV5FkgwqXAjvG4RZRZ4QApymngjeKOTNVthZuXIVBhGJg9rt4Z1E4pxdDXNag3ZTz7qZqv5AtA3Ji7KVYXDpnwaZ0a6c/EKDAQZTkXdInFZtIFlAGuJ8t/d7JAEgjP/HPslRe0w03ilEycljdLNlG6dJNnzPLaK--6dQqTZQjjBdtWwIU--eypWP37E9qedrMTA7cXuHw==",
+          "_gumroad_guid": "6f7553d0-112b-4c16-9c91-ed8f0998dce0"
+        },
+        "remoteIp": "127.0.0.1",
+        "body": "authenticity_token=kuZdEjPSHg_r-kF8El3RAMeXizE7yMMalz1yh_wK4oIokmbxvP-dccuQJl_oCX7JVbcTCQYUddgLliNpzqcgcA&user[login_identifier]=edgar8f2e92fc_49%40gumroad.com&user[password]=-42Q_.c_3628Ca%21mW-xTJ8v*"
+      },
+      "response": {
+        "status": 302,
+        "location": "http://app.test.gumroad.com:31337/dashboard",
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "text/html; charset=utf-8",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-original-headers-class": "Rack::Headers",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": {
+          "XSRF-TOKEN": {
+            "value": "9-Njfv09Yf3mwlUw9km_xRpRKxHVkbrOnWkONirQ3VdNl1idchDig8aoMhMMHRAMiHGzKehNDAwBwl_YGH0fpQ",
+            "path": "/",
+            "samesite": "lax",
+            "httponly": true
+          },
+          "_gumroad_app_session_test": {
+            "value": "jREMb9sz26mVeNs+Riq53pEmLRe49WQQk/wSduqHL/IqH/xiGwuLrGZ5Ot3Pc584wFWe/T1wSTHw4DUXyK+PyW2s+ny0wUosQf51jAU1tnWRUiUkv7+1fVYV8DZFJlfn8cTxBkzZWFNvLOGAjIkLKIaZyvSN++8tw9fUzw7hWYby3dM7lpf0SpIUo3WRWvl5nS8KJvVuWVO9LvIDpifWXuR0rMRZDYoNf0WUnFRiM3Rp+dii/hbJpRIIaBSU5EGQb6/oIzH8ikASgllwSEXS1EpeRMufZCXRqzMocLSqplH4YUOm2qieGC0wpCGqzr7zAyRLPO48Oeb91Y41zopL9SBgWaTta7DkLwaP+dCi1RH4uZiQuzCBfzAg8jRyWRxISqCXNfgA/AJi25I8Iupm9bZ37yNTrlnZFOTXnJySzZ8zMmrkxqnCcA8JZkJiqNU6lVoi2Z7vbgv84+tpq7fjTvXJmWVi2D/LnQwfMpHBYi7KL/cgK3LxH3b/fruBx6USAS7Y65vccKl/9eUcGpTbtdna+MFMqfKhqAvEzDzRobsx/bgRwGD5Q9rLtGy46Rk+vMWhfKolWRYytBLFim/gu10Tu5X81+eTUWASggzE2FhEVFx2+uYqfw/dCPx8FHEABERw--rvifs+2ijD9HUABh--tjl7RmJ5LWTgSZEYe6Uuag==",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          },
+          "remember_user_token": {
+            "value": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ilcxc3hYU3dpSkRKaEpEQTBKRFJPVTI5WFZHSXZRV011WVdwSk5EQXlXRU5KVUdVaUxDSXhOemt6TlRJM01qYzNMalEwT1RjMk56Z2lYUT09IiwiZXhwIjoiMjAyNi0xMi0wMVQxMDowMToxNy40NDlaIiwicHVyIjoiY29va2llLnJlbWVtYmVyX3VzZXJfdG9rZW4ifX0=--553c57b58f4c17503beb339195634a5547260307",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+720h>",
+            "httponly": true,
+            "samesite": "lax"
+          }
+        }
+      },
+      "db": {
+        "seller_profiles": {
+          "inserted": [
+            {
+              "id": 1,
+              "seller_id": 1,
+              "highlight_color": "#ff90e8",
+              "background_color": "#ffffff",
+              "font": "ABC Favorit",
+              "created_at": "<now>",
+              "updated_at": "<now>",
+              "json_data": null,
+              "border_radius": "small",
+              "button_hover": "lift",
+              "seo_title": null,
+              "seo_description": null
+            }
+          ]
+        },
+        "users": {
+          "updated": [
+            {
+              "key": {
+                "id": 1
+              },
+              "changes": {
+                "remember_created_at": [
+                  null,
+                  "<now>"
+                ],
+                "sign_in_count": [
+                  0,
+                  1
+                ],
+                "current_sign_in_at": [
+                  null,
+                  "<now>"
+                ],
+                "last_sign_in_at": [
+                  null,
+                  "<now>"
+                ],
+                "current_sign_in_ip": [
+                  "75.79.24.255",
+                  "127.0.0.1"
+                ],
+                "last_sign_in_ip": [
+                  "80.167.253.17",
+                  "75.79.24.255"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "jobs": [],
+      "mails": [],
+      "http": [
+        {
+          "method": "GET",
+          "url": "https://api.pwnedpasswords.com/range/4B33A",
+          "response": {
+            "status": 200,
+            "body": ""
+          }
+        }
+      ]
+    },
+    {
+      "seed": {
+        "tables": {
+          "affiliates": {
+            "columns": {
+              "id": "int",
+              "seller_id": "int",
+              "affiliate_user_id": "int",
+              "affiliate_basis_points": "int",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "flags": "int",
+              "destination_url": "varchar",
+              "type": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": null,
+                "affiliate_user_id": 1,
+                "affiliate_basis_points": 1000,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "flags": 0,
+                "destination_url": null,
+                "type": "GlobalAffiliate"
+              },
+              {
+                "id": 2,
+                "seller_id": null,
+                "affiliate_user_id": 2,
+                "affiliate_basis_points": 1000,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "flags": 0,
+                "destination_url": null,
+                "type": "GlobalAffiliate"
+              }
+            ]
+          },
+          "australia_backtax_email_infos": {
+            "columns": {
+              "id": "bigint",
+              "user_id": "bigint",
+              "email_name": "varchar",
+              "sent_at": "datetime",
+              "created_at": "datetime",
+              "updated_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "email_name": "email_for_taxes_owed",
+                "sent_at": "<now>",
+                "created_at": "<now>",
+                "updated_at": "<now>"
+              }
+            ]
+          },
+          "backtax_agreements": {
+            "columns": {
+              "id": "bigint",
+              "user_id": "bigint",
+              "jurisdiction": "varchar",
+              "signature": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "flags": "bigint"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "jurisdiction": "AUSTRALIA",
+                "signature": "Edgar Gumstein",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "flags": 0
+              }
+            ]
+          },
+          "balances": {
+            "columns": {
+              "id": "int",
+              "user_id": "int",
+              "date": "date",
+              "amount_cents": "int",
+              "state": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "merchant_account_id": "int",
+              "currency": "varchar",
+              "holding_currency": "varchar",
+              "holding_amount_cents": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "date": "<today>",
+                "amount_cents": 1000,
+                "state": "unpaid",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "merchant_account_id": 1,
+                "currency": "usd",
+                "holding_currency": "usd",
+                "holding_amount_cents": 1000
+              }
+            ]
+          },
+          "comments": {
+            "columns": {
+              "id": "bigint",
+              "commentable_id": "bigint",
+              "commentable_type": "varchar",
+              "author_id": "bigint",
+              "author_name": "varchar",
+              "content": "mediumtext",
+              "comment_type": "varchar",
+              "json_data": "mediumtext",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "purchase_id": "bigint",
+              "ancestry": "varchar",
+              "ancestry_depth": "int",
+              "idempotency_key": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "commentable_id": 1,
+                "commentable_type": "User",
+                "author_id": 2,
+                "author_name": null,
+                "content": "issued $1 credit.",
+                "comment_type": "credit",
+                "json_data": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "purchase_id": null,
+                "ancestry": null,
+                "ancestry_depth": 0,
+                "idempotency_key": null
+              }
+            ]
+          },
+          "credits": {
+            "columns": {
+              "id": "int",
+              "user_id": "int",
+              "amount_cents": "int",
+              "balance_id": "int",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "crediting_user_id": "int",
+              "chargebacked_purchase_id": "int",
+              "merchant_account_id": "int",
+              "dispute_id": "int",
+              "returned_payment_id": "int",
+              "refund_id": "int",
+              "financing_paydown_purchase_id": "int",
+              "fee_retention_refund_id": "int",
+              "backtax_agreement_id": "bigint",
+              "json_data": "text",
+              "reason": "text",
+              "failed_refund_id": "bigint"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "amount_cents": 100,
+                "balance_id": 1,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "crediting_user_id": 2,
+                "chargebacked_purchase_id": null,
+                "merchant_account_id": 1,
+                "dispute_id": null,
+                "returned_payment_id": null,
+                "refund_id": null,
+                "financing_paydown_purchase_id": null,
+                "fee_retention_refund_id": null,
+                "backtax_agreement_id": 1,
+                "json_data": null,
+                "reason": null,
+                "failed_refund_id": null
+              }
+            ]
+          },
+          "merchant_accounts": {
+            "columns": {
+              "id": "bigint",
+              "user_id": "bigint",
+              "acquirer_id": "varchar",
+              "acquirer_merchant_id": "varchar",
+              "charge_processor_id": "varchar",
+              "charge_processor_merchant_id": "varchar",
+              "json_data": "text",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "charge_processor_verified_at": "datetime",
+              "country": "varchar",
+              "currency": "varchar",
+              "charge_processor_deleted_at": "datetime",
+              "charge_processor_alive_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": null,
+                "acquirer_id": null,
+                "acquirer_merchant_id": null,
+                "charge_processor_id": "stripe",
+                "charge_processor_merchant_id": "000000009",
+                "json_data": "{}",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "charge_processor_verified_at": null,
+                "country": "US",
+                "currency": "usd",
+                "charge_processor_deleted_at": null,
+                "charge_processor_alive_at": "<now>"
+              }
+            ]
+          },
+          "refund_policies": {
+            "columns": {
+              "id": "bigint",
+              "seller_id": "bigint",
+              "product_id": "bigint",
+              "title": "varchar",
+              "fine_print": "text",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "max_refund_period_in_days": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": 1,
+                "product_id": null,
+                "title": null,
+                "fine_print": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "max_refund_period_in_days": 30
+              },
+              {
+                "id": 2,
+                "seller_id": 2,
+                "product_id": null,
+                "title": null,
+                "fine_print": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "max_refund_period_in_days": 30
+              }
+            ]
+          },
+          "seller_profiles": {
+            "columns": {
+              "id": "bigint",
+              "seller_id": "bigint",
+              "highlight_color": "varchar",
+              "background_color": "varchar",
+              "font": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "json_data": "json",
+              "border_radius": "varchar",
+              "button_hover": "varchar",
+              "seo_title": "varchar",
+              "seo_description": "text"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": 1,
+                "highlight_color": "#ff90e8",
+                "background_color": "#ffffff",
+                "font": "ABC Favorit",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "json_data": null,
+                "border_radius": "small",
+                "button_hover": "lift",
+                "seo_title": null,
+                "seo_description": null
+              }
+            ]
+          },
+          "user_compliance_info": {
+            "columns": {
+              "id": "int",
+              "user_id": "int",
+              "full_name": "varchar",
+              "street_address": "varchar",
+              "city": "varchar",
+              "state": "varchar",
+              "zip_code": "varchar",
+              "country": "varchar",
+              "telephone_number": "varchar",
+              "vertical": "varchar",
+              "is_business": "tinyint",
+              "has_sold_before": "tinyint",
+              "individual_tax_id": "blob",
+              "json_data": "text",
+              "flags": "int",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "business_name": "varchar",
+              "business_street_address": "varchar",
+              "business_city": "varchar",
+              "business_state": "varchar",
+              "business_zip_code": "varchar",
+              "business_country": "varchar",
+              "business_type": "varchar",
+              "business_tax_id": "blob",
+              "birthday": "date",
+              "deleted_at": "datetime",
+              "dba": "varchar",
+              "verticals": "text",
+              "first_name": "varchar",
+              "last_name": "varchar",
+              "stripe_identity_document_id": "varchar",
+              "guardian_id": "bigint"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "full_name": null,
+                "street_address": "address_full_match",
+                "city": "San Francisco",
+                "state": "NSW",
+                "zip_code": "2000",
+                "country": "Australia",
+                "telephone_number": null,
+                "vertical": null,
+                "is_business": 0,
+                "has_sold_before": 0,
+                "individual_tax_id": {
+                  "$base64": "bLP3rHk1BwPnNtGKBfkptEiD6pCxwKtzTy6bYVNTQaxYIOcvXTQVRxChclPMMZHquSIPBIfzi7b72qOEcGvL1SYYRhotM/XbXwAGR1hR5mfDmFXj4XC5L1Pj/mWYBbNqzQKTHx+qpjiSWQvkG74dexhCxGB5mStwb55+i1UDPaFgwRjyWWoedGbDQwV9IDtWvazpq7LSJHb4XKlER1sDj7yQ3/PGK5SReQsZFPdlbSQNNNSFXujszZM+0px6EkosonsdFtpCUS27pou1M73/AhZBoWAzZtg6kKhBN4/b99U9xY5KpWx/qbzjTena8tLU49qnAzWJulcBIdTiHQbcLw=="
+                },
+                "json_data": "{\"phone\":\"0000000000\"}",
+                "flags": 0,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "business_name": null,
+                "business_street_address": null,
+                "business_city": null,
+                "business_state": null,
+                "business_zip_code": null,
+                "business_country": null,
+                "business_type": null,
+                "business_tax_id": null,
+                "birthday": "<today-45960d>",
+                "deleted_at": null,
+                "dba": "Chuckster",
+                "verticals": "---\n- publishing\n",
+                "first_name": "Chuck",
+                "last_name": "Bartowski",
+                "stripe_identity_document_id": null,
+                "guardian_id": null
+              }
+            ]
+          },
+          "users": {
+            "columns": {
+              "id": "bigint",
+              "email": "varchar",
+              "encrypted_password": "varchar",
+              "reset_password_token": "varchar",
+              "reset_password_sent_at": "datetime",
+              "remember_created_at": "datetime",
+              "sign_in_count": "int",
+              "current_sign_in_at": "datetime",
+              "last_sign_in_at": "datetime",
+              "current_sign_in_ip": "varchar",
+              "last_sign_in_ip": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "name": "varchar",
+              "payment_address": "varchar",
+              "confirmed_at": "datetime",
+              "confirmation_token": "varchar",
+              "confirmation_sent_at": "datetime",
+              "unconfirmed_email": "varchar",
+              "provider": "varchar",
+              "twitter_user_id": "varchar",
+              "facebook_uid": "varchar",
+              "deleted_at": "datetime",
+              "payment_notification": "tinyint",
+              "currency_type": "varchar",
+              "bio": "mediumtext",
+              "username": "varchar",
+              "credit_card_id": "bigint",
+              "profile_picture_url": "varchar",
+              "country": "varchar",
+              "state": "varchar",
+              "city": "varchar",
+              "zip_code": "varchar",
+              "street_address": "varchar",
+              "facebook_access_token": "varchar",
+              "verified": "tinyint",
+              "manage_pages": "tinyint",
+              "banned_at": "datetime",
+              "weekly_notification": "tinyint",
+              "external_id": "varchar",
+              "account_created_ip": "varchar",
+              "twitter_oauth_token": "varchar",
+              "twitter_oauth_secret": "varchar",
+              "notification_endpoint": "mediumtext",
+              "locale": "varchar",
+              "flags": "bigint",
+              "google_analytics_id": "varchar",
+              "timezone": "varchar",
+              "user_risk_state": "varchar",
+              "tos_violation_reason": "varchar",
+              "kindle_email": "varchar",
+              "json_data": "mediumtext",
+              "support_email": "varchar",
+              "google_analytics_domains": "varchar",
+              "recommendation_type": "varchar",
+              "facebook_pixel_id": "varchar",
+              "split_payment_by_cents": "int",
+              "last_active_sessions_invalidated_at": "datetime",
+              "otp_secret_key": "varchar",
+              "facebook_meta_tag": "varchar",
+              "tier_state": "int",
+              "orientation_priority_tag": "varchar",
+              "notification_content_type": "varchar",
+              "google_uid": "varchar",
+              "purchasing_power_parity_limit": "int",
+              "twitter_handle": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "email": "edgar8f2e92fc_49@gumroad.com",
+                "encrypted_password": "$2a$04$4NSoWTb/Ac.ajI402XCIPeE1RHrpzD6h5ouix/8jrr2Cp3Xy.xAHW",
+                "reset_password_token": null,
+                "reset_password_sent_at": null,
+                "remember_created_at": "<now>",
+                "sign_in_count": 1,
+                "current_sign_in_at": "<now>",
+                "last_sign_in_at": "<now>",
+                "current_sign_in_ip": "127.0.0.1",
+                "last_sign_in_ip": "75.79.24.255",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "name": "Payments Seller",
+                "payment_address": "edgarf79c80a3_50@gumroad.com",
+                "confirmed_at": "<now>",
+                "confirmation_token": null,
+                "confirmation_sent_at": null,
+                "unconfirmed_email": null,
+                "provider": null,
+                "twitter_user_id": null,
+                "facebook_uid": null,
+                "deleted_at": null,
+                "payment_notification": 1,
+                "currency_type": "usd",
+                "bio": null,
+                "username": "paymentsseller",
+                "credit_card_id": null,
+                "profile_picture_url": null,
+                "country": null,
+                "state": null,
+                "city": null,
+                "zip_code": null,
+                "street_address": null,
+                "facebook_access_token": null,
+                "verified": null,
+                "manage_pages": 0,
+                "banned_at": null,
+                "weekly_notification": 1,
+                "external_id": "1539100048134",
+                "account_created_ip": "142.179.2.66",
+                "twitter_oauth_token": null,
+                "twitter_oauth_secret": null,
+                "notification_endpoint": null,
+                "locale": "en",
+                "flags": 35274566697025,
+                "google_analytics_id": null,
+                "timezone": "Pacific Time (US & Canada)",
+                "user_risk_state": "not_reviewed",
+                "tos_violation_reason": null,
+                "kindle_email": null,
+                "json_data": "{\"au_backtax_owed_cents\":15000,\"au_backtax_sales_cents\":250050}",
+                "support_email": null,
+                "google_analytics_domains": null,
+                "recommendation_type": "own_products",
+                "facebook_pixel_id": null,
+                "split_payment_by_cents": null,
+                "last_active_sessions_invalidated_at": null,
+                "otp_secret_key": "ZVB2EROZH4RNBJ76YXKWYSPX55Y46WL5",
+                "facebook_meta_tag": null,
+                "tier_state": 0,
+                "orientation_priority_tag": null,
+                "notification_content_type": "application/x-www-form-urlencoded",
+                "google_uid": null,
+                "purchasing_power_parity_limit": null,
+                "twitter_handle": null
+              },
+              {
+                "id": 2,
+                "email": "edgar69b87efe_51@gumroad.com",
+                "encrypted_password": "$2a$04$INNNvHNGv5MtOrJ34t6DxebAij9AByk19AL8uddPFZYvu.XuBXawi",
+                "reset_password_token": null,
+                "reset_password_sent_at": null,
+                "remember_created_at": null,
+                "sign_in_count": 0,
+                "current_sign_in_at": null,
+                "last_sign_in_at": null,
+                "current_sign_in_ip": "4.227.38.158",
+                "last_sign_in_ip": "3.175.180.160",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "name": null,
+                "payment_address": "edgarc70b4765_52@gumroad.com",
+                "confirmed_at": "<now>",
+                "confirmation_token": null,
+                "confirmation_sent_at": null,
+                "unconfirmed_email": null,
+                "provider": null,
+                "twitter_user_id": null,
+                "facebook_uid": null,
+                "deleted_at": null,
+                "payment_notification": 1,
+                "currency_type": "usd",
+                "bio": null,
+                "username": "edgar3aea5df85",
+                "credit_card_id": null,
+                "profile_picture_url": null,
+                "country": null,
+                "state": null,
+                "city": null,
+                "zip_code": null,
+                "street_address": null,
+                "facebook_access_token": null,
+                "verified": null,
+                "manage_pages": 0,
+                "banned_at": null,
+                "weekly_notification": 1,
+                "external_id": "4437770330208",
+                "account_created_ip": "137.102.43.30",
+                "twitter_oauth_token": null,
+                "twitter_oauth_secret": null,
+                "notification_endpoint": null,
+                "locale": "en",
+                "flags": 35274566697025,
+                "google_analytics_id": null,
+                "timezone": "Pacific Time (US & Canada)",
+                "user_risk_state": "not_reviewed",
+                "tos_violation_reason": null,
+                "kindle_email": null,
+                "json_data": "{}",
+                "support_email": null,
+                "google_analytics_domains": null,
+                "recommendation_type": "own_products",
+                "facebook_pixel_id": null,
+                "split_payment_by_cents": null,
+                "last_active_sessions_invalidated_at": null,
+                "otp_secret_key": "ESSILMJ23RU5AMNXJLYQIN7RAQYMFSXP",
+                "facebook_meta_tag": null,
+                "tier_state": 0,
+                "orientation_priority_tag": null,
+                "notification_content_type": "application/x-www-form-urlencoded",
+                "google_uid": null,
+                "purchasing_power_parity_limit": null,
+                "twitter_handle": null
+              }
+            ]
+          }
+        },
+        "autoIncrement": {
+          "affiliates": 3,
+          "australia_backtax_email_infos": 2,
+          "backtax_agreements": 2,
+          "balances": 2,
+          "comments": 2,
+          "credits": 2,
+          "merchant_accounts": 2,
+          "refund_policies": 3,
+          "seller_profiles": 2,
+          "user_compliance_info": 2,
+          "users": 3
+        }
+      },
+      "redis": {
+        "disable_braintree_sales": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "disable_braintree_sales",
+            "paypal_payout_fee",
+            "seller_refund_policy_new_users_enabled",
+            "store_discover_searches"
+          ]
+        },
+        "paypal_payout_fee": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "seller_refund_policy_new_users_enabled": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "store_discover_searches": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        }
+      },
+      "request": {
+        "source": "request",
+        "method": "GET",
+        "path": "/settings/payments",
+        "headers": {
+          "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
+          "host": "app.test.gumroad.com:31337"
+        },
+        "cookies": {
+          "XSRF-TOKEN": "9-Njfv09Yf3mwlUw9km_xRpRKxHVkbrOnWkONirQ3VdNl1idchDig8aoMhMMHRAMiHGzKehNDAwBwl_YGH0fpQ",
+          "_gumroad_app_session_test": "jREMb9sz26mVeNs+Riq53pEmLRe49WQQk/wSduqHL/IqH/xiGwuLrGZ5Ot3Pc584wFWe/T1wSTHw4DUXyK+PyW2s+ny0wUosQf51jAU1tnWRUiUkv7+1fVYV8DZFJlfn8cTxBkzZWFNvLOGAjIkLKIaZyvSN++8tw9fUzw7hWYby3dM7lpf0SpIUo3WRWvl5nS8KJvVuWVO9LvIDpifWXuR0rMRZDYoNf0WUnFRiM3Rp+dii/hbJpRIIaBSU5EGQb6/oIzH8ikASgllwSEXS1EpeRMufZCXRqzMocLSqplH4YUOm2qieGC0wpCGqzr7zAyRLPO48Oeb91Y41zopL9SBgWaTta7DkLwaP+dCi1RH4uZiQuzCBfzAg8jRyWRxISqCXNfgA/AJi25I8Iupm9bZ37yNTrlnZFOTXnJySzZ8zMmrkxqnCcA8JZkJiqNU6lVoi2Z7vbgv84+tpq7fjTvXJmWVi2D/LnQwfMpHBYi7KL/cgK3LxH3b/fruBx6USAS7Y65vccKl/9eUcGpTbtdna+MFMqfKhqAvEzDzRobsx/bgRwGD5Q9rLtGy46Rk+vMWhfKolWRYytBLFim/gu10Tu5X81+eTUWASggzE2FhEVFx2+uYqfw/dCPx8FHEABERw--rvifs+2ijD9HUABh--tjl7RmJ5LWTgSZEYe6Uuag==",
+          "_gumroad_guid": "6f7553d0-112b-4c16-9c91-ed8f0998dce0",
+          "remember_user_token": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ilcxc3hYU3dpSkRKaEpEQTBKRFJPVTI5WFZHSXZRV011WVdwSk5EQXlXRU5KVUdVaUxDSXhOemt6TlRJM01qYzNMalEwT1RjMk56Z2lYUT09IiwiZXhwIjoiMjAyNi0xMi0wMVQxMDowMToxNy40NDlaIiwicHVyIjoiY29va2llLnJlbWVtYmVyX3VzZXJfdG9rZW4ifX0=--553c57b58f4c17503beb339195634a5547260307"
+        },
+        "remoteIp": "127.0.0.1"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "max-age=0, private, must-revalidate",
+          "content-type": "text/html; charset=utf-8",
+          "link": "</vite-test/assets/entrypoints/design-DzT6_PG0.css>; rel=preload; as=style; crossorigin=anonymous; nopush,</vite-test/assets/entrypoints/base.ts-D5KbKx4A.js>; rel=modulepreload; as=script; crossorigin=; nopush",
+          "vary": "X-Inertia, Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-original-headers-class": "Rack::Headers",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": {
+          "XSRF-TOKEN": {
+            "value": "UlQ4LVdovsbHqQ6Y1MiWsFGYGBfKofL-ftsgn47-ywjoIAPO2EU9uOfDabsunDl5w7iAL_d9RDzicHFxvFMJ-g",
+            "path": "/",
+            "samesite": "lax",
+            "httponly": true
+          },
+          "_gumroad_app_session_test": {
+            "value": "L7ZRVHcAZKhAQR/jySSCZCeTGP/XAUx91Kyv1KcnDgBGIRAhNyQvYkweoKY0AOegi9X3wVTk/bgzMhHANPEHctaOpH/MLLbt01M4zt8oG6vpI5eia7ddzWcQ5RW6w1VMkuhgj+fzSJ7IJqsAK5ZGCCdUuJDpNOWxc8PPkKEDQyW2Bw9xDrH425HSbWxKieZ0S8Ngb9w6K9uJFxRUVvleyd3W1LMd8Krz+uWM9SvQDh1AOfGxSVqTd3iuoglCiR/upS3HDdHyXb2/BFjELLFHUvmpxSWUWSC51Ccmj88p1paLSohdGJiPfkDn8pRaDKIO8Oci80YYjXL0V9VLKMkDUzKUlsON4kxPyUDUl6B3ALPp1ZbJEd9vjEfLfeH7NM8rVMYxJM81+gFY0AH+SJEYYOEri7A8p7aRxUBpbvf1VQkEig8MPbaXp6O1XeUtctU2D+2h2tM+H8lVyTFwJhjVeWf9z/Ya3igfpqUNEP6TizFW7RdTulv1RfmOxtQmtEPvZdSDQmb+jYTO9WdsZJxhMwuNvrRWpOjNAbgPD1tI19sU5dfTXmdcpqbNZA+O6UdLBDg7xzistDjvp6d0FO0+PdtaVoys6kdxP1RAwvlW9dQAihhH1h1jJFPtK3qQcwC8pUQv--hk+2Kbkc44VE/ueU--QQj11E+hBrmnRSLKXqe3LA==",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          }
+        },
+        "inertia": {
+          "component": "Settings/Payments/Show",
+          "props": {
+            "errors": {},
+            "design_settings": {
+              "font": {
+                "name": "ABC Favorit",
+                "url": "http://app.test.gumroad.com:31337/fonts/ABCFavorit-Regular.woff2"
+              }
+            },
+            "domain_settings": {
+              "scheme": "http",
+              "app_domain": "app.test.gumroad.com:31337",
+              "root_domain": "test.gumroad.com:31337",
+              "short_domain": "short-domain.test.gumroad.com:31337",
+              "discover_domain": "test.gumroad.com:31337",
+              "third_party_analytics_domain": "analytics.test.gumroad.com",
+              "api_domain": "api.test.gumroad.com:31337"
+            },
+            "user_agent_info": {
+              "is_mobile": false
+            },
+            "logged_in_user": {
+              "id": "1539100048134",
+              "email": "edgar8f2e92fc_49@gumroad.com",
+              "name": "Payments Seller",
+              "avatar_url": "/images/gumroad-default-avatar-5.png",
+              "confirmed": true,
+              "team_memberships": [],
+              "can_create_brand_account": false,
+              "has_payout_setup_to_port": true,
+              "can_port_bank_payout_setup": true,
+              "will_copy_bank_payout": false,
+              "policies": {
+                "affiliate_requests_onboarding_form": {
+                  "update": true
+                },
+                "direct_affiliate": {
+                  "create": true,
+                  "update": true
+                },
+                "collaborator": {
+                  "create": true,
+                  "update": true
+                },
+                "product": {
+                  "create": true
+                },
+                "product_review_response": {
+                  "update": true
+                },
+                "balance": {
+                  "index": true,
+                  "export": true
+                },
+                "checkout_offer_code": {
+                  "create": true
+                },
+                "checkout_form": {
+                  "update": true
+                },
+                "upsell": {
+                  "create": true
+                },
+                "settings_payments_user": {
+                  "show": true
+                },
+                "settings_main_user": {
+                  "update_username": true
+                },
+                "settings_profile": {
+                  "manage_social_connections": true,
+                  "update": true
+                },
+                "settings_third_party_analytics_user": {
+                  "update": true
+                },
+                "installment": {
+                  "create": true
+                },
+                "workflow": {
+                  "create": true
+                },
+                "utm_link": {
+                  "index": true
+                },
+                "community": {
+                  "index": false
+                },
+                "churn": {
+                  "show": true
+                },
+                "page": {
+                  "index": true,
+                  "create": true
+                },
+                "user": {
+                  "view_store_agent": true,
+                  "use_store_agent": false
+                }
+              },
+              "promoted_nav_items": [],
+              "lazy_load_offscreen_discover_images": false
+            },
+            "current_seller": {
+              "id": "1539100048134",
+              "email": "edgar8f2e92fc_49@gumroad.com",
+              "name": "Payments Seller",
+              "subdomain": "paymentsseller.test.gumroad.com:31337",
+              "avatar_url": "/images/gumroad-default-avatar-5.png",
+              "is_buyer": false,
+              "time_zone": {
+                "name": "America/Los_Angeles",
+                "offset": "<utc_offset>"
+              },
+              "has_published_products": false,
+              "can_publish_products": true,
+              "publish_blocked_reason": null,
+              "no_payout_rail_in_compliance_country": false,
+              "legal_guardian_requirement_met": true,
+              "legal_guardian_unsupported": false,
+              "is_name_invalid_for_email_delivery": false,
+              "profile_background_color": "#ffffff",
+              "profile_highlight_color": "#ff90e8",
+              "profile_font": "ABC Favorit"
+            },
+            "csp_nonce": "XF08AdI8Yi4WG+0xyNkV/KomHlmrBDCB8WJ+fPN5xDY=",
+            "locale": "en-US",
+            "feature_flags": {
+              "disable_stripe_signup": false
+            },
+            "authenticity_token": "kMTlmiqyu1v8vt-mjbheECHcvNY8bMGvz8pWOXSO-rUqsN55pZ84JdzUuIV37PHZs_wk7gGwd21TYQfXRiM4Rw",
+            "flash": null,
+            "title": "Settings",
+            "current_user": {
+              "name": "Payments Seller",
+              "avatar_url": "/images/gumroad-default-avatar-5.png",
+              "impersonated_user": null
+            },
+            "prompt_passkey_setup": true,
+            "is_mobile_app_web_view": false,
+            "settings_pages": [
+              "main",
+              "team",
+              "payments",
+              "billing",
+              "password",
+              "social_connections",
+              "third_party_analytics",
+              "advanced"
+            ],
+            "is_form_disabled": false,
+            "should_show_country_modal": false,
+            "aus_backtax_details": {
+              "show_au_backtax_prompt": true,
+              "total_amount_to_au": "$2,500.50",
+              "au_backtax_amount": "$150.00",
+              "opt_in_date": "November  1, 2026",
+              "credit_creation_date": "December 1, 2026",
+              "opted_in_to_au_backtax": true,
+              "legal_entity_name": "Chuck Bartowski",
+              "are_au_backtaxes_paid": true,
+              "au_backtaxes_paid_date": "November 1, 2026"
+            },
+            "stripe_connect": {
+              "has_connected_stripe": false,
+              "stripe_connect_account_id": null,
+              "stripe_connect_routing_active": false,
+              "blocks_managed_account": false,
+              "stripe_disconnect_allowed": true,
+              "supported_countries_help_text": "This feature is available in <a href='https://stripe.com/en-in/global'>all countries where Stripe operates</a>, except India, Indonesia, Malaysia, Mexico, Philippines, and Thailand."
+            },
+            "countries": {
+              "AF": "Afghanistan",
+              "AL": "Albania",
+              "DZ": "Algeria",
+              "AS": "American Samoa",
+              "AD": "Andorra",
+              "AO": "Angola",
+              "AI": "Anguilla",
+              "AQ": "Antarctica",
+              "AG": "Antigua and Barbuda",
+              "AR": "Argentina",
+              "AM": "Armenia",
+              "AW": "Aruba",
+              "AU": "Australia",
+              "AT": "Austria",
+              "AZ": "Azerbaijan",
+              "BS": "Bahamas",
+              "BH": "Bahrain",
+              "BD": "Bangladesh",
+              "BB": "Barbados",
+              "BY": "Belarus",
+              "BE": "Belgium",
+              "BZ": "Belize",
+              "BJ": "Benin",
+              "BM": "Bermuda",
+              "BT": "Bhutan",
+              "BO": "Bolivia",
+              "BQ": "Bonaire, Sint Eustatius and Saba",
+              "BA": "Bosnia and Herzegovina",
+              "BW": "Botswana",
+              "BV": "Bouvet Island",
+              "BR": "Brazil",
+              "IO": "British Indian Ocean Territory",
+              "BN": "Brunei Darussalam",
+              "BG": "Bulgaria",
+              "BF": "Burkina Faso",
+              "BI": "Burundi",
+              "CV": "Cabo Verde",
+              "KH": "Cambodia",
+              "CM": "Cameroon",
+              "CA": "Canada",
+              "KY": "Cayman Islands",
+              "CF": "Central African Republic",
+              "TD": "Chad",
+              "CL": "Chile",
+              "CN": "China",
+              "CX": "Christmas Island",
+              "CC": "Cocos (Keeling) Islands",
+              "CO": "Colombia",
+              "KM": "Comoros",
+              "CG": "Congo",
+              "CD": "Congo, The Democratic Republic of the",
+              "CK": "Cook Islands",
+              "CR": "Costa Rica",
+              "HR": "Croatia",
+              "CW": "Curaçao",
+              "CY": "Cyprus",
+              "CZ": "Czechia",
+              "CI": "Côte d'Ivoire",
+              "DK": "Denmark",
+              "DJ": "Djibouti",
+              "DM": "Dominica",
+              "DO": "Dominican Republic",
+              "EC": "Ecuador",
+              "EG": "Egypt",
+              "SV": "El Salvador",
+              "GQ": "Equatorial Guinea",
+              "ER": "Eritrea",
+              "EE": "Estonia",
+              "SZ": "Eswatini",
+              "ET": "Ethiopia",
+              "FK": "Falkland Islands (Malvinas)",
+              "FO": "Faroe Islands",
+              "FJ": "Fiji",
+              "FI": "Finland",
+              "FR": "France",
+              "PF": "French Polynesia",
+              "TF": "French Southern Territories",
+              "GA": "Gabon",
+              "GM": "Gambia",
+              "GE": "Georgia",
+              "DE": "Germany",
+              "GH": "Ghana",
+              "GI": "Gibraltar",
+              "GR": "Greece",
+              "GL": "Greenland",
+              "GD": "Grenada",
+              "GU": "Guam",
+              "GT": "Guatemala",
+              "GG": "Guernsey",
+              "GN": "Guinea",
+              "GW": "Guinea-Bissau",
+              "GY": "Guyana",
+              "HT": "Haiti",
+              "HM": "Heard Island and McDonald Islands",
+              "VA": "Holy See (Vatican City State)",
+              "HN": "Honduras",
+              "HK": "Hong Kong",
+              "HU": "Hungary",
+              "IS": "Iceland",
+              "IN": "India",
+              "ID": "Indonesia",
+              "IQ": "Iraq",
+              "IE": "Ireland",
+              "IM": "Isle of Man",
+              "IL": "Israel",
+              "IT": "Italy",
+              "JM": "Jamaica",
+              "JP": "Japan",
+              "JE": "Jersey",
+              "JO": "Jordan",
+              "KZ": "Kazakhstan",
+              "KE": "Kenya",
+              "KI": "Kiribati",
+              "XK": "Kosovo",
+              "KW": "Kuwait",
+              "KG": "Kyrgyzstan",
+              "LA": "Lao People's Democratic Republic",
+              "LV": "Latvia",
+              "LB": "Lebanon",
+              "LS": "Lesotho",
+              "LR": "Liberia",
+              "LY": "Libya",
+              "LI": "Liechtenstein",
+              "LT": "Lithuania",
+              "LU": "Luxembourg",
+              "MO": "Macao",
+              "MG": "Madagascar",
+              "MW": "Malawi",
+              "MY": "Malaysia",
+              "MV": "Maldives",
+              "ML": "Mali",
+              "MT": "Malta",
+              "MH": "Marshall Islands",
+              "MR": "Mauritania",
+              "MU": "Mauritius",
+              "MX": "Mexico",
+              "FM": "Micronesia, Federated States of",
+              "MD": "Moldova",
+              "MC": "Monaco",
+              "MN": "Mongolia",
+              "ME": "Montenegro",
+              "MS": "Montserrat",
+              "MA": "Morocco",
+              "MZ": "Mozambique",
+              "MM": "Myanmar",
+              "NA": "Namibia",
+              "NR": "Nauru",
+              "NP": "Nepal",
+              "NL": "Netherlands",
+              "NC": "New Caledonia",
+              "NZ": "New Zealand",
+              "NI": "Nicaragua",
+              "NE": "Niger",
+              "NG": "Nigeria",
+              "NU": "Niue",
+              "NF": "Norfolk Island",
+              "MK": "North Macedonia",
+              "MP": "Northern Mariana Islands",
+              "NO": "Norway",
+              "OM": "Oman",
+              "PK": "Pakistan",
+              "PW": "Palau",
+              "PS": "Palestine, State of",
+              "PA": "Panama",
+              "PG": "Papua New Guinea",
+              "PY": "Paraguay",
+              "PE": "Peru",
+              "PH": "Philippines",
+              "PN": "Pitcairn",
+              "PL": "Poland",
+              "PT": "Portugal",
+              "QA": "Qatar",
+              "RO": "Romania",
+              "RU": "Russian Federation",
+              "RW": "Rwanda",
+              "RE": "Réunion",
+              "BL": "Saint Barthélemy",
+              "SH": "Saint Helena, Ascension and Tristan da Cunha",
+              "KN": "Saint Kitts and Nevis",
+              "LC": "Saint Lucia",
+              "PM": "Saint Pierre and Miquelon",
+              "VC": "Saint Vincent and the Grenadines",
+              "WS": "Samoa",
+              "SM": "San Marino",
+              "ST": "Sao Tome and Principe",
+              "SA": "Saudi Arabia",
+              "SN": "Senegal",
+              "RS": "Serbia",
+              "SC": "Seychelles",
+              "SL": "Sierra Leone",
+              "SG": "Singapore",
+              "SX": "Sint Maarten (Dutch part)",
+              "SK": "Slovakia",
+              "SI": "Slovenia",
+              "SB": "Solomon Islands",
+              "SO": "Somalia",
+              "ZA": "South Africa",
+              "GS": "South Georgia and the South Sandwich Islands",
+              "KR": "South Korea",
+              "SS": "South Sudan",
+              "ES": "Spain",
+              "LK": "Sri Lanka",
+              "SD": "Sudan",
+              "SR": "Suriname",
+              "SJ": "Svalbard and Jan Mayen",
+              "SE": "Sweden",
+              "CH": "Switzerland",
+              "TW": "Taiwan",
+              "TJ": "Tajikistan",
+              "TZ": "Tanzania",
+              "TH": "Thailand",
+              "TL": "Timor-Leste",
+              "TG": "Togo",
+              "TK": "Tokelau",
+              "TO": "Tonga",
+              "TT": "Trinidad and Tobago",
+              "TN": "Tunisia",
+              "TM": "Turkmenistan",
+              "TC": "Turks and Caicos Islands",
+              "TV": "Tuvalu",
+              "TR": "Türkiye",
+              "UG": "Uganda",
+              "UA": "Ukraine",
+              "AE": "United Arab Emirates",
+              "GB": "United Kingdom",
+              "US": "United States",
+              "UM": "United States Minor Outlying Islands",
+              "UY": "Uruguay",
+              "UZ": "Uzbekistan",
+              "VU": "Vanuatu",
+              "VE": "Venezuela",
+              "VN": "Vietnam",
+              "VG": "Virgin Islands, British",
+              "VI": "Virgin Islands, U.S.",
+              "WF": "Wallis and Futuna",
+              "EH": "Western Sahara",
+              "YE": "Yemen",
+              "ZM": "Zambia",
+              "ZW": "Zimbabwe",
+              "AX": "Åland Islands"
+            },
+            "person_countries": {
+              "AF": "Afghanistan",
+              "AL": "Albania",
+              "DZ": "Algeria",
+              "AS": "American Samoa",
+              "AD": "Andorra",
+              "AO": "Angola",
+              "AI": "Anguilla",
+              "AQ": "Antarctica",
+              "AG": "Antigua and Barbuda",
+              "AR": "Argentina",
+              "AM": "Armenia",
+              "AW": "Aruba",
+              "AU": "Australia",
+              "AT": "Austria",
+              "AZ": "Azerbaijan",
+              "BS": "Bahamas",
+              "BH": "Bahrain",
+              "BD": "Bangladesh",
+              "BB": "Barbados",
+              "BY": "Belarus",
+              "BE": "Belgium",
+              "BZ": "Belize",
+              "BJ": "Benin",
+              "BM": "Bermuda",
+              "BT": "Bhutan",
+              "BO": "Bolivia",
+              "BQ": "Bonaire, Sint Eustatius and Saba",
+              "BA": "Bosnia and Herzegovina",
+              "BW": "Botswana",
+              "BV": "Bouvet Island",
+              "BR": "Brazil",
+              "IO": "British Indian Ocean Territory",
+              "BN": "Brunei Darussalam",
+              "BG": "Bulgaria",
+              "BF": "Burkina Faso",
+              "BI": "Burundi",
+              "CV": "Cabo Verde",
+              "KH": "Cambodia",
+              "CM": "Cameroon",
+              "CA": "Canada",
+              "KY": "Cayman Islands",
+              "CF": "Central African Republic",
+              "TD": "Chad",
+              "CL": "Chile",
+              "CN": "China",
+              "CX": "Christmas Island",
+              "CC": "Cocos (Keeling) Islands",
+              "CO": "Colombia",
+              "KM": "Comoros",
+              "CG": "Congo",
+              "CD": "Congo, The Democratic Republic of the",
+              "CK": "Cook Islands",
+              "CR": "Costa Rica",
+              "HR": "Croatia",
+              "CW": "Curaçao",
+              "CY": "Cyprus",
+              "CZ": "Czechia",
+              "CI": "Côte d'Ivoire",
+              "DK": "Denmark",
+              "DJ": "Djibouti",
+              "DM": "Dominica",
+              "DO": "Dominican Republic",
+              "EC": "Ecuador",
+              "EG": "Egypt",
+              "SV": "El Salvador",
+              "GQ": "Equatorial Guinea",
+              "ER": "Eritrea",
+              "EE": "Estonia",
+              "SZ": "Eswatini",
+              "ET": "Ethiopia",
+              "FK": "Falkland Islands (Malvinas)",
+              "FO": "Faroe Islands",
+              "FJ": "Fiji",
+              "FI": "Finland",
+              "FR": "France",
+              "GF": "French Guiana",
+              "PF": "French Polynesia",
+              "TF": "French Southern Territories",
+              "GA": "Gabon",
+              "GM": "Gambia",
+              "GE": "Georgia",
+              "DE": "Germany",
+              "GH": "Ghana",
+              "GI": "Gibraltar",
+              "GR": "Greece",
+              "GL": "Greenland",
+              "GD": "Grenada",
+              "GP": "Guadeloupe",
+              "GU": "Guam",
+              "GT": "Guatemala",
+              "GG": "Guernsey",
+              "GN": "Guinea",
+              "GW": "Guinea-Bissau",
+              "GY": "Guyana",
+              "HT": "Haiti",
+              "HM": "Heard Island and McDonald Islands",
+              "VA": "Holy See (Vatican City State)",
+              "HN": "Honduras",
+              "HK": "Hong Kong",
+              "HU": "Hungary",
+              "IS": "Iceland",
+              "IN": "India",
+              "ID": "Indonesia",
+              "IQ": "Iraq",
+              "IE": "Ireland",
+              "IM": "Isle of Man",
+              "IL": "Israel",
+              "IT": "Italy",
+              "JM": "Jamaica",
+              "JP": "Japan",
+              "JE": "Jersey",
+              "JO": "Jordan",
+              "KZ": "Kazakhstan",
+              "KE": "Kenya",
+              "KI": "Kiribati",
+              "XK": "Kosovo",
+              "KW": "Kuwait",
+              "KG": "Kyrgyzstan",
+              "LA": "Lao People's Democratic Republic",
+              "LV": "Latvia",
+              "LB": "Lebanon",
+              "LS": "Lesotho",
+              "LR": "Liberia",
+              "LY": "Libya",
+              "LI": "Liechtenstein",
+              "LT": "Lithuania",
+              "LU": "Luxembourg",
+              "MO": "Macao",
+              "MG": "Madagascar",
+              "MW": "Malawi",
+              "MY": "Malaysia",
+              "MV": "Maldives",
+              "ML": "Mali",
+              "MT": "Malta",
+              "MH": "Marshall Islands",
+              "MQ": "Martinique",
+              "MR": "Mauritania",
+              "MU": "Mauritius",
+              "YT": "Mayotte",
+              "MX": "Mexico",
+              "FM": "Micronesia, Federated States of",
+              "MD": "Moldova",
+              "MC": "Monaco",
+              "MN": "Mongolia",
+              "ME": "Montenegro",
+              "MS": "Montserrat",
+              "MA": "Morocco",
+              "MZ": "Mozambique",
+              "MM": "Myanmar",
+              "NA": "Namibia",
+              "NR": "Nauru",
+              "NP": "Nepal",
+              "NL": "Netherlands",
+              "NC": "New Caledonia",
+              "NZ": "New Zealand",
+              "NI": "Nicaragua",
+              "NE": "Niger",
+              "NG": "Nigeria",
+              "NU": "Niue",
+              "NF": "Norfolk Island",
+              "MK": "North Macedonia",
+              "MP": "Northern Mariana Islands",
+              "NO": "Norway",
+              "OM": "Oman",
+              "PK": "Pakistan",
+              "PW": "Palau",
+              "PS": "Palestine, State of",
+              "PA": "Panama",
+              "PG": "Papua New Guinea",
+              "PY": "Paraguay",
+              "PE": "Peru",
+              "PH": "Philippines",
+              "PN": "Pitcairn",
+              "PL": "Poland",
+              "PT": "Portugal",
+              "PR": "Puerto Rico",
+              "QA": "Qatar",
+              "RO": "Romania",
+              "RU": "Russian Federation",
+              "RW": "Rwanda",
+              "RE": "Réunion",
+              "BL": "Saint Barthélemy",
+              "SH": "Saint Helena, Ascension and Tristan da Cunha",
+              "KN": "Saint Kitts and Nevis",
+              "LC": "Saint Lucia",
+              "MF": "Saint Martin (French part)",
+              "PM": "Saint Pierre and Miquelon",
+              "VC": "Saint Vincent and the Grenadines",
+              "WS": "Samoa",
+              "SM": "San Marino",
+              "ST": "Sao Tome and Principe",
+              "SA": "Saudi Arabia",
+              "SN": "Senegal",
+              "RS": "Serbia",
+              "SC": "Seychelles",
+              "SL": "Sierra Leone",
+              "SG": "Singapore",
+              "SX": "Sint Maarten (Dutch part)",
+              "SK": "Slovakia",
+              "SI": "Slovenia",
+              "SB": "Solomon Islands",
+              "SO": "Somalia",
+              "ZA": "South Africa",
+              "GS": "South Georgia and the South Sandwich Islands",
+              "KR": "South Korea",
+              "SS": "South Sudan",
+              "ES": "Spain",
+              "LK": "Sri Lanka",
+              "SD": "Sudan",
+              "SR": "Suriname",
+              "SJ": "Svalbard and Jan Mayen",
+              "SE": "Sweden",
+              "CH": "Switzerland",
+              "TW": "Taiwan",
+              "TJ": "Tajikistan",
+              "TZ": "Tanzania",
+              "TH": "Thailand",
+              "TL": "Timor-Leste",
+              "TG": "Togo",
+              "TK": "Tokelau",
+              "TO": "Tonga",
+              "TT": "Trinidad and Tobago",
+              "TN": "Tunisia",
+              "TM": "Turkmenistan",
+              "TC": "Turks and Caicos Islands",
+              "TV": "Tuvalu",
+              "TR": "Türkiye",
+              "UG": "Uganda",
+              "UA": "Ukraine",
+              "AE": "United Arab Emirates",
+              "GB": "United Kingdom",
+              "US": "United States",
+              "UM": "United States Minor Outlying Islands",
+              "UY": "Uruguay",
+              "UZ": "Uzbekistan",
+              "VU": "Vanuatu",
+              "VE": "Venezuela",
+              "VN": "Vietnam",
+              "VG": "Virgin Islands, British",
+              "VI": "Virgin Islands, U.S.",
+              "WF": "Wallis and Futuna",
+              "EH": "Western Sahara",
+              "YE": "Yemen",
+              "ZM": "Zambia",
+              "ZW": "Zimbabwe",
+              "AX": "Åland Islands"
+            },
+            "representative_countries": {
+              "AF": "Afghanistan",
+              "AL": "Albania",
+              "DZ": "Algeria",
+              "AS": "American Samoa",
+              "AD": "Andorra",
+              "AO": "Angola",
+              "AI": "Anguilla",
+              "AQ": "Antarctica",
+              "AG": "Antigua and Barbuda",
+              "AR": "Argentina",
+              "AM": "Armenia",
+              "AW": "Aruba",
+              "AU": "Australia",
+              "AT": "Austria",
+              "AZ": "Azerbaijan",
+              "BS": "Bahamas",
+              "BH": "Bahrain",
+              "BD": "Bangladesh",
+              "BB": "Barbados",
+              "BY": "Belarus",
+              "BE": "Belgium",
+              "BZ": "Belize",
+              "BJ": "Benin",
+              "BM": "Bermuda",
+              "BT": "Bhutan",
+              "BO": "Bolivia",
+              "BQ": "Bonaire, Sint Eustatius and Saba",
+              "BA": "Bosnia and Herzegovina",
+              "BW": "Botswana",
+              "BV": "Bouvet Island",
+              "BR": "Brazil",
+              "IO": "British Indian Ocean Territory",
+              "BN": "Brunei Darussalam",
+              "BG": "Bulgaria",
+              "BF": "Burkina Faso",
+              "BI": "Burundi",
+              "CV": "Cabo Verde",
+              "KH": "Cambodia",
+              "CM": "Cameroon",
+              "CA": "Canada",
+              "KY": "Cayman Islands",
+              "CF": "Central African Republic",
+              "TD": "Chad",
+              "CL": "Chile",
+              "CN": "China",
+              "CX": "Christmas Island",
+              "CC": "Cocos (Keeling) Islands",
+              "CO": "Colombia",
+              "KM": "Comoros",
+              "CG": "Congo",
+              "CD": "Congo, The Democratic Republic of the",
+              "CK": "Cook Islands",
+              "CR": "Costa Rica",
+              "HR": "Croatia",
+              "CW": "Curaçao",
+              "CY": "Cyprus",
+              "CZ": "Czechia",
+              "CI": "Côte d'Ivoire",
+              "DK": "Denmark",
+              "DJ": "Djibouti",
+              "DM": "Dominica",
+              "DO": "Dominican Republic",
+              "EC": "Ecuador",
+              "EG": "Egypt",
+              "SV": "El Salvador",
+              "GQ": "Equatorial Guinea",
+              "ER": "Eritrea",
+              "EE": "Estonia",
+              "SZ": "Eswatini",
+              "ET": "Ethiopia",
+              "FK": "Falkland Islands (Malvinas)",
+              "FO": "Faroe Islands",
+              "FJ": "Fiji",
+              "FI": "Finland",
+              "FR": "France",
+              "GF": "French Guiana",
+              "PF": "French Polynesia",
+              "TF": "French Southern Territories",
+              "GA": "Gabon",
+              "GM": "Gambia",
+              "GE": "Georgia",
+              "DE": "Germany",
+              "GH": "Ghana",
+              "GI": "Gibraltar",
+              "GR": "Greece",
+              "GL": "Greenland",
+              "GD": "Grenada",
+              "GP": "Guadeloupe",
+              "GU": "Guam",
+              "GT": "Guatemala",
+              "GG": "Guernsey",
+              "GN": "Guinea",
+              "GW": "Guinea-Bissau",
+              "GY": "Guyana",
+              "HT": "Haiti",
+              "HM": "Heard Island and McDonald Islands",
+              "VA": "Holy See (Vatican City State)",
+              "HN": "Honduras",
+              "HK": "Hong Kong",
+              "HU": "Hungary",
+              "IS": "Iceland",
+              "IN": "India",
+              "ID": "Indonesia",
+              "IQ": "Iraq",
+              "IE": "Ireland",
+              "IM": "Isle of Man",
+              "IL": "Israel",
+              "IT": "Italy",
+              "JM": "Jamaica",
+              "JP": "Japan",
+              "JE": "Jersey",
+              "JO": "Jordan",
+              "KZ": "Kazakhstan",
+              "KE": "Kenya",
+              "KI": "Kiribati",
+              "XK": "Kosovo",
+              "KW": "Kuwait",
+              "KG": "Kyrgyzstan",
+              "LA": "Lao People's Democratic Republic",
+              "LV": "Latvia",
+              "LB": "Lebanon",
+              "LS": "Lesotho",
+              "LR": "Liberia",
+              "LY": "Libya",
+              "LI": "Liechtenstein",
+              "LT": "Lithuania",
+              "LU": "Luxembourg",
+              "MO": "Macao",
+              "MG": "Madagascar",
+              "MW": "Malawi",
+              "MY": "Malaysia",
+              "MV": "Maldives",
+              "ML": "Mali",
+              "MT": "Malta",
+              "MH": "Marshall Islands",
+              "MQ": "Martinique",
+              "MR": "Mauritania",
+              "MU": "Mauritius",
+              "YT": "Mayotte",
+              "MX": "Mexico",
+              "FM": "Micronesia, Federated States of",
+              "MD": "Moldova",
+              "MC": "Monaco",
+              "MN": "Mongolia",
+              "ME": "Montenegro",
+              "MS": "Montserrat",
+              "MA": "Morocco",
+              "MZ": "Mozambique",
+              "MM": "Myanmar",
+              "NA": "Namibia",
+              "NR": "Nauru",
+              "NP": "Nepal",
+              "NL": "Netherlands",
+              "NC": "New Caledonia",
+              "NZ": "New Zealand",
+              "NI": "Nicaragua",
+              "NE": "Niger",
+              "NG": "Nigeria",
+              "NU": "Niue",
+              "NF": "Norfolk Island",
+              "MK": "North Macedonia",
+              "MP": "Northern Mariana Islands",
+              "NO": "Norway",
+              "OM": "Oman",
+              "PK": "Pakistan",
+              "PW": "Palau",
+              "PS": "Palestine, State of",
+              "PA": "Panama",
+              "PG": "Papua New Guinea",
+              "PY": "Paraguay",
+              "PE": "Peru",
+              "PH": "Philippines",
+              "PN": "Pitcairn",
+              "PL": "Poland",
+              "PT": "Portugal",
+              "QA": "Qatar",
+              "RO": "Romania",
+              "RU": "Russian Federation",
+              "RW": "Rwanda",
+              "RE": "Réunion",
+              "BL": "Saint Barthélemy",
+              "SH": "Saint Helena, Ascension and Tristan da Cunha",
+              "KN": "Saint Kitts and Nevis",
+              "LC": "Saint Lucia",
+              "MF": "Saint Martin (French part)",
+              "PM": "Saint Pierre and Miquelon",
+              "VC": "Saint Vincent and the Grenadines",
+              "WS": "Samoa",
+              "SM": "San Marino",
+              "ST": "Sao Tome and Principe",
+              "SA": "Saudi Arabia",
+              "SN": "Senegal",
+              "RS": "Serbia",
+              "SC": "Seychelles",
+              "SL": "Sierra Leone",
+              "SG": "Singapore",
+              "SX": "Sint Maarten (Dutch part)",
+              "SK": "Slovakia",
+              "SI": "Slovenia",
+              "SB": "Solomon Islands",
+              "SO": "Somalia",
+              "ZA": "South Africa",
+              "GS": "South Georgia and the South Sandwich Islands",
+              "KR": "South Korea",
+              "SS": "South Sudan",
+              "ES": "Spain",
+              "LK": "Sri Lanka",
+              "SD": "Sudan",
+              "SR": "Suriname",
+              "SJ": "Svalbard and Jan Mayen",
+              "SE": "Sweden",
+              "CH": "Switzerland",
+              "TW": "Taiwan",
+              "TJ": "Tajikistan",
+              "TZ": "Tanzania",
+              "TH": "Thailand",
+              "TL": "Timor-Leste",
+              "TG": "Togo",
+              "TK": "Tokelau",
+              "TO": "Tonga",
+              "TT": "Trinidad and Tobago",
+              "TN": "Tunisia",
+              "TM": "Turkmenistan",
+              "TC": "Turks and Caicos Islands",
+              "TV": "Tuvalu",
+              "TR": "Türkiye",
+              "UG": "Uganda",
+              "UA": "Ukraine",
+              "AE": "United Arab Emirates",
+              "GB": "United Kingdom",
+              "US": "United States",
+              "UM": "United States Minor Outlying Islands",
+              "UY": "Uruguay",
+              "UZ": "Uzbekistan",
+              "VU": "Vanuatu",
+              "VE": "Venezuela",
+              "VN": "Vietnam",
+              "VG": "Virgin Islands, British",
+              "VI": "Virgin Islands, U.S.",
+              "WF": "Wallis and Futuna",
+              "EH": "Western Sahara",
+              "YE": "Yemen",
+              "ZM": "Zambia",
+              "ZW": "Zimbabwe",
+              "AX": "Åland Islands"
+            },
+            "ip_country_code": null,
+            "bank_account_details": {
+              "show_bank_account": true,
+              "show_paypal": true,
+              "card_data_handling_mode": "stripejs.0",
+              "is_a_card": false,
+              "card": null,
+              "routing_number": null,
+              "account_number_visual": null,
+              "bank_account": null
+            },
+            "paypal_address": "edgarf79c80a3_50@gumroad.com",
+            "fee_info": {
+              "merchant_account_fee_info": {
+                "summary": "Your fees depend on how buyers find your product:",
+                "items": [
+                  {
+                    "label": "Direct sales",
+                    "value": "10% + 50¢ Gumroad fee + 2.9% + 30¢ processing fee"
+                  },
+                  {
+                    "label": "Discover sales",
+                    "value": "30%, processing fee included"
+                  }
+                ]
+              },
+              "connect_account_fee_info": {
+                "summary": "Your fees depend on how buyers find your product:",
+                "items": [
+                  {
+                    "label": "Direct sales",
+                    "value": "10% + 50¢ Gumroad fee"
+                  },
+                  {
+                    "label": "Discover sales",
+                    "value": "30% Gumroad fee"
+                  }
+                ]
+              }
+            },
+            "user": {
+              "country_supports_native_payouts": true,
+              "no_payout_rail_in_country": false,
+              "country_supports_iban": false,
+              "need_full_ssn": false,
+              "country_code": "AU",
+              "payout_currency": "aud",
+              "is_from_europe": false,
+              "individual_tax_id_needed_countries": [
+                "US",
+                "CA",
+                "HK",
+                "SG",
+                "AE",
+                "MX",
+                "BD",
+                "MZ",
+                "UY",
+                "AR",
+                "PE",
+                "CR",
+                "CL",
+                "CO",
+                "GT",
+                "DO",
+                "BO",
+                "KZ",
+                "PY",
+                "PK"
+              ],
+              "individual_tax_id_entered": true,
+              "individual_tax_id_last_four": "0000",
+              "individual_tax_id_is_last_four": false,
+              "has_outstanding_full_ssn_requirement": false,
+              "has_outstanding_nationality_requirement": false,
+              "business_tax_id_entered": false,
+              "business_tax_id_last_four": null,
+              "requires_credit_card": false,
+              "is_charged_paypal_payout_fee": true,
+              "joined_at": "<now>"
+            },
+            "compliance_info": {
+              "is_business": false,
+              "business_name": null,
+              "business_name_kanji": null,
+              "business_name_kana": null,
+              "business_type": null,
+              "business_street_address": null,
+              "business_building_number": null,
+              "business_building_number_kana": null,
+              "business_street_address_kanji": null,
+              "business_street_address_kana": null,
+              "business_city": null,
+              "business_city_kana": null,
+              "business_state": null,
+              "business_country": "AU",
+              "business_zip_code": null,
+              "business_phone": null,
+              "job_title": null,
+              "first_name": "Chuck",
+              "last_name": "Bartowski",
+              "first_name_kanji": null,
+              "last_name_kanji": null,
+              "first_name_kana": null,
+              "last_name_kana": null,
+              "street_address": "address_full_match",
+              "building_number": null,
+              "building_number_kana": null,
+              "street_address_kanji": null,
+              "street_address_kana": null,
+              "city": "San Francisco",
+              "city_kana": null,
+              "state": "NSW",
+              "country": "AU",
+              "zip_code": "2000",
+              "phone": "0000000000",
+              "nationality": null,
+              "dob_month": 1,
+              "dob_day": 1,
+              "dob_year": 1901
+            },
+            "min_dob_year": 2013,
+            "us_business_types": [
+              {
+                "code": "sole_proprietorship",
+                "name": "Sole Proprietorship"
+              },
+              {
+                "code": "single_member_llc",
+                "name": "LLC (single member)"
+              },
+              {
+                "code": "multi_member_llc",
+                "name": "LLC (multi-member)"
+              },
+              {
+                "code": "partnership",
+                "name": "Partnership"
+              },
+              {
+                "code": "corporation",
+                "name": "Corporation"
+              },
+              {
+                "code": "profit",
+                "name": "Non Profit"
+              }
+            ],
+            "uae_business_types": [
+              {
+                "code": "llc",
+                "name": "LLC"
+              },
+              {
+                "code": "sole_establishment",
+                "name": "Sole Establishment"
+              },
+              {
+                "code": "free_zone_llc",
+                "name": "Free Zone LLC"
+              },
+              {
+                "code": "free_zone_establishment",
+                "name": "Free Zone Establishment"
+              }
+            ],
+            "india_business_types": [
+              {
+                "code": "sole_proprietorship",
+                "name": "Sole Proprietorship"
+              },
+              {
+                "code": "partnership",
+                "name": "Partnership"
+              },
+              {
+                "code": "llp",
+                "name": "Limited Liability Partnership (LLP)"
+              },
+              {
+                "code": "pvt_ltd",
+                "name": "Private Limited Company (Pvt Ltd)"
+              },
+              {
+                "code": "pub_ltd",
+                "name": "Public Limited Company (Ltd)"
+              },
+              {
+                "code": "opc",
+                "name": "One-Person Company (OPC)"
+              },
+              {
+                "code": "jvc",
+                "name": "Joint-Venture Company (JVC)"
+              },
+              {
+                "code": "ngo",
+                "name": "Non-Government Organization (NGO)"
+              }
+            ],
+            "canada_business_types": [
+              {
+                "code": "private_corporation",
+                "name": "Private Corporation"
+              },
+              {
+                "code": "private_partnership",
+                "name": "Private Partnership"
+              },
+              {
+                "code": "sole_proprietorship",
+                "name": "Sole Proprietorship"
+              },
+              {
+                "code": "public_corporation",
+                "name": "Public Corporation"
+              },
+              {
+                "code": "non_profit",
+                "name": "Non Profit"
+              },
+              {
+                "code": "registered_charity",
+                "name": "Registered Charity"
+              }
+            ],
+            "states": {
+              "us": [
+                {
+                  "code": "AL",
+                  "name": "Alabama"
+                },
+                {
+                  "code": "AK",
+                  "name": "Alaska"
+                },
+                {
+                  "code": "AZ",
+                  "name": "Arizona"
+                },
+                {
+                  "code": "AR",
+                  "name": "Arkansas"
+                },
+                {
+                  "code": "CA",
+                  "name": "California"
+                },
+                {
+                  "code": "CO",
+                  "name": "Colorado"
+                },
+                {
+                  "code": "CT",
+                  "name": "Connecticut"
+                },
+                {
+                  "code": "DE",
+                  "name": "Delaware"
+                },
+                {
+                  "code": "DC",
+                  "name": "District of Columbia"
+                },
+                {
+                  "code": "FL",
+                  "name": "Florida"
+                },
+                {
+                  "code": "GA",
+                  "name": "Georgia"
+                },
+                {
+                  "code": "HI",
+                  "name": "Hawaii"
+                },
+                {
+                  "code": "ID",
+                  "name": "Idaho"
+                },
+                {
+                  "code": "IL",
+                  "name": "Illinois"
+                },
+                {
+                  "code": "IN",
+                  "name": "Indiana"
+                },
+                {
+                  "code": "IA",
+                  "name": "Iowa"
+                },
+                {
+                  "code": "KS",
+                  "name": "Kansas"
+                },
+                {
+                  "code": "KY",
+                  "name": "Kentucky"
+                },
+                {
+                  "code": "LA",
+                  "name": "Louisiana"
+                },
+                {
+                  "code": "ME",
+                  "name": "Maine"
+                },
+                {
+                  "code": "MD",
+                  "name": "Maryland"
+                },
+                {
+                  "code": "MA",
+                  "name": "Massachusetts"
+                },
+                {
+                  "code": "MI",
+                  "name": "Michigan"
+                },
+                {
+                  "code": "MN",
+                  "name": "Minnesota"
+                },
+                {
+                  "code": "MS",
+                  "name": "Mississippi"
+                },
+                {
+                  "code": "MO",
+                  "name": "Missouri"
+                },
+                {
+                  "code": "MT",
+                  "name": "Montana"
+                },
+                {
+                  "code": "NE",
+                  "name": "Nebraska"
+                },
+                {
+                  "code": "NV",
+                  "name": "Nevada"
+                },
+                {
+                  "code": "NH",
+                  "name": "New Hampshire"
+                },
+                {
+                  "code": "NJ",
+                  "name": "New Jersey"
+                },
+                {
+                  "code": "NM",
+                  "name": "New Mexico"
+                },
+                {
+                  "code": "NY",
+                  "name": "New York"
+                },
+                {
+                  "code": "NC",
+                  "name": "North Carolina"
+                },
+                {
+                  "code": "ND",
+                  "name": "North Dakota"
+                },
+                {
+                  "code": "OH",
+                  "name": "Ohio"
+                },
+                {
+                  "code": "OK",
+                  "name": "Oklahoma"
+                },
+                {
+                  "code": "OR",
+                  "name": "Oregon"
+                },
+                {
+                  "code": "PA",
+                  "name": "Pennsylvania"
+                },
+                {
+                  "code": "PR",
+                  "name": "Puerto Rico"
+                },
+                {
+                  "code": "RI",
+                  "name": "Rhode Island"
+                },
+                {
+                  "code": "SC",
+                  "name": "South Carolina"
+                },
+                {
+                  "code": "SD",
+                  "name": "South Dakota"
+                },
+                {
+                  "code": "TN",
+                  "name": "Tennessee"
+                },
+                {
+                  "code": "TX",
+                  "name": "Texas"
+                },
+                {
+                  "code": "UT",
+                  "name": "Utah"
+                },
+                {
+                  "code": "VT",
+                  "name": "Vermont"
+                },
+                {
+                  "code": "VA",
+                  "name": "Virginia"
+                },
+                {
+                  "code": "WA",
+                  "name": "Washington"
+                },
+                {
+                  "code": "WV",
+                  "name": "West Virginia"
+                },
+                {
+                  "code": "WI",
+                  "name": "Wisconsin"
+                },
+                {
+                  "code": "WY",
+                  "name": "Wyoming"
+                }
+              ],
+              "ca": [
+                {
+                  "code": "AB",
+                  "name": "Alberta"
+                },
+                {
+                  "code": "BC",
+                  "name": "British Columbia"
+                },
+                {
+                  "code": "MB",
+                  "name": "Manitoba"
+                },
+                {
+                  "code": "NB",
+                  "name": "New Brunswick"
+                },
+                {
+                  "code": "NL",
+                  "name": "Newfoundland and Labrador"
+                },
+                {
+                  "code": "NT",
+                  "name": "Northwest Territories"
+                },
+                {
+                  "code": "NS",
+                  "name": "Nova Scotia"
+                },
+                {
+                  "code": "NU",
+                  "name": "Nunavut"
+                },
+                {
+                  "code": "ON",
+                  "name": "Ontario"
+                },
+                {
+                  "code": "PE",
+                  "name": "Prince Edward Island"
+                },
+                {
+                  "code": "QC",
+                  "name": "Quebec"
+                },
+                {
+                  "code": "SK",
+                  "name": "Saskatchewan"
+                },
+                {
+                  "code": "YT",
+                  "name": "Yukon"
+                }
+              ],
+              "au": [
+                {
+                  "code": "ACT",
+                  "name": "Australian Capital Territory"
+                },
+                {
+                  "code": "NSW",
+                  "name": "New South Wales"
+                },
+                {
+                  "code": "NT",
+                  "name": "Northern Territory"
+                },
+                {
+                  "code": "QLD",
+                  "name": "Queensland"
+                },
+                {
+                  "code": "SA",
+                  "name": "South Australia"
+                },
+                {
+                  "code": "TAS",
+                  "name": "Tasmania"
+                },
+                {
+                  "code": "VIC",
+                  "name": "Victoria"
+                },
+                {
+                  "code": "WA",
+                  "name": "Western Australia"
+                }
+              ],
+              "mx": [
+                {
+                  "code": "AGU",
+                  "name": "Aguascalientes"
+                },
+                {
+                  "code": "BCN",
+                  "name": "Baja California"
+                },
+                {
+                  "code": "BCS",
+                  "name": "Baja California Sur"
+                },
+                {
+                  "code": "CAM",
+                  "name": "Campeche"
+                },
+                {
+                  "code": "CHP",
+                  "name": "Chiapas"
+                },
+                {
+                  "code": "CHH",
+                  "name": "Chihuahua"
+                },
+                {
+                  "code": "CMX",
+                  "name": "Ciudad de México"
+                },
+                {
+                  "code": "COA",
+                  "name": "Coahuila"
+                },
+                {
+                  "code": "COL",
+                  "name": "Colima"
+                },
+                {
+                  "code": "DUR",
+                  "name": "Durango"
+                },
+                {
+                  "code": "GUA",
+                  "name": "Guanajuato"
+                },
+                {
+                  "code": "GRO",
+                  "name": "Guerrero"
+                },
+                {
+                  "code": "HID",
+                  "name": "Hidalgo"
+                },
+                {
+                  "code": "JAL",
+                  "name": "Jalisco"
+                },
+                {
+                  "code": "MIC",
+                  "name": "Michoacán"
+                },
+                {
+                  "code": "MOR",
+                  "name": "Morelos"
+                },
+                {
+                  "code": "MEX",
+                  "name": "México"
+                },
+                {
+                  "code": "NAY",
+                  "name": "Nayarit"
+                },
+                {
+                  "code": "NLE",
+                  "name": "Nuevo León"
+                },
+                {
+                  "code": "OAX",
+                  "name": "Oaxaca"
+                },
+                {
+                  "code": "PUE",
+                  "name": "Puebla"
+                },
+                {
+                  "code": "QUE",
+                  "name": "Querétaro"
+                },
+                {
+                  "code": "ROO",
+                  "name": "Quintana Roo"
+                },
+                {
+                  "code": "SLP",
+                  "name": "San Luis Potosí"
+                },
+                {
+                  "code": "SIN",
+                  "name": "Sinaloa"
+                },
+                {
+                  "code": "SON",
+                  "name": "Sonora"
+                },
+                {
+                  "code": "TAB",
+                  "name": "Tabasco"
+                },
+                {
+                  "code": "TAM",
+                  "name": "Tamaulipas"
+                },
+                {
+                  "code": "TLA",
+                  "name": "Tlaxcala"
+                },
+                {
+                  "code": "VER",
+                  "name": "Veracruz"
+                },
+                {
+                  "code": "YUC",
+                  "name": "Yucatán"
+                },
+                {
+                  "code": "ZAC",
+                  "name": "Zacatecas"
+                }
+              ],
+              "ae": [
+                {
+                  "code": "AZ",
+                  "name": "Abu Dhabi"
+                },
+                {
+                  "code": "AJ",
+                  "name": "Ajman"
+                },
+                {
+                  "code": "DU",
+                  "name": "Dubai"
+                },
+                {
+                  "code": "FU",
+                  "name": "Fujairah"
+                },
+                {
+                  "code": "RK",
+                  "name": "Ras al-Khaimah"
+                },
+                {
+                  "code": "SH",
+                  "name": "Sharjah"
+                },
+                {
+                  "code": "UQ",
+                  "name": "Umm al-Quwain"
+                }
+              ],
+              "ir": [
+                {
+                  "code": "CW",
+                  "name": "Carlow"
+                },
+                {
+                  "code": "CN",
+                  "name": "Cavan"
+                },
+                {
+                  "code": "CE",
+                  "name": "Clare"
+                },
+                {
+                  "code": "CO",
+                  "name": "Cork"
+                },
+                {
+                  "code": "DL",
+                  "name": "Donegal"
+                },
+                {
+                  "code": "D",
+                  "name": "Dublin"
+                },
+                {
+                  "code": "G",
+                  "name": "Galway"
+                },
+                {
+                  "code": "KY",
+                  "name": "Kerry"
+                },
+                {
+                  "code": "KE",
+                  "name": "Kildare"
+                },
+                {
+                  "code": "KK",
+                  "name": "Kilkenny"
+                },
+                {
+                  "code": "LS",
+                  "name": "Laois"
+                },
+                {
+                  "code": "LM",
+                  "name": "Leitrim"
+                },
+                {
+                  "code": "LK",
+                  "name": "Limerick"
+                },
+                {
+                  "code": "LD",
+                  "name": "Longford"
+                },
+                {
+                  "code": "LH",
+                  "name": "Louth"
+                },
+                {
+                  "code": "MO",
+                  "name": "Mayo"
+                },
+                {
+                  "code": "MH",
+                  "name": "Meath"
+                },
+                {
+                  "code": "MN",
+                  "name": "Monaghan"
+                },
+                {
+                  "code": "OY",
+                  "name": "Offaly"
+                },
+                {
+                  "code": "RN",
+                  "name": "Roscommon"
+                },
+                {
+                  "code": "SO",
+                  "name": "Sligo"
+                },
+                {
+                  "code": "TA",
+                  "name": "Tipperary"
+                },
+                {
+                  "code": "WD",
+                  "name": "Waterford"
+                },
+                {
+                  "code": "WH",
+                  "name": "Westmeath"
+                },
+                {
+                  "code": "WX",
+                  "name": "Wexford"
+                },
+                {
+                  "code": "WW",
+                  "name": "Wicklow"
+                }
+              ],
+              "br": [
+                {
+                  "code": "AC",
+                  "name": "Acre"
+                },
+                {
+                  "code": "AL",
+                  "name": "Alagoas"
+                },
+                {
+                  "code": "AP",
+                  "name": "Amapá"
+                },
+                {
+                  "code": "AM",
+                  "name": "Amazonas"
+                },
+                {
+                  "code": "BA",
+                  "name": "Bahia"
+                },
+                {
+                  "code": "CE",
+                  "name": "Ceará"
+                },
+                {
+                  "code": "DF",
+                  "name": "Distrito Federal"
+                },
+                {
+                  "code": "ES",
+                  "name": "Espírito Santo"
+                },
+                {
+                  "code": "GO",
+                  "name": "Goiás"
+                },
+                {
+                  "code": "MA",
+                  "name": "Maranhão"
+                },
+                {
+                  "code": "MT",
+                  "name": "Mato Grosso"
+                },
+                {
+                  "code": "MS",
+                  "name": "Mato Grosso do Sul"
+                },
+                {
+                  "code": "MG",
+                  "name": "Minas Gerais"
+                },
+                {
+                  "code": "PR",
+                  "name": "Paraná"
+                },
+                {
+                  "code": "PB",
+                  "name": "Paraíba"
+                },
+                {
+                  "code": "PA",
+                  "name": "Pará"
+                },
+                {
+                  "code": "PE",
+                  "name": "Pernambuco"
+                },
+                {
+                  "code": "PI",
+                  "name": "Piauí"
+                },
+                {
+                  "code": "RN",
+                  "name": "Rio Grande do Norte"
+                },
+                {
+                  "code": "RS",
+                  "name": "Rio Grande do Sul"
+                },
+                {
+                  "code": "RJ",
+                  "name": "Rio de Janeiro"
+                },
+                {
+                  "code": "RO",
+                  "name": "Rondônia"
+                },
+                {
+                  "code": "RR",
+                  "name": "Roraima"
+                },
+                {
+                  "code": "SC",
+                  "name": "Santa Catarina"
+                },
+                {
+                  "code": "SE",
+                  "name": "Sergipe"
+                },
+                {
+                  "code": "SP",
+                  "name": "São Paulo"
+                },
+                {
+                  "code": "TO",
+                  "name": "Tocantins"
+                }
+              ],
+              "jp": [
+                {
+                  "value": "北海道",
+                  "label": "北海道",
+                  "kana": "ホッカイドウ"
+                },
+                {
+                  "value": "青森県",
+                  "label": "青森県",
+                  "kana": "アオモリケン"
+                },
+                {
+                  "value": "岩手県",
+                  "label": "岩手県",
+                  "kana": "イワテケン"
+                },
+                {
+                  "value": "宮城県",
+                  "label": "宮城県",
+                  "kana": "ミヤギケン"
+                },
+                {
+                  "value": "秋田県",
+                  "label": "秋田県",
+                  "kana": "アキタケン"
+                },
+                {
+                  "value": "山形県",
+                  "label": "山形県",
+                  "kana": "ヤマガタケン"
+                },
+                {
+                  "value": "福島県",
+                  "label": "福島県",
+                  "kana": "フクシマケン"
+                },
+                {
+                  "value": "茨城県",
+                  "label": "茨城県",
+                  "kana": "イバラキケン"
+                },
+                {
+                  "value": "栃木県",
+                  "label": "栃木県",
+                  "kana": "トチギケン"
+                },
+                {
+                  "value": "群馬県",
+                  "label": "群馬県",
+                  "kana": "グンマケン"
+                },
+                {
+                  "value": "埼玉県",
+                  "label": "埼玉県",
+                  "kana": "サイタマケン"
+                },
+                {
+                  "value": "千葉県",
+                  "label": "千葉県",
+                  "kana": "チバケン"
+                },
+                {
+                  "value": "東京都",
+                  "label": "東京都",
+                  "kana": "トウキョウト"
+                },
+                {
+                  "value": "神奈川県",
+                  "label": "神奈川県",
+                  "kana": "カナガワケン"
+                },
+                {
+                  "value": "新潟県",
+                  "label": "新潟県",
+                  "kana": "ニイガタケン"
+                },
+                {
+                  "value": "富山県",
+                  "label": "富山県",
+                  "kana": "トヤマケン"
+                },
+                {
+                  "value": "石川県",
+                  "label": "石川県",
+                  "kana": "イシカワケン"
+                },
+                {
+                  "value": "福井県",
+                  "label": "福井県",
+                  "kana": "フクイケン"
+                },
+                {
+                  "value": "山梨県",
+                  "label": "山梨県",
+                  "kana": "ヤマナシケン"
+                },
+                {
+                  "value": "長野県",
+                  "label": "長野県",
+                  "kana": "ナガノケン"
+                },
+                {
+                  "value": "岐阜県",
+                  "label": "岐阜県",
+                  "kana": "ギフケン"
+                },
+                {
+                  "value": "静岡県",
+                  "label": "静岡県",
+                  "kana": "シズオカケン"
+                },
+                {
+                  "value": "愛知県",
+                  "label": "愛知県",
+                  "kana": "アイチケン"
+                },
+                {
+                  "value": "三重県",
+                  "label": "三重県",
+                  "kana": "ミエケン"
+                },
+                {
+                  "value": "滋賀県",
+                  "label": "滋賀県",
+                  "kana": "シガケン"
+                },
+                {
+                  "value": "京都府",
+                  "label": "京都府",
+                  "kana": "キョウトフ"
+                },
+                {
+                  "value": "大阪府",
+                  "label": "大阪府",
+                  "kana": "オオサカフ"
+                },
+                {
+                  "value": "兵庫県",
+                  "label": "兵庫県",
+                  "kana": "ヒョウゴケン"
+                },
+                {
+                  "value": "奈良県",
+                  "label": "奈良県",
+                  "kana": "ナラケン"
+                },
+                {
+                  "value": "和歌山県",
+                  "label": "和歌山県",
+                  "kana": "ワカヤマケン"
+                },
+                {
+                  "value": "鳥取県",
+                  "label": "鳥取県",
+                  "kana": "トットリケン"
+                },
+                {
+                  "value": "島根県",
+                  "label": "島根県",
+                  "kana": "シマネケン"
+                },
+                {
+                  "value": "岡山県",
+                  "label": "岡山県",
+                  "kana": "オカヤマケン"
+                },
+                {
+                  "value": "広島県",
+                  "label": "広島県",
+                  "kana": "ヒロシマケン"
+                },
+                {
+                  "value": "山口県",
+                  "label": "山口県",
+                  "kana": "ヤマグチケン"
+                },
+                {
+                  "value": "徳島県",
+                  "label": "徳島県",
+                  "kana": "トクシマケン"
+                },
+                {
+                  "value": "香川県",
+                  "label": "香川県",
+                  "kana": "カガワケン"
+                },
+                {
+                  "value": "愛媛県",
+                  "label": "愛媛県",
+                  "kana": "エヒメケン"
+                },
+                {
+                  "value": "高知県",
+                  "label": "高知県",
+                  "kana": "コウチケン"
+                },
+                {
+                  "value": "福岡県",
+                  "label": "福岡県",
+                  "kana": "フクオカケン"
+                },
+                {
+                  "value": "佐賀県",
+                  "label": "佐賀県",
+                  "kana": "サガケン"
+                },
+                {
+                  "value": "長崎県",
+                  "label": "長崎県",
+                  "kana": "ナガサキケン"
+                },
+                {
+                  "value": "熊本県",
+                  "label": "熊本県",
+                  "kana": "クマモトケン"
+                },
+                {
+                  "value": "大分県",
+                  "label": "大分県",
+                  "kana": "オオイタケン"
+                },
+                {
+                  "value": "宮崎県",
+                  "label": "宮崎県",
+                  "kana": "ミヤザキケン"
+                },
+                {
+                  "value": "鹿児島県",
+                  "label": "鹿児島県",
+                  "kana": "カゴシマケン"
+                },
+                {
+                  "value": "沖縄県",
+                  "label": "沖縄県",
+                  "kana": "オキナワケン"
+                }
+              ]
+            },
+            "saved_card": null,
+            "formatted_balance_to_forfeit_on_country_change": null,
+            "formatted_balance_to_forfeit_on_payout_method_change": null,
+            "paypal_switch_loses_bank_rail": false,
+            "payouts_paused_internally": false,
+            "payout_reserve_available": false,
+            "payouts_paused_by": null,
+            "payout_reserve_percent": null,
+            "account_status": {
+              "show_section": false,
+              "is_suspended": false,
+              "suspension_reason": null,
+              "compliance_actions": [],
+              "needs_id_upload": false,
+              "gumroad_status": null,
+              "social_connections_for_review": null,
+              "stripe_rejected": false,
+              "stripe_rejected_balance_status": null,
+              "stripe_rejected_formatted_balance": null,
+              "stripe_rejected_payout_date": null
+            },
+            "payouts_paused_by_user": false,
+            "payout_threshold_cents": 10000,
+            "minimum_payout_threshold_cents": 10000,
+            "payout_country_name": "Australia",
+            "payout_frequency": "weekly",
+            "payout_frequency_daily_supported": false,
+            "instant_payout_fee_percent": 3,
+            "buyer_local_currency_enabled": false,
+            "disable_buyer_local_currency": false,
+            "buyer_currency_charging_enabled": false,
+            "disable_buyer_currency_rounding": false,
+            "can_manage_beneficial_owners": false,
+            "legal_guardian": {
+              "required": false,
+              "unsupported": false,
+              "blocking_payouts": false,
+              "guardian": null
+            },
+            "_inertia_meta": [
+              {
+                "tagName": "title",
+                "headKey": "title",
+                "innerContent": "Settings"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-csrf-param",
+                "name": "csrf-param",
+                "content": "authenticity_token"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-csrf-token",
+                "name": "csrf-token",
+                "content": "RdHD7h6TpiwyX1NDinymIyzpwfd_P5qq9wzHU-Hjzrv_pfgNkb4lUhI1NGBwKAnqvslZz0LjLGhrp5a9004MSQ"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-charset",
+                "charset": "utf-8"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-fb-app_id",
+                "property": "fb:app_id"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-fb-page_id",
+                "property": "fb:page_id",
+                "content": "http://www.facebook.com/gumroad"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-environment",
+                "property": "gr:environment",
+                "content": "test"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-image",
+                "property": "og:image",
+                "content": "/images/opengraph_image.png"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-image-alt",
+                "property": "og:image:alt",
+                "content": "Gumroad"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-title",
+                "property": "og:title",
+                "content": "Gumroad"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-site_name",
+                "property": "og:site_name",
+                "content": "Gumroad"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-viewport",
+                "name": "viewport",
+                "content": "initial-scale = 1.0, width = device-width"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-stripe-pk",
+                "property": "stripe:pk",
+                "value": "pk_test_51SNEgsIBOqvOFDrfzBydwy0Ca4j1Xgs7pQsbp2zsyWqHezN7yu3TRignvBqDEc6gn8y98bX8HRv8gKJ8Q45w2t6N00ofXBsMBF"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-stripe-api_version",
+                "property": "stripe:api_version",
+                "value": "2023-10-16"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-twitter-site",
+                "property": "twitter:site",
+                "content": "@gumroad"
+              },
+              {
+                "tagName": "link",
+                "headKey": "link-1644e96d",
+                "type": "application/opensearchdescription+xml",
+                "rel": "search",
+                "href": "/opensearch.xml",
+                "title": "Gumroad"
+              },
+              {
+                "tagName": "link",
+                "headKey": "shortcut-icon",
+                "rel": "shortcut icon",
+                "href": "/images/pink-icon.png"
+              },
+              {
+                "tagName": "link",
+                "headKey": "apple-touch-icon",
+                "rel": "apple-touch-icon",
+                "href": "/images/pink-icon.png"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-google_analytics-enabled",
+                "property": "gr:google_analytics:enabled",
+                "content": "false"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-fb_pixel-enabled",
+                "property": "gr:fb_pixel:enabled",
+                "content": "false"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-tiktok_pixel-enabled",
+                "property": "gr:tiktok_pixel:enabled",
+                "content": "false"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-logged_in_user-id",
+                "property": "gr:logged_in_user:id",
+                "content": "1539100048134"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-page-type",
+                "property": "gr:page:type"
+              }
+            ]
+          },
+          "url": "/settings/payments",
+          "version": null,
+          "encryptHistory": false,
+          "clearHistory": false
+        }
+      },
+      "db": {
+        "dashboard_nav_promotions": {
+          "inserted": [
+            {
+              "id": 1,
+              "user_id": 1,
+              "nav_item": "seeded",
+              "created_at": "<now+60m>",
+              "updated_at": "<now+60m>"
+            }
+          ]
+        }
+      },
+      "jobs": [],
+      "mails": [],
+      "http": []
+    }
+  ]
+}

@@ -93,6 +93,310 @@ describe "Payments, profile and application settings when signed in", type: :req
       expect(response).to redirect_to(dashboard_url)
     end
 
+    it "renders a Canadian seller with a Canadian bank account", parity: true do
+      create(:user_compliance_info_canada, user: seller)
+      create(:canadian_bank_account, user: seller, stripe_bank_account_id: "ba_1")
+      log_in(seller)
+
+      get settings_payments_path
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["user"]["country_code"]).to eq("CA")
+    end
+
+    it "renders a Mexican seller whose minimum payout is converted from pesos", parity: true do
+      create(:user_compliance_info, user: seller, country: "Mexico", state: "JAL", zip_code: "44100")
+      log_in(seller)
+
+      get settings_payments_path
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["minimum_payout_threshold_cents"]).to be > 0
+    end
+
+    it "renders a Japanese seller with kana and kanji names", parity: true do
+      create(:user_compliance_info, user: seller, country: "Japan", state: "東京都", zip_code: "100-0001", first_name_kanji: "太郎", last_name_kanji: "山田", first_name_kana: "タロウ", last_name_kana: "ヤマダ", building_number: "1-1", street_address_kana: "チヨダ", city_kana: "チヨダク", phone: "+81312345678", nationality: "JP")
+      log_in(seller)
+
+      get settings_payments_path
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["compliance_info"]).to include("first_name_kana" => "タロウ")
+    end
+
+    it "renders a seller from a country without a bank payout rail", parity: true do
+      create(:user_compliance_info, user: seller, country: "Nepal", state: "Bagmati", zip_code: "44600")
+      log_in(seller)
+
+      get settings_payments_path
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["user"]["country_supports_native_payouts"]).to eq(false)
+    end
+
+    it "renders a seller who paused their own payouts", parity: true do
+      create(:user_compliance_info, user: seller)
+      seller.update!(payouts_paused_by_user: true)
+      seller.update!(payout_frequency: "monthly", payout_threshold_cents: 25_000)
+      log_in(seller)
+
+      get settings_payments_path
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)).to include("payouts_paused_by_user" => true, "payout_frequency" => "monthly", "payout_threshold_cents" => 25_000)
+    end
+
+    it "renders a seller whose payouts Stripe paused", parity: true do
+      create(:user_compliance_info, user: seller)
+      create(:merchant_account, user: seller, country: "US")
+      seller.update!(payouts_paused_internally: true, payouts_paused_by: "stripe")
+      log_in(seller)
+
+      get settings_payments_path
+
+      expect(response).to be_successful
+      props = inertia_props_of(response)
+      expect(props["payouts_paused_by"]).to eq("stripe")
+      expect(props["account_status"]["compliance_actions"].first["message"]).to include("Stripe")
+    end
+
+    it "renders the chargeback payout reserve", parity: true do
+      create(:user_compliance_info, user: seller)
+      create(:comment, commentable: seller, author_name: "pause_payouts_for_seller_based_on_chargeback_rate", comment_type: Comment::COMMENT_TYPE_ON_PROBATION)
+      seller.update!(payouts_paused_internally: true, payouts_paused_by: "system")
+      log_in(seller)
+
+      get settings_payments_path
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)).to include("payout_reserve_available" => true, "payout_reserve_percent" => 25)
+    end
+
+    it "lists the verification the seller still has to provide", parity: true do
+      create(:user_compliance_info, user: seller)
+      create(:user_compliance_info_request, user: seller, field_needed: UserComplianceInfoFields::Individual::TAX_ID, state: "requested")
+      create(:user_compliance_info_request, user: seller, field_needed: UserComplianceInfoFields::Individual::STRIPE_IDENTITY_DOCUMENT_ID, state: "requested")
+      create(:user_compliance_info_request, user: seller, field_needed: UserComplianceInfoFields::Individual::PHONE_NUMBER, state: "requested")
+      log_in(seller)
+
+      get settings_payments_path
+
+      expect(response).to be_successful
+      status = inertia_props_of(response)["account_status"]
+      expect(status["needs_id_upload"]).to eq(true)
+      expect(status["compliance_actions"].first["message"]).to start_with("Please provide:")
+    end
+
+    it "links to Stripe's remediation when a Stripe account has requests open", parity: true do
+      create(:user_compliance_info, user: seller)
+      create(:merchant_account, user: seller, country: "US")
+      create(:user_compliance_info_request, user: seller, field_needed: UserComplianceInfoFields::Individual::TAX_ID, state: "requested")
+      create(:user_compliance_info_request, user: seller, field_needed: UserComplianceInfoFields::Individual::NATIONALITY, state: "requested")
+      log_in(seller)
+
+      get settings_payments_path
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["account_status"]["compliance_actions"].first["href"]).to eq("/settings/payments/remediation")
+    end
+
+    it "shows the postal code Stripe rejected", parity: true do
+      create(:user_compliance_info, user: seller)
+      create(:comment, commentable: seller, author_id: GUMROAD_ADMIN_ID, author_name: "admin", comment_type: Comment::COMMENT_TYPE_PAYOUT_NOTE,
+                       content: "#{StripeMerchantAccountManager::POSTAL_CODE_FAILURE_NOTE_PREFIX}: 94107")
+      log_in(seller)
+
+      get settings_payments_path
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["account_status"]["compliance_actions"].first["message"]).to include("postal code")
+    end
+
+    it "shows an account under review and records the social connections offered", parity: true do
+      create(:user_compliance_info, user: seller)
+      seller.put_on_probation!(author_name: "test")
+      log_in(seller)
+
+      get settings_payments_path
+
+      expect(response).to be_successful
+      status = inertia_props_of(response)["account_status"]
+      expect(status["gumroad_status"]).to include("under review")
+      expect(status["social_connections_for_review"]).to eq([{ "provider" => "twitter", "connected" => false }])
+    end
+
+    it "does not offer the social connections to a team admin", parity: true do
+      create(:user_compliance_info, user: seller)
+      seller.put_on_probation!(author_name: "test")
+      member_with_role(TeamMembership::ROLE_ADMIN)
+
+      get settings_payments_path
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["account_status"]["social_connections_for_review"]).to be_nil
+    end
+
+    it "shows the Stripe rejection and what is left of the balance", parity: true do
+      create(:user_compliance_info, user: seller)
+      create(:merchant_account, user: seller, country: "US", json_data: { "stripe_disabled_reason" => "rejected.fraud" })
+      create(:balance, user: seller, amount_cents: 50, merchant_account: create(:merchant_account, user: nil))
+      log_in(seller)
+
+      get settings_payments_path
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["account_status"]).to include("stripe_rejected" => true, "stripe_rejected_balance_status" => "too_small")
+    end
+
+    it "shows a rejected account whose payouts are held", parity: true do
+      create(:user_compliance_info, user: seller)
+      create(:merchant_account, user: seller, country: "US", json_data: { "stripe_disabled_reason" => "rejected.listed" })
+      create(:balance, user: seller, amount_cents: 500_00, merchant_account: create(:merchant_account, user: nil))
+      seller.update!(payouts_paused_by_user: true)
+      log_in(seller)
+
+      get settings_payments_path
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["account_status"]).to include("stripe_rejected_balance_status" => "held", "stripe_rejected_formatted_balance" => "$500")
+    end
+
+    it "shows the balance forfeited when the seller changes country", parity: true do
+      create(:user_compliance_info, user: seller)
+      managed = create(:merchant_account, user: seller, country: "US")
+      create(:balance, user: seller, amount_cents: 1_234_56, merchant_account: managed)
+      create(:balance, user: seller, amount_cents: 20_00, merchant_account: create(:merchant_account, user: nil))
+      log_in(seller)
+
+      get settings_payments_path
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["formatted_balance_to_forfeit_on_country_change"]).to eq("$1,234.56")
+    end
+
+    it "shows an Australian seller who owes backtaxes and has opted in", parity: true do
+      create(:user_compliance_info, user: seller, country: "Australia", state: "NSW", zip_code: "2000")
+      seller.update!(au_backtax_owed_cents: 150_00, au_backtax_sales_cents: 2_500_50)
+      agreement = create(:backtax_agreement, user: seller)
+      create(:australia_backtax_email_info, user: seller)
+      balance = create(:balance, user: seller, merchant_account: create(:merchant_account, user: nil))
+      create(:credit, user: seller, merchant_account: balance.merchant_account, balance:, backtax_agreement: agreement)
+      log_in(seller)
+
+      get settings_payments_path
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["aus_backtax_details"]).to include("opted_in_to_au_backtax" => true, "are_au_backtaxes_paid" => true)
+    end
+
+    it "asks a US minor for a legal guardian", parity: true do
+      create(:user_compliance_info, user: seller, birthday: 16.years.ago.to_date)
+      log_in(seller)
+
+      get settings_payments_path
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["legal_guardian"]).to include("required" => true, "blocking_payouts" => true, "guardian" => nil)
+    end
+
+    it "shows the legal guardian of a US minor", parity: true do
+      guardian = create(:guardian, user: seller)
+      create(:user_compliance_info, user: seller, birthday: 16.years.ago.to_date, guardian:)
+      log_in(seller)
+
+      get settings_payments_path
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["legal_guardian"]).to include("required" => true, "blocking_payouts" => false)
+    end
+
+    it "tells a minor from a country without a guardian path", parity: true do
+      create(:user_compliance_info, user: seller, country: "Canada", state: "BC", zip_code: "M4C 1T2", birthday: 16.years.ago.to_date)
+      log_in(seller)
+
+      get settings_payments_path
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["legal_guardian"]).to include("unsupported" => true)
+    end
+
+    it "shows the saved card of the seller", parity: true do
+      create(:user_compliance_info, user: seller)
+      card = create(:indian_stripe_credit_card)
+      seller.update!(credit_card: card)
+      log_in(seller)
+
+      get settings_payments_path
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["saved_card"]).to include("requires_mandate" => true)
+    end
+
+    # Not recorded: a seller with a Connect account reaches User#sales_cents_total in the shared props,
+    # an Elasticsearch aggregate the Next.js port does not have.
+    it "shows a seller with a Stripe Connect account that does not route sales" do
+      create(:user_compliance_info, user: seller)
+      create(:merchant_account_stripe_connect, user: seller)
+      log_in(seller)
+
+      get settings_payments_path
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["stripe_connect"]).to include("has_connected_stripe" => true, "stripe_connect_routing_active" => false, "blocks_managed_account" => true)
+    end
+
+    it "lets the owner of a business with a Stripe account manage beneficial owners", parity: true do
+      create(:user_compliance_info_business, user: seller)
+      create(:merchant_account, user: seller, country: "US")
+      log_in(seller)
+
+      get settings_payments_path
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["can_manage_beneficial_owners"]).to eq(true)
+    end
+
+    it "shows the fee of a seller with a custom fee", parity: true do
+      create(:user_compliance_info, user: seller)
+      seller.update!(custom_fee_per_thousand: 25)
+      log_in(seller)
+
+      get settings_payments_path
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["fee_info"]["merchant_account_fee_info"]["items"].first["value"]).to start_with("2.5% + 50")
+    end
+
+    it "shows the fee of a Brazilian seller", parity: true do
+      create(:user_compliance_info, user: seller, country: "Brazil", state: "SP", zip_code: "01000-000")
+      log_in(seller)
+
+      get settings_payments_path
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["fee_info"]["connect_account_fee_info"]["summary"]).to eq("You pay a 0% Gumroad fee on all sales.")
+    end
+
+    it "shows a seller who pays for a subscription", parity: true do
+      create(:user_compliance_info, user: seller)
+      subscription = create(:subscription, user: seller)
+      create(:free_purchase, purchaser: seller).update_columns(price_cents: 500, subscription_id: subscription.id)
+      log_in(seller)
+
+      get settings_payments_path
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["user"]["requires_credit_card"]).to eq(true)
+    end
+
+    it "sends a marketing team member to the dashboard", parity: true do
+      member_with_role(TeamMembership::ROLE_MARKETING)
+
+      get settings_payments_path
+
+      expect(response).to redirect_to(dashboard_url)
+    end
+
     it "answers an Inertia visit with the page as JSON", parity: true do
       create(:user_compliance_info, user: seller)
       log_in(seller)
