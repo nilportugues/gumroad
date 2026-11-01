@@ -21,7 +21,7 @@ const SELLER_SUM_AGGS = [
 const AFFILIATE_CREDIT_PREFIXES = ["affiliate_credit", "direct_affiliate_credit"] as const;
 const AFFILIATE_CREDIT_MEASURES = ["amount_cents", "fee_cents", "amount_partially_refunded_cents", "fee_partially_refunded_cents"] as const;
 
-type Aggregations = Record<string, { value?: number | null; total?: { value?: number | null } }>;
+export type Aggregations = Record<string, { value?: number | null; total?: { value?: number | null } }>;
 
 // The filters revenue_as_seller and revenue_as_affiliate share. `bool` keys appear in the order the
 // service first touches them: filter, must_not, must.
@@ -43,7 +43,7 @@ function revenueBody(partyFilter: JsonValue, aggs: JsonValue, after: string | nu
 }
 
 // Ruby would raise NoMethodError on a nil aggregation value, so a missing one is an error here too.
-function aggregationValue(value: number | null | undefined, name: string): number {
+export function aggregationValue(value: number | null | undefined, name: string): number {
   if (typeof value !== "number") throw new TypeError("undefined method 'value' for nil");
   return value;
 }
@@ -72,7 +72,7 @@ async function revenueAsSeller(userId: bigint, after: string | null): Promise<nu
 }
 
 // PurchaseSearchService.affiliate_credit_aggs_for_user
-function affiliateCreditAggs(userId: number): JsonValue {
+export function affiliateCreditAggs(userId: number): JsonValue {
   return Object.fromEntries(
     AFFILIATE_CREDIT_PREFIXES.flatMap((prefix) =>
       AFFILIATE_CREDIT_MEASURES.map((measure) => [
@@ -84,7 +84,7 @@ function affiliateCreditAggs(userId: number): JsonValue {
 }
 
 // PurchaseSearchService.own_affiliate_credit_cents: each credit's sum is truncated on its own.
-const ownAffiliateCreditCents = (result: Aggregations, measure: string) =>
+export const ownAffiliateCreditCents = (result: Aggregations, measure: string) =>
   AFFILIATE_CREDIT_PREFIXES.reduce((sum, prefix) => sum + Math.trunc(aggregationValue(result[`${prefix}_${measure}_own`]?.total?.value, `${prefix}_${measure}_own`)), 0);
 
 // User#revenue_as_affiliate

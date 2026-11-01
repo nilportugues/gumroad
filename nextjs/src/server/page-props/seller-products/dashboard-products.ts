@@ -67,9 +67,8 @@ export async function assertListingSupported(seller: User, archived: boolean, pa
 
 const CHARGED_STATES = ["preorder_authorization_successful", "successful", "preorder_concluded_successfully"];
 
-// Link#total_usd_cents
-export async function totalUsdCents(productId: bigint): Promise<number> {
-  const result = await PurchaseSearchService.process({
+// The PurchaseSearchService options of Link#total_usd_cents
+export const totalUsdCentsOptions = (productId: bigint) => ({
     state: CHARGED_STATES,
     exclude_giftees: true,
     exclude_refunded: true,
@@ -80,7 +79,11 @@ export async function totalUsdCents(productId: bigint): Promise<number> {
     product: Number(productId),
     size: 0,
     aggs: { price_cents_total: { sum: { field: "price_cents" } }, amount_refunded_cents_total: { sum: { field: "amount_refunded_cents" } } },
-  });
+});
+
+// Link#total_usd_cents
+export async function totalUsdCents(productId: bigint): Promise<number> {
+  const result = await PurchaseSearchService.process(totalUsdCentsOptions(productId));
   const aggregations = result.response.aggregations as Record<string, { value: number }>;
   return aggregations.price_cents_total!.value - aggregations.amount_refunded_cents_total!.value;
 }
