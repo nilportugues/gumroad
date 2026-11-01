@@ -89,7 +89,7 @@ function mediaTypeOk(media: string | null | undefined): boolean {
 const isStylesheetLink = (el: ElementNode) =>
   el.name === "link" && getAttribute(el, "rel") === "stylesheet" && getAttribute(el, "data-premailer") !== "ignore";
 
-class Premailer {
+export class Premailer {
   private readonly doc: DocumentNode;
   private readonly cssParser = new CssParser();
 
@@ -197,7 +197,7 @@ export type PremailerResult = { html: string; text: string };
 // Premailer::Rails::Hook for a message whose only part is text/html: CustomizedPremailer pulls the
 // <link> stylesheets out (EmailStylesheetLoader), the remaining document is reparsed, and the text
 // part is generated before the CSS is inlined.
-export function premailerRails(html: string, loadStylesheet: StylesheetLoader): PremailerResult {
+export function customizedPremailer(html: string, loadStylesheet: StylesheetLoader): Premailer {
   const first = parseHtml(html);
   const links = allElements(first).filter(isStylesheetLink);
   const css = links
@@ -206,7 +206,11 @@ export function premailerRails(html: string, loadStylesheet: StylesheetLoader): 
       return loadStylesheet(getAttribute(link, "href") ?? "");
     })
     .join("\n");
-  const premailer = new Premailer(serializeDocument(first), css);
+  return new Premailer(serializeDocument(first), css);
+}
+
+export function premailerRails(html: string, loadStylesheet: StylesheetLoader): PremailerResult {
+  const premailer = customizedPremailer(html, loadStylesheet);
   const text = premailer.toPlainText();
   return { text, html: premailer.toInlineCss() };
 }
