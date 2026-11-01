@@ -63,7 +63,7 @@ const COMPARE = {
 };
 
 const NEXT_VARY = /(?:rsc|next-router-state-tree|next-router-prefetch|next-router-segment-prefetch)(?:, )?/g;
-const withoutNextVary = (vary: string | undefined) => vary?.replace(NEXT_VARY, "");
+const withoutNextVary = (vary: unknown) => (typeof vary === "string" ? vary.replace(NEXT_VARY, "") : vary);
 
 const cases = SPECS.flatMap((spec) => {
   const dir = path.join(FIXTURES, spec);
