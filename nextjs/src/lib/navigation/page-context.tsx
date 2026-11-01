@@ -3,7 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 
-import { registerNavigator, settleNavigations, takeCarryOverProps } from "./router";
+import { registerNavigator, router, settleNavigations, takeCarryOverProps } from "./router";
 import type { Page, PageProps } from "./types";
 
 const PageContext = React.createContext<Page | null>(null);
@@ -18,10 +18,12 @@ type Overrides = { base: PageProps; props: PageProps };
 export function PagePropsProvider({
   component,
   props,
+  deferredProps,
   children,
 }: {
   component: string;
   props: PageProps;
+  deferredProps?: Record<string, string[]>;
   children: React.ReactNode;
 }) {
   const nextRouter = useRouter();
@@ -65,6 +67,12 @@ export function PagePropsProvider({
       cancelled = true;
     };
   }, [props]);
+
+  // Inertia 2 asks for each deferred group as soon as the page it came with is set.
+  React.useEffect(() => {
+    if (!deferredProps) return;
+    for (const keys of Object.values(deferredProps)) router.reload({ only: keys });
+  }, [props, deferredProps]);
 
   React.useEffect(() => {
     registerNavigator({

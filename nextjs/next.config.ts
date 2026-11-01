@@ -44,8 +44,10 @@ const sharedPackages = [
   "lowlight",
   "react-day-picker",
   "react-media-recorder",
+  "react-router-dom",
   "react-select",
   "react-sortablejs",
+  "recharts",
   "sortablejs",
 ];
 
@@ -86,6 +88,12 @@ const config: NextConfig = {
       "*.{png,jpg,svg,webp,gif}": {
         condition: { path: /(^|[\\/])public[\\/]/ },
         loaders: [{ loader: "./build/public-asset-url-loader.cjs", options: { publicDir: path.join(repoRoot, "public") } }],
+        as: "*.js",
+      },
+      // Vite's `?inline` suffix: the compiled stylesheet as a string (CartRecoveryCard's email preview).
+      "*.scss": {
+        condition: { all: [{ path: /(^|[\\/])app[\\/]javascript[\\/]/ }, { query: /inline/ }] },
+        loaders: ["./build/scss-inline-loader.cjs"],
         as: "*.js",
       },
       // The Vite build auto-imports the js-routes `Routes` global into every module that uses it.

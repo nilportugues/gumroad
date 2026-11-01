@@ -32,6 +32,7 @@ import { PRODUCT_PAGES } from "./product-pages.ts";
 import { PAYOUTS_PAGES } from "./payouts/pages.ts";
 import { CHECKOUT_PAGES } from "./checkout-pages.ts";
 import { AGENT_PAGES } from "./agent/pages.ts";
+import { SELLER_PRODUCTS_PAGES } from "./seller-products/pages.ts";
 
 type Params = Record<string, string>;
 
@@ -139,6 +140,7 @@ export const PAGES: Record<string, PageSpec> = {
   ...DISPUTE_EVIDENCE_PAGES,
   ...PIRACY_REPORT_PAGES,
   ...AGENT_PAGES,
+  ...SELLER_PRODUCTS_PAGES,
 };
 
 // ArticlesController#index

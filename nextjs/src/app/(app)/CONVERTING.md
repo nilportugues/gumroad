@@ -429,3 +429,21 @@ GET renders only; recorded by `spec/requests/{agent,piracy_reports,dispute_evide
 - **Not converted**: Communities (needs the `scroll` prop type, `PaginatedCommunityChatMessagesPresenter`, `accessible_communities_ids` and
   `Community#thumbnail_url`), `Purchases/Invoices/New` (`InvoicePresenter::OrderInfo`/`SupplierInfo` tax and VAT rules), and the
   `UrlRedirects/*` pages (S3 signed locations, stamped PDFs, consumption events written in after_actions, the download page layout props).
+
+
+## Seller products pages (WS-71)
+
+GET renders only; every mutation (create, update, archive, duplicate, delete, publish) stays in Rails. Props live in `server/page-props/seller-products/`, the controllers' filters in `server/controllers/seller-products-pages.ts`, the policies in `server/policies/link.ts`. Parity: `spec/requests/seller_products_{signed_in,affiliated_signed_in,new_signed_in,collabs_signed_in}_spec.rb`, replayed by `parity/__tests__/seller-products.replay.test.ts` (an empty `purchases` index stands in for Elasticsearch); the Elasticsearch request bodies are pinned to the ones Rails sent in those fixtures by `seller-products/es-requests.test.ts`.
+
+| Route (flag) | Rails | Notes |
+| --- | --- | --- |
+| `/products` (`nextjs_products_index`) | `LinksController#index` | Tables are deferred props (below). |
+| `/products/archived` (`nextjs_products_archived`) | `Products::ArchivedController#index` | A seller with nothing archived (and no search) goes back to `/products`. |
+| `/products/affiliated` (`nextjs_products_affiliated`) | `Products::AffiliatedController#index` | The sort travels as `sort[key]` / `sort[direction]`: `SignedInPage.nestedQuery`. |
+| `/products/collabs` (`nextjs_collabs`) | `Products::CollabsController#index` | Per-product Elasticsearch sums (`collabs.ts`). |
+| `/products/new` (`nextjs_products_new`) | `LinksController#new` | `ProductPresenter.new_page_props`. |
+
+- **Deferred props.** `InertiaRails.defer(group:)` is `defer(resolve, group)` in `lazy-props.ts`: left out of the first response, listed under `deferredProps` (page object key order: after `clearHistory`, before `mergeProps`) and answered to a partial reload that asks for them. The client half is in `PagePropsProvider`, which issues `router.reload({ only })` for each group once the page is set, as Inertia 2 does.
+- **Handed back to Rails (`HandBackToRails`, decided in the filter before anything renders).** A seller flagged in `user_ids_with_payment_requirements_key` (`check_payment_details` may call Stripe); a sort Elasticsearch performs (`display_price_cents`, `is_recommendable`) or `cut` on the collabs page; a page parameter `String#to_i` and Pagy would read differently; a product on the page without a fresh `ProductCachedValue` (Rails computes its stats from Elasticsearch and enqueues `CacheProductDataWorker`); a currency other than USD, a rental, a tiered membership with a tier closed to new buyers (`can_close_to_new_buyers?`); an uploaded thumbnail (Active Storage variant); a confirmed collaborator without basis points; `display=mobile_app` or `access_token` on `/products/new`; a global affiliate whose lifetime sum does not finish within `AffiliateEarningsCache::REQUEST_TIMEOUT_MS`.
+- **Known differences.** `AffiliateEarningsCache` serves a cached sum for up to five minutes and keeps it in `Rails.cache`; the port always reads the current sum and caches nothing. `Rails.env.development?` branches of `User#can_create_physical_products?` / `#eligible_for_ai_product_generation?` are not modelled. `release_at_date` (one month from today) is checked by `new-page.test.ts`, not by the replay.
+- **Not ported: `Products/Edit`** (`LinksController#edit` -> `ProductPresenter#edit_props`: editor revision, rich content, files, integrations, variants and their prices, shipping, upsells, share tab, plus `bundles/:id/edit`). It has no entry in `routes.json`; the `nextjs_products_edit` flag is unused.

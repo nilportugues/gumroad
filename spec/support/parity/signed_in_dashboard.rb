@@ -32,9 +32,11 @@ module Parity
 
     def set_cookies = Array(response.headers["Set-Cookie"]).join("\n")
 
-    def inertia_props_of(response)
+    def inertia_page_of(response)
       page = response.body[/<script[^>]*data-page="[^"]*"[^>]*>(.*?)<\/script>/m, 1] || CGI.unescapeHTML(response.body[/\sdata-page="([^"]*)"/, 1])
-      JSON.parse(page)["props"]
+      JSON.parse(page)
     end
+
+    def inertia_props_of(response) = inertia_page_of(response)["props"]
   end
 end
