@@ -3,11 +3,12 @@
 // controllers/seller-products-pages.ts; GET renders only.
 import type { User } from "@prisma/client";
 
-import { PRODUCTS_ARCHIVED_OPTIONS, PRODUCTS_INDEX_OPTIONS } from "../../controllers/seller-products-pages.ts";
+import { PRODUCTS_AFFILIATED_OPTIONS, PRODUCTS_ARCHIVED_OPTIONS, PRODUCTS_INDEX_OPTIONS } from "../../controllers/seller-products-pages.ts";
 import { piracyReportsTabVisible } from "../../policies/link.ts";
 import { loadSellerContext } from "../../policies/seller-context.ts";
 import { defer, lazy } from "../lazy-props.ts";
 import type { PageSpec } from "../pages.ts";
+import { affiliatedParams, affiliatedProductsProps, assertAffiliatedSupported, canRemoveAffiliations } from "./affiliated.ts";
 import { archivedProductsCount, hasProducts, tableData } from "./dashboard-products.ts";
 import { listingParams } from "./listing.ts";
 import { linkPolicy } from "../../policies/link.ts";
@@ -52,7 +53,18 @@ const productsArchived: PageSpec = {
   },
 };
 
+const productsAffiliated: PageSpec = {
+  component: "Products/Affiliated/Index",
+  options: PRODUCTS_AFFILIATED_OPTIONS((seller, chain) => assertAffiliatedSupported(seller, chain.request.queryString)),
+  props: async (_, { context, meta, url }) => {
+    meta.set({ title: "Products" });
+    const sellerContext = await loadSellerContext(context);
+    return affiliatedProductsProps(seller(context), sellerContext, affiliatedParams(url.search.replace(/^\?/, "")), canRemoveAffiliations(sellerContext));
+  },
+};
+
 export const SELLER_PRODUCTS_PAGES: Record<string, PageSpec> = {
   "/products": productsIndex,
   "/products/archived": productsArchived,
+  "/products/affiliated": productsAffiliated,
 };

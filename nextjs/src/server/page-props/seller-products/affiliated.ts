@@ -1,6 +1,8 @@
 // AffiliatedProductsPresenter#affiliated_products_page_props for Products::AffiliatedController#index.
-// A user who also has a Gumroad Affiliates enrollment (a GlobalAffiliate) goes to Rails whole: its lifetime
-// earnings come from AffiliateEarningsCache (Rails.cache, a lock and a background job).
+// The lifetime earnings of the user's GlobalAffiliate are summed here, bounded by AffiliateEarningsCache's
+// in-request limit; an affiliate whose sum does not finish in time goes to Rails whole, which caches it and
+// hands the work to a background job. Rails serves a cached sum for up to AffiliateEarningsCache::STALE_AFTER
+// before recomputing, which the port does not model (it always reads the current sum).
 import { Prisma, type User } from "@prisma/client";
 
 import { encryptNumeric } from "../../../lib/obfuscate-ids.ts";
@@ -13,7 +15,7 @@ import { paramToI } from "../audience/support.ts";
 import { domainConfig } from "../domain.ts";
 import { hasBrazilianStripeConnectAccount } from "../dashboard/payout-info.ts";
 import { externalId } from "../audience/support.ts";
-import { Users, nameOrUsername } from "../../models/user.ts";
+import { formattedDollarAmount } from "../../models/concerns/currency-helper.ts";
 import { archivedProductsCount } from "./dashboard-products.ts";
 
 export const AFFILIATED_PER_PAGE = 20;
@@ -81,10 +83,41 @@ function scopeSql(userId: bigint, query: string | null): { from: Prisma.Sql; whe
 
 const count = async (sql: Prisma.Sql) => Number((await selectRows<{ count: bigint }>(sql))[0]?.count ?? 0);
 
+// AffiliateEarningsCache::REQUEST_TIMEOUT_MS
+const REQUEST_TIMEOUT_MS = 3_000;
+// Purchase flag 10, :chargeback_reversed
+const CHARGEBACK_REVERSED_FLAG = 512;
+
+async function globalAffiliateId(userId: bigint): Promise<bigint | null> {
+  const [row] = await selectRows<{ id: bigint }>(Prisma.sql`SELECT id FROM ${table("affiliates")} WHERE type = 'GlobalAffiliate' AND deleted_at IS NULL AND affiliate_user_id = ${userId} ORDER BY id ASC LIMIT 1`);
+  return row ? BigInt(row.id) : null;
+}
+
+// Affiliate#total_cents_earned(timeout_ms:): `purchases.paid.not_chargedback_or_chargedback_reversed`
+async function totalCentsEarned(affiliateId: bigint): Promise<number> {
+  try {
+    const [row] = await selectRows<{ total: bigint | string | null }>(
+      Prisma.sql`SELECT /*+ MAX_EXECUTION_TIME(${Prisma.raw(String(REQUEST_TIMEOUT_MS))}) */ COALESCE(SUM(purchases.affiliate_credit_cents), 0) AS total FROM purchases
+        WHERE purchases.affiliate_id = ${affiliateId} AND purchases.purchase_state = 'successful' AND purchases.price_cents > 0 AND (stripe_refunded IS NULL OR stripe_refunded = 0)
+        AND (purchases.chargeback_date IS NULL OR (purchases.chargeback_date IS NOT NULL AND purchases.flags & ${CHARGEBACK_REVERSED_FLAG} != 0))`,
+    );
+    return Number(row?.total ?? 0);
+  } catch {
+    throw new HandBackToRails();
+  }
+}
+
+// User#should_be_shown_currencies_always?
+async function showCurrencyAlways(user: User): Promise<boolean> {
+  if ((user.currency_type ?? "usd") !== "usd") return true;
+  const [payment] = await selectRows<{ currency: string | null }>(Prisma.sql`SELECT currency FROM ${table("payments")} WHERE user_id = ${user.id} ORDER BY id DESC LIMIT 1`);
+  return payment !== undefined && payment.currency !== null && payment.currency !== "usd";
+}
+
 export async function assertAffiliatedSupported(user: User, queryString: string): Promise<void> {
   affiliatedParams(queryString);
-  const [global] = await selectRows(Prisma.sql`SELECT 1 FROM ${table("affiliates")} WHERE type = 'GlobalAffiliate' AND deleted_at IS NULL AND affiliate_user_id = ${user.id} LIMIT 1`);
-  if (global) throw new HandBackToRails();
+  const id = await globalAffiliateId(user.id);
+  if (id !== null) await totalCentsEarned(id);
 }
 
 // Active Support's BigDecimal#as_json is its string form; an Integer stays a number.
@@ -144,6 +177,7 @@ export async function affiliatedProductsProps(user: User, context: SellerContext
     };
   });
 
+  const globalId = await globalAffiliateId(user.id);
   // Unfiltered on purpose: the account's headline totals.
   const unfiltered = scopeSql(user.id, null);
   const [credits] = await selectRows<{ total: bigint | string | null; count: bigint }>(Prisma.sql`SELECT SUM(amount_cents) AS total, COUNT(*) AS count FROM affiliate_credits WHERE affiliate_user_id = ${user.id}`);
@@ -159,8 +193,8 @@ export async function affiliatedProductsProps(user: User, context: SellerContext
     affiliated_products: products,
     stats,
     global_affiliates_data: {
-      global_affiliate_id: null,
-      global_affiliate_sales: null,
+      global_affiliate_id: globalId === null ? null : encryptNumeric(Number(globalId)),
+      global_affiliate_sales: globalId === null ? null : formattedDollarAmount(await totalCentsEarned(globalId), { withCurrency: await showCurrencyAlways(user) }),
       cookie_expiry_days: GLOBAL_AFFILIATE_COOKIE_LIFETIME_DAYS,
       affiliate_query_param: SHORT_QUERY_PARAM,
     },
@@ -172,5 +206,3 @@ export async function affiliatedProductsProps(user: User, context: SellerContext
 }
 
 export const canRemoveAffiliations = (context: SellerContext) => productsAffiliatedDirectAffiliatePolicy.destroy(context);
-void Users;
-void nameOrUsername;

@@ -95,6 +95,8 @@ export type SignedInPage = {
   authorize: (context: SellerContext) => boolean;
   // Filters the controller declares after authenticate_user!, before the action.
   beforeAction?: (chain: Chain, context: AuthorizedSellerContext) => Promise<Redirected | null>;
+  // The page reads a nested parameter (`sort[key]`) and checks the query string itself.
+  nestedQuery?: boolean;
   // The action's own redirects, after `authorize` and before it renders.
   action?: (chain: Chain, context: AuthorizedSellerContext) => Promise<Redirected | null>;
   // What the action reads from the request and hands the props (`action.state`).
@@ -107,7 +109,7 @@ export type SignedInPage = {
 export function signedInFilters(page: SignedInPage) {
   return async (chain: Chain): Promise<FilterOutcome> => {
     requireHtml(chain);
-    assertFlatQuery(chain.request.queryString);
+    if (!page.nestedQuery) assertFlatQuery(chain.request.queryString);
 
     const context = await loadSellerContext(chain.auth.context);
     if (context.user && page.requireAccountEmail && blank(context.user.email) && blank(context.user.unconfirmed_email) && chain.auth.context.impersonatedUser === null) {

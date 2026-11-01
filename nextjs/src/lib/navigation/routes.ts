@@ -455,3 +455,5 @@ export const recommended_products_url = url("/recommended_products(.:format)");
 export const sample_membership_price_change_email_path = path("/links/:id/send_sample_price_change_email(.:format)");
 export const save_to_library_path = path("/save_to_library(.:format)");
 export const send_to_kindle_path = path("/r/:id/send_to_kindle(.:format)");
+export const global_affiliates_product_eligibility_path = path("/global_affiliates/product_eligibility/:url(.:format)");
+export const products_affiliated_path = path("/products/affiliated/:id(.:format)");

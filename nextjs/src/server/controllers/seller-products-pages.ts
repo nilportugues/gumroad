@@ -9,7 +9,6 @@ import { listingParams } from "../page-props/seller-products/listing.ts";
 import { linkPolicy, productsAffiliatedPolicy, productsArchivedLinkPolicy, productsCollabsPolicy } from "../policies/link.ts";
 import { type ActionOptions, type Chain, HandBackToRails } from "./application-controller.ts";
 import { signedInFilters } from "./buyer-pages.ts";
-import { assertFlatQuery } from "./rails-params.ts";
 
 // RedisKey.user_ids_with_payment_requirements_key
 const PAYMENT_REQUIREMENTS_KEY = "user_ids_with_payment_requirements_key";
@@ -67,8 +66,8 @@ export const PRODUCTS_AFFILIATED_OPTIONS = (assertSupported: (seller: User, chai
   filters: signedInFilters({
     requireAccountEmail: true,
     authorize: productsAffiliatedPolicy.index,
+    nestedQuery: true,
     state: async (chain, context) => {
-      assertFlatQuery(chain.request.queryString);
       await assertSupported(context.seller!, chain);
       return {};
     },
