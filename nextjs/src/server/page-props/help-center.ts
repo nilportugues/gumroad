@@ -7,6 +7,8 @@ import { parse } from "yaml";
 
 import * as Routes from "@/lib/navigation/routes";
 
+import { type ArticleRenderOptions, renderArticleContent } from "./help-center-erb.ts";
+
 export type HelpCenterCategory = { id: number; title: string; slug: string; audience: string };
 export type HelpCenterArticle = { id: number; title: string; slug: string; description: string; category_id: number };
 
@@ -63,3 +65,42 @@ export function categoryProps(category: HelpCenterCategory) {
     sidebar_categories: categories.filter((other) => other.audience === category.audience).map(categoryData),
   };
 }
+
+export function findArticleBySlug(slug: string): HelpCenterArticle | null {
+  return helpCenterData().articles.find((article) => article.slug === slug) ?? null;
+}
+
+const sameAudience = (category: HelpCenterCategory) =>
+  helpCenterData()
+    .categories.filter((other) => other.audience === category.audience)
+    .map(categoryData);
+
+// HelpCenterPresenter#index_props
+export function indexProps() {
+  const { categories, articles } = helpCenterData();
+  return {
+    categories: categories.map((category) => ({
+      title: category.title,
+      url: Routes.help_center_category_path(category.slug),
+      audience: category.audience,
+      articles: articles.filter((article) => article.category_id === category.id).map(articleLink),
+    })),
+  };
+}
+
+// HelpCenterPresenter#article_props
+export function articleProps(article: HelpCenterArticle, render: ArticleRenderOptions) {
+  const category = helpCenterData().categories.find((candidate) => candidate.id === article.category_id)!;
+  return {
+    article: {
+      title: article.title,
+      slug: article.slug,
+      content: renderArticleContent(article.slug, render),
+      category: categoryData(category),
+    },
+    sidebar_categories: sameAudience(category),
+  };
+}
+
+// HelpCenter::ArticlesController::LEGACY_ARTICLE_REDIRECTS
+export const LEGACY_ARTICLE_REDIRECTS: Record<string, string> = { "284-jobs-at-gumroad": "/about#jobs" };
