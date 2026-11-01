@@ -13,7 +13,9 @@ import {
   indexProps,
   LEGACY_ARTICLE_REDIRECTS,
 } from "./help-center.ts";
+import type { PageGuard } from "./guards.ts";
 import type { ActionContext } from "./load-page.ts";
+import { SETTINGS_PAGES } from "./settings/pages.ts";
 
 type Params = Record<string, string>;
 
@@ -22,7 +24,9 @@ export type PageSpec = {
   // Redirects Rails sends before it renders: before_actions and rescue_from. `rescued` skips the
   // after_actions, as it does for a halted chain and for a rescued exception.
   redirect?: (params: Params) => Redirected | null;
-  props: (params: Params, action: ActionContext) => Record<string, unknown>;
+  // The before_actions that need who is acting (authentication, authorization); run after `redirect`.
+  guard?: PageGuard;
+  props: (params: Params, action: ActionContext) => Record<string, unknown> | Promise<Record<string, unknown>>;
   mobileAppWebView?: boolean;
 };
 
@@ -92,6 +96,7 @@ export const PAGES: Record<string, PageSpec> = {
       return categoryProps(category);
     },
   },
+  ...SETTINGS_PAGES,
 };
 
 // ArticlesController#index

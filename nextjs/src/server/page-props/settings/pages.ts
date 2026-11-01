@@ -1,0 +1,94 @@
+// The Settings::* pages (Settings::BaseController and its show/index actions). Registered in
+// ../pages.ts. Not ported: /settings/payments (see the report in nextjs/src/app/(app)/CONVERTING.md),
+// /profile (ProfilePresenter) and the form submissions, which stay in Rails.
+import { loadSellerContext, type SellerContext } from "../../policies/seller-context.ts";
+import { settingsAdvancedUserPolicy } from "../../policies/settings/advanced-user.ts";
+import { settingsAuthorizedApplicationsOauthApplicationPolicy } from "../../policies/settings/authorized-applications-oauth-application.ts";
+import { settingsBillingPolicy } from "../../policies/settings/billing.ts";
+import { settingsMainUserPolicy } from "../../policies/settings/main-user.ts";
+import { settingsPasswordUserPolicy } from "../../policies/settings/password-user.ts";
+import { settingsSocialConnectionsPolicy } from "../../policies/settings/social-connections.ts";
+import { settingsTeamUserPolicy } from "../../policies/settings/team-user.ts";
+import { settingsThirdPartyAnalyticsUserPolicy } from "../../policies/settings/third-party-analytics-user.ts";
+import type { ActionContext } from "../load-page.ts";
+import { NotPortedError } from "../not-ported.ts";
+import type { PageSpec } from "../pages.ts";
+import { settingsGuard } from "./guard.ts";
+import {
+  advancedProps,
+  authorizedApplicationsProps,
+  billingProps,
+  mainProps,
+  passwordProps,
+  settingsPages,
+  socialConnectionsProps,
+  teamMemberInfos,
+  thirdPartyAnalyticsPageProps,
+} from "./presenter.ts";
+import { settingsTeamInvitationPolicy } from "../../policies/settings/team-invitation.ts";
+
+const NO_EMAIL_ALERT = "Your Gumroad account doesn't have an email associated. Please assign and verify your email, and try again.";
+
+// Settings::BaseController: the title, and the `settings_pages` inertia_share every page carries.
+async function settingsPage(action: ActionContext, build: (context: SellerContext) => Promise<Record<string, unknown>>, title = "Settings") {
+  action.meta.set({ title });
+  const context = await loadSellerContext(action.context);
+  return { settings_pages: await settingsPages(context), ...(await build(context)) };
+}
+
+const page = (component: string, spec: Pick<PageSpec, "guard" | "props">): PageSpec => ({ component, mobileAppWebView: true, ...spec });
+
+export const SETTINGS_PAGES: Record<string, PageSpec> = {
+  "/settings": page("Settings/Main/Show", {
+    guard: settingsGuard({ authorize: settingsMainUserPolicy.show, refusedToProfile: true, skipRequireAccountEmail: true }),
+    props: (_, action) => settingsPage(action, (context) => mainProps(context)),
+  }),
+  "/settings/team": page("Settings/Team/Show", {
+    guard: settingsGuard({
+      authorize: settingsTeamUserPolicy.show,
+      // check_email_presence
+      afterAuthorize: (context) => (context.seller?.email ? null : { status: 302, location: "/settings", rescued: true, flash: { alert: NO_EMAIL_ALERT } }),
+    }),
+    props: (_, action) =>
+      settingsPage(
+        action,
+        async (context) => ({ member_infos: await teamMemberInfos(context), can_invite_member: settingsTeamInvitationPolicy.create(context) }),
+        "Team",
+      ),
+  }),
+  "/settings/password": page("Settings/Password/Show", {
+    guard: settingsGuard({ authorize: settingsPasswordUserPolicy.show }),
+    props: (_, action) => settingsPage(action, passwordProps),
+  }),
+  "/settings/social_connections": page("Settings/SocialConnections/Show", {
+    guard: settingsGuard({ authorize: settingsSocialConnectionsPolicy.show }),
+    props: (_, action) =>
+      settingsPage(
+        action,
+        async (context) => {
+          // prepare_social_connect_return keeps the destination in the session.
+          if (action.url.searchParams.has("social_connect_origin")) {
+            throw new NotPortedError("SocialConnectReturn#prepare_social_connect_return");
+          }
+          return { ...(await socialConnectionsProps(context)), social_connect_return: null };
+        },
+        "Social connections",
+      ),
+  }),
+  "/settings/third_party_analytics": page("Settings/ThirdPartyAnalytics/Show", {
+    guard: settingsGuard({ authorize: settingsThirdPartyAnalyticsUserPolicy.show }),
+    props: (_, action) => settingsPage(action, thirdPartyAnalyticsPageProps),
+  }),
+  "/settings/advanced": page("Settings/Advanced/Show", {
+    guard: settingsGuard({ authorize: settingsAdvancedUserPolicy.show }),
+    props: (_, action) => settingsPage(action, advancedProps),
+  }),
+  "/settings/billing": page("Settings/Billing/Show", {
+    guard: settingsGuard({ authorize: settingsBillingPolicy.show }),
+    props: (_, action) => settingsPage(action, billingProps),
+  }),
+  "/settings/authorized_applications": page("Settings/AuthorizedApplications/Index", {
+    guard: settingsGuard({ authorize: settingsAuthorizedApplicationsOauthApplicationPolicy.index }),
+    props: (_, action) => settingsPage(action, (context) => authorizedApplicationsProps(context)),
+  }),
+};
