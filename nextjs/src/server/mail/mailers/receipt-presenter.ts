@@ -8,7 +8,7 @@
 import { isBlank } from "../../html/text-helper.ts";
 import type { TaxLine } from "./receipt-tax.ts";
 import { rubyStringToF } from "../../models/concerns/currency-helper.ts";
-import { formatJustPriceInCents, formattedPrice, knownCurrency } from "../../models/concerns/money-formatter.ts";
+import { formatChargePresentmentAmount, formatJustPriceInCents, formattedPrice, knownCurrency } from "../../models/concerns/money-formatter.ts";
 import { LinkFlags } from "../../models/link.ts";
 import { PurchaseFlags } from "../../search/flags.ts";
 import { localizeTime, pluralize, truncate } from "../view-helpers.ts";
@@ -74,6 +74,9 @@ export type ReceiptSellerRow = {
   recommendation_type: string | null;
 };
 
+// The purchase's buyer-currency amounts (PurchasePresentment), in the currency the buyer was charged in.
+export type Presentment = { currency: string; priceCents: number; tipCents: number; sellerTaxCents: number; gumroadTaxCents: number; shippingCents: number; totalCents: number };
+
 export type ReceiptCustomField = { name: string; value: string | boolean; type: string };
 export type ReceiptRefundPolicy = { title: string; fine_print: string | null };
 
@@ -84,6 +87,8 @@ export type ReceiptData = {
   seller: ReceiptSellerRow;
   // get_usd_cents(displayed_price_currency_type, displayed_price_cents, rate: rate_converted_to_usd)
   displayedPriceUsdCents: number;
+  // BuyerPresentmentDisplay: set when the receipt is stated in the buyer's currency
+  presentment: Presentment | null;
   // PaymentInfo#today_tax_price_attributes: null when the purchase is not taxable
   taxLines: TaxLine[] | null;
   urlRedirectToken: string | null;
@@ -145,7 +150,7 @@ export function assertSupported(data: ReceiptData): void {
 
 // What `auto_link(text, html: { target: "_blank" })` returns unchanged apart from sanitizing: plain ASCII with
 // no markup, links, addresses or entities. Everything else (rails_autolink and the HTML sanitizer) is not ported.
-const AUTO_LINK_SAFE = /^[\x20-\x7e¢€£¥]*$/u;
+const AUTO_LINK_SAFE = /^[\x20-\x7e¢€£¥₩]*$/u;
 export function autoLinkText(text: string): string {
   if (!AUTO_LINK_SAFE.test(text) || /[<>\\@]|:\/\/|www\.|&[#A-Za-z0-9]+;/iu.test(text)) throw new MailViewNotPortedError(`auto_link of ${JSON.stringify(text)}`);
   return h(text);
@@ -180,6 +185,15 @@ export function mailSubject(data: ReceiptData): string {
   return `You bought ${link.name}!`;
 }
 
+// Purchase#buyer_presentment_price_cents: tips are part of the price, seller tax too unless it was excluded from it.
+export function presentmentPriceCents(data: ReceiptData): number {
+  const presentment = data.presentment!;
+  return presentment.priceCents + presentment.tipCents + (purchaseFlag(data.purchase, "was_tax_excluded_from_price") ? 0 : presentment.sellerTaxCents);
+}
+
+// format_today_amount
+const todayAmount = (data: ReceiptData, cents: number) => (data.presentment ? formatChargePresentmentAmount(cents, data.presentment.currency) : formattedDollarAmount(cents));
+
 // --- ChargeInfo ----------------------------------------------------------------------------------------
 
 // Time#to_fs(:formatted_date_abbrev_month), in UTC like the app's time zone.
@@ -194,7 +208,7 @@ export function chargeInfo(data: ReceiptData, orderId: string) {
     formattedCreatedAt: formattedDateAbbrevMonth(purchase.created_at),
     // A free trial still counts as paid, but trials are not ported.
     free: purchase.price_cents === 0 && purchase.shipping_cents === 0,
-    formattedTotalTransactionAmount: formattedDollarAmount(purchase.total_transaction_cents),
+    formattedTotalTransactionAmount: data.presentment ? formatChargePresentmentAmount(data.presentment.totalCents, data.presentment.currency) : formattedDollarAmount(purchase.total_transaction_cents),
     // for_email: true
     productQuestionsNote: `Questions about your ${pluralize(1, "product", "products").slice(2)}? Contact ${h(displayName(seller))} by replying to this email.`,
   };
@@ -232,15 +246,16 @@ export function paymentInfo(data: ReceiptData, invoiceLink: string) {
   const productLabel = purchase.quantity <= 1 ? link.name : `${link.name} × ${purchase.quantity}`;
 
   const today: Attribute[] = [];
-  if (!free) today.push({ label: productLabel, text: formattedDollarAmount(data.displayedPriceUsdCents) });
-  if (purchase.shipping_cents > 0) today.push({ label: "Shipping", text: formattedDollarAmount((purchase.total_transaction_cents ?? 0) === 0 ? 0 : purchase.shipping_cents) });
-  for (const line of data.taxLines ?? []) today.push({ label: line.label, text: formattedDollarAmount(line.cents) });
+  if (!free) today.push({ label: productLabel, text: todayAmount(data, data.presentment ? presentmentPriceCents(data) : data.displayedPriceUsdCents) });
+  const moved = (purchase.total_transaction_cents ?? 0) !== 0;
+  if (purchase.shipping_cents > 0) today.push({ label: "Shipping", text: todayAmount(data, !moved ? 0 : data.presentment ? data.presentment.shippingCents : purchase.shipping_cents) });
+  for (const line of data.taxLines ?? []) today.push({ label: line.label, text: todayAmount(data, line.cents) });
   // A single item with no shipping or tax shows no total.
-  if (purchase.shipping_cents > 0 || data.taxLines !== null) today.push({ label: "Amount paid", text: formattedDollarAmount(purchase.total_transaction_cents ?? 0) });
+  if (purchase.shipping_cents > 0 || data.taxLines !== null) today.push({ label: "Amount paid", text: todayAmount(data, !moved ? 0 : data.presentment ? data.presentment.totalCents : purchase.total_transaction_cents!) });
   if (!free) today.push({ label: null, html: invoiceLink });
 
   const notes: string[] = [];
-  notes.push("All charges are processed in United States Dollars. Your bank or financial institution may apply their own fees for currency conversion.");
+  if (!data.presentment) notes.push("All charges are processed in United States Dollars. Your bank or financial institution may apply their own fees for currency conversion.");
   if (!isBlank(purchase.card_type) && !NO_CARD_STATEMENT_TYPES.includes(purchase.card_type!)) {
     notes.push("The charge will be listed as GUMRD.COM* on your credit card statement.");
   }
@@ -269,9 +284,14 @@ export function itemInfo(data: ReceiptData, customReceiptText: string | null) {
     general.push({ label: "Variant", text: names.length === 1 && names[0] === "Untitled" ? "" : names.join(", ") });
   }
   if (purchase.price_cents !== 0 || purchase.shipping_cents !== 0) {
-    general.push({ label: coffee ? "Donation" : "Product price", text: formatJustPriceInCents(Math.trunc(purchase.displayed_price_cents / purchase.quantity) - (data.tipValueCents ?? 0), purchase.displayed_price_currency_type!) });
+    const perUnit = data.presentment
+      ? formatChargePresentmentAmount(Math.trunc((presentmentPriceCents(data) - data.presentment.tipCents) / purchase.quantity), data.presentment.currency)
+      : formatJustPriceInCents(Math.trunc(purchase.displayed_price_cents / purchase.quantity) - (data.tipValueCents ?? 0), purchase.displayed_price_currency_type!);
+    general.push({ label: coffee ? "Donation" : "Product price", text: perUnit });
   }
-  if (data.tipValueCents !== null) general.push({ label: "Tip", text: formatJustPriceInCents(data.tipValueCents, purchase.displayed_price_currency_type!) });
+  if (data.tipValueCents !== null) {
+    general.push({ label: "Tip", text: data.presentment ? formatChargePresentmentAmount(data.presentment.tipCents, data.presentment.currency) : formatJustPriceInCents(data.tipValueCents, purchase.displayed_price_currency_type!) });
+  }
   if (purchase.quantity > 1 && !coffee) general.push({ label: "Quantity", text: String(purchase.quantity) });
   for (const field of data.customFields) {
     if (field.type === "checkbox") general.push({ label: field.name, text: field.value ? "Yes" : "No" });

@@ -37,14 +37,17 @@ export type TaxLine = { label: string; cents: number };
 const star = (tableName: string) => Prisma.raw(`\`${tableName}\`.*`);
 
 // The tax line, or null when the purchase is not taxable. `amount_cents` is Purchase#non_refunded_tax_amount.
-export async function taxLines(purchase: TaxPurchase): Promise<TaxLine[] | null> {
+export async function taxLines(purchase: TaxPurchase, presentment: { sellerTaxCents: number; gumroadTaxCents: number } | null = null): Promise<TaxLine[] | null> {
   if (!PurchaseFlags.isSet(purchase.flags ?? 0, "was_purchase_taxable")) return null;
   // non_refunded_tax_amount reads a NULL gumroad_tax_cents as zero
   const gumroadTaxCents = purchase.gumroad_tax_cents ?? 0;
 
   let amountCents = 0;
   if ((purchase.total_transaction_cents ?? 0) !== 0) {
-    if (gumroadTaxCents > 0) {
+    if (presentment) {
+      // buyer_presentment_non_refunded_tax_cents: the refunds are known to be none (the receipt would have gone to Rails)
+      amountCents = Math.max(presentment.sellerTaxCents + presentment.gumroadTaxCents, 0);
+    } else if (gumroadTaxCents > 0) {
       // refunds.effective.sum(:gumroad_tax_cents)
       const [sum] = await selectRows<Record<string, Prisma.Decimal | number | bigint | string | null>>(
         Prisma.sql`SELECT SUM(${column("refunds", "gumroad_tax_cents")}) FROM ${table("refunds")} WHERE ${column("refunds", "purchase_id")} = ${purchase.id} AND (refunds.status IS NULL OR refunds.status NOT IN ('failed', 'canceled') OR COALESCE(refunds.json_data->>'$.balance_reversed_on_failure', 'false') != 'true')`,

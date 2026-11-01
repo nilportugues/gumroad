@@ -78,7 +78,7 @@ async function loadReceiptData(purchase: ReceiptPurchaseRow & Record<string, unk
   const link = await findRow<ReceiptLinkRow>("links", purchase.link_id);
   if (!link) throw new TypeError("undefined method 'name' for nil");
 
-  const data: ReceiptData = { purchase, link, seller, displayedPriceUsdCents: 0, taxLines: null, urlRedirectToken: null, licenseKey: null, variantNames: null, tipValueCents: null, customFields: [], refundPolicy: null };
+  const data: ReceiptData = { purchase, link, seller, displayedPriceUsdCents: 0, presentment: null, taxLines: null, urlRedirectToken: null, licenseKey: null, variantNames: null, tipValueCents: null, customFields: [], refundPolicy: null };
   return { data, supportEmails: supportEmails.map((row) => row.support_email) };
 }
 
@@ -315,7 +315,23 @@ export async function receipt(args: RubyValue[], deps: MailerDeps = {}): Promise
   await selectRows(Prisma.sql`SELECT ${star("purchases")} FROM ${table("purchases")} WHERE ${column("purchases", "id")} = ${purchase.id}`);
   if ((purchase.total_transaction_cents ?? 0) !== 0) {
     const [presentment] = await byPurchase("purchase_presentments", purchase.id, true);
-    if (presentment) throw new MailViewNotPortedError("receipt of a buyer-currency purchase");
+    if (presentment) {
+      // buyer_presentment_display? reads the refunds that moved money: each one needs a buyer-currency snapshot to keep the
+      // receipt in the buyer's currency, which the port does not read.
+      const refunds = await rows(
+        Prisma.sql`SELECT ${star("refunds")} FROM ${table("refunds")} WHERE ${column("refunds", "purchase_id")} = ${purchase.id} AND (refunds.status IS NULL OR refunds.status NOT IN ('failed', 'canceled') OR COALESCE(refunds.json_data->>'$.balance_reversed_on_failure', 'false') != 'true')`,
+      );
+      if (refunds.length > 0) throw new MailViewNotPortedError("receipt of a buyer-currency purchase with refunds");
+      data.presentment = {
+        currency: String(presentment.presentment_currency),
+        priceCents: Number(presentment.presentment_price_cents),
+        tipCents: Number(presentment.presentment_tip_cents),
+        sellerTaxCents: Number(presentment.presentment_seller_tax_cents),
+        gumroadTaxCents: Number(presentment.presentment_gumroad_tax_cents),
+        shippingCents: Number(presentment.presentment_shipping_cents),
+        totalCents: Number(presentment.presentment_total_cents),
+      };
+    }
   }
   const externalId = obfuscateId(purchase.id);
   if (!/^[A-Za-z0-9_=-]+$/u.test(externalId)) throw new MailViewNotPortedError("external id that needs URL escaping");
@@ -343,7 +359,7 @@ export async function receipt(args: RubyValue[], deps: MailerDeps = {}): Promise
 
   const shipping = shippingInfo(data);
   const invoiceLink = linkTo("Generate invoice", mailerUrl(`/purchases/${externalId}/invoice/new`, { email: purchase.email ?? "" }));
-  data.taxLines = await taxLines(purchase);
+  data.taxLines = await taxLines(purchase, data.presentment);
   const payment = paymentInfo(data, invoiceLink);
 
   // recommended_products_info: the buyer's account, cart_seller_ids, then the products Rails excludes (the cart's,

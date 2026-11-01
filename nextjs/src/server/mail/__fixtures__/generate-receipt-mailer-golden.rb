@@ -414,9 +414,6 @@ refuse(refused, "call", link: { native_type: "call" }, purchase: PRICE)
 setup(purchase: PRICE.merge(purchaser_id: 201))
 refused << record_message("receipt_test_purchase", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
 setup(purchase: PRICE)
-PurchasePresentment.insert!({ purchase_id: 401, presentment_currency: "eur", presentment_gumroad_amount_cents: 50, presentment_price_cents: 450, presentment_total_cents: 500, processor: "stripe", created_at: FIXED_NOW, updated_at: FIXED_NOW })
-refused << record_message("receipt_buyer_currency", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
-setup(purchase: PRICE)
 ActiveRecord::Base.connection.execute("INSERT INTO thumbnails (product_id, created_at, updated_at) VALUES (301, NOW(), NOW())")
 refused << record_message("receipt_product_with_thumbnail", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
 setup(purchase: PRICE, seller: { name: "Tom & <Jerry>" })
@@ -668,6 +665,55 @@ Tip.insert!({ purchase_id: 401, value_cents: 200, value_usd_cents: 200, created_
 messages << record_message("receipt_coffee_tip", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
 setup(link: { native_type: "coffee", price_currency_type: "eur" }, purchase: PRICE.merge(displayed_price_cents: 450, displayed_price_currency_type: "eur", rate_converted_to_usd: "0.9"), redirect: false)
 messages << record_message("receipt_coffee_eur", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
+
+
+# --- Buyer-currency purchases (WS-85) -----------------------------------------------------------------------------
+def presented(name, currency: "eur", link: {}, purchase: {}, presentment: {}, redirect: true, into: nil, extra: nil)
+  setup(link:, purchase: PRICE.merge(purchase), redirect:)
+  PurchasePresentment.insert!({ purchase_id: 401, presentment_currency: currency, presentment_gumroad_amount_cents: 50, presentment_price_cents: 450, presentment_total_cents: 450, processor: "stripe",
+                                created_at: FIXED_NOW, updated_at: FIXED_NOW, **presentment })
+  extra&.call
+  (into || $messages) << record_message("receipt_#{name}", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
+end
+
+presented("presented_eur")
+presented("presented_gbp_cents", currency: "gbp", presentment: { presentment_price_cents: 1234, presentment_total_cents: 1234 }, purchase: { price_cents: 1500, total_transaction_cents: 1500, displayed_price_cents: 1500 })
+presented("presented_jpy", currency: "jpy", presentment: { presentment_price_cents: 750, presentment_total_cents: 750 })
+presented("presented_krw", currency: "krw", presentment: { presentment_price_cents: 6500, presentment_total_cents: 6500 })
+presented("presented_quantity", purchase: { quantity: 2, price_cents: 1000, total_transaction_cents: 1000, displayed_price_cents: 1000 }, presentment: { presentment_price_cents: 900, presentment_total_cents: 900 })
+presented("presented_quantity_remainder", purchase: { quantity: 3, price_cents: 1500, total_transaction_cents: 1500, displayed_price_cents: 1500 }, presentment: { presentment_price_cents: 1001, presentment_total_cents: 1001 })
+presented("presented_tip", purchase: { price_cents: 700, total_transaction_cents: 700, displayed_price_cents: 700 }, presentment: { presentment_price_cents: 450, presentment_tip_cents: 180, presentment_total_cents: 630 },
+          extra: -> { Tip.insert!({ purchase_id: 401, value_cents: 200, value_usd_cents: 200, created_at: FIXED_NOW, updated_at: FIXED_NOW }) })
+presented("presented_shipping", link: PHYSICAL.merge(require_shipping: true), redirect: false,
+          purchase: { price_cents: 1500, total_transaction_cents: 1500, displayed_price_cents: 1000, shipping_cents: 500, **SHIPPING },
+          presentment: { presentment_price_cents: 900, presentment_shipping_cents: 450, presentment_total_cents: 1350 })
+presented("presented_shipping_but_zero_total", link: PHYSICAL.merge(require_shipping: true), redirect: false,
+          purchase: { price_cents: 0, total_transaction_cents: 0, displayed_price_cents: 0, shipping_cents: 500, **SHIPPING },
+          presentment: { presentment_price_cents: 0, presentment_shipping_cents: 450, presentment_total_cents: 450 })
+presented("presented_tax_excluded", purchase: { flags: TAXABLE | TAX_EXCLUDED, tax_cents: 50, total_transaction_cents: 550 },
+          presentment: { presentment_price_cents: 450, presentment_seller_tax_cents: 45, presentment_total_cents: 495 },
+          extra: -> { insert_zip_tax_rate(id: 901, country: "US", combined_rate: 0.1); Purchase.where(id: 401).update_all(zip_tax_rate_id: 901) })
+presented("presented_tax_included", purchase: { flags: TAXABLE, tax_cents: 38, total_transaction_cents: 500 },
+          presentment: { presentment_price_cents: 450, presentment_seller_tax_cents: 34, presentment_total_cents: 450 },
+          extra: -> { insert_zip_tax_rate(id: 901, country: "US", combined_rate: 0.1); Purchase.where(id: 401).update_all(zip_tax_rate_id: 901) })
+presented("presented_vat", purchase: { flags: TAXABLE | TAX_EXCLUDED, tax_cents: 0, gumroad_tax_cents: 95, total_transaction_cents: 595 },
+          presentment: { presentment_price_cents: 450, presentment_gumroad_tax_cents: 85, presentment_total_cents: 535 },
+          extra: -> { insert_zip_tax_rate(id: 901, country: "DE", combined_rate: 0.19); Purchase.where(id: 401).update_all(zip_tax_rate_id: 901) })
+presented("presented_product_in_euros", link: { price_currency_type: "eur" }, purchase: { displayed_price_cents: 450, displayed_price_currency_type: "eur", rate_converted_to_usd: "0.9" })
+presented("presented_coffee", link: { native_type: "coffee" }, redirect: false)
+presented("presented_licensed", link: { flags: LICENSED }, extra: -> { insert_license(purchase_id: 401, link_id: 301, serial: "AAAA-BBBB") })
+presented("presented_after_failed_refund", into: refused, extra: -> {
+  Refund.insert!({ purchase_id: 401, amount_cents: 100, gumroad_tax_cents: 0, status: "failed", json_data: nil, created_at: FIXED_NOW, updated_at: FIXED_NOW })
+})
+presented("presented_signed_in_buyer", purchase: { purchaser_id: 202 }, extra: -> { insert_user(id: 202, email: "buyer@example.com", username: "buyer") })
+# A zero-dollar purchase never gets a presentment row.
+setup(purchase: PRICE.merge(price_cents: 0, total_transaction_cents: 0, displayed_price_cents: 0))
+$messages << record_message("receipt_presented_free", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
+
+# Shapes the port hands back: a refund changes which currency the document uses.
+presented("presented_effective_refund", into: refused, extra: -> {
+  Refund.insert!({ purchase_id: 401, amount_cents: 100, gumroad_tax_cents: 0, status: "succeeded", json_data: nil, created_at: FIXED_NOW, updated_at: FIXED_NOW })
+})
 
 # Errors.
 reset!
