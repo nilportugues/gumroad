@@ -16,6 +16,8 @@ import {
   LEGACY_ARTICLE_REDIRECTS,
 } from "./help-center.ts";
 import type { PageGuard } from "./guards.ts";
+import type { PreflightOutcome, PreflightRequest } from "./preflight.ts";
+import { PUBLIC_PAGES } from "./public-pages.ts";
 import type { ActionContext } from "./load-page.ts";
 import { SETTINGS_PAGES } from "./settings/pages.ts";
 
@@ -25,7 +27,9 @@ export type PageSpec = {
   component: string;
   // Redirects Rails sends before it renders: before_actions and rescue_from. `rescued` skips the
   // after_actions, as it does for a halted chain and for a rescued exception.
-  redirect?: (params: Params) => Redirected | null;
+  // May look things up (a record that must exist) and answer `NOT_FOUND` for `e404`, which the
+  // /gr-inertia handler turns into Rails' 404 page. `request` is the visitor's URL and headers.
+  redirect?: (params: Params, request: PreflightRequest) => PreflightOutcome | null | Promise<PreflightOutcome | null>;
   // The before_actions that need who is acting (authentication, authorization); run after `redirect`.
   guard?: PageGuard;
   props: (params: Params, action: ActionContext) => Record<string, unknown> | Promise<Record<string, unknown>>;
@@ -108,6 +112,7 @@ export const PAGES: Record<string, PageSpec> = {
     },
   },
   ...SETTINGS_PAGES,
+  ...PUBLIC_PAGES,
 };
 
 // ArticlesController#index

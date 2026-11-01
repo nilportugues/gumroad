@@ -41,5 +41,6 @@ export async function decideRoute(
     if (await gate.signsInViaRememberCookie?.(request)) return toRails;
   }
   if (isInertiaRequest) return route.inertia ? { action: "inertia", route } : { action: "rails" };
+  if (route.inertia === "only") return toRails;
   return { action: "next", route };
 }

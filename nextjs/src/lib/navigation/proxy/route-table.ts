@@ -20,7 +20,8 @@ export type RouteEntry = {
   signedInOnly?: boolean;
   // An Inertia page (server/page-props/pages.ts): Next.js also answers its X-Inertia requests,
   // with the JSON and 409 inertia_rails sends. Other routes' X-Inertia requests go to Rails.
-  inertia?: boolean;
+  // "only": just those; the HTML page stays with Rails (its component cannot be rendered by Next.js yet).
+  inertia?: boolean | "only";
 };
 
 export type RouteTable = Record<string, string | RouteEntry>;

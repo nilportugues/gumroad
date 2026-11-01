@@ -7,6 +7,7 @@ import { authorize } from "./authorize.ts";
 import { balancePolicy } from "./balance.ts";
 import { dashboardPolicy } from "./dashboard.ts";
 import { installmentPolicy } from "./installment.ts";
+import { pagePolicy } from "./page.ts";
 import { MembershipNotFoundError, NotAuthorizedError, type SellerContext } from "./seller-context.ts";
 import { settingsPasswordUserPolicy } from "./settings/password-user.ts";
 import { settingsTeamMembershipPolicy } from "./settings/team-membership.ts";
@@ -52,6 +53,16 @@ describe("BalancePolicy", () => {
 describe("DashboardPolicy", () => {
   it("index? and its aliases grant every role", () => {
     for (const query of Object.values(dashboardPolicy)) expectMatrix(query, ["owner", ...ROLES]);
+  });
+});
+
+describe("PagePolicy (spec/policies has none; mirrors app/policies/page_policy.rb)", () => {
+  it("index?, edit?, preview? and products? grant every role", () => {
+    for (const query of [pagePolicy.index, pagePolicy.edit, pagePolicy.preview, pagePolicy.products]) expectMatrix(query, ["owner", ...ROLES]);
+  });
+
+  it("new?, create?, update? and destroy? grant owner, admin and marketing", () => {
+    for (const query of [pagePolicy.new, pagePolicy.create, pagePolicy.update, pagePolicy.destroy]) expectMatrix(query, ["owner", "admin", "marketing"]);
   });
 });
 

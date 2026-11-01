@@ -194,3 +194,16 @@ controllers run filters of their own, so their `PageSpec` carries `options` (`co
   `__fixtures__/safe-redirect-path.golden.json`).
 - `clientOnly` on `InertiaShell` renders the page in the browser only: login and signup mount a portal
   into `document.body` while rendering, which Rails never did on the server either.
+
+## Page spec options (WS-55)
+
+- `options.optOutOfCsp`: the controller's `opt_out_of_header(:csp)` (PublicController).
+- `redirect(params, { url, headers })` may be async and answer `NOT_FOUND` (`preflight.ts`) for `e404`;
+  the `/gr-inertia` handler turns it into Rails' 404 page. The seller pages (`seller-pages.ts`) use a
+  `guard` for the filters between `authenticate_user!` and the render (`set_page`, `authorize`) and are
+  `signedInOnly` in routes.json.
+  The test environment renders a 404 as Rails' exception debug page, so replays of 404s ignore the body.
+- `"inertia": "only"` in routes.json: Next.js answers the X-Inertia visits (props proven by replay) and
+  Rails keeps serving the HTML, for pages whose component Next.js cannot render yet (the page editor).
+- Promotable dashboard pages: the nav props are built before the visit is promoted, as in Rails; the
+  render promotes it after building them (`RenderState.promoteNavItemPath`).
