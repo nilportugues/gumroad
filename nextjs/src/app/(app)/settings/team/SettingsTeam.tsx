@@ -182,7 +182,7 @@ const AddTeamMembersSection = ({
             isMulti={false}
             isClearable={false}
             value={options.find((o) => o.id === teamInvitation.role) ?? null}
-            onChange={(evt) => {
+            onChange={(evt: Option | null) => {
               if (evt !== null) {
                 updateTeamInvitation({ role: evt.id });
                 clearError("role");
