@@ -72,6 +72,7 @@ import {
 } from "./refund-dispute-jobs.ts";
 import type { RetriesExhausted, RetryIn } from "../retry.ts";
 import type { JobHandler } from "./types.ts";
+import { executeScheduledPayoutsJob, failAbandonedPurchaseWorker, handlePayoutReversedWorker, handleStripeEventWorker, largeSellersUpdateUserBalanceStatsCacheWorker, lowBalanceFraudCheckWorker, syncStuckPayoutsJob, updatePayoutStatusWorker } from "./payment-processor-jobs.ts";
 
 export const JOB_HANDLERS: Record<string, JobHandler> = {
   AlertOnStalledAbandonedCartEmailsJob: alertOnStalledAbandonedCartEmailsJob,
@@ -111,6 +112,14 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   ExpireStampedPdfsJob: expireStampedPdfsJob,
   EndSubscriptionWorker: endSubscriptionWorker,
   FightDisputesJob: fightDisputesJob,
+  ExecuteScheduledPayoutsJob: executeScheduledPayoutsJob,
+  FailAbandonedPurchaseWorker: failAbandonedPurchaseWorker,
+  HandlePayoutReversedWorker: handlePayoutReversedWorker,
+  HandleStripeEventWorker: handleStripeEventWorker,
+  LargeSellersUpdateUserBalanceStatsCacheWorker: largeSellersUpdateUserBalanceStatsCacheWorker,
+  LowBalanceFraudCheckWorker: lowBalanceFraudCheckWorker,
+  SyncStuckPayoutsJob: syncStuckPayoutsJob,
+  UpdatePayoutStatusWorker: updatePayoutStatusWorker,
   FindExpiredSubscriptionsToSetAsDeactivatedWorker: findExpiredSubscriptionsToSetAsDeactivatedWorker,
   FindSubscriptionsWithMissingChargeWorker: findSubscriptionsWithMissingChargeWorker,
   FreeTrialExpiringReminderWorker: freeTrialExpiringReminderWorker,

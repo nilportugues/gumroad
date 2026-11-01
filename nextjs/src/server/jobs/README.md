@@ -214,3 +214,22 @@ Hand-backs, all before the job's first write:
   token with no assignments run in Node.
 - Any of the above (and `SetSubscriptionAsDeactivatedWorker`'s member cancellation workflows) when a workflow filter holds a value Node does not
   judge; see `models/README.md`.
+
+## Ported payment processor jobs (WS-66)
+
+`payment-processor-jobs.ts` ports `LargeSellersUpdateUserBalanceStatsCacheWorker` in full (Redis threshold and exclusion reads, `push_bulk` with
+staggered `at`; a Redis failure queues nobody, as `cacheable_users` does) and the guards of seven jobs whose work is a payment processor call or a
+ledger write. Everything past a guard is handed back to Rails before the first write:
+
+- `HandleStripeEventWorker`: an event type `StripeEventHandler` does not handle runs in Node (Ruby only logs it); every handled type goes to Rails.
+- `ExecuteScheduledPayoutsJob`, `SyncStuckPayoutsJob`: an empty first `find_each` batch runs in Node; a due or stuck row goes to Rails (`execute!`, `sync_with_payout_processor`).
+- `UpdatePayoutStatusWorker`: a payment that is not `processing` runs in Node; a processing one (PayPal lookup) goes to Rails.
+- `FailAbandonedPurchaseWorker`: not `in_progress`, and the 15 minute SCA guard (`perform_at`), run in Node; the Stripe intent handling goes to Rails.
+- `LowBalanceFraudCheckWorker`: a balance above -$100 runs in Node; probation and the admin mail go to Rails.
+- `HandlePayoutReversedWorker`: the `Stripe::Payout.retrieve` GET, the failed branch and the timeout raise run in Node; a paid payout with an available
+  balance transaction goes to Rails after the GET and `Payment.find` (both reads), because the reversal writes credits.
+
+Golden: `__fixtures__/payment-processor-jobs.golden.json` (`scripts/golden/payment-processor-jobs.rb`, 74 cases: every statement, Sidekiq payloads and unique
+locks, and the Stripe requests the real gem sent to a capture server). Not ported, still Ruby: `RefundPurchaseWorker`, `FightDisputeJob`, the payout
+processors (`PayoutUsersWorker`, `PerformPayouts*`, `ProcessPaymentWorker`), `StripeMerchantAccountManager` jobs and `UpdateUserBalanceStatsCacheWorker`
+(its `payout_period_data` aggregates are not ported).

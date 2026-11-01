@@ -1030,7 +1030,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "recurringLockMaxAttempt": 3600,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ExpireRentalPurchasesWorker": {
     "file": "app/sidekiq/expire_rental_purchases_worker.rb",
@@ -1166,7 +1166,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "FightDisputeJob": {
     "file": "app/sidekiq/fight_dispute_job.rb",
@@ -1535,7 +1535,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "HandlePaypalEventWorker": {
     "file": "app/sidekiq/handle_paypal_event_worker.rb",
@@ -1619,7 +1619,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "InternalNotificationWorker": {
     "file": "app/sidekiq/internal_notification_worker.rb",
@@ -1656,7 +1656,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "LiftPlatformStripePauseJob": {
     "file": "app/sidekiq/lift_platform_stripe_pause_job.rb",
@@ -1705,7 +1705,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "MassRefundForFraudJob": {
     "file": "app/sidekiq/mass_refund_for_fraud_job.rb",
@@ -3398,7 +3398,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "recurringLockMaxAttempt": 7200,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SyncStuckPurchasesJob": {
     "file": "app/sidekiq/sync_stuck_purchases_job.rb",
@@ -3603,7 +3603,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "UpdateProductFilesArchiveWorker": {
     "file": "app/sidekiq/update_product_files_archive_worker.rb",
