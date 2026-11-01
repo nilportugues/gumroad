@@ -103,6 +103,9 @@ export type RenderState = {
   promoteNavItemPath?: string;
   // What the controller's filters worked out for the action (FilterOutcome.state).
   pageState?: Record<string, unknown>;
+  // What the Events concern reads: session[:signup_referrer] and the guid cookie this request minted.
+  signupReferrer?: string;
+  mintedGuid?: string;
 };
 
 export type ActionContext = {
@@ -286,6 +289,8 @@ export function takeRenderState(chain: Chain): RenderState {
     promptPasskeySetup: data.prompt_passkey_setup,
     clearHistory: data.inertia_clear_history === true,
     pageState: chain.pageState,
+    ...(typeof data.signup_referrer === "string" ? { signupReferrer: data.signup_referrer } : {}),
+    ...(chain.guid ? { mintedGuid: /^_gumroad_guid=([^;]+)/.exec(chain.guid)?.[1] } : {}),
   };
   if ("flash" in data) data.flash = null;
   delete data.inertia_errors;

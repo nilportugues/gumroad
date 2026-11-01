@@ -18,6 +18,7 @@ import {
 import type { PageGuard } from "./guards.ts";
 import type { PreflightOutcome, PreflightRequest } from "./preflight.ts";
 import { PUBLIC_PAGES } from "./public-pages.ts";
+import { AUDIENCE_PAGES } from "./audience/pages.ts";
 import type { ActionContext } from "./load-page.ts";
 import { SETTINGS_PAGES } from "./settings/pages.ts";
 
@@ -30,7 +31,8 @@ export type PageSpec = {
   // May look things up (a record that must exist) and answer `NOT_FOUND` for `e404`, which the
   // /gr-inertia handler turns into Rails' 404 page. `request` is the visitor's URL and headers.
   redirect?: (params: Params, request: PreflightRequest) => PreflightOutcome | null | Promise<PreflightOutcome | null>;
-  // The before_actions that need who is acting (authentication, authorization); run after `redirect`.
+  // The before_actions that need who is acting (authentication, authorization, a record lookup that
+  // 404s by throwing RoutingError); run after `redirect`. A redirect carries `rescued: true`.
   guard?: PageGuard;
   props: (params: Params, action: ActionContext) => Record<string, unknown> | Promise<Record<string, unknown>>;
   mobileAppWebView?: boolean;
@@ -48,6 +50,7 @@ const baseMetaTags = ({ meta }: ActionContext) => {
 };
 
 export const PAGES: Record<string, PageSpec> = {
+  ...AUDIENCE_PAGES,
   "/help": {
     component: "HelpCenter/Articles/Index",
     props: (_, action) => {

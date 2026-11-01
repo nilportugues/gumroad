@@ -6,9 +6,19 @@ import { type InertiaPage, loadPage, type LoadPageOptions } from "./load-page.ts
 import { PAGES } from "./pages.ts";
 import { PAGE_URL_HEADER } from "./render-state.ts";
 
-export async function renderPage(pattern: string, params: Record<string, string>, options: Omit<LoadPageOptions, "url" | "mobileAppWebView"> = {}): Promise<InertiaPage> {
+// App Router hands dynamic segments percent-encoded (an external id ends in `==`); Rails sees them decoded.
+const decodeParam = (value: string) => {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
+
+export async function renderPage(pattern: string, encodedParams: Record<string, string>, options: Omit<LoadPageOptions, "url" | "mobileAppWebView"> = {}): Promise<InertiaPage> {
   const spec = PAGES[pattern];
   if (!spec) throw new Error(`No page is registered for ${pattern}`);
+  const params = Object.fromEntries(Object.entries(encodedParams).map(([name, value]) => [name, decodeParam(value)]));
   // The proxy's x-gr-page-url overrides this; it only matters for renders that bypass it.
   const url = pattern.replace(/:(\w+)/g, (_, name: string) => params[name] ?? "");
   // The proxy answers these with Rails' own status first (proxy.ts, via inertia-page.ts); a page can only send 307/404.

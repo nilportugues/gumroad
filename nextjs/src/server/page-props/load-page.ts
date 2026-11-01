@@ -7,6 +7,7 @@ import { getRequestContext, type RequestContext } from "@/server/auth/context";
 import type { RenderState } from "../controllers/application-controller.ts";
 import { promoteVisitedNavItem } from "../controllers/signed-in-filters.ts";
 import { domainConfig, type DomainConfig } from "./domain.ts";
+import { type PartialRequest, resolveLazyProps } from "./lazy-props.ts";
 import { MetaTagBuilder } from "./meta-tags.ts";
 import { sharedPropsPorts } from "./ports.ts";
 import { decodeRenderState, PAGE_URL_HEADER, RENDER_STATE_HEADER, renderStatePort } from "./render-state.ts";
@@ -33,6 +34,8 @@ export type ActionContext = {
   headers: Headers;
   // ApplicationController#default_url_options, for `*_url` helpers called in the action.
   urlOptions: { protocol: string; host: string };
+  // What the Rails chain left in the session for this render (null when a page renders without the proxy).
+  renderState: RenderState | null;
   // What the controller's filters worked out for the action (ActionOptions.filters).
   state: Record<string, unknown>;
 };
@@ -52,6 +55,8 @@ export type InertiaPage = {
   version: string | null;
   encryptHistory: boolean;
   clearHistory: boolean;
+  // Props the client appends to what it holds (`InertiaRails.merge`); absent when there are none.
+  mergeProps?: string[];
   href: string;
 };
 
@@ -96,6 +101,14 @@ export function filterPartialProps(props: Record<string, unknown>, component: st
   return walk(props, []);
 }
 
+// The partial reload this request asks of `component`, which inertia_rails only honours when the
+// X-Inertia-Partial-Component header names the component being rendered.
+export function partialRequest(component: string, requestHeaders: Headers): PartialRequest {
+  if (requestHeaders.get("x-inertia-partial-component") !== component) return null;
+  const keys = (name: string) => (requestHeaders.get(name) ?? "").split(",").filter((key) => key !== "");
+  return { only: keys("x-inertia-partial-data"), except: keys("x-inertia-partial-except"), reset: keys("x-inertia-reset") };
+}
+
 async function requestUrl(path: string, requestHeaders: Headers, config: DomainConfig): Promise<URL> {
   const host = requestHeaders.get("x-forwarded-host")?.split(/,\s?/).at(-1) ?? requestHeaders.get("host") ?? config.domain;
   const protocol = requestHeaders.get("x-forwarded-proto") ?? config.protocol;
@@ -118,9 +131,11 @@ export async function loadPage(
   const request = { headers: requestHeaders, url: await requestUrl(fullpath, requestHeaders, config) };
 
   await applicationMetaTags(meta, { context, config, csrfToken, ports });
-  const pageProps = await action({ context, config, meta, url: request.url, headers: requestHeaders, urlOptions: defaultUrlOptions(request.url, config), state: state?.pageState ?? {} });
+  const actionProps = await action({ context, config, meta, url: request.url, headers: requestHeaders, urlOptions: defaultUrlOptions(request.url, config), state: state?.pageState ?? {}, renderState: state });
+  const { props: pageProps, mergeProps } = await resolveLazyProps(actionProps, partialRequest(component, requestHeaders));
   const shared = await sharedProps({ context, config, request, meta, csrfToken, ports, mobileAppWebView });
   const errors = await ports.session.consumeInertiaErrors();
+  // promote_visited_nav_item runs after Rails renders, so the props above do not list the visit.
   if (state?.promoteNavItemPath && context.loggedInUser) await promoteVisitedNavItem(context.loggedInUser, state.promoteNavItemPath);
 
   // config.deep_merge_shared_data: page props win, nested hashes merge.
@@ -134,6 +149,7 @@ export async function loadPage(
     version: null,
     encryptHistory: false,
     clearHistory: state?.clearHistory ?? false,
+    ...(mergeProps.length > 0 ? { mergeProps } : {}),
     href: request.url.href,
   };
 }

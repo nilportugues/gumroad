@@ -60,6 +60,8 @@ describe("pageEnvelope", () => {
       mobileParam: "1",
       mobileAppWebView: undefined,
       clearHistory: true,
+      // The _gumroad_guid cookie this request minted, for the page view event.
+      mintedGuid: expect.any(String),
       pageState: {},
     });
     expect(committedSession(envelope.headers)).toMatchObject({ _csrf_token: "csrf-token-from-session", flash: null });

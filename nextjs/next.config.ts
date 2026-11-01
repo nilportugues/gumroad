@@ -46,6 +46,8 @@ const config: NextConfig = {
       ...Object.fromEntries(
         ["facebook_pixel", "google_analytics_4", "tiktok_pixel"].map((name) => [`$vendor/${name}`, `../vendor/assets/javascripts/${name}.js`]),
       ),
+      // useConfigureEvaporate (the email attachment uploader) imports it with its extension.
+      "$vendor/evaporate.js": "../vendor/assets/javascripts/evaporate.js",
       ...Object.fromEntries(sharedPackages.map((name) => [name, `./node_modules/${name}`])),
     },
     rules: {

@@ -4,6 +4,7 @@
 // handler, with the rest of what Rails' controller sends alongside them (processAction). The
 // redirects themselves live with the page, in page-props/pages.ts.
 import { resolveRequestAuth } from "./controllers/signed-in-filters.ts";
+import { RoutingError } from "./controllers/application-controller.ts";
 import { railsRequest } from "./controllers/rails-request.ts";
 import { domainConfig } from "./page-props/domain.ts";
 import { matchPagePath, PAGES } from "./page-props/pages.ts";
@@ -19,5 +20,11 @@ export async function redirectsBeforeRendering(pattern: string, url: URL, reques
   const auth = await resolveRequestAuth(railsRequest(new Request(url, { headers: request.headers })), new Date());
   // The chain ends the session itself (a redirect to the login page).
   if (auth.effects.signOut) return true;
-  return (await spec.guard({ context: auth.context, config, url, urlOptions: defaultUrlOptions(url, config) })) !== null;
+  try {
+    return (await spec.guard({ context: auth.context, config, url, params, urlOptions: defaultUrlOptions(url, config) })) !== null;
+  } catch (error) {
+    // The handler answers the 404 (processAction).
+    if (error instanceof RoutingError) return true;
+    throw error;
+  }
 }
