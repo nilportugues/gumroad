@@ -309,3 +309,23 @@ The query builders live in `src/server/search/`; each is a pure function returni
 - `purchase-search.ts`: `PurchaseSearchService`, including the long-email-token fallback request. `purchase-search.golden.json`.
 - `following.ts`, `civil-time.ts`: `CreatorAnalytics::Following` (time zone day starts, `D3` labels) and the `ConfirmedFollowerEvent` activity search. `following.golden.json`.
 - Not ported: the Discover, `Products/Discover`, Customers, Audience, Churn, Analytics and Dashboard page renders. Discover needs `ProductPresenter.card_for_web`, `WishlistPresenter`, `RecommendedWishlistsService` and the `DiscoverSearch` write; the seller pages share `check_payment_details` (Redis plus a Stripe call) and the `DashboardPreference` after_action cookie, which `PageSpec` cannot set yet.
+
+## Storefront pages (WS-68)
+
+Seller subdomains and custom domains. Props and filters live in `server/page-props/storefront/` (`post-pages.ts`, `profile-pages.ts`), the
+components are copies under `app/(app)/gr-host/seller/` (the proxy rewrites the path there for those hosts, see WS-64) and `blog/p/[slug]/`.
+All of them are `signedOutOnly` in routes.json: a signed-in visitor (`can_edit`, the owner's own view, purchase-scoped posts) is Rails'.
+
+| Route (flag) | Rails | Notes |
+| --- | --- | --- |
+| `seller:/p/:slug` (`nextjs_storefront_posts`) | `PostsController#show` | Fixtures: `storefront_posts_parity_spec`, `storefront_post_comments_parity_spec`. |
+| `/blog/p/:slug` (`nextjs_gumroad_blog_post`) | `GumroadBlog::PostsController#show` | A post the policy refuses is the dashboard redirect with its flash. |
+| `seller:/`, `seller:/subscribe`, `seller:/affiliates` (`nextjs_storefront_profile`) | `UsersController#show`, `#subscribe`, `AffiliateRequestsController#new` | Fixtures: `storefront_profile_parity_spec`. |
+
+- **404 and hand-back live in `options.filters`**, not in `redirect`: a filter can throw `RoutingError` (404) or `HandBackToRails`, and both the proxy's envelope and the X-Inertia handler run it. `state` carries ids only (it travels in a request header), the props re-read the rows.
+- **Host seller.** `storefront/seller-host.ts` is `set_user_and_custom_domain_config`: `Subdomain.find_seller_by_hostname || CustomDomain.find_by_host(host).user`, 404 unless `account_active?`. On these hosts `@is_user_custom_domain` is true, so `check_if_needs_redirect` never redirects.
+- **Post visibility** for a visitor who is not signed in is `User#visible_posts_for` reduced to its public branch: the seller's alive, published, workflow-free audience posts shown on the profile. `recent_posts` is the same set minus the post; comments are roots (20 per page) plus their subtree down to `MAX_ALLOWED_DEPTH`, ordered by `created_at, id`.
+- **Pinned to Ruby.** `__fixtures__/storefront-posts.golden.json` (`scripts/golden/storefront-posts.rb`): `time_ago_in_words` over every bucket and the leap-year rule, `PostPresenter#snippet`, `Installment#truncated_description` (`TextScrubber.format`, `squish`, `truncate`) and `Post::SocialImage`.
+- **Handed to Rails** (decided in the filter): a `purchase_id` param, a post with files (`download_url` creates a `UrlRedirect`), a profile with a products section, the virtual default products section (a seller with a non-archived product and no sections), a featured product or wishlists section, a seller with custom HTML pages, an `affiliate_id`/`a` param (it writes a cookie), a generated subscribe preview image, the seller reputation summary, any non-HTML format. `/coffee` is not routed: it needs `ProductPresenter#product_props`.
+- **Not ported: `ProductPresenter.card_for_web` and the products-section search.** The cards need the buyer's currency (GeoIP, WS-75), `thumbnail_or_cover_url` variants, `remaining_for_sale_count`, auto-applied offer codes and the Elasticsearch `search_products` for the section; WS-69 owns the product presenter, so `storefront/product-card.ts` is still to be written on top of it. Until then a profile that shows products is served by Rails.
+- **Known differences.** `ProfileSectionsPresenter#cached_sections` is cached for ten minutes in Rails; the port reads the rows each time, so a profile edit shows at once instead of after the cache expires. `follow_recaptcha_site_key` reads `RECAPTCHA_FOLLOW_SITE_KEY`/`RECAPTCHA_MONEY_SITE_KEY` from the environment (`.env.test` for the replays).
