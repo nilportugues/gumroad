@@ -59,7 +59,7 @@ export async function enqueueWith(runtime: JobsRuntime, jobClass: string, args: 
     jid: runtime.newJid(),
     now,
     ...(options.queue === undefined ? {} : { queue: options.queue }),
-    ...(at === undefined ? {} : { at }),
+    ...(at === undefined ? {} : { at, scheduled: true }),
     ...(options.set === undefined ? {} : { set: options.set }),
   });
 

@@ -27,6 +27,9 @@ export type BuildItemInput = {
   queue?: string;
   // Epoch seconds, as Sidekiq's `at`. Ignored unless in the future, as in Sidekiq.
   at?: number;
+  // Called as `perform_in` / `perform_at`, which build the item without Setter even when the time
+  // is not in the future and so leaves out "at".
+  scheduled?: boolean;
   // `FooJob.set(...)` options beyond queue, e.g. GenerateSslCertificate::RENEWAL_LOCK_OPTIONS.
   set?: Record<string, SidekiqOptionValue>;
   jid: string;
@@ -51,9 +54,9 @@ export function buildSidekiqItem(input: BuildItemInput): SidekiqItem {
   // perform_async goes through Setter (`opts.merge("args" =>, "class" =>)`); the class-level
   // perform_in builds `{"class" =>, "args" =>}` and adds "at". `.set(...)` always goes through Setter.
   const raw: SidekiqItem =
-    Object.keys(setOptions).length || !at
+    Object.keys(setOptions).length || (!at && !input.scheduled)
       ? { ...setOptions, ...(at ? { at } : {}), args, class: className }
-      : { class: className, args, at };
+      : { class: className, args, ...(at ? { at } : {}) };
 
   const item: SidekiqItem = { ...jobOptions(definition), ...raw };
   if (item.queue === null || item.queue === "") throw new Error(`${className}: job must include a valid queue name`);

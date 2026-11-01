@@ -106,3 +106,24 @@ export const isChargedback = (purchase: Purchase) => purchase.chargeback_date !=
 export const isChargedbackNotReversed = (purchase: Purchase) => isChargedback(purchase) && !PurchaseFlags.isSet(purchase.flags, "chargeback_reversed");
 // Purchase#chargedback_not_reversed_or_refunded?
 export const isChargedbackNotReversedOrRefunded = (purchase: Purchase) => isChargedbackNotReversed(purchase) || isRefunded(purchase);
+
+// Purchase::Reviews::COUNTS_REVIEWS_STATES
+const COUNTS_REVIEWS_STATES = ["successful", "gift_receiver_purchase_successful", "not_charged"];
+
+// Purchase#allows_review_to_be_counted? (`allows_reviews(permit_recurring_charges: false)`), a pure
+// read of the row: every clause runs, none of them queries.
+export function allowsReviewToBeCounted(purchase: Purchase): boolean {
+  const flag = (name: Parameters<typeof PurchaseFlags.isSet>[1]) => PurchaseFlags.isSet(purchase.flags, name);
+  let allowed = COUNTS_REVIEWS_STATES.includes(purchase.purchase_state ?? "");
+  allowed &&= !flag("should_exclude_product_review");
+  // not_charged_and_not_free_trial?
+  allowed &&= !(purchase.purchase_state === "not_charged" && !flag("is_free_trial_purchase"));
+  allowed &&= !flag("is_gift_sender_purchase");
+  allowed &&= purchase.stripe_refunded !== true;
+  allowed &&= purchase.stripe_partially_refunded !== true || !flag("is_bundle_product_purchase");
+  allowed &&= purchase.chargeback_date == null;
+  allowed &&= purchase.subscription_id == null || flag("is_original_subscription_purchase");
+  allowed &&= !flag("is_access_revoked") || (purchase.price_cents ?? 0) > 0;
+  allowed &&= !flag("is_commission_completion_purchase");
+  return allowed;
+}
