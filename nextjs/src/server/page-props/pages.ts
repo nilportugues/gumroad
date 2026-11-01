@@ -25,6 +25,7 @@ import { EMAILS_PAGES } from "./emails/pages.ts";
 import type { ActionContext } from "./load-page.ts";
 import { DASHBOARD_PAGES } from "./dashboard-pages.ts";
 import { OAUTH_APPLICATION_PAGES, SETTINGS_PAGES } from "./settings/pages.ts";
+import { STOREFRONT_PAGES } from "./storefront/pages.ts";
 
 type Params = Record<string, string>;
 
@@ -120,6 +121,8 @@ export const PAGES: Record<string, PageSpec> = {
     },
   },
   ...SETTINGS_PAGES,
+  // Before PUBLIC_PAGES: `/blog/p/:slug` must match ahead of `/:username/p/:slug`, as config/routes.rb orders them.
+  ...STOREFRONT_PAGES,
   ...PUBLIC_PAGES,
   ...DASHBOARD_PAGES,
   ...BUYER_PAGES,

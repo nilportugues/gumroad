@@ -1,10 +1,10 @@
-// GumroadBlog::PostsController (WS-55). Registered in pages.ts through public-pages.ts.
+// GumroadBlog::PostsController#index (WS-55). Registered in pages.ts through public-pages.ts; #show is in
+// storefront/post-pages.ts.
 import { Prisma } from "@prisma/client";
 
 import { getConfig } from "../infra/config.ts";
 import { featuredImageUrl, messageSnippet, messageTags } from "../html/installment-message.ts";
 import { column, selectRows, table } from "../models/sql.ts";
-import { NotPortedError } from "./not-ported.ts";
 import type { PageSpec } from "./pages.ts";
 import { NOT_FOUND } from "./preflight.ts";
 
@@ -31,24 +31,6 @@ const visiblePosts = (ownerId: bigint) =>
   );
 
 export const GUMROAD_BLOG_PAGES: Record<string, PageSpec> = {
-  // The show page is not ported: PostPresenter#post_component_props needs ProfilePresenter#creator_profile,
-  // visible_posts_for and PaginatedCommentsPresenter. Registered so the route cannot fall through to
-  // the posts page (`/:username/p/:slug` with username "blog") if its flag is turned on.
-  "/blog/p/:slug": {
-    component: "GumroadBlog/Posts/Show",
-    redirect: async ({ slug }) => {
-      const owner = await blogOwner();
-      if (!owner) return NOT_FOUND;
-      const [post] = await selectRows(
-        Prisma.sql`SELECT 1 FROM ${table("installments")} WHERE ${column("installments", "seller_id")} = ${owner.id} AND ${column("installments", "slug")} = ${slug!} LIMIT 1`,
-      );
-      if (!post) return NOT_FOUND;
-      throw new NotPortedError("GumroadBlog::PostsController#show (PostPresenter props)");
-    },
-    props: () => {
-      throw new NotPortedError("GumroadBlog::PostsController#show (PostPresenter props)");
-    },
-  },
   "/blog": {
     component: "GumroadBlog/Posts/Index",
     redirect: async () => ((await blogOwner()) ? null : NOT_FOUND),
