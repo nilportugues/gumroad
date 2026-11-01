@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { closeAllRedis } from "@/server/infra/redis";
 
 import { prismaExecutor, type SqlExecutor } from "../src/db";
-import { loadFixture } from "../src/fixture";
+import { type Fixture, type FixtureRequest, loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
@@ -115,7 +115,7 @@ describe.skipIf(!url)("Product page parity", () => {
         redis: redisSeeder(redis),
         transport: httpTransport(server.baseUrl),
         interceptHttp: false,
-        rewriteRequest: (request: Request, fixture: Parameters<typeof reencryptCookies>[1], now: Date) => reencryptCookies(request, fixture, SECRET_KEY_BASE, now),
+        rewriteRequest: (request: FixtureRequest, fixture: Fixture, now: Date) => reencryptCookies(request, fixture, SECRET_KEY_BASE, now),
       };
       if (!c.served) {
         // The request the filters cannot prove goes to Rails whole.
