@@ -38,6 +38,14 @@ import { syncStripeBusinessProfileUrlWorker } from "./sync-stripe-business-profi
 import { updateCurrenciesWorker } from "./update-currencies-worker.ts";
 import { warmSellerReputationSummaryJob } from "./warm-seller-reputation-summary-job.ts";
 import { recalculateRecentWishlistFollowerCountJob } from "./wishlist-jobs.ts";
+import {
+  createMissingPurchaseEventsWorker,
+  expireRentalPurchasesWorker,
+  findExpiredSubscriptionsToSetAsDeactivatedWorker,
+  sendRentalExpiresSoonEmailWorker,
+  syncStuckPurchasesJob,
+  updatePurchaseHealthcheckThresholdJob,
+} from "./purchase-reads-jobs.ts";
 import type { RetriesExhausted, RetryIn } from "../retry.ts";
 import type { JobHandler } from "./types.ts";
 
@@ -50,6 +58,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   BuildTaxRateCacheWorker: buildTaxRateCacheWorker,
   CheckPaymentAddressWorker: checkPaymentAddressWorker,
   ContentModerationAdminCommentJob: contentModerationAdminCommentJob,
+  CreateMissingPurchaseEventsWorker: createMissingPurchaseEventsWorker,
   CreateStripeApplePayDomainWorker: createStripeApplePayDomainWorker,
   DeleteExpiredProductCachedValuesWorker: deleteExpiredProductCachedValuesWorker,
   DeleteOldPingDeliveriesJob: deleteOldPingDeliveriesJob,
@@ -63,8 +72,10 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   DispatchPendingWorkflowInstallmentScheduleIntentsJob: dispatchPendingWorkflowInstallmentScheduleIntentsJob,
   DisputeEvidenceDueSoonReminderJob: disputeEvidenceDueSoonReminderJob,
   ElasticsearchIndexerWorker: elasticsearchIndexerWorker,
+  ExpireRentalPurchasesWorker: expireRentalPurchasesWorker,
   EnqueueMarketingXReconnectEmailJob: enqueueMarketingXReconnectEmailJob,
   ExpireStampedPdfsJob: expireStampedPdfsJob,
+  FindExpiredSubscriptionsToSetAsDeactivatedWorker: findExpiredSubscriptionsToSetAsDeactivatedWorker,
   ForceFinishLongRunningCommunityChatRecapRunsJob: forceFinishLongRunningCommunityChatRecapRunsJob,
   HandleSnsAwsConfigEventWorker: handleSnsAwsConfigEventWorker,
   InternalNotificationWorker: internalNotificationWorker,
@@ -82,14 +93,17 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   ReleaseChargebackRatePayoutPausesJob: releaseChargebackRatePayoutPausesJob,
   SendCommunityChatRecapNotificationsJob: sendCommunityChatRecapNotificationsJob,
   SendMarketingXReconnectEmailJob: sendMarketingXReconnectEmailJob,
+  SendRentalExpiresSoonEmailWorker: sendRentalExpiresSoonEmailWorker,
   SuspendAccountsWithPaymentAddressWorker: suspendAccountsWithPaymentAddressWorker,
   SuspendUsersWorker: suspendUsersWorker,
   SyncStripeBusinessProfileUrlJob: syncStripeBusinessProfileUrlJob,
   SyncStripeBusinessProfileUrlWorker: syncStripeBusinessProfileUrlWorker,
+  SyncStuckPurchasesJob: syncStuckPurchasesJob,
   TriggerCommunityChatRecapRunJob: triggerCommunityChatRecapRunJob,
   UnblockObjectWorker: unblockObjectWorker,
   UpdateCurrenciesWorker: updateCurrenciesWorker,
   UpdateLargeSellersSalesCountJob: updateLargeSellersSalesCountJob,
+  UpdatePurchaseHealthcheckThresholdJob: updatePurchaseHealthcheckThresholdJob,
   WarmSellerReputationSummaryJob: warmSellerReputationSummaryJob,
 };
 

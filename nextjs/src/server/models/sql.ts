@@ -39,11 +39,13 @@ export const column = (tableName: string, name: string) => Prisma.raw(`${quoteNa
 // `find_in_batches` / `find_each` over `SELECT table.*` (activerecord 8.1): ORDER BY id LIMIT n,
 // then `AND id > <last id>`, stopping after a short batch. Batch loads skip the query cache
 // (`skip_query_cache!`); the block does not.
+// `select` replaces `table.*` for a relation with `select(:id)` and the like.
 export async function findInBatches<T extends Row>(
   tableName: string,
   where: Prisma.Sql | null,
   batchSize: number,
   each: (rows: T[]) => Promise<void>,
+  select: Prisma.Sql | null = null,
 ): Promise<void> {
   const id = column(tableName, "id");
   let after: unknown = null;
@@ -51,7 +53,7 @@ export async function findInBatches<T extends Row>(
     const conditions = [where, after === null ? null : Prisma.sql`${id} > ${after}`].filter((c): c is Prisma.Sql => c !== null);
     const clause = conditions.length === 0 ? Prisma.empty : Prisma.sql` WHERE ${Prisma.join(conditions, " AND ")}`;
     const rows = await uncached(() =>
-      selectRows<T>(Prisma.sql`SELECT ${Prisma.raw(`${quoteName(tableName)}.*`)} FROM ${table(tableName)}${clause} ORDER BY ${id} ASC LIMIT ${Prisma.raw(String(batchSize))}`),
+      selectRows<T>(Prisma.sql`SELECT ${select ?? Prisma.raw(`${quoteName(tableName)}.*`)} FROM ${table(tableName)}${clause} ORDER BY ${id} ASC LIMIT ${Prisma.raw(String(batchSize))}`),
     );
     if (rows.length === 0) return;
     await each(rows);
