@@ -6,6 +6,7 @@ import { settingsAuthorizedApplicationsOauthApplicationPolicy } from "../../poli
 import { settingsBillingPolicy } from "../../policies/settings/billing.ts";
 import { settingsPaymentsUserPolicy } from "../../policies/settings/payments-user.ts";
 import { settingsMainUserPolicy } from "../../policies/settings/main-user.ts";
+import { settingsProfilePolicy } from "../../policies/settings/profile.ts";
 import { settingsPasswordUserPolicy } from "../../policies/settings/password-user.ts";
 import { settingsSocialConnectionsPolicy } from "../../policies/settings/social-connections.ts";
 import { settingsTeamUserPolicy } from "../../policies/settings/team-user.ts";
@@ -15,6 +16,7 @@ import { NotPortedError } from "../not-ported.ts";
 import type { PageSpec } from "../pages.ts";
 import { settingsGuard } from "./guard.ts";
 import { paymentsProps } from "./payments.ts";
+import { profileProps } from "./profile.ts";
 import {
   advancedProps,
   authorizedApplicationsProps,
@@ -91,6 +93,10 @@ export const SETTINGS_PAGES: Record<string, PageSpec> = {
   "/settings/payments": page("Settings/Payments/Show", {
     guard: settingsGuard({ authorize: (context) => settingsPaymentsUserPolicy.show(context) }),
     props: (_, action) => settingsPage(action, (context) => paymentsProps(context, { impersonating: action.context.impersonatedUser !== null })),
+  }),
+  "/profile": page("Settings/Profile/Show", {
+    guard: settingsGuard({ authorize: settingsProfilePolicy.show }),
+    props: (_, action) => settingsPage(action, profileProps, "Profile settings"),
   }),
   "/settings/authorized_applications": page("Settings/AuthorizedApplications/Index", {
     guard: settingsGuard({ authorize: settingsAuthorizedApplicationsOauthApplicationPolicy.index }),

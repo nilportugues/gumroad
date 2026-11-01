@@ -20,7 +20,7 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURE_DIR = "parity/fixtures/requests/settings_payments_profile_signed_in_spec";
-const ROUTE_FLAGS = ["nextjs_settings_payments"].join(",");
+const ROUTE_FLAGS = ["nextjs_settings_payments", "nextjs_settings_profile"].join(",");
 const FIRST_COMPILE_TIMEOUT_MS = 240_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
@@ -28,6 +28,7 @@ const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1];
 const stripeKey = /^STRIPE_PUBLIC_KEY_TEST=(.+)$/m.exec(envTest)?.[1];
 // The test-only RSA key the specs' Strongbox columns are encrypted with (committed in .env.test).
 const strongboxKey = /^STRONGBOX_GENERAL="(.+)"$/m.exec(envTest)?.[1]?.replaceAll("\\n", "\n");
+const recaptchaKey = /^RECAPTCHA_MONEY_SITE_KEY=(.+)$/m.exec(envTest)?.[1];
 const strongboxPassword = /^STRONGBOX_GENERAL_PASSWORD="?([^"\n]+)"?$/m.exec(envTest)?.[1];
 
 const COMPARE = {
@@ -85,6 +86,7 @@ describe.skipIf(!url)("Payments, profile and application settings parity when si
       OBFUSCATE_IDS_CIPHER_KEY: obfuscateKey ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
       ...(stripeKey ? { STRIPE_PUBLIC_KEY_TEST: stripeKey } : {}),
+      ...(recaptchaKey ? { RECAPTCHA_MONEY_SITE_KEY: recaptchaKey } : {}),
       ...(strongboxKey && strongboxPassword ? { STRONGBOX_GENERAL: strongboxKey, STRONGBOX_GENERAL_PASSWORD: strongboxPassword } : {}),
       NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS,
       RAILS_ORIGIN: "http://rails.invalid",

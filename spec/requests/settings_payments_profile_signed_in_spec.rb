@@ -39,6 +39,116 @@ describe "Payments, profile and application settings when signed in", type: :req
     JSON.parse(page)["props"]
   end
 
+  describe "profile" do
+    it "renders the profile editor for an owner who has set nothing up", parity: true do
+      log_in(seller)
+
+      get profile_path
+
+      expect(response).to be_successful
+      props = inertia_props_of(response)
+      expect(props["profile_settings"]).to include("font" => "ABC Favorit")
+      expect(props["editable_profile"]["creator_profile"]["can_edit"]).to eq(true)
+    end
+
+    it "renders the saved design, tabs, products, posts and wishlists", parity: true do
+      create(:product, user: seller, name: "Visible product")
+      create(:product, user: seller, name: "Archived product", archived: true)
+      create(:audience_installment, seller:, name: "Profile post", published_at: 2.days.ago, shown_on_profile: true)
+      create(:audience_installment, seller:, name: "Email only post", published_at: 1.day.ago, shown_on_profile: false)
+      create(:wishlist, user: seller, name: "Gift ideas")
+      seller.update!(name: "Designer", bio: "I make things", hide_follow_form: true)
+      seller.seller_profile.update!(font: "Inter", background_color: "#fff", highlight_color: "#abc123", border_radius: "large", button_hover: "none",
+                                   json_data: { "tabs" => [{ "name" => "Home", "sections" => [] }, { "name" => "About", "sections" => [] }] })
+      log_in(seller)
+
+      get profile_path
+
+      expect(response).to be_successful
+      props = inertia_props_of(response)
+      expect(props["profile_settings"]).to include("name" => "Designer", "font" => "Inter", "hide_follow_form" => true)
+      expect(props["editable_profile"]["posts"].map { _1["name"] }).to eq(["Profile post"])
+      expect(props["tabs"].map { _1["name"] }).to eq(%w[Home About])
+    end
+
+    it "asks for the email to be confirmed", parity: true do
+      log_in(seller)
+      seller.update_columns(confirmed_at: nil, unconfirmed_email: "new@example.com")
+
+      get profile_path
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["email_confirmation"]).to eq("email" => "new@example.com", "can_resend" => true)
+    end
+
+    it "does not show the follow captcha for a compliant seller", parity: true do
+      seller.mark_compliant!(author_name: "test")
+      log_in(seller)
+
+      get profile_path
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["editable_profile"]["creator_profile"]["follow_recaptcha_site_key"]).to be_nil
+    end
+
+    it "tells a seller with a custom landing page", parity: true do
+      seller.update!(custom_html: "<p>Hello</p>")
+      log_in(seller)
+
+      get profile_path
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["has_custom_landing_page"]).to eq(true)
+    end
+
+    it "lets an admin team member edit the profile with their own currency", parity: true do
+      member = member_with_role(TeamMembership::ROLE_ADMIN)
+      member.update!(currency_type: "eur")
+
+      get profile_path
+
+      expect(response).to be_successful
+      props = inertia_props_of(response)
+      expect(props["editable_profile"]).to include("currency_code" => "eur")
+      expect(props["editable_profile"]["creator_profile"]["can_edit"]).to eq(true)
+    end
+
+    it "lets a marketing team member edit the profile", parity: true do
+      member_with_role(TeamMembership::ROLE_MARKETING)
+
+      get profile_path
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["editable_profile"]["creator_profile"]["can_edit"]).to eq(true)
+    end
+
+    it "shows the profile to an accountant team member without letting them edit it", parity: true do
+      member_with_role(TeamMembership::ROLE_ACCOUNTANT)
+
+      get profile_path
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["editable_profile"]["creator_profile"]["can_edit"]).to eq(false)
+    end
+
+    it "shows the profile to a support team member without letting them edit it", parity: true do
+      member_with_role(TeamMembership::ROLE_SUPPORT)
+
+      get profile_path
+
+      expect(response).to be_successful
+    end
+
+    it "answers an Inertia visit with the page as JSON", parity: true do
+      log_in(seller)
+
+      get profile_path, headers: { "X-Inertia" => "true", "X-Requested-With" => "XMLHttpRequest" }
+
+      expect(response).to be_successful
+      expect(response.parsed_body["component"]).to eq("Settings/Profile/Show")
+    end
+  end
+
   describe "payments" do
     it "asks an owner without compliance info for the country", parity: true do
       log_in(seller)
