@@ -9,18 +9,23 @@ import { assertSupported, autoLinkText, mailSubject, type ReceiptData, simpleFor
 const data = (purchase: Partial<ReceiptData["purchase"]> = {}, link: Partial<ReceiptData["link"]> = {}, seller: Partial<ReceiptData["seller"]> = {}): ReceiptData => ({
   purchase: {
     id: 401, link_id: 301, seller_id: 201, purchaser_id: null, email: "buyer@example.com", flags: 0, purchase_state: "successful", price_cents: 500, total_transaction_cents: 500,
-    displayed_price_cents: 500, displayed_price_currency_type: "usd", shipping_cents: 0, tax_cents: 0, gumroad_tax_cents: 0, quantity: 1, created_at: new Date("2026-10-31T12:00:00Z"),
+    displayed_price_cents: 500, displayed_price_currency_type: "usd", rate_converted_to_usd: "1", shipping_cents: 0, tax_cents: 0, gumroad_tax_cents: 0, zip_tax_rate_id: null, quantity: 1, created_at: new Date("2026-10-31T12:00:00Z"),
     subscription_id: null, preorder_id: null, price_id: null, card_type: null, card_visual: null, full_name: null, street_address: null, city: null, state: null, zip_code: null, country: null,
     offer_code_id: null, ...purchase,
   },
   link: { id: 301, user_id: 201, name: "Guide", unique_permalink: "guide", custom_permalink: null, support_email: null, json_data: null, flags: 0, native_type: "digital", price_currency_type: "usd", require_shipping: false, ...link },
   seller: { id: 201, name: "Seller", username: "seller", email: "seller@example.com", unconfirmed_email: null, support_email: null, external_id: "8000000000201", recommendation_type: "no_recommendations", ...seller },
-  urlRedirectToken: null, variantNames: null, tipValueCents: null, customFields: [], refundPolicy: null,
+  displayedPriceUsdCents: 500, presentment: null, taxLines: null, urlRedirectToken: null, licenseKey: null, variantNames: null, tipValueCents: null, customFields: [], refundPolicy: null,
 });
 
 describe("assertSupported", () => {
   it("accepts a plain successful USD purchase", () => {
     expect(() => assertSupported(data())).not.toThrow();
+  });
+
+  it("accepts a purchase in another currency with a rate, and a seller recommending their own products", () => {
+    expect(() => assertSupported(data({ displayed_price_currency_type: "eur", rate_converted_to_usd: "0.9" }))).not.toThrow();
+    expect(() => assertSupported(data({}, {}, { recommendation_type: "own_products" }))).not.toThrow();
   });
 
   const refused: [string, ReturnType<typeof data>][] = [
@@ -34,11 +39,11 @@ describe("assertSupported", () => {
     ["a rental", data({ flags: 1 << 14 })],
     ["a bundle", data({ flags: 1 << 25 })],
     ["a purchase that is not successful", data({ purchase_state: "failed" })],
-    ["a purchase priced in euros", data({ displayed_price_currency_type: "eur" })],
-    ["a taxed purchase", data({ gumroad_tax_cents: 50 })],
+    ["a purchase priced in euros without a stored rate", data({ displayed_price_currency_type: "eur", rate_converted_to_usd: null })],
+    ["a purchase priced in a currency the money gem does not know", data({ displayed_price_currency_type: "xxx", rate_converted_to_usd: "1.0" })],
     ["a call", data({}, { native_type: "call" })],
     ["the seller buying their own product", data({ purchaser_id: 201 })],
-    ["a seller who gets recommendations", data({}, {}, { recommendation_type: "own_products" })],
+    ["a seller who recommends affiliate products", data({}, {}, { recommendation_type: "gumroad_affiliates_products" })],
   ];
   for (const [name, row] of refused) {
     it(`refuses ${name}`, () => {

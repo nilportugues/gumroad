@@ -125,35 +125,58 @@ X-GUM `mailer_args` carry the located record's `#inspect` (`record-inspect.ts`, 
 Still Ruby, with the reasons in the table above: `grouped_receipt`, `preorder_receipt`, `auto_invoice`, `subscription_restarted`,
 `abandoned_cart*`, `review_response`, `upcoming_call_reminder`, `send_to_kindle`, and the receipts below.
 
-## CustomerMailer#receipt (WS-76)
+## CustomerMailer#receipt (WS-76, widened in WS-85)
 
-`receipt(purchase_id)` renders in Node for one shape of purchase and refuses (`MailViewNotPortedError`, so the delivery or the job goes back
+`receipt(purchase_id)` renders in Node for the purchases below and refuses (`MailViewNotPortedError`, so the delivery or the job goes back
 to Rails before anything is sent or written) for the rest. Goldens: `receipt-mailer.golden.json` from `generate-receipt-mailer-golden.rb`, which
-runs the real mailer inside the Sidekiq executor (query cache on): 26 messages replayed statement for statement, HTML, encoded message,
-Router Redis; 13 refusals Rails sends; one error. `mailers/receipt-presenter.ts` holds the presenter parts as pure functions of rows
-(`mailSubject`, `chargeInfo`, `paymentInfo`, `shippingInfo`, `itemInfo`, `assertSupported`); `mailers/receipt-mailer.ts` reads in the order the
-view asks (so the first occurrence of each distinct statement matches; repeats are query-cache hits on both sides) and holds the templates.
+runs the real mailer inside the Sidekiq executor (query cache on) against a scratch MySQL and Elasticsearch: 105 messages replayed statement for
+statement (and Elasticsearch request for request), HTML, encoded message, Router Redis; 23 refusals Rails sends; one error. The generator puts a
+recording proxy between `EsClient` and a scratch `ws85-link` index (`search/__fixtures__/es_recording_proxy.rb`), and the test hands the recorded
+answers back through `setEsSender`. `mailers/receipt-presenter.ts` holds the presenter parts as pure functions of rows (`mailSubject`,
+`chargeInfo`, `paymentInfo`, `shippingInfo`, `itemInfo`, `assertSupported`); `mailers/receipt-recommended.ts` the recommended products section and
+`mailers/receipt-tax.ts` the tax lines; `mailers/receipt-mailer.ts` reads in the order the view asks (so the first occurrence of each distinct
+statement matches; repeats are query-cache hits on both sides) and holds the templates.
 
-Rendered: one successful, untaxed USD purchase of a digital or physical product, outside a subscription, preorder, gift, bundle, rental, call or
-commission, made by a guest or a signed-in buyer who is not the seller, with a per-variant name, quantity, tip, custom fields (text and
-checkbox), refund policy, custom receipt text, a download button, free or paid, shipping line and address, and a card or wallet line.
-Money is formatted by `models/concerns/money-formatter.ts`.
+Rendered: one successful purchase of a digital, course, ebook, newsletter, podcast, audiobook, physical or coffee product, outside a subscription,
+preorder, gift, bundle, rental, call or commission, made by a guest or a signed-in buyer who is not the seller, with a per-variant name, quantity,
+tip, custom fields (text and checkbox), refund policy, custom receipt text, a download button, a licence key, free or paid, shipping line and
+address, a card or wallet line, and:
+
+- **Another currency.** The price line is `get_usd_cents(displayed_price_currency_type, displayed_price_cents, rate: rate_converted_to_usd)`
+  (`models/concerns/currency-helper.ts`); the product price and tip stay in the purchase's currency. A purchase without a stored rate (Rails looks
+  it up in Redis) or in a currency the money gem does not know is refused.
+- **Buyer currency.** A `purchase_presentments` row states price, shipping, tax and total in the buyer's currency through
+  `formatChargePresentmentAmount`, and drops the USD note. `buyer_presentment_display?` reads the purchase's refunds that moved money; the receipt
+  stays in the buyer's currency only if each has a buyer-currency snapshot, which is not read, so any such refund (including a failed one whose
+  balance was not reversed) is refused.
+- **Tax.** A purchase with the `was_purchase_taxable` flag shows the tax line `Purchase#tax_label` names (VAT/GST/CT/Service tax with the rate
+  truncated, or Sales tax and "(included)"), from `non_refunded_tax_amount` (Gumroad-collected tax net of `refunds.effective`) or the seller's tax
+  cents. Tax cents without the flag show no line, as in Rails. Canadian splits (a TaxJar row with GST/PST/QST rates) and a creator's own tax rate
+  (the creator tax ID in the zip tax rate's JSON data) are refused.
+- **Recommended products.** A seller who recommends their own products (`own_products`): `SalesRelatedProductsInfo.related_products` (the cached
+  counts, highest first, ties by higher product id), then the creator-featured search (`searchProductsWithFacets`, so Elasticsearch gets the
+  bytes Rails sent) for what is missing out of four. Rails loads the cards with `includes(ProductPresenter::ASSOCIATIONS_FOR_CARD)`, so a card costs
+  no statements of its own; `preloadCardAssociations` sends the preloads in the order Rails' preloader sends them and the card is built from those
+  rows. The title is "Customers who bought this item also bought" when every product came from the cache, else "More from this creator".
+  Refused: the affiliate recommendation types; a recommended product with a thumbnail or asset preview, a SKU, a variant category or tier, bundle
+  products, a purchase limit, a default offer code, a membership or bundle, or rental prices; a seller with a seller-wide sale or an uploaded avatar;
+  four or more associated product ids (Rails samples half of them with `Array#sample`); a buyer who owns bundles.
 
 Refused: a `Charge` receipt (`uses_charge_receipt?`), gift sender or receiver, preorder, membership/installment/free trial, bundle and bundle
-member, rental, call, coffee and commission, licensed products (the license key and its rich-content check), tax (the label, Canadian splits, the
-zip tax rate), a non-USD product or purchase, a purchase with a buyer-currency (`purchase_presentments`) row, an uploaded avatar or thumbnail
-(Active Storage variants), a test purchase (seller buying their own product), and any seller who has not opted out of recommendations: the
-recommended products section runs `RecommendedProductsService`, `SalesRelatedProductsInfo` and an Elasticsearch search and renders product
-cards, none of which is ported. That last rule is the big one: **most sellers' receipts still go to Rails**. Text that goes through `auto_link`
-or `simple_format` (custom field values, the custom receipt text, shipping lines, the refund fine print) is refused unless it is plain ASCII
-without markup, a URL, an address or an entity, because rails_autolink and the HTML sanitizer are not ported.
+member, rental, call and commission, a licensed product with versions (the license key's rich-content check), an uploaded avatar or thumbnail
+(Active Storage variants), a test purchase (seller buying their own product), a Canadian tax split, a buyer-currency purchase with refunds, and a
+seller with an affiliate recommendation type. Text that goes through `auto_link` or `simple_format` (custom field values, the custom receipt text,
+shipping lines, the refund fine print) is refused unless it is plain ASCII (or a currency sign: `¢€£¥₩`) without markup, a URL, an address or an
+entity, because rails_autolink and the HTML sanitizer are not ported. **Sellers with an uploaded avatar, products with a thumbnail and receipts
+with links in the custom text still go to Rails**: the avatar URL reads `Rails.cache` (memcached) and asks storage whether the variant file
+exists, neither of which the golden generator records yet.
 
 - The IVs. `SecureExternalId` (the unsubscribe link, a GCM message with a 12-byte IV) and the Resend X-GUM headers (CBC, 16 bytes) draw from
   `OpenSSL::Cipher#random_iv`. The generator stubs it with a numbered sequence (`"%06d-ws76-iv-x"` cut to the cipher's `iv_len`), records the
   bytes it handed out in each case's `ivs`, and the Node test injects the same bytes through `MailerDeps.randomIv` in the same order, so the
   unsubscribe token and the encrypted headers are compared byte for byte. In production both are random, as in Ruby.
-- Reads Node does not make: `$redis.get("recommended_products_associated_product_ids_limit")` is read (default 100); the `Kernel#sample` of
-  associated ids is never reached because the seller opted out.
+- Reads Node does not make: none that change what is sent. `$redis.get("recommended_products_associated_product_ids_limit")` is read (default
+  100); the `Array#sample` of four or more associated ids is refused rather than reproduced.
 - The sender name must be plain words for `mime.ts` (a name such as `Tom & <Jerry>` is refused at encoding, not rendering).
 - `delivery_method_options` counts against the Router after the content renders, so a refusal never counts a Resend send; Ruby counts it
   before rendering. (Same ordering as the refund mails.)

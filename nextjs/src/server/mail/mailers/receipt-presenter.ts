@@ -6,7 +6,9 @@
 // Anything outside that shape throws MailViewNotPortedError in `assertSupported`, before a statement is sent
 // for it, and the delivery goes back to Rails.
 import { isBlank } from "../../html/text-helper.ts";
-import { formatJustPriceInCents, formattedPrice } from "../../models/concerns/money-formatter.ts";
+import type { TaxLine } from "./receipt-tax.ts";
+import { rubyStringToF } from "../../models/concerns/currency-helper.ts";
+import { formatChargePresentmentAmount, formatJustPriceInCents, formattedPrice, knownCurrency } from "../../models/concerns/money-formatter.ts";
 import { LinkFlags } from "../../models/link.ts";
 import { PurchaseFlags } from "../../search/flags.ts";
 import { localizeTime, pluralize, truncate } from "../view-helpers.ts";
@@ -26,9 +28,11 @@ export type ReceiptPurchaseRow = {
   total_transaction_cents: number | null;
   displayed_price_cents: number;
   displayed_price_currency_type: string | null;
+  rate_converted_to_usd: string | null;
   shipping_cents: number;
   tax_cents: number | null;
   gumroad_tax_cents: number | null;
+  zip_tax_rate_id: Id | null;
   quantity: number;
   created_at: Date;
   subscription_id: Id | null;
@@ -70,6 +74,9 @@ export type ReceiptSellerRow = {
   recommendation_type: string | null;
 };
 
+// The purchase's buyer-currency amounts (PurchasePresentment), in the currency the buyer was charged in.
+export type Presentment = { currency: string; priceCents: number; tipCents: number; sellerTaxCents: number; gumroadTaxCents: number; shippingCents: number; totalCents: number };
+
 export type ReceiptCustomField = { name: string; value: string | boolean; type: string };
 export type ReceiptRefundPolicy = { title: string; fine_print: string | null };
 
@@ -78,7 +85,15 @@ export type ReceiptData = {
   purchase: ReceiptPurchaseRow;
   link: ReceiptLinkRow;
   seller: ReceiptSellerRow;
+  // get_usd_cents(displayed_price_currency_type, displayed_price_cents, rate: rate_converted_to_usd)
+  displayedPriceUsdCents: number;
+  // BuyerPresentmentDisplay: set when the receipt is stated in the buyer's currency
+  presentment: Presentment | null;
+  // PaymentInfo#today_tax_price_attributes: null when the purchase is not taxable
+  taxLines: TaxLine[] | null;
   urlRedirectToken: string | null;
+  // Purchase#license_key
+  licenseKey: string | null;
   variantNames: string[] | null;
   tipValueCents: number | null;
   customFields: ReceiptCustomField[];
@@ -102,13 +117,12 @@ const NOT_PORTED_PURCHASE_FLAGS = [
   "is_installment_payment",
   "is_original_subscription_purchase",
   "is_part_of_combined_charge",
-  "was_purchase_taxable",
   "is_multiseat_license",
 ] as const;
 
-const NOT_PORTED_LINK_FLAGS = ["is_recurring_billing", "is_in_preorder_state", "is_licensed", "is_bundle", "free_trial_enabled", "is_tiered_membership", "is_multiseat_license"] as const;
+const NOT_PORTED_LINK_FLAGS = ["is_recurring_billing", "is_in_preorder_state", "is_bundle", "free_trial_enabled", "is_tiered_membership", "is_multiseat_license"] as const;
 // Link::NATIVE_TYPES whose thumbnail, wording and attributes are the plain product ones; a physical product is a digital one with is_physical.
-const SUPPORTED_NATIVE_TYPES = ["digital", "course", "ebook"];
+const SUPPORTED_NATIVE_TYPES = ["digital", "course", "ebook", "newsletter", "podcast", "audiobook", "physical", "coffee"];
 
 // The receipts below render exactly as Rails does; the rest go back to Rails.
 export function assertSupported(data: ReceiptData): void {
@@ -123,10 +137,12 @@ export function assertSupported(data: ReceiptData): void {
   if (purchase.preorder_id !== null) refuse("a preorder");
   // Footer: the "test purchase" warning for a seller buying their own product.
   if (purchase.purchaser_id !== null && BigInt(purchase.purchaser_id) === BigInt(link.user_id)) refuse("a test purchase");
-  if (purchase.displayed_price_currency_type !== "usd" || link.price_currency_type !== "usd") refuse(`a purchase priced in ${String(purchase.displayed_price_currency_type)}`);
-  if ((purchase.tax_cents ?? 0) > 0 || (purchase.gumroad_tax_cents ?? 0) > 0) refuse("a taxed purchase");
+  const currency = purchase.displayed_price_currency_type;
+  // A purchase without a stored rate looks the rate up in Redis; a currency the money gem does not know fails in Rails.
+  if (isBlank(currency) || !knownCurrency(currency!)) refuse(`a purchase priced in ${String(currency)}`);
+  if (currency !== "usd" && (isBlank(purchase.rate_converted_to_usd) || rubyStringToF(purchase.rate_converted_to_usd!) === 0)) refuse(`a ${currency} purchase without a usable exchange rate`);
   if (!SUPPORTED_NATIVE_TYPES.includes(link.native_type ?? "")) refuse(`a ${String(link.native_type)} product`);
-  if (seller.recommendation_type !== "no_recommendations") refuse("a seller whose receipts recommend products (Elasticsearch)");
+  if (!["no_recommendations", "own_products"].includes(seller.recommendation_type ?? "")) refuse(`a seller with recommendation type ${String(seller.recommendation_type)}`);
   if (isBlank(displayName(seller))) refuse("a seller without a display name");
 }
 
@@ -134,7 +150,7 @@ export function assertSupported(data: ReceiptData): void {
 
 // What `auto_link(text, html: { target: "_blank" })` returns unchanged apart from sanitizing: plain ASCII with
 // no markup, links, addresses or entities. Everything else (rails_autolink and the HTML sanitizer) is not ported.
-const AUTO_LINK_SAFE = /^[\x20-\x7e¢]*$/u;
+const AUTO_LINK_SAFE = /^[\x20-\x7e¢€£¥₩]*$/u;
 export function autoLinkText(text: string): string {
   if (!AUTO_LINK_SAFE.test(text) || /[<>\\@]|:\/\/|www\.|&[#A-Za-z0-9]+;/iu.test(text)) throw new MailViewNotPortedError(`auto_link of ${JSON.stringify(text)}`);
   return h(text);
@@ -169,6 +185,15 @@ export function mailSubject(data: ReceiptData): string {
   return `You bought ${link.name}!`;
 }
 
+// Purchase#buyer_presentment_price_cents: tips are part of the price, seller tax too unless it was excluded from it.
+export function presentmentPriceCents(data: ReceiptData): number {
+  const presentment = data.presentment!;
+  return presentment.priceCents + presentment.tipCents + (purchaseFlag(data.purchase, "was_tax_excluded_from_price") ? 0 : presentment.sellerTaxCents);
+}
+
+// format_today_amount
+const todayAmount = (data: ReceiptData, cents: number) => (data.presentment ? formatChargePresentmentAmount(cents, data.presentment.currency) : formattedDollarAmount(cents));
+
 // --- ChargeInfo ----------------------------------------------------------------------------------------
 
 // Time#to_fs(:formatted_date_abbrev_month), in UTC like the app's time zone.
@@ -183,7 +208,7 @@ export function chargeInfo(data: ReceiptData, orderId: string) {
     formattedCreatedAt: formattedDateAbbrevMonth(purchase.created_at),
     // A free trial still counts as paid, but trials are not ported.
     free: purchase.price_cents === 0 && purchase.shipping_cents === 0,
-    formattedTotalTransactionAmount: formattedDollarAmount(purchase.total_transaction_cents),
+    formattedTotalTransactionAmount: data.presentment ? formatChargePresentmentAmount(data.presentment.totalCents, data.presentment.currency) : formattedDollarAmount(purchase.total_transaction_cents),
     // for_email: true
     productQuestionsNote: `Questions about your ${pluralize(1, "product", "products").slice(2)}? Contact ${h(displayName(seller))} by replying to this email.`,
   };
@@ -221,14 +246,16 @@ export function paymentInfo(data: ReceiptData, invoiceLink: string) {
   const productLabel = purchase.quantity <= 1 ? link.name : `${link.name} × ${purchase.quantity}`;
 
   const today: Attribute[] = [];
-  if (!free) today.push({ label: productLabel, text: formattedDollarAmount(purchase.displayed_price_cents) });
-  if (purchase.shipping_cents > 0) today.push({ label: "Shipping", text: formattedDollarAmount((purchase.total_transaction_cents ?? 0) === 0 ? 0 : purchase.shipping_cents) });
+  if (!free) today.push({ label: productLabel, text: todayAmount(data, data.presentment ? presentmentPriceCents(data) : data.displayedPriceUsdCents) });
+  const moved = (purchase.total_transaction_cents ?? 0) !== 0;
+  if (purchase.shipping_cents > 0) today.push({ label: "Shipping", text: todayAmount(data, !moved ? 0 : data.presentment ? data.presentment.shippingCents : purchase.shipping_cents) });
+  for (const line of data.taxLines ?? []) today.push({ label: line.label, text: todayAmount(data, line.cents) });
   // A single item with no shipping or tax shows no total.
-  if (purchase.shipping_cents > 0) today.push({ label: "Amount paid", text: formattedDollarAmount(purchase.total_transaction_cents ?? 0) });
+  if (purchase.shipping_cents > 0 || data.taxLines !== null) today.push({ label: "Amount paid", text: todayAmount(data, !moved ? 0 : data.presentment ? data.presentment.totalCents : purchase.total_transaction_cents!) });
   if (!free) today.push({ label: null, html: invoiceLink });
 
   const notes: string[] = [];
-  notes.push("All charges are processed in United States Dollars. Your bank or financial institution may apply their own fees for currency conversion.");
+  if (!data.presentment) notes.push("All charges are processed in United States Dollars. Your bank or financial institution may apply their own fees for currency conversion.");
   if (!isBlank(purchase.card_type) && !NO_CARD_STATEMENT_TYPES.includes(purchase.card_type!)) {
     notes.push("The charge will be listed as GUMRD.COM* on your credit card statement.");
   }
@@ -246,20 +273,26 @@ export function paymentInfo(data: ReceiptData, invoiceLink: string) {
 
 export function itemInfo(data: ReceiptData, customReceiptText: string | null) {
   const { purchase, link } = data;
+  const coffee = link.native_type === "coffee";
   const notes: string[] = [];
   if (linkFlag(link, "is_physical")) notes.push("Your order will ship shortly. The creator will notify you when your package is on its way.");
 
   const general: Attribute[] = [];
-  if (data.variantNames !== null && data.variantNames.length > 0) {
+  if (data.variantNames !== null && data.variantNames.length > 0 && !coffee) {
     const names = data.variantNames;
     // variant_names_displayable
     general.push({ label: "Variant", text: names.length === 1 && names[0] === "Untitled" ? "" : names.join(", ") });
   }
   if (purchase.price_cents !== 0 || purchase.shipping_cents !== 0) {
-    general.push({ label: "Product price", text: formatJustPriceInCents(Math.trunc(purchase.displayed_price_cents / purchase.quantity) - (data.tipValueCents ?? 0), "usd") });
+    const perUnit = data.presentment
+      ? formatChargePresentmentAmount(Math.trunc((presentmentPriceCents(data) - data.presentment.tipCents) / purchase.quantity), data.presentment.currency)
+      : formatJustPriceInCents(Math.trunc(purchase.displayed_price_cents / purchase.quantity) - (data.tipValueCents ?? 0), purchase.displayed_price_currency_type!);
+    general.push({ label: coffee ? "Donation" : "Product price", text: perUnit });
   }
-  if (data.tipValueCents !== null) general.push({ label: "Tip", text: formatJustPriceInCents(data.tipValueCents, "usd") });
-  if (purchase.quantity > 1) general.push({ label: "Quantity", text: String(purchase.quantity) });
+  if (data.tipValueCents !== null) {
+    general.push({ label: "Tip", text: data.presentment ? formatChargePresentmentAmount(data.presentment.tipCents, data.presentment.currency) : formatJustPriceInCents(data.tipValueCents, purchase.displayed_price_currency_type!) });
+  }
+  if (purchase.quantity > 1 && !coffee) general.push({ label: "Quantity", text: String(purchase.quantity) });
   for (const field of data.customFields) {
     if (field.type === "checkbox") general.push({ label: field.name, text: field.value ? "Yes" : "No" });
     else if (field.type === "text") general.push({ label: field.name, text: String(field.value) });
@@ -270,7 +303,8 @@ export function itemInfo(data: ReceiptData, customReceiptText: string | null) {
   return {
     notes,
     customReceiptNote: customReceiptText,
-    showDownloadButton: data.urlRedirectToken !== null,
+    licenseKey: data.licenseKey,
+    showDownloadButton: data.urlRedirectToken !== null && !coffee,
     generalAttributes: general,
   };
 }
