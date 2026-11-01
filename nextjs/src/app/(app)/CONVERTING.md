@@ -329,3 +329,30 @@ All of them are `signedOutOnly` in routes.json: a signed-in visitor (`can_edit`,
 - **Handed to Rails** (decided in the filter): a `purchase_id` param, a post with files (`download_url` creates a `UrlRedirect`), a profile with a products section, the virtual default products section (a seller with a non-archived product and no sections), a featured product or wishlists section, a seller with custom HTML pages, an `affiliate_id`/`a` param (it writes a cookie), a generated subscribe preview image, the seller reputation summary, any non-HTML format. `/coffee` is not routed: it needs `ProductPresenter#product_props`.
 - **Not ported: `ProductPresenter.card_for_web` and the products-section search.** The cards need the buyer's currency (GeoIP, WS-75), `thumbnail_or_cover_url` variants, `remaining_for_sale_count`, auto-applied offer codes and the Elasticsearch `search_products` for the section; WS-69 owns the product presenter, so `storefront/product-card.ts` is still to be written on top of it. Until then a profile that shows products is served by Rails.
 - **Known differences.** `ProfileSectionsPresenter#cached_sections` is cached for ten minutes in Rails; the port reads the rows each time, so a profile edit shows at once instead of after the cache expires. `follow_recaptcha_site_key` reads `RECAPTCHA_FOLLOW_SITE_KEY`/`RECAPTCHA_MONEY_SITE_KEY` from the environment (`.env.test` for the replays).
+
+## Product page and ProductPresenter (WS-69)
+
+`/l/:id`, `/l/:id/:code` (Gumroad domain), `seller:/l/:id[/:code]` and `product:/`, `product:/l/:id[/:code]` (flag `nextjs_product_page`,
+`"inertia": true`). `LinksController#show`'s before_actions are ported in Rails' order in `server/controllers/product-page.ts`
+(`fetch_product_for_show` with `Link.fetch_leniently`, banned and deleted-seller 404s, `X-Robots-Tag` for a code, the affiliate cookie,
+the 301 to the seller's host or canonical permalink, `ensure_domain_belongs_to_seller`, the coffee redirect). They are replayed by
+`parity/__tests__/product-page.replay.test.ts` against `spec/requests/product_page_parity_spec.rb`: a 301, a 404 and the coffee 302 must match
+Rails' status, headers and cookies; every request that would render must be handed back (a stand-in origin marks it).
+
+**Handed back to Rails (`HandBackToRails`)**: every render of `Products/Show` (HTML and X-Inertia), custom HTML pages, `?format=`, nested params,
+a deleted or Collaborator affiliate cookie that Rails resolves differently, and `product:/:code` (not in `routes.json`: it would shadow the other
+product-domain routes). The render needs ~35 `product_props` fields (options and tiers, file info, covers, offer codes through
+`BestOfferCodeService`, PPP and buyer currency through GeoIP, `purchase_info_for_product_page`), the product page meta tags with JSON-LD, and a
+`Products/Show` client page under `app/gr-host/`, none of which exist in TypeScript yet.
+
+**`server/presenters/product.ts`** is the canonical `ProductPresenter.card_for_web` (`cardForWeb(productId, options)`). It is proven by
+`spec/presenters/product_presenter_golden_spec.rb` (`PARITY_GOLDEN=1`), which writes one database holding 32 product types and the real card
+for six request shapes each, and `parity/__tests__/product-presenter.golden.test.ts`, which seeds that database and compares. Supported:
+digital, PWYW, versions with price differences, physical (SKUs), call, commission, coffee, preorder, unpublished, adult, rated, limited,
+refundable, non-USD, fixed-length, summary/attribute products, unsplash thumbnails, deleted. It throws `NotPortedError` for a tiered membership
+(`lowest_tier_price`), a bundle's `remaining_for_sale_count`, a product with a default or seller-wide offer code, an uploaded thumbnail or cover
+(Active Storage), a seller using buyer local currency (exchange rates), and a description outside the markup `description.ts` can prove
+(`plaintext_description` is Loofah's `to_text`; `html_safe_description` covers attribute-less inline and heading markup only).
+
+Not ported: `Wishlists/Show` (`WishlistPresenter#public_props` needs the card, `ProfilePresenter#creator_profile`, the discover nav and a client
+page under `app/gr-host/`) and `Purchases/Product/Show` (`product_props` deep-merged with `PurchaseProductPresenter`, signed in only).
