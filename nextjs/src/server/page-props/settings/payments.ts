@@ -759,3 +759,22 @@ async function chargebackRatePayoutReserveAvailable(facts: Facts): Promise<boole
 }
 
 export type { Seller, MerchantAccount };
+
+// What the Payouts page reads through the rules above (User#has_stripe_account_connected?,
+// #minimum_payout_threshold_cents, #stripe_account, #payouts_paused_by_source and the chargeback reserve).
+export async function payoutFacts(seller: User, now = new Date()) {
+  const info = await fetchOrBuildComplianceInfo(seller.id);
+  const stripeAccounts = await aliveStripeAccountsOf(seller.id);
+  const facts: Facts = { seller, record: Users.load(seller), info, aliveInfo: info.persisted ? info.row : null, now, bankAccount: null, stripeAccounts };
+  const stripe = stripeAccount(facts);
+  return {
+    legalEntityCountry: legalEntityCountryCodeOf(facts),
+    connectAccount: stripeConnectAccount(facts),
+    stripeAccount: stripe,
+    stripeAccountRejected: accountRejected(stripe),
+    stripeConnectRoutingActive: await hasStripeAccountConnected(facts),
+    minimumPayoutThresholdCents: await minimumPayoutThresholdCents(facts),
+    payoutsPausedBySource: payoutsPausedBySource(facts),
+    chargebackRateReserveActive: !flag(seller, "payouts_paused_by_user") && (await chargebackRatePayoutReserveAvailable(facts)),
+  };
+}

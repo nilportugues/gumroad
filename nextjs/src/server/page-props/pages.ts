@@ -27,6 +27,8 @@ import { DASHBOARD_PAGES } from "./dashboard-pages.ts";
 import { OAUTH_APPLICATION_PAGES, SETTINGS_PAGES } from "./settings/pages.ts";
 import { STOREFRONT_PAGES } from "./storefront/pages.ts";
 import { PRODUCT_PAGES } from "./product-pages.ts";
+import { PAYOUTS_PAGES } from "./payouts/pages.ts";
+import { CHECKOUT_PAGES } from "./checkout-pages.ts";
 
 type Params = Record<string, string>;
 
@@ -129,6 +131,8 @@ export const PAGES: Record<string, PageSpec> = {
   ...BUYER_PAGES,
   ...OAUTH_APPLICATION_PAGES,
   ...PRODUCT_PAGES,
+  ...PAYOUTS_PAGES,
+  ...CHECKOUT_PAGES,
 };
 
 // ArticlesController#index

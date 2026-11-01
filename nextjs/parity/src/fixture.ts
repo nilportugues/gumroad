@@ -86,6 +86,7 @@ export type Fixture = {
   spec: string;
   example: string;
   sessionCookie?: string;
+  recordedOn?: string;
   // The recording Rails app's secret_key_base (test only), to re-encrypt recorded cookies.
   secretKeyBase?: string;
   exchanges: Exchange[];
