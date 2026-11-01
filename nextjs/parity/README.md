@@ -140,3 +140,10 @@ which is the machine's time zone locally.
   in them need an `ignore` path.
 - A spec that records times far from now without `travel_to` (`Time.utc(2019)`) re-records with a
   different offset each day; the replay is still correct.
+
+### Dates that move with the day
+
+The recorder stores `recordedOn` (the UTC day of the recording). A page that formats dates ("March 7th, 2026") from rows seeded relative to the
+replay's clock shows a different day than the one recorded: `withDriftedDates` (`src/date-drift.ts`) moves the recorded ordinal dates by the days
+since, which is exact for dates a whole number of days from the day of the request. Dates that follow a calendar rule (the next payout) cannot
+drift, so the replay ignores them and a golden of the rule pins them.

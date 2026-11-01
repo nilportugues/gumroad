@@ -309,3 +309,45 @@ The query builders live in `src/server/search/`; each is a pure function returni
 - `purchase-search.ts`: `PurchaseSearchService`, including the long-email-token fallback request. `purchase-search.golden.json`.
 - `following.ts`, `civil-time.ts`: `CreatorAnalytics::Following` (time zone day starts, `D3` labels) and the `ConfirmedFollowerEvent` activity search. `following.golden.json`.
 - Not ported: the Discover, `Products/Discover`, Customers, Audience, Churn, Analytics and Dashboard page renders. Discover needs `ProductPresenter.card_for_web`, `WishlistPresenter`, `RecommendedWishlistsService` and the `DiscoverSearch` write; the seller pages share `check_payment_details` (Redis plus a Stripe call) and the `DashboardPreference` after_action cookie, which `PageSpec` cannot set yet.
+
+## Payouts and subscription management (WS-72)
+
+GET renders only. `/payouts` (`nextjs_payouts`) and the access check of `/subscriptions/:id/manage` (`nextjs_subscription_manage`).
+`/checkout` is not ported (see below) and has no route entry.
+
+**Payouts** (`server/page-props/payouts/`). `BalanceController#index`, `PayoutsPresenter`, `UserBalanceStatsService#fetch_payout_periods` and
+`PayoutsHelper#payout_period_data`:
+
+- `payout-schedule.ts` is `User::PayoutSchedule` for the weekly, monthly and quarterly frequencies plus the date helpers of `PayoutsHelper`,
+  proven against `__fixtures__/payout-schedule.golden.json`, recorded from the real module on a stub seller (`scripts/golden/payout-schedule.rb`:
+  every day of 10 weeks x 3 frequencies x 3 payout rails x 5 balance shapes x paid-today). Dates are UTC (`Date.today` and `Date.current` agree
+  in production).
+- `payout-stats.ts` is the aggregates of `User::Stats` behind `payout_sales_data` (balances, PayPal and Stripe Connect sales by duration). A
+  refund has no `tax_cents` column, so Rails' unqualified `sum(:tax_cents)` over refunds reads the purchase's: kept.
+- `payouts-data.generated.json` (`scripts/dump-payouts-data.rb`) holds each bank account class's currency and `bank_account_type`, the payout rail
+  weekdays and the legacy internal payout note prefixes; re-run it when they change.
+- The filter (`pages.ts`) is `signedInFilters` plus `planPayouts`, which hands the request to Rails (`HandBackToRails`) for: daily payouts, a
+  chargeback-rate payout reserve, a seller that passes the first instant payout checks (compliant, payouts not paused, US legal entity, a completed
+  payout: Rails asks Stripe about the bank account), a seller whose balance stats are cached (`large_sellers` over the Redis threshold), a PayPal
+  Connect account, a payout in a currency other than USD, a bank account class whose routing number cannot be derived, and a payout without a period
+  end date. A page past the last one with no payouts raises Pagy's overflow (500), as Rails does. `payouts-handback.test.ts` covers these.
+- Parity: `spec/requests/payouts_signed_in_spec.rb` (26 examples; run it with `TZ=UTC`), replayed by `parity/__tests__/checkout-payouts.replay.test.ts`.
+  Past payouts show dates a whole number of days before the day of the request, so the recorder now stores `recordedOn` and the replay moves
+  the recorded ordinal dates by the days since (`parity/src/date-drift.ts`). The upcoming payout's two date strings follow the payout cycle, not the
+  day: they are left out of the replay and pinned by the schedule golden. The purchases index is created empty for the sales totals of the shared props.
+
+**Subscription management** (`server/controllers/subscription-pages.ts`, `page-props/buyer/subscription-manage.ts`). `SubscriptionsController#check_can_manage`:
+`set_noindex_header`, a 404 for an unknown or ended subscription and for an installment plan whose charges are all collected, the encrypted
+`subscription_<numeric id>` cookie, a team member, the owner or the gifter, and the `token` parameter (valid: allowed; wrong or expired: redirect to the
+magic link page with `invalid=true`; none: redirect without it). The refusals are replayed (`spec/requests/subscriptions_manage_access_spec.rb`). A
+visitor who may manage, and a JSON request or an impersonation, go to Rails: `CheckoutPresenter#subscription_manager_props` (tier and recurrence
+prices from `Variant#to_option`, proration, offer code and plan-change discounts, Stripe and PayPal payment method state, `Checkout::StripePaymentPresenter`
+flags) and the confirmation cookie it writes are not ported. `Subscriptions/Manage` has no component copy: reaching `page.tsx` throws `NotPortedError`.
+`Subscriptions/MagicLinks/New` was ported in WS-61.
+
+**Checkout** (`CheckoutController#show`) is not ported. It needs `CartPresenter` (cart products, offer-code discounts through
+`OfferCodeDiscountComputingService`, `BestOfferCodeService`), `CheckoutPresenter#checkout_product` for every cart and arrival item (`ProductPresenter`
+pieces, PPP and buyer currency display, shipping countries, custom field descriptors, upsells and cross sells, bundle products, wishlist and gift
+arrivals, restart intent tokens), `Checkout::StripePaymentPresenter` (720 lines of lane selection over Flipper flags and currency eligibility),
+`CheckoutRecaptcha`, `TipOptionsService`, GeoIP and `process_cart_id_param` (which merges carts). The `recommended_products` prop needs
+`RecommendedProducts::CheckoutService` and `ProductPresenter.card_for_web`.
