@@ -75,6 +75,36 @@ the only ones that write those ids, so for every ported mailer the observer does
   sorts and transfer-encodes the others differently), and for arguments that are not Strings and String-keyed Hashes;
   and view helper inputs `view-helpers.ts` does not cover (`ViewHelperNotPortedError`).
 
+## CustomerMailer
+
+Ported (goldens: `customer-mailer.golden.json`, from `generate-customer-mailer-golden.rb`, which runs the real
+mailer against `db/schema.rb` rows): `paypal_purchase_failed`, `subscription_magic_link`,
+`files_ready_for_download`, `refund`, `partial_refund`. The goldens record every statement, the rendered HTML and the
+encoded message; the Node test replays the statements and compares the bytes.
+
+- `User#mailer_level` is read from `Rails.cache`, then the `user_mailer_redis_namespace` key. A seller in neither would
+  be summed up in Elasticsearch, so that delivery goes back to Rails, whose `fetch` fills both caches for the next one.
+- Money is formatted for USD only (`formatted_dollar_amount`, with the `$0.99` to `99¢` rule). A refund of a purchase or
+  product in another currency, one with a `purchase_presentments` row, and a purchase with a `price_id` or
+  `subscription_id` (`price_for_recurrence`) are refused.
+- Sender names must be ASCII (`from_email_address_name`'s Latin-script rule is not ported) and, like every address,
+  made of plain words for `mime.ts`.
+- `MailerInfo` still refuses `receipt`, `preorder_receipt` and `abandoned_cart`: their headers carry purchase, charge
+  and workflow ids and `EmailDeliveryObserver` writes a `CustomerEmailInfo` after the send.
+
+Not ported, and why:
+
+| Method | Reason |
+| --- | --- |
+| `receipt`, `grouped_receipt` | `ReceiptPresenter` (item, payment, shipping, footer and recommended products), the unsubscribe and manage-subscription links (`secure_external_id` is encrypted with a random IV), Money formatting in every currency, and the `CustomerEmailInfo` write. |
+| `preorder_receipt` | Header ids (`Preorder.find(...).authorization_purchase`), the `CustomerEmailInfo` write, and time-zone formatting of the release date. |
+| `auto_invoice` | The invoice PDF is rendered by `InvoicePdfGenerator` through a headless browser, whose bytes are not reproducible. |
+| `subscription_restarted` | `Subscription#refresh_token` writes a random token (`update!` with callbacks and PaperTrail) before rendering. |
+| `abandoned_cart`, `abandoned_cart_preview` | Writes `SentAbandonedCartEmail` and Redis claims, and renders `message_with_inline_abandoned_cart_products`. |
+| `review_response` | Takes a record (GlobalID), whose Ruby `#inspect` is not ported, and renders `ProductReviewPresenter`. |
+| `upcoming_call_reminder` | Renders `ReceiptPresenter::ItemInfo` (product card, thumbnails, buyer-currency amounts). |
+| `send_to_kindle` | Downloads the file with `Aws::S3::Object#download_file` (ranged GETs) and may attach a stamped PDF. |
+
 ## Behaviour kept from Ruby on purpose
 
 These look like bugs but are what recipients get today, so the port reproduces them:

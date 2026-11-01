@@ -132,9 +132,10 @@ const NODE_MAILERS: Record<string, Record<string, MailerMethod>> = {
       );
     },
     files_ready_for_download: (args, deps) => (args.length === 1 ? filesReadyForDownload(integerArgument(args[0]), args, deps) : Promise.reject(new MailJobArgumentsError("arity"))),
-    subscription_magic_link: ([subscriptionId, email, ...rest], deps) => {
+    subscription_magic_link: (args, deps) => {
+      const [subscriptionId, email, ...rest] = args;
       if (rest.length > 0 || typeof email !== "string") return Promise.reject(new MailJobArgumentsError("arity"));
-      return subscriptionMagicLink(integerArgument(subscriptionId), email, [subscriptionId, email], deps);
+      return subscriptionMagicLink(integerArgument(subscriptionId), email, args, deps);
     },
     paypal_purchase_failed: (args, deps) => (args.length === 1 ? paypalPurchaseFailed(integerArgument(args[0]), args, deps) : Promise.reject(new MailJobArgumentsError("arity"))),
   },

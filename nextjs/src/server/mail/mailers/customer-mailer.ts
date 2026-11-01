@@ -130,7 +130,6 @@ export async function refund(email: string | null, linkId: number | bigint, purc
   }
   const seller = await findRowOrRaise<UserRow>("users", "User", product.user_id);
   const subject = "You have been refunded.";
-  const options = await customersDeliveryOptions(seller, email, deps);
   // The template reads `@purchase.link_name`, which loads the purchase's link again.
   if (!purchase) throw new TypeError("undefined method 'link_name' for nil");
   const purchasedProduct = await findRowOrRaise<LinkRow>("links", "Link", purchase.link_id);
@@ -139,6 +138,8 @@ export async function refund(email: string | null, linkId: number | bigint, purc
     <p>Your purchase of ${h(purchasedProduct.name)} for ${formattedTotalTransactionAmount(purchase)} on Gumroad has been fully refunded. It may take up to 3-7 days to show up in your account.</p>
 </div>
 `;
+  // After the content, so a refusal above has not yet counted against the Router's day.
+  const options = await customersDeliveryOptions(seller, email, deps);
   return applicationMail(
     {
       mailerClass: "CustomerMailer",
@@ -176,13 +177,13 @@ export async function partialRefund(a: PartialRefundArguments, args: RubyValue[]
   const formattedRefundAmount = formattedUsdPrice(a.refundAmountCentsUsd);
   const seller = await findRowOrRaise<UserRow>("users", "User", product.user_id);
   const subject = `You have been ${a.refundType} refunded.`;
-  const options = await customersDeliveryOptions(seller, a.email, deps);
   const purchasedProduct = await findRowOrRaise<LinkRow>("links", "Link", purchase.link_id);
   const content = `${headerSection(subject)}
 <div>
     <p>You received a partial refund of ${formattedRefundAmount} for your ${formattedTotalTransactionAmount(purchase)} purchase of ${h(purchasedProduct.name)}. It may take up to 3-7 days to show up in your account.</p>
 </div>
 `;
+  const options = await customersDeliveryOptions(seller, a.email, deps);
   return applicationMail(
     {
       mailerClass: "CustomerMailer",
@@ -231,7 +232,7 @@ export async function filesReadyForDownload(purchaseId: number | bigint, args: R
       args,
       to: purchase.email,
       from: fromEmailAddressWithName(seller.name, customersNoreply()),
-      ...(supportEmailOrDefault(product, seller) !== null ? { replyTo: supportEmailOrDefault(product, seller)! } : {}),
+      ...optionalReplyTo(supportEmailOrDefault(product, seller)),
       subject,
       html: emailLayout(content),
       deliveryMethodOptions: await customersDeliveryOptions(seller, purchase.email, deps),
