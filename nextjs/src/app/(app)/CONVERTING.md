@@ -78,9 +78,10 @@ injects the `Routes` global, turns `$assets/...` imports into URL strings and de
 1. Add the path to `nextjs/routes.json` with a new Flipper flag, e.g.
    `"/help/category/:slug": { "flag": "nextjs_help_center_category" }`. `:param` excludes `.`
    like Rails, so `.html`/`.json` variants stay with Rails. Set `"hosts"` if the route is not on
-   the app domain, `"signedOutOnly": true` while the signed-in shared props are unported, and
-   `"inertia": true` for every page registered in `pages.ts` (it turns on the envelope and the
-   X-Inertia handling above).
+   the app domain, and `"inertia": true` for every page registered in `pages.ts` (it turns on the
+   envelope and the X-Inertia handling above). A page no longer needs `"signedOutOnly": true`: see
+   "Signed-in requests". Keep it only for a route that still needs something from that list that is
+   unported.
 2. Add any helper the page graph needs to `src/lib/navigation/routes.ts`; `npx tsc --noEmit`
    lists the missing ones.
 
@@ -88,11 +89,53 @@ injects the `Routes` global, turns `$assets/...` imports into URL strings and de
 ports it: it is the blue/green readiness probe, so it must exercise Rails, and Rails answers it
 without touching Redis, which a flagged route would (the proxy reads Flipper on every request).
 
+### Signed-in requests
+
+A signed-in visitor goes through the same chain, with the filters and shared props Rails adds for a
+user. Nothing per page: `pageEnvelope`/`processAction` and `loadPage` do it all.
+
+- **Who is acting.** `resolveAuth` (`server/auth/resolve.ts`) reads the Rails session and remember
+  cookies and answers `current_user`, `current_seller` (the `current_seller_id` cookie, validated
+  against the user's switchable team memberships) and the impersonated user (Redis key, team members
+  only). `getRequestContext()` is that, per request, for a server component or a presenter.
+- **Filters** (`beforeActions`, in Rails' order): `verify_current_seller` (a stale
+  `current_seller_id` is deleted with a Set-Cookie), `seed_dashboard_nav_items` (a first visit to any
+  dashboard path, `/help` included, inserts the user's earned nav rows and the `seeded` marker),
+  `invalidate_session_if_necessary` (sign_out: the remember token is forgotten, the remember cookie
+  deleted, the session cleared, a flash set and a 302 to `/login`), `set_signup_referrer` only for
+  signed-out visitors, and `promote_visited_nav_item` after a successful render. `signed-in-filters.ts`
+  holds the pieces.
+- **Shared props** (`server/page-props/signed-in/`): `logged_in_user` (team memberships, brand account
+  flags, the 20 policy verdicts, promoted nav items), `current_seller`, `current_user` and
+  `prompt_passkey_setup`, registered as the default `SignedInPresentersPort`. The reads are plain SQL in
+  `reads.ts`; compliance and time zone rules are over data dumped from Ruby
+  (`scripts/dump-signed-in-data.rb`, re-run it when `Compliance::Countries` or the supported-country
+  lists change).
+- **Rendering.** A signed-in page is not rendered on the server: the dashboard Nav reads `window`
+  while rendering, and Rails never server-renders Inertia pages either. `InertiaShellClient` renders
+  nothing until the client hydrates; `data-page` and the headers are unaffected.
+- **What goes to Rails.** A request that only a remember cookie signs in (no usable session) is sent
+  to Rails by the route gate: Devise writes the session and the tracked sign-in fields there. Once the
+  browser holds the session cookie, Next serves it.
+- **What is not ported (it throws `NotPortedError`, a 500, instead of guessing).** An uploaded avatar
+  (`User#avatar_url` goes through Active Storage variants and the CDN rewrite); `use_store_agent` for
+  a seller with completed payouts (needs `sales_cents_total`, an Elasticsearch aggregate); a US
+  minor's guardian completeness; a seller who cannot publish and has a payout-setup rejection note;
+  `check_suspended` on a non-GET request; `invalidate_session_if_necessary` outside the app hosts; API
+  tokens (`current_api_user`). Port the missing piece before flagging a route whose users hit it.
+- **Known differences.** Team members' responses lack Rack::MiniProfiler's `__profilin` cookie, and
+  sign-out writes its `versions` row without the request's IP, path and UUID.
+
 ## 5. Verify
 
 - `npx tsc --noEmit`, `npx vitest run`, `npx next build`.
 - Locally: `NEXTJS_ROUTE_FLAGS=<flag> NEXTJS_ASSUME_SIGNED_OUT=1
   RAILS_ORIGIN=http://localhost:3000 npm run dev` and open the page on port 3100.
+- Parity for a signed-in page: add a request spec under `spec/requests/` that logs in through
+  `POST /login` (forgery protection is on in the test environment, so fetch a page's
+  `authenticity_token` first), tag the examples `parity: true`, record with `PARITY_RECORD=1`, and
+  replay the request under test with `replayFixtureExchange` (see
+  `parity/__tests__/help-center-signed-in.replay.test.ts` and the parity README).
 - Parity: replay the controller-spec fixtures against a running Next
   (`parity/__tests__/help-center.replay.test.ts` boots `next dev` and compares status, headers,
   cookies and the `data-page` props). Ignore `authenticity_token`/`csrf-token` (masked per call) and
