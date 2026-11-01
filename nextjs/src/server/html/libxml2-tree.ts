@@ -241,16 +241,18 @@ export function serializeDocument(doc: DocumentNode): string {
 }
 
 // Every dump runs htmlSetMetaEncoding, which rewrites or inserts the Content-Type meta unless it
-// already declares UTF-8. Only that no-op case is reproduced.
+// already declares UTF-8, and does nothing when the document has no <head> (as for a fragment the
+// parser wraps in <html><body>). Only those no-op cases are reproduced.
 function assertMetaCharset(doc: DocumentNode): void {
   const head = findElement(doc, "head");
+  if (head === undefined) return;
   const ok =
-    head?.children.some(
+    head.children.some(
       (c) =>
         c.type === "element" &&
         c.name === "meta" &&
         getAttribute(c, "http-equiv")?.toLowerCase() === "content-type" &&
         /charset=utf-8$/iu.test(getAttribute(c, "content") ?? ""),
-    ) ?? false;
+    );
   if (!ok) throw new UnsupportedHtmlError('<head> needs <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">');
 }

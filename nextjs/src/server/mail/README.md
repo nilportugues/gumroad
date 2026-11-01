@@ -13,7 +13,8 @@ input it cannot reproduce exactly instead of approximating it.
 | Render | `mailers/*.ts`, `views.ts` | `app/mailers`, `app/views` (ERB) |
 | ApplicationMailer | `application-mailer.ts`, `mailer-info.ts` | `ApplicationMailer`, `MailerInfo` (provider split, credentials, X-GUM headers) |
 | Inline CSS, text part | `premailer/`, `stylesheet.ts` | premailer-rails 1.12, premailer 1.29, css_parser 1.22, Nokogiri 1.19 |
-| Encode | `mime.ts`, `compose.ts` | `Mail::Message#encoded` (mail 2.9) |
+| Encode | `mime.ts`, `compose.ts` | `Mail::Message#encoded` (mail 2.9), including `cc` and multipart/mixed attachments |
+| Attachment source | `s3-object.ts` | `Aws::S3::Resource` HEAD then GET, as InternalNotificationMailer reads them |
 | Send | `smtp.ts` | `Mail::SMTP` over net-smtp 0.5 |
 
 ## How a mail gets sent
@@ -62,13 +63,16 @@ the only ones that write those ids, so for every ported mailer the observer does
   missing stylesheets. Everything else goes through the port of libxml2's HTML parser in
   `src/server/html/`, restructuring included.
 - Headers the mail gem would RFC 2047-encode or decode (non-ASCII, CR/LF, `=?`), addresses other
-  than `addr` and `Name <addr>` in ASCII, more than one recipient, cc/bcc, single-part messages.
-  Long ASCII headers are folded as `UnstructuredField#fold` does.
+  than `addr` and `Name <addr>` in ASCII, more than one recipient, bcc, single-part messages.
+  A single `cc` is ported. Long ASCII headers are folded as `UnstructuredField#fold` does.
 - Mailer arguments whose Ruby `#inspect` is not ported: records (GlobalID), floats, non-ASCII strings.
 - The email layout outside production: it adds a non-ASCII environment banner.
 - CommentMailer for a comment on anything but a post; CommunityChatRecapMailer for a community
   whose resource is not a product, a nil summary, or empty or repeated recap ids;
   TwoFactorAuthenticationMailer for a user without an OTP secret or an unknown `email_provider`;
+  InternalNotificationMailer for attachments whose file name is not `[A-Za-z0-9][A-Za-z0-9._-]*` or whose type is not
+  text/csv, application/json, application/octet-stream or application/vnd.ms-excel (Mail quotes, RFC 2231-encodes,
+  sorts and transfer-encodes the others differently), and for arguments that are not Strings and String-keyed Hashes;
   and view helper inputs `view-helpers.ts` does not cover (`ViewHelperNotPortedError`).
 
 ## Behaviour kept from Ruby on purpose

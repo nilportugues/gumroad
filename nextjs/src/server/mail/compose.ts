@@ -27,8 +27,10 @@ export function composeMail(
       from: rendered.from,
       replyTo: rendered.replyTo,
       to: [rendered.to],
+      ...(rendered.cc !== undefined ? { cc: rendered.cc } : {}),
       subject: rendered.subject,
       ...(rendered.headers ? { headers: rendered.headers } : {}),
+      ...(rendered.attachments ? { attachments: rendered.attachments } : {}),
       parts: [
         { contentType: "text/html", body: html },
         { contentType: "text/plain", body: text },
@@ -36,5 +38,5 @@ export function composeMail(
     },
     options.identity ?? newIdentity(),
   );
-  return { encoded, envelopeFrom: bareAddress(rendered.from), envelopeTo: [bareAddress(rendered.to)], ...(rendered.smtp ? { smtp: rendered.smtp } : {}) };
+  return { encoded, envelopeFrom: bareAddress(rendered.from), envelopeTo: [bareAddress(rendered.to), ...(rendered.cc !== undefined ? [bareAddress(rendered.cc)] : [])], ...(rendered.smtp ? { smtp: rendered.smtp } : {}) };
 }

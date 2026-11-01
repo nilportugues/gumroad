@@ -21,6 +21,7 @@ import { ViewHelperNotPortedError } from "./view-helpers.ts";
 import { MailViewNotPortedError } from "./views.ts";
 import { notifySellerOfNewComment } from "./mailers/comment-mailer.ts";
 import { communityChatRecapNotification } from "./mailers/community-chat-recap-mailer.ts";
+import { notify as internalNotification } from "./mailers/internal-notification-mailer.ts";
 import { marketingXReconnect } from "./mailers/creator-mailer.ts";
 import { receiverSignedUp } from "./mailers/invite-mailer.ts";
 import { authenticationToken } from "./mailers/two-factor-authentication-mailer.ts";
@@ -99,6 +100,9 @@ const NODE_MAILERS: Record<string, Record<string, MailerMethod>> = {
   },
   CreatorMailer: {
     marketing_x_reconnect: (args, deps) => marketingXReconnect(integerArgument(keywords(args, ["marketing_action_id"]).marketing_action_id), deps),
+  },
+  InternalNotificationMailer: {
+    notify: (args, deps) => internalNotification(args, deps),
   },
   InviteMailer: {
     receiver_signed_up: (args, deps) => (args.length === 1 ? receiverSignedUp(integerArgument(args[0]), deps) : Promise.reject(new MailJobArgumentsError("arity"))),

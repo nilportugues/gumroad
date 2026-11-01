@@ -197,6 +197,11 @@ Still Ruby-only on `User`:
   on every save). `concerns/rails-validations.ts` has versions that match Rails; move callers over.
 - No savepoints, so `create_or_find_by!` inside an outer transaction is not ported.
 
+`community.ts` is `User#accessible_communities_ids` (the polymorphic `resource` preload is ported for products only; any other
+resource type throws `NotPortedError`). `two-factor-authentication.ts` is `User#send_authentication_token!`, the enqueue side of
+TwoFactorAuthenticationMailer; nothing in Node calls it yet. Goldens: `scripts/golden/community-chat-recap-notifications.rb` and
+`scripts/golden/send-authentication-token.rb`.
+
 Still Ruby-only on the job-port models (app/models/...):
 
 - `sent_email_info.rb:20` `mailer_key_digest`, and `mailer_exists?`/`ensure_mailer_uniqueness` on it

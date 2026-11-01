@@ -18,14 +18,16 @@ import {
   type RouterDeps,
   sendgridEquivalentOptions,
 } from "./mailer-info.ts";
+import type { MimeAttachment } from "./mime.ts";
 import type { RubyValue } from "./ruby-value.ts";
+import type { S3Reader } from "./s3-object.ts";
 
 // ApplicationMailer::NOREPLY_EMAIL and NOREPLY_EMAIL_WITH_NAME.
 export const noreplyEmail = () => `noreply@${defaultEmailDomain()}`;
 export const noreplyEmailWithName = () => `Gumroad <${noreplyEmail()}>`;
 
 // `now` is Time.now; `redisSetEx` stands in for `$redis.set(key, value, ex:)`.
-export type MailerDeps = { router?: RouterDeps; randomIv?: RandomIv; now?: () => Date; redisSetEx?: (key: string, value: string, seconds: number) => Promise<unknown> };
+export type MailerDeps = { s3?: S3Reader; router?: RouterDeps; randomIv?: RandomIv; now?: () => Date; redisSetEx?: (key: string, value: string, seconds: number) => Promise<unknown> };
 
 // What a mailer method hands to `mail`, plus the name and arguments ActionMailer passed to
 // #process (MailerInfo puts them in the headers).
@@ -35,9 +37,11 @@ export type ApplicationMail = {
   args: RubyValue[];
   from?: string;
   to: string | null;
+  cc?: string;
   replyTo?: string;
   subject: string;
   html: string;
+  attachments?: MimeAttachment[];
   // Absent: the class default, `MailerInfo.random_delivery_method_options(domain: :gumroad)`.
   deliveryMethodOptions?: DeliveryMethodOptions;
 };
@@ -58,12 +62,22 @@ export async function applicationMail(mail: ApplicationMail, deps: MailerDeps = 
   let smtp = mail.deliveryMethodOptions ?? (await randomDeliveryMethodOptions("gumroad", {}, deps.router));
   validateFromEmailDomain(from, smtp.domain);
 
-  // redirect_united_internet_recipients_to_sendgrid!: cc and bcc count too, but no ported mailer sets them.
-  if (forceSendgridForRecipients(mail.to === null ? [] : [mail.to])) smtp = sendgridEquivalentOptions(smtp) ?? smtp;
+  // redirect_united_internet_recipients_to_sendgrid!: `destinations` is to, cc and bcc (no ported mailer sets bcc).
+  if (forceSendgridForRecipients([mail.to, mail.cc ?? null])) smtp = sendgridEquivalentOptions(smtp) ?? smtp;
 
   const emailProvider = isResend(smtp) ? EMAIL_PROVIDER_RESEND : EMAIL_PROVIDER_SENDGRID;
   const headers = buildHeaders({ mailerClass: mail.mailerClass, mailerMethod: mail.mailerMethod, mailerArgs: mail.args, emailProvider, ...(deps.randomIv ? { randomIv: deps.randomIv } : {}) });
-  return { from, to: mail.to, subject: mail.subject, ...(mail.replyTo !== undefined ? { replyTo: mail.replyTo } : {}), html: mail.html, headers, smtp };
+  return {
+    from,
+    to: mail.to,
+    ...(mail.cc !== undefined ? { cc: mail.cc } : {}),
+    subject: mail.subject,
+    ...(mail.replyTo !== undefined ? { replyTo: mail.replyTo } : {}),
+    html: mail.html,
+    ...(mail.attachments ? { attachments: mail.attachments } : {}),
+    headers,
+    smtp,
+  };
 }
 
 // ActiveRecord::RecordNotFound: the delivery job fails and Sidekiq retries it, as in Ruby.

@@ -1,6 +1,7 @@
 // Mail::Message#encoded (mail 2.9) for the messages our mailers build: plain ASCII headers and
-// text/* parts under multipart/alternative. Anything the gem would RFC 2047-encode is refused,
-// since a near miss there changes what the recipient's client shows.
+// text/* parts under multipart/alternative, optionally with attachments under multipart/mixed.
+// Anything the gem would RFC 2047-encode is refused, since a near miss there changes what the
+// recipient's client shows.
 import { randomInt } from "node:crypto";
 import { hostname } from "node:os";
 
@@ -23,18 +24,31 @@ const fieldOrder = (name: string) => {
 
 export type MimePart = { contentType: "text/plain" | "text/html"; body: string };
 
+// A file attached with `attachments[filename] = { mime_type:, content: }`. Mail's handling of other
+// file names and types (quoting, RFC 2231, per-type transfer encodings and part order) is not
+// ported, so only the ones recorded in internal-notification.golden.json are accepted.
+export type MimeAttachment = { filename: string; contentType: string; content: Uint8Array };
+
+const ATTACHMENT_FILENAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/u;
+// Types MiniMime gives a base64 transfer encoding, which Mail keeps for any body.
+const ATTACHMENT_CONTENT_TYPES = ["text/csv", "application/json", "application/octet-stream", "application/vnd.ms-excel"];
+
 export type MimeMessage = {
   from: string;
   replyTo?: string | undefined;
   to: string[];
+  cc?: string | undefined;
   subject: string;
   // Extra headers (X-*, List-Unsubscribe), in the order the mailer set them.
   headers?: [string, string][];
   // Sent as multipart/alternative, in the gem's part sort order.
   parts: MimePart[];
+  // With attachments the alternative parts move into a multipart/alternative part of a multipart/mixed message.
+  attachments?: MimeAttachment[];
 };
 
-export type MimeIdentity = { date: Date; messageId: string; boundary: string };
+// `innerBoundary` is the multipart/alternative part's; only a message with attachments has one.
+export type MimeIdentity = { date: Date; messageId: string; boundary: string; innerBoundary?: string };
 
 // Mail.random_tag: "%x%x_%x%x%d%x" of seconds, usec, pid, thread id, a counter and rand(255).
 let uniq = randomInt(1_000_000);
@@ -46,7 +60,7 @@ function randomTag(now: Date): string {
 }
 
 export function newIdentity(now = new Date()): MimeIdentity {
-  return { date: now, messageId: `<${randomTag(now)}@${hostname()}.mail>`, boundary: `--==_mimepart_${randomTag(now)}` };
+  return { date: now, messageId: `<${randomTag(now)}@${hostname()}.mail>`, boundary: `--==_mimepart_${randomTag(now)}`, innerBoundary: `--==_mimepart_${randomTag(now)}` };
 }
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -192,6 +206,26 @@ export function encodePart(part: MimePart): string {
 
 const PART_SORT_ORDER = ["text/plain", "text/enriched", "text/html", "multipart/alternative"];
 
+// Content-Type, Content-Transfer-Encoding and Content-Disposition of an attachment part, then its
+// base64 body. Mail adds the charset parameter to a text type only when the body is not empty.
+export function assertAttachmentSupported(filename: string, contentType: string): void {
+  if (!ATTACHMENT_FILENAME.test(filename)) throw new MimeNotPortedError(`attachment file name not ported: ${JSON.stringify(filename)}`);
+  if (!ATTACHMENT_CONTENT_TYPES.includes(contentType)) throw new MimeNotPortedError(`attachment type not ported: ${contentType}`);
+}
+
+function encodeAttachment(attachment: MimeAttachment): string {
+  assertAttachmentSupported(attachment.filename, attachment.contentType);
+  const contentType = attachment.contentType.startsWith("text/") && attachment.content.length > 0 ? `${attachment.contentType};\r\n charset=UTF-8` : attachment.contentType;
+  return `${encodeHeaders([
+    ["content-type", `Content-Type: ${contentType}`],
+    ["content-transfer-encoding", "Content-Transfer-Encoding: base64"],
+    ["content-disposition", `Content-Disposition: attachment;\r\n filename=${attachment.filename}`],
+  ])}\r\n${toCrlf(packBase64(attachment.content))}`;
+}
+
+// Body#encoded of a multipart body: each part after "\r\n--boundary\r\n", then the closing line.
+const multipartBody = (parts: string[], boundary: string) => ["", ...parts].join(`\r\n--${boundary}\r\n`) + `\r\n--${boundary}--\r\n`;
+
 export function encodeMessage(message: MimeMessage, identity: MimeIdentity = newIdentity()): string {
   if (message.parts.length < 2) throw new MimeNotPortedError("only multipart/alternative messages are ported");
   if (message.to.length !== 1) throw new MimeNotPortedError("only single-recipient messages are ported");
@@ -199,6 +233,7 @@ export function encodeMessage(message: MimeMessage, identity: MimeIdentity = new
     ["from", `From: ${checkAddress(message.from)}`],
     ...(message.replyTo !== undefined ? ([["reply-to", `Reply-To: ${checkAddress(message.replyTo)}`]] as [string, string][]) : []),
     ["to", `To: ${checkAddress(message.to[0]!)}`],
+    ...(message.cc !== undefined ? ([["cc", `Cc: ${checkAddress(message.cc)}`]] as [string, string][]) : []),
     ["subject", unstructured("Subject", message.subject)],
     ...(message.headers ?? []).map(([name, value]): [string, string] => [name, unstructured(name, value)]),
     ["date", `Date: ${rfc2822Date(identity.date)}`],
@@ -210,10 +245,25 @@ export function encodeMessage(message: MimeMessage, identity: MimeIdentity = new
     .map((part, index) => ({ part, index }))
     .sort((a, b) => PART_SORT_ORDER.indexOf(a.part.contentType) - PART_SORT_ORDER.indexOf(b.part.contentType) || a.index - b.index)
     .map(({ part }) => encodePart(part));
+
+  const attachments = message.attachments ?? [];
+  if (attachments.length === 0) {
+    fields.push(
+      ["content-type", `Content-Type: multipart/alternative;\r\n boundary="${identity.boundary}"`],
+      ["content-transfer-encoding", "Content-Transfer-Encoding: 7bit"],
+    );
+    return `${encodeHeaders(fields)}\r\n${multipartBody(parts, identity.boundary)}`;
+  }
+
+  if (identity.innerBoundary === undefined) throw new MimeNotPortedError("a message with attachments needs a second boundary");
   fields.push(
-    ["content-type", `Content-Type: multipart/alternative;\r\n boundary="${identity.boundary}"`],
+    ["content-type", `Content-Type: multipart/mixed;\r\n boundary="${identity.boundary}";\r\n charset=UTF-8`],
     ["content-transfer-encoding", "Content-Transfer-Encoding: 7bit"],
   );
-  const body = ["", ...parts].join(`\r\n--${identity.boundary}\r\n`) + `\r\n--${identity.boundary}--\r\n`;
-  return `${encodeHeaders(fields)}\r\n${body}`;
+  // Attachments sort after every other part, so the alternative part comes first.
+  const alternative = `${encodeHeaders([
+    ["content-type", `Content-Type: multipart/alternative;\r\n boundary="${identity.innerBoundary}"`],
+    ["content-transfer-encoding", "Content-Transfer-Encoding: 7bit"],
+  ])}\r\n${multipartBody(parts, identity.innerBoundary)}`;
+  return `${encodeHeaders(fields)}\r\n${multipartBody([alternative, ...attachments.map(encodeAttachment)], identity.boundary)}`;
 }
