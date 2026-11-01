@@ -9,8 +9,11 @@ import { describe, expect, it } from "vitest";
 import COUNTRY_DATA from "./countries.generated.json" with { type: "json" };
 import {
   alpha2ByName,
+  countryByAlpha2,
+  countryByAlpha3,
   COUNTRIES_SUPPORTED_BY_STRIPE_CONNECT,
   findByName,
+  findCountryByAlpha3,
   historicalNames,
   isBlank,
   isBlockedCountry,
@@ -23,8 +26,10 @@ import {
 const golden = JSON.parse(readFileSync(new URL("./__fixtures__/countries.golden.json", import.meta.url), "utf8")) as {
   index: Record<string, string>;
   mapping: Array<[string, string]>;
+  codes: Array<[string, string, string | null, string | null, string | null]>;
   historical_names: Record<string, string[]>;
   find_by_name: Array<{ name: string | null; alpha2: string | null; common_name: string | null }>;
+  find_by_alpha3: Array<[string | null, string | null]>;
   normalized: Array<[string, string]>;
   blocked: Array<[string, boolean, boolean]>;
 };
@@ -68,6 +73,20 @@ describe("Compliance::Countries", () => {
       expect(alpha2ByName(name)).toBe(alpha2);
       expect(findByName(name)?.common_name ?? null).toBe(common_name);
     }
+  });
+
+  it("looks countries up by alpha2 and alpha3 in any case", () => {
+    for (const [alpha2, alpha3, currency, byAlpha2, byAlpha3] of golden.codes) {
+      expect(countryByAlpha2(alpha2.toLowerCase())?.alpha3).toBe(byAlpha2);
+      expect(countryByAlpha3(alpha3.toLowerCase())?.alpha2).toBe(byAlpha3);
+      expect(countryByAlpha2(alpha2)?.currency_code ?? null).toBe(currency);
+    }
+    expect(countryByAlpha2("ZZ")).toBeNull();
+    expect(countryByAlpha3("ZZZ")).toBeNull();
+  });
+
+  it("finds a country by alpha3 as find_country_by_alpha3 does", () => {
+    for (const [probe, alpha2] of golden.find_by_alpha3) expect(findCountryByAlpha3(probe)?.alpha2 ?? null, JSON.stringify(probe)).toBe(alpha2);
   });
 
   it("normalizes names as ISO3166::Country.parse_value does", () => {

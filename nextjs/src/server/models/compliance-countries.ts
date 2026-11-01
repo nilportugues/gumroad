@@ -84,3 +84,8 @@ export const isRiskPhysicalBlocked = (alpha2: string): boolean => RISK_PHYSICAL_
 
 // StripeMerchantAccountManager::COUNTRIES_SUPPORTED_BY_STRIPE_CONNECT, as alpha2 codes
 export const COUNTRIES_SUPPORTED_BY_STRIPE_CONNECT: readonly string[] = COUNTRY_DATA.stripe_connect_countries;
+
+// ISO3166::Country.find_country_by_alpha3: the query is parsed like a name (so "i,nd" and "IND" both
+// find India), the code is compared in lower case.
+const BY_PARSED_ALPHA3 = new Map(COUNTRIES.map((country) => [country.alpha3.toLowerCase(), country]));
+export const findCountryByAlpha3 = (query: string | null | undefined): Country | null => BY_PARSED_ALPHA3.get(parseCountryName(query ?? "")) ?? null;

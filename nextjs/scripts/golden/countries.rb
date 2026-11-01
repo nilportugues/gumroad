@@ -93,15 +93,20 @@ probes = probes.uniq
 # String#downcase and Unaccent on strings the countries gem never holds, for the TypeScript port of both.
 normalize_probes = probes.compact + ["İ", "ΑΣ", "ΑΣ ", "ΑΣΑ", "ǈ", "ẞ", "ŉ", "ǰ", "Ⅷ", "ⓐ", "ﬃ", "Ǆ", "İİ", "İ", "Straße", "STRASSE", "é", "é", "Ǻ", "Ɓ", "ʼn"]
 
+alpha3_probes = countries.flat_map { |c| [c.alpha3, c.alpha3.downcase, c.alpha3.capitalize, " #{c.alpha3}", "#{c.alpha3} ", "#{c.alpha3[0]},#{c.alpha3[1..]}", "(#{c.alpha3})", Unaccent.unaccent(c.alpha3)] }
+alpha3_probes.concat([nil, "", " ", "XXK", "XKX", "ÏND", "ÍND", "WLD", "ARB", "IN", "INDIA", "I[]ND", "İND", "ınd"])
+
 golden = {
   "generated_with" => { "ruby" => RUBY_VERSION, "countries" => gem_versions["countries"], "unaccent" => gem_versions["unaccent"] },
   "index" => index.sort.to_h,
   "mapping" => Compliance::Countries.mapping.to_a,
+  "codes" => countries.map { |c| [c.alpha2, c.alpha3, c.currency_code, ISO3166::Country[c.alpha2.downcase]&.alpha3, ISO3166::Country.find_country_by_alpha3(c.alpha3.downcase)&.alpha2] },
   "historical_names" => countries.to_h { |country| [country.alpha2, Compliance::Countries.historical_names(country.common_name)] },
   "find_by_name" => probes.map do |probe|
     country = Compliance::Countries.find_by_name(probe)
     { "name" => probe, "alpha2" => country&.alpha2, "common_name" => country&.common_name }
   end,
+  "find_by_alpha3" => alpha3_probes.map { |probe| [probe, ISO3166::Country.find_country_by_alpha3(probe)&.alpha2] },
   "normalized" => normalize_probes.uniq.map { |string| [string, parse_value.(string)] },
   "blocked" => countries.map { |c| [c.alpha2, Compliance::Countries.blocked?(c.alpha2), Compliance::Countries.risk_physical_blocked?(c.alpha2)] },
 }

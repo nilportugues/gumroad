@@ -64,7 +64,7 @@ const LAST_KNOWN_RATES = new Map<string, [string, number]>();
 
 // String#to_f for the strings a rate can be: the leading decimal number, else 0.0.
 export function rubyStringToF(value: string): number {
-  const match = /^\s*[+-]?(?:\d+(?:_\d+)*)?(?:\.\d+(?:_\d+)*)?(?:[eE][+-]?\d+)?/u.exec(value);
+  const match = /^[ \t\n\v\f\r]*[+-]?(?:\d+(?:_\d+)*)?(?:\.\d+(?:_\d+)*)?(?:[eE][+-]?\d+)?/u.exec(value);
   const text = match?.[0].replaceAll("_", "").trim() ?? "";
   const parsed = Number.parseFloat(text);
   return Number.isNaN(parsed) ? 0 : parsed;
