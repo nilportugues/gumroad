@@ -269,3 +269,6 @@ Still Ruby-only on `Link`: permalink generation and locking, `user` presence, `d
 `support_email` and `json_data`-backed validations, every `validate :method`, `validates_associated
 :installment_plan`, `set_default_discover_fee_per_thousand` (reads the seller), and the `after_*` and
 `after_commit` callbacks that touch prices, offer codes, caches, licenses and search.
+
+- `BalanceTransaction#update_balance!` retries a lock wait timeout like Rails (3 attempts, 0.5 s × attempt
+  backoff), but that path has no golden: the money goldens never hit a lock timeout.

@@ -136,6 +136,12 @@ export function castRow<R extends Row>(model: Prisma.ModelName, row: Row): R {
 }
 
 // ActiveRecord::RecordNotUnique: MySQL error 1062, which Prisma reports as P2002 on typed writes.
+// ActiveRecord::LockWaitTimeout (ER_LOCK_WAIT_TIMEOUT).
+export function isLockWaitTimeout(error: unknown): boolean {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) return error.code === "P2010" && String(error.meta?.code) === "1205";
+  return error instanceof Error && "errno" in error && (error as { errno: unknown }).errno === 1205;
+}
+
 export function isRecordNotUnique(error: unknown): boolean {
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     return error.code === "P2002" || (error.code === "P2010" && String(error.meta?.code) === "1062");

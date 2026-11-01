@@ -12,7 +12,7 @@ import { MerchantAccounts, type MerchantAccountRecord } from "./merchant-account
 import { defineModel, type SaveOptions } from "./runtime/define-model.ts";
 import { RecordInvalid } from "./runtime/errors.ts";
 import type { ModelRecord } from "./runtime/record.ts";
-import { castRow, column, isRecordNotUnique, selectRows, table } from "./sql.ts";
+import { castRow, column, isLockWaitTimeout, isRecordNotUnique, selectRows, table } from "./sql.ts";
 import { NotPortedError, Users, type UserRecord } from "./user.ts";
 
 export type BalanceTransactionRecord = ModelRecord<BalanceTransaction>;
@@ -21,6 +21,8 @@ export type BalanceTransactionRecord = ModelRecord<BalanceTransaction>;
 export type Amount = { currency: string; grossCents: number; netCents: number };
 
 const MAX_ATTEMPTS_TO_UPDATE_BALANCE = 3;
+const LOCK_RETRY_BACKOFF_SECONDS = 0.5;
+const sleep = (seconds: number) => new Promise<void>((resolve) => setTimeout(resolve, seconds * 1000));
 const USER: BelongsTo = { name: "user", foreignKey: "user_id", targetTable: "users", targetModel: "User" };
 const MERCHANT_ACCOUNT: BelongsTo = { name: "merchant_account", foreignKey: "merchant_account_id", targetTable: "merchant_accounts", targetModel: "MerchantAccount" };
 const CREDIT: BelongsTo = { name: "credit", foreignKey: "credit_id", targetTable: "credits", targetModel: "Credit" };
@@ -126,8 +128,14 @@ export async function findOrCreateBalance(bt: BalanceTransactionRecord, options:
 }
 
 // update_balance!(target_balance: nil)
-export async function updateBalanceBang(bt: BalanceTransactionRecord, options: SaveOptions = {}, targetBalance: BalanceRecord | null = null): Promise<void> {
+export async function updateBalanceBang(
+  bt: BalanceTransactionRecord,
+  options: SaveOptions = {},
+  targetBalance: BalanceRecord | null = null,
+  retryDeps: { sleep?: (seconds: number) => Promise<void> } = {},
+): Promise<void> {
   let failedCount = 1;
+  let lockFailedCount = 0;
   for (;;) {
     let balance: BalanceRecord | null = null;
     try {
@@ -146,6 +154,12 @@ export async function updateBalanceBang(bt: BalanceTransactionRecord, options: S
       });
       return;
     } catch (error) {
+      if (isLockWaitTimeout(error)) {
+        lockFailedCount += 1;
+        if (lockFailedCount >= MAX_ATTEMPTS_TO_UPDATE_BALANCE) throw error;
+        await (retryDeps.sleep ?? sleep)(lockFailedCount * LOCK_RETRY_BACKOFF_SECONDS);
+        continue;
+      }
       // Saving the balance can fail if its state changed between selection and locking.
       if (!(error instanceof RecordInvalid)) throw error;
       failedCount += 1;
