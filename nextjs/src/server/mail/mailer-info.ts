@@ -263,9 +263,16 @@ function jsonString(value: string): string {
 
 export type MailerHeaders = [string, string][];
 
-export function buildHeaders(input: { mailerClass: string; mailerMethod: string; mailerArgs: RubyValue[]; emailProvider: EmailProvider; randomIv?: RandomIv }): MailerHeaders {
+// HeaderBuilder#determine_receipt_record_ids for a receipt the mailer has already looked up: the purchase or
+// the charge it normalises to, neither when the mail names none.
+export type ReceiptRecordIds = { purchaseId?: number | bigint | null; chargeId?: number | bigint | null };
+
+export function buildHeaders(input: { mailerClass: string; mailerMethod: string; mailerArgs: RubyValue[]; emailProvider: EmailProvider; randomIv?: RandomIv; recordIds?: ReceiptRecordIds }): MailerHeaders {
   const { mailerClass, mailerMethod, emailProvider } = input;
-  checkNoRecordIds(mailerClass, mailerMethod, emailProvider);
+  if (!input.recordIds) checkNoRecordIds(mailerClass, mailerMethod, emailProvider);
+  const recordFields: [MailerInfoField, string][] = [];
+  if (input.recordIds?.purchaseId != null) recordFields.push(["purchase_id", String(input.recordIds.purchaseId)]);
+  if (input.recordIds?.chargeId != null) recordFields.push(["charge_id", String(input.recordIds.chargeId)]);
   const args = inspect(truncatedMailerArgs(input.mailerArgs));
   const env = railsEnv();
   if (emailProvider === EMAIL_PROVIDER_RESEND) {
@@ -276,6 +283,7 @@ export function buildHeaders(input: { mailerClass: string; mailerMethod: string;
       ["mailer_method", mailerMethod],
       ["mailer_args", args],
       ["category", category],
+      ...recordFields,
     ];
     if (isResendInstallment(mailerClass, mailerMethod, emailProvider)) {
       const [recipientId, postId] = input.mailerArgs;
@@ -286,7 +294,7 @@ export function buildHeaders(input: { mailerClass: string; mailerMethod: string;
   }
   const smtpApi =
     `{"environment":${jsonString(env)},"category":[${jsonString(mailerClass)},${jsonString(`${mailerClass}.${mailerMethod}`)}],` +
-    `"unique_args":{"mailer_class":${jsonString(mailerClass)},"mailer_method":${jsonString(mailerMethod)},"mailer_args":${jsonString(args)}}}`;
+    `"unique_args":{"mailer_class":${jsonString(mailerClass)},"mailer_method":${jsonString(mailerMethod)},"mailer_args":${jsonString(args)}${recordFields.map(([field, value]) => `,"${field}":${value}`).join("")}}}`;
   return [
     [headerName("email_provider"), EMAIL_PROVIDER_SENDGRID],
     [SENDGRID_X_SMTPAPI_HEADER, smtpApi],

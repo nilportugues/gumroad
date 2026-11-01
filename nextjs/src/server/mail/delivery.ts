@@ -24,6 +24,7 @@ import { communityChatRecapNotification } from "./mailers/community-chat-recap-m
 import { notify as internalNotification } from "./mailers/internal-notification-mailer.ts";
 import { marketingXReconnect } from "./mailers/creator-mailer.ts";
 import { filesReadyForDownload, partialRefund, paypalPurchaseFailed, refund, subscriptionMagicLink } from "./mailers/customer-mailer.ts";
+import { receipt } from "./mailers/receipt-mailer.ts";
 import { invite as teamInvite } from "./mailers/team-mailer.ts";
 import { receiverSignedUp } from "./mailers/invite-mailer.ts";
 import { authenticationToken } from "./mailers/two-factor-authentication-mailer.ts";
@@ -132,6 +133,7 @@ const NODE_MAILERS: Record<string, Record<string, MailerMethod>> = {
         deps,
       );
     },
+    receipt: (args, deps) => receipt(args, deps),
     files_ready_for_download: (args, deps) => (args.length === 1 ? filesReadyForDownload(integerArgument(args[0]), args, deps) : Promise.reject(new MailJobArgumentsError("arity"))),
     subscription_magic_link: (args, deps) => {
       const [subscriptionId, email, ...rest] = args;

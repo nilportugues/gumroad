@@ -16,6 +16,7 @@ import {
   type MailerLevel,
   type RandomIv,
   randomDeliveryMethodOptions,
+  type ReceiptRecordIds,
   type RouterDeps,
   sendgridEquivalentOptions,
 } from "./mailer-info.ts";
@@ -45,6 +46,8 @@ export type ApplicationMail = {
   attachments?: MimeAttachment[];
   // Absent: the class default, `MailerInfo.random_delivery_method_options(domain: :gumroad)`.
   deliveryMethodOptions?: DeliveryMethodOptions;
+  // The purchase or charge a receipt names in its X-GUM headers; EmailDeliveryObserver records a CustomerEmailInfo for it.
+  recordIds?: ReceiptRecordIds;
 };
 
 const bareAddress = (address: string) => /<([^>]+)>$/u.exec(address)?.[1] ?? address;
@@ -67,7 +70,7 @@ export async function applicationMail(mail: ApplicationMail, deps: MailerDeps = 
   if (forceSendgridForRecipients([mail.to, mail.cc ?? null])) smtp = sendgridEquivalentOptions(smtp) ?? smtp;
 
   const emailProvider = isResend(smtp) ? EMAIL_PROVIDER_RESEND : EMAIL_PROVIDER_SENDGRID;
-  const headers = buildHeaders({ mailerClass: mail.mailerClass, mailerMethod: mail.mailerMethod, mailerArgs: mail.args, emailProvider, ...(deps.randomIv ? { randomIv: deps.randomIv } : {}) });
+  const headers = buildHeaders({ mailerClass: mail.mailerClass, mailerMethod: mail.mailerMethod, mailerArgs: mail.args, emailProvider, ...(mail.recordIds ? { recordIds: mail.recordIds } : {}), ...(deps.randomIv ? { randomIv: deps.randomIv } : {}) });
   return {
     from,
     to: mail.to,
@@ -78,6 +81,7 @@ export async function applicationMail(mail: ApplicationMail, deps: MailerDeps = 
     ...(mail.attachments ? { attachments: mail.attachments } : {}),
     headers,
     smtp,
+    ...(mail.recordIds ? { recordIds: mail.recordIds } : {}),
   };
 }
 

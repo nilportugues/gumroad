@@ -57,11 +57,11 @@ function emailStylesheetTags(): string {
     .join("\n");
 }
 
-// layouts/email.html.erb for a mailer that sets none of @installment, @announcement,
-// @footer_template or @unsub_link; `subject` is its @subject. Outside production the layout adds a
+// layouts/email.html.erb for a mailer that sets none of @installment, @announcement or @unsub_link;
+// `subject` is its @subject and `footer` what its @footer_template renders. Outside production the layout adds a
 // non-ASCII environment banner, whose path through libxml2 and the encoder is not verified, so it
 // is refused.
-export function emailLayout(content: string, options: { subject?: string } = {}): string {
+export function emailLayout(content: string, options: { subject?: string; footer?: string } = {}): string {
   if (railsEnv() !== "production") throw new MailViewNotPortedError(`email layout outside production (${railsEnv()})`);
   const assetHost = domainConfig().assetHost ?? "";
   return `<!-- IMPORTANT: If you modify this file, you may also need to modify app/views/posts/post_email.html.erb -->
@@ -81,7 +81,7 @@ export function emailLayout(content: string, options: { subject?: string } = {})
       </div>
       <div class="footer">
         <div class="paragraphs">
-          ${/* render(@footer_template) */ ""}
+          ${options.footer ?? ""}
           <p>${h(gumroadAddressFull())}</p>
 
         </div>
