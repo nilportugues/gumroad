@@ -66,8 +66,10 @@ the only ones that write those ids, so for every ported mailer the observer does
   Long ASCII headers are folded as `UnstructuredField#fold` does.
 - Mailer arguments whose Ruby `#inspect` is not ported: records (GlobalID), floats, non-ASCII strings.
 - The email layout outside production: it adds a non-ASCII environment banner.
-- CommentMailer for a comment on anything but a post, and view helper inputs `view-helpers.ts`
-  does not cover (`ViewHelperNotPortedError`).
+- CommentMailer for a comment on anything but a post; CommunityChatRecapMailer for a community
+  whose resource is not a product, a nil summary, or empty or repeated recap ids;
+  TwoFactorAuthenticationMailer for a user without an OTP secret or an unknown `email_provider`;
+  and view helper inputs `view-helpers.ts` does not cover (`ViewHelperNotPortedError`).
 
 ## Behaviour kept from Ruby on purpose
 
