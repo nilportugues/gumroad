@@ -164,6 +164,11 @@ job's first write: wrap argument checks and early reads in `beforeSideEffects`, 
 `NotPortedError` into a hand-back. A `NotPortedError` anywhere else still fails the attempt and
 goes through Sidekiq's retry.
 
+One exception: `SendWorkflowInstallmentWorker` hands back after its `SentPostEmail` claim, because
+what it can't render is only known then. It deletes the claim first, as Rails does for a send it
+withholds (`Installment#send_email`), so the rerun in Rails claims and sends. Nothing else it wrote
+by then needs undoing; keep it that way when extending it.
+
 ## Ported subscription reminder jobs (WS-46)
 
 `subscription-reminder-jobs.ts` ports `FreeTrialExpiringReminderWorker`, `ChargeDeclinedReminderWorker`,
