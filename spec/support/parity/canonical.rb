@@ -23,6 +23,11 @@ module Parity
     TIME_TYPES = %w[datetime timestamp].freeze
     BINARY_TYPES = %w[binary varbinary tinyblob blob mediumblob longblob].freeze
 
+    # Response cookies minted fresh on every request (ApplicationController#set_gumroad_guid's
+    # SecureRandom.uuid): their presence and attributes are the contract, the value is not.
+    VOLATILE_COOKIES = %w[_gumroad_guid].freeze
+    VOLATILE_VALUE = "<volatile>"
+
     ISO_TIME = /\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})/
 
     module_function
@@ -112,6 +117,10 @@ module Parity
       when Date then date_token(value, now)
       else json(value.respond_to?(:as_json) ? value.as_json : value.to_s, now)
       end
+    end
+
+    def cookie_value(name, value)
+      VOLATILE_COOKIES.include?(name) ? VOLATILE_VALUE : value
     end
 
     def string(value, now)

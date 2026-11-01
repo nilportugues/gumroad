@@ -62,6 +62,8 @@ Normalisation, shared by `spec/support/parity/canonical.rb` and `src/canonical.t
 - **Times.** `DATETIME` values and ISO 8601 timestamps in strings become `<now>` (within 5 s of the
   request), `<now-30s>`, `<now+25m>` or `<now-48h>`; dates become `<today-3d>`. The replayer seeds
   them relative to its own clock.
+- **Cookies** minted fresh on every request (`_gumroad_guid`) record their value as `<volatile>`;
+  their presence and attributes still compare.
 - **Values** are read as MySQL's own text (`CAST(... AS CHAR)`), so both drivers see the same bytes.
   Integers beyond 2^53 are `{ "$big" }`, binary columns `{ "$base64" }`.
 

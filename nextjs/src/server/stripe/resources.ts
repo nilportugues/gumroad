@@ -59,6 +59,12 @@ export const Transfer = {
     call<Stripe.TransferReversal>("post", `/v1/transfers/${cgiEscape(id)}/reversals`, params, opts),
 };
 
+export const PaymentMethodDomain = {
+  create: (params: StripeParams, opts: RequestOptions = {}) => call<Stripe.PaymentMethodDomain>("post", "/v1/payment_method_domains", params, opts),
+  validate: (id: string, params: StripeParams = {}, opts: RequestOptions = {}) =>
+    call<Stripe.PaymentMethodDomain>("post", `/v1/payment_method_domains/${cgiEscape(id)}/validate`, params, opts),
+};
+
 export const ApplePayDomain = {
   create: (params: StripeParams, opts: RequestOptions = {}) => call<Stripe.ApplePayDomain>("post", "/v1/apple_pay/domains", params, opts),
   retrieve: retrieve<Stripe.ApplePayDomain>("/v1/apple_pay/domains"),

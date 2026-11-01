@@ -8,7 +8,7 @@ import {
   railsEnv,
   railsSessionCookieName,
   railsSessionCookieOptions,
-  railsSessionExpireAfterSeconds,
+  railsSessionExpiresAt,
   REMEMBER_COOKIE_NAME,
   type CookieOptions,
   type RailsEnv,
@@ -22,7 +22,7 @@ const EXPIRED = new Date(0);
 
 // The cookie Rails' sign_in leaves, so a login on Next is a login on Rails too.
 export function railsSignInCookie(user: Pick<User, "id" | "encrypted_password">, host: string, env: RailsEnv = railsEnv(), now = new Date()): CookieToSet {
-  const expires = new Date(now.getTime() + railsSessionExpireAfterSeconds(env) * 1000);
+  const expires = railsSessionExpiresAt(now, env);
   const name = railsSessionCookieName(env);
   return {
     name,

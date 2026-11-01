@@ -1,4 +1,4 @@
-import { json as canonicalJson, type Json, parseJson, string as canonicalString, timeToken } from "./canonical";
+import { json as canonicalJson, cookieValue, type Json, parseJson, string as canonicalString, timeToken } from "./canonical";
 import type { CapturedHttp, CapturedResponse, FixtureRequest } from "./fixture";
 
 // Keep in sync with VOLATILE_RESPONSE_HEADERS in spec/support/parity/recorder.rb.
@@ -58,7 +58,7 @@ export function setCookies(lines: string[], now: Date): Record<string, Record<st
   for (const line of [...lines].sort()) {
     const [pair = "", ...attributes] = line.split(/;\s*/);
     const [name = "", value = ""] = splitOnce(pair, "=");
-    const parsed: Record<string, Json> = { value: safeDecode(value) };
+    const parsed: Record<string, Json> = { value: cookieValue(name, safeDecode(value)) };
     for (const attribute of attributes) {
       const [rawKey = "", attrValue] = splitOnce(attribute, "=");
       const key = rawKey.toLowerCase();

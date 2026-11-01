@@ -221,7 +221,7 @@ module Parity
         lines.sort.to_h do |line|
           pair, *attributes = line.split(/;\s*/)
           name, value = pair.split("=", 2)
-          parsed = { "value" => CGI.unescape(value.to_s) }
+          parsed = { "value" => Canonical.cookie_value(name, CGI.unescape(value.to_s)) }
           attributes.each do |attribute|
             key, attr_value = attribute.split("=", 2)
             key = key.downcase

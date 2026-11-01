@@ -2,14 +2,13 @@
 import { createHash } from "node:crypto";
 
 import { getConfig } from "../infra/config.ts";
+import { advance } from "../models/concerns/ruby-time.ts";
 import { deriveRailsCookieSecrets, type RailsCookieSecrets } from "./rails-cookies.ts";
 
 const BASE_SESSION_COOKIE_NAME = "_gumroad_app_session";
 const BRANCH_COOKIE_SUFFIX_LENGTH = 32;
 const DEFAULT_TLD_LENGTH = 2;
 const STAGING_TLD_LENGTH = 3; // username.staging.gumroad.com
-const SESSION_EXPIRE_AFTER_SECONDS = 30 * 24 * 60 * 60; // 1.month in seconds
-const TEST_SESSION_EXPIRE_AFTER_SECONDS = 10 * 365 * 24 * 60 * 60;
 
 // Devise defaults; Gumroad sets no rememberable_options, so the cookie is host-only.
 export const REMEMBER_COOKIE_NAME = "remember_user_token";
@@ -52,8 +51,9 @@ export function railsSessionCookieDomain(host: string, env: RailsEnv = railsEnv(
   return labels.length >= tldLength ? labels.slice(-tldLength).join(".") : undefined;
 }
 
-export function railsSessionExpireAfterSeconds(env: RailsEnv = railsEnv()): number {
-  return env.railsEnv === "test" ? TEST_SESSION_EXPIRE_AFTER_SECONDS : SESSION_EXPIRE_AFTER_SECONDS;
+// `Time.now + expire_after`: 10.years in test, 1.month elsewhere, both calendar durations.
+export function railsSessionExpiresAt(now: Date, env: RailsEnv = railsEnv()): Date {
+  return advance(now, env.railsEnv === "test" ? { years: 10 } : { months: 1 });
 }
 
 export type CookieOptions = {

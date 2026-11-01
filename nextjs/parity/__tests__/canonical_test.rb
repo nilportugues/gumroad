@@ -25,6 +25,12 @@ class ParityCanonicalTest < Minitest::Test
     end
   end
 
+  def test_cookie_values_minted_per_request_are_volatile
+    VECTORS.fetch("cookieValues").each do |vector|
+      assert_equal vector["expected"], Parity::Canonical.cookie_value(vector["name"], vector["value"])
+    end
+  end
+
   def test_diff_reports_inserted_updated_and_deleted_rows_per_table
     vector = VECTORS.fetch("diff")
     assert_equal vector["expected"], Parity::Canonical.diff(vector["before"], vector["after"], NOW)

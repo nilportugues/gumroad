@@ -9,6 +9,15 @@ const INTEGER_TYPES = new Set(["tinyint", "smallint", "mediumint", "int", "bigin
 const TIME_TYPES = new Set(["datetime", "timestamp"]);
 const BINARY_TYPES = new Set(["binary", "varbinary", "tinyblob", "blob", "mediumblob", "longblob"]);
 
+// Response cookies minted fresh on every request (ApplicationController#set_gumroad_guid's
+// SecureRandom.uuid): their presence and attributes are the contract, the value is not.
+const VOLATILE_COOKIES = new Set(["_gumroad_guid"]);
+export const VOLATILE_VALUE = "<volatile>";
+
+export function cookieValue(name: string, value: string): string {
+  return VOLATILE_COOKIES.has(name) ? VOLATILE_VALUE : value;
+}
+
 const ISO_TIME = /\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})/g;
 const TIME_TOKEN = /^<now(?:([+-])(\d+)([smh]))?>$/;
 const DATE_TOKEN = /^<today(?:([+-])(\d+)d)?>$/;

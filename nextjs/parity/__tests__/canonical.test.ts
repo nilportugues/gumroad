@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import {
+  cookieValue,
   dbValue,
   diff,
   json,
@@ -19,6 +20,7 @@ type Vectors = {
   now: string;
   dbValues: { type: string; raw: string | null; expected: Json }[];
   json: { input: Json; expected: Json }[];
+  cookieValues: { name: string; value: string; expected: string }[];
   diff: { before: Tables; after: Tables; expected: Json };
 };
 const vectors = parseJson(readFileSync(new URL("./canonical-vectors.json", import.meta.url), "utf8")) as unknown as Vectors;
@@ -31,6 +33,10 @@ describe("canonical forms shared with the Ruby recorder", () => {
 
   it("normalises times inside strings and keeps unsafe integers exact", () => {
     for (const vector of vectors.json) expect(json(vector.input, now)).toEqual(vector.expected);
+  });
+
+  it.each(vectors.cookieValues)("reads the $name cookie's value as $expected", ({ name, value, expected }) => {
+    expect(cookieValue(name, value)).toBe(expected);
   });
 
   it("diffs inserted, updated and deleted rows per table", () => {
