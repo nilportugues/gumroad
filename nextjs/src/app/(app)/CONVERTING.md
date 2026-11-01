@@ -280,3 +280,12 @@ Not ported, not in `routes.json`:
 - **Social connections.** `?social_connect_origin` writes the return token into the session from the
   page's `options.filters` (`controllers/settings-pages.ts`), after running the page's guard so that a
   refused request leaves the session alone.
+
+## Elasticsearch search (WS-65)
+
+The query builders live in `src/server/search/`; each is a pure function returning the request body, proven against a golden recorded from the real Ruby through a recording TCP proxy in front of Elasticsearch 7.17 (`__fixtures__/es_recording_proxy.rb`, so the bodies are the bytes on the wire). Index names in the goldens are `ws65-*`; the tests compare bodies, not paths.
+
+- `product-search.ts`, `search-products.ts`: `Product::Searchable` (`search_options`, `filetype_options`, `taxonomy_attribute_options`, `partial_search_options`) and the `SearchProducts` concern (param normalization, the facets of `search_products`, `TaxonomyAttribute` tokens). `discover-search.golden.json`, regenerate with `generate-discover-search-golden.rb`. `searchProductsWithFacets` returns the hit ids in order; loading the `Link` rows (`records`) is the caller's.
+- `purchase-search.ts`: `PurchaseSearchService`, including the long-email-token fallback request. `purchase-search.golden.json`.
+- `following.ts`, `civil-time.ts`: `CreatorAnalytics::Following` (time zone day starts, `D3` labels) and the `ConfirmedFollowerEvent` activity search. `following.golden.json`.
+- Not ported: the Discover, `Products/Discover`, Customers, Audience, Churn, Analytics and Dashboard page renders. Discover needs `ProductPresenter.card_for_web`, `WishlistPresenter`, `RecommendedWishlistsService` and the `DiscoverSearch` write; the seller pages share `check_payment_details` (Redis plus a Stripe call) and the `DashboardPreference` after_action cookie, which `PageSpec` cannot set yet.
