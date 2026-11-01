@@ -10,7 +10,7 @@ import type { Charge, Purchase } from "@prisma/client";
 import { encrypt as obfuscateId } from "../../../lib/obfuscate-ids.ts";
 import { isBlank } from "../../html/text-helper.ts";
 import { ArgumentError, chargeOfPurchase, findChargeOrNil } from "../../models/charge.ts";
-import { column, columnIn, selectRows, table } from "../../models/sql.ts";
+import { column, columnIn, inList, selectRows, table } from "../../models/sql.ts";
 import { secureExternalId } from "../../models/secure-external-id.ts";
 import { domainConfig } from "../../infra/domain.ts";
 import { applicationMail, findRow, type MailerDeps, RecordNotFoundError } from "../application-mailer.ts";
@@ -19,6 +19,7 @@ import type { RenderedMail } from "../compose.ts";
 import type { RubyValue } from "../ruby-value.ts";
 import { linkTo } from "../view-helpers.ts";
 import { emailLayout, h, mailerUrl, MailViewNotPortedError } from "../views.ts";
+import { cardPrice, floatToS, numberToSi, SAMPLED_ASSOCIATED_IDS, recommendedProducts, type RecommendedProducts } from "./receipt-recommended.ts";
 import {
   customersDeliveryOptions,
   customersNoreply,
@@ -202,6 +203,71 @@ ${download}
 `;
 }
 
+// customer_mailer/receipt/sections/_recommended_products and _product_card
+function productCardPartial(card: RecommendedProducts["cards"][number]): string {
+  const image = linkTo("", card.url, { target: "_blank" }).replace(/>[^<]*<\/a>$/u, `><img alt="${h(card.name)}" src="${h(card.thumbnailUrl)}" /></a>`);
+  const rating =
+    card.ratings && card.ratings.count > 0
+      ? `      <div class="rating">\n        ★\n        <span class="rating-average">${h(floatToS(card.ratings.average))}</span>\n        ${h(`(${numberToSi(card.ratings.count)})`)}\n      </div>\n`
+      : "";
+  return `<div class="product-card">
+  <div class="carousel">
+    <div class="items">
+      ${image}
+    </div>
+  </div>
+  <div class="header">
+    <h4>
+      ${linkTo(card.name, card.url, { target: "_blank" })}
+    </h4>
+${rating}  </div>
+  <div class="footer">
+    <div>
+      <div class="price">
+        ${h(cardPrice(card))}
+      </div>
+    </div>
+  </div>
+</div>
+`;
+}
+
+function recommendedSection(recommended: RecommendedProducts | null): string {
+  if (recommended === null) return "";
+  const { cards } = recommended;
+  const productRows = Array.from({ length: Math.ceil(cards.length / 2) }, (_, index) => cards.slice(index * 2, index * 2 + 2));
+  const body = productRows
+    .map((row, rowIndex) => {
+      const cells = row
+        .map((card, columnIndex) => {
+          const withGap = rowIndex * 2 + columnIndex < cards.length - 1 ? "product-card-cell-with-gap" : "";
+          return `              <td class="${withGap}">
+                <table class="reset product-card-table" align="center" role="presentation">
+                  <tbody>
+                    <tr>
+                      <td>
+                        ${productCardPartial(card)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </td>
+`;
+        })
+        .join("");
+      return `          <tr class="${rowIndex < productRows.length - 1 ? "product-card-row-with-gap" : ""}">\n${cells}          </tr>\n`;
+    })
+    .join("");
+  return `  <div>
+    <h3>${h(recommended.title)}</h3>
+    <table class="reset two-product-card-table">
+      <tbody>
+${body}      </tbody>
+    </table>
+  </div>
+`;
+}
+
 // ---- the mailer ---------------------------------------------------------------------------------------
 
 export async function receipt(args: RubyValue[], deps: MailerDeps = {}): Promise<RenderedMail | null> {
@@ -262,11 +328,20 @@ export async function receipt(args: RubyValue[], deps: MailerDeps = {}): Promise
   const payment = paymentInfo(data, invoiceLink);
 
   // recommended_products_info: the buyer's account, cart_seller_ids, then the products Rails excludes (the cart's,
-  // the buyer's own purchases and their bundle members). The seller opted out, so nothing is ever recommended.
+  // the buyer's own purchases and their bundle members). A seller who opted out has no cart sellers, so nothing is
+  // recommended; one who recommends their own products goes on to the related products and the search.
   const purchaser = purchase.purchaser_id === null ? null : await findRow<{ id: Id }>("users", purchase.purchaser_id);
-  await selectRows(
+  const cartSellers = await selectRows<{ user_id: Id }>(
     Prisma.sql`SELECT DISTINCT ${column("links", "user_id")} FROM ${table("links")} INNER JOIN ${table("users")} \`user\` ON \`user\`.\`id\` = ${column("links", "user_id")} WHERE \`user\`.\`recommendation_type\` != ${"no_recommendations"} AND ${column("links", "id")} = ${data.link.id}`,
   );
+  const sellerIds = cartSellers.map((row) => row.user_id);
+  if (sellerIds.length > 0) {
+    // affiliated_users.present?: the affiliate recommendation types read affiliates and global affiliate products
+    const [affiliated] = await selectRows(
+      Prisma.sql`SELECT ${star("users")} FROM ${table("users")} WHERE ${columnIn("users", "id", sellerIds)} AND ${column("users", "recommendation_type")} IN ${inList(["gumroad_affiliates_products", "directly_affiliated_products"])}`,
+    );
+    if (affiliated) throw new MailViewNotPortedError("receipt of a seller recommending affiliate products");
+  }
   const purchasedProductIds = async (limit: number | null) =>
     (
       await selectRows<{ id: Id }>(
@@ -274,15 +349,26 @@ export async function receipt(args: RubyValue[], deps: MailerDeps = {}): Promise
       )
     ).map((row) => row.id);
   let associatedIds: Id[] = [data.link.id];
+  let limitedAssociatedIds: Id[] = [data.link.id];
   if (purchaser) {
     // BaseService#associated_product_ids_limit: `($redis.get(...) || 100).to_i`
     const configured = await (deps.router ?? defaultRouterDeps()).redisGet(ASSOCIATED_PRODUCT_IDS_LIMIT_KEY);
-    await purchasedProductIds(rubyToI(configured ?? "100"));
+    const limited = await purchasedProductIds(rubyToI(configured ?? "100"));
+    limitedAssociatedIds = [...new Set([data.link.id, ...limited].map(BigInt))];
     const purchased = await purchasedProductIds(null);
     // `cart_product_ids | purchased_products.ids`
     associatedIds = [...new Set([...associatedIds, ...purchased].map(BigInt))];
   }
-  await selectRows(Prisma.sql`SELECT DISTINCT ${column("bundle_products", "product_id")} FROM ${table("bundle_products")} WHERE ${column("bundle_products", "deleted_at")} IS NULL AND ${columnIn("bundle_products", "bundle_id", associatedIds)}`);
+  const bundleProducts = await selectRows<{ product_id: Id }>(
+    Prisma.sql`SELECT DISTINCT ${column("bundle_products", "product_id")} FROM ${table("bundle_products")} WHERE ${column("bundle_products", "deleted_at")} IS NULL AND ${columnIn("bundle_products", "bundle_id", associatedIds)}`,
+  );
+  let recommended: RecommendedProducts | null = null;
+  if (sellerIds.length > 0) {
+    // Half of four or more associated ids are sampled at random.
+    if (limitedAssociatedIds.length >= SAMPLED_ASSOCIATED_IDS) throw new MailViewNotPortedError("receipt whose recommendations sample associated products at random");
+    if (bundleProducts.length > 0) throw new MailViewNotPortedError("receipt whose buyer owns bundles");
+    recommended = await recommendedProducts({ cartProductIds: [data.link.id], associatedIds: limitedAssociatedIds, excludeIds: associatedIds, sellerIds, seller });
+  }
 
   const paymentSection = payment.present
     ? `  <div>
@@ -308,7 +394,7 @@ ${payment.notes.map((note) => `      <div>\n        ${h(note)}\n      </div>\n`)
   ${itemsSection}
   ${shippingSection}
   ${paymentSection}
-  ${/* recommended products */ ""}
+  ${recommendedSection(recommended)}
 `;
 
   // The footer renders last: the unsubscribe link encrypts the purchase id with a fresh IV.

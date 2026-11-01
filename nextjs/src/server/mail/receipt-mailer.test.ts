@@ -4,8 +4,9 @@
 // OpenSSL::Cipher#random_iv), handed back to the port in the order Ruby drew them.
 import { readFileSync } from "node:fs";
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
+import { setEsSender, type EsRequest } from "../search/transport.ts";
 import { sqlReplay } from "../../worker/jobs/__fixtures__/sql-replay.ts";
 import { SIDEKIQ_EXECUTOR, withExecutor } from "../models/runtime/query-cache.ts";
 import { goldenRouter, identityOf, type MessageCase, useGoldenEnvironment } from "./__fixtures__/application-mailer-golden.ts";
@@ -16,7 +17,8 @@ import { deserializeArgument } from "./ruby-value.ts";
 import type { JsonValue } from "../jobs/sidekiq/ruby-json.ts";
 import type { Statement } from "../../worker/jobs/__fixtures__/sql-replay.ts";
 
-type ReceiptCase = MessageCase & { mailer_level?: { via: string; level: MailerLevel }; ivs: string[]; delivery_statements: Statement[] };
+type EsExchange = { method: string; path: string; body: string; status: number; response: Record<string, unknown> };
+type ReceiptCase = MessageCase & { mailer_level?: { via: string; level: MailerLevel }; ivs: string[]; delivery_statements: Statement[]; es: EsExchange[] };
 type ErrorCase = { name: string; mailer: string; method: string; job_args: JsonValue[]; statements: Statement[]; error: { class: string; message: string } };
 const golden = JSON.parse(readFileSync(new URL("__fixtures__/receipt-mailer.golden.json", import.meta.url), "utf8")) as {
   now: string;
@@ -25,6 +27,21 @@ const golden = JSON.parse(readFileSync(new URL("__fixtures__/receipt-mailer.gold
 };
 
 let restore: () => void;
+let restoreEs: (() => void) | undefined;
+afterEach(() => restoreEs?.());
+
+// The Elasticsearch answers Rails got, handed back request by request; what the port sends must be the bytes Rails sent.
+function replayEs(exchanges: EsExchange[]): EsRequest[] {
+  const sent: EsRequest[] = [];
+  const queue = [...exchanges];
+  restoreEs = setEsSender(async (request) => {
+    sent.push(request);
+    const next = queue.shift();
+    if (!next) throw new Error(`unexpected Elasticsearch request ${request.method} ${request.path}`);
+    return { status: next.status, body: next.response };
+  });
+  return sent;
+}
 const savedEnv: Record<string, string | undefined> = {};
 beforeAll(() => {
   restore = useGoldenEnvironment();
@@ -55,6 +72,7 @@ describe("CustomerMailer#receipt", () => {
   for (const c of golden.cases.messages) {
     it(`delivers ${c.method} (${c.name}) as Rails does`, async () => {
       const replay = sqlReplay(c.statements);
+      const sentToEs = replayEs(c.es);
       const router = goldenRouter({ features: c.features, redis: c.redis_before, rands: c.rands_used });
       const rendered = await withExecutor(
         () =>
@@ -67,6 +85,7 @@ describe("CustomerMailer#receipt", () => {
         SIDEKIQ_EXECUTOR,
       );
       expect(replay.log).toEqual(replay.expected);
+      expect(sentToEs.map((request) => request.body)).toEqual(c.es.map((exchange) => exchange.body));
       const delivered = c.delivered[0]!;
       expect(rendered!.html).toBe(c.rendered_html);
       const composed = composeMail(rendered!, { identity: identityOf(delivered.encoded) })!;
@@ -82,6 +101,7 @@ describe("CustomerMailer#receipt", () => {
   for (const c of golden.cases.refused) {
     it(`leaves ${c.method} (${c.name}) to Rails`, async () => {
       sqlReplay(c.statements);
+      replayEs(c.es);
       const refusal = await withExecutor(
         () => composeNodeMail(c.mailer, c.method, c.job_args.map(deserializeArgument), { router: goldenRouter({ features: [], redis: {}, rands: [] }), mailerLevel: async () => "level_1", randomIv: recordedIvs(c.ivs) }),
         SIDEKIQ_EXECUTOR,

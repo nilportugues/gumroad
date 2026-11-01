@@ -79,6 +79,11 @@ ActiveJob::Base.logger = Logger.new(nil)
 require "active_support/testing/time_helpers"
 require File.join(ROOT, "nextjs/scripts/golden/support/sidekiq_executor")
 
+# Recommended products search Elasticsearch: a proxy keeps the exact requests and answers, against a scratch index.
+require File.join(ROOT, "nextjs/src/server/search/__fixtures__/es_recording_proxy")
+connect_recording_client!
+Link.index_name("ws85-link")
+
 # Message-IDs embed the host name; pin it so goldens don't record the machine they ran on.
 require "socket"
 Socket.singleton_class.prepend(Module.new { def gethostname = "mail-host.example" })
@@ -169,6 +174,9 @@ ensure
 end
 
 
+# The Elasticsearch requests of the case, as the client put them on the wire, with the answers (minus the timing).
+def es_exchanges = EsProxy.log.map { _1.except("response").merge("response" => JSON.parse(_1["response"]).except("took")) }
+
 def record_message(name, mailer, method, args, features: {}, redis: {}, rands: [], meta: {})
   $delivered.clear
   $iv_seq = 0
@@ -181,6 +189,8 @@ def record_message(name, mailer, method, args, features: {}, redis: {}, rands: [
   statements = nil
   delivery_statements = nil
   result = nil
+  EsProxy.log.clear
+  EsProxy.on = true
   SidekiqExecutor.perform do
     statements = capture_sql do
       delivery = mailer.public_send(method, *args)
@@ -189,6 +199,7 @@ def record_message(name, mailer, method, args, features: {}, redis: {}, rands: [
     # EmailDeliveryObserver's CustomerEmailInfo write happens after the SMTP hand-off.
     delivery_statements = capture_sql { result = delivery.deliver_now }
   end
+  EsProxy.on = false
   {
     **meta,
     "name" => name,
@@ -197,6 +208,7 @@ def record_message(name, mailer, method, args, features: {}, redis: {}, rands: [
     "job_args" => ActiveJob::Arguments.serialize(args),
     "statements" => statements,
     "delivery_statements" => delivery_statements,
+    "es" => es_exchanges,
     "features" => features.keys,
     "redis_before" => redis,
     "rands_used" => $rands_used.dup,
@@ -224,11 +236,12 @@ end
 
 # --- fixtures --------------------------------------------------------------------------------------
 TABLES = %w[users links purchases subscriptions url_redirects purchase_presentments calls refunds prices charges charge_purchases orders order_purchases
-            customer_email_infos email_infos product_files thumbnails gifts preorders base_variants base_variants_purchases purchase_custom_fields purchase_refund_policies tips product_files].freeze
+            customer_email_infos email_infos product_files thumbnails gifts preorders base_variants base_variants_purchases purchase_custom_fields purchase_refund_policies tips cached_sales_related_products_infos bundle_products product_review_stats active_storage_attachments active_storage_blobs asset_previews custom_domains offer_codes variant_categories affiliates].freeze
 def reset!
   conn = ActiveRecord::Base.connection
   TABLES.each { |t| conn.execute("DELETE FROM #{t}") if conn.table_exists?(t) }
   $redis.flushdb
+  Link.__elasticsearch__.create_index!(force: true)
   $rands.clear
   $rands_used.clear
   $iv_seq = 0
@@ -271,9 +284,6 @@ messages = []
 errors = []
 refused = []
 
-# The scratch Elasticsearch has no products mapping. Receipts of sellers that recommend products are refused
-# by the port, so what the search returns only has to let Rails finish rendering them.
-RecommendedProducts::CheckoutService.prepend(Module.new { def search_products(*) = { products: Link.none } })
 
 def insert_variant(id:, link_id:, name:)
   Variant.insert!({ id:, name:, link_id:, variant_category_id: nil, type: "Variant", created_at: FIXED_NOW, updated_at: FIXED_NOW })
@@ -383,7 +393,6 @@ def refuse(refused, name, **setup_args)
 end
 
 PRICE = { price_cents: 500, total_transaction_cents: 500, displayed_price_cents: 500 }.freeze
-refuse(refused, "recommending_seller", seller: { recommendation_type: "own_products" }, purchase: PRICE)
 refuse(refused, "rental", purchase: PRICE.merge(flags: 16384))
 refuse(refused, "bundle", purchase: PRICE.merge(flags: 33_554_432), link: { flags: 33_554_432 })
 refuse(refused, "licensed", link: { flags: 64 }, purchase: PRICE)
@@ -405,6 +414,136 @@ setup(purchase: PRICE)
 PurchaseCustomField.insert!({ purchase_id: 401, field_type: "text", name: "Site", value: "see https://example.com", created_at: FIXED_NOW, updated_at: FIXED_NOW })
 refused << record_message("receipt_auto_linked_field", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
 
+
+# --- Recommended products (WS-85) ---------------------------------------------------------------------------------
+# A seller who recommends their own products: the receipt runs RecommendedProducts::CheckoutService, the related-sales
+# cache and an Elasticsearch search. The index is rebuilt from the rows, so seed everything, then `recommend!`.
+def recommend!
+  Link.find_each { _1.__elasticsearch__.index_document }
+  EsClient.indices.refresh(index: Link.index_name)
+end
+
+def insert_price(link_id:, price_cents:, currency: "usd", recurrence: nil, **attrs)
+  Price.insert!({ link_id:, price_cents:, currency:, recurrence:, created_at: FIXED_NOW, updated_at: FIXED_NOW, **attrs })
+end
+
+def cache_related(product_id, counts)
+  CachedSalesRelatedProductsInfo.insert!({ product_id:, counts: counts.transform_keys(&:to_s), created_at: FIXED_NOW, updated_at: FIXED_NOW })
+end
+
+# Link flag 17, display_product_reviews
+REVIEWS = { flags: 65_536 }.freeze
+OWN = { recommendation_type: "own_products" }.freeze
+
+def recommending(name, purchase: PRICE, seller: {}, link: {}, buyer: false, features: {}, into: nil)
+  setup(seller: OWN.merge(seller), link:, purchase: purchase.merge(buyer ? { purchaser_id: 202 } : {}))
+  insert_user(id: 202, email: "buyer@example.com", username: "buyer") if buyer
+  yield
+  recommend!
+  record_message("receipt_#{name}", CustomerMailer, :receipt, [401], features:, meta: seed_mailer_level(201, :cache, :level_1))
+end
+
+def other_products(*ids, **attrs)
+  ids.each do |id|
+    insert_link(id:, user_id: 201, name: "Other #{id}", **attrs)
+    insert_price(link_id: id, price_cents: 100 * (id - 300))
+  end
+end
+
+# Nothing else to recommend: the search comes back empty and the section is absent.
+messages << recommending("rec_no_other_products") {}
+# The creator's other products, in the search's order.
+messages << recommending("rec_creator_featured") { other_products(302, 303) }
+messages << recommending("rec_creator_featured_cap", buyer: false) { other_products(302, 303, 304, 305, 306, 307) }
+messages << recommending("rec_signed_in_buyer", buyer: true) { other_products(302, 303) }
+# Sold alongside this product: the cache's counts, highest first (ties by product id, descending).
+messages << recommending("rec_co_purchase") do
+  other_products(302, 303)
+  cache_related(301, { 302 => 5, 303 => 2 })
+end
+messages << recommending("rec_co_purchase_full") do
+  other_products(302, 303, 304, 305, 306)
+  cache_related(301, { 302 => 5, 303 => 5, 304 => 5, 305 => 1, 306 => 9 })
+end
+messages << recommending("rec_co_purchase_mixed") do
+  other_products(302, 303, 304)
+  cache_related(301, { 303 => 4 })
+end
+# Cached ids that are another seller's, deleted, archived or the purchased product itself drop out.
+messages << recommending("rec_co_purchase_filtered") do
+  other_products(302, 303)
+  insert_user(id: 203, email: "other@example.com", username: "other")
+  insert_link(id: 304, user_id: 203, name: "Not theirs")
+  insert_link(id: 305, user_id: 201, name: "Deleted", deleted_at: FIXED_NOW)
+  insert_link(id: 306, user_id: 201, name: "Archived", flags: 16)
+  cache_related(301, { 302 => 3, 304 => 8, 305 => 7, 306 => 6, 301 => 9, 303 => 1 })
+end
+messages << recommending("rec_signed_in_buyer_history", buyer: true) do
+  other_products(302, 303, 304)
+  insert_purchase(id: 402, link_id: 302, seller_id: 201, purchaser_id: 202, succeeded_at: FIXED_NOW - 2.days)
+  cache_related(301, { 302 => 3, 303 => 2, 304 => 1 })
+end
+# Card details: ratings, pay-what-you-want, another currency, a missing price row, a one-time price row.
+messages << recommending("rec_card_details") do
+  other_products(302, 303, 304, 305)
+  Link.where(id: 302).update_all(flags: 65_536)
+  ProductReviewStat.insert!({ link_id: 302, reviews_count: 1234, average_rating: 4.5, created_at: FIXED_NOW, updated_at: FIXED_NOW })
+  Link.where(id: 303).update_all(customizable_price: true)
+  Link.where(id: 304).update_all(price_currency_type: "eur")
+  Price.where(link_id: 304).update_all(currency: "eur")
+  Price.where(link_id: 305).delete_all
+end
+messages << recommending("rec_ratings_rounding") do
+  other_products(302, 303, 304)
+  Link.where(id: [302, 303, 304]).update_all(flags: 65_536)
+  ProductReviewStat.insert_all!([
+    { link_id: 302, reviews_count: 999, average_rating: 3.0, created_at: FIXED_NOW, updated_at: FIXED_NOW },
+    { link_id: 303, reviews_count: 15_300, average_rating: 4.75, created_at: FIXED_NOW, updated_at: FIXED_NOW },
+    { link_id: 304, reviews_count: 0, average_rating: 0.0, created_at: FIXED_NOW, updated_at: FIXED_NOW },
+  ])
+end
+messages << recommending("rec_html_names") do
+  insert_link(id: 302, user_id: 201, name: "Tom & Jerry's <Guide>", custom_permalink: "tom-jerry")
+  insert_price(link_id: 302, price_cents: 250)
+end
+messages << recommending("rec_physical_and_free_purchase", purchase: PRICE.merge(price_cents: 0, total_transaction_cents: 0, displayed_price_cents: 0)) { other_products(302) }
+
+# Shapes the port hands back: the preloads or the card they need are not ported.
+def refuse_recommending(refused, name, buyer: false, seller: {}, link: {}, &seed)
+  refused << recommending(name, buyer:, seller:, link:, &seed)
+end
+refuse_recommending(refused, "rec_affiliates_seller", seller: { recommendation_type: "gumroad_affiliates_products" }) { other_products(302) }
+refuse_recommending(refused, "rec_directly_affiliated_seller", seller: { recommendation_type: "directly_affiliated_products" }) { other_products(302) }
+refuse_recommending(refused, "rec_thumbnail") do
+  other_products(302)
+  ActiveRecord::Base.connection.execute("INSERT INTO thumbnails (product_id, created_at, updated_at) VALUES (302, NOW(), NOW())")
+end
+refuse_recommending(refused, "rec_variant_category") do
+  other_products(302)
+  VariantCategory.insert!({ link_id: 302, title: "Version" })
+end
+refuse_recommending(refused, "rec_auto_apply_sale") do
+  other_products(302)
+  OfferCode.insert!({ user_id: 201, name: "Sale", code: "sale", amount_percentage: 10, universal: true, auto_apply: true, created_at: FIXED_NOW, updated_at: FIXED_NOW })
+end
+refuse_recommending(refused, "rec_membership") do
+  other_products(302)
+  Link.where(id: 302).update_all(flags: 2 | 262_144, native_type: "membership")
+end
+refuse_recommending(refused, "rec_sold_out_limit") do
+  other_products(302)
+  Link.where(id: 302).update_all(max_purchase_count: 5)
+end
+refuse_recommending(refused, "rec_bundle") do
+  other_products(302)
+  Link.where(id: 302).update_all(flags: 33_554_432)
+end
+# Four ids to associate (this product and three bought): Rails samples half of them at random.
+refuse_recommending(refused, "rec_sampled_associations", buyer: true) do
+  other_products(302, 303, 304, 305)
+  [302, 303, 304].each_with_index { |link_id, i| insert_purchase(id: 410 + i, link_id:, seller_id: 201, purchaser_id: 202, succeeded_at: FIXED_NOW - (i + 1).days) }
+end
+
 # Errors.
 reset!
 errors << record_error("receipt_missing_purchase", CustomerMailer, :receipt, [404])
@@ -418,6 +557,8 @@ def record_job(name, args, features: {}, meta: {})
   features.each_key { Feature.activate(_1) }
   error = nil
   statements = nil
+  EsProxy.log.clear
+  EsProxy.on = true
   SidekiqExecutor.perform do
     statements = capture_sql do
       SendPurchaseReceiptJob.new.perform(*args)
@@ -430,6 +571,7 @@ def record_job(name, args, features: {}, meta: {})
     "name" => name,
     "args" => args,
     "statements" => statements,
+    "es" => (EsProxy.on = false; es_exchanges),
     "error" => error,
     "features" => features.keys,
     "rands_used" => $rands_used.dup,
@@ -462,6 +604,8 @@ jobs << record_job("job_without_url_redirect", [401], meta: seed_mailer_level(20
 job_setup(purchase: PRICE)
 jobs << record_job("job_missing_purchase", [404])
 job_setup(purchase: PRICE, seller: { recommendation_type: "own_products" })
+other_products(302, 303)
+recommend!
 jobs << record_job("job_recommending_seller", [401], meta: seed_mailer_level(201, :cache, :level_1))
 job_setup(purchase: PRICE)
 ProductFile.insert!({ link_id: 301, url: "https://example.com/a.pdf", filetype: "pdf", flags: 16, created_at: FIXED_NOW, updated_at: FIXED_NOW })

@@ -126,7 +126,7 @@ export function assertSupported(data: ReceiptData): void {
   if (purchase.displayed_price_currency_type !== "usd" || link.price_currency_type !== "usd") refuse(`a purchase priced in ${String(purchase.displayed_price_currency_type)}`);
   if ((purchase.tax_cents ?? 0) > 0 || (purchase.gumroad_tax_cents ?? 0) > 0) refuse("a taxed purchase");
   if (!SUPPORTED_NATIVE_TYPES.includes(link.native_type ?? "")) refuse(`a ${String(link.native_type)} product`);
-  if (seller.recommendation_type !== "no_recommendations") refuse("a seller whose receipts recommend products (Elasticsearch)");
+  if (!["no_recommendations", "own_products"].includes(seller.recommendation_type ?? "")) refuse(`a seller with recommendation type ${String(seller.recommendation_type)}`);
   if (isBlank(displayName(seller))) refuse("a seller without a display name");
 }
 

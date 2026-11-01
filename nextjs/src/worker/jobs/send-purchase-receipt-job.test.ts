@@ -3,7 +3,7 @@
 // must match; a case the port hands back must have sent and written nothing.
 import { readFileSync } from "node:fs";
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { HandBackToRuby } from "../../server/jobs/hand-back.ts";
 import { createJobsRuntime } from "../../server/jobs/runtime.ts";
@@ -11,6 +11,7 @@ import type { JsonValue } from "../../server/jobs/sidekiq/ruby-json.ts";
 import { goldenRouter, useGoldenEnvironment } from "../../server/mail/__fixtures__/application-mailer-golden.ts";
 import type { ComposedMail } from "../../server/mail/compose.ts";
 import { asSidekiqJob, contextFor, recordingSidekiqRedis, sequentialJids } from "./__fixtures__/golden.ts";
+import { setEsSender } from "../../server/search/transport.ts";
 import { type Statement, sqlReplay } from "./__fixtures__/sql-replay.ts";
 import { sendPurchaseReceiptJobWith } from "./send-purchase-receipt-job.ts";
 
@@ -25,6 +26,7 @@ type JobCase = {
   delivered: { encoded: string; envelope_to: string[]; settings: { address: string; domain: string; password: string } }[];
   stamp_jobs: string[];
   email_infos: unknown[];
+  es: { body: string; status: number; response: Record<string, unknown> }[];
 };
 const golden = JSON.parse(readFileSync(new URL("../../server/mail/__fixtures__/receipt-mailer.golden.json", import.meta.url), "utf8")) as {
   now: string;
@@ -33,7 +35,7 @@ const golden = JSON.parse(readFileSync(new URL("../../server/mail/__fixtures__/r
 };
 
 // The jobs Rails hands to Node's replay of Rails' own decision, not to Node's.
-const HANDED_BACK = ["job_recommending_seller", "job_stampable_pdf"];
+const HANDED_BACK = ["job_stampable_pdf"];
 
 let restore: () => void;
 const savedEnv: Record<string, string | undefined> = {};
@@ -55,11 +57,22 @@ afterAll(() => {
 // Date, Message-ID and boundary are random on both sides.
 const stable = (encoded: string) => encoded.replace(/^(Date|Message-ID): .*$/gmu, "$1: x").replace(/--==_mimepart_[\w-]+/gu, "B");
 
+let restoreEs: (() => void) | undefined;
+afterEach(() => restoreEs?.());
+
 describe("SendPurchaseReceiptJob", () => {
   for (const c of golden.cases.jobs) {
     it(c.name, async () => {
       const now = new Date(golden.now);
       const sql = sqlReplay(c.statements);
+      const sentToEs: string[] = [];
+      const queue = [...c.es];
+      restoreEs = setEsSender(async (request) => {
+        sentToEs.push(String(request.body));
+        const next = queue.shift();
+        if (!next) throw new Error(`unexpected Elasticsearch request ${request.method} ${request.path}`);
+        return { status: next.status, body: next.response };
+      });
       const sent: ComposedMail[] = [];
       const recording = recordingSidekiqRedis();
       const runtime = createJobsRuntime({ sidekiqRedis: recording.redis, bullmqRedis: recording.redis, now: () => now.getTime() / 1000, newJid: sequentialJids() });
@@ -97,6 +110,7 @@ describe("SendPurchaseReceiptJob", () => {
       }
 
       expect(sql.log).toEqual(sql.expected);
+      expect(sentToEs).toEqual(c.es.map((exchange) => exchange.body));
       if (c.error) {
         expect((error as Error).message).toBe(c.error.message);
       } else {
