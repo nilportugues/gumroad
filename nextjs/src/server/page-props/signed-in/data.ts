@@ -1,9 +1,9 @@
 // The compliance and time zone rules the signed-in shared props use, over data dumped from Ruby
-// (scripts/dump-signed-in-data.rb). Superseded by the country port once WS-52 lands.
+// (scripts/dump-signed-in-data.rb).
+import { alpha2ByName } from "../../models/compliance-countries.ts";
 import DATA from "./signed-in-data.generated.json" with { type: "json" };
 import type { ComplianceInfoRow } from "./reads.ts";
 
-const NAMES: Record<string, string> = DATA.names;
 const SUPPORTED_COUNTRIES = new Set<string>(DATA.supported);
 const PAYPAL_PAYOUT_RECEIVING = new Set<string>(DATA.paypalPayoutReceiving);
 const US_OUTLYING_AREAS = new Set<string>(DATA.usOutlyingAreas);
@@ -15,7 +15,7 @@ const GUARDIAN_REQUIRED_BELOW_AGE = 18;
 const GUARDIAN_SUPPORTED_COUNTRIES = new Set(["US"]);
 
 // Compliance::Countries.find_by_name(name)&.alpha2
-export const countryAlpha2 = (name: string | null | undefined): string | null => (!name || name.trim() === "" ? null : (NAMES[name.toLowerCase()] ?? null));
+export const countryAlpha2 = alpha2ByName;
 
 const isBusiness = (info: ComplianceInfoRow) => Boolean(info.is_business);
 

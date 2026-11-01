@@ -29,6 +29,12 @@ describe("compliance rules", () => {
     expect(countryAlpha2("Atlantis")).toBeNull();
   });
 
+  it("matches names the way Compliance::Countries.find_by_name normalizes them", () => {
+    expect(countryAlpha2("Cote d'Ivoire")).toBe("CI");
+    expect(countryAlpha2("Curacao")).toBe("CW");
+    expect(countryAlpha2("Korea Republic of")).toBe("KR");
+  });
+
   it("uses the business country for a business and falls back to the individual's", () => {
     expect(legalEntityCountryCode(info({ is_business: true, business_country: "Canada" }))).toBe("CA");
     expect(legalEntityCountryCode(info({ is_business: true, business_country: null, country: "Japan" }))).toBe("JP");
