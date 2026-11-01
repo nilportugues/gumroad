@@ -11,7 +11,7 @@
 // Golden: __fixtures__/subscription-reminder-jobs.golden.json (scripts/golden/subscription-reminder-jobs.rb).
 import { Prisma, type BasePrice, type Link, type PaymentOption, type Purchase, type Subscription, type User } from "@prisma/client";
 
-import { beforeSideEffects } from "../../server/jobs/hand-back.ts";
+import { beforeSideEffects, HandBackToRuby } from "../../server/jobs/hand-back.ts";
 import type { JsonValue } from "../../server/jobs/sidekiq/ruby-json.ts";
 import { deliverLater } from "../../server/mail/active-job.ts";
 import { mailRoute } from "../../server/mail/delivery.ts";
@@ -258,7 +258,8 @@ export const findSubscriptionsWithMissingChargeWorkerWith = (overrides: Partial<
         },
       );
     } catch (error) {
-      if (error instanceof Error && error.name === "NotPortedError") throw error;
+      // judgeBatch wraps its reads in beforeSideEffects, so a refusal arrives here as HandBackToRuby.
+      if (error instanceof HandBackToRuby || (error instanceof Error && error.name === "NotPortedError")) throw error;
       await flush();
       throw error;
     }
