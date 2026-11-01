@@ -23,7 +23,7 @@ import { notifySellerOfNewComment } from "./mailers/comment-mailer.ts";
 import { communityChatRecapNotification } from "./mailers/community-chat-recap-mailer.ts";
 import { notify as internalNotification } from "./mailers/internal-notification-mailer.ts";
 import { marketingXReconnect } from "./mailers/creator-mailer.ts";
-import { paypalPurchaseFailed, subscriptionMagicLink } from "./mailers/customer-mailer.ts";
+import { filesReadyForDownload, partialRefund, paypalPurchaseFailed, refund, subscriptionMagicLink } from "./mailers/customer-mailer.ts";
 import { receiverSignedUp } from "./mailers/invite-mailer.ts";
 import { authenticationToken } from "./mailers/two-factor-authentication-mailer.ts";
 import { confirmationInstructions, type DeviseMailOptions, emailChanged, type SignupMailUser } from "./mailers/user-signup-mailer.ts";
@@ -62,6 +62,12 @@ function deviseOptions(argument: RubyValue | undefined): DeviseMailOptions {
 const integerArgument = (value: RubyValue | undefined): number | bigint => {
   if (typeof value === "number" || typeof value === "bigint") return value;
   throw new MailJobArgumentsError(`expected an Integer argument, got ${JSON.stringify(value)}`);
+};
+
+const optionalString = (value: RubyValue | undefined): string | null => {
+  if (value === null) return null;
+  if (typeof value === "string") return value;
+  throw new MailJobArgumentsError(`expected a String argument, got ${JSON.stringify(value)}`);
 };
 
 // A call with only keyword arguments: one keyword hash whose keys are exactly `names`.
@@ -103,6 +109,29 @@ const NODE_MAILERS: Record<string, Record<string, MailerMethod>> = {
     marketing_x_reconnect: (args, deps) => marketingXReconnect(integerArgument(keywords(args, ["marketing_action_id"]).marketing_action_id), deps),
   },
   CustomerMailer: {
+    refund: (args, deps) => {
+      const [email, linkId, purchaseId, ...rest] = args;
+      if (rest.length > 0 || args.length < 3) return Promise.reject(new MailJobArgumentsError("arity"));
+      return refund(optionalString(email), integerArgument(linkId), purchaseId === null ? null : integerArgument(purchaseId), args, deps);
+    },
+    partial_refund: (args, deps) => {
+      const [email, linkId, purchaseId, refundAmountCentsUsd, refundType, presentmentCents = null, presentmentCurrency = null, ...rest] = args;
+      if (rest.length > 0 || args.length < 5 || typeof refundType !== "string") return Promise.reject(new MailJobArgumentsError("arity"));
+      return partialRefund(
+        {
+          email: optionalString(email),
+          linkId: integerArgument(linkId),
+          purchaseId: purchaseId === null ? null : integerArgument(purchaseId),
+          refundAmountCentsUsd: integerArgument(refundAmountCentsUsd),
+          refundType,
+          presentmentRefundAmountCents: presentmentCents === null ? null : integerArgument(presentmentCents),
+          presentmentRefundCurrency: optionalString(presentmentCurrency),
+        },
+        args,
+        deps,
+      );
+    },
+    files_ready_for_download: (args, deps) => (args.length === 1 ? filesReadyForDownload(integerArgument(args[0]), args, deps) : Promise.reject(new MailJobArgumentsError("arity"))),
     subscription_magic_link: ([subscriptionId, email, ...rest], deps) => {
       if (rest.length > 0 || typeof email !== "string") return Promise.reject(new MailJobArgumentsError("arity"));
       return subscriptionMagicLink(integerArgument(subscriptionId), email, [subscriptionId, email], deps);

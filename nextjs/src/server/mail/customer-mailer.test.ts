@@ -8,6 +8,7 @@ import type { MailerLevel } from "./mailer-info.ts";
 import { composeMail } from "./compose.ts";
 import { renderNodeMailer } from "./delivery.ts";
 import { deserializeArgument } from "./ruby-value.ts";
+import { MailViewNotPortedError } from "./views.ts";
 import type { JsonValue } from "../jobs/sidekiq/ruby-json.ts";
 import type { Statement } from "../../worker/jobs/__fixtures__/sql-replay.ts";
 
@@ -16,7 +17,7 @@ type ErrorCase = { name: string; mailer: string; method: string; job_args: JsonV
 const golden = JSON.parse(readFileSync(new URL("__fixtures__/customer-mailer.golden.json", import.meta.url), "utf8")) as {
   now: string;
   secrets: Record<string, string>;
-  cases: { messages: CustomerCase[]; errors: ErrorCase[] };
+  cases: { messages: CustomerCase[]; errors: ErrorCase[]; refused: CustomerCase[] };
 };
 
 let restore: () => void;
@@ -52,10 +53,18 @@ describe("CustomerMailer", () => {
     });
   }
 
+  // Rails sends these, but through Money formatting and Stripe currency rules the port does not have.
+  for (const c of golden.cases.refused) {
+    it(`leaves ${c.method} (${c.name}) to Rails`, async () => {
+      sqlReplay(c.statements);
+      await expect(renderNodeMailer(c.mailer, c.method, c.job_args.map(deserializeArgument), { router: goldenRouter({ features: [], redis: {}, rands: [] }), mailerLevel: async () => "level_1" })).rejects.toBeInstanceOf(MailViewNotPortedError);
+    });
+  }
+
   for (const c of golden.cases.errors) {
     it(`fails ${c.method} (${c.name}) with Rails' error`, async () => {
       const replay = sqlReplay(c.statements);
-      await expect(renderNodeMailer(c.mailer, c.method, c.job_args.map(deserializeArgument), { mailerLevel: async () => null })).rejects.toThrow(c.error.message);
+      await expect(renderNodeMailer(c.mailer, c.method, c.job_args.map(deserializeArgument), { mailerLevel: async () => "level_1" })).rejects.toThrow(c.error.message);
       expect(replay.log).toEqual(replay.expected);
     });
   }

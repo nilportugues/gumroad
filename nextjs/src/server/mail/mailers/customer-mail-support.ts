@@ -8,6 +8,9 @@ import { RubySymbol } from "../../cache/marshal.ts";
 import { INVALID_NAME_FOR_EMAIL_DELIVERY_REGEX } from "../../models/user.ts";
 import { type MailerDeps } from "../application-mailer.ts";
 import { type DeliveryMethodOptions, type MailerLevel, mailDomains, randomDeliveryMethodOptions } from "../mailer-info.ts";
+import { formattedDollarAmount } from "../../models/concerns/currency-helper.ts";
+import { rubyJsonParse } from "../../models/concerns/serialized-columns.ts";
+import { linkTo } from "../view-helpers.ts";
 import { MailViewNotPortedError } from "../views.ts";
 
 export type UserRow = {
@@ -27,6 +30,7 @@ export type LinkRow = {
   unique_permalink: string | null;
   custom_permalink: string | null;
   support_email: string | null;
+  json_data: string | null;
 };
 
 const MAILER_LEVEL_KEY = (userId: number | bigint) => `creator_mailer_level_${String(userId)}`;
@@ -85,4 +89,48 @@ export function productLongUrl(link: LinkRow, user: UserRow): string {
   const username = sellerUsername(user);
   const host = isBlank(username) ? `${protocol}://${domain}` : `${protocol}://${username!.replaceAll("_", "-")}.${rootDomain}`;
   return `${host}/l/${permalink}`;
+}
+
+// CurrencyHelper#formatted_price("usd", cents): Money with no_cents_if_whole. Other currencies go through
+// CURRENCY_CHOICES symbols and Money's per-currency rules, which are not ported.
+export function formattedUsdPrice(cents: number | bigint | null): string {
+  return formattedDollarAmount(cents ?? 0);
+}
+
+// CurrencyHelper#format_just_price_in_cents for a USD amount.
+export function formatJustUsdPriceInCents(cents: number | bigint | null): string {
+  const price = formattedUsdPrice(cents);
+  return price === "$0.99" ? "99¢" : price;
+}
+
+// ProductsHelper#view_content_button_text: json_data's custom text, else "View content".
+export function viewContentButtonText(link: Pick<LinkRow, "json_data">): string {
+  return jsonDataString(link.json_data, "custom_view_content_button_text") ?? "View content";
+}
+
+// A String attribute of a serialized json_data column, nil when blank. Another type is refused:
+// Ruby would call `presence` and print whatever `to_s` gives.
+export function jsonDataString(raw: string | null, key: string): string | null {
+  if (raw === null || isBlank(raw)) return null;
+  const parsed = rubyJsonParse(raw);
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) throw new MailViewNotPortedError("json_data that is not an object");
+  const value = (parsed as Record<string, unknown>)[key];
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "string") throw new MailViewNotPortedError(`json_data ${key} that is not a string`);
+  return isBlank(value) ? null : value;
+}
+
+// shared/_download_button.html.erb for a purchase that is not a rental: one "button primary" link.
+export function downloadButton(label: string, url: string): string {
+  return `
+  <table class="reset" role="presentation" align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;display:table;">
+    <tbody style="width:100%;display:table-row-group;">
+      <tr style="width:100%;display:table-row;">
+        <td align="center" width="100%" style="width:100%;display:table-cell;">
+          ${linkTo(label, url, { class: "button primary", style: "display:inline-block;box-sizing:border-box;width:100%;" })}
+        </td>
+      </tr>
+    </tbody>
+  </table>
+`;
 }

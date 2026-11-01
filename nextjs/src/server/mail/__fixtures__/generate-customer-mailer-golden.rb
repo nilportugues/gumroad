@@ -164,6 +164,9 @@ end
 
 
 def record_message(name, mailer, method, args, features: {}, redis: {}, rands: [], meta: {})
+  $delivered.clear
+  $iv_seq = 0
+  $ivs_used.clear
   features.each_key { Feature.activate(_1) }
   redis.each { |k, v| $redis.set(k, v) }
   $rands.replace(rands)
@@ -249,7 +252,7 @@ def seed_mailer_level(user_id, via, level)
 end
 
 # Warm the schema cache so the recorded statements are the mailers' own.
-[User, Link, Purchase, Subscription, UrlRedirect].each { _1.columns; _1.first }
+[User, Link, Purchase, Subscription, UrlRedirect, PurchasePresentment, Price].each { _1.columns; _1.first }
 SidekiqExecutor.perform { User.first; User.transaction { User.first } }
 
 messages = []
@@ -292,6 +295,90 @@ end
 reset!
 errors << record_error("magic_link_missing_subscription", CustomerMailer, :subscription_magic_link, [404, "buyer@example.com"])
 
-cases = { "messages" => messages, "errors" => errors }
+# CustomerMailer#files_ready_for_download
+def insert_url_redirect(id:, purchase_id:, link_id:, **attrs)
+  UrlRedirect.insert!({ id:, purchase_id:, link_id:, token: "tok#{id}abcdef", created_at: FIXED_NOW, updated_at: FIXED_NOW, **attrs })
+end
+
+[
+  ["files_ready_default", { name: "Seller Name" }, {}, {}, {}],
+  ["files_ready_button_text", { name: "Seller Name" }, { json_data: { "custom_view_content_button_text" => "Get <it> now" } }, {}, {}],
+  ["files_ready_link_support_email", { name: "Seller Name" }, { support_email: "link-support@example.com" }, {}, {}],
+  ["files_ready_user_support_email", { name: "Seller Name", support_email: "user-support@example.com" }, {}, {}, {}],
+  ["files_ready_colon_in_name", { name: "Seller: The Shop" }, {}, {}, {}],
+  ["files_ready_no_name", { name: nil }, {}, {}, {}],
+  ["files_ready_html_product", { name: "Seller Name" }, { name: "Tom & Jerry's <Guide>" }, {}, {}],
+  ["files_ready_resend", { name: "Seller Name" }, {}, { "resend" => true, "force_resend" => true }, {}],
+  ["files_ready_united_internet", { name: "Seller Name" }, {}, { "resend" => true, "force_resend" => true }, { email: "buyer@gmx.de" }],
+].each do |name, seller, link, features, purchase|
+  reset!
+  insert_user(id: 201, email: "seller@example.com", username: "seller", **seller)
+  insert_link(id: 301, user_id: 201, **link)
+  insert_purchase(id: 401, link_id: 301, seller_id: 201, **purchase)
+  insert_url_redirect(id: 601, purchase_id: 401, link_id: 301)
+  meta = seed_mailer_level(201, :cache, :level_1)
+  messages << record_message(name, CustomerMailer, :files_ready_for_download, [401], features:, meta:)
+end
+reset!
+insert_user(id: 201, email: "seller@example.com", username: "seller")
+insert_link(id: 301, user_id: 201)
+insert_purchase(id: 401, link_id: 301, seller_id: 201)
+seed_mailer_level(201, :cache, :level_1)
+errors << record_error("files_ready_no_url_redirect", CustomerMailer, :files_ready_for_download, [401])
+errors << record_error("files_ready_missing_purchase", CustomerMailer, :files_ready_for_download, [404])
+
+# CustomerMailer#refund and #partial_refund
+REFUND_CASES = [
+  ["default", { name: "Seller Name" }, {}, {}, { total_transaction_cents: 1234 }],
+  ["ninety_nine_cents", { name: "Seller Name" }, {}, {}, { total_transaction_cents: 99 }],
+  ["thousands", { name: "Seller Name" }, {}, {}, { total_transaction_cents: 123_456_789 }],
+  ["whole_dollars", { name: "Seller Name" }, {}, {}, { total_transaction_cents: 500 }],
+  ["html_product", { name: "Seller Name" }, { name: "Tom & Jerry's <Guide>" }, {}, { total_transaction_cents: 1234 }],
+  ["user_support_email", { name: "Seller Name", support_email: "user-support@example.com" }, {}, {}, { total_transaction_cents: 1234 }],
+  ["no_name", { name: nil }, {}, {}, { total_transaction_cents: 1234 }],
+  ["resend", { name: "Seller Name" }, {}, { "resend" => true, "force_resend" => true }, { total_transaction_cents: 1234 }],
+]
+REFUND_CASES.each do |name, seller, link, features, purchase|
+  reset!
+  insert_user(id: 201, email: "seller@example.com", username: "seller", **seller)
+  insert_link(id: 301, user_id: 201, **link)
+  insert_purchase(id: 401, link_id: 301, seller_id: 201, **purchase)
+  meta = seed_mailer_level(201, :cache, :level_1)
+  messages << record_message("refund_#{name}", CustomerMailer, :refund, ["buyer@example.com", 301, 401], features:, meta:)
+  messages << record_message("partial_refund_#{name}", CustomerMailer, :partial_refund, ["buyer@example.com", 301, 401, 250, "partially"], features:, meta:)
+end
+reset!
+insert_user(id: 201, email: "seller@example.com", username: "seller", name: "Seller Name")
+insert_link(id: 301, user_id: 201)
+insert_purchase(id: 401, link_id: 301, seller_id: 201, total_transaction_cents: 1234)
+seed_mailer_level(201, :cache, :level_1)
+messages << record_message("partial_refund_whole_amount", CustomerMailer, :partial_refund, ["buyer@gmx.de", 301, 401, 1000, "<fully> & more"], features: { "resend" => true, "force_resend" => true }, meta: seed_mailer_level(201, :cache, :level_1))
+reset!
+insert_user(id: 201, email: "seller@example.com", username: "seller", name: "Seller Name")
+insert_link(id: 301, user_id: 201)
+insert_purchase(id: 401, link_id: 301, seller_id: 201, total_transaction_cents: 1234)
+messages << record_message("partial_refund_ninety_nine", CustomerMailer, :partial_refund, ["buyer@example.com", 301, 401, 99, "partially"], meta: seed_mailer_level(201, :cache, :level_1))
+errors << record_error("refund_without_purchase", CustomerMailer, :refund, ["buyer@example.com", 301, nil])
+errors << record_error("refund_missing_link", CustomerMailer, :refund, ["buyer@example.com", 404, 401])
+errors << record_error("refund_missing_purchase", CustomerMailer, :refund, ["buyer@example.com", 301, 404])
+errors << record_error("partial_refund_without_purchase", CustomerMailer, :partial_refund, ["buyer@example.com", 301, nil, 250, "partially"])
+# The buyer-currency (presentment) wording and non-USD products format money through Money/CURRENCY_CHOICES, which Node does not port.
+reset!
+insert_user(id: 201, email: "seller@example.com", username: "seller", name: "Seller Name")
+insert_link(id: 301, user_id: 201)
+insert_purchase(id: 401, link_id: 301, seller_id: 201, total_transaction_cents: 1234)
+PurchasePresentment.insert!({ purchase_id: 401, presentment_currency: "eur", presentment_gumroad_amount_cents: 100, presentment_price_cents: 1000, presentment_total_cents: 1100, processor: "stripe", created_at: FIXED_NOW, updated_at: FIXED_NOW })
+seed_mailer_level(201, :cache, :level_1)
+refused = []
+refused << record_message("refund_presentment", CustomerMailer, :refund, ["buyer@example.com", 301, 401], meta: seed_mailer_level(201, :cache, :level_1))
+refused << record_message("partial_refund_presentment", CustomerMailer, :partial_refund, ["buyer@example.com", 301, 401, 250, "partially", 220, "eur"], meta: seed_mailer_level(201, :cache, :level_1))
+reset!
+insert_user(id: 201, email: "seller@example.com", username: "seller", name: "Seller Name")
+insert_link(id: 301, user_id: 201, price_currency_type: "eur")
+insert_purchase(id: 401, link_id: 301, seller_id: 201, total_transaction_cents: 1234, displayed_price_currency_type: "eur", rate_converted_to_usd: "1.2")
+refused << record_message("refund_euro", CustomerMailer, :refund, ["buyer@example.com", 301, 401], meta: seed_mailer_level(201, :cache, :level_1))
+refused << record_message("partial_refund_euro", CustomerMailer, :partial_refund, ["buyer@example.com", 301, 401, 250, "partially"], meta: seed_mailer_level(201, :cache, :level_1))
+
+cases = { "messages" => messages, "errors" => errors, "refused" => refused }
 File.write(File.join(FIXTURES, "customer-mailer.golden.json"), JSON.pretty_generate({ "now" => FIXED_NOW.iso8601, "secrets" => SMTP_SECRETS, "cases" => cases }) + "\n")
 puts "wrote #{messages.size} messages, #{errors.size} errors"
