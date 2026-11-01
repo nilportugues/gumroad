@@ -35,3 +35,11 @@ declare namespace React {
 
 declare const SSR: boolean;
 declare const Routes: typeof import("../lib/navigation/routes");
+
+// Vite hands images imported through `$assets` over as URL strings, as app/javascript/types/assets.d.ts
+// declares; next/image-types/global declares `*.png` first, as StaticImageData, so the more specific
+// pattern keeps the shared components type-checking against what they receive at runtime.
+declare module "$assets/*.png" {
+  const value: string;
+  export default value;
+}

@@ -48,8 +48,10 @@ import {
 } from "./signed-in-filters.ts";
 import { isPresent, queryParam, type RailsRequest, railsRequest } from "./rails-request.ts";
 
-// `inertia`: rendered by inertia_rails, which appends X-Inertia to Vary.
-export type Rendered = { status: number; body: string; contentType: string; inertia?: boolean; headers?: Record<string, string> };
+// `inertia`: rendered by inertia_rails, which appends X-Inertia to Vary. `rescued`: a before_action
+// halted with it, so the after_actions (XSRF-TOKEN) did not run. `paramsRead`: the controller read
+// params, so Request#should_apply_vary_header? no longer adds Vary: Accept.
+export type Rendered = { status: number; body: string; contentType: string; inertia?: boolean; headers?: Record<string, string>; rescued?: boolean; paramsRead?: boolean };
 // redirect_to from the action. `rescued`: from a rescue_from handler, which skips the after_actions.
 // `flash`: what the action put in flash[:alert] and friends before redirecting.
 export type Redirected = { status: number; location: string; rescued?: boolean; flash?: Record<string, string> };
@@ -65,7 +67,22 @@ export class RoutingError extends Error {}
 
 export type BeforeAction = "redirect_to_custom_subdomain";
 
-export type ActionOptions = { skip?: BeforeAction[] };
+// The request is one Rails serves: the port cannot prove what it would answer, so the whole request
+// goes to Rails instead of a guess.
+export class HandBackToRails extends Error {}
+
+export type FilterOutcome = { halt: ActionResult } | { state: Record<string, unknown> };
+
+export type ActionOptions = {
+  skip?: BeforeAction[];
+  // Devise's `prepend_before_action`s, which run ahead of every ApplicationController filter and so
+  // before the session is checked or the host redirected. A redirect answers with the session
+  // cookie only: debug_headers has not run yet.
+  prepended?: (chain: Chain) => Promise<Redirected | ForceRefresh | null>;
+  // The controller's own before_actions and the start of its action, after ApplicationController's.
+  // `state` reaches the page's props (ActionContext.state).
+  filters?: (chain: Chain) => Promise<FilterOutcome>;
+};
 
 // What the session contributes to rendering an Inertia page: its CSRF token, the flash and
 // inertia_errors it carries (both are consumed by the render) and two flags shared props read.
@@ -78,6 +95,8 @@ export type RenderState = {
   // session[:prompt_passkey_setup]: the user id LoginsController marked at sign-in.
   promptPasskeySetup: unknown;
   clearHistory: boolean;
+  // What the controller's filters worked out for the action (FilterOutcome.state).
+  pageState?: Record<string, unknown>;
 };
 
 export type ActionContext = {
@@ -237,6 +256,7 @@ export type Chain = {
   cookies: string[];
   // sign_out cleared the session, so the CSRF token it held is gone.
   sessionCleared: boolean;
+  pageState: Record<string, unknown>;
 };
 
 const isHash = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
@@ -258,6 +278,7 @@ export function takeRenderState(chain: Chain): RenderState {
     mobileAppWebView: data.mobile_app_web_view,
     promptPasskeySetup: data.prompt_passkey_setup,
     clearHistory: data.inertia_clear_history === true,
+    pageState: chain.pageState,
   };
   if ("flash" in data) data.flash = null;
   delete data.inertia_errors;
@@ -278,7 +299,12 @@ export async function beforeActions(request: RailsRequest, options: ActionOption
   // Devise's rememberable strategy signs the visitor in by writing the session and the tracked
   // sign-in fields, which is Rails' to do: the proxy sends such requests there.
   if (auth.authenticatedVia === "remember_cookie") throw new NotPortedError("Devise's remember-cookie sign-in");
-  const chain: Chain = { request, now, headers, session, csrfToken, guid: null, auth, cookies: [], sessionCleared: false };
+  const chain: Chain = { request, now, headers, session, csrfToken, guid: null, auth, cookies: [], sessionCleared: false, pageState: {} };
+
+  if (options.prepended) {
+    const redirect = await options.prepended(chain);
+    if (redirect) return "forceRefresh" in redirect ? afterActions(chain, redirect) : haltWithoutDebugHeaders(chain, redirect);
+  }
 
   // verify_current_seller, then seed_dashboard_nav_items.
   if (auth.effects.clearCurrentSeller) chain.cookies.push(deleteCookieHeader(CURRENT_SELLER_COOKIE_NAME, { domain: allDomain(request.host) }));
@@ -309,7 +335,20 @@ export async function beforeActions(request: RailsRequest, options: ActionOption
   if (!RECOMMENDER_MODELS.includes(session.data.recommender_model_name as string)) {
     session.data.recommender_model_name = RECOMMENDER_MODELS[Math.floor(Math.random() * RECOMMENDER_MODELS.length)];
   }
+  if (options.filters) {
+    const outcome = await options.filters(chain);
+    if ("halt" in outcome) return afterActions(chain, outcome.halt);
+    chain.pageState = outcome.state;
+  }
   return chain;
+}
+
+// A redirect from a filter that runs before debug_headers: the session cookie and nothing else.
+function haltWithoutDebugHeaders(chain: Chain, redirect: Redirected): ControllerResponse {
+  const headers = new Headers({ location: redirectLocation(chain.request, redirect.location), "content-type": "text/html; charset=utf-8" });
+  commitSession({ ...chain, headers });
+  for (const cookie of chain.cookies) headers.append("set-cookie", cookie);
+  return { status: redirect.status, headers, body: "" };
 }
 
 // invalidate_session_if_necessary: Devise's sign_out (forget_me!, the remember cookie, the session),
@@ -357,13 +396,13 @@ export function afterActions(chain: Chain, result: ActionResult): ControllerResp
     for (const [name, value] of Object.entries(result.headers ?? {})) headers.set(name, value);
     // Vary: Accept is only added while the request's params were never read (Request#should_apply_vary_header?),
     // and an Inertia action always reads params[:slug] or the filters' query params.
-    const vary = [!result.inertia && shouldApplyVaryHeader(request) ? "Accept" : null, result.inertia ? "X-Inertia" : null]
+    const vary = [!result.inertia && !result.paramsRead && shouldApplyVaryHeader(request) ? "Accept" : null, result.inertia ? "X-Inertia" : null]
       .filter(Boolean)
       .join(", ");
     if (vary) headers.set("vary", vary);
   }
   if (chain.guid) headers.append("set-cookie", chain.guid);
-  if (!("location" in result && result.rescued)) {
+  if (!result.rescued) {
     headers.append("set-cookie", xsrfCookie(chain));
   }
   commitSession(chain);
@@ -495,6 +534,7 @@ export async function processAction(
     response = await runChain(request, options, action, now);
     applyEtag(request, response);
   } catch (error) {
+    if (error instanceof HandBackToRails) return forwardToRails(incoming);
     const status = error instanceof RoutingError ? 404 : 500;
     if (status === 500) notifyError(error);
     const page = publicException(request, status);
@@ -535,8 +575,10 @@ export async function pageEnvelope(incoming: Request, options: ActionOptions = {
     applyCorsVary(headers);
     return { headers, renderState };
   } catch (error) {
-    notifyError(error);
-    const page = publicException(request, 500);
-    return wrap(page.headers, 500, page.body === "" ? null : page.body);
+    if (error instanceof HandBackToRails) return { response: await forwardToRails(incoming) };
+    const status = error instanceof RoutingError ? 404 : 500;
+    if (status === 500) notifyError(error);
+    const page = publicException(request, status);
+    return wrap(page.headers, status, page.body === "" ? null : page.body);
   }
 }

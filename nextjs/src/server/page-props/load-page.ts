@@ -32,6 +32,8 @@ export type ActionContext = {
   headers: Headers;
   // ApplicationController#default_url_options, for `*_url` helpers called in the action.
   urlOptions: { protocol: string; host: string };
+  // What the controller's filters worked out for the action (ActionOptions.filters).
+  state: Record<string, unknown>;
 };
 
 // The request's host and non-default port, except on the discover host, where Rails pins DOMAIN.
@@ -115,7 +117,7 @@ export async function loadPage(
   const request = { headers: requestHeaders, url: await requestUrl(fullpath, requestHeaders, config) };
 
   await applicationMetaTags(meta, { context, config, csrfToken, ports });
-  const pageProps = await action({ context, config, meta, url: request.url, headers: requestHeaders, urlOptions: defaultUrlOptions(request.url, config) });
+  const pageProps = await action({ context, config, meta, url: request.url, headers: requestHeaders, urlOptions: defaultUrlOptions(request.url, config), state: state?.pageState ?? {} });
   const shared = await sharedProps({ context, config, request, meta, csrfToken, ports, mobileAppWebView });
   const errors = await ports.session.consumeInertiaErrors();
 

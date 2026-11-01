@@ -75,13 +75,17 @@ function useClientOnly(enabled: boolean): boolean {
 export function InertiaShellClient({
   page: { component, props, href },
   layout = "default",
+  clientOnly = false,
   children,
 }: {
   page: { component: string; props: Record<string, unknown>; href: string };
   layout?: ShellLayout;
+  // The page touches `document` while rendering (a portal into the body), so Rails' behaviour of
+  // mounting it in the browser only is kept.
+  clientOnly?: boolean;
   children: React.ReactNode;
 }) {
-  const waitForClient = useClientOnly(props.logged_in_user != null);
+  const waitForClient = useClientOnly(clientOnly || props.logged_in_user != null);
   if (waitForClient) return null;
   return (
     <PagePropsProvider component={component} props={props}>

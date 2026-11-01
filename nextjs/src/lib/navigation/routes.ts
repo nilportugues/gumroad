@@ -278,3 +278,20 @@ export const wishlist_path = path("/wishlists/:id(.:format)");
 export const wishlist_product_path = path("/wishlists/:wishlist_id/products/:id(.:format)");
 export const wishlist_products_path = path("/wishlists/:wishlist_id/products(.:format)");
 export const wishlists_path = path("/wishlists(.:format)");
+
+// Authentication pages (devise_for / devise_scope, two-factor, secure_url_redirect).
+export const login_path = path("/login(.:format)");
+export const login_passkey_path = path("/login/passkey(.:format)");
+export const login_passkey_options_path = path("/login/passkey/options(.:format)");
+export const signup_path = path("/signup(.:format)");
+export const new_user_password_path = path("/users/forgot_password/new(.:format)");
+export const two_factor_authentication_path = path("/two-factor(.:format)");
+export const two_factor_authentication_url = url("/two-factor(.:format)");
+export const resend_authentication_token_path = path("/two-factor/resend_authentication_token(.:format)");
+export const switch_to_email_two_factor_path = path("/two-factor/switch_to_email(.:format)");
+export const switch_to_recovery_two_factor_path = path("/two-factor/switch_to_recovery(.:format)");
+export const switch_to_authenticator_two_factor_path = path("/two-factor/switch_to_authenticator(.:format)");
+export const secure_url_redirect_path = path("/secure_url_redirect(.:format)");
+export const user_apple_omniauth_authorize_path = path("/users/auth/apple(.:format)");
+export const user_google_oauth2_omniauth_authorize_path = path("/users/auth/google_oauth2(.:format)");
+export const user_stripe_connect_omniauth_authorize_path = path("/users/auth/stripe_connect(.:format)");
