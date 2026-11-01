@@ -35,8 +35,10 @@ headers for the provider the message ends up on. The message carries its SMTP se
 `smtp.ts` sends with them; Devise's mails use `config.action_mailer.smtp_settings`.
 
 `EmailDeliveryObserver` only records a `CustomerEmailInfo` for messages whose headers name a
-purchase or charge. `MailerInfo`'s builders refuse `CustomerMailer` and the installment methods,
-the only ones that write those ids, so for every ported mailer the observer does nothing.
+purchase or charge. `MailerInfo`'s builders refuse `CustomerMailer` and the installment methods
+unless the mailer hands them the ids it looked up (`recordIds`), so only `CustomerMailer#receipt`
+makes the observer write: `sendComposed` records the row (`models/email-info.ts`) after the SMTP
+hand-off, in the transaction Rails opens for `mark_sent!`, and not when `RescueSmtpErrors` swallowed the send.
 
 ## Porting a mailer
 
@@ -89,14 +91,15 @@ encoded message; the Node test replays the statements and compares the bytes.
   `subscription_id` (`price_for_recurrence`) are refused.
 - Sender names must be ASCII (`from_email_address_name`'s Latin-script rule is not ported) and, like every address,
   made of plain words for `mime.ts`.
-- `MailerInfo` still refuses `receipt`, `preorder_receipt` and `abandoned_cart`: their headers carry purchase, charge
+- `MailerInfo` still refuses `preorder_receipt` and `abandoned_cart`: their headers carry purchase, charge
   and workflow ids and `EmailDeliveryObserver` writes a `CustomerEmailInfo` after the send.
 
 Not ported, and why:
 
 | Method | Reason |
 | --- | --- |
-| `receipt`, `grouped_receipt` | `ReceiptPresenter` (item, payment, shipping, footer and recommended products), the unsubscribe and manage-subscription links (`secure_external_id` is encrypted with a random IV), Money formatting in every currency, and the `CustomerEmailInfo` write. |
+| `grouped_receipt` | Claims a 24-hour Redis send window (`claim_grouped_receipt_send`, a write before the mail) and renders several chargeables with one shared Reply-To; it also needs everything `receipt` still refuses. |
+| `receipt` (the refused shapes) | See "CustomerMailer#receipt" below. |
 | `preorder_receipt` | Header ids (`Preorder.find(...).authorization_purchase`), the `CustomerEmailInfo` write, and time-zone formatting of the release date. |
 | `auto_invoice` | The invoice PDF is rendered by `InvoicePdfGenerator` through a headless browser, whose bytes are not reproducible. |
 | `subscription_restarted` | `Subscription#refresh_token` writes a random token (`update!` with callbacks and PaperTrail) before rendering. |
@@ -119,9 +122,46 @@ X-GUM `mailer_args` carry the located record's `#inspect` (`record-inspect.ts`, 
   characters outside `[A-Za-z0-9._%+-]`) is refused (`MailViewNotPortedError`) and the delivery goes back to Rails.
 - `invitation_accepted` stays in Rails: it renders `User#avatar_url` (Active Storage variants through the Rails cache) and a sanitized display name.
 
-Still Ruby, with the reasons in the table above: `receipt`, `grouped_receipt`, `preorder_receipt`, `auto_invoice`, `subscription_restarted`,
-`abandoned_cart*`, `review_response`, `upcoming_call_reminder`, `send_to_kindle`. None of the jobs that hand back for mail can move to Node
-until `receipt` renders: `SendPurchaseReceiptJob` delivers it inline and writes the `CustomerEmailInfo` row after the send.
+Still Ruby, with the reasons in the table above: `grouped_receipt`, `preorder_receipt`, `auto_invoice`, `subscription_restarted`,
+`abandoned_cart*`, `review_response`, `upcoming_call_reminder`, `send_to_kindle`, and the receipts below.
+
+## CustomerMailer#receipt (WS-76)
+
+`receipt(purchase_id)` renders in Node for one shape of purchase and refuses (`MailViewNotPortedError`, so the delivery or the job goes back
+to Rails before anything is sent or written) for the rest. Goldens: `receipt-mailer.golden.json` from `generate-receipt-mailer-golden.rb`, which
+runs the real mailer inside the Sidekiq executor (query cache on): 26 messages replayed statement for statement, HTML, encoded message,
+Router Redis; 13 refusals Rails sends; one error. `mailers/receipt-presenter.ts` holds the presenter parts as pure functions of rows
+(`mailSubject`, `chargeInfo`, `paymentInfo`, `shippingInfo`, `itemInfo`, `assertSupported`); `mailers/receipt-mailer.ts` reads in the order the
+view asks (so the first occurrence of each distinct statement matches; repeats are query-cache hits on both sides) and holds the templates.
+
+Rendered: one successful, untaxed USD purchase of a digital or physical product, outside a subscription, preorder, gift, bundle, rental, call or
+commission, made by a guest or a signed-in buyer who is not the seller, with a per-variant name, quantity, tip, custom fields (text and
+checkbox), refund policy, custom receipt text, a download button, free or paid, shipping line and address, and a card or wallet line.
+Money is formatted by `models/concerns/money-formatter.ts`.
+
+Refused: a `Charge` receipt (`uses_charge_receipt?`), gift sender or receiver, preorder, membership/installment/free trial, bundle and bundle
+member, rental, call, coffee and commission, licensed products (the license key and its rich-content check), tax (the label, Canadian splits, the
+zip tax rate), a non-USD product or purchase, a purchase with a buyer-currency (`purchase_presentments`) row, an uploaded avatar or thumbnail
+(Active Storage variants), a test purchase (seller buying their own product), and any seller who has not opted out of recommendations: the
+recommended products section runs `RecommendedProductsService`, `SalesRelatedProductsInfo` and an Elasticsearch search and renders product
+cards, none of which is ported. That last rule is the big one: **most sellers' receipts still go to Rails**. Text that goes through `auto_link`
+or `simple_format` (custom field values, the custom receipt text, shipping lines, the refund fine print) is refused unless it is plain ASCII
+without markup, a URL, an address or an entity, because rails_autolink and the HTML sanitizer are not ported.
+
+- The IVs. `SecureExternalId` (the unsubscribe link, a GCM message with a 12-byte IV) and the Resend X-GUM headers (CBC, 16 bytes) draw from
+  `OpenSSL::Cipher#random_iv`. The generator stubs it with a numbered sequence (`"%06d-ws76-iv-x"` cut to the cipher's `iv_len`), records the
+  bytes it handed out in each case's `ivs`, and the Node test injects the same bytes through `MailerDeps.randomIv` in the same order, so the
+  unsubscribe token and the encrypted headers are compared byte for byte. In production both are random, as in Ruby.
+- Reads Node does not make: `$redis.get("recommended_products_associated_product_ids_limit")` is read (default 100); the `Kernel#sample` of
+  associated ids is never reached because the seller opted out.
+- The sender name must be plain words for `mime.ts` (a name such as `Tom & <Jerry>` is refused at encoding, not rendering).
+- `delivery_method_options` counts against the Router after the content renders, so a refusal never counts a Resend send; Ruby counts it
+  before rendering. (Same ordering as the refund mails.)
+
+`SendPurchaseReceiptJob` is ported (`src/worker/jobs/send-purchase-receipt-job.ts`, golden cases `jobs` in the same file): it renders and sends
+inline, then `markCustomerEmailSent` writes the `email_infos` row (`BEGIN`, `INSERT`, `COMMIT` as `mark_sent!` sends them). It hands the job back
+to Rails, before it has sent or written anything, when the purchase needs its PDFs stamped (`StampPdfForPurchaseJob.perform_async` is the job's
+first write and is not ported) or when the receipt is refused above.
 
 ## Behaviour kept from Ruby on purpose
 

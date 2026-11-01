@@ -10,10 +10,11 @@ import type { Charge, Purchase } from "@prisma/client";
 import { encrypt as obfuscateId } from "../../../lib/obfuscate-ids.ts";
 import { isBlank } from "../../html/text-helper.ts";
 import { ArgumentError, chargeOfPurchase, findChargeOrNil } from "../../models/charge.ts";
-import { column, selectRows, table } from "../../models/sql.ts";
+import { column, columnIn, selectRows, table } from "../../models/sql.ts";
 import { secureExternalId } from "../../models/secure-external-id.ts";
 import { domainConfig } from "../../infra/domain.ts";
 import { applicationMail, findRow, type MailerDeps, RecordNotFoundError } from "../application-mailer.ts";
+import { defaultRouterDeps, rubyToI } from "../mailer-info.ts";
 import type { RenderedMail } from "../compose.ts";
 import type { RubyValue } from "../ruby-value.ts";
 import { linkTo } from "../view-helpers.ts";
@@ -49,6 +50,9 @@ import {
 } from "./receipt-presenter.ts";
 
 type Id = number | bigint;
+
+// RedisKey.recommended_products_associated_product_ids_limit
+const ASSOCIATED_PRODUCT_IDS_LIMIT_KEY = "recommended_products_associated_product_ids_limit";
 
 const star = (name: string) => Prisma.raw(`\`${name}\`.*`);
 const byPurchase = (tableName: string, purchaseId: Id, limit1: boolean, extra: Prisma.Sql = Prisma.empty) =>
@@ -257,11 +261,28 @@ export async function receipt(args: RubyValue[], deps: MailerDeps = {}): Promise
   const invoiceLink = linkTo("Generate invoice", mailerUrl(`/purchases/${externalId}/invoice/new`, { email: purchase.email ?? "" }));
   const payment = paymentInfo(data, invoiceLink);
 
-  // recommended_products_info: cart_seller_ids, then exclude_product_ids' bundle products
+  // recommended_products_info: the buyer's account, cart_seller_ids, then the products Rails excludes (the cart's,
+  // the buyer's own purchases and their bundle members). The seller opted out, so nothing is ever recommended.
+  const purchaser = purchase.purchaser_id === null ? null : await findRow<{ id: Id }>("users", purchase.purchaser_id);
   await selectRows(
     Prisma.sql`SELECT DISTINCT ${column("links", "user_id")} FROM ${table("links")} INNER JOIN ${table("users")} \`user\` ON \`user\`.\`id\` = ${column("links", "user_id")} WHERE \`user\`.\`recommendation_type\` != ${"no_recommendations"} AND ${column("links", "id")} = ${data.link.id}`,
   );
-  await selectRows(Prisma.sql`SELECT DISTINCT ${column("bundle_products", "product_id")} FROM ${table("bundle_products")} WHERE ${column("bundle_products", "deleted_at")} IS NULL AND ${column("bundle_products", "bundle_id")} = ${data.link.id}`);
+  const purchasedProductIds = async (limit: number | null) =>
+    (
+      await selectRows<{ id: Id }>(
+        Prisma.sql`SELECT DISTINCT ${column("links", "id")} FROM ${table("links")} INNER JOIN ${table("purchases")} ON ${column("links", "id")} = ${column("purchases", "link_id")} WHERE ${column("purchases", "purchaser_id")} = ${purchaser!.id} ORDER BY \`succeeded_at\` DESC${limit === null ? Prisma.empty : Prisma.sql` LIMIT ${Prisma.raw(String(limit))}`}`,
+      )
+    ).map((row) => row.id);
+  let associatedIds: Id[] = [data.link.id];
+  if (purchaser) {
+    // BaseService#associated_product_ids_limit: `($redis.get(...) || 100).to_i`
+    const configured = await (deps.router ?? defaultRouterDeps()).redisGet(ASSOCIATED_PRODUCT_IDS_LIMIT_KEY);
+    await purchasedProductIds(rubyToI(configured ?? "100"));
+    const purchased = await purchasedProductIds(null);
+    // `cart_product_ids | purchased_products.ids`
+    associatedIds = [...new Set([...associatedIds, ...purchased].map(BigInt))];
+  }
+  await selectRows(Prisma.sql`SELECT DISTINCT ${column("bundle_products", "product_id")} FROM ${table("bundle_products")} WHERE ${column("bundle_products", "deleted_at")} IS NULL AND ${columnIn("bundle_products", "bundle_id", associatedIds)}`);
 
   const paymentSection = payment.present
     ? `  <div>

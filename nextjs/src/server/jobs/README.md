@@ -274,3 +274,16 @@ would review, and a "has not clicked" audience (it asks DynamoDB). Golden: `publ
 
 Golden: `refund-payout-guard-jobs.golden.json` (`scripts/golden/refund-payout-guard-jobs.rb`, 20 cases; the real jobs are run up to a marker
 exception standing in for the call Node does not make).
+
+## SendPurchaseReceiptJob (WS-76)
+
+Ported in `worker/jobs/send-purchase-receipt-job.ts` (golden: the `jobs` cases of `mail/__fixtures__/receipt-mailer.golden.json`, 9 cases: first
+send, a second provider, already sent, an explicit resend, a bundle product purchase, no URL redirect, a missing purchase, and the two hand-backs).
+It reads in Rails' order (`Purchase.find`, the URL redirect, the link and its product files for `has_stampable_pdfs?`, the `CustomerEmailInfo`
+guard), renders `CustomerMailer#receipt` with the Node port, sends over SMTP and writes the `CustomerEmailInfo`.
+
+- Handed back (`HandBackToRuby`, before the first write): a purchase whose PDFs must be stamped and not yet are, and any receipt the Node renderer
+  refuses (`mail/README.md`, "CustomerMailer#receipt"). The enqueue of `StampPdfForPurchaseJob` is the first write, so the check reads only.
+- A read failure while checking for stamping is kept and raised after the mail, as the Ruby `rescue StandardError => e; e` does.
+- Not ported: `SendChargeReceiptJob` (charge receipts, `receipt_sent`, `with_lock`, the auto invoice enqueue) and everything that calls
+  `CustomerMailer.receipt` with a charge.

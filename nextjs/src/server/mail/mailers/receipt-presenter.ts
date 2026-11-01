@@ -121,7 +121,8 @@ export function assertSupported(data: ReceiptData): void {
   for (const flag of NOT_PORTED_LINK_FLAGS) if (linkFlag(link, flag)) refuse(`a product with ${flag}`);
   if (purchase.subscription_id !== null || purchase.price_id !== null) refuse("a subscription purchase");
   if (purchase.preorder_id !== null) refuse("a preorder");
-  if (purchase.purchaser_id !== null) refuse("a purchase by a signed-in buyer (recommendations and the test-purchase check read the buyer)");
+  // Footer: the "test purchase" warning for a seller buying their own product.
+  if (purchase.purchaser_id !== null && BigInt(purchase.purchaser_id) === BigInt(link.user_id)) refuse("a test purchase");
   if (purchase.displayed_price_currency_type !== "usd" || link.price_currency_type !== "usd") refuse(`a purchase priced in ${String(purchase.displayed_price_currency_type)}`);
   if ((purchase.tax_cents ?? 0) > 0 || (purchase.gumroad_tax_cents ?? 0) > 0) refuse("a taxed purchase");
   if (!SUPPORTED_NATIVE_TYPES.includes(link.native_type ?? "")) refuse(`a ${String(link.native_type)} product`);

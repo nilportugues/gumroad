@@ -361,6 +361,21 @@ setup
 seed_mailer_level(201, :redis, :level_2)
 messages << record_message("receipt_level_two", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :redis, :level_2))
 
+# A signed-in buyer: the footer's test-purchase check and the recommendations read the buyer's account.
+setup(purchase: { price_cents: 500, total_transaction_cents: 500, displayed_price_cents: 500, purchaser_id: 202 })
+insert_user(id: 202, email: "buyer@example.com", username: "buyer")
+messages << record_message("receipt_signed_in_buyer", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
+
+# A buyer with other purchases: the products Rails excludes from recommendations include theirs, newest first.
+setup(purchase: { price_cents: 500, total_transaction_cents: 500, displayed_price_cents: 500, purchaser_id: 202, succeeded_at: FIXED_NOW })
+insert_user(id: 202, email: "buyer@example.com", username: "buyer")
+insert_link(id: 302, user_id: 201)
+insert_link(id: 303, user_id: 201)
+insert_purchase(id: 402, link_id: 302, seller_id: 201, purchaser_id: 202, succeeded_at: FIXED_NOW - 2.days)
+insert_purchase(id: 403, link_id: 303, seller_id: 201, purchaser_id: 202, succeeded_at: FIXED_NOW - 1.day)
+insert_purchase(id: 404, link_id: 302, seller_id: 201, purchaser_id: 202, succeeded_at: FIXED_NOW - 3.days)
+messages << record_message("receipt_signed_in_buyer_with_history", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
+
 # Cases Rails sends and the port hands back (the Node test only expects a refusal).
 def refuse(refused, name, **setup_args)
   meta = setup(**setup_args)
@@ -376,7 +391,8 @@ refuse(refused, "membership", link: { flags: 2, native_type: "membership" }, pur
 refuse(refused, "taxed", purchase: PRICE.merge(tax_cents: 50, flags: 4096))
 refuse(refused, "euro_product", link: { price_currency_type: "eur" }, purchase: PRICE.merge(displayed_price_currency_type: "eur", rate_converted_to_usd: "1.2"))
 refuse(refused, "call", link: { native_type: "call" }, purchase: PRICE)
-refuse(refused, "signed_in_buyer", purchase: PRICE.merge(purchaser_id: 201))
+setup(purchase: PRICE.merge(purchaser_id: 201))
+refused << record_message("receipt_test_purchase", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
 setup(purchase: PRICE)
 PurchasePresentment.insert!({ purchase_id: 401, presentment_currency: "eur", presentment_gumroad_amount_cents: 50, presentment_price_cents: 450, presentment_total_cents: 500, processor: "stripe", created_at: FIXED_NOW, updated_at: FIXED_NOW })
 refused << record_message("receipt_buyer_currency", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
@@ -452,5 +468,5 @@ ProductFile.insert!({ link_id: 301, url: "https://example.com/a.pdf", filetype: 
 jobs << record_job("job_stampable_pdf", [401], meta: seed_mailer_level(201, :cache, :level_1))
 
 cases = { "messages" => messages, "errors" => errors, "refused" => refused, "jobs" => jobs }
-File.write(File.join(FIXTURES, "receipt-mailer.golden.json"), JSON.pretty_generate({ "now" => FIXED_NOW.iso8601, "secrets" => SMTP_SECRETS, "cases" => cases }) + "\n")
+File.write(File.join(FIXTURES, "receipt-mailer.golden.json"), JSON.generate({ "now" => FIXED_NOW.iso8601, "secrets" => SMTP_SECRETS, "cases" => cases }) + "\n")
 puts "wrote #{messages.size} messages, #{errors.size} errors, #{refused.size} refused"
