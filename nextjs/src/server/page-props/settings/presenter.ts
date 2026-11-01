@@ -2,7 +2,7 @@
 // the settings pages. The payments page is not ported (see ./pages.ts).
 import type { OauthApplication, TeamInvitation, TeamMembership, User } from "@prisma/client";
 
-import { encrypt as externalId, encryptNumeric } from "../../../lib/obfuscate-ids.ts";
+import { decrypt as decryptExternalId, encrypt as externalId, encryptNumeric } from "../../../lib/obfuscate-ids.ts";
 import { db } from "../../../lib/db.ts";
 import { isConfiguredService, publicStorageUrl } from "../../infra/active-storage.ts";
 import { cdnUrlFor } from "../../infra/cdn-url.ts";
@@ -58,13 +58,35 @@ const capitalize = (value: string) => value.charAt(0).toUpperCase() + value.slic
 const iso8601 = (date: Date) => date.toISOString().replace(/\.\d{3}Z$/, "Z");
 
 // OauthApplication#icon_url: cdn_url_for(file.url), the blob's own public URL.
-async function iconUrl(application: OauthApplication): Promise<string | null> {
+export async function iconUrl(application: OauthApplication): Promise<string | null> {
   const attachment = await db.activeStorageAttachment.findFirst({ where: { record_type: "OauthApplication", record_id: application.id, name: "file" }, select: { blob_id: true } });
   if (!attachment) return null;
   const blob = await blobById(attachment.blob_id);
   if (blob === null) throw new NotPortedError("OauthApplication#icon_url for an attachment whose blob row is missing");
   if (!isConfiguredService(blob.service_name)) throw new NotPortedError(`Active Storage service ${JSON.stringify(blob.service_name)}`);
   return cdnUrlFor(publicStorageUrl(blob.key)) ?? null;
+}
+
+// SettingsPresenter#application_props
+export async function applicationProps(context: SellerContext, application: OauthApplication) {
+  return {
+    settings_pages: await settingsPages(context),
+    application: {
+      id: externalId(application.id),
+      name: application.name,
+      redirect_uri: application.redirect_uri,
+      icon_url: await iconUrl(application),
+      uid: application.uid,
+      secret: application.secret,
+    },
+  };
+}
+
+// current_seller.oauth_applications.alive.find_by_external_id(external_id)
+export async function findOwnedApplication(seller: User, external: string): Promise<OauthApplication | null> {
+  const id = decryptExternalId(external);
+  if (id === null) return null;
+  return db.oauthApplication.findFirst({ where: { id, owner_id: Number(seller.id), owner_type: "User", deleted_at: null } });
 }
 
 // OauthApplication.alive.authorized_for(seller): applications holding a not revoked token of the seller.

@@ -258,3 +258,25 @@ Not ported, not in `routes.json`:
 - `Purchases/Product/Show`: `ProductPresenter#product_props` deep-merged with `PurchaseProductPresenter`.
 - `Purchases/Invoices/New`: `InvoicePresenter` (form, supplier, seller and order info, tax and currency formatting) and `Charge::Chargeable`.
 - `Purchases/DisputeEvidence/Show` and `Success`: the `SecureExternalId` token (an `ActiveSupport::MessageEncryptor` payload), `DisputeEvidencePagePresenter` and the evidence blobs (Active Storage).
+
+## Payments, profile and application editor (Settings)
+
+`/settings/payments` (`server/page-props/settings/payments.ts`), `/profile` (`profile.ts`) and
+`/oauth/applications/:id/edit` are served behind `nextjs_settings_payments`, `nextjs_settings_profile` and
+`nextjs_oauth_application_edit`; their recorded renders are replayed by
+`parity/__tests__/settings-payments-profile.replay.test.ts`. Form submissions stay in Rails.
+
+- **Strongbox.** `models/strongbox.ts` reads the RSA-encrypted tax-id columns with `STRONGBOX_GENERAL` and
+  `STRONGBOX_GENERAL_PASSWORD` from the environment or credentials (Node refuses PKCS#1 v1.5 private
+  decryption, so the block is decrypted raw and unpadded). `models/strongbox.test.ts` replays ciphertexts Ruby wrote.
+- **Constant data.** Country lists, subdivisions, business types, each country's payout currency and
+  cross-border minimum, and each bank account class's `routing_number` template come from
+  `settings/payments-data.generated.json`; re-run `scripts/dump-payments-data.rb` when they change.
+- **What still throws `NotPortedError`**: a GeoIP2 city database on disk (`ip_country_code`); the
+  active-subscriber check of a seller whose Stripe Connect account routes sales; instant payouts for a seller
+  who passes the first eligibility checks; the payout date of a rejected account that is not paused; a bank
+  sync failure note and a verification error message; a profile with saved sections, a membership product,
+  a reputation summary or an uploaded avatar (its `signed_id`).
+- **Social connections.** `?social_connect_origin` writes the return token into the session from the
+  page's `options.filters` (`controllers/settings-pages.ts`), after running the page's guard so that a
+  refused request leaves the session alone.
