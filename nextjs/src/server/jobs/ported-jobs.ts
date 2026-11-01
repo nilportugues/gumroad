@@ -86,4 +86,12 @@ export const PORTED_JOBS: readonly string[] = [
   "WarmSellerReputationSummaryJob",
   "SendLastPostJob",
   "PublishScheduledPostJob",
+  "ExecuteScheduledPayoutsJob",
+  "FailAbandonedPurchaseWorker",
+  "HandlePayoutReversedWorker",
+  "HandleStripeEventWorker",
+  "LargeSellersUpdateUserBalanceStatsCacheWorker",
+  "LowBalanceFraudCheckWorker",
+  "SyncStuckPayoutsJob",
+  "UpdatePayoutStatusWorker",
 ];
