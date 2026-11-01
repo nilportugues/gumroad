@@ -280,5 +280,8 @@ export async function unpublishBang(record: InstallmentModel, { isUnpublishedByA
   await Installments.saveBang(record, { now } as SaveOptions);
 }
 
+// `mark_deleted` (Deletable): the non-bang save, which reports an invalid post as false.
+export const markDeleted = (record: InstallmentModel, options: SaveOptions = {}) => softDeletion.markDeleted(record, options);
+
 // `mark_deleted!` (Deletable)
 export const markDeletedBang = (record: InstallmentModel, options: SaveOptions = {}) => softDeletion.markDeletedBang(record, options);

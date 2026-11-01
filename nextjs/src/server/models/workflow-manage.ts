@@ -136,8 +136,8 @@ export async function manageWorkflow(
       }
 
       if (!wasJustCreated) {
-        if (params.save_action_name === SAVE_AND_PUBLISH_ACTION) await publishBang(record, { now, ...(options.uuid ? { uuid: options.uuid } : {}) });
-        if (params.save_action_name === SAVE_AND_UNPUBLISH_ACTION) await unpublishBang(record, { now });
+        if (params.save_action_name === SAVE_AND_PUBLISH_ACTION) await publishBang(record, { ...(now ? { now } : {}), ...(options.uuid ? { uuid: options.uuid } : {}) });
+        if (params.save_action_name === SAVE_AND_UNPUBLISH_ACTION) await unpublishBang(record, now ? { now } : {});
       }
     });
   } catch (caught) {

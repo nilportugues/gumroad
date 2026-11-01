@@ -7,7 +7,7 @@ import { decideRoute } from "@/lib/navigation/proxy/decide";
 import { routeGate, setRouteGate } from "@/lib/navigation/proxy/gate";
 import { compileRouteTable, type RouteTable } from "@/lib/navigation/proxy/route-table";
 import { pageEnvelope } from "@/server/controllers/application-controller";
-import { HOST_PAGE_PREFIX, INERTIA_PAGE_PATH } from "@/server/controllers/inertia-page";
+import { HOST_PAGE_PREFIX, INERTIA_PAGE_PATH, MUTATION_PATH } from "@/server/controllers/inertia-page";
 import { getRequiredConfig } from "@/server/infra/config";
 import { domainConfig } from "@/server/page-props/domain";
 import { PAGES } from "@/server/page-props/pages";
@@ -50,6 +50,7 @@ export async function proxy(request: NextRequest) {
   const viaHandler = () => NextResponse.rewrite(new URL(INERTIA_PAGE_PATH, request.url), { request: { headers: forwarded } });
 
   if (decision.action === "inertia") return viaHandler();
+  if (decision.action === "mutation") return NextResponse.rewrite(new URL(MUTATION_PATH, request.url), { request: { headers: forwarded } });
   if (decision.action === "next") {
     if (!decision.route) return NextResponse.next();
     if (!decision.route.inertia) return NextResponse.next();

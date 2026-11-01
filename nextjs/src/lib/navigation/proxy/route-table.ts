@@ -24,6 +24,9 @@ export type RouteEntry = {
   // with the JSON and 409 inertia_rails sends. Other routes' X-Inertia requests go to Rails.
   // "only": just those; the HTML page stays with Rails (its component cannot be rendered by Next.js yet).
   inertia?: boolean | "only";
+  // A non-GET action ported to Node (server/controllers/mutation.ts), keyed "POST /emails". Its requests are answered by the
+  // /gr-mutation handler, which hands whatever it cannot prove back to Rails with the body.
+  mutation?: boolean;
 };
 
 export type RouteTable = Record<string, string | RouteEntry>;
@@ -35,7 +38,11 @@ export type CompiledRoute = Required<Omit<RouteEntry, "flag">> & { flag: string 
 
 const SCOPE_PREFIXES: Record<string, HostScope> = { "seller:": "seller", "product:": "product" };
 
+// "POST /emails": a route for one HTTP method, the key of a mutation.
+const METHOD_PREFIX = /^(POST|PUT|PATCH|DELETE) /;
+
 export function splitScopedPattern(key: string): { scope: HostScope | null; path: string } {
+  key = key.replace(METHOD_PREFIX, "");
   for (const [prefix, scope] of Object.entries(SCOPE_PREFIXES)) if (key.startsWith(prefix)) return { scope, path: key.slice(prefix.length) };
   return { scope: null, path: key };
 }
@@ -66,7 +73,8 @@ export function compileRouteTable(table: RouteTable): CompiledRoute[] {
       regexp: patternToRegExp(path),
       flag: entry.flag,
       hosts: entry.hosts ?? scope ?? "gumroad",
-      methods: entry.methods ?? DEFAULT_METHODS,
+      methods: entry.methods ?? (METHOD_PREFIX.test(pattern) ? [METHOD_PREFIX.exec(pattern)![1]!] : DEFAULT_METHODS),
+      mutation: entry.mutation ?? false,
       signedOutOnly: entry.signedOutOnly ?? false,
       signedInOnly: entry.signedInOnly ?? false,
       inertia: entry.inertia ?? false,

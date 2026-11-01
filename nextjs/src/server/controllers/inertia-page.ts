@@ -12,6 +12,8 @@ import { type ActionOptions, type ActionResult, type Chain, type ForceRefresh, p
 import { fullpath } from "./rails-request.ts";
 
 export const INERTIA_PAGE_PATH = "/gr-inertia";
+// Internal target of the proxy's rewrites of a mutation Node ports (server/controllers/mutation.ts).
+export const MUTATION_PATH = "/gr-mutation";
 // Where the proxy serves the HTML of a page that only exists on seller and product-domain hosts.
 export const HOST_PAGE_PREFIX = "/gr-host";
 

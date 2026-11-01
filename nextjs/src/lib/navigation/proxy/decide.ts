@@ -6,6 +6,8 @@ import { type CompiledRoute, matchRoute } from "./route-table";
 
 export type RouteDecision =
   | { action: "next"; route: CompiledRoute | null }
+  // A mutation Node ports: the /gr-mutation handler answers it, or forwards it to Rails with its body.
+  | { action: "mutation"; route: CompiledRoute }
   // An X-Inertia request for a page Next.js serves: answered with the Inertia JSON (or 409).
   | { action: "inertia"; route: CompiledRoute }
   // Next's client router asked for a flight payload of a Rails page: answer with something that is not
@@ -43,6 +45,7 @@ export async function decideRoute(
     if (route.signedInOnly && (await gate.isSignedIn(request)) === false) return toRails;
     if (await gate.signsInViaRememberCookie?.(request)) return toRails;
   }
+  if (route.mutation) return { action: "mutation", route };
   if (isInertiaRequest) return route.inertia ? { action: "inertia", route } : { action: "rails" };
   if (route.inertia === "only") return toRails;
   return { action: "next", route };
