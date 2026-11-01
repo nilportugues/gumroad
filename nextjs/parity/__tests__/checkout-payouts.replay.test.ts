@@ -26,8 +26,8 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES_ROOT = "parity/fixtures/requests";
-const SPEC_DIRS = ["payouts_signed_in_spec"];
-const ROUTE_FLAGS = ["nextjs_payouts"];
+const SPEC_DIRS = ["payouts_signed_in_spec", "subscriptions_manage_access_spec"];
+const ROUTE_FLAGS = ["nextjs_payouts", "nextjs_subscription_manage"];
 const FIRST_COMPILE_TIMEOUT_MS = 240_000;
 const ELASTICSEARCH_HOST = process.env.ELASTICSEARCH_HOST ?? "http://localhost:9200";
 // The sales totals behind a signed-in page read the purchases index, which the replayer does not seed: it is created
