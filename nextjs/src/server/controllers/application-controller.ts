@@ -32,6 +32,7 @@ import { rubyUriParse } from "../models/concerns/ruby-uri.ts";
 import { advance } from "../models/concerns/ruby-time.ts";
 import { redirectUrlFor } from "../services/subdomain-redirector.ts";
 import { NotPortedError } from "../page-props/not-ported.ts";
+import { esJson } from "../search/es-json.ts";
 import { setCookieHeader } from "./rack-cookies.ts";
 import {
   CURRENT_SELLER_COOKIE_NAME,
@@ -40,7 +41,7 @@ import {
   deletesCookie,
   promoteVisitedNavItem,
   REMEMBER_COOKIE_NAME,
-  refuseSuspendedWrite,
+  requestFormat,
   resolveRequestAuth,
   seedDashboardNavItems,
   SIGN_OUT_FLASH,
@@ -221,6 +222,7 @@ function mayTrackUtmVisit(request: RailsRequest, validRequestHosts: string[]): b
 
 // Request#should_apply_vary_header? for a path without a format extension.
 function shouldApplyVaryHeader(request: RailsRequest): boolean {
+  if (queryParam(request, "format") != null) return false;
   const accept = request.headers.get("accept");
   const xhr = request.headers.get("x-requested-with") === "XMLHttpRequest";
   if (xhr && (isPresent(accept) || request.headers.has("content-type"))) return true;
@@ -316,7 +318,12 @@ export async function beforeActions(request: RailsRequest, options: ActionOption
     await seedDashboardNavItems(loggedInUser, currentSeller);
   }
 
-  if (auth.effects.signOut) return endSession(chain, config.validRequestHosts);
+  if (auth.effects.signOut) {
+    await signOut(chain);
+    if (config.validRequestHosts.includes(request.host)) return signedOutResponse(chain);
+    chain.csrfToken = randomBytes(AUTHENTICITY_TOKEN_LENGTH).toString("base64url");
+    chain.sessionCleared = false;
+  }
 
   if (!options.skip?.includes("redirect_to_custom_subdomain")) {
     const redirect = await redirectUrlFor(request);
@@ -330,7 +337,7 @@ export async function beforeActions(request: RailsRequest, options: ActionOption
   }
 
   if (!railsLoggedInUser(auth.context)) setSignupReferrer(request, session, config.rootDomain);
-  if (suspendedWriteRequest(auth, request)) refuseSuspendedWrite();
+  if (suspendedWriteRequest(auth, request)) return refuseSuspendedWrite(chain);
   chain.guid = gumroadGuidCookie(request, now);
   if (!RECOMMENDER_MODELS.includes(session.data.recommender_model_name as string)) {
     session.data.recommender_model_name = RECOMMENDER_MODELS[Math.floor(Math.random() * RECOMMENDER_MODELS.length)];
@@ -351,20 +358,69 @@ function haltWithoutDebugHeaders(chain: Chain, redirect: Redirected): Controller
   return { status: redirect.status, headers, body: "" };
 }
 
-// invalidate_session_if_necessary: Devise's sign_out (forget_me!, the remember cookie, the session),
-// then a flash and a redirect to the login page. Other hosts carry on signed out; not ported.
-async function endSession(chain: Chain, validRequestHosts: string[]): Promise<ControllerResponse> {
-  const { request, headers, session, now } = chain;
-  if (!validRequestHosts.includes(request.host)) throw new NotPortedError("invalidate_session_if_necessary outside the app hosts");
-  await prismaAuthStore.forgetRememberedLogins(chain.auth.effects.signedOut!.user.id, now);
+// invalidate_session_if_necessary's Devise sign_out: forget_me!, the remember cookie, the session.
+async function signOut(chain: Chain): Promise<void> {
+  const { request, session } = chain;
+  await prismaAuthStore.forgetRememberedLogins(chain.auth.effects.signedOut!.user.id, chain.now);
   if (deletesCookie(request, REMEMBER_COOKIE_NAME)) chain.cookies.push(deleteCookieHeader(REMEMBER_COOKIE_NAME, { domain: allDomain(request.host), httpOnly: true }));
-  session.data = { session_id: session.data.session_id, flash: { discard: [], flashes: { warning: SIGN_OUT_FLASH } } };
+  session.data = { session_id: session.data.session_id };
   chain.sessionCleared = true;
+}
+
+// On the app's hosts the signed-out visitor gets a flash and a redirect to the login page. Other hosts
+// (the API's, a seller's) carry on signed out: their cleared session mints a new CSRF token.
+function signedOutResponse(chain: Chain): ControllerResponse {
+  const { request, headers, session } = chain;
+  session.data.flash = { discard: [], flashes: { warning: SIGN_OUT_FLASH } };
   headers.set("location", redirectLocation(request, "/login"));
   headers.set("content-type", "text/html; charset=utf-8");
   commitSession(chain);
   for (const cookie of chain.cookies) headers.append("set-cookie", cookie);
   return { status: 302, headers, body: "" };
+}
+
+const SUSPENDED_MESSAGE = "You can't perform this action because your account has been suspended.";
+
+// redirect_back's referrer: kept only when its host is the request's (raise_on_open_redirects makes
+// allow_other_host false), or it is a path on this host; ActionController::Redirecting#_url_host_allowed?
+function allowedReferrer(request: RailsRequest): string | null {
+  const referrer = request.headers.get("referer");
+  if (referrer === null) return null;
+  try {
+    const host = rubyUriParse(referrer).host;
+    if (host === request.host) return referrer;
+    if (host != null && host !== "") return null;
+    return referrer.startsWith("/") && !referrer.startsWith("//") ? referrer : null;
+  } catch {
+    return null;
+  }
+}
+
+// check_suspended halts the chain: after_actions do not run (no XSRF-TOKEN cookie) and no guid is minted.
+function refuseSuspendedWrite(chain: Chain): ControllerResponse {
+  const { request, headers, session } = chain;
+  const format = requestFormat(request);
+  let response: ControllerResponse;
+  if (format === "other") {
+    // head :ok names no content type of its own.
+    headers.set("content-type", "text/html");
+    response = { status: 200, headers, body: "" };
+  } else if (format === "json") {
+    headers.set("content-type", "application/json; charset=utf-8");
+    // render json: sets Vary: Accept the way any response that never read params does.
+    if (shouldApplyVaryHeader(request)) headers.set("vary", "Accept");
+    response = { status: 200, headers, body: esJson({ success: false, error_message: SUSPENDED_MESSAGE }) };
+  } else {
+    session.data.flash = { discard: [], flashes: { warning: SUSPENDED_MESSAGE } };
+    headers.set("location", redirectLocation(request, allowedReferrer(request) ?? "/"));
+    headers.set("content-type", "text/html; charset=utf-8");
+    // InertiaRails::Middleware: a redirect after PUT, PATCH or DELETE must be followed with GET.
+    const inertiaRedirect = request.headers.get("x-inertia") !== null && ["PUT", "PATCH", "DELETE"].includes(request.method);
+    response = { status: inertiaRedirect ? 303 : 302, headers, body: "" };
+  }
+  commitSession(chain);
+  for (const cookie of chain.cookies) headers.append("set-cookie", cookie);
+  return response;
 }
 
 export const halted = (outcome: Chain | ControllerResponse): outcome is ControllerResponse => !("session" in outcome);

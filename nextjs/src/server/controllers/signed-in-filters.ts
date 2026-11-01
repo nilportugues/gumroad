@@ -8,11 +8,10 @@ import { railsCookieSecrets, railsSessionCookieName, CURRENT_SELLER_COOKIE_NAME,
 import { prismaAuthStore } from "../auth/store.ts";
 import { notifyError } from "../infra/error-reporting.ts";
 import { RISK_STATES } from "../models/user.ts";
-import { NotPortedError } from "../page-props/not-ported.ts";
 import { dashboardNavItems, earnedNavItems, insertNavItems } from "../page-props/signed-in/reads.ts";
 import { PROMOTABLE_NAV_ITEMS } from "../page-props/signed-in/presenters.ts";
 import { setCookieHeader } from "./rack-cookies.ts";
-import { type RailsRequest, isPresent } from "./rails-request.ts";
+import { type RailsRequest, isPresent, queryParam } from "./rails-request.ts";
 
 export const SIGN_OUT_FLASH = "We're sorry; you have been logged out. Please login again.";
 const SEEDED_MARKER = "seeded";
@@ -43,10 +42,6 @@ export function suspendedWriteRequest(auth: ResolvedAuth, request: RailsRequest)
   const user = railsLoggedInUser(auth.context);
   if (!user || auth.context.impersonatedUser) return false;
   return (RISK_STATES.SUSPENDED as readonly (string | null)[]).includes(user.user_risk_state);
-}
-
-export function refuseSuspendedWrite(): never {
-  throw new NotPortedError("ApplicationController#check_suspended");
 }
 
 // DashboardNav
@@ -93,16 +88,23 @@ export function navItemForPath(path: string): string | null {
 
 const HTML_TYPES = new Set(["text/html", "application/xhtml+xml"]);
 const XML_TYPES = new Set(["text/xml", "application/xml"]);
+// Mime::JSON and its synonyms
+const JSON_TYPES = new Set(["application/json", "text/x-json", "application/jsonrequest"]);
 
-// Request#format.html? for the requests that reach a dashboard page. An Accept header names the
-// format when it is not browser-like or the request is an XHR; otherwise XHR means js and the rest
-// html. Browsers list xml first and xhtml after it, which Rails reads as html.
-export function formatIsHtml(request: RailsRequest): boolean {
+export type RequestFormat = "html" | "json" | "other";
+
+// Request#format, as far as html? and json? tell: a `format` query param wins (an unregistered one
+// leaves Rails with a NullType); otherwise an Accept header names the format when it is not
+// browser-like or the request is an XHR; otherwise XHR means js and the rest html. Browsers list
+// xml first and xhtml after it, which Rails reads as html. A `format` in a form body is not read.
+export function requestFormat(request: RailsRequest): RequestFormat {
+  const param = queryParam(request, "format");
+  if (param !== undefined && param !== null) return param === "html" ? "html" : param === "json" ? "json" : "other";
   const accept = request.headers.get("accept");
   const xhr = request.headers.get("x-requested-with") === "XMLHttpRequest";
   const browserLike = /,\s*\*\/\*|\*\/\*\s*,/.test(accept ?? "");
   const validAccept = (xhr && (isPresent(accept) || request.headers.has("content-type"))) || (isPresent(accept) && !browserLike);
-  if (!validAccept) return !xhr;
+  if (!validAccept) return xhr ? "other" : "html";
   const types = (accept ?? "")
     .split(",")
     .map((entry, index) => {
@@ -113,8 +115,11 @@ export function formatIsHtml(request: RailsRequest): boolean {
     .sort((a, b) => b.quality - a.quality || a.index - b.index)
     .map(({ type }) => type);
   const [first = ""] = types;
-  return HTML_TYPES.has(first) || (XML_TYPES.has(first) && types.includes("application/xhtml+xml"));
+  if (HTML_TYPES.has(first) || (XML_TYPES.has(first) && types.includes("application/xhtml+xml"))) return "html";
+  return JSON_TYPES.has(first) ? "json" : "other";
 }
+
+export const formatIsHtml = (request: RailsRequest): boolean => requestFormat(request) === "html";
 
 // PromotesDashboardNavItems#dashboard_nav_request?
 export function dashboardNavRequest(request: RailsRequest, validRequestHosts: string[], impersonating: boolean): boolean {

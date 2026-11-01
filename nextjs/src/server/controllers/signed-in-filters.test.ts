@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { dashboardNavRequest, dashboardPath, deleteCookieHeader, formatIsHtml, navItemForPath } from "./signed-in-filters.ts";
+import { dashboardNavRequest, dashboardPath, deleteCookieHeader, formatIsHtml, navItemForPath, requestFormat } from "./signed-in-filters.ts";
 import type { RailsRequest } from "./rails-request.ts";
 
 function request(path: string, headers: Record<string, string> = {}, method = "GET"): RailsRequest {
@@ -27,6 +27,32 @@ describe("formatIsHtml", () => {
   ])("reads Accept %j (xhr %j) as html: %j", (accept, xhr, expected) => {
     const headers: Record<string, string> = { ...(xhr ? XHR : {}), ...(accept ? { accept } : {}) };
     expect(formatIsHtml(request("/help", headers))).toBe(expected);
+  });
+});
+
+describe("requestFormat", () => {
+  const withQuery = (queryString: string, headers: Record<string, string> = {}): RailsRequest => ({ ...request("/help", headers), queryString });
+
+  it.each([
+    ["application/json", false, "json"],
+    ["text/x-json", false, "json"],
+    ["application/json, text/plain, */*", true, "json"],
+    ["text/plain", false, "other"],
+    ["*/*", false, "other"],
+    [BROWSER_XML_FIRST, false, "html"],
+    [null, false, "html"],
+    [null, true, "other"],
+  ])("reads Accept %j (xhr %j) as %s", (accept, xhr, expected) => {
+    const headers: Record<string, string> = { ...(xhr ? XHR : {}), ...(accept ? { accept } : {}) };
+    expect(requestFormat(request("/help", headers))).toBe(expected);
+  });
+
+  it("lets a format param decide over Accept, and treats an unregistered one as neither html nor json", () => {
+    expect(requestFormat(withQuery("format=json", { accept: "text/html" }))).toBe("json");
+    expect(requestFormat(withQuery("format=html", { accept: "application/json" }))).toBe("html");
+    expect(requestFormat(withQuery("format=nonsense"))).toBe("other");
+    expect(requestFormat(withQuery("format="))).toBe("other");
+    expect(requestFormat(withQuery("format"))).toBe("html");
   });
 });
 
