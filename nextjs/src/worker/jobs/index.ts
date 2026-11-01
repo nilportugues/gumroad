@@ -58,6 +58,14 @@ import {
   syncStuckPurchasesJob,
   updatePurchaseHealthcheckThresholdJob,
 } from "./purchase-reads-jobs.ts";
+import {
+  createMissingDisputeEvidenceJob,
+  dispatchPendingFailedRefundExceptionsJob,
+  fightDisputesJob,
+  notifyFailedRefundExceptionJob,
+  recoverPendingRefundFeeRetentionJob,
+  refundUnpaidPurchasesWorker,
+} from "./refund-dispute-jobs.ts";
 import type { RetriesExhausted, RetryIn } from "../retry.ts";
 import type { JobHandler } from "./types.ts";
 
@@ -71,6 +79,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   CheckPaymentAddressWorker: checkPaymentAddressWorker,
   ChargeDeclinedReminderWorker: chargeDeclinedReminderWorker,
   ContentModerationAdminCommentJob: contentModerationAdminCommentJob,
+  CreateMissingDisputeEvidenceJob: createMissingDisputeEvidenceJob,
   CreateMissingPurchaseEventsWorker: createMissingPurchaseEventsWorker,
   CreateStripeApplePayDomainWorker: createStripeApplePayDomainWorker,
   DeleteExpiredProductCachedValuesWorker: deleteExpiredProductCachedValuesWorker,
@@ -82,6 +91,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   DeleteProcessedWorkflowInstallmentScheduleIntentsJob: deleteProcessedWorkflowInstallmentScheduleIntentsJob,
   DeleteStripeApplePayDomainWorker: deleteStripeApplePayDomainWorker,
   DetectLegalEntityCountryDriftJob: detectLegalEntityCountryDriftJob,
+  DispatchPendingFailedRefundExceptionsJob: dispatchPendingFailedRefundExceptionsJob,
   DispatchPendingWorkflowInstallmentScheduleIntentsJob: dispatchPendingWorkflowInstallmentScheduleIntentsJob,
   DisputeEvidenceDueSoonReminderJob: disputeEvidenceDueSoonReminderJob,
   ElasticsearchIndexerWorker: elasticsearchIndexerWorker,
@@ -89,6 +99,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   EnqueueMarketingXReconnectEmailJob: enqueueMarketingXReconnectEmailJob,
   ExpireStampedPdfsJob: expireStampedPdfsJob,
   EndSubscriptionWorker: endSubscriptionWorker,
+  FightDisputesJob: fightDisputesJob,
   FindExpiredSubscriptionsToSetAsDeactivatedWorker: findExpiredSubscriptionsToSetAsDeactivatedWorker,
   FindSubscriptionsWithMissingChargeWorker: findSubscriptionsWithMissingChargeWorker,
   FreeTrialExpiringReminderWorker: freeTrialExpiringReminderWorker,
@@ -99,14 +110,17 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   LiftPlatformStripePauseJob: liftPlatformStripePauseJob,
   LogResendEventJob: logResendEventJob,
   LogSendgridEventWorker: logSendgridEventWorker,
+  NotifyFailedRefundExceptionJob: notifyFailedRefundExceptionJob,
   SellerUpdatesWorker: sellerUpdatesWorker,
   SendToElasticsearchWorker: sendToElasticsearchWorker,
   RecalculateRecentWishlistFollowerCountJob: recalculateRecentWishlistFollowerCountJob,
   RecoverAusBacktaxFromStripeAccountJob: recoverAusBacktaxFromStripeAccountJob,
+  RecoverPendingRefundFeeRetentionJob: recoverPendingRefundFeeRetentionJob,
   RecurringChargeReminderWorker: recurringChargeReminderWorker,
   RecoverAusBacktaxesFromStripeAccountsJob: recoverAusBacktaxesFromStripeAccountsJob,
   RefreshMerchantAccountProductsRecommendationEligibilityJob: refreshMerchantAccountProductsRecommendationEligibilityJob,
   RefreshUserProductsRecommendationEligibilityJob: refreshUserProductsRecommendationEligibilityJob,
+  RefundUnpaidPurchasesWorker: refundUnpaidPurchasesWorker,
   ReindexRecommendableProductsWorker: reindexRecommendableProductsWorker,
   ReindexSubscriptionCurrentEmailWorker: reindexSubscriptionCurrentEmailWorker,
   ReleaseChargebackRatePayoutPausesJob: releaseChargebackRatePayoutPausesJob,
