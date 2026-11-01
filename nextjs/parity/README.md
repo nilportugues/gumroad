@@ -50,6 +50,7 @@ Each passing example writes `fixtures/<spec path>/<example>.json` with one excha
 | `response` | Status, location, headers (minus volatile ones), cookies, and `json`, `inertia` (page props from the HTML) or `body` |
 | `db` | Per table: `inserted`, `updated` (changed columns, before and after) and `deleted` rows |
 | `redis` | The main Redis database's string, hash and set keys just before the request (Flipper features, the impersonation key), with TTLs |
+| `elasticsearch` | The documents of `ConfirmedFollowerEvent`, the one index with no table behind it, just before the request (times as tokens). The replay's seeder gets it as `reset(entries, exchange, now)`; `src/elasticsearch.ts` rebuilds indices (and the purchases index from the seeded rows) under the server's `ES_INDEX_SUFFIX` |
 | `jobs` | Every Sidekiq push: class, args, queue, `at`; ActiveJob wrappers unwrapped |
 | `mails` | Every delivered mail: mailer, addresses, subject, text and HTML |
 | `http` | Every WebMock-seen call: method, URL, content type, body, and the response it got |
@@ -63,6 +64,7 @@ Normalisation, shared by `spec/support/parity/canonical.rb` and `src/canonical.t
 - **Times.** `DATETIME` values and ISO 8601 timestamps in strings become `<now>` (within 5 s of the
   request), `<now-30s>`, `<now+25m>` or `<now-48h>`; dates become `<today-3d>`. The replayer seeds
   them relative to its own clock.
+- **Query dates.** A request parameter that is an ISO date is recorded as a `<today-3d>` token and resolved against the replay's clock, as the rows are.
 - **Cookies** minted fresh on every request (`_gumroad_guid`) record their value as `<volatile>`;
   their presence and attributes still compare.
 - **Values** are read as MySQL's own text (`CAST(... AS CHAR)`), so both drivers see the same bytes.

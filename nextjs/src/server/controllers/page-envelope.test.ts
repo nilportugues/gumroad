@@ -6,10 +6,16 @@ import { railsJson } from "../page-props/inertia-json.ts";
 import { matchPagePath } from "../page-props/pages.ts";
 import { decodeRenderState, encodeRenderState } from "../page-props/render-state.ts";
 import { setSubdomainRedirectorDepsForTesting } from "../services/subdomain-redirector.ts";
-import { pageEnvelope } from "./application-controller.ts";
+import { afterActions, beforeActions, halted, pageEnvelope } from "./application-controller.ts";
+import { railsRequest } from "./rails-request.ts";
 
 const SECRET_KEY_BASE = "page-envelope-secret-key-base";
 const SESSION_COOKIE = "_gumroad_app_session_test";
+const beforeChain = async (request: Request, options: Parameters<typeof beforeActions>[1]) => {
+  const chain = await beforeActions(railsRequest(request), options, new Date());
+  if (halted(chain)) throw new Error("expected the chain to carry on");
+  return chain;
+};
 const secrets = () => deriveRailsCookieSecrets(SECRET_KEY_BASE);
 
 const sessionRequest = (session: Record<string, unknown>) => {
@@ -78,6 +84,20 @@ describe("pageEnvelope", () => {
     expect(envelope.headers.get("vary")).toBe("X-Inertia, Origin");
     expect(envelope.headers.get("content-security-policy")).toBeTruthy();
     expect(envelope.headers.getSetCookie().map((cookie) => cookie.split("=")[0])).toEqual(["_gumroad_guid", "XSRF-TOKEN", SESSION_COOKIE]);
+  });
+
+  it("writes the page's after_action cookies ahead of XSRF-TOKEN, only when the chain was not halted", async () => {
+    const request = () => new Request("http://app.test.gumroad.com:31337/help", { headers: { host: "app.test.gumroad.com:31337" } });
+    const afterCookies = ["last_viewed_dashboard=audience; path=/; samesite=lax"];
+    const envelope = await pageEnvelope(request(), { afterCookies });
+    if ("response" in envelope) throw new Error("expected an envelope");
+    expect(envelope.headers.getSetCookie().map((cookie) => cookie.split("=")[0])).toEqual(["_gumroad_guid", "last_viewed_dashboard", "XSRF-TOKEN", SESSION_COOKIE]);
+    expect(envelope.headers.getSetCookie().find((cookie) => cookie.startsWith("last_viewed_dashboard="))).toBe("last_viewed_dashboard=audience; path=/; samesite=lax; HttpOnly");
+
+    const rescued = afterActions(await beforeChain(request(), { afterCookies }), { status: 302, location: "/dashboard", rescued: true });
+    expect(rescued.headers.getSetCookie().map((cookie) => cookie.split("=")[0])).toEqual(["_gumroad_guid", SESSION_COOKIE]);
+    const redirected = afterActions(await beforeChain(request(), { afterCookies }), { status: 302, location: "/products" });
+    expect(redirected.headers.getSetCookie().map((cookie) => cookie.split("=")[0])).toEqual(["_gumroad_guid", "last_viewed_dashboard", "XSRF-TOKEN", SESSION_COOKIE]);
   });
 
   it("round-trips the render state through the header", async () => {

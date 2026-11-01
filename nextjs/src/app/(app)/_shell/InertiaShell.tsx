@@ -8,11 +8,12 @@ import { InertiaShellClient, type ShellLayout } from "./InertiaShellClient";
 
 export function InertiaShell({ page, layout, clientOnly, children }: { page: InertiaPage; layout?: ShellLayout; clientOnly?: boolean; children: React.ReactNode }) {
   // `href` is for the shared AppWrapper; it is not part of inertia_rails' page object.
-  const { href: _href, ...inertiaPage } = page;
+  // Deferred props are fetched by the client's follow-up partial reload, as Inertia 2 does, so the loaders stay unused here.
+  const { href: _href, deferredLoaders: _deferredLoaders, ...inertiaPage } = page;
   return (
     <>
       <script type="application/json" data-page="app" dangerouslySetInnerHTML={{ __html: railsJson(inertiaPage) }} />
-      <InertiaShellClient page={page} layout={layout} clientOnly={clientOnly}>
+      <InertiaShellClient page={{ ...inertiaPage, href: page.href }} layout={layout} clientOnly={clientOnly}>
         {children}
       </InertiaShellClient>
     </>

@@ -484,3 +484,7 @@ export const products_affiliated_path = path("/products/affiliated/:id(.:format)
 export const internal_ai_product_details_generations_path = path("/internal/ai_product_details_generations(.:format)");
 export const links_path = path("/links(.:format)");
 export const settings_dismiss_ai_product_generation_promo_path = path("/settings/dismiss_ai_product_generation_promo(.:format)");
+export const analytics_data_by_date_path = path("/analytics/data/by_date(.:format)");
+export const analytics_data_by_state_path = path("/analytics/data/by_state(.:format)");
+export const analytics_data_by_referral_path = path("/analytics/data/by_referral(.:format)");
+export const export_purchases_path = path("/purchases/export(.:format)");

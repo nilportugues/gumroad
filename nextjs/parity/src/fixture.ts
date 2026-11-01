@@ -79,7 +79,10 @@ export type CapturedExchange = {
   http: CapturedHttp[];
 };
 
-export type Exchange = CapturedExchange & { seed: Seed; request: FixtureRequest; redis?: Record<string, RedisEntry> };
+// The documents of an Elasticsearch index that has no table behind it, by model name (times as tokens).
+export type ElasticsearchSeed = Record<string, { source: Record<string, Json> }[]>;
+
+export type Exchange = CapturedExchange & { seed: Seed; request: FixtureRequest; redis?: Record<string, RedisEntry>; elasticsearch?: ElasticsearchSeed };
 
 export type Fixture = {
   version: number;

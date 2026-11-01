@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 
-import { diff } from "./canonical";
+import { diff, resolveDateToken } from "./canonical";
 import { canonicalJob, canonicalMail, type JobsChannel, type MailChannel } from "./channels";
 import { type CompareOptions, compareExchange, type Difference, formatDifferences } from "./compare";
 import { dump, nonEmptyTables, readSchema, seedDatabase, type SqlExecutor } from "./db";
@@ -39,7 +39,8 @@ export function httpTransport(baseUrl: string): Transport {
 // Puts the recorded main Redis database back before a request. Pass the connection of a database
 // the replay owns: it is flushed.
 export interface RedisSeeder {
-  reset(entries: Record<string, RedisEntry>): Promise<void>;
+  // `exchange` and `now` let a seeder also rebuild what lives outside Redis (the Elasticsearch documents the recorder captured).
+  reset(entries: Record<string, RedisEntry>, exchange?: Exchange, now?: Date): Promise<void>;
 }
 
 export type ReplayOptions = {
@@ -59,7 +60,7 @@ export async function replayExchange(exchange: Exchange, options: ReplayOptions,
   // normalised against it, as the recorder did with the moment its request started.
   const now = new Date();
   await seedDatabase(sql, exchange.seed, now);
-  await redis?.reset(exchange.redis ?? {});
+  await redis?.reset(exchange.redis ?? {}, exchange, now);
   const schema = await readSchema(sql);
   const before = await dump(sql, schema, await nonEmptyTables(sql, schema));
   await jobs?.reset();
@@ -69,7 +70,7 @@ export async function replayExchange(exchange: Exchange, options: ReplayOptions,
   let response: Response;
   try {
     const request = options.rewriteRequest && fixture ? options.rewriteRequest(exchange.request, fixture, now) : exchange.request;
-    response = await transport(buildRequest(request));
+    response = await transport(buildRequest(withResolvedDates(request, now)));
   } finally {
     interceptor?.restore();
   }
@@ -83,6 +84,13 @@ export async function replayExchange(exchange: Exchange, options: ReplayOptions,
     mails: ((await mails?.drain()) ?? []).map((mail) => canonicalMail(mail, now)),
     http: interceptor?.calls() ?? [],
   };
+}
+
+// A date in the recorded query is a token (`<today-3d>`) so it stays as far from the replay's clock as it was from the recording's.
+export function withResolvedDates(request: FixtureRequest, now: Date): FixtureRequest {
+  if (!request.query?.includes("<today")) return request;
+  const query = request.query.replace(/<today(?:[+-]\d+d)?>/g, (token) => resolveDateToken(token, now)?.toISOString().slice(0, 10) ?? token);
+  return { ...request, query };
 }
 
 export type ExchangeResult = { expected: Exchange; actual: CapturedExchange; differences: Difference[] };

@@ -65,7 +65,7 @@ export async function inertiaPageResponse(incoming: Request): Promise<Response> 
     if (redirect && "notFound" in redirect) throw new RoutingError("Not Found");
     if (redirect) return redirect;
 
-    const { href: _href, ...page } = await renderPage(match.pattern, match.params, { renderState: takeRenderState() });
+    const { href: _href, deferredLoaders: _deferredLoaders, ...page } = await renderPage(match.pattern, match.params, { renderState: takeRenderState() });
     return { status: 200, contentType: "application/json; charset=utf-8", body: railsJson(page), inertia: true, headers: { "x-inertia": "true" } };
   });
 }

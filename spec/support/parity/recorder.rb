@@ -98,6 +98,7 @@ module Parity
 
       now = Time.current
       redis_before = redis_snapshot
+      elasticsearch_before = elasticsearch_snapshot(now)
       before = @snapshot.dump(@snapshot.non_empty_tables)
       auto_increments = @snapshot.auto_increments
       @capturing = true
@@ -117,7 +118,8 @@ module Parity
           "autoIncrement" => auto_increments,
         },
         "redis" => redis_before.presence,
-        "request" => request_json(context.request, source),
+        "elasticsearch" => elasticsearch_before.presence,
+        "request" => request_json(context.request, source, now),
         "response" => response_json(context.response, now),
         "db" => Canonical.diff(before, after, now),
         "jobs" => @jobs.map { job_json(_1, now) },
@@ -178,6 +180,20 @@ module Parity
         "#{full[0, MAX_SLUG_LENGTH].chomp("-")}-#{Digest::SHA1.hexdigest(full)[0, 8]}"
       end
 
+      # The documents of ConfirmedFollowerEvent, the one index that has no table behind it (every other index is rebuilt
+      # from the rows the replay seeds): `{ index => [{ "id", "source" }] }`, with times as tokens.
+      def elasticsearch_snapshot(now)
+        [ConfirmedFollowerEvent].each_with_object({}) do |model, snapshot|
+          next unless EsClient.indices.exists?(index: model.index_name)
+
+          EsClient.indices.refresh(index: model.index_name)
+          hits = EsClient.search(index: model.index_name, body: { query: { match_all: {} }, sort: [{ timestamp: :asc }, { follower_id: :asc }], size: 10_000 }).dig("hits", "hits")
+          next if hits.empty?
+
+          snapshot[model.name] = hits.map { { "source" => Canonical.json(_1["_source"], now) } }
+        end
+      end
+
       # `{ key => { "type", "value", "ttl" } }` for the main Redis database, sorted by key.
       def redis_snapshot
         $redis.scan_each.sort.each_with_object({}) do |key, snapshot|
@@ -203,7 +219,7 @@ module Parity
         }
       end
 
-      def request_json(request, source)
+      def request_json(request, source, now)
         env = request.env
         headers = env.filter_map do |key, value|
           next unless key.start_with?("HTTP_") && key != "HTTP_COOKIE"
@@ -217,11 +233,19 @@ module Parity
           "source" => source,
           "method" => request.request_method,
           "path" => request.path,
-          "query" => request.query_string.presence,
+          "query" => query_with_date_tokens(request.query_string, now).presence,
           "headers" => headers.sort.to_h,
           "cookies" => parse_cookie_header(env["HTTP_COOKIE"]),
           "remoteIp" => request.remote_ip,
         }.merge(body_field(body)).compact
+      end
+
+      # A date a query parameter holds is as relative to the recording as the rows are: the replayer resolves the
+      # token against its own clock.
+      def query_with_date_tokens(query, now)
+        query.to_s.gsub(/(?<==)(\d{4}-\d{2}-\d{2})(?=&|\z)/) { Canonical.date_token(Date.iso8601(_1), now) }
+      rescue Date::Error
+        query
       end
 
       def body_field(body)

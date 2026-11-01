@@ -35,7 +35,13 @@ export type SellerGuardStep = (context: SellerContext) => void | Promise<void>;
 
 // `authenticate_user!`, `require_account_email`, then the action's `authorize`. A step may throw
 // RoutingError (`e404`) once authorization has passed, as the action's own lookups do.
-export async function sellerGuard({ context, url, urlOptions }: GuardInput, authorization: SellerGuardStep, { requireAccountEmail = true } = {}): Promise<Redirected | null> {
+export async function sellerGuard(
+  { context, url, urlOptions }: GuardInput,
+  authorization: SellerGuardStep,
+  // `beforeAuthorize`: the controller's own before_actions that sit between `authenticate_user!` and the
+  // action's `authorize` (`check_payment_details`); one may throw HandBackToRails.
+  { requireAccountEmail = true, beforeAuthorize, afterAuthorize }: { requireAccountEmail?: boolean; beforeAuthorize?: SellerGuardStep; afterAuthorize?: SellerGuardStep } = {},
+): Promise<Redirected | null> {
   const loggedIn = railsLoggedInUser(context);
 
   // RequireAccountEmail is included first, so its filter runs ahead of authenticate_user!.
@@ -47,6 +53,7 @@ export async function sellerGuard({ context, url, urlOptions }: GuardInput, auth
   }
 
   const sellerContext = await loadSellerContext(context);
+  await beforeAuthorize?.(sellerContext);
   try {
     await authorization(sellerContext);
   } catch (error) {
@@ -55,6 +62,7 @@ export async function sellerGuard({ context, url, urlOptions }: GuardInput, auth
     const flash = url.searchParams.get("account_switched") ? undefined : { alert: notAllowedMessage(sellerContext) };
     return { status: 302, location: Routes.dashboard_url(urlOptions), flash, rescued: true };
   }
+  await afterAuthorize?.(sellerContext);
   return null;
 }
 
