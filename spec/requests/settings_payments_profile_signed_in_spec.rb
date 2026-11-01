@@ -149,6 +149,136 @@ describe "Payments, profile and application settings when signed in", type: :req
     end
   end
 
+  describe "application editor" do
+    it "renders the editor for an application of the owner", parity: true do
+      application = create(:oauth_application, owner: seller, name: "My app", redirect_uri: "https://example.com/callback")
+      log_in(seller)
+
+      get edit_oauth_application_path(application.external_id)
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["application"]).to include("name" => "My app", "uid" => application.uid, "secret" => application.secret, "icon_url" => nil)
+    end
+
+    it "renders the editor for an admin team member", parity: true do
+      application = create(:oauth_application, owner: seller, name: "Team app")
+      member_with_role(TeamMembership::ROLE_ADMIN)
+
+      get edit_oauth_application_path(application.external_id)
+
+      expect(response).to be_successful
+    end
+
+    it "sends a marketing team member to the dashboard", parity: true do
+      application = create(:oauth_application, owner: seller)
+      member_with_role(TeamMembership::ROLE_MARKETING)
+
+      get edit_oauth_application_path(application.external_id)
+
+      expect(response).to redirect_to(dashboard_url)
+      expect(flash[:alert]).to eq("Your current role as Marketing cannot perform this action.")
+    end
+
+    it "redirects when the application belongs to someone else", parity: true do
+      application = create(:oauth_application, owner: create(:user))
+      log_in(seller)
+
+      get edit_oauth_application_path(application.external_id)
+
+      expect(response).to redirect_to(oauth_applications_url)
+      expect(flash[:alert]).to eq("Application not found or you don't have the permissions to modify it.")
+    end
+
+    it "redirects when the application was deleted", parity: true do
+      application = create(:oauth_application, owner: seller, deleted_at: Time.current)
+      log_in(seller)
+
+      get edit_oauth_application_path(application.external_id)
+
+      expect(response).to redirect_to(oauth_applications_url)
+    end
+
+    it "redirects when the id is not an application", parity: true do
+      log_in(seller)
+
+      get edit_oauth_application_path("not-an-id")
+
+      expect(response).to redirect_to(oauth_applications_url)
+    end
+
+    it "answers an Inertia visit with the page as JSON", parity: true do
+      application = create(:oauth_application, owner: seller)
+      log_in(seller)
+
+      get edit_oauth_application_path(application.external_id), headers: { "X-Inertia" => "true", "X-Requested-With" => "XMLHttpRequest" }
+
+      expect(response).to be_successful
+      expect(response.parsed_body["component"]).to eq("Oauth/Applications/Edit")
+    end
+  end
+
+  describe "social connections" do
+    it "keeps the destination of the onboarding flow in the session", parity: true do
+      log_in(seller)
+
+      get settings_social_connections_path(social_connect_origin: "onboarding")
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["social_connect_return"]).to match(/\A\h{64}\z/)
+    end
+
+    it "gives the same token to a second visit of the same flow", parity: true do
+      log_in(seller)
+      get settings_social_connections_path(social_connect_origin: "onboarding")
+      first = inertia_props_of(response)["social_connect_return"]
+
+      get settings_social_connections_path(social_connect_origin: "onboarding")
+
+      expect(inertia_props_of(response)["social_connect_return"]).to eq(first)
+    end
+
+    it "replaces the token when the flow starts somewhere else", parity: true do
+      product = create(:product, user: seller)
+      log_in(seller)
+      get settings_social_connections_path(social_connect_origin: "onboarding")
+      first = inertia_props_of(response)["social_connect_return"]
+
+      get settings_social_connections_path(social_connect_origin: "marketing", social_connect_product: product.unique_permalink)
+
+      second = inertia_props_of(response)["social_connect_return"]
+      expect(second).to match(/\A\h{64}\z/)
+      expect(second).not_to eq(first)
+    end
+
+    it "forgets a stored flow when the page is opened without one", parity: true do
+      log_in(seller)
+      get settings_social_connections_path(social_connect_origin: "onboarding")
+
+      get settings_social_connections_path
+
+      expect(inertia_props_of(response)["social_connect_return"]).to be_nil
+      get settings_social_connections_path(social_connect_origin: "onboarding")
+      expect(inertia_props_of(response)["social_connect_return"]).to match(/\A\h{64}\z/)
+    end
+
+    it "gives no token for a marketing flow whose product is not published", parity: true do
+      product = create(:product, user: seller, purchase_disabled_at: Time.current)
+      log_in(seller)
+
+      get settings_social_connections_path(social_connect_origin: "marketing", social_connect_product: product.unique_permalink)
+
+      expect(inertia_props_of(response)["social_connect_return"]).to be_nil
+    end
+
+    it "gives no token for an origin the page does not know", parity: true do
+      log_in(seller)
+
+      get settings_social_connections_path(social_connect_origin: "somewhere")
+
+      expect(inertia_props_of(response)["social_connect_return"]).to be_nil
+    end
+  end
+
   describe "payments" do
     it "asks an owner without compliance info for the country", parity: true do
       log_in(seller)

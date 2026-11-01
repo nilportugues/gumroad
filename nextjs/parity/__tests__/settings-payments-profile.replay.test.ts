@@ -20,7 +20,7 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURE_DIR = "parity/fixtures/requests/settings_payments_profile_signed_in_spec";
-const ROUTE_FLAGS = ["nextjs_settings_payments", "nextjs_settings_profile"].join(",");
+const ROUTE_FLAGS = ["nextjs_settings_payments", "nextjs_settings_profile", "nextjs_oauth_application_edit", "nextjs_settings_social_connections"].join(",");
 const FIRST_COMPILE_TIMEOUT_MS = 240_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
@@ -63,6 +63,10 @@ const COMPARE = {
     "response.json.props.aus_backtax_details.credit_creation_date",
   ],
 };
+
+// A new social connect return token is random; the cases that reuse a stored one are compared exactly.
+const RANDOM_TOKEN_CASES = ["keeps-the-destination", "replaces-the-token", "forgets-a-stored-flow"];
+const randomTokenIgnore = ["response.inertia.props.social_connect_return", "response.json.props.social_connect_return"];
 
 const files = readdirSync(FIXTURE_DIR).filter((file) => file.endsWith(".json"));
 const cases = files.map((file) => [file.replace(/^payments-profile-and-application-settings-when-signed-in-/, "").replace(/\.json$/, ""), file] as const);
@@ -119,7 +123,7 @@ describe.skipIf(!url)("Payments, profile and application settings parity when si
         // The server is another process, out of the replayer's reach.
         interceptHttp: false,
         rewriteRequest: (request, fixture, now) => reencryptCookies(request, fixture, SECRET_KEY_BASE, now),
-        compare: COMPARE,
+        compare: RANDOM_TOKEN_CASES.some((name) => file.includes(name)) ? { ...COMPARE, ignore: [...COMPARE.ignore, ...randomTokenIgnore] } : COMPARE,
       });
       try {
         assertParity(result);

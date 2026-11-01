@@ -22,7 +22,7 @@ import { PUBLIC_PAGES } from "./public-pages.ts";
 import { AUDIENCE_PAGES } from "./audience/pages.ts";
 import type { ActionContext } from "./load-page.ts";
 import { DASHBOARD_PAGES } from "./dashboard-pages.ts";
-import { SETTINGS_PAGES } from "./settings/pages.ts";
+import { OAUTH_APPLICATION_PAGES, SETTINGS_PAGES } from "./settings/pages.ts";
 
 type Params = Record<string, string>;
 
@@ -120,6 +120,7 @@ export const PAGES: Record<string, PageSpec> = {
   ...PUBLIC_PAGES,
   ...DASHBOARD_PAGES,
   ...BUYER_PAGES,
+  ...OAUTH_APPLICATION_PAGES,
 };
 
 // ArticlesController#index
