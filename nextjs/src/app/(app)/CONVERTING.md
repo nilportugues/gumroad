@@ -309,3 +309,30 @@ The query builders live in `src/server/search/`; each is a pure function returni
 - `purchase-search.ts`: `PurchaseSearchService`, including the long-email-token fallback request. `purchase-search.golden.json`.
 - `following.ts`, `civil-time.ts`: `CreatorAnalytics::Following` (time zone day starts, `D3` labels) and the `ConfirmedFollowerEvent` activity search. `following.golden.json`.
 - Not ported: the Discover, `Products/Discover`, Customers, Audience, Churn, Analytics and Dashboard page renders. Discover needs `ProductPresenter.card_for_web`, `WishlistPresenter`, `RecommendedWishlistsService` and the `DiscoverSearch` write; the seller pages share `check_payment_details` (Redis plus a Stripe call) and the `DashboardPreference` after_action cookie, which `PageSpec` cannot set yet.
+
+## Product page and ProductPresenter (WS-69)
+
+`/l/:id`, `/l/:id/:code` (Gumroad domain), `seller:/l/:id[/:code]` and `product:/`, `product:/l/:id[/:code]` (flag `nextjs_product_page`,
+`"inertia": true`). `LinksController#show`'s before_actions are ported in Rails' order in `server/controllers/product-page.ts`
+(`fetch_product_for_show` with `Link.fetch_leniently`, banned and deleted-seller 404s, `X-Robots-Tag` for a code, the affiliate cookie,
+the 301 to the seller's host or canonical permalink, `ensure_domain_belongs_to_seller`, the coffee redirect). They are replayed by
+`parity/__tests__/product-page.replay.test.ts` against `spec/requests/product_page_parity_spec.rb`: a 301, a 404 and the coffee 302 must match
+Rails' status, headers and cookies; every request that would render must be handed back (a stand-in origin marks it).
+
+**Handed back to Rails (`HandBackToRails`)**: every render of `Products/Show` (HTML and X-Inertia), custom HTML pages, `?format=`, nested params,
+a deleted or Collaborator affiliate cookie that Rails resolves differently, and `product:/:code` (not in `routes.json`: it would shadow the other
+product-domain routes). The render needs ~35 `product_props` fields (options and tiers, file info, covers, offer codes through
+`BestOfferCodeService`, PPP and buyer currency through GeoIP, `purchase_info_for_product_page`), the product page meta tags with JSON-LD, and a
+`Products/Show` client page under `app/gr-host/`, none of which exist in TypeScript yet.
+
+**`server/presenters/product.ts`** is the canonical `ProductPresenter.card_for_web` (`cardForWeb(productId, options)`). It is proven by
+`spec/presenters/product_presenter_golden_spec.rb` (`PARITY_GOLDEN=1`), which writes one database holding 32 product types and the real card
+for six request shapes each, and `parity/__tests__/product-presenter.golden.test.ts`, which seeds that database and compares. Supported:
+digital, PWYW, versions with price differences, physical (SKUs), call, commission, coffee, preorder, unpublished, adult, rated, limited,
+refundable, non-USD, fixed-length, summary/attribute products, unsplash thumbnails, deleted. It throws `NotPortedError` for a tiered membership
+(`lowest_tier_price`), a bundle's `remaining_for_sale_count`, a product with a default or seller-wide offer code, an uploaded thumbnail or cover
+(Active Storage), a seller using buyer local currency (exchange rates), and a description outside the markup `description.ts` can prove
+(`plaintext_description` is Loofah's `to_text`; `html_safe_description` covers attribute-less inline and heading markup only).
+
+Not ported: `Wishlists/Show` (`WishlistPresenter#public_props` needs the card, `ProfilePresenter#creator_profile`, the discover nav and a client
+page under `app/gr-host/`) and `Purchases/Product/Show` (`product_props` deep-merged with `PurchaseProductPresenter`, signed in only).
