@@ -121,11 +121,12 @@ export const PAGES: Record<string, PageSpec> = {
     },
   },
   ...SETTINGS_PAGES,
+  // Before PUBLIC_PAGES: `/blog/p/:slug` must match ahead of `/:username/p/:slug`, as config/routes.rb orders them.
+  ...STOREFRONT_PAGES,
   ...PUBLIC_PAGES,
   ...DASHBOARD_PAGES,
   ...BUYER_PAGES,
   ...OAUTH_APPLICATION_PAGES,
-  ...STOREFRONT_PAGES,
 };
 
 // ArticlesController#index
