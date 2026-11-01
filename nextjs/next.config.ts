@@ -16,6 +16,8 @@ const navigationCompat = "./src/lib/navigation/index.ts";
 const sharedPackages = [
   "@anycable/web",
   "@boxicons/react",
+  "@paypal/paypal-js",
+  "braintree-web",
   "@radix-ui/react-dialog",
   "@radix-ui/react-popover",
   "@radix-ui/react-slot",

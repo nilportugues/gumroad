@@ -536,3 +536,32 @@ GET renders only. Parity: `spec/requests/communities_signed_in_spec.rb` (replaye
 **Profile products.** `page-props/storefront/product-sections.ts`: a `SellerProfileProductsSection` and the virtual default products section (a seller with no sections and a non-archived product; the tabs become one `Products` tab) are served for visitors who are not signed in: `search_products` (WS-65) with `is_alive_on_profile` and the section as `shown_products`, then `cardForWeb` per product with `target: "profile"`, `show_seller: false`, no description or inventory, and sold-out products that hide their sold-out state left out (the total shrinks). Parity: `spec/requests/storefront_profile_products_parity_spec.rb`, replayed by `storefront-profile-products.replay.test.ts` (the `products` index is rebuilt from the seeded rows with the port's own `ProductRecord`).
 - Handed to Rails, decided in the filter by rendering the sections once ahead of the page: a card `cardForWeb` refuses (`NotPortedError`: tiered membership, auto-applied offer code, uploaded thumbnail, buyer local currency...), any of the visitor search params (`query`, `tags`, `sort`, ...), a featured product section (needs `ProductPresenter#product_props`, WS-77) and a wishlists section (`WishlistPresenter`). `/coffee` is still not routed.
 - Known difference: `ProfileSectionsPresenter#cached_sections` is cached for ten minutes in Rails; the port searches on every request.
+
+## Checkout page (WS-78)
+
+`GET /checkout` (`nextjs_checkout`, `"inertia": true`, signed in or out; `CheckoutController#show`, `Checkout/Show`). Props in `server/page-props/checkout/`,
+filters in `server/controllers/checkout-pages.ts`, client page `checkout/CheckoutShow.tsx` (a copy of `pages/Checkout/Show.tsx`; it adds `braintree-web` and
+`@paypal/paypal-js` to the shared packages).
+
+**Rendered by the port**: a cart that holds nothing (no cart, a guest cart without visible lines, a deleted cart, an alive empty cart) on a URL that adds
+nothing: `cart` (`CartPresenter#cart_props` with no lines: email, return URL, PPP flag), `checkout` (`checkout_common` from `checkout-data.generated.json`
+dumped by `scripts/dump-checkout-data.rb`, GeoIP country and US/Canada region, the account's country, state, address and saved card, `CheckoutRecaptcha`
+with the `recaptcha_score_checkout` Flipper cohort, `TipOptionsService` from Redis), `checkout_payment` (`Checkout::StripePaymentPresenter` answers the
+constant `card_element` / `empty_cart` shape before reading any seller) and `stripe_fonts_css_source`. `CheckoutController#analytics_enabled?` is always true
+(`PageSpec.analyticsEnabled`).
+
+**`process_cart_id_param`** is ported up to its only write: a signed-in buyer, an unknown, deleted or wrong-scope id, a cart whose browser already holds it, and
+a cart that belongs to an account (login redirect with the flash) answer like Rails (`rescued`, so no XSRF cookie). A guest cart for another browser (the
+`MergeCartsService` merge) goes to Rails before anything is written.
+
+**Handed back to Rails (`HandBackToRails`)**: a non-HTML format; a nested query; `product`, `wishlist` or `gift_wishlist_product` params; a cart with a visible
+line (`checkout_product`, `OfferCodeDiscountComputingService`, the lane selection of `StripePaymentPresenter`) or a stored discount code; a partial reload that
+asks for `recommended_products`. Not started: `CheckoutPresenter#checkout_product` for cart and arrival items (PPP, buyer currency, bundles, memberships, gifts,
+upsells and cross sells), `BestOfferCodeService` defaults, `RecommendedProducts::CheckoutService`, `Checkout::RestartIntentToken`.
+
+Parity: `spec/requests/checkout_parity_spec.rb` (35 examples) replayed by `parity/__tests__/checkout.replay.test.ts` (30 compared against Rails' status, headers,
+cookies and `data-page`/JSON props; 5 must reach the stand-in origin). `GeoIp.lookup` is un-mocked in the spec and pointed at the GeoLite2 test database
+(`GEOIP_DATABASE_PATH` in the replay); the replay sets the two reCAPTCHA keys the spec stubs. IPs travel as `X-Forwarded-For`.
+
+**`Subscriptions/Manage` props** stay unported (see WS-72): `subscription_manager_props` needs `Variant#to_option`, proration, plan-change discounts and
+`Checkout::StripePaymentPresenter` over a real cart shape.

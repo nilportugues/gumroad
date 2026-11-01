@@ -63,7 +63,7 @@ export type RequestInfo = { headers: Headers; url: URL };
 // before_actions in ApplicationController that set meta tags, in their declared order.
 export async function applicationMetaTags(
   meta: MetaTagBuilder,
-  { context, config, csrfToken, ports }: { context: RequestContext; config: DomainConfig; csrfToken: string; ports: SharedPropsPorts },
+  { context, config, csrfToken, ports, analyticsEnabled: analyticsOverride }: { context: RequestContext; config: DomainConfig; csrfToken: string; ports: SharedPropsPorts; analyticsEnabled?: boolean },
 ) {
   const env = config.railsEnv;
   meta.set({ title: defaultPageTitle(env) });
@@ -94,7 +94,8 @@ export async function applicationMetaTags(
   // PageMeta::Analytics#analytics_enabled? with seller = current_seller (no @user on these pages).
   const seller = context.currentSeller;
   let analyticsEnabled = true;
-  if (seller) analyticsEnabled = (env === "production" || env === "staging") && !(await ports.presenters.thirdPartyAnalyticsDisabled(seller));
+  if (analyticsOverride !== undefined) analyticsEnabled = analyticsOverride;
+  else if (seller) analyticsEnabled = (env === "production" || env === "staging") && !(await ports.presenters.thirdPartyAnalyticsDisabled(seller));
   const loggedInUser = context.impersonatedUser ?? context.loggedInUser;
   meta.set({ property: "gr:google_analytics:enabled", content: String(analyticsEnabled) });
   meta.set({ property: "gr:fb_pixel:enabled", content: String(analyticsEnabled) });
