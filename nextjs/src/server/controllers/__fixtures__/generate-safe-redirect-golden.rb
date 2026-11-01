@@ -42,8 +42,8 @@ File.write(
   File.join(__dir__, "safe-redirect-path.golden.json"),
   JSON.pretty_generate(
     "safe_redirect_path" => safe_redirect,
-    "cgi_escape" => ESCAPES.to_h { |value| [value, CGI.escape(value)] },
-    "cgi_unescape" => UNESCAPES.to_h { |value| [value, CGI.unescape(value)] },
+    "cgi_escape" => ESCAPES.index_with { |value| CGI.escape(value) },
+    "cgi_unescape" => UNESCAPES.index_with { |value| CGI.unescape(value) },
   ) + "\n",
 )
 puts "ok"

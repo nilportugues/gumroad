@@ -60,6 +60,7 @@ describe("pageEnvelope", () => {
       mobileParam: "1",
       mobileAppWebView: undefined,
       clearHistory: true,
+      pageState: {},
     });
     expect(committedSession(envelope.headers)).toMatchObject({ _csrf_token: "csrf-token-from-session", flash: null });
     expect(committedSession(envelope.headers)).not.toHaveProperty("inertia_errors");

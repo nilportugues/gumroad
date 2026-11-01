@@ -150,3 +150,27 @@ user. Nothing per page: `pageEnvelope`/`processAction` and `loadPage` do it all.
 - `import.meta.glob` (Vite-only) in a page's import graph fails to build.
 - Mutations still go to Rails over the Inertia protocol (`useForm.post` etc.); once an endpoint is
   ported, return a redirect from a route handler or use a server action.
+
+## A controller with its own filters (the authentication pages)
+
+`/login`, `/oauth/login`, `/signup`, `/two-factor` and `/secure_url_redirect` are Inertia pages whose
+controllers run filters of their own, so their `PageSpec` carries `options` (`controllers/auth-pages.ts`):
+
+- `prepended`: Devise's `prepend_before_action`s (`require_no_authentication`). They run before every
+  ApplicationController filter, so a redirect answers with the session cookie only (no `x-gr`, no guid, no
+  XSRF-TOKEN), as Rails does.
+- `filters`: the controller's own `before_action`s and the start of its action, after ApplicationController's.
+  Return `{ halt }` for a redirect or `head` (a `rescued` halt skips the after_actions; an action-level
+  redirect does not), or `{ state }` for what the props need (`action.state`). A filter may write the
+  session (the WebAuthn challenge, the flash): the session cookie is committed after it runs.
+- Both the proxy's envelope and the X-Inertia handler run the chain with these options; for a stale
+  `X-Inertia-Version` a halt becomes the 409, as inertia_rails replaces the controller's response.
+- A callback re-declared in a subclass moves to the end of Rails' chain, which reorders the meta tags it
+  sets: use `meta.moveToEnd(...)` (see `loginPageProps`).
+- Anything the port cannot prove throws `HandBackToRails`: the request goes to Rails whole (the envelope
+  returns Rails' response; the handler forwards it). `rails-params.ts` uses it for `params` that are
+  arrays or hashes, `Accept` lists whose format Rails would rank differently, and `next` values whose
+  Addressable/URI handling raises in Ruby (`SafeRedirectPathService` is checked against Ruby output in
+  `__fixtures__/safe-redirect-path.golden.json`).
+- `clientOnly` on `InertiaShell` renders the page in the browser only: login and signup mount a portal
+  into `document.body` while rendering, which Rails never did on the server either.
