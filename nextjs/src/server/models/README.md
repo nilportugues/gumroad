@@ -156,7 +156,10 @@ the range to the second (`truncateToSeconds`); a raw `where("... < ?", time)` ke
 `src/worker/jobs/__fixtures__/purchase-reads-jobs.golden.json`, from `scripts/golden/purchase-reads-jobs.rb`
 (the purchase factory charges Stripe, so purchases are plain INSERTs of the columns a read looks at).
 Still Ruby-only: everything else in purchase.rb (4.6k lines of callbacks, money readers, charge processor flows) and
-`UrlRedirect` beyond the has_one read.
+`UrlRedirect` beyond the has_one read and `Purchase#create_url_redirect!` (WS-73: `createUrlRedirectForPurchase`; `before_validation`
+`set_token`, the `CAST(? AS BINARY)` uniqueness check, the INSERT with every column, the gift-sender and commission-completion skips).
+Golden: `__fixtures__/url-redirect-writes.golden.json` (`scripts/golden/url-redirect-writes.rb`, 7 cases including a taken token).
+`Purchase#send_receipt` is not ported: it enqueues `SendPurchaseReceiptJob`, whose body needs `CustomerMailer#receipt`.
 
 #### Subscription period logic (WS-46)
 
