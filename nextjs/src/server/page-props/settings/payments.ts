@@ -371,6 +371,16 @@ async function accountStatusDetails(facts: Facts, context: SellerContext, canUpd
   };
 }
 
+// User#credit_creation_date: [(Time.now.utc.to_date + 1.month).beginning_of_month, Date.new(2023, 7, 1)].max
+export function creditCreationDate(now: Date): string {
+  const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+  const floor = new Date(Date.UTC(2023, 6, 1));
+  return strftimeLongDate(nextMonth > floor ? nextMonth : floor, false);
+}
+
+// Date.today.year - UserComplianceInfo::MINIMUM_DATE_OF_BIRTH_AGE (the process's time zone)
+export const minDobYear = (now: Date): number => now.getFullYear() - C.minimumDateOfBirthAge;
+
 // SettingsPresenter#aus_backtax_details
 async function ausBacktaxDetails(facts: Facts, now: Date) {
   const { record, seller } = facts;
@@ -379,15 +389,12 @@ async function ausBacktaxDetails(facts: Facts, now: Date) {
   const agreement = await db.backtaxAgreement.findFirst({ where: { user_id: seller.id, jurisdiction: "AUSTRALIA" }, orderBy: { id: "asc" } });
   const credit = agreement ? await db.credit.findFirst({ where: { backtax_agreement_id: agreement.id }, orderBy: { id: "asc" } }) : null;
   const emailInfo = owed >= C.minAuBacktaxOwedCentsForContact ? await db.australiaBacktaxEmailInfo.findFirst({ where: { user_id: seller.id } }) : null;
-  // [(Time.now.utc.to_date + 1.month).beginning_of_month, Date.new(2023, 7, 1)].max
-  const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
-  const floor = new Date(Date.UTC(2023, 6, 1));
   return {
     show_au_backtax_prompt: owed >= C.minAuBacktaxOwedCentsForContact && emailInfo !== null,
     total_amount_to_au: formattedDollarAmount(sales, { noCentsIfWhole: false }),
     au_backtax_amount: formattedDollarAmount(owed, { noCentsIfWhole: false }),
     opt_in_date: agreement ? strftimeLongDate(agreement.created_at, true) : null,
-    credit_creation_date: strftimeLongDate(nextMonth > floor ? nextMonth : floor, false),
+    credit_creation_date: creditCreationDate(now),
     opted_in_to_au_backtax: agreement !== null,
     legal_entity_name: legalEntityName(facts.info.row),
     are_au_backtaxes_paid: credit !== null,
@@ -687,7 +694,7 @@ export async function paymentsProps(context: SellerContext, { impersonating, now
     fee_info: await feeInfo(facts),
     user: await userDetails(facts),
     compliance_info: complianceInfoDetails(info.row),
-    min_dob_year: now.getFullYear() - C.minimumDateOfBirthAge,
+    min_dob_year: minDobYear(now),
     us_business_types: codeAndName(DATA.businessTypes.us),
     uae_business_types: codeAndName(DATA.businessTypes.uae),
     india_business_types: codeAndName(DATA.businessTypes.india),
