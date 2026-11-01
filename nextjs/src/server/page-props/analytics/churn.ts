@@ -80,11 +80,11 @@ type Bucket = { key: { product_id: number; date?: string }; [aggregate: string]:
 
 // ElasticsearchFetcher
 export class Fetcher {
-  private readonly seller: Seller;
+  private readonly seller: { id: number | bigint; timezone: string | null };
   private readonly productIds: number[];
   private readonly window: DateWindow;
 
-  constructor(seller: Seller, productIds: number[], window: DateWindow) {
+  constructor(seller: { id: number | bigint; timezone: string | null }, productIds: number[], window: DateWindow) {
     this.seller = seller;
     this.productIds = productIds;
     this.window = window;

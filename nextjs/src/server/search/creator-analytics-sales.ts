@@ -73,7 +73,7 @@ export class CreatorAnalyticsSales {
   }
 
   async byProductAndCountryAndState(): Promise<Entry<[number, string | null, string | null]>[]> {
-    const sources = [
+    const sources: JsonValue[] = [
       { product_id: { terms: { field: "product_id" } } },
       { country: { terms: { field: "ip_country", missing_bucket: true } } },
       { state: { terms: { field: "ip_state", missing_bucket: true } } },
@@ -90,7 +90,7 @@ export class CreatorAnalyticsSales {
   }
 
   async byProductAndReferrerAndDate(): Promise<Entry<[number, string, string]>[]> {
-    const sources = [{ product_id: { terms: { field: "product_id" } } }, { referrer_domain: { terms: { field: "referrer_domain" } } }, this.dateHistogramSource()];
+    const sources: JsonValue[] = [{ product_id: { terms: { field: "product_id" } } }, { referrer_domain: { terms: { field: "referrer_domain" } } }, this.dateHistogramSource()];
     const buckets = await this.paginate(sources);
     return this.merge(buckets, (bucket) => [bucket.key.product_id as number, bucket.key.referrer_domain as string, this.bucketDateKey(bucket)]);
   }
