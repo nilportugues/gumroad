@@ -15,6 +15,7 @@ import { SOCIAL_CONNECTIONS_OPTIONS, socialConnectionsGuard } from "../../contro
 import type { ActionContext } from "../load-page.ts";
 import { NotPortedError } from "../not-ported.ts";
 import type { PageSpec } from "../pages.ts";
+import { remoteIp } from "../audience/events.ts";
 import { settingsGuard } from "./guard.ts";
 import { paymentsProps } from "./payments.ts";
 import { profileProps } from "./profile.ts";
@@ -91,7 +92,7 @@ export const SETTINGS_PAGES: Record<string, PageSpec> = {
   }),
   "/settings/payments": page("Settings/Payments/Show", {
     guard: settingsGuard({ authorize: (context) => settingsPaymentsUserPolicy.show(context) }),
-    props: (_, action) => settingsPage(action, (context) => paymentsProps(context, { impersonating: action.context.impersonatedUser !== null })),
+    props: (_, action) => settingsPage(action, (context) => paymentsProps(context, { impersonating: action.context.impersonatedUser !== null, remoteIp: remoteIp(action.headers) })),
   }),
   "/profile": page("Settings/Profile/Show", {
     guard: settingsGuard({ authorize: settingsProfilePolicy.show }),

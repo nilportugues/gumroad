@@ -267,7 +267,11 @@ Not ported, not in `routes.json`:
 - **Constant data.** Country lists, subdivisions, business types, each country's payout currency and
   cross-border minimum, and each bank account class's `routing_number` template come from
   `settings/payments-data.generated.json`; re-run `scripts/dump-payments-data.rb` when they change.
-- **What still throws `NotPortedError`**: a GeoIP2 city database on disk (`ip_country_code`); the
+- **GeoIP (WS-75).** `infra/geo-ip.ts` is `GeoIp.lookup` over `lib/GeoIP2-City.mmdb` (mmdb-lib; nil without the file),
+  used by `ip_country_code` here and the `events` row of the dashboard views. `infra/geo-ip.test.ts` replays
+  `scripts/golden/geo-ip.rb` (47 addresses, odd forms included, over the maxmind-geoip2 gem's GeoLite2 test database in
+  `infra/__fixtures__`). Rails' latitude and longitude are always nil (`santitize_string` `try(:encode)` on a Float).
+- **What still throws `NotPortedError`**: the
   active-subscriber check of a seller whose Stripe Connect account routes sales; instant payouts for a seller
   who passes the first eligibility checks; the payout date of a rejected account that is not paused; a bank
   sync failure note and a verification error message; a profile with saved sections, a membership product,
@@ -398,3 +402,30 @@ pieces, PPP and buyer currency display, shipping countries, custom field descrip
 arrivals, restart intent tokens), `Checkout::StripePaymentPresenter` (720 lines of lane selection over Flipper flags and currency eligibility),
 `CheckoutRecaptcha`, `TipOptionsService`, GeoIP and `process_cart_id_param` (which merges carts). The `recommended_products` prop needs
 `RecommendedProducts::CheckoutService` and `ProductPresenter.card_for_web`.
+
+## Agent, piracy reports, dispute evidence and the invoice redirect (WS-75)
+
+GET renders only; recorded by `spec/requests/{agent,piracy_reports,dispute_evidence}_signed_in_spec.rb` and
+`generate_invoice_redirect_spec.rb`, replayed by `parity/__tests__/ws75-pages.replay.test.ts`.
+
+- **Flags**: `nextjs_agent` (`/agent`), `nextjs_piracy_reports` (`/dashboard/piracy_reports`, `/new`, `/:id`),
+  `nextjs_dispute_evidence` and `nextjs_dispute_evidence_success` (`/purchases/:purchase_id/dispute_evidence[/success]`),
+  `nextjs_generate_invoice_redirect` (`/purchases/:purchase_id/generate_invoice`).
+- **Agent** (`page-props/agent/pages.ts`): the role gate is `userPolicy.viewStoreAgent`; `eligible` is the store-agent
+  predicate the shared props already use. A seller who has earned access (the Elasticsearch sales aggregate) is covered by the
+  `purchase-sales` golden, not by a replay.
+- **Piracy reports** (`page-props/piracy-reports/pages.ts`): `set_product`/`set_report` run before `authorize`, as in Rails, so
+  an unknown product or report redirects to `/products` for any role. `PiracyReports::Eligibility` is read in SQL; the replays leave
+  the Elasticsearch-backed earned-access bar unmet.
+- **Dispute evidence** (`page-props/dispute-evidence/pages.ts`): the filters are `authenticate_user!`, `set_purchase`
+  (`SecureExternalId` token first, then the external id; `models/secure-external-id.ts` gained `decryptSecureExternalId`),
+  `set_dispute_evidence` and `check_if_needs_redirect`; the props reload the records from the route param because the filter
+  state travels in a header and must stay small. The hours left and the deadline depend on whether the 72 hour window touches a
+  weekend, so the replay ignores those props (the window arithmetic has its own golden).
+  `NotPortedError`: a buyer-currency presentment on the disputed purchase or charge (`StripeChargeProcessor.format_charge_presentment_amount`).
+- **generate_invoice** is a Rack-level `redirect`, so it is an App Router route handler (`route.ts`) with the middleware headers and
+  none of the controller's cookies. Known difference: a query string with literal `[]` comes back percent-encoded, because Next
+  normalizes `request.url`.
+- **Not converted**: Communities (needs the `scroll` prop type, `PaginatedCommunityChatMessagesPresenter`, `accessible_communities_ids` and
+  `Community#thumbnail_url`), `Purchases/Invoices/New` (`InvoicePresenter::OrderInfo`/`SupplierInfo` tax and VAT rules), and the
+  `UrlRedirects/*` pages (S3 signed locations, stamped PDFs, consumption events written in after_actions, the download page layout props).

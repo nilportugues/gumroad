@@ -414,3 +414,29 @@ export const custom_domain_create_affiliate_request_path = path("/affiliate_requ
 export const instant_payouts_path = path("/instant_payouts(.:format)");
 export const payouts_exportables_path = path("/payouts/exportables(.:format)");
 export const payouts_exports_path = path("/payouts/exports(.:format)");
+
+// Agent page (WS-75).
+export const internal_agent_custom_html_preview_path = path("/internal/agent/custom_html_preview(.:format)");
+export const internal_agent_messages_path = path("/internal/agent/messages(.:format)");
+export const internal_agent_messages_stream_path = path("/internal/agent/messages/stream(.:format)");
+export const internal_agent_turn_status_path = path("/internal/agent/turns/:client_turn_id(.:format)");
+export const internal_agent_actions_path = path("/internal/agent/actions(.:format)");
+export const internal_agent_action_status_path = path("/internal/agent/actions/status(.:format)");
+export const internal_agent_custom_html_preview_document_path = path("/internal/agent/custom_html_previews/:token(.:format)");
+
+// Agent data layer (WS-75).
+export const internal_agent_conversations_latest_path = path("/internal/agent/conversations/latest(.:format)");
+
+// Piracy reports and the products tabs (WS-75).
+export const products_affiliated_index_path = path("/products/affiliated(.:format)");
+export const products_archived_index_path = path("/products/archived(.:format)");
+export const products_collabs_path = path("/products/collabs(.:format)");
+export const new_piracy_report_path = path("/dashboard/piracy_reports/new(.:format)");
+export const piracy_report_path = path("/dashboard/piracy_reports/:id(.:format)");
+export const piracy_reports_path = path("/dashboard/piracy_reports(.:format)");
+export const sign_piracy_report_path = path("/dashboard/piracy_reports/:id/sign(.:format)");
+export const cancel_piracy_report_path = path("/dashboard/piracy_reports/:id/cancel(.:format)");
+
+// Dispute evidence page (WS-75).
+export const purchase_dispute_evidence_path = path("/purchases/:purchase_id/dispute_evidence(.:format)");
+export const success_purchase_dispute_evidence_path = path("/purchases/:purchase_id/dispute_evidence/success(.:format)");

@@ -22,6 +22,8 @@ import type { PreflightOutcome, PreflightRequest } from "./preflight.ts";
 import { PUBLIC_PAGES } from "./public-pages.ts";
 import { AUDIENCE_PAGES } from "./audience/pages.ts";
 import { EMAILS_PAGES } from "./emails/pages.ts";
+import { PIRACY_REPORT_PAGES } from "./piracy-reports/pages.ts";
+import { DISPUTE_EVIDENCE_PAGES } from "./dispute-evidence/pages.ts";
 import type { ActionContext } from "./load-page.ts";
 import { DASHBOARD_PAGES } from "./dashboard-pages.ts";
 import { OAUTH_APPLICATION_PAGES, SETTINGS_PAGES } from "./settings/pages.ts";
@@ -29,6 +31,7 @@ import { STOREFRONT_PAGES } from "./storefront/pages.ts";
 import { PRODUCT_PAGES } from "./product-pages.ts";
 import { PAYOUTS_PAGES } from "./payouts/pages.ts";
 import { CHECKOUT_PAGES } from "./checkout-pages.ts";
+import { AGENT_PAGES } from "./agent/pages.ts";
 
 type Params = Record<string, string>;
 
@@ -133,6 +136,9 @@ export const PAGES: Record<string, PageSpec> = {
   ...PRODUCT_PAGES,
   ...PAYOUTS_PAGES,
   ...CHECKOUT_PAGES,
+  ...DISPUTE_EVIDENCE_PAGES,
+  ...PIRACY_REPORT_PAGES,
+  ...AGENT_PAGES,
 };
 
 // ArticlesController#index
