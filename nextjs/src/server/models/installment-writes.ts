@@ -6,8 +6,11 @@
 //   sending-limit validation needs;
 // - a message Rails::HTML::Sanitizer would have to judge, a call to action, a post without a slug, a post with files (video
 //   transcoding), and a seller that content moderation would review (it asks an AI model).
+import { randomUUID } from "node:crypto";
+
 import { Prisma, type Installment } from "@prisma/client";
 
+import { generateSlug, RESERVED_WORDS } from "./friendly-id.ts";
 import { INSTALLMENT_ATTRIBUTE_TO_SEARCH_FIELDS } from "../search/documents/simple.ts";
 import { filterCount } from "../search/audience-member-search.ts";
 import { salesCentsTotal } from "../search/purchase-sales.ts";
@@ -46,6 +49,11 @@ export class InstallmentInvalid extends Error {
     this.name = "Installment::InstallmentInvalid";
   }
 }
+
+const ELASTICSEARCH_INDEX_DELAY_SECONDS = 2;
+
+// SecureRandom.uuid for the slug of a name that is taken; tests swap it.
+export const installmentDeps = { uuid: (): string => randomUUID() };
 
 const refuse = (what: string): never => {
   throw new NotPortedError(what, SOURCE);
@@ -166,26 +174,34 @@ const validations: Callback<Installment>[] = [
 
 const paperTrail = hasPaperTrail<Installment>("Installment", { itemType: "Installment" });
 
+// friendly_id's `before_validation :set_slug` and `before_save :set_slug`: a slug is generated only for a record that has none.
+const setSlug: Callback<Installment> = {
+  name: "FriendlyId set_slug",
+  async run(record) {
+    const name = record.get("name");
+    if (record.get("slug") !== null || name === null) return;
+    const slug = await generateSlug("installments", name, record.newRecord ? null : record.get("id"), installmentDeps.uuid);
+    record.set("slug", slug);
+  },
+};
+
+// friendly_id's `validates_exclusion_of :friendly_id`, declared ahead of the model's own validations.
+const reservedSlug: Callback<Installment> = {
+  name: "validates_exclusion_of :friendly_id",
+  run(record) {
+    const slug = record.get("slug");
+    if (slug !== null && RESERVED_WORDS.includes(slug)) record.errors.add("friendly_id", "exclusion");
+  },
+};
+
 export const Installments = defineModel<Installment>({
   rubyClass: "Installment",
   prismaModel: "Installment",
   delegate: (tx) => tx.installment as never,
-  beforeValidation: [
-    {
-      // friendly_id: a slug is generated only for a record that has none
-      name: "FriendlyId set_slug",
-      run(record) {
-        if (record.get("slug") === null && record.get("name") !== null) refuse("a post without a slug (friendly_id)");
-      },
-    },
-    {
-      name: "(guard) create",
-      on: "create",
-      run: () => refuse("Installment#create"),
-    },
-  ],
-  validations,
-  beforeSave: [mergeJsonDataWithCurrentRow<Installment>("installments")],
+  beforeValidation: [setSlug],
+  validations: [reservedSlug, ...validations],
+  beforeSave: [setSlug, mergeJsonDataWithCurrentRow<Installment>("installments")],
+  afterCreate: [...paperTrail.afterCreate],
   afterUpdate: [...paperTrail.afterUpdate],
   afterSave: [
     {
@@ -197,7 +213,26 @@ export const Installments = defineModel<Installment>({
       },
     },
   ],
+  beforeCommit: [
+    {
+      name: "TransactionalAttributeChangeTracker before_commit",
+      run: (record) => {
+        const changed = record.ivars[CHANGED_IN_TRANSACTION] as Set<string> | undefined;
+        if (changed === undefined) return;
+        record.ivars[COMMITTED] = [...changed];
+        changed.clear();
+      },
+    },
+  ],
   afterCommit: [
+    {
+      // ElasticsearchModelAsyncCallbacks#send_to_elasticsearch("index")
+      name: "send_to_elasticsearch",
+      on: "create",
+      async run(record) {
+        await performAsync("ElasticsearchIndexerWorker", ["index", { record_id: record.get("id"), class_name: "Installment" }], { delaySeconds: ELASTICSEARCH_INDEX_DELAY_SECONDS });
+      },
+    },
     {
       // ElasticsearchModelAsyncCallbacks#send_to_elasticsearch("update")
       name: "send_to_elasticsearch",
@@ -207,15 +242,6 @@ export const Installments = defineModel<Installment>({
         const fields = [...new Set(committed.flatMap((name) => INSTALLMENT_ATTRIBUTE_TO_SEARCH_FIELDS[name] ?? []))];
         if (fields.length === 0) return;
         await performAsync("ElasticsearchIndexerWorker", ["update", { record_id: record.get("id"), class_name: "Installment", fields }], { delaySeconds: ELASTICSEARCH_UPDATE_DELAY_SECONDS });
-      },
-    },
-    {
-      name: "TransactionalAttributeChangeTracker before_commit",
-      run: (record) => {
-        const changed = record.ivars[CHANGED_IN_TRANSACTION] as Set<string> | undefined;
-        if (changed === undefined) return;
-        record.ivars[COMMITTED] = [...changed];
-        changed.clear();
       },
     },
   ],
@@ -253,6 +279,9 @@ export async function unpublishBang(record: InstallmentModel, { isUnpublishedByA
   record.set("flags", Number(InstallmentFlags.set(record.get("flags") as number, "is_unpublished_by_admin", isUnpublishedByAdmin)));
   await Installments.saveBang(record, { now } as SaveOptions);
 }
+
+// `mark_deleted` (Deletable): the non-bang save, which reports an invalid post as false.
+export const markDeleted = (record: InstallmentModel, options: SaveOptions = {}) => softDeletion.markDeleted(record, options);
 
 // `mark_deleted!` (Deletable)
 export const markDeletedBang = (record: InstallmentModel, options: SaveOptions = {}) => softDeletion.markDeletedBang(record, options);

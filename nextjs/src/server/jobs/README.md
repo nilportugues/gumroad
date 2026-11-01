@@ -287,3 +287,9 @@ guard), renders `CustomerMailer#receipt` with the Node port, sends over SMTP and
 - A read failure while checking for stamping is kept and raised after the mail, as the Ruby `rescue StandardError => e; e` does.
 - Not ported: `SendChargeReceiptJob` (charge receipts, `receipt_sent`, `with_lock`, the auto invoice enqueue) and everything that calls
   `CustomerMailer.receipt` with a charge.
+
+## Installments and workflows written by the controllers (WS-82)
+
+`PublishScheduledPostJob` no longer hands back a post without a slug: `Installment` generates it (friendly_id) before the save. The post still hands back for files, a call to
+action, markup the sanitizer would judge, a "has not clicked" audience and a content-moderation review. `SaveInstallmentService` enqueues `PublishScheduledPostJob`
+(`perform_at`), `SendPostBlastEmailsJob` and the `ElasticsearchIndexerWorker` index/update jobs; see `models/README.md` (WS-82).

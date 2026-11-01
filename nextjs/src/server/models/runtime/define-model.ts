@@ -52,6 +52,8 @@ export type ModelDefinition<R extends Row> = {
   afterSave?: Callback<R>[];
   beforeDestroy?: Callback<R>[];
   afterDestroy?: Callback<R>[];
+  // before_commit
+  beforeCommit?: Callback<R>[];
   // after_commit, after_create_commit (on: "create"), after_save_commit (on: ["create","update"]) ...
   afterCommit?: Callback<R>[];
   afterRollback?: Callback<R>[];
@@ -135,6 +137,10 @@ export function defineModel<R extends Row>(def: ModelDefinition<R>) {
   function participant(record: ModelRecord<R>, action: Action) {
     const snapshot = { newRecord: record.newRecord, destroyed: record.destroyed, id: record.get("id") };
     return participate(record, action, () => ({
+      identity: () => `${def.rubyClass}#${String(record.get("id"))}`,
+      prepare: async (finalAction) => {
+        for (const cb of def.beforeCommit ?? []) if (applies(cb, record, finalAction as Action)) await cb.run(record, { tx: null as unknown as Tx });
+      },
       commit: async (finalAction) => {
         // committed! clears the record's trigger flags when it finishes, and `on:` is checked per
         // callback: once a callback saves the record again, the rest of the outer chain is skipped.

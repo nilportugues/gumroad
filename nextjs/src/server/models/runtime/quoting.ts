@@ -23,6 +23,8 @@ export function quote(value: unknown): string {
     const escaped = value.replace(/[\0\n\r\\'"\x1a]/gu, (c) => ({ "\0": "\\0", "\n": "\\n", "\r": "\\r", "\\": "\\\\", "'": "\\'", '"': '\\"', "\x1a": "\\Z" })[c]!);
     return `'${escaped}'`;
   }
+  // A value for a JSON column, which ActiveRecord writes as its JSON text.
+  if (typeof value === "object") return quote(JSON.stringify(value));
   throw new Error(`cannot quote ${String(value)}`);
 }
 

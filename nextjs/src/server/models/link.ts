@@ -718,6 +718,13 @@ export function bannedAtValue(at: Date | null): Date | null {
   return at === null ? null : new Date(Math.floor(at.getTime() / 1000) * 1000);
 }
 
+// `link.enqueue_index_update_for(fields)` for a product that was not loaded as a record (SaveFilesService on a post).
+export function enqueueLinkIndexUpdate(linkId: bigint | number, fields: string[], now: () => Date = () => new Date()): Promise<void> {
+  return import("../search/product-indexing.ts").then(({ enqueueIndexUpdatesFor }) =>
+    enqueueIndexUpdatesFor([linkId], fields, { now, featureActive: (name, actor) => collaborators.isFeatureEnabled(name, actor) }),
+  );
+}
+
 // `Link.find(id)`
 export async function findLinkBang(id: bigint | number): Promise<LinkRecord> {
   const [row] = await selectRows(Prisma.sql`SELECT ${Prisma.raw("`links`.*")} FROM ${table("links")} WHERE ${column("links", "id")} = ${id} LIMIT 1`);

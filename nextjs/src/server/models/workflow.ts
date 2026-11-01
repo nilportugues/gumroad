@@ -16,7 +16,7 @@ export const INSTALLMENTS = "installments";
 export const INSTALLMENT_RULES = "installment_rules";
 export const MEMBER_CANCELLATION_WORKFLOW_TRIGGER = "member_cancellation";
 
-const WorkflowFlags = defineFlags("workflows", { 1: "send_to_past_customers" }, { queryMode: "bit_operator" });
+export const WorkflowFlags = defineFlags("workflows", { 1: "send_to_past_customers" }, { queryMode: "bit_operator" });
 
 // Integer columns come back as numbers or bigints depending on the column; ids compare by value.
 const sameId = (a: bigint | number | null, b: bigint | number | null) => (a === null || b === null ? a === b : BigInt(a) === BigInt(b));

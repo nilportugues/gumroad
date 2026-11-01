@@ -55,7 +55,7 @@ import { isPresent, queryParam, type RailsRequest, railsRequest } from "./rails-
 export type Rendered = { status: number; body: string; contentType: string; inertia?: boolean; headers?: Record<string, string>; rescued?: boolean; paramsRead?: boolean };
 // redirect_to from the action. `rescued`: from a rescue_from handler, which skips the after_actions.
 // `flash`: what the action put in flash[:alert] and friends before redirecting.
-export type Redirected = { status: number; location: string; rescued?: boolean; flash?: Record<string, string> };
+export type Redirected = { status: number; location: string; rescued?: boolean; flash?: Record<string, string>; inertiaErrors?: Record<string, unknown> };
 // inertia_rails' middleware swapping the response for a bare 409 when the client's asset version is
 // stale. The controller still ran, so its cookies (written by ActionDispatch::Cookies, outside that
 // middleware) and the session survive; the headers it set do not. `rescued`: the controller halted
@@ -101,7 +101,7 @@ export type ActionOptions = {
 export type RenderState = {
   csrfToken: string;
   flash: Record<string, string>;
-  inertiaErrors: Record<string, string>;
+  inertiaErrors: Record<string, unknown>;
   mobileParam: unknown;
   mobileAppWebView: unknown;
   // session[:prompt_passkey_setup]: the user id LoginsController marked at sign-in.
@@ -293,7 +293,7 @@ export function takeRenderState(chain: Chain): RenderState {
   const state: RenderState = {
     csrfToken: chain.csrfToken,
     flash,
-    inertiaErrors: stringEntries(data.inertia_errors),
+    inertiaErrors: isHash(data.inertia_errors) ? data.inertia_errors : {},
     mobileParam: data.mobile_param,
     mobileAppWebView: data.mobile_app_web_view,
     promptPasskeySetup: data.prompt_passkey_setup,
@@ -403,7 +403,7 @@ const SUSPENDED_MESSAGE = "You can't perform this action because your account ha
 
 // redirect_back's referrer: kept only when its host is the request's (raise_on_open_redirects makes
 // allow_other_host false), or it is a path on this host; ActionController::Redirecting#_url_host_allowed?
-function allowedReferrer(request: RailsRequest): string | null {
+export function allowedReferrer(request: RailsRequest): string | null {
   const referrer = request.headers.get("referer");
   if (referrer === null) return null;
   try {
@@ -468,6 +468,12 @@ export function afterActions(chain: Chain, result: ActionResult): ControllerResp
   }
   if ("location" in result) {
     if (result.flash) chain.session.data.flash = { discard: [], flashes: result.flash };
+    // `redirect_to ..., inertia: { errors: }`; InertiaRails::Middleware drops errors left in the session after any other status.
+    if (result.inertiaErrors) chain.session.data.inertia_errors = result.inertiaErrors;
+    else if (result.status !== 301 && result.status !== 302) {
+      delete chain.session.data.inertia_errors;
+      delete chain.session.data.inertia_clear_history;
+    }
     headers.set("location", redirectLocation(request, result.location));
     headers.set("content-type", "text/html; charset=utf-8");
   } else {
@@ -487,7 +493,9 @@ export function afterActions(chain: Chain, result: ActionResult): ControllerResp
   }
   commitSession(chain);
   for (const cookie of chain.cookies) headers.append("set-cookie", cookie);
-  return { status: result.status, headers, body: "location" in result ? "" : result.body };
+  // InertiaRails::Middleware: a redirect after PUT, PATCH or DELETE must be followed with GET.
+  const inertiaRedirect = "location" in result && request.headers.get("x-inertia") !== null && ["PUT", "PATCH", "DELETE"].includes(request.method) && [301, 302].includes(result.status);
+  return { status: inertiaRedirect ? 303 : result.status, headers, body: "location" in result ? "" : result.body };
 }
 
 // PromotesDashboardNavItems#promote_visited_nav_item
@@ -592,13 +600,20 @@ function publicException(request: RailsRequest, status: number): { headers: Head
   return { headers: new Headers({ "content-type": "text/html; charset=utf-8" }), body: request.method === "HEAD" ? "" : readFileSync(file, "utf8") };
 }
 
-async function forwardToRails(request: Request): Promise<Response> {
+export async function forwardToRails(request: Request): Promise<Response> {
   const source = new URL(request.url);
   const target = new URL(`${source.pathname}${source.search}`, getRequiredConfig("RAILS_ORIGIN"));
   const headers = new Headers(request.headers);
   headers.set("x-forwarded-host", railsRequest(request).hostWithPort);
   headers.set("x-forwarded-proto", source.protocol.replace(":", ""));
-  return fetch(target, { method: request.method, headers, redirect: "manual" });
+  const body = request.method === "GET" || request.method === "HEAD" ? undefined : await request.clone().arrayBuffer();
+  return fetch(target, { method: request.method, headers, body, redirect: "manual" });
+}
+
+// The CSRF token the request's session cookie holds (`session[:_csrf_token]`), before any filter has run.
+export function sessionCsrfToken(request: RailsRequest): string | null {
+  const token = loadSession(request).data._csrf_token;
+  return typeof token === "string" ? token : null;
 }
 
 // Runs `action` the way Rails runs a controller action for this request, and returns the response
@@ -661,7 +676,7 @@ export async function pageEnvelope(incoming: Request, options: ActionOptions = {
   } catch (error) {
     if (error instanceof HandBackToRails) return { response: await forwardToRails(incoming) };
     const status = error instanceof RoutingError ? 404 : 500;
-    if (status === 500) notifyError(error);
+    if (status === 500) { console.error("DBG processAction", error); notifyError(error); }
     const page = publicException(request, status);
     return wrap(page.headers, status, page.body === "" ? null : page.body);
   }

@@ -565,3 +565,26 @@ cookies and `data-page`/JSON props; 5 must reach the stand-in origin). `GeoIp.lo
 
 **`Subscriptions/Manage` props** stay unported (see WS-72): `subscription_manager_props` needs `Variant#to_option`, proration, plan-change discounts and
 `Checkout::StripePaymentPresenter` over a real cart shape.
+
+## Mutations of pages (WS-82)
+
+A POST/PUT/PATCH/DELETE served by Node is a route keyed with its method in routes.json (`"PATCH /workflows/:id": { "flag": ..., "mutation": true, "signedInOnly": true }`).
+The proxy rewrites it to `/gr-mutation` (`app/gr-mutation/route.ts`, `server/controllers/mutation.ts`), which registers actions with `registerMutations` and runs them through
+`processAction`, so the filters, session, flash, `XSRF-TOKEN` and SecureHeaders are the ones of a page request.
+
+- **Hand-back.** Before the chain runs, a request Rails would treat differently goes to Rails with its body: a format that is not HTML (Pundit answers 401 JSON), a
+  per-form or missing CSRF token or a foreign Origin (Rails runs the action with a null session), a body that is not JSON or a simple form, a nil inside a list
+  (`deep_munge`). Inside the action a `NotPortedError` (thrown before the first write of its transaction) becomes the same hand-back and is logged as `[mutation] ... handed back`.
+- **CSRF** follows `verified_request?` for the global token: `X-XSRF-TOKEN` (copied to `X-CSRF-Token` by InertiaRails::Middleware when the request is Inertia),
+  `X-CSRF-Token` or `authenticity_token`, masked or not.
+- **Responses.** A redirect after PUT/PATCH/DELETE with `X-Inertia` is 303 (the middleware); `redirect_to ..., inertia: { errors: }` is `Redirected.inertiaErrors`, written to
+  the session and shown by the next render; a redirect with any status other than 301/302 clears errors left in the session. `railsSegment` writes ids as Rails' path
+  helpers do (the `=` of an external id stays).
+- **Versions.** `withPaperTrailRequest` carries `whodunnit` (the signed-in user) and `controllerInfo`; `remote_ip` is the rightmost public `X-Forwarded-For` entry and
+  `request_uuid` the `X-Request-Id`. Rails' test environment disables PaperTrail, so replays do not compare `versions` rows (the goldens pin them).
+- **Parity.** `spec/requests/{emails,workflows}_mutations_signed_in_spec.rb` (38 recorded requests: success, validation errors, 404s, policy refusals for support and
+  accountant, marketing allowed) replayed by `parity/__tests__/audience-mutations.replay.test.ts` against `next dev` with a stand-in Rails that must receive the hand-backs.
+  The replay compares status, redirect, cookies, every row written and every job (BullMQ jobs read back as their Sidekiq items). Ignored: `updated_at` of a row touched in the
+  same second as its seed, `jobs.*.at` (normalized to a bucket), the random uuids of a slug suffix and of schedule intents. Flags: `nextjs_emails_writes`, `nextjs_workflows_writes`.
+  Record with the default ObfuscateIds key of `.env.test` and a recording database apart from the replay's: the replay truncates its database.
+- Not ported: `PATCH /workflows/:id/emails` (`Workflows::EmailsController#update`), the preview and send actions of `/emails`, and the other JSON endpoints.

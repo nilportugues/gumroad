@@ -65,7 +65,7 @@ function withTransitionLock<T>(workflow: WorkflowRecord, options: SaveOptions, f
 const alive = (workflow: WorkflowRecord) => Prisma.sql`${column("installments", "workflow_id")} = ${workflow.get("id")} AND ${column("installments", "deleted_at")} IS NULL`;
 
 // A row of `workflow.installments`: the has_many sets the inverse `workflow` on each, which reads its foreign key.
-function installmentOf(row: Installment): ModelRecord<Installment> {
+export function installmentOf(row: Installment): ModelRecord<Installment> {
   const installment = Installments.load(row);
   installment.touch("workflow_id");
   return installment;

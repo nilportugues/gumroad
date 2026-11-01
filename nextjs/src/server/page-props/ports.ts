@@ -15,7 +15,7 @@ export interface RailsSessionPort {
   // Reads and discards the flash, like rendering a Rails response does.
   consumeFlash(): Promise<Record<string, string>>;
   // inertia_rails keeps validation errors from a redirect in session[:inertia_errors].
-  consumeInertiaErrors(): Promise<Record<string, string>>;
+  consumeInertiaErrors(): Promise<Record<string, unknown>>;
   // session[:mobile_param] ("0"/"1"), session[:mobile_app_web_view] and session[:prompt_passkey_setup].
   value(key: "mobile_param" | "mobile_app_web_view" | "prompt_passkey_setup"): Promise<unknown>;
 }
