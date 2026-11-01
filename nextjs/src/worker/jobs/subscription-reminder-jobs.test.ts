@@ -9,12 +9,13 @@
 import { readFileSync } from "node:fs";
 
 import { Redis } from "ioredis";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { evaluateFeature, parseGateValues } from "../../server/infra/flipper.ts";
 import { beforeSideEffects } from "../../server/jobs/hand-back.ts";
 import { createJobsRuntime } from "../../server/jobs/runtime.ts";
 import { parseRubyJson, RubyFloat, type JsonValue } from "../../server/jobs/sidekiq/ruby-json.ts";
+import { setPurchasingPowerParityDepsForTesting } from "../../server/models/purchasing-power-parity.ts";
 import { mailerKeyDigest } from "../../server/models/sent-email-info.ts";
 import { findByIdBang, recordIdFrom } from "../../server/models/row-reads.ts";
 import { defaultSubscriptionDeps, SubscriptionRecord } from "../../server/models/subscription.ts";
@@ -40,6 +41,8 @@ type Case = {
   redis: RedisSnapshot;
   redis_before: RedisSnapshot;
   eligibility_statements?: number;
+  // The commands the PurchasingPowerParityService sent to the `ppp` Redis namespace.
+  ppp_commands?: string[][];
   // The cents a `price:` case answered.
   result?: number | null;
   // Node cannot price the case (it hands the job back to Rails).
@@ -89,6 +92,25 @@ const takesLocks = (redis: RedisSnapshot) => Object.keys(redis).some((key) => ke
 // What the case's own writes left, without the Flipper documents `setup:` put there.
 const withoutSetup = (redis: RedisSnapshot, before: RedisSnapshot) => Object.fromEntries(Object.entries(redis).filter(([key, entry]) => JSON.stringify(before[key]) !== JSON.stringify(entry)));
 
+// The `ppp` keys the case started with, served and logged the way the service's Redis commands are: a
+// list at the key fails a GET with WRONGTYPE.
+function pppRedis(before: RedisSnapshot) {
+  const commands: string[][] = [];
+  return {
+    commands,
+    redis: {
+      async get(key: string) {
+        commands.push(["get", key]);
+        const entry = before[key];
+        if (entry === undefined) return null;
+        if (entry.type !== "string") throw new Error("WRONGTYPE Operation against a key holding the wrong kind of value");
+        return entry.value as string;
+      },
+    },
+  };
+}
+afterEach(() => setPurchasingPowerParityDepsForTesting(undefined));
+
 const url = process.env.JOBS_REDIS_URL;
 if (url && /\/0$|^[^/]*\/\/[^/]+$/.test(url)) throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
 let realRedis: Redis | undefined;
@@ -128,6 +150,8 @@ describe("subscription reminder jobs", () => {
       const runtime = createJobsRuntime({ sidekiqRedis, bullmqRedis: sidekiqRedis, registry: rubyRuntimeRegistry(), now: () => caseNow(c), newJid: sequentialJids() });
       let error: unknown = null;
       probeResult = undefined;
+      const ppp = pppRedis(c.redis_before);
+      setPurchasingPowerParityDepsForTesting({ redis: () => ppp.redis as never });
       try {
         await asSidekiqJob(() => handlers(c)[c.job]!(c.args, contextFor(runtime)), caseNow(c));
       } catch (e) {
@@ -142,6 +166,7 @@ describe("subscription reminder jobs", () => {
         return;
       }
       expect(sql.log).toEqual(sql.expected);
+      expect(ppp.commands).toEqual(c.ppp_commands ?? []);
       expect(error === null ? null : (error as Error).message).toEqual(c.error?.message ?? null);
       if (c.job === "Ws48PriceProbe" && c.error === null) expect(probeResult).toEqual(c.result);
       expect(JSON.parse(withoutJobIds(await snapshot()))).toEqual(JSON.parse(withoutJobIds(withoutSetup(c.redis, c.redis_before))));

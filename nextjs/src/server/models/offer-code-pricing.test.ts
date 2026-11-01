@@ -48,6 +48,27 @@ const golden = JSON.parse(readFileSync(new URL("../../worker/jobs/__fixtures__/o
     number_of_installments: number;
     price: Answer<number>;
   }[];
+  // A PPP-discounted price of a product that enabled PPP, with no offer code.
+  minimum_paid_price_ppp: {
+    quantity: number;
+    unit: number;
+    code: null;
+    code_amount: number;
+    once_per_cart: boolean;
+    applies: boolean;
+    currency: string;
+    completion: boolean;
+    commission_product: boolean;
+    installment: boolean;
+    nth: number;
+    snapshot: boolean;
+    snapshot_total: number;
+    snapshot_installments: number;
+    plan: boolean;
+    number_of_installments: number;
+    ppp_factor: number;
+    price: Answer<number>;
+  }[];
 };
 
 const NOW = new Date(Math.round(golden.now * 1000));
@@ -148,6 +169,38 @@ describe("Purchase#minimum_paid_price_cents", () => {
           isInstallmentPayment: v.installment,
           isPpp: v.ppp,
           pppEnabled: v.ppp_enabled,
+        };
+        const total = minimumPriceBeforeSplit(input);
+        const payment = splitsIntoInstallments(input)
+          ? installmentPaymentFor({
+              totalPriceCents: total,
+              nth: v.nth,
+              snapshot: v.snapshot ? { total_price_cents: v.snapshot_total, number_of_installments: v.snapshot_installments } : null,
+              plan: v.plan ? { number_of_installments: v.number_of_installments } : null,
+            })
+          : undefined;
+        return minimumPaidPrice(input, total, payment);
+      }, v.price);
+    }
+  });
+});
+
+describe("Purchase#minimum_paid_price_cents with a purchasing power parity factor", () => {
+  it(`prices ${golden.minimum_paid_price_ppp.length} PPP-discounted purchases as Ruby does`, () => {
+    for (const v of golden.minimum_paid_price_ppp) {
+      expectAnswer(() => {
+        const input: PricingInput = {
+          quantity: v.quantity,
+          unitPriceCents: v.unit,
+          code: null,
+          codeApplies: v.applies,
+          minPrice: () => currencyMinPrice({ price_currency_type: v.currency }),
+          isCommissionCompletion: v.completion,
+          isCommissionProduct: v.commission_product,
+          isInstallmentPayment: v.installment,
+          isPpp: true,
+          pppEnabled: true,
+          pppFactor: v.ppp_factor,
         };
         const total = minimumPriceBeforeSplit(input);
         const payment = splitsIntoInstallments(input)

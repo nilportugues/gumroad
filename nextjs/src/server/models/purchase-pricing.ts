@@ -17,6 +17,8 @@ import { amountOff, applicableToVariants, isCents, nilReceiver, OfferCodeFlags, 
 import { PurchaseFlags } from "../search/flags.ts";
 import { findById, findOneBy } from "./row-reads.ts";
 import { PURCHASES } from "./purchase.ts";
+import { alpha2ByName } from "./compliance-countries.ts";
+import { getFactor } from "./purchasing-power-parity.ts";
 import { castRow, column, quoteName, selectRows, table } from "./sql.ts";
 import type { SubscriptionRecord } from "./subscription.ts";
 import { NotPortedError, UserFlags } from "./user.ts";
@@ -113,7 +115,13 @@ export type PricingInput = {
   isPpp: boolean;
   // link.purchasing_power_parity_enabled? (asked of a PPP-discounted purchase only)
   pppEnabled: boolean;
+  // purchasing_power_parity_factor, read where Ruby reads it: a PPP-discounted price of a product that
+  // enabled PPP, with no offer code
+  pppFactor?: number;
 };
+
+// Whether the price is multiplied by the purchase's purchasing power parity factor.
+export const appliesPppFactor = (input: Pick<PricingInput, "isPpp" | "pppEnabled" | "code">) => input.isPpp && input.pppEnabled && input.code === null;
 
 // Purchase#minimum_paid_price_cents up to the split into installments: the total the instalments
 // divide (`minimum_price_cents`).
@@ -126,7 +134,10 @@ export function minimumPriceBeforeSplit(input: PricingInput): number {
   // Offer codes may exceed the price; the floor comes before the split into instalments.
   if (code !== null && minimumPriceCents < 0) minimumPriceCents = 0;
   if (oncePerCartFixed) minimumPriceCents = currencyMinimumOrZero(minimumPriceCents, input.minPrice());
-  if (input.isPpp && input.pppEnabled && code === null) throw new NotPortedError("PurchasingPowerParityService#get_factor", "purchase.rb:1974");
+  if (appliesPppFactor(input)) {
+    if (input.pppFactor === undefined) throw new Error("purchasing_power_parity_factor was not loaded");
+    minimumPriceCents *= input.pppFactor;
+  }
   if (input.isInstallmentPayment) minimumPriceCents = rubyRound(minimumPriceCents);
   return minimumPriceCents;
 }
@@ -392,6 +403,16 @@ export class PurchaseRecord {
     return UserFlags.isSet(owner.flags, "purchasing_power_parity_enabled");
   }
 
+  // Purchase#purchasing_power_parity_factor (private), memoized per record: the factor of the country
+  // `ip_country` names, floored at what the seller allows.
+  private purchasingPowerParityFactor(): Promise<number> {
+    return this.loaded("purchasing_power_parity_factor", async () => {
+      const seller = await this.loaded("seller", () => findById<User>("User", this.row.seller_id));
+      // A missing seller fails on `seller.min_ppp_factor`, after the Redis read.
+      return getFactor(alpha2ByName(this.row.ip_country), seller ?? { get purchasing_power_parity_limit(): never { return nullOperand("min_ppp_factor"); } });
+    });
+  }
+
   // Purchase#calculate_installment_payment_price_cents (private): the instalment of the next charge,
   // from the plan snapshot the payment option holds or, without one, the product's plan.
   private async calculateInstallmentPaymentPriceCents(totalPriceCents: number): Promise<number | undefined> {
@@ -437,6 +458,7 @@ export class PurchaseRecord {
       isPpp,
       pppEnabled: isPpp && (await this.linkPurchasingPowerParityEnabled(link ?? nullOperand("purchasing_power_parity_enabled?"))),
     };
+    if (appliesPppFactor(input)) input.pppFactor = await this.purchasingPowerParityFactor();
     const total = minimumPriceBeforeSplit(input);
     const installmentPayment = splitsIntoInstallments(input) ? await this.calculateInstallmentPaymentPriceCents(total) : undefined;
     return minimumPaidPrice(input, total, installmentPayment);
