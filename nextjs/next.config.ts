@@ -18,11 +18,30 @@ const sharedPackages = [
   "@radix-ui/react-dialog",
   "@radix-ui/react-popover",
   "@radix-ui/react-slot",
+  "@rails/activestorage",
+  "@tiptap/core",
+  "@tiptap/extension-character-count",
+  "@tiptap/extension-code-block-lowlight",
+  "@tiptap/extension-link",
+  "@tiptap/extension-placeholder",
+  "@tiptap/extension-underline",
+  "@tiptap/pm",
+  "@tiptap/react",
+  "@tiptap/starter-kit",
   "class-variance-authority",
   "classnames",
   "clipboard",
-  "date-fns",
   "cn",
+  "date-fns",
+  "date-fns-tz",
+  "dompurify",
+  "lodash-es",
+  "lowlight",
+  "react-day-picker",
+  "react-media-recorder",
+  "react-select",
+  "react-sortablejs",
+  "sortablejs",
 ];
 
 const config: NextConfig = {
@@ -35,6 +54,9 @@ const config: NextConfig = {
   },
   // Rails URLs never carry trailing slashes; matching that keeps redirects identical.
   trailingSlash: false,
+  // `next build` would type-check app/javascript against React 19's types and fail on code the root
+  // typecheck owns; `npm run typecheck` (scripts/typecheck.ts) is the gate and still fails on nextjs/.
+  typescript: { ignoreBuildErrors: true },
   // Without this Next strips the RSC headers before src/proxy.ts runs, so it cannot tell a client
   // router fetch of a Rails page apart from a browser visit (see decide.ts).
   skipProxyUrlNormalize: true,
@@ -51,7 +73,8 @@ const config: NextConfig = {
       ),
       // useConfigureEvaporate (the email attachment uploader) imports it with its extension.
       "$vendor/evaporate.js": "../vendor/assets/javascripts/evaporate.js",
-      ...Object.fromEntries(sharedPackages.map((name) => [name, `./node_modules/${name}`])),
+      // The wildcard covers subpath imports (`@tiptap/pm/state`).
+      ...Object.fromEntries(sharedPackages.flatMap((name) => [[name, `./node_modules/${name}`], [`${name}/*`, `./node_modules/${name}/*`]])),
     },
     rules: {
       // Vite turns `$assets/...` images into URL strings; Next would turn them into objects.
