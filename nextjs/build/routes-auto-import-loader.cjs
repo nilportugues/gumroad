@@ -3,7 +3,8 @@
 // Turbopack only resolves bare specifiers here; next.config.ts aliases this one.
 const routesModule = "$next-routes";
 const usesRoutes = /(^|[^.\w$])Routes\./m;
-const declaresRoutes = /\b(import|const|let|var|function)\b[^;\n]*\bRoutes\b/;
+// `Routes` as a binding, not as the receiver of a call later on the same line (`const x = f(a, Routes.b())`).
+const declaresRoutes = /\b(import|const|let|var|function)\b[^;\n]*\bRoutes\b(?!\s*\.)/;
 
 module.exports = function routesAutoImportLoader(source) {
   if (!usesRoutes.test(source) || declaresRoutes.test(source)) return source;
