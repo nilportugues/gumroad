@@ -25,6 +25,7 @@ const chainFor = (path: string, headers: Record<string, string> = {}, session: R
   cookies: [],
   sessionCleared: false,
   pageState: {},
+  afterCookies: [],
 });
 
 beforeEach(() => {

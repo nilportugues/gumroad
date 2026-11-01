@@ -85,6 +85,10 @@ export type ActionOptions = {
   // The controller's own before_actions and the start of its action, after ApplicationController's.
   // `state` reaches the page's props (ActionContext.state).
   filters?: (chain: Chain) => Promise<FilterOutcome>;
+  // The cookies the action's `after_action`s write (`cookies[name] = value`, e.g. DashboardPreference).
+  // They run only when the chain was not halted (`rescued`), ahead of ApplicationController's own
+  // after_actions (callbacks defined later run first), so they precede XSRF-TOKEN in the jar.
+  afterCookies?: string[];
 };
 
 // What the session contributes to rendering an Inertia page: its CSRF token, the flash and
@@ -267,6 +271,7 @@ export type Chain = {
   // sign_out cleared the session, so the CSRF token it held is gone.
   sessionCleared: boolean;
   pageState: Record<string, unknown>;
+  afterCookies: string[];
 };
 
 const isHash = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
@@ -311,7 +316,7 @@ export async function beforeActions(request: RailsRequest, options: ActionOption
   // Devise's rememberable strategy signs the visitor in by writing the session and the tracked
   // sign-in fields, which is Rails' to do: the proxy sends such requests there.
   if (auth.authenticatedVia === "remember_cookie") throw new NotPortedError("Devise's remember-cookie sign-in");
-  const chain: Chain = { request, now, headers, session, csrfToken, guid: null, auth, cookies: [], sessionCleared: false, pageState: {} };
+  const chain: Chain = { request, now, headers, session, csrfToken, guid: null, auth, cookies: [], sessionCleared: false, pageState: {}, afterCookies: options.afterCookies ?? [] };
 
   if (options.prepended) {
     const redirect = await options.prepended(chain);
@@ -448,7 +453,10 @@ export function afterActions(chain: Chain, result: ActionResult): ControllerResp
   if ("forceRefresh" in result) {
     const replaced = new Headers({ "x-inertia-location": result.forceRefresh });
     if (chain.guid) replaced.append("set-cookie", chain.guid);
-    if (!result.rescued) replaced.append("set-cookie", xsrfCookie(chain));
+    if (!result.rescued) {
+      for (const cookie of chain.afterCookies) replaced.append("set-cookie", cookie);
+      replaced.append("set-cookie", xsrfCookie(chain));
+    }
     commitSession({ ...chain, headers: replaced });
     for (const cookie of chain.cookies) replaced.append("set-cookie", cookie);
     return { status: 409, headers: replaced, body: "" };
@@ -469,6 +477,7 @@ export function afterActions(chain: Chain, result: ActionResult): ControllerResp
   }
   if (chain.guid) headers.append("set-cookie", chain.guid);
   if (!result.rescued) {
+    for (const cookie of chain.afterCookies) headers.append("set-cookie", cookie);
     headers.append("set-cookie", xsrfCookie(chain));
   }
   commitSession(chain);

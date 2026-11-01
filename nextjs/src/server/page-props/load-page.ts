@@ -56,8 +56,12 @@ export type InertiaPage = {
   encryptHistory: boolean;
   clearHistory: boolean;
   // Props the client appends to what it holds (`InertiaRails.merge`); absent when there are none.
+  deferredProps?: Record<string, string[]>;
   mergeProps?: string[];
   href: string;
+  // Starts the data of each deferred prop. A server render streams it to the client after the shell, where
+  // Rails' client would ask for it with a second request; the X-Inertia JSON never calls these.
+  deferredLoaders?: Record<string, () => Promise<unknown>>;
 };
 
 export type LoadPageOptions = {
@@ -71,7 +75,7 @@ export type LoadPageOptions = {
 
 // inertia_rails' partial reloads: X-Inertia-Partial-Data / -Except name dotted prop paths, and apply
 // only when X-Inertia-Partial-Component is the component being rendered. `errors` is always kept.
-export function filterPartialProps(props: Record<string, unknown>, component: string, requestHeaders: Headers): Record<string, unknown> {
+export function filterPartialProps(props: Record<string, unknown>, component: string, requestHeaders: Headers, alwaysKeys: readonly string[] = []): Record<string, unknown> {
   if (requestHeaders.get("x-inertia-partial-component") !== component) return props;
   const keys = (name: string) => (requestHeaders.get(name) ?? "").split(",").filter((key) => key !== "");
   const only = keys("x-inertia-partial-data");
@@ -82,7 +86,7 @@ export function filterPartialProps(props: Record<string, unknown>, component: st
     const kept: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(hash)) {
       const path = [...parent, key];
-      if (path.join(".") === "errors") {
+      if (path.join(".") === "errors" || (parent.length === 0 && alwaysKeys.includes(key))) {
         kept[key] = value;
         continue;
       }
@@ -132,14 +136,14 @@ export async function loadPage(
 
   await applicationMetaTags(meta, { context, config, csrfToken, ports });
   const actionProps = await action({ context, config, meta, url: request.url, headers: requestHeaders, urlOptions: defaultUrlOptions(request.url, config), state: state?.pageState ?? {}, renderState: state });
-  const { props: pageProps, mergeProps } = await resolveLazyProps(actionProps, partialRequest(component, requestHeaders));
+  const { props: pageProps, mergeProps, alwaysKeys, deferredProps, deferredLoaders } = await resolveLazyProps(actionProps, partialRequest(component, requestHeaders));
   const shared = await sharedProps({ context, config, request, meta, csrfToken, ports, mobileAppWebView });
   const errors = await ports.session.consumeInertiaErrors();
   // promote_visited_nav_item runs after Rails renders, so the props above do not list the visit.
   if (state?.promoteNavItemPath && context.loggedInUser) await promoteVisitedNavItem(context.loggedInUser, state.promoteNavItemPath);
 
   // config.deep_merge_shared_data: page props win, nested hashes merge.
-  const props = filterPartialProps({ errors, ...deepMerge(shared, pageProps) },component, requestHeaders);
+  const props = filterPartialProps({ errors, ...deepMerge(shared, pageProps) }, component, requestHeaders, alwaysKeys);
   props._inertia_meta = meta.toJSON();
   // No asset version is configured, so Rails sends null.
   return {
@@ -149,7 +153,9 @@ export async function loadPage(
     version: null,
     encryptHistory: false,
     clearHistory: state?.clearHistory ?? false,
+    ...(Object.keys(deferredProps).length > 0 ? { deferredProps } : {}),
     ...(mergeProps.length > 0 ? { mergeProps } : {}),
     href: request.url.href,
+    ...(Object.keys(deferredLoaders).length > 0 ? { deferredLoaders } : {}),
   };
 }

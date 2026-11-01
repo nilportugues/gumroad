@@ -98,6 +98,7 @@ module Parity
 
       now = Time.current
       redis_before = redis_snapshot
+      elasticsearch_before = elasticsearch_snapshot(now)
       before = @snapshot.dump(@snapshot.non_empty_tables)
       auto_increments = @snapshot.auto_increments
       @capturing = true
@@ -117,6 +118,7 @@ module Parity
           "autoIncrement" => auto_increments,
         },
         "redis" => redis_before.presence,
+        "elasticsearch" => elasticsearch_before.presence,
         "request" => request_json(context.request, source),
         "response" => response_json(context.response, now),
         "db" => Canonical.diff(before, after, now),
@@ -174,6 +176,20 @@ module Parity
         return full if full.length <= MAX_SLUG_LENGTH
 
         "#{full[0, MAX_SLUG_LENGTH].chomp("-")}-#{Digest::SHA1.hexdigest(full)[0, 8]}"
+      end
+
+      # The documents of ConfirmedFollowerEvent, the one index that has no table behind it (every other index is rebuilt
+      # from the rows the replay seeds): `{ index => [{ "id", "source" }] }`, with times as tokens.
+      def elasticsearch_snapshot(now)
+        [ConfirmedFollowerEvent].each_with_object({}) do |model, snapshot|
+          next unless EsClient.indices.exists?(index: model.index_name)
+
+          EsClient.indices.refresh(index: model.index_name)
+          hits = EsClient.search(index: model.index_name, body: { query: { match_all: {} }, sort: [{ timestamp: :asc }, { follower_id: :asc }], size: 10_000 }).dig("hits", "hits")
+          next if hits.empty?
+
+          snapshot[model.name] = hits.map { { "source" => Canonical.json(_1["_source"], now) } }
+        end
       end
 
       # `{ key => { "type", "value", "ttl" } }` for the main Redis database, sorted by key.

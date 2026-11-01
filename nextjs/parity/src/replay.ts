@@ -39,7 +39,8 @@ export function httpTransport(baseUrl: string): Transport {
 // Puts the recorded main Redis database back before a request. Pass the connection of a database
 // the replay owns: it is flushed.
 export interface RedisSeeder {
-  reset(entries: Record<string, RedisEntry>): Promise<void>;
+  // `exchange` and `now` let a seeder also rebuild what lives outside Redis (the Elasticsearch documents the recorder captured).
+  reset(entries: Record<string, RedisEntry>, exchange?: Exchange, now?: Date): Promise<void>;
 }
 
 export type ReplayOptions = {
@@ -59,7 +60,7 @@ export async function replayExchange(exchange: Exchange, options: ReplayOptions,
   // normalised against it, as the recorder did with the moment its request started.
   const now = new Date();
   await seedDatabase(sql, exchange.seed, now);
-  await redis?.reset(exchange.redis ?? {});
+  await redis?.reset(exchange.redis ?? {}, exchange, now);
   const schema = await readSchema(sql);
   const before = await dump(sql, schema, await nonEmptyTables(sql, schema));
   await jobs?.reset();
