@@ -410,3 +410,4 @@ export const custom_domain_post_comments_path = path("/posts/:post_id/comments(.
 export const custom_domain_create_post_comment_path = path("/posts/:post_id/comments(.:format)");
 export const custom_domain_update_post_comment_path = path("/posts/:post_id/comments/:id(.:format)");
 export const custom_domain_delete_post_comment_path = path("/posts/:post_id/comments/:id(.:format)");
+export const custom_domain_create_affiliate_request_path = path("/affiliate_requests(.:format)");

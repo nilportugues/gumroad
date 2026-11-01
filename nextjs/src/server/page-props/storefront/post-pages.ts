@@ -97,7 +97,7 @@ async function stateOf(state: Record<string, unknown>): Promise<{ post: Installm
 }
 
 // CustomDomainConfig#set_user_and_custom_domain_config
-async function setHostMeta(meta: Parameters<PageSpec["props"]>[1]["meta"], host: User) {
+export async function setHostMeta(meta: Parameters<PageSpec["props"]>[1]["meta"], host: User) {
   meta.set({ title: nameOrUsername(Users.load(host)) });
   const tag = host.facebook_meta_tag;
   if (isFlagSet(Users.load(host), "enable_verify_domain_third_party_services") && isPresent(tag)) {
