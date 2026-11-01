@@ -260,7 +260,7 @@ export function filterAudience(sellerId: number, rawParams: FilterParams, option
     if (has(paidLess)) json = json.whereSql(`jt.purchase_price_cents < ${bound(paidLess!)}`);
     if (params.active_customers_only) json = json.whereSql("jt.purchase_id IS NOT NULL AND COALESCE(jt.purchase_subscription_cancelled, 0) = 0");
     if (has(params.minimum_license_uses)) {
-      json = json.join("INNER JOIN licenses ON licenses.purchase_id = jt.purchase_id AND licenses.deleted_at IS NULL").whereSql(`licenses.uses >= ${bound(Math.trunc(params.minimum_license_uses))}`);
+      json = json.join("INNER JOIN licenses ON licenses.purchase_id = jt.purchase_id AND licenses.deleted_at IS NULL").whereSql(`licenses.uses >= ${bound(Math.trunc(params.minimum_license_uses!))}`);
     }
     const timestampColumns =
       params.type === "customer"

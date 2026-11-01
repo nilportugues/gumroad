@@ -6,7 +6,7 @@
 //   app/sidekiq/schedule_affiliate_workflow_jobs_job.rb (the sweep, and a token with no assignments)
 // `SendWorkflowInstallmentWorker`, which these enqueue, still runs in Rails.
 // Golden: __fixtures__/workflow-jobs.golden.json (scripts/golden/workflow-jobs.rb).
-import { Prisma, type Installment } from "@prisma/client";
+import { Prisma, type Installment, type ProductAffiliate } from "@prisma/client";
 import type { Redis } from "ioredis";
 
 import { getRedis } from "../../server/infra/redis.ts";
@@ -14,7 +14,8 @@ import { beforeSideEffects } from "../../server/jobs/hand-back.ts";
 import type { JsonValue } from "../../server/jobs/sidekiq/ruby-json.ts";
 import { performAsync } from "../../server/models/concerns/job-runtime.ts";
 import { rubyToI } from "../../server/models/concerns/ruby-numeric.ts";
-import { enqueueWorkflowSchedule, assignmentsOfToken, pendingWorkflowScheduleTokens, workflowScheduleDispatchable } from "../../server/models/product-affiliate.ts";
+import { preloadAffiliates, scheduleWorkflowJobs, sendsPosts, withProducts } from "../../server/models/direct-affiliate.ts";
+import { enqueueWorkflowSchedule, assignmentRowsOfToken, clearWorkflowSchedule, pendingWorkflowScheduleTokens, WorkflowJobNotEnqueuedError, workflowScheduleDispatchable } from "../../server/models/product-affiliate.ts";
 import { connectedTo } from "../../server/models/runtime/query-cache.ts";
 import { findPurchaseBang, purchaseIdFrom } from "../../server/models/purchase.ts";
 import { PurchaseRecord } from "../../server/models/purchase-pricing.ts";
@@ -173,8 +174,10 @@ export const sendWorkflowInstallmentRescheduleJobWith = (overrides: Partial<JobD
 
 // `ApplicationRecord.connected_to(role: :writing)` wraps the whole job. Without a token it re-enqueues the
 // tokens whose first push was lost. With one it schedules the workflows of each affiliate's assignments
-// (`DirectAffiliate#schedule_workflow_jobs`), which stays in Ruby: a token with assignments goes back to
-// Rails before anything is written.
+// (`DirectAffiliate#schedule_workflow_jobs`) and clears the token per affiliate.
+//
+// An affiliate is judged in full before its first push, so a hand-back leaves nothing queued for it. The affiliates
+// before it were completed and cleared; Rails then finds only the assignments that still hold the token.
 export const scheduleAffiliateWorkflowJobsJobWith = (overrides: Partial<JobDeps & { logError: (message: string) => void }> = {}) =>
   modelJob({ min: 0, max: 1 }, async (args, deps) => {
     const logError = overrides.logError ?? ((message: string) => console.error(message));
@@ -186,10 +189,25 @@ export const scheduleAffiliateWorkflowJobsJobWith = (overrides: Partial<JobDeps 
         }
         return;
       }
-      await beforeSideEffects(async () => {
-        if (typeof token !== "string") throw new NotPortedError("a workflow_schedule_token that is not a String", "schedule_affiliate_workflow_jobs_job.rb");
-        if ((await assignmentsOfToken(token)).length > 0) throw new NotPortedError("DirectAffiliate#schedule_workflow_jobs", "schedule_affiliate_workflow_jobs_job.rb:19");
-      });
+      if (typeof token !== "string") await beforeSideEffects(() => Promise.reject(new NotPortedError("a workflow_schedule_token that is not a String", "schedule_affiliate_workflow_jobs_job.rb")));
+      const assignments = await assignmentRowsOfToken(token as string);
+      if (assignments.length === 0) return;
+      const affiliates = await preloadAffiliates(assignments);
+      await withProducts(assignments);
+      const groups = new Map<number | null, ProductAffiliate[]>();
+      for (const assignment of assignments) groups.set(assignment.affiliate_id, [...(groups.get(assignment.affiliate_id) ?? []), assignment]);
+      for (const [affiliateId, group] of groups) {
+        const affiliate = affiliateId === null ? null : (affiliates.get(affiliateId) ?? null);
+        if (affiliate !== null && affiliate.type === "DirectAffiliate" && affiliate.deleted_at === null && sendsPosts(affiliate)) {
+          const pushes = await beforeSideEffects(() => scheduleWorkflowJobs(affiliate, group));
+          for (const push of pushes) {
+            const jid = await performAsync(SEND_WORKFLOW_INSTALLMENT_WORKER, push.args, { at: push.at });
+            if (!jid) throw new WorkflowJobNotEnqueuedError("Sidekiq did not enqueue the affiliate workflow email");
+          }
+        }
+        // Clear per affiliate so a retry after a mid-batch failure does not re-send completed affiliates' emails.
+        await clearWorkflowSchedule(group.map((assignment) => assignment.id), token as string);
+      }
     });
   })(overrides);
 
