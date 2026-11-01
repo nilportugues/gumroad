@@ -170,7 +170,8 @@ goes through Sidekiq's retry.
 `RecurringChargeReminderWorker`, `ReviewReminderJob`, `SendAutoInvoiceEmailJob` and
 `FindSubscriptionsWithMissingChargeWorker`. They queue mail with `deliverLater` (Rails delivers it). Hand-backs: a buyer
 eligible for an auto invoice (`CustomerMailer.auto_invoice` is sent inline and is not ported); a missing-charge sweep that meets
-an installment plan or an offer-code renewal; anything `NotPortedError` names in `models/README.md`.
+an installment plan priced with purchasing power parity (WS-48 ported the offer-code and installment-plan pricing, see
+`models/README.md`); anything `NotPortedError` names in `models/README.md`.
 `FindSubscriptionsWithMissingChargeWorker` holds its `RecurringChargeWorker` pushes until the sweep ends so that a hand-back
 leaves nothing queued; a failure part-way flushes the batches already judged, as Ruby had pushed them.
 

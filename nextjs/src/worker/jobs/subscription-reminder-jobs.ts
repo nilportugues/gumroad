@@ -6,7 +6,7 @@
 //   app/sidekiq/send_auto_invoice_email_job.rb (the eligibility read; an eligible buyer is handed back)
 //   app/sidekiq/find_subscriptions_with_missing_charge_worker.rb
 // Mail goes out as Rails' `deliver_later` would push it (the mailers are not ported). Anything Node
-// cannot compute (offer-code pricing, installment plans, Stripe Connect routing) throws
+// cannot compute (a purchasing-power-parity price, Stripe Connect routing) throws
 // NotPortedError before the job's first write, which hands the job to Rails.
 // Golden: __fixtures__/subscription-reminder-jobs.golden.json (scripts/golden/subscription-reminder-jobs.rb).
 import { Prisma, type BasePrice, type Link, type PaymentOption, type Purchase, type Subscription, type User } from "@prisma/client";
