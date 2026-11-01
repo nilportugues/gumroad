@@ -46,7 +46,7 @@ async function reindexInstallments(sql: SqlExecutor) {
       selected_flags: selectedFlags(INSTALLMENT_FLAG_MAPPING, BigInt(row.flags as number | bigint)),
     },
   ]);
-  if (body.length > 0) await es.bulk({ body, refresh: "true" });
+  if (body.length > 0) await es.bulk({ body, refresh: true });
   await es.close();
 }
 
