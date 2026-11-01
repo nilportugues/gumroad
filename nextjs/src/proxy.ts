@@ -52,7 +52,7 @@ export async function proxy(request: NextRequest) {
   if (decision.action === "next") {
     if (!decision.route) return NextResponse.next();
     if (!decision.route.inertia) return NextResponse.next();
-    if (redirectsBeforeRendering(decision.route.pattern, url)) return viaHandler();
+    if (await redirectsBeforeRendering(decision.route.pattern, url, request)) return viaHandler();
 
     // An App Router page cannot set headers or cookies, so the Rails envelope is built here and
     // attached to the response the page renders (see pageEnvelope).

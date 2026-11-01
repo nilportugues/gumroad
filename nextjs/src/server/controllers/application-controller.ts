@@ -12,6 +12,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
+import type { RequestContext } from "../auth/context.ts";
 import { readEncryptedCookie, writeEncryptedCookie } from "../auth/rails-cookies.ts";
 import { railsLoggedInUser, type ResolvedAuth } from "../auth/resolve.ts";
 import { prismaAuthStore } from "../auth/store.ts";
@@ -50,7 +51,8 @@ import { isPresent, queryParam, type RailsRequest, railsRequest } from "./rails-
 // `inertia`: rendered by inertia_rails, which appends X-Inertia to Vary.
 export type Rendered = { status: number; body: string; contentType: string; inertia?: boolean; headers?: Record<string, string> };
 // redirect_to from the action. `rescued`: from a rescue_from handler, which skips the after_actions.
-export type Redirected = { status: number; location: string; rescued?: boolean };
+// `flash`: what the action put in flash[:alert] and friends before redirecting.
+export type Redirected = { status: number; location: string; rescued?: boolean; flash?: Record<string, string> };
 // inertia_rails' middleware swapping the response for a bare 409 when the client's asset version is
 // stale. The controller still ran, so its cookies (written by ActionDispatch::Cookies, outside that
 // middleware) and the session survive; the headers it set do not. `rescued`: the controller halted
@@ -80,6 +82,8 @@ export type RenderState = {
 
 export type ActionContext = {
   request: RailsRequest;
+  // Who the Rails chain resolved for this request.
+  context: RequestContext;
   // Reads the render state and consumes the flash and inertia_errors, as rendering the page does.
   takeRenderState: () => RenderState;
 };
@@ -345,6 +349,7 @@ export function afterActions(chain: Chain, result: ActionResult): ControllerResp
     return { status: 409, headers: replaced, body: "" };
   }
   if ("location" in result) {
+    if (result.flash) chain.session.data.flash = { discard: [], flashes: result.flash };
     headers.set("location", redirectLocation(request, result.location));
     headers.set("content-type", "text/html; charset=utf-8");
   } else {
@@ -382,7 +387,7 @@ async function runChain(
 ): Promise<ControllerResponse> {
   const chain = await beforeActions(request, options, now);
   if (halted(chain)) return chain;
-  const result = await action({ request, takeRenderState: () => takeRenderState(chain) });
+  const result = await action({ request, context: chain.auth.context, takeRenderState: () => takeRenderState(chain) });
   const response = afterActions(chain, result);
   await promoteVisit(chain, response.status);
   return response;
