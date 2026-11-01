@@ -406,3 +406,15 @@ export const opt_in_to_au_backtax_collection_settings_payments_path = path("/set
 export const remediation_settings_payments_path = path("/settings/payments/remediation(.:format)");
 export const cart_items_count_path = path("/cart_items_count(.:format)");
 export const cart_items_count_url = url("/cart_items_count(.:format)");
+
+// Agent page (WS-75).
+export const internal_agent_custom_html_preview_path = path("/internal/agent/custom_html_preview(.:format)");
+export const internal_agent_messages_path = path("/internal/agent/messages(.:format)");
+export const internal_agent_messages_stream_path = path("/internal/agent/messages/stream(.:format)");
+export const internal_agent_turn_status_path = path("/internal/agent/turns/:client_turn_id(.:format)");
+export const internal_agent_actions_path = path("/internal/agent/actions(.:format)");
+export const internal_agent_action_status_path = path("/internal/agent/actions/status(.:format)");
+export const internal_agent_custom_html_preview_document_path = path("/internal/agent/custom_html_previews/:token(.:format)");
+
+// Agent data layer (WS-75).
+export const internal_agent_conversations_latest_path = path("/internal/agent/conversations/latest(.:format)");

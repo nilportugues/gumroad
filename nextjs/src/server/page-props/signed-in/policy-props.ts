@@ -10,7 +10,7 @@ const anyRole = (c: AuthorizedSellerContext) => roleAccountantFor(c) || roleAdmi
 const adminOrMarketing = (c: AuthorizedSellerContext) => roleAdminFor(c) || roleMarketingFor(c);
 
 // User#eligible_for_store_agent?: cheapest checks first, so an unpaid seller never reaches Elasticsearch.
-async function eligibleForStoreAgent(seller: AuthorizedSellerContext["user"], isDevelopment: boolean): Promise<boolean> {
+export async function eligibleForStoreAgent(seller: AuthorizedSellerContext["user"], isDevelopment: boolean): Promise<boolean> {
   if (isDevelopment) return true;
   const suspended = (RISK_STATES.SUSPENDED as readonly (string | null)[]).includes(seller.user_risk_state);
   if (seller.confirmed_at === null || suspended) return false;
