@@ -588,7 +588,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "CreateStripeApplePayDomainWorker": {
     "file": "app/sidekiq/create_stripe_apple_pay_domain_worker.rb",
@@ -1042,7 +1042,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ExpireStampedPdfsJob": {
     "file": "app/sidekiq/expire_stamped_pdfs_job.rb",
@@ -1232,7 +1232,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "FindSubscriptionsWithMissingChargeWorker": {
     "file": "app/sidekiq/find_subscriptions_with_missing_charge_worker.rb",
@@ -3059,7 +3059,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SendSignedPiracyNoticesJob": {
     "file": "app/sidekiq/send_signed_piracy_notices_job.rb",
@@ -3413,7 +3413,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "recurringLockMaxAttempt": 3600,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SyncWatchedUsersJob": {
     "file": "app/sidekiq/sync_watched_users_job.rb",
@@ -3642,7 +3642,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "recurringLockMaxAttempt": 60,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "UpdatePurchasingPowerParityFactorsWorker": {
     "file": "app/sidekiq/update_purchasing_power_parity_factors_worker.rb",

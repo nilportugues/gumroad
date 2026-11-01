@@ -145,6 +145,20 @@ golden `concerns/__fixtures__/public-suffix.golden.json`). Every other save refu
 
 `ScheduledPayout` (`scheduled-payout.ts`) is ported for `create!` only.
 
+### `Purchase`, `Subscription`, `UrlRedirect` (`purchase.ts`, `subscription.ts`, `url-redirect.ts`)
+
+Read side only, for the jobs in `src/worker/jobs/purchase-reads-jobs.ts`; nothing writes these tables from Node.
+Ported: the `has_flags` maps of all three (Purchase's lives in `search/flags.ts`), `Purchase.find`, the
+`successful`/`in_progress`/`created_between` scopes, `rentals_to_expire`, the left join on `events` that
+CreateMissingPurchaseEventsWorker reads, `chargedback_not_reversed_or_refunded?`, `Subscription#not_is_test_subscription`,
+the deactivation relations and `purchase.url_redirect`. Typed `where(created_at: range)` on a `datetime(0)` column floors
+the range to the second (`truncateToSeconds`); a raw `where("... < ?", time)` keeps the fraction. Golden:
+`src/worker/jobs/__fixtures__/purchase-reads-jobs.golden.json`, from `scripts/golden/purchase-reads-jobs.rb`
+(the purchase factory charges Stripe, so purchases are plain INSERTs of the columns a read looks at).
+Still Ruby-only: everything else in purchase.rb (4.6k lines of callbacks, money readers, charge processor flows) and
+subscription.rb (`alive?`, `end_time_of_subscription`, `overdue_for_charge?`, price and mandate logic), and `UrlRedirect`
+beyond the has_one read.
+
 ### `User` (`user.ts`)
 
 Ported, in Rails' callback order: every validation and `before_validation` of user.rb and its

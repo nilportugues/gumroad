@@ -31,6 +31,12 @@ export function ago(duration: Duration, now: Date): Date {
   return advance(now, negated);
 }
 
+// What a `datetime` column without fractional seconds keeps of a Time: ActiveRecord floors the
+// value when it casts it for a typed `where(created_at: ...)`. Raw `where("... < ?", time)` does not.
+export function truncateToSeconds(time: Date): Date {
+  return new Date(Math.floor(time.getTime() / MS_PER_SECOND) * MS_PER_SECOND);
+}
+
 // A UTC calendar date, as Ruby's Date (no time of day).
 export type CalendarDate = { year: number; month: number; day: number };
 
