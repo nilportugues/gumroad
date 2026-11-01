@@ -96,6 +96,16 @@ port's `fetch` calls, sends the request, and diffs every channel. Options:
 
 The replay database must be disposable: it is truncated table by table.
 
+### Pages
+
+Pages need the proxy (it attaches the Rails envelope) and Next's renderer (it produces the HTML),
+so they can only be replayed against a running server: `startNextServer(env)` in `src/next-server.ts`
+boots `next dev` on a free port, and `httpTransport(server.baseUrl)` sends the fixtures to it (see
+`help-center.replay.test.ts`; the first request to each route compiles it, hence the long timeouts).
+The response's `inertia` is read from the page's `data-page`. A controller spec records no Rack
+middleware, so those replays use `compare.subset: ["response.cookies"]` and ignore `link` (Vite asset
+names), `vary` (Next.js owns it on HTML), `csp_nonce` and the CSRF tokens.
+
 ## Limits
 
 - Redis, Elasticsearch and S3 state are not captured or seeded.

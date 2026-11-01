@@ -4,9 +4,11 @@ import { headers } from "next/headers";
 
 import { getRequestContext, type RequestContext } from "@/server/auth/context";
 
+import type { RenderState } from "../controllers/application-controller.ts";
 import { domainConfig, type DomainConfig } from "./domain.ts";
 import { MetaTagBuilder } from "./meta-tags.ts";
 import { sharedPropsPorts } from "./ports.ts";
+import { decodeRenderState, PAGE_URL_HEADER, RENDER_STATE_HEADER, renderStatePort } from "./render-state.ts";
 import { applicationMetaTags, authenticityToken, sharedProps } from "./shared.ts";
 
 const isHash = (value: unknown): value is Record<string, unknown> =>
@@ -38,14 +40,58 @@ export function defaultUrlOptions(url: URL, config: DomainConfig): ActionContext
   return { protocol: config.protocol, host: url.host };
 }
 
+// The page object inertia_rails renders into `data-page` or a JSON response, in its key order.
 // `href` is the absolute request URL, which the shared AppWrapper needs while rendering on the server.
-export type InertiaPage = { component: string; props: Record<string, unknown>; href: string };
+export type InertiaPage = {
+  component: string;
+  props: Record<string, unknown>;
+  url: string;
+  version: string | null;
+  encryptHistory: boolean;
+  clearHistory: boolean;
+  href: string;
+};
 
 export type LoadPageOptions = {
   // The page's URL as Rails saw it (path and query), used for page.url and query-dependent props.
+  // The proxy's x-gr-page-url wins; this is the fallback for renders that bypass it.
   url: string;
   mobileAppWebView?: boolean;
+  // Session state from the Rails chain, when the caller ran it itself (the X-Inertia route handler).
+  renderState?: RenderState;
 };
+
+// inertia_rails' partial reloads: X-Inertia-Partial-Data / -Except name dotted prop paths, and apply
+// only when X-Inertia-Partial-Component is the component being rendered. `errors` is always kept.
+export function filterPartialProps(props: Record<string, unknown>, component: string, requestHeaders: Headers): Record<string, unknown> {
+  if (requestHeaders.get("x-inertia-partial-component") !== component) return props;
+  const keys = (name: string) => (requestHeaders.get(name) ?? "").split(",").filter((key) => key !== "");
+  const only = keys("x-inertia-partial-data");
+  const except = keys("x-inertia-partial-except");
+  if (only.length === 0 && except.length === 0) return props;
+
+  const walk = (hash: Record<string, unknown>, parent: string[]): Record<string, unknown> => {
+    const kept: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(hash)) {
+      const path = [...parent, key];
+      if (path.join(".") === "errors") {
+        kept[key] = value;
+        continue;
+      }
+      if (isHash(value) && Object.keys(value).length > 0) {
+        const nested = walk(value, path);
+        if (Object.keys(nested).length > 0) kept[key] = nested;
+        continue;
+      }
+      const prefixes = path.map((_, i) => path.slice(0, i + 1).join("."));
+      if (only.length > 0 && !prefixes.some((prefix) => only.includes(prefix))) continue;
+      if (except.length > 0 && prefixes.some((prefix) => except.includes(prefix))) continue;
+      kept[key] = value;
+    }
+    return kept;
+  };
+  return walk(props, []);
+}
 
 async function requestUrl(path: string, requestHeaders: Headers, config: DomainConfig): Promise<URL> {
   const host = requestHeaders.get("x-forwarded-host")?.split(/,\s?/).at(-1) ?? requestHeaders.get("host") ?? config.domain;
@@ -56,15 +102,17 @@ async function requestUrl(path: string, requestHeaders: Headers, config: DomainC
 export async function loadPage(
   component: string,
   action: (action: ActionContext) => Promise<Record<string, unknown>> | Record<string, unknown>,
-  { url, mobileAppWebView = false }: LoadPageOptions,
+  { url, mobileAppWebView = false, renderState }: LoadPageOptions,
 ): Promise<InertiaPage> {
   const config = domainConfig(process.env);
   const requestHeaders = await headers();
   const context = await getRequestContext();
-  const ports = sharedPropsPorts();
+  const state = renderState ?? decodeRenderState(requestHeaders.get(RENDER_STATE_HEADER));
+  const ports = state ? { ...sharedPropsPorts(), session: renderStatePort(state) } : sharedPropsPorts();
+  const fullpath = requestHeaders.get(PAGE_URL_HEADER) ?? url;
   const meta = new MetaTagBuilder();
   const csrfToken = await authenticityToken(ports);
-  const request = { headers: requestHeaders, url: await requestUrl(url, requestHeaders, config) };
+  const request = { headers: requestHeaders, url: await requestUrl(fullpath, requestHeaders, config) };
 
   await applicationMetaTags(meta, { context, config, csrfToken, ports });
   const pageProps = await action({ context, config, meta, url: request.url, headers: requestHeaders, urlOptions: defaultUrlOptions(request.url, config) });
@@ -72,8 +120,16 @@ export async function loadPage(
   const errors = await ports.session.consumeInertiaErrors();
 
   // config.deep_merge_shared_data: page props win, nested hashes merge.
-  const props = deepMerge(shared, pageProps);
+  const props = filterPartialProps({ errors, ...deepMerge(shared, pageProps) },component, requestHeaders);
   props._inertia_meta = meta.toJSON();
-  props.errors = errors;
-  return { component, props, href: request.url.href };
+  // No asset version is configured, so Rails sends null.
+  return {
+    component,
+    props,
+    url: fullpath,
+    version: null,
+    encryptHistory: false,
+    clearHistory: state?.clearHistory ?? false,
+    href: request.url.href,
+  };
 }

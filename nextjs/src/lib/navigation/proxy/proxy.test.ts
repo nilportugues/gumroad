@@ -53,7 +53,7 @@ describe("domainConfig", () => {
 
 const routes = compileRouteTable({
   "/api/health": { flag: null, hosts: "any" },
-  "/help/category/:slug": { flag: "nextjs_help_center_category", signedOutOnly: true },
+  "/help/category/:slug": { flag: "nextjs_help_center_category", signedOutOnly: true, inertia: true },
   "/settings/password": "nextjs_settings_password",
 });
 
@@ -99,9 +99,23 @@ describe("decideRoute", () => {
     expect(await decideRoute(request("https://gumroad.com/_next/static/x.js"), routes, production, gate([], null))).toMatchObject({ action: "next" });
   });
 
-  it("forwards Inertia protocol requests to Rails even for converted routes", async () => {
+  it("forwards Inertia protocol requests to Rails for converted routes that are not Inertia pages", async () => {
     const decision = await decideRoute(request("https://gumroad.com/settings/password", { headers: { "X-Inertia": "true" } }), routes, production, allOn);
     expect(decision).toEqual({ action: "rails" });
+  });
+
+  describe("Inertia protocol requests for an Inertia page", () => {
+    const url = "https://gumroad.com/help/category/316-open-an-account";
+    const inertia = { headers: { "X-Inertia": "true" } };
+
+    it("are answered by Next when the page is on", async () => {
+      expect(await decideRoute(request(url, inertia), routes, production, allOn)).toMatchObject({ action: "inertia" });
+    });
+
+    it("stay with Rails while the flag is off or the visitor may be signed in", async () => {
+      expect(await decideRoute(request(url, inertia), routes, production, gate([], false))).toEqual({ action: "rails" });
+      expect(await decideRoute(request(url, inertia), routes, production, gate(["nextjs_help_center_category"], true))).toEqual({ action: "rails" });
+    });
   });
 
   it("turns a flight request for a Rails page into a hard navigation", async () => {

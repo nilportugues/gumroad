@@ -125,7 +125,8 @@ export async function sharedProps({
   const flashStatus = FLASH_STATUSES.find(([key]) => (flash[key] ?? "").trim() !== "");
 
   const props: Record<string, unknown> = {
-    design_settings: { font: { name: "ABC Favorit", url: publicAssetUrl(config, "fonts", "ABCFavorit-Regular.woff2") } },
+    // view_context.font_url: absolute, on the request's own host where no asset_host is configured (test).
+    design_settings: { font: { name: "ABC Favorit", url: `${assetHost(config) ?? request.url.origin}/fonts/ABCFavorit-Regular.woff2` } },
     domain_settings: {
       scheme: config.protocol,
       app_domain: config.domain,

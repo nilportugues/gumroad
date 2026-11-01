@@ -1,31 +1,10 @@
-// Answers a converted route from the proxy when Rails would not render the page at all. A page's
-// redirect() can only send 307/308, so a redirect Rails sends as 302 is answered here instead, with
-// the rest of what Rails' controller sends alongside it (processAction).
-import * as Routes from "@/lib/navigation/routes";
+// Whether Rails would redirect instead of rendering a converted page. A page's redirect() can only
+// send 307/308 and a response the proxy builds itself gets a body from Next.js, so the redirects
+// Rails sends (302 from rescue_from, 301 from a before_action) are answered by the /gr-inertia route
+// handler, with the rest of what Rails' controller sends alongside them (processAction). The
+// redirects themselves live with the page, in page-props/pages.ts.
+import { matchPagePath, PAGES } from "./page-props/pages.ts";
 
-import { processAction } from "./controllers/application-controller.ts";
-import { findCategoryBySlug } from "./page-props/help-center.ts";
-
-type Preflight = (request: Request, url: URL) => Promise<Response | null>;
-
-const decodeSegment = (segment: string) => {
-  try {
-    return decodeURIComponent(segment);
-  } catch {
-    return segment;
-  }
-};
-
-const PREFLIGHTS: Record<string, Preflight> = {
-  // HelpCenter::BaseController: `rescue_from ActiveHash::RecordNotFound` redirects to the help
-  // center root with a 302, after the before_actions and without the after_actions.
-  "/help/category/:slug": async (request, url) => {
-    const slug = decodeSegment(url.pathname.split("/").at(-1) ?? "");
-    if (findCategoryBySlug(slug)) return null;
-    return processAction(request, {}, async () => ({ status: 302, location: Routes.help_center_root_path(), rescued: true }));
-  },
-};
-
-export function routePreflight(pattern: string, request: Request, url: URL): Promise<Response | null> {
-  return PREFLIGHTS[pattern]?.(request, url) ?? Promise.resolve(null);
+export function redirectsBeforeRendering(pattern: string, url: URL): boolean {
+  return !!PAGES[pattern]?.redirect?.(matchPagePath(url.pathname)?.params ?? {});
 }

@@ -42,6 +42,10 @@ const config: NextConfig = {
       "@inertiajs/react": navigationCompat,
       "@inertiajs/core": navigationCompat,
       "$next-routes": "./src/lib/navigation/routes.ts",
+      // vite.config.ts `$vendor`: third-party analytics loaders under vendor/assets/javascripts.
+      ...Object.fromEntries(
+        ["facebook_pixel", "google_analytics_4", "tiktok_pixel"].map((name) => [`$vendor/${name}`, `../vendor/assets/javascripts/${name}.js`]),
+      ),
       ...Object.fromEntries(sharedPackages.map((name) => [name, `./node_modules/${name}`])),
     },
     rules: {

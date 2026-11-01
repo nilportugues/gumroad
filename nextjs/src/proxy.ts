@@ -6,10 +6,13 @@ import { type NextRequest, NextResponse } from "next/server";
 import { decideRoute } from "@/lib/navigation/proxy/decide";
 import { routeGate, setRouteGate } from "@/lib/navigation/proxy/gate";
 import { compileRouteTable, type RouteTable } from "@/lib/navigation/proxy/route-table";
+import { pageEnvelope } from "@/server/controllers/application-controller";
+import { INERTIA_PAGE_PATH } from "@/server/controllers/inertia-page";
 import { getRequiredConfig } from "@/server/infra/config";
 import { domainConfig } from "@/server/page-props/domain";
+import { encodeRenderState, PAGE_URL_HEADER, RENDER_STATE_HEADER } from "@/server/page-props/render-state";
 import { railsRouteGate } from "@/server/proxy-gate";
-import { routePreflight } from "@/server/proxy-preflight";
+import { redirectsBeforeRendering } from "@/server/proxy-preflight";
 
 import routeTable from "../routes.json";
 
@@ -34,9 +37,33 @@ export async function proxy(request: NextRequest) {
     routeGate(),
   );
 
+  // The request as the pages see it: the visitor's host, and the headers only this proxy may set.
+  const forwarded = new Headers(request.headers);
+  forwarded.delete(RENDER_STATE_HEADER);
+  forwarded.set(PAGE_URL_HEADER, `${request.nextUrl.pathname}${request.nextUrl.search}`);
+  forwarded.set("x-forwarded-host", host);
+  forwarded.set("x-forwarded-proto", request.nextUrl.protocol.replace(":", ""));
+
+  // Next.js adds a body to a redirect the proxy builds itself, which Rails' redirects do not have, so
+  // the route handler answers them instead (processAction, from inside a request).
+  const viaHandler = () => NextResponse.rewrite(new URL(INERTIA_PAGE_PATH, request.url), { request: { headers: forwarded } });
+
+  if (decision.action === "inertia") return viaHandler();
   if (decision.action === "next") {
-    const early = decision.route ? await routePreflight(decision.route.pattern, request, url) : null;
-    return early ?? NextResponse.next();
+    if (!decision.route) return NextResponse.next();
+    if (!decision.route.inertia) return NextResponse.next();
+    if (redirectsBeforeRendering(decision.route.pattern, url)) return viaHandler();
+
+    // An App Router page cannot set headers or cookies, so the Rails envelope is built here and
+    // attached to the response the page renders (see pageEnvelope).
+    const envelope = await pageEnvelope(request);
+    if ("response" in envelope) return envelope.response.headers.has("location") ? viaHandler() : envelope.response;
+    forwarded.set(RENDER_STATE_HEADER, encodeRenderState(envelope.renderState));
+    const response = NextResponse.next({ request: { headers: forwarded } });
+    envelope.headers.delete("content-type");
+    for (const [name, value] of envelope.headers) if (name !== "set-cookie") response.headers.set(name, value);
+    for (const cookie of envelope.headers.getSetCookie()) response.headers.append("set-cookie", cookie);
+    return response;
   }
   if (decision.action === "hard-navigation") return new NextResponse(null, { status: 200, headers: { "content-type": "text/plain" } });
 
