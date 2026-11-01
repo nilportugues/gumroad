@@ -1942,7 +1942,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "PurgeOldDeletedAssetPreviewsWorker": {
     "file": "app/sidekiq/purge_old_deleted_asset_previews_worker.rb",
