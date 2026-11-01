@@ -38471,6 +38471,2984 @@
           }
         ]
       }
+    },
+    {
+      "name": "refunds come back once the balance is positive",
+      "seed": [
+        "INSERT INTO `users` (`id`, `email`, `username`, `external_id`, `recommendation_type`, `user_risk_state`, `flags`, `json_data`, `confirmed_at`, `created_at`, `updated_at`) VALUES (5, 'seller5@example.com', 'seller5', '1005', 'own_products', 'compliant', 128, NULL, '2025-01-01 00:00:00', '2025-01-01 00:00:00', '2025-01-01 00:00:00')",
+        "INSERT INTO `balances` (`id`, `user_id`, `merchant_account_id`, `date`, `amount_cents`, `holding_amount_cents`, `state`, `currency`, `holding_currency`, `created_at`, `updated_at`) VALUES (1, 5, 1, '2025-10-01', 5000, 1000, 'unpaid', 'usd', 'usd', '2025-01-01 00:00:00', '2025-01-01 00:00:00')",
+        "INSERT INTO `balances` (`id`, `user_id`, `merchant_account_id`, `date`, `amount_cents`, `holding_amount_cents`, `state`, `currency`, `holding_currency`, `created_at`, `updated_at`) VALUES (2, 5, 1, '2025-10-01', -1000, 1000, 'paid', 'usd', 'usd', '2025-01-01 00:00:00', '2025-01-01 00:00:00')"
+      ],
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                5,
+                "seller5@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "seller5",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1005",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                128,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT SUM(`balances`.`amount_cents`) FROM `balances` WHERE `balances`.`user_id` = 5 AND `balances`.`state` = 'unpaid'",
+          "result": {
+            "fields": [
+              "SUM(`balances`.`amount_cents`)"
+            ],
+            "rows": [
+              [
+                5000
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `active_storage_attachments`.* FROM `active_storage_attachments` WHERE `active_storage_attachments`.`record_id` = 5 AND `active_storage_attachments`.`record_type` = 'User' AND `active_storage_attachments`.`name` = 'avatar' LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "name",
+              "record_type",
+              "record_id",
+              "blob_id",
+              "created_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `users`.`json_data` FROM `users` WHERE `users`.`id` = 5 LIMIT 1 FOR UPDATE",
+          "result": {
+            "fields": [
+              "json_data"
+            ],
+            "rows": [
+              [
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `users` SET `users`.`updated_at` = '2025-11-01 12:30:45', `users`.`flags` = 0, `users`.`json_data` = '{}' WHERE `users`.`id` = 5",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "INSERT INTO `versions` (`item_type`, `item_id`, `event`, `whodunnit`, `object`, `created_at`, `remote_ip`, `request_path`, `request_uuid`, `object_changes`) VALUES ('User', 5, 'update', NULL, '{\\\"flags\\\":128,\\\"name\\\":null,\\\"facebook_meta_tag\\\":null,\\\"google_analytics_id\\\":null,\\\"username\\\":\\\"seller5\\\",\\\"email\\\":\\\"seller5@example.com\\\",\\\"support_email\\\":null,\\\"facebook_pixel_id\\\":null,\\\"json_data\\\":null,\\\"kindle_email\\\":null,\\\"id\\\":5,\\\"reset_password_sent_at\\\":null,\\\"remember_created_at\\\":null,\\\"sign_in_count\\\":0,\\\"current_sign_in_at\\\":null,\\\"last_sign_in_at\\\":null,\\\"current_sign_in_ip\\\":null,\\\"last_sign_in_ip\\\":null,\\\"created_at\\\":\\\"2025-01-01T00:00:00Z\\\",\\\"updated_at\\\":\\\"2025-01-01T00:00:00Z\\\",\\\"payment_address\\\":null,\\\"confirmed_at\\\":\\\"2025-01-01T00:00:00Z\\\",\\\"confirmation_sent_at\\\":null,\\\"unconfirmed_email\\\":null,\\\"provider\\\":null,\\\"twitter_user_id\\\":null,\\\"facebook_uid\\\":null,\\\"deleted_at\\\":null,\\\"payment_notification\\\":true,\\\"currency_type\\\":\\\"usd\\\",\\\"bio\\\":null,\\\"credit_card_id\\\":null,\\\"profile_picture_url\\\":null,\\\"country\\\":null,\\\"state\\\":null,\\\"city\\\":null,\\\"zip_code\\\":null,\\\"street_address\\\":null,\\\"verified\\\":null,\\\"manage_pages\\\":false,\\\"banned_at\\\":null,\\\"weekly_notification\\\":true,\\\"external_id\\\":\\\"1005\\\",\\\"account_created_ip\\\":null,\\\"notification_endpoint\\\":null,\\\"locale\\\":\\\"en\\\",\\\"timezone\\\":\\\"Pacific Time (US \\\\u0026 Canada)\\\",\\\"user_risk_state\\\":\\\"compliant\\\",\\\"tos_violation_reason\\\":null,\\\"google_analytics_domains\\\":null,\\\"recommendation_type\\\":\\\"own_products\\\",\\\"split_payment_by_cents\\\":null,\\\"last_active_sessions_invalidated_at\\\":null,\\\"tier_state\\\":0,\\\"orientation_priority_tag\\\":null,\\\"notification_content_type\\\":\\\"application/x-www-form-urlencoded\\\",\\\"google_uid\\\":null,\\\"purchasing_power_parity_limit\\\":null,\\\"twitter_handle\\\":null}', '2025-11-01 12:30:45', NULL, NULL, NULL, '{\\\"updated_at\\\":[\\\"2025-01-01T00:00:00Z\\\",\\\"2025-11-01T12:30:45Z\\\"],\\\"flags\\\":[128,0],\\\"json_data\\\":[null,\\\"{}\\\"]}')",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "SELECT `links`.`id` FROM `links` WHERE `links`.`user_id` = 5",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `seller_profiles`.* FROM `seller_profiles` WHERE `seller_profiles`.`seller_id` = 5 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "seller_id",
+              "highlight_color",
+              "background_color",
+              "font",
+              "created_at",
+              "updated_at",
+              "json_data",
+              "border_radius",
+              "button_hover",
+              "seo_title",
+              "seo_description"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "users": {
+          "fields": [
+            "id",
+            "email",
+            "encrypted_password",
+            "reset_password_token",
+            "reset_password_sent_at",
+            "remember_created_at",
+            "sign_in_count",
+            "current_sign_in_at",
+            "last_sign_in_at",
+            "current_sign_in_ip",
+            "last_sign_in_ip",
+            "created_at",
+            "updated_at",
+            "name",
+            "payment_address",
+            "confirmed_at",
+            "confirmation_token",
+            "confirmation_sent_at",
+            "unconfirmed_email",
+            "provider",
+            "twitter_user_id",
+            "facebook_uid",
+            "deleted_at",
+            "payment_notification",
+            "currency_type",
+            "bio",
+            "username",
+            "credit_card_id",
+            "profile_picture_url",
+            "country",
+            "state",
+            "city",
+            "zip_code",
+            "street_address",
+            "facebook_access_token",
+            "verified",
+            "manage_pages",
+            "banned_at",
+            "weekly_notification",
+            "external_id",
+            "account_created_ip",
+            "twitter_oauth_token",
+            "twitter_oauth_secret",
+            "notification_endpoint",
+            "locale",
+            "flags",
+            "google_analytics_id",
+            "timezone",
+            "user_risk_state",
+            "tos_violation_reason",
+            "kindle_email",
+            "json_data",
+            "support_email",
+            "google_analytics_domains",
+            "recommendation_type",
+            "facebook_pixel_id",
+            "split_payment_by_cents",
+            "last_active_sessions_invalidated_at",
+            "otp_secret_key",
+            "facebook_meta_tag",
+            "tier_state",
+            "orientation_priority_tag",
+            "notification_content_type",
+            "google_uid",
+            "purchasing_power_parity_limit",
+            "twitter_handle"
+          ],
+          "rows": [
+            [
+              5,
+              "seller5@example.com",
+              "",
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              null,
+              null,
+              {
+                "$time": "2025-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2025-11-01T12:30:45.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2025-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              1,
+              "usd",
+              null,
+              "seller5",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              1,
+              "1005",
+              null,
+              null,
+              null,
+              null,
+              "en",
+              0,
+              null,
+              "Pacific Time (US & Canada)",
+              "compliant",
+              null,
+              null,
+              "{}",
+              null,
+              null,
+              "own_products",
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              "application/x-www-form-urlencoded",
+              null,
+              null,
+              null
+            ]
+          ]
+        },
+        "versions": {
+          "fields": [
+            "id",
+            "item_type",
+            "item_id",
+            "event",
+            "whodunnit",
+            "object",
+            "created_at",
+            "remote_ip",
+            "request_path",
+            "request_uuid",
+            "object_changes"
+          ],
+          "rows": [
+            [
+              1,
+              "User",
+              5,
+              "update",
+              null,
+              "{\"flags\":128,\"name\":null,\"facebook_meta_tag\":null,\"google_analytics_id\":null,\"username\":\"seller5\",\"email\":\"seller5@example.com\",\"support_email\":null,\"facebook_pixel_id\":null,\"json_data\":null,\"kindle_email\":null,\"id\":5,\"reset_password_sent_at\":null,\"remember_created_at\":null,\"sign_in_count\":0,\"current_sign_in_at\":null,\"last_sign_in_at\":null,\"current_sign_in_ip\":null,\"last_sign_in_ip\":null,\"created_at\":\"2025-01-01T00:00:00Z\",\"updated_at\":\"2025-01-01T00:00:00Z\",\"payment_address\":null,\"confirmed_at\":\"2025-01-01T00:00:00Z\",\"confirmation_sent_at\":null,\"unconfirmed_email\":null,\"provider\":null,\"twitter_user_id\":null,\"facebook_uid\":null,\"deleted_at\":null,\"payment_notification\":true,\"currency_type\":\"usd\",\"bio\":null,\"credit_card_id\":null,\"profile_picture_url\":null,\"country\":null,\"state\":null,\"city\":null,\"zip_code\":null,\"street_address\":null,\"verified\":null,\"manage_pages\":false,\"banned_at\":null,\"weekly_notification\":true,\"external_id\":\"1005\",\"account_created_ip\":null,\"notification_endpoint\":null,\"locale\":\"en\",\"timezone\":\"Pacific Time (US \\u0026 Canada)\",\"user_risk_state\":\"compliant\",\"tos_violation_reason\":null,\"google_analytics_domains\":null,\"recommendation_type\":\"own_products\",\"split_payment_by_cents\":null,\"last_active_sessions_invalidated_at\":null,\"tier_state\":0,\"orientation_priority_tag\":null,\"notification_content_type\":\"application/x-www-form-urlencoded\",\"google_uid\":null,\"purchasing_power_parity_limit\":null,\"twitter_handle\":null}",
+              {
+                "$time": "2025-11-01T12:30:45.000000Z"
+              },
+              null,
+              null,
+              null,
+              "{\"updated_at\":[\"2025-01-01T00:00:00Z\",\"2025-11-01T12:30:45Z\"],\"flags\":[128,0],\"json_data\":[null,\"{}\"]}"
+            ]
+          ]
+        },
+        "balances": {
+          "fields": [
+            "id",
+            "user_id",
+            "date",
+            "amount_cents",
+            "state",
+            "created_at",
+            "updated_at",
+            "merchant_account_id",
+            "currency",
+            "holding_currency",
+            "holding_amount_cents"
+          ],
+          "rows": [
+            [
+              1,
+              5,
+              "2025-10-01",
+              5000,
+              "unpaid",
+              {
+                "$time": "2025-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2025-01-01T00:00:00.000000Z"
+              },
+              1,
+              "usd",
+              "usd",
+              1000
+            ],
+            [
+              2,
+              5,
+              "2025-10-01",
+              -1000,
+              "paid",
+              {
+                "$time": "2025-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2025-01-01T00:00:00.000000Z"
+              },
+              1,
+              "usd",
+              "usd",
+              1000
+            ]
+          ]
+        }
+      },
+      "args": [
+        5
+      ],
+      "job": "UpdateSellerRefundEligibilityJob",
+      "stripe": {
+        "responses": [],
+        "requests": []
+      }
+    },
+    {
+      "name": "refunds are disabled below the threshold",
+      "seed": [
+        "INSERT INTO `users` (`id`, `email`, `username`, `external_id`, `recommendation_type`, `user_risk_state`, `flags`, `json_data`, `confirmed_at`, `created_at`, `updated_at`) VALUES (5, 'seller5@example.com', 'seller5', '1005', 'own_products', 'compliant', 0, NULL, '2025-01-01 00:00:00', '2025-01-01 00:00:00', '2025-01-01 00:00:00')",
+        "INSERT INTO `balances` (`id`, `user_id`, `merchant_account_id`, `date`, `amount_cents`, `holding_amount_cents`, `state`, `currency`, `holding_currency`, `created_at`, `updated_at`) VALUES (1, 5, 1, '2025-10-01', -20000, 1000, 'unpaid', 'usd', 'usd', '2025-01-01 00:00:00', '2025-01-01 00:00:00')"
+      ],
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                5,
+                "seller5@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "seller5",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1005",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                0,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT SUM(`balances`.`amount_cents`) FROM `balances` WHERE `balances`.`user_id` = 5 AND `balances`.`state` = 'unpaid'",
+          "result": {
+            "fields": [
+              "SUM(`balances`.`amount_cents`)"
+            ],
+            "rows": [
+              [
+                -20000
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `active_storage_attachments`.* FROM `active_storage_attachments` WHERE `active_storage_attachments`.`record_id` = 5 AND `active_storage_attachments`.`record_type` = 'User' AND `active_storage_attachments`.`name` = 'avatar' LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "name",
+              "record_type",
+              "record_id",
+              "blob_id",
+              "created_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `users`.`json_data` FROM `users` WHERE `users`.`id` = 5 LIMIT 1 FOR UPDATE",
+          "result": {
+            "fields": [
+              "json_data"
+            ],
+            "rows": [
+              [
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `users` SET `users`.`updated_at` = '2025-11-01 12:30:45', `users`.`flags` = 128, `users`.`json_data` = '{}' WHERE `users`.`id` = 5",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "INSERT INTO `versions` (`item_type`, `item_id`, `event`, `whodunnit`, `object`, `created_at`, `remote_ip`, `request_path`, `request_uuid`, `object_changes`) VALUES ('User', 5, 'update', NULL, '{\\\"flags\\\":0,\\\"name\\\":null,\\\"facebook_meta_tag\\\":null,\\\"google_analytics_id\\\":null,\\\"username\\\":\\\"seller5\\\",\\\"email\\\":\\\"seller5@example.com\\\",\\\"support_email\\\":null,\\\"facebook_pixel_id\\\":null,\\\"json_data\\\":null,\\\"kindle_email\\\":null,\\\"id\\\":5,\\\"reset_password_sent_at\\\":null,\\\"remember_created_at\\\":null,\\\"sign_in_count\\\":0,\\\"current_sign_in_at\\\":null,\\\"last_sign_in_at\\\":null,\\\"current_sign_in_ip\\\":null,\\\"last_sign_in_ip\\\":null,\\\"created_at\\\":\\\"2025-01-01T00:00:00Z\\\",\\\"updated_at\\\":\\\"2025-01-01T00:00:00Z\\\",\\\"payment_address\\\":null,\\\"confirmed_at\\\":\\\"2025-01-01T00:00:00Z\\\",\\\"confirmation_sent_at\\\":null,\\\"unconfirmed_email\\\":null,\\\"provider\\\":null,\\\"twitter_user_id\\\":null,\\\"facebook_uid\\\":null,\\\"deleted_at\\\":null,\\\"payment_notification\\\":true,\\\"currency_type\\\":\\\"usd\\\",\\\"bio\\\":null,\\\"credit_card_id\\\":null,\\\"profile_picture_url\\\":null,\\\"country\\\":null,\\\"state\\\":null,\\\"city\\\":null,\\\"zip_code\\\":null,\\\"street_address\\\":null,\\\"verified\\\":null,\\\"manage_pages\\\":false,\\\"banned_at\\\":null,\\\"weekly_notification\\\":true,\\\"external_id\\\":\\\"1005\\\",\\\"account_created_ip\\\":null,\\\"notification_endpoint\\\":null,\\\"locale\\\":\\\"en\\\",\\\"timezone\\\":\\\"Pacific Time (US \\\\u0026 Canada)\\\",\\\"user_risk_state\\\":\\\"compliant\\\",\\\"tos_violation_reason\\\":null,\\\"google_analytics_domains\\\":null,\\\"recommendation_type\\\":\\\"own_products\\\",\\\"split_payment_by_cents\\\":null,\\\"last_active_sessions_invalidated_at\\\":null,\\\"tier_state\\\":0,\\\"orientation_priority_tag\\\":null,\\\"notification_content_type\\\":\\\"application/x-www-form-urlencoded\\\",\\\"google_uid\\\":null,\\\"purchasing_power_parity_limit\\\":null,\\\"twitter_handle\\\":null}', '2025-11-01 12:30:45', NULL, NULL, NULL, '{\\\"updated_at\\\":[\\\"2025-01-01T00:00:00Z\\\",\\\"2025-11-01T12:30:45Z\\\"],\\\"flags\\\":[0,128],\\\"json_data\\\":[null,\\\"{}\\\"]}')",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "SELECT `links`.`id` FROM `links` WHERE `links`.`user_id` = 5",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `seller_profiles`.* FROM `seller_profiles` WHERE `seller_profiles`.`seller_id` = 5 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "seller_id",
+              "highlight_color",
+              "background_color",
+              "font",
+              "created_at",
+              "updated_at",
+              "json_data",
+              "border_radius",
+              "button_hover",
+              "seo_title",
+              "seo_description"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "users": {
+          "fields": [
+            "id",
+            "email",
+            "encrypted_password",
+            "reset_password_token",
+            "reset_password_sent_at",
+            "remember_created_at",
+            "sign_in_count",
+            "current_sign_in_at",
+            "last_sign_in_at",
+            "current_sign_in_ip",
+            "last_sign_in_ip",
+            "created_at",
+            "updated_at",
+            "name",
+            "payment_address",
+            "confirmed_at",
+            "confirmation_token",
+            "confirmation_sent_at",
+            "unconfirmed_email",
+            "provider",
+            "twitter_user_id",
+            "facebook_uid",
+            "deleted_at",
+            "payment_notification",
+            "currency_type",
+            "bio",
+            "username",
+            "credit_card_id",
+            "profile_picture_url",
+            "country",
+            "state",
+            "city",
+            "zip_code",
+            "street_address",
+            "facebook_access_token",
+            "verified",
+            "manage_pages",
+            "banned_at",
+            "weekly_notification",
+            "external_id",
+            "account_created_ip",
+            "twitter_oauth_token",
+            "twitter_oauth_secret",
+            "notification_endpoint",
+            "locale",
+            "flags",
+            "google_analytics_id",
+            "timezone",
+            "user_risk_state",
+            "tos_violation_reason",
+            "kindle_email",
+            "json_data",
+            "support_email",
+            "google_analytics_domains",
+            "recommendation_type",
+            "facebook_pixel_id",
+            "split_payment_by_cents",
+            "last_active_sessions_invalidated_at",
+            "otp_secret_key",
+            "facebook_meta_tag",
+            "tier_state",
+            "orientation_priority_tag",
+            "notification_content_type",
+            "google_uid",
+            "purchasing_power_parity_limit",
+            "twitter_handle"
+          ],
+          "rows": [
+            [
+              5,
+              "seller5@example.com",
+              "",
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              null,
+              null,
+              {
+                "$time": "2025-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2025-11-01T12:30:45.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2025-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              1,
+              "usd",
+              null,
+              "seller5",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              1,
+              "1005",
+              null,
+              null,
+              null,
+              null,
+              "en",
+              128,
+              null,
+              "Pacific Time (US & Canada)",
+              "compliant",
+              null,
+              null,
+              "{}",
+              null,
+              null,
+              "own_products",
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              "application/x-www-form-urlencoded",
+              null,
+              null,
+              null
+            ]
+          ]
+        },
+        "versions": {
+          "fields": [
+            "id",
+            "item_type",
+            "item_id",
+            "event",
+            "whodunnit",
+            "object",
+            "created_at",
+            "remote_ip",
+            "request_path",
+            "request_uuid",
+            "object_changes"
+          ],
+          "rows": [
+            [
+              1,
+              "User",
+              5,
+              "update",
+              null,
+              "{\"flags\":0,\"name\":null,\"facebook_meta_tag\":null,\"google_analytics_id\":null,\"username\":\"seller5\",\"email\":\"seller5@example.com\",\"support_email\":null,\"facebook_pixel_id\":null,\"json_data\":null,\"kindle_email\":null,\"id\":5,\"reset_password_sent_at\":null,\"remember_created_at\":null,\"sign_in_count\":0,\"current_sign_in_at\":null,\"last_sign_in_at\":null,\"current_sign_in_ip\":null,\"last_sign_in_ip\":null,\"created_at\":\"2025-01-01T00:00:00Z\",\"updated_at\":\"2025-01-01T00:00:00Z\",\"payment_address\":null,\"confirmed_at\":\"2025-01-01T00:00:00Z\",\"confirmation_sent_at\":null,\"unconfirmed_email\":null,\"provider\":null,\"twitter_user_id\":null,\"facebook_uid\":null,\"deleted_at\":null,\"payment_notification\":true,\"currency_type\":\"usd\",\"bio\":null,\"credit_card_id\":null,\"profile_picture_url\":null,\"country\":null,\"state\":null,\"city\":null,\"zip_code\":null,\"street_address\":null,\"verified\":null,\"manage_pages\":false,\"banned_at\":null,\"weekly_notification\":true,\"external_id\":\"1005\",\"account_created_ip\":null,\"notification_endpoint\":null,\"locale\":\"en\",\"timezone\":\"Pacific Time (US \\u0026 Canada)\",\"user_risk_state\":\"compliant\",\"tos_violation_reason\":null,\"google_analytics_domains\":null,\"recommendation_type\":\"own_products\",\"split_payment_by_cents\":null,\"last_active_sessions_invalidated_at\":null,\"tier_state\":0,\"orientation_priority_tag\":null,\"notification_content_type\":\"application/x-www-form-urlencoded\",\"google_uid\":null,\"purchasing_power_parity_limit\":null,\"twitter_handle\":null}",
+              {
+                "$time": "2025-11-01T12:30:45.000000Z"
+              },
+              null,
+              null,
+              null,
+              "{\"updated_at\":[\"2025-01-01T00:00:00Z\",\"2025-11-01T12:30:45Z\"],\"flags\":[0,128],\"json_data\":[null,\"{}\"]}"
+            ]
+          ]
+        },
+        "balances": {
+          "fields": [
+            "id",
+            "user_id",
+            "date",
+            "amount_cents",
+            "state",
+            "created_at",
+            "updated_at",
+            "merchant_account_id",
+            "currency",
+            "holding_currency",
+            "holding_amount_cents"
+          ],
+          "rows": [
+            [
+              1,
+              5,
+              "2025-10-01",
+              -20000,
+              "unpaid",
+              {
+                "$time": "2025-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2025-01-01T00:00:00.000000Z"
+              },
+              1,
+              "usd",
+              "usd",
+              1000
+            ]
+          ]
+        }
+      },
+      "args": [
+        5
+      ],
+      "job": "UpdateSellerRefundEligibilityJob",
+      "stripe": {
+        "responses": [],
+        "requests": []
+      }
+    },
+    {
+      "name": "nothing changes for a positive balance",
+      "seed": [
+        "INSERT INTO `users` (`id`, `email`, `username`, `external_id`, `recommendation_type`, `user_risk_state`, `flags`, `json_data`, `confirmed_at`, `created_at`, `updated_at`) VALUES (5, 'seller5@example.com', 'seller5', '1005', 'own_products', 'compliant', 0, NULL, '2025-01-01 00:00:00', '2025-01-01 00:00:00', '2025-01-01 00:00:00')",
+        "INSERT INTO `balances` (`id`, `user_id`, `merchant_account_id`, `date`, `amount_cents`, `holding_amount_cents`, `state`, `currency`, `holding_currency`, `created_at`, `updated_at`) VALUES (1, 5, 1, '2025-10-01', 5000, 1000, 'unpaid', 'usd', 'usd', '2025-01-01 00:00:00', '2025-01-01 00:00:00')"
+      ],
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                5,
+                "seller5@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "seller5",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1005",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                0,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT SUM(`balances`.`amount_cents`) FROM `balances` WHERE `balances`.`user_id` = 5 AND `balances`.`state` = 'unpaid'",
+          "result": {
+            "fields": [
+              "SUM(`balances`.`amount_cents`)"
+            ],
+            "rows": [
+              [
+                5000
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "users": {
+          "fields": [
+            "id",
+            "email",
+            "encrypted_password",
+            "reset_password_token",
+            "reset_password_sent_at",
+            "remember_created_at",
+            "sign_in_count",
+            "current_sign_in_at",
+            "last_sign_in_at",
+            "current_sign_in_ip",
+            "last_sign_in_ip",
+            "created_at",
+            "updated_at",
+            "name",
+            "payment_address",
+            "confirmed_at",
+            "confirmation_token",
+            "confirmation_sent_at",
+            "unconfirmed_email",
+            "provider",
+            "twitter_user_id",
+            "facebook_uid",
+            "deleted_at",
+            "payment_notification",
+            "currency_type",
+            "bio",
+            "username",
+            "credit_card_id",
+            "profile_picture_url",
+            "country",
+            "state",
+            "city",
+            "zip_code",
+            "street_address",
+            "facebook_access_token",
+            "verified",
+            "manage_pages",
+            "banned_at",
+            "weekly_notification",
+            "external_id",
+            "account_created_ip",
+            "twitter_oauth_token",
+            "twitter_oauth_secret",
+            "notification_endpoint",
+            "locale",
+            "flags",
+            "google_analytics_id",
+            "timezone",
+            "user_risk_state",
+            "tos_violation_reason",
+            "kindle_email",
+            "json_data",
+            "support_email",
+            "google_analytics_domains",
+            "recommendation_type",
+            "facebook_pixel_id",
+            "split_payment_by_cents",
+            "last_active_sessions_invalidated_at",
+            "otp_secret_key",
+            "facebook_meta_tag",
+            "tier_state",
+            "orientation_priority_tag",
+            "notification_content_type",
+            "google_uid",
+            "purchasing_power_parity_limit",
+            "twitter_handle"
+          ],
+          "rows": [
+            [
+              5,
+              "seller5@example.com",
+              "",
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              null,
+              null,
+              {
+                "$time": "2025-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2025-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2025-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              1,
+              "usd",
+              null,
+              "seller5",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              1,
+              "1005",
+              null,
+              null,
+              null,
+              null,
+              "en",
+              0,
+              null,
+              "Pacific Time (US & Canada)",
+              "compliant",
+              null,
+              null,
+              null,
+              null,
+              null,
+              "own_products",
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              "application/x-www-form-urlencoded",
+              null,
+              null,
+              null
+            ]
+          ]
+        },
+        "balances": {
+          "fields": [
+            "id",
+            "user_id",
+            "date",
+            "amount_cents",
+            "state",
+            "created_at",
+            "updated_at",
+            "merchant_account_id",
+            "currency",
+            "holding_currency",
+            "holding_amount_cents"
+          ],
+          "rows": [
+            [
+              1,
+              5,
+              "2025-10-01",
+              5000,
+              "unpaid",
+              {
+                "$time": "2025-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2025-01-01T00:00:00.000000Z"
+              },
+              1,
+              "usd",
+              "usd",
+              1000
+            ]
+          ]
+        }
+      },
+      "args": [
+        5
+      ],
+      "job": "UpdateSellerRefundEligibilityJob",
+      "stripe": {
+        "responses": [],
+        "requests": []
+      }
+    },
+    {
+      "name": "nothing changes for a negative balance above the threshold",
+      "seed": [
+        "INSERT INTO `users` (`id`, `email`, `username`, `external_id`, `recommendation_type`, `user_risk_state`, `flags`, `json_data`, `confirmed_at`, `created_at`, `updated_at`) VALUES (5, 'seller5@example.com', 'seller5', '1005', 'own_products', 'compliant', 128, NULL, '2025-01-01 00:00:00', '2025-01-01 00:00:00', '2025-01-01 00:00:00')",
+        "INSERT INTO `balances` (`id`, `user_id`, `merchant_account_id`, `date`, `amount_cents`, `holding_amount_cents`, `state`, `currency`, `holding_currency`, `created_at`, `updated_at`) VALUES (1, 5, 1, '2025-10-01', -5000, 1000, 'unpaid', 'usd', 'usd', '2025-01-01 00:00:00', '2025-01-01 00:00:00')"
+      ],
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                5,
+                "seller5@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "seller5",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1005",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                128,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT SUM(`balances`.`amount_cents`) FROM `balances` WHERE `balances`.`user_id` = 5 AND `balances`.`state` = 'unpaid'",
+          "result": {
+            "fields": [
+              "SUM(`balances`.`amount_cents`)"
+            ],
+            "rows": [
+              [
+                -5000
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "users": {
+          "fields": [
+            "id",
+            "email",
+            "encrypted_password",
+            "reset_password_token",
+            "reset_password_sent_at",
+            "remember_created_at",
+            "sign_in_count",
+            "current_sign_in_at",
+            "last_sign_in_at",
+            "current_sign_in_ip",
+            "last_sign_in_ip",
+            "created_at",
+            "updated_at",
+            "name",
+            "payment_address",
+            "confirmed_at",
+            "confirmation_token",
+            "confirmation_sent_at",
+            "unconfirmed_email",
+            "provider",
+            "twitter_user_id",
+            "facebook_uid",
+            "deleted_at",
+            "payment_notification",
+            "currency_type",
+            "bio",
+            "username",
+            "credit_card_id",
+            "profile_picture_url",
+            "country",
+            "state",
+            "city",
+            "zip_code",
+            "street_address",
+            "facebook_access_token",
+            "verified",
+            "manage_pages",
+            "banned_at",
+            "weekly_notification",
+            "external_id",
+            "account_created_ip",
+            "twitter_oauth_token",
+            "twitter_oauth_secret",
+            "notification_endpoint",
+            "locale",
+            "flags",
+            "google_analytics_id",
+            "timezone",
+            "user_risk_state",
+            "tos_violation_reason",
+            "kindle_email",
+            "json_data",
+            "support_email",
+            "google_analytics_domains",
+            "recommendation_type",
+            "facebook_pixel_id",
+            "split_payment_by_cents",
+            "last_active_sessions_invalidated_at",
+            "otp_secret_key",
+            "facebook_meta_tag",
+            "tier_state",
+            "orientation_priority_tag",
+            "notification_content_type",
+            "google_uid",
+            "purchasing_power_parity_limit",
+            "twitter_handle"
+          ],
+          "rows": [
+            [
+              5,
+              "seller5@example.com",
+              "",
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              null,
+              null,
+              {
+                "$time": "2025-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2025-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2025-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              1,
+              "usd",
+              null,
+              "seller5",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              1,
+              "1005",
+              null,
+              null,
+              null,
+              null,
+              "en",
+              128,
+              null,
+              "Pacific Time (US & Canada)",
+              "compliant",
+              null,
+              null,
+              null,
+              null,
+              null,
+              "own_products",
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              "application/x-www-form-urlencoded",
+              null,
+              null,
+              null
+            ]
+          ]
+        },
+        "balances": {
+          "fields": [
+            "id",
+            "user_id",
+            "date",
+            "amount_cents",
+            "state",
+            "created_at",
+            "updated_at",
+            "merchant_account_id",
+            "currency",
+            "holding_currency",
+            "holding_amount_cents"
+          ],
+          "rows": [
+            [
+              1,
+              5,
+              "2025-10-01",
+              -5000,
+              "unpaid",
+              {
+                "$time": "2025-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2025-01-01T00:00:00.000000Z"
+              },
+              1,
+              "usd",
+              "usd",
+              1000
+            ]
+          ]
+        }
+      },
+      "args": [
+        5
+      ],
+      "job": "UpdateSellerRefundEligibilityJob",
+      "stripe": {
+        "responses": [],
+        "requests": []
+      }
+    },
+    {
+      "name": "nothing changes for no balances",
+      "seed": [
+        "INSERT INTO `users` (`id`, `email`, `username`, `external_id`, `recommendation_type`, `user_risk_state`, `flags`, `json_data`, `confirmed_at`, `created_at`, `updated_at`) VALUES (5, 'seller5@example.com', 'seller5', '1005', 'own_products', 'compliant', 0, NULL, '2025-01-01 00:00:00', '2025-01-01 00:00:00', '2025-01-01 00:00:00')"
+      ],
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                5,
+                "seller5@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "seller5",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1005",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                0,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT SUM(`balances`.`amount_cents`) FROM `balances` WHERE `balances`.`user_id` = 5 AND `balances`.`state` = 'unpaid'",
+          "result": {
+            "fields": [
+              "SUM(`balances`.`amount_cents`)"
+            ],
+            "rows": [
+              [
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "users": {
+          "fields": [
+            "id",
+            "email",
+            "encrypted_password",
+            "reset_password_token",
+            "reset_password_sent_at",
+            "remember_created_at",
+            "sign_in_count",
+            "current_sign_in_at",
+            "last_sign_in_at",
+            "current_sign_in_ip",
+            "last_sign_in_ip",
+            "created_at",
+            "updated_at",
+            "name",
+            "payment_address",
+            "confirmed_at",
+            "confirmation_token",
+            "confirmation_sent_at",
+            "unconfirmed_email",
+            "provider",
+            "twitter_user_id",
+            "facebook_uid",
+            "deleted_at",
+            "payment_notification",
+            "currency_type",
+            "bio",
+            "username",
+            "credit_card_id",
+            "profile_picture_url",
+            "country",
+            "state",
+            "city",
+            "zip_code",
+            "street_address",
+            "facebook_access_token",
+            "verified",
+            "manage_pages",
+            "banned_at",
+            "weekly_notification",
+            "external_id",
+            "account_created_ip",
+            "twitter_oauth_token",
+            "twitter_oauth_secret",
+            "notification_endpoint",
+            "locale",
+            "flags",
+            "google_analytics_id",
+            "timezone",
+            "user_risk_state",
+            "tos_violation_reason",
+            "kindle_email",
+            "json_data",
+            "support_email",
+            "google_analytics_domains",
+            "recommendation_type",
+            "facebook_pixel_id",
+            "split_payment_by_cents",
+            "last_active_sessions_invalidated_at",
+            "otp_secret_key",
+            "facebook_meta_tag",
+            "tier_state",
+            "orientation_priority_tag",
+            "notification_content_type",
+            "google_uid",
+            "purchasing_power_parity_limit",
+            "twitter_handle"
+          ],
+          "rows": [
+            [
+              5,
+              "seller5@example.com",
+              "",
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              null,
+              null,
+              {
+                "$time": "2025-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2025-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2025-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              1,
+              "usd",
+              null,
+              "seller5",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              1,
+              "1005",
+              null,
+              null,
+              null,
+              null,
+              "en",
+              0,
+              null,
+              "Pacific Time (US & Canada)",
+              "compliant",
+              null,
+              null,
+              null,
+              null,
+              null,
+              "own_products",
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              "application/x-www-form-urlencoded",
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "args": [
+        5
+      ],
+      "job": "UpdateSellerRefundEligibilityJob",
+      "stripe": {
+        "responses": [],
+        "requests": []
+      }
+    },
+    {
+      "name": "a seller on probation below the recovery threshold",
+      "seed": [
+        "INSERT INTO `users` (`id`, `email`, `username`, `external_id`, `recommendation_type`, `user_risk_state`, `flags`, `json_data`, `confirmed_at`, `created_at`, `updated_at`) VALUES (5, 'seller5@example.com', 'seller5', '1005', 'own_products', 'on_probation', 0, NULL, '2025-01-01 00:00:00', '2025-01-01 00:00:00', '2025-01-01 00:00:00')",
+        "INSERT INTO `balances` (`id`, `user_id`, `merchant_account_id`, `date`, `amount_cents`, `holding_amount_cents`, `state`, `currency`, `holding_currency`, `created_at`, `updated_at`) VALUES (1, 5, 1, '2025-10-01', 9999, 1000, 'unpaid', 'usd', 'usd', '2025-01-01 00:00:00', '2025-01-01 00:00:00')"
+      ],
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                5,
+                "seller5@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "seller5",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1005",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                0,
+                null,
+                "Pacific Time (US & Canada)",
+                "on_probation",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT SUM(`balances`.`amount_cents`) FROM `balances` WHERE `balances`.`user_id` = 5 AND `balances`.`state` = 'unpaid'",
+          "result": {
+            "fields": [
+              "SUM(`balances`.`amount_cents`)"
+            ],
+            "rows": [
+              [
+                9999
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "users": {
+          "fields": [
+            "id",
+            "email",
+            "encrypted_password",
+            "reset_password_token",
+            "reset_password_sent_at",
+            "remember_created_at",
+            "sign_in_count",
+            "current_sign_in_at",
+            "last_sign_in_at",
+            "current_sign_in_ip",
+            "last_sign_in_ip",
+            "created_at",
+            "updated_at",
+            "name",
+            "payment_address",
+            "confirmed_at",
+            "confirmation_token",
+            "confirmation_sent_at",
+            "unconfirmed_email",
+            "provider",
+            "twitter_user_id",
+            "facebook_uid",
+            "deleted_at",
+            "payment_notification",
+            "currency_type",
+            "bio",
+            "username",
+            "credit_card_id",
+            "profile_picture_url",
+            "country",
+            "state",
+            "city",
+            "zip_code",
+            "street_address",
+            "facebook_access_token",
+            "verified",
+            "manage_pages",
+            "banned_at",
+            "weekly_notification",
+            "external_id",
+            "account_created_ip",
+            "twitter_oauth_token",
+            "twitter_oauth_secret",
+            "notification_endpoint",
+            "locale",
+            "flags",
+            "google_analytics_id",
+            "timezone",
+            "user_risk_state",
+            "tos_violation_reason",
+            "kindle_email",
+            "json_data",
+            "support_email",
+            "google_analytics_domains",
+            "recommendation_type",
+            "facebook_pixel_id",
+            "split_payment_by_cents",
+            "last_active_sessions_invalidated_at",
+            "otp_secret_key",
+            "facebook_meta_tag",
+            "tier_state",
+            "orientation_priority_tag",
+            "notification_content_type",
+            "google_uid",
+            "purchasing_power_parity_limit",
+            "twitter_handle"
+          ],
+          "rows": [
+            [
+              5,
+              "seller5@example.com",
+              "",
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              null,
+              null,
+              {
+                "$time": "2025-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2025-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2025-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              1,
+              "usd",
+              null,
+              "seller5",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              1,
+              "1005",
+              null,
+              null,
+              null,
+              null,
+              "en",
+              0,
+              null,
+              "Pacific Time (US & Canada)",
+              "on_probation",
+              null,
+              null,
+              null,
+              null,
+              null,
+              "own_products",
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              "application/x-www-form-urlencoded",
+              null,
+              null,
+              null
+            ]
+          ]
+        },
+        "balances": {
+          "fields": [
+            "id",
+            "user_id",
+            "date",
+            "amount_cents",
+            "state",
+            "created_at",
+            "updated_at",
+            "merchant_account_id",
+            "currency",
+            "holding_currency",
+            "holding_amount_cents"
+          ],
+          "rows": [
+            [
+              1,
+              5,
+              "2025-10-01",
+              9999,
+              "unpaid",
+              {
+                "$time": "2025-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2025-01-01T00:00:00.000000Z"
+              },
+              1,
+              "usd",
+              "usd",
+              1000
+            ]
+          ]
+        }
+      },
+      "args": [
+        5
+      ],
+      "job": "UpdateSellerRefundEligibilityJob",
+      "stripe": {
+        "responses": [],
+        "requests": []
+      }
+    },
+    {
+      "name": "a seller on probation with refunds disabled and a small positive balance",
+      "seed": [
+        "INSERT INTO `users` (`id`, `email`, `username`, `external_id`, `recommendation_type`, `user_risk_state`, `flags`, `json_data`, `confirmed_at`, `created_at`, `updated_at`) VALUES (5, 'seller5@example.com', 'seller5', '1005', 'own_products', 'on_probation', 128, NULL, '2025-01-01 00:00:00', '2025-01-01 00:00:00', '2025-01-01 00:00:00')",
+        "INSERT INTO `balances` (`id`, `user_id`, `merchant_account_id`, `date`, `amount_cents`, `holding_amount_cents`, `state`, `currency`, `holding_currency`, `created_at`, `updated_at`) VALUES (1, 5, 1, '2025-10-01', 500, 1000, 'unpaid', 'usd', 'usd', '2025-01-01 00:00:00', '2025-01-01 00:00:00')"
+      ],
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                5,
+                "seller5@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "seller5",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1005",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                128,
+                null,
+                "Pacific Time (US & Canada)",
+                "on_probation",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT SUM(`balances`.`amount_cents`) FROM `balances` WHERE `balances`.`user_id` = 5 AND `balances`.`state` = 'unpaid'",
+          "result": {
+            "fields": [
+              "SUM(`balances`.`amount_cents`)"
+            ],
+            "rows": [
+              [
+                500
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `active_storage_attachments`.* FROM `active_storage_attachments` WHERE `active_storage_attachments`.`record_id` = 5 AND `active_storage_attachments`.`record_type` = 'User' AND `active_storage_attachments`.`name` = 'avatar' LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "name",
+              "record_type",
+              "record_id",
+              "blob_id",
+              "created_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `users`.`json_data` FROM `users` WHERE `users`.`id` = 5 LIMIT 1 FOR UPDATE",
+          "result": {
+            "fields": [
+              "json_data"
+            ],
+            "rows": [
+              [
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `users` SET `users`.`updated_at` = '2025-11-01 12:30:45', `users`.`flags` = 0, `users`.`json_data` = '{}' WHERE `users`.`id` = 5",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "INSERT INTO `versions` (`item_type`, `item_id`, `event`, `whodunnit`, `object`, `created_at`, `remote_ip`, `request_path`, `request_uuid`, `object_changes`) VALUES ('User', 5, 'update', NULL, '{\\\"flags\\\":128,\\\"name\\\":null,\\\"facebook_meta_tag\\\":null,\\\"google_analytics_id\\\":null,\\\"username\\\":\\\"seller5\\\",\\\"email\\\":\\\"seller5@example.com\\\",\\\"support_email\\\":null,\\\"facebook_pixel_id\\\":null,\\\"json_data\\\":null,\\\"kindle_email\\\":null,\\\"id\\\":5,\\\"reset_password_sent_at\\\":null,\\\"remember_created_at\\\":null,\\\"sign_in_count\\\":0,\\\"current_sign_in_at\\\":null,\\\"last_sign_in_at\\\":null,\\\"current_sign_in_ip\\\":null,\\\"last_sign_in_ip\\\":null,\\\"created_at\\\":\\\"2025-01-01T00:00:00Z\\\",\\\"updated_at\\\":\\\"2025-01-01T00:00:00Z\\\",\\\"payment_address\\\":null,\\\"confirmed_at\\\":\\\"2025-01-01T00:00:00Z\\\",\\\"confirmation_sent_at\\\":null,\\\"unconfirmed_email\\\":null,\\\"provider\\\":null,\\\"twitter_user_id\\\":null,\\\"facebook_uid\\\":null,\\\"deleted_at\\\":null,\\\"payment_notification\\\":true,\\\"currency_type\\\":\\\"usd\\\",\\\"bio\\\":null,\\\"credit_card_id\\\":null,\\\"profile_picture_url\\\":null,\\\"country\\\":null,\\\"state\\\":null,\\\"city\\\":null,\\\"zip_code\\\":null,\\\"street_address\\\":null,\\\"verified\\\":null,\\\"manage_pages\\\":false,\\\"banned_at\\\":null,\\\"weekly_notification\\\":true,\\\"external_id\\\":\\\"1005\\\",\\\"account_created_ip\\\":null,\\\"notification_endpoint\\\":null,\\\"locale\\\":\\\"en\\\",\\\"timezone\\\":\\\"Pacific Time (US \\\\u0026 Canada)\\\",\\\"user_risk_state\\\":\\\"on_probation\\\",\\\"tos_violation_reason\\\":null,\\\"google_analytics_domains\\\":null,\\\"recommendation_type\\\":\\\"own_products\\\",\\\"split_payment_by_cents\\\":null,\\\"last_active_sessions_invalidated_at\\\":null,\\\"tier_state\\\":0,\\\"orientation_priority_tag\\\":null,\\\"notification_content_type\\\":\\\"application/x-www-form-urlencoded\\\",\\\"google_uid\\\":null,\\\"purchasing_power_parity_limit\\\":null,\\\"twitter_handle\\\":null}', '2025-11-01 12:30:45', NULL, NULL, NULL, '{\\\"updated_at\\\":[\\\"2025-01-01T00:00:00Z\\\",\\\"2025-11-01T12:30:45Z\\\"],\\\"flags\\\":[128,0],\\\"json_data\\\":[null,\\\"{}\\\"]}')",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "SELECT `links`.`id` FROM `links` WHERE `links`.`user_id` = 5",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `seller_profiles`.* FROM `seller_profiles` WHERE `seller_profiles`.`seller_id` = 5 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "seller_id",
+              "highlight_color",
+              "background_color",
+              "font",
+              "created_at",
+              "updated_at",
+              "json_data",
+              "border_radius",
+              "button_hover",
+              "seo_title",
+              "seo_description"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT SUM(`balances`.`amount_cents`) FROM `balances` WHERE `balances`.`user_id` = 5 AND `balances`.`state` = 'unpaid'",
+          "result": {
+            "fields": [
+              "SUM(`balances`.`amount_cents`)"
+            ],
+            "rows": [
+              [
+                500
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "users": {
+          "fields": [
+            "id",
+            "email",
+            "encrypted_password",
+            "reset_password_token",
+            "reset_password_sent_at",
+            "remember_created_at",
+            "sign_in_count",
+            "current_sign_in_at",
+            "last_sign_in_at",
+            "current_sign_in_ip",
+            "last_sign_in_ip",
+            "created_at",
+            "updated_at",
+            "name",
+            "payment_address",
+            "confirmed_at",
+            "confirmation_token",
+            "confirmation_sent_at",
+            "unconfirmed_email",
+            "provider",
+            "twitter_user_id",
+            "facebook_uid",
+            "deleted_at",
+            "payment_notification",
+            "currency_type",
+            "bio",
+            "username",
+            "credit_card_id",
+            "profile_picture_url",
+            "country",
+            "state",
+            "city",
+            "zip_code",
+            "street_address",
+            "facebook_access_token",
+            "verified",
+            "manage_pages",
+            "banned_at",
+            "weekly_notification",
+            "external_id",
+            "account_created_ip",
+            "twitter_oauth_token",
+            "twitter_oauth_secret",
+            "notification_endpoint",
+            "locale",
+            "flags",
+            "google_analytics_id",
+            "timezone",
+            "user_risk_state",
+            "tos_violation_reason",
+            "kindle_email",
+            "json_data",
+            "support_email",
+            "google_analytics_domains",
+            "recommendation_type",
+            "facebook_pixel_id",
+            "split_payment_by_cents",
+            "last_active_sessions_invalidated_at",
+            "otp_secret_key",
+            "facebook_meta_tag",
+            "tier_state",
+            "orientation_priority_tag",
+            "notification_content_type",
+            "google_uid",
+            "purchasing_power_parity_limit",
+            "twitter_handle"
+          ],
+          "rows": [
+            [
+              5,
+              "seller5@example.com",
+              "",
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              null,
+              null,
+              {
+                "$time": "2025-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2025-11-01T12:30:45.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2025-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              1,
+              "usd",
+              null,
+              "seller5",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              1,
+              "1005",
+              null,
+              null,
+              null,
+              null,
+              "en",
+              0,
+              null,
+              "Pacific Time (US & Canada)",
+              "on_probation",
+              null,
+              null,
+              "{}",
+              null,
+              null,
+              "own_products",
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              "application/x-www-form-urlencoded",
+              null,
+              null,
+              null
+            ]
+          ]
+        },
+        "versions": {
+          "fields": [
+            "id",
+            "item_type",
+            "item_id",
+            "event",
+            "whodunnit",
+            "object",
+            "created_at",
+            "remote_ip",
+            "request_path",
+            "request_uuid",
+            "object_changes"
+          ],
+          "rows": [
+            [
+              1,
+              "User",
+              5,
+              "update",
+              null,
+              "{\"flags\":128,\"name\":null,\"facebook_meta_tag\":null,\"google_analytics_id\":null,\"username\":\"seller5\",\"email\":\"seller5@example.com\",\"support_email\":null,\"facebook_pixel_id\":null,\"json_data\":null,\"kindle_email\":null,\"id\":5,\"reset_password_sent_at\":null,\"remember_created_at\":null,\"sign_in_count\":0,\"current_sign_in_at\":null,\"last_sign_in_at\":null,\"current_sign_in_ip\":null,\"last_sign_in_ip\":null,\"created_at\":\"2025-01-01T00:00:00Z\",\"updated_at\":\"2025-01-01T00:00:00Z\",\"payment_address\":null,\"confirmed_at\":\"2025-01-01T00:00:00Z\",\"confirmation_sent_at\":null,\"unconfirmed_email\":null,\"provider\":null,\"twitter_user_id\":null,\"facebook_uid\":null,\"deleted_at\":null,\"payment_notification\":true,\"currency_type\":\"usd\",\"bio\":null,\"credit_card_id\":null,\"profile_picture_url\":null,\"country\":null,\"state\":null,\"city\":null,\"zip_code\":null,\"street_address\":null,\"verified\":null,\"manage_pages\":false,\"banned_at\":null,\"weekly_notification\":true,\"external_id\":\"1005\",\"account_created_ip\":null,\"notification_endpoint\":null,\"locale\":\"en\",\"timezone\":\"Pacific Time (US \\u0026 Canada)\",\"user_risk_state\":\"on_probation\",\"tos_violation_reason\":null,\"google_analytics_domains\":null,\"recommendation_type\":\"own_products\",\"split_payment_by_cents\":null,\"last_active_sessions_invalidated_at\":null,\"tier_state\":0,\"orientation_priority_tag\":null,\"notification_content_type\":\"application/x-www-form-urlencoded\",\"google_uid\":null,\"purchasing_power_parity_limit\":null,\"twitter_handle\":null}",
+              {
+                "$time": "2025-11-01T12:30:45.000000Z"
+              },
+              null,
+              null,
+              null,
+              "{\"updated_at\":[\"2025-01-01T00:00:00Z\",\"2025-11-01T12:30:45Z\"],\"flags\":[128,0],\"json_data\":[null,\"{}\"]}"
+            ]
+          ]
+        },
+        "balances": {
+          "fields": [
+            "id",
+            "user_id",
+            "date",
+            "amount_cents",
+            "state",
+            "created_at",
+            "updated_at",
+            "merchant_account_id",
+            "currency",
+            "holding_currency",
+            "holding_amount_cents"
+          ],
+          "rows": [
+            [
+              1,
+              5,
+              "2025-10-01",
+              500,
+              "unpaid",
+              {
+                "$time": "2025-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2025-01-01T00:00:00.000000Z"
+              },
+              1,
+              "usd",
+              "usd",
+              1000
+            ]
+          ]
+        }
+      },
+      "args": [
+        5
+      ],
+      "job": "UpdateSellerRefundEligibilityJob",
+      "stripe": {
+        "responses": [],
+        "requests": []
+      }
+    },
+    {
+      "name": "a missing seller",
+      "seed": [],
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find User with 'id'=404"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 404 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {},
+      "args": [
+        404
+      ],
+      "job": "UpdateSellerRefundEligibilityJob",
+      "stripe": {
+        "responses": [],
+        "requests": []
+      }
     }
   ]
 }

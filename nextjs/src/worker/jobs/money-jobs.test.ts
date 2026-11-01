@@ -10,12 +10,15 @@ import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createJobsRuntime } from "../../server/jobs/runtime.ts";
 import { parseRubyJson, type JsonValue } from "../../server/jobs/sidekiq/ruby-json.ts";
 import { setCurrencyDepsForTesting } from "../../server/models/concerns/currency-helper.ts";
+import { setSellerProfileCacheForTesting } from "../../server/models/seller-profile.ts";
+import { resetUserCollaborators, setUserCollaborators } from "../../server/models/user.ts";
 import { StripeClient, setStripeClientForTesting, type TransportRequest } from "../../server/stripe/client.ts";
 import { stripeConfigFromEnv } from "../../server/stripe/config.ts";
 import { asSidekiqJob, contextFor, recordingSidekiqRedis, rubyRuntimeRegistry, sequentialJids, type RedisSnapshot } from "./__fixtures__/golden.ts";
 import { sqlReplay, type Statement } from "./__fixtures__/sql-replay.ts";
 import { handleStripeAutodebitForNegativeBalanceWith } from "./handle-stripe-autodebit-job.ts";
 import { recoverAusBacktaxFromStripeAccountJobWith } from "./recover-aus-backtax-from-stripe-account-job.ts";
+import { updateSellerRefundEligibilityJobWith } from "./update-seller-refund-eligibility-job.ts";
 
 type Request = { method: string; path: string; query: string | null; body: string | null; stripe_account: string | null };
 type MoneyCase = {
@@ -26,6 +29,7 @@ type MoneyCase = {
   statements: Statement[];
   redis: RedisSnapshot;
   redis_before?: RedisSnapshot;
+  cache: [string, string][];
   stripe: { responses: [number, Record<string, string>, string][]; requests: Request[] };
 };
 const golden = parseRubyJson(readFileSync(new URL("./__fixtures__/money-jobs.golden.json", import.meta.url), "utf8")) as unknown as {
@@ -37,6 +41,7 @@ const now = () => new Date(Math.round(golden.now * 1000));
 const HANDLERS = {
   HandleStripeAutodebitForNegativeBalance: handleStripeAutodebitForNegativeBalanceWith,
   RecoverAusBacktaxFromStripeAccountJob: recoverAusBacktaxFromStripeAccountJobWith,
+  UpdateSellerRefundEligibilityJob: updateSellerRefundEligibilityJobWith,
 };
 
 // The OpenExchangeRates request shares the script with Stripe's: the third response of a case that
@@ -93,6 +98,7 @@ beforeAll(() => {
 afterEach(() => {
   setStripeClientForTesting(undefined);
   setCurrencyDepsForTesting(undefined);
+  resetUserCollaborators();
 });
 
 describe("money jobs", () => {
@@ -103,6 +109,9 @@ describe("money jobs", () => {
       setStripeClientForTesting(stripe);
       const recording = recordingSidekiqRedis();
       const runtime = createJobsRuntime({ sidekiqRedis: recording.redis, bullmqRedis: recording.redis, registry: rubyRuntimeRegistry(), now: () => golden.now, newJid: sequentialJids() });
+      const cache: [string, string][] = [];
+      setSellerProfileCacheForTesting({ delete: async (name) => void cache.push(["cache_delete", name]) });
+      setUserCollaborators({ now });
       let error: unknown = null;
       try {
         const handler = HANDLERS[c.job as keyof typeof HANDLERS]({ now });
@@ -115,6 +124,7 @@ describe("money jobs", () => {
       expect(error === null ? null : { class: rubyClassName(error), message: (error as Error).message }).toEqual(
         c.error === null ? null : { class: c.error.class.split("::").at(-1), message: c.error.message },
       );
+      expect(cache).toEqual(c.cache);
       expect(recording.snapshot()).toEqual(Object.fromEntries(Object.entries(c.redis).filter(([key]) => !isRate(key))));
       expect(Object.fromEntries([...store].filter(([key]) => isRate(key)))).toEqual(
         Object.fromEntries(Object.entries(c.redis).filter(([key]) => isRate(key)).map(([key, entry]) => [key, entry.value])),
@@ -135,6 +145,8 @@ describe("money jobs", () => {
       return { ...c, statements };
     };
     const run = async (c: MoneyCase) => {
+      setSellerProfileCacheForTesting({ delete: async () => undefined });
+      setUserCollaborators({ now });
       const sql = sqlReplay(c.statements);
       const { stripe, requests } = harness(c);
       setStripeClientForTesting(stripe);
@@ -157,6 +169,15 @@ describe("money jobs", () => {
 
     it("a debit on a merchant account without a currency", async () => {
       const { error, log } = await run(withMerchantAccount("a negative payout becomes a credit and a new balance", { currency: null }, MERCHANT_ACCOUNT_READ));
+      expect(error?.name).toBe("HandBackToRuby");
+      expect(log.filter((sql) => /^(BEGIN|INSERT|UPDATE)/u.test(sql))).toEqual([]);
+    });
+
+    it("a seller on probation whose balance has recovered, before the refunds flag is written", async () => {
+      const c = golden.cases.find((candidate) => candidate.name === "a seller on probation below the recovery threshold")!;
+      const statements = structuredClone(c.statements);
+      statements.find((statement) => statement.sql.startsWith("SELECT SUM"))!.result!.rows![0]![0] = { $decimal: "10000.0" } as never;
+      const { error, log } = await run({ ...c, statements });
       expect(error?.name).toBe("HandBackToRuby");
       expect(log.filter((sql) => /^(BEGIN|INSERT|UPDATE)/u.test(sql))).toEqual([]);
     });

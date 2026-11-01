@@ -13,8 +13,9 @@ include RailsCases
 OUT = Rails.root.join("nextjs/src/worker/jobs/__fixtures__/money-jobs.golden.json")
 NOW = Time.utc(2025, 11, 1, 12, 30, 45, 123_000)
 SEEDED_AT = "2025-01-01 00:00:00"
+# The users tables are those user-writes.rb truncates: UpdateSellerRefundEligibilityJob saves a user.
 TABLES = %w[users merchant_accounts comments versions credits balance_transactions balances backtax_agreements backtax_collections
-            payments].freeze
+            payments seller_profiles links events feature_announcement_newsletter_cutovers active_storage_attachments affiliate_requests].freeze
 
 SERVER = CaptureServer.new
 Stripe.api_base = "http://127.0.0.1:#{SERVER.port}"
@@ -176,6 +177,19 @@ cases << backtax("a non-US account that settles in usd", seed: backtax_seed([acc
 cases << backtax("a Stripe error on a reversal keeps the earlier ones", seed: backtax_seed([AU_ACCOUNT], payments: [payment_row(1, "tr_1"), payment_row(2, "tr_2")]), redis: AUD,
                  stripe: [ok(balance_json(available: 100_000, currency: "aud")), ok(transfer_json("tr_1", 4000, currency: "aud")), ok(transfer_json("tr_2", 4000, currency: "aud")),
                           ok(reversal_json("trr_1")), error_response(400, "Transfer already reversed")])
+
+ELIGIBILITY = "UpdateSellerRefundEligibilityJob"
+def eligibility(name, seed:, args: [5]) = run(name, args:, job: ELIGIBILITY, seed:)
+REFUNDS_DISABLED = 1 << 7
+
+cases << eligibility("refunds come back once the balance is positive", seed: { users: [user_row(5, flags: REFUNDS_DISABLED)], balances: [balance_row(1, amount_cents: 5000), balance_row(2, amount_cents: -1000, state: "paid")] })
+cases << eligibility("refunds are disabled below the threshold", seed: { users: [user_row(5)], balances: [balance_row(1, amount_cents: -20_000)] })
+cases << eligibility("nothing changes for a positive balance", seed: { users: [user_row(5)], balances: [balance_row(1, amount_cents: 5000)] })
+cases << eligibility("nothing changes for a negative balance above the threshold", seed: { users: [user_row(5, flags: REFUNDS_DISABLED)], balances: [balance_row(1, amount_cents: -5000)] })
+cases << eligibility("nothing changes for no balances", seed: { users: [user_row(5)] })
+cases << eligibility("a seller on probation below the recovery threshold", seed: { users: [user_row(5, user_risk_state: "on_probation")], balances: [balance_row(1, amount_cents: 9999)] })
+cases << eligibility("a seller on probation with refunds disabled and a small positive balance", seed: { users: [user_row(5, user_risk_state: "on_probation", flags: REFUNDS_DISABLED)], balances: [balance_row(1, amount_cents: 500)] })
+cases << eligibility("a missing seller", seed: {}, args: [404])
 
 File.write(OUT, JSON.pretty_generate({ "now" => Time.utc(2025, 11, 1, 12, 30, 45, 123_000).to_f, "admin_id" => GUMROAD_ADMIN_ID, "platform_account_id" => STRIPE_PLATFORM, "cases" => cases }) + "\n")
 puts "wrote #{OUT.relative_path_from(Rails.root)} (#{cases.size} cases)"

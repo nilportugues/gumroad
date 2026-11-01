@@ -3678,7 +3678,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "UpdateTaxRatesJob": {
     "file": "app/sidekiq/update_tax_rates_job.rb",
