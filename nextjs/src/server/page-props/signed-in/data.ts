@@ -2,7 +2,7 @@
 // (scripts/dump-signed-in-data.rb).
 import { alpha2ByName } from "../../models/compliance-countries.ts";
 import DATA from "./signed-in-data.generated.json" with { type: "json" };
-import type { ComplianceInfoRow } from "./reads.ts";
+import type { ComplianceInfoRow, GuardianRow } from "./reads.ts";
 
 const SUPPORTED_COUNTRIES = new Set<string>(DATA.supported);
 const PAYPAL_PAYOUT_RECEIVING = new Set<string>(DATA.paypalPayoutReceiving);
@@ -43,12 +43,6 @@ export const blockedPayoutCountry = (code: string | null) => code !== null && NE
 // StripeMerchantAccountManager blocks IND, whose bank accounts are the only ones reporting "IN".
 export const INDIAN_BANK_ACCOUNT_TYPE = "IndianBankAccount";
 
-export class GuardianNotPortedError extends Error {
-  constructor() {
-    super("Guardian completeness (Guardian#has_completed_info?) is not ported to Next.js yet");
-  }
-}
-
 function underLegalGuardianAge(info: ComplianceInfoRow, now: Date): boolean {
   if (!info.birthday) return false;
   const cutoff = new Date(Date.UTC(now.getUTCFullYear() - GUARDIAN_REQUIRED_BELOW_AGE, now.getUTCMonth(), now.getUTCDate()));
@@ -61,13 +55,46 @@ export function legalGuardianUnsupported(info: ComplianceInfoRow, now = new Date
   return underLegalGuardianAge(info, now) && code !== null && !GUARDIAN_SUPPORTED_COUNTRIES.has(code);
 }
 
-// UserComplianceInfo#legal_guardian_requirement_met?
-export function legalGuardianRequirementMet(info: ComplianceInfoRow, now = new Date()): boolean {
-  if (legalGuardianUnsupported(info, now)) return false;
+// UserComplianceInfo#requires_legal_guardian?
+export function requiresLegalGuardian(info: ComplianceInfoRow, now = new Date()): boolean {
   const code = countryAlpha2(info.country);
-  const requiresGuardian = underLegalGuardianAge(info, now) && code !== null && GUARDIAN_SUPPORTED_COUNTRIES.has(code);
-  if (!requiresGuardian) return true;
-  throw new GuardianNotPortedError();
+  return underLegalGuardianAge(info, now) && code !== null && GUARDIAN_SUPPORTED_COUNTRIES.has(code);
+}
+
+// StripeBeneficialOwnersManager::COUNTRIES_WITH_STATE_LIST
+const COUNTRIES_WITH_STATE_LIST = new Set(["US", "CA", "AU", "MX", "AE", "IE", "BR", "JP"]);
+
+// String#present?
+const present = (value: string | null): boolean => value !== null && value.trim() !== "";
+
+// Guardian#has_completed_info?. individual_tax_id is a Strongbox attribute, whose blank? looks at
+// the stored ciphertext.
+export function guardianHasCompletedInfo(guardian: GuardianRow): boolean {
+  if (guardian.deleted_at !== null) return false;
+  const code = present(guardian.country_code) ? guardian.country_code : countryAlpha2(guardian.country);
+  const stateRequired = code !== null && COUNTRIES_WITH_STATE_LIST.has(code);
+  const hasTaxId = guardian.individual_tax_id !== null && Buffer.from(guardian.individual_tax_id).toString("latin1").trim() !== "";
+  const acceptedTerms = Boolean(guardian.stripe_tos_accepted) && guardian.stripe_tos_accepted_at !== null && present(guardian.stripe_tos_ip);
+  return (
+    present(guardian.first_name) &&
+    present(guardian.last_name) &&
+    present(guardian.email) &&
+    guardian.date_of_birth !== null &&
+    present(guardian.street_address) &&
+    present(guardian.city) &&
+    (!stateRequired || present(guardian.state)) &&
+    present(guardian.zip_code) &&
+    present(guardian.country) &&
+    hasTaxId &&
+    acceptedTerms
+  );
+}
+
+// UserComplianceInfo#legal_guardian_requirement_met?. `guardian` is the row guardian_id points at.
+export function legalGuardianRequirementMet(info: ComplianceInfoRow, guardian: GuardianRow | null, now = new Date()): boolean {
+  if (legalGuardianUnsupported(info, now)) return false;
+  if (!requiresLegalGuardian(info, now)) return true;
+  return guardian !== null && guardianHasCompletedInfo(guardian);
 }
 
 // ActiveSupport::TimeZone[name].tzinfo.name

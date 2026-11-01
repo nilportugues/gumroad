@@ -6,11 +6,16 @@ import { MembershipNotFoundError, type SellerContext } from "../../policies/sell
 vi.mock("./reads.ts", () => ({
   hasAccessibleCommunities: vi.fn(async () => false),
   hasCompletedPayment: vi.fn(async () => false),
-  hasConnectOrPaypalMerchantAccount: vi.fn(async () => false),
+  madeSaleWithConnectOrPaypalAccount: vi.fn(async () => false),
+}));
+vi.mock("../../search/purchase-sales.ts", () => ({
+  MIN_SALES_CENTS_VALUE_FOR_STORE_AGENT: 10_000,
+  salesCentsTotal: vi.fn(async () => 0),
 }));
 
 const { policiesProps } = await import("./policy-props.ts");
 const reads = await import("./reads.ts");
+const sales = await import("../../search/purchase-sales.ts");
 
 const now = new Date();
 const user = (id: bigint, attributes: Partial<User> = {}) => ({ id, user_risk_state: null, confirmed_at: now, ...attributes }) as User;
@@ -59,10 +64,21 @@ describe("policiesProps", () => {
     await expect(policiesProps({ user: member, seller, memberships: [] }, false)).rejects.toBeInstanceOf(MembershipNotFoundError);
   });
 
-  it("reads the store agent's eligibility only for a confirmed, unsuspended seller with payouts", async () => {
+  it("reads the store agent's eligibility only for a confirmed, unsuspended seller with payouts and enough sales", async () => {
     expect((await policiesProps(owner, true)).user).toEqual({ view_store_agent: true, use_store_agent: true });
     expect((await policiesProps({ ...owner, user: user(1n, { confirmed_at: null }), seller: user(1n, { confirmed_at: null }) }, false)).user?.use_store_agent).toBe(false);
-    vi.mocked(reads.hasCompletedPayment).mockResolvedValueOnce(true);
-    await expect(policiesProps(owner, false)).rejects.toThrow(/not ported/);
+    expect((await policiesProps(owner, false)).user?.use_store_agent).toBe(false);
+    expect(sales.salesCentsTotal).not.toHaveBeenCalled();
+
+    vi.mocked(reads.hasCompletedPayment).mockResolvedValue(true);
+    vi.mocked(sales.salesCentsTotal).mockResolvedValueOnce(9_999);
+    expect((await policiesProps(owner, false)).user?.use_store_agent).toBe(false);
+    vi.mocked(sales.salesCentsTotal).mockResolvedValueOnce(10_000);
+    expect((await policiesProps(owner, false)).user?.use_store_agent).toBe(true);
+    vi.mocked(reads.hasCompletedPayment).mockResolvedValue(false);
+
+    vi.mocked(reads.madeSaleWithConnectOrPaypalAccount).mockResolvedValueOnce(true);
+    vi.mocked(sales.salesCentsTotal).mockResolvedValueOnce(20_000);
+    expect((await policiesProps(owner, false)).user?.use_store_agent).toBe(true);
   });
 });
