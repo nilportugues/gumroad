@@ -72,7 +72,7 @@ const COMPARE = {
 async function expectRecordedFraction(sql: SqlExecutor, inertia: { props: { analytics_props: { expected_sales_fraction_of_day: number } } }) {
   const recorded = inertia.props.analytics_props.expected_sales_fraction_of_day;
   const [seller] = await sql.query("SELECT id FROM users WHERE timezone = 'Tokyo'");
-  const curve = await cumulativeFractions({ id: Number(seller!.id), timezone: "Tokyo" }, new Date());
+  const curve = await cumulativeFractions({ id: BigInt(seller!.id as bigint | number), timezone: "Tokyo" }, new Date());
   expect(curve).not.toBeNull();
   const times = Array.from({ length: 24 * 60 }, (_, index) => [Math.floor(index / 60), index % 60] as const);
   expect(times.some(([hour, minute]) => fractionAt(curve!, hour, minute) === recorded)).toBe(true);
