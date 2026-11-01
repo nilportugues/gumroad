@@ -9,6 +9,7 @@ import { compileRouteTable, type RouteTable } from "@/lib/navigation/proxy/route
 import { getRequiredConfig } from "@/server/infra/config";
 import { domainConfig } from "@/server/page-props/domain";
 import { railsRouteGate } from "@/server/proxy-gate";
+import { routePreflight } from "@/server/proxy-preflight";
 
 import routeTable from "../routes.json";
 
@@ -33,7 +34,10 @@ export async function proxy(request: NextRequest) {
     routeGate(),
   );
 
-  if (decision.action === "next") return NextResponse.next();
+  if (decision.action === "next") {
+    const early = decision.route ? await routePreflight(decision.route.pattern, request, url) : null;
+    return early ?? NextResponse.next();
+  }
   if (decision.action === "hard-navigation") return new NextResponse(null, { status: 200, headers: { "content-type": "text/plain" } });
 
   const target = new URL(`${request.nextUrl.pathname}${request.nextUrl.search}`, getRequiredConfig("RAILS_ORIGIN"));

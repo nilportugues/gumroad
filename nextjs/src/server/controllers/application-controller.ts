@@ -32,6 +32,9 @@ import { setCookieHeader } from "./rack-cookies.ts";
 import { isPresent, queryParam, type RailsRequest, railsRequest } from "./rails-request.ts";
 
 export type Rendered = { status: number; body: string; contentType: string };
+// redirect_to from the action. `rescued`: from a rescue_from handler, which skips the after_actions.
+export type Redirected = { status: number; location: string; rescued?: boolean };
+export type ActionResult = Rendered | Redirected;
 
 // `raise ActionController::RoutingError, "Not Found"` (ApplicationController#e404).
 export class RoutingError extends Error {}
@@ -176,12 +179,12 @@ export function redirectLocation(request: RailsRequest, location: string): strin
   return url.replace(/[\0\r\n]/g, "");
 }
 
-type ControllerResponse = { status: number; headers: Headers; body: string; rendered: boolean };
+type ControllerResponse = { status: number; headers: Headers; body: string };
 
 async function runChain(
   request: RailsRequest,
   options: ActionOptions,
-  action: (context: ActionContext) => Promise<Rendered>,
+  action: (context: ActionContext) => Promise<ActionResult>,
   now: Date,
 ): Promise<ControllerResponse> {
   const config = domainConfig(process.env);
@@ -201,7 +204,7 @@ async function runChain(
       headers.set("location", redirectLocation(request, redirect));
       headers.set("content-type", "text/html; charset=utf-8");
       commitSession();
-      return { status: 302, headers, body: "", rendered: false };
+      return { status: 302, headers, body: "" };
     }
   }
 
@@ -211,13 +214,20 @@ async function runChain(
     session.data.recommender_model_name = RECOMMENDER_MODELS[Math.floor(Math.random() * RECOMMENDER_MODELS.length)];
   }
 
-  const rendered = await action({ request });
-  headers.set("content-type", rendered.contentType);
-  if (shouldApplyVaryHeader(request)) headers.set("vary", "Accept");
+  const result = await action({ request });
+  if ("location" in result) {
+    headers.set("location", redirectLocation(request, result.location));
+    headers.set("content-type", "text/html; charset=utf-8");
+  } else {
+    headers.set("content-type", result.contentType);
+    if (shouldApplyVaryHeader(request)) headers.set("vary", "Accept");
+  }
   if (guid) headers.append("set-cookie", guid);
-  headers.append("set-cookie", setCookieHeader(XSRF_TOKEN_COOKIE, { value: formAuthenticityToken(csrfToken), path: "/", sameSite: "lax" }));
+  if (!("location" in result && result.rescued)) {
+    headers.append("set-cookie", setCookieHeader(XSRF_TOKEN_COOKIE, { value: formAuthenticityToken(csrfToken), path: "/", sameSite: "lax" }));
+  }
   commitSession();
-  return { status: rendered.status, headers, body: rendered.body, rendered: true };
+  return { status: result.status, headers, body: "location" in result ? "" : result.body };
 }
 
 // Rack::ETag, then Rack::ConditionalGet.
@@ -311,7 +321,7 @@ async function forwardToRails(request: Request): Promise<Response> {
 export async function processAction(
   incoming: Request,
   options: ActionOptions,
-  action: (context: ActionContext) => Promise<Rendered>,
+  action: (context: ActionContext) => Promise<ActionResult>,
 ): Promise<Response> {
   const request = railsRequest(incoming);
   if (mayTrackUtmVisit(request, domainConfig(process.env).validRequestHosts)) return forwardToRails(incoming);
@@ -325,7 +335,7 @@ export async function processAction(
     const status = error instanceof RoutingError ? 404 : 500;
     if (status === 500) notifyError(error);
     const page = publicException(request, status);
-    response = { status, headers: page.headers, body: page.body, rendered: false };
+    response = { status, headers: page.headers, body: page.body };
   }
   applySecureHeaders(request, response.headers);
   applyCorsVary(response.headers);

@@ -10,7 +10,8 @@ import HelpCenterCategory from "./HelpCenterCategory";
 
 export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  // rescue_from ActiveHash::RecordNotFound. Rails answers 302; redirect() here is a 307.
+  // rescue_from ActiveHash::RecordNotFound. The proxy answers this with Rails' 302 first
+  // (server/proxy-preflight.ts); redirect() can only send 307, so this is a fallback.
   const category = findCategoryBySlug(slug);
   if (!category) redirect(Routes.help_center_root_path());
 
