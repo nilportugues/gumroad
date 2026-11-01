@@ -121,39 +121,45 @@ export async function seedDatabase(sql: SqlExecutor, seed: Seed, now: Date): Pro
     ...Object.keys(await autoIncrements(sql)).filter((table) => schema[table]),
     ...Object.keys(seed.tables),
   ]);
-  for (const table of [...dirty].sort()) {
-    if (!schema[table]) throw new Error(`Fixture seeds ${table}, which is not in the replay database`);
-    await sql.execute(`TRUNCATE TABLE ${quoteIdentifier(table)}`);
-  }
-
-  for (const [table, seedTable] of Object.entries(seed.tables)) {
-    const types = new Map(schema[table]!.columns);
-    const columns = Object.keys(seedTable.columns);
-    const unknown = columns.filter((column) => !types.has(column));
-    if (unknown.length) throw new Error(`Replay database is missing ${table}.${unknown.join(", ")}; regenerate it from db/schema.rb`);
-
-    for (let start = 0; start < seedTable.rows.length; start += INSERT_BATCH_ROWS) {
-      const batch = seedTable.rows.slice(start, start + INSERT_BATCH_ROWS);
-      const params: unknown[] = [];
-      const tuples = batch.map((row) => {
-        const placeholders = columns.map((column) => {
-          const { placeholder, value } = sqlValue(row[column] ?? null, types.get(column)!, now);
-          params.push(value);
-          return placeholder;
-        });
-        return `(${placeholders.join(", ")})`;
-      });
-      await sql.execute(
-        `INSERT INTO ${quoteIdentifier(table)} (${columns.map(quoteIdentifier).join(", ")}) VALUES ${tuples.join(", ")}`,
-        params,
-      );
+  // ActiveStorage's tables are the schema's only foreign keys: truncating or filling a parent before its
+  // child would fail, so the checks stay off for the seeding session.
+  await sql.pinned(async (pinned) => {
+    await pinned.execute("SET FOREIGN_KEY_CHECKS = 0");
+    for (const table of [...dirty].sort()) {
+      if (!schema[table]) throw new Error(`Fixture seeds ${table}, which is not in the replay database`);
+      await pinned.execute(`TRUNCATE TABLE ${quoteIdentifier(table)}`);
     }
-  }
 
-  for (const [table, value] of Object.entries(seed.autoIncrement)) {
-    if (!schema[table]) continue;
-    await sql.execute(`ALTER TABLE ${quoteIdentifier(table)} AUTO_INCREMENT = ${Number(value)}`);
-  }
+    for (const [table, seedTable] of Object.entries(seed.tables)) {
+      const types = new Map(schema[table]!.columns);
+      const columns = Object.keys(seedTable.columns);
+      const unknown = columns.filter((column) => !types.has(column));
+      if (unknown.length) throw new Error(`Replay database is missing ${table}.${unknown.join(", ")}; regenerate it from db/schema.rb`);
+
+      for (let start = 0; start < seedTable.rows.length; start += INSERT_BATCH_ROWS) {
+        const batch = seedTable.rows.slice(start, start + INSERT_BATCH_ROWS);
+        const params: unknown[] = [];
+        const tuples = batch.map((row) => {
+          const placeholders = columns.map((column) => {
+            const { placeholder, value } = sqlValue(row[column] ?? null, types.get(column)!, now);
+            params.push(value);
+            return placeholder;
+          });
+          return `(${placeholders.join(", ")})`;
+        });
+        await pinned.execute(
+          `INSERT INTO ${quoteIdentifier(table)} (${columns.map(quoteIdentifier).join(", ")}) VALUES ${tuples.join(", ")}`,
+          params,
+        );
+      }
+    }
+
+    for (const [table, value] of Object.entries(seed.autoIncrement)) {
+      if (!schema[table]) continue;
+      await pinned.execute(`ALTER TABLE ${quoteIdentifier(table)} AUTO_INCREMENT = ${Number(value)}`);
+    }
+    await pinned.execute("SET FOREIGN_KEY_CHECKS = 1");
+  });
 }
 
 function sqlValue(value: Json, dataType: string, now: Date): { placeholder: string; value: unknown } {
