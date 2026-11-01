@@ -47,6 +47,7 @@ export const PORTED_JOBS: readonly string[] = [
   "NotifyFailedRefundExceptionJob",
   "ScheduleAffiliateWorkflowJobsJob",
   "ScheduleWorkflowEmailsWorker",
+  "ScheduleWorkflowInstallmentJob",
   "SellerUpdatesWorker",
   "SendToElasticsearchWorker",
   "SendWorkflowInstallmentRescheduleJob",

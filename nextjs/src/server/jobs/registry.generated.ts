@@ -2783,7 +2783,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SellerUpdateWorker": {
     "file": "app/sidekiq/seller_update_worker.rb",

@@ -136,7 +136,8 @@ export class ModelRecord<R extends Row = Row> {
   // Column order, as ActiveModel::AttributeMutationTracker#changed_attribute_names returns them.
   changedAttributeNames(): (keyof R & string)[] {
     this.materializeAll();
-    return (Object.keys(this.#attributes) as (keyof R & string)[]).filter((k) => this.attributeChanged(k));
+    // After a save the set keeps the order its attributes were first written in, so a second update lists them so.
+    return (this.attributeOrder() as (keyof R & string)[]).filter((k) => this.attributeChanged(k));
   }
 
   changes(): Partial<Record<keyof R & string, Change>> {
