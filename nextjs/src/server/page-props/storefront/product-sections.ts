@@ -52,6 +52,9 @@ export async function productsSectionProps(seller: User, section: ProductsSectio
   }
   const products = [];
   for (const row of shown) {
+    // cardForWeb proves the tier price, but the profile's card for it crashes the server render and no profile
+    // fixture has recorded Rails' page for one.
+    if (LinkFlags.isSet(row.flags, "is_tiered_membership")) throw new NotPortedError("tiered membership card on a profile");
     products.push(await cardForWeb(row.id, { request, target: PROFILE_LAYOUT, showSeller: false, computeDescription: false, computeInventory: false }));
   }
 
