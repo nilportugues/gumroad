@@ -17,7 +17,7 @@ type Case = { product: string; productId: number; input: string; args: Record<st
 type Golden = { seed: never; now: string; sellerHost: string; cards: Case[]; props: Case[]; descriptions: { description: string; plaintext: string; html: string | null }[] };
 
 // Products whose card needs Rails code this port does not have yet; each must refuse with NotPortedError.
-const UNPORTED_PRODUCTS = new Set(["membership", "membership_trial", "bundle", "default_offer_code"]);
+const UNPORTED_PRODUCTS = new Set(["default_offer_code"]);
 
 describe.skipIf(!url)("ProductPresenter goldens", () => {
   let client: PrismaClient;

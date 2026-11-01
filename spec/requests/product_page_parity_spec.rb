@@ -303,15 +303,18 @@ describe "Product page", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "shows the ratings and the sales count", parity: true do
+    it "shows the ratings and the sales count", parity: true, elasticsearch_wait_for_refresh: true do
       product = create(:product, user: seller, name: "Rated", price_cents: 0, should_show_sales_count: true)
       purchase = create(:free_purchase, link: product)
       create(:product_review, purchase:, rating: 4)
+      Purchase.__elasticsearch__.create_index!(force: true)
+      index_model_records(Purchase)
 
       get "/l/#{product.unique_permalink}"
 
       expect(response).to be_successful
       expect(inertia_props_of(response)["product"]["ratings"]).to be_present
+      expect(inertia_props_of(response)["product"]["sales_count"]).to eq(1)
     end
 
     it "shows a limited quantity remaining", parity: true do

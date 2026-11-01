@@ -5,6 +5,8 @@ import { HandBackToRails } from "../controllers/application-controller.ts";
 import type { Chain } from "../controllers/application-controller.ts";
 import type { Query } from "../controllers/rails-query.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
+import { loadSellerContext, type SellerContext } from "../policies/seller-context.ts";
+import { settingsProfilePolicy } from "../policies/settings/profile.ts";
 import { NotPortedError } from "../page-props/not-ported.ts";
 import { domainConfig, assetHost } from "../page-props/domain.ts";
 import { remoteIp } from "../page-props/audience/events.ts";
@@ -14,6 +16,7 @@ import { sellerProfile as loadSellerProfile, Users } from "../models/user.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { plaintextDescription, htmlSafeDescription, squish } from "./description.ts";
 import { customDomainByHost, type LinkRow, type UserRow } from "./product-reads.ts";
+import { encrypt } from "../../lib/obfuscate-ids.ts";
 import { longUrl } from "./product.ts";
 import { closedMembershipForNewBuyers, jsonData, minimumOfferPriceCents, productProps, remainingForSaleCount, reviewSummary, type ProductPageViewerInput } from "./product-props.ts";
 import { creatorProfile } from "../page-props/settings/profile.ts";
@@ -27,11 +30,17 @@ export type RenderContext = { chain: Chain; product: LinkRow; seller: UserRow; q
 const SNIPPET_MAX_LENGTH = 160;
 const SNIPPET_OMISSION = "...";
 const SNIPPET_TRAILING_PUNCTUATION = /[.,;:!?…]+$/u;
-const UNSUPPORTED_PARAMS = ["layout", "embed", "overlay", "wanted", "purchase_id", "purchase_email_digest", "quantity", "offer_code", "debug", "currency"];
+const UNSUPPORTED_PARAMS = ["layout", "embed", "overlay", "wanted", "purchase_id", "purchase_email_digest", "offer_code", "debug", "currency"];
 const DISCOVER_RECOMMENDERS = ["search", "discover"];
 const GUID_COOKIE = "_gumroad_guid";
 
 const present = (value: string | null | undefined): value is string => value != null && value.trim() !== "";
+
+// String#to_i
+const rubyToI = (value: string) => {
+  const match = /^\s*[+-]?\d+(?:_\d+)*/.exec(value);
+  return match ? Number(match[0].replaceAll("_", "")) : 0;
+};
 
 // SnippetText.truncate
 export function snippetTruncate(input: string, length = SNIPPET_MAX_LENGTH): string {
@@ -47,18 +56,21 @@ export function snippetTruncate(input: string, length = SNIPPET_MAX_LENGTH): str
 
 const stripTags = (html: string) => html.replace(/<[^>]*>/g, "");
 
-function viewerOf(query: Query, code: string | null, user: User | null, ip: string | null, guid: string | null, sellerCustomDomainUrl: string | null): ProductPageViewerInput {
+function viewerOf(query: Query, code: string | null, user: User | null, context: SellerContext | null, ip: string | null, guid: string | null, sellerCustomDomainUrl: string | null, request: { host: string; hostWithPort: string; protocol: string }): ProductPageViewerInput {
   const text = (name: string) => (typeof query[name] === "string" && query[name] !== "" ? (query[name] as string) : null);
   return {
     user,
+    context,
     remoteIp: ip,
     browserGuid: guid,
-    quantity: 1,
+    // (params[:quantity] || 1).to_i
+    quantity: typeof query.quantity === "string" ? rubyToI(query.quantity) : 1,
     discountCode: code,
     purchaseId: text("purchase_id"),
     purchaseEmailDigest: text("purchase_email_digest"),
     recommendedBy: text("recommended_by"),
     sellerCustomDomainUrl,
+    request: { ...request, remoteIp: ip ?? "", params: {}, cookies: new Map() },
   };
 }
 
@@ -179,6 +191,20 @@ function guidOf(cookieHeader: string | null): string | null {
   return match?.[1] && match[1] !== "" ? decodeURIComponent(match[1]) : null;
 }
 
+// The editor's extras: the seller's live, unarchived products, the posts a section could show and the wishlists.
+// Posts and wishlists are handed back when there are any (a wishlist already is, in productProps).
+async function editingProps(seller: UserRow) {
+  const archived = 1 << 4;
+  const products = await selectRows<{ id: bigint; name: string | null }>(
+    Prisma.sql`SELECT ${column("links", "id")}, ${column("links", "name")} FROM ${table("links")} WHERE ${column("links", "user_id")} = ${seller.id} AND ${column("links", "purchase_disabled_at")} IS NULL AND ${column("links", "banned_at")} IS NULL AND ${column("links", "deleted_at")} IS NULL AND (${column("links", "flags")} & ${archived}) = 0 ORDER BY ${column("links", "id")} ASC`,
+  );
+  const posts = await selectRows(
+    Prisma.sql`SELECT 1 FROM ${table("installments")} WHERE ${column("installments", "seller_id")} = ${seller.id} AND ${column("installments", "deleted_at")} IS NULL AND ${column("installments", "published_at")} IS NOT NULL AND ${column("installments", "installment_type")} = 'audience' AND ${column("installments", "workflow_id")} IS NULL LIMIT 1`,
+  );
+  if (posts.length > 0) throw new NotPortedError("ProfileSectionsPresenter#visible_posts");
+  return { products: products.map((product) => ({ id: encrypt(product.id), name: product.name })), posts: [], wishlist_options: [] };
+}
+
 async function build(row: LinkRow, seller: UserRow, viewer: ProductPageViewerInput, meta: MetaTagBuilder, host: string) {
   const props = await productProps(row, seller, viewer);
   await setMeta(meta, row, seller, host, viewer.sellerCustomDomainUrl);
@@ -189,29 +215,37 @@ async function build(row: LinkRow, seller: UserRow, viewer: ProductPageViewerInp
   );
   if (section) throw new NotPortedError("ProfileSectionsPresenter for a product's sections");
   const data = jsonData(row);
+  // ProfileSectionsPresenter#props `editing: pundit_user.seller == seller`
+  const editing = viewer.context?.seller?.id === seller.id;
   const [hasReviews] = await selectRows(
     Prisma.sql`SELECT 1 FROM ${table("links")} WHERE ${column("links", "user_id")} = ${seller.id} AND ${column("links", "deleted_at")} IS NULL AND ${column("links", "purchase_disabled_at")} IS NULL AND ${column("links", "banned_at")} IS NULL AND (${column("links", "flags")} & ${1 << 16}) != 0 LIMIT 1`,
   );
   return {
     ...props,
-    currency_code: "usd",
+    currency_code: viewer.user?.currency_type || "usd",
     show_ratings_filter: !!hasReviews,
-    creator_profile: await creatorProfile(seller as unknown as Parameters<typeof creatorProfile>[0], false),
+    creator_profile: await creatorProfile(seller as unknown as Parameters<typeof creatorProfile>[0], !!viewer.context?.user && viewer.context.seller?.id === seller.id && settingsProfilePolicy.update(viewer.context)),
     sections: [],
     main_section_index: Number(data?.main_section_index ?? 0) || 0,
+    ...(editing ? await editingProps(seller) : {}),
   };
 }
 
 export async function assertRenderable(context: RenderContext): Promise<void> {
   const { chain, product, seller, query, code } = context;
-  if (railsLoggedInUser(chain.auth.context)) throw new HandBackToRails();
   for (const name of UNSUPPORTED_PARAMS) if (name in query) throw new HandBackToRails();
   if (typeof query.recommended_by === "string" && DISCOVER_RECOMMENDERS.includes(query.recommended_by)) throw new HandBackToRails();
   try {
-    const viewer = viewerOf(query, code, null, remoteIp(chain.request.headers), chain.request.cookies.get(GUID_COOKIE) ?? null, sellerCustomDomainUrl(context.isUserCustomDomain, chain.request.hostWithPort));
+    const user = railsLoggedInUser(chain.auth.context);
+    const viewer = viewerOf(query, code, user, user ? await loadSellerContext(chain.auth.context) : null, remoteIp(chain.request.headers), chain.request.cookies.get(GUID_COOKIE) ?? null, sellerCustomDomainUrl(context.isUserCustomDomain, chain.request.hostWithPort), chain.request);
     await build(product, seller, viewer, new (await import("../page-props/meta-tags.ts")).MetaTagBuilder(), chain.request.host);
+    // set_noindex_header if !@product.alive?
+    if (product.purchase_disabled_at !== null || product.banned_at !== null || product.deleted_at !== null) chain.headers.set("x-robots-tag", "noindex");
   } catch (error) {
-    if (error instanceof NotPortedError) throw new HandBackToRails();
+    if (error instanceof NotPortedError) {
+      if (process.env.PRODUCT_PAGE_DEBUG) console.error(`product page handed back: ${error.message}`);
+      throw new HandBackToRails();
+    }
     throw error;
   }
 }

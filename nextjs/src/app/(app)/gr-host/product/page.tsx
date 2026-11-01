@@ -7,7 +7,7 @@ export default async function Page() {
   const page = await renderPage("product:/", {});
 
   return (
-    <InertiaShell page={page} layout="loggedInUser">
+    <InertiaShell page={page} layout="loggedInUser" clientOnly>
       <ProductsShow />
     </InertiaShell>
   );

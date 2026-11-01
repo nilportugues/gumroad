@@ -8,7 +8,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const page = await renderPage("seller:/l/:id", { id });
 
   return (
-    <InertiaShell page={page} layout="loggedInUser">
+    <InertiaShell page={page} layout="loggedInUser" clientOnly>
       <ProductsShow />
     </InertiaShell>
   );

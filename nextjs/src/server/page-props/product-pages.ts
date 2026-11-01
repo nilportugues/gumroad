@@ -7,6 +7,8 @@ import { remoteIp } from "./audience/events.ts";
 import { buildProductPage, guidOf, sellerCustomDomainUrl, viewerOf } from "../presenters/product-page.ts";
 import { findLink, findUserById } from "../presenters/product-reads.ts";
 import { parseQuery } from "../controllers/rails-query.ts";
+import { railsLoggedInUser } from "../auth/resolve.ts";
+import { loadSellerContext } from "../policies/seller-context.ts";
 import type { PageSpec } from "./pages.ts";
 
 const productPage: PageSpec = {
@@ -20,7 +22,7 @@ const productPage: PageSpec = {
     const pathCode = params.code;
     const queryCode = typeof query.code === "string" && query.code.trim() !== "" ? query.code : null;
     const code = pathCode && pathCode.trim() !== "" ? pathCode : queryCode;
-    const viewer = viewerOf(query, code, null, remoteIp(action.headers), guidOf(action.headers.get("cookie")), sellerCustomDomainUrl(action.state.user_custom_domain === "1", action.url.host));
+    const viewer = viewerOf(query, code, railsLoggedInUser(action.context), railsLoggedInUser(action.context) ? await loadSellerContext(action.context) : null, remoteIp(action.headers), guidOf(action.headers.get("cookie")), sellerCustomDomainUrl(action.state.user_custom_domain === "1", action.url.host), { host: action.url.hostname, hostWithPort: action.url.host, protocol: action.url.protocol === "https:" ? "https://" : "http://" });
     return buildProductPage(row, seller, viewer, action.meta, action.url.hostname);
   },
 };

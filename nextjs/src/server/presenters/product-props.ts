@@ -10,6 +10,10 @@ import { encrypt } from "../../lib/obfuscate-ids.ts";
 import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
 import { geoIpLookup } from "../infra/geo-ip.ts";
 import { LinkFlags } from "../models/link.ts";
+import { collaboratingProductIds, linkPolicy } from "../policies/link.ts";
+import type { SellerContext } from "../policies/seller-context.ts";
+import { bestOfferCodeResult, defaultOfferCodes, saleLabel } from "./best-offer-code.ts";
+import { PurchaseSearchService } from "../search/purchase-search.ts";
 import { getFactor } from "../models/purchasing-power-parity.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { isFlagSet, tiktokPixelId, Users } from "../models/user.ts";
@@ -17,8 +21,8 @@ import { thumbnailUrl } from "../page-props/buyer/products.ts";
 import { NotPortedError } from "../page-props/not-ported.ts";
 import { durationDisplayable, numberToHumanSize, pluralize, resolutionDisplayable } from "./human-size.ts";
 import { htmlSafeDescription } from "./description.ts";
-import { type LinkRow, type PriceRow, reviewStat, type UserRow } from "./product-reads.ts";
-import { authorBylineProps, buyerCurrencyDisplayProps, linkFields, longUrl } from "./product.ts";
+import { findLink, findUserById, type LinkRow, type PriceRow, reviewStat, type UserRow } from "./product-reads.ts";
+import { authorBylineProps, buyerCurrencyDisplayProps, linkFields, longUrl, type PresenterRequest, urlForProductPage } from "./product.ts";
 import type { User } from "@prisma/client";
 
 const RENTAL_FLAG_POSITION = 1;
@@ -105,6 +109,23 @@ export function ratingPercentages(counts: number[], reviewsCount: number): numbe
   const threshold = Math.round(remainders.reduce((sum, [remainder]) => sum + remainder, 0));
   for (const [, rating] of remainders.slice(0, threshold)) percentages[rating - 1]! += 1;
   return percentages.map((percentage) => Math.floor(percentage));
+}
+
+// ProductPresenter.cached_sales_count -> Product::Stats#successful_sales_count. Rails caches it for a minute; the port
+// reads the current count.
+const ACTIVE_SALES_SEARCH_OPTIONS = {
+  state: ["preorder_authorization_successful", "successful", "not_charged"],
+  exclude_refunded_except_subscriptions: true,
+  exclude_unreversed_chargedback: true,
+  exclude_non_original_subscription_purchases: true,
+  exclude_deactivated_subscriptions: true,
+  exclude_bundle_product_purchases: true,
+  exclude_commission_completion_purchases: true,
+};
+
+async function successfulSalesCount(productId: bigint): Promise<number> {
+  const result = await PurchaseSearchService.process({ ...ACTIVE_SALES_SEARCH_OPTIONS, product: Number(productId), size: 0, track_total_hits: true });
+  return result.total ?? 0;
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -353,9 +374,63 @@ async function remainingForSale(row: LinkRow, closeFeature: boolean): Promise<nu
   if (categories.length > 0 && !categories.some(categoryAvailable)) return 0;
   const tiers = variants.filter((variant) => categories.some((category) => category.id === variant.variant_category_id && (category.title ?? "").toLowerCase() === "tier"));
   if (tiers.length === 1) return quantityLeft(tiers[0]!);
-  if (flag(row, "is_bundle")) throw new NotPortedError("Link#remaining_for_sale_count for a bundle");
-  if (row.max_purchase_count === null) return null;
-  return Math.max(row.max_purchase_count - (row.sales_count_for_inventory_cache ?? 0), 0);
+  let bundleLeft: number | null = null;
+  if (flag(row, "is_bundle")) {
+    const lefts: number[] = [];
+    for (const { product, variant } of await aliveBundleProducts(row.id)) {
+      const productLeft = await remainingForSale(product, closeFeature);
+      if (productLeft !== null) lefts.push(productLeft);
+      if (variant) {
+        const variantLeft = quantityLeft(variant);
+        if (variantLeft !== null) lefts.push(variantLeft);
+      }
+    }
+    bundleLeft = lefts.length === 0 ? null : Math.min(...lefts);
+  }
+  const productLeft = row.max_purchase_count === null ? null : row.max_purchase_count - (row.sales_count_for_inventory_cache ?? 0);
+  const left = [productLeft, bundleLeft].filter((count): count is number => count !== null);
+  return left.length === 0 ? null : Math.max(Math.min(...left), 0);
+}
+
+type BundleProduct = { row: Row; quantity: number; product: LinkRow; variant: VariantRow | null };
+
+// Link#bundle_products.in_order.alive, each with its product and option
+async function aliveBundleProducts(bundleId: bigint): Promise<BundleProduct[]> {
+  const rows = await selectRows<Row>(
+    Prisma.sql`SELECT ${star("bundle_products")} FROM ${table("bundle_products")} WHERE ${column("bundle_products", "bundle_id")} = ${bundleId} AND ${column("bundle_products", "deleted_at")} IS NULL ORDER BY ${column("bundle_products", "position")} ASC, ${column("bundle_products", "id")} ASC`,
+  );
+  const result: BundleProduct[] = [];
+  for (const row of rows) {
+    const product = await findLink(row.product_id as bigint);
+    if (!product) throw new NotPortedError("BundleProduct without a product");
+    const [variant] = row.variant_id == null ? [] : await selectRows<VariantRow>(Prisma.sql`SELECT ${star("base_variants")} FROM ${table("base_variants")} WHERE ${column("base_variants", "id")} = ${row.variant_id as bigint} LIMIT 1`);
+    result.push({ row, quantity: Number(row.quantity), product, variant: variant ?? null });
+  }
+  return result;
+}
+
+// ProductProps#bundle_product_props
+async function bundleProductsProps(bundle: LinkRow, viewer: ProductPageViewerInput) {
+  const props = [];
+  for (const { quantity, product, variant } of await aliveBundleProducts(bundle.id)) {
+    const priced: Priced = { purchaseType: PURCHASE_TYPES[product.purchase_type ?? -1] ?? null, prices: await alivePricesOf(product.id) };
+    const memberPrice = defaultPriceCents(product, priced);
+    if (memberPrice === null) throw new NotPortedError("BundleProduct#standalone_price_cents without a price");
+    const seller = await findUserById(product.user_id!);
+    props.push({
+      id: linkFields.externalId(product),
+      name: product.name,
+      ratings: !flag(bundle, "hide_bundle_product_reviews") && flag(product, "display_product_reviews") ? await reviewSummary(product) : null,
+      price: (memberPrice + (variant?.price_difference_cents ?? 0)) * quantity,
+      currency_code: (present(product.price_currency_type) ? product.price_currency_type : DEFAULT_CURRENCY).toLowerCase(),
+      thumbnail_url: await thumbnailUrl(product.id),
+      native_type: product.native_type,
+      url: await urlForProductPage(product, seller!, viewer.request, { recommendedBy: viewer.recommendedBy }),
+      quantity,
+      variant: variant?.name ?? null,
+    });
+  }
+  return props;
 }
 
 async function hasRows(tableName: string, where: Prisma.Sql): Promise<boolean> {
@@ -400,24 +475,29 @@ function pwywDefaultPriceCents(row: LinkRow, options: { price_difference_cents: 
   return options.every((option) => (option.price_difference_cents ?? 0) === 0) ? 0 : null;
 }
 
+// Product::Prices#lowest_tier_price(for_default_duration:).price_cents: the cheapest buy price of the tiers a new
+// buyer can pick (every alive tier when all are closed), 0 without one.
+export async function lowestTierPriceCents(row: LinkRow, forDefaultDuration: boolean): Promise<number> {
+  const closeFeature = await isFeatureEnabled("close_membership_tier_to_new_buyers", userActor(row.user_id!));
+  const tiers = await selectRows<VariantRow>(
+    Prisma.sql`SELECT ${star("base_variants")} FROM ${table("base_variants")} INNER JOIN ${table("variant_categories")} ON ${column("variant_categories", "id")} = ${column("base_variants", "variant_category_id")} WHERE ${column("variant_categories", "link_id")} = ${row.id} AND ${column("variant_categories", "deleted_at")} IS NULL AND ${column("variant_categories", "title")} = 'Tier' AND ${column("base_variants", "deleted_at")} IS NULL ORDER BY ${column("base_variants", "id")} ASC`,
+  );
+  const open = tiers.filter((tier) => !(closeFeature && ((Number(tier.flags) >> (BASE_VARIANT_CLOSED_FLAG - 1)) & 1) === 1));
+  const offered = open.length > 0 ? open : tiers;
+  if (offered.length === 0) return 0;
+  const variantPrices = await selectRows<Row>(
+    Prisma.sql`SELECT ${star("prices")} FROM ${table("prices")} WHERE ${column("prices", "variant_id")} IN (${Prisma.join(offered.map((tier) => tier.id))}) AND ${column("prices", "deleted_at")} IS NULL`,
+  );
+  const duration = SUBSCRIPTION_DURATIONS[row.subscription_duration ?? -1] ?? null;
+  const buy = variantPrices.filter((price) => !isRental(price as PriceRow) && (!forDefaultDuration || price.recurrence === duration));
+  return buy.length === 0 ? 0 : Math.min(...buy.map((price) => Number(price.price_cents)));
+}
+
 // Product::StructuredData#minimum_offer_price_cents: the lowest price a buyer could pay, null without a price.
 export async function minimumOfferPriceCents(row: LinkRow): Promise<number | null> {
   const prices = await alivePricesOf(row.id);
   const priced: Priced = { purchaseType: PURCHASE_TYPES[row.purchase_type ?? -1] ?? null, prices };
-  if (flag(row, "is_tiered_membership")) {
-    const closeFeature = await isFeatureEnabled("close_membership_tier_to_new_buyers", userActor(row.user_id!));
-    const tiers = await selectRows<VariantRow>(
-      Prisma.sql`SELECT ${star("base_variants")} FROM ${table("base_variants")} INNER JOIN ${table("variant_categories")} ON ${column("variant_categories", "id")} = ${column("base_variants", "variant_category_id")} WHERE ${column("variant_categories", "link_id")} = ${row.id} AND ${column("variant_categories", "deleted_at")} IS NULL AND ${column("variant_categories", "title")} = 'Tier' AND ${column("base_variants", "deleted_at")} IS NULL ORDER BY ${column("base_variants", "id")} ASC`,
-    );
-    const open = tiers.filter((tier) => !(closeFeature && ((Number(tier.flags) >> (BASE_VARIANT_CLOSED_FLAG - 1)) & 1) === 1));
-    const offered = open.length > 0 ? open : tiers;
-    if (offered.length === 0) return 0;
-    const variantPrices = await selectRows<Row>(
-      Prisma.sql`SELECT ${star("prices")} FROM ${table("prices")} WHERE ${column("prices", "variant_id")} IN (${Prisma.join(offered.map((tier) => tier.id))}) AND ${column("prices", "deleted_at")} IS NULL`,
-    );
-    const buy = variantPrices.filter((price) => !isRental(price as PriceRow));
-    return buy.length === 0 ? 0 : Math.min(...buy.map((price) => Number(price.price_cents)));
-  }
+  if (flag(row, "is_tiered_membership")) return lowestTierPriceCents(row, false);
   const candidates: (number | null)[] = [buyPriceCents(row, priced)];
   if (priced.purchaseType === "rent_only" || priced.purchaseType === "buy_and_rent") candidates.push(rentalPriceCents(row, priced));
   if (flag(row, "is_recurring_billing")) {
@@ -454,6 +534,7 @@ export const remainingForSaleCount = async (row: LinkRow) =>
 
 export type ProductPageViewerInput = {
   user: User | null;
+  context: SellerContext | null;
   remoteIp: string | null;
   browserGuid: string | null;
   quantity: number;
@@ -462,6 +543,7 @@ export type ProductPageViewerInput = {
   purchaseEmailDigest: string | null;
   recommendedBy: string | null;
   sellerCustomDomainUrl: string | null;
+  request: PresenterRequest;
 };
 
 // -------------------------------------------------------------------------------------------------
@@ -470,16 +552,20 @@ export type ProductPageViewerInput = {
 export async function productProps(row: LinkRow, seller: UserRow, viewer: ProductPageViewerInput) {
   const sellerActor = userActor(seller.id);
   if (await isFeatureEnabled("seller_reputation_summary", sellerActor)) throw new NotPortedError("User#seller_reputation_summary");
-  if (viewer.user) throw new NotPortedError("ProductPresenter::ProductProps for a signed-in visitor");
-  if (viewer.discountCode !== null) throw new NotPortedError("BestOfferCodeService for a code in the URL");
+  let canEdit = false;
+  if (viewer.user && viewer.context) {
+    // A purchase of the visitor's goes through Purchase#purchase_info, and a wishlist through WishlistPresenter#listing_props.
+    if (await hasRows("purchases", Prisma.sql`${column("purchases", "link_id")} = ${row.id} AND ${column("purchases", "purchaser_id")} = ${viewer.user.id}`)) throw new NotPortedError("Purchase#purchase_info");
+    if (viewer.context.seller && (await hasRows("wishlists", Prisma.sql`${column("wishlists", "user_id")} = ${viewer.context.seller.id} AND ${column("wishlists", "deleted_at")} IS NULL`))) throw new NotPortedError("WishlistPresenter#listing_props");
+    canEdit = linkPolicy.edit(viewer.context, { id: row.id, user_id: row.user_id, flags: row.flags as bigint | number }, await collaboratingProductIds(viewer.context, [row.id]));
+  }
   if (viewer.purchaseId !== null || viewer.purchaseEmailDigest !== null) throw new NotPortedError("Link#purchase_for_email_digest");
   if (viewer.browserGuid !== null && (await hasRows("purchases", Prisma.sql`${column("purchases", "link_id")} = ${row.id} AND ${column("purchases", "browser_guid")} = ${viewer.browserGuid}`))) {
     throw new NotPortedError("Link#purchase_info_for_product_page");
   }
-  await assertNoDefaultOfferCodes(row);
   await assertNoCollaborator(row);
-  if (flag(row, "should_show_sales_count")) throw new NotPortedError("ProductPresenter.cached_sales_count");
-  if (flag(row, "is_bundle")) throw new NotPortedError("ProductProps#bundle_product_props");
+  // The page head preloads the call calendar through the Vite manifest, which Node does not have.
+  if (row.native_type === "call") throw new NotPortedError("PageMeta::Product vite_asset_path for the call calendar");
   const published = row.deleted_at === null && row.purchase_disabled_at === null && !row.draft;
   if (flag(row, "waitlist_enabled") && !published && row.deleted_at === null && row.banned_at === null && !flag(row, "is_unpublished_by_admin")) throw new NotPortedError("ProductProps#waitlist_props");
   if (await hasRows("public_files", Prisma.sql`${column("public_files", "resource_type")} = 'Link' AND ${column("public_files", "resource_id")} = ${row.id} AND ${column("public_files", "deleted_at")} IS NULL`)) throw new NotPortedError("PublicFilePresenter#props");
@@ -499,6 +585,7 @@ export async function productProps(row: LinkRow, seller: UserRow, viewer: Produc
   const plan = await installmentPlan(row.id);
   const recurrences = await recurrencesProps(row, prices);
   const data = jsonData(row);
+  const closedIds = new Set(closeFeature ? records.filter((record) => ((Number(record.flags) >> (BASE_VARIANT_CLOSED_FLAG - 1)) & 1) === 1).map((record) => record.id) : []);
 
   const product = {
     id: linkFields.externalId(row),
@@ -518,7 +605,7 @@ export async function productProps(row: LinkRow, seller: UserRow, viewer: Produc
     is_published: !row.draft && row.deleted_at === null,
     is_stream_only: files.some(isStreamOnly),
     streamable: files.some(isStreamable),
-    sales_count: null,
+    sales_count: flag(row, "should_show_sales_count") ? await successfulSalesCount(row.id) : null,
     summary: present(data.custom_summary as string) ? data.custom_summary : null,
     attributes: attributesProps(row, files),
     description_html: htmlSafeDescription(row.description),
@@ -549,17 +636,32 @@ export async function productProps(row: LinkRow, seller: UserRow, viewer: Produc
     analytics: analyticsData(seller),
     has_third_party_analytics: await hasThirdPartyAnalytics(row, seller, "product"),
     ppp_details: await pppDetails(row, seller, viewer.remoteIp),
-    can_edit: false,
+    can_edit: canEdit,
     waitlist: null,
     refund_policy: await refundPolicyProps(row, seller),
-    bundle_products: [],
+    bundle_products: await bundleProductsProps(row, viewer),
     public_files: [],
   };
+  const defaults = await defaultOfferCodes(row);
+  const result = await bestOfferCodeResult(row, defaults, viewer.discountCode, viewer.quantity);
+  const urlCode = present(viewer.discountCode) ? viewer.discountCode : null;
+  const selectionQuantity = Math.max(viewer.quantity, 1);
+  const inputs = { url_code: urlCode, quantity: selectionQuantity, recurrence: recurrences?.default ?? null, option_id: null, price_cents: null };
+  let selection: Record<string, unknown> = { ...inputs, options: {}, rent_options: null };
+  if (urlCode !== null || defaults.codes.length > 0) {
+    // The same code answers every option it covers (a code limited to options is handed back), so it is
+    // quoted once; a tier closed to new buyers cannot be picked and is left out.
+    const quote = await bestOfferCodeResult(row, defaults, urlCode, selectionQuantity);
+    const entry = { discount_code: quote, sale_label: saleLabel(quote, defaults.auto) };
+    const quotes = () => Object.fromEntries((records.length === 0 ? [null] : records).filter((record) => record === null || !closedIds.has(record.id)).map((record) => [record === null ? "" : externalId(record.id), entry]));
+    selection = { ...inputs, options: quotes(), rent_options: rental && !rental.rent_only ? quotes() : null };
+    if (rental?.rent_only) selection.options = quotes();
+  }
   return {
     product,
-    discount_code: null,
-    sale_label: null,
-    selection_discounts: { url_code: null, quantity: viewer.quantity, recurrence: recurrences?.default ?? null, option_id: null, price_cents: null, options: {}, rent_options: null },
+    discount_code: result,
+    sale_label: saleLabel(result, defaults.auto),
+    selection_discounts: selection,
     purchase: null,
     wishlists: [],
   };

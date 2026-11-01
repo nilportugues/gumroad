@@ -2,7 +2,7 @@ import type { DomainConfig } from "@/server/page-props/domain";
 
 import type { ProxyRequestInfo, RouteGate } from "./gate";
 import { classifyHost } from "./hosts";
-import { type CompiledRoute, matchRoute } from "./route-table";
+import { type CompiledRoute, matchRoutes } from "./route-table";
 
 export type RouteDecision =
   | { action: "next"; route: CompiledRoute | null }
@@ -32,11 +32,16 @@ export async function decideRoute(
   const isInertiaRequest = request.headers.get("x-inertia") === "true";
 
   const hostname = request.url.hostname;
-  const route = matchRoute(routes, request.method, request.url.pathname, classifyHost(hostname, config));
-  if (!route) return toRails;
-  if ((route.hosts === "seller" || route.hosts === "product") && gate.hostKind) {
-    if ((await gate.hostKind(request)) !== (route.hosts === "product" ? "product" : "user")) return toRails;
+  const candidates = matchRoutes(routes, request.method, request.url.pathname, classifyHost(hostname, config));
+  let route: CompiledRoute | null = null;
+  for (const candidate of candidates) {
+    if ((candidate.hosts === "seller" || candidate.hosts === "product") && gate.hostKind) {
+      if ((await gate.hostKind(request)) !== (candidate.hosts === "product" ? "product" : "user")) continue;
+    }
+    route = candidate;
+    break;
   }
+  if (!route) return toRails;
   if (route.flag !== null) {
     if (!(await gate.isFlagEnabled(route.flag, request))) return toRails;
     if (route.signedOutOnly && (await gate.isSignedIn(request)) !== false) return toRails;
