@@ -10,6 +10,7 @@ import { enqueueMarketingXReconnectEmailJob } from "./enqueue-marketing-x-reconn
 import { disputeEvidenceDueSoonReminderJob } from "./dispute-evidence-due-soon-reminder-job.ts";
 import { sendCommunityChatRecapNotificationsJob } from "./send-community-chat-recap-notifications-job.ts";
 import { sendMarketingXReconnectEmailJob } from "./send-marketing-x-reconnect-email-job.ts";
+import { sendPurchaseReceiptJob } from "./send-purchase-receipt-job.ts";
 import { handleSnsAwsConfigEventWorker } from "./handle-sns-aws-config-event-worker.ts";
 import { updateSellerRefundEligibilityJob } from "./update-seller-refund-eligibility-job.ts";
 import { handleStripeAutodebitForNegativeBalance } from "./handle-stripe-autodebit-job.ts";
@@ -154,6 +155,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   SetSubscriptionAsDeactivatedWorker: setSubscriptionAsDeactivatedWorker,
   SendCommunityChatRecapNotificationsJob: sendCommunityChatRecapNotificationsJob,
   SendMarketingXReconnectEmailJob: sendMarketingXReconnectEmailJob,
+  SendPurchaseReceiptJob: sendPurchaseReceiptJob,
   SendRentalExpiresSoonEmailWorker: sendRentalExpiresSoonEmailWorker,
   SuspendAccountsWithPaymentAddressWorker: suspendAccountsWithPaymentAddressWorker,
   SuspendUsersWorker: suspendUsersWorker,

@@ -501,3 +501,13 @@ Supersedes the "Not ported" and hand-back lines of the WS-51 section above for e
   `SaveFilesService`, profile section updates), a published post's edit path, and `Workflow::ManageService`.
 - PaperTrail's `object` order depends on what Ruby materialized: `abandoned_cart_type?` reads `attributes` (every attribute, in column order), and the
   `has_many :installments` inverse reads each installment's `workflow_id` as the batch loads, which the port reproduces with `record.touch`.
+
+#### MoneyFormatter and CustomerEmailInfo (WS-76)
+
+`concerns/money-formatter.ts` ports `MoneyFormatter` over the `money` gem (6.19) as `config/initializers/money.rb` configures it: the currency table
+(symbol, symbol position, subunits, `format`) is read from the gem into `money-currencies.generated.json` by `scripts/golden/money-format.rb`, which
+also records `__fixtures__/money-format.golden.json` (10.6k vectors: every currency the gem knows, 31 amounts including negative, fractional and nil,
+four entry points, and codes that soft-fail to their ISO code). `moneyFormatterFormat`, `formattedPrice`, `formatJustPriceInCents`,
+`formattedAmountInCurrency`, `formatChargePresentmentAmount` and `symbolFor` are exact over that grid. Known quirks kept: negatives print `$-1.00`,
+`with_currency` prints the id the currency was found by (`"yen"` prints `YEN`), KRW and HUF use 100 subunits, HALF_UP rounding.
+`email-info.ts` is the `CustomerEmailInfo` write (`build_for_purchase` then `mark_sent!`); the charge variant (`EmailInfoCharge`) is not ported.

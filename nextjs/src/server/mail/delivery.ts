@@ -7,6 +7,7 @@ import { railsEnv } from "../infra/rails-env.ts";
 import type { JobsRuntime } from "../jobs/runtime.ts";
 import type { SidekiqItem } from "../jobs/sidekiq/item.ts";
 import type { JsonValue } from "../jobs/sidekiq/ruby-json.ts";
+import { markCustomerEmailSent } from "../models/email-info.ts";
 import { selectRows } from "../models/sql.ts";
 import { MAIL_RETRY_ON, type MailJobRoute, pushMailDeliveryItem, retryMailDeliveryItem } from "./active-job.ts";
 import type { MailerDeps } from "./application-mailer.ts";
@@ -24,6 +25,7 @@ import { communityChatRecapNotification } from "./mailers/community-chat-recap-m
 import { notify as internalNotification } from "./mailers/internal-notification-mailer.ts";
 import { marketingXReconnect } from "./mailers/creator-mailer.ts";
 import { filesReadyForDownload, partialRefund, paypalPurchaseFailed, refund, subscriptionMagicLink } from "./mailers/customer-mailer.ts";
+import { receipt } from "./mailers/receipt-mailer.ts";
 import { invite as teamInvite } from "./mailers/team-mailer.ts";
 import { receiverSignedUp } from "./mailers/invite-mailer.ts";
 import { authenticationToken } from "./mailers/two-factor-authentication-mailer.ts";
@@ -132,6 +134,7 @@ const NODE_MAILERS: Record<string, Record<string, MailerMethod>> = {
         deps,
       );
     },
+    receipt: (args, deps) => receipt(args, deps),
     files_ready_for_download: (args, deps) => (args.length === 1 ? filesReadyForDownload(integerArgument(args[0]), args, deps) : Promise.reject(new MailJobArgumentsError("arity"))),
     subscription_magic_link: (args, deps) => {
       const [subscriptionId, email, ...rest] = args;
@@ -193,6 +196,8 @@ export type MailDeliveryDeps = {
   log(message: string): void;
   random?: () => number;
   mailer?: MailerDeps;
+  // Time.current, for the CustomerEmailInfo the observer writes
+  now?: () => Date;
 };
 
 const defaultDeps: MailDeliveryDeps = {
@@ -214,16 +219,22 @@ export async function composeNodeMail(mailer: string, method: string, args: Ruby
   return rendered === null ? undefined : composeMail(rendered);
 }
 
+// EmailDeliveryObserver::HandleCustomerEmailInfo, which runs after the SMTP hand-off. `receipt` is the only ported mail
+// whose headers name a purchase.
+async function deliveredEmail(mail: ComposedMail, now: () => Date): Promise<void> {
+  const ids = mail.recordIds;
+  if (ids?.purchaseId != null && ids.emailName !== undefined) await markCustomerEmailSent(ids.purchaseId, ids.emailName, now());
+}
+
 // `deliver_now` of an already composed message: true when Mail returned the message, false when
 // RescueSmtpErrors swallowed the failure. Retryable SMTP errors propagate.
-export async function sendComposed(mail: ComposedMail | null, deps: Pick<MailDeliveryDeps, "send" | "log">): Promise<boolean> {
+export async function sendComposed(mail: ComposedMail | null, deps: Pick<MailDeliveryDeps, "send" | "log"> & { now?: () => Date }): Promise<boolean> {
   if (mail === null) {
     deps.log(`Mailer Error: #<ArgumentError: SMTP To address may not be blank: ${JSON.stringify([])}>`);
     return false;
   }
   try {
     await deps.send(mail);
-    return true;
   } catch (error) {
     if (error instanceof SmtpError && RESCUED.includes(error.rubyClass)) {
       deps.log(`Mailer Error: #<${error.rubyClass}: ${error.message}>`);
@@ -231,6 +242,8 @@ export async function sendComposed(mail: ComposedMail | null, deps: Pick<MailDel
     }
     throw error;
   }
+  await deliveredEmail(mail, deps.now ?? (() => new Date()));
+  return true;
 }
 
 export const defaultMailDeliveryDeps = defaultDeps;

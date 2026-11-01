@@ -25,7 +25,7 @@ export const findPurchaseOrNil = (id: bigint | null) => findOneBy<Purchase>("Pur
 export const findChargeOrNil = (id: bigint | null) => findOneBy<Charge>("Charge", "id", id, true);
 
 // `purchase.charge` (has_one :charge, through: :charge_purchase)
-async function chargeOfPurchase(purchase: Purchase): Promise<Charge | null> {
+export async function chargeOfPurchase(purchase: Purchase): Promise<Charge | null> {
   const [row] = await selectRows(
     Prisma.sql`SELECT ${Prisma.raw(`${quoteName("charges")}.*`)} FROM ${table("charges")} INNER JOIN ${table("charge_purchases")} ON ${column("charges", "id")} = ${column("charge_purchases", "charge_id")} WHERE ${column("charge_purchases", "purchase_id")} = ${purchase.id} LIMIT 1`,
   );

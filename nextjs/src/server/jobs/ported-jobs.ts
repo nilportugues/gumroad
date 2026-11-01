@@ -66,6 +66,7 @@ export const PORTED_JOBS: readonly string[] = [
   "SendAutoInvoiceEmailJob",
   "SendCommunityChatRecapNotificationsJob",
   "SendMarketingXReconnectEmailJob",
+  "SendPurchaseReceiptJob",
   "SendRentalExpiresSoonEmailWorker",
   "SendWorkflowInstallmentWorker",
   "SetSubscriptionAsDeactivatedWorker",
