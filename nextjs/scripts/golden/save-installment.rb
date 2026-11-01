@@ -18,7 +18,7 @@ OUT = Rails.root.join("nextjs/src/server/models/__fixtures__/save-installment.go
 NOW = Time.utc(2025, 11, 1, 12, 30, 45, 123_000)
 SEEDED_AT = "2025-01-01 00:00:00"
 TABLES = %w[users links installments installment_rules versions product_files payments post_email_blasts team_memberships seller_profiles
-            seller_profile_sections workflows base_variants variant_categories].freeze
+            seller_profile_sections workflows base_variants variant_categories workflow_installment_schedule_intents merchant_accounts purchases].freeze
 SHOWN_ON_PROFILE = 1 << 7
 SEND_EMAILS = 1 << 8
 TEAM_MEMBER = 1 << 27
@@ -201,6 +201,80 @@ installment_call.call("update: a published post, same publish day", installment_
 installment_call.call("update: a published post that was emailed", installment_id: 10, installment_params: draft.merge(name: "Email 10", send_emails: false, shown_on_profile: true), es_body: es_answer(3),
                       installments: [installment_row(10, published_at: SEEDED_AT)], post_email_blasts: [{ id: 1, post_id: 10, seller_id: 1, requested_at: SEEDED_AT, created_at: SEEDED_AT, updated_at: SEEDED_AT }])
 installment_call.call("update: a published post emptied", installment_id: 10, installment_params: draft.merge(message: "<p><br></p>"), es_body: es_answer(3), **published)
+
+# --- Workflow::ManageService --------------------------------------------------------------------------------------------
+def workflow_row(id = 1, **overrides)
+  { id:, name: "Workflow #{id}", seller_id: 1, workflow_type: "audience", flags: 0, json_data: nil, created_at: SEEDED_AT, updated_at: SEEDED_AT }.merge(overrides)
+end
+
+workflow_call = lambda do |name, workflow_params: {}, workflow_id: nil, es_body: es_answer(3), **seed|
+  seed = { users: [user_row(1)], links: [link_row], workflows: [], installments: [], installment_rules: [] }.merge(seed)
+  $uuid_seq = 0
+  $hex_seq = 0
+  result = capture(name, now: NOW, tables: TABLES, seed:, sidekiq: true, kind: "workflow", case_now: NOW.to_f, es_body:, request_params: { workflow: workflow_params }, installment_id: workflow_id) do
+    seller = User.find(1)
+    params = ActionController::Parameters.new({ workflow: workflow_params }).require(:workflow).permit(
+      :name, :workflow_type, :variant_external_id, :workflow_trigger, :paid_more_than, :paid_less_than, :bought_from, :created_after, :created_before, :permalink,
+      :send_to_past_customers, :save_action_name, bought_products: [], not_bought_products: [], affiliate_products: [], bought_variants: [], not_bought_variants: []
+    )
+    product = nil
+    if [Workflow::PRODUCT_TYPE, Workflow::VARIANT_TYPE].include?(params[:workflow_type])
+      product = seller.products.visible.find_by(unique_permalink: params[:permalink]) || seller.products.visible.find_by(custom_permalink: params[:permalink]) || raise("404")
+    end
+    workflow = workflow_id && Workflow.find(workflow_id)
+    service = Workflow::ManageService.new(seller:, params:, product:, workflow:)
+    ok, error = service.process
+    $return = { "ok" => ok, "error" => error, "installment_id" => service.workflow.id }
+  end
+  result.delete("rows")
+  result.delete("seed")
+  result["return"] = result["error"] ? nil : $return
+  cases << result
+end
+
+wf = { name: "Welcome", workflow_type: "audience", workflow_trigger: nil, bought_products: [], bought_variants: [], variant_external_id: nil, permalink: nil, not_bought_products: [], not_bought_variants: [],
+       paid_more_than: nil, paid_less_than: nil, created_after: "", created_before: "", bought_from: nil, affiliate_products: [], send_to_past_customers: false, save_action_name: "save" }
+workflow_call.call("workflow create: an audience workflow", workflow_params: wf)
+workflow_call.call("workflow create: a workflow without a name", workflow_params: wf.merge(name: nil))
+workflow_call.call("workflow create: a seller workflow with filters", workflow_params: wf.merge(workflow_type: "seller", paid_more_than: 10, paid_less_than: "50.5", created_after: "2025-01-02", created_before: "2025-02-03",
+                                                                                              bought_from: "Canada", bought_products: %w[p1], not_bought_products: %w[p2], send_to_past_customers: true))
+workflow_call.call("workflow create: a product workflow", workflow_params: wf.merge(workflow_type: "product", permalink: "p1", send_to_past_customers: true, bought_products: %w[p1]))
+workflow_call.call("workflow create: a product workflow with a member cancellation trigger", workflow_params: wf.merge(workflow_type: "product", permalink: "p1", workflow_trigger: "member_cancellation"))
+workflow_call.call("workflow create: a follower workflow", workflow_params: wf.merge(workflow_type: "follower"))
+workflow_call.call("workflow create: an affiliate workflow", workflow_params: wf.merge(workflow_type: "affiliate", affiliate_products: %w[p1]))
+workflow_call.call("workflow create: paid more than paid less", workflow_params: wf.merge(workflow_type: "seller", paid_more_than: 500, paid_less_than: 10))
+workflow_call.call("workflow create: before and after dates out of order", workflow_params: wf.merge(workflow_type: "seller", created_after: "2025-03-01", created_before: "2025-01-01"))
+workflow_call.call("workflow create: save and publish is ignored for a new workflow", workflow_params: wf.merge(save_action_name: "save_and_publish"))
+workflow_call.call("workflow create: an abandoned cart workflow for a seller without a payout", workflow_params: wf.merge(workflow_type: "abandoned_cart"), users: [user_row(1, flags: 0)])
+workflow_call.call("workflow create: an abandoned cart workflow", workflow_params: wf.merge(workflow_type: "abandoned_cart"))
+workflow_call.call("workflow create: a variant workflow", workflow_params: wf.merge(workflow_type: "variant", permalink: "p1", variant_external_id: "x"))
+workflow_call.call("workflow create: a product that is not the seller's", workflow_params: wf.merge(workflow_type: "product", permalink: "p9"))
+
+emails = { installments: [installment_row(10, workflow_id: 1), installment_row(11, workflow_id: 1, name: "Second")],
+           installment_rules: [rule_row(10, delayed_delivery_time: 3600, time_period: "hour", to_be_published_at: nil), rule_row(11, delayed_delivery_time: 86_400, time_period: "day", to_be_published_at: nil)] }
+unpublished = { workflows: [workflow_row(1)] }
+published = { workflows: [workflow_row(1, published_at: SEEDED_AT, first_published_at: SEEDED_AT)],
+              installments: [installment_row(10, workflow_id: 1, published_at: SEEDED_AT), installment_row(11, workflow_id: 1, name: "Second", published_at: SEEDED_AT)], installment_rules: emails[:installment_rules] }
+workflow_call.call("workflow update: a rename", workflow_id: 1, workflow_params: wf.merge(name: "Renamed"), **unpublished)
+workflow_call.call("workflow update: nothing changed", workflow_id: 1, workflow_params: wf.merge(name: "Workflow 1"), **unpublished)
+workflow_call.call("workflow update: the emails follow the filters", workflow_id: 1, workflow_params: wf.merge(workflow_type: "seller", paid_more_than: 10, bought_products: %w[p1], send_to_past_customers: true), **unpublished, **emails)
+workflow_call.call("workflow update: the emails follow a product", workflow_id: 1, workflow_params: wf.merge(workflow_type: "product", permalink: "p1"), **unpublished, **emails)
+workflow_call.call("workflow update: an email that is deleted stays out", workflow_id: 1, workflow_params: wf.merge(name: "Renamed"), **unpublished,
+                   installments: emails[:installments] + [installment_row(12, workflow_id: 1, deleted_at: SEEDED_AT)], installment_rules: emails[:installment_rules])
+workflow_call.call("workflow update: an email with an empty message", workflow_id: 1, workflow_params: wf.merge(workflow_type: "seller"), **unpublished,
+                   installments: [installment_row(10, workflow_id: 1, message: "<p><br></p>")], installment_rules: [])
+workflow_call.call("workflow update: a published workflow keeps its audience", workflow_id: 1, workflow_params: wf.merge(name: "Renamed", workflow_type: "seller", paid_more_than: 99), **published)
+workflow_call.call("workflow update: save and publish", workflow_id: 1, workflow_params: wf.merge(save_action_name: "save_and_publish"), **unpublished, **emails)
+workflow_call.call("workflow update: save and publish without emails", workflow_id: 1, workflow_params: wf.merge(save_action_name: "save_and_publish"), **unpublished)
+workflow_call.call("workflow update: save and publish by a seller who may not", workflow_id: 1, workflow_params: wf.merge(save_action_name: "save_and_publish"), **unpublished, **emails, users: [user_row(1, flags: 0)])
+workflow_call.call("workflow update: save and unpublish", workflow_id: 1, workflow_params: wf.merge(save_action_name: "save_and_unpublish"), **published)
+workflow_call.call("workflow update: save and unpublish a workflow that is not published", workflow_id: 1, workflow_params: wf.merge(save_action_name: "save_and_unpublish"), **unpublished, **emails)
+workflow_call.call("workflow update: abandoned cart emails go when the type changes", workflow_id: 1, workflow_params: wf.merge(name: "Renamed"), **unpublished,
+                   installments: [installment_row(10, workflow_id: 1, installment_type: "abandoned_cart")], installment_rules: [rule_row(10, delayed_delivery_time: 86_400, time_period: "hour", to_be_published_at: nil)])
+workflow_call.call("workflow update: an abandoned cart workflow", workflow_id: 1, workflow_params: wf.merge(workflow_type: "abandoned_cart"), workflows: [workflow_row(1, workflow_type: "abandoned_cart")],
+                   installments: [installment_row(10, workflow_id: 1, installment_type: "abandoned_cart")], installment_rules: [rule_row(10, delayed_delivery_time: 86_400, time_period: "hour", to_be_published_at: nil)])
+workflow_call.call("workflow update: invalid paid filters", workflow_id: 1, workflow_params: wf.merge(workflow_type: "seller", paid_more_than: 500, paid_less_than: 10), **unpublished)
+workflow_call.call("workflow update: a member cancellation workflow", workflow_id: 1, workflow_params: wf.merge(workflow_type: "product", permalink: "p1", workflow_trigger: "member_cancellation"), workflows: [workflow_row(1, workflow_type: "product", link_id: 1)])
 
 File.write(OUT, JSON.pretty_generate({ "now" => NOW.to_f, "cases" => cases }) + "\n")
 puts "wrote #{OUT.relative_path_from(Rails.root)} (#{cases.size} cases)"

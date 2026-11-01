@@ -69,6 +69,14 @@ async function madeSaleWithConnectOrPaypalAccount(userId: bigint | number): Prom
   );
 }
 
+// `eligible_for_abandoned_cart_workflows?`
+export async function eligibleForAbandonedCartWorkflows(user: User): Promise<boolean> {
+  const record = Users.load(user);
+  if (isFlagSet(record, "is_team_member")) return true;
+  if (isSuspended(record)) return false;
+  return hasCompletedPayouts(user);
+}
+
 // `eligible_to_send_emails?`
 export async function eligibleToSendEmails(user: User): Promise<boolean> {
   const record = Users.load(user);

@@ -213,6 +213,17 @@ export const Installments = defineModel<Installment>({
       },
     },
   ],
+  beforeCommit: [
+    {
+      name: "TransactionalAttributeChangeTracker before_commit",
+      run: (record) => {
+        const changed = record.ivars[CHANGED_IN_TRANSACTION] as Set<string> | undefined;
+        if (changed === undefined) return;
+        record.ivars[COMMITTED] = [...changed];
+        changed.clear();
+      },
+    },
+  ],
   afterCommit: [
     {
       // ElasticsearchModelAsyncCallbacks#send_to_elasticsearch("index")
@@ -231,15 +242,6 @@ export const Installments = defineModel<Installment>({
         const fields = [...new Set(committed.flatMap((name) => INSTALLMENT_ATTRIBUTE_TO_SEARCH_FIELDS[name] ?? []))];
         if (fields.length === 0) return;
         await performAsync("ElasticsearchIndexerWorker", ["update", { record_id: record.get("id"), class_name: "Installment", fields }], { delaySeconds: ELASTICSEARCH_UPDATE_DELAY_SECONDS });
-      },
-    },
-    {
-      name: "TransactionalAttributeChangeTracker before_commit",
-      run: (record) => {
-        const changed = record.ivars[CHANGED_IN_TRANSACTION] as Set<string> | undefined;
-        if (changed === undefined) return;
-        record.ivars[COMMITTED] = [...changed];
-        changed.clear();
       },
     },
   ],

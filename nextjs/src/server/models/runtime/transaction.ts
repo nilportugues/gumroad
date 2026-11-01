@@ -18,6 +18,11 @@ export type Participant = {
   // gets its commit callbacks once, with the action it had when first saved here.
   firstAction: Action;
   destroyed: boolean;
+  // The record's class and id, for records that more than one instance of saves in the transaction: Rails runs before_commit
+  // on the last instance saved and after_commit on the first (run_commit_callbacks_on_first_saved_instances_in_transaction).
+  identity?: () => string;
+  // before_commit callbacks.
+  prepare?: (action: Action) => Promise<void>;
   commit: (action: Action) => Promise<void>;
   rollback: (action: Action) => Promise<void>;
   restore: () => void;
@@ -78,8 +83,20 @@ export async function transaction<T>(fn: (tx: Tx) => Promise<T>, options: { retu
   }
   if (rolledBack) return result;
   // Outside the store, so writes made by after_commit callbacks open their own transaction.
+  const lastSaved = new Map<string, Participant>();
+  for (const p of participants.values()) if (p.identity) lastSaved.set(p.identity(), p);
   for (const p of participants.values()) {
-    if (p.triggered) await p.commit(p.destroyed ? "destroy" : p.firstAction);
+    if (p.prepare && (!p.identity || lastSaved.get(p.identity()) === p)) await p.prepare(p.destroyed ? "destroy" : p.firstAction);
+  }
+  const committed = new Set<string>();
+  for (const p of participants.values()) {
+    if (!p.triggered) continue;
+    if (p.identity) {
+      const identity = p.identity();
+      if (committed.has(identity)) continue;
+      committed.add(identity);
+    }
+    await p.commit(p.destroyed ? "destroy" : p.firstAction);
   }
   return result;
 }

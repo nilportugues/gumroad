@@ -34,6 +34,7 @@ import { castBoolean, AUDIENCE_TYPE, FOLLOWER_TYPE, PRODUCT_TYPE, SELLER_TYPE, V
 type InstallmentRecord = ModelRecord<Installment>;
 type Scalar = string | number | boolean | null;
 export type RequestParams = Record<string, unknown>;
+export type FilterParams = Record<string, unknown>;
 
 export class PreviewEmailError extends Error {}
 
@@ -66,26 +67,29 @@ export type Permitted = Partial<Record<(typeof SCALAR_KEYS)[number], Scalar>> & 
 const isScalar = (value: unknown): value is Scalar => value === null || ["string", "number", "boolean"].includes(typeof value);
 const isHash = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
 
-export function permitInstallment(raw: unknown): Permitted {
-  if (!isHash(raw)) return refuse("an installment parameter that is not a hash");
+// ActionController::Parameters#permit: scalars first, then the lists of scalars, each in the order of the permit list.
+export function permit(raw: unknown, scalarKeys: readonly string[], arrayKeys: readonly string[]): Record<string, unknown> {
+  if (!isHash(raw)) return refuse("a parameter that is not a hash");
   const out: Record<string, unknown> = {};
-  for (const key of SCALAR_KEYS) {
+  for (const key of scalarKeys) {
     if (!(key in raw)) continue;
     const value = raw[key];
     if (typeof value === "number" && !Number.isInteger(value)) refuse("a float parameter");
     if (isScalar(value)) out[key] = value;
   }
-  for (const key of ARRAY_KEYS) {
+  for (const key of arrayKeys) {
     const value = raw[key];
     if (!Array.isArray(value)) continue;
     if (value.some((item) => item === null)) refuse("a nil in a list parameter");
     if (value.every((item) => isScalar(item))) out[key] = value;
   }
-  return out as Permitted;
+  return out;
 }
 
+export const permitInstallment = (raw: unknown): Permitted => permit(raw, SCALAR_KEYS, ARRAY_KEYS) as Permitted;
+
 // ActiveSupport's Object#present?
-function present(value: unknown): boolean {
+export function present(value: unknown): boolean {
   if (value === null || value === undefined || value === false) return false;
   if (typeof value === "string") return /[^\s]/u.test(value);
   if (Array.isArray(value)) return value.length > 0;
@@ -147,23 +151,38 @@ function safeParseFilterDate(value: unknown): { year: number; month: number; day
   return date.year < 1000 || date.year > 9999 ? null : date;
 }
 
-// Returns false (and adds the error) where Ruby does.
-function addAndValidateFilters(record: InstallmentRecord, params: Permitted, timezone: string): boolean {
-  const type = record.get("installment_type");
+// BigDecimal(value.to_s) * unit_scaling_factor for the dollar amounts a workflow form sends; only USD sellers, whose cents need no conversion.
+function priceFilterCents(value: unknown, currency: string): number | null {
+  if (currency !== "usd") return refuse("a price filter in a currency other than USD");
+  const text = typeof value === "number" && Number.isInteger(value) ? String(value) : typeof value === "string" ? value : refuse("a price filter that is not an integer or text");
+  const match = /^\s*(-?)(\d+)(?:\.(\d+))?\s*$/u.exec(text);
+  if (match === null) return refuse("a price filter BigDecimal may not read");
+  const [, sign, whole, fraction = ""] = match as unknown as [string, string, string, string?];
+  // Beyond 10^13 dollars the cents are not exact doubles; beyond MAX_PRICE_FILTER_MAGNITUDE the filter is dropped.
+  if (whole.length > 13) return whole.length > 16 || Number(whole) > 1e15 ? null : refuse("a price filter beyond double precision");
+  const cents = Number(whole) * 100 + Number((fraction + "00").slice(0, 2));
+  return sign === "-" ? -cents : cents;
+}
+
+// Returns false (and adds the error) where Ruby does. Shared with Workflow::ManageService, whose type column is workflow_type.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function addAndValidateFilters(record: ModelRecord<any>, params: FilterParams, timezone: string, options: { typeColumn?: string; currency?: string } = {}): boolean {
+  const type = record.get(options.typeColumn ?? "installment_type") as string | null;
   const audience = type === AUDIENCE_TYPE;
   const follower = type === FOLLOWER_TYPE;
   const sellerish = type === SELLER_TYPE || type === PRODUCT_TYPE || type === VARIANT_TYPE;
   const set = (key: string, value: unknown) => setJsonDataForAttr(record, key, value as never);
-  const priceOrNil = (value: Scalar | undefined) => (sellerish && present(value) ? value : null);
-  set("paid_more_than_cents", priceOrNil(params.paid_more_than_cents));
-  set("paid_less_than_cents", priceOrNil(params.paid_less_than_cents));
+  const currency = options.currency ?? "usd";
+  const price = (cents: unknown, dollars: unknown) => (!sellerish ? null : present(cents) ? cents : present(dollars) ? priceFilterCents(dollars, currency) : null);
+  set("paid_more_than_cents", price(params.paid_more_than_cents, params.paid_more_than));
+  set("paid_less_than_cents", price(params.paid_less_than_cents, params.paid_less_than));
   set("bought_products", !audience && present(params.bought_products) ? wrap(params.bought_products) : []);
   set("not_bought_products", present(params.not_bought_products) ? wrap(params.not_bought_products) : []);
   const after = safeParseFilterDate(params.created_after);
   set("created_after", after ? startOfDayIso8601(timezone, after.year, after.month, after.day) : null);
   const before = safeParseFilterDate(params.created_before);
   set("created_before", before ? endOfDayIso8601(timezone, before.year, before.month, before.day) : null);
-  set("bought_from", sellerish ? presence(params.bought_from ?? null) : null);
+  set("bought_from", sellerish ? presence((params.bought_from ?? null) as Scalar) : null);
   set("active_customers_only", sellerish ? castBoolean((params.active_customers_only ?? null) as never) : null);
   set("minimum_license_uses", sellerish && present(params.minimum_license_uses) ? presence(Math.max(rubyToI(params.minimum_license_uses), 0)) : null);
   set("bought_variants", !audience && present(params.bought_variants) ? wrap(params.bought_variants) : []);
@@ -173,7 +192,7 @@ function addAndValidateFilters(record: InstallmentRecord, params: Permitted, tim
   // A post picked by its external id: the filter asks DynamoDB for who clicked it.
   if (present(params.not_clicked_post_id)) refuse("a has-not-clicked audience filter");
   set("not_clicked_post_id", null);
-  set("workflow_trigger", null);
+  set("workflow_trigger", sellerish ? presence((params.workflow_trigger ?? null) as Scalar) : null);
 
   const hash = jsonData(record);
   const value = (key: string) => hash.entries.find(([name]) => name === key)?.[1];
@@ -258,7 +277,7 @@ export async function saveInstallment(
 
   // build_installment_if_needed
   if (installment === null) {
-    installment = Installments.build(productOrVariant ? { link_id: product!.id } : { seller_id: seller.id });
+    installment = Installments.build(productOrVariant ? { link_id: Number(product!.id) } : { seller_id: Number(seller.id) });
     assign(installment, ip, attrs);
   } else if (installment.get("published_at") === null) {
     assign(installment, ip, attrs);
@@ -326,8 +345,8 @@ async function saveInstallmentRecord(
   if (!wasPublished) {
     record.set("installment_type", asString(ip.installment_type));
     record.set("base_variant_id", null);
-    record.set("link_id", productOrVariant ? product!.id : null);
-    record.set("seller_id", seller.id);
+    record.set("link_id", productOrVariant ? Number(product!.id) : null);
+    record.set("seller_id", Number(seller.id));
     setAssociation(record, "seller", seller.id, seller);
     post(record).preload("seller", seller);
   }

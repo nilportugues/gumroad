@@ -5,7 +5,7 @@
 // The Redis cases need JOBS_REDIS_URL (a scratch database other than 0) and are skipped without it.
 import { readFileSync } from "node:fs";
 
-import type { Installment, User } from "@prisma/client";
+import type { Installment, User, Workflow } from "@prisma/client";
 import { Redis } from "ioredis";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -18,6 +18,8 @@ import { withJobsRuntime } from "./concerns/job-runtime.ts";
 import { setInstallmentRuleDeps } from "./installment-rule-writes.ts";
 import { installmentDeps, Installments } from "./installment-writes.ts";
 import { saveInstallment } from "./save-installment.ts";
+import { findVisibleProduct, manageWorkflow, permitWorkflow } from "./workflow-manage.ts";
+import { Workflows } from "./workflow-writes.ts";
 import { findByIdBang } from "./row-reads.ts";
 
 // ObfuscateIds keys the golden was recorded with (scripts/golden/save-installment.rb).
@@ -27,6 +29,7 @@ process.env.OBFUSCATE_IDS_NUMERIC_CIPHER_KEY ??= "123456789";
 type EsExchange = { method: string; path: string; query: string | null; body: string | null };
 type Case = {
   name: string;
+  kind: "installment" | "workflow";
   case_now: unknown;
   es?: EsExchange[];
   es_body?: unknown;
@@ -71,6 +74,8 @@ const REFUSED = new Set([
   "message: a bare ampersand and angle",
   "message: a tab and a carriage return",
   "message: attributes without values or quotes",
+  "workflow create: an abandoned cart workflow",
+  "workflow create: a variant workflow",
 ]);
 
 const sequentialUuid = () => {
@@ -97,7 +102,8 @@ describe("SaveInstallmentService", () => {
         esSent.push(request);
         return { status: 200, body: c.es_body ?? {} };
       });
-      const restoreRules = setInstallmentRuleDeps({ redis: () => redis!, uuid: sequentialUuid(), notify: () => {} });
+      const uuid = sequentialUuid();
+      const restoreRules = setInstallmentRuleDeps({ redis: () => redis!, uuid, notify: () => {} });
       const slugUuid = installmentDeps.uuid;
       installmentDeps.uuid = sequentialUuid();
       let hex = 0;
@@ -108,6 +114,15 @@ describe("SaveInstallmentService", () => {
           () =>
             withJobsRuntime(runtime, async () => {
               const seller = await findByIdBang<User>("User", 1n);
+              if (c.kind === "workflow") {
+                const params = permitWorkflow(c.request_params.workflow);
+                const product = params.workflow_type === "product" || params.workflow_type === "variant" ? await findVisibleProduct(seller, params.permalink) : null;
+                if ((params.workflow_type === "product" || params.workflow_type === "variant") && product === null) throw new Error("404");
+                const workflow = c.installment_id === null ? null : Workflows.load(await findByIdBang<Workflow>("Workflow", BigInt(c.installment_id)));
+                const managed = await manageWorkflow({ seller, params, product, workflow }, { now, uuid });
+                result = { ok: managed.ok, error: managed.error, installment: null };
+                return;
+              }
               const installment = c.installment_id === null ? null : Installments.load(await findByIdBang<Installment>("Installment", BigInt(c.installment_id)));
               result = await saveInstallment({ seller, params: c.request_params, installment }, { now, hex4: () => (++hex).toString(16).padStart(8, "0"), notify: () => {} });
             }),
@@ -128,6 +143,11 @@ describe("SaveInstallmentService", () => {
         return;
       }
 
+      if (c.error !== null) {
+        expect(sql.log).toEqual(sql.expected);
+        expect((error as Error).message).toBe(c.error.message);
+        return;
+      }
       expect(error).toBeNull();
       expect(sql.log).toEqual(sql.expected);
       const expected = c.return!;
