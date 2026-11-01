@@ -406,3 +406,4 @@ export const opt_in_to_au_backtax_collection_settings_payments_path = path("/set
 export const remediation_settings_payments_path = path("/settings/payments/remediation(.:format)");
 export const cart_items_count_path = path("/cart_items_count(.:format)");
 export const cart_items_count_url = url("/cart_items_count(.:format)");
+export const instant_payouts_path = path("/instant_payouts(.:format)");
