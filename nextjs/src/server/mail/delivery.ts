@@ -24,6 +24,7 @@ import { communityChatRecapNotification } from "./mailers/community-chat-recap-m
 import { notify as internalNotification } from "./mailers/internal-notification-mailer.ts";
 import { marketingXReconnect } from "./mailers/creator-mailer.ts";
 import { filesReadyForDownload, partialRefund, paypalPurchaseFailed, refund, subscriptionMagicLink } from "./mailers/customer-mailer.ts";
+import { invite as teamInvite } from "./mailers/team-mailer.ts";
 import { receiverSignedUp } from "./mailers/invite-mailer.ts";
 import { authenticationToken } from "./mailers/two-factor-authentication-mailer.ts";
 import { confirmationInstructions, type DeviseMailOptions, emailChanged, type SignupMailUser } from "./mailers/user-signup-mailer.ts";
@@ -144,6 +145,9 @@ const NODE_MAILERS: Record<string, Record<string, MailerMethod>> = {
   },
   InviteMailer: {
     receiver_signed_up: (args, deps) => (args.length === 1 ? receiverSignedUp(integerArgument(args[0]), deps) : Promise.reject(new MailJobArgumentsError("arity"))),
+  },
+  TeamMailer: {
+    invite: (args, deps) => (args.length === 1 ? teamInvite(args, deps) : Promise.reject(new MailJobArgumentsError("arity"))),
   },
   TwoFactorAuthenticationMailer: {
     authentication_token: (args, deps) => {
