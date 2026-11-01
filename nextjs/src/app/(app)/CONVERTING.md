@@ -49,6 +49,10 @@ injects the `Routes` global, turns `$assets/...` imports into URL strings and de
 2. Add any helper the page graph needs to `src/lib/navigation/routes.ts`; `npx tsc --noEmit`
    lists the missing ones.
 
+`GET /healthcheck` is deliberately not in the table even though `src/app/healthcheck/route.ts`
+ports it: it is the blue/green readiness probe, so it must exercise Rails, and Rails answers it
+without touching Redis, which a flagged route would (the proxy reads Flipper on every request).
+
 ## 5. Verify
 
 - `npx tsc --noEmit`, `npx vitest run`, `npx next build`.
