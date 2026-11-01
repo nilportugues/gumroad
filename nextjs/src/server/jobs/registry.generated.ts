@@ -1607,7 +1607,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "HandleStripeEventWorker": {
     "file": "app/sidekiq/handle_stripe_event_worker.rb",
@@ -2105,7 +2105,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RecoverAusBacktaxesFromStripeAccountsJob": {
     "file": "app/sidekiq/recover_aus_backtaxes_from_stripe_accounts_job.rb",
