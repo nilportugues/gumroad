@@ -106,8 +106,6 @@ export const SETTINGS_PAGES: Record<string, PageSpec> = {
 // Oauth::ApplicationsController#edit (a Doorkeeper controller, not a Settings::BaseController): the
 // application is looked up among the seller's own before the `authorize` in the action.
 const APPLICATION_NOT_FOUND_ALERT = "Application not found or you don't have the permissions to modify it.";
-const EDIT_PATH = /^\/oauth\/applications\/([^/]+)\/edit$/u;
-const applicationId = (url: URL) => decodeURIComponent(EDIT_PATH.exec(url.pathname)?.[1] ?? "");
 const editApplicationGuard = settingsGuard({ authorize: settingsAuthorizedApplicationsOauthApplicationPolicy.edit, skipRequireAccountEmail: true });
 
 export const OAUTH_APPLICATION_PAGES: Record<string, PageSpec> = {
@@ -116,7 +114,7 @@ export const OAUTH_APPLICATION_PAGES: Record<string, PageSpec> = {
     guard: async (input: GuardInput) => {
       const context = await loadSellerContext(input.context);
       if (!context.user) throw new NotPortedError("authenticate_user! for a signed-out visitor");
-      if (!(await findOwnedApplication(context.seller!, applicationId(input.url)))) {
+      if (!(await findOwnedApplication(context.seller!, input.params.id ?? ""))) {
         const { protocol, host } = input.urlOptions;
         return { status: 302, location: `${protocol}://${host}/oauth/applications`, rescued: true, flash: { alert: APPLICATION_NOT_FOUND_ALERT } };
       }

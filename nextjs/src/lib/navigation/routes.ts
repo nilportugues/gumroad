@@ -404,7 +404,5 @@ export const settings_guardians_path = path("/settings/guardians(.:format)");
 export const disconnect_settings_stripe_path = path("/settings/stripe/disconnect(.:format)");
 export const opt_in_to_au_backtax_collection_settings_payments_path = path("/settings/payments/opt_in_to_au_backtax_collection(.:format)");
 export const remediation_settings_payments_path = path("/settings/payments/remediation(.:format)");
-export const edit_page_path = path("/pages/:slug/edit(.:format)");
 export const cart_items_count_path = path("/cart_items_count(.:format)");
 export const cart_items_count_url = url("/cart_items_count(.:format)");
-export const custom_domain_view_post_path = path("/p/:slug(.:format)");

@@ -53,7 +53,7 @@ async function socialConnectFilters(chain: Chain): Promise<FilterOutcome> {
   const { context } = chain.auth;
   // The page's guard runs after the filters; a request it refuses never reaches the action, so it must
   // leave the session as it found it.
-  if (await socialConnectionsGuard({ context, config, url, urlOptions: defaultUrlOptions(url, config) })) return { state: {} };
+  if (await socialConnectionsGuard({ context, config, url, params: {}, urlOptions: defaultUrlOptions(url, config) })) return { state: {} };
 
   const previous = chain.session.data[SESSION_KEY];
   delete chain.session.data[SESSION_KEY];

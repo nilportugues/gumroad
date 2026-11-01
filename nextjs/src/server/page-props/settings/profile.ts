@@ -15,7 +15,7 @@ import { settingsProfilePolicy } from "../../policies/settings/profile.ts";
 import type { SellerContext } from "../../policies/seller-context.ts";
 import { NotPortedError } from "../not-ported.ts";
 import { avatarUrl } from "../signed-in/presenters.ts";
-import { hasAvatarAttachment } from "../signed-in/reads.ts";
+import { avatarAttachmentOf } from "../signed-in/reads.ts";
 import { getConfig } from "../../infra/config.ts";
 
 type Seller = NonNullable<SellerContext["seller"]>;
@@ -157,7 +157,7 @@ export async function profileProps(context: SellerContext) {
   }
 
   const canEdit = settingsProfilePolicy.update(context);
-  const avatarAttached = await hasAvatarAttachment(seller.id);
+  const avatarAttached = (await avatarAttachmentOf(seller.id)) !== null;
   if (avatarAttached) throw new NotPortedError("ActiveStorage::Attachment#signed_id for an uploaded avatar");
 
   const logoutShared = await sharedProfileProps(seller, { editing: false, canEdit: false, currencyCode: DEFAULT_CURRENCY, tabs });
