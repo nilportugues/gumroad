@@ -141,10 +141,16 @@ class User
   has_many :merchant_accounts
   class_eval(ruby_method("app/models/user.rb", "stripe_account"))
 end
+# The table stores country names; the codes come from Compliance::Countries (the countries gem plus the app's
+# initializer), exactly as app/models/user_compliance_info.rb derives them.
+require "countries"
+require "concurrent"
+load File.join(ROOT, "config/initializers/countries.rb")
+load File.join(ROOT, "lib/utilities/compliance/countries.rb")
 class UserComplianceInfo < ApplicationRecord
   self.table_name = "user_compliance_info"
   belongs_to :user, optional: true
-  class_eval(ruby_method("app/models/user_compliance_info.rb", "legal_entity_country_code"))
+  %w[country_code business_country_code legal_entity_country_code].each { class_eval(ruby_method("app/models/user_compliance_info.rb", _1)) }
 end
 
 module ContentModeration; end
@@ -340,7 +346,7 @@ job_cases["ReleaseChargebackRatePayoutPausesJob"] = [
   end,
 ]
 
-info_fields = %w[id user_id country_code business_country_code is_business]
+info_fields = %w[id user_id country business_country is_business]
 info = ->(*row) { ["SELECT `user_compliance_info`.*", rows(info_fields, row)] }
 account_fields = %w[id user_id charge_processor_id charge_processor_merchant_id country json_data deleted_at charge_processor_alive_at charge_processor_deleted_at]
 alive_at = t["2025-01-01"]
@@ -349,18 +355,29 @@ connect = ->(id, country) { [id, 5, "stripe", "acct_#{id}", country, '{"meta":{"
 accounts = ->(*list) { ["SELECT `merchant_accounts`.*", rows(account_fields, *list)] }
 user_lookup = ["SELECT `users`.*", user_row.(5)]
 drift = ->(name, responder, id = 3) { capture(name, responder, sidekiq: true, args: [id]) { DetectLegalEntityCountryDriftJob.new.perform(id); nil } }
+two_users = [/\ASELECT `users`.*/, [user_row.(5), user_row.(5)]]
+noted = [/\ASELECT 1 AS one FROM `comments`/, rows(["one"], [1])]
 job_cases["DetectLegalEntityCountryDriftJob"] = [
   drift.("compliance info not found", script()),
-  drift.("no user on the compliance info", script(info.(3, nil, "DE", nil, false))),
-  drift.("user missing", script(info.(3, 5, "DE", nil, false))),
-  drift.("no derived country", script(info.(3, 5, nil, nil, false), user_lookup)),
-  drift.("blank business country falls back to the individual one", script(info.(3, 5, "", "", true), user_lookup)),
-  drift.("no stripe account", script(info.(3, 5, "DE", nil, false), user_lookup)),
-  drift.("only a Stripe Connect account", script(info.(3, 5, "DE", nil, false), user_lookup, accounts.(connect.(40, "US")))),
-  drift.("account country blank", script(info.(3, 5, "DE", nil, false), user_lookup, accounts.(managed.(41, nil)))),
-  drift.("countries match", script(info.(3, 5, "DE", nil, false), user_lookup, accounts.(managed.(41, "DE")))),
-  drift.("business country drifted", script(info.(3, 5, "DE", "FR", true), [/\ASELECT `users`.*/, [user_row.(5), user_row.(5)]], accounts.(connect.(40, "US"), managed.(41, "DE")), exists.("users"))),
-  drift.("drift already noted", script(info.(3, 5, "DE", nil, false), [/\ASELECT `users`.*/, [user_row.(5), user_row.(5)]], accounts.(managed.(41, "US")), [/\ASELECT 1 AS one FROM `comments`/, rows(["one"], [1])])),
+  drift.("no user on the compliance info", script(info.(3, nil, "Germany", nil, false))),
+  drift.("user missing", script(info.(3, 5, "Germany", nil, false))),
+  drift.("no country", script(info.(3, 5, nil, nil, false), user_lookup)),
+  drift.("a country name no country has", script(info.(3, 5, "Narnia", nil, false), user_lookup)),
+  drift.("blank country and blank business country", script(info.(3, 5, "", "", true), user_lookup)),
+  drift.("no stripe account", script(info.(3, 5, "Germany", nil, false), user_lookup)),
+  drift.("only a Stripe Connect account", script(info.(3, 5, "Germany", nil, false), user_lookup, accounts.(connect.(40, "US")))),
+  drift.("account country blank", script(info.(3, 5, "Germany", nil, false), user_lookup, accounts.(managed.(41, nil)))),
+  drift.("countries match", script(info.(3, 5, "Germany", nil, false), user_lookup, accounts.(managed.(41, "DE")))),
+  drift.("the country name is matched in any case and without accents", script(info.(3, 5, "TÜRKIYE", nil, false), user_lookup, accounts.(managed.(41, "TR")))),
+  drift.("a former country name resolves to its code", script(info.(3, 5, "Czech Republic", nil, false), user_lookup, accounts.(managed.(41, "CZ")))),
+  drift.("a former country name drifted", script(info.(3, 5, "Czech Republic", nil, false), two_users, accounts.(managed.(41, "DE")), exists.("users"))),
+  drift.("an individual ignores the business country", script(info.(3, 5, "Germany", "France", false), user_lookup, accounts.(managed.(41, "DE")))),
+  drift.("a business with no flag set ignores the business country", script(info.(3, 5, "Germany", "France", nil), user_lookup, accounts.(managed.(41, "DE")))),
+  drift.("a business uses its business country", script(info.(3, 5, "Germany", "France", true), user_lookup, accounts.(managed.(41, "FR")))),
+  drift.("a business with an unknown business country falls back to the country", script(info.(3, 5, "Germany", "Narnia", true), user_lookup, accounts.(managed.(41, "DE")))),
+  drift.("a business with a blank business country falls back to the country", script(info.(3, 5, "Germany", "", true), user_lookup, accounts.(managed.(41, "DE")))),
+  drift.("business country drifted", script(info.(3, 5, "Germany", "France", true), two_users, accounts.(connect.(40, "US"), managed.(41, "DE")), exists.("users"))),
+  drift.("drift already noted", script(info.(3, 5, "Germany", nil, false), two_users, accounts.(managed.(41, "US")), noted)),
 ]
 
 normalize = ["", "plain", "  padded  ", "\n\n\nlead", "a\n\n\nb", "a\n\nb", "a\r\n\r\n\r\nb", "a\r\n\nb", "a\r\n\n\nb", "a\n\r\n\r\nb", "a\u2028\u2028\u2028b",
