@@ -15,12 +15,14 @@ import { asSidekiqJob, contextFor, rubyRuntimeRegistry, sequentialJids, snapshot
 import { sqlReplay, type Statement } from "./__fixtures__/sql-replay.ts";
 import type { Installment } from "@prisma/client";
 
+import { setEsSender, type EsRequest } from "../../server/search/transport.ts";
 import { withJobsRuntime } from "../../server/models/concerns/job-runtime.ts";
 import { Installments, markDeletedBang, unpublishBang } from "../../server/models/installment-writes.ts";
 import { findByIdBang } from "../../server/models/row-reads.ts";
 import { publishScheduledPostJobWith } from "./publish-scheduled-post-job.ts";
 
-type Case = { name: string; kind?: string; params?: Record<string, unknown>; args: JsonValue[]; case_now: unknown; error: { class: string; message: string } | null; statements: Statement[]; redis: RedisSnapshot };
+type EsExchange = { method: string; path: string; query: string | null; body: string | null };
+type Case = { name: string; kind?: string; es?: EsExchange[]; es_body?: unknown; params?: Record<string, unknown>; args: JsonValue[]; case_now: unknown; error: { class: string; message: string } | null; statements: Statement[]; redis: RedisSnapshot };
 const golden = parseRubyJson(readFileSync(new URL("./__fixtures__/publish-scheduled-post.golden.json", import.meta.url), "utf8")) as unknown as { cases: Case[] };
 
 const url = process.env.JOBS_REDIS_URL;
@@ -35,8 +37,8 @@ afterAll(async () => {
   redis.disconnect();
 });
 
-// What installment-writes.ts leaves to Rails: a post that emails its audience, a file, a call to action, a missing slug.
-const HANDED_BACK = new Set(["a post that emails its audience", "a post that only emails a single recipient", "a post with a file", "a post with a call to action", "a post without a slug", "unpublish!: a post that emails its audience"]);
+// What installment-writes.ts leaves to Rails: a filter that asks DynamoDB, a file, a call to action, a missing slug.
+const HANDED_BACK = new Set(["a post that emails and excludes people who clicked another post", "a post with a file", "a post with a call to action", "a post without a slug"]);
 
 const withoutJobIds = (value: unknown) => JSON.stringify(value, (_key, v) => (v instanceof RubyFloat ? v.value : v)).replace(/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}/gu, "JOB_ID");
 const secondsOf = (value: unknown) => (typeof value === "number" ? value : (value as RubyFloat).value);
@@ -49,6 +51,12 @@ describe("PublishScheduledPostJob", () => {
       const now = () => new Date(Math.round(nowSeconds * 1000));
       const sql = sqlReplay(c.statements);
       const runtime = createJobsRuntime({ sidekiqRedis: redis!, bullmqRedis: redis!, registry: rubyRuntimeRegistry(), now: () => nowSeconds, newJid: sequentialJids() });
+      // Elasticsearch answers every request with the case's body, as the recorder's socket did
+      const esSent: EsRequest[] = [];
+      const restoreEs = setEsSender(async (request) => {
+        esSent.push(request);
+        return { status: 200, body: c.es_body ?? {} };
+      });
       let error: unknown = null;
       try {
         if (c.kind === undefined) {
@@ -66,6 +74,8 @@ describe("PublishScheduledPostJob", () => {
         }
       } catch (e) {
         error = e;
+      } finally {
+        restoreEs();
       }
 
       if (HANDED_BACK.has(c.name)) {
@@ -78,6 +88,9 @@ describe("PublishScheduledPostJob", () => {
         return;
       }
 
+      expect(esSent.map((request) => ({ method: request.method, path: request.path, query: new URLSearchParams(request.query ?? {}).toString() || null, body: request.body ?? null }))).toEqual(
+        (c.es ?? []).map(({ method, path, query, body }) => ({ method, path, query, body })),
+      );
       expect(error === null ? null : (error as Error).message).toEqual(c.error?.message ?? null);
       expect(sql.log).toEqual(sql.expected);
       expect(JSON.parse(withoutJobIds(await snapshotRedis(redis!)))).toEqual(JSON.parse(withoutJobIds(c.redis)));

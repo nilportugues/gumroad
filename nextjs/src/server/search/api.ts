@@ -55,6 +55,13 @@ export function search(params: { index: string; body: JsonValue; scroll?: string
   return perform({ method: "POST", path: `/${segment(params.index)}/_search`, query, body: esJson(params.body) });
 }
 
+// `count(index:, terminate_after:, body:)`: terminate_after goes in the query string.
+export function count(params: { index: string; body: JsonValue; terminateAfter?: number }): Promise<EsResponse> {
+  const query: Record<string, string> = {};
+  if (params.terminateAfter !== undefined) query.terminate_after = String(params.terminateAfter);
+  return perform({ method: "POST", path: `/${segment(params.index)}/_count`, query, body: esJson(params.body) });
+}
+
 // `scroll(index:, body: { scroll_id: }, scroll:)`: the index is not part of the 7.x path.
 export function scroll(params: { scrollId: string; scroll: string }): Promise<EsResponse> {
   return perform({ method: "POST", path: "/_search/scroll", query: { scroll: params.scroll }, body: esJson({ scroll_id: params.scrollId }) });

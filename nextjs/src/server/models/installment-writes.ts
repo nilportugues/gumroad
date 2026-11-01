@@ -2,27 +2,34 @@
 // callbacks a save runs. Golden: worker/jobs/__fixtures__/publish-scheduled-post.golden.json (scripts/golden/publish-scheduled-post.rb).
 //
 // What Node cannot prove throws NotPortedError, before the first write of the save:
-// - posts that email their audience (`send_emails`): the sending-limit validation counts the audience in Elasticsearch and the
-//   publish is followed by a PostEmailBlast;
+// - a post whose audience filter Node cannot read (audience-member filters in installment-audience.ts), which the
+//   sending-limit validation needs;
 // - a message Rails::HTML::Sanitizer would have to judge, a call to action, a post without a slug, a post with files (video
 //   transcoding), and a seller that content moderation would review (it asks an AI model).
 import { Prisma, type Installment } from "@prisma/client";
 
 import { INSTALLMENT_ATTRIBUTE_TO_SEARCH_FIELDS } from "../search/documents/simple.ts";
+import { filterCount } from "../search/audience-member-search.ts";
+import { salesCentsTotal } from "../search/purchase-sales.ts";
 import { deletable } from "./concerns/deletable.ts";
+import { jsonData, mergeJsonDataWithCurrentRow } from "./concerns/json-data.ts";
 import { performAsync } from "./concerns/job-runtime.ts";
 import { hasPaperTrail } from "./concerns/paper-trail.ts";
+import { audienceMembersFilterParams } from "./installment-audience.ts";
 import { InstallmentFlags, InstallmentPost } from "./installment-post.ts";
 import { defineModel, type Callback, type SaveOptions } from "./runtime/define-model.ts";
 import type { ModelRecord } from "./runtime/record.ts";
 import { validatesLengthOf } from "./runtime/validators.ts";
 import { column, selectRows, table } from "./sql.ts";
 import { defaultSubscriptionDeps } from "./subscription.ts";
+import { MINIMUM_SALES_CENTS_VALUE, emailSendingOverrideActive } from "./user-email-eligibility.ts";
 import { NotPortedError } from "./user.ts";
 
 type InstallmentModel = ModelRecord<Installment>;
 
 export const INSTALLMENT_NAME_MAX_LENGTH = 255;
+// Installment::SENDING_LIMIT
+export const SENDING_LIMIT = 100;
 // User::VipCreator::VIP_GROSS_PAID_PAYOUTS_THRESHOLD_CENTS
 const VIP_GROSS_PAID_PAYOUTS_THRESHOLD_CENTS = 5_000_000;
 const ELASTICSEARCH_UPDATE_DELAY_SECONDS = 4;
@@ -44,7 +51,14 @@ const refuse = (what: string): never => {
   throw new NotPortedError(what, SOURCE);
 };
 
-const post = (record: InstallmentModel) => new InstallmentPost(record.attributes as Installment);
+const ASSOCIATIONS = "installmentAssociations";
+
+// The associations of one loaded Installment are read once, as ActiveRecord memoizes them on the object.
+export function post(record: InstallmentModel): InstallmentPost {
+  const loaded = new InstallmentPost(record.attributes as Installment);
+  loaded.memo = (record.ivars[ASSOCIATIONS] ??= new Map()) as InstallmentPost["memo"];
+  return loaded;
+}
 const flag = (record: InstallmentModel, name: Parameters<typeof InstallmentFlags.isSet>[1]) => InstallmentFlags.isSet(record.get("flags") as number, name);
 const isPublishing = (record: InstallmentModel) => record.ivars[PUBLISHING] === true;
 const published = (record: InstallmentModel) => record.get("published_at") !== null;
@@ -105,12 +119,24 @@ const validations: Callback<Installment>[] = [
   },
   {
     name: "validate_sending_limit_for_sellers",
-    run(record) {
+    async run(record) {
       if (!flag(record, "send_emails")) return;
       if (record.get("deleted_at") !== null) return;
       if (record.get("installment_type") === "abandoned_cart") return;
       if (flag(record, "single_recipient_email")) return;
-      refuse("a post that emails its audience (validate_sending_limit_for_sellers counts it in Elasticsearch)");
+      const user = await userOf(record);
+      if (await emailSendingOverrideActive(user)) return;
+      // Reading the filters initializes json_data to `{}`, which a save then writes.
+      record.untracked(() => jsonData(record));
+      const params = await audienceMembersFilterParams(post(record));
+      const audience = await filterCount(record.get("seller_id"), params, SENDING_LIMIT + 1);
+      if (audience === null) throw new TypeError("undefined method '>' for nil");
+      if (audience > SENDING_LIMIT && (await salesCentsTotal(user.id)) < MINIMUM_SALES_CENTS_VALUE) {
+        record.errors.add(
+          "base",
+          `<a href='/help/article/269-balance-page' target='_blank' rel='noreferrer'>Sorry, you cannot send out more than ${SENDING_LIMIT} emails until you have $${MINIMUM_SALES_CENTS_VALUE / 100} in total earnings.</a>`,
+        );
+      }
     },
   },
   {
@@ -159,6 +185,7 @@ export const Installments = defineModel<Installment>({
     },
   ],
   validations,
+  beforeSave: [mergeJsonDataWithCurrentRow<Installment>("installments")],
   afterUpdate: [...paperTrail.afterUpdate],
   afterSave: [
     {
