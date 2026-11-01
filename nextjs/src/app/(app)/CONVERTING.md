@@ -117,14 +117,23 @@ user. Nothing per page: `pageEnvelope`/`processAction` and `loadPage` do it all.
 - **What goes to Rails.** A request that only a remember cookie signs in (no usable session) is sent
   to Rails by the route gate: Devise writes the session and the tracked sign-in fields there. Once the
   browser holds the session cookie, Next serves it.
-- **What is not ported (it throws `NotPortedError`, a 500, instead of guessing).** An uploaded avatar
-  (`User#avatar_url` goes through Active Storage variants and the CDN rewrite); `use_store_agent` for
-  a seller with completed payouts (needs `sales_cents_total`, an Elasticsearch aggregate); a US
-  minor's guardian completeness; a seller who cannot publish and has a payout-setup rejection note;
-  `check_suspended` on a non-GET request; `invalidate_session_if_necessary` outside the app hosts; API
-  tokens (`current_api_user`). Port the missing piece before flagging a route whose users hit it.
+- **Ported in WS-53.** `User#avatar_url` and `OauthApplication#icon_url` for uploaded files
+  (`page-props/signed-in/avatar.ts`, `infra/active-storage.ts`, `infra/cdn-url.ts`: the variant record
+  keyed by the Variation's Marshal digest, the public bucket, the same `Rails.cache` entries, the CDN
+  rewrite); `use_store_agent` (`search/purchase-sales.ts`, the `sales_cents_total` aggregations, golden
+  from the real Elasticsearch); a US minor's guardian (`Guardian#has_completed_info?`) and the payout
+  setup rejection note; `check_suspended` on a non-GET request; `invalidate_session_if_necessary` on a
+  host that is not the app's (signs out and carries on); API token authentication as a reusable module
+  (`auth/api-token.ts`: Doorkeeper lookup, MCP binding, brand-token validity, `current_api_user`,
+  `doorkeeper_authorize!` with the v2 overrides, `require_oauth_scope!`).
+- **What is not ported (it throws `NotPortedError`, a 500, instead of guessing).** An avatar variant
+  Rails has not processed yet, or whose file vanished from the bucket (ImageMagick makes it); an
+  attachment on a service other than the environment's; Devise's remember-cookie sign-in. Port the
+  missing piece before flagging a route whose users hit it.
 - **Known differences.** Team members' responses lack Rack::MiniProfiler's `__profilin` cookie, and
-  sign-out writes its `versions` row without the request's IP, path and UUID.
+  sign-out writes its `versions` row without the request's IP, path and UUID. `check_suspended` reads a
+  `format` param from the query only, not a form body; the production public URL assumes the legacy global
+  S3 endpoint (`<bucket>.s3.amazonaws.com`), as the CDN map's keys do.
 
 ## 5. Verify
 
