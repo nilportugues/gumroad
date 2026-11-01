@@ -230,3 +230,31 @@ controllers run filters of their own, so their `PageSpec` carries `options` (`co
   `/dashboard/utm_links`) are not ready to flag on.
 - The visited dashboard nav item is promoted by the render after it built the props
   (`RenderState.promoteNavItemPath`), as Rails promotes in an after_action.
+
+## Buyer pages (WS-61)
+
+GET renders only; every POST/PATCH/PUT/DELETE stays in Rails. Props live in `server/page-props/buyer/`, the controllers' filters in `server/controllers/buyer-pages.ts`, the policies in `server/policies/buyer.ts`. Parity: `spec/requests/buyer_pages_parity_spec.rb`, replayed by `parity/__tests__/buyer-pages.replay.test.ts`.
+
+| Route (flag) | Rails | Notes |
+| --- | --- | --- |
+| `/users/forgot_password/new` (`nextjs_buyer_password_new`) | `User::PasswordsController#new` | Devise `require_no_authentication` reused from the auth pages. |
+| `/users/forgot_password/edit` (`nextjs_buyer_password_edit`) | `User::PasswordsController#edit` | The reset token is digested with `server/auth/devise-token.ts` (needs `DEVISE_SECRET_KEY`). A request without a token goes to Rails (Devise sets a flash). |
+| `/subscriptions/:subscription_id/magic_link/new` (`nextjs_buyer_subscription_magic_link`) | `Subscriptions::MagicLinksController#new` | Signed out or in. An unknown subscription is the 404. |
+| `/purchases/:purchase_id/invoice/confirm` (`nextjs_buyer_invoice_confirm`) | `Purchases::InvoicesController#confirm` | `<Form>` is not in the compat module, so the copy posts through `useForm`. |
+| `/wishlists`, `/wishlists/following` (`nextjs_buyer_wishlists`, `nextjs_buyer_wishlists_following`) | `WishlistsController#index`, `Wishlists::FollowingController#index` | `signedInOnly`. A JSON request goes to Rails. |
+| `/reviews` (`nextjs_buyer_reviews`) | `ReviewsController#index` | `signedInOnly`. |
+| `/library`, `/library/purchase/:id` (`nextjs_buyer_library`) | `LibraryController#index` | `signedInOnly`; see below. |
+
+Signed-in buyer pages share `signedInFilters` (`authenticate_user!`, `RequireAccountEmail`, the Pundit refusal with its role message) instead of `PageSpec.guard`, because a filter can also hand the request back to Rails.
+
+Handed back to Rails (`HandBackToRails`, decided in the filter before the page renders): a library request with `purchase_id` (post-checkout analytics), `bundles` or `subscriptions_only`; a library holding a membership, installment plan or bundle (subscription labels, no-access filtering, replaced bundle rows, ZIP downloads); an unconfirmed account (the page re-sends the confirmation email); non-HTML formats.
+
+Throw `NotPortedError` (500): an uploaded thumbnail, cover preview or avatar (Active Storage variants and the CDN rewrite) and a review with a video (`ProductReviewVideo#video_file.thumbnail_url`).
+
+Not ported, not in `routes.json`:
+
+- `Wishlists/Show` (public, seller subdomains and custom domains): `WishlistPresenter#public_props` needs `ProductPresenter.card_for_web`, `ProfilePresenter#creator_profile` and the discover nav, none of which exist in TypeScript yet.
+- `Subscriptions/Manage`: `CheckoutPresenter#subscription_manager_props` (565 lines: tier and recurrence pricing, offer codes, Stripe/PayPal payment method state and SCA). The token and cookie rules of `SubscriptionsController#check_can_manage` are not ported either.
+- `Purchases/Product/Show`: `ProductPresenter#product_props` deep-merged with `PurchaseProductPresenter`.
+- `Purchases/Invoices/New`: `InvoicePresenter` (form, supplier, seller and order info, tax and currency formatting) and `Charge::Chargeable`.
+- `Purchases/DisputeEvidence/Show` and `Success`: the `SecureExternalId` token (an `ActiveSupport::MessageEncryptor` payload), `DisputeEvidencePagePresenter` and the evidence blobs (Active Storage).
