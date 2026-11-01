@@ -40,6 +40,8 @@ SMTP_SECRETS = {
   "RESEND_CUSTOMERS_API_KEY" => "re-customers-key",
   "RESEND_CUSTOMERS_LEVEL_2_API_KEY" => "re-customers-level-2-key",
   "MAILER_HEADERS_ENCRYPTION_KEY_V1" => "ws35-golden-header-key",
+  "OBFUSCATE_IDS_CIPHER_KEY" => "ws40-golden-obfuscate-key",
+  "OBFUSCATE_IDS_NUMERIC_CIPHER_KEY" => "123456789",
 }.freeze
 
 ENV["RAILS_ENV"] = "production"
@@ -163,7 +165,7 @@ end
 # --- fixtures --------------------------------------------------------------------------------------
 def reset!
   conn = ActiveRecord::Base.connection
-  %w[users links invites marketing_actions].each { |t| conn.execute("DELETE FROM #{t}") }
+  %w[users links invites marketing_actions installments comments communities community_chat_recap_runs community_chat_recaps].each { |t| conn.execute("DELETE FROM #{t}") }
   $redis.flushdb
   $rands.clear
   $rands_used.clear
@@ -348,11 +350,12 @@ def record_message(name, mailer, method, args, features: {}, redis: {}, rands: [
     "returned_message" => result.is_a?(Mail::Message),
     "delivered" => $delivered.dup,
     "redis_after" => $redis.keys("mail_router:*").sort.to_h { [_1, $redis.get(_1)] },
+    "fallback_after" => $redis.keys("email_router_fallback:*").sort.to_h { [_1, [$redis.get(_1), $redis.ttl(_1)]] },
   }
 end
 
 # Warm the schema cache so the recorded statements are the mailers' and jobs' own.
-[User, Link, Marketing::Action, Invite].each { _1.columns; _1.first }
+[User, Link, Marketing::Action, Invite, Installment, Comment, Community, CommunityChatRecapRun, CommunityChatRecap].each { _1.columns; _1.first }
 # Likewise open the job thread's replica and primary connections, which the pools then reuse.
 SidekiqExecutor.perform { User.first; User.transaction { User.first } }
 
@@ -397,6 +400,75 @@ end
 end
 reset!
 messages << record_message("reconnect_missing_action", CreatorMailer, :marketing_x_reconnect, [Hash.ruby2_keywords_hash({ marketing_action_id: 99 })])
+
+# CommentMailer#notify_seller_of_new_comment
+COMMENT_CONTENT = [
+  "Loved it! See https://example.com/a?b=1&c=2, www.example.org and write to fan@example.com.",
+  "",
+  "<b>bold</b> <script>alert(1)</script> & \"quotes\" <a href=\"http://x.com\">http://x.com</a> <pre>www.pre.example.com</pre>",
+  "(http://example.com/Pikachu_(Electric)) <p>unclosed <div>block",
+].join("\n")
+[
+  ["comment_sendgrid", { username: "seller_name", email: "seller@example.com" }, {}, {}, {}],
+  ["comment_resend", { username: "seller", email: "seller@example.com", unconfirmed_email: "seller-new@example.com" }, {}, {}, { "resend" => true, "force_resend" => true }],
+  ["comment_no_username", { email: "seller@example.com" }, {}, {}, {}],
+  ["comment_markup", { username: "seller", email: "seller@example.com" }, { name: "Tom & Jerry's <Guide>", slug: "tom-jerry" },
+   { author_name: "<i>Fan</i> & co", content: COMMENT_CONTENT, created_at: Time.utc(2026, 1, 9, 0, 5, 59) }, {}],
+  ["comment_no_author_name", { username: "seller", email: "seller@example.com" }, {}, { author_name: nil, author_id: 202 }, {}],
+  ["comment_noon", { username: "seller", email: "seller@example.com" }, { slug: "a b/c?d" }, { content: "plain text, no links", created_at: Time.utc(2026, 12, 31, 12, 0, 0) }, {}],
+  ["comment_unicode", { username: "seller", email: "seller@example.com" }, {},
+   { author_name: "Zoë", content: "Café ☕ https://例え.jp/パス\r\nwww.ünï.example.com\r\n\r\n\r\n end" }, {}],
+  ["comment_long_subject",{ username: "seller", email: "seller@example.com" }, { name: "A post whose name is long enough to push the subject past the folding limit" }, {}, {}],
+].each do |name, seller, installment, comment, features|
+  reset!
+  insert_user(id: 201, **seller)
+  Installment.insert!({ id: 401, seller_id: 201, name: "Post 401", message: "<p>m</p>", slug: "post-401", installment_type: "audience",
+                        created_at: FIXED_NOW, updated_at: FIXED_NOW, **installment })
+  Comment.insert!({ id: 501, commentable_id: 401, commentable_type: "Installment", author_name: "Buyer", content: "Nice post!", comment_type: "user_submitted",
+                    created_at: Time.utc(2026, 10, 3, 21, 7, 0), updated_at: FIXED_NOW, **comment })
+  messages << record_message(name, CommentMailer, :notify_seller_of_new_comment, [501], features:)
+end
+
+# TwoFactorAuthenticationMailer#authentication_token
+[
+  ["2fa_default", { email: "user@example.com" }, [101]],
+  ["2fa_provider_nil", { email: "user@example.com" }, [101, Hash.ruby2_keywords_hash({ email_provider: nil })]],
+  ["2fa_resend", { email: "user@example.com" }, [101, Hash.ruby2_keywords_hash({ email_provider: "resend" })]],
+  ["2fa_sendgrid", { email: "user@example.com" }, [101, Hash.ruby2_keywords_hash({ email_provider: "sendgrid" })]],
+  ["2fa_gmx_resend", { email: "user@gmx.de" }, [101, Hash.ruby2_keywords_hash({ email_provider: "resend" })]],
+  ["2fa_invalid_email", { email: "not-an-email" }, [101]],
+  ["2fa_lowercase_padded_secret", { email: "user@example.com", otp_secret_key: "mfrggzdfmztwq2lk====", external_id: "123" }, [101]],
+].each do |name, user, args|
+  reset!
+  insert_user(id: 101, otp_secret_key: "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP", **user)
+  messages << record_message(name, TwoFactorAuthenticationMailer, :authentication_token, args)
+end
+
+# CommunityChatRecapMailer#community_chat_recap_notification
+RECAP_SUMMARY = [
+  "<ul><li>Talked about <strong>pricing</strong> at https://example.com/pricing?a=1&b=2</li><li><em>New</em> launch, see www.example.org</li></ul>",
+  "<p onclick=\"x()\">Para</p> <script>alert(1)</script> <a href=\"javascript:alert(1)\" title=\"t\">bad</a> <img src=x> & more",
+].join("\n")
+[
+  ["recap_daily", { name: "Seller Name" }, { email: "member@example.com" }, ["daily", Time.utc(2026, 10, 30), Time.utc(2026, 10, 30, 23, 59, 59)], [[3, nil], [1, "Second <b>bold</b> recap"]], {}],
+  ["recap_weekly_same_month", { name: "Seller" }, { email: "member@example.com", unconfirmed_email: "member-new@example.com" }, ["weekly", Time.utc(2026, 3, 22), Time.utc(2026, 3, 28)], [[0, RECAP_SUMMARY]], {}],
+  ["recap_weekly_cross_month", { name: "A seller whose name runs long" }, { email: "member@example.com" }, ["weekly", Time.utc(2026, 3, 29), Time.utc(2026, 4, 4)], [[12, "Short"]], {}],
+  ["recap_weekly_cross_year", { name: nil }, { email: "member@example.com" }, ["weekly", Time.utc(2025, 12, 28), Time.utc(2026, 1, 3)], [[2, ""]], {}],
+  ["recap_resend", { name: "Tom & Jerry's <Shop>" }, { email: "member@example.com" }, ["daily", Time.utc(2026, 1, 9, 5), Time.utc(2026, 1, 9, 23)], [[1, nil]], { "resend" => true, "force_resend" => true }],
+].each do |name, seller, member, (frequency, from, to), recaps, features|
+  reset!
+  insert_user(id: 201, **seller)
+  insert_user(id: 202, **member)
+  CommunityChatRecapRun.insert!({ id: 61, recap_frequency: frequency, from_date: from, to_date: to, finished_at: FIXED_NOW, created_at: FIXED_NOW, updated_at: FIXED_NOW })
+  recap_ids = recaps.each_with_index.map do |(count, summary), i|
+    insert_link(id: 301 + i, user_id: 201, name: i.zero? ? "Course & <Guide>" : "Product #{301 + i}")
+    Community.insert!({ id: 71 + i, resource_type: "Link", resource_id: 301 + i, seller_id: 201, created_at: FIXED_NOW, updated_at: FIXED_NOW })
+    CommunityChatRecap.insert!({ id: 81 + i, community_chat_recap_run_id: 61, community_id: 71 + i, seller_id: 201, summarized_message_count: count,
+                                 summary: summary || "Members discussed the launch.", status: "finished", created_at: FIXED_NOW, updated_at: FIXED_NOW })
+    81 + i
+  end
+  messages << record_message(name, CommunityChatRecapMailer, :community_chat_recap_notification, [202, 201, recap_ids.reverse], features:)
+end
 cases["messages"] = messages
 
 # --- jobs ------------------------------------------------------------------------------------------

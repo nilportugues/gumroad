@@ -12,7 +12,7 @@ import { JOB_REGISTRY } from "../../server/jobs/registry.generated.ts";
 import type { JobDefinition } from "../../server/jobs/registry-types.ts";
 import { createJobsRuntime } from "../../server/jobs/runtime.ts";
 import { parseRubyJson, type JsonValue } from "../../server/jobs/sidekiq/ruby-json.ts";
-import { CommentDeletable, Comments, normalizeContent, type CommentRecord } from "../../server/models/comment.ts";
+import { commentMailer, CommentDeletable, Comments, normalizeContent, type CommentRecord } from "../../server/models/comment.ts";
 import { RecordInvalid } from "../../server/models/runtime/errors.ts";
 import { castRow, column, selectRows, table } from "../../server/models/sql.ts";
 import { asSidekiqJob, contextFor, recordingSidekiqRedis, sequentialJids, snapshotRedis, type RedisSnapshot } from "./__fixtures__/golden.ts";
@@ -20,7 +20,15 @@ import { sqlReplay, type Statement } from "./__fixtures__/sql-replay.ts";
 import { contentModerationAdminCommentJobWith, detectLegalEntityCountryDriftJobWith, releaseChargebackRatePayoutPausesJobWith } from "./comment-jobs.ts";
 
 type Outcome = { saved: boolean; full_messages: string[]; attributes: Record<string, JsonValue> };
-type GoldenCase = { name: string; args?: JsonValue[]; error?: { class: string; message: string }; result?: Outcome; statements: Statement[]; redis: RedisSnapshot };
+type GoldenCase = {
+  name: string;
+  args?: JsonValue[];
+  error?: { class: string; message: string };
+  result?: Outcome;
+  statements: Statement[];
+  redis: RedisSnapshot;
+  deliveries?: [string, number][];
+};
 const golden = parseRubyJson(readFileSync(new URL("./__fixtures__/comment.golden.json", import.meta.url), "utf8")) as unknown as {
   now: number;
   model: GoldenCase[];
@@ -89,6 +97,22 @@ const MODEL_CASES: Record<string, () => Promise<[CommentRecord, boolean]>> = {
     const r = Comments.build({ commentable_type: "User", commentable_id: 5n, author_name: "a", comment_type: "note", content: "x", ancestry: "1/x" });
     return [r, await saved(r)];
   },
+  "root comment on a post mails the seller": async () => {
+    const r = Comments.build({ commentable_type: "Installment", commentable_id: 3n, author_name: "Fan", comment_type: "user_submitted", content: "Great post" });
+    return [r, await saved(r)];
+  },
+  "the seller's own comment on their post": async () => {
+    const r = Comments.build({ commentable_type: "Installment", commentable_id: 3n, author_id: 7n, comment_type: "user_submitted", content: "Thanks all" });
+    return [r, await saved(r)];
+  },
+  "a seller with comment emails off": async () => {
+    const r = Comments.build({ commentable_type: "Installment", commentable_id: 3n, author_id: 9n, comment_type: "user_submitted", content: "Great post" });
+    return [r, await saved(r)];
+  },
+  "a reply on a post": async () => {
+    const r = Comments.build({ commentable_type: "Installment", commentable_id: 3n, author_name: "Fan", comment_type: "user_submitted", content: "Agreed", ancestry: "40" });
+    return [r, await saved(r)];
+  },
   "mark_deleted! on a stored comment": async () => {
     const r = await find(21);
     await CommentDeletable.markDeletedBang(r, { now });
@@ -118,8 +142,17 @@ const MODEL_CASES: Record<string, () => Promise<[CommentRecord, boolean]>> = {
 describe("Comment", () => {
   it.each(golden.model.map((c) => [c.name, c] as const))("%s", async (name, c) => {
     const sql = sqlReplay(c.statements);
-    const [record, ok] = await MODEL_CASES[name]!();
+    const deliveries: [string, number][] = [];
+    const deliver = commentMailer.notifySellerOfNewComment;
+    commentMailer.notifySellerOfNewComment = async (id) => deliveries.push(["notify_seller_of_new_comment", Number(id)]);
+    let record: CommentRecord, ok: boolean;
+    try {
+      [record, ok] = await MODEL_CASES[name]!();
+    } finally {
+      commentMailer.notifySellerOfNewComment = deliver;
+    }
     expect(sql.log).toEqual(sql.expected);
+    expect(deliveries).toEqual(c.deliveries ?? []);
     expect(ok).toBe(c.result!.saved);
     expect(record.errors.fullMessages()).toEqual(c.result!.full_messages);
     const expected = c.result!.attributes;

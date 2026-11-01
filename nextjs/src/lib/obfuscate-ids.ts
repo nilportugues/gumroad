@@ -38,7 +38,7 @@ function aesKey(cipherKey: string): Buffer {
   return createHash("sha256").update(cipherKey).digest();
 }
 
-export function encrypt(id: number | bigint, { padding = true }: { padding?: boolean } = {}, keys: Keys = envKeys()): string {
+export function encrypt(id: number | bigint | string, { padding = true }: { padding?: boolean } = {}, keys: Keys = envKeys()): string {
   const cipher = createCipheriv("aes-256-cbc", aesKey(keys.cipherKey), ZERO_IV);
   const encoded = Buffer.concat([cipher.update(id.toString()), cipher.final()]).toString("base64url");
   return padding ? encoded.padEnd(Math.ceil(encoded.length / 4) * 4, "=") : encoded;

@@ -6,9 +6,12 @@
 // Refused with NotPortedError rather than approximated: destroy (ancestry's orphan strategy
 // destroys the subtree), moving a persisted comment (descendants are rewritten after update),
 // writing json_data on a persisted comment (JsonData's row merge), mark_subtree_(un)deleted!, and
-// creating a root `user_submitted` comment, whose after_commit mails the seller (CommentMailer).
+// creating a root `user_submitted` comment on anything but a post (notify_seller_of_new_comment).
 import { type Comment, Prisma } from "@prisma/client";
 
+import { deliverLater } from "../mail/active-job.ts";
+import { mailRoute } from "../mail/delivery.ts";
+import { currentJobsRuntime } from "./concerns/job-runtime.ts";
 import { hasPaperTrail } from "./concerns/paper-trail.ts";
 import { isAdult } from "./concerns/adult-keyword-detector.ts";
 import { deletable } from "./concerns/deletable.ts";
@@ -16,7 +19,7 @@ import { loadBelongsTo } from "./concerns/rails-validations.ts";
 import { defineModel, type Callback, type CallbackContext } from "./runtime/define-model.ts";
 import type { ModelRecord } from "./runtime/record.ts";
 import { isBlank, validatesFormatOf, validatesLengthOf, validatesNumericalityOf, validatesPresenceOf } from "./runtime/validators.ts";
-import { column, table } from "./sql.ts";
+import { column, selectRows, table } from "./sql.ts";
 import { NotPortedError, UserFlags } from "./user.ts";
 
 export type CommentRecord = ModelRecord<Comment>;
@@ -97,8 +100,9 @@ function refuseUnported(record: CommentRecord): void {
     throw new NotPortedError("Moving a comment (ancestry's update_descendants_with_new_ancestry)", "ancestry 4.3.3 instance_methods.rb:9");
   if (record.persisted && record.untracked(() => record.attributeChanged("json_data")))
     throw new NotPortedError("Writing json_data on a stored comment (JsonData#merge_json_data_with_current_row)", "app/models/concerns/json_data.rb");
-  if (record.newRecord && record.get("comment_type") === COMMENT_TYPES.USER_SUBMITTED && isRoot(record))
-    throw new NotPortedError("CommentMailer.notify_seller_of_new_comment", "app/models/comment.rb:107 notify_seller_of_new_comment");
+  // Only a post answers `seller` the way notify_seller_of_new_comment reads it.
+  if (record.newRecord && record.get("comment_type") === COMMENT_TYPES.USER_SUBMITTED && isRoot(record) && record.get("commentable_type") !== "Installment")
+    throw new NotPortedError("notify_seller_of_new_comment for a non-post commentable", "app/models/comment.rb:102 notify_seller_of_new_comment");
 }
 
 // Ancestry#cache_depth, a before_validation and again a before_save.
@@ -128,6 +132,37 @@ async function contentCannotContainAdultKeywords(record: CommentRecord, ctx: Cal
   if (authorRow && UserFlags.isSet(authorRow.flags as bigint, "is_team_member")) return;
   if (!authorRow && record.get("author_name") === CONTENT_MODERATION_AUTHOR_NAME) return;
   if (isAdult(record.get("content"))) record.errors.add("base", "Adult keywords are not allowed");
+}
+
+// `CommentMailer.notify_seller_of_new_comment(id).deliver_later`; swappable for tests.
+export const commentMailer = {
+  notifySellerOfNewComment: async (commentId: unknown): Promise<unknown> =>
+    deliverLater(
+      currentJobsRuntime(),
+      { mailer: "CommentMailer", method: "notify_seller_of_new_comment", args: [Number(commentId)] },
+      mailRoute("CommentMailer", "notify_seller_of_new_comment"),
+    ),
+};
+
+// The belongs_to readers outside the transaction; a nil association raises NoMethodError in Ruby.
+async function findOne(tableName: string, id: unknown, method: string): Promise<Record<string, unknown>> {
+  const [row] =
+    id == null ? [] : await selectRows<Record<string, unknown>>(Prisma.sql`SELECT ${Prisma.raw(`\`${tableName}\`.*`)} FROM ${table(tableName)} WHERE ${column(tableName, "id")} = ${id} LIMIT 1`);
+  if (!row) throw new TypeError(`undefined method '${method}' for nil`);
+  return row;
+}
+
+async function notifySellerOfNewComment(record: CommentRecord): Promise<void> {
+  if (record.get("comment_type") !== COMMENT_TYPES.USER_SUBMITTED || !isRoot(record)) return;
+  // refuseUnported keeps every other commentable out, so this is an Installment.
+  const installment = await findOne("installments", record.get("commentable_id"), "seller");
+  // authored_by_seller?: Integer == Integer, and nil == nil.
+  const sellerId = installment.seller_id == null ? null : String(installment.seller_id);
+  const authorId = record.get("author_id") == null ? null : String(record.get("author_id"));
+  if (sellerId === authorId) return;
+  const seller = await findOne("users", installment.seller_id, "disable_comments_email?");
+  if (UserFlags.isSet(seller.flags as bigint, "disable_comments_email")) return;
+  await commentMailer.notifySellerOfNewComment(record.get("id"));
 }
 
 const paperTrail = hasPaperTrail<Comment>("Comment", { itemType: "Comment" });
@@ -186,6 +221,7 @@ export const Comments = defineModel<Comment>({
   ],
   afterCreate: [...paperTrail.afterCreate],
   afterUpdate: [...paperTrail.afterUpdate],
+  afterCommit: [{ name: "notify_seller_of_new_comment", on: "create", run: notifySellerOfNewComment }],
   // ensure_json_data_fits_column only checks varchar columns (json_data is mediumtext) and
   // touch_ancestors_callback is off without `touch: true`; neither does anything here.
   beforeDestroy: [

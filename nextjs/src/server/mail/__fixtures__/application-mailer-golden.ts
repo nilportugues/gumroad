@@ -32,6 +32,8 @@ export type MessageCase = {
   returned_message: boolean;
   delivered: Delivered[];
   redis_after: Record<string, string>;
+  // EmailRouterFallbackService keys: [value, ttl].
+  fallback_after: Record<string, [string, number]>;
 };
 
 export type JobCase = { name: string; args: JsonValue[]; error: { class: string; message: string } | null; statements: Statement[]; delivered: Delivered[] };

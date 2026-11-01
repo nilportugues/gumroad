@@ -102,14 +102,16 @@ end
 SidekiqExecutor.connect_application_record!
 class User < ApplicationRecord
   include FlagShihTzu
-  # user.rb's bit for is_team_member; the other flags are not read here.
-  has_flags 28 => :is_team_member, column: "flags", check_for_column: false
+  # user.rb's bits for the flags read here.
+  has_flags 21 => :disable_comments_email, 28 => :is_team_member, column: "flags", check_for_column: false
   has_many :comments, as: :commentable
   SYSTEM_PAYOUT_PAUSE_COMMENT_AUTHORS = File.read(File.join(ROOT, "app/modules/user/risk.rb"))[/SYSTEM_PAYOUT_PAUSE_COMMENT_AUTHORS = (\{.*?\})\.freeze/m, 1].then { eval(_1) } # rubocop:disable Security/Eval
 end
 class Link < ApplicationRecord; end
 class Purchase < ApplicationRecord; end
-class Installment < ApplicationRecord; end
+class Installment < ApplicationRecord
+  belongs_to :seller, class_name: "User", optional: true
+end
 
 # The methods DetectLegalEntityCountryDriftJob reads, lifted from their files so they are the real
 # ones; loading the whole models would need Strongbox keys and half the app.
@@ -273,6 +275,23 @@ model_cases << capture("reply past the maximum depth", script(exists.("users")))
 end
 model_cases << capture("malformed ancestry", script(exists.("users"))) do
   comment = build.(commentable_type: "User", commentable_id: 5, author_name: "a", comment_type: "note", content: "x", ancestry: "1/x")
+  outcome(comment, comment.save)
+end
+post = ->(seller_id) { ["SELECT `installments`.*", rows(%w[id seller_id], [3, seller_id])] }
+model_cases << capture("root comment on a post mails the seller", script(exists.("installments"), post.(7), ["SELECT `users`.*", user_row.(7)])) do
+  comment = build.(commentable_type: "Installment", commentable_id: 3, author_name: "Fan", comment_type: "user_submitted", content: "Great post")
+  outcome(comment, comment.save)
+end
+model_cases << capture("the seller's own comment on their post", script(exists.("installments"), post.(7), ["SELECT `users`.*", user_row.(7)])) do
+  comment = build.(commentable_type: "Installment", commentable_id: 3, author_id: 7, comment_type: "user_submitted", content: "Thanks all")
+  outcome(comment, comment.save)
+end
+model_cases << capture("a seller with comment emails off", script(exists.("installments"), post.(7), ["SELECT `users`.*", user_row.(7, 1 << 20)])) do
+  comment = build.(commentable_type: "Installment", commentable_id: 3, author_id: 9, comment_type: "user_submitted", content: "Great post")
+  outcome(comment, comment.save)
+end
+model_cases << capture("a reply on a post", script(exists.("installments"))) do
+  comment = build.(commentable_type: "Installment", commentable_id: 3, author_name: "Fan", comment_type: "user_submitted", content: "Agreed", ancestry: "40")
   outcome(comment, comment.save)
 end
 stored = ->(overrides = {}) { [21, 5, "User", nil, "admin", "Original", "note", nil, t["2025-01-01 10:00:00"], t["2025-01-01 10:00:00"], nil, nil, nil, 0, nil].tap { |row| overrides.each { |i, v| row[comment_fields.index(i)] = v } } }

@@ -17,9 +17,13 @@ import { UnsupportedHtmlError } from "./premailer/html.ts";
 import { UnsupportedSelectorError } from "./premailer/selector.ts";
 import { deserializeArgument, GlobalIdRef, MailArgumentNotPortedError, RubyHash, RubySymbol, type RubyValue } from "./ruby-value.ts";
 import { StylesheetNotPortedError } from "./stylesheet.ts";
+import { ViewHelperNotPortedError } from "./view-helpers.ts";
 import { MailViewNotPortedError } from "./views.ts";
+import { notifySellerOfNewComment } from "./mailers/comment-mailer.ts";
+import { communityChatRecapNotification } from "./mailers/community-chat-recap-mailer.ts";
 import { marketingXReconnect } from "./mailers/creator-mailer.ts";
 import { receiverSignedUp } from "./mailers/invite-mailer.ts";
+import { authenticationToken } from "./mailers/two-factor-authentication-mailer.ts";
 import { confirmationInstructions, type DeviseMailOptions, emailChanged, type SignupMailUser } from "./mailers/user-signup-mailer.ts";
 import { sendSmtp, SmtpError, type SmtpSettings } from "./smtp.ts";
 
@@ -70,13 +74,40 @@ function keywords(args: RubyValue[], names: string[]): Record<string, RubyValue>
   return out;
 }
 
+// `authentication_token(user_id, email_provider: nil)`; the keyword hash is absent when the
+// caller passed no keywords.
+function twoFactorArguments(args: RubyValue[]): [number | bigint, string | null] {
+  const [userId, options, ...rest] = args;
+  if (rest.length > 0) throw new MailJobArgumentsError("arity");
+  if (options === undefined) return [integerArgument(userId), null];
+  const { email_provider: provider = null } = keywords([options], ["email_provider"]);
+  if (provider !== null && typeof provider !== "string") throw new MailJobArgumentsError(`email_provider ${JSON.stringify(provider)} not ported`);
+  return [integerArgument(userId), provider];
+}
+
 // Mailer methods the Node worker renders. Everything else stays with Rails.
 const NODE_MAILERS: Record<string, Record<string, MailerMethod>> = {
+  CommentMailer: {
+    notify_seller_of_new_comment: (args, deps) =>
+      args.length === 1 ? notifySellerOfNewComment(integerArgument(args[0]), deps) : Promise.reject(new MailJobArgumentsError("arity")),
+  },
+  CommunityChatRecapMailer: {
+    community_chat_recap_notification: ([userId, sellerId, recapIds, ...rest], deps) => {
+      if (rest.length > 0 || !Array.isArray(recapIds)) return Promise.reject(new MailJobArgumentsError("arity"));
+      return communityChatRecapNotification(integerArgument(userId), integerArgument(sellerId), recapIds.map(integerArgument), deps);
+    },
+  },
   CreatorMailer: {
     marketing_x_reconnect: (args, deps) => marketingXReconnect(integerArgument(keywords(args, ["marketing_action_id"]).marketing_action_id), deps),
   },
   InviteMailer: {
     receiver_signed_up: (args, deps) => (args.length === 1 ? receiverSignedUp(integerArgument(args[0]), deps) : Promise.reject(new MailJobArgumentsError("arity"))),
+  },
+  TwoFactorAuthenticationMailer: {
+    authentication_token: (args, deps) => {
+      const [userId, emailProvider] = twoFactorArguments(args);
+      return authenticationToken(userId, emailProvider, args, deps);
+    },
   },
   UserSignupMailer: {
     confirmation_instructions: async ([user, token, options]) => confirmationInstructions(await locateUser(user), token as string, deviseOptions(options)),
@@ -127,7 +158,7 @@ const defaultDeps: MailDeliveryDeps = {
 const RESCUED: readonly string[] = ["Net::SMTPAuthenticationError", "Net::SMTPSyntaxError", "Net::SMTPFatalError"];
 
 // Input the port cannot reproduce exactly; Rails renders those.
-const NOT_PORTED = [MailJobArgumentsError, MailArgumentNotPortedError, MailViewNotPortedError, MimeNotPortedError, StylesheetNotPortedError, UnsupportedHtmlError, UnsupportedSelectorError];
+const NOT_PORTED = [MailJobArgumentsError, MailArgumentNotPortedError, MailViewNotPortedError, ViewHelperNotPortedError, MimeNotPortedError, StylesheetNotPortedError, UnsupportedHtmlError, UnsupportedSelectorError];
 export const isNotPorted = (error: unknown) => NOT_PORTED.some((type) => error instanceof type);
 
 // Render and compose: undefined when the method sends nothing, null when Mail would refuse the

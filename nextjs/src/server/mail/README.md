@@ -57,13 +57,19 @@ the only ones that write those ids, so for every ported mailer the observer does
 
 ## What is refused
 
-- Markup libxml2 would restructure (implied or auto-closed elements, unknown entities), CSS
-  selectors outside the ported Nokogiri subset, remote or missing stylesheets.
+- `<style>` or `<script>` content holding `<` or `&` (premailer re-parses it as markup), elements
+  nested deeper than libxml2's 256, CSS selectors outside the ported Nokogiri subset, remote or
+  missing stylesheets. Everything else goes through the port of libxml2's HTML parser in
+  `src/server/html/`, restructuring included.
 - Headers the mail gem would RFC 2047-encode or decode (non-ASCII, CR/LF, `=?`), addresses other
   than `addr` and `Name <addr>` in ASCII, more than one recipient, cc/bcc, single-part messages.
   Long ASCII headers are folded as `UnstructuredField#fold` does.
 - Mailer arguments whose Ruby `#inspect` is not ported: records (GlobalID), floats, non-ASCII strings.
 - The email layout outside production: it adds a non-ASCII environment banner.
+- CommentMailer for a comment on anything but a post; CommunityChatRecapMailer for a community
+  whose resource is not a product, a nil summary, or empty or repeated recap ids;
+  TwoFactorAuthenticationMailer for a user without an OTP secret or an unknown `email_provider`;
+  and view helper inputs `view-helpers.ts` does not cover (`ViewHelperNotPortedError`).
 
 ## Behaviour kept from Ruby on purpose
 
