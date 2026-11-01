@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { closeAllRedis } from "@/server/infra/redis";
 
 import { prismaExecutor, type SqlExecutor } from "../src/db";
-import { bulkIndex, ELASTICSEARCH_HOST, recreateIndex, replayIndexName, seededDocuments } from "../src/elasticsearch";
+import { bulkIndex, ELASTICSEARCH_HOST, recreateIndex, reindexPurchases, replayIndexName, seededDocuments } from "../src/elasticsearch";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
@@ -24,12 +24,13 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
-const SPECS = ["audience_dashboard_signed_in_spec", "seller_payment_details_signed_in_spec"];
+const SPECS = ["audience_dashboard_signed_in_spec", "seller_payment_details_signed_in_spec", "churn_signed_in_spec"];
 // The port makes no Stripe call: a flagged seller whose merchant account Stripe would be asked about, or who has a
-// requested compliance request, is handed to Rails whole. Those examples are proven by the request reaching Rails.
-const HANDED_BACK = /asks-stripe|sends-a-seller-stripe-has-asked/;
+// requested compliance request, and a large seller (whose ranges Rails caches), are handed to Rails whole. Those
+// examples are proven by the request reaching Rails.
+const HANDED_BACK = /asks-stripe|sends-a-seller-stripe-has-asked|large-seller/;
 const RAILS_ANSWER = "rails answered";
-const ROUTE_FLAGS = "nextjs_audience";
+const ROUTE_FLAGS = "nextjs_audience,nextjs_churn";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "-parity";
@@ -88,6 +89,10 @@ describe.skipIf(!url)("seller dashboards parity when signed in", () => {
     });
     await new Promise<void>((resolve) => rails.listen(0, "127.0.0.1", resolve));
     const railsOrigin = `http://127.0.0.1:${(rails.address() as { port: number }).port}`;
+    // The port's models, which the replay uses to build documents, connect through DATABASE_URL.
+    process.env.DATABASE_URL = url;
+    process.env.ELASTICSEARCH_HOST = ELASTICSEARCH_HOST;
+    process.env.ES_INDEX_SUFFIX = ES_INDEX_SUFFIX;
     client = new PrismaClient({ datasourceUrl: url });
     sql = prismaExecutor(client);
     es = new ElasticsearchClient({ node: ELASTICSEARCH_HOST });
@@ -142,6 +147,9 @@ describe.skipIf(!url)("seller dashboards parity when signed in", () => {
               const events = { model: "ConfirmedFollowerEvent", name: replayIndexName("confirmed_follower_events", ES_INDEX_SUFFIX) } as const;
               await recreateIndex(es, events);
               await bulkIndex(es, events.name, seededDocuments(exchange, "ConfirmedFollowerEvent", now).map((body) => ({ body })));
+              const purchases = { model: "Purchase", name: replayIndexName("purchases", ES_INDEX_SUFFIX) } as const;
+              await recreateIndex(es, purchases);
+              await reindexPurchases(es, purchases.name, sql);
             },
           },
           transport: httpTransport(server.baseUrl),
@@ -150,7 +158,7 @@ describe.skipIf(!url)("seller dashboards parity when signed in", () => {
           compare: _name.includes("404") ? { ignore: [...COMPARE.ignore, "response.body"] } : COMPARE,
         });
         if (HANDED_BACK.test(_name)) {
-          expect(railsRequests.at(-1)).toMatchObject({ method: "GET", url: "/dashboard/audience", host: "app.test.gumroad.com:31337" });
+          expect(railsRequests.at(-1)).toMatchObject({ method: "GET", url: result.exchanges[0]!.expected.request.path, host: "app.test.gumroad.com:31337" });
           expect(result.exchanges[0]!.actual.response.body).toBe(RAILS_ANSWER);
         } else {
           assertParity(result);

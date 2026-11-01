@@ -4,12 +4,14 @@ import type { User } from "@prisma/client";
 
 import { setCookieHeader } from "../../controllers/rack-cookies.ts";
 import { authorize } from "../../policies/authorize.ts";
-import { audiencePolicy } from "../../policies/seller-analytics.ts";
+import { audiencePolicy, churnPolicy } from "../../policies/seller-analytics.ts";
 import { sellerGuard } from "../audience/seller-guard.ts";
 import { checkPaymentDetails } from "../audience/payment-requirements.ts";
 import { always, defer } from "../lazy-props.ts";
 import type { PageSpec } from "../pages.ts";
 import { audienceData, audienceRange, totalFollowerCount } from "./audience.ts";
+import { churnData, churnParams } from "./churn.ts";
+import { handBackLargeSeller } from "./seller-analytics.ts";
 
 const seller = (context: { currentSeller: User | null }) => context.currentSeller!;
 const queryOf = (url: URL) => ({ queryString: url.search.replace(/^\?/, "") });
@@ -40,6 +42,24 @@ const audienceIndex: PageSpec = {
   },
 };
 
+// ChurnController#show: check_payment_details, `authorize :churn`, then LargeSeller.create_if_warranted.
+const churnShow: PageSpec = {
+  component: "Churn/Show",
+  guard: (info) =>
+    sellerGuard(info, (context) => authorize(churnPolicy.show, context), {
+      beforeAuthorize: async (context) => {
+        await checkPaymentDetails(context);
+      },
+      afterAuthorize: async (context) => {
+        // A date Ruby may read differently, or a seller whose ranges Rails caches, is Rails' to answer.
+        churnParams(queryOf(info.url));
+        await handBackLargeSeller(context);
+      },
+    }),
+  props: async (_, { context, url }) => ({ churn: await churnData(seller(context), churnParams(queryOf(url))) }),
+};
+
 export const ANALYTICS_PAGES: Record<string, PageSpec> = {
   "/dashboard/audience": audienceIndex,
+  "/dashboard/churn": churnShow,
 };

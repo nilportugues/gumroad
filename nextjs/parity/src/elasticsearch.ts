@@ -4,7 +4,11 @@
 // the settings and mappings Rails' test indices carry.
 import { Client } from "@elastic/elasticsearch";
 
+import { PurchaseRecord } from "@/server/search/documents/purchase";
+import { esJson, type JsonValue } from "@/server/search/es-json";
+
 import { resolveTimeToken } from "./canonical";
+import type { SqlExecutor } from "./db";
 import type { Exchange } from "./fixture";
 
 export const ELASTICSEARCH_HOST = process.env.ELASTICSEARCH_HOST ?? "http://localhost:9200";
@@ -50,7 +54,20 @@ export function seededDocuments(exchange: Exchange, model: ReplayModel, now: Dat
 
 export async function bulkIndex(es: Client, index: string, documents: { id?: string; body: Record<string, unknown> }[]): Promise<void> {
   if (documents.length === 0) return;
-  const body = documents.flatMap(({ id, body: document }) => [{ index: { _index: index, ...(id === undefined ? {} : { _id: id }) } }, document]);
-  const result = await es.bulk({ body, refresh: true });
+  // Documents may hold bigints and Ruby floats, which only the port's own serializer writes.
+  const lines = documents.flatMap(({ id, body: document }) => [{ index: { _index: index, ...(id === undefined ? {} : { _id: id }) } }, document]);
+  const result = await es.bulk({ body: `${lines.map((line) => esJson(line as JsonValue)).join("\n")}\n`, refresh: true });
   if (result.body.errors) throw new Error(`Bulk indexing into ${index} failed: ${JSON.stringify(result.body.items.find((item: Record<string, { error?: unknown }>) => item.index?.error))}`);
+}
+
+// The purchases index from the seeded rows, with the documents the port's own indexer builds (as_indexed_json).
+// The vitest process reads the same database as the server (DATABASE_URL).
+export async function reindexPurchases(es: Client, index: string, sql: SqlExecutor): Promise<void> {
+  const rows = await sql.query("SELECT id FROM purchases ORDER BY id");
+  const documents: { id: string; body: Record<string, unknown> }[] = [];
+  for (const { id } of rows) {
+    const record = await PurchaseRecord.find(id);
+    if (record) documents.push({ id: String(id), body: await record.asIndexedJson() });
+  }
+  await bulkIndex(es, index, documents);
 }

@@ -40,7 +40,7 @@ export async function sellerGuard(
   authorization: SellerGuardStep,
   // `beforeAuthorize`: the controller's own before_actions that sit between `authenticate_user!` and the
   // action's `authorize` (`check_payment_details`); one may throw HandBackToRails.
-  { requireAccountEmail = true, beforeAuthorize }: { requireAccountEmail?: boolean; beforeAuthorize?: SellerGuardStep } = {},
+  { requireAccountEmail = true, beforeAuthorize, afterAuthorize }: { requireAccountEmail?: boolean; beforeAuthorize?: SellerGuardStep; afterAuthorize?: SellerGuardStep } = {},
 ): Promise<Redirected | null> {
   const loggedIn = railsLoggedInUser(context);
 
@@ -62,6 +62,7 @@ export async function sellerGuard(
     const flash = url.searchParams.get("account_switched") ? undefined : { alert: notAllowedMessage(sellerContext) };
     return { status: 302, location: Routes.dashboard_url(urlOptions), flash, rescued: true };
   }
+  await afterAuthorize?.(sellerContext);
   return null;
 }
 

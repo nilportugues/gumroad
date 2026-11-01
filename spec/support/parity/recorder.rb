@@ -119,7 +119,7 @@ module Parity
         },
         "redis" => redis_before.presence,
         "elasticsearch" => elasticsearch_before.presence,
-        "request" => request_json(context.request, source),
+        "request" => request_json(context.request, source, now),
         "response" => response_json(context.response, now),
         "db" => Canonical.diff(before, after, now),
         "jobs" => @jobs.map { job_json(_1, now) },
@@ -217,7 +217,7 @@ module Parity
         }
       end
 
-      def request_json(request, source)
+      def request_json(request, source, now)
         env = request.env
         headers = env.filter_map do |key, value|
           next unless key.start_with?("HTTP_") && key != "HTTP_COOKIE"
@@ -231,11 +231,19 @@ module Parity
           "source" => source,
           "method" => request.request_method,
           "path" => request.path,
-          "query" => request.query_string.presence,
+          "query" => query_with_date_tokens(request.query_string, now).presence,
           "headers" => headers.sort.to_h,
           "cookies" => parse_cookie_header(env["HTTP_COOKIE"]),
           "remoteIp" => request.remote_ip,
         }.merge(body_field(body)).compact
+      end
+
+      # A date a query parameter holds is as relative to the recording as the rows are: the replayer resolves the
+      # token against its own clock.
+      def query_with_date_tokens(query, now)
+        query.to_s.gsub(/(?<==)(\d{4}-\d{2}-\d{2})(?=&|\z)/) { Canonical.date_token(Date.iso8601(_1), now) }
+      rescue Date::Error
+        query
       end
 
       def body_field(body)
