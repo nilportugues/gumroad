@@ -4,7 +4,7 @@ import { queryParam } from "../../controllers/rails-request.ts";
 import { balancePolicy } from "../../policies/balance.ts";
 import { lazy, merge } from "../lazy-props.ts";
 import type { PageSpec } from "../pages.ts";
-import { planPayouts, payoutsProps, type PayoutsPlan } from "./payouts.ts";
+import { planPayouts, payoutsProps } from "./payouts.ts";
 
 // Sellers::BaseController (RequireAccountEmail, authenticate_user!), then the action's `authorize :balance`.
 // The plan is built here because what it cannot answer (daily payouts, instant payout eligibility, a cached
@@ -13,7 +13,12 @@ const PAYOUTS_OPTIONS = {
   filters: signedInFilters({
     requireAccountEmail: true,
     authorize: balancePolicy.index,
-    state: async (chain, context) => ({ plan: await planPayouts(context.seller!, queryParam(chain.request, "page") ?? null) }),
+    // The plan is rebuilt by the props: render state travels as JSON, which holds neither ids nor dates.
+    state: async (chain, context) => {
+      const page = queryParam(chain.request, "page") ?? null;
+      await planPayouts(context.seller!, page);
+      return { page };
+    },
   }),
 };
 
@@ -21,9 +26,9 @@ export const PAYOUTS_PAGES: Record<string, PageSpec> = {
   "/payouts": {
     component: "Payouts/Index",
     options: PAYOUTS_OPTIONS,
-    props: (_, action) => {
+    props: async (_, action) => {
       action.meta.set({ title: "Payouts" });
-      const props = payoutsProps(action.state.plan as PayoutsPlan);
+      const props = payoutsProps(await planPayouts(action.context.currentSeller!, (action.state.page as string | null) ?? null));
       let rest: ReturnType<typeof props.rest> | undefined;
       const shared = () => (rest ??= props.rest());
       const pick = (key: string) => async () => (await shared())[key];

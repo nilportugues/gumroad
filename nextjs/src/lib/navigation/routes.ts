@@ -407,3 +407,5 @@ export const remediation_settings_payments_path = path("/settings/payments/remed
 export const cart_items_count_path = path("/cart_items_count(.:format)");
 export const cart_items_count_url = url("/cart_items_count(.:format)");
 export const instant_payouts_path = path("/instant_payouts(.:format)");
+export const payouts_exportables_path = path("/payouts/exportables(.:format)");
+export const payouts_exports_path = path("/payouts/exports(.:format)");

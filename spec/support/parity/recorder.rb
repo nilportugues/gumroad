@@ -159,6 +159,8 @@ module Parity
         "sessionCookie" => Rails.application.config.session_options[:key],
         # Test-only: lets the replayer re-encrypt the recorded cookies for its own secret.
         "secretKeyBase" => Rails.application.secret_key_base,
+        # The UTC day of the recording, for replays that move formatted dates by the days since.
+        "recordedOn" => Time.now.utc.to_date.to_s,
         "exchanges" => @exchanges,
       }
     end
