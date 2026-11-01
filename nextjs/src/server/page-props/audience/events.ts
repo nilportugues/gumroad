@@ -2,17 +2,14 @@
 // workflows_view, emails_view): an `events` row describing the request.
 import { Prisma } from "@prisma/client";
 import { createHash } from "node:crypto";
-import { existsSync } from "node:fs";
-import path from "node:path";
 
 import type { RequestContext } from "@/server/auth/context";
 
 import { railsLoggedInUser } from "../../auth/resolve.ts";
-import { railsRoot } from "../../infra/rails-env.ts";
+import { geoIpLookup } from "../../infra/geo-ip.ts";
 import { isInvalidUriError, rubyUriParse } from "../../models/concerns/ruby-uri.ts";
 import { column, execute, table } from "../../models/sql.ts";
 import { isMobile } from "../shared.ts";
-import { NotPortedError } from "../not-ported.ts";
 import type { RenderState } from "../../controllers/application-controller.ts";
 import { rackParam, type QuerySource } from "./support.ts";
 
@@ -66,13 +63,6 @@ function param(request: QuerySource, name: string): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
-// GeoIp.lookup: nil without lib/GeoIP2-City.mmdb (development and test); reading the MaxMind
-// database is not ported.
-function geoIpLookup(): null {
-  if (existsSync(path.join(railsRoot(), "lib", "GeoIP2-City.mmdb"))) throw new NotPortedError("GeoIp.lookup (the MaxMind GeoIP2 reader)");
-  return null;
-}
-
 export type EventSource = {
   context: RequestContext;
   headers: Headers;
@@ -86,7 +76,8 @@ export async function createUserEvent(name: string, { context, headers, url, sta
   const user = railsLoggedInUser(context);
   const query: QuerySource = { queryString: url.search.replace(/^\?/, "") };
 
-  geoIpLookup();
+  const ip = remoteIp(headers);
+  const geo = geoIpLookup(ip);
   const userAgent = headers.get("user-agent");
   const requestReferrer = headers.get("referer");
   const referrers = (() => {
@@ -110,7 +101,7 @@ export async function createUserEvent(name: string, { context, headers, url, sta
   const now = new Date();
   const values: Record<string, unknown> = {
     visit_id: visitId,
-    ip_address: remoteIp(headers),
+    ip_address: ip,
     event_name: name,
     user_id: user?.id ?? null,
     link_id: null,
@@ -121,14 +112,14 @@ export async function createUserEvent(name: string, { context, headers, url, sta
     browser: userAgent,
     is_mobile: isMobile(state?.mobileParam, userAgent),
     view_url: param(query, "view_url") ?? url.pathname,
-    ip_country: null,
+    ip_country: geo?.countryName ?? null,
     ip_longitude: 0,
     ip_latitude: 0,
     is_modal: castBoolean(param(query, "is_modal")),
     browser_fingerprint: createHash("md5").update([userAgent ?? "", plugins ?? ""].join(",")).digest("hex"),
     browser_guid: cookies.get("_gumroad_guid") ?? state?.mintedGuid ?? null,
     referrer_domain: wasProductRecommended ? REFERRER_DOMAIN_FOR_GUMROAD_RECOMMENDED_PRODUCTS : referrerDomain(referrer),
-    ip_state: null,
+    ip_state: geo?.regionName ?? null,
     price_cents: null,
   };
   const names = Object.keys(values);

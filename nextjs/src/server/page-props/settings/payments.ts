@@ -2,12 +2,9 @@
 //
 // Constant lists and per-country tables come from payments-data.generated.json
 // (scripts/dump-payments-data.rb). What this does not port throws NotPortedError instead of guessing:
-//   - a GeoIP2 city database on disk (`ip_country_code`),
 //   - a connected Stripe account's active subscriber and preorder check,
 //   - instant payouts for a seller who passes the first eligibility checks (account seasoning),
 //   - the payout date of a rejected account, a bank sync failure note, a verification error message,
-import { existsSync } from "node:fs";
-import path from "node:path";
 
 import { Prisma, type BankAccount, type CreditCard, type Guardian, type MerchantAccount, type User } from "@prisma/client";
 
@@ -15,7 +12,7 @@ import { db } from "../../../lib/db.ts";
 import { encrypt as externalId } from "../../../lib/obfuscate-ids.ts";
 import { getConfig } from "../../infra/config.ts";
 import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
-import { railsRoot } from "../../infra/rails-env.ts";
+import { geoIpLookup } from "../../infra/geo-ip.ts";
 import { formattedDollarAmount, getRate } from "../../models/concerns/currency-helper.ts";
 import { alpha2ByName, mapping } from "../../models/compliance-countries.ts";
 import { aliveStripeAccountsOf, isStripeConnectAccount, type MerchantAccountRow } from "../../models/merchant-account.ts";
@@ -54,7 +51,6 @@ const NATIONALITY_FIELDS = ["nationality", "individual.nationality"];
 const PAYOUT_PAUSE_SOURCE = { STRIPE: "stripe", SYSTEM: "system", ADMIN: "admin", USER: "user" } as const;
 const SYSTEM_PAUSE_AUTHORS_THAT_PAUSE = ["pause_payouts_after_repeated_failures", "pause_payouts_for_seller_based_on_chargeback_rate"];
 const SOCIAL_CONNECT_SURFACE = "account_review";
-const GEOIP_DATABASE = "lib/GeoIP2-City.mmdb";
 // Settings::PaymentsController: the individual tax id is asked for in these countries.
 const INDIVIDUAL_TAX_ID_NEEDED_COUNTRIES = ["US", "CA", "HK", "SG", "AE", "MX", "BD", "MZ", "UY", "AR", "PE", "CR", "CL", "CO", "GT", "DO", "BO", "KZ", "PY", "PK"];
 
@@ -649,11 +645,6 @@ async function legalGuardianDetails(facts: Facts) {
   };
 }
 
-// GeoIp.lookup: Rails has no reader when lib/GeoIP2-City.mmdb is absent, and every lookup is nil.
-function ipCountryCode(): null {
-  if (existsSync(path.join(railsRoot(), GEOIP_DATABASE))) throw new NotPortedError("GeoIp.lookup (the GeoIP2 city database)");
-  return null;
-}
 
 // User#instant_payouts_supported?: false unless the first eligibility checks hold.
 async function instantPayoutsSupported(facts: Facts): Promise<boolean> {
@@ -666,7 +657,7 @@ async function instantPayoutsSupported(facts: Facts): Promise<boolean> {
 }
 const legalEntityCountryCodeOf = (facts: Facts) => facts.aliveInfo && legalEntityCountryCode(facts.aliveInfo);
 
-export async function paymentsProps(context: SellerContext, { impersonating, now = new Date() }: { impersonating: boolean; now?: Date }) {
+export async function paymentsProps(context: SellerContext, { impersonating, remoteIp, now = new Date() }: { impersonating: boolean; remoteIp: string | null; now?: Date }) {
   const seller = context.seller!;
   const info = await fetchOrBuildComplianceInfo(seller.id);
   const bankAccount = await db.bankAccount.findFirst({ where: { user_id: Number(seller.id), deleted_at: null }, orderBy: { id: "asc" } });
@@ -688,7 +679,7 @@ export async function paymentsProps(context: SellerContext, { impersonating, now
     // People's addresses and nationalities are not compliance countries, so they keep the full list.
     person_countries: pairsToObject(DATA.personCountries),
     representative_countries: pairsToObject(DATA.representativeCountries),
-    ip_country_code: ipCountryCode(),
+    ip_country_code: geoIpLookup(remoteIp)?.countryCode ?? null,
     bank_account_details: await bankAccountDetails(facts),
     paypal_address: seller.payment_address,
     fee_info: await feeInfo(facts),

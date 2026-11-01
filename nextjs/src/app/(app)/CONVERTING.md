@@ -267,7 +267,11 @@ Not ported, not in `routes.json`:
 - **Constant data.** Country lists, subdivisions, business types, each country's payout currency and
   cross-border minimum, and each bank account class's `routing_number` template come from
   `settings/payments-data.generated.json`; re-run `scripts/dump-payments-data.rb` when they change.
-- **What still throws `NotPortedError`**: a GeoIP2 city database on disk (`ip_country_code`); the
+- **GeoIP (WS-75).** `infra/geo-ip.ts` is `GeoIp.lookup` over `lib/GeoIP2-City.mmdb` (mmdb-lib; nil without the file),
+  used by `ip_country_code` here and the `events` row of the dashboard views. `infra/geo-ip.test.ts` replays
+  `scripts/golden/geo-ip.rb` (47 addresses, odd forms included, over the maxmind-geoip2 gem's GeoLite2 test database in
+  `infra/__fixtures__`). Rails' latitude and longitude are always nil (`santitize_string` `try(:encode)` on a Float).
+- **What still throws `NotPortedError`**: the
   active-subscriber check of a seller whose Stripe Connect account routes sales; instant payouts for a seller
   who passes the first eligibility checks; the payout date of a rejected account that is not paused; a bank
   sync failure note and a verification error message; a profile with saved sections, a membership product,
