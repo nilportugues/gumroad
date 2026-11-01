@@ -152,6 +152,7 @@ describe("matchPagePath", () => {
 
   it("does not match a format suffix or another path", () => {
     expect(matchPagePath("/help/article/10-dealing-with-vat.html")).toBeNull();
-    expect(matchPagePath("/discover")).toBeNull();
+    expect(matchPagePath("/discover")?.pattern).toBe("/discover");
+    expect(matchPagePath("/3d/3d-modeling")).toMatchObject({ pattern: "/*taxonomy", params: { taxonomy: "3d/3d-modeling" } });
   });
 });

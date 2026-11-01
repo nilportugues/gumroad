@@ -198,7 +198,8 @@ export function matchPagePath(pathname: string, scope: PageScope = "gumroad"): {
         // `*name` takes the rest of the path, as in route-table.ts.
         if (segment.startsWith("*")) {
           names.push(segment.slice(1));
-          return "(.+)";
+          // Rails reads a trailing `.ext` as the format, so a glob never spans one.
+          return "([^.?]+)";
         }
         if (!segment.startsWith(":")) return segment.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         names.push(segment.slice(1));
