@@ -14,56 +14,15 @@
 abort "Refusing to run outside the test environment" unless Rails.env.test?
 abort "Refusing to truncate #{ActiveRecord::Base.connection.current_database}" unless ActiveRecord::Base.connection.current_database == "gumroad_ws65"
 
-require "net/http"
-require "socket"
-require "json"
+require_relative "es_recording_proxy"
 require "active_support/testing/time_helpers"
 include ActiveSupport::Testing::TimeHelpers
 
-REAL_ES = URI(ENV.fetch("ELASTICSEARCH_HOST"))
 FIXED_NOW = Time.utc(2026, 10, 1, 12, 0, 0)
 travel_to(FIXED_NOW)
 
-# --- Elasticsearch proxy ----------------------------------------------------------------------------
-module EsProxy
-  class << self
-    attr_accessor :on
-    def log = (@log ||= [])
+connect_recording_client!
 
-    def start
-      server = TCPServer.new("127.0.0.1", 0)
-      Thread.new { loop { Thread.new(server.accept) { |socket| serve(socket) } } }
-      server.addr[1]
-    end
-
-    def serve(socket)
-      loop do
-        line = socket.gets or break
-        method, target = line.split(" ")
-        headers = {}
-        while (header = socket.gets) && header != "\r\n"
-          key, value = header.split(": ", 2)
-          headers[key.downcase] = value.strip
-        end
-        body = headers["content-length"] ? socket.read(headers["content-length"].to_i) : nil
-        request = Net::HTTP.const_get(method.capitalize).new(target)
-        request["content-type"] = headers["content-type"] if headers["content-type"]
-        request.body = body
-        response = Net::HTTP.start(REAL_ES.host, REAL_ES.port) { _1.request(request) }
-        path, query = target.split("?", 2)
-        log << { "method" => method, "path" => path, "query" => query, "body" => body, "status" => response.code.to_i, "response" => response.body.to_s } if on
-        socket.write("HTTP/1.1 #{response.code} X\r\nContent-Type: application/json\r\nContent-Length: #{response.body.to_s.bytesize}\r\nConnection: close\r\n\r\n#{response.body}")
-        break
-      end
-    ensure
-      socket.close
-    end
-  end
-end
-port = EsProxy.start
-Object.send(:remove_const, :EsClient)
-EsClient = Elasticsearch::Model.client = Elasticsearch::Client.new(host: "http://127.0.0.1:#{port}", retry_on_failure: 5, transport_options: { request: { timeout: 15 } })
-[Link, Purchase, Installment, AudienceMember, ConfirmedFollowerEvent, ProductPageView].each { _1.__elasticsearch__.client = EsClient }
 
 Link.index_name("ws65-link")
 Link.__elasticsearch__.create_index!(force: true)
