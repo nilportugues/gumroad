@@ -521,3 +521,7 @@ export const finalize_order_path = path("/orders/:id/finalize(.:format)");
 export const receipt_purchase_path = path("/purchases/:id/receipt(.:format)");
 export const connect_paypal_path = path("/paypal/connect(.:format)");
 export const discover_search_autocomplete_path = path("/discover_search_autocomplete(.:format)");
+export const dashboard_download_tax_form_path = path("/dashboard/download_tax_form(.:format)");
+export const dashboard_dismiss_getting_started_checklist_path = path("/dashboard/dismiss_getting_started_checklist(.:format)");
+export const posts_path = path("/posts(.:format)");
+export const short_link_path = path("/l/:id(.:format)");

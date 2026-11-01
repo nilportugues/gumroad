@@ -25,6 +25,9 @@ export const RAILS_TEST_INDEX = {
   AudienceMember: "audiencemember-test",
 } as const;
 
+// PARITY_RAILS_INDEX_PREFIX names the indices of a Rails run that used ES_TEST_INDEX_PREFIX (agents sharing one Elasticsearch).
+const RAILS_INDEX_PREFIX = process.env.PARITY_RAILS_INDEX_PREFIX ?? "";
+
 export type ReplayModel = keyof typeof RAILS_TEST_INDEX;
 
 export const replayIndexName = (base: string, suffix: string) => `${base}${suffix}`;
@@ -33,7 +36,7 @@ export type ReplayIndex = { model: ReplayModel; name: string };
 
 // Drops and recreates `name` as the Rails test index of `model` is defined.
 export async function recreateIndex(es: Client, { model, name }: ReplayIndex): Promise<void> {
-  const source = RAILS_TEST_INDEX[model];
+  const source = `${RAILS_INDEX_PREFIX}${RAILS_TEST_INDEX[model]}`;
   // Rails' spec runs recreate their test indices, so the source can be missing for a moment.
   let definition: Record<string, any> | undefined;
   for (let attempt = 0; definition === undefined; attempt++) {

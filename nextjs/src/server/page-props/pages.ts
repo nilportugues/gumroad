@@ -36,6 +36,7 @@ import { AGENT_PAGES } from "./agent/pages.ts";
 import { SELLER_PRODUCTS_PAGES } from "./seller-products/pages.ts";
 import { URL_REDIRECT_PAGES } from "./url-redirects/pages.ts";
 import { COMMUNITY_PAGES } from "./communities/pages.ts";
+import { DASHBOARD_HOME_PAGES } from "./dashboard-home/pages.ts";
 
 type Params = Record<string, string>;
 
@@ -69,6 +70,7 @@ const baseMetaTags = ({ meta }: ActionContext) => {
 export const PAGES: Record<string, PageSpec> = {
   ...AUDIENCE_PAGES,
   ...ANALYTICS_PAGES,
+  ...DASHBOARD_HOME_PAGES,
   ...EMAILS_PAGES,
   "/help": {
     component: "HelpCenter/Articles/Index",
