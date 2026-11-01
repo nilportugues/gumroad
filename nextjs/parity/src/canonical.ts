@@ -54,7 +54,14 @@ export function dbValue(raw: string | null, dataType: string, now: Date): Json {
   return raw;
 }
 
+export const EPOCH_TOKEN = "<epoch>";
+// A { name, offset } time zone prop whose offset is the one in force at `now`, so a fixture
+// recorded in summer still replays after the daylight saving change.
+export const UTC_OFFSET_TOKEN = "<utc_offset>";
+
 export function timeToken(time: Date, now: Date): string {
+  // A deleted cookie expires at the epoch; relative to now it would drift with the calendar.
+  if (time.getTime() === 0) return EPOCH_TOKEN;
   const delta = (time.getTime() - now.getTime()) / 1000;
   if (Math.abs(delta) <= NOW_TOLERANCE_SECONDS) return "<now>";
   return `<now${offset(delta)}>`;
@@ -128,9 +135,30 @@ export function json(value: unknown, now: Date): Json {
   if (value instanceof Date) return timeToken(value, now);
   if (Array.isArray(value)) return value.map((item) => json(item, now));
   if (typeof value === "object") {
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, json(item, now)]));
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, key === "time_zone" ? timeZone(item, now) : json(item, now)]));
   }
   return String(value);
+}
+
+function timeZone(value: unknown, now: Date): Json {
+  const zone = json(value, now);
+  if (zone === null || typeof zone !== "object" || Array.isArray(zone)) return zone;
+  if (typeof zone.name !== "string" || typeof zone.offset !== "number" || !Number.isInteger(zone.offset)) return zone;
+  return zone.offset === utcOffset(zone.name, now) ? { ...zone, offset: UTC_OFFSET_TOKEN } : zone;
+}
+
+function utcOffset(name: string, now: Date): number | null {
+  let part: string | undefined;
+  try {
+    part = new Intl.DateTimeFormat("en-US", { timeZone: name, timeZoneName: "longOffset" }).formatToParts(now).find((p) => p.type === "timeZoneName")?.value;
+  } catch {
+    return null;
+  }
+  const match = /^GMT(?:([+-])(\d{2}):(\d{2}))?$/.exec(part ?? "");
+  if (!match) return null;
+  if (!match[1]) return 0;
+  const seconds = Number(match[2]) * 3600 + Number(match[3]) * 60;
+  return match[1] === "-" ? -seconds : seconds;
 }
 
 // JSON.parse that keeps integers outside the safe range exact, as { $big }, the way Ruby writes them.

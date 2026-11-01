@@ -28,6 +28,11 @@ module Parity
     VOLATILE_COOKIES = %w[_gumroad_guid].freeze
     VOLATILE_VALUE = "<volatile>"
 
+    EPOCH_TOKEN = "<epoch>"
+    # A { "name" => zone, "offset" => seconds } time zone prop whose offset is the one in force at
+    # `now`, so a fixture recorded in summer still replays after the daylight saving change.
+    UTC_OFFSET_TOKEN = "<utc_offset>"
+
     ISO_TIME = /\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})/
 
     module_function
@@ -65,6 +70,9 @@ module Parity
     end
 
     def time_token(time, now)
+      # A deleted cookie expires at the epoch; relative to now it would drift with the calendar.
+      return EPOCH_TOKEN if time.to_i.zero?
+
       delta = time.to_r - now.to_r
       return "<now>" if delta.abs <= NOW_TOLERANCE_SECONDS
 
@@ -107,7 +115,7 @@ module Parity
     # timestamps inside strings become tokens.
     def json(value, now)
       case value
-      when Hash then value.to_h { |k, v| [k.to_s, json(v, now)] }
+      when Hash then value.to_h { |k, v| [k.to_s, k.to_s == "time_zone" ? time_zone(v, now) : json(v, now)] }
       when Array then value.map { json(_1, now) }
       when Integer then integer(value)
       when String then string(value, now)
@@ -117,6 +125,26 @@ module Parity
       when Date then date_token(value, now)
       else json(value.respond_to?(:as_json) ? value.as_json : value.to_s, now)
       end
+    end
+
+    def time_zone(value, now)
+      zone = json(value, now)
+      return zone unless zone.is_a?(Hash) && zone["name"].is_a?(String) && zone["offset"].is_a?(Integer)
+      return zone unless zone["offset"] == utc_offset(zone["name"], now)
+
+      zone.merge("offset" => UTC_OFFSET_TOKEN)
+    end
+
+    # Stdlib only: TZ names an IANA zone for the C library. An unknown name falls back to UTC, so
+    # only names the zone database knows are compared.
+    def utc_offset(name, now)
+      return nil unless File.exist?(File.join("/usr/share/zoneinfo", name))
+
+      previous = ENV["TZ"]
+      ENV["TZ"] = name
+      Time.at(now.to_i).utc_offset
+    ensure
+      ENV["TZ"] = previous
     end
 
     def cookie_value(name, value)
