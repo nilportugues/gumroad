@@ -4,6 +4,8 @@ import type { OauthApplication, TeamInvitation, TeamMembership, User } from "@pr
 
 import { encrypt as externalId, encryptNumeric } from "../../../lib/obfuscate-ids.ts";
 import { db } from "../../../lib/db.ts";
+import { isConfiguredService, publicStorageUrl } from "../../infra/active-storage.ts";
+import { cdnUrlFor } from "../../infra/cdn-url.ts";
 import { getConfig } from "../../infra/config.ts";
 import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
 import { formattedDollarAmount } from "../../models/concerns/currency-helper.ts";
@@ -24,7 +26,7 @@ import { userPolicy } from "../../policies/user.ts";
 import type { SellerContext } from "../../policies/seller-context.ts";
 import { assetHost, domainConfig } from "../domain.ts";
 import { NotPortedError } from "../not-ported.ts";
-import { aliveComplianceInfo } from "../signed-in/reads.ts";
+import { aliveComplianceInfo, blobById } from "../signed-in/reads.ts";
 import { avatarUrl, displayName } from "../signed-in/presenters.ts";
 import DATA from "./settings-data.generated.json" with { type: "json" };
 
@@ -55,11 +57,14 @@ const capitalize = (value: string) => value.charAt(0).toUpperCase() + value.slic
 // Time#iso8601
 const iso8601 = (date: Date) => date.toISOString().replace(/\.\d{3}Z$/, "Z");
 
-// OauthApplication#icon_url goes through Active Storage and the CDN rewrite.
+// OauthApplication#icon_url: cdn_url_for(file.url), the blob's own public URL.
 async function iconUrl(application: OauthApplication): Promise<string | null> {
-  const attached = await db.activeStorageAttachment.findFirst({ where: { record_type: "OauthApplication", record_id: application.id, name: "file" }, select: { id: true } });
-  if (attached) throw new NotPortedError("OauthApplication#icon_url for an uploaded icon");
-  return null;
+  const attachment = await db.activeStorageAttachment.findFirst({ where: { record_type: "OauthApplication", record_id: application.id, name: "file" }, select: { blob_id: true } });
+  if (!attachment) return null;
+  const blob = await blobById(attachment.blob_id);
+  if (blob === null) throw new NotPortedError("OauthApplication#icon_url for an attachment whose blob row is missing");
+  if (!isConfiguredService(blob.service_name)) throw new NotPortedError(`Active Storage service ${JSON.stringify(blob.service_name)}`);
+  return cdnUrlFor(publicStorageUrl(blob.key)) ?? null;
 }
 
 // OauthApplication.alive.authorized_for(seller): applications holding a not revoked token of the seller.

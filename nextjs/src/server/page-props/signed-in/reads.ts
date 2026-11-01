@@ -38,12 +38,13 @@ export type ComplianceInfoRow = {
   business_country: string | null;
   is_business: number | boolean | null;
   birthday: Date | null;
+  guardian_id: bigint | null;
 };
 
 // `user.alive_user_compliance_info`: user_compliance_infos.alive.last
 export async function aliveComplianceInfo(userId: bigint): Promise<ComplianceInfoRow | null> {
   const [row] = await selectRows<ComplianceInfoRow>(
-    Prisma.sql`SELECT ${column("user_compliance_info", "country")}, ${column("user_compliance_info", "business_country")}, ${column("user_compliance_info", "is_business")}, ${column("user_compliance_info", "birthday")} FROM ${table("user_compliance_info")} WHERE ${column("user_compliance_info", "user_id")} = ${userId} AND ${column("user_compliance_info", "deleted_at")} IS NULL ORDER BY ${column("user_compliance_info", "id")} DESC LIMIT 1`,
+    Prisma.sql`SELECT ${column("user_compliance_info", "country")}, ${column("user_compliance_info", "business_country")}, ${column("user_compliance_info", "is_business")}, ${column("user_compliance_info", "birthday")}, ${column("user_compliance_info", "guardian_id")} FROM ${table("user_compliance_info")} WHERE ${column("user_compliance_info", "user_id")} = ${userId} AND ${column("user_compliance_info", "deleted_at")} IS NULL ORDER BY ${column("user_compliance_info", "id")} DESC LIMIT 1`,
   );
   return row ?? null;
 }
@@ -63,20 +64,68 @@ export async function hasPayoutAccount(userId: bigint): Promise<boolean> {
 export const hasCompletedPayment = (userId: bigint) =>
   exists(Prisma.sql`SELECT 1 FROM ${table("payments")} WHERE ${column("payments", "user_id")} = ${userId} AND ${column("payments", "state")} = 'completed' LIMIT 1`);
 
-// The first half of `merchant_accounts.stripe_connect.or(merchant_accounts.paypal).pluck(:id)`: whether
-// User#made_a_successful_sale_with_a_stripe_connect_or_paypal_connect_account? has anything to look at.
-export const hasConnectOrPaypalMerchantAccount = (userId: bigint) =>
-  exists(
-    Prisma.sql`SELECT 1 FROM ${table("merchant_accounts")} WHERE ${column("merchant_accounts", "user_id")} = ${userId} AND (${column("merchant_accounts", "charge_processor_id")} = 'paypal' OR (${column("merchant_accounts", "charge_processor_id")} = 'stripe' AND JSON_UNQUOTE(JSON_EXTRACT(${column("merchant_accounts", "json_data")}, '$.meta.stripe_connect')) = 'true')) LIMIT 1`,
-  );
+// flag_shih_tzu bits of purchases.flags: is_gift_receiver_purchase is flag 6, chargeback_reversed flag 10.
+const GIFT_RECEIVER_PURCHASE_FLAG = 2 ** 5;
+const CHARGEBACK_REVERSED_FLAG = 2 ** 9;
 
-// A candidate for User#latest_payout_setup_rejection_note: the alive payout notes the admin wrote that
-// mention the rejection marker. Rails then checks the marker in the parsed json_data; any candidate
-// is enough for us to refuse (see the presenter).
-export const hasPayoutSetupRejectionCandidate = (userId: bigint, adminId: number) =>
-  exists(
-    Prisma.sql`SELECT 1 FROM ${table("comments")} WHERE ${column("comments", "commentable_type")} = 'User' AND ${column("comments", "commentable_id")} = ${userId} AND ${column("comments", "comment_type")} = 'payout_note' AND ${column("comments", "deleted_at")} IS NULL AND ${column("comments", "author_id")} = ${adminId} AND ${column("comments", "json_data")} LIKE '%payout_setup_rejection%' LIMIT 1`,
+// User#made_a_successful_sale_with_a_stripe_connect_or_paypal_connect_account?: the ids of
+// `merchant_accounts.stripe_connect.or(merchant_accounts.paypal)`, then a sale through one of them
+// that is neither refunded in full nor an unreversed chargeback.
+export async function madeSaleWithConnectOrPaypalAccount(userId: bigint): Promise<boolean> {
+  const accounts = await selectRows<{ id: bigint }>(
+    Prisma.sql`SELECT ${column("merchant_accounts", "id")} FROM ${table("merchant_accounts")} WHERE ${column("merchant_accounts", "user_id")} = ${userId} AND ((${column("merchant_accounts", "charge_processor_id")} = 'stripe' AND json_data->>'$.meta.stripe_connect' = 'true' AND ${column("merchant_accounts", "user_id")} IS NOT NULL) OR ${column("merchant_accounts", "charge_processor_id")} = 'paypal')`,
   );
+  if (accounts.length === 0) return false;
+  const purchases = (name: string) => column("purchases", name);
+  return exists(
+    Prisma.sql`SELECT 1 FROM ${table("purchases")} WHERE ${purchases("seller_id")} = ${userId} AND ${purchases("purchase_state")} IN ('successful', 'preorder_authorization_successful', 'gift_receiver_purchase_successful') AND (${purchases("stripe_refunded")} IS NULL OR ${purchases("stripe_refunded")} = 0) AND (${purchases("chargeback_date")} IS NULL OR (${purchases("chargeback_date")} IS NOT NULL AND ${purchases("flags")} & ${CHARGEBACK_REVERSED_FLAG} != 0)) AND ${purchases("flags")} & ${GIFT_RECEIVER_PURCHASE_FLAG} = 0 AND ${purchases("merchant_account_id")} IN (${Prisma.join(accounts.map((account) => account.id))}) LIMIT 1`,
+  );
+}
+
+// The Guardian columns Guardian#has_completed_info? reads. individual_tax_id is Strongbox ciphertext;
+// only whether it is blank matters.
+export type GuardianRow = {
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  date_of_birth: Date | null;
+  street_address: string | null;
+  city: string | null;
+  state: string | null;
+  zip_code: string | null;
+  country: string | null;
+  country_code: string | null;
+  individual_tax_id: Uint8Array | null;
+  stripe_tos_accepted: number | boolean;
+  stripe_tos_accepted_at: Date | null;
+  stripe_tos_ip: string | null;
+  deleted_at: Date | null;
+};
+
+// `belongs_to :guardian` on the compliance info: the row by id, deleted or not.
+export async function guardianById(id: bigint): Promise<GuardianRow | null> {
+  const guardians = (name: string) => column("guardians", name);
+  const [row] = await selectRows<GuardianRow>(
+    Prisma.sql`SELECT ${guardians("first_name")}, ${guardians("last_name")}, ${guardians("email")}, ${guardians("date_of_birth")}, ${guardians("street_address")}, ${guardians("city")}, ${guardians("state")}, ${guardians("zip_code")}, ${guardians("country")}, ${guardians("country_code")}, ${guardians("individual_tax_id")}, ${guardians("stripe_tos_accepted")}, ${guardians("stripe_tos_accepted_at")}, ${guardians("stripe_tos_ip")}, ${guardians("deleted_at")} FROM ${table("guardians")} WHERE ${guardians("id")} = ${id} LIMIT 1`,
+  );
+  return row ?? null;
+}
+
+// User#latest_payout_setup_rejection_note.present?: the alive payout notes the admin wrote that
+// mention the rejection marker, newest first, and the first whose parsed json_data carries the
+// marker as true. JsonData#json_data raises for a value that is not a hash, and the JSON coder for
+// text that is not JSON; both are errors here too.
+export async function hasPayoutSetupRejectionNote(userId: bigint, adminId: number): Promise<boolean> {
+  const notes = await selectRows<{ json_data: string | null }>(
+    Prisma.sql`SELECT ${column("comments", "json_data")} FROM ${table("comments")} WHERE ${column("comments", "commentable_type")} = 'User' AND ${column("comments", "commentable_id")} = ${userId} AND ${column("comments", "comment_type")} = 'payout_note' AND ${column("comments", "deleted_at")} IS NULL AND ${column("comments", "author_id")} = ${adminId} AND ${column("comments", "json_data")} LIKE '%payout_setup_rejection%' ORDER BY ${column("comments", "created_at")} DESC, ${column("comments", "id")} DESC`,
+  );
+  return notes.some((note) => {
+    const parsed: unknown = note.json_data === null || note.json_data === "" ? {} : JSON.parse(note.json_data);
+    if (parsed === null || parsed === false) return false;
+    if (typeof parsed !== "object" || Array.isArray(parsed)) throw new TypeError("json_data must be a hash");
+    return (parsed as Record<string, unknown>).payout_setup_rejection === true;
+  });
+}
 
 // `dashboard_nav_promotions.pluck(:nav_item)`. Rails sets no order, so MySQL answers from the unique
 // (user_id, nav_item) index, which is by nav_item.
@@ -87,11 +136,41 @@ export async function dashboardNavItems(userId: bigint): Promise<string[]> {
   return rows.map((row) => row.nav_item);
 }
 
-// `user.avatar.attached?`
-export const hasAvatarAttachment = (userId: bigint) =>
-  exists(
-    Prisma.sql`SELECT 1 FROM ${table("active_storage_attachments")} WHERE ${column("active_storage_attachments", "record_type")} = 'User' AND ${column("active_storage_attachments", "record_id")} = ${userId} AND ${column("active_storage_attachments", "name")} = 'avatar' LIMIT 1`,
+// `user.avatar_attachment`: `user.avatar.attached?` is whether it exists.
+export async function avatarAttachmentOf(userId: bigint): Promise<{ id: bigint; blob_id: bigint } | null> {
+  const attachments = (name: string) => column("active_storage_attachments", name);
+  const [row] = await selectRows<{ id: bigint; blob_id: bigint }>(
+    Prisma.sql`SELECT ${attachments("id")}, ${attachments("blob_id")} FROM ${table("active_storage_attachments")} WHERE ${attachments("record_type")} = 'User' AND ${attachments("record_id")} = ${userId} AND ${attachments("name")} = 'avatar' LIMIT 1`,
   );
+  return row ?? null;
+}
+
+export type BlobRow = { id: bigint; key: string; filename: string; content_type: string | null; service_name: string };
+
+export async function blobById(id: bigint): Promise<BlobRow | null> {
+  const blobs = (name: string) => column("active_storage_blobs", name);
+  const [row] = await selectRows<BlobRow>(
+    Prisma.sql`SELECT ${blobs("id")}, ${blobs("key")}, ${blobs("filename")}, ${blobs("content_type")}, ${blobs("service_name")} FROM ${table("active_storage_blobs")} WHERE ${blobs("id")} = ${id} LIMIT 1`,
+  );
+  return row ?? null;
+}
+
+// `blob.variant_records.find_by(variation_digest:)`
+export async function variantRecordId(blobId: bigint, variationDigest: string): Promise<bigint | null> {
+  const records = (name: string) => column("active_storage_variant_records", name);
+  const [row] = await selectRows<{ id: bigint }>(
+    Prisma.sql`SELECT ${records("id")} FROM ${table("active_storage_variant_records")} WHERE ${records("blob_id")} = ${blobId} AND ${records("variation_digest")} = ${variationDigest} LIMIT 1`,
+  );
+  return row?.id ?? null;
+}
+
+// `variant_record.image.blob.key`: the variant's file, attached to its record as `image`.
+export async function variantBlobKey(variantRecordId: bigint): Promise<string | null> {
+  const [row] = await selectRows<{ key: string }>(
+    Prisma.sql`SELECT ${column("active_storage_blobs", "key")} FROM ${table("active_storage_attachments")} INNER JOIN ${table("active_storage_blobs")} ON ${column("active_storage_blobs", "id")} = ${column("active_storage_attachments", "blob_id")} WHERE ${column("active_storage_attachments", "record_type")} = 'ActiveStorage::VariantRecord' AND ${column("active_storage_attachments", "record_id")} = ${variantRecordId} AND ${column("active_storage_attachments", "name")} = 'image' LIMIT 1`,
+  );
+  return row?.key ?? null;
+}
 
 // User#has_accessible_communities?
 export async function hasAccessibleCommunities(user: Pick<User, "id" | "email">): Promise<boolean> {

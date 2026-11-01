@@ -13,7 +13,6 @@ import { railsEnv } from "../../infra/rails-env.ts";
 import { isNameInvalidForEmailDelivery, sellerProfile, subdomain, UserFlags, Users, username } from "../../models/user.ts";
 import { loadSellerContext, type SellerContext } from "../../policies/seller-context.ts";
 import { assetHost, domainConfig } from "../domain.ts";
-import { NotPortedError } from "../not-ported.ts";
 import type { SignedInPresentersPort } from "../ports.ts";
 import {
   blockedPayoutCountry,
@@ -21,19 +20,22 @@ import {
   legalEntityCountryCode,
   legalGuardianRequirementMet,
   legalGuardianUnsupported,
+  requiresLegalGuardian,
   noPayoutRailInComplianceCountry,
   observedUtcOffset,
   tzinfoName,
 } from "./data.ts";
+import { uploadedAvatarUrl } from "./avatar.ts";
 import { policiesProps } from "./policy-props.ts";
 import {
   activeBankAccount,
   aliveComplianceInfo,
   dashboardNavItems,
   hasAliveProducts,
-  hasAvatarAttachment,
   hasPayoutAccount,
-  hasPayoutSetupRejectionCandidate,
+  type ComplianceInfoRow,
+  guardianById,
+  hasPayoutSetupRejectionNote,
   isBuyer,
   passkeysSetupPending,
 } from "./reads.ts";
@@ -58,10 +60,10 @@ export function displayName(user: User, { preferEmailOverDefaultUsername = false
   return present(handle) ? handle : formEmail(user);
 }
 
-// User#avatar_url. An uploaded avatar goes through Active Storage variants and the CDN rewrite,
-// which are not ported.
+// User#avatar_url
 export async function avatarUrl(user: User): Promise<string> {
-  if (await hasAvatarAttachment(user.id)) throw new NotPortedError("User#avatar_url for an uploaded avatar");
+  const uploaded = await uploadedAvatarUrl(user);
+  if (uploaded !== null) return uploaded;
   return `${assetHost(domainConfig(process.env)) ?? ""}/images/${DEFAULT_AVATAR}`;
 }
 
@@ -119,12 +121,16 @@ async function loggedInUserProps(context: SellerContext): Promise<Record<string,
   };
 }
 
-// UserPresenter#publish_blocked_reason_for. A payout-setup rejection note needs its parsed
-// json_data checked, which is not ported, so a candidate note refuses instead of guessing.
+// UserPresenter#publish_blocked_reason_for
 async function publishBlockedReason(user: User): Promise<string> {
   const adminId = Number(getConfig("GUMROAD_ADMIN_ID", railsEnv() === "staging" ? String(STAGING_GUMROAD_ADMIN_ID) : String(DEFAULT_GUMROAD_ADMIN_ID)));
-  if (await hasPayoutSetupRejectionCandidate(user.id, adminId)) throw new NotPortedError("User#latest_payout_setup_rejection_note");
-  return "no_payout_method";
+  return (await hasPayoutSetupRejectionNote(user.id, adminId)) ? "payout_setup_rejected" : "no_payout_method";
+}
+
+// UserComplianceInfo#legal_guardian_requirement_met?, reading the guardian only when one is required.
+async function guardianRequirementMet(info: ComplianceInfoRow): Promise<boolean> {
+  const guardian = requiresLegalGuardian(info) && info.guardian_id !== null ? await guardianById(info.guardian_id) : null;
+  return legalGuardianRequirementMet(info, guardian);
 }
 
 // UserPresenter#as_current_seller
@@ -147,7 +153,7 @@ async function currentSellerProps(seller: User): Promise<Record<string, unknown>
     can_publish_products: canPublish,
     publish_blocked_reason: canPublish ? null : await publishBlockedReason(seller),
     no_payout_rail_in_compliance_country: (await activeBankAccount(seller.id)) === null && noPayoutRailInComplianceCountry(info),
-    legal_guardian_requirement_met: info === null || legalGuardianRequirementMet(info),
+    legal_guardian_requirement_met: info === null || (await guardianRequirementMet(info)),
     legal_guardian_unsupported: info !== null && legalGuardianUnsupported(info),
     is_name_invalid_for_email_delivery: isNameInvalidForEmailDelivery(record),
     profile_background_color: profile.get("background_color"),

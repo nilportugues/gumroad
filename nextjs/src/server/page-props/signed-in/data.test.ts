@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { countryAlpha2, legalEntityCountryCode, legalGuardianRequirementMet, legalGuardianUnsupported, nativePayoutsSupported, noPayoutRailInComplianceCountry, observedUtcOffset, tzinfoName } from "./data.ts";
-import type { ComplianceInfoRow } from "./reads.ts";
+import { countryAlpha2, legalEntityCountryCode, guardianHasCompletedInfo, legalGuardianRequirementMet, legalGuardianUnsupported, nativePayoutsSupported, noPayoutRailInComplianceCountry, observedUtcOffset, tzinfoName } from "./data.ts";
+import type { ComplianceInfoRow, GuardianRow } from "./reads.ts";
 
-const info = (attributes: Partial<ComplianceInfoRow> = {}): ComplianceInfoRow => ({ country: "United States", business_country: null, is_business: false, birthday: null, ...attributes });
+const info = (attributes: Partial<ComplianceInfoRow> = {}): ComplianceInfoRow => ({ country: "United States", business_country: null, is_business: false, birthday: null, guardian_id: null, ...attributes });
 
 describe("time zones", () => {
   it("maps Rails zone names to tzinfo identifiers and passes identifiers through", () => {
@@ -59,21 +59,70 @@ describe("compliance rules", () => {
   describe("legal guardians", () => {
     const now = new Date("2026-11-01T00:00:00Z");
     const minor = new Date("2012-01-01T00:00:00Z");
+    const guardian = (attributes: Partial<GuardianRow> = {}): GuardianRow => ({
+      first_name: "Pat",
+      last_name: "Parent",
+      email: "pat@example.com",
+      date_of_birth: new Date("1980-01-01T00:00:00Z"),
+      street_address: "1 Main St",
+      city: "Springfield",
+      state: "IL",
+      zip_code: "62701",
+      country: "United States",
+      country_code: "US",
+      individual_tax_id: new Uint8Array([1, 2, 3]),
+      stripe_tos_accepted: 1,
+      stripe_tos_accepted_at: new Date("2026-10-01T00:00:00Z"),
+      stripe_tos_ip: "203.0.113.9",
+      deleted_at: null,
+      ...attributes,
+    });
 
     it("needs no guardian for an adult or an unknown birthday", () => {
-      expect(legalGuardianRequirementMet(info({ birthday: new Date("1990-01-01T00:00:00Z") }), now)).toBe(true);
-      expect(legalGuardianRequirementMet(info(), now)).toBe(true);
+      expect(legalGuardianRequirementMet(info({ birthday: new Date("1990-01-01T00:00:00Z") }), null, now)).toBe(true);
+      expect(legalGuardianRequirementMet(info(), null, now)).toBe(true);
       expect(legalGuardianUnsupported(info({ birthday: new Date("1990-01-01T00:00:00Z") }), now)).toBe(false);
     });
 
     it("marks a minor in a country with no guardian path unsupported and not ready", () => {
       const brazilian = info({ country: "Brazil", birthday: minor });
       expect(legalGuardianUnsupported(brazilian, now)).toBe(true);
-      expect(legalGuardianRequirementMet(brazilian, now)).toBe(false);
+      expect(legalGuardianRequirementMet(brazilian, null, now)).toBe(false);
     });
 
-    it("refuses to guess about a US minor's guardian", () => {
-      expect(() => legalGuardianRequirementMet(info({ birthday: minor }), now)).toThrow(/Guardian/);
+    it("asks a US minor for a complete guardian", () => {
+      const american = info({ birthday: minor });
+      expect(legalGuardianRequirementMet(american, null, now)).toBe(false);
+      expect(legalGuardianRequirementMet(american, guardian(), now)).toBe(true);
+      expect(legalGuardianRequirementMet(american, guardian({ first_name: "  " }), now)).toBe(false);
+    });
+
+    it("holds a guardian to every field Stripe asks for", () => {
+      expect(guardianHasCompletedInfo(guardian())).toBe(true);
+      for (const missing of [
+        { last_name: null },
+        { email: "" },
+        { date_of_birth: null },
+        { street_address: null },
+        { city: null },
+        { zip_code: null },
+        { country: null },
+        { individual_tax_id: null },
+        { individual_tax_id: new Uint8Array() },
+        { stripe_tos_accepted: 0 },
+        { stripe_tos_accepted_at: null },
+        { stripe_tos_ip: "" },
+        { deleted_at: new Date("2026-10-15T00:00:00Z") },
+      ] satisfies Partial<GuardianRow>[]) {
+        expect(guardianHasCompletedInfo(guardian(missing)), JSON.stringify(missing)).toBe(false);
+      }
+    });
+
+    it("asks for a state only where Stripe has a subdivision list", () => {
+      expect(guardianHasCompletedInfo(guardian({ state: null }))).toBe(false);
+      expect(guardianHasCompletedInfo(guardian({ state: null, country: "France", country_code: "FR" }))).toBe(true);
+      // country_code is filled in by a before_validation hook; the country name decides without it.
+      expect(guardianHasCompletedInfo(guardian({ state: null, country_code: null }))).toBe(false);
     });
   });
 });

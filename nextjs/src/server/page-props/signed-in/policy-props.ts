@@ -3,20 +3,20 @@
 // MembershipNotFoundError for a seller the user has no membership on, as ActiveRecord does.
 import { RISK_STATES } from "../../models/user.ts";
 import { requireUser, roleAccountantFor, roleAdminFor, roleMarketingFor, roleOwnerFor, roleSupportFor, type AuthorizedSellerContext, type SellerContext } from "../../policies/seller-context.ts";
-import { NotPortedError } from "../not-ported.ts";
-import { hasAccessibleCommunities, hasCompletedPayment, hasConnectOrPaypalMerchantAccount } from "./reads.ts";
+import { MIN_SALES_CENTS_VALUE_FOR_STORE_AGENT, salesCentsTotal } from "../../search/purchase-sales.ts";
+import { hasAccessibleCommunities, hasCompletedPayment, madeSaleWithConnectOrPaypalAccount } from "./reads.ts";
 
 const anyRole = (c: AuthorizedSellerContext) => roleAccountantFor(c) || roleAdminFor(c) || roleMarketingFor(c) || roleSupportFor(c);
 const adminOrMarketing = (c: AuthorizedSellerContext) => roleAdminFor(c) || roleMarketingFor(c);
 
-// User#eligible_for_store_agent?, up to the Elasticsearch sales aggregate.
+// User#eligible_for_store_agent?: cheapest checks first, so an unpaid seller never reaches Elasticsearch.
 async function eligibleForStoreAgent(seller: AuthorizedSellerContext["user"], isDevelopment: boolean): Promise<boolean> {
   if (isDevelopment) return true;
   const suspended = (RISK_STATES.SUSPENDED as readonly (string | null)[]).includes(seller.user_risk_state);
   if (seller.confirmed_at === null || suspended) return false;
-  const hasCompletedPayouts = (await hasCompletedPayment(seller.id)) || (await hasConnectOrPaypalMerchantAccount(seller.id));
+  const hasCompletedPayouts = (await hasCompletedPayment(seller.id)) || (await madeSaleWithConnectOrPaypalAccount(seller.id));
   if (!hasCompletedPayouts) return false;
-  throw new NotPortedError("User#sales_cents_total (Elasticsearch aggregation)");
+  return (await salesCentsTotal(seller.id)) >= MIN_SALES_CENTS_VALUE_FOR_STORE_AGENT;
 }
 
 export async function policiesProps(context: SellerContext, isDevelopment: boolean): Promise<Record<string, Record<string, boolean>>> {
