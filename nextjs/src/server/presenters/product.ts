@@ -227,7 +227,7 @@ export async function buyerCurrencyDisplayProps(row: LinkRow, seller: UserRow) {
   const productCurrency = link.currency(row);
   const defaults = { product_id: link.externalId(row), buyer_currency_shown: productCurrency, product_currency: productCurrency, buyer_local_price_cents: null, rate: null, display_mode: "default" };
   const disabled = jsonDataForAttr(Users.load(castRow<User>("User", seller as never)), "disable_buyer_local_currency", false);
-  const optedIn = !(disabled === true || disabled === "true" || disabled === 1 || disabled === "1") && (await isFeatureEnabled("buyer_local_currency", { actor: userActor(seller.id) }));
+  const optedIn = !(disabled === true || disabled === "true" || disabled === 1 || disabled === "1") && (await isFeatureEnabled("buyer_local_currency", userActor(seller.id)));
   // Exchange rates, the currency cookie and IP detection decide the rest.
   if (optedIn) throw new NotPortedError("CurrencyHelper#buyer_currency_display_props for a seller using buyer local currency");
   return defaults;

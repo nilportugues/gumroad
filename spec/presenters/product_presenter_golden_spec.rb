@@ -7,7 +7,7 @@ require Rails.root.join("spec/support/parity/db_snapshot")
 # database holding a matrix of product types, and the real output of ProductPresenter.card_for_web and
 # ProductPresenter::ProductProps for each. nextjs/src/server/presenters/product.test.ts seeds the same
 # rows and compares. Without PARITY_GOLDEN the examples only check that the presenters run.
-describe "ProductPresenter golden", type: :model do
+describe "ProductPresenter golden", type: :request do
   # Fresh counters make the ids (and the external ids derived from them) the same on every run. ALTER TABLE
   # commits implicitly, so this runs outside the example's transaction.
   before(:all) { Parity::DbSnapshot.new(ActiveRecord::Base.connection).reset_auto_increments! }

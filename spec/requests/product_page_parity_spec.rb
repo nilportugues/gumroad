@@ -51,6 +51,95 @@ describe "Product page", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
+    it "sets the affiliate cookie before redirecting", parity: true do
+      affiliate = create(:direct_affiliate, seller:, products: [product])
+
+      get "/l/#{product.unique_permalink}?affiliate_id=#{affiliate.external_id_numeric}"
+
+      expect(response).to have_http_status(:moved_permanently)
+      expect(set_cookies).to include(affiliate.cookie_key)
+    end
+
+    it "reads the short affiliate parameter", parity: true do
+      affiliate = create(:direct_affiliate, seller:, products: [product])
+
+      get "/l/#{product.unique_permalink}?a=#{affiliate.external_id_numeric}&recommended_by=search"
+
+      expect(response).to have_http_status(:moved_permanently)
+      expect(set_cookies).to include(affiliate.cookie_key)
+    end
+
+    it "sets no cookie for an unknown or deleted affiliate", parity: true do
+      deleted = create(:direct_affiliate, seller:, products: [product], deleted_at: Time.current)
+
+      get "/l/#{product.unique_permalink}?a=999999&affiliate_id=#{deleted.external_id_numeric}"
+
+      expect(response).to have_http_status(:moved_permanently)
+    end
+
+    it "moves a code query parameter into the path", parity: true do
+      get "/l/#{product.unique_permalink}?code=five"
+
+      expect(response).to have_http_status(:moved_permanently)
+      expect(response.headers["X-Robots-Tag"]).to include("noindex")
+    end
+
+    it "redirects a differently cased permalink to the stored one", parity: true do
+      get "/l/#{product.unique_permalink.upcase}"
+
+      expect(response).to have_http_status(:moved_permanently)
+    end
+
+    it "redirects the pre-coffee page of a coffee product", parity: true do
+      coffee = create(:coffee_product, user: seller)
+
+      get "/l/#{coffee.unique_permalink}?native=true&wanted=true"
+
+      expect(response).to have_http_status(:moved_permanently)
+    end
+
+    it "is a 404 for a banned product", parity: true do
+      product.update!(banned_at: Time.current)
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "is a 404 for a deleted product", parity: true do
+      product.mark_deleted!
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "is a 404 for a product of a deleted seller", parity: true do
+      product
+      seller.update_columns(deleted_at: Time.current)
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to have_http_status(:moved_permanently).or have_http_status(:not_found)
+    end
+
+    it "serves a product found through its legacy permalink", parity: true do
+      LegacyPermalink.create!(permalink: "old-name", product:)
+
+      get "/l/old-name"
+
+      expect(response).to have_http_status(:moved_permanently)
+    end
+
+    it "keeps the redirect for a signed-in visitor", parity: true do
+      host! DOMAIN
+      log_in(buyer, token_path: "/help")
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to have_http_status(:moved_permanently)
+    end
+
     it "sends a coffee product to the custom domain coffee page", parity: true do
       coffee = create(:coffee_product, user: seller)
 
