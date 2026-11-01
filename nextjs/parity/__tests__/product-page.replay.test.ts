@@ -3,6 +3,7 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import path from "node:path";
 
+import { Client as ElasticsearchClient } from "@elastic/elasticsearch";
 import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -10,6 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { closeAllRedis } from "@/server/infra/redis";
 
 import { prismaExecutor, type SqlExecutor } from "../src/db";
+import { ELASTICSEARCH_HOST, recreateIndex, reindexPurchases, replayIndexName } from "../src/elasticsearch";
 import { type Fixture, type FixtureRequest, loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
@@ -27,6 +29,7 @@ const HANDED_BACK_STATUS = 218;
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
 const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1];
 const numericKey = "0";
+const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "-parity-ws77";
 
 const COMPARE = {
   ignore: [
@@ -37,12 +40,54 @@ const COMPARE = {
     "response.headers.link",
     "response.headers.vary",
     "response.cookies.XSRF-TOKEN.value",
+    // Minted per response.
+    "response.inertia.props.csp_nonce",
+    "response.inertia.props.authenticity_token",
+    "response.inertia.props._inertia_meta.2.content",
+    "response.json.props.csp_nonce",
+    "response.json.props.authenticity_token",
+    "response.json.props._inertia_meta.2.content",
     "response.cookies.__profilin",
     "db.versions",
+    // The port reads Elasticsearch itself; the recording's request log is not replayed.
+    "http",
   ],
 };
 
 type Case = { name: string; file: string; index: number; served: boolean; status: number; ignore: string[] };
+
+// The fixtures whose page the port renders (byte parity of status, headers, cookies and the Inertia page); every
+// other request that would render is handed back to Rails and must reach the stand-in origin.
+const RENDERED = new Set(
+  [
+    "renders-a-digital-product",
+    "renders-a-product-by-its-custom-permalink",
+    "renders-a-tiered-membership-with-its-tiers",
+    "renders-a-membership-with-a-free-trial",
+    "renders-a-versioned-product",
+    "renders-a-physical-product-with-skus",
+    "shows-the-ratings-and-the-sales-count",
+    "renders-a-bundle-with-its-products",
+    "applies-the-code-query-parameter",
+    "applies-the-offer-code-of-the-path",
+    "reports-an-invalid-code",
+    "shows-the-seller-s-auto-applied-sale",
+    "marks-a-code-url-as-noindex",
+    "renders-a-commission-product",
+    "renders-a-preorder",
+    "renders-a-pay-what-you-want-product",
+    "renders-an-unpublished-product-with-a-noindex-header",
+    "renders-a-deleted-product-with-a-noindex-header",
+    "renders-an-adult-product",
+    "shows-a-limited-quantity-remaining",
+    "shows-the-product-s-refund-policy",
+    "ignores-an-unknown-affiliate",
+    "sets-the-affiliate-cookie-of-an-affiliate-id",
+    "answers-an-inertia-visit-with-the-page-as-json",
+  ]
+    .map((name) => `on-a-seller-subdomain-${name}`)
+    .concat(["on-a-product-s-custom-domain-renders-the-product-at-the-root", "signed-in-shows-the-seller-their-own-product-with-the-edit-controls"]),
+);
 
 // The route gate (hostKindOf) sends a host that no alive seller owns to Rails whole: its catch-all is the 404.
 const GATE_HANDS_BACK = new Set(["product-page-on-a-seller-subdomain-is-a-404-for-a-product-of-a-deleted-seller"]);
@@ -58,13 +103,14 @@ const cases: Case[] = readdirSync(DIR)
     // The cookie's value is the time it was set.
     const affiliate = Object.keys(response.cookies ?? {}).filter((name) => name.startsWith("_gumroad_affiliate_id_"));
     const name = file.replace(/\.json$/, "");
-    return { name, file: path.join(DIR, file), index, served: served && !GATE_HANDS_BACK.has(name), status: response.status, ignore: affiliate.map((name) => `response.cookies.${name}.value`) };
+    return { name, file: path.join(DIR, file), index, served: (served || RENDERED.has(name.replace(/^product-page-/, ""))) && !GATE_HANDS_BACK.has(name), status: response.status, ignore: affiliate.map((name) => `response.cookies.${name}.value`) };
   });
 
 describe.skipIf(!url)("Product page parity", () => {
   let client: PrismaClient;
   let sql: SqlExecutor;
   let redis: Redis;
+  let es: ElasticsearchClient;
   let server: NextServer;
   let rails: Server;
   const saved = { ...process.env };
@@ -75,6 +121,10 @@ describe.skipIf(!url)("Product page parity", () => {
       response.end("handed back");
     });
     await new Promise<void>((resolve) => rails.listen(0, "127.0.0.1", resolve));
+    process.env.DATABASE_URL = url;
+    process.env.ELASTICSEARCH_HOST = ELASTICSEARCH_HOST;
+    process.env.ES_INDEX_SUFFIX = ES_INDEX_SUFFIX;
+    es = new ElasticsearchClient({ node: ELASTICSEARCH_HOST });
     client = new PrismaClient({ datasourceUrl: url });
     sql = prismaExecutor(client);
     const [hostAndPort = "", db = "0"] = redisHost.split("/");
@@ -87,7 +137,14 @@ describe.skipIf(!url)("Product page parity", () => {
       NEXTJS_ROUTE_FLAGS: "nextjs_product_page",
       RAILS_ORIGIN: `http://127.0.0.1:${(rails.address() as AddressInfo).port}`,
       SECRET_KEY_BASE,
+      // The keys the test environment of the recording configured (.env.test).
+      ...(envTest.match(/^(STRIPE_PUBLIC_KEY_TEST|RECAPTCHA_MONEY_SITE_KEY)=(.+)$/gm) ?? []).reduce<Record<string, string>>((env, line) => {
+        const [name, ...value] = line.split("=");
+        return { ...env, [name!]: value.join("=") };
+      }, {}),
       DATABASE_URL: url!,
+      ELASTICSEARCH_HOST,
+      ES_INDEX_SUFFIX,
       REDIS_HOST: redisHost,
     });
   }, FIRST_COMPILE_TIMEOUT_MS);
@@ -97,13 +154,14 @@ describe.skipIf(!url)("Product page parity", () => {
     await new Promise<void>((resolve) => (rails ? rails.close(() => resolve()) : resolve()));
     await closeAllRedis();
     await redis?.quit();
+    await es?.close();
     await client?.$disconnect();
     process.env = saved;
   });
 
   it("finds the fixtures", () => {
     expect(cases.filter((c) => c.served).length).toBeGreaterThan(10);
-    expect(cases.filter((c) => !c.served).length).toBeGreaterThan(10);
+    expect(cases.filter((c) => !c.served).length).toBeGreaterThan(4);
   });
 
   it.each(cases.map((c) => [c.name, c] as const))(
@@ -112,7 +170,24 @@ describe.skipIf(!url)("Product page parity", () => {
       const compare = { ...COMPARE, ignore: [...COMPARE.ignore, ...c.ignore, ...(c.status === 404 ? ["response.body"] : [])] };
       const options = {
         sql,
-        redis: redisSeeder(redis),
+        redis: {
+          async reset(entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0], exchange?: unknown, now?: Date) {
+            await redisSeeder(redis).reset(entries);
+            if (!exchange || !now) return;
+            const purchases = { model: "Purchase", name: replayIndexName("purchases", ES_INDEX_SUFFIX) } as const;
+            // Rails' `purchase-test` template index is dropped and rebuilt by every agent's spec run.
+            for (let attempt = 0; ; attempt++) {
+              try {
+                await recreateIndex(es, purchases);
+                break;
+              } catch (error) {
+                if (attempt >= 30 || !/index_not_found/.test(String(error))) throw error;
+                await new Promise((resolve) => setTimeout(resolve, 1000));
+              }
+            }
+            await reindexPurchases(es, purchases.name, sql);
+          },
+        },
         transport: httpTransport(server.baseUrl),
         interceptHttp: false,
         rewriteRequest: (request: FixtureRequest, fixture: Fixture, now: Date) => reencryptCookies(request, fixture, SECRET_KEY_BASE, now),

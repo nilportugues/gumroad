@@ -81,6 +81,12 @@ function hostMatches(scope: HostScope, host: HostClassification): boolean {
   return !host.gumroad && (host.sellerSubdomain !== null || host.customDomainLookup !== null);
 }
 
+// Every route a request matches, in table order: `seller:/` and `product:/` both match a custom domain's root,
+// and only the host gate (a product on the domain or not) tells them apart.
+export function matchRoutes(routes: CompiledRoute[], method: string, pathname: string, host: HostClassification): CompiledRoute[] {
+  return routes.filter((route) => route.methods.includes(method.toUpperCase()) && hostMatches(route.hosts, host) && route.regexp.test(pathname));
+}
+
 export function matchRoute(routes: CompiledRoute[], method: string, pathname: string, host: HostClassification): CompiledRoute | null {
   return (
     routes.find((route) => route.methods.includes(method.toUpperCase()) && hostMatches(route.hosts, host) && route.regexp.test(pathname)) ??

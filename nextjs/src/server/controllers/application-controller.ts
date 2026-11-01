@@ -70,7 +70,12 @@ export type BeforeAction = "redirect_to_custom_subdomain";
 
 // The request is one Rails serves: the port cannot prove what it would answer, so the whole request
 // goes to Rails instead of a guess.
-export class HandBackToRails extends Error {}
+export class HandBackToRails extends Error {
+  constructor(message?: string) {
+    super(message);
+    if (process.env.HAND_BACK_DEBUG) console.error(`handed back to Rails\n${new Error().stack}`);
+  }
+}
 
 export type FilterOutcome = { halt: ActionResult } | { state: Record<string, unknown> };
 

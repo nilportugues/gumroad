@@ -503,3 +503,5 @@ export const edit_link_path = path("/products/:id/edit(.:format)");
 export const internal_product_receipt_preview_path = path("/internal/products/:product_id/receipt_preview(.:format)");
 export const internal_product_public_files_path = path("/internal/product_public_files(.:format)");
 export const custom_domain_coffee_url = url("/coffee(.:format)");
+export const edit_link_url = url("/products/:id/edit(.:format)");
+export const sections_link_path = path("/links/:id/sections(.:format)");

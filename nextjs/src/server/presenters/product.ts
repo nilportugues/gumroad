@@ -84,7 +84,8 @@ function hash(raw: unknown) {
 // -------------------------------------------------------------------------------------------------
 // Pricing (Product::Prices) for products that are not tiered memberships
 
-type PricedProduct = { link: LinkRow; prices: PriceRow[]; priceDifference: number | null };
+// `tierPrice` is the price of a tiered membership: Product::Prices#lowest_tier_price for the default duration.
+type PricedProduct = { link: LinkRow; prices: PriceRow[]; priceDifference: number | null; tierPrice?: number };
 
 function pricesForCurrency(prices: PriceRow[], row: LinkRow): PriceRow[] {
   return prices.filter((price) => price.currency === row.price_currency_type);
@@ -109,10 +110,13 @@ function buyPriceCents(product: PricedProduct): number | null {
 const defaultPriceCents = (product: PricedProduct) => (link.purchaseType(product.link) === "rent_only" ? rentalPriceCents(product) : buyPriceCents(product));
 
 // Product::Prices#display_price_cents (not tiered)
-const displayPriceCents = (product: PricedProduct) => (defaultPriceCents(product) ?? 0) + (product.priceDifference ?? 0);
+const displayPriceCents = (product: PricedProduct) => product.tierPrice ?? (defaultPriceCents(product) ?? 0) + (product.priceDifference ?? 0);
 
 async function pricedProduct(row: LinkRow): Promise<PricedProduct> {
-  if (link.isTiered(row)) throw new NotPortedError("Product::Prices#lowest_tier_price for a tiered membership");
+  if (link.isTiered(row)) {
+    const { lowestTierPriceCents } = await import("./product-props.ts");
+    return { link: row, prices: await alivePrices(row.id), priceDifference: null, tierPrice: await lowestTierPriceCents(row, true) };
+  }
   const variants = await currentBaseVariants(row.id);
   const differences = variants.map((variant) => variant.price_difference_cents).filter((cents): cents is number => cents !== null);
   return { link: row, prices: await alivePrices(row.id), priceDifference: differences.length === 0 ? null : Math.min(...differences) };
@@ -130,24 +134,7 @@ async function assertNoDefaultDiscount(row: LinkRow): Promise<void> {
 
 // Link#remaining_for_sale_count
 async function remainingForSaleCount(row: LinkRow): Promise<number | null> {
-  if (link.isTiered(row) || link.isBundle(row)) throw new NotPortedError("Link#remaining_for_sale_count for a membership or bundle");
-  const categories = await selectRows<{ id: bigint; title: string | null }>(
-    Prisma.sql`SELECT ${column("variant_categories", "id")}, ${column("variant_categories", "title")} FROM ${table("variant_categories")} WHERE ${column("variant_categories", "link_id")} = ${row.id} AND ${column("variant_categories", "deleted_at")} IS NULL ORDER BY ${column("variant_categories", "id")} ASC`,
-  );
-  if (categories.some((category) => (category.title ?? "").toLowerCase() === "tier")) throw new NotPortedError("Link#tiers for a product with a Tier category");
-  if (categories.length > 0) {
-    const variants = await selectRows<{ variant_category_id: bigint; max_purchase_count: number | null; sales_count_for_inventory_cache: number | null; flags: bigint | number | null }>(
-      Prisma.sql`SELECT ${column("base_variants", "variant_category_id")}, ${column("base_variants", "max_purchase_count")}, ${column("base_variants", "sales_count_for_inventory_cache")}, ${column("base_variants", "flags")} FROM ${table("base_variants")} WHERE ${column("base_variants", "type")} = 'Variant' AND ${column("base_variants", "deleted_at")} IS NULL AND ${column("base_variants", "variant_category_id")} IN (${Prisma.join(categories.map((category) => category.id))})`,
-    );
-    // VariantCategory#available?, BaseVariant#available? (closed_to_new_buyers? needs a tier, which is excluded above)
-    const available = (categoryId: bigint) => {
-      const alive = variants.filter((variant) => variant.variant_category_id === categoryId);
-      return alive.length === 0 || alive.some((variant) => variant.max_purchase_count === null || variant.max_purchase_count - (variant.sales_count_for_inventory_cache ?? 0) > 0);
-    };
-    if (!categories.some((category) => available(category.id))) return 0;
-  }
-  if (row.max_purchase_count === null) return null;
-  return Math.max(row.max_purchase_count - (row.sales_count_for_inventory_cache ?? 0), 0);
+  return (await import("./product-props.ts")).remainingForSaleCount(row);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -282,5 +269,6 @@ export async function cardForWeb(productId: bigint | number, options: CardOption
   return props;
 }
 
+export { urlForProductPage };
 export { hash as jsonDataHash, rubyRound, remainingForSaleCount, displayPriceCents, pricedProduct, assertNoDefaultDiscount, present };
 export type { PricedProduct };
