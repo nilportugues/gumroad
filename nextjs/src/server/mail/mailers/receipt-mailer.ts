@@ -5,6 +5,7 @@
 // Rails reads in the order the view asks; this reads in that order too, so the first occurrence of each distinct
 // statement lands in the same place (repeats are query-cache hits in both).
 import { Prisma } from "@prisma/client";
+import { getUsdCents, rubyStringToF } from "../../models/concerns/currency-helper.ts";
 import type { Charge, Purchase } from "@prisma/client";
 
 import { encrypt as obfuscateId } from "../../../lib/obfuscate-ids.ts";
@@ -19,6 +20,7 @@ import type { RenderedMail } from "../compose.ts";
 import type { RubyValue } from "../ruby-value.ts";
 import { linkTo } from "../view-helpers.ts";
 import { emailLayout, h, mailerUrl, MailViewNotPortedError } from "../views.ts";
+import { taxLines } from "./receipt-tax.ts";
 import { cardPrice, floatToS, numberToSi, SAMPLED_ASSOCIATED_IDS, recommendedProducts, type RecommendedProducts } from "./receipt-recommended.ts";
 import {
   customersDeliveryOptions,
@@ -73,7 +75,7 @@ async function loadReceiptData(purchase: ReceiptPurchaseRow & Record<string, unk
   const link = await findRow<ReceiptLinkRow>("links", purchase.link_id);
   if (!link) throw new TypeError("undefined method 'name' for nil");
 
-  const data: ReceiptData = { purchase, link, seller, urlRedirectToken: null, variantNames: null, tipValueCents: null, customFields: [], refundPolicy: null };
+  const data: ReceiptData = { purchase, link, seller, displayedPriceUsdCents: 0, taxLines: null, urlRedirectToken: null, variantNames: null, tipValueCents: null, customFields: [], refundPolicy: null };
   return { data, supportEmails: supportEmails.map((row) => row.support_email) };
 }
 
@@ -287,6 +289,7 @@ export async function receipt(args: RubyValue[], deps: MailerDeps = {}): Promise
 
   const { data, supportEmails } = await loadReceiptData(purchase);
   assertSupported(data);
+  data.displayedPriceUsdCents = await getUsdCents(purchase.displayed_price_currency_type!, purchase.displayed_price_cents, purchase.displayed_price_currency_type === "usd" ? undefined : rubyStringToF(purchase.rate_converted_to_usd!));
   const seller = data.seller;
   const subject = mailSubject(data);
   const from = fromEmailAddressWithName(seller.name, customersNoreply());
@@ -325,6 +328,7 @@ export async function receipt(args: RubyValue[], deps: MailerDeps = {}): Promise
 
   const shipping = shippingInfo(data);
   const invoiceLink = linkTo("Generate invoice", mailerUrl(`/purchases/${externalId}/invoice/new`, { email: purchase.email ?? "" }));
+  data.taxLines = await taxLines(purchase);
   const payment = paymentInfo(data, invoiceLink);
 
   // recommended_products_info: the buyer's account, cart_seller_ids, then the products Rails excludes (the cart's,

@@ -6,7 +6,9 @@
 // Anything outside that shape throws MailViewNotPortedError in `assertSupported`, before a statement is sent
 // for it, and the delivery goes back to Rails.
 import { isBlank } from "../../html/text-helper.ts";
-import { formatJustPriceInCents, formattedPrice } from "../../models/concerns/money-formatter.ts";
+import type { TaxLine } from "./receipt-tax.ts";
+import { rubyStringToF } from "../../models/concerns/currency-helper.ts";
+import { formatJustPriceInCents, formattedPrice, knownCurrency } from "../../models/concerns/money-formatter.ts";
 import { LinkFlags } from "../../models/link.ts";
 import { PurchaseFlags } from "../../search/flags.ts";
 import { localizeTime, pluralize, truncate } from "../view-helpers.ts";
@@ -26,9 +28,11 @@ export type ReceiptPurchaseRow = {
   total_transaction_cents: number | null;
   displayed_price_cents: number;
   displayed_price_currency_type: string | null;
+  rate_converted_to_usd: string | null;
   shipping_cents: number;
   tax_cents: number | null;
   gumroad_tax_cents: number | null;
+  zip_tax_rate_id: Id | null;
   quantity: number;
   created_at: Date;
   subscription_id: Id | null;
@@ -78,6 +82,10 @@ export type ReceiptData = {
   purchase: ReceiptPurchaseRow;
   link: ReceiptLinkRow;
   seller: ReceiptSellerRow;
+  // get_usd_cents(displayed_price_currency_type, displayed_price_cents, rate: rate_converted_to_usd)
+  displayedPriceUsdCents: number;
+  // PaymentInfo#today_tax_price_attributes: null when the purchase is not taxable
+  taxLines: TaxLine[] | null;
   urlRedirectToken: string | null;
   variantNames: string[] | null;
   tipValueCents: number | null;
@@ -102,7 +110,6 @@ const NOT_PORTED_PURCHASE_FLAGS = [
   "is_installment_payment",
   "is_original_subscription_purchase",
   "is_part_of_combined_charge",
-  "was_purchase_taxable",
   "is_multiseat_license",
 ] as const;
 
@@ -123,8 +130,10 @@ export function assertSupported(data: ReceiptData): void {
   if (purchase.preorder_id !== null) refuse("a preorder");
   // Footer: the "test purchase" warning for a seller buying their own product.
   if (purchase.purchaser_id !== null && BigInt(purchase.purchaser_id) === BigInt(link.user_id)) refuse("a test purchase");
-  if (purchase.displayed_price_currency_type !== "usd" || link.price_currency_type !== "usd") refuse(`a purchase priced in ${String(purchase.displayed_price_currency_type)}`);
-  if ((purchase.tax_cents ?? 0) > 0 || (purchase.gumroad_tax_cents ?? 0) > 0) refuse("a taxed purchase");
+  const currency = purchase.displayed_price_currency_type;
+  // A purchase without a stored rate looks the rate up in Redis; a currency the money gem does not know fails in Rails.
+  if (isBlank(currency) || !knownCurrency(currency!)) refuse(`a purchase priced in ${String(currency)}`);
+  if (currency !== "usd" && (isBlank(purchase.rate_converted_to_usd) || rubyStringToF(purchase.rate_converted_to_usd!) === 0)) refuse(`a ${currency} purchase without a usable exchange rate`);
   if (!SUPPORTED_NATIVE_TYPES.includes(link.native_type ?? "")) refuse(`a ${String(link.native_type)} product`);
   if (!["no_recommendations", "own_products"].includes(seller.recommendation_type ?? "")) refuse(`a seller with recommendation type ${String(seller.recommendation_type)}`);
   if (isBlank(displayName(seller))) refuse("a seller without a display name");
@@ -134,7 +143,7 @@ export function assertSupported(data: ReceiptData): void {
 
 // What `auto_link(text, html: { target: "_blank" })` returns unchanged apart from sanitizing: plain ASCII with
 // no markup, links, addresses or entities. Everything else (rails_autolink and the HTML sanitizer) is not ported.
-const AUTO_LINK_SAFE = /^[\x20-\x7e¢]*$/u;
+const AUTO_LINK_SAFE = /^[\x20-\x7e¢€£¥]*$/u;
 export function autoLinkText(text: string): string {
   if (!AUTO_LINK_SAFE.test(text) || /[<>\\@]|:\/\/|www\.|&[#A-Za-z0-9]+;/iu.test(text)) throw new MailViewNotPortedError(`auto_link of ${JSON.stringify(text)}`);
   return h(text);
@@ -221,10 +230,11 @@ export function paymentInfo(data: ReceiptData, invoiceLink: string) {
   const productLabel = purchase.quantity <= 1 ? link.name : `${link.name} × ${purchase.quantity}`;
 
   const today: Attribute[] = [];
-  if (!free) today.push({ label: productLabel, text: formattedDollarAmount(purchase.displayed_price_cents) });
+  if (!free) today.push({ label: productLabel, text: formattedDollarAmount(data.displayedPriceUsdCents) });
   if (purchase.shipping_cents > 0) today.push({ label: "Shipping", text: formattedDollarAmount((purchase.total_transaction_cents ?? 0) === 0 ? 0 : purchase.shipping_cents) });
+  for (const line of data.taxLines ?? []) today.push({ label: line.label, text: formattedDollarAmount(line.cents) });
   // A single item with no shipping or tax shows no total.
-  if (purchase.shipping_cents > 0) today.push({ label: "Amount paid", text: formattedDollarAmount(purchase.total_transaction_cents ?? 0) });
+  if (purchase.shipping_cents > 0 || data.taxLines !== null) today.push({ label: "Amount paid", text: formattedDollarAmount(purchase.total_transaction_cents ?? 0) });
   if (!free) today.push({ label: null, html: invoiceLink });
 
   const notes: string[] = [];
@@ -256,9 +266,9 @@ export function itemInfo(data: ReceiptData, customReceiptText: string | null) {
     general.push({ label: "Variant", text: names.length === 1 && names[0] === "Untitled" ? "" : names.join(", ") });
   }
   if (purchase.price_cents !== 0 || purchase.shipping_cents !== 0) {
-    general.push({ label: "Product price", text: formatJustPriceInCents(Math.trunc(purchase.displayed_price_cents / purchase.quantity) - (data.tipValueCents ?? 0), "usd") });
+    general.push({ label: "Product price", text: formatJustPriceInCents(Math.trunc(purchase.displayed_price_cents / purchase.quantity) - (data.tipValueCents ?? 0), purchase.displayed_price_currency_type!) });
   }
-  if (data.tipValueCents !== null) general.push({ label: "Tip", text: formatJustPriceInCents(data.tipValueCents, "usd") });
+  if (data.tipValueCents !== null) general.push({ label: "Tip", text: formatJustPriceInCents(data.tipValueCents, purchase.displayed_price_currency_type!) });
   if (purchase.quantity > 1) general.push({ label: "Quantity", text: String(purchase.quantity) });
   for (const field of data.customFields) {
     if (field.type === "checkbox") general.push({ label: field.name, text: field.value ? "Yes" : "No" });

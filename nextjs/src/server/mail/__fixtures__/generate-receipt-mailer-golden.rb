@@ -236,12 +236,11 @@ end
 
 # --- fixtures --------------------------------------------------------------------------------------
 TABLES = %w[users links purchases subscriptions url_redirects purchase_presentments calls refunds prices charges charge_purchases orders order_purchases
-            customer_email_infos email_infos product_files thumbnails gifts preorders base_variants base_variants_purchases purchase_custom_fields purchase_refund_policies tips cached_sales_related_products_infos bundle_products product_review_stats active_storage_attachments active_storage_blobs asset_previews custom_domains offer_codes variant_categories affiliates].freeze
+            customer_email_infos email_infos product_files thumbnails gifts preorders base_variants base_variants_purchases purchase_custom_fields purchase_refund_policies tips cached_sales_related_products_infos bundle_products product_review_stats active_storage_attachments active_storage_blobs asset_previews custom_domains offer_codes variant_categories affiliates zip_tax_rates purchase_taxjar_infos].freeze
 def reset!
   conn = ActiveRecord::Base.connection
   TABLES.each { |t| conn.execute("DELETE FROM #{t}") if conn.table_exists?(t) }
   $redis.flushdb
-  Link.__elasticsearch__.create_index!(force: true)
   $rands.clear
   $rands_used.clear
   $iv_seq = 0
@@ -280,7 +279,7 @@ end
 [User, Link, Purchase, Subscription, UrlRedirect, PurchasePresentment, Price].each { _1.columns; _1.first }
 SidekiqExecutor.perform { User.first; User.transaction { User.first } }
 
-messages = []
+messages = $messages = []
 errors = []
 refused = []
 
@@ -323,6 +322,14 @@ CASES = [
   ["digital_resend", {}, {}, {}, { features: RESEND }],
   ["digital_united_internet", {}, {}, { email: "buyer@web.de" }, { features: RESEND }],
   ["digital_old_purchase", {}, {}, { created_at: Time.utc(2025, 3, 5, 9, 30), updated_at: Time.utc(2025, 3, 5, 9, 30) }],
+  # Priced in another currency: the line is converted back to dollars at the purchase's rate, the product price stays in the product's.
+  ["eur_product", {}, { price_currency_type: "eur" }, { price_cents: 500, total_transaction_cents: 500, displayed_price_cents: 450, displayed_price_currency_type: "eur", rate_converted_to_usd: "0.9" }],
+  ["eur_rate_digits", {}, { price_currency_type: "eur" }, { price_cents: 1234, total_transaction_cents: 1234, displayed_price_cents: 1017, displayed_price_currency_type: "eur", rate_converted_to_usd: "0.8237451" }],
+  ["eur_half_cent", {}, { price_currency_type: "eur" }, { price_cents: 1, total_transaction_cents: 1, displayed_price_cents: 1, displayed_price_currency_type: "eur", rate_converted_to_usd: "2.0" }],
+  ["jpy_product", {}, { price_currency_type: "jpy" }, { price_cents: 5000, total_transaction_cents: 5000, displayed_price_cents: 7500, displayed_price_currency_type: "jpy", rate_converted_to_usd: "150.0" }],
+  ["gbp_quantity", {}, { price_currency_type: "gbp" }, { price_cents: 2000, total_transaction_cents: 2000, displayed_price_cents: 1600, quantity: 2, displayed_price_currency_type: "gbp", rate_converted_to_usd: "0.8" }],
+  ["eur_free", {}, { price_currency_type: "eur" }, { price_cents: 0, total_transaction_cents: 0, displayed_price_cents: 0, displayed_price_currency_type: "eur", rate_converted_to_usd: "0.9" }],
+  ["usd_purchase_of_eur_product", {}, { price_currency_type: "eur" }, { price_cents: 500, total_transaction_cents: 500, displayed_price_cents: 500 }],
 ].freeze
 
 CASES.each do |name, seller, link, purchase, extra = {}|
@@ -331,6 +338,12 @@ CASES.each do |name, seller, link, purchase, extra = {}|
 end
 
 # Rows that hang off the purchase.
+setup(link: { price_currency_type: "eur" }, purchase: { price_cents: 700, total_transaction_cents: 700, displayed_price_cents: 630, displayed_price_currency_type: "eur", rate_converted_to_usd: "0.9" })
+Tip.insert!({ purchase_id: 401, value_cents: 90, value_usd_cents: 100, created_at: FIXED_NOW, updated_at: FIXED_NOW })
+messages << record_message("receipt_eur_tip", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
+setup(link: PHYSICAL.merge(require_shipping: true, price_currency_type: "eur"), purchase: { price_cents: 1500, total_transaction_cents: 1500, displayed_price_cents: 1000, shipping_cents: 500, displayed_price_currency_type: "eur", rate_converted_to_usd: "0.8", **{ full_name: "Ada Lovelace", street_address: "1 Analytical Way", city: "London", state: "LDN", zip_code: "N1 9GU", country: "United Kingdom" } }, redirect: false)
+messages << record_message("receipt_eur_physical_shipping", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
+
 setup(purchase: { price_cents: 500, total_transaction_cents: 500, displayed_price_cents: 500 })
 insert_variant(id: 701, link_id: 301, name: "Premium")
 attach_variant(401, 701)
@@ -397,8 +410,7 @@ refuse(refused, "rental", purchase: PRICE.merge(flags: 16384))
 refuse(refused, "bundle", purchase: PRICE.merge(flags: 33_554_432), link: { flags: 33_554_432 })
 refuse(refused, "licensed", link: { flags: 64 }, purchase: PRICE)
 refuse(refused, "membership", link: { flags: 2, native_type: "membership" }, purchase: PRICE)
-refuse(refused, "taxed", purchase: PRICE.merge(tax_cents: 50, flags: 4096))
-refuse(refused, "euro_product", link: { price_currency_type: "eur" }, purchase: PRICE.merge(displayed_price_currency_type: "eur", rate_converted_to_usd: "1.2"))
+refuse(refused, "unknown_currency", purchase: PRICE.merge(displayed_price_currency_type: "xxx", rate_converted_to_usd: "1.0"))
 refuse(refused, "call", link: { native_type: "call" }, purchase: PRICE)
 setup(purchase: PRICE.merge(purchaser_id: 201))
 refused << record_message("receipt_test_purchase", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
@@ -419,6 +431,7 @@ refused << record_message("receipt_auto_linked_field", CustomerMailer, :receipt,
 # A seller who recommends their own products: the receipt runs RecommendedProducts::CheckoutService, the related-sales
 # cache and an Elasticsearch search. The index is rebuilt from the rows, so seed everything, then `recommend!`.
 def recommend!
+  Link.__elasticsearch__.create_index!(force: true)
   Link.find_each { _1.__elasticsearch__.index_document }
   EsClient.indices.refresh(index: Link.index_name)
 end
@@ -543,6 +556,72 @@ refuse_recommending(refused, "rec_sampled_associations", buyer: true) do
   other_products(302, 303, 304, 305)
   [302, 303, 304].each_with_index { |link_id, i| insert_purchase(id: 410 + i, link_id:, seller_id: 201, purchaser_id: 202, succeeded_at: FIXED_NOW - (i + 1).days) }
 end
+
+
+# --- Taxed purchases (WS-85) --------------------------------------------------------------------------------------
+TAXABLE = 4096 # was_purchase_taxable
+TAX_EXCLUDED = 8192 # was_tax_excluded_from_price
+
+def insert_zip_tax_rate(id:, country:, combined_rate:, **attrs)
+  ZipTaxRate.insert!({ id:, country:, combined_rate:, created_at: FIXED_NOW, updated_at: FIXED_NOW, **attrs })
+end
+
+def taxed(name, country: nil, rate: nil, purchase: {}, link: {}, zip: {}, extra: nil, into: nil)
+  setup(link:, purchase: { price_cents: 500, total_transaction_cents: 550, displayed_price_cents: 500, flags: TAXABLE | TAX_EXCLUDED, tax_cents: 50, **purchase })
+  if country
+    insert_zip_tax_rate(id: 901, country:, combined_rate: rate, **zip)
+    Purchase.where(id: 401).update_all(zip_tax_rate_id: 901)
+  end
+  extra&.call
+  (into || $messages) << record_message("receipt_#{name}", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
+end
+
+taxed("tax_us_excluded", country: "US", rate: 0.0825)
+taxed("tax_us_included", country: "US", rate: 0.0825, purchase: { flags: TAXABLE, total_transaction_cents: 500, tax_cents: 38 })
+taxed("tax_without_zip_rate")
+taxed("tax_without_zip_rate_included", purchase: { flags: TAXABLE, total_transaction_cents: 500 })
+taxed("tax_eu_vat", country: "DE", rate: 0.19, purchase: { tax_cents: 0, gumroad_tax_cents: 95, total_transaction_cents: 595 })
+taxed("tax_eu_vat_uk", country: "GB", rate: 0.2, purchase: { tax_cents: 0, gumroad_tax_cents: 100, total_transaction_cents: 600 })
+taxed("tax_eu_vat_refunded", country: "FR", rate: 0.2, purchase: { tax_cents: 0, gumroad_tax_cents: 100, total_transaction_cents: 600 }, extra: -> {
+  Refund.insert_all!([
+    { purchase_id: 401, amount_cents: 100, gumroad_tax_cents: 20, status: "succeeded", json_data: nil, created_at: FIXED_NOW, updated_at: FIXED_NOW },
+    { purchase_id: 401, amount_cents: 50, gumroad_tax_cents: 15, status: nil, json_data: nil, created_at: FIXED_NOW, updated_at: FIXED_NOW },
+    { purchase_id: 401, amount_cents: 50, gumroad_tax_cents: 40, status: "failed", json_data: nil, created_at: FIXED_NOW, updated_at: FIXED_NOW },
+    { purchase_id: 401, amount_cents: 50, gumroad_tax_cents: 10, status: "canceled", json_data: nil, created_at: FIXED_NOW, updated_at: FIXED_NOW },
+    { purchase_id: 401, amount_cents: 50, gumroad_tax_cents: 7, status: "failed", json_data: { balance_reversed_on_failure: "true" }.to_json, created_at: FIXED_NOW, updated_at: FIXED_NOW },
+    { purchase_id: 401, amount_cents: 50, gumroad_tax_cents: 5, status: "failed", json_data: { balance_reversed_on_failure: "false" }.to_json, created_at: FIXED_NOW, updated_at: FIXED_NOW },
+  ])
+})
+taxed("tax_gst_india", country: "IN", rate: 0.18, purchase: { tax_cents: 0, gumroad_tax_cents: 90, total_transaction_cents: 590 })
+taxed("tax_gst_new_zealand", country: "NZ", rate: 0.15, purchase: { tax_cents: 0, gumroad_tax_cents: 75, total_transaction_cents: 575 })
+taxed("tax_gst_australia", country: "AU", rate: 0.1, purchase: { tax_cents: 0, gumroad_tax_cents: 50 })
+taxed("tax_gst_singapore", country: "SG", rate: 0.09, purchase: { tax_cents: 0, gumroad_tax_cents: 45, total_transaction_cents: 545 })
+taxed("tax_consumption_tax_japan", country: "JP", rate: 0.1, purchase: { tax_cents: 0, gumroad_tax_cents: 50 })
+taxed("tax_service_tax_malaysia", country: "MY", rate: 0.06, purchase: { tax_cents: 0, gumroad_tax_cents: 30, total_transaction_cents: 530 })
+taxed("tax_vat_norway", country: "NO", rate: 0.25, purchase: { tax_cents: 0, gumroad_tax_cents: 125, total_transaction_cents: 625 })
+taxed("tax_vat_turkey", country: "TR", rate: 0.2, purchase: { tax_cents: 0, gumroad_tax_cents: 100, total_transaction_cents: 600 })
+taxed("tax_canada_zip_rate", country: "CA", rate: 0.05)
+taxed("tax_rate_truncated", country: "ES", rate: 0.0799999, purchase: { tax_cents: 0, gumroad_tax_cents: 40, total_transaction_cents: 540 })
+taxed("tax_rate_fraction", country: "ES", rate: 0.2175, purchase: { tax_cents: 0, gumroad_tax_cents: 109, total_transaction_cents: 609 })
+taxed("tax_flag_without_amount", country: "DE", rate: 0.19, purchase: { tax_cents: 0, gumroad_tax_cents: 0, total_transaction_cents: 500 })
+taxed("tax_total_transaction_zero", country: "DE", rate: 0.19, purchase: { price_cents: 0, displayed_price_cents: 0, tax_cents: 0, gumroad_tax_cents: 0, total_transaction_cents: 0 })
+taxed("tax_amount_without_flag", country: "US", rate: 0.0825, purchase: { flags: 0 })
+taxed("tax_with_shipping", country: "DE", rate: 0.19, link: PHYSICAL.merge(require_shipping: true), purchase: { tax_cents: 0, gumroad_tax_cents: 100, shipping_cents: 500, total_transaction_cents: 1100, price_cents: 500, **SHIPPING })
+taxed("tax_eur_product", country: "DE", rate: 0.19, link: { price_currency_type: "eur" }, purchase: { tax_cents: 0, gumroad_tax_cents: 95, total_transaction_cents: 595, displayed_price_cents: 450, displayed_price_currency_type: "eur", rate_converted_to_usd: "0.9" })
+taxed("tax_quantity", country: "DE", rate: 0.19, purchase: { quantity: 2, price_cents: 1000, displayed_price_cents: 1000, tax_cents: 0, gumroad_tax_cents: 190, total_transaction_cents: 1190 })
+taxed("tax_taxjar_zero_rates", country: "US", rate: 0.07, extra: -> {
+  PurchaseTaxjarInfo.insert!({ purchase_id: 401, combined_tax_rate: 0.07, gst_tax_rate: 0, pst_tax_rate: 0, qst_tax_rate: 0, created_at: FIXED_NOW, updated_at: FIXED_NOW })
+})
+taxed("tax_taxjar_without_canadian_rates", country: "US", rate: 0.07, extra: -> {
+  PurchaseTaxjarInfo.insert!({ purchase_id: 401, combined_tax_rate: 0.07, state_tax_rate: 0.07, created_at: FIXED_NOW, updated_at: FIXED_NOW })
+})
+taxed("tax_signed_in_buyer", country: "DE", rate: 0.19, purchase: { purchaser_id: 202, tax_cents: 0, gumroad_tax_cents: 95, total_transaction_cents: 595 }, extra: -> { insert_user(id: 202, email: "buyer@example.com", username: "buyer") })
+
+# Shapes the port hands back: Canadian splits, a creator's own tax ID.
+taxed("tax_canada_split", country: "US", rate: 0.13, into: refused, extra: -> {
+  PurchaseTaxjarInfo.insert!({ purchase_id: 401, combined_tax_rate: 0.13, gst_tax_rate: 0.05, pst_tax_rate: 0.08, created_at: FIXED_NOW, updated_at: FIXED_NOW })
+})
+taxed("tax_creator_tax_rate", country: "DE", rate: 0.19, into: refused, zip: { user_id: 201, json_data: { "invoice_sales_tax_id" => "DE123" } })
 
 # Errors.
 reset!

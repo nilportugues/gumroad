@@ -99,6 +99,9 @@ export function moneyFormatterFormat(amount: MoneyAmount, currencyType: string, 
   return formatMoney(amount, currency, code, withSymbol ? (Object.hasOwn(CHOICES_SYMBOLS, code) ? CHOICES_SYMBOLS[code]! : currency.symbol) : null, options);
 }
 
+// Whether the money gem knows the currency code.
+export const knownCurrency = (currencyType: string): boolean => Object.hasOwn(CURRENCIES, currencyType.toLowerCase());
+
 // MoneyFormatter.symbol_for
 export function symbolFor(currencyType: string): string {
   const code = currencyType.toLowerCase();
