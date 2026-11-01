@@ -300,3 +300,12 @@ the blast's Redis keys, non-opener resends) and the form context. Parity: `spec/
 Throw `NotPortedError` (500): a post with attached files (`ProductFile#as_json`), a post without a name (`strip_tags` + `truncate`),
 a `page`/`query` parameter that is an array or hash. A `quota_deferred_until` is a Redis timestamp the replayer does not move, so
 `delivery.scheduled_for` is ignored in the comparison.
+
+## Elasticsearch search (WS-65)
+
+The query builders live in `src/server/search/`; each is a pure function returning the request body, proven against a golden recorded from the real Ruby through a recording TCP proxy in front of Elasticsearch 7.17 (`__fixtures__/es_recording_proxy.rb`, so the bodies are the bytes on the wire). Index names in the goldens are `ws65-*`; the tests compare bodies, not paths.
+
+- `product-search.ts`, `search-products.ts`: `Product::Searchable` (`search_options`, `filetype_options`, `taxonomy_attribute_options`, `partial_search_options`) and the `SearchProducts` concern (param normalization, the facets of `search_products`, `TaxonomyAttribute` tokens). `discover-search.golden.json`, regenerate with `generate-discover-search-golden.rb`. `searchProductsWithFacets` returns the hit ids in order; loading the `Link` rows (`records`) is the caller's.
+- `purchase-search.ts`: `PurchaseSearchService`, including the long-email-token fallback request. `purchase-search.golden.json`.
+- `following.ts`, `civil-time.ts`: `CreatorAnalytics::Following` (time zone day starts, `D3` labels) and the `ConfirmedFollowerEvent` activity search. `following.golden.json`.
+- Not ported: the Discover, `Products/Discover`, Customers, Audience, Churn, Analytics and Dashboard page renders. Discover needs `ProductPresenter.card_for_web`, `WishlistPresenter`, `RecommendedWishlistsService` and the `DiscoverSearch` write; the seller pages share `check_payment_details` (Redis plus a Stripe call) and the `DashboardPreference` after_action cookie, which `PageSpec` cannot set yet.
