@@ -62,7 +62,7 @@ function Providers({ layout, href, children }: { layout: ShellLayout; href: stri
   );
 }
 
-export function InertiaShell({
+export function InertiaShellClient({
   page: { component, props, href },
   layout = "default",
   children,

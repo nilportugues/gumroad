@@ -31,10 +31,16 @@ import { redirectUrlFor } from "../services/subdomain-redirector.ts";
 import { setCookieHeader } from "./rack-cookies.ts";
 import { isPresent, queryParam, type RailsRequest, railsRequest } from "./rails-request.ts";
 
-export type Rendered = { status: number; body: string; contentType: string };
+// `inertia`: rendered by inertia_rails, which appends X-Inertia to Vary.
+export type Rendered = { status: number; body: string; contentType: string; inertia?: boolean; headers?: Record<string, string> };
 // redirect_to from the action. `rescued`: from a rescue_from handler, which skips the after_actions.
 export type Redirected = { status: number; location: string; rescued?: boolean };
-export type ActionResult = Rendered | Redirected;
+// inertia_rails' middleware swapping the response for a bare 409 when the client's asset version is
+// stale. The controller still ran, so its cookies (written by ActionDispatch::Cookies, outside that
+// middleware) and the session survive; the headers it set do not. `rescued`: the controller halted
+// or redirected, so the after_actions (XSRF-TOKEN) did not run.
+export type ForceRefresh = { forceRefresh: string; rescued?: boolean };
+export type ActionResult = Rendered | Redirected | ForceRefresh;
 
 // `raise ActionController::RoutingError, "Not Found"` (ApplicationController#e404).
 export class RoutingError extends Error {}
@@ -43,7 +49,22 @@ export type BeforeAction = "redirect_to_custom_subdomain";
 
 export type ActionOptions = { skip?: BeforeAction[] };
 
-type ActionContext = { request: RailsRequest };
+// What the session contributes to rendering an Inertia page: its CSRF token, the flash and
+// inertia_errors it carries (both are consumed by the render) and two flags shared props read.
+export type RenderState = {
+  csrfToken: string;
+  flash: Record<string, string>;
+  inertiaErrors: Record<string, string>;
+  mobileParam: unknown;
+  mobileAppWebView: unknown;
+  clearHistory: boolean;
+};
+
+export type ActionContext = {
+  request: RailsRequest;
+  // Reads the render state and consumes the flash and inertia_errors, as rendering the page does.
+  takeRenderState: () => RenderState;
+};
 
 const GUMROAD_GUID_COOKIE = "_gumroad_guid";
 const XSRF_TOKEN_COOKIE = "XSRF-TOKEN";
@@ -81,7 +102,7 @@ export function allDomain(host: string): string | undefined {
 }
 
 // Request::Session as the cookie store loads it: the decrypted hash, with a session_id added.
-type Session = { data: Record<string, unknown> };
+export type Session = { data: Record<string, unknown> };
 
 function loadSession(request: RailsRequest): Session {
   const name = railsSessionCookieName();
@@ -181,53 +202,119 @@ export function redirectLocation(request: RailsRequest, location: string): strin
 
 type ControllerResponse = { status: number; headers: Headers; body: string };
 
-async function runChain(
-  request: RailsRequest,
-  options: ActionOptions,
-  action: (context: ActionContext) => Promise<ActionResult>,
-  now: Date,
-): Promise<ControllerResponse> {
+export type Chain = {
+  request: RailsRequest;
+  now: Date;
+  headers: Headers;
+  session: Session;
+  csrfToken: string;
+  guid: string | null;
+};
+
+const isHash = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
+
+const stringEntries = (value: unknown): Record<string, string> =>
+  isHash(value) ? Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === "string")) : {};
+
+// Rendering an Inertia page reads session["flash"] (every key is marked for discard when it loads,
+// so commit_flash writes it back as nil) and session[:inertia_errors], which InertiaRails::Middleware
+// deletes after a response that is neither a redirect nor a stale GET.
+export function takeRenderState(chain: Chain): RenderState {
+  const { data } = chain.session;
+  const flash = isHash(data.flash) ? stringEntries(data.flash.flashes) : {};
+  const state: RenderState = {
+    csrfToken: chain.csrfToken,
+    flash,
+    inertiaErrors: stringEntries(data.inertia_errors),
+    mobileParam: data.mobile_param,
+    mobileAppWebView: data.mobile_app_web_view,
+    clearHistory: data.inertia_clear_history === true,
+  };
+  if ("flash" in data) data.flash = null;
+  delete data.inertia_errors;
+  delete data.inertia_clear_history;
+  return state;
+}
+
+// The filters ApplicationController runs before the action. Returns the response when one of them
+// halts the chain (redirect_to_custom_subdomain).
+export async function beforeActions(request: RailsRequest, options: ActionOptions, now: Date): Promise<Chain | ControllerResponse> {
   const config = domainConfig(process.env);
   const headers = new Headers(debugHeaders());
   const session = loadSession(request);
   // set_csrf_meta_tags: form_authenticity_token reads the session's token or mints one.
   const csrfToken =
     typeof session.data._csrf_token === "string" ? session.data._csrf_token : randomBytes(AUTHENTICITY_TOKEN_LENGTH).toString("base64url");
-  const commitSession = () => {
-    session.data._csrf_token = csrfToken;
-    headers.append("set-cookie", sessionCookie(request, session, now));
-  };
+  const chain: Chain = { request, now, headers, session, csrfToken, guid: null };
 
   if (!options.skip?.includes("redirect_to_custom_subdomain")) {
     const redirect = await redirectUrlFor(request);
     if (redirect !== undefined) {
       headers.set("location", redirectLocation(request, redirect));
       headers.set("content-type", "text/html; charset=utf-8");
-      commitSession();
+      commitSession(chain);
       return { status: 302, headers, body: "" };
     }
   }
 
   setSignupReferrer(request, session, config.rootDomain);
-  const guid = gumroadGuidCookie(request, now);
+  chain.guid = gumroadGuidCookie(request, now);
   if (!RECOMMENDER_MODELS.includes(session.data.recommender_model_name as string)) {
     session.data.recommender_model_name = RECOMMENDER_MODELS[Math.floor(Math.random() * RECOMMENDER_MODELS.length)];
   }
+  return chain;
+}
 
-  const result = await action({ request });
+export const halted = (outcome: Chain | ControllerResponse): outcome is ControllerResponse => !("session" in outcome);
+
+const xsrfCookie = (chain: Chain) => setCookieHeader(XSRF_TOKEN_COOKIE, { value: formAuthenticityToken(chain.csrfToken), path: "/", sameSite: "lax" });
+
+function commitSession({ request, headers, session, csrfToken, now }: Chain): void {
+  session.data._csrf_token = csrfToken;
+  headers.append("set-cookie", sessionCookie(request, session, now));
+}
+
+// The action's result, then the after_actions and the session commit.
+export function afterActions(chain: Chain, result: ActionResult): ControllerResponse {
+  const { request, headers } = chain;
+  if ("forceRefresh" in result) {
+    const replaced = new Headers({ "x-inertia-location": result.forceRefresh });
+    if (chain.guid) replaced.append("set-cookie", chain.guid);
+    if (!result.rescued) replaced.append("set-cookie", xsrfCookie(chain));
+    commitSession({ ...chain, headers: replaced });
+    return { status: 409, headers: replaced, body: "" };
+  }
   if ("location" in result) {
     headers.set("location", redirectLocation(request, result.location));
     headers.set("content-type", "text/html; charset=utf-8");
   } else {
     headers.set("content-type", result.contentType);
-    if (shouldApplyVaryHeader(request)) headers.set("vary", "Accept");
+    for (const [name, value] of Object.entries(result.headers ?? {})) headers.set(name, value);
+    // Vary: Accept is only added while the request's params were never read (Request#should_apply_vary_header?),
+    // and an Inertia action always reads params[:slug] or the filters' query params.
+    const vary = [!result.inertia && shouldApplyVaryHeader(request) ? "Accept" : null, result.inertia ? "X-Inertia" : null]
+      .filter(Boolean)
+      .join(", ");
+    if (vary) headers.set("vary", vary);
   }
-  if (guid) headers.append("set-cookie", guid);
+  if (chain.guid) headers.append("set-cookie", chain.guid);
   if (!("location" in result && result.rescued)) {
-    headers.append("set-cookie", setCookieHeader(XSRF_TOKEN_COOKIE, { value: formAuthenticityToken(csrfToken), path: "/", sameSite: "lax" }));
+    headers.append("set-cookie", xsrfCookie(chain));
   }
-  commitSession();
+  commitSession(chain);
   return { status: result.status, headers, body: "location" in result ? "" : result.body };
+}
+
+async function runChain(
+  request: RailsRequest,
+  options: ActionOptions,
+  action: (context: ActionContext) => Promise<ActionResult>,
+  now: Date,
+): Promise<ControllerResponse> {
+  const chain = await beforeActions(request, options, now);
+  if (halted(chain)) return chain;
+  const result = await action({ request, takeRenderState: () => takeRenderState(chain) });
+  return afterActions(chain, result);
 }
 
 // Rack::ETag, then Rack::ConditionalGet.
@@ -342,4 +429,37 @@ export async function processAction(
   // Rack::Head
   const body = request.method === "HEAD" || response.body === "" ? null : response.body;
   return new Response(body, { status: response.status, headers: response.headers });
+}
+
+// The envelope Rails puts around an Inertia HTML response, for a page Next.js renders itself: an
+// App Router page cannot set headers or cookies, so the proxy runs the same chain ahead of it
+// (before_actions, after_actions, session commit, SecureHeaders, Rack::Cors) and attaches the result
+// to whatever the page renders. `renderState` carries what the session gives the render (CSRF token,
+// consumed flash and inertia_errors) to the page, which the proxy has already committed to the cookie.
+// There is no ETag: the body is not known here, and Rails' own is a digest of a body that embeds a
+// fresh authenticity_token and csp_nonce, so it never matched a second request either.
+export type PageEnvelope = { response: Response } | { headers: Headers; renderState: RenderState };
+
+export async function pageEnvelope(incoming: Request, options: ActionOptions = {}): Promise<PageEnvelope> {
+  const request = railsRequest(incoming);
+  if (mayTrackUtmVisit(request, domainConfig(process.env).validRequestHosts)) return { response: await forwardToRails(incoming) };
+
+  const wrap = (headers: Headers, status: number, body: string | null) => {
+    applySecureHeaders(request, headers);
+    applyCorsVary(headers);
+    return { response: new Response(request.method === "HEAD" ? null : body, { status, headers }) };
+  };
+  try {
+    const chain = await beforeActions(request, options, new Date());
+    if (halted(chain)) return wrap(chain.headers, chain.status, null);
+    const renderState = takeRenderState(chain);
+    const { headers } = afterActions(chain, { status: 200, body: "", contentType: "text/html; charset=utf-8", inertia: true });
+    applySecureHeaders(request, headers);
+    applyCorsVary(headers);
+    return { headers, renderState };
+  } catch (error) {
+    notifyError(error);
+    const page = publicException(request, 500);
+    return wrap(page.headers, 500, page.body === "" ? null : page.body);
+  }
 }
