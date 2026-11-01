@@ -139,4 +139,7 @@ and can do, written before its Inertia plumbing is removed.
 - [x] WS-00 Scaffold: `nextjs/` app, Prisma schema generated for all 227 tables and validated.
 - [x] External IDs (`ObfuscateIds`) ported, with Ruby golden vectors (43 passing tests).
 - [x] `flag_shih_tzu` flags ported (`nextjs/src/lib/flags.ts`); needs golden SQL tests in WS-02.
-- [ ] Everything else: see [workstreams.md](workstreams.md).
+- [x] Phase 0 (WS-00 to WS-06).
+- [ ] Phases 1 to 3 are in progress at once: pages from every phase-1 stream except WS-17 and WS-18, the
+  read side of WS-20 and WS-23, and job bodies for WS-30. Nothing is flipped in production. Per-stream
+  state: [workstreams.md](workstreams.md#execution-log-branches-against-planned-streams).

@@ -28,6 +28,36 @@ without changing the signatures; everyone else imports them as if they already w
 needs to change (a shared model service, the navigation compat module) goes in its own small PR to
 `nextjs-rewrite` first, so two streams never edit the same file in parallel.
 
+## Execution log: branches against planned streams
+
+After phase 0, the work ran in waves of agent worktrees numbered by wave (`nextjs/ws-30b` … `nextjs/ws-85`).
+Those numbers are batch ids, not the stream ids below: `nextjs/ws-40-html-helpers-mailers` has nothing to do
+with WS-40 Removal, and `nextjs/ws-83-discover` is part of WS-14. New branches use the planned stream id with
+a letter suffix (`nextjs/ws-12d-bundle-edit`). This table maps every merged branch to its stream.
+
+| Planned stream | Merged branches (`nextjs/ws-…`) | State |
+| --- | --- | --- |
+| WS-00 … WS-06 Foundation | 01, 02, 03, 04, 05, 06, 38 (query cache), 43 (page envelope), 50 (signed-in shared props), 55 (page spec options) | Done |
+| WS-10 Settings and account | 53, 54 (auth pages), 56, 62 (payments, profile) | Most pages; mutations still in Rails |
+| WS-11 Help center, pages, blog, profiles | 55, 64, 68, 84 (profile products) | Profiles with featured products or wishlists hand back |
+| WS-12 Products and bundles | 39 (link writes), 69, 71, 77, 80 | Product page partly rendered; editor for plain digital products only; bundles not started |
+| WS-13 Audience, emails, workflows | 51, 57, 59, 63, 67, 74, 82; mailers 31, 35, 40, 60, 73, 76, 85 | Pages and their mutations; receipt mailer for common shapes |
+| WS-14 Discover and search | 34, 37, 65, 83 | Discover page; personalised and deferred parts hand back |
+| WS-15 Analytics and exports | 58, 70, 79, 84 | Dashboards, customers, analytics; exports not started |
+| WS-16 Library and content delivery | 61, 81 | Library and unavailable pages; `/d` download page not started |
+| WS-17 Public API and mobile API | — | Not started |
+| WS-18 Admin | — | Not started |
+| WS-19 AI, MCP and moderation | 75 (agent page) | Agent page only |
+| WS-20 Checkout and orders | 48 (offer-code pricing), 72 (subscription access), 78 | Empty-cart checkout only; no purchase path |
+| WS-21 Payment processors | 33 (Stripe client), 49 (refunds, disputes), 66 | Job guards; processor calls hand back |
+| WS-22 Sales tax and VAT | — | Receipt tax lines only (85) |
+| WS-23 Balances and payouts | 72 (payouts page), 74 (balance stats) | Read side; no payout execution |
+| WS-30 Jobs and cron | 30b, 32, 36, 41, 42, 44, 45, 46, 47, 49, 52, 59, 63, 66, 74, 76 | Many jobs in Node, most with early hand-backs |
+| WS-40 Removal | — | Not started |
+
+No route is flipped in production yet and no shadow traffic has run, so no stream has met its done
+criteria; "state" above is what is ported and proven by replay or golden.
+
 ## Dependency graph
 
 ```
