@@ -418,3 +418,13 @@ export const internal_agent_custom_html_preview_document_path = path("/internal/
 
 // Agent data layer (WS-75).
 export const internal_agent_conversations_latest_path = path("/internal/agent/conversations/latest(.:format)");
+
+// Piracy reports and the products tabs (WS-75).
+export const products_affiliated_index_path = path("/products/affiliated(.:format)");
+export const products_archived_index_path = path("/products/archived(.:format)");
+export const products_collabs_path = path("/products/collabs(.:format)");
+export const new_piracy_report_path = path("/dashboard/piracy_reports/new(.:format)");
+export const piracy_report_path = path("/dashboard/piracy_reports/:id(.:format)");
+export const piracy_reports_path = path("/dashboard/piracy_reports(.:format)");
+export const sign_piracy_report_path = path("/dashboard/piracy_reports/:id/sign(.:format)");
+export const cancel_piracy_report_path = path("/dashboard/piracy_reports/:id/cancel(.:format)");

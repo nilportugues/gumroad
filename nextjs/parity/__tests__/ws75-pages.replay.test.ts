@@ -20,9 +20,9 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES_ROOT = "parity/fixtures/requests";
-const SPEC_DIRS = ["agent_signed_in_spec"].filter((dir) => existsSync(path.join(FIXTURES_ROOT, dir)));
+const SPEC_DIRS = ["agent_signed_in_spec", "piracy_reports_signed_in_spec"].filter((dir) => existsSync(path.join(FIXTURES_ROOT, dir)));
 // Every flag in routes.json that a dashboard page sits behind.
-const ROUTE_FLAGS = ["nextjs_agent"];
+const ROUTE_FLAGS = ["nextjs_agent", "nextjs_piracy_reports"];
 const FIRST_COMPILE_TIMEOUT_MS = 240_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
