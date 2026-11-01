@@ -8,6 +8,7 @@ import { Redis } from "ioredis";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { closeAllRedis } from "@/server/infra/redis";
+import { cumulativeFractions, fractionAt } from "@/server/page-props/analytics/hourly-sales-curve";
 
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { bulkIndex, ELASTICSEARCH_HOST, recreateIndex, reindexPurchases, replayIndexName, seededDocuments } from "../src/elasticsearch";
@@ -24,13 +25,13 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
-const SPECS = ["audience_dashboard_signed_in_spec", "seller_payment_details_signed_in_spec", "churn_signed_in_spec"];
+const SPECS = ["audience_dashboard_signed_in_spec", "seller_payment_details_signed_in_spec", "churn_signed_in_spec", "analytics_signed_in_spec"];
 // The port makes no Stripe call: a flagged seller whose merchant account Stripe would be asked about, or who has a
 // requested compliance request, and a large seller (whose ranges Rails caches), are handed to Rails whole. Those
 // examples are proven by the request reaching Rails.
 const HANDED_BACK = /asks-stripe|sends-a-seller-stripe-has-asked|large-seller/;
 const RAILS_ANSWER = "rails answered";
-const ROUTE_FLAGS = "nextjs_audience,nextjs_churn";
+const ROUTE_FLAGS = "nextjs_audience,nextjs_churn,nextjs_analytics";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "-parity";
@@ -60,8 +61,22 @@ const COMPARE = {
     "response.json.props.csp_nonce",
     "response.json.props.authenticity_token",
     "response.json.props._inertia_meta.2.content",
+    // Where the seller is in the day moves with the replay's clock; analytics-fraction below checks the curve.
+    "response.inertia.props.analytics_props.expected_sales_fraction_of_day",
+    "response.json.props.analytics_props.expected_sales_fraction_of_day",
   ],
 };
+
+// The fraction of the day depends on the clock of the request, which the replay does not share with the recording:
+// the curve the port builds from the seeded sales must produce the recorded fraction for some time of day.
+async function expectRecordedFraction(sql: SqlExecutor, inertia: { props: { analytics_props: { expected_sales_fraction_of_day: number } } }) {
+  const recorded = inertia.props.analytics_props.expected_sales_fraction_of_day;
+  const [seller] = await sql.query("SELECT id FROM users WHERE timezone = 'Tokyo'");
+  const curve = await cumulativeFractions({ id: Number(seller!.id), timezone: "Tokyo" }, new Date());
+  expect(curve).not.toBeNull();
+  const times = Array.from({ length: 24 * 60 }, (_, index) => [Math.floor(index / 60), index % 60] as const);
+  expect(times.some(([hour, minute]) => fractionAt(curve!, hour, minute) === recorded)).toBe(true);
+}
 
 const cases = SPECS.flatMap((spec) => {
   const dir = path.join(FIXTURES, spec);
@@ -162,6 +177,7 @@ describe.skipIf(!url)("seller dashboards parity when signed in", () => {
           expect(result.exchanges[0]!.actual.response.body).toBe(RAILS_ANSWER);
         } else {
           assertParity(result);
+          if (_name.includes("builds-the-sales-curve")) await expectRecordedFraction(sql, result.exchanges[0]!.expected.response.inertia as { props: { analytics_props: { expected_sales_fraction_of_day: number } } });
         }
       } catch (error) {
         const logs = server.output().split("\n").filter((line) => /error|Error|at /.test(line)).slice(-25).join("\n");

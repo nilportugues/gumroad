@@ -4,7 +4,7 @@ import type { User } from "@prisma/client";
 
 import { setCookieHeader } from "../../controllers/rack-cookies.ts";
 import { authorize } from "../../policies/authorize.ts";
-import { audiencePolicy, churnPolicy } from "../../policies/seller-analytics.ts";
+import { analyticsPolicy, audiencePolicy, churnPolicy } from "../../policies/seller-analytics.ts";
 import { sellerGuard } from "../audience/seller-guard.ts";
 import { checkPaymentDetails } from "../audience/payment-requirements.ts";
 import { always, defer } from "../lazy-props.ts";
@@ -12,6 +12,7 @@ import type { PageSpec } from "../pages.ts";
 import { audienceData, audienceRange, totalFollowerCount } from "./audience.ts";
 import { churnData, churnParams } from "./churn.ts";
 import { handBackLargeSeller } from "./seller-analytics.ts";
+import { analyticsPageProps } from "./sales.ts";
 
 const seller = (context: { currentSeller: User | null }) => context.currentSeller!;
 const queryOf = (url: URL) => ({ queryString: url.search.replace(/^\?/, "") });
@@ -59,7 +60,27 @@ const churnShow: PageSpec = {
   props: async (_, { context, url }) => ({ churn: await churnData(seller(context), churnParams(queryOf(url))) }),
 };
 
+// AnalyticsController#index: check_payment_details, `authorize :analytics`, the presenter, then
+// LargeSeller.create_if_warranted. The preference cookie is an after_action.
+const analyticsIndex: PageSpec = {
+  component: "Analytics/Index",
+  options: { afterCookies: [dashboardPreference("sales")] },
+  guard: (info) =>
+    sellerGuard(info, (context) => authorize(analyticsPolicy.index, context), {
+      beforeAuthorize: async (context) => {
+        await checkPaymentDetails(context);
+      },
+      afterAuthorize: handBackLargeSeller,
+    }),
+  props: async (_, { context, meta }) => {
+    // AnalyticsController#set_default_page_title
+    meta.set({ title: "Analytics" });
+    return { analytics_props: await analyticsPageProps(seller(context)) };
+  },
+};
+
 export const ANALYTICS_PAGES: Record<string, PageSpec> = {
   "/dashboard/audience": audienceIndex,
   "/dashboard/churn": churnShow,
+  "/dashboard/sales": analyticsIndex,
 };

@@ -38,6 +38,8 @@ export async function recreateIndex(es: Client, { model, name }: ReplayIndex): P
     index: name,
     body: { settings: { index: { number_of_shards: 1, number_of_replicas: 0, analysis: definition.settings.index.analysis, sort: definition.settings.index.sort } }, mappings: definition.mappings },
   });
+  // A development machine low on disk makes Elasticsearch block writes to every index (flood stage).
+  await es.indices.putSettings({ index: name, body: { "index.blocks.read_only_allow_delete": null } });
 }
 
 const resolveTokens = (value: unknown, now: Date): unknown => {

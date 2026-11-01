@@ -411,3 +411,7 @@ export const custom_domain_create_post_comment_path = path("/posts/:post_id/comm
 export const custom_domain_update_post_comment_path = path("/posts/:post_id/comments/:id(.:format)");
 export const custom_domain_delete_post_comment_path = path("/posts/:post_id/comments/:id(.:format)");
 export const custom_domain_create_affiliate_request_path = path("/affiliate_requests(.:format)");
+export const analytics_data_by_date_path = path("/analytics/data/by_date(.:format)");
+export const analytics_data_by_state_path = path("/analytics/data/by_state(.:format)");
+export const analytics_data_by_referral_path = path("/analytics/data/by_referral(.:format)");
+export const export_purchases_path = path("/purchases/export(.:format)");
