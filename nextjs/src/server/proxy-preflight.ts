@@ -7,12 +7,12 @@ import { resolveRequestAuth } from "./controllers/signed-in-filters.ts";
 import { RoutingError } from "./controllers/application-controller.ts";
 import { railsRequest } from "./controllers/rails-request.ts";
 import { domainConfig } from "./page-props/domain.ts";
-import { matchPagePath, PAGES } from "./page-props/pages.ts";
+import { matchPagePath, PAGES, scopeOfPattern } from "./page-props/pages.ts";
 import { defaultUrlOptions } from "./page-props/load-page.ts";
 
 export async function redirectsBeforeRendering(pattern: string, url: URL, request: Request): Promise<boolean> {
   const spec = PAGES[pattern];
-  const params = matchPagePath(url.pathname)?.params ?? {};
+  const params = matchPagePath(url.pathname, scopeOfPattern(pattern))?.params ?? {};
   if (await spec?.redirect?.(params, { url, headers: request.headers })) return true;
   if (!spec?.guard) return false;
 

@@ -34,6 +34,9 @@ export async function decideRoute(
   const hostname = request.url.hostname;
   const route = matchRoute(routes, request.method, request.url.pathname, classifyHost(hostname, config));
   if (!route) return toRails;
+  if ((route.hosts === "seller" || route.hosts === "product") && gate.hostKind) {
+    if ((await gate.hostKind(request)) !== (route.hosts === "product" ? "product" : "user")) return toRails;
+  }
   if (route.flag !== null) {
     if (!(await gate.isFlagEnabled(route.flag, request))) return toRails;
     if (route.signedOutOnly && (await gate.isSignedIn(request)) !== false) return toRails;
