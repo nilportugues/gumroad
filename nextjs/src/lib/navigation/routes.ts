@@ -457,3 +457,6 @@ export const save_to_library_path = path("/save_to_library(.:format)");
 export const send_to_kindle_path = path("/r/:id/send_to_kindle(.:format)");
 export const global_affiliates_product_eligibility_path = path("/global_affiliates/product_eligibility/:url(.:format)");
 export const products_affiliated_path = path("/products/affiliated/:id(.:format)");
+export const internal_ai_product_details_generations_path = path("/internal/ai_product_details_generations(.:format)");
+export const links_path = path("/links(.:format)");
+export const settings_dismiss_ai_product_generation_promo_path = path("/settings/dismiss_ai_product_generation_promo(.:format)");

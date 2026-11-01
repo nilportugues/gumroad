@@ -60,6 +60,8 @@ const COMPARE = {
     "db.users.updated.*.changes.updated_at",
     // Rails' Elasticsearch calls are recorded; the port's run in the server process, out of the replayer's reach.
     "http",
+    // One month from today: a date the fixture recorded on another day (new-page.test.ts pins the arithmetic).
+    "response.inertia.props.release_at_date",
     "response.headers.link",
     "response.headers.vary",
     "response.inertia.props.csp_nonce",

@@ -84,3 +84,21 @@ export const PRODUCTS_COLLABS_OPTIONS = (assertSupported: (seller: User, chain: 
     },
   }),
 });
+
+// LinksController#new and #edit: `enable_mobile_app_web_view` signs the app's WebView in with an OAuth token
+// (authenticate_mobile_app_web_view!) and persists the flag in the session (persist_mobile_app_web_view); both are left to Rails.
+function assertNotMobileAppWebViewRequest(chain: Chain): void {
+  const query = new URLSearchParams(chain.request.queryString);
+  if ((query.get("access_token") ?? "") !== "" || query.get("display") === "mobile_app") throw new HandBackToRails();
+}
+
+export const PRODUCTS_NEW_OPTIONS: ActionOptions = {
+  filters: signedInFilters({
+    requireAccountEmail: true,
+    authorize: linkPolicy.new,
+    beforeAction: async (chain) => {
+      assertNotMobileAppWebViewRequest(chain);
+      return null;
+    },
+  }),
+};
