@@ -236,6 +236,8 @@ export async function publishBang(record: InstallmentModel, { publishedAt = null
   // datetime(0): ActiveRecord drops the fraction of a second
   const publishedAtWhole = publishedAt ?? (now ?? (() => new Date()))();
   record.set("published_at", new Date(Math.floor(publishedAtWhole.getTime() / SECOND_MS) * SECOND_MS));
+  // `workflow.present?`: loading the association leaves its foreign key materialized
+  if ((record.get("workflow_id") ?? null) !== null) record.touch("workflow_id");
   if ((record.get("workflow_id") ?? null) !== null) record.set("flags", Number(InstallmentFlags.set(record.get("flags") as number, "workflow_installment_published_once_already", true)));
   record.ivars[PUBLISHING] = true;
   try {

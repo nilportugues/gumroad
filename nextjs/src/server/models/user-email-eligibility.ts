@@ -6,7 +6,7 @@ import { Prisma, type User } from "@prisma/client";
 
 import { salesCentsTotal } from "../search/purchase-sales.ts";
 import { findOneBy } from "./row-reads.ts";
-import { column, selectRows, table } from "./sql.ts";
+import { column, columnIn, selectRows, table } from "./sql.ts";
 import { castBoolean } from "./with-filtering.ts";
 import { isFlagged, isFlagSet, isSuspended, jsonDataForAttr, Users } from "./user.ts";
 
@@ -59,12 +59,13 @@ const CHARGEBACK_REVERSED_FLAG = 2 ** 9;
 // `made_a_successful_sale_with_a_stripe_connect_or_paypal_connect_account?`
 async function madeSaleWithConnectOrPaypalAccount(userId: bigint | number): Promise<boolean> {
   const accounts = await selectRows<{ id: bigint }>(
-    Prisma.sql`SELECT ${column("merchant_accounts", "id")} FROM ${table("merchant_accounts")} WHERE ${column("merchant_accounts", "user_id")} = ${userId} AND ((${column("merchant_accounts", "charge_processor_id")} = 'stripe' AND json_data->>'$.meta.stripe_connect' = 'true' AND ${column("merchant_accounts", "user_id")} IS NOT NULL) OR ${column("merchant_accounts", "charge_processor_id")} = 'paypal')`,
+    Prisma.sql`SELECT ${column("merchant_accounts", "id")} FROM ${table("merchant_accounts")} WHERE ${column("merchant_accounts", "user_id")} = ${userId} AND (${column("merchant_accounts", "charge_processor_id")} = 'stripe' AND (json_data->>'$.meta.stripe_connect' = 'true') AND ${column("merchant_accounts", "user_id")} IS NOT NULL OR ${column("merchant_accounts", "charge_processor_id")} = 'paypal')`,
   );
   if (accounts.length === 0) return false;
   const purchases = (name: string) => column("purchases", name);
+  // The text ActiveRecord writes for `sales.successful_or_preorder_authorization_successful_and_not_refunded_or_chargedback.where(merchant_account_id: ids)`
   return exists(
-    Prisma.sql`SELECT 1 AS one FROM ${table("purchases")} WHERE ${purchases("seller_id")} = ${userId} AND ${purchases("purchase_state")} IN ('successful', 'preorder_authorization_successful', 'gift_receiver_purchase_successful') AND (${purchases("stripe_refunded")} IS NULL OR ${purchases("stripe_refunded")} = 0) AND (${purchases("chargeback_date")} IS NULL OR (${purchases("chargeback_date")} IS NOT NULL AND ${purchases("flags")} & ${CHARGEBACK_REVERSED_FLAG} != 0)) AND ${purchases("flags")} & ${GIFT_RECEIVER_PURCHASE_FLAG} = 0 AND ${purchases("merchant_account_id")} IN (${Prisma.join(accounts.map((account) => account.id))}) LIMIT 1`,
+    Prisma.sql`SELECT 1 AS one FROM ${table("purchases")} WHERE ${purchases("seller_id")} = ${userId} AND ${purchases("purchase_state")} IN ('successful', 'preorder_authorization_successful', 'gift_receiver_purchase_successful') AND (purchases.stripe_refunded IS NULL OR purchases.stripe_refunded = 0) AND (purchases.chargeback_date IS NULL OR (purchases.chargeback_date IS NOT NULL AND purchases.flags & '${Prisma.raw(String(CHARGEBACK_REVERSED_FLAG))}' != 0)) AND ((${purchases("flags")} & ${Prisma.raw(String(GIFT_RECEIVER_PURCHASE_FLAG))} = 0)) AND ${columnIn("purchases", "merchant_account_id", accounts.map((account) => account.id))} LIMIT 1`,
   );
 }
 
