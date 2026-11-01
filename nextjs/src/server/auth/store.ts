@@ -53,7 +53,11 @@ export const prismaAuthStore: AuthStore = {
     await redisClient().del(impersonationKey(adminUserId));
   },
   async forgetRememberedLogins(userId, now) {
-    // TODO(WS-02): go through the User model service so paper_trail records the change.
-    await db.user.update({ where: { id: userId }, data: { remember_created_at: null, updated_at: now } });
+    // Through the model service, so paper_trail and the save callbacks run as `save(validate: false)` does.
+    const { findUser, Users } = await import("../models/user.ts");
+    const record = await findUser(userId);
+    if (!record) return;
+    record.set("remember_created_at", null);
+    await Users.save(record, { validate: false, now: () => now });
   },
 };

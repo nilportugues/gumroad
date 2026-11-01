@@ -23,6 +23,6 @@ export function renderStatePort(state: RenderState): RailsSessionPort {
     rawCsrfToken: async () => state.csrfToken,
     consumeFlash: async () => state.flash,
     consumeInertiaErrors: async () => state.inertiaErrors,
-    value: async (key) => (key === "mobile_param" ? state.mobileParam : state.mobileAppWebView),
+    value: async (key) => ({ mobile_param: state.mobileParam, mobile_app_web_view: state.mobileAppWebView, prompt_passkey_setup: state.promptPasskeySetup })[key],
   };
 }

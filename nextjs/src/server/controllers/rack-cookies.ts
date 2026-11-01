@@ -5,6 +5,7 @@ export type RackCookie = {
   value: string;
   domain?: string;
   path?: string;
+  maxAge?: number;
   expires?: Date;
   secure?: boolean;
   httpOnly?: boolean;
@@ -27,6 +28,7 @@ export function setCookieHeader(name: string, cookie: RackCookie): string {
   let line = `${rackEscape(name)}=${rackEscape(cookie.value)}`;
   if (cookie.domain) line += `; domain=${cookie.domain}`;
   if (cookie.path) line += `; path=${cookie.path}`;
+  if (cookie.maxAge !== undefined) line += `; max-age=${cookie.maxAge}`;
   if (cookie.expires) line += `; expires=${cookie.expires.toUTCString()}`;
   if (cookie.secure) line += "; secure";
   if (cookie.httpOnly) line += "; httponly";

@@ -36,6 +36,18 @@ export function createRailsRouteGate(deps: Deps): RouteGate {
         return false;
       }
     },
+    async signsInViaRememberCookie(request) {
+      try {
+        const name = deps.sessionCookieName();
+        const session = readEncryptedCookie(deps.secrets(), name, request.cookies.get(name));
+        if (wardenUserFromSession(session) !== null) return false;
+        return parseRememberCookie(readSignedCookie(deps.secrets(), REMEMBER_COOKIE_NAME, request.cookies.get(REMEMBER_COOKIE_NAME))) !== null;
+      } catch (error) {
+        deps.reportError(error);
+        // Rails can always serve it.
+        return true;
+      }
+    },
     async isSignedIn(request) {
       try {
         return sessionUserId(request, deps) !== null;

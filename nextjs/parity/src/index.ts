@@ -6,3 +6,4 @@ export * from "./fixture";
 export * from "./golden";
 export * from "./http";
 export * from "./replay";
+export * from "./session";

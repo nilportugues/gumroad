@@ -27,6 +27,11 @@ module Parity
       content-security-policy content-security-policy-report-only
     ].freeze
 
+    # Key types of the main Redis database that are seeded back before a replayed request: Flipper
+    # features (hashes and a set), the impersonation key and similar. Lists and sorted sets are
+    # queues and counters the port does not read.
+    REDIS_SEEDED_TYPES = %w[string hash set].freeze
+
     ACTIVE_JOB_WRAPPERS = %w[
       Sidekiq::ActiveJob::Wrapper ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper
     ].freeze
@@ -91,6 +96,7 @@ module Parity
       return yield if @capturing
 
       now = Time.current
+      redis_before = redis_snapshot
       before = @snapshot.dump(@snapshot.non_empty_tables)
       auto_increments = @snapshot.auto_increments
       @capturing = true
@@ -109,13 +115,14 @@ module Parity
           "tables" => before.transform_values { |dump| seed_table(dump, now) },
           "autoIncrement" => auto_increments,
         },
+        "redis" => redis_before.presence,
         "request" => request_json(context.request, source),
         "response" => response_json(context.response, now),
         "db" => Canonical.diff(before, after, now),
         "jobs" => @jobs.map { job_json(_1, now) },
         "mails" => @mails.map { mail_json(_1, now) },
         "http" => @http.map { |signature, response| http_json(signature, response, now) },
-      }
+      }.compact
       result
     end
 
@@ -145,6 +152,8 @@ module Parity
         "spec" => @example.metadata[:rerun_file_path].to_s.delete_prefix("./"),
         "example" => @example.full_description,
         "sessionCookie" => Rails.application.config.session_options[:key],
+        # Test-only: lets the replayer re-encrypt the recorded cookies for its own secret.
+        "secretKeyBase" => Rails.application.secret_key_base,
         "exchanges" => @exchanges,
       }
     end
@@ -160,6 +169,23 @@ module Parity
         return full if full.length <= MAX_SLUG_LENGTH
 
         "#{full[0, MAX_SLUG_LENGTH].chomp("-")}-#{Digest::SHA1.hexdigest(full)[0, 8]}"
+      end
+
+      # `{ key => { "type", "value", "ttl" } }` for the main Redis database, sorted by key.
+      def redis_snapshot
+        $redis.scan_each.sort.each_with_object({}) do |key, snapshot|
+          type = $redis.type(key)
+          next unless REDIS_SEEDED_TYPES.include?(type)
+
+          value =
+            case type
+            when "string" then $redis.get(key)
+            when "hash" then $redis.hgetall(key).sort.to_h
+            else $redis.smembers(key).sort
+            end
+          ttl = $redis.ttl(key)
+          snapshot[key] = { "type" => type, "value" => value, "ttl" => (ttl if ttl.positive?) }.compact
+        end
       end
 
       def seed_table(dump, now)

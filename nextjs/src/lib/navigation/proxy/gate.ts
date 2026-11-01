@@ -12,6 +12,9 @@ export interface RouteGate {
   isFlagEnabled(flag: string, request: ProxyRequestInfo): Promise<boolean>;
   // Whether the Rails session has a signed-in user; null when it cannot tell.
   isSignedIn(request: ProxyRequestInfo): Promise<boolean | null>;
+  // Whether Devise's rememberable strategy would sign this request in (no usable session, but a
+  // remember cookie). That writes the session and the tracked sign-in fields, so Rails serves it.
+  signsInViaRememberCookie?(request: ProxyRequestInfo): Promise<boolean>;
 }
 
 // Local runs turn flags on with NEXTJS_ROUTE_FLAGS=flag_a,flag_b.

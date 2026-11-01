@@ -49,6 +49,14 @@ describe("railsRouteGate", () => {
     expect(await g.isSignedIn(request({ [SESSION]: "tampered--value--x" }))).toBe(false);
   });
 
+  it("hands a request that only a remember cookie signs in to Rails, which writes the session", async () => {
+    const { gate: g } = gate();
+    const remember = writeSignedCookie(secrets, "remember_user_token", [[7], "salt", "1700000000.0"]);
+    expect(await g.signsInViaRememberCookie!(request({ remember_user_token: remember }))).toBe(true);
+    expect(await g.signsInViaRememberCookie!(request({ remember_user_token: remember, [SESSION]: signedInCookie() }))).toBe(false);
+    expect(await g.signsInViaRememberCookie!(request())).toBe(false);
+  });
+
   it("sends the request to Rails when Flipper fails", async () => {
     const failing = vi.fn(async () => {
       throw new Error("redis down");

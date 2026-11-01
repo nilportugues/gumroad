@@ -63,6 +63,9 @@ export type SeedTable = {
   rows: Record<string, Json>[];
 };
 
+// A key of the main Redis database as the recorder saw it before the request.
+export type RedisEntry = { type: "string" | "hash" | "set"; value: string | Record<string, string> | string[]; ttl?: number };
+
 export type Seed = {
   tables: Record<string, SeedTable>;
   autoIncrement: Record<string, number>;
@@ -76,13 +79,15 @@ export type CapturedExchange = {
   http: CapturedHttp[];
 };
 
-export type Exchange = CapturedExchange & { seed: Seed; request: FixtureRequest };
+export type Exchange = CapturedExchange & { seed: Seed; request: FixtureRequest; redis?: Record<string, RedisEntry> };
 
 export type Fixture = {
   version: number;
   spec: string;
   example: string;
   sessionCookie?: string;
+  // The recording Rails app's secret_key_base (test only), to re-encrypt recorded cookies.
+  secretKeyBase?: string;
   exchanges: Exchange[];
 };
 

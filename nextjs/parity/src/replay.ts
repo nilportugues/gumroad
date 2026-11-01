@@ -4,7 +4,7 @@ import { diff } from "./canonical";
 import { canonicalJob, canonicalMail, type JobsChannel, type MailChannel } from "./channels";
 import { type CompareOptions, compareExchange, type Difference, formatDifferences } from "./compare";
 import { dump, nonEmptyTables, readSchema, seedDatabase, type SqlExecutor } from "./db";
-import { type CapturedExchange, type Exchange, type Fixture, loadFixture } from "./fixture";
+import { type CapturedExchange, type Exchange, type Fixture, type FixtureRequest, loadFixture, type RedisEntry } from "./fixture";
 import { buildRequest, captureResponse, interceptFetch } from "./http";
 
 export type Transport = (request: Request) => Promise<Response>;
@@ -36,20 +36,30 @@ export function httpTransport(baseUrl: string): Transport {
   };
 }
 
+// Puts the recorded main Redis database back before a request. Pass the connection of a database
+// the replay owns: it is flushed.
+export interface RedisSeeder {
+  reset(entries: Record<string, RedisEntry>): Promise<void>;
+}
+
 export type ReplayOptions = {
   sql: SqlExecutor;
+  redis?: RedisSeeder;
+  // Adjusts the recorded request before it is sent, e.g. to re-encrypt its cookies.
+  rewriteRequest?: (request: FixtureRequest, fixture: Fixture, now: Date) => FixtureRequest;
   transport: Transport;
   jobs?: JobsChannel;
   mails?: MailChannel;
   interceptHttp?: boolean;
 };
 
-export async function replayExchange(exchange: Exchange, options: ReplayOptions): Promise<CapturedExchange> {
-  const { sql, transport, jobs, mails, interceptHttp = true } = options;
+export async function replayExchange(exchange: Exchange, options: ReplayOptions, fixture?: Fixture): Promise<CapturedExchange> {
+  const { sql, transport, jobs, mails, redis, interceptHttp = true } = options;
   // Tokens like "<now-48h>" are resolved against this instant, and the port's writes are
   // normalised against it, as the recorder did with the moment its request started.
   const now = new Date();
   await seedDatabase(sql, exchange.seed, now);
+  await redis?.reset(exchange.redis ?? {});
   const schema = await readSchema(sql);
   const before = await dump(sql, schema, await nonEmptyTables(sql, schema));
   await jobs?.reset();
@@ -58,7 +68,8 @@ export async function replayExchange(exchange: Exchange, options: ReplayOptions)
   const interceptor = interceptHttp ? interceptFetch(exchange.http, now) : undefined;
   let response: Response;
   try {
-    response = await transport(buildRequest(exchange.request));
+    const request = options.rewriteRequest && fixture ? options.rewriteRequest(exchange.request, fixture, now) : exchange.request;
+    response = await transport(buildRequest(request));
   } finally {
     interceptor?.restore();
   }
@@ -85,11 +96,26 @@ export async function replayFixture(
   const loaded = typeof fixture === "string" ? loadFixture(fixture) : fixture;
   const exchanges: ExchangeResult[] = [];
   for (const expected of loaded.exchanges) {
-    const actual = await replayExchange(expected, options);
+    const actual = await replayExchange(expected, options, loaded);
     const compareOptions = { ...options.compare, ...(loaded.sessionCookie ? { sessionCookie: loaded.sessionCookie } : {}) };
     exchanges.push({ expected, actual, differences: compareExchange(expected, actual, compareOptions) });
   }
   return { fixture: loaded, exchanges };
+}
+
+// Replays one exchange of a fixture, for fixtures that record setup requests (a login) before the
+// request under test.
+export async function replayFixtureExchange(
+  fixture: Fixture | string,
+  index: number,
+  options: ReplayOptions & { compare?: CompareOptions },
+): Promise<ReplayResult> {
+  const loaded = typeof fixture === "string" ? loadFixture(fixture) : fixture;
+  const expected = loaded.exchanges.at(index);
+  if (!expected) throw new Error(`${loaded.spec}: ${loaded.example} has no exchange ${index}`);
+  const actual = await replayExchange(expected, options, loaded);
+  const compareOptions = { ...options.compare, ...(loaded.sessionCookie ? { sessionCookie: loaded.sessionCookie } : {}) };
+  return { fixture: loaded, exchanges: [{ expected, actual, differences: compareExchange(expected, actual, compareOptions) }] };
 }
 
 export function formatReplay(result: ReplayResult): string {

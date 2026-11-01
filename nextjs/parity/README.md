@@ -49,6 +49,7 @@ Each passing example writes `fixtures/<spec path>/<example>.json` with one excha
 | `request` | Method, path, query, headers, cookies, raw body |
 | `response` | Status, location, headers (minus volatile ones), cookies, and `json`, `inertia` (page props from the HTML) or `body` |
 | `db` | Per table: `inserted`, `updated` (changed columns, before and after) and `deleted` rows |
+| `redis` | The main Redis database's string, hash and set keys just before the request (Flipper features, the impersonation key), with TTLs |
 | `jobs` | Every Sidekiq push: class, args, queue, `at`; ActiveJob wrappers unwrapped |
 | `mails` | Every delivered mail: mailer, addresses, subject, text and HTML |
 | `http` | Every WebMock-seen call: method, URL, content type, body, and the response it got |
@@ -106,9 +107,33 @@ The response's `inertia` is read from the page's `data-page`. A controller spec 
 middleware, so those replays use `compare.subset: ["response.cookies"]` and ignore `link` (Vite asset
 names), `vary` (Next.js owns it on HTML), `csp_nonce` and the CSRF tokens.
 
+### Signed-in visitors
+
+A request spec that logs in through `POST /login` records the session, remember and
+`current_seller_id` cookies a browser holds. They are encrypted with the recording app's
+`secret_key_base` (random per checkout in the test environment), which the fixture carries as
+`secretKeyBase`: `reencryptCookies` (`src/session.ts`) re-encrypts them for the server under test and
+refreshes the remember cookie's timestamp. `redisSeeder` flushes the replay's Redis database and puts
+the recorded keys back. Fixtures with setup requests (the CSRF fetch, the login) keep every exchange;
+`replayFixtureExchange(fixture, index, options)` replays one.
+
+```ts
+await replayFixtureExchange(path, index, {
+  sql,
+  redis: redisSeeder(redis),
+  rewriteRequest: (request, fixture, now) => reencryptCookies(request, fixture, SECRET_KEY_BASE, now),
+  transport: httpTransport(server.baseUrl),
+  interceptHttp: false,
+});
+```
+
+Rails specs run with PaperTrail off, so `versions` rows are never recorded; ignore `db.versions` for
+replays whose port saves a versioned model. `insert_all` timestamps come from the database clock,
+which is the machine's time zone locally.
+
 ## Limits
 
-- Redis, Elasticsearch and S3 state are not captured or seeded.
+- Elasticsearch and S3 state are not captured or seeded; Redis only for string, hash and set keys of the main database.
 - `routeHandlers` calls a route module in-process; handlers using `cookies()` or `headers()` from
   `next/headers` need `httpTransport`.
 - Recorded mail bodies and HTTP request bodies are kept verbatim apart from timestamps; random tokens

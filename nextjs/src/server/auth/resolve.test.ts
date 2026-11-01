@@ -139,6 +139,18 @@ describe("resolveAuth", () => {
     });
   });
 
+  describe("sign out", () => {
+    it("names what the session was before it ended, and still drops a stale current seller", async () => {
+      const user = makeUser({ last_active_sessions_invalidated_at: now });
+      const store = makeStore([user]);
+      const stale = writeEncryptedCookie(secrets, CURRENT_SELLER_COOKIE_NAME, 999_999);
+      const { context, effects } = await resolve({ [SESSION]: sessionCookie(user, { lastSignInAt: nowSeconds - 1 }), [CURRENT_SELLER_COOKIE_NAME]: stale }, store);
+      expect(context.loggedInUser).toBeNull();
+      expect(effects.signedOut).toEqual({ user, seller: user, impersonating: false });
+      expect(effects.clearCurrentSeller).toBe(true);
+    });
+  });
+
   describe("impersonation", () => {
     const admin = () => makeUser({ flags: UserFlags.set(1n, "is_team_member", true) });
 

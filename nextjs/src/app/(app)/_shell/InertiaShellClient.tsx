@@ -62,6 +62,16 @@ function Providers({ layout, href, children }: { layout: ShellLayout; href: stri
   );
 }
 
+const subscribeNever = () => () => {};
+
+// The signed-in layouts render the dashboard Nav, which reads `window` while rendering. Rails never
+// renders Inertia pages on the server (the browser mounts the app), so a signed-in visitor gets the
+// same here: nothing on the server, the page once the client has hydrated.
+function useClientOnly(enabled: boolean): boolean {
+  const mounted = React.useSyncExternalStore(subscribeNever, () => true, () => false);
+  return enabled && !mounted;
+}
+
 export function InertiaShellClient({
   page: { component, props, href },
   layout = "default",
@@ -71,6 +81,8 @@ export function InertiaShellClient({
   layout?: ShellLayout;
   children: React.ReactNode;
 }) {
+  const waitForClient = useClientOnly(props.logged_in_user != null);
+  if (waitForClient) return null;
   return (
     <PagePropsProvider component={component} props={props}>
       <Providers layout={layout} href={href}>
