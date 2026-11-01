@@ -7,7 +7,7 @@ import { decideRoute } from "@/lib/navigation/proxy/decide";
 import { routeGate, setRouteGate } from "@/lib/navigation/proxy/gate";
 import { compileRouteTable, type RouteTable } from "@/lib/navigation/proxy/route-table";
 import { pageEnvelope } from "@/server/controllers/application-controller";
-import { INERTIA_PAGE_PATH } from "@/server/controllers/inertia-page";
+import { HOST_PAGE_PREFIX, INERTIA_PAGE_PATH } from "@/server/controllers/inertia-page";
 import { getRequiredConfig } from "@/server/infra/config";
 import { domainConfig } from "@/server/page-props/domain";
 import { PAGES } from "@/server/page-props/pages";
@@ -61,7 +61,12 @@ export async function proxy(request: NextRequest) {
     // The handler answers a redirect or a bare 400 (a before_action's `head`) through processAction.
     if ("response" in envelope) return envelope.response.headers.has("location") || envelope.response.status === 400 ? viaHandler() : envelope.response;
     forwarded.set(RENDER_STATE_HEADER, encodeRenderState(envelope.renderState));
-    const response = NextResponse.next({ request: { headers: forwarded } });
+    // A page that only exists on seller or product-domain hosts lives under /gr-host/<scope>, because
+    // the same path can be a Gumroad-domain page (`/affiliates`) and App Router routes by path alone.
+    const response =
+      decision.route.hosts === "seller" || decision.route.hosts === "product"
+        ? NextResponse.rewrite(new URL(`${HOST_PAGE_PREFIX}/${decision.route.hosts}${request.nextUrl.pathname === "/" ? "" : request.nextUrl.pathname}`, request.url), { request: { headers: forwarded } })
+        : NextResponse.next({ request: { headers: forwarded } });
     envelope.headers.delete("content-type");
     for (const [name, value] of envelope.headers) if (name !== "set-cookie") response.headers.set(name, value);
     for (const cookie of envelope.headers.getSetCookie()) response.headers.append("set-cookie", cookie);

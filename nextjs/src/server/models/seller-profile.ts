@@ -19,6 +19,9 @@ export type SellerProfileRecord = ModelRecord<SellerProfile>;
 export const FONT_CHOICES = ["ABC Favorit", "Inter", "Domine", "Merriweather", "Roboto Slab", "Roboto Mono"];
 export const BORDER_RADIUS_CHOICES = ["none", "small", "medium", "large"];
 export const BUTTON_HOVER_CHOICES = ["lift", "none"];
+// SellerProfile::BORDER_RADIUS_CHOICES and BUTTON_HOVER_OFFSETS: the CSS lengths.
+export const BORDER_RADIUS_CSS: Record<string, string> = { none: "0rem", small: "0.25rem", medium: "0.5rem", large: "1rem" };
+export const BUTTON_HOVER_OFFSET_CSS: Record<string, string> = { lift: "0.25rem", none: "0rem" };
 // Page::MAX_SEO_TITLE_LENGTH, Page::MAX_SEO_DESCRIPTION_LENGTH
 const MAX_SEO_TITLE_LENGTH = 70;
 const MAX_SEO_DESCRIPTION_LENGTH = 320;

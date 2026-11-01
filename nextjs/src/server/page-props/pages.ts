@@ -1,6 +1,7 @@
 // The Inertia pages Next.js serves, keyed by their routes.json pattern. A page's props and redirects
 // live here, not in page.tsx, because two places render them: the App Router page (HTML) and the
 // X-Inertia route handler (JSON), and both must answer exactly as the Rails action does.
+import { splitScopedPattern } from "@/lib/navigation/proxy/route-table";
 import * as Routes from "@/lib/navigation/routes";
 
 import type { ActionOptions, Redirected } from "../controllers/application-controller.ts";
@@ -150,11 +151,19 @@ const decodeSegment = (segment: string) => {
   }
 };
 
+// Where a page is served: the Gumroad domain, or a seller's or product's host. A page that is not on the
+// Gumroad domain is keyed "seller:/path" or "product:/path" (see route-table.ts).
+export type PageScope = "gumroad" | "seller" | "product";
+
+export const scopeOfPattern = (pattern: string): PageScope => (splitScopedPattern(pattern).scope as PageScope | null) ?? "gumroad";
+
 // Params for a path that matches `pattern` (`:name` is one segment, as in route-table.ts).
-export function matchPagePath(pathname: string): { pattern: string; params: Params } | null {
+export function matchPagePath(pathname: string, scope: PageScope = "gumroad"): { pattern: string; params: Params } | null {
   for (const pattern of Object.keys(PAGES)) {
+    const { scope: patternScope, path } = splitScopedPattern(pattern);
+    if ((patternScope ?? "gumroad") !== scope) continue;
     const names: string[] = [];
-    const source = pattern
+    const source = path
       .split("/")
       .map((segment) => {
         if (!segment.startsWith(":")) return segment.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

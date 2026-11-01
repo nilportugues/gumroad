@@ -2,7 +2,8 @@
 // and the 409 InertiaRails::Middleware answers when the client's asset version is stale. The proxy
 // rewrites such requests to /gr-inertia and names the original URL in x-gr-page-url.
 import { domainConfig } from "../page-props/domain.ts";
-import { matchPagePath, PAGES } from "../page-props/pages.ts";
+import { hostKindOf } from "../host-kind.ts";
+import { matchPagePath, type PageScope, PAGES } from "../page-props/pages.ts";
 import { railsJson } from "../page-props/inertia-json.ts";
 import { defaultUrlOptions } from "../page-props/load-page.ts";
 import { PAGE_URL_HEADER } from "../page-props/render-state.ts";
@@ -11,6 +12,13 @@ import { type ActionOptions, type ActionResult, type Chain, type ForceRefresh, p
 import { fullpath } from "./rails-request.ts";
 
 export const INERTIA_PAGE_PATH = "/gr-inertia";
+// Where the proxy serves the HTML of a page that only exists on seller and product-domain hosts.
+export const HOST_PAGE_PREFIX = "/gr-host";
+
+async function pageScopeOf(url: URL, headers: Headers): Promise<PageScope> {
+  const kind = await hostKindOf(url, headers);
+  return kind === "product" ? "product" : kind === "user" ? "seller" : "gumroad";
+}
 
 // inertia_rails replaces whatever the controller answered to a GET carrying an X-Inertia-Version
 // (any version is stale) with the 409, so a filter that halts is answered with it too.
@@ -40,9 +48,10 @@ export async function inertiaPageResponse(incoming: Request): Promise<Response> 
   const protocol = incoming.headers.get("x-forwarded-proto") ?? "http";
   const request = new Request(new URL(target, `${protocol}://${host}`), { method: incoming.method, headers: incoming.headers });
 
-  const pattern = matchPagePath(new URL(target, "http://localhost").pathname)?.pattern;
+  const scope = await pageScopeOf(new URL(request.url), incoming.headers);
+  const pattern = matchPagePath(new URL(target, "http://localhost").pathname, scope)?.pattern;
   return processAction(request, staleSafe(pattern ? PAGES[pattern]?.options : undefined, incoming), async ({ request: railsRequest, context, takeRenderState }): Promise<ActionResult> => {
-    const match = matchPagePath(railsRequest.path);
+    const match = matchPagePath(railsRequest.path, scope);
     if (!match) throw new RoutingError("Not Found");
     const spec = PAGES[match.pattern]!;
 
