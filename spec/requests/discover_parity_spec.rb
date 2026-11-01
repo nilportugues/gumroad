@@ -39,7 +39,6 @@ describe "Discover", type: :request do
     end
     make_product("Short film pack", sellers[0], films, price_cents: 2500, tags: %w[film], age_in_days: 20)
     make_product("Free sample", sellers[1], three_d, price_cents: 0, tags: %w[sample], age_in_days: 21)
-    make_taxonomy_stats
     Link.import(refresh: true, force: true)
   end
 
@@ -49,6 +48,7 @@ describe "Discover", type: :request do
   # Taxonomy pages only route on the discover host (DiscoverDomainConstraint).
   before do
     host! VALID_DISCOVER_REQUEST_HOST
+    make_taxonomy_stats
     ES_MODELS.each do |model|
       model.index_name("#{model.name.parameterize}-ws83")
       model.__elasticsearch__.create_index!(force: true)

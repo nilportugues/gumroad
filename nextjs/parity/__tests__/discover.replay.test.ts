@@ -149,7 +149,7 @@ describe.skipIf(!url)("Discover parity", () => {
           compare: COMPARE,
         });
         if (HANDED_BACK.test(name)) {
-          expect(railsRequests.at(-1)).toMatchObject({ method: "GET", url: result.exchanges[0]!.expected.request.path });
+          expect(railsRequests.at(-1)).toMatchObject({ method: "GET", url: `${result.exchanges[0]!.expected.request.path}${result.exchanges[0]!.expected.request.query ? `?${result.exchanges[0]!.expected.request.query}` : ""}` });
           expect(result.exchanges[0]!.actual.response.body).toBe(RAILS_ANSWER);
         } else {
           assertParity(result);
