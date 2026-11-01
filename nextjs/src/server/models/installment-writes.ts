@@ -6,8 +6,11 @@
 //   sending-limit validation needs;
 // - a message Rails::HTML::Sanitizer would have to judge, a call to action, a post without a slug, a post with files (video
 //   transcoding), and a seller that content moderation would review (it asks an AI model).
+import { randomUUID } from "node:crypto";
+
 import { Prisma, type Installment } from "@prisma/client";
 
+import { generateSlug, RESERVED_WORDS } from "./friendly-id.ts";
 import { INSTALLMENT_ATTRIBUTE_TO_SEARCH_FIELDS } from "../search/documents/simple.ts";
 import { filterCount } from "../search/audience-member-search.ts";
 import { salesCentsTotal } from "../search/purchase-sales.ts";
@@ -46,6 +49,11 @@ export class InstallmentInvalid extends Error {
     this.name = "Installment::InstallmentInvalid";
   }
 }
+
+const ELASTICSEARCH_INDEX_DELAY_SECONDS = 2;
+
+// SecureRandom.uuid for the slug of a name that is taken; tests swap it.
+export const installmentDeps = { uuid: (): string => randomUUID() };
 
 const refuse = (what: string): never => {
   throw new NotPortedError(what, SOURCE);
@@ -166,26 +174,34 @@ const validations: Callback<Installment>[] = [
 
 const paperTrail = hasPaperTrail<Installment>("Installment", { itemType: "Installment" });
 
+// friendly_id's `before_validation :set_slug` and `before_save :set_slug`: a slug is generated only for a record that has none.
+const setSlug: Callback<Installment> = {
+  name: "FriendlyId set_slug",
+  async run(record) {
+    const name = record.get("name");
+    if (record.get("slug") !== null || name === null) return;
+    const slug = await generateSlug("installments", name, record.newRecord ? null : record.get("id"), installmentDeps.uuid);
+    record.set("slug", slug);
+  },
+};
+
+// friendly_id's `validates_exclusion_of :friendly_id`, declared ahead of the model's own validations.
+const reservedSlug: Callback<Installment> = {
+  name: "validates_exclusion_of :friendly_id",
+  run(record) {
+    const slug = record.get("slug");
+    if (slug !== null && RESERVED_WORDS.includes(slug)) record.errors.add("friendly_id", "exclusion");
+  },
+};
+
 export const Installments = defineModel<Installment>({
   rubyClass: "Installment",
   prismaModel: "Installment",
   delegate: (tx) => tx.installment as never,
-  beforeValidation: [
-    {
-      // friendly_id: a slug is generated only for a record that has none
-      name: "FriendlyId set_slug",
-      run(record) {
-        if (record.get("slug") === null && record.get("name") !== null) refuse("a post without a slug (friendly_id)");
-      },
-    },
-    {
-      name: "(guard) create",
-      on: "create",
-      run: () => refuse("Installment#create"),
-    },
-  ],
-  validations,
-  beforeSave: [mergeJsonDataWithCurrentRow<Installment>("installments")],
+  beforeValidation: [setSlug],
+  validations: [reservedSlug, ...validations],
+  beforeSave: [setSlug, mergeJsonDataWithCurrentRow<Installment>("installments")],
+  afterCreate: [...paperTrail.afterCreate],
   afterUpdate: [...paperTrail.afterUpdate],
   afterSave: [
     {
@@ -198,6 +214,14 @@ export const Installments = defineModel<Installment>({
     },
   ],
   afterCommit: [
+    {
+      // ElasticsearchModelAsyncCallbacks#send_to_elasticsearch("index")
+      name: "send_to_elasticsearch",
+      on: "create",
+      async run(record) {
+        await performAsync("ElasticsearchIndexerWorker", ["index", { record_id: record.get("id"), class_name: "Installment" }], { delaySeconds: ELASTICSEARCH_INDEX_DELAY_SECONDS });
+      },
+    },
     {
       // ElasticsearchModelAsyncCallbacks#send_to_elasticsearch("update")
       name: "send_to_elasticsearch",
