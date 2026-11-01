@@ -1179,7 +1179,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "FightDisputesJob": {
     "file": "app/sidekiq/fight_disputes_job.rb",
@@ -1780,7 +1780,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "PdfUnstampableNotifierJob": {
     "file": "app/sidekiq/pdf_unstampable_notifier_job.rb",
@@ -2363,7 +2363,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RefundUnpaidPurchasesWorker": {
     "file": "app/sidekiq/refund_unpaid_purchases_worker.rb",
@@ -3715,7 +3715,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "UpdateUtmLinkStatsJob": {
     "file": "app/sidekiq/update_utm_link_stats_job.rb",

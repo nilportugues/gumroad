@@ -55,6 +55,7 @@ import { sendWorkflowInstallmentWorker } from "./send-workflow-installment-worke
 import { scheduleWorkflowInstallmentJob } from "./schedule-workflow-installment-job.ts";
 import { publishScheduledPostJob } from "./publish-scheduled-post-job.ts";
 import { sendLastPostJob } from "./send-last-post-job.ts";
+import { fightDisputeJob, payoutUsersWorker, refundPurchaseWorker, updateUserBalanceStatsCacheWorker } from "./refund-payout-guard-jobs.ts";
 import { flushInstallmentDeliveredDeltasJob, scheduleAffiliateWorkflowJobsJob, scheduleWorkflowEmailsWorker, sendWorkflowInstallmentRescheduleJob, updateInstallmentEventsCountCacheWorker } from "./workflow-jobs.ts";
 import {
   createMissingPurchaseEventsWorker,
@@ -168,6 +169,10 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   UpdatePurchasingPowerParityFactorsWorker: updatePurchasingPowerParityFactorsWorker,
   UpdateSellerRefundEligibilityJob: updateSellerRefundEligibilityJob,
   WarmSellerReputationSummaryJob: warmSellerReputationSummaryJob,
+  FightDisputeJob: fightDisputeJob,
+  PayoutUsersWorker: payoutUsersWorker,
+  RefundPurchaseWorker: refundPurchaseWorker,
+  UpdateUserBalanceStatsCacheWorker: updateUserBalanceStatsCacheWorker,
 };
 
 // `sidekiq_retry_in` and `sidekiq_retries_exhausted` blocks of ported jobs, keyed by Ruby class name.
