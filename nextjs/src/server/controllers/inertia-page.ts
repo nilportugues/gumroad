@@ -51,7 +51,7 @@ export async function inertiaPageResponse(incoming: Request): Promise<Response> 
     const stale = railsRequest.method === "GET" && incoming.headers.has("x-inertia-version");
     const config = domainConfig(process.env);
     const url = new URL(fullpath(railsRequest), `${railsRequest.protocol}${railsRequest.hostWithPort}`);
-    const redirect = (await spec.redirect?.(match.params, { url, headers: incoming.headers })) ?? (await spec.guard?.({ context, config, url, urlOptions: defaultUrlOptions(url, config) })) ?? null;
+    const redirect = (await spec.redirect?.(match.params, { url, headers: incoming.headers })) ?? (await spec.guard?.({ context, config, url, params: match.params, urlOptions: defaultUrlOptions(url, config) })) ?? null;
     if (stale) return { forceRefresh: `${railsRequest.protocol}${railsRequest.hostWithPort}${fullpath(railsRequest)}`, rescued: !!redirect };
     if (redirect && "notFound" in redirect) throw new RoutingError("Not Found");
     if (redirect) return redirect;

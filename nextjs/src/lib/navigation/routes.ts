@@ -323,3 +323,42 @@ export const page_path = path("/pages/:slug(.:format)");
 export const preview_page_path = path("/pages/:slug/preview(.:format)");
 export const products_page_path = path("/pages/:slug/products(.:format)");
 export const products_path = path("/products(.:format)");
+
+// Audience pages: UTM links, followers, workflows and emails (WS-57).
+export const audience_dashboard_path = path("/dashboard/audience(.:format)");
+export const sales_dashboard_path = path("/dashboard/sales(.:format)");
+export const churn_dashboard_path = path("/dashboard/churn(.:format)");
+export const dashboard_utm_links_path = path("/dashboard/utm_links(.:format)");
+export const dashboard_utm_link_path = path("/dashboard/utm_links/:id(.:format)");
+export const new_dashboard_utm_link_path = path("/dashboard/utm_links/new(.:format)");
+export const edit_dashboard_utm_link_path = path("/dashboard/utm_links/:id/edit(.:format)");
+
+// Helpers the audience pages reach through the shared components (generated from config/routes.rb named routes).
+
+export const audience_export_path = path("/audience/export(.:format)");
+export const custom_domain_view_post_path = path("/p/:slug(.:format)");
+export const customer_sale_path = path("/customers/sale/:purchase_id(.:format)");
+export const drafts_emails_path = path("/emails/drafts(.:format)");
+export const edit_email_path = path("/emails/:id/edit(.:format)");
+export const edit_workflow_path = path("/workflows/:id/edit(.:format)");
+export const email_path = path("/emails/:id(.:format)");
+export const emails_path = path("/emails(.:format)");
+export const follower_path = path("/followers/:id(.:format)");
+export const followers_path = path("/followers(.:format)");
+export const internal_installment_audience_count_path = path("/internal/installments/:id/audience_count(.:format)");
+export const internal_installment_clicked_urls_path = path("/internal/installments/:id/clicked_urls(.:format)");
+export const internal_installment_non_opener_resend_path = path("/internal/installments/:id/non_opener_resend(.:format)");
+export const internal_installment_preview_email_path = path("/internal/installments/:id/preview_email(.:format)");
+export const internal_installment_recipient_count_path = path("/internal/installments/recipient_count(.:format)");
+export const internal_installment_remaining_send_path = path("/internal/installments/:id/remaining_send(.:format)");
+export const new_email_path = path("/emails/new(.:format)");
+export const new_product_path = path("/products/new(.:format)");
+export const new_workflow_path = path("/workflows/new(.:format)");
+export const profile_section_path = path("/profile_sections/:id(.:format)");
+export const profile_sections_path = path("/profile_sections(.:format)");
+export const published_emails_path = path("/emails/published(.:format)");
+export const scheduled_emails_path = path("/emails/scheduled(.:format)");
+export const short_link_url = url("/l/:id(.:format)");
+export const workflow_emails_path = path("/workflows/:workflow_id/emails(.:format)");
+export const workflow_path = path("/workflows/:id(.:format)");
+export const workflows_path = path("/workflows(.:format)");

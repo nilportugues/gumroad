@@ -216,3 +216,17 @@ controllers run filters of their own, so their `PageSpec` carries `options` (`co
   Rails keeps serving the HTML, for pages whose component Next.js cannot render yet (the page editor).
 - Promotable dashboard pages: the nav props are built before the visit is promoted, as in Rails; the
   render promotes it after building them (`RenderState.promoteNavItemPath`).
+
+## Seller pages: guards with params, lazy and merge props (WS-57)
+
+- `PageSpec.guard` receives the route `params` and may throw `RoutingError` for `e404` (the preflight and the
+  X-Inertia handler both answer it as a 404). `page-props/audience/seller-guard.ts` is `Sellers::BaseController`
+  + `RequireAccountEmail` + the action's `authorize`, with Pundit's flash redirect.
+- `lazy`, `optional` and `merge` (`page-props/lazy-props.ts`) are `-> {}`, `InertiaRails.optional` and
+  `InertiaRails.merge`: resolved after the partial-reload filter, so a prop a response leaves out is never
+  computed; `mergeProps` is written into the page object. The client side of merge (appending the reloaded
+  list to the held one) is **not** in the compat layer yet: `router.reload({ data })` still re-renders every
+  prop and does not change the URL, so pages that page through a merged list (`/followers`,
+  `/dashboard/utm_links`) are not ready to flag on.
+- The visited dashboard nav item is promoted by the render after it built the props
+  (`RenderState.promoteNavItemPath`), as Rails promotes in an after_action.

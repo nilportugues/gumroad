@@ -9,6 +9,8 @@ export type GuardInput = {
   context: RequestContext;
   config: DomainConfig;
   url: URL;
+  // The route params (`:id`). A guard may throw RoutingError for a 404.
+  params: Record<string, string>;
   // ApplicationController#default_url_options, for `*_url` helpers.
   urlOptions: { protocol: string; host: string };
 };
