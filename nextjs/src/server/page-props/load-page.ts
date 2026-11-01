@@ -7,7 +7,7 @@ import { getRequestContext, type RequestContext } from "@/server/auth/context";
 import type { RenderState } from "../controllers/application-controller.ts";
 import { promoteVisitedNavItem } from "../controllers/signed-in-filters.ts";
 import { domainConfig, type DomainConfig } from "./domain.ts";
-import { type PartialRequest, resolveLazyProps } from "./lazy-props.ts";
+import { type PartialRequest, resolveLazyProps, type ScrollMetadata } from "./lazy-props.ts";
 import { MetaTagBuilder } from "./meta-tags.ts";
 import { sharedPropsPorts } from "./ports.ts";
 import { decodeRenderState, PAGE_URL_HEADER, RENDER_STATE_HEADER, renderStatePort } from "./render-state.ts";
@@ -58,7 +58,10 @@ export type InertiaPage = {
   // Props left out of the first response, by group: the client fetches each group with a partial reload.
   deferredProps?: Record<string, string[]>;
   // Props the client appends to what it holds (`InertiaRails.merge`); absent when there are none.
+  // inertia_rails orders these after deferredProps: scrollProps, mergeProps, prependProps.
+  scrollProps?: Record<string, ScrollMetadata & { reset: boolean }>;
   mergeProps?: string[];
+  prependProps?: string[];
   href: string;
   // Starts the data of each deferred prop. A server render streams it to the client after the shell, where
   // Rails' client would ask for it with a second request; the X-Inertia JSON never calls these.
@@ -137,7 +140,7 @@ export async function loadPage(
 
   await applicationMetaTags(meta, { context, config, csrfToken, ports });
   const actionProps = await action({ context, config, meta, url: request.url, headers: requestHeaders, urlOptions: defaultUrlOptions(request.url, config), state: state?.pageState ?? {}, renderState: state });
-  const { props: pageProps, mergeProps, alwaysKeys, deferredProps, deferredLoaders } = await resolveLazyProps(actionProps, partialRequest(component, requestHeaders));
+  const { props: pageProps, mergeProps, prependProps, scrollProps, alwaysKeys, deferredProps, deferredLoaders } = await resolveLazyProps(actionProps, partialRequest(component, requestHeaders), requestHeaders.get("x-inertia-infinite-scroll-merge-intent"));
   const shared = await sharedProps({ context, config, request, meta, csrfToken, ports, mobileAppWebView });
   const errors = await ports.session.consumeInertiaErrors();
   // promote_visited_nav_item runs after Rails renders, so the props above do not list the visit.
@@ -155,7 +158,9 @@ export async function loadPage(
     encryptHistory: false,
     clearHistory: state?.clearHistory ?? false,
     ...(Object.keys(deferredProps).length > 0 ? { deferredProps } : {}),
+    ...(Object.keys(scrollProps).length > 0 ? { scrollProps } : {}),
     ...(mergeProps.length > 0 ? { mergeProps } : {}),
+    ...(prependProps.length > 0 ? { prependProps } : {}),
     href: request.url.href,
     ...(Object.keys(deferredLoaders).length > 0 ? { deferredLoaders } : {}),
   };

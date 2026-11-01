@@ -35,9 +35,10 @@ function inertiaPage(url: URL, headers: http.IncomingHttpHeaders) {
   const only = String(headers["x-inertia-partial-data"] ?? "").split(",").filter(Boolean);
   const except = String(headers["x-inertia-partial-except"] ?? "").split(",").filter(Boolean);
   const reset = String(headers["x-inertia-reset"] ?? "").split(",").filter(Boolean);
-  const component = url.pathname === "/deep" ? "Deep/Index" : "Items/Index";
+  const component = url.pathname === "/deep" ? "Deep/Index" : url.pathname === "/scroll" ? "Scroll/Index" : "Items/Index";
   const page = Number(url.searchParams.get("page") ?? 1);
   stamp += 1;
+  if (component === "Scroll/Index") return scrollPage(url, headers, partialComponent === component, only, reset);
 
   const all: Record<string, unknown> =
     component === "Deep/Index"
@@ -64,11 +65,31 @@ function inertiaPage(url: URL, headers: http.IncomingHttpHeaders) {
   return page_;
 }
 
+// inertia_rails' InertiaRails.scroll over a list read by cursor: the merge intent header decides between
+// appending and prepending, and `scrollProps` carries the metadata (with `reset` for a reset prop).
+const MESSAGES = [1, 2, 3, 4, 5, 6, 7, 8].map((id) => ({ id, text: `message ${id}` }));
+function scrollPage(url: URL, headers: http.IncomingHttpHeaders, partial: boolean, only: string[], reset: string[]) {
+  const cursor = Number(url.searchParams.get("cursor") ?? 4);
+  const intent = headers["x-inertia-infinite-scroll-merge-intent"];
+  const from = intent === "prepend" ? Math.max(0, cursor - 3) : intent === "append" ? cursor : Math.max(0, cursor - 2);
+  const to = intent === "prepend" ? cursor : intent === "append" ? Math.min(MESSAGES.length, cursor + 2) : Math.min(MESSAGES.length, cursor + 2);
+  const slice = MESSAGES.slice(from, to);
+  const props: Record<string, unknown> = { errors: {} };
+  if (!partial || only.length === 0 || only.includes("messages")) props.messages = slice;
+  if (!partial || only.length === 0 || only.includes("stamp")) props.stamp = stamp;
+  const out: Record<string, unknown> = { component: "Scroll/Index", props, url: url.pathname + url.search, version: null };
+  if ("messages" in props) {
+    out.scrollProps = { messages: { pageName: "cursor", previousPage: from > 0 ? from : null, nextPage: to < MESSAGES.length ? to : null, currentPage: cursor, reset: reset.includes("messages") } };
+    if (!reset.includes("messages")) out[intent === "prepend" ? "prependProps" : "mergeProps"] = ["messages"];
+  }
+  return out;
+}
+
 beforeAll(async () => {
   server = http.createServer((req, res) => {
     const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
     const headers: Record<string, string> = {};
-    for (const name of ["x-inertia", "x-inertia-partial-component", "x-inertia-partial-data", "x-inertia-partial-except", "x-inertia-reset", "x-inertia-error-bag", "x-requested-with"]) {
+    for (const name of ["x-inertia", "x-inertia-partial-component", "x-inertia-partial-data", "x-inertia-partial-except", "x-inertia-reset", "x-inertia-error-bag", "x-requested-with", "x-inertia-infinite-scroll-merge-intent"]) {
       if (req.headers[name]) headers[name] = String(req.headers[name]);
     }
     requests.push({ path: url.pathname + url.search, headers });
@@ -84,9 +105,19 @@ beforeAll(async () => {
 afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
 
 type Step = { name: string; options: ReloadOptions & { data?: Record<string, unknown> } };
-type Snapshot = { name: string; request: Request | undefined; props: unknown; search: string };
+type Snapshot = { name: string; request: Request | undefined; props: unknown; scrollProps?: unknown; search: string };
 
-const sequences: Record<string, { path: string; initial: PageProps; steps: Step[] }> = {
+const sequences: Record<string, { path: string; initial: PageProps; initialScroll?: Page["scrollProps"]; steps: Step[] }> = {
+  "scroll props with merge intents": {
+    path: "/scroll",
+    initial: { messages: MESSAGES.slice(2, 6), stamp: 0 },
+    initialScroll: { messages: { pageName: "cursor", previousPage: 2, nextPage: 6, currentPage: 4, reset: false } },
+    steps: [
+      { name: "next", options: { data: { cursor: 6 }, only: ["messages"], preserveUrl: true, headers: { "X-Inertia-Infinite-Scroll-Merge-Intent": "append" } } },
+      { name: "previous", options: { data: { cursor: 2 }, only: ["messages"], preserveUrl: true, headers: { "X-Inertia-Infinite-Scroll-Merge-Intent": "prepend" } } },
+      { name: "reset", options: { data: { cursor: 4 }, only: ["messages"], reset: ["messages"], preserveUrl: true, headers: { "X-Inertia-Infinite-Scroll-Merge-Intent": "append" } } },
+    ],
+  },
   "appending a merge prop": {
     path: "/items",
     initial: { items: ITEMS.slice(0, 2), page: 1, stamp: 0, total: 6 },
@@ -109,10 +140,12 @@ const sequences: Record<string, { path: string; initial: PageProps; steps: Step[
   },
 };
 
+const componentOf = (path: string) => (path === "/deep" ? "Deep/Index" : path === "/scroll" ? "Scroll/Index" : "Items/Index");
+
 const settle = () => new Promise((resolve) => setTimeout(resolve, 60));
 
 async function runReal(core: typeof import("@inertiajs/core"), sequence: (typeof sequences)[string]): Promise<Snapshot[]> {
-  const initialPage = { component: sequence.path === "/deep" ? "Deep/Index" : "Items/Index", props: { errors: {}, ...sequence.initial }, url: sequence.path, version: null };
+  const initialPage = { component: componentOf(sequence.path), props: { errors: {}, ...sequence.initial }, url: sequence.path, version: null, ...(sequence.initialScroll ? { scrollProps: sequence.initialScroll } : {}) };
   window.history.replaceState(null, "", sequence.path);
   let current: Page = initialPage as Page;
   await (core.router as unknown as { init: (options: unknown) => Promise<void> }).init({
@@ -128,24 +161,28 @@ async function runReal(core: typeof import("@inertiajs/core"), sequence: (typeof
     requests = [];
     await new Promise<void>((resolve) => core.router.reload({ ...step.options, onFinish: () => resolve() } as never));
     await settle();
-    out.push({ name: step.name, request: requests[0], props: current.props, search: window.location.search });
+    out.push({ name: step.name, request: requests[0], props: current.props, scrollProps: current.scrollProps, search: window.location.search });
   }
   return out;
 }
 
 async function runCompat(sequence: (typeof sequences)[string]): Promise<Snapshot[]> {
   window.history.replaceState(null, "", sequence.path);
-  const component = sequence.path === "/deep" ? "Deep/Index" : "Items/Index";
+  const component = componentOf(sequence.path);
   let props: PageProps = { errors: {}, ...sequence.initial };
+  let scrollProps = sequence.initialScroll;
   const navigator: Navigator = {
     push: vi.fn(),
     replace: vi.fn(),
     refresh: vi.fn(),
     prefetch: vi.fn(),
     remount: vi.fn(),
-    getPage: () => ({ component, url: window.location.pathname + window.location.search, version: null, props: props as Page["props"] }),
+    getPage: () => ({ component, url: window.location.pathname + window.location.search, version: null, props: props as Page["props"], ...(scrollProps ? { scrollProps } : {}) }),
     setPageProps: (update) => {
       props = update(props);
+    },
+    setScrollProps: (update) => {
+      scrollProps = update(scrollProps ?? {});
     },
   };
   registerNavigator(navigator);
@@ -155,7 +192,7 @@ async function runCompat(sequence: (typeof sequences)[string]): Promise<Snapshot
     requests = [];
     await new Promise<void>((resolve) => compat.reload({ ...step.options, onFinish: () => resolve() } as never));
     await settle();
-    out.push({ name: step.name, request: requests[0], props, search: window.location.search });
+    out.push({ name: step.name, request: requests[0], props, scrollProps, search: window.location.search });
   }
   registerNavigator(null);
   return out;
@@ -174,6 +211,7 @@ describe.skipIf(!corePath)("partial reloads against the real @inertiajs/core rou
       // Guards against both clients silently doing nothing.
       expect(real.every((snapshot) => snapshot.request?.headers["x-inertia"] === "true")).toBe(true);
       if (sequence.path === "/items") expect((real[1]!.props as { items: unknown[] }).items).toHaveLength(6);
+      if (sequence.path === "/scroll") expect((real[1]!.props as { messages: unknown[] }).messages.length).toBeGreaterThan(4);
       vi.unstubAllGlobals();
     });
   }

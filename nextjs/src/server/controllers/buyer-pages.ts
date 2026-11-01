@@ -17,7 +17,7 @@ const INVALID_RESET_TOKEN = "That reset password token doesn't look valid (or ma
 
 // The pages below render HTML only: any other format makes Rails raise or negotiate, which the port
 // leaves to it (an Inertia visit asks for the page whatever it accepts).
-function requireHtml(chain: Chain): void {
+export function requireHtml(chain: Chain): void {
   if (!chain.request.headers.has("x-inertia") && requestFormat(chain.request) !== "html") throw new HandBackToRails();
 }
 

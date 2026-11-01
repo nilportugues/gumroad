@@ -15,6 +15,7 @@ const navigator = {
   setPageProps: (update: (current: PageProps) => PageProps) => {
     props = update(props);
   },
+  setScrollProps: vi.fn(),
 } satisfies Navigator;
 
 const inertiaResponse = (page: Partial<Page> & { props: PageProps }) =>

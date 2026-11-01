@@ -19,11 +19,13 @@ export function PagePropsProvider({
   component,
   props,
   deferredProps,
+  scrollProps,
   children,
 }: {
   component: string;
   props: PageProps;
   deferredProps?: Record<string, string[]>;
+  scrollProps?: Page["scrollProps"];
   children: React.ReactNode;
 }) {
   const nextRouter = useRouter();
@@ -46,14 +48,20 @@ export function PagePropsProvider({
     return result;
   }, [current, resolved]);
 
+  // Like the props, the scroll metadata of a response belongs to the server render it was made against.
+  const [scrollOverrides, setScrollOverrides] = React.useState<{ base: Page["scrollProps"]; value: Page["scrollProps"] }>({ base: scrollProps, value: scrollProps });
+  const currentScrollProps = scrollOverrides.base === scrollProps ? scrollOverrides.value : scrollProps;
+
   const page = React.useMemo<Page>(
-    () => ({ component, url, version: null, props: effectiveProps as Page["props"] }),
-    [component, url, effectiveProps],
+    () => ({ component, url, version: null, props: effectiveProps as Page["props"], ...(currentScrollProps ? { scrollProps: currentScrollProps } : {}) }),
+    [component, url, effectiveProps, currentScrollProps],
   );
   const pageRef = React.useRef(page);
   pageRef.current = page;
   const propsRef = React.useRef(props);
   propsRef.current = props;
+  const scrollPropsRef = React.useRef(scrollProps);
+  scrollPropsRef.current = scrollProps;
 
   React.useEffect(() => {
     let cancelled = false;
@@ -85,6 +93,11 @@ export function PagePropsProvider({
         setOverrides((previous) => {
           const base = previous.base === propsRef.current ? previous.props : propsRef.current;
           return { base: propsRef.current, props: update(base) };
+        }),
+      setScrollProps: (update) =>
+        setScrollOverrides((previous) => {
+          const held = previous.base === scrollPropsRef.current ? previous.value : scrollPropsRef.current;
+          return { base: scrollPropsRef.current, value: update(held ?? {}) };
         }),
       remount: () => setMountKey((key) => key + 1),
     });

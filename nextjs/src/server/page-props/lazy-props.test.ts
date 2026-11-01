@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { filterPartialProps } from "./load-page.ts";
-import { always, defer, lazy, merge, optional, resolveLazyProps } from "./lazy-props.ts";
+import { always, defer, lazy, merge, optional, resolveLazyProps, scroll } from "./lazy-props.ts";
 
 const partial = (only: string[] = [], except: string[] = []) => ({ only, except, reset: [] });
 
@@ -46,5 +46,42 @@ describe("filterPartialProps with always props", () => {
     const props = { errors: {}, count: { a: 1 }, other: 2, chart: [1] };
     expect(filterPartialProps(props, "C", headers, ["count"])).toEqual({ errors: {}, count: { a: 1 }, chart: [1] });
     expect(filterPartialProps(props, "C", headers)).toEqual({ errors: {}, chart: [1] });
+  });
+});
+
+describe("scroll props", () => {
+  const metadata = { pageName: "cursor", previousPage: "2026-01-01T00:00:00Z", nextPage: null, currentPage: "2026-02-01T00:00:00Z" };
+  const props = () => ({ other: 1, messages: scroll(() => metadata, () => ["a"]) });
+
+  it("appends and lists the metadata, as InertiaRails.scroll does", async () => {
+    const resolved = await resolveLazyProps(props(), null);
+    expect(resolved.props).toEqual({ other: 1, messages: ["a"] });
+    expect(resolved.mergeProps).toEqual(["messages"]);
+    expect(resolved.prependProps).toEqual([]);
+    expect(resolved.scrollProps).toEqual({ messages: { ...metadata, reset: false } });
+  });
+
+  it("prepends for the prepend merge intent", async () => {
+    const resolved = await resolveLazyProps(props(), { only: ["messages"], except: [], reset: [] }, "prepend");
+    expect(resolved.mergeProps).toEqual([]);
+    expect(resolved.prependProps).toEqual(["messages"]);
+  });
+
+  it("appends for any other intent", async () => {
+    expect((await resolveLazyProps(props(), null, "append")).mergeProps).toEqual(["messages"]);
+    expect((await resolveLazyProps(props(), null, "other")).prependProps).toEqual([]);
+  });
+
+  it("keeps the metadata of a reset prop but does not merge it", async () => {
+    const resolved = await resolveLazyProps(props(), { only: ["messages"], except: [], reset: ["messages"] });
+    expect(resolved.mergeProps).toEqual([]);
+    expect(resolved.scrollProps.messages!.reset).toBe(true);
+  });
+
+  it("leaves a prop a partial reload did not ask for out of scrollProps and the merge lists", async () => {
+    const resolved = await resolveLazyProps(props(), { only: ["other"], except: [], reset: [] });
+    expect(resolved.props).toEqual({ other: 1 });
+    expect(resolved.scrollProps).toEqual({});
+    expect(resolved.mergeProps).toEqual([]);
   });
 });

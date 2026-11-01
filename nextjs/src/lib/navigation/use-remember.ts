@@ -6,6 +6,20 @@ function storageKey(key: string) {
   return `inertia-remember:${window.location.pathname}${window.location.search}:${key}`;
 }
 
+export function readRemembered(key: string): unknown {
+  if (typeof window === "undefined") return undefined;
+  return read<unknown>(key);
+}
+
+export function writeRemembered(key: string, value: unknown) {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(storageKey(key), JSON.stringify(value));
+  } catch {
+    // Best effort, as in Inertia.
+  }
+}
+
 function read<T>(key: string): T | undefined {
   try {
     const stored = window.sessionStorage.getItem(storageKey(key));
