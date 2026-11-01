@@ -4,7 +4,7 @@
 //   app/sidekiq/set_subscription_as_deactivated_worker.rb
 // The writes are the Subscription model's (server/models/subscription-writes.ts). Reads that precede the
 // first write run inside beforeSideEffects: what Node cannot do (a failed charge on a mandate card, which
-// Rails recovers through Stripe; a member cancellation workflow; offer-code pricing) hands the job back
+// Rails recovers through Stripe; a member cancellation workflow filter it cannot judge; offer-code pricing) hands the job back
 // to Rails untouched.
 // Golden: __fixtures__/subscription-writes-jobs.golden.json (scripts/golden/subscription-writes-jobs.rb).
 import type { Subscription } from "@prisma/client";

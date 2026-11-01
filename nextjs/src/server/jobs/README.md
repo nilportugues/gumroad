@@ -194,3 +194,18 @@ Hand-backs, all before the job's first write:
 - `CreateMissingDisputeEvidenceJob`: an empty scan runs in Node; a dispute in it goes to Rails (evidence attachments, the
   processor's deadline, the seller's notice).
 - A job argument that is not an Integer or its digits (`FailedRefundException.find("abc")`).
+
+## Ported workflow and installment jobs (WS-51)
+
+`workflow-jobs.ts` ports `ScheduleWorkflowEmailsWorker`, `UpdateInstallmentEventsCountCacheWorker`, `FlushInstallmentDeliveredDeltasJob`,
+`ScheduleAffiliateWorkflowJobsJob` and the guard of `SendWorkflowInstallmentRescheduleJob`. `SendWorkflowInstallmentWorker`, which most of them
+push, still runs in Rails. `ScheduleWorkflowEmailsWorker` decides every push before making the first, so a hand-back leaves nothing queued.
+`FlushInstallmentDeliveredDeltasJob` (a cron entry) swallows Redis failures like the Ruby, and puts a delta back when the `UPDATE` fails.
+
+Hand-backs, all before the job's first write:
+
+- `SendWorkflowInstallmentRescheduleJob` with exactly one recipient: it runs `SendWorkflowInstallmentWorker`.
+- `ScheduleAffiliateWorkflowJobsJob` with a token that has assignments (`DirectAffiliate#schedule_workflow_jobs`); the sweep without a token and a
+  token with no assignments run in Node.
+- Any of the above (and `SetSubscriptionAsDeactivatedWorker`'s member cancellation workflows) when a workflow filter holds a value Node does not
+  judge; see `models/README.md`.

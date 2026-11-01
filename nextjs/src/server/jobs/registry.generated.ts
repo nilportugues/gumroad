@@ -1274,7 +1274,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "recurringLockMaxAttempt": 600,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ForceFinishLongRunningCommunityChatRecapRunsJob": {
     "file": "app/sidekiq/force_finish_long_running_community_chat_recap_runs_job.rb",
@@ -2747,7 +2747,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ScheduleMembershipPriceUpdatesJob": {
     "file": "app/sidekiq/schedule_membership_price_updates_job.rb",
@@ -2771,7 +2771,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ScheduleWorkflowInstallmentJob": {
     "file": "app/sidekiq/schedule_workflow_installment_job.rb",
@@ -3170,7 +3170,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SendWorkflowInstallmentWorker": {
     "file": "app/sidekiq/send_workflow_installment_worker.rb",
@@ -3566,7 +3566,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "UpdateIntegrationsOnTierChangeWorker": {
     "file": "app/sidekiq/update_integrations_on_tier_change_worker.rb",

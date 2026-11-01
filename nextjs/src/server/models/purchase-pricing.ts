@@ -8,7 +8,7 @@
 // record, and each method sends the statements the Ruby method does, in order. Nothing here writes.
 // Golden: worker/jobs/__fixtures__/subscription-reminder-jobs.golden.json (the `price:` and
 // `missing charge:` cases); the arithmetic: offer-code-pricing-vectors.golden.json.
-import { Prisma, type BaseVariant, type BasePrice, type InstallmentPlanSnapshot, type Link, type OfferCode, type ProductInstallmentPlan, type Purchase, type PurchaseOfferCodeDiscount, type Tip, type User } from "@prisma/client";
+import { Prisma, type BaseVariant, type BasePrice, type InstallmentPlanSnapshot, type License, type Link, type OfferCode, type ProductInstallmentPlan, type Purchase, type PurchaseOfferCodeDiscount, type Subscription, type Tip, type User } from "@prisma/client";
 
 import { defineFlags } from "../../lib/flags.ts";
 import LINK_DATA from "./link-data.generated.json" with { type: "json" };
@@ -227,6 +227,23 @@ export class PurchaseRecord {
   // `belongs_to :subscription`
   subscription(): Promise<SubscriptionRecord | null> {
     return Promise.resolve(this.owner);
+  }
+
+  // `purchase.subscription` as a row, for readers that only look at its columns: the inverse of
+  // `original_purchase` when the purchase was loaded through one, else the `belongs_to` load.
+  subscriptionRow(): Promise<Subscription | null> {
+    if (this.owner !== null) return Promise.resolve(this.owner.row);
+    return this.loaded("subscription_row", () => findById<Subscription>("Subscription", this.row.subscription_id));
+  }
+
+  // `belongs_to :seller`
+  seller(): Promise<User | null> {
+    return this.loaded("seller", () => findById<User>("User", this.row.seller_id));
+  }
+
+  // `has_one :license`
+  license(): Promise<License | null> {
+    return this.loaded("license", () => findOneBy<License>("License", "purchase_id", this.id));
   }
 
   // `has_one :tip`
