@@ -7,6 +7,7 @@ import { Prisma, type UrlRedirect } from "@prisma/client";
 import { defineFlags } from "../../lib/flags.ts";
 import { PurchaseFlags } from "../search/flags.ts";
 import { defineModel } from "./runtime/define-model.ts";
+import type { ModelRecord } from "./runtime/record.ts";
 import { validatesPresenceOf } from "./runtime/validators.ts";
 import { castRow, column, selectRows, table } from "./sql.ts";
 
@@ -78,7 +79,7 @@ export const UrlRedirects = defineModel<UrlRedirect>({
 
 // Purchase#create_url_redirect! for a loaded purchase: the existing redirect, a new one, or null where
 // Ruby returns without creating one.
-export async function createUrlRedirectForPurchase(purchase: { id: bigint; link_id: bigint | null; flags: bigint | number }, options?: { now?: () => Date }): Promise<UrlRedirect | null> {
+export async function createUrlRedirectForPurchase(purchase: { id: bigint; link_id: bigint | null; flags: bigint | number }, options?: { now?: () => Date }): Promise<UrlRedirect | ModelRecord<UrlRedirect> | null> {
   const existing = await findUrlRedirectForPurchase(purchase.id);
   if (existing) return existing;
   if (PurchaseFlags.isSet(purchase.flags, "is_gift_sender_purchase") || PurchaseFlags.isSet(purchase.flags, "is_commission_completion_purchase")) return null;
@@ -96,5 +97,5 @@ export async function createUrlRedirectForPurchase(purchase: { id: bigint; link_
     preorder_id: null,
     imported_customer_id: null,
     rental_first_viewed_at: null,
-  }, options) as Promise<UrlRedirect>;
+  }, options);
 }
