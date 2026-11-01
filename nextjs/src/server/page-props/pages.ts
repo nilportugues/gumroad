@@ -35,6 +35,7 @@ import { CHECKOUT_PAGES } from "./checkout-pages.ts";
 import { AGENT_PAGES } from "./agent/pages.ts";
 import { SELLER_PRODUCTS_PAGES } from "./seller-products/pages.ts";
 import { URL_REDIRECT_PAGES } from "./url-redirects/pages.ts";
+import { COMMUNITY_PAGES } from "./communities/pages.ts";
 
 type Params = Record<string, string>;
 
@@ -145,6 +146,7 @@ export const PAGES: Record<string, PageSpec> = {
   ...AGENT_PAGES,
   ...SELLER_PRODUCTS_PAGES,
   ...URL_REDIRECT_PAGES,
+  ...COMMUNITY_PAGES,
 };
 
 // ArticlesController#index

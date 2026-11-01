@@ -114,7 +114,11 @@ export interface Page<SharedProps extends PageProps = PageProps> {
   prependProps?: string[];
   deepMergeProps?: string[];
   matchPropsOn?: string[];
+  // Pagination state of each scroll prop (`InertiaRails.scroll`), which <InfiniteScroll> reads.
+  scrollProps?: Record<string, ScrollPropMetadata>;
 }
+
+export type ScrollPropMetadata = { pageName: string; previousPage: unknown; nextPage: unknown; currentPage: unknown; reset: boolean };
 
 export type PreserveStateOption = boolean | "errors" | ((page: Page) => boolean);
 export type LinkPrefetchOption = "mount" | "hover" | "click";
@@ -147,6 +151,8 @@ export type VisitCallbacks = {
   onProgress?: (progress: unknown) => void;
   onCancelToken?: (token: { cancel: () => void }) => void;
   onCancel?: () => void;
+  // Called with the response page before it is applied (partial reloads).
+  onBeforeUpdate?: (page: Page) => void;
   onSuccess?: (page: Page) => void | Promise<unknown>;
   onError?: (errors: Errors) => void;
   onFinish?: (visit: ActiveVisit) => void;

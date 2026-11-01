@@ -14,6 +14,7 @@ const navigationCompat = "./src/lib/navigation/index.ts";
 // app (React 18) and is not installed in CI. Every package the shared components use is installed
 // here and aliased, so both apps can pin different versions without a workspace.
 const sharedPackages = [
+  "@anycable/web",
   "@boxicons/react",
   "@radix-ui/react-dialog",
   "@radix-ui/react-popover",

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 
-import { diff, resolveDateToken } from "./canonical";
+import { diff, resolveDateToken, resolveTimeToken } from "./canonical";
 import { canonicalJob, canonicalMail, type JobsChannel, type MailChannel } from "./channels";
 import { type CompareOptions, compareExchange, type Difference, formatDifferences } from "./compare";
 import { dump, nonEmptyTables, readSchema, seedDatabase, type SqlExecutor } from "./db";
@@ -58,7 +58,9 @@ export async function replayExchange(exchange: Exchange, options: ReplayOptions,
   const { sql, transport, jobs, mails, redis, interceptHttp = true } = options;
   // Tokens like "<now-48h>" are resolved against this instant, and the port's writes are
   // normalised against it, as the recorder did with the moment its request started.
-  const now = new Date();
+  // Whole seconds: a time in the query (a cursor) is written without fractions, so rows seeded from the same
+  // token must not carry any either.
+  const now = new Date(Math.floor(Date.now() / 1000) * 1000);
   await seedDatabase(sql, exchange.seed, now);
   await redis?.reset(exchange.redis ?? {}, exchange, now);
   const schema = await readSchema(sql);
@@ -88,8 +90,14 @@ export async function replayExchange(exchange: Exchange, options: ReplayOptions,
 
 // A date in the recorded query is a token (`<today-3d>`) so it stays as far from the replay's clock as it was from the recording's.
 export function withResolvedDates(request: FixtureRequest, now: Date): FixtureRequest {
-  if (!request.query?.includes("<today")) return request;
-  const query = request.query.replace(/<today(?:[+-]\d+d)?>/g, (token) => resolveDateToken(token, now)?.toISOString().slice(0, 10) ?? token);
+  if (!request.query?.includes("<today") && !request.query?.includes("<now")) return request;
+  const query = request.query
+    .replace(/<today(?:[+-]\d+d)?>/g, (token) => resolveDateToken(token, now)?.toISOString().slice(0, 10) ?? token)
+    // A UTC time (`cursor=2025-03-01T10%3A00%3A00Z`), written the way a client encodes it.
+    .replace(/<now(?:[+-]\d+[smh])?>/g, (token) => {
+      const time = resolveTimeToken(token, now);
+      return time ? encodeURIComponent(time.toISOString().replace(/\.\d{3}Z$/, "Z")) : token;
+    });
   return { ...request, query };
 }
 

@@ -240,11 +240,13 @@ module Parity
         }.merge(body_field(body)).compact
       end
 
-      # A date a query parameter holds is as relative to the recording as the rows are: the replayer resolves the
-      # token against its own clock.
+      # A date or UTC time a query parameter holds is as relative to the recording as the rows are: the replayer
+      # resolves the token against its own clock.
       def query_with_date_tokens(query, now)
-        query.to_s.gsub(/(?<==)(\d{4}-\d{2}-\d{2})(?=&|\z)/) { Canonical.date_token(Date.iso8601(_1), now) }
-      rescue Date::Error
+        query.to_s
+          .gsub(/(?<==)(\d{4}-\d{2}-\d{2})(?=&|\z)/) { Canonical.date_token(Date.iso8601(_1), now) }
+          .gsub(/(?<==)(\d{4}-\d{2}-\d{2}T\d{2}(?::|%3A)\d{2}(?::|%3A)\d{2}Z)(?=&|\z)/i) { Canonical.time_token(Time.iso8601(CGI.unescape(_1)), now) }
+      rescue Date::Error, ArgumentError
         query
       end
 

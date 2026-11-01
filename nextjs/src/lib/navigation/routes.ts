@@ -448,6 +448,11 @@ export const url_redirect_play_path = path("/d/:id/play(.:format)");
 export const url_redirect_save_last_content_page_path = path("/r/:id/save_last_content_page(.:format)");
 // Url redirect pages (WS-81).
 export const confirm_redirect_path = path("/confirm-redirect(.:format)");
+export const community_chat_messages_path = path("/communities/:community_id/chat_messages(.:format)");
+export const community_chat_message_path = path("/communities/:community_id/chat_messages/:id(.:format)");
+export const community_last_read_chat_message_path = path("/communities/:community_id/last_read_chat_message(.:format)");
+export const community_notification_settings_path = path("/communities/:community_id/notification_settings(.:format)");
+export const community_path = path("/communities/:seller_id/:community_id(.:format)");
 export const library_archive_path = path("/library/purchase/:id/archive(.:format)");
 export const library_unarchive_path = path("/library/purchase/:id/unarchive(.:format)");
 export const library_delete_path = path("/library/purchase/:id/delete(.:format)");

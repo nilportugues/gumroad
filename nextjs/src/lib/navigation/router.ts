@@ -18,6 +18,7 @@ import type {
 } from "./types";
 import { hasFiles, mergeDataIntoQueryString, objectToFormData } from "./form-data";
 import { isPartialVisit, mergeResponseProps, partialHeaders } from "./partial-reload";
+import { readRemembered, writeRemembered } from "./use-remember";
 
 // What the page-props provider hands the router once it mounts.
 export type Navigator = {
@@ -28,6 +29,8 @@ export type Navigator = {
   getPage: () => Page;
   // Props that replace the server-rendered ones until the next navigation (Inertia's in-place page swap).
   setPageProps: (update: (props: PageProps) => PageProps) => void;
+  // The scroll props' metadata, merged over what the page holds as Inertia does.
+  setScrollProps: (update: (scrollProps: NonNullable<Page["scrollProps"]>) => NonNullable<Page["scrollProps"]>) => void;
   remount: () => void;
 };
 
@@ -47,6 +50,9 @@ export function takeCarryOverProps(): PageProps | null {
   carryOverProps = null;
   return props;
 }
+
+// The page the provider currently shows (core's `page.get()`).
+export const currentPage = (): Page => requireNavigator().getPage();
 
 function requireNavigator(): Navigator {
   if (!navigator) throw new Error("@/lib/navigation router used outside <PagePropsProvider>");
@@ -291,7 +297,9 @@ async function sendInPlace(visit: ActiveVisit, options: VisitOptions) {
   }
 
   const incoming = mergeResponseProps(current.props, page, partial);
+  options.onBeforeUpdate?.(page);
   nav.setPageProps((base) => (partial ? { ...base, ...incoming } : incoming));
+  if (page.scrollProps) nav.setScrollProps((held) => ({ ...held, ...page.scrollProps }));
   if (!visit.preserveUrl) {
     const target = new URL(page.url, window.location.href);
     if (visit.url.hash && !target.hash && target.pathname + target.search === visit.url.pathname + visit.url.search) target.hash = visit.url.hash;
@@ -361,6 +369,14 @@ export const router = {
 
   prefetch(href: string | URL, options: { method?: Method } = {}) {
     if ((options.method ?? "get") === "get") requireNavigator().prefetch(href.toString());
+  },
+
+  // Inertia keeps these in history.state; see use-remember.ts for why they live in sessionStorage here.
+  remember(data: unknown, key = "default") {
+    writeRemembered(key, data);
+  },
+  restore(key = "default"): unknown {
+    return readRemembered(key);
   },
 
   on(name: GlobalEventNames, callback: (event: GlobalEvent) => boolean | void): () => void {
