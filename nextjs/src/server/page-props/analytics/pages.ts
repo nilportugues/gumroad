@@ -11,7 +11,7 @@ import { always, defer } from "../lazy-props.ts";
 import type { PageSpec } from "../pages.ts";
 import { audienceData, audienceRange, totalFollowerCount } from "./audience.ts";
 import { churnData, churnParams } from "./churn.ts";
-import { handBackLargeSeller } from "./seller-analytics.ts";
+import { createLargeSellerIfWarranted } from "../../models/large-seller.ts";
 import { analyticsPageProps } from "./sales.ts";
 
 const seller = (context: { currentSeller: User | null }) => context.currentSeller!;
@@ -54,7 +54,7 @@ const churnShow: PageSpec = {
       afterAuthorize: async (context) => {
         // A date Ruby may read differently, or a seller whose ranges Rails caches, is Rails' to answer.
         churnParams(queryOf(info.url));
-        await handBackLargeSeller(context);
+        await createLargeSellerIfWarranted(context.seller!.id);
       },
     }),
   props: async (_, { context, url }) => ({ churn: await churnData(seller(context), churnParams(queryOf(url))) }),
@@ -70,7 +70,9 @@ const analyticsIndex: PageSpec = {
       beforeAuthorize: async (context) => {
         await checkPaymentDetails(context);
       },
-      afterAuthorize: handBackLargeSeller,
+      afterAuthorize: async (context) => {
+        await createLargeSellerIfWarranted(context.seller!.id);
+      },
     }),
   props: async (_, { context, meta }) => {
     // AnalyticsController#set_default_page_title

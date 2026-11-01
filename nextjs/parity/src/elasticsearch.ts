@@ -4,6 +4,8 @@
 // the settings and mappings Rails' test indices carry.
 import { Client } from "@elastic/elasticsearch";
 
+import { isFeatureEnabled } from "@/server/infra/flipper";
+import { ProductRecord } from "@/server/search/documents/product";
 import { PurchaseRecord } from "@/server/search/documents/purchase";
 import { esJson, type JsonValue } from "@/server/search/es-json";
 
@@ -32,7 +34,16 @@ export type ReplayIndex = { model: ReplayModel; name: string };
 // Drops and recreates `name` as the Rails test index of `model` is defined.
 export async function recreateIndex(es: Client, { model, name }: ReplayIndex): Promise<void> {
   const source = RAILS_TEST_INDEX[model];
-  const definition = (await es.indices.get({ index: source })).body[source];
+  // Rails' spec runs recreate their test indices, so the source can be missing for a moment.
+  let definition: Record<string, any> | undefined;
+  for (let attempt = 0; definition === undefined; attempt++) {
+    try {
+      definition = (await es.indices.get({ index: source })).body[source];
+    } catch (error) {
+      if (attempt >= 20) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  }
   await es.indices.delete({ index: name }, { ignore: [404] });
   await es.indices.create({
     index: name,
@@ -69,6 +80,18 @@ export async function reindexPurchases(es: Client, index: string, sql: SqlExecut
   const documents: { id: string; body: Record<string, unknown> }[] = [];
   for (const { id } of rows) {
     const record = await PurchaseRecord.find(id);
+    if (record) documents.push({ id: String(id), body: await record.asIndexedJson() });
+  }
+  await bulkIndex(es, index, documents);
+}
+
+// The products index from the seeded rows, with the documents the port's own indexer builds (as_indexed_json).
+export async function reindexProducts(es: Client, index: string, sql: SqlExecutor): Promise<void> {
+  const rows = await sql.query("SELECT id FROM links ORDER BY id");
+  const deps = { now: () => new Date(), featureActive: (name: string, actor: string) => isFeatureEnabled(name, actor) };
+  const documents: { id: string; body: Record<string, unknown> }[] = [];
+  for (const { id } of rows) {
+    const record = await ProductRecord.find(id, deps);
     if (record) documents.push({ id: String(id), body: await record.asIndexedJson() });
   }
   await bulkIndex(es, index, documents);

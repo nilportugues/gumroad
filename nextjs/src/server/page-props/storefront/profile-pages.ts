@@ -1,9 +1,9 @@
 // UsersController#show, #subscribe, AffiliateRequestsController#new on a seller's subdomain or custom
 // domain (`seller:/`, `seller:/subscribe`, `seller:/affiliates`), for visitors who are not signed in.
 //
-// Handed to Rails (HandBackToRails, decided in the filters): a profile that renders product cards
-// (a products section, the default products section, a featured product: they need
-// ProductPresenter.card_for_web and Elasticsearch product search, WS-69), a wishlists section, a seller
+// Handed to Rails (HandBackToRails, decided in the filters): a featured product section (it needs
+// ProductPresenter#product_props) or a wishlists section (WishlistPresenter), a products section whose cards the
+// port cannot prove (see presenters/product.ts) or a request carrying the visitor's search params, a seller
 // with custom HTML pages, an affiliate param (it writes a cookie), a seller with an uploaded subscribe
 // preview or a reputation summary, and any non-HTML format.
 import { Prisma, type User } from "@prisma/client";
@@ -11,7 +11,9 @@ import { Prisma, type User } from "@prisma/client";
 import { db } from "../../../lib/db.ts";
 import { decrypt, encrypt as externalId } from "../../../lib/obfuscate-ids.ts";
 import { type Chain, type FilterOutcome, HandBackToRails, RoutingError } from "../../controllers/application-controller.ts";
+import { requestCookies } from "../../controllers/rack-cookies.ts";
 import { isPresent, queryParam } from "../../controllers/rails-request.ts";
+import type { PresenterRequest } from "../../presenters/product.ts";
 import { domainConfig } from "../domain.ts";
 import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
 import { LinkFlags } from "../../models/link.ts";
@@ -24,6 +26,7 @@ import { creatorProfile } from "../settings/profile.ts";
 import type { MetaTagBuilder } from "../meta-tags.ts";
 import type { PageSpec } from "../pages.ts";
 import { requireHtmlPage, setHostMeta } from "./post-pages.ts";
+import { assertProductSectionsRender, DEFAULT_PRODUCTS_SECTION_ID, PRODUCTS_SECTION_TYPE, productsSectionProps, sectionHeader, type ProductsSectionRow } from "./product-sections.ts";
 import { setFaviconMetaTags } from "./post.ts";
 import { sellerOfHost } from "./seller-host.ts";
 
@@ -32,7 +35,9 @@ const DEFAULT_PRODUCTS_TAB_NAME = "Products";
 const POSTS_PER_SECTION = 999;
 const SHOWN_ON_PROFILE_FLAG = 2 ** 7;
 const PROFILE_SECTION_FLAG_HIDE_HEADER = 2 ** 1;
-const SUPPORTED_SECTION_TYPES = ["SellerProfileRichTextSection", "SellerProfileSubscribeSection", "SellerProfilePostsSection"];
+const SUPPORTED_SECTION_TYPES = ["SellerProfileRichTextSection", "SellerProfileSubscribeSection", "SellerProfilePostsSection", PRODUCTS_SECTION_TYPE];
+// ProfileSectionsPresenter::VISITOR_SEARCH_PARAMS: a visitor's filters re-run the section searches.
+const VISITOR_SEARCH_PARAMS = ["query", "tags", "filetypes", "min_price", "max_price", "rating", "sort", "from", "size", "recommended_by"];
 
 const present = (value: string | null | undefined): value is string => value != null && value.trim() !== "";
 const squish = (value: string) => value.replace(/\s+/gu, " ").trim();
@@ -119,14 +124,35 @@ async function profileTabs(seller: User): Promise<{ name: string; sections: numb
   return ((row?.json_data as SellerProfileJson)?.tabs ?? []).map((tab) => ({ name: tab.name, sections: tab.sections }));
 }
 
+// The request a card reads (ActionDispatch::Request#host, #protocol, ...), from the page's URL.
+function presenterRequest(url: URL, headers: Headers): PresenterRequest {
+  return {
+    host: url.hostname,
+    hostWithPort: url.host,
+    protocol: `${url.protocol}//`,
+    remoteIp: headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "",
+    params: Object.fromEntries(url.searchParams),
+    cookies: requestCookies(headers.get("cookie")),
+  };
+}
+
+// `sections.empty? && seller.products.alive.not_archived.exists?`
+async function defaultProductsSectionAvailable(seller: User): Promise<boolean> {
+  const products = await db.link.findMany({ where: { user_id: seller.id, purchase_disabled_at: null, banned_at: null, deleted_at: null }, select: { flags: true } });
+  return products.some((product) => !LinkFlags.isSet(product.flags, "archived"));
+}
+
 // ProfileSectionsPresenter#cached_sections + #section_props for the visitor shape.
-async function sectionsProps(seller: User) {
+async function sectionsProps(seller: User, request: PresenterRequest) {
   const sections = await db.sellerProfileSection.findMany({ where: { seller_id: seller.id, product_id: null }, orderBy: { id: "asc" } });
   return Promise.all(
     sections.map(async (section) => {
       const data = (section.json_data ?? {}) as Record<string, unknown>;
-      const base = { id: externalId(section.id), header: (section.flags & BigInt(PROFILE_SECTION_FLAG_HIDE_HEADER)) !== 0n ? null : section.header, type: section.type };
+      const hideHeader = (section.flags & BigInt(PROFILE_SECTION_FLAG_HIDE_HEADER)) !== 0n;
+      const base = { id: externalId(section.id), header: hideHeader ? null : section.header, type: section.type };
       switch (section.type) {
+        case PRODUCTS_SECTION_TYPE:
+          return productsSectionProps(seller, section as ProductsSectionRow, sectionHeader(section, hideHeader), request);
         case "SellerProfileRichTextSection":
           return { ...base, text: data.text ?? null };
         case "SellerProfileSubscribeSection":
@@ -151,14 +177,26 @@ async function visiblePosts(seller: User, shownPosts: number[]) {
 }
 
 // The sections the port does not render are known before the page does: see the file header.
-async function assertSectionsSupported(seller: User): Promise<void> {
+async function assertSectionsSupported(chain: Chain, seller: User): Promise<void> {
   const sections = await db.sellerProfileSection.findMany({ where: { seller_id: seller.id, product_id: null }, select: { type: true } });
   if (sections.some((section) => !SUPPORTED_SECTION_TYPES.includes(section.type))) throw new HandBackToRails();
-  // The virtual default products section: `sections.empty? && seller.products.alive.not_archived.exists?`
-  if (sections.length === 0) {
-    const products = await db.link.findMany({ where: { user_id: seller.id, purchase_disabled_at: null, banned_at: null, deleted_at: null }, select: { flags: true } });
-    if (products.some((product) => !LinkFlags.isSet(product.flags, "archived"))) throw new HandBackToRails();
-  }
+  const productsShown = sections.some((section) => section.type === PRODUCTS_SECTION_TYPE) || (sections.length === 0 && (await defaultProductsSectionAvailable(seller)));
+  if (!productsShown) return;
+  if (VISITOR_SEARCH_PARAMS.some((name) => queryParam(chain.request, name) !== undefined || chain.request.queryString.includes(`${name}[`))) throw new HandBackToRails();
+  // Render the sections once ahead of the page: a card the port cannot prove is Rails' to answer.
+  const url = hostUrl(chain);
+  url.pathname = chain.request.path;
+  url.search = chain.request.queryString;
+  await assertProductSectionsRender(() => sectionsProps(seller, presenterRequest(url, chain.request.headers)).then(() => defaultSection(seller, presenterRequest(url, chain.request.headers))), () => {
+    throw new HandBackToRails();
+  });
+}
+
+// ProfileSectionsPresenter#cached_default_products_section, for a seller with no saved sections and products to show.
+async function defaultSection(seller: User, request: PresenterRequest): Promise<Record<string, unknown> | null> {
+  const saved = await db.sellerProfileSection.count({ where: { seller_id: seller.id, product_id: null } });
+  if (saved > 0 || !(await defaultProductsSectionAvailable(seller))) return null;
+  return productsSectionProps(seller, null, { id: DEFAULT_PRODUCTS_SECTION_ID, header: null }, request);
 }
 
 // ProfilePresenter#seller_analytics
@@ -178,16 +216,19 @@ async function sellerAnalytics(seller: User) {
 }
 
 // ProfilePresenter#profile_props (include_default_products_section; none applies once the filters passed)
-async function profileProps(seller: User) {
+async function profileProps(seller: User, request: PresenterRequest) {
   const tabsStored = await profileTabs(seller);
-  const sections = await sectionsProps(seller);
+  const defaultProducts = await defaultSection(seller, request);
+  const sections = defaultProducts ? [defaultProducts] : await sectionsProps(seller, request);
   const ratings = (await db.link.findMany({ where: { user_id: seller.id, purchase_disabled_at: null, banned_at: null, deleted_at: null }, select: { flags: true } })).some((link) =>
     LinkFlags.isSet(link.flags, "display_product_reviews"),
   );
   let tabs = tabsStored.map((tab) => ({ name: tab.name, sections: tab.sections.map((id) => externalId(id)) }));
+  // The virtual default section replaces the tabs with one pointing at it.
+  if (defaultProducts) tabs = [{ name: DEFAULT_PRODUCTS_TAB_NAME, sections: [DEFAULT_PRODUCTS_SECTION_ID] }];
   // Sections exist while no tab points at one of them: serve one tab with every section.
-  const sectionIds = sections.map((section) => section.id).sort((a, b) => decrypt(a)! - decrypt(b)!);
-  if (sectionIds.length > 0 && !tabs.some((tab) => tab.sections.some((id) => sectionIds.includes(id)))) {
+  const sectionIds = sections.map((section) => section.id as string).sort((a, b) => (a === DEFAULT_PRODUCTS_SECTION_ID ? 0 : decrypt(a)!) - (b === DEFAULT_PRODUCTS_SECTION_ID ? 0 : decrypt(b)!));
+  if (!defaultProducts && sectionIds.length > 0 && !tabs.some((tab) => tab.sections.some((id) => sectionIds.includes(id)))) {
     tabs = [{ name: tabs[0]?.name ?? DEFAULT_PRODUCTS_TAB_NAME, sections: sectionIds }];
   }
   return {
@@ -208,7 +249,7 @@ export const PROFILE_PAGES: Record<string, PageSpec> = {
       filters: async (chain): Promise<FilterOutcome> => {
         const seller = await storefrontFilters(chain, { noindex: true, affiliateCookie: true, customHtml: true });
         await assertNoShareCard(seller);
-        await assertSectionsSupported(seller);
+        await assertSectionsSupported(chain, seller);
         return { state: {} };
       },
     },
@@ -227,7 +268,7 @@ export const PROFILE_PAGES: Record<string, PageSpec> = {
         action.meta.set({ property: "og:description", content: profile.get("seo_description") });
       }
       await setFaviconMetaTags(action.meta, seller);
-      return profileProps(seller);
+      return profileProps(seller, presenterRequest(action.url, action.headers));
     },
   },
   "seller:/subscribe": {

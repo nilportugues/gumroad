@@ -1,13 +1,10 @@
-// What the sales analytics pages read about a seller: the products analytics lists, the first sale, the
-// local calendar day, and the large-seller cache that Rails writes and this port leaves to it.
+// What the sales analytics pages read about a seller: the products analytics lists, the first sale and the
+// local calendar day.
 import { Prisma, type User } from "@prisma/client";
 
-import { HandBackToRails } from "../../controllers/application-controller.ts";
 import { LinkFlags } from "../../models/link.ts";
 import { column, selectRows, table } from "../../models/sql.ts";
 import { civilDateInZone, timezoneId } from "../../search/civil-time.ts";
-import { SALES_LOWER_LIMIT } from "../../models/large-seller.ts";
-import type { SellerContext } from "../../policies/seller-context.ts";
 
 // Purchase::CHARGED_SUCCESS_STATES
 const CHARGED_SUCCESS_STATES = ["preorder_authorization_successful", "successful"];
@@ -41,14 +38,3 @@ export const sellerToday = (seller: Pick<User, "timezone">, now: Date = new Date
 
 // `time.in_time_zone(seller.timezone).to_date`
 export const sellerDate = (seller: Pick<User, "timezone">, time: Date): string => civilDateInZone(time.getTime(), timezoneId(seller.timezone));
-
-// `LargeSeller.create_if_warranted`, which the analytics pages call before they render, writes a row for a
-// seller with SALES_LOWER_LIMIT sales; a large seller's ranges are also read from and written to
-// ComputedSalesAnalyticsDay. The port makes neither write: such a seller is handed to Rails whole.
-export async function handBackLargeSeller(context: SellerContext): Promise<void> {
-  const sellerId = context.seller!.id;
-  const [large] = await selectRows(Prisma.sql`SELECT 1 FROM ${table("large_sellers")} WHERE ${column("large_sellers", "user_id")} = ${sellerId} LIMIT 1`);
-  if (large) throw new HandBackToRails();
-  const [row] = await selectRows<{ count: bigint | number }>(Prisma.sql`SELECT COUNT(*) AS count FROM ${table("purchases")} WHERE ${column("purchases", "seller_id")} = ${sellerId}`);
-  if (Number(row?.count ?? 0) >= SALES_LOWER_LIMIT) throw new HandBackToRails();
-}

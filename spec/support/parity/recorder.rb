@@ -180,14 +180,21 @@ module Parity
         "#{full[0, MAX_SLUG_LENGTH].chomp("-")}-#{Digest::SHA1.hexdigest(full)[0, 8]}"
       end
 
-      # The documents of ConfirmedFollowerEvent, the one index that has no table behind it (every other index is rebuilt
-      # from the rows the replay seeds): `{ index => [{ "id", "source" }] }`, with times as tokens.
+      # The documents of the indices that have no table behind them, ConfirmedFollowerEvent and ProductPageView (every
+      # other index is rebuilt from the rows the replay seeds): `{ index => [{ "source" }] }`, with times as tokens.
+      ES_ONLY_SORTS = { ConfirmedFollowerEvent => [{ timestamp: :asc }, { follower_id: :asc }], ProductPageView => [{ timestamp: :asc }, { product_id: :asc }, { referrer_domain: :asc }] }.freeze
+
       def elasticsearch_snapshot(now)
-        [ConfirmedFollowerEvent].each_with_object({}) do |model, snapshot|
+        ES_ONLY_SORTS.each_with_object({}) do |(model, sort), snapshot|
           next unless EsClient.indices.exists?(index: model.index_name)
 
-          EsClient.indices.refresh(index: model.index_name)
-          hits = EsClient.search(index: model.index_name, body: { query: { match_all: {} }, sort: [{ timestamp: :asc }, { follower_id: :asc }], size: 10_000 }).dig("hits", "hits")
+          begin
+            EsClient.indices.refresh(index: model.index_name)
+            hits = EsClient.search(index: model.index_name, body: { query: { match_all: {} }, sort:, size: 10_000 }).dig("hits", "hits")
+          rescue Elasticsearch::Transport::Transport::Errors::NotFound
+            # Another run on the machine recreated the shared test index between the check and the read.
+            next
+          end
           next if hits.empty?
 
           snapshot[model.name] = hits.map { { "source" => Canonical.json(_1["_source"], now) } }

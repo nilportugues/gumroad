@@ -27,9 +27,8 @@ const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
 const SPECS = ["audience_dashboard_signed_in_spec", "seller_payment_details_signed_in_spec", "churn_signed_in_spec", "analytics_signed_in_spec"];
 // The port makes no Stripe call: a flagged seller whose merchant account Stripe would be asked about, or who has a
-// requested compliance request, and a large seller (whose ranges Rails caches), are handed to Rails whole. Those
-// examples are proven by the request reaching Rails.
-const HANDED_BACK = /asks-stripe|sends-a-seller-stripe-has-asked|large-seller/;
+// requested compliance request, are handed to Rails whole. Those examples are proven by the request reaching Rails.
+const HANDED_BACK = /asks-stripe|sends-a-seller-stripe-has-asked/;
 const RAILS_ANSWER = "rails answered";
 const ROUTE_FLAGS = "nextjs_audience,nextjs_churn,nextjs_analytics";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;

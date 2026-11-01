@@ -1,18 +1,21 @@
 // CreatorAnalytics::Churn and its DateWindow, ProductScope, ElasticsearchFetcher and DatasetBuilder
 // (app/services/creator_analytics/churn*): churn, new and active subscriber counts per product and day.
-// A large seller's ranges are cached by Rails (ComputedSalesAnalyticsDay); the page hands those sellers back.
+// A large seller's ranges are cached in ComputedSalesAnalyticsDay.
 import type { User } from "@prisma/client";
 
 import { HandBackToRails } from "../../controllers/application-controller.ts";
+import { readDataFromKeys, upsertDataFromKey } from "../../models/computed-sales-analytics-day.ts";
+import { isLargeSeller } from "../../models/large-seller.ts";
 import { LinkFlags } from "../../models/link.ts";
 import { rubyFloatRoundDigits } from "../../models/concerns/ruby-numeric.ts";
 import { indexName } from "../../infra/elasticsearch.ts";
 import { search } from "../../search/api.ts";
 import { addDays, civilDateInZone, dayStartIso, timezoneId } from "../../search/civil-time.ts";
-import type { JsonValue } from "../../search/es-json.ts";
+import { RubyFloat, type JsonValue } from "../../search/es-json.ts";
 import { CHARGED_SALES_SEARCH_OPTIONS, ES_MAX_BUCKET_SIZE } from "../../search/creator-analytics-sales.ts";
 import { PurchaseSearchService } from "../../search/purchase-search.ts";
 import { externalId, rackParam, type QuerySource } from "../audience/support.ts";
+import { sellerAnalyticsCacheVersion } from "./caching-proxy.ts";
 import { firstSaleCreatedAtForAnalytics, productsForCreatorAnalytics, sellerDate, sellerToday } from "./seller-analytics.ts";
 
 const DEFAULT_RANGE_DAYS = 30;
@@ -38,7 +41,7 @@ const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+
 const DATE_WORD = /sun|mon|tue|wed|thu|fri|sat|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec/iu;
 
 // ChurnController#parse_date: `Date.parse(date.to_s)`, nil when Ruby raises Date::Error.
-function parseDate(value: string | string[] | undefined): string | null {
+export function parseRailsDate(value: string | string[] | undefined): string | null {
   if (Array.isArray(value)) throw new HandBackToRails();
   const text = value ?? "";
   if (!/\d/u.test(text) && !DATE_WORD.test(text)) return null;
@@ -54,7 +57,7 @@ function parseDate(value: string | string[] | undefined): string | null {
 }
 
 export function churnParams(query: QuerySource): { startDate: string | null; endDate: string | null } {
-  return { startDate: parseDate(rackParam(query, "from")), endDate: parseDate(rackParam(query, "to")) };
+  return { startDate: parseRailsDate(rackParam(query, "from")), endDate: parseRailsDate(rackParam(query, "to")) };
 }
 
 const clamp = (value: string, min: string, max: string) => (value < min ? min : value > max ? max : value);
@@ -291,11 +294,45 @@ async function series(seller: Seller, products: ProductInfo[], window: DateWindo
   return { window, products, churnEvents: await fetcher.churnEvents(), newSubscriptions: await fetcher.newSubscriptions(), initialActive: await fetcher.initialActiveCounts() };
 }
 
-// CreatorAnalytics::Churn#generate_data (a seller whose ranges Rails caches never gets here).
+const CACHE_CUTOFF_DAYS = 2;
+
+// `cache_key_for(date_window)`
+async function cacheKeyFor(seller: Seller, window: DateWindow): Promise<string> {
+  return ["creator_analytics_churn", "payload", `v${await sellerAnalyticsCacheVersion()}`, `seller_${seller.id}`, seller.timezone, window.startDate, window.endDate].join(":");
+}
+
+// churn_rate is a Float in Rails, and the stored document keeps it so (`1.0`, not `1`).
+const FLOAT_KEYS = new Set(["churn_rate"]);
+function withRubyFloats(value: unknown, key?: string): JsonValue {
+  if (Array.isArray(value)) return value.map((item) => withRubyFloats(item));
+  if (value !== null && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([name, item]) => [name, withRubyFloats(item, name)]));
+  return key !== undefined && FLOAT_KEYS.has(key) && typeof value === "number" ? new RubyFloat(value) : (value as JsonValue);
+}
+function withoutRubyFloats(value: JsonValue): unknown {
+  if (value instanceof RubyFloat) return value.value;
+  if (Array.isArray(value)) return value.map(withoutRubyFloats);
+  if (value !== null && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([name, item]) => [name, withoutRubyFloats(item)]));
+  return value;
+}
+
+// CreatorAnalytics::Churn#generate_data. A large seller's ranges that ended at least two days ago are read from
+// and written to ComputedSalesAnalyticsDay.
 export async function churnData(seller: Seller, params: { startDate: string | null; endDate: string | null }, now: Date = new Date()) {
   const products = await subscriptionProducts(seller);
   const earliest = await earliestAnalyticsDate(seller);
   const current = dateWindow(seller, earliest, params.startDate, params.endDate, now);
+  const cacheable = (await isLargeSeller(seller.id)) && current.endDate <= addDays(sellerToday(seller, now), -CACHE_CUTOFF_DAYS);
+  const cacheKey = cacheable ? await cacheKeyFor(seller, current) : null;
+  if (cacheKey !== null) {
+    const [stored] = (await readDataFromKeys([cacheKey])).values();
+    if (stored) return withoutRubyFloats(stored as JsonValue) as Awaited<ReturnType<typeof payloadOf>>;
+  }
+  const payload = await payloadOf(seller, products, earliest, current, now);
+  if (cacheKey !== null) await upsertDataFromKey(cacheKey, withRubyFloats(payload));
+  return payload;
+}
+
+async function payloadOf(seller: Seller, products: ProductInfo[], earliest: string, current: DateWindow, now: Date) {
   const currentPayload = buildDataset(await series(seller, products, current));
 
   // build_previous_date_window
