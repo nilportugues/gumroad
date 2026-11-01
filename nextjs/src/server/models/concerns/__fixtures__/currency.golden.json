@@ -1,0 +1,6969 @@
+{
+  "now": 1762000245.1230001,
+  "cases": [
+    {
+      "name": "usd needs no rate",
+      "seed": [],
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "rows": {},
+      "steps": [
+        {
+          "call": [
+            "get_rate",
+            "usd"
+          ]
+        }
+      ],
+      "results": [
+        {
+          "value": "1.0",
+          "http": []
+        }
+      ]
+    },
+    {
+      "name": "a rate cached in Redis",
+      "seed": [],
+      "error": null,
+      "statements": [],
+      "redis": {
+        "currencies:CAD": {
+          "type": "string",
+          "value": "1.35",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {},
+      "steps": [
+        {
+          "call": [
+            "get_rate",
+            "cad"
+          ],
+          "redis": {
+            "currencies:CAD": "1.35"
+          }
+        }
+      ],
+      "results": [
+        {
+          "value": "1.35",
+          "http": []
+        }
+      ]
+    },
+    {
+      "name": "a missing rate is fetched and cached",
+      "seed": [],
+      "error": null,
+      "statements": [],
+      "redis": {
+        "currencies:CAD": {
+          "type": "string",
+          "value": "1.3412",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {},
+      "steps": [
+        {
+          "call": [
+            "get_rate",
+            "cad"
+          ],
+          "http": [
+            [
+              200,
+              {
+                "Content-Type": "application/json"
+              },
+              "{\"base\":\"USD\",\"rates\":{\"CAD\":1.3412,\"JPY\":149.5,\"EUR\":0.9234,\"INR\":null}}"
+            ]
+          ]
+        }
+      ],
+      "results": [
+        {
+          "value": "1.3412",
+          "http": [
+            {
+              "method": "GET",
+              "path": "/api/latest.json",
+              "query": "app_id=golden"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "a cached zero rate is refetched",
+      "seed": [],
+      "error": null,
+      "statements": [],
+      "redis": {
+        "currencies:JPY": {
+          "type": "string",
+          "value": "149.5",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {},
+      "steps": [
+        {
+          "call": [
+            "get_rate",
+            "jpy"
+          ],
+          "redis": {
+            "currencies:JPY": "0"
+          },
+          "http": [
+            [
+              200,
+              {
+                "Content-Type": "application/json"
+              },
+              "{\"base\":\"USD\",\"rates\":{\"CAD\":1.3412,\"JPY\":149.5,\"EUR\":0.9234,\"INR\":null}}"
+            ]
+          ]
+        }
+      ],
+      "results": [
+        {
+          "value": "149.5",
+          "http": [
+            {
+              "method": "GET",
+              "path": "/api/latest.json",
+              "query": "app_id=golden"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "a failed fetch falls back to the cached value",
+      "seed": [],
+      "error": null,
+      "statements": [],
+      "redis": {
+        "currencies:CAD": {
+          "type": "string",
+          "value": "-1",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {},
+      "steps": [
+        {
+          "call": [
+            "get_rate",
+            "cad"
+          ],
+          "redis": {
+            "currencies:CAD": "-1"
+          },
+          "http": [
+            [
+              500,
+              {
+                "Content-Type": "application/json"
+              },
+              "{}"
+            ]
+          ]
+        }
+      ],
+      "results": [
+        {
+          "value": "-1.0",
+          "http": [
+            {
+              "method": "GET",
+              "path": "/api/latest.json",
+              "query": "app_id=golden"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "a failed fetch with nothing cached",
+      "seed": [],
+      "error": null,
+      "statements": [],
+      "redis": {
+        "currencies:CAD": {
+          "type": "string",
+          "value": "",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {},
+      "steps": [
+        {
+          "call": [
+            "get_rate",
+            "cad"
+          ],
+          "http": [
+            [
+              500,
+              {
+                "Content-Type": "application/json"
+              },
+              "nope"
+            ]
+          ]
+        }
+      ],
+      "results": [
+        {
+          "value": "0.0",
+          "http": [
+            {
+              "method": "GET",
+              "path": "/api/latest.json",
+              "query": "app_id=golden"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "a document without rates",
+      "seed": [],
+      "error": null,
+      "statements": [],
+      "redis": {
+        "currencies:CAD": {
+          "type": "string",
+          "value": "0.0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {},
+      "steps": [
+        {
+          "call": [
+            "get_rate",
+            "cad"
+          ],
+          "redis": {
+            "currencies:CAD": "0.0"
+          },
+          "http": [
+            [
+              200,
+              {
+                "Content-Type": "application/json"
+              },
+              "{\"base\":\"USD\"}"
+            ]
+          ]
+        }
+      ],
+      "results": [
+        {
+          "value": "0.0",
+          "http": [
+            {
+              "method": "GET",
+              "path": "/api/latest.json",
+              "query": "app_id=golden"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "a null rate",
+      "seed": [],
+      "error": null,
+      "statements": [],
+      "redis": {
+        "currencies:INR": {
+          "type": "string",
+          "value": "",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {},
+      "steps": [
+        {
+          "call": [
+            "get_rate",
+            "inr"
+          ],
+          "http": [
+            [
+              200,
+              {
+                "Content-Type": "application/json"
+              },
+              "{\"base\":\"USD\",\"rates\":{\"CAD\":1.3412,\"JPY\":149.5,\"EUR\":0.9234,\"INR\":null}}"
+            ]
+          ]
+        }
+      ],
+      "results": [
+        {
+          "value": "0.0",
+          "http": [
+            {
+              "method": "GET",
+              "path": "/api/latest.json",
+              "query": "app_id=golden"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "a currency the document lacks",
+      "seed": [],
+      "error": null,
+      "statements": [],
+      "redis": {
+        "currencies:ZZZ": {
+          "type": "string",
+          "value": "",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {},
+      "steps": [
+        {
+          "call": [
+            "get_rate",
+            "zzz"
+          ],
+          "http": [
+            [
+              200,
+              {
+                "Content-Type": "application/json"
+              },
+              "{\"base\":\"USD\",\"rates\":{\"CAD\":1.3412,\"JPY\":149.5,\"EUR\":0.9234,\"INR\":null}}"
+            ]
+          ]
+        }
+      ],
+      "results": [
+        {
+          "value": "0.0",
+          "http": [
+            {
+              "method": "GET",
+              "path": "/api/latest.json",
+              "query": "app_id=golden"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "an integer rate",
+      "seed": [],
+      "error": null,
+      "statements": [],
+      "redis": {
+        "currencies:KRW": {
+          "type": "string",
+          "value": "1300",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {},
+      "steps": [
+        {
+          "call": [
+            "get_rate",
+            "krw"
+          ],
+          "http": [
+            [
+              200,
+              {
+                "Content-Type": "application/json"
+              },
+              "{\"rates\":{\"KRW\":1300}}"
+            ]
+          ]
+        }
+      ],
+      "results": [
+        {
+          "value": "1300.0",
+          "http": [
+            {
+              "method": "GET",
+              "path": "/api/latest.json",
+              "query": "app_id=golden"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "an exponent rate",
+      "seed": [],
+      "error": null,
+      "statements": [],
+      "redis": {
+        "currencies:KRW": {
+          "type": "string",
+          "value": "1.5e-07",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {},
+      "steps": [
+        {
+          "call": [
+            "get_rate",
+            "krw"
+          ],
+          "http": [
+            [
+              200,
+              {
+                "Content-Type": "application/json"
+              },
+              "{\"rates\":{\"KRW\":1.5e-7}}"
+            ]
+          ]
+        }
+      ],
+      "results": [
+        {
+          "value": "1.5e-07",
+          "http": [
+            {
+              "method": "GET",
+              "path": "/api/latest.json",
+              "query": "app_id=golden"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "redis down with nothing remembered",
+      "seed": [],
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "rows": {},
+      "steps": [
+        {
+          "call": [
+            "get_rate",
+            "cad"
+          ],
+          "down": true
+        }
+      ],
+      "results": [
+        {
+          "error": {
+            "class": "CurrencyHelper::RateUnavailable",
+            "message": "No known CAD exchange rate and Redis could not be read; refusing to price with a substituted rate."
+          },
+          "http": []
+        }
+      ]
+    },
+    {
+      "name": "redis down after the rate was read",
+      "seed": [],
+      "error": null,
+      "statements": [],
+      "redis": {
+        "currencies:CAD": {
+          "type": "string",
+          "value": "1.35",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {},
+      "steps": [
+        {
+          "call": [
+            "get_rate",
+            "cad"
+          ],
+          "redis": {
+            "currencies:CAD": "1.35"
+          }
+        },
+        {
+          "call": [
+            "get_rate",
+            "cad"
+          ],
+          "down": true
+        },
+        {
+          "call": [
+            "get_rate",
+            "eur"
+          ],
+          "down": true
+        }
+      ],
+      "results": [
+        {
+          "value": "1.35",
+          "http": []
+        },
+        {
+          "value": "1.35",
+          "http": []
+        },
+        {
+          "error": {
+            "class": "CurrencyHelper::RateUnavailable",
+            "message": "No known EUR exchange rate and Redis could not be read; refusing to price with a substituted rate."
+          },
+          "http": []
+        }
+      ]
+    },
+    {
+      "name": "get_usd_cents converts with the cached rate",
+      "seed": [],
+      "error": null,
+      "statements": [],
+      "redis": {
+        "currencies:CAD": {
+          "type": "string",
+          "value": "1.35",
+          "expires": false
+        },
+        "currencies:JPY": {
+          "type": "string",
+          "value": "149.5",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {},
+      "steps": [
+        {
+          "call": [
+            "get_usd_cents",
+            "cad",
+            1350
+          ],
+          "redis": {
+            "currencies:CAD": "1.35"
+          }
+        },
+        {
+          "call": [
+            "get_usd_cents",
+            "jpy",
+            15000
+          ],
+          "redis": {
+            "currencies:JPY": "149.5"
+          }
+        },
+        {
+          "call": [
+            "get_usd_cents",
+            "usd",
+            15000
+          ]
+        }
+      ],
+      "results": [
+        {
+          "value": 1000,
+          "http": []
+        },
+        {
+          "value": 10033,
+          "http": []
+        },
+        {
+          "value": 15000,
+          "http": []
+        }
+      ]
+    },
+    {
+      "name": "get_usd_cents with a zero rate",
+      "seed": [],
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "rows": {},
+      "steps": [
+        {
+          "call": [
+            "get_usd_cents",
+            "cad",
+            100,
+            {
+              "rate": 0.0
+            }
+          ]
+        },
+        {
+          "call": [
+            "get_usd_cents",
+            "cad",
+            -100,
+            {
+              "rate": 0.0
+            }
+          ]
+        },
+        {
+          "call": [
+            "get_usd_cents",
+            "cad",
+            0,
+            {
+              "rate": 0.0
+            }
+          ]
+        }
+      ],
+      "results": [
+        {
+          "error": {
+            "class": "FloatDomainError",
+            "message": "Computation results in 'Infinity'"
+          },
+          "http": []
+        },
+        {
+          "error": {
+            "class": "FloatDomainError",
+            "message": "Computation results in '-Infinity'"
+          },
+          "http": []
+        },
+        {
+          "error": {
+            "class": "FloatDomainError",
+            "message": "Computation results in 'NaN' (Not a Number)"
+          },
+          "http": []
+        }
+      ]
+    },
+    {
+      "name": "usd_cents_to_currency converts with the cached rate",
+      "seed": [],
+      "error": null,
+      "statements": [],
+      "redis": {
+        "currencies:EUR": {
+          "type": "string",
+          "value": "0.9234",
+          "expires": false
+        },
+        "currencies:JPY": {
+          "type": "string",
+          "value": "149.5",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {},
+      "steps": [
+        {
+          "call": [
+            "usd_cents_to_currency",
+            "eur",
+            1000
+          ],
+          "redis": {
+            "currencies:EUR": "0.9234"
+          }
+        },
+        {
+          "call": [
+            "usd_cents_to_currency",
+            "jpy",
+            1000
+          ],
+          "redis": {
+            "currencies:JPY": "149.5"
+          }
+        },
+        {
+          "call": [
+            "usd_cents_to_currency",
+            "cad",
+            1000,
+            0.0
+          ]
+        }
+      ],
+      "results": [
+        {
+          "value": 923,
+          "http": []
+        },
+        {
+          "value": 1495,
+          "http": []
+        },
+        {
+          "value": 0,
+          "http": []
+        }
+      ]
+    }
+  ],
+  "vectors": [
+    {
+      "currency": "cad",
+      "quantity": 1,
+      "rate": 2.0,
+      "usd_cents": 1,
+      "to_currency": 2
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1,
+      "rate": 2.0,
+      "usd_cents": 50,
+      "to_currency": 0
+    },
+    {
+      "currency": "cad",
+      "quantity": 3,
+      "rate": 2.0,
+      "usd_cents": 2,
+      "to_currency": 6
+    },
+    {
+      "currency": "jpy",
+      "quantity": 3,
+      "rate": 2.0,
+      "usd_cents": 150,
+      "to_currency": 0
+    },
+    {
+      "currency": "cad",
+      "quantity": 5,
+      "rate": 4.0,
+      "usd_cents": 1,
+      "to_currency": 20
+    },
+    {
+      "currency": "jpy",
+      "quantity": 5,
+      "rate": 4.0,
+      "usd_cents": 125,
+      "to_currency": 0
+    },
+    {
+      "currency": "cad",
+      "quantity": 1,
+      "rate": 0.5,
+      "usd_cents": 2,
+      "to_currency": 1
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1,
+      "rate": 0.5,
+      "usd_cents": 200,
+      "to_currency": 0
+    },
+    {
+      "currency": "cad",
+      "quantity": 7,
+      "rate": 0.25,
+      "usd_cents": 28,
+      "to_currency": 2
+    },
+    {
+      "currency": "jpy",
+      "quantity": 7,
+      "rate": 0.25,
+      "usd_cents": 2800,
+      "to_currency": 0
+    },
+    {
+      "currency": "cad",
+      "quantity": 1,
+      "rate": 8.0,
+      "usd_cents": 0,
+      "to_currency": 8
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1,
+      "rate": 8.0,
+      "usd_cents": 13,
+      "to_currency": 0
+    },
+    {
+      "currency": "cad",
+      "quantity": 250,
+      "rate": 100.0,
+      "usd_cents": 3,
+      "to_currency": 25000
+    },
+    {
+      "currency": "jpy",
+      "quantity": 250,
+      "rate": 100.0,
+      "usd_cents": 250,
+      "to_currency": 250
+    },
+    {
+      "currency": "cad",
+      "quantity": 15,
+      "rate": 2.0,
+      "usd_cents": 8,
+      "to_currency": 30
+    },
+    {
+      "currency": "jpy",
+      "quantity": 15,
+      "rate": 2.0,
+      "usd_cents": 750,
+      "to_currency": 0
+    },
+    {
+      "currency": "cad",
+      "quantity": 450095857,
+      "rate": 0.03177,
+      "usd_cents": 14167323167,
+      "to_currency": 14299545
+    },
+    {
+      "currency": "jpy",
+      "quantity": 450095857,
+      "rate": 0.03177,
+      "usd_cents": 1416732316651,
+      "to_currency": 142995
+    },
+    {
+      "currency": "cad",
+      "quantity": 792072276,
+      "rate": 0.04,
+      "usd_cents": 19801806900,
+      "to_currency": 31682891
+    },
+    {
+      "currency": "jpy",
+      "quantity": 792072276,
+      "rate": 0.04,
+      "usd_cents": 1980180690000,
+      "to_currency": 316829
+    },
+    {
+      "currency": "cad",
+      "quantity": 1790324423,
+      "rate": 710.1,
+      "usd_cents": 2521229,
+      "to_currency": 1271309372772
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1790324423,
+      "rate": 710.1,
+      "usd_cents": 252122859,
+      "to_currency": 12713093728
+    },
+    {
+      "currency": "cad",
+      "quantity": 1961172725,
+      "rate": 0.0079862466028073,
+      "usd_cents": 245568766222,
+      "to_currency": 15662409
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1961172725,
+      "rate": 0.0079862466028073,
+      "usd_cents": 24556876622250,
+      "to_currency": 156624
+    },
+    {
+      "currency": "cad",
+      "quantity": 750732302,
+      "rate": 2.2,
+      "usd_cents": 341241955,
+      "to_currency": 1651611064
+    },
+    {
+      "currency": "jpy",
+      "quantity": 750732302,
+      "rate": 2.2,
+      "usd_cents": 34124195545,
+      "to_currency": 16516111
+    },
+    {
+      "currency": "cad",
+      "quantity": 51790154,
+      "rate": 6000.0,
+      "usd_cents": 8632,
+      "to_currency": 310740924000
+    },
+    {
+      "currency": "jpy",
+      "quantity": 51790154,
+      "rate": 6000.0,
+      "usd_cents": 863169,
+      "to_currency": 3107409240
+    },
+    {
+      "currency": "cad",
+      "quantity": 46465501,
+      "rate": 0.0139146252,
+      "usd_cents": 3339328249,
+      "to_currency": 646550
+    },
+    {
+      "currency": "jpy",
+      "quantity": 46465501,
+      "rate": 0.0139146252,
+      "usd_cents": 333932824867,
+      "to_currency": 6466
+    },
+    {
+      "currency": "cad",
+      "quantity": 1522066419,
+      "rate": 0.6648510977625316,
+      "usd_cents": 2289334295,
+      "to_currency": 1011947530
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1522066419,
+      "rate": 0.6648510977625316,
+      "usd_cents": 228933429474,
+      "to_currency": 10119475
+    },
+    {
+      "currency": "cad",
+      "quantity": 683566655,
+      "rate": 0.91,
+      "usd_cents": 751172148,
+      "to_currency": 622045656
+    },
+    {
+      "currency": "jpy",
+      "quantity": 683566655,
+      "rate": 0.91,
+      "usd_cents": 75117214835,
+      "to_currency": 6220457
+    },
+    {
+      "currency": "cad",
+      "quantity": 871610313,
+      "rate": 0.00065827114474169,
+      "usd_cents": 1324090110834,
+      "to_currency": 573756
+    },
+    {
+      "currency": "jpy",
+      "quantity": 871610313,
+      "rate": 0.00065827114474169,
+      "usd_cents": 132409011083423,
+      "to_currency": 5738
+    },
+    {
+      "currency": "cad",
+      "quantity": 395606538,
+      "rate": 805.0172006,
+      "usd_cents": 491426,
+      "to_currency": 318470067760
+    },
+    {
+      "currency": "jpy",
+      "quantity": 395606538,
+      "rate": 805.0172006,
+      "usd_cents": 49142619,
+      "to_currency": 3184700678
+    },
+    {
+      "currency": "cad",
+      "quantity": 252968941,
+      "rate": 408.2108789019,
+      "usd_cents": 619702,
+      "to_currency": 103264673740
+    },
+    {
+      "currency": "jpy",
+      "quantity": 252968941,
+      "rate": 408.2108789019,
+      "usd_cents": 61970162,
+      "to_currency": 1032646737
+    },
+    {
+      "currency": "cad",
+      "quantity": 1643304251,
+      "rate": 0.23311432991965,
+      "usd_cents": 7049348925,
+      "to_currency": 383077769
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1643304251,
+      "rate": 0.23311432991965,
+      "usd_cents": 704934892491,
+      "to_currency": 3830778
+    },
+    {
+      "currency": "cad",
+      "quantity": 540727039,
+      "rate": 0.00071023068383,
+      "usd_cents": 761340014323,
+      "to_currency": 384041
+    },
+    {
+      "currency": "jpy",
+      "quantity": 540727039,
+      "rate": 0.00071023068383,
+      "usd_cents": 76134001432333,
+      "to_currency": 3840
+    },
+    {
+      "currency": "cad",
+      "quantity": 820936266,
+      "rate": 0.0949719833,
+      "usd_cents": 8643983599,
+      "to_currency": 77965945
+    },
+    {
+      "currency": "jpy",
+      "quantity": 820936266,
+      "rate": 0.0949719833,
+      "usd_cents": 864398359890,
+      "to_currency": 779659
+    },
+    {
+      "currency": "cad",
+      "quantity": 469119001,
+      "rate": 0.000108974,
+      "usd_cents": 4304870895810,
+      "to_currency": 51122
+    },
+    {
+      "currency": "jpy",
+      "quantity": 469119001,
+      "rate": 0.000108974,
+      "usd_cents": 430487089581001,
+      "to_currency": 511
+    },
+    {
+      "currency": "cad",
+      "quantity": 674637444,
+      "rate": 2715.6015371,
+      "usd_cents": 248430,
+      "to_currency": 1832046479912
+    },
+    {
+      "currency": "jpy",
+      "quantity": 674637444,
+      "rate": 2715.6015371,
+      "usd_cents": 24843020,
+      "to_currency": 18320464799
+    },
+    {
+      "currency": "cad",
+      "quantity": 437055510,
+      "rate": 0.03173534,
+      "usd_cents": 13771886799,
+      "to_currency": 13870105
+    },
+    {
+      "currency": "jpy",
+      "quantity": 437055510,
+      "rate": 0.03173534,
+      "usd_cents": 1377188679875,
+      "to_currency": 138701
+    },
+    {
+      "currency": "cad",
+      "quantity": 1812713232,
+      "rate": 0.256791,
+      "usd_cents": 7059099548,
+      "to_currency": 465488444
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1812713232,
+      "rate": 0.256791,
+      "usd_cents": 705909954788,
+      "to_currency": 4654884
+    },
+    {
+      "currency": "cad",
+      "quantity": 1658898877,
+      "rate": 0.952846616,
+      "usd_cents": 1740992568,
+      "to_currency": 1580676181
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1658898877,
+      "rate": 0.952846616,
+      "usd_cents": 174099256811,
+      "to_currency": 15806762
+    },
+    {
+      "currency": "cad",
+      "quantity": 1153870308,
+      "rate": 0.00658,
+      "usd_cents": 175360229179,
+      "to_currency": 7592467
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1153870308,
+      "rate": 0.00658,
+      "usd_cents": 17536022917933,
+      "to_currency": 75925
+    },
+    {
+      "currency": "cad",
+      "quantity": 68108714,
+      "rate": 934.22424684,
+      "usd_cents": 72904,
+      "to_currency": 63628812040
+    },
+    {
+      "currency": "jpy",
+      "quantity": 68108714,
+      "rate": 934.22424684,
+      "usd_cents": 7290403,
+      "to_currency": 636288120
+    },
+    {
+      "currency": "cad",
+      "quantity": 161835641,
+      "rate": 0.226775313235431,
+      "usd_cents": 713638706,
+      "to_currency": 36700328
+    },
+    {
+      "currency": "jpy",
+      "quantity": 161835641,
+      "rate": 0.226775313235431,
+      "usd_cents": 71363870560,
+      "to_currency": 367003
+    },
+    {
+      "currency": "cad",
+      "quantity": 404060327,
+      "rate": 0.006807796856822,
+      "usd_cents": 59352582854,
+      "to_currency": 2750761
+    },
+    {
+      "currency": "jpy",
+      "quantity": 404060327,
+      "rate": 0.006807796856822,
+      "usd_cents": 5935258285433,
+      "to_currency": 27508
+    },
+    {
+      "currency": "cad",
+      "quantity": 1884212862,
+      "rate": 414.2800624454,
+      "usd_cents": 4548162,
+      "to_currency": 780591822130
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1884212862,
+      "rate": 414.2800624454,
+      "usd_cents": 454816206,
+      "to_currency": 7805918221
+    },
+    {
+      "currency": "cad",
+      "quantity": 1069425381,
+      "rate": 9.0,
+      "usd_cents": 118825042,
+      "to_currency": 9624828429
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1069425381,
+      "rate": 9.0,
+      "usd_cents": 11882504233,
+      "to_currency": 96248284
+    },
+    {
+      "currency": "cad",
+      "quantity": 1462630811,
+      "rate": 1126.798781,
+      "usd_cents": 1298041,
+      "to_currency": 1648090614888
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1462630811,
+      "rate": 1126.798781,
+      "usd_cents": 129804082,
+      "to_currency": 16480906149
+    },
+    {
+      "currency": "cad",
+      "quantity": 208108964,
+      "rate": 0.076,
+      "usd_cents": 2738275842,
+      "to_currency": 15816281
+    },
+    {
+      "currency": "jpy",
+      "quantity": 208108964,
+      "rate": 0.076,
+      "usd_cents": 273827584211,
+      "to_currency": 158163
+    },
+    {
+      "currency": "cad",
+      "quantity": 841408710,
+      "rate": 764.7271350558673,
+      "usd_cents": 1100273,
+      "to_currency": 643448072209
+    },
+    {
+      "currency": "jpy",
+      "quantity": 841408710,
+      "rate": 764.7271350558673,
+      "usd_cents": 110027312,
+      "to_currency": 6434480722
+    },
+    {
+      "currency": "cad",
+      "quantity": 1852930186,
+      "rate": 85.666505,
+      "usd_cents": 21629576,
+      "to_currency": 158734053044
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1852930186,
+      "rate": 85.666505,
+      "usd_cents": 2162957606,
+      "to_currency": 1587340530
+    },
+    {
+      "currency": "cad",
+      "quantity": 628374754,
+      "rate": 575.55,
+      "usd_cents": 1091781,
+      "to_currency": 361661089665
+    },
+    {
+      "currency": "jpy",
+      "quantity": 628374754,
+      "rate": 575.55,
+      "usd_cents": 109178135,
+      "to_currency": 3616610897
+    },
+    {
+      "currency": "cad",
+      "quantity": 1936817863,
+      "rate": 0.00074119403258,
+      "usd_cents": 2613105041143,
+      "to_currency": 1435558
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1936817863,
+      "rate": 0.00074119403258,
+      "usd_cents": 261310504114313,
+      "to_currency": 14356
+    },
+    {
+      "currency": "cad",
+      "quantity": 1480799894,
+      "rate": 0.08,
+      "usd_cents": 18509998675,
+      "to_currency": 118463992
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1480799894,
+      "rate": 0.08,
+      "usd_cents": 1850999867500,
+      "to_currency": 1184640
+    },
+    {
+      "currency": "cad",
+      "quantity": 10914559,
+      "rate": 0.8242236,
+      "usd_cents": 13242231,
+      "to_currency": 8996037
+    },
+    {
+      "currency": "jpy",
+      "quantity": 10914559,
+      "rate": 0.8242236,
+      "usd_cents": 1324223063,
+      "to_currency": 89960
+    },
+    {
+      "currency": "cad",
+      "quantity": 1734258698,
+      "rate": 3.19074956,
+      "usd_cents": 543527051,
+      "to_currency": 5533585178
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1734258698,
+      "rate": 3.19074956,
+      "usd_cents": 54352705074,
+      "to_currency": 55335852
+    },
+    {
+      "currency": "cad",
+      "quantity": 1344433119,
+      "rate": 2.66,
+      "usd_cents": 505425985,
+      "to_currency": 3576192097
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1344433119,
+      "rate": 2.66,
+      "usd_cents": 50542598459,
+      "to_currency": 35761921
+    },
+    {
+      "currency": "cad",
+      "quantity": 458768488,
+      "rate": 0.06772995,
+      "usd_cents": 6773495152,
+      "to_currency": 31072367
+    },
+    {
+      "currency": "jpy",
+      "quantity": 458768488,
+      "rate": 0.06772995,
+      "usd_cents": 677349515244,
+      "to_currency": 310724
+    },
+    {
+      "currency": "cad",
+      "quantity": 1562418,
+      "rate": 77.0,
+      "usd_cents": 20291,
+      "to_currency": 120306186
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1562418,
+      "rate": 77.0,
+      "usd_cents": 2029114,
+      "to_currency": 1203062
+    },
+    {
+      "currency": "cad",
+      "quantity": 784328229,
+      "rate": 0.6414,
+      "usd_cents": 1222837900,
+      "to_currency": 503068126
+    },
+    {
+      "currency": "jpy",
+      "quantity": 784328229,
+      "rate": 0.6414,
+      "usd_cents": 122283789991,
+      "to_currency": 5030681
+    },
+    {
+      "currency": "cad",
+      "quantity": 64385596,
+      "rate": 0.0084,
+      "usd_cents": 7664951905,
+      "to_currency": 540839
+    },
+    {
+      "currency": "jpy",
+      "quantity": 64385596,
+      "rate": 0.0084,
+      "usd_cents": 766495190476,
+      "to_currency": 5408
+    },
+    {
+      "currency": "cad",
+      "quantity": 502191672,
+      "rate": 0.0111,
+      "usd_cents": 45242492973,
+      "to_currency": 5574328
+    },
+    {
+      "currency": "jpy",
+      "quantity": 502191672,
+      "rate": 0.0111,
+      "usd_cents": 4524249297297,
+      "to_currency": 55743
+    },
+    {
+      "currency": "cad",
+      "quantity": 81822104,
+      "rate": 0.0003625322930629,
+      "usd_cents": 225696042989,
+      "to_currency": 29663
+    },
+    {
+      "currency": "jpy",
+      "quantity": 81822104,
+      "rate": 0.0003625322930629,
+      "usd_cents": 22569604298893,
+      "to_currency": 297
+    },
+    {
+      "currency": "cad",
+      "quantity": 1303067196,
+      "rate": 1120.924627544,
+      "usd_cents": 1162493,
+      "to_currency": 1460640111341
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1303067196,
+      "rate": 1120.924627544,
+      "usd_cents": 116249315,
+      "to_currency": 14606401113
+    },
+    {
+      "currency": "cad",
+      "quantity": 1788344605,
+      "rate": 400.0,
+      "usd_cents": 4470862,
+      "to_currency": 715337842000
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1788344605,
+      "rate": 400.0,
+      "usd_cents": 447086151,
+      "to_currency": 7153378420
+    },
+    {
+      "currency": "cad",
+      "quantity": 1708772410,
+      "rate": 0.0088,
+      "usd_cents": 194178682955,
+      "to_currency": 15037197
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1708772410,
+      "rate": 0.0088,
+      "usd_cents": 19417868295455,
+      "to_currency": 150372
+    },
+    {
+      "currency": "cad",
+      "quantity": 779549206,
+      "rate": 85.019,
+      "usd_cents": 9169118,
+      "to_currency": 66276493945
+    },
+    {
+      "currency": "jpy",
+      "quantity": 779549206,
+      "rate": 85.019,
+      "usd_cents": 916911756,
+      "to_currency": 662764939
+    },
+    {
+      "currency": "cad",
+      "quantity": 1486814718,
+      "rate": 0.000986521948304,
+      "usd_cents": 1507127865281,
+      "to_currency": 1466775
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1486814718,
+      "rate": 0.000986521948304,
+      "usd_cents": 150712786528074,
+      "to_currency": 14668
+    },
+    {
+      "currency": "cad",
+      "quantity": 1451800533,
+      "rate": 0.896,
+      "usd_cents": 1620313095,
+      "to_currency": 1300813278
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1451800533,
+      "rate": 0.896,
+      "usd_cents": 162031309487,
+      "to_currency": 13008133
+    },
+    {
+      "currency": "cad",
+      "quantity": 1826978632,
+      "rate": 573.09241,
+      "usd_cents": 3187930,
+      "to_currency": 1047027587231
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1826978632,
+      "rate": 573.09241,
+      "usd_cents": 318793025,
+      "to_currency": 10470275872
+    },
+    {
+      "currency": "cad",
+      "quantity": 948765791,
+      "rate": 0.007889102495857867,
+      "usd_cents": 120262829834,
+      "to_currency": 7484911
+    },
+    {
+      "currency": "jpy",
+      "quantity": 948765791,
+      "rate": 0.007889102495857867,
+      "usd_cents": 12026282983370,
+      "to_currency": 74849
+    },
+    {
+      "currency": "cad",
+      "quantity": 1340622304,
+      "rate": 16.0,
+      "usd_cents": 83788894,
+      "to_currency": 21449956864
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1340622304,
+      "rate": 16.0,
+      "usd_cents": 8378889400,
+      "to_currency": 214499569
+    },
+    {
+      "currency": "cad",
+      "quantity": 1974308160,
+      "rate": 0.000476302,
+      "usd_cents": 4145076359117,
+      "to_currency": 940367
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1974308160,
+      "rate": 0.000476302,
+      "usd_cents": 414507635911669,
+      "to_currency": 9404
+    },
+    {
+      "currency": "cad",
+      "quantity": 1033854830,
+      "rate": 0.000589,
+      "usd_cents": 1755271358234,
+      "to_currency": 608940
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1033854830,
+      "rate": 0.000589,
+      "usd_cents": 175527135823430,
+      "to_currency": 6089
+    },
+    {
+      "currency": "cad",
+      "quantity": 212263001,
+      "rate": 0.009769984,
+      "usd_cents": 21726033635,
+      "to_currency": 2073806
+    },
+    {
+      "currency": "jpy",
+      "quantity": 212263001,
+      "rate": 0.009769984,
+      "usd_cents": 2172603363526,
+      "to_currency": 20738
+    },
+    {
+      "currency": "cad",
+      "quantity": 1093543448,
+      "rate": 0.00527527,
+      "usd_cents": 207296204365,
+      "to_currency": 5768737
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1093543448,
+      "rate": 0.00527527,
+      "usd_cents": 20729620436490,
+      "to_currency": 57687
+    },
+    {
+      "currency": "cad",
+      "quantity": 165420694,
+      "rate": 0.0003876703486262,
+      "usd_cents": 426704530244,
+      "to_currency": 64129
+    },
+    {
+      "currency": "jpy",
+      "quantity": 165420694,
+      "rate": 0.0003876703486262,
+      "usd_cents": 42670453024382,
+      "to_currency": 641
+    },
+    {
+      "currency": "cad",
+      "quantity": 431069839,
+      "rate": 0.00713,
+      "usd_cents": 60458602945,
+      "to_currency": 3073528
+    },
+    {
+      "currency": "jpy",
+      "quantity": 431069839,
+      "rate": 0.00713,
+      "usd_cents": 6045860294530,
+      "to_currency": 30735
+    },
+    {
+      "currency": "cad",
+      "quantity": 868727247,
+      "rate": 78.6761378056671,
+      "usd_cents": 11041814,
+      "to_currency": 68348104601
+    },
+    {
+      "currency": "jpy",
+      "quantity": 868727247,
+      "rate": 78.6761378056671,
+      "usd_cents": 1104181358,
+      "to_currency": 683481046
+    },
+    {
+      "currency": "cad",
+      "quantity": 253636915,
+      "rate": 688.641993,
+      "usd_cents": 368315,
+      "to_currency": 174665030644
+    },
+    {
+      "currency": "jpy",
+      "quantity": 253636915,
+      "rate": 688.641993,
+      "usd_cents": 36831462,
+      "to_currency": 1746650306
+    },
+    {
+      "currency": "cad",
+      "quantity": 245404452,
+      "rate": 0.029,
+      "usd_cents": 8462222483,
+      "to_currency": 7116729
+    },
+    {
+      "currency": "jpy",
+      "quantity": 245404452,
+      "rate": 0.029,
+      "usd_cents": 846222248276,
+      "to_currency": 71167
+    },
+    {
+      "currency": "cad",
+      "quantity": 1125099171,
+      "rate": 5100.0,
+      "usd_cents": 220608,
+      "to_currency": 5738005772100
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1125099171,
+      "rate": 5100.0,
+      "usd_cents": 22060768,
+      "to_currency": 57380057721
+    },
+    {
+      "currency": "cad",
+      "quantity": 1298105199,
+      "rate": 0.0005774019,
+      "usd_cents": 2248183109546,
+      "to_currency": 749528
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1298105199,
+      "rate": 0.0005774019,
+      "usd_cents": 224818310954640,
+      "to_currency": 7495
+    },
+    {
+      "currency": "cad",
+      "quantity": 820673633,
+      "rate": 51.094827004445044,
+      "usd_cents": 16061775,
+      "to_currency": 41932177305
+    },
+    {
+      "currency": "jpy",
+      "quantity": 820673633,
+      "rate": 51.094827004445044,
+      "usd_cents": 1606177535,
+      "to_currency": 419321773
+    },
+    {
+      "currency": "cad",
+      "quantity": 596934682,
+      "rate": 0.10559815,
+      "usd_cents": 5652889582,
+      "to_currency": 63035198
+    },
+    {
+      "currency": "jpy",
+      "quantity": 596934682,
+      "rate": 0.10559815,
+      "usd_cents": 565288958187,
+      "to_currency": 630352
+    },
+    {
+      "currency": "cad",
+      "quantity": 828720451,
+      "rate": 0.01,
+      "usd_cents": 82872045100,
+      "to_currency": 8287205
+    },
+    {
+      "currency": "jpy",
+      "quantity": 828720451,
+      "rate": 0.01,
+      "usd_cents": 8287204510000,
+      "to_currency": 82872
+    },
+    {
+      "currency": "cad",
+      "quantity": 1503992145,
+      "rate": 0.0034430236841229,
+      "usd_cents": 436823061060,
+      "to_currency": 5178281
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1503992145,
+      "rate": 0.0034430236841229,
+      "usd_cents": 43682306105981,
+      "to_currency": 51783
+    },
+    {
+      "currency": "cad",
+      "quantity": 518497165,
+      "rate": 0.062,
+      "usd_cents": 8362857500,
+      "to_currency": 32146824
+    },
+    {
+      "currency": "jpy",
+      "quantity": 518497165,
+      "rate": 0.062,
+      "usd_cents": 836285750000,
+      "to_currency": 321468
+    },
+    {
+      "currency": "cad",
+      "quantity": 755530440,
+      "rate": 5.7100023345878,
+      "usd_cents": 132317011,
+      "to_currency": 4314080576
+    },
+    {
+      "currency": "jpy",
+      "quantity": 755530440,
+      "rate": 5.7100023345878,
+      "usd_cents": 13231701070,
+      "to_currency": 43140806
+    },
+    {
+      "currency": "cad",
+      "quantity": 803499703,
+      "rate": 0.90461,
+      "usd_cents": 888227748,
+      "to_currency": 726853866
+    },
+    {
+      "currency": "jpy",
+      "quantity": 803499703,
+      "rate": 0.90461,
+      "usd_cents": 88822774787,
+      "to_currency": 7268539
+    },
+    {
+      "currency": "cad",
+      "quantity": 1004289094,
+      "rate": 8.087585397458,
+      "usd_cents": 124176629,
+      "to_currency": 8122273811
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1004289094,
+      "rate": 8.087585397458,
+      "usd_cents": 12417662932,
+      "to_currency": 81222738
+    },
+    {
+      "currency": "cad",
+      "quantity": 1792932847,
+      "rate": 0.068852508535,
+      "usd_cents": 26040196431,
+      "to_currency": 123447924
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1792932847,
+      "rate": 0.068852508535,
+      "usd_cents": 2604019643073,
+      "to_currency": 1234479
+    },
+    {
+      "currency": "cad",
+      "quantity": 639112121,
+      "rate": 482.2,
+      "usd_cents": 1325409,
+      "to_currency": 308179864746
+    },
+    {
+      "currency": "jpy",
+      "quantity": 639112121,
+      "rate": 482.2,
+      "usd_cents": 132540880,
+      "to_currency": 3081798647
+    },
+    {
+      "currency": "cad",
+      "quantity": 1042011687,
+      "rate": 87.0,
+      "usd_cents": 11977146,
+      "to_currency": 90655016769
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1042011687,
+      "rate": 87.0,
+      "usd_cents": 1197714583,
+      "to_currency": 906550168
+    },
+    {
+      "currency": "cad",
+      "quantity": 1878846590,
+      "rate": 0.5031277231,
+      "usd_cents": 3734333259,
+      "to_currency": 945299807
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1878846590,
+      "rate": 0.5031277231,
+      "usd_cents": 373433325920,
+      "to_currency": 9452998
+    },
+    {
+      "currency": "cad",
+      "quantity": 542163545,
+      "rate": 0.000559881543513047,
+      "usd_cents": 968354022885,
+      "to_currency": 303547
+    },
+    {
+      "currency": "jpy",
+      "quantity": 542163545,
+      "rate": 0.000559881543513047,
+      "usd_cents": 96835402288514,
+      "to_currency": 3035
+    },
+    {
+      "currency": "cad",
+      "quantity": 1952692097,
+      "rate": 0.000390117,
+      "usd_cents": 5005401192463,
+      "to_currency": 761778
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1952692097,
+      "rate": 0.000390117,
+      "usd_cents": 500540119246277,
+      "to_currency": 7618
+    },
+    {
+      "currency": "cad",
+      "quantity": 1925713257,
+      "rate": 0.0005870198704928197,
+      "usd_cents": 3280490753036,
+      "to_currency": 1130432
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1925713257,
+      "rate": 0.0005870198704928197,
+      "usd_cents": 328049075303585,
+      "to_currency": 11304
+    },
+    {
+      "currency": "cad",
+      "quantity": 418087023,
+      "rate": 600.0,
+      "usd_cents": 696812,
+      "to_currency": 250852213800
+    },
+    {
+      "currency": "jpy",
+      "quantity": 418087023,
+      "rate": 600.0,
+      "usd_cents": 69681171,
+      "to_currency": 2508522138
+    },
+    {
+      "currency": "cad",
+      "quantity": 1489981468,
+      "rate": 37.8677987783,
+      "usd_cents": 39346926,
+      "to_currency": 56422318414
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1489981468,
+      "rate": 37.8677987783,
+      "usd_cents": 3934692578,
+      "to_currency": 564223184
+    },
+    {
+      "currency": "cad",
+      "quantity": 1633069595,
+      "rate": 19.7756359448141,
+      "usd_cents": 82579878,
+      "to_currency": 32294989783
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1633069595,
+      "rate": 19.7756359448141,
+      "usd_cents": 8257987756,
+      "to_currency": 322949898
+    },
+    {
+      "currency": "cad",
+      "quantity": 1834299342,
+      "rate": 8.55,
+      "usd_cents": 214537935,
+      "to_currency": 15683259374
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1834299342,
+      "rate": 8.55,
+      "usd_cents": 21453793474,
+      "to_currency": 156832594
+    },
+    {
+      "currency": "cad",
+      "quantity": 494666302,
+      "rate": 0.59382,
+      "usd_cents": 833023984,
+      "to_currency": 293742743
+    },
+    {
+      "currency": "jpy",
+      "quantity": 494666302,
+      "rate": 0.59382,
+      "usd_cents": 83302398370,
+      "to_currency": 2937427
+    },
+    {
+      "currency": "cad",
+      "quantity": 1858495674,
+      "rate": 0.0004058216311411,
+      "usd_cents": 4579587511819,
+      "to_currency": 754218
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1858495674,
+      "rate": 0.0004058216311411,
+      "usd_cents": 457958751181950,
+      "to_currency": 7542
+    },
+    {
+      "currency": "cad",
+      "quantity": 124155720,
+      "rate": 4.585549537939,
+      "usd_cents": 27075429,
+      "to_currency": 569322204
+    },
+    {
+      "currency": "jpy",
+      "quantity": 124155720,
+      "rate": 4.585549537939,
+      "usd_cents": 2707542879,
+      "to_currency": 5693222
+    },
+    {
+      "currency": "cad",
+      "quantity": 1816870494,
+      "rate": 0.00006479612620944453,
+      "usd_cents": 28039801146865,
+      "to_currency": 117726
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1816870494,
+      "rate": 0.00006479612620944453,
+      "usd_cents": 2803980114686512,
+      "to_currency": 1177
+    },
+    {
+      "currency": "cad",
+      "quantity": 1459754041,
+      "rate": 0.0002875064699907944,
+      "usd_cents": 5077291099038,
+      "to_currency": 419689
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1459754041,
+      "rate": 0.0002875064699907944,
+      "usd_cents": 507729109903767,
+      "to_currency": 4197
+    },
+    {
+      "currency": "cad",
+      "quantity": 1170720183,
+      "rate": 0.007053949856254372,
+      "usd_cents": 165966615422,
+      "to_currency": 8258201
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1170720183,
+      "rate": 0.007053949856254372,
+      "usd_cents": 16596661542214,
+      "to_currency": 82582
+    },
+    {
+      "currency": "cad",
+      "quantity": 924766497,
+      "rate": 64.1842189314835,
+      "usd_cents": 14408004,
+      "to_currency": 59355415304
+    },
+    {
+      "currency": "jpy",
+      "quantity": 924766497,
+      "rate": 64.1842189314835,
+      "usd_cents": 1440800422,
+      "to_currency": 593554153
+    },
+    {
+      "currency": "cad",
+      "quantity": 1953458027,
+      "rate": 0.8517896542,
+      "usd_cents": 2293357306,
+      "to_currency": 1663935337
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1953458027,
+      "rate": 0.8517896542,
+      "usd_cents": 229335730643,
+      "to_currency": 16639353
+    },
+    {
+      "currency": "cad",
+      "quantity": 663801530,
+      "rate": 308.0,
+      "usd_cents": 2155200,
+      "to_currency": 204450871240
+    },
+    {
+      "currency": "jpy",
+      "quantity": 663801530,
+      "rate": 308.0,
+      "usd_cents": 215519977,
+      "to_currency": 2044508712
+    },
+    {
+      "currency": "cad",
+      "quantity": 527142322,
+      "rate": 6.2739325455359,
+      "usd_cents": 84021038,
+      "to_currency": 3307255370
+    },
+    {
+      "currency": "jpy",
+      "quantity": 527142322,
+      "rate": 6.2739325455359,
+      "usd_cents": 8402103755,
+      "to_currency": 33072554
+    },
+    {
+      "currency": "cad",
+      "quantity": 1392365261,
+      "rate": 0.4678278656136,
+      "usd_cents": 2976234131,
+      "to_currency": 651387268
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1392365261,
+      "rate": 0.4678278656136,
+      "usd_cents": 297623413085,
+      "to_currency": 6513873
+    },
+    {
+      "currency": "cad",
+      "quantity": 1568502873,
+      "rate": 0.8856969889154,
+      "usd_cents": 1770924924,
+      "to_currency": 1389218272
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1568502873,
+      "rate": 0.8856969889154,
+      "usd_cents": 177092492425,
+      "to_currency": 13892183
+    },
+    {
+      "currency": "cad",
+      "quantity": 1647412217,
+      "rate": 0.000352,
+      "usd_cents": 4680148343750,
+      "to_currency": 579889
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1647412217,
+      "rate": 0.000352,
+      "usd_cents": 468014834375000,
+      "to_currency": 5799
+    },
+    {
+      "currency": "cad",
+      "quantity": 1180618495,
+      "rate": 0.002833497829016,
+      "usd_cents": 416664690161,
+      "to_currency": 3345280
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1180618495,
+      "rate": 0.002833497829016,
+      "usd_cents": 41666469016142,
+      "to_currency": 33453
+    },
+    {
+      "currency": "cad",
+      "quantity": 1246512013,
+      "rate": 0.000975861,
+      "usd_cents": 1277345864831,
+      "to_currency": 1216422
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1246512013,
+      "rate": 0.000975861,
+      "usd_cents": 127734586483116,
+      "to_currency": 12164
+    },
+    {
+      "currency": "cad",
+      "quantity": 490063169,
+      "rate": 0.077605538,
+      "usd_cents": 6314796362,
+      "to_currency": 38031616
+    },
+    {
+      "currency": "jpy",
+      "quantity": 490063169,
+      "rate": 0.077605538,
+      "usd_cents": 631479636157,
+      "to_currency": 380316
+    },
+    {
+      "currency": "cad",
+      "quantity": 971008668,
+      "rate": 0.48413909,
+      "usd_cents": 2005639883,
+      "to_currency": 470103253
+    },
+    {
+      "currency": "jpy",
+      "quantity": 971008668,
+      "rate": 0.48413909,
+      "usd_cents": 200563988336,
+      "to_currency": 4701033
+    },
+    {
+      "currency": "cad",
+      "quantity": 1009776078,
+      "rate": 0.972572069,
+      "usd_cents": 1038253216,
+      "to_currency": 982080009
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1009776078,
+      "rate": 0.972572069,
+      "usd_cents": 103825321556,
+      "to_currency": 9820800
+    },
+    {
+      "currency": "cad",
+      "quantity": 727801072,
+      "rate": 8668.21036,
+      "usd_cents": 83962,
+      "to_currency": 6308732792330
+    },
+    {
+      "currency": "jpy",
+      "quantity": 727801072,
+      "rate": 8668.21036,
+      "usd_cents": 8396209,
+      "to_currency": 63087327923
+    },
+    {
+      "currency": "cad",
+      "quantity": 556701249,
+      "rate": 0.001,
+      "usd_cents": 556701249000,
+      "to_currency": 556701
+    },
+    {
+      "currency": "jpy",
+      "quantity": 556701249,
+      "rate": 0.001,
+      "usd_cents": 55670124900000,
+      "to_currency": 5567
+    },
+    {
+      "currency": "cad",
+      "quantity": 194154358,
+      "rate": 2.5421,
+      "usd_cents": 76375578,
+      "to_currency": 493559793
+    },
+    {
+      "currency": "jpy",
+      "quantity": 194154358,
+      "rate": 2.5421,
+      "usd_cents": 7637557846,
+      "to_currency": 4935598
+    },
+    {
+      "currency": "cad",
+      "quantity": 188973919,
+      "rate": 24.3883,
+      "usd_cents": 7748548,
+      "to_currency": 4608752629
+    },
+    {
+      "currency": "jpy",
+      "quantity": 188973919,
+      "rate": 24.3883,
+      "usd_cents": 774854824,
+      "to_currency": 46087526
+    },
+    {
+      "currency": "cad",
+      "quantity": 1915099023,
+      "rate": 6043.091001666,
+      "usd_cents": 316907,
+      "to_currency": 11573117673191
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1915099023,
+      "rate": 6043.091001666,
+      "usd_cents": 31690720,
+      "to_currency": 115731176732
+    },
+    {
+      "currency": "cad",
+      "quantity": 1475658558,
+      "rate": 586.1669360020001,
+      "usd_cents": 2517472,
+      "to_currency": 864982255528
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1475658558,
+      "rate": 586.1669360020001,
+      "usd_cents": 251747150,
+      "to_currency": 8649822555
+    },
+    {
+      "currency": "cad",
+      "quantity": 1785610142,
+      "rate": 0.01133,
+      "usd_cents": 157600189056,
+      "to_currency": 20230963
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1785610142,
+      "rate": 0.01133,
+      "usd_cents": 15760018905560,
+      "to_currency": 202310
+    },
+    {
+      "currency": "cad",
+      "quantity": 506373743,
+      "rate": 0.0003814678,
+      "usd_cents": 1327435088886,
+      "to_currency": 193165
+    },
+    {
+      "currency": "jpy",
+      "quantity": 506373743,
+      "rate": 0.0003814678,
+      "usd_cents": 132743508888561,
+      "to_currency": 1932
+    },
+    {
+      "currency": "cad",
+      "quantity": 1453749791,
+      "rate": 0.000071339,
+      "usd_cents": 20378051150142,
+      "to_currency": 103709
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1453749791,
+      "rate": 0.000071339,
+      "usd_cents": 2037805115014228,
+      "to_currency": 1037
+    },
+    {
+      "currency": "cad",
+      "quantity": 322754909,
+      "rate": 0.00075,
+      "usd_cents": 430339878667,
+      "to_currency": 242066
+    },
+    {
+      "currency": "jpy",
+      "quantity": 322754909,
+      "rate": 0.00075,
+      "usd_cents": 43033987866667,
+      "to_currency": 2421
+    },
+    {
+      "currency": "cad",
+      "quantity": 722606320,
+      "rate": 0.04660415635,
+      "usd_cents": 15505190451,
+      "to_currency": 33676458
+    },
+    {
+      "currency": "jpy",
+      "quantity": 722606320,
+      "rate": 0.04660415635,
+      "usd_cents": 1550519045068,
+      "to_currency": 336765
+    },
+    {
+      "currency": "cad",
+      "quantity": 410703277,
+      "rate": 0.3250687842,
+      "usd_cents": 1263434993,
+      "to_currency": 133506815
+    },
+    {
+      "currency": "jpy",
+      "quantity": 410703277,
+      "rate": 0.3250687842,
+      "usd_cents": 126343499272,
+      "to_currency": 1335068
+    },
+    {
+      "currency": "cad",
+      "quantity": 693994611,
+      "rate": 0.000417808,
+      "usd_cents": 1661037153429,
+      "to_currency": 289957
+    },
+    {
+      "currency": "jpy",
+      "quantity": 693994611,
+      "rate": 0.000417808,
+      "usd_cents": 166103715342933,
+      "to_currency": 2900
+    },
+    {
+      "currency": "cad",
+      "quantity": 124701344,
+      "rate": 923.4905796,
+      "usd_cents": 135033,
+      "to_currency": 115160516447
+    },
+    {
+      "currency": "jpy",
+      "quantity": 124701344,
+      "rate": 923.4905796,
+      "usd_cents": 13503261,
+      "to_currency": 1151605164
+    },
+    {
+      "currency": "cad",
+      "quantity": 393553686,
+      "rate": 97.36506700756341,
+      "usd_cents": 4042042,
+      "to_currency": 38318381008
+    },
+    {
+      "currency": "jpy",
+      "quantity": 393553686,
+      "rate": 97.36506700756341,
+      "usd_cents": 404204196,
+      "to_currency": 383183810
+    },
+    {
+      "currency": "cad",
+      "quantity": 1833427516,
+      "rate": 132.164336,
+      "usd_cents": 13872332,
+      "to_currency": 242313730256
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1833427516,
+      "rate": 132.164336,
+      "usd_cents": 1387233176,
+      "to_currency": 2423137303
+    },
+    {
+      "currency": "cad",
+      "quantity": 1155200464,
+      "rate": 2463.01263,
+      "usd_cents": 469019,
+      "to_currency": 2845273333014
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1155200464,
+      "rate": 2463.01263,
+      "usd_cents": 46901930,
+      "to_currency": 28452733330
+    },
+    {
+      "currency": "cad",
+      "quantity": 716554782,
+      "rate": 5.9609860426810926,
+      "usd_cents": 120207425,
+      "to_currency": 4271373054
+    },
+    {
+      "currency": "jpy",
+      "quantity": 716554782,
+      "rate": 5.9609860426810926,
+      "usd_cents": 12020742489,
+      "to_currency": 42713731
+    },
+    {
+      "currency": "cad",
+      "quantity": 1685797205,
+      "rate": 0.028443,
+      "usd_cents": 59269317758,
+      "to_currency": 47949130
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1685797205,
+      "rate": 0.028443,
+      "usd_cents": 5926931775832,
+      "to_currency": 479491
+    },
+    {
+      "currency": "cad",
+      "quantity": 634018294,
+      "rate": 0.22127682337608,
+      "usd_cents": 2865272035,
+      "to_currency": 140293554
+    },
+    {
+      "currency": "jpy",
+      "quantity": 634018294,
+      "rate": 0.22127682337608,
+      "usd_cents": 286527203494,
+      "to_currency": 1402936
+    },
+    {
+      "currency": "cad",
+      "quantity": 1693498826,
+      "rate": 85.0,
+      "usd_cents": 19923516,
+      "to_currency": 143947400210
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1693498826,
+      "rate": 85.0,
+      "usd_cents": 1992351560,
+      "to_currency": 1439474002
+    },
+    {
+      "currency": "cad",
+      "quantity": 1738543858,
+      "rate": 0.2693446066,
+      "usd_cents": 6454719402,
+      "to_currency": 468267411
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1738543858,
+      "rate": 0.2693446066,
+      "usd_cents": 645471940183,
+      "to_currency": 4682674
+    },
+    {
+      "currency": "cad",
+      "quantity": 1782469794,
+      "rate": 0.00006731,
+      "usd_cents": 26481500430842,
+      "to_currency": 119978
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1782469794,
+      "rate": 0.00006731,
+      "usd_cents": 2648150043084237,
+      "to_currency": 1200
+    },
+    {
+      "currency": "cad",
+      "quantity": 1781170188,
+      "rate": 5780.0,
+      "usd_cents": 308161,
+      "to_currency": 10295163686640
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1781170188,
+      "rate": 5780.0,
+      "usd_cents": 30816093,
+      "to_currency": 102951636866
+    },
+    {
+      "currency": "cad",
+      "quantity": 351013799,
+      "rate": 9998.9058573298,
+      "usd_cents": 35105,
+      "to_currency": 3509753930825
+    },
+    {
+      "currency": "jpy",
+      "quantity": 351013799,
+      "rate": 9998.9058573298,
+      "usd_cents": 3510522,
+      "to_currency": 35097539308
+    },
+    {
+      "currency": "cad",
+      "quantity": 1594843409,
+      "rate": 3305.4322332973916,
+      "usd_cents": 482492,
+      "to_currency": 5271646811170
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1594843409,
+      "rate": 3305.4322332973916,
+      "usd_cents": 48249164,
+      "to_currency": 52716468112
+    },
+    {
+      "currency": "cad",
+      "quantity": 50712557,
+      "rate": 748.429,
+      "usd_cents": 67759,
+      "to_currency": 37954748323
+    },
+    {
+      "currency": "jpy",
+      "quantity": 50712557,
+      "rate": 748.429,
+      "usd_cents": 6775867,
+      "to_currency": 379547483
+    },
+    {
+      "currency": "cad",
+      "quantity": 156350527,
+      "rate": 0.000200563,
+      "usd_cents": 779558178727,
+      "to_currency": 31358
+    },
+    {
+      "currency": "jpy",
+      "quantity": 156350527,
+      "rate": 0.000200563,
+      "usd_cents": 77955817872688,
+      "to_currency": 314
+    },
+    {
+      "currency": "cad",
+      "quantity": 861584514,
+      "rate": 54.4,
+      "usd_cents": 15837951,
+      "to_currency": 46870197562
+    },
+    {
+      "currency": "jpy",
+      "quantity": 861584514,
+      "rate": 54.4,
+      "usd_cents": 1583795063,
+      "to_currency": 468701976
+    },
+    {
+      "currency": "cad",
+      "quantity": 421429615,
+      "rate": 0.9695444240869,
+      "usd_cents": 434667669,
+      "to_currency": 408594733
+    },
+    {
+      "currency": "jpy",
+      "quantity": 421429615,
+      "rate": 0.9695444240869,
+      "usd_cents": 43466766920,
+      "to_currency": 4085947
+    },
+    {
+      "currency": "cad",
+      "quantity": 754261360,
+      "rate": 0.035400787,
+      "usd_cents": 21306344404,
+      "to_currency": 26701446
+    },
+    {
+      "currency": "jpy",
+      "quantity": 754261360,
+      "rate": 0.035400787,
+      "usd_cents": 2130634440415,
+      "to_currency": 267014
+    },
+    {
+      "currency": "cad",
+      "quantity": 727470755,
+      "rate": 80.0,
+      "usd_cents": 9093384,
+      "to_currency": 58197660400
+    },
+    {
+      "currency": "jpy",
+      "quantity": 727470755,
+      "rate": 80.0,
+      "usd_cents": 909338444,
+      "to_currency": 581976604
+    },
+    {
+      "currency": "cad",
+      "quantity": 463350625,
+      "rate": 280.31971937,
+      "usd_cents": 1652936,
+      "to_currency": 129886317170
+    },
+    {
+      "currency": "jpy",
+      "quantity": 463350625,
+      "rate": 280.31971937,
+      "usd_cents": 165293625,
+      "to_currency": 1298863172
+    },
+    {
+      "currency": "cad",
+      "quantity": 1231915517,
+      "rate": 6.122407911352711,
+      "usd_cents": 201214217,
+      "to_currency": 7542289307
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1231915517,
+      "rate": 6.122407911352711,
+      "usd_cents": 20121421748,
+      "to_currency": 75422893
+    },
+    {
+      "currency": "cad",
+      "quantity": 1174360808,
+      "rate": 3.94,
+      "usd_cents": 298061119,
+      "to_currency": 4626981584
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1174360808,
+      "rate": 3.94,
+      "usd_cents": 29806111878,
+      "to_currency": 46269816
+    },
+    {
+      "currency": "cad",
+      "quantity": 594518570,
+      "rate": 0.0081238600238005,
+      "usd_cents": 73181784061,
+      "to_currency": 4829786
+    },
+    {
+      "currency": "jpy",
+      "quantity": 594518570,
+      "rate": 0.0081238600238005,
+      "usd_cents": 7318178406056,
+      "to_currency": 48298
+    },
+    {
+      "currency": "cad",
+      "quantity": 17377629,
+      "rate": 0.00047296088153650484,
+      "usd_cents": 36742212048,
+      "to_currency": 8219
+    },
+    {
+      "currency": "jpy",
+      "quantity": 17377629,
+      "rate": 0.00047296088153650484,
+      "usd_cents": 3674221204837,
+      "to_currency": 82
+    },
+    {
+      "currency": "cad",
+      "quantity": 1371104184,
+      "rate": 0.00177,
+      "usd_cents": 774635132203,
+      "to_currency": 2426854
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1371104184,
+      "rate": 0.00177,
+      "usd_cents": 77463513220339,
+      "to_currency": 24269
+    },
+    {
+      "currency": "cad",
+      "quantity": 1379848860,
+      "rate": 0.08080851981316,
+      "usd_cents": 17075536876,
+      "to_currency": 111503544
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1379848860,
+      "rate": 0.08080851981316,
+      "usd_cents": 1707553687644,
+      "to_currency": 1115035
+    },
+    {
+      "currency": "cad",
+      "quantity": 210945189,
+      "rate": 95.907731695496,
+      "usd_cents": 2199460,
+      "to_currency": 20231274589
+    },
+    {
+      "currency": "jpy",
+      "quantity": 210945189,
+      "rate": 95.907731695496,
+      "usd_cents": 219945968,
+      "to_currency": 202312746
+    },
+    {
+      "currency": "cad",
+      "quantity": 660968374,
+      "rate": 7.1853970975999,
+      "usd_cents": 91987731,
+      "to_currency": 4749320236
+    },
+    {
+      "currency": "jpy",
+      "quantity": 660968374,
+      "rate": 7.1853970975999,
+      "usd_cents": 9198773081,
+      "to_currency": 47493202
+    },
+    {
+      "currency": "cad",
+      "quantity": 421592107,
+      "rate": 0.0061,
+      "usd_cents": 69113460164,
+      "to_currency": 2571712
+    },
+    {
+      "currency": "jpy",
+      "quantity": 421592107,
+      "rate": 0.0061,
+      "usd_cents": 6911346016393,
+      "to_currency": 25717
+    },
+    {
+      "currency": "cad",
+      "quantity": 608465277,
+      "rate": 9.698391,
+      "usd_cents": 62738786,
+      "to_currency": 5901134166
+    },
+    {
+      "currency": "jpy",
+      "quantity": 608465277,
+      "rate": 9.698391,
+      "usd_cents": 6273878595,
+      "to_currency": 59011342
+    },
+    {
+      "currency": "cad",
+      "quantity": 695123617,
+      "rate": 0.005146571232,
+      "usd_cents": 135065383469,
+      "to_currency": 3577503
+    },
+    {
+      "currency": "jpy",
+      "quantity": 695123617,
+      "rate": 0.005146571232,
+      "usd_cents": 13506538346888,
+      "to_currency": 35775
+    },
+    {
+      "currency": "cad",
+      "quantity": 550624594,
+      "rate": 0.0002810939268,
+      "usd_cents": 1958863360260,
+      "to_currency": 154777
+    },
+    {
+      "currency": "jpy",
+      "quantity": 550624594,
+      "rate": 0.0002810939268,
+      "usd_cents": 195886336025955,
+      "to_currency": 1548
+    },
+    {
+      "currency": "cad",
+      "quantity": 551017556,
+      "rate": 3.5502,
+      "usd_cents": 155207469,
+      "to_currency": 1956222527
+    },
+    {
+      "currency": "jpy",
+      "quantity": 551017556,
+      "rate": 3.5502,
+      "usd_cents": 15520746887,
+      "to_currency": 19562225
+    },
+    {
+      "currency": "cad",
+      "quantity": 1161685610,
+      "rate": 3976.0,
+      "usd_cents": 292174,
+      "to_currency": 4618861985360
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1161685610,
+      "rate": 3976.0,
+      "usd_cents": 29217445,
+      "to_currency": 46188619854
+    },
+    {
+      "currency": "cad",
+      "quantity": 1823525366,
+      "rate": 0.382729,
+      "usd_cents": 4764534085,
+      "to_currency": 697916040
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1823525366,
+      "rate": 0.382729,
+      "usd_cents": 476453408548,
+      "to_currency": 6979160
+    },
+    {
+      "currency": "cad",
+      "quantity": 138981566,
+      "rate": 3422.04281955,
+      "usd_cents": 40614,
+      "to_currency": 475600869980
+    },
+    {
+      "currency": "jpy",
+      "quantity": 138981566,
+      "rate": 3422.04281955,
+      "usd_cents": 4061363,
+      "to_currency": 4756008700
+    },
+    {
+      "currency": "cad",
+      "quantity": 261392122,
+      "rate": 0.007235,
+      "usd_cents": 36128835107,
+      "to_currency": 1891172
+    },
+    {
+      "currency": "jpy",
+      "quantity": 261392122,
+      "rate": 0.007235,
+      "usd_cents": 3612883510712,
+      "to_currency": 18912
+    },
+    {
+      "currency": "cad",
+      "quantity": 412381651,
+      "rate": 0.000764469329213,
+      "usd_cents": 539435181035,
+      "to_currency": 315253
+    },
+    {
+      "currency": "jpy",
+      "quantity": 412381651,
+      "rate": 0.000764469329213,
+      "usd_cents": 53943518103537,
+      "to_currency": 3153
+    },
+    {
+      "currency": "cad",
+      "quantity": 1228242815,
+      "rate": 5747.28,
+      "usd_cents": 213709,
+      "to_currency": 7059055365793
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1228242815,
+      "rate": 5747.28,
+      "usd_cents": 21370854,
+      "to_currency": 70590553658
+    },
+    {
+      "currency": "cad",
+      "quantity": 1341581606,
+      "rate": 2.32486814092,
+      "usd_cents": 577057074,
+      "to_currency": 3119000334
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1341581606,
+      "rate": 2.32486814092,
+      "usd_cents": 57705707364,
+      "to_currency": 31190003
+    },
+    {
+      "currency": "cad",
+      "quantity": 330207314,
+      "rate": 0.060479847520599,
+      "usd_cents": 5459790782,
+      "to_currency": 19970888
+    },
+    {
+      "currency": "jpy",
+      "quantity": 330207314,
+      "rate": 0.060479847520599,
+      "usd_cents": 545979078217,
+      "to_currency": 199709
+    },
+    {
+      "currency": "cad",
+      "quantity": 1829024464,
+      "rate": 264.8979156906,
+      "usd_cents": 6904639,
+      "to_currency": 484504768261
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1829024464,
+      "rate": 264.8979156906,
+      "usd_cents": 690463894,
+      "to_currency": 4845047683
+    },
+    {
+      "currency": "cad",
+      "quantity": 881467221,
+      "rate": 0.2853,
+      "usd_cents": 3089615216,
+      "to_currency": 251482598
+    },
+    {
+      "currency": "jpy",
+      "quantity": 881467221,
+      "rate": 0.2853,
+      "usd_cents": 308961521556,
+      "to_currency": 2514826
+    },
+    {
+      "currency": "cad",
+      "quantity": 1077711765,
+      "rate": 0.3502069969,
+      "usd_cents": 3077356462,
+      "to_currency": 377422201
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1077711765,
+      "rate": 0.3502069969,
+      "usd_cents": 307735646215,
+      "to_currency": 3774222
+    },
+    {
+      "currency": "cad",
+      "quantity": 559239005,
+      "rate": 0.0029215883,
+      "usd_cents": 191416088639,
+      "to_currency": 1633866
+    },
+    {
+      "currency": "jpy",
+      "quantity": 559239005,
+      "rate": 0.0029215883,
+      "usd_cents": 19141608863918,
+      "to_currency": 16339
+    },
+    {
+      "currency": "cad",
+      "quantity": 1206232320,
+      "rate": 0.0039616045,
+      "usd_cents": 304480752685,
+      "to_currency": 4778615
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1206232320,
+      "rate": 0.0039616045,
+      "usd_cents": 30448075268493,
+      "to_currency": 47786
+    },
+    {
+      "currency": "cad",
+      "quantity": 236001704,
+      "rate": 2941.2755715980097,
+      "usd_cents": 80238,
+      "to_currency": 694146046831
+    },
+    {
+      "currency": "jpy",
+      "quantity": 236001704,
+      "rate": 2941.2755715980097,
+      "usd_cents": 8023788,
+      "to_currency": 6941460468
+    },
+    {
+      "currency": "cad",
+      "quantity": 911291988,
+      "rate": 0.0856918457,
+      "usd_cents": 10634523980,
+      "to_currency": 78090292
+    },
+    {
+      "currency": "jpy",
+      "quantity": 911291988,
+      "rate": 0.0856918457,
+      "usd_cents": 1063452398015,
+      "to_currency": 780903
+    },
+    {
+      "currency": "cad",
+      "quantity": 1865264437,
+      "rate": 0.00014291008101,
+      "usd_cents": 13052014412262,
+      "to_currency": 266565
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1865264437,
+      "rate": 0.00014291008101,
+      "usd_cents": 1305201441226165,
+      "to_currency": 2666
+    },
+    {
+      "currency": "cad",
+      "quantity": 325744538,
+      "rate": 5.6356464,
+      "usd_cents": 57800741,
+      "to_currency": 1835781033
+    },
+    {
+      "currency": "jpy",
+      "quantity": 325744538,
+      "rate": 5.6356464,
+      "usd_cents": 5780074101,
+      "to_currency": 18357810
+    },
+    {
+      "currency": "cad",
+      "quantity": 1301738644,
+      "rate": 0.008548,
+      "usd_cents": 152285756200,
+      "to_currency": 11127262
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1301738644,
+      "rate": 0.008548,
+      "usd_cents": 15228575620028,
+      "to_currency": 111273
+    },
+    {
+      "currency": "cad",
+      "quantity": 1786548012,
+      "rate": 0.9967,
+      "usd_cents": 1792463140,
+      "to_currency": 1780652404
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1786548012,
+      "rate": 0.9967,
+      "usd_cents": 179246314036,
+      "to_currency": 17806524
+    },
+    {
+      "currency": "cad",
+      "quantity": 454910852,
+      "rate": 0.993,
+      "usd_cents": 458117676,
+      "to_currency": 451726476
+    },
+    {
+      "currency": "jpy",
+      "quantity": 454910852,
+      "rate": 0.993,
+      "usd_cents": 45811767573,
+      "to_currency": 4517265
+    },
+    {
+      "currency": "cad",
+      "quantity": 470930647,
+      "rate": 45.684902206133515,
+      "usd_cents": 10308234,
+      "to_currency": 21514420554
+    },
+    {
+      "currency": "jpy",
+      "quantity": 470930647,
+      "rate": 45.684902206133515,
+      "usd_cents": 1030823367,
+      "to_currency": 215144206
+    },
+    {
+      "currency": "cad",
+      "quantity": 1325067836,
+      "rate": 80.34234,
+      "usd_cents": 16492771,
+      "to_currency": 106459050603
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1325067836,
+      "rate": 80.34234,
+      "usd_cents": 1649277126,
+      "to_currency": 1064590506
+    },
+    {
+      "currency": "cad",
+      "quantity": 512862052,
+      "rate": 0.0188664,
+      "usd_cents": 27183885214,
+      "to_currency": 9675861
+    },
+    {
+      "currency": "jpy",
+      "quantity": 512862052,
+      "rate": 0.0188664,
+      "usd_cents": 2718388521393,
+      "to_currency": 96759
+    },
+    {
+      "currency": "cad",
+      "quantity": 290382033,
+      "rate": 0.058023948504937,
+      "usd_cents": 5004520383,
+      "to_currency": 16849112
+    },
+    {
+      "currency": "jpy",
+      "quantity": 290382033,
+      "rate": 0.058023948504937,
+      "usd_cents": 500452038308,
+      "to_currency": 168491
+    },
+    {
+      "currency": "cad",
+      "quantity": 98778174,
+      "rate": 198.6075842738242,
+      "usd_cents": 497353,
+      "to_currency": 19618094517
+    },
+    {
+      "currency": "jpy",
+      "quantity": 98778174,
+      "rate": 198.6075842738242,
+      "usd_cents": 49735348,
+      "to_currency": 196180945
+    },
+    {
+      "currency": "cad",
+      "quantity": 534594623,
+      "rate": 0.44259678502486,
+      "usd_cents": 1207859255,
+      "to_currency": 236609861
+    },
+    {
+      "currency": "jpy",
+      "quantity": 534594623,
+      "rate": 0.44259678502486,
+      "usd_cents": 120785925494,
+      "to_currency": 2366099
+    },
+    {
+      "currency": "cad",
+      "quantity": 1784502402,
+      "rate": 78.15,
+      "usd_cents": 22834324,
+      "to_currency": 139458862716
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1784502402,
+      "rate": 78.15,
+      "usd_cents": 2283432376,
+      "to_currency": 1394588627
+    },
+    {
+      "currency": "cad",
+      "quantity": 1669168988,
+      "rate": 6.45530200648057,
+      "usd_cents": 258573338,
+      "to_currency": 10774989917
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1669168988,
+      "rate": 6.45530200648057,
+      "usd_cents": 25857333806,
+      "to_currency": 107749899
+    },
+    {
+      "currency": "cad",
+      "quantity": 318047542,
+      "rate": 45.91732468147715,
+      "usd_cents": 6926526,
+      "to_currency": 14603892250
+    },
+    {
+      "currency": "jpy",
+      "quantity": 318047542,
+      "rate": 45.91732468147715,
+      "usd_cents": 692652597,
+      "to_currency": 146038923
+    },
+    {
+      "currency": "cad",
+      "quantity": 1929599735,
+      "rate": 800.0,
+      "usd_cents": 2412000,
+      "to_currency": 1543679788000
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1929599735,
+      "rate": 800.0,
+      "usd_cents": 241199967,
+      "to_currency": 15436797880
+    },
+    {
+      "currency": "cad",
+      "quantity": 1865827691,
+      "rate": 951.958322413666,
+      "usd_cents": 1959989,
+      "to_currency": 1776190198637
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1865827691,
+      "rate": 951.958322413666,
+      "usd_cents": 195998884,
+      "to_currency": 17761901986
+    },
+    {
+      "currency": "cad",
+      "quantity": 204102959,
+      "rate": 0.072096025,
+      "usd_cents": 2830987686,
+      "to_currency": 14715012
+    },
+    {
+      "currency": "jpy",
+      "quantity": 204102959,
+      "rate": 0.072096025,
+      "usd_cents": 283098768621,
+      "to_currency": 147150
+    },
+    {
+      "currency": "cad",
+      "quantity": 902095435,
+      "rate": 936.936970388,
+      "usd_cents": 962813,
+      "to_currency": 845206563870
+    },
+    {
+      "currency": "jpy",
+      "quantity": 902095435,
+      "rate": 936.936970388,
+      "usd_cents": 96281336,
+      "to_currency": 8452065639
+    },
+    {
+      "currency": "cad",
+      "quantity": 78310772,
+      "rate": 0.048151984465,
+      "usd_cents": 1626324914,
+      "to_currency": 3770819
+    },
+    {
+      "currency": "jpy",
+      "quantity": 78310772,
+      "rate": 0.048151984465,
+      "usd_cents": 162632491413,
+      "to_currency": 37708
+    },
+    {
+      "currency": "cad",
+      "quantity": 1296372487,
+      "rate": 7.849373776,
+      "usd_cents": 165156167,
+      "to_currency": 10175712203
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1296372487,
+      "rate": 7.849373776,
+      "usd_cents": 16515616710,
+      "to_currency": 101757122
+    },
+    {
+      "currency": "cad",
+      "quantity": 1317171471,
+      "rate": 0.0310655,
+      "usd_cents": 42399815583,
+      "to_currency": 40918590
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1317171471,
+      "rate": 0.0310655,
+      "usd_cents": 4239981558320,
+      "to_currency": 409186
+    },
+    {
+      "currency": "cad",
+      "quantity": 510274651,
+      "rate": 1960.3362604501,
+      "usd_cents": 260300,
+      "to_currency": 1000309901144
+    },
+    {
+      "currency": "jpy",
+      "quantity": 510274651,
+      "rate": 1960.3362604501,
+      "usd_cents": 26029955,
+      "to_currency": 10003099011
+    },
+    {
+      "currency": "cad",
+      "quantity": 1168646239,
+      "rate": 7354.3115,
+      "usd_cents": 158906,
+      "to_currency": 8594588474909
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1168646239,
+      "rate": 7354.3115,
+      "usd_cents": 15890627,
+      "to_currency": 85945884749
+    },
+    {
+      "currency": "cad",
+      "quantity": 1735998001,
+      "rate": 4.0,
+      "usd_cents": 433999500,
+      "to_currency": 6943992004
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1735998001,
+      "rate": 4.0,
+      "usd_cents": 43399950025,
+      "to_currency": 69439920
+    },
+    {
+      "currency": "cad",
+      "quantity": 344865999,
+      "rate": 0.0962747184429563,
+      "usd_cents": 3582103428,
+      "to_currency": 33201877
+    },
+    {
+      "currency": "jpy",
+      "quantity": 344865999,
+      "rate": 0.0962747184429563,
+      "usd_cents": 358210342837,
+      "to_currency": 332019
+    },
+    {
+      "currency": "cad",
+      "quantity": 554443576,
+      "rate": 0.0008004289,
+      "usd_cents": 692683105270,
+      "to_currency": 443793
+    },
+    {
+      "currency": "jpy",
+      "quantity": 554443576,
+      "rate": 0.0008004289,
+      "usd_cents": 69268310527019,
+      "to_currency": 4438
+    },
+    {
+      "currency": "cad",
+      "quantity": 330943766,
+      "rate": 0.064837774786,
+      "usd_cents": 5104181430,
+      "to_currency": 21457657
+    },
+    {
+      "currency": "jpy",
+      "quantity": 330943766,
+      "rate": 0.064837774786,
+      "usd_cents": 510418142961,
+      "to_currency": 214577
+    },
+    {
+      "currency": "cad",
+      "quantity": 1330059394,
+      "rate": 0.8224,
+      "usd_cents": 1617290119,
+      "to_currency": 1093840846
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1330059394,
+      "rate": 0.8224,
+      "usd_cents": 161729011916,
+      "to_currency": 10938408
+    },
+    {
+      "currency": "cad",
+      "quantity": 1661202430,
+      "rate": 0.000708337,
+      "usd_cents": 2345214820064,
+      "to_currency": 1176691
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1661202430,
+      "rate": 0.000708337,
+      "usd_cents": 234521482006446,
+      "to_currency": 11767
+    },
+    {
+      "currency": "cad",
+      "quantity": 1577380317,
+      "rate": 84.8,
+      "usd_cents": 18601183,
+      "to_currency": 133761850882
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1577380317,
+      "rate": 84.8,
+      "usd_cents": 1860118298,
+      "to_currency": 1337618509
+    },
+    {
+      "currency": "cad",
+      "quantity": 104896938,
+      "rate": 4.966466,
+      "usd_cents": 21121042,
+      "to_currency": 520967076
+    },
+    {
+      "currency": "jpy",
+      "quantity": 104896938,
+      "rate": 4.966466,
+      "usd_cents": 2112104221,
+      "to_currency": 5209671
+    },
+    {
+      "currency": "cad",
+      "quantity": 1681750401,
+      "rate": 0.001195,
+      "usd_cents": 1407322511297,
+      "to_currency": 2009692
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1681750401,
+      "rate": 0.001195,
+      "usd_cents": 140732251129707,
+      "to_currency": 20097
+    },
+    {
+      "currency": "cad",
+      "quantity": 1686307320,
+      "rate": 0.000902271067428,
+      "usd_cents": 1868958654307,
+      "to_currency": 1521506
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1686307320,
+      "rate": 0.000902271067428,
+      "usd_cents": 186895865430658,
+      "to_currency": 15215
+    },
+    {
+      "currency": "cad",
+      "quantity": 1124125144,
+      "rate": 918.19333287,
+      "usd_cents": 1224279,
+      "to_currency": 1032164212532
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1124125144,
+      "rate": 918.19333287,
+      "usd_cents": 122427936,
+      "to_currency": 10321642125
+    },
+    {
+      "currency": "cad",
+      "quantity": 1546703340,
+      "rate": 9003.900790865922,
+      "usd_cents": 171781,
+      "to_currency": 13926363426261
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1546703340,
+      "rate": 9003.900790865922,
+      "usd_cents": 17178147,
+      "to_currency": 139263634263
+    },
+    {
+      "currency": "cad",
+      "quantity": 1850256741,
+      "rate": 6.731492872,
+      "usd_cents": 274865736,
+      "to_currency": 12454990063
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1850256741,
+      "rate": 6.731492872,
+      "usd_cents": 27486573576,
+      "to_currency": 124549901
+    },
+    {
+      "currency": "cad",
+      "quantity": 342860611,
+      "rate": 0.0069701585651,
+      "usd_cents": 49189786401,
+      "to_currency": 2389793
+    },
+    {
+      "currency": "jpy",
+      "quantity": 342860611,
+      "rate": 0.0069701585651,
+      "usd_cents": 4918978640123,
+      "to_currency": 23898
+    },
+    {
+      "currency": "cad",
+      "quantity": 1795990856,
+      "rate": 0.00007326,
+      "usd_cents": 24515299699700,
+      "to_currency": 131574
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1795990856,
+      "rate": 0.00007326,
+      "usd_cents": 2451529969969970,
+      "to_currency": 1316
+    },
+    {
+      "currency": "cad",
+      "quantity": 1608352116,
+      "rate": 0.0085911397529,
+      "usd_cents": 187210563704,
+      "to_currency": 13817578
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1608352116,
+      "rate": 0.0085911397529,
+      "usd_cents": 18721056370397,
+      "to_currency": 138176
+    },
+    {
+      "currency": "cad",
+      "quantity": 940334191,
+      "rate": 0.000472303,
+      "usd_cents": 1990955363400,
+      "to_currency": 444123
+    },
+    {
+      "currency": "jpy",
+      "quantity": 940334191,
+      "rate": 0.000472303,
+      "usd_cents": 199095536340019,
+      "to_currency": 4441
+    },
+    {
+      "currency": "cad",
+      "quantity": 1143981317,
+      "rate": 0.0008,
+      "usd_cents": 1429976646250,
+      "to_currency": 915185
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1143981317,
+      "rate": 0.0008,
+      "usd_cents": 142997664625000,
+      "to_currency": 9152
+    },
+    {
+      "currency": "cad",
+      "quantity": 1964301170,
+      "rate": 1951.9215044,
+      "usd_cents": 1006342,
+      "to_currency": 3834161694841
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1964301170,
+      "rate": 1951.9215044,
+      "usd_cents": 100634230,
+      "to_currency": 38341616948
+    },
+    {
+      "currency": "cad",
+      "quantity": 391834797,
+      "rate": 48.4,
+      "usd_cents": 8095760,
+      "to_currency": 18964804175
+    },
+    {
+      "currency": "jpy",
+      "quantity": 391834797,
+      "rate": 48.4,
+      "usd_cents": 809576027,
+      "to_currency": 189648042
+    },
+    {
+      "currency": "cad",
+      "quantity": 1436274116,
+      "rate": 393.62950408963,
+      "usd_cents": 3648797,
+      "to_currency": 565359868018
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1436274116,
+      "rate": 393.62950408963,
+      "usd_cents": 364879690,
+      "to_currency": 5653598680
+    },
+    {
+      "currency": "cad",
+      "quantity": 545646364,
+      "rate": 0.00954,
+      "usd_cents": 57195635639,
+      "to_currency": 5205466
+    },
+    {
+      "currency": "jpy",
+      "quantity": 545646364,
+      "rate": 0.00954,
+      "usd_cents": 5719563563941,
+      "to_currency": 52055
+    },
+    {
+      "currency": "cad",
+      "quantity": 153458173,
+      "rate": 204.8529223990766,
+      "usd_cents": 749114,
+      "to_currency": 31436355205
+    },
+    {
+      "currency": "jpy",
+      "quantity": 153458173,
+      "rate": 204.8529223990766,
+      "usd_cents": 74911391,
+      "to_currency": 314363552
+    },
+    {
+      "currency": "cad",
+      "quantity": 740822412,
+      "rate": 348.5863,
+      "usd_cents": 2125220,
+      "to_currency": 258240543556
+    },
+    {
+      "currency": "jpy",
+      "quantity": 740822412,
+      "rate": 348.5863,
+      "usd_cents": 212521953,
+      "to_currency": 2582405436
+    },
+    {
+      "currency": "cad",
+      "quantity": 1191529863,
+      "rate": 69.129271377608,
+      "usd_cents": 17236257,
+      "to_currency": 82369591254
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1191529863,
+      "rate": 69.129271377608,
+      "usd_cents": 1723625664,
+      "to_currency": 823695913
+    },
+    {
+      "currency": "cad",
+      "quantity": 1086237182,
+      "rate": 7.4933808,
+      "usd_cents": 144959560,
+      "to_currency": 8139588844
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1086237182,
+      "rate": 7.4933808,
+      "usd_cents": 14495955978,
+      "to_currency": 81395888
+    },
+    {
+      "currency": "cad",
+      "quantity": 406596258,
+      "rate": 9.8577556,
+      "usd_cents": 41246332,
+      "to_currency": 4008126539
+    },
+    {
+      "currency": "jpy",
+      "quantity": 406596258,
+      "rate": 9.8577556,
+      "usd_cents": 4124633177,
+      "to_currency": 40081265
+    },
+    {
+      "currency": "cad",
+      "quantity": 1641225269,
+      "rate": 0.004247494538233,
+      "usd_cents": 386398441299,
+      "to_currency": 6971095
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1641225269,
+      "rate": 0.004247494538233,
+      "usd_cents": 38639844129918,
+      "to_currency": 69711
+    },
+    {
+      "currency": "cad",
+      "quantity": 1031558598,
+      "rate": 0.06590969997590856,
+      "usd_cents": 15651089269,
+      "to_currency": 67989718
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1031558598,
+      "rate": 0.06590969997590856,
+      "usd_cents": 1565108926876,
+      "to_currency": 679897
+    },
+    {
+      "currency": "cad",
+      "quantity": 253938925,
+      "rate": 0.457331208603,
+      "usd_cents": 555262620,
+      "to_currency": 116134195
+    },
+    {
+      "currency": "jpy",
+      "quantity": 253938925,
+      "rate": 0.457331208603,
+      "usd_cents": 55526261979,
+      "to_currency": 1161342
+    },
+    {
+      "currency": "cad",
+      "quantity": 771202267,
+      "rate": 12.944520954795768,
+      "usd_cents": 59577505,
+      "to_currency": 9982843906
+    },
+    {
+      "currency": "jpy",
+      "quantity": 771202267,
+      "rate": 12.944520954795768,
+      "usd_cents": 5957750539,
+      "to_currency": 99828439
+    },
+    {
+      "currency": "cad",
+      "quantity": 565674219,
+      "rate": 13.608406,
+      "usd_cents": 41568000,
+      "to_currency": 7697924436
+    },
+    {
+      "currency": "jpy",
+      "quantity": 565674219,
+      "rate": 13.608406,
+      "usd_cents": 4156799988,
+      "to_currency": 76979244
+    },
+    {
+      "currency": "cad",
+      "quantity": 1879678585,
+      "rate": 1380.0,
+      "usd_cents": 1362086,
+      "to_currency": 2593956447300
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1879678585,
+      "rate": 1380.0,
+      "usd_cents": 136208593,
+      "to_currency": 25939564473
+    },
+    {
+      "currency": "cad",
+      "quantity": 678398101,
+      "rate": 0.061509303,
+      "usd_cents": 11029195063,
+      "to_currency": 41727794
+    },
+    {
+      "currency": "jpy",
+      "quantity": 678398101,
+      "rate": 0.061509303,
+      "usd_cents": 1102919506339,
+      "to_currency": 417278
+    },
+    {
+      "currency": "cad",
+      "quantity": 853154898,
+      "rate": 0.016,
+      "usd_cents": 53322181125,
+      "to_currency": 13650478
+    },
+    {
+      "currency": "jpy",
+      "quantity": 853154898,
+      "rate": 0.016,
+      "usd_cents": 5332218112500,
+      "to_currency": 136505
+    },
+    {
+      "currency": "cad",
+      "quantity": 1108694842,
+      "rate": 9.7624,
+      "usd_cents": 113567856,
+      "to_currency": 10823522526
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1108694842,
+      "rate": 9.7624,
+      "usd_cents": 11356785647,
+      "to_currency": 108235225
+    },
+    {
+      "currency": "cad",
+      "quantity": 308806758,
+      "rate": 0.9460396270813765,
+      "usd_cents": 326420532,
+      "to_currency": 292143430
+    },
+    {
+      "currency": "jpy",
+      "quantity": 308806758,
+      "rate": 0.9460396270813765,
+      "usd_cents": 32642053161,
+      "to_currency": 2921434
+    },
+    {
+      "currency": "cad",
+      "quantity": 1251858347,
+      "rate": 0.0009954751721632214,
+      "usd_cents": 1257548537629,
+      "to_currency": 1246194
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1251858347,
+      "rate": 0.0009954751721632214,
+      "usd_cents": 125754853762916,
+      "to_currency": 12462
+    },
+    {
+      "currency": "cad",
+      "quantity": 161604209,
+      "rate": 0.000318471,
+      "usd_cents": 507437754144,
+      "to_currency": 51466
+    },
+    {
+      "currency": "jpy",
+      "quantity": 161604209,
+      "rate": 0.000318471,
+      "usd_cents": 50743775414402,
+      "to_currency": 515
+    },
+    {
+      "currency": "cad",
+      "quantity": 1332477260,
+      "rate": 4.3921707,
+      "usd_cents": 303375563,
+      "to_currency": 5852467580
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1332477260,
+      "rate": 4.3921707,
+      "usd_cents": 30337556325,
+      "to_currency": 58524676
+    },
+    {
+      "currency": "cad",
+      "quantity": 1099888506,
+      "rate": 0.8732,
+      "usd_cents": 1259606626,
+      "to_currency": 960422643
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1099888506,
+      "rate": 0.8732,
+      "usd_cents": 125960662620,
+      "to_currency": 9604226
+    },
+    {
+      "currency": "cad",
+      "quantity": 304958010,
+      "rate": 294.085602009,
+      "usd_cents": 1036970,
+      "to_currency": 89683759958
+    },
+    {
+      "currency": "jpy",
+      "quantity": 304958010,
+      "rate": 294.085602009,
+      "usd_cents": 103697022,
+      "to_currency": 896837600
+    },
+    {
+      "currency": "cad",
+      "quantity": 210511952,
+      "rate": 0.00077863563,
+      "usd_cents": 270360029633,
+      "to_currency": 163912
+    },
+    {
+      "currency": "jpy",
+      "quantity": 210511952,
+      "rate": 0.00077863563,
+      "usd_cents": 27036002963286,
+      "to_currency": 1639
+    },
+    {
+      "currency": "cad",
+      "quantity": 210825947,
+      "rate": 0.036352584568,
+      "usd_cents": 5799476145,
+      "to_currency": 7664068
+    },
+    {
+      "currency": "jpy",
+      "quantity": 210825947,
+      "rate": 0.036352584568,
+      "usd_cents": 579947614469,
+      "to_currency": 76641
+    },
+    {
+      "currency": "cad",
+      "quantity": 215819238,
+      "rate": 3.093,
+      "usd_cents": 69776669,
+      "to_currency": 667528903
+    },
+    {
+      "currency": "jpy",
+      "quantity": 215819238,
+      "rate": 3.093,
+      "usd_cents": 6977666925,
+      "to_currency": 6675289
+    },
+    {
+      "currency": "cad",
+      "quantity": 1101095359,
+      "rate": 3729.14,
+      "usd_cents": 295268,
+      "to_currency": 4106138747061
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1101095359,
+      "rate": 3729.14,
+      "usd_cents": 29526791,
+      "to_currency": 41061387471
+    },
+    {
+      "currency": "cad",
+      "quantity": 582056058,
+      "rate": 0.629738691316614,
+      "usd_cents": 924281874,
+      "to_currency": 366543220
+    },
+    {
+      "currency": "jpy",
+      "quantity": 582056058,
+      "rate": 0.629738691316614,
+      "usd_cents": 92428187441,
+      "to_currency": 3665432
+    },
+    {
+      "currency": "cad",
+      "quantity": 618008786,
+      "rate": 3.287,
+      "usd_cents": 188016059,
+      "to_currency": 2031394880
+    },
+    {
+      "currency": "jpy",
+      "quantity": 618008786,
+      "rate": 3.287,
+      "usd_cents": 18801605902,
+      "to_currency": 20313949
+    },
+    {
+      "currency": "cad",
+      "quantity": 470690624,
+      "rate": 613.9087248487,
+      "usd_cents": 766711,
+      "to_currency": 288961080778
+    },
+    {
+      "currency": "jpy",
+      "quantity": 470690624,
+      "rate": 613.9087248487,
+      "usd_cents": 76671108,
+      "to_currency": 2889610808
+    },
+    {
+      "currency": "cad",
+      "quantity": 1570305686,
+      "rate": 9.9702,
+      "usd_cents": 157499918,
+      "to_currency": 15656261751
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1570305686,
+      "rate": 9.9702,
+      "usd_cents": 15749991836,
+      "to_currency": 156562618
+    },
+    {
+      "currency": "cad",
+      "quantity": 1566965761,
+      "rate": 0.0271144001114517,
+      "usd_cents": 57790906476,
+      "to_currency": 42487337
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1566965761,
+      "rate": 0.0271144001114517,
+      "usd_cents": 5779090647623,
+      "to_currency": 424873
+    },
+    {
+      "currency": "cad",
+      "quantity": 1290781338,
+      "rate": 0.349001257,
+      "usd_cents": 3698500542,
+      "to_currency": 450484309
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1290781338,
+      "rate": 0.349001257,
+      "usd_cents": 369850054150,
+      "to_currency": 4504843
+    },
+    {
+      "currency": "cad",
+      "quantity": 49881652,
+      "rate": 0.00623635,
+      "usd_cents": 7998533116,
+      "to_currency": 311079
+    },
+    {
+      "currency": "jpy",
+      "quantity": 49881652,
+      "rate": 0.00623635,
+      "usd_cents": 799853311633,
+      "to_currency": 3111
+    },
+    {
+      "currency": "cad",
+      "quantity": 619231156,
+      "rate": 30.0,
+      "usd_cents": 20641039,
+      "to_currency": 18576934680
+    },
+    {
+      "currency": "jpy",
+      "quantity": 619231156,
+      "rate": 30.0,
+      "usd_cents": 2064103853,
+      "to_currency": 185769347
+    },
+    {
+      "currency": "cad",
+      "quantity": 472816040,
+      "rate": 0.06512996552411,
+      "usd_cents": 7259577618,
+      "to_currency": 30794492
+    },
+    {
+      "currency": "jpy",
+      "quantity": 472816040,
+      "rate": 0.06512996552411,
+      "usd_cents": 725957761831,
+      "to_currency": 307945
+    },
+    {
+      "currency": "cad",
+      "quantity": 270894554,
+      "rate": 94.83729745631825,
+      "usd_cents": 2856414,
+      "to_currency": 25690907397
+    },
+    {
+      "currency": "jpy",
+      "quantity": 270894554,
+      "rate": 94.83729745631825,
+      "usd_cents": 285641368,
+      "to_currency": 256909074
+    },
+    {
+      "currency": "cad",
+      "quantity": 1239307510,
+      "rate": 5437.0,
+      "usd_cents": 227940,
+      "to_currency": 6738114931870
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1239307510,
+      "rate": 5437.0,
+      "usd_cents": 22793958,
+      "to_currency": 67381149319
+    },
+    {
+      "currency": "cad",
+      "quantity": 886704628,
+      "rate": 0.23271733557,
+      "usd_cents": 3810221640,
+      "to_currency": 206351538
+    },
+    {
+      "currency": "jpy",
+      "quantity": 886704628,
+      "rate": 0.23271733557,
+      "usd_cents": 381022164003,
+      "to_currency": 2063515
+    },
+    {
+      "currency": "cad",
+      "quantity": 1279082332,
+      "rate": 0.189764178,
+      "usd_cents": 6740378218,
+      "to_currency": 242724007
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1279082332,
+      "rate": 0.189764178,
+      "usd_cents": 674037821827,
+      "to_currency": 2427240
+    },
+    {
+      "currency": "cad",
+      "quantity": 1418196074,
+      "rate": 0.009,
+      "usd_cents": 157577341556,
+      "to_currency": 12763765
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1418196074,
+      "rate": 0.009,
+      "usd_cents": 15757734155556,
+      "to_currency": 127638
+    },
+    {
+      "currency": "cad",
+      "quantity": 969022793,
+      "rate": 0.000750733158174883,
+      "usd_cents": 1290768607258,
+      "to_currency": 727478
+    },
+    {
+      "currency": "jpy",
+      "quantity": 969022793,
+      "rate": 0.000750733158174883,
+      "usd_cents": 129076860725828,
+      "to_currency": 7275
+    },
+    {
+      "currency": "cad",
+      "quantity": 1419823294,
+      "rate": 0.000055542196204,
+      "usd_cents": 25562966375783,
+      "to_currency": 78860
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1419823294,
+      "rate": 0.000055542196204,
+      "usd_cents": 2556296637578310,
+      "to_currency": 789
+    },
+    {
+      "currency": "cad",
+      "quantity": 892792791,
+      "rate": 0.0004545052009,
+      "usd_cents": 1964318096321,
+      "to_currency": 405779
+    },
+    {
+      "currency": "jpy",
+      "quantity": 892792791,
+      "rate": 0.0004545052009,
+      "usd_cents": 196431809632126,
+      "to_currency": 4058
+    },
+    {
+      "currency": "cad",
+      "quantity": 1148665827,
+      "rate": 1800.115244779,
+      "usd_cents": 638107,
+      "to_currency": 2067730866339
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1148665827,
+      "rate": 1800.115244779,
+      "usd_cents": 63810683,
+      "to_currency": 20677308663
+    },
+    {
+      "currency": "cad",
+      "quantity": 873060875,
+      "rate": 0.00025679274,
+      "usd_cents": 3399865880165,
+      "to_currency": 224196
+    },
+    {
+      "currency": "jpy",
+      "quantity": 873060875,
+      "rate": 0.00025679274,
+      "usd_cents": 339986588016468,
+      "to_currency": 2242
+    },
+    {
+      "currency": "cad",
+      "quantity": 202949174,
+      "rate": 0.0495581,
+      "usd_cents": 4095176651,
+      "to_currency": 10057775
+    },
+    {
+      "currency": "jpy",
+      "quantity": 202949174,
+      "rate": 0.0495581,
+      "usd_cents": 409517665124,
+      "to_currency": 100578
+    },
+    {
+      "currency": "cad",
+      "quantity": 1520157880,
+      "rate": 4.9249427,
+      "usd_cents": 308665090,
+      "to_currency": 7486690454
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1520157880,
+      "rate": 4.9249427,
+      "usd_cents": 30866508965,
+      "to_currency": 74866905
+    },
+    {
+      "currency": "cad",
+      "quantity": 1762740818,
+      "rate": 9520.49573,
+      "usd_cents": 185152,
+      "to_currency": 16782166430866
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1762740818,
+      "rate": 9520.49573,
+      "usd_cents": 18515221,
+      "to_currency": 167821664309
+    },
+    {
+      "currency": "cad",
+      "quantity": 892901984,
+      "rate": 7196.6,
+      "usd_cents": 124073,
+      "to_currency": 6425858418054
+    },
+    {
+      "currency": "jpy",
+      "quantity": 892901984,
+      "rate": 7196.6,
+      "usd_cents": 12407275,
+      "to_currency": 64258584181
+    },
+    {
+      "currency": "cad",
+      "quantity": 168769125,
+      "rate": 8649.051,
+      "usd_cents": 19513,
+      "to_currency": 1459692769350
+    },
+    {
+      "currency": "jpy",
+      "quantity": 168769125,
+      "rate": 8649.051,
+      "usd_cents": 1951302,
+      "to_currency": 14596927694
+    },
+    {
+      "currency": "cad",
+      "quantity": 1884045474,
+      "rate": 73.801783443571,
+      "usd_cents": 25528455,
+      "to_currency": 139045916070
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1884045474,
+      "rate": 73.801783443571,
+      "usd_cents": 2552845455,
+      "to_currency": 1390459161
+    },
+    {
+      "currency": "cad",
+      "quantity": 1953046629,
+      "rate": 0.557,
+      "usd_cents": 3506367377,
+      "to_currency": 1087846972
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1953046629,
+      "rate": 0.557,
+      "usd_cents": 350636737702,
+      "to_currency": 10878470
+    },
+    {
+      "currency": "cad",
+      "quantity": 1917654822,
+      "rate": 29.26489463,
+      "usd_cents": 65527481,
+      "to_currency": 56119966303
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1917654822,
+      "rate": 29.26489463,
+      "usd_cents": 6552748083,
+      "to_currency": 561199663
+    },
+    {
+      "currency": "cad",
+      "quantity": 478908761,
+      "rate": 0.634054881007,
+      "usd_cents": 755311213,
+      "to_currency": 303654437
+    },
+    {
+      "currency": "jpy",
+      "quantity": 478908761,
+      "rate": 0.634054881007,
+      "usd_cents": 75531121256,
+      "to_currency": 3036544
+    },
+    {
+      "currency": "cad",
+      "quantity": 1962846708,
+      "rate": 0.39501755081657164,
+      "usd_cents": 4969011387,
+      "to_currency": 775358899
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1962846708,
+      "rate": 0.39501755081657164,
+      "usd_cents": 496901138682,
+      "to_currency": 7753589
+    },
+    {
+      "currency": "cad",
+      "quantity": 23861394,
+      "rate": 25.76,
+      "usd_cents": 926296,
+      "to_currency": 614669509
+    },
+    {
+      "currency": "jpy",
+      "quantity": 23861394,
+      "rate": 25.76,
+      "usd_cents": 92629635,
+      "to_currency": 6146695
+    },
+    {
+      "currency": "cad",
+      "quantity": 1378218184,
+      "rate": 32.1584795813716,
+      "usd_cents": 42857069,
+      "to_currency": 44321401329
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1378218184,
+      "rate": 32.1584795813716,
+      "usd_cents": 4285706918,
+      "to_currency": 443214013
+    },
+    {
+      "currency": "cad",
+      "quantity": 1601287681,
+      "rate": 7.8515,
+      "usd_cents": 203946721,
+      "to_currency": 12572510227
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1601287681,
+      "rate": 7.8515,
+      "usd_cents": 20394672114,
+      "to_currency": 125725102
+    },
+    {
+      "currency": "cad",
+      "quantity": 1427971067,
+      "rate": 240.71138,
+      "usd_cents": 5932296,
+      "to_currency": 343728886138
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1427971067,
+      "rate": 240.71138,
+      "usd_cents": 593229563,
+      "to_currency": 3437288861
+    },
+    {
+      "currency": "cad",
+      "quantity": 248443781,
+      "rate": 6476.63332942078,
+      "usd_cents": 38360,
+      "to_currency": 1609079272512
+    },
+    {
+      "currency": "jpy",
+      "quantity": 248443781,
+      "rate": 6476.63332942078,
+      "usd_cents": 3836002,
+      "to_currency": 16090792725
+    },
+    {
+      "currency": "cad",
+      "quantity": 305774435,
+      "rate": 0.000552963,
+      "usd_cents": 552974493773,
+      "to_currency": 169082
+    },
+    {
+      "currency": "jpy",
+      "quantity": 305774435,
+      "rate": 0.000552963,
+      "usd_cents": 55297449377264,
+      "to_currency": 1691
+    },
+    {
+      "currency": "cad",
+      "quantity": 1740762339,
+      "rate": 0.01798159,
+      "usd_cents": 96808031937,
+      "to_currency": 31301675
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1740762339,
+      "rate": 0.01798159,
+      "usd_cents": 9680803193711,
+      "to_currency": 313017
+    },
+    {
+      "currency": "cad",
+      "quantity": 1527908159,
+      "rate": 4.6587037183,
+      "usd_cents": 327968519,
+      "to_currency": 7118071422
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1527908159,
+      "rate": 4.6587037183,
+      "usd_cents": 32796851901,
+      "to_currency": 71180714
+    },
+    {
+      "currency": "cad",
+      "quantity": 1498201160,
+      "rate": 0.797,
+      "usd_cents": 1879800703,
+      "to_currency": 1194066325
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1498201160,
+      "rate": 0.797,
+      "usd_cents": 187980070263,
+      "to_currency": 11940663
+    },
+    {
+      "currency": "cad",
+      "quantity": 391166612,
+      "rate": 0.0007,
+      "usd_cents": 558809445714,
+      "to_currency": 273817
+    },
+    {
+      "currency": "jpy",
+      "quantity": 391166612,
+      "rate": 0.0007,
+      "usd_cents": 55880944571429,
+      "to_currency": 2738
+    },
+    {
+      "currency": "cad",
+      "quantity": 1280323091,
+      "rate": 88.51198,
+      "usd_cents": 14464969,
+      "to_currency": 113323931824
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1280323091,
+      "rate": 88.51198,
+      "usd_cents": 1446496950,
+      "to_currency": 1133239318
+    },
+    {
+      "currency": "cad",
+      "quantity": 913430622,
+      "rate": 244.42,
+      "usd_cents": 3737135,
+      "to_currency": 223260712629
+    },
+    {
+      "currency": "jpy",
+      "quantity": 913430622,
+      "rate": 244.42,
+      "usd_cents": 373713535,
+      "to_currency": 2232607126
+    },
+    {
+      "currency": "cad",
+      "quantity": 1140103610,
+      "rate": 0.5367668217710471,
+      "usd_cents": 2124020271,
+      "to_currency": 611969791
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1140103610,
+      "rate": 0.5367668217710471,
+      "usd_cents": 212402027055,
+      "to_currency": 6119698
+    },
+    {
+      "currency": "cad",
+      "quantity": 919284842,
+      "rate": 1500.0,
+      "usd_cents": 612857,
+      "to_currency": 1378927263000
+    },
+    {
+      "currency": "jpy",
+      "quantity": 919284842,
+      "rate": 1500.0,
+      "usd_cents": 61285656,
+      "to_currency": 13789272630
+    },
+    {
+      "currency": "cad",
+      "quantity": 1489114042,
+      "rate": 0.65326409662,
+      "usd_cents": 2279497756,
+      "to_currency": 972784739
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1489114042,
+      "rate": 0.65326409662,
+      "usd_cents": 227949775551,
+      "to_currency": 9727847
+    },
+    {
+      "currency": "cad",
+      "quantity": 1425014922,
+      "rate": 9.0655360985,
+      "usd_cents": 157190364,
+      "to_currency": 12918524216
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1425014922,
+      "rate": 9.0655360985,
+      "usd_cents": 15719036431,
+      "to_currency": 129185242
+    },
+    {
+      "currency": "cad",
+      "quantity": 1686061805,
+      "rate": 0.0706,
+      "usd_cents": 23881895255,
+      "to_currency": 119035963
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1686061805,
+      "rate": 0.0706,
+      "usd_cents": 2388189525496,
+      "to_currency": 1190360
+    },
+    {
+      "currency": "cad",
+      "quantity": 828238240,
+      "rate": 0.072532724,
+      "usd_cents": 11418821662,
+      "to_currency": 60074376
+    },
+    {
+      "currency": "jpy",
+      "quantity": 828238240,
+      "rate": 0.072532724,
+      "usd_cents": 1141882166179,
+      "to_currency": 600744
+    },
+    {
+      "currency": "cad",
+      "quantity": 173121587,
+      "rate": 7.269297840692,
+      "usd_cents": 23815448,
+      "to_currency": 1258472379
+    },
+    {
+      "currency": "jpy",
+      "quantity": 173121587,
+      "rate": 7.269297840692,
+      "usd_cents": 2381544831,
+      "to_currency": 12584724
+    },
+    {
+      "currency": "cad",
+      "quantity": 1718536315,
+      "rate": 1908.45747,
+      "usd_cents": 900484,
+      "to_currency": 3279753467828
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1718536315,
+      "rate": 1908.45747,
+      "usd_cents": 90048447,
+      "to_currency": 32797534678
+    },
+    {
+      "currency": "cad",
+      "quantity": 342904502,
+      "rate": 0.366960888459168,
+      "usd_cents": 934444277,
+      "to_currency": 125832541
+    },
+    {
+      "currency": "jpy",
+      "quantity": 342904502,
+      "rate": 0.366960888459168,
+      "usd_cents": 93444427672,
+      "to_currency": 1258325
+    },
+    {
+      "currency": "cad",
+      "quantity": 197810000,
+      "rate": 0.000998545,
+      "usd_cents": 198098232929,
+      "to_currency": 197522
+    },
+    {
+      "currency": "jpy",
+      "quantity": 197810000,
+      "rate": 0.000998545,
+      "usd_cents": 19809823292891,
+      "to_currency": 1975
+    },
+    {
+      "currency": "cad",
+      "quantity": 1008860847,
+      "rate": 2.0989,
+      "usd_cents": 480661702,
+      "to_currency": 2117498032
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1008860847,
+      "rate": 2.0989,
+      "usd_cents": 48066170232,
+      "to_currency": 21174980
+    },
+    {
+      "currency": "cad",
+      "quantity": 556146810,
+      "rate": 0.918,
+      "usd_cents": 605824412,
+      "to_currency": 510542772
+    },
+    {
+      "currency": "jpy",
+      "quantity": 556146810,
+      "rate": 0.918,
+      "usd_cents": 60582441176,
+      "to_currency": 5105428
+    },
+    {
+      "currency": "cad",
+      "quantity": 763897624,
+      "rate": 0.0595696,
+      "usd_cents": 12823615133,
+      "to_currency": 45505076
+    },
+    {
+      "currency": "jpy",
+      "quantity": 763897624,
+      "rate": 0.0595696,
+      "usd_cents": 1282361513255,
+      "to_currency": 455051
+    },
+    {
+      "currency": "cad",
+      "quantity": 1152282996,
+      "rate": 0.160212808442,
+      "usd_cents": 7192202716,
+      "to_currency": 184610495
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1152282996,
+      "rate": 0.160212808442,
+      "usd_cents": 719220271591,
+      "to_currency": 1846105
+    },
+    {
+      "currency": "cad",
+      "quantity": 455910301,
+      "rate": 0.00012558522,
+      "usd_cents": 3630286278911,
+      "to_currency": 57256
+    },
+    {
+      "currency": "jpy",
+      "quantity": 455910301,
+      "rate": 0.00012558522,
+      "usd_cents": 363028627891085,
+      "to_currency": 573
+    },
+    {
+      "currency": "cad",
+      "quantity": 1949155730,
+      "rate": 0.00004,
+      "usd_cents": 48728893250000,
+      "to_currency": 77966
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1949155730,
+      "rate": 0.00004,
+      "usd_cents": 4872889325000000,
+      "to_currency": 780
+    },
+    {
+      "currency": "cad",
+      "quantity": 1269935644,
+      "rate": 0.0549685611284573,
+      "usd_cents": 23102944991,
+      "to_currency": 69806535
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1269935644,
+      "rate": 0.0549685611284573,
+      "usd_cents": 2310294499127,
+      "to_currency": 698065
+    },
+    {
+      "currency": "cad",
+      "quantity": 465423313,
+      "rate": 0.52678897377,
+      "usd_cents": 883509975,
+      "to_currency": 245179869
+    },
+    {
+      "currency": "jpy",
+      "quantity": 465423313,
+      "rate": 0.52678897377,
+      "usd_cents": 88350997491,
+      "to_currency": 2451799
+    },
+    {
+      "currency": "cad",
+      "quantity": 696818837,
+      "rate": 0.0005226132,
+      "usd_cents": 1333335700285,
+      "to_currency": 364167
+    },
+    {
+      "currency": "jpy",
+      "quantity": 696818837,
+      "rate": 0.0005226132,
+      "usd_cents": 133333570028465,
+      "to_currency": 3642
+    },
+    {
+      "currency": "cad",
+      "quantity": 1350600447,
+      "rate": 5.7046380235248,
+      "usd_cents": 236754802,
+      "to_currency": 7704686665
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1350600447,
+      "rate": 5.7046380235248,
+      "usd_cents": 23675480222,
+      "to_currency": 77046867
+    },
+    {
+      "currency": "cad",
+      "quantity": 222095578,
+      "rate": 6586.6107002,
+      "usd_cents": 33719,
+      "to_currency": 1462857110522
+    },
+    {
+      "currency": "jpy",
+      "quantity": 222095578,
+      "rate": 6586.6107002,
+      "usd_cents": 3371925,
+      "to_currency": 14628571105
+    },
+    {
+      "currency": "cad",
+      "quantity": 1930732075,
+      "rate": 7626.77795308437,
+      "usd_cents": 253152,
+      "to_currency": 14725264822923
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1930732075,
+      "rate": 7626.77795308437,
+      "usd_cents": 25315174,
+      "to_currency": 147252648229
+    },
+    {
+      "currency": "cad",
+      "quantity": 1732182027,
+      "rate": 42.2663562573178,
+      "usd_cents": 40982526,
+      "to_currency": 73213022656
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1732182027,
+      "rate": 42.2663562573178,
+      "usd_cents": 4098252559,
+      "to_currency": 732130227
+    },
+    {
+      "currency": "cad",
+      "quantity": 910594922,
+      "rate": 0.83350542184,
+      "usd_cents": 1092488301,
+      "to_currency": 758985805
+    },
+    {
+      "currency": "jpy",
+      "quantity": 910594922,
+      "rate": 0.83350542184,
+      "usd_cents": 109248830078,
+      "to_currency": 7589858
+    },
+    {
+      "currency": "cad",
+      "quantity": 353330082,
+      "rate": 706.18,
+      "usd_cents": 500340,
+      "to_currency": 249514637307
+    },
+    {
+      "currency": "jpy",
+      "quantity": 353330082,
+      "rate": 706.18,
+      "usd_cents": 50033997,
+      "to_currency": 2495146373
+    },
+    {
+      "currency": "cad",
+      "quantity": 389761732,
+      "rate": 0.32570469804561,
+      "usd_cents": 1196672122,
+      "to_currency": 126947227
+    },
+    {
+      "currency": "jpy",
+      "quantity": 389761732,
+      "rate": 0.32570469804561,
+      "usd_cents": 119667212152,
+      "to_currency": 1269472
+    },
+    {
+      "currency": "cad",
+      "quantity": 1304863967,
+      "rate": 0.7476873518385069,
+      "usd_cents": 1745200001,
+      "to_currency": 975630284
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1304863967,
+      "rate": 0.7476873518385069,
+      "usd_cents": 174520000076,
+      "to_currency": 9756303
+    },
+    {
+      "currency": "cad",
+      "quantity": 1327015134,
+      "rate": 5.1500978285984,
+      "usd_cents": 257667947,
+      "to_currency": 6834257760
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1327015134,
+      "rate": 5.1500978285984,
+      "usd_cents": 25766794693,
+      "to_currency": 68342578
+    },
+    {
+      "currency": "cad",
+      "quantity": 1501198146,
+      "rate": 0.9480742054561,
+      "usd_cents": 1583418405,
+      "to_currency": 1423247240
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1501198146,
+      "rate": 0.9480742054561,
+      "usd_cents": 158341840476,
+      "to_currency": 14232472
+    },
+    {
+      "currency": "cad",
+      "quantity": 1804443014,
+      "rate": 0.00070905655826645,
+      "usd_cents": 2544850608831,
+      "to_currency": 1279452
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1804443014,
+      "rate": 0.00070905655826645,
+      "usd_cents": 254485060883102,
+      "to_currency": 12795
+    },
+    {
+      "currency": "cad",
+      "quantity": 1267624480,
+      "rate": 0.3597,
+      "usd_cents": 3524115874,
+      "to_currency": 455964525
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1267624480,
+      "rate": 0.3597,
+      "usd_cents": 352411587434,
+      "to_currency": 4559645
+    },
+    {
+      "currency": "cad",
+      "quantity": 1684677735,
+      "rate": 4.71,
+      "usd_cents": 357681048,
+      "to_currency": 7934832132
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1684677735,
+      "rate": 4.71,
+      "usd_cents": 35768104777,
+      "to_currency": 79348321
+    },
+    {
+      "currency": "cad",
+      "quantity": 1700843298,
+      "rate": 8.26153887,
+      "usd_cents": 205874877,
+      "to_currency": 14051583018
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1700843298,
+      "rate": 8.26153887,
+      "usd_cents": 20587487692,
+      "to_currency": 140515830
+    },
+    {
+      "currency": "cad",
+      "quantity": 1716707327,
+      "rate": 0.0021662376600127,
+      "usd_cents": 792483372757,
+      "to_currency": 3718796
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1716707327,
+      "rate": 0.0021662376600127,
+      "usd_cents": 79248337275696,
+      "to_currency": 37188
+    },
+    {
+      "currency": "cad",
+      "quantity": 1128358679,
+      "rate": 4.350264,
+      "usd_cents": 259377058,
+      "to_currency": 4908658140
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1128358679,
+      "rate": 4.350264,
+      "usd_cents": 25937705827,
+      "to_currency": 49086581
+    },
+    {
+      "currency": "cad",
+      "quantity": 1115197966,
+      "rate": 72.2535387185856,
+      "usd_cents": 15434510,
+      "to_currency": 80576999415
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1115197966,
+      "rate": 72.2535387185856,
+      "usd_cents": 1543451000,
+      "to_currency": 805769994
+    },
+    {
+      "currency": "cad",
+      "quantity": 1703399079,
+      "rate": 0.031867589592,
+      "usd_cents": 53452397900,
+      "to_currency": 54283223
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1703399079,
+      "rate": 0.031867589592,
+      "usd_cents": 5345239790046,
+      "to_currency": 542832
+    },
+    {
+      "currency": "cad",
+      "quantity": 674793861,
+      "rate": 3348.25590703,
+      "usd_cents": 201536,
+      "to_currency": 2259382531121
+    },
+    {
+      "currency": "jpy",
+      "quantity": 674793861,
+      "rate": 3348.25590703,
+      "usd_cents": 20153593,
+      "to_currency": 22593825311
+    },
+    {
+      "currency": "cad",
+      "quantity": 210332196,
+      "rate": 7.7824608192812,
+      "usd_cents": 27026438,
+      "to_currency": 1636902074
+    },
+    {
+      "currency": "jpy",
+      "quantity": 210332196,
+      "rate": 7.7824608192812,
+      "usd_cents": 2702643815,
+      "to_currency": 16369021
+    },
+    {
+      "currency": "cad",
+      "quantity": 1040018664,
+      "rate": 0.0056415707604,
+      "usd_cents": 184349130441,
+      "to_currency": 5867339
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1040018664,
+      "rate": 0.0056415707604,
+      "usd_cents": 18434913044080,
+      "to_currency": 58673
+    },
+    {
+      "currency": "cad",
+      "quantity": 932548409,
+      "rate": 31.951130342237,
+      "usd_cents": 29186711,
+      "to_currency": 29795975766
+    },
+    {
+      "currency": "jpy",
+      "quantity": 932548409,
+      "rate": 31.951130342237,
+      "usd_cents": 2918671105,
+      "to_currency": 297959758
+    },
+    {
+      "currency": "cad",
+      "quantity": 1732746457,
+      "rate": 0.062,
+      "usd_cents": 27947523500,
+      "to_currency": 107430280
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1732746457,
+      "rate": 0.062,
+      "usd_cents": 2794752350000,
+      "to_currency": 1074303
+    },
+    {
+      "currency": "cad",
+      "quantity": 1151921370,
+      "rate": 0.002102997186,
+      "usd_cents": 547752216536,
+      "to_currency": 2422487
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1151921370,
+      "rate": 0.002102997186,
+      "usd_cents": 54775221653578,
+      "to_currency": 24225
+    },
+    {
+      "currency": "cad",
+      "quantity": 1725686251,
+      "rate": 745.764231,
+      "usd_cents": 2313984,
+      "to_currency": 1286955079924
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1725686251,
+      "rate": 745.764231,
+      "usd_cents": 231398367,
+      "to_currency": 12869550799
+    },
+    {
+      "currency": "cad",
+      "quantity": 268232687,
+      "rate": 2080.0,
+      "usd_cents": 128958,
+      "to_currency": 557923988960
+    },
+    {
+      "currency": "jpy",
+      "quantity": 268232687,
+      "rate": 2080.0,
+      "usd_cents": 12895802,
+      "to_currency": 5579239890
+    },
+    {
+      "currency": "cad",
+      "quantity": 404696297,
+      "rate": 670.0,
+      "usd_cents": 604024,
+      "to_currency": 271146518990
+    },
+    {
+      "currency": "jpy",
+      "quantity": 404696297,
+      "rate": 670.0,
+      "usd_cents": 60402432,
+      "to_currency": 2711465190
+    },
+    {
+      "currency": "cad",
+      "quantity": 536132044,
+      "rate": 1.275347007432,
+      "usd_cents": 420381309,
+      "to_currency": 683754398
+    },
+    {
+      "currency": "jpy",
+      "quantity": 536132044,
+      "rate": 1.275347007432,
+      "usd_cents": 42038130868,
+      "to_currency": 6837544
+    },
+    {
+      "currency": "cad",
+      "quantity": 1971100031,
+      "rate": 47.90921768984,
+      "usd_cents": 41142397,
+      "to_currency": 94433860474
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1971100031,
+      "rate": 47.90921768984,
+      "usd_cents": 4114239652,
+      "to_currency": 944338605
+    },
+    {
+      "currency": "cad",
+      "quantity": 262373075,
+      "rate": 2698.94054504,
+      "usd_cents": 97213,
+      "to_currency": 708129330044
+    },
+    {
+      "currency": "jpy",
+      "quantity": 262373075,
+      "rate": 2698.94054504,
+      "usd_cents": 9721336,
+      "to_currency": 7081293300
+    },
+    {
+      "currency": "cad",
+      "quantity": 291108906,
+      "rate": 0.004384,
+      "usd_cents": 66402578923,
+      "to_currency": 1276221
+    },
+    {
+      "currency": "jpy",
+      "quantity": 291108906,
+      "rate": 0.004384,
+      "usd_cents": 6640257892336,
+      "to_currency": 12762
+    },
+    {
+      "currency": "cad",
+      "quantity": 1677074062,
+      "rate": 1.8388574119,
+      "usd_cents": 912019633,
+      "to_currency": 3083900069
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1677074062,
+      "rate": 1.8388574119,
+      "usd_cents": 91201963303,
+      "to_currency": 30839001
+    },
+    {
+      "currency": "cad",
+      "quantity": 1783557393,
+      "rate": 0.0003212,
+      "usd_cents": 5552793876090,
+      "to_currency": 572879
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1783557393,
+      "rate": 0.0003212,
+      "usd_cents": 555279387608966,
+      "to_currency": 5729
+    },
+    {
+      "currency": "cad",
+      "quantity": 902294997,
+      "rate": 5224.96516,
+      "usd_cents": 172689,
+      "to_currency": 4714459923367
+    },
+    {
+      "currency": "jpy",
+      "quantity": 902294997,
+      "rate": 5224.96516,
+      "usd_cents": 17268919,
+      "to_currency": 47144599234
+    },
+    {
+      "currency": "cad",
+      "quantity": 948389349,
+      "rate": 5.7331647,
+      "usd_cents": 165421612,
+      "to_currency": 5437272338
+    },
+    {
+      "currency": "jpy",
+      "quantity": 948389349,
+      "rate": 5.7331647,
+      "usd_cents": 16542161243,
+      "to_currency": 54372723
+    },
+    {
+      "currency": "cad",
+      "quantity": 784607377,
+      "rate": 0.0026637091920947,
+      "usd_cents": 294554442853,
+      "to_currency": 2089966
+    },
+    {
+      "currency": "jpy",
+      "quantity": 784607377,
+      "rate": 0.0026637091920947,
+      "usd_cents": 29455444285305,
+      "to_currency": 20900
+    },
+    {
+      "currency": "cad",
+      "quantity": 1796575931,
+      "rate": 35.807,
+      "usd_cents": 50173875,
+      "to_currency": 64329994361
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1796575931,
+      "rate": 35.807,
+      "usd_cents": 5017387469,
+      "to_currency": 643299944
+    },
+    {
+      "currency": "cad",
+      "quantity": 504248899,
+      "rate": 8.945501159973736,
+      "usd_cents": 56368994,
+      "to_currency": 4510759111
+    },
+    {
+      "currency": "jpy",
+      "quantity": 504248899,
+      "rate": 8.945501159973736,
+      "usd_cents": 5636899375,
+      "to_currency": 45107591
+    },
+    {
+      "currency": "cad",
+      "quantity": 1527811514,
+      "rate": 280.93005781356,
+      "usd_cents": 5438405,
+      "to_currency": 429208176956
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1527811514,
+      "rate": 280.93005781356,
+      "usd_cents": 543840530,
+      "to_currency": 4292081770
+    },
+    {
+      "currency": "cad",
+      "quantity": 154024515,
+      "rate": 5692.191352,
+      "usd_cents": 27059,
+      "to_currency": 876737012279
+    },
+    {
+      "currency": "jpy",
+      "quantity": 154024515,
+      "rate": 5692.191352,
+      "usd_cents": 2705891,
+      "to_currency": 8767370123
+    },
+    {
+      "currency": "cad",
+      "quantity": 1637302740,
+      "rate": 1518.71556,
+      "usd_cents": 1078084,
+      "to_currency": 2486597147669
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1637302740,
+      "rate": 1518.71556,
+      "usd_cents": 107808386,
+      "to_currency": 24865971477
+    },
+    {
+      "currency": "cad",
+      "quantity": 1449058837,
+      "rate": 0.03760729190718348,
+      "usd_cents": 38531326334,
+      "to_currency": 54495179
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1449058837,
+      "rate": 0.03760729190718348,
+      "usd_cents": 3853132633364,
+      "to_currency": 544952
+    },
+    {
+      "currency": "cad",
+      "quantity": 106908218,
+      "rate": 13.8948206699,
+      "usd_cents": 7694106,
+      "to_currency": 1485470517
+    },
+    {
+      "currency": "jpy",
+      "quantity": 106908218,
+      "rate": 13.8948206699,
+      "usd_cents": 769410563,
+      "to_currency": 14854705
+    },
+    {
+      "currency": "cad",
+      "quantity": 307836446,
+      "rate": 0.0021213,
+      "usd_cents": 145116883986,
+      "to_currency": 653013
+    },
+    {
+      "currency": "jpy",
+      "quantity": 307836446,
+      "rate": 0.0021213,
+      "usd_cents": 14511688398623,
+      "to_currency": 6530
+    },
+    {
+      "currency": "cad",
+      "quantity": 284388708,
+      "rate": 2815.6,
+      "usd_cents": 101005,
+      "to_currency": 800724846245
+    },
+    {
+      "currency": "jpy",
+      "quantity": 284388708,
+      "rate": 2815.6,
+      "usd_cents": 10100466,
+      "to_currency": 8007248462
+    },
+    {
+      "currency": "cad",
+      "quantity": 42132657,
+      "rate": 3566.66344868955,
+      "usd_cents": 11813,
+      "to_currency": 150273007718
+    },
+    {
+      "currency": "jpy",
+      "quantity": 42132657,
+      "rate": 3566.66344868955,
+      "usd_cents": 1181291,
+      "to_currency": 1502730077
+    },
+    {
+      "currency": "cad",
+      "quantity": 1151805041,
+      "rate": 0.98475395392,
+      "usd_cents": 1169637386,
+      "to_currency": 1134244568
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1151805041,
+      "rate": 0.98475395392,
+      "usd_cents": 116963738649,
+      "to_currency": 11342446
+    },
+    {
+      "currency": "cad",
+      "quantity": 798982059,
+      "rate": 0.00218417836,
+      "usd_cents": 365804402073,
+      "to_currency": 1745119
+    },
+    {
+      "currency": "jpy",
+      "quantity": 798982059,
+      "rate": 0.00218417836,
+      "usd_cents": 36580440207273,
+      "to_currency": 17451
+    },
+    {
+      "currency": "cad",
+      "quantity": 1930629849,
+      "rate": 49.264692604,
+      "usd_cents": 39188915,
+      "to_currency": 95111886043
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1930629849,
+      "rate": 49.264692604,
+      "usd_cents": 3918891496,
+      "to_currency": 951118860
+    },
+    {
+      "currency": "cad",
+      "quantity": 1803360277,
+      "rate": 0.06539,
+      "usd_cents": 27578533063,
+      "to_currency": 117921729
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1803360277,
+      "rate": 0.06539,
+      "usd_cents": 2757853306316,
+      "to_currency": 1179217
+    },
+    {
+      "currency": "cad",
+      "quantity": 350296116,
+      "rate": 0.3342470886692,
+      "usd_cents": 1048015459,
+      "to_currency": 117085457
+    },
+    {
+      "currency": "jpy",
+      "quantity": 350296116,
+      "rate": 0.3342470886692,
+      "usd_cents": 104801545885,
+      "to_currency": 1170855
+    },
+    {
+      "currency": "cad",
+      "quantity": 48003428,
+      "rate": 7340.0,
+      "usd_cents": 6540,
+      "to_currency": 352345161520
+    },
+    {
+      "currency": "jpy",
+      "quantity": 48003428,
+      "rate": 7340.0,
+      "usd_cents": 653998,
+      "to_currency": 3523451615
+    },
+    {
+      "currency": "cad",
+      "quantity": 1230222221,
+      "rate": 0.920151868891179,
+      "usd_cents": 1336977365,
+      "to_currency": 1131991276
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1230222221,
+      "rate": 0.920151868891179,
+      "usd_cents": 133697736492,
+      "to_currency": 11319913
+    },
+    {
+      "currency": "cad",
+      "quantity": 1591155813,
+      "rate": 0.0005928751981132,
+      "usd_cents": 2683795540889,
+      "to_currency": 943357
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1591155813,
+      "rate": 0.0005928751981132,
+      "usd_cents": 268379554088919,
+      "to_currency": 9434
+    },
+    {
+      "currency": "cad",
+      "quantity": 721716981,
+      "rate": 500.0,
+      "usd_cents": 1443434,
+      "to_currency": 360858490500
+    },
+    {
+      "currency": "jpy",
+      "quantity": 721716981,
+      "rate": 500.0,
+      "usd_cents": 144343396,
+      "to_currency": 3608584905
+    },
+    {
+      "currency": "cad",
+      "quantity": 1231090960,
+      "rate": 7.69165,
+      "usd_cents": 160055510,
+      "to_currency": 9469120782
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1231090960,
+      "rate": 7.69165,
+      "usd_cents": 16005550955,
+      "to_currency": 94691208
+    },
+    {
+      "currency": "cad",
+      "quantity": 583053348,
+      "rate": 116.1,
+      "usd_cents": 5021993,
+      "to_currency": 67692493703
+    },
+    {
+      "currency": "jpy",
+      "quantity": 583053348,
+      "rate": 116.1,
+      "usd_cents": 502199266,
+      "to_currency": 676924937
+    },
+    {
+      "currency": "cad",
+      "quantity": 1560985347,
+      "rate": 0.4748887133113,
+      "usd_cents": 3287055058,
+      "to_currency": 741294323
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1560985347,
+      "rate": 0.4748887133113,
+      "usd_cents": 328705505784,
+      "to_currency": 7412943
+    },
+    {
+      "currency": "cad",
+      "quantity": 503118452,
+      "rate": 32.6259828,
+      "usd_cents": 15420791,
+      "to_currency": 16414733961
+    },
+    {
+      "currency": "jpy",
+      "quantity": 503118452,
+      "rate": 32.6259828,
+      "usd_cents": 1542079070,
+      "to_currency": 164147340
+    },
+    {
+      "currency": "cad",
+      "quantity": 18286100,
+      "rate": 0.000581,
+      "usd_cents": 31473493976,
+      "to_currency": 10624
+    },
+    {
+      "currency": "jpy",
+      "quantity": 18286100,
+      "rate": 0.000581,
+      "usd_cents": 3147349397590,
+      "to_currency": 106
+    },
+    {
+      "currency": "cad",
+      "quantity": 1317674409,
+      "rate": 0.0184,
+      "usd_cents": 71612739620,
+      "to_currency": 24245209
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1317674409,
+      "rate": 0.0184,
+      "usd_cents": 7161273961957,
+      "to_currency": 242452
+    },
+    {
+      "currency": "cad",
+      "quantity": 769055479,
+      "rate": 83.1196416170016,
+      "usd_cents": 9252392,
+      "to_currency": 63923615798
+    },
+    {
+      "currency": "jpy",
+      "quantity": 769055479,
+      "rate": 83.1196416170016,
+      "usd_cents": 925239166,
+      "to_currency": 639236158
+    },
+    {
+      "currency": "cad",
+      "quantity": 427033527,
+      "rate": 0.0006847969,
+      "usd_cents": 623591501363,
+      "to_currency": 292431
+    },
+    {
+      "currency": "jpy",
+      "quantity": 427033527,
+      "rate": 0.0006847969,
+      "usd_cents": 62359150136340,
+      "to_currency": 2924
+    },
+    {
+      "currency": "cad",
+      "quantity": 228761611,
+      "rate": 7.4402653256,
+      "usd_cents": 30746432,
+      "to_currency": 1702047082
+    },
+    {
+      "currency": "jpy",
+      "quantity": 228761611,
+      "rate": 7.4402653256,
+      "usd_cents": 3074643188,
+      "to_currency": 17020471
+    },
+    {
+      "currency": "cad",
+      "quantity": 1004862372,
+      "rate": 7.2187,
+      "usd_cents": 139202678,
+      "to_currency": 7253800005
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1004862372,
+      "rate": 7.2187,
+      "usd_cents": 13920267804,
+      "to_currency": 72538000
+    },
+    {
+      "currency": "cad",
+      "quantity": 651517689,
+      "rate": 66.05495863948,
+      "usd_cents": 9863267,
+      "to_currency": 43035974000
+    },
+    {
+      "currency": "jpy",
+      "quantity": 651517689,
+      "rate": 66.05495863948,
+      "usd_cents": 986326693,
+      "to_currency": 430359740
+    },
+    {
+      "currency": "cad",
+      "quantity": 1820768425,
+      "rate": 0.007,
+      "usd_cents": 260109775000,
+      "to_currency": 12745379
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1820768425,
+      "rate": 0.007,
+      "usd_cents": 26010977500000,
+      "to_currency": 127454
+    },
+    {
+      "currency": "cad",
+      "quantity": 1602621512,
+      "rate": 944.6344048957,
+      "usd_cents": 1696552,
+      "to_currency": 1513891418261
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1602621512,
+      "rate": 944.6344048957,
+      "usd_cents": 169655213,
+      "to_currency": 15138914183
+    },
+    {
+      "currency": "cad",
+      "quantity": 380458257,
+      "rate": 78.27748067,
+      "usd_cents": 4860379,
+      "to_currency": 29781313858
+    },
+    {
+      "currency": "jpy",
+      "quantity": 380458257,
+      "rate": 78.27748067,
+      "usd_cents": 486037943,
+      "to_currency": 297813139
+    },
+    {
+      "currency": "cad",
+      "quantity": 1234628541,
+      "rate": 160.209553251,
+      "usd_cents": 7706335,
+      "to_currency": 197799286985
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1234628541,
+      "rate": 160.209553251,
+      "usd_cents": 770633533,
+      "to_currency": 1977992870
+    },
+    {
+      "currency": "cad",
+      "quantity": 10922110,
+      "rate": 0.000988020744,
+      "usd_cents": 11054535106,
+      "to_currency": 10791
+    },
+    {
+      "currency": "jpy",
+      "quantity": 10922110,
+      "rate": 0.000988020744,
+      "usd_cents": 1105453510600,
+      "to_currency": 108
+    },
+    {
+      "currency": "cad",
+      "quantity": 801562568,
+      "rate": 0.77,
+      "usd_cents": 1040990348,
+      "to_currency": 617203177
+    },
+    {
+      "currency": "jpy",
+      "quantity": 801562568,
+      "rate": 0.77,
+      "usd_cents": 104099034805,
+      "to_currency": 6172032
+    },
+    {
+      "currency": "cad",
+      "quantity": 1069214914,
+      "rate": 0.8694753576410583,
+      "usd_cents": 1229724229,
+      "to_currency": 929656020
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1069214914,
+      "rate": 0.8694753576410583,
+      "usd_cents": 122972422922,
+      "to_currency": 9296560
+    },
+    {
+      "currency": "cad",
+      "quantity": 1756568662,
+      "rate": 8.364205,
+      "usd_cents": 210010236,
+      "to_currency": 14692300386
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1756568662,
+      "rate": 8.364205,
+      "usd_cents": 21001023552,
+      "to_currency": 146923004
+    },
+    {
+      "currency": "cad",
+      "quantity": 1172766847,
+      "rate": 7671.209839034,
+      "usd_cents": 152879,
+      "to_currency": 8996540575599
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1172766847,
+      "rate": 7671.209839034,
+      "usd_cents": 15287899,
+      "to_currency": 89965405756
+    },
+    {
+      "currency": "cad",
+      "quantity": 175299150,
+      "rate": 0.00149108249380566,
+      "usd_cents": 117565024556,
+      "to_currency": 261385
+    },
+    {
+      "currency": "jpy",
+      "quantity": 175299150,
+      "rate": 0.00149108249380566,
+      "usd_cents": 11756502455648,
+      "to_currency": 2614
+    },
+    {
+      "currency": "cad",
+      "quantity": 171451455,
+      "rate": 78.85985947618023,
+      "usd_cents": 2174128,
+      "to_currency": 13520637648
+    },
+    {
+      "currency": "jpy",
+      "quantity": 171451455,
+      "rate": 78.85985947618023,
+      "usd_cents": 217412834,
+      "to_currency": 135206376
+    },
+    {
+      "currency": "cad",
+      "quantity": 948563089,
+      "rate": 4.8917,
+      "usd_cents": 193912768,
+      "to_currency": 4640086062
+    },
+    {
+      "currency": "jpy",
+      "quantity": 948563089,
+      "rate": 4.8917,
+      "usd_cents": 19391276836,
+      "to_currency": 46400861
+    },
+    {
+      "currency": "cad",
+      "quantity": 833693501,
+      "rate": 0.0050263164,
+      "usd_cents": 165865702565,
+      "to_currency": 4190407
+    },
+    {
+      "currency": "jpy",
+      "quantity": 833693501,
+      "rate": 0.0050263164,
+      "usd_cents": 16586570256500,
+      "to_currency": 41904
+    },
+    {
+      "currency": "cad",
+      "quantity": 308964358,
+      "rate": 2.4740460534731,
+      "usd_cents": 124882218,
+      "to_currency": 764392051
+    },
+    {
+      "currency": "jpy",
+      "quantity": 308964358,
+      "rate": 2.4740460534731,
+      "usd_cents": 12488221776,
+      "to_currency": 7643921
+    },
+    {
+      "currency": "cad",
+      "quantity": 199869214,
+      "rate": 280.442050262393,
+      "usd_cents": 712693,
+      "to_currency": 56051732158
+    },
+    {
+      "currency": "jpy",
+      "quantity": 199869214,
+      "rate": 280.442050262393,
+      "usd_cents": 71269346,
+      "to_currency": 560517322
+    },
+    {
+      "currency": "cad",
+      "quantity": 1245690335,
+      "rate": 0.0000338278370041767,
+      "usd_cents": 36824415786507,
+      "to_currency": 42139
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1245690335,
+      "rate": 0.0000338278370041767,
+      "usd_cents": 3682441578650729,
+      "to_currency": 421
+    },
+    {
+      "currency": "cad",
+      "quantity": 1662935465,
+      "rate": 87.0,
+      "usd_cents": 19114201,
+      "to_currency": 144675385455
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1662935465,
+      "rate": 87.0,
+      "usd_cents": 1911420075,
+      "to_currency": 1446753855
+    },
+    {
+      "currency": "cad",
+      "quantity": 442642952,
+      "rate": 3404.36,
+      "usd_cents": 130022,
+      "to_currency": 1506915960071
+    },
+    {
+      "currency": "jpy",
+      "quantity": 442642952,
+      "rate": 3404.36,
+      "usd_cents": 13002237,
+      "to_currency": 15069159601
+    },
+    {
+      "currency": "cad",
+      "quantity": 631464907,
+      "rate": 3713.1,
+      "usd_cents": 170064,
+      "to_currency": 2344692346182
+    },
+    {
+      "currency": "jpy",
+      "quantity": 631464907,
+      "rate": 3713.1,
+      "usd_cents": 17006407,
+      "to_currency": 23446923462
+    },
+    {
+      "currency": "cad",
+      "quantity": 923162354,
+      "rate": 0.00003606894,
+      "usd_cents": 25594385474039,
+      "to_currency": 33297
+    },
+    {
+      "currency": "jpy",
+      "quantity": 923162354,
+      "rate": 0.00003606894,
+      "usd_cents": 2559438547403944,
+      "to_currency": 333
+    },
+    {
+      "currency": "cad",
+      "quantity": 1560695737,
+      "rate": 815.0886817712,
+      "usd_cents": 1914756,
+      "to_currency": 1272105430917
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1560695737,
+      "rate": 815.0886817712,
+      "usd_cents": 191475575,
+      "to_currency": 12721054309
+    },
+    {
+      "currency": "cad",
+      "quantity": 923778255,
+      "rate": 0.0000469941581238,
+      "usd_cents": 19657299798124,
+      "to_currency": 43412
+    },
+    {
+      "currency": "jpy",
+      "quantity": 923778255,
+      "rate": 0.0000469941581238,
+      "usd_cents": 1965729979812440,
+      "to_currency": 434
+    },
+    {
+      "currency": "cad",
+      "quantity": 1382309991,
+      "rate": 18.56,
+      "usd_cents": 74477909,
+      "to_currency": 25655673433
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1382309991,
+      "rate": 18.56,
+      "usd_cents": 7447790900,
+      "to_currency": 256556734
+    },
+    {
+      "currency": "cad",
+      "quantity": 266080204,
+      "rate": 847.9,
+      "usd_cents": 313811,
+      "to_currency": 225609404972
+    },
+    {
+      "currency": "jpy",
+      "quantity": 266080204,
+      "rate": 847.9,
+      "usd_cents": 31381083,
+      "to_currency": 2256094050
+    },
+    {
+      "currency": "cad",
+      "quantity": 1791664646,
+      "rate": 0.01468840601,
+      "usd_cents": 121978153707,
+      "to_currency": 26316698
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1791664646,
+      "rate": 0.01468840601,
+      "usd_cents": 12197815370710,
+      "to_currency": 263167
+    },
+    {
+      "currency": "cad",
+      "quantity": 1443791398,
+      "rate": 33.766365633,
+      "usd_cents": 42758271,
+      "to_currency": 48751588243
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1443791398,
+      "rate": 33.766365633,
+      "usd_cents": 4275827057,
+      "to_currency": 487515882
+    },
+    {
+      "currency": "cad",
+      "quantity": 1972113482,
+      "rate": 0.1121075,
+      "usd_cents": 17591271610,
+      "to_currency": 221088712
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1972113482,
+      "rate": 0.1121075,
+      "usd_cents": 1759127160984,
+      "to_currency": 2210887
+    },
+    {
+      "currency": "cad",
+      "quantity": 387308655,
+      "rate": 0.097,
+      "usd_cents": 3992872732,
+      "to_currency": 37568940
+    },
+    {
+      "currency": "jpy",
+      "quantity": 387308655,
+      "rate": 0.097,
+      "usd_cents": 399287273196,
+      "to_currency": 375689
+    },
+    {
+      "currency": "cad",
+      "quantity": 1956293231,
+      "rate": 5020.0,
+      "usd_cents": 389700,
+      "to_currency": 9820592019620
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1956293231,
+      "rate": 5020.0,
+      "usd_cents": 38969985,
+      "to_currency": 98205920196
+    },
+    {
+      "currency": "cad",
+      "quantity": 972034835,
+      "rate": 0.0004331069519892228,
+      "usd_cents": 2244329790911,
+      "to_currency": 420995
+    },
+    {
+      "currency": "jpy",
+      "quantity": 972034835,
+      "rate": 0.0004331069519892228,
+      "usd_cents": 224432979091083,
+      "to_currency": 4210
+    },
+    {
+      "currency": "cad",
+      "quantity": 886572152,
+      "rate": 147.68837666343936,
+      "usd_cents": 6002992,
+      "to_currency": 130936401924
+    },
+    {
+      "currency": "jpy",
+      "quantity": 886572152,
+      "rate": 147.68837666343936,
+      "usd_cents": 600299206,
+      "to_currency": 1309364019
+    },
+    {
+      "currency": "cad",
+      "quantity": 1772203263,
+      "rate": 0.6,
+      "usd_cents": 2953672105,
+      "to_currency": 1063321958
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1772203263,
+      "rate": 0.6,
+      "usd_cents": 295367210500,
+      "to_currency": 10633220
+    },
+    {
+      "currency": "cad",
+      "quantity": 1136547668,
+      "rate": 0.6899195471717,
+      "usd_cents": 1647362613,
+      "to_currency": 784126452
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1136547668,
+      "rate": 0.6899195471717,
+      "usd_cents": 164736261302,
+      "to_currency": 7841265
+    },
+    {
+      "currency": "cad",
+      "quantity": 917927450,
+      "rate": 5.09888,
+      "usd_cents": 180025309,
+      "to_currency": 4680401916
+    },
+    {
+      "currency": "jpy",
+      "quantity": 917927450,
+      "rate": 5.09888,
+      "usd_cents": 18002530948,
+      "to_currency": 46804019
+    },
+    {
+      "currency": "cad",
+      "quantity": 765724881,
+      "rate": 44.0,
+      "usd_cents": 17402838,
+      "to_currency": 33691894764
+    },
+    {
+      "currency": "jpy",
+      "quantity": 765724881,
+      "rate": 44.0,
+      "usd_cents": 1740283820,
+      "to_currency": 336918948
+    },
+    {
+      "currency": "cad",
+      "quantity": 486789100,
+      "rate": 0.2881,
+      "usd_cents": 1689653245,
+      "to_currency": 140243940
+    },
+    {
+      "currency": "jpy",
+      "quantity": 486789100,
+      "rate": 0.2881,
+      "usd_cents": 168965324540,
+      "to_currency": 1402439
+    },
+    {
+      "currency": "cad",
+      "quantity": 1263363065,
+      "rate": 46.832375440686,
+      "usd_cents": 26976276,
+      "to_currency": 59166293378
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1263363065,
+      "rate": 46.832375440686,
+      "usd_cents": 2697627556,
+      "to_currency": 591662934
+    },
+    {
+      "currency": "cad",
+      "quantity": 1373448484,
+      "rate": 0.00722299774283143,
+      "usd_cents": 190149371895,
+      "to_currency": 9920415
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1373448484,
+      "rate": 0.00722299774283143,
+      "usd_cents": 19014937189522,
+      "to_currency": 99204
+    },
+    {
+      "currency": "cad",
+      "quantity": 1184445343,
+      "rate": 0.000430733597,
+      "usd_cents": 2749832730136,
+      "to_currency": 510180
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1184445343,
+      "rate": 0.000430733597,
+      "usd_cents": 274983273013644,
+      "to_currency": 5102
+    },
+    {
+      "currency": "cad",
+      "quantity": 1683194827,
+      "rate": 0.71248525,
+      "usd_cents": 2362427611,
+      "to_currency": 1199251487
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1683194827,
+      "rate": 0.71248525,
+      "usd_cents": 236242761096,
+      "to_currency": 11992515
+    },
+    {
+      "currency": "cad",
+      "quantity": 1666173254,
+      "rate": 0.000795603,
+      "usd_cents": 2094226962442,
+      "to_currency": 1325612
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1666173254,
+      "rate": 0.000795603,
+      "usd_cents": 209422696244232,
+      "to_currency": 13256
+    },
+    {
+      "currency": "cad",
+      "quantity": 375279209,
+      "rate": 0.327175617,
+      "usd_cents": 1147026824,
+      "to_currency": 122782207
+    },
+    {
+      "currency": "jpy",
+      "quantity": 375279209,
+      "rate": 0.327175617,
+      "usd_cents": 114702682443,
+      "to_currency": 1227822
+    },
+    {
+      "currency": "cad",
+      "quantity": 1774324291,
+      "rate": 0.06712238,
+      "usd_cents": 26434168321,
+      "to_currency": 119096869
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1774324291,
+      "rate": 0.06712238,
+      "usd_cents": 2643416832061,
+      "to_currency": 1190969
+    },
+    {
+      "currency": "cad",
+      "quantity": 1271238435,
+      "rate": 3.614671,
+      "usd_cents": 351688559,
+      "to_currency": 4595108705
+    },
+    {
+      "currency": "jpy",
+      "quantity": 1271238435,
+      "rate": 3.614671,
+      "usd_cents": 35168855893,
+      "to_currency": 45951087
+    },
+    {
+      "currency": "cad",
+      "quantity": 436294999,
+      "rate": 10.018122836600373,
+      "usd_cents": 43550574,
+      "to_currency": 4370856893
+    },
+    {
+      "currency": "jpy",
+      "quantity": 436294999,
+      "rate": 10.018122836600373,
+      "usd_cents": 4355057391,
+      "to_currency": 43708569
+    }
+  ],
+  "formatting": [
+    {
+      "cents": 0,
+      "options": {},
+      "formatted": "$0"
+    },
+    {
+      "cents": 0,
+      "options": {
+        "with_currency": true
+      },
+      "formatted": "$0 USD"
+    },
+    {
+      "cents": 0,
+      "options": {
+        "no_cents_if_whole": false
+      },
+      "formatted": "$0.00"
+    },
+    {
+      "cents": 0,
+      "options": {
+        "with_currency": true,
+        "no_cents_if_whole": false
+      },
+      "formatted": "$0.00 USD"
+    },
+    {
+      "cents": 1,
+      "options": {},
+      "formatted": "$0.01"
+    },
+    {
+      "cents": 1,
+      "options": {
+        "with_currency": true
+      },
+      "formatted": "$0.01 USD"
+    },
+    {
+      "cents": 1,
+      "options": {
+        "no_cents_if_whole": false
+      },
+      "formatted": "$0.01"
+    },
+    {
+      "cents": 1,
+      "options": {
+        "with_currency": true,
+        "no_cents_if_whole": false
+      },
+      "formatted": "$0.01 USD"
+    },
+    {
+      "cents": 5,
+      "options": {},
+      "formatted": "$0.05"
+    },
+    {
+      "cents": 5,
+      "options": {
+        "with_currency": true
+      },
+      "formatted": "$0.05 USD"
+    },
+    {
+      "cents": 5,
+      "options": {
+        "no_cents_if_whole": false
+      },
+      "formatted": "$0.05"
+    },
+    {
+      "cents": 5,
+      "options": {
+        "with_currency": true,
+        "no_cents_if_whole": false
+      },
+      "formatted": "$0.05 USD"
+    },
+    {
+      "cents": 9,
+      "options": {},
+      "formatted": "$0.09"
+    },
+    {
+      "cents": 9,
+      "options": {
+        "with_currency": true
+      },
+      "formatted": "$0.09 USD"
+    },
+    {
+      "cents": 9,
+      "options": {
+        "no_cents_if_whole": false
+      },
+      "formatted": "$0.09"
+    },
+    {
+      "cents": 9,
+      "options": {
+        "with_currency": true,
+        "no_cents_if_whole": false
+      },
+      "formatted": "$0.09 USD"
+    },
+    {
+      "cents": 10,
+      "options": {},
+      "formatted": "$0.10"
+    },
+    {
+      "cents": 10,
+      "options": {
+        "with_currency": true
+      },
+      "formatted": "$0.10 USD"
+    },
+    {
+      "cents": 10,
+      "options": {
+        "no_cents_if_whole": false
+      },
+      "formatted": "$0.10"
+    },
+    {
+      "cents": 10,
+      "options": {
+        "with_currency": true,
+        "no_cents_if_whole": false
+      },
+      "formatted": "$0.10 USD"
+    },
+    {
+      "cents": 99,
+      "options": {},
+      "formatted": "$0.99"
+    },
+    {
+      "cents": 99,
+      "options": {
+        "with_currency": true
+      },
+      "formatted": "$0.99 USD"
+    },
+    {
+      "cents": 99,
+      "options": {
+        "no_cents_if_whole": false
+      },
+      "formatted": "$0.99"
+    },
+    {
+      "cents": 99,
+      "options": {
+        "with_currency": true,
+        "no_cents_if_whole": false
+      },
+      "formatted": "$0.99 USD"
+    },
+    {
+      "cents": 100,
+      "options": {},
+      "formatted": "$1"
+    },
+    {
+      "cents": 100,
+      "options": {
+        "with_currency": true
+      },
+      "formatted": "$1 USD"
+    },
+    {
+      "cents": 100,
+      "options": {
+        "no_cents_if_whole": false
+      },
+      "formatted": "$1.00"
+    },
+    {
+      "cents": 100,
+      "options": {
+        "with_currency": true,
+        "no_cents_if_whole": false
+      },
+      "formatted": "$1.00 USD"
+    },
+    {
+      "cents": 101,
+      "options": {},
+      "formatted": "$1.01"
+    },
+    {
+      "cents": 101,
+      "options": {
+        "with_currency": true
+      },
+      "formatted": "$1.01 USD"
+    },
+    {
+      "cents": 101,
+      "options": {
+        "no_cents_if_whole": false
+      },
+      "formatted": "$1.01"
+    },
+    {
+      "cents": 101,
+      "options": {
+        "with_currency": true,
+        "no_cents_if_whole": false
+      },
+      "formatted": "$1.01 USD"
+    },
+    {
+      "cents": 1234,
+      "options": {},
+      "formatted": "$12.34"
+    },
+    {
+      "cents": 1234,
+      "options": {
+        "with_currency": true
+      },
+      "formatted": "$12.34 USD"
+    },
+    {
+      "cents": 1234,
+      "options": {
+        "no_cents_if_whole": false
+      },
+      "formatted": "$12.34"
+    },
+    {
+      "cents": 1234,
+      "options": {
+        "with_currency": true,
+        "no_cents_if_whole": false
+      },
+      "formatted": "$12.34 USD"
+    },
+    {
+      "cents": 100000,
+      "options": {},
+      "formatted": "$1,000"
+    },
+    {
+      "cents": 100000,
+      "options": {
+        "with_currency": true
+      },
+      "formatted": "$1,000 USD"
+    },
+    {
+      "cents": 100000,
+      "options": {
+        "no_cents_if_whole": false
+      },
+      "formatted": "$1,000.00"
+    },
+    {
+      "cents": 100000,
+      "options": {
+        "with_currency": true,
+        "no_cents_if_whole": false
+      },
+      "formatted": "$1,000.00 USD"
+    },
+    {
+      "cents": 100005,
+      "options": {},
+      "formatted": "$1,000.05"
+    },
+    {
+      "cents": 100005,
+      "options": {
+        "with_currency": true
+      },
+      "formatted": "$1,000.05 USD"
+    },
+    {
+      "cents": 100005,
+      "options": {
+        "no_cents_if_whole": false
+      },
+      "formatted": "$1,000.05"
+    },
+    {
+      "cents": 100005,
+      "options": {
+        "with_currency": true,
+        "no_cents_if_whole": false
+      },
+      "formatted": "$1,000.05 USD"
+    },
+    {
+      "cents": 123456789,
+      "options": {},
+      "formatted": "$1,234,567.89"
+    },
+    {
+      "cents": 123456789,
+      "options": {
+        "with_currency": true
+      },
+      "formatted": "$1,234,567.89 USD"
+    },
+    {
+      "cents": 123456789,
+      "options": {
+        "no_cents_if_whole": false
+      },
+      "formatted": "$1,234,567.89"
+    },
+    {
+      "cents": 123456789,
+      "options": {
+        "with_currency": true,
+        "no_cents_if_whole": false
+      },
+      "formatted": "$1,234,567.89 USD"
+    },
+    {
+      "cents": 2000000000,
+      "options": {},
+      "formatted": "$20,000,000"
+    },
+    {
+      "cents": 2000000000,
+      "options": {
+        "with_currency": true
+      },
+      "formatted": "$20,000,000 USD"
+    },
+    {
+      "cents": 2000000000,
+      "options": {
+        "no_cents_if_whole": false
+      },
+      "formatted": "$20,000,000.00"
+    },
+    {
+      "cents": 2000000000,
+      "options": {
+        "with_currency": true,
+        "no_cents_if_whole": false
+      },
+      "formatted": "$20,000,000.00 USD"
+    },
+    {
+      "cents": -1,
+      "options": {},
+      "formatted": "$-0.01"
+    },
+    {
+      "cents": -1,
+      "options": {
+        "with_currency": true
+      },
+      "formatted": "$-0.01 USD"
+    },
+    {
+      "cents": -1,
+      "options": {
+        "no_cents_if_whole": false
+      },
+      "formatted": "$-0.01"
+    },
+    {
+      "cents": -1,
+      "options": {
+        "with_currency": true,
+        "no_cents_if_whole": false
+      },
+      "formatted": "$-0.01 USD"
+    },
+    {
+      "cents": -5,
+      "options": {},
+      "formatted": "$-0.05"
+    },
+    {
+      "cents": -5,
+      "options": {
+        "with_currency": true
+      },
+      "formatted": "$-0.05 USD"
+    },
+    {
+      "cents": -5,
+      "options": {
+        "no_cents_if_whole": false
+      },
+      "formatted": "$-0.05"
+    },
+    {
+      "cents": -5,
+      "options": {
+        "with_currency": true,
+        "no_cents_if_whole": false
+      },
+      "formatted": "$-0.05 USD"
+    },
+    {
+      "cents": -99,
+      "options": {},
+      "formatted": "$-0.99"
+    },
+    {
+      "cents": -99,
+      "options": {
+        "with_currency": true
+      },
+      "formatted": "$-0.99 USD"
+    },
+    {
+      "cents": -99,
+      "options": {
+        "no_cents_if_whole": false
+      },
+      "formatted": "$-0.99"
+    },
+    {
+      "cents": -99,
+      "options": {
+        "with_currency": true,
+        "no_cents_if_whole": false
+      },
+      "formatted": "$-0.99 USD"
+    },
+    {
+      "cents": -100,
+      "options": {},
+      "formatted": "$-1"
+    },
+    {
+      "cents": -100,
+      "options": {
+        "with_currency": true
+      },
+      "formatted": "$-1 USD"
+    },
+    {
+      "cents": -100,
+      "options": {
+        "no_cents_if_whole": false
+      },
+      "formatted": "$-1.00"
+    },
+    {
+      "cents": -100,
+      "options": {
+        "with_currency": true,
+        "no_cents_if_whole": false
+      },
+      "formatted": "$-1.00 USD"
+    },
+    {
+      "cents": -1234,
+      "options": {},
+      "formatted": "$-12.34"
+    },
+    {
+      "cents": -1234,
+      "options": {
+        "with_currency": true
+      },
+      "formatted": "$-12.34 USD"
+    },
+    {
+      "cents": -1234,
+      "options": {
+        "no_cents_if_whole": false
+      },
+      "formatted": "$-12.34"
+    },
+    {
+      "cents": -1234,
+      "options": {
+        "with_currency": true,
+        "no_cents_if_whole": false
+      },
+      "formatted": "$-12.34 USD"
+    },
+    {
+      "cents": -123456789,
+      "options": {},
+      "formatted": "$-1,234,567.89"
+    },
+    {
+      "cents": -123456789,
+      "options": {
+        "with_currency": true
+      },
+      "formatted": "$-1,234,567.89 USD"
+    },
+    {
+      "cents": -123456789,
+      "options": {
+        "no_cents_if_whole": false
+      },
+      "formatted": "$-1,234,567.89"
+    },
+    {
+      "cents": -123456789,
+      "options": {
+        "with_currency": true,
+        "no_cents_if_whole": false
+      },
+      "formatted": "$-1,234,567.89 USD"
+    }
+  ]
+}
