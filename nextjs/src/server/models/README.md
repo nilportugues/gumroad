@@ -156,8 +156,37 @@ the range to the second (`truncateToSeconds`); a raw `where("... < ?", time)` ke
 `src/worker/jobs/__fixtures__/purchase-reads-jobs.golden.json`, from `scripts/golden/purchase-reads-jobs.rb`
 (the purchase factory charges Stripe, so purchases are plain INSERTs of the columns a read looks at).
 Still Ruby-only: everything else in purchase.rb (4.6k lines of callbacks, money readers, charge processor flows) and
-subscription.rb (`alive?`, `end_time_of_subscription`, `overdue_for_charge?`, price and mandate logic), and `UrlRedirect`
-beyond the has_one read.
+`UrlRedirect` beyond the has_one read.
+
+#### Subscription period logic (WS-46)
+
+`SubscriptionRecord` (`subscription.ts`) is one loaded subscription: `alive?`, `in_free_trial?`, `charges_completed?`,
+`recurrence`/`period` (the price, or the installment plan and its snapshot), `end_time_of_subscription`,
+`end_time_of_last_paid_period`, `overdue_for_charge?`, `seconds_overdue_for_charge`, `indian_card_mandate_held?`,
+`send_renewal_reminders?`, `india_card_mandate_reliability_enabled?` (renewal merchant account, Flipper, the order's
+purchase count) and `current_subscription_price_cents`. `belongs_to`/`has_one` associations load once per record, as in
+ActiveRecord; relation reads (`purchases.last`, `successful_purchases`) query every time and lean on the query cache. Methods
+call each other as the Ruby does, repeats included, so cache hits and the statements after a cache clear match.
+`Time + n.months` is `advance` (day clamped to the target month's end: 31 January + 1 month is 28 February, 29 February
+2024 + 12 months is 28 February 2025). Golden: `worker/jobs/__fixtures__/subscription-reminder-jobs.golden.json`.
+
+Refused with `NotPortedError` (so the job is handed back to Rails before its first write):
+
+- `current_subscription_price_cents` for an installment plan, for an original purchase with an offer code or a
+  `purchase_offer_code_discount`, and when the product or its seller has a renewal-eligible offer code (the discount maths in
+  `compute_auto_renewal_offer_code`). The plain case is `original_purchase.displayed_price_cents`.
+- `merchant_migration_enabled?` for a seller with the `merchant_migration` flag on and a compliance record (it needs
+  Stripe Connect's country lists).
+- A Charge without a successful purchase (`Charge#purchaser` is a delegation to `purchase_as_chargeable`).
+- Mailer arguments whose Ruby `#inspect` is not ported (`SentEmailInfo.mailer_key_digest` takes Integers, nil, booleans and
+  plain ASCII Strings).
+
+Time is a JavaScript Date, so microseconds in `datetime(6)` columns (`free_trial_ends_at`, `cancelled_at`) are rounded to
+milliseconds; a comparison with `Time.current` within a millisecond of equal could differ.
+
+`SentEmailInfo` is complete: `key_exists?`, `set_key!`, `mailer_key_digest`, `mailer_exists?`, `ensure_mailer_uniqueness`.
+`charge.ts` is `Charge::Chargeable.find_by_purchase_or_charge!` and `AutoInvoiceEligibility`; `row-reads.ts` the shared
+`belongs_to`/`find_by(id:)` statements.
 
 ### Money: `CurrencyHelper`, `Credit`, `BalanceTransaction`, `Balance`, `BacktaxCollection`
 
@@ -243,8 +272,6 @@ TwoFactorAuthenticationMailer; nothing in Node calls it yet. Goldens: `scripts/g
 
 Still Ruby-only on the job-port models (app/models/...):
 
-- `sent_email_info.rb:20` `mailer_key_digest`, and `mailer_exists?`/`ensure_mailer_uniqueness` on it
-  (they hash Ruby's `Array#to_s` of arbitrary mailer arguments).
 - `ping_delivery.rb:19` `as_props` (needs `Purchase#external_id_numeric`).
 - `workflow_installment_schedule_intent.rb:19` `enqueue!`, `:79` `mark_processed`, `:94`
   `mark_processed!`, `:104` `claim_fanout!`, `:113` `begin_fanout`, `:135` `renew_fanout`, `:148`

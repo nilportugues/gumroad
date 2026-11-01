@@ -163,3 +163,16 @@ BullMQ job, so Rails' Sidekiq runs the Ruby class from the start. That is only c
 job's first write: wrap argument checks and early reads in `beforeSideEffects`, which turns a
 `NotPortedError` into a hand-back. A `NotPortedError` anywhere else still fails the attempt and
 goes through Sidekiq's retry.
+
+## Ported subscription reminder jobs (WS-46)
+
+`subscription-reminder-jobs.ts` ports `FreeTrialExpiringReminderWorker`, `ChargeDeclinedReminderWorker`,
+`RecurringChargeReminderWorker`, `ReviewReminderJob`, `SendAutoInvoiceEmailJob` and
+`FindSubscriptionsWithMissingChargeWorker`. They queue mail with `deliverLater` (Rails delivers it). Hand-backs: a buyer
+eligible for an auto invoice (`CustomerMailer.auto_invoice` is sent inline and is not ported); a missing-charge sweep that meets
+an installment plan or an offer-code renewal; anything `NotPortedError` names in `models/README.md`.
+`FindSubscriptionsWithMissingChargeWorker` holds its `RecurringChargeWorker` pushes until the sweep ends so that a hand-back
+leaves nothing queued; a failure part-way flushes the batches already judged, as Ruby had pushed them.
+
+`perform_in` and `perform_at` build the item without Setter, so their payload has `class` before `args` and no `at` when
+the time is not in the future; `scheduled` in `BuildItemInput` selects that shape.
