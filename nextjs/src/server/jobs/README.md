@@ -253,3 +253,24 @@ Golden: `__fixtures__/payment-processor-jobs.golden.json` (`scripts/golden/payme
 locks, and the Stripe requests the real gem sent to a capture server). Not ported, still Ruby: `RefundPurchaseWorker`, `FightDisputeJob`, the payout
 processors (`PayoutUsersWorker`, `PerformPayouts*`, `ProcessPaymentWorker`), `StripeMerchantAccountManager` jobs and `UpdateUserBalanceStatsCacheWorker`
 (its `payout_period_data` aggregates are not ported).
+
+## Scheduled posts that email, and the guards of four refund and payout jobs (WS-74)
+
+Supersedes the last bullet of the WS-63 section: `PublishScheduledPostJob` now runs a post that emails its audience in Node. After
+`publish!` it asks `can_be_blasted?` (`send_emails?` and no `post_email_blasts` row for the post), creates the `PostEmailBlast`
+(`requested_at` is the rule's `to_be_published_at`) and pushes `SendPostBlastEmailsJob` with the blast id, inside the lock, as Ruby does.
+`SendPostBlastEmailsJob` itself stays in Ruby. The sending-limit validation this needed is in `models/README.md` (WS-74). Still handed back,
+before the first write: a post with files, a call to action, a message the sanitizer would judge, a post without a slug, a seller content moderation
+would review, and a "has not clicked" audience (it asks DynamoDB). Golden: `publish-scheduled-post.golden.json` (45 cases now).
+
+`refund-payout-guard-jobs.ts` ports the guards of four jobs and hands everything past them back before the first write:
+
+- `RefundPurchaseWorker`: a purchase that does not exist fails with `RecordNotFound`, as in Ruby; an existing one (the refund, the fraud path) goes to Rails.
+- `FightDisputeJob`: a missing dispute or one without evidence fails as in Ruby, resolved evidence and an open window (`DisputeEvidence.window_open?`,
+  exact comparison) return; a closed window goes to Rails (it reads the disputable, resolves the evidence and forwards it to the processor).
+- `PayoutUsersWorker`: no users (`Array.wrap(nil)`, `[]`) is a no-op; any user goes to Rails (`Payouts.create_payments` and the processors).
+- `UpdateUserBalanceStatsCacheWorker`: a missing user fails as in Ruby; any user goes to Rails, because the cached blob needs
+  `PayoutsHelper#payout_period_data`, which is not ported (see `models/user-balance-stats.ts` for what is).
+
+Golden: `refund-payout-guard-jobs.golden.json` (`scripts/golden/refund-payout-guard-jobs.rb`, 20 cases; the real jobs are run up to a marker
+exception standing in for the call Node does not make).

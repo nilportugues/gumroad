@@ -473,3 +473,31 @@ Supersedes the "Not ported" and hand-back lines of the WS-51 section above for e
   moderation would review (the `content_moderation` kill switch on and the seller not a VIP; the review asks an AI model).
 - Not ported: `Workflow#publish!`, `#unpublish!` and `#mark_deleted!`, `InstallmentRule#advance_version!` and the rule's save callbacks (pending
   version scripts), `UrlRedirect` creation for posts with files, `Installment` creation.
+
+### Sending limit, PostEmailBlast and workflow writes (WS-74)
+
+- `search/audience-member-search.ts`: `AudienceMember.filter_query` (the Elasticsearch twin of `AudienceMember.filter`) and `filter_count`
+  (`_count` with `terminate_after`; licence-use and waitlist filters count through the SQL twin of `audience-member.ts`). Golden:
+  `search/__fixtures__/audience-member-filter-query.golden.json` (`scripts/golden/audience-member-filter-query.rb`, 72 param sets of the SQL golden).
+- `installment-writes.ts`: `validate_sending_limit_for_sellers` in full (override, audience count of at most `SENDING_LIMIT + 1`, `sales_cents_total`).
+  It reads the audience filters through `json_data`, which initializes the column to `{}` and so adds the `merge_json_data_with_current_row` lock
+  and the `json_data` change to the save, as in Ruby. Associations of an Installment are memoized per record (`post(record)`).
+- `user-email-eligibility.ts`: `email_sending_override_active?` (parent lookup, team membership, the parent's standing and payouts), `has_completed_payouts?`
+  and `eligible_to_send_emails?`. The statements follow ActiveRecord's text (the Connect-sale `exists?` writes `purchases.stripe_refunded` unquoted and
+  `flags & '512'`); `page-props/signed-in/reads.ts` has its own looser copy of that read, which no golden pins.
+- `post-email-blast.ts`: `PostEmailBlast.create!(post:, requested_at:)` and `has_been_blasted?`.
+- `installment-rule-writes.ts`: `InstallmentRule` validations, `increment_version`, the pending-version scripts (`cache_pending_version` before the save,
+  promoted after commit through AfterCommitEverywhere, cleared on rollback), `cache_committed_version`, `advance_version!` and `mark_deleted!`. Redis, the uuid
+  and the error reporter are `setInstallmentRuleDeps` seams for tests.
+- `workflow-writes.ts`: `Workflow#publish!`, `#unpublish!` and `#mark_deleted!` over the models above, with `WorkflowInstallmentScheduleIntent.enqueue!` for each
+  published email that has a rule. Golden: `worker/jobs/__fixtures__/workflow-writes.golden.json` (`scripts/golden/workflow-writes.rb`, 36 cases: every
+  statement, the Redis scripts' effects, Sidekiq pushes, Elasticsearch requests, and the versions rows with PaperTrail's attribute order). No route calls
+  these yet; `WorkflowsController` still renders in Rails.
+- `user-balance-stats.ts`: `UserBalanceStatsService#overview_stats` (unpaid balance and the 7 day, 28 day and lifetime sales totals; `salesCentsTotal`
+  gained the `after:` cutoff) and the cache key and lifetime. Not ported: the payout periods (`PayoutsHelper#payout_period_data`: payout schedule,
+  chargeback-rate reserve, processor details, bank account hashes, ~30 purchase aggregates), so `UpdateUserBalanceStatsCacheWorker` hands back. WS-72 can
+  reuse this module for the Payouts page. Golden: `__fixtures__/user-balance-stats.golden.json`.
+- Not ported: `Installment` creation (`SaveInstallmentService`: friendly_id slugs and their collisions, content sanitizing, `SaveContentUpsellsService`,
+  `SaveFilesService`, profile section updates), a published post's edit path, and `Workflow::ManageService`.
+- PaperTrail's `object` order depends on what Ruby materialized: `abandoned_cart_type?` reads `attributes` (every attribute, in column order), and the
+  `has_many :installments` inverse reads each installment's `workflow_id` as the batch loads, which the port reproduces with `record.touch`.

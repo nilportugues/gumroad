@@ -63,6 +63,12 @@ export class ModelRecord<R extends Row = Row> {
     return this.#lazy ? Object.keys(this.#attributes) : [...this.#order, ...Object.keys(this.#attributes).filter((k) => !this.#order.includes(k))];
   }
 
+  // A read Ruby makes through an attribute reader that leaves the attribute materialized (a loaded association's
+  // foreign key), which PaperTrail's `object` lists ahead of the ones nothing touched.
+  touch(name: keyof R & string): void {
+    this.#touch(name);
+  }
+
   // Checks the port makes that Ruby does not (guards for unported work, assertions), so they must
   // not materialize anything.
   untracked<T>(fn: () => T): T {
