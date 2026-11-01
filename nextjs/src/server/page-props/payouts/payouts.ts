@@ -207,7 +207,7 @@ export function rubyToI(value: string | null | undefined): number {
 }
 
 // UserBalanceStatsService#should_use_cache?: a large seller's payout periods come from a cached blob that a job refreshes.
-async function balanceStatsCacheApplies(userId: bigint): Promise<boolean> {
+export async function balanceStatsCacheApplies(userId: bigint): Promise<boolean> {
   const row = await one<{ sales_count: number | null }>(Prisma.sql`SELECT large_sellers.sales_count FROM large_sellers WHERE large_sellers.user_id = ${userId} LIMIT 1`);
   if (row === null) return false;
   try {

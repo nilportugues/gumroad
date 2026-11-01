@@ -13,7 +13,7 @@ import { HandBackToRails } from "../../controllers/application-controller.ts";
 import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
 import { COUNTRIES, historicalNames, isBlockedCountry } from "../../models/compliance-countries.ts";
 import { LinkFlags } from "../../models/link.ts";
-import { isStripeConnectAccount } from "../../models/merchant-account.ts";
+import { isStripeConnectAccount, type MerchantAccountRow } from "../../models/merchant-account.ts";
 import { originalPrice } from "../../models/offer-code.ts";
 import { secureExternalId } from "../../models/secure-external-id.ts";
 import { column, selectRows, table } from "../../models/sql.ts";
@@ -234,7 +234,7 @@ function assertNoTransactionUrl(purchase: Row, merchantAccount: Row | null): voi
   if (!present(purchase.charge_processor_id) || !present(purchase.stripe_transaction_id)) return;
   // Purchase#charged_using_gumroad_merchant_account?
   const gumroadAccount = merchantAccount !== null && merchantAccount.user_id == null;
-  const stripeWithoutConnect = purchase.charge_processor_id === "stripe" && !(merchantAccount !== null && isStripeConnectAccount(merchantAccount));
+  const stripeWithoutConnect = purchase.charge_processor_id === "stripe" && !(merchantAccount !== null && isStripeConnectAccount(merchantAccount as MerchantAccountRow));
   if (gumroadAccount || stripeWithoutConnect) return;
   throw new HandBackToRails();
 }

@@ -3,7 +3,7 @@
 // Handed back to Rails (HandBackToRails) for what the port does not read: a product card whose product has an alive
 // thumbnail (Active Storage URL), a Stripe compliance request carrying a verification error (the message table lives in
 // UserComplianceInfoRequest), a seller whose payout destination is a Stripe or PayPal Connect account, and a
-// large seller (the balance stats cache, and LargeSeller.create_if_warranted).
+// seller whose balance stats are cached (a large seller past the caching threshold).
 import { Prisma, type User } from "@prisma/client";
 
 import { HandBackToRails } from "../../controllers/application-controller.ts";
@@ -24,9 +24,10 @@ import { aggregationValue, type Aggregations } from "../../search/purchase-sales
 import { activeBankAccount } from "../signed-in/reads.ts";
 import { aliveUserComplianceInfoRow } from "../../models/user-compliance-info.ts";
 import { taxCenterEnabled } from "../dashboard/tax-center.ts";
-import { handBackLargeSeller, productsForCreatorAnalytics, sellerToday } from "../analytics/seller-analytics.ts";
+import { productsForCreatorAnalytics, sellerToday } from "../analytics/seller-analytics.ts";
 import type { SellerContext } from "../../policies/seller-context.ts";
 import { requireUser, roleOwnerFor } from "../../policies/seller-context.ts";
+import { balanceStatsCacheApplies } from "../payouts/payouts.ts";
 import type { SocialConnection } from "../../models/social-connect-funnel.ts";
 
 export const ACTIVITY_ITEMS_LIMIT = 10;
@@ -252,7 +253,8 @@ async function stripeVerificationMessage(seller: User): Promise<null> {
 
 export async function creatorHomeProps(context: SellerContext, now: Date): Promise<CreatorHome> {
   const seller = context.seller!;
-  await handBackLargeSeller(context);
+  // A large seller past the caching threshold reads a blob a job refreshes (UserBalanceStatsService#should_use_cache?).
+  if (await balanceStatsCacheApplies(seller.id)) throw new HandBackToRails();
 
   const hasSale = await exists(
     Prisma.sql`SELECT 1 FROM ${table("purchases")} WHERE ${column("purchases", "seller_id")} = ${seller.id} AND ${PurchaseFlags.condition("is_bundle_product_purchase", false)} AND ${column("purchases", "purchase_state")} IN (${Prisma.join(CHARGED_SUCCESS_STATES)}) LIMIT 1`,
