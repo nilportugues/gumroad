@@ -46,6 +46,7 @@ const sharedPackages = [
   "react-media-recorder",
   "react-select",
   "react-sortablejs",
+  "recharts",
   "sortablejs",
 ];
 
