@@ -59,5 +59,15 @@ export function dateInTimeZoneIso8601(zoneName: string, year: number, month: num
   return `${stamp}${identifier === "Etc/UTC" ? "Z" : isoOffset(offset)}`;
 }
 
-export const startOfDayIso8601 = (zone: string, year: number, month: number, day: number) => dateInTimeZoneIso8601(zone, year, month, day, 0);
+// `instant.in_time_zone(zone).iso8601`
+export function instantInTimeZoneIso8601(zoneName: string, instant: Date): string {
+  const identifier = (zones as Record<string, string>)[zoneName];
+  if (identifier === undefined) throw new InvalidTimeZoneError(zoneName);
+  const offset = offsetAt(identifier, instant.getTime());
+  const local = new Date(Math.floor(instant.getTime() / SECOND_MS) * SECOND_MS + offset * SECOND_MS);
+  const stamp = `${String(local.getUTCFullYear()).padStart(4, "0")}-${pad(local.getUTCMonth() + 1)}-${pad(local.getUTCDate())}T${pad(local.getUTCHours())}:${pad(local.getUTCMinutes())}:${pad(local.getUTCSeconds())}`;
+  return `${stamp}${identifier === "Etc/UTC" ? "Z" : isoOffset(offset)}`;
+}
+
+export const startOfDayIso8601 =(zone: string, year: number, month: number, day: number) => dateInTimeZoneIso8601(zone, year, month, day, 0);
 export const endOfDayIso8601 = (zone: string, year: number, month: number, day: number) => dateInTimeZoneIso8601(zone, year, month, day, END_OF_DAY_SECONDS);

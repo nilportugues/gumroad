@@ -62,6 +62,18 @@ const COMPARE = {
     "http",
     // One month from today: a date the fixture recorded on another day (new-page.test.ts pins the arithmetic).
     "response.inertia.props.release_at_date",
+    // The editor: an HMAC under the recorder's secret_key_base (edit.test.ts pins the digest) and the
+    // environment's S3, Google and Dropbox settings.
+    "response.inertia.props.product.editor_revision",
+    "response.json.props.product.editor_revision",
+    "response.inertia.props.s3_url",
+    "response.inertia.props.aws_key",
+    "response.inertia.props.google_client_id",
+    "response.inertia.props.dropbox_api_key",
+    "response.json.props.s3_url",
+    "response.json.props.aws_key",
+    "response.json.props.google_client_id",
+    "response.json.props.dropbox_api_key",
     "response.headers.link",
     "response.headers.vary",
     "response.inertia.props.csp_nonce",

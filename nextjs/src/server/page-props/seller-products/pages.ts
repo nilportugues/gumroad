@@ -13,7 +13,18 @@ import { archivedProductsCount, hasProducts, tableData } from "./dashboard-produ
 import { COLLAB_SORT_KEYS, assertCollabsSupported, collabsFlags, collabsStats, collabsTableData } from "./collabs.ts";
 import { listingParams } from "./listing.ts";
 import { newPageProps } from "./new-page.ts";
-import { linkPolicy } from "../../policies/link.ts";
+import { linkPolicy, collaboratingProductIds } from "../../policies/link.ts";
+import * as Routes from "@/lib/navigation/routes";
+import { HandBackToRails, type Redirected, RoutingError } from "../../controllers/application-controller.ts";
+import { NotAuthorizedError } from "../../policies/seller-context.ts";
+import { authorize } from "../../policies/authorize.ts";
+import { LinkFlags } from "../../models/link.ts";
+import { column, selectRows, table } from "../../models/sql.ts";
+import { encrypt as externalId } from "../../../lib/obfuscate-ids.ts";
+import { Prisma } from "@prisma/client";
+import { findLink, findUserById, type LinkRow } from "../../presenters/product-reads.ts";
+import { sellerGuard } from "../audience/seller-guard.ts";
+import { assertEditSupported, editProps } from "./edit.ts";
 
 const seller = (context: { currentSeller: User | null }) => context.currentSeller!;
 const queryOf = (url: URL) => ({ queryString: url.search.replace(/^\?/, "") });
@@ -95,7 +106,59 @@ const productsNew: PageSpec = {
   },
 };
 
+// LinksController#edit: `fetch_product_by_unique_permalink`, `authorize @product`, then a bundle goes to its own editor.
+async function editProduct(permalink: string): Promise<LinkRow> {
+  const [found] = await selectRows<{ id: bigint }>(Prisma.sql`SELECT ${column("links", "id")} FROM ${table("links")} WHERE ${column("links", "unique_permalink")} = ${permalink} LIMIT 1`);
+  const product = found ? await findLink(found.id) : null;
+  if (!product) throw new RoutingError("Not Found");
+  return product;
+}
+
+// enable_mobile_app_web_view signs the app's WebView in with an OAuth token and persists the flag in the session.
+const assertNotMobileAppWebView = (url: URL) => {
+  if ((url.searchParams.get("access_token") ?? "") !== "" || url.searchParams.get("display") === "mobile_app") throw new HandBackToRails();
+};
+
+const productsEdit: PageSpec = {
+  component: "Products/Edit",
+  mobileAppWebView: true,
+  guard: async (info) => {
+    assertNotMobileAppWebView(info.url);
+    let bundleRedirect: string | null = null;
+    let denied: Redirected | null = null;
+    const redirected = await sellerGuard(info, async (context) => {
+      const product = await editProduct(info.params.id!);
+      const collaborating = await collaboratingProductIds(context, [product.id]);
+      try {
+        authorize((c, record) => linkPolicy.edit(c, record, collaborating), context, { id: product.id, user_id: product.user_id, flags: product.flags ?? 0 });
+      } catch (error) {
+        if (!(error instanceof NotAuthorizedError)) throw error;
+        // PunditAuthorization#product_edit_user_not_authorized: a shared edit link lands on the product page.
+        denied = { status: 302, location: Routes.short_link_url(product.unique_permalink!, info.urlOptions), rescued: true };
+        return;
+      }
+      if (LinkFlags.isSet(product.flags as bigint, "is_bundle")) {
+        bundleRedirect = `/bundles/${externalId(product.id)}/product/edit`;
+        return;
+      }
+      const owner = (await findUserById(product.user_id!))!;
+      await assertEditSupported(product, owner, context.seller!.id);
+    });
+    if (redirected) return redirected;
+    if (denied) return denied;
+    return bundleRedirect ? { status: 302, location: bundleRedirect } : null;
+  },
+  props: async (params, { context, meta, url }) => {
+    const product = await editProduct(params.id!);
+    meta.set({ title: product.name ?? "" });
+    const owner = (await findUserById(product.user_id!))!;
+    return editProps({ product, seller: owner, sellerExternalId: seller(context).external_id!, aiGenerated: url.searchParams.get("ai_generated") === "true" });
+  },
+};
+
 export const SELLER_PRODUCTS_PAGES: Record<string, PageSpec> = {
+  "/products/:id/edit": productsEdit,
+  "/products/:id/edit/*other": productsEdit,
   "/products/collabs": productsCollabs,
   "/products/new": productsNew,
   "/products": productsIndex,

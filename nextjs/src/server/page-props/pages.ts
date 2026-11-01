@@ -189,6 +189,11 @@ export function matchPagePath(pathname: string, scope: PageScope = "gumroad"): {
     const source = path
       .split("/")
       .map((segment) => {
+        // `*name` takes the rest of the path, as in route-table.ts.
+        if (segment.startsWith("*")) {
+          names.push(segment.slice(1));
+          return "(.+)";
+        }
         if (!segment.startsWith(":")) return segment.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         names.push(segment.slice(1));
         return "([^/.?]+)";
