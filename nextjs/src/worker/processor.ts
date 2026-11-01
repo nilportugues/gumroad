@@ -4,9 +4,11 @@
 import type { Job } from "bullmq";
 
 import { type BridgedJobData, enqueueWith, resolveJobClass } from "../server/jobs/enqueue.ts";
+import { HandBackToRuby } from "../server/jobs/hand-back.ts";
 import type { JobDefinition } from "../server/jobs/registry-types.ts";
 import type { JobsRuntime } from "../server/jobs/runtime.ts";
 import { prepareServerItem, runtimeLockDigest, type SidekiqItem, serverLockType } from "../server/jobs/sidekiq/item.ts";
+import { rawPushToSidekiq } from "../server/jobs/sidekiq/client.ts";
 import { type JsonValue, parseRubyJson, RubyFloat } from "../server/jobs/sidekiq/ruby-json.ts";
 import { executeLocked, relock, releaseLock } from "../server/jobs/sidekiq/unique-lock.ts";
 import { ACTIVE_JOB_WRAPPER } from "../server/mail/active-job.ts";
@@ -94,11 +96,22 @@ export function createProcessor(runtime: JobsRuntime, handlers: Record<string, J
     try {
       await withExecutor(() => runJob(job, fetched), SIDEKIQ_EXECUTOR);
     } catch (error) {
+      // The lock handling above already left the lock as a failed attempt would, which is the
+      // state Sidekiq's server middleware expects to pick up from.
+      if (error instanceof HandBackToRuby) return handBack(runtime, fetched, error);
       // JobRetry#local wraps the server middleware, so the lock is already released here.
       const { definition } = resolveJobClass(String(fetched.class), runtime.registry);
       throw await handleFailure(error, { item: fetched, definition, attemptsMade: job.attemptsMade, runtime, hooks });
     }
   };
+}
+
+// Straight onto the queue, as the job was due when Node fetched it; `at` would park it in the
+// schedule set until the poller's next pass.
+async function handBack(runtime: JobsRuntime, fetched: SidekiqItem, error: HandBackToRuby): Promise<void> {
+  const { at: _at, ...item } = fetched;
+  await rawPushToSidekiq(runtime.sidekiqRedis, item, runtime.now());
+  console.info(`${String(fetched.class)} ${String(fetched.jid)}: ${error.message}`);
 }
 
 function createLockedRun(runtime: JobsRuntime, handlers: Record<string, JobHandler>) {

@@ -154,3 +154,12 @@ Sidekiq::Cron::Job.load_from_hash!(SidekiqNodeBridge.ruby_schedule(sidekiq_sched
   `bid` to carry. If one is introduced it must stay in Ruby until batches have a design here.
 - **ActiveJob.** ActiveJob classes in `app/jobs` go through `Sidekiq::ActiveJob::Wrapper` with a
   different payload and are not in the registry.
+
+## Handing a job back to Rails
+
+A ported job that meets a case Node can't run yet throws `HandBackToRuby` (`hand-back.ts`). The
+worker then pushes the original item onto its Sidekiq queue, without `at`, and completes the
+BullMQ job, so Rails' Sidekiq runs the Ruby class from the start. That is only correct before the
+job's first write: wrap argument checks and early reads in `beforeSideEffects`, which turns a
+`NotPortedError` into a hand-back. A `NotPortedError` anywhere else still fails the attempt and
+goes through Sidekiq's retry.

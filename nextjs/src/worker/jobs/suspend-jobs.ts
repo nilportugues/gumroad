@@ -9,6 +9,7 @@ import { isBlank } from "../../server/models/runtime/validators.ts";
 import { ScheduledPayouts } from "../../server/models/scheduled-payout.ts";
 import { castRow, column, columnIn, columnNotIn, findInBatches, selectRows, table } from "../../server/models/sql.ts";
 import { fireRiskEvent, formattedDateFullMonth } from "../../server/models/user-risk.ts";
+import { beforeSideEffects } from "../../server/jobs/hand-back.ts";
 import { findUserBang, nameOrUsername, NotPortedError, RISK_STATES, Users, type UserRecord } from "../../server/models/user.ts";
 import { modelJob, type JobDeps } from "./support/job-deps.ts";
 
@@ -187,8 +188,7 @@ async function createScheduledPayout(user: UserRecord, author: UserRecord, sched
 }
 
 export const suspendUsersWorkerWith = modelJob({ min: 4, max: 5 }, async ([authorId, userIds, reason, additionalNotes, rawScheduledPayout], deps) => {
-  const ids = userIdList(userIds!);
-  const scheduledPayout = scheduledPayoutArg(rawScheduledPayout);
+  const { ids, scheduledPayout } = await beforeSideEffects(() => ({ ids: userIdList(userIds!), scheduledPayout: scheduledPayoutArg(rawScheduledPayout) }));
   const author = await findUserBang(authorId);
   const authorName = nameOrUsername(author);
   const where = Prisma.sql`(${Prisma.join([...columnPredicates("id", ids, "id"), ...columnPredicates("external_id", ids, "string")], " OR ")})`;
