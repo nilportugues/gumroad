@@ -39,6 +39,8 @@ export type MutationSpec = {
   // "/emails/:id"
   pattern: string;
   options?: ActionOptions;
+  // A `render json:` action: it takes a request that asks for JSON (the dashboard's `request()`) and hands back any other format.
+  json?: boolean;
   run(input: MutationInput): Promise<ActionResult>;
 };
 
@@ -108,7 +110,7 @@ export async function mutationResponse(incoming: Request): Promise<Response> {
   try {
     params = requestParams(url, request.headers.get("content-type"), bytes);
     // Pundit answers 401 JSON to a request that is not HTML.
-    if (requestFormat(railsRequest(request)) !== "html") throw new HandBackToRails("a request whose format is not HTML");
+    if (requestFormat(railsRequest(request)) !== (candidate.json ? "json" : "html")) throw new HandBackToRails(`a request whose format is not ${candidate.json ? "JSON" : "HTML"}`);
     if (!csrfVerified(railsRequest(request), params)) throw new HandBackToRails("a request Rails would run with a null session");
   } catch (error) {
     if (error instanceof HandBackToRails) {
