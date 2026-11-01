@@ -108,6 +108,12 @@ export interface Page<SharedProps extends PageProps = PageProps> {
   props: PageProps & SharedProps & { errors: Errors };
   url: string;
   version: string | null;
+  // Set by inertia_rails on a response: which top-level props a partial reload appends to, prepends to
+  // or deep-merges into what the page already holds, and the key that identifies a list item.
+  mergeProps?: string[];
+  prependProps?: string[];
+  deepMergeProps?: string[];
+  matchPropsOn?: string[];
 }
 
 export type PreserveStateOption = boolean | "errors" | ((page: Page) => boolean);

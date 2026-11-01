@@ -63,10 +63,17 @@ describe("router GET visits", () => {
   });
 
   it("reloads by refreshing the server component, keeping state", () => {
-    router.reload({ only: ["products"] });
+    router.reload();
     expect(navigator.refresh).toHaveBeenCalledOnce();
     settleNavigations(navigator.getPage());
     expect(navigator.remount).not.toHaveBeenCalled();
+  });
+
+  it("reloads onto the new URL when data changes the query string", () => {
+    router.reload({ data: { page: 2 } });
+    expect(navigator.refresh).not.toHaveBeenCalled();
+    expect(navigator.push).toHaveBeenCalledWith("/settings/password?page=2", { scroll: false });
+    settleNavigations(navigator.getPage());
   });
 
   it("lets a `before` listener cancel the visit", () => {

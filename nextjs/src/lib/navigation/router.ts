@@ -17,6 +17,7 @@ import type {
   VisitOptions,
 } from "./types";
 import { hasFiles, mergeDataIntoQueryString, objectToFormData } from "./form-data";
+import { isPartialVisit, mergeResponseProps, partialHeaders } from "./partial-reload";
 
 // What the page-props provider hands the router once it mounts.
 export type Navigator = {
@@ -215,13 +216,108 @@ async function send(visit: ActiveVisit, options: VisitOptions) {
   finish(visit, options);
 }
 
+// A GET that only refreshes some props of the page it is on (`only`/`except`/`reset`), or must leave the
+// URL alone, cannot be a Next navigation: a server component render cannot be narrowed to some props, and
+// a navigation always lands on the visit's URL. Those go to the X-Inertia endpoint and merge in place.
+function runsInPlace(visit: ActiveVisit): boolean {
+  if (visit.method !== "get" || !(isPartialVisit(visit) || visit.preserveUrl)) return false;
+  const here = new URL(currentHref(), "http://localhost");
+  return visit.url.origin === here.origin && visit.url.pathname === here.pathname;
+}
+
+async function sendInPlace(visit: ActiveVisit, options: VisitOptions) {
+  const nav = requireNavigator();
+  const originating = nav.getPage();
+  const partial = isPartialVisit(visit);
+  const headers: Record<string, string> = {
+    Accept: "text/html, application/xhtml+xml",
+    "X-Requested-With": "XMLHttpRequest",
+    "X-Inertia": "true",
+    ...visit.headers,
+    ...partialHeaders(visit, originating.component),
+  };
+  if (originating.version) headers["X-Inertia-Version"] = originating.version;
+  if (visit.errorBag) headers["X-Inertia-Error-Bag"] = visit.errorBag;
+
+  const controller = new AbortController();
+  options.onCancelToken?.({ cancel: () => controller.abort() });
+
+  let response: Response;
+  try {
+    const url = new URL(visit.url.href);
+    url.hash = "";
+    response = await fetch(url, { method: "GET", headers, credentials: "same-origin", signal: controller.signal });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      visit.cancelled = true;
+      options.onCancel?.();
+      fire("cancel", { visit });
+    } else if (fire("exception", { visit }, true)) {
+      throw error;
+    }
+    finish(visit, options);
+    return;
+  }
+
+  const location = response.headers.get("X-Inertia-Location");
+  if (response.status === 409 && location) {
+    window.location.href = location;
+    return;
+  }
+
+  if (response.headers.get("X-Inertia") !== "true") {
+    if (fire("invalid", { visit, response }, true)) window.location.href = response.url || visit.url.href;
+    finish(visit, options);
+    return;
+  }
+
+  const page = (await response.json()) as Page;
+  if (page.component !== originating.component) {
+    carryOverProps = { flash: page.props.flash, errors: page.props.errors };
+    visit.url = new URL(page.url, window.location.href);
+    navigate(visit, options, false);
+    return;
+  }
+
+  // Another visit moved the page on while this one was in flight (Inertia's `shouldSetPage`).
+  const current = nav.getPage();
+  const stillHere =
+    current.component === originating.component &&
+    new URL(current.url, "http://localhost").pathname === new URL(originating.url, "http://localhost").pathname;
+  if (!stillHere) {
+    visit.completed = true;
+    finish(visit, options);
+    return;
+  }
+
+  const incoming = mergeResponseProps(current.props, page, partial);
+  nav.setPageProps((base) => (partial ? { ...base, ...incoming } : incoming));
+  if (!visit.preserveUrl) {
+    const target = new URL(page.url, window.location.href);
+    if (visit.url.hash && !target.hash && target.pathname + target.search === visit.url.pathname + visit.url.search) target.hash = visit.url.hash;
+    const sameUrl = target.pathname + target.search === window.location.pathname + window.location.search;
+    // Next.js syncs usePathname/useSearchParams with native history calls.
+    if (visit.replace || sameUrl) window.history.replaceState(window.history.state, "", relativeHref(target));
+    else window.history.pushState(window.history.state, "", relativeHref(target));
+  }
+  const settled: Page = {
+    ...page,
+    url: current.url,
+    props: { ...(partial ? current.props : {}), ...incoming, errors: incoming.errors ?? {} } as Page["props"],
+  };
+  if (!resolveOption(visit.preserveState, settled)) nav.remount();
+  await finishWithPage(visit, options, settled);
+  finish(visit, options);
+}
+
 function visit(href: string | URL, options: VisitOptions = {}) {
   const active = buildVisit(href, options);
   if (options.onBefore?.(active) === false || !fire("before", { visit: active }, true)) return;
   options.onStart?.(active);
   fire("start", { visit: active });
-  if (active.method === "get") navigate(active, options, false);
-  else void send(active, options);
+  if (active.method !== "get") void send(active, options);
+  else if (runsInPlace(active)) void sendInPlace(active, options);
+  else navigate(active, options, false);
 }
 
 type DataVisitOptions = Omit<VisitOptions, "method" | "data">;
@@ -234,13 +330,19 @@ export const router = {
   patch: (url: string | URL, data: RequestPayload = {}, options: DataVisitOptions = {}) => visit(url, { preserveState: true, ...options, method: "patch", data }),
   delete: (url: string | URL, options: Omit<VisitOptions, "method"> = {}) => visit(url, { preserveState: true, ...options, method: "delete" }),
 
-  // `only`/`except` cannot narrow a server component render, so a reload always refreshes every prop.
+  // A reload with `only`/`except`/`reset` merges the response into the page (see sendInPlace); any other
+  // reload re-renders the server component, at the new URL when `data` changes the query string.
   reload(options: ReloadOptions = {}) {
     const active = buildVisit(currentHref(), { ...options, preserveScroll: true, preserveState: true, async: true, method: "get" });
     if (options.onBefore?.(active) === false || !fire("before", { visit: active }, true)) return;
     options.onStart?.(active);
     fire("start", { visit: active });
-    navigate(active, options, true);
+    if (runsInPlace(active)) {
+      void sendInPlace(active, options);
+      return;
+    }
+    const here = new URL(currentHref(), "http://localhost");
+    navigate(active, options, active.url.pathname + active.url.search === here.pathname + here.search);
   },
 
   // Client-side only visits (no request), as in Inertia 2.1+.
