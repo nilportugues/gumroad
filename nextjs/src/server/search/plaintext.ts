@@ -114,11 +114,16 @@ export function squish(value: string): string {
   return value.replace(SPACE_RUN, " ").replace(/^[\t\n\v\f\r \0]+|[\t\n\v\f\r \0]+$/gu, "");
 }
 
-export function plaintextDescription(description: string | null | undefined): string {
-  if (description === null || description === undefined || ALL_SPACE.test(description)) return "";
-  const guarded = description.replaceAll(AMP, `${AMP}${ESCAPED_SENTINEL}`).replaceAll("&", AMP);
+// `Loofah.fragment(html).to_text(encode_special_chars: false)` before any whitespace handling.
+export function loofahText(html: string): string {
+  const guarded = html.replaceAll(AMP, `${AMP}${ESCAPED_SENTINEL}`).replaceAll("&", AMP);
   const fragment = parseFragment(guarded, { scriptingEnabled: false }) as unknown as Node;
   const out: string[] = [];
   for (const child of fragment.childNodes ?? []) textOf(child, out, false);
-  return squish(out.join(""));
+  return out.join("");
+}
+
+export function plaintextDescription(description: string | null | undefined): string {
+  if (description === null || description === undefined || ALL_SPACE.test(description)) return "";
+  return squish(loofahText(description));
 }

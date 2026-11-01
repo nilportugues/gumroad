@@ -406,3 +406,7 @@ export const opt_in_to_au_backtax_collection_settings_payments_path = path("/set
 export const remediation_settings_payments_path = path("/settings/payments/remediation(.:format)");
 export const cart_items_count_path = path("/cart_items_count(.:format)");
 export const cart_items_count_url = url("/cart_items_count(.:format)");
+export const custom_domain_post_comments_path = path("/posts/:post_id/comments(.:format)");
+export const custom_domain_create_post_comment_path = path("/posts/:post_id/comments(.:format)");
+export const custom_domain_update_post_comment_path = path("/posts/:post_id/comments/:id(.:format)");
+export const custom_domain_delete_post_comment_path = path("/posts/:post_id/comments/:id(.:format)");

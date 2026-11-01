@@ -63,7 +63,7 @@ function layoutVersion(tabs: Tab[], sectionUpdatedAt: Date | null): string {
 }
 
 // ProfilePresenter#creator_profile
-async function creatorProfile(seller: Seller, canEdit: boolean) {
+export async function creatorProfile(seller: Seller, canEdit: boolean) {
   const record = Users.load(seller);
   const youtube = await db.userYoutubeIdentity.findFirst({ where: { user_id: seller.id } });
   if (await isFeatureEnabled("seller_reputation_summary", userActor(seller.id))) throw new NotPortedError("User#seller_reputation_summary");
