@@ -13,6 +13,7 @@ import {
   EMAIL_PROVIDER_SENDGRID,
   forceSendgridForRecipients,
   isResend,
+  type MailerLevel,
   type RandomIv,
   randomDeliveryMethodOptions,
   type RouterDeps,
@@ -27,7 +28,7 @@ export const noreplyEmail = () => `noreply@${defaultEmailDomain()}`;
 export const noreplyEmailWithName = () => `Gumroad <${noreplyEmail()}>`;
 
 // `now` is Time.now; `redisSetEx` stands in for `$redis.set(key, value, ex:)`.
-export type MailerDeps = { s3?: S3Reader; router?: RouterDeps; randomIv?: RandomIv; now?: () => Date; redisSetEx?: (key: string, value: string, seconds: number) => Promise<unknown> };
+export type MailerDeps = { s3?: S3Reader; mailerLevel?: (userId: number | bigint) => Promise<MailerLevel | null>; router?: RouterDeps; randomIv?: RandomIv; now?: () => Date; redisSetEx?: (key: string, value: string, seconds: number) => Promise<unknown> };
 
 // What a mailer method hands to `mail`, plus the name and arguments ActionMailer passed to
 // #process (MailerInfo puts them in the headers).
