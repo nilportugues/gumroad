@@ -100,9 +100,33 @@ ported. That makes them the cheapest end-to-end parity check we have.
 | 2. Money | WS-20 to WS-23 | Checkout, charges, refunds, payouts flipped after a full shadow period. |
 | 3. Jobs and cron | WS-30 | No Sidekiq job class left in Ruby. |
 | 4. Removal | WS-40 | Rails deleted; Prisma Migrate owns the schema. |
+| 5. Drop Inertia | WS-41 | No Inertia protocol, compat router or `app/javascript` left; pages are plain App Router React. |
 
 Phase 0 runs mostly in sequence; phase 1 and 2 workstreams run in parallel worktrees. See
 [workstreams.md](workstreams.md) for the briefs.
+
+## After Rails: dropping Inertia
+
+While both apps serve traffic, the Next.js pages speak Inertia on purpose. The page components in
+`app/javascript` run unchanged in both apps (`@inertiajs/react` is aliased to `nextjs/src/lib/navigation`,
+and `Routes.*` to `src/lib/navigation/routes.ts`). The `data-page` props are what the parity replays compare
+byte for byte against Rails. A visit can also move between a Next page and a Rails page without the
+client noticing. Removing Inertia earlier would break all three.
+
+Phase 5 starts only once every route is served by Next and Rails is gone (phase 4):
+
+- Pages become Server Components that receive their props directly. `InertiaShell`, `data-page`, the
+  `/gr-inertia` endpoint and the X-Inertia headers go away.
+- `router.visit`/`reload` and partial reloads become `next/navigation` (`useRouter`, `router.refresh()`).
+- `useForm` and Inertia mutations become Server Actions or plain `fetch`, and validation errors are returned
+  directly instead of through the session.
+- Deferred, scroll and merge props (`lazy-props.ts`) become Suspense boundaries and streamed data.
+- `routes.ts` (Rails' js-routes helpers) is replaced by Next's typed routes.
+- The components move from `app/javascript` into `nextjs/src`, and the compat layer, the routes
+  auto-import loader and the `sharedPackages` aliases are deleted.
+
+Parity stops being the guide for this phase. Each page is covered by end-to-end tests of what a user sees
+and can do, written before its Inertia plumbing is removed.
 
 ## Out of scope
 
