@@ -50,7 +50,7 @@ function truncate(text: string, length: number): string {
 export const postSnippet = (message: string | null) => Array.from(scrubbedText(message)).slice(0, SNIPPET_LENGTH).join("");
 
 // Installment#truncated_description
-const truncatedDescription = (message: string | null) => truncate(scrubbedText(message), DESCRIPTION_LENGTH);
+export const truncatedDescription = (message: string | null) => truncate(scrubbedText(message), DESCRIPTION_LENGTH);
 
 // Post::SocialImage: the first <figure> that holds an <img>.
 export function socialImage(message: string | null): { url: string | null; caption: string | null } {

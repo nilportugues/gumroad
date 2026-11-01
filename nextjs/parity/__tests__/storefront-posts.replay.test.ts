@@ -18,7 +18,7 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 // with setup requests (CSRF fetch, login) replay only the last exchange.
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
-const FIXTURE_DIRS = ["parity/fixtures/requests/storefront_posts_parity_spec"];
+const FIXTURE_DIRS = ["parity/fixtures/requests/storefront_posts_parity_spec", "parity/fixtures/requests/storefront_post_comments_parity_spec"];
 const ROUTE_FLAGS = ["nextjs_storefront_posts", "nextjs_gumroad_blog_post"].join(",");
 const WARM_PATHS = ["/gr-host/seller/p/warm", "/blog/p/warm"];
 const FIRST_COMPILE_TIMEOUT_MS = 180_000;
@@ -38,6 +38,9 @@ const COMPARE = {
     "response.headers.cache-control",
     // Rack::MiniProfiler's authorization cookie for team members.
     "response.cookies.__profilin",
+    // Seeded as "<now-24h>"; a request that takes over a second to render reads back as "<now-1440m>".
+    "response.inertia.props.recent_posts.*.published_at",
+    "response.json.props.recent_posts.*.published_at",
     // Masked per response.
     "response.cookies.XSRF-TOKEN.value",
     "db.dashboard_nav_promotions.inserted.*.created_at",
