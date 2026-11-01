@@ -1,8 +1,12 @@
 // The parts of app/models/merchant_account.rb (and User#stripe_account) the ported jobs read. No
 // writes: MerchantAccount's save callbacks are not ported.
-import { Prisma } from "@prisma/client";
+import { Prisma, type MerchantAccount } from "@prisma/client";
 
-import { column, selectRows, table } from "./sql.ts";
+import { readBelongsTo } from "./concerns/belongs-to-record.ts";
+import { defineModel } from "./runtime/define-model.ts";
+import type { ModelRecord } from "./runtime/record.ts";
+import { castRow, column, selectRows, table } from "./sql.ts";
+import { NotPortedError, Users } from "./user.ts";
 
 export const STRIPE_CHARGE_PROCESSOR_ID = "stripe";
 
@@ -44,4 +48,41 @@ export function aliveStripeAccountsOf(userId: unknown): Promise<MerchantAccountR
 // User#stripe_account: the first non-Connect account of those, picked in Ruby.
 export async function stripeAccountOf(userId: unknown): Promise<MerchantAccountRow | null> {
   return (await aliveStripeAccountsOf(userId)).find((account) => !isStripeConnectAccount(account)) ?? null;
+}
+
+// MerchantAccount as a record, for the models that hold one (Credit, Balance, BalanceTransaction).
+// Its save callbacks are not ported, so it is only ever loaded.
+export type MerchantAccountRecord = ModelRecord<MerchantAccount>;
+export const MerchantAccounts = defineModel<MerchantAccount>({
+  rubyClass: "MerchantAccount",
+  prismaModel: "MerchantAccount",
+  delegate: (tx) => tx.merchantAccount as never,
+});
+
+// MerchantAccount.find_by(charge_processor_merchant_id:)
+export async function findMerchantAccountByProcessorMerchantId(id: string): Promise<MerchantAccountRecord | null> {
+  const [row] = await selectRows(
+    Prisma.sql`SELECT ${Prisma.raw("`merchant_accounts`.*")} FROM ${table("merchant_accounts")} WHERE ${column("merchant_accounts", "charge_processor_merchant_id")} = ${id} LIMIT 1`,
+  );
+  return row ? MerchantAccounts.load(castRow<MerchantAccount>("MerchantAccount", row)) : null;
+}
+
+// `merchant_account.user`
+export const merchantAccountUser = (account: MerchantAccountRecord) =>
+  readBelongsTo(account, { name: "user", foreignKey: "user_id", targetTable: "users", targetModel: "User" }, Users);
+
+export const HOLDER_OF_FUNDS = { GUMROAD: "gumroad", STRIPE: "stripe", CREATOR: "creator" } as const;
+
+// MerchantAccount#is_a_stripe_connect_account?
+export const isStripeConnectAccountRecord = (account: MerchantAccountRecord) =>
+  account.get("charge_processor_id") === STRIPE_CHARGE_PROCESSOR_ID && account.get("user_id") != null && stripeConnectMeta(account.get("json_data")) === "true";
+
+// MerchantAccount#holder_of_funds for a Stripe account (StripeChargeProcessor#holder_of_funds);
+// the other processors' rules are not ported.
+export async function holderOfFunds(account: MerchantAccountRecord): Promise<string> {
+  if (account.get("charge_processor_id") !== STRIPE_CHARGE_PROCESSOR_ID)
+    throw new NotPortedError("MerchantAccount#holder_of_funds for a non-Stripe account", "app/models/merchant_account.rb:131");
+  if (isStripeConnectAccountRecord(account)) return HOLDER_OF_FUNDS.CREATOR;
+  if (await merchantAccountUser(account)) return HOLDER_OF_FUNDS.STRIPE;
+  return HOLDER_OF_FUNDS.GUMROAD;
 }

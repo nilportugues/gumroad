@@ -159,6 +159,31 @@ Still Ruby-only: everything else in purchase.rb (4.6k lines of callbacks, money 
 subscription.rb (`alive?`, `end_time_of_subscription`, `overdue_for_charge?`, price and mandate logic), and `UrlRedirect`
 beyond the has_one read.
 
+### Money: `CurrencyHelper`, `Credit`, `BalanceTransaction`, `Balance`, `BacktaxCollection`
+
+`concerns/currency-helper.ts` is `get_rate`/`query_rate` (the `currencies` Redis namespace, refilled from
+OpenExchangeRates, with the last-known-rate fallback when Redis is down), `get_usd_cents`,
+`usd_cents_to_currency` and `formatted_dollar_amount`. Money is a 60-digit `Decimal` over the rate's
+shortest Float form, which matches BigDecimal on 800+ recorded vectors. Golden:
+`concerns/__fixtures__/currency.golden.json` (`scripts/golden/currency.rb`, `CURRENCY_SOURCE` on the capture
+server). `models/link.ts` still has its own `getUsdCents` that refuses on a missing rate; move it over.
+
+`credit.ts` (record, validations, the `add_comment` after_create), `credit-creation.ts`
+(`create_for_balance_change_on_stripe_account!` and `create_for_bank_debit_on_stripe_account!`),
+`balance-transaction.ts` (`create!`, `update_balance!` with its balance lock and retry,
+`find_or_create_balance`), `balance.ts` (validations, the non-USD Gumroad-held report, the after-commit
+`UpdateSellerRefundEligibilityJob` enqueue) and `backtax-collection.ts` are ported for credits. Golden:
+`worker/jobs/__fixtures__/money-jobs.golden.json` (`scripts/golden/money-jobs.rb`). Association reads that
+Rails caches on the instance go through `concerns/belongs-to-record.ts`, which keeps one record per cached
+row; which of them load, and when, is part of the SQL the golden pins (the `has_many` reader's inverse
+`user` on a backtax agreement, the `reload` in `update_balance!` that drops them).
+
+Refused with `NotPortedError`: balance transactions for a purchase, refund or dispute, a returned-payment,
+financing-paydown or fee-retention credit, `capital_deduction_date`, a non-Stripe merchant account's
+`holder_of_funds`, writing `json_data` on a stored credit, and `create_for_credit!` and the other
+`create_for_*` methods. `update_balance!` does not retry on `ActiveRecord::LockWaitTimeout`. `MerchantAccount`
+is a read-only record (`merchant-account.ts`).
+
 ### `User` (`user.ts`)
 
 Ported, in Rails' callback order: every validation and `before_validation` of user.rb and its

@@ -11,6 +11,9 @@ import { disputeEvidenceDueSoonReminderJob } from "./dispute-evidence-due-soon-r
 import { sendCommunityChatRecapNotificationsJob } from "./send-community-chat-recap-notifications-job.ts";
 import { sendMarketingXReconnectEmailJob } from "./send-marketing-x-reconnect-email-job.ts";
 import { handleSnsAwsConfigEventWorker } from "./handle-sns-aws-config-event-worker.ts";
+import { updateSellerRefundEligibilityJob } from "./update-seller-refund-eligibility-job.ts";
+import { handleStripeAutodebitForNegativeBalance } from "./handle-stripe-autodebit-job.ts";
+import { recoverAusBacktaxFromStripeAccountJob } from "./recover-aus-backtax-from-stripe-account-job.ts";
 import { expireStampedPdfsJob, updateLargeSellersSalesCountJob } from "./large-seller-and-stamped-pdf-jobs.ts";
 import { logResendEventJob } from "./log-resend-event-job.ts";
 import { logSendgridEventWorker } from "./log-sendgrid-event-worker.ts";
@@ -78,6 +81,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   FindExpiredSubscriptionsToSetAsDeactivatedWorker: findExpiredSubscriptionsToSetAsDeactivatedWorker,
   ForceFinishLongRunningCommunityChatRecapRunsJob: forceFinishLongRunningCommunityChatRecapRunsJob,
   HandleSnsAwsConfigEventWorker: handleSnsAwsConfigEventWorker,
+  HandleStripeAutodebitForNegativeBalance: handleStripeAutodebitForNegativeBalance,
   InternalNotificationWorker: internalNotificationWorker,
   LiftPlatformStripePauseJob: liftPlatformStripePauseJob,
   LogResendEventJob: logResendEventJob,
@@ -85,6 +89,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   SellerUpdatesWorker: sellerUpdatesWorker,
   SendToElasticsearchWorker: sendToElasticsearchWorker,
   RecalculateRecentWishlistFollowerCountJob: recalculateRecentWishlistFollowerCountJob,
+  RecoverAusBacktaxFromStripeAccountJob: recoverAusBacktaxFromStripeAccountJob,
   RecoverAusBacktaxesFromStripeAccountsJob: recoverAusBacktaxesFromStripeAccountsJob,
   RefreshMerchantAccountProductsRecommendationEligibilityJob: refreshMerchantAccountProductsRecommendationEligibilityJob,
   RefreshUserProductsRecommendationEligibilityJob: refreshUserProductsRecommendationEligibilityJob,
@@ -104,6 +109,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   UpdateCurrenciesWorker: updateCurrenciesWorker,
   UpdateLargeSellersSalesCountJob: updateLargeSellersSalesCountJob,
   UpdatePurchaseHealthcheckThresholdJob: updatePurchaseHealthcheckThresholdJob,
+  UpdateSellerRefundEligibilityJob: updateSellerRefundEligibilityJob,
   WarmSellerReputationSummaryJob: warmSellerReputationSummaryJob,
 };
 

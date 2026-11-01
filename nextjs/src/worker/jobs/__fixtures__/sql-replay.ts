@@ -94,16 +94,19 @@ export function sqlReplay(golden: Statement[]) {
     const tableName = model.dbName ?? model.name;
     const columns = model.fields.filter((f) => f.kind === "scalar").map((f) => f.dbName ?? f.name);
     const q = (name: string) => `\`${name}\``;
+    // A Date for a `date` column is quoted as the date alone, as ActiveRecord's Date type does.
+    const dateOnly = new Set(model.fields.filter((f) => (f.nativeType as [string, string[]] | null | undefined)?.[0] === "Date").map((f) => f.dbName ?? f.name));
+    const quoteColumn = (c: string, value: unknown) => (dateOnly.has(c) && value instanceof Date ? `'${value.toISOString().slice(0, 10)}'` : quote(value));
     return {
       async create({ data }: { data: Record<string, unknown> }) {
         touch();
         const names = columns.filter((c) => c in data);
-        const result = next(`INSERT INTO ${q(tableName)} (${names.map(q).join(", ")}) VALUES (${names.map((c) => quote(data[c])).join(", ")})`);
+        const result = next(`INSERT INTO ${q(tableName)} (${names.map(q).join(", ")}) VALUES (${names.map((c) => quoteColumn(c, data[c])).join(", ")})`);
         return { ...data, id: data.id ?? BigInt(result.last_id ?? 0) };
       },
       async update({ where, data }: { where: { id: unknown }; data: Record<string, unknown> }) {
         touch();
-        const sets = Object.keys(data).map((c) => `${q(tableName)}.${q(c)} = ${quote(data[c])}`);
+        const sets = Object.keys(data).map((c) => `${q(tableName)}.${q(c)} = ${quoteColumn(c, data[c])}`);
         next(`UPDATE ${q(tableName)} SET ${sets.join(", ")} WHERE ${q(tableName)}.${q("id")} = ${quote(where.id)}`);
         return { ...data, id: where.id };
       },
