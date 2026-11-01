@@ -8,6 +8,7 @@ import { dispatchPendingWorkflowInstallmentScheduleIntentsJob } from "./dispatch
 import { elasticsearchIndexerWorker } from "./elasticsearch-indexer-worker.ts";
 import { enqueueMarketingXReconnectEmailJob } from "./enqueue-marketing-x-reconnect-email-job.ts";
 import { disputeEvidenceDueSoonReminderJob } from "./dispute-evidence-due-soon-reminder-job.ts";
+import { sendCommunityChatRecapNotificationsJob } from "./send-community-chat-recap-notifications-job.ts";
 import { sendMarketingXReconnectEmailJob } from "./send-marketing-x-reconnect-email-job.ts";
 import { handleSnsAwsConfigEventWorker } from "./handle-sns-aws-config-event-worker.ts";
 import { expireStampedPdfsJob, updateLargeSellersSalesCountJob } from "./large-seller-and-stamped-pdf-jobs.ts";
@@ -77,6 +78,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   ReindexRecommendableProductsWorker: reindexRecommendableProductsWorker,
   ReindexSubscriptionCurrentEmailWorker: reindexSubscriptionCurrentEmailWorker,
   ReleaseChargebackRatePayoutPausesJob: releaseChargebackRatePayoutPausesJob,
+  SendCommunityChatRecapNotificationsJob: sendCommunityChatRecapNotificationsJob,
   SendMarketingXReconnectEmailJob: sendMarketingXReconnectEmailJob,
   SuspendAccountsWithPaymentAddressWorker: suspendAccountsWithPaymentAddressWorker,
   SuspendUsersWorker: suspendUsersWorker,
