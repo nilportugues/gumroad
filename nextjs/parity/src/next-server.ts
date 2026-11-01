@@ -2,7 +2,7 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { createServer } from "node:net";
 import path from "node:path";
 
-export type NextServer = { baseUrl: string; stop: () => Promise<void> };
+export type NextServer = { baseUrl: string; stop: () => Promise<void>; output: () => string };
 
 const READY_TIMEOUT_MS = 120_000;
 
@@ -52,5 +52,5 @@ export async function startNextServer(env: Record<string, string>): Promise<Next
     }
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
-  return { baseUrl: `http://127.0.0.1:${port}`, stop };
+  return { baseUrl: `http://127.0.0.1:${port}`, stop, output: () => output };
 }
