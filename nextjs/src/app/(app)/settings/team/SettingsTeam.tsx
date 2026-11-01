@@ -340,7 +340,7 @@ const TeamMembersSection = ({
                   <Select
                     instanceId={memberInfo.id}
                     options={memberInfo.options}
-                    onChange={(newOption) => {
+                    onChange={(newOption: { id: string } | null) => {
                       if (newOption !== null) {
                         void handleOptionChange({ memberInfo, selectedOption: newOption.id });
                       }
