@@ -230,11 +230,11 @@ cache, so `with_lock`'s reload drops what was loaded. `Subscriptions.save` of a 
 Goldens: `worker/jobs/__fixtures__/subscription-writes-jobs.golden.json` (`scripts/golden/subscription-writes-jobs.rb`).
 
 Handed back to Rails before the first write: a failed charge on the card of a mandate-reliable merchant account
-(`indian_card_mandate_error_status`, `refresh_indian_card_mandate!` call Stripe); a seller with a member cancellation
-workflow when the subscription is cancelled (`Workflow#applies_to_purchase?`, `SendWorkflowInstallmentWorker`); a
-subscription cancelled while the job waited for its lock. For a cancelled subscription Node reads the seller's workflows
-before `BEGIN`, where Rails reads them after the commit (`readWorkflowsForCancellation`), so the hand-back decision is made
-before anything is written. `Time.current` is a JavaScript Date, so `deactivated_at` and friends lose microseconds.
+(`indian_card_mandate_error_status`, `refresh_indian_card_mandate!` call Stripe); a member cancellation workflow whose
+filters Node cannot judge (see WS-51); a subscription cancelled while the job waited for its lock. For a cancelled
+subscription Node reads the seller's workflows before `BEGIN`, where Rails reads them after the commit
+(`readWorkflowsForCancellation`), so the hand-back decision is made before anything is written; the workflows are then
+evaluated and scheduled after the commit, as Rails does. `Time.current` is a JavaScript Date, so `deactivated_at` and friends lose microseconds.
 Purchase.inventory_pending_create_commit_ids is always empty in Node (no purchase is created there).
 
 ### Money: `CurrencyHelper`, `Credit`, `BalanceTransaction`, `Balance`, `BacktaxCollection`
@@ -376,3 +376,33 @@ with the statements, Redis, ErrorNotifier reports and errors recorded) and
   checkout and refund workstreams; extend the credit golden then.
 - `datetime(6)` columns (`due_at`, `notification_sent_at`, `seller_contacted_at`, `event_created_at`) are JavaScript Dates:
   microseconds are lost on read, and a stamp Node writes has millisecond precision where Ruby's `Time.current` has microseconds.
+
+### Workflows, installments and their schedulers (WS-51)
+
+Read side of `Workflow`, `Installment`/`InstallmentRule` and `WithFiltering`, for the jobs in `src/worker/jobs/workflow-jobs.ts`
+and the member cancellation scheduling of `SetSubscriptionAsDeactivatedWorker`. Golden: `worker/jobs/__fixtures__/workflow-jobs.golden.json`
+(`scripts/golden/workflow-jobs.rb`, 118 cases: every job as a Sidekiq job with its statements, scheduled `at` and Redis; run it with the
+`OBFUSCATE_IDS_*` keys its header names, because the variant external ids in the seeds depend on them).
+
+- `workflow.ts`: `WorkflowRecord` (the row, `json_data` parsed on first use, `seller`/`base_variant` loaded once per record), the type and
+  trigger predicates, `applies_to_purchase?`, `link.workflows.alive`, `seller.workflows.alive.<type scope>`, `workflow.installments.alive[.published]`
+  and `installment.installment_rule`. `workflow-scheduling.ts` lists the installments a scheduler pushes for (rule read per installment, rule-less
+  ones skipped).
+- `with-filtering.ts`: `purchase_passes_filters` / `seller_post_passes_filters`, including the `not_bought_products` and `not_bought_variants`
+  probes (`seller.sales...exists?` with the UNION subquery of `Purchase.by_external_variant_ids_or_products`, written as ActiveRecord renders it:
+  flag values quoted, `IN ('1', '2')` for variant ids, `1=0` for no products). `PurchaseRecord` (purchase-pricing.ts) gained `seller()`,
+  `license()` and `subscriptionRow()`.
+- Filters are JSON values, and Ruby compares them with whatever the column holds. Node judges the types the filters are written with (numbers for the
+  price and license filters, string lists for products and variants, ISO 8601 strings for `created_after`/`created_before`, which ActiveSupport coerces
+  with `to_datetime`) and throws `NotPortedError` for anything else: a string where a number is compared, a date in another format, a variant external
+  id that does not decode, the `seller_post_filter_cache`/`seller_post_probe_batch` arguments of the batch callers. `assertWorkflowSupported` runs the
+  same checks without reading, so a job that evaluates workflows after its first write can decide first.
+- A column that is not a Hash raises `ArgumentError: json_data must be a hash` at the first filter read, as in Rails; invalid JSON is handed back.
+- `installment-rule.ts`: `cached_version`, `cached_version_state` and `displayable_time_duration` (a month is 2629746 seconds). The writes, the
+  pending-version Lua scripts and the callbacks stay in Ruby. `product-affiliate.ts`: the workflow schedule token lease of `ProductAffiliate`
+  (`enqueue_workflow_schedule`, `claim_workflow_schedule`, `workflow_schedule_dispatchable?`, Ruby's `Integer()` for the claim time).
+- `perform_at` scores a scheduled job with `Time#to_f`, which divides the time in nanoseconds by 1e9 and so reads `...245.123` back as
+  `...245.1230001`. `rubyTimeToF` does the same and `enqueue()` uses it for `at`.
+- Not ported: the sends (`Installment#send_installment_from_workflow_for_*`, `PostEmailApi`), `Installment` as a runtime model (publish, schedule,
+  `WorkflowInstallmentScheduleIntent.enqueue!` and the `Workflow#publish!`/`schedule_installment` writes), `Workflow#mark_deleted!`,
+  `InstallmentRule`'s version callbacks.
