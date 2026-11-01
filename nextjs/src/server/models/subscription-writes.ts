@@ -18,12 +18,16 @@ import { hasPaperTrail } from "./concerns/paper-trail.ts";
 import { defineModel, type Callback, type CallbackContext } from "./runtime/define-model.ts";
 import type { ModelRecord } from "./runtime/record.ts";
 import { PURCHASES } from "./purchase.ts";
+import { PurchaseRecord } from "./purchase-pricing.ts";
 import { findById } from "./row-reads.ts";
 import { SentEmailInfos, mailerKeyDigest } from "./sent-email-info.ts";
 import { castRow, column, execute, findInBatches, quoteName, selectRows, table } from "./sql.ts";
 import { latestSubscriptionEvent, SubscriptionEvents, SUBSCRIPTION_EVENT_TYPES, type SubscriptionEventType } from "./subscription-event.ts";
 import { SubscriptionFlags, SubscriptionRecord, type SubscriptionDeps } from "./subscription.ts";
 import { NotPortedError, UserFlags } from "./user.ts";
+import { SEND_WORKFLOW_INSTALLMENT_WORKER, schedulableInstallments } from "./workflow-scheduling.ts";
+import { assertWorkflowSupported, WorkflowRecord } from "./workflow.ts";
+import { ArgumentError } from "./with-filtering.ts";
 
 export type SubscriptionModel = ModelRecord<Subscription>;
 
@@ -38,7 +42,6 @@ const COUNTS_TOWARDS_INVENTORY_STATES = ["preorder_authorization_successful", "i
 // ResourceSubscription::CANCELLED_RESOURCE_NAME and SUBSCRIPTION_ENDED_RESOURCE_NAME
 const CANCELLED_RESOURCE_NAME = "cancellation";
 const SUBSCRIPTION_ENDED_RESOURCE_NAME = "subscription_ended";
-const MEMBER_CANCELLATION_WORKFLOW_TRIGGER = "member_cancellation";
 const WORKFLOWS = "workflows";
 const SENT_EMAIL_INFOS = "sent_email_infos";
 const CUSTOMER_LOW_PRIORITY_MAILER = "CustomerLowPriorityMailer";
@@ -316,20 +319,45 @@ export type DeactivateOptions = {
   workflows?: Workflow[];
 };
 
-const jsonDataOf = (workflow: Workflow): Record<string, unknown> => (workflow.json_data ? (JSON.parse(workflow.json_data) as Record<string, unknown>) : {});
-const memberCancellationTrigger = (workflow: Workflow) => jsonDataOf(workflow).workflow_trigger === MEMBER_CANCELLATION_WORKFLOW_TRIGGER;
-
 // `seller.workflows.alive.seller_or_product_or_variant_type`, the read of `schedule_member_cancellation_workflow_jobs`.
 // Node issues it before the job's first write, where Rails issues it last, so a seller with a
-// member-cancellation workflow (whose installments need Workflow#applies_to_purchase? and
-// SendWorkflowInstallmentWorker) can be handed back to Rails untouched.
+// member-cancellation workflow whose filters Node cannot judge (with-filtering.ts) can be handed back
+// to Rails while nothing has been written. A column that is not a Hash raises in Ruby after the
+// commit, so it is handed back too.
 export async function readWorkflowsForCancellation(record: SubscriptionModel): Promise<Workflow[]> {
   const rows = await selectRows(
     Prisma.sql`SELECT ${Prisma.raw(`${quoteName(WORKFLOWS)}.*`)} FROM ${table(WORKFLOWS)} WHERE ${column(WORKFLOWS, "seller_id")} = ${record.get("seller_id")} AND ${column(WORKFLOWS, "deleted_at")} IS NULL AND ${column(WORKFLOWS, "workflow_type")} IN ('seller', 'product', 'variant')`,
   );
   const workflows = rows.map((row) => castRow<Workflow>("Workflow", row));
-  if (workflows.some(memberCancellationTrigger)) throw new NotPortedError("Workflow#applies_to_purchase? for a member cancellation workflow", "subscription.rb:2028");
+  for (const workflow of workflows) {
+    try {
+      if (new WorkflowRecord(workflow).memberCancellationTrigger) assertWorkflowSupported(workflow);
+    } catch (error) {
+      if (error instanceof ArgumentError) throw new NotPortedError("a workflow whose json_data is not a Hash", "json_data.rb");
+      throw error;
+    }
+  }
   return workflows;
+}
+
+// `schedule_member_cancellation_workflow_jobs` after `return if alive? || !cancelled?`: one
+// SendWorkflowInstallmentWorker at `deactivated_at + delay` per installment of each member
+// cancellation workflow that applies to the original purchase.
+async function scheduleMemberCancellationWorkflowJobs(record: SubscriptionModel, original: Purchase | null, workflows: Workflow[]): Promise<void> {
+  const purchase = original === null ? null : new PurchaseRecord(original, subscriptionView(record));
+  const deactivatedAt = record.get("deactivated_at") as Date;
+  for (const row of workflows) {
+    const workflow = new WorkflowRecord(row);
+    if (!workflow.memberCancellationTrigger) continue;
+    if (purchase === null) throw new NoMethodError(workflow.productType ? "undefined method 'link_id' for nil" : "undefined method 'slice' for nil");
+    if (!(await workflow.appliesToPurchase(purchase))) continue;
+
+    for (const { installment, rule } of await schedulableInstallments(workflow, { published: false })) {
+      if (rule.delayed_delivery_time === null) throw new TypeError("can't convert nil into an exact number");
+      const at = new Date(deactivatedAt.getTime() + rule.delayed_delivery_time * 1000);
+      await performAsync(SEND_WORKFLOW_INSTALLMENT_WORKER, [installment.id, rule.version, null, null, null, Number(record.get("id"))], { at });
+    }
+  }
 }
 
 // `deactivate!`
@@ -346,9 +374,8 @@ export async function deactivateBang(record: SubscriptionModel, options: Deactiv
   });
 
   if (isCancelled(record)) {
-    // `return if alive? || !cancelled?` leaves the workflows to schedule; none of them has a member
-    // cancellation trigger (readWorkflowsForCancellation refuses those), so none schedules anything.
     if (options.workflows === undefined) throw new NotPortedError("Subscription#schedule_member_cancellation_workflow_jobs", "subscription.rb:2028");
+    await scheduleMemberCancellationWorkflowJobs(record, original, options.workflows);
   }
 }
 

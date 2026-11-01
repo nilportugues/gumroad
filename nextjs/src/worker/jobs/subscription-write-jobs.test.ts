@@ -47,11 +47,9 @@ const handlers = (c: Case): Record<string, JobHandler> => {
   };
 };
 
-// A failed charge on the card needs Purchase#indian_card_mandate_error_status, and a member
-// cancellation workflow needs Workflow#applies_to_purchase?.
-const failedChargeOnCard = (c: Case) => c.name === "unsubscribe: mandate reliability on, card with a failed charge";
-const memberCancellationWorkflow = (c: Case) => c.name === "deactivated: cancelled, seller has a member cancellation workflow";
-const handsBack = (c: Case) => failedChargeOnCard(c) || memberCancellationWorkflow(c);
+// A failed charge on the card needs Purchase#indian_card_mandate_error_status. Member cancellation
+// workflows are ported (workflow-jobs.test.ts replays them with installments and filters).
+const handsBack = (c: Case) => c.name === "unsubscribe: mandate reliability on, card with a failed charge";
 
 const isWorkflowRead = (statement: Statement) => statement.sql.startsWith("SELECT `workflows`.*");
 const WORKFLOWS_SQL = "SELECT `workflows`.* FROM `workflows` WHERE `workflows`.`seller_id` = 1 AND `workflows`.`deleted_at` IS NULL AND `workflows`.`workflow_type` IN ('seller', 'product', 'variant')";
