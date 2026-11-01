@@ -143,6 +143,12 @@ export async function seedDashboardNavItems(user: User, seller: User): Promise<v
   }
 }
 
+// `logged_in_user.promoted_nav_item_keys`, as the page's props read it: before the after_action
+// promotes the page being viewed.
+export async function promotedNavItemKeys(user: User): Promise<string[]> {
+  return (await dashboardNavItems(user.id)).filter((item) => PROMOTABLE_NAV_ITEMS.includes(item));
+}
+
 // promote_visited_nav_item: runs after a successful render.
 export async function promoteVisitedNavItem(user: User, path: string): Promise<void> {
   try {

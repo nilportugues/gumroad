@@ -6,6 +6,7 @@ import * as Routes from "@/lib/navigation/routes";
 import type { ActionOptions, Redirected } from "../controllers/application-controller.ts";
 import { LOGIN_OPTIONS, SECURE_REDIRECT_OPTIONS, SIGNUP_OPTIONS, TWO_FACTOR_OPTIONS } from "../controllers/auth-pages.ts";
 import { loginPageProps, secureRedirectPageProps, signupPageProps, twoFactorPageProps } from "./auth-pages.ts";
+import { BUYER_PAGES } from "./buyer/pages.ts";
 import { assetHost } from "./domain.ts";
 import {
   articleProps,
@@ -118,6 +119,7 @@ export const PAGES: Record<string, PageSpec> = {
   ...SETTINGS_PAGES,
   ...PUBLIC_PAGES,
   ...DASHBOARD_PAGES,
+  ...BUYER_PAGES,
 };
 
 // ArticlesController#index

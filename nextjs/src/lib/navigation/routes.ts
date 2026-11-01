@@ -384,3 +384,14 @@ export const balance_path = path("/payouts(.:format)");
 export const tax_center_path = path("/payouts/taxes(.:format)");
 export const download_tax_form_path = path("/payouts/taxes/:year/:form_type/download(.:format)");
 export const tax_form_transaction_report_path = path("/payouts/taxes/:year/transaction_report(.:format)");
+
+// Buyer pages (forgot password, subscription magic link, invoices, library, wishlists, reviews).
+export const user_password_path = path("/users/forgot_password(.:format)");
+export const edit_user_password_path = path("/users/forgot_password/edit(.:format)");
+export const subscription_magic_link_path = path("/subscriptions/:subscription_id/magic_link(.:format)");
+export const new_subscription_magic_link_path = path("/subscriptions/:subscription_id/magic_link/new(.:format)");
+export const confirm_purchase_invoice_path = path("/purchases/:purchase_id/invoice/confirm(.:format)");
+export const new_purchase_invoice_path = path("/purchases/:purchase_id/invoice/new(.:format)");
+export const library_path = path("/library(.:format)");
+export const reviews_path = path("/reviews(.:format)");
+export const wishlists_following_index_path = path("/wishlists/following(.:format)");

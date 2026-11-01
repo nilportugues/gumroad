@@ -77,7 +77,7 @@ const signedInUserHome = async (userId: bigint) => ((await isBuyer(userId)) ? "/
 
 // Devise's require_no_authentication, as Gumroad overrides it (SilentAlreadySignedInRedirect): a
 // signed-in visitor is sent where a login would have sent them.
-async function requireNoAuthentication(chain: Chain): Promise<Redirected | null> {
+export async function requireNoAuthentication(chain: Chain): Promise<Redirected | null> {
   const { auth, request } = chain;
   const current = auth.context.loggedInUser ?? auth.effects.signedOut?.user ?? null;
   if (!current) return null;

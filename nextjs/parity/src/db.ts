@@ -46,19 +46,23 @@ export const IGNORED_TABLES = new Set(["schema_migrations", "ar_internal_metadat
 
 export type Schema = Record<string, Omit<TableDump, "rows">>;
 
+// Generated columns (product_reviews.has_message) are computed by MySQL and refuse an explicit value.
+const generatedColumns = new Set<string>();
+
 const schemaCache = new WeakMap<SqlExecutor, Schema>();
 
 export async function readSchema(sql: SqlExecutor): Promise<Schema> {
   const cached = schemaCache.get(sql);
   if (cached) return cached;
   const rows = await sql.query(`
-    SELECT c.TABLE_NAME AS t, c.COLUMN_NAME AS c, c.DATA_TYPE AS d, c.COLUMN_KEY AS k
+    SELECT c.TABLE_NAME AS t, c.COLUMN_NAME AS c, c.DATA_TYPE AS d, c.COLUMN_KEY AS k, c.EXTRA AS x
     FROM information_schema.COLUMNS c
     JOIN information_schema.TABLES t ON t.TABLE_SCHEMA = c.TABLE_SCHEMA AND t.TABLE_NAME = c.TABLE_NAME
     WHERE c.TABLE_SCHEMA = DATABASE() AND t.TABLE_TYPE = 'BASE TABLE'
     ORDER BY c.TABLE_NAME, c.ORDINAL_POSITION`);
   const schema: Schema = {};
-  for (const { t, c, d, k } of rows as { t: string; c: string; d: string; k: string }[]) {
+  for (const { t, c, d, k, x } of rows as { t: string; c: string; d: string; k: string; x: string }[]) {
+    if (/GENERATED/i.test(x ?? "")) generatedColumns.add(`${t}.${c}`);
     if (IGNORED_TABLES.has(t)) continue;
     const table = (schema[t] ??= { columns: [], primaryKey: [] });
     table.columns.push([c, d.toLowerCase()]);
@@ -132,7 +136,7 @@ export async function seedDatabase(sql: SqlExecutor, seed: Seed, now: Date): Pro
 
     for (const [table, seedTable] of Object.entries(seed.tables)) {
       const types = new Map(schema[table]!.columns);
-      const columns = Object.keys(seedTable.columns);
+      const columns = Object.keys(seedTable.columns).filter((column) => !generatedColumns.has(`${table}.${column}`));
       const unknown = columns.filter((column) => !types.has(column));
       if (unknown.length) throw new Error(`Replay database is missing ${table}.${unknown.join(", ")}; regenerate it from db/schema.rb`);
 
