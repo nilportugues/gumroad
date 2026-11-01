@@ -20,6 +20,9 @@ export interface RouteGate {
   // (UserCustomDomainConstraint), or neither. A gate that cannot tell leaves the host-shape match in
   // route-table.ts as the only check.
   hostKind?(request: ProxyRequestInfo): Promise<"product" | "user" | null>;
+  // DiscoverTaxonomyConstraint: the request is on the discover host and its path is a taxonomy's. A route with a
+  // `pathGate` stays with Rails when the gate cannot tell.
+  taxonomyPath?(request: ProxyRequestInfo): Promise<boolean>;
 }
 
 // Local runs turn flags on with NEXTJS_ROUTE_FLAGS=flag_a,flag_b.
@@ -32,6 +35,9 @@ export const envRouteGate: RouteGate = {
   },
   async hostKind(request) {
     return (await import("@/server/host-kind")).hostKindOf(request.url, request.headers);
+  },
+  async taxonomyPath(request) {
+    return (await import("@/server/discover-taxonomy")).isTaxonomyPath(request.url);
   },
 };
 

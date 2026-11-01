@@ -36,6 +36,7 @@ import { AGENT_PAGES } from "./agent/pages.ts";
 import { SELLER_PRODUCTS_PAGES } from "./seller-products/pages.ts";
 import { URL_REDIRECT_PAGES } from "./url-redirects/pages.ts";
 import { COMMUNITY_PAGES } from "./communities/pages.ts";
+import { DISCOVER_PAGES } from "./discover/pages.ts";
 
 type Params = Record<string, string>;
 
@@ -149,6 +150,7 @@ export const PAGES: Record<string, PageSpec> = {
   ...SELLER_PRODUCTS_PAGES,
   ...URL_REDIRECT_PAGES,
   ...COMMUNITY_PAGES,
+  ...DISCOVER_PAGES,
 };
 
 // ArticlesController#index
@@ -184,7 +186,9 @@ export const scopeOfPattern = (pattern: string): PageScope => (splitScopedPatter
 
 // Params for a path that matches `pattern` (`:name` is one segment, as in route-table.ts).
 export function matchPagePath(pathname: string, scope: PageScope = "gumroad"): { pattern: string; params: Params } | null {
-  for (const pattern of Object.keys(PAGES)) {
+  // A glob (`/*taxonomy`) is every path, so it matches after the others.
+  const patterns = Object.keys(PAGES).sort((a, b) => Number(a.includes("/*")) - Number(b.includes("/*")));
+  for (const pattern of patterns) {
     const { scope: patternScope, path } = splitScopedPattern(pattern);
     if ((patternScope ?? "gumroad") !== scope) continue;
     const names: string[] = [];

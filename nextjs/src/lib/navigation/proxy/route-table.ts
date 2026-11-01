@@ -27,6 +27,9 @@ export type RouteEntry = {
   // A non-GET action ported to Node (server/controllers/mutation.ts), keyed "POST /emails". Its requests are answered by the
   // /gr-mutation handler, which hands whatever it cannot prove back to Rails with the body.
   mutation?: boolean;
+  // The path is only this route when the gate says so (`taxonomy`: DiscoverTaxonomyConstraint). Such a route
+  // matches after every other, as a catch-all glob must.
+  pathGate?: "taxonomy";
 };
 
 export type RouteTable = Record<string, string | RouteEntry>;
@@ -34,7 +37,7 @@ export type RouteTable = Record<string, string | RouteEntry>;
 // `pattern` is the table key (and the key of the page in pages.ts); `path` is the URL pattern. They differ
 // for a route that only exists on seller or product-domain hosts, whose key is prefixed with the scope
 // ("seller:/affiliates") because the same path can also be a Gumroad-domain page.
-export type CompiledRoute = Required<Omit<RouteEntry, "flag">> & { flag: string | null; pattern: string; path: string; regexp: RegExp };
+export type CompiledRoute = Required<Omit<RouteEntry, "flag" | "pathGate">> & { pathGate: "taxonomy" | null; flag: string | null; pattern: string; path: string; regexp: RegExp };
 
 const SCOPE_PREFIXES: Record<string, HostScope> = { "seller:": "seller", "product:": "product" };
 
@@ -78,6 +81,7 @@ export function compileRouteTable(table: RouteTable): CompiledRoute[] {
       signedOutOnly: entry.signedOutOnly ?? false,
       signedInOnly: entry.signedInOnly ?? false,
       inertia: entry.inertia ?? false,
+      pathGate: entry.pathGate ?? null,
     };
   });
 }
@@ -92,12 +96,12 @@ function hostMatches(scope: HostScope, host: HostClassification): boolean {
 // Every route a request matches, in table order: `seller:/` and `product:/` both match a custom domain's root,
 // and only the host gate (a product on the domain or not) tells them apart.
 export function matchRoutes(routes: CompiledRoute[], method: string, pathname: string, host: HostClassification): CompiledRoute[] {
-  return routes.filter((route) => route.methods.includes(method.toUpperCase()) && hostMatches(route.hosts, host) && route.regexp.test(pathname));
+  const matched = routes.filter((route) => route.methods.includes(method.toUpperCase()) && hostMatches(route.hosts, host) && route.regexp.test(pathname));
+  // A catch-all with a path gate (`/*taxonomy`) is every other route's last resort.
+  return [...matched.filter((route) => route.pathGate === null), ...matched.filter((route) => route.pathGate !== null)];
 }
 
 export function matchRoute(routes: CompiledRoute[], method: string, pathname: string, host: HostClassification): CompiledRoute | null {
-  return (
-    routes.find((route) => route.methods.includes(method.toUpperCase()) && hostMatches(route.hosts, host) && route.regexp.test(pathname)) ??
-    null
-  );
+  const matches = (route: CompiledRoute) => route.methods.includes(method.toUpperCase()) && hostMatches(route.hosts, host) && route.regexp.test(pathname);
+  return routes.find((route) => route.pathGate === null && matches(route)) ?? routes.find((route) => route.pathGate !== null && matches(route)) ?? null;
 }

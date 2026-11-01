@@ -1,0 +1,44 @@
+// The Discover pages: /discover and the taxonomy pages (`/*taxonomy`, only for paths that are taxonomies).
+// DiscoverController#index; the filters are in controllers/discover-page.ts.
+import { railsLoggedInUser } from "../../auth/resolve.ts";
+import { DISCOVER_OPTIONS } from "../../controllers/discover-page.ts";
+import { remoteIp } from "../audience/events.ts";
+import type { PageSpec } from "../pages.ts";
+import { createDiscoverSearch, type DiscoverRequest, discoverProps, isSearching, prepareSearch, searchResults, setMetaTags } from "./discover.ts";
+
+const discoverPage: PageSpec = {
+  component: "Discover/Index",
+  options: DISCOVER_OPTIONS,
+  props: async (_, action) => {
+    const { url, headers, context, meta } = action;
+    const visitor = railsLoggedInUser(context);
+    const sent = /(?:^|;\s*)_gumroad_guid=([^;]+)/.exec(headers.get("cookie") ?? "")?.[1];
+    const guid = sent ? decodeURIComponent(sent) : (action.renderState?.mintedGuid ?? null);
+    const queryString = url.search.replace(/^\?/, "");
+    const request: DiscoverRequest = {
+      path: url.pathname,
+      queryString,
+      method: "GET",
+      headers,
+      host: url.hostname,
+      hostWithPort: url.host,
+      protocol: `${url.protocol}//`,
+      remoteIp: remoteIp(headers) ?? "127.0.0.1",
+      cookies: new Map<string, string | null>(),
+      guid,
+    };
+    const prepared = await prepareSearch(request, visitor);
+    const results = await searchResults(prepared, request);
+    if (isSearching(prepared.params)) {
+      const query = prepared.params.query;
+      await createDiscoverSearch({ query: query === undefined || query === null ? null : String(query), taxonomyId: prepared.taxonomy?.id ?? null }, request, visitor, prepared.params);
+    }
+    setMetaTags(meta, prepared, results, visitor !== null, queryString);
+    return discoverProps(prepared, results, visitor);
+  },
+};
+
+export const DISCOVER_PAGES: Record<string, PageSpec> = {
+  "/discover": discoverPage,
+  "/*taxonomy": discoverPage,
+};
