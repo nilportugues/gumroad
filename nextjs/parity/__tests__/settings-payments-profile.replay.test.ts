@@ -68,6 +68,15 @@ const COMPARE = {
 const RANDOM_TOKEN_CASES = ["keeps-the-destination", "replaces-the-token", "forgets-a-stored-flow"];
 const randomTokenIgnore = ["response.inertia.props.social_connect_return", "response.json.props.social_connect_return"];
 
+// SocialConnectReturn keeps a stored token for 15 minutes from its epoch `created_at`; replayed later,
+// the recorded session would always read as expired. Moving it to now keeps the case about reuse.
+function freshSocialConnectReturn(session: unknown, now: Date): unknown {
+  if (session === null || typeof session !== "object") return session;
+  const stored = (session as Record<string, unknown>).social_connect_return;
+  if (stored === null || typeof stored !== "object" || typeof (stored as Record<string, unknown>).created_at !== "number") return session;
+  return { ...session, social_connect_return: { ...stored, created_at: Math.floor(now.getTime() / 1000) } };
+}
+
 const files = readdirSync(FIXTURE_DIR).filter((file) => file.endsWith(".json"));
 const cases = files.map((file) => [file.replace(/^payments-profile-and-application-settings-when-signed-in-/, "").replace(/\.json$/, ""), file] as const);
 
@@ -122,7 +131,7 @@ describe.skipIf(!url)("Payments, profile and application settings parity when si
         transport: httpTransport(server.baseUrl),
         // The server is another process, out of the replayer's reach.
         interceptHttp: false,
-        rewriteRequest: (request, fixture, now) => reencryptCookies(request, fixture, SECRET_KEY_BASE, now),
+        rewriteRequest: (request, fixture, now) => reencryptCookies(request, fixture, SECRET_KEY_BASE, now, freshSocialConnectReturn),
         compare: RANDOM_TOKEN_CASES.some((name) => file.includes(name)) ? { ...COMPARE, ignore: [...COMPARE.ignore, ...randomTokenIgnore] } : COMPARE,
       });
       try {

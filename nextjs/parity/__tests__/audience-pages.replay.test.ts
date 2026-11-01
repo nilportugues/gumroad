@@ -131,7 +131,11 @@ describe.skipIf(!url)("audience pages parity when signed in", () => {
           interceptHttp: false,
           rewriteRequest: (request, fixture, now) => reencryptCookies(request, fixture, SECRET_KEY_BASE, now),
           // The test environment renders Rails' exception page for a 404; production sends public/404.html.
-          compare: _name.includes("404") ? { ignore: [...COMPARE.ignore, "response.body"] } : COMPARE,
+          compare: _name.includes("404")
+            ? { ignore: [...COMPARE.ignore, "response.body"] }
+            : // The seed's times are relative to the replay's clock, so a formatted date moves with the day it
+              // replays on; followers.test.ts pins the format.
+              { ignore: [...COMPARE.ignore, "response.inertia.props.followers.*.formatted_confirmed_on", "response.json.props.followers.*.formatted_confirmed_on"] },
         });
         assertParity(result);
       } catch (error) {

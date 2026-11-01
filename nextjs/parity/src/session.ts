@@ -23,7 +23,15 @@ const inMonths = (now: Date, months: number) => new Date(Date.UTC(now.getUTCFull
 // postdate users.remember_created_at, which the replay seeds relative to its own clock.
 const generatedAt = (now: Date) => (now.getTime() / 1000).toFixed(6);
 
-export function reencryptCookies(request: FixtureRequest, fixture: Fixture, targetSecretKeyBase: string, now: Date): FixtureRequest {
+// `transformSession` adjusts the decrypted session before it is written back, for values recorded as
+// absolute times that the action compares with the clock.
+export function reencryptCookies(
+  request: FixtureRequest,
+  fixture: Fixture,
+  targetSecretKeyBase: string,
+  now: Date,
+  transformSession: (session: unknown, now: Date) => unknown = (session) => session,
+): FixtureRequest {
   if (!request.cookies || !fixture.secretKeyBase) return request;
   const from = deriveRailsCookieSecrets(fixture.secretKeyBase);
   const to = deriveRailsCookieSecrets(targetSecretKeyBase);
@@ -31,7 +39,7 @@ export function reencryptCookies(request: FixtureRequest, fixture: Fixture, targ
   for (const [name, raw] of Object.entries(request.cookies)) {
     if (name === fixture.sessionCookie) {
       const value = readEncryptedCookie(from, name, raw, EPOCH);
-      if (value !== null) cookies[name] = writeEncryptedCookie(to, name, value, { expiresAt: inYears(now, SESSION_YEARS) });
+      if (value !== null) cookies[name] = writeEncryptedCookie(to, name, transformSession(value, now), { expiresAt: inYears(now, SESSION_YEARS) });
     } else if (name === CURRENT_SELLER_COOKIE) {
       const value = readEncryptedCookie(from, name, raw, EPOCH);
       if (value !== null) cookies[name] = writeEncryptedCookie(to, name, value, { expiresAt: inYears(now, PERMANENT_YEARS) });

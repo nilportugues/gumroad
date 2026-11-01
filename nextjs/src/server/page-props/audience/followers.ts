@@ -13,7 +13,8 @@ const MONTHS = ["January", "February", "March", "April", "May", "June", "July", 
 type FollowerRow = { id: number; email: string | null; created_at: Date | null; source: string | null; confirmed_at: Date | null };
 
 // Time#to_fs(:formatted_date_full_month): "%B %-d, %Y"
-const formattedDate = (time: Date) => `${MONTHS[time.getUTCMonth()]} ${time.getUTCDate()}, ${time.getUTCFullYear()}`;
+// `to_fs(:formatted_date_full_month)` in the app's UTC zone.
+export const formattedDate = (time: Date) => `${MONTHS[time.getUTCMonth()]} ${time.getUTCDate()}, ${time.getUTCFullYear()}`;
 
 // `current_seller.followers.active`
 const active = (sellerId: bigint) =>
