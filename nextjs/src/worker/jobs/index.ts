@@ -51,6 +51,8 @@ import { updateCurrenciesWorker } from "./update-currencies-worker.ts";
 import { updatePurchasingPowerParityFactorsWorker } from "./update-purchasing-power-parity-factors-worker.ts";
 import { warmSellerReputationSummaryJob } from "./warm-seller-reputation-summary-job.ts";
 import { recalculateRecentWishlistFollowerCountJob } from "./wishlist-jobs.ts";
+import { sendWorkflowInstallmentWorker } from "./send-workflow-installment-worker.ts";
+import { scheduleWorkflowInstallmentJob } from "./schedule-workflow-installment-job.ts";
 import { flushInstallmentDeliveredDeltasJob, scheduleAffiliateWorkflowJobsJob, scheduleWorkflowEmailsWorker, sendWorkflowInstallmentRescheduleJob, updateInstallmentEventsCountCacheWorker } from "./workflow-jobs.ts";
 import {
   createMissingPurchaseEventsWorker,
@@ -98,7 +100,9 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   FlushInstallmentDeliveredDeltasJob: flushInstallmentDeliveredDeltasJob,
   ScheduleAffiliateWorkflowJobsJob: scheduleAffiliateWorkflowJobsJob,
   ScheduleWorkflowEmailsWorker: scheduleWorkflowEmailsWorker,
+  ScheduleWorkflowInstallmentJob: scheduleWorkflowInstallmentJob,
   SendWorkflowInstallmentRescheduleJob: sendWorkflowInstallmentRescheduleJob,
+  SendWorkflowInstallmentWorker: sendWorkflowInstallmentWorker,
   UpdateInstallmentEventsCountCacheWorker: updateInstallmentEventsCountCacheWorker,
   DisputeEvidenceDueSoonReminderJob: disputeEvidenceDueSoonReminderJob,
   ElasticsearchIndexerWorker: elasticsearchIndexerWorker,

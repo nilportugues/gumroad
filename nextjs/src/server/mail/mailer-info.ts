@@ -238,7 +238,14 @@ const RECORD_MAILER_METHODS = ["purchase_installment", "follower_installment", "
 // CustomerMailer methods HeaderBuilder looks records up for (`receipt_email?`, `abandoned_cart_email?`).
 const CUSTOMER_RECORD_METHODS = ["receipt", "preorder_receipt", "abandoned_cart"];
 
-function checkNoRecordIds(mailerClass: string, mailerMethod: string): void {
+// The posts of PostResendApi: HeaderBuilder#determine_installment_record_ids writes the recipient's and the post's
+// ids into Resend's headers, which needs no lookup.
+const INSTALLMENT_MAILER_CLASS = "CreatorContactingCustomersMailer";
+const isResendInstallment = (mailerClass: string, mailerMethod: string, emailProvider: EmailProvider) =>
+  emailProvider === EMAIL_PROVIDER_RESEND && mailerClass === INSTALLMENT_MAILER_CLASS && RECORD_MAILER_METHODS.includes(mailerMethod);
+
+function checkNoRecordIds(mailerClass: string, mailerMethod: string, emailProvider: EmailProvider): void {
+  if (isResendInstallment(mailerClass, mailerMethod, emailProvider)) return;
   if ((mailerClass === "CustomerMailer" && CUSTOMER_RECORD_METHODS.includes(mailerMethod)) || RECORD_MAILER_METHODS.includes(mailerMethod)) {
     throw new MailArgumentNotPortedError(`MailerInfo record ids for ${mailerClass}#${mailerMethod}`);
   }
@@ -258,7 +265,7 @@ export type MailerHeaders = [string, string][];
 
 export function buildHeaders(input: { mailerClass: string; mailerMethod: string; mailerArgs: RubyValue[]; emailProvider: EmailProvider; randomIv?: RandomIv }): MailerHeaders {
   const { mailerClass, mailerMethod, emailProvider } = input;
-  checkNoRecordIds(mailerClass, mailerMethod);
+  checkNoRecordIds(mailerClass, mailerMethod, emailProvider);
   const args = inspect(truncatedMailerArgs(input.mailerArgs));
   const env = railsEnv();
   if (emailProvider === EMAIL_PROVIDER_RESEND) {
@@ -270,6 +277,11 @@ export function buildHeaders(input: { mailerClass: string; mailerMethod: string;
       ["mailer_args", args],
       ["category", category],
     ];
+    if (isResendInstallment(mailerClass, mailerMethod, emailProvider)) {
+      const [recipientId, postId] = input.mailerArgs;
+      const recipientField = { purchase_installment: "purchase_id", follower_installment: "follower_id", direct_affiliate_installment: "affiliate_id" }[mailerMethod] as MailerInfoField;
+      fields.push([recipientField, String(recipientId)], ["post_id", String(postId)]);
+    }
     return [...fields.map(([field, value]): [string, string] => [headerName(field), encryptHeader(value, input.randomIv)]), [headerName("email_provider"), EMAIL_PROVIDER_RESEND]];
   }
   const smtpApi =
