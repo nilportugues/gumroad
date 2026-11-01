@@ -15,6 +15,8 @@ const navigationCompat = "./src/lib/navigation/index.ts";
 // here and aliased, so both apps can pin different versions without a workspace.
 const sharedPackages = [
   "@boxicons/react",
+  "@paypal/paypal-js",
+  "braintree-web",
   "@radix-ui/react-dialog",
   "@radix-ui/react-popover",
   "@radix-ui/react-slot",

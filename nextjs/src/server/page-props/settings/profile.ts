@@ -31,7 +31,7 @@ const present = (value: string | null | undefined): value is string => value != 
 
 
 // SellerProfile.seller_fonts_css_source: Addressable::URI.encode of Google Fonts' css2 URL.
-function sellerFontsCssSource(): string {
+export function sellerFontsCssSource(): string {
   const families = FONT_CHOICES.filter((font) => font !== DEFAULT_FONT)
     .sort()
     .map((font) => `family=${font}:wght@400;600`)

@@ -463,3 +463,32 @@ GET renders only; every mutation (create, update, archive, duplicate, delete, pu
 - **Elasticsearch.** Churn's four queries (`analytics/churn.ts`) are the composite aggregations of `CreatorAnalytics::Churn::ElasticsearchFetcher` over `PurchaseSearchService`'s query; the Audience chart is `CreatorAnalytics::Following`. `search/creator-analytics-sales.ts` is `CreatorAnalytics::Sales`. The churn fetcher and Sales are pinned to the request bytes and answers Ruby produced (`search/__fixtures__/creator-analytics.golden.json`, regenerate with `generate-creator-analytics-golden.rb`). The replay rebuilds the indices the server searches (under `ES_INDEX_SUFFIX`): `purchases` from the seeded rows with the port's own `PurchaseRecord.asIndexedJson`, and `confirmed_follower_events` (which has no table) from the documents the recorder snapshots into each exchange's `elasticsearch` key. A fixture's query dates are recorded as `<today-3d>` tokens and resolved by the replayer.
 - **Sales analytics.** `AnalyticsPresenter#page_props` and `CreatorAnalytics::HourlySalesCurve` (with its `Rails.cache` entry). `analytics-data.generated.json` (`scripts/dump-analytics-data.rb`) holds the country-name map and the states list. The fraction of the day follows the request's clock, so the replay ignores it and checks that the curve the port builds from the seeded sales yields the recorded fraction for some time of day. The charts call `/analytics/data/by_date|by_state|by_referral`, which stay in Rails: `CreatorAnalytics::CachingProxy`, `Web`, `ProductPageViews` and the `Formatters` are not ported.
 - **Not ported.** The seller dashboard home (`/dashboard`: `CreatorHomePresenter`, `UserBalanceStatsService`, tax forms, `SocialConnectFunnel.record_offers!`, the `LargeSeller` write and a session write) and Customers (`/customers`: `CustomerPresenter` and the Purchase readings it makes (`displayed_price_cents_before_offer_code`, `amount_refundable_cents_in_currency`, `ppp_info`, `display_referrer`, `transaction_url_for_seller`, licenses, reviews, commissions, calls), and the `fetch_sales` filters of `CustomersController`) stay in Rails; neither is in `routes.json`. `PurchaseSearchService` and `CreatorAnalytics::Sales` are ready for them.
+
+## Checkout page (WS-78)
+
+`GET /checkout` (`nextjs_checkout`, `"inertia": true`, signed in or out; `CheckoutController#show`, `Checkout/Show`). Props in `server/page-props/checkout/`,
+filters in `server/controllers/checkout-pages.ts`, client page `checkout/CheckoutShow.tsx` (a copy of `pages/Checkout/Show.tsx`; it adds `braintree-web` and
+`@paypal/paypal-js` to the shared packages).
+
+**Rendered by the port**: a cart that holds nothing (no cart, a guest cart without visible lines, a deleted cart, an alive empty cart) on a URL that adds
+nothing: `cart` (`CartPresenter#cart_props` with no lines: email, return URL, PPP flag), `checkout` (`checkout_common` from `checkout-data.generated.json`
+dumped by `scripts/dump-checkout-data.rb`, GeoIP country and US/Canada region, the account's country, state, address and saved card, `CheckoutRecaptcha`
+with the `recaptcha_score_checkout` Flipper cohort, `TipOptionsService` from Redis), `checkout_payment` (`Checkout::StripePaymentPresenter` answers the
+constant `card_element` / `empty_cart` shape before reading any seller) and `stripe_fonts_css_source`. `CheckoutController#analytics_enabled?` is always true
+(`PageSpec.analyticsEnabled`).
+
+**`process_cart_id_param`** is ported up to its only write: a signed-in buyer, an unknown, deleted or wrong-scope id, a cart whose browser already holds it, and
+a cart that belongs to an account (login redirect with the flash) answer like Rails (`rescued`, so no XSRF cookie). A guest cart for another browser (the
+`MergeCartsService` merge) goes to Rails before anything is written.
+
+**Handed back to Rails (`HandBackToRails`)**: a non-HTML format; a nested query; `product`, `wishlist` or `gift_wishlist_product` params; a cart with a visible
+line (`checkout_product`, `OfferCodeDiscountComputingService`, the lane selection of `StripePaymentPresenter`) or a stored discount code; a partial reload that
+asks for `recommended_products`. Not started: `CheckoutPresenter#checkout_product` for cart and arrival items (PPP, buyer currency, bundles, memberships, gifts,
+upsells and cross sells), `BestOfferCodeService` defaults, `RecommendedProducts::CheckoutService`, `Checkout::RestartIntentToken`.
+
+Parity: `spec/requests/checkout_parity_spec.rb` (35 examples) replayed by `parity/__tests__/checkout.replay.test.ts` (30 compared against Rails' status, headers,
+cookies and `data-page`/JSON props; 5 must reach the stand-in origin). `GeoIp.lookup` is un-mocked in the spec and pointed at the GeoLite2 test database
+(`GEOIP_DATABASE_PATH` in the replay); the replay sets the two reCAPTCHA keys the spec stubs. IPs travel as `X-Forwarded-For`.
+
+**`Subscriptions/Manage` props** stay unported (see WS-72): `subscription_manager_props` needs `Variant#to_option`, proration, plan-change discounts and
+`Checkout::StripePaymentPresenter` over a real cart shape.

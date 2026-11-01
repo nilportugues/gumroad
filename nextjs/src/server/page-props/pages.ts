@@ -49,6 +49,8 @@ export type PageSpec = {
   guard?: PageGuard;
   props: (params: Params, action: ActionContext) => Record<string, unknown> | Promise<Record<string, unknown>>;
   mobileAppWebView?: boolean;
+  // A controller that overrides `analytics_enabled?` (CheckoutController: always true).
+  analyticsEnabled?: boolean;
   // The controller's filters beyond ApplicationController's (see ActionOptions): both the proxy's
   // envelope and the X-Inertia handler run the chain with them.
   options?: ActionOptions;
