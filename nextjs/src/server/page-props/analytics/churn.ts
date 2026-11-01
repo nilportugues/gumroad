@@ -10,24 +10,12 @@ import { indexName } from "../../infra/elasticsearch.ts";
 import { search } from "../../search/api.ts";
 import { addDays, civilDateInZone, dayStartIso, timezoneId } from "../../search/civil-time.ts";
 import type { JsonValue } from "../../search/es-json.ts";
+import { CHARGED_SALES_SEARCH_OPTIONS, ES_MAX_BUCKET_SIZE } from "../../search/creator-analytics-sales.ts";
 import { PurchaseSearchService } from "../../search/purchase-search.ts";
 import { externalId, rackParam, type QuerySource } from "../audience/support.ts";
 import { firstSaleCreatedAtForAnalytics, productsForCreatorAnalytics, sellerDate, sellerToday } from "./seller-analytics.ts";
 
 const DEFAULT_RANGE_DAYS = 30;
-// ES_MAX_BUCKET_SIZE
-const ES_MAX_BUCKET_SIZE = 65_535;
-// Purchase::CHARGED_SALES_SEARCH_OPTIONS
-const CHARGED_SALES_SEARCH_OPTIONS = {
-  state: ["preorder_authorization_successful", "successful", "preorder_concluded_successfully"],
-  exclude_giftees: true,
-  exclude_refunded: true,
-  exclude_unreversed_chargedback: true,
-  exclude_non_successful_preorder_authorizations: true,
-  exclude_bundle_product_purchases: true,
-  exclude_commission_completion_purchases: true,
-};
-
 type Seller = Pick<User, "id" | "timezone" | "created_at">;
 type ProductInfo = { id: number; external_id: string; permalink: string; name: string };
 export type DateWindow = { startDate: string; endDate: string };
@@ -91,12 +79,16 @@ const monthKeysOf = (dates: string[]): string[] => [...new Set(dates.map((date) 
 type Bucket = { key: { product_id: number; date?: string }; [aggregate: string]: unknown };
 
 // ElasticsearchFetcher
-class Fetcher {
-  constructor(
-    private readonly seller: Seller,
-    private readonly productIds: number[],
-    private readonly window: DateWindow,
-  ) {}
+export class Fetcher {
+  private readonly seller: Seller;
+  private readonly productIds: number[];
+  private readonly window: DateWindow;
+
+  constructor(seller: Seller, productIds: number[], window: DateWindow) {
+    this.seller = seller;
+    this.productIds = productIds;
+    this.window = window;
+  }
 
   private get iana() {
     return timezoneId(this.seller.timezone);
