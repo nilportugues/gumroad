@@ -152,8 +152,8 @@ user. Nothing per page: `pageEnvelope`/`processAction` and `loadPage` do it all.
 
 ## Not covered yet (convert by hand)
 
-- `InertiaRails.scroll` and `<InfiniteScroll>`: the server emits no `scrollProps`, so Communities (the one
-  page that uses it) is not convertible yet. `<Form>` throws as well; `useRemember` uses sessionStorage instead of history state.
+- `<Form>` throws; `useRemember` (and `router.remember`/`restore`) use sessionStorage instead of history state.
+  `InertiaRails.scroll` and `<InfiniteScroll>` are covered: see the WS-81 section.
 - `import.meta.glob` (Vite-only) in a page's import graph fails to build.
 - Mutations still go to Rails over the Inertia protocol (`useForm.post` etc.); once an endpoint is
   ported, return a redirect from a route handler or use a server action.
@@ -426,9 +426,8 @@ GET renders only; recorded by `spec/requests/{agent,piracy_reports,dispute_evide
 - **generate_invoice** is a Rack-level `redirect`, so it is an App Router route handler (`route.ts`) with the middleware headers and
   none of the controller's cookies. Known difference: a query string with literal `[]` comes back percent-encoded, because Next
   normalizes `request.url`.
-- **Not converted**: Communities (needs the `scroll` prop type, `PaginatedCommunityChatMessagesPresenter`, `accessible_communities_ids` and
-  `Community#thumbnail_url`), `Purchases/Invoices/New` (`InvoicePresenter::OrderInfo`/`SupplierInfo` tax and VAT rules), and the
-  `UrlRedirects/*` pages (S3 signed locations, stamped PDFs, consumption events written in after_actions, the download page layout props).
+- **Not converted here** (Communities and the unavailable url redirect pages are in the WS-81 section; the rest is listed there too):
+  `Purchases/Invoices/New` and the `UrlRedirects` download, stream, read and play pages.
 
 
 ## Seller products pages (WS-71)
@@ -463,3 +462,42 @@ GET renders only; every mutation (create, update, archive, duplicate, delete, pu
 - **Elasticsearch.** Churn's four queries (`analytics/churn.ts`) are the composite aggregations of `CreatorAnalytics::Churn::ElasticsearchFetcher` over `PurchaseSearchService`'s query; the Audience chart is `CreatorAnalytics::Following`. `search/creator-analytics-sales.ts` is `CreatorAnalytics::Sales`. The churn fetcher and Sales are pinned to the request bytes and answers Ruby produced (`search/__fixtures__/creator-analytics.golden.json`, regenerate with `generate-creator-analytics-golden.rb`). The replay rebuilds the indices the server searches (under `ES_INDEX_SUFFIX`): `purchases` from the seeded rows with the port's own `PurchaseRecord.asIndexedJson`, and `confirmed_follower_events` (which has no table) from the documents the recorder snapshots into each exchange's `elasticsearch` key. A fixture's query dates are recorded as `<today-3d>` tokens and resolved by the replayer.
 - **Sales analytics.** `AnalyticsPresenter#page_props` and `CreatorAnalytics::HourlySalesCurve` (with its `Rails.cache` entry). `analytics-data.generated.json` (`scripts/dump-analytics-data.rb`) holds the country-name map and the states list. The fraction of the day follows the request's clock, so the replay ignores it and checks that the curve the port builds from the seeded sales yields the recorded fraction for some time of day. The charts call `/analytics/data/by_date|by_state|by_referral`, which stay in Rails: `CreatorAnalytics::CachingProxy`, `Web`, `ProductPageViews` and the `Formatters` are not ported.
 - **Not ported.** The seller dashboard home (`/dashboard`: `CreatorHomePresenter`, `UserBalanceStatsService`, tax forms, `SocialConnectFunnel.record_offers!`, the `LargeSeller` write and a session write) and Customers (`/customers`: `CustomerPresenter` and the Purchase readings it makes (`displayed_price_cents_before_offer_code`, `amount_refundable_cents_in_currency`, `ppp_info`, `display_referrer`, `transaction_url_for_seller`, licenses, reviews, commissions, calls), and the `fetch_sales` filters of `CustomersController`) stay in Rails; neither is in `routes.json`. `PurchaseSearchService` and `CreatorAnalytics::Sales` are ready for them.
+
+## Communities, url redirect unavailable pages and what is left of invoices and downloads (WS-81)
+
+GET renders only. Parity: `spec/requests/communities_signed_in_spec.rb` (replayed by `parity/__tests__/communities.replay.test.ts`, 14 fixtures) and
+`spec/requests/url_redirect_unavailable_pages_spec.rb` (`url-redirect-pages.replay.test.ts`, 16 fixtures).
+
+- **Flags**: `nextjs_communities` (`/communities`, `/communities/:seller_id/:community_id`, signed-in only), `nextjs_url_redirect_expired`,
+  `nextjs_url_redirect_rental_expired`, `nextjs_url_redirect_membership_inactive` (`/r/:id/...`) and `nextjs_url_redirect_confirm` (`/confirm`).
+- **`InertiaRails.scroll`** (`lazy-props.ts` `scroll(metadata, resolve)`, read from inertia_rails 3.15's `ScrollProp`/`ScrollMetadata`): a merge prop that
+  lands in `mergeProps`, or in `prependProps` when `X-Inertia-Infinite-Scroll-Merge-Intent` is `prepend`, and in `scrollProps`
+  (`pageName`, `previousPage`, `nextPage`, `currentPage`, `reset`). A reset prop keeps its `scrollProps` entry (`reset: true`) but is in neither merge list.
+  The metadata is evaluated whenever the props are resolved, as the action builds it eagerly. Page key order: `deferredProps`, `scrollProps`,
+  `mergeProps`, `prependProps`.
+- **`<InfiniteScroll>`** (`lib/navigation/infinite-scroll.ts`, `components.tsx`): core's `useInfiniteScroll` (data, elements, query string and scroll
+  preservation managers) and the React component, over the compat router. The router gained `onBeforeUpdate`, `remember`/`restore`, and the page
+  carries `scrollProps` (merged over the held ones after each in-place response). `inertia-parity.test.ts` drives the real `@inertiajs/core` router and the
+  compat one through append, prepend and reset reloads of a scroll prop and expects the same requests, props and `scrollProps`. The component itself
+  (IntersectionObserver triggers, scroll restoration) is a port of core's code and has not been exercised in a browser.
+- **Communities** (`page-props/communities/`): `CommunitiesPresenter`, `CommunityPresenter`, `CommunityChatMessagePresenter`,
+  `CommunityNotificationSettingPresenter`, `PaginatedCommunityChatMessagesPresenter`, `Community#thumbnail_url`, `accessible_communities_ids` (already in
+  `models/community.ts`) and `has_accessible_communities?`. The cursor reaches MySQL as the string the client sent. The unread counts are a count per community
+  instead of the `JOIN (VALUES ...)` statement (same numbers). The page component is the Rails app's own (`$app/pages/Communities/Index`), so the chat
+  (posting, edits, read markers, notification settings, the cable channel) keeps calling Rails. `@anycable/web` joined `sharedPackages`.
+- **Parity harness**: a query parameter holding a UTC time (`cursor=2026-...Z`) is recorded as a time token and resolved by the replayer, which now
+  works in whole seconds. Time tokens round to the minute from 60 s and to the hour from a day, so a spec that needs ordered rows keeps them a minute apart
+  and under a day old.
+- **Unavailable url redirect pages** (`page-props/url-redirects/`): `UrlRedirectPresenter#download_page_without_content_props` for `fetch_url_redirect`
+  alone (no `check_permissions`, no after_actions: these pages write nothing). Handed back to Rails (`HandBackToRails`, decided in the filter): a redirect
+  that hangs off an installment or an imported customer, a purchase with a product review, a call, a post-purchase custom field, a bundle product purchase
+  or a gift sender purchase, more than one purchased variant, and `/confirm` without `destination` when the product (or a variant, or a commission) has
+  rich content (Rails would default the destination to `download_page`).
+- **Not converted: `Purchases/Invoices/New`.** `InvoicePresenter::OrderInfo` reads `ReceiptPresenter#payment_info`/`#charge_info`
+  (`today_price_attributes`, tax rows, payment method, formatted dates and totals, presentment currency) and `Charge::Chargeable`; WS-76 owns the
+  `ReceiptPresenter` port (`mail/mailers/receipt-presenter.ts`, unmerged when this was written). Port `OrderInfo`/`SupplierInfo`/`FormInfo` on top of it
+  once it is merged, with goldens from the real presenters.
+- **Not converted: the download page (`/d/:id`), stream, read and play.** They need `check_permissions` (a dozen redirects and the confirmed-redirect
+  cookie), `download_page_with_content_props` (files, folders, subtitle files with signed S3 URLs, rich content, posts, discord, community URL), and the
+  after_actions: `register_that_user_has_downloaded_product` (`uses` increment, `mark_as_seen`, the encrypted `confirmed_redirect` cookie),
+  `create_consumption_event!` and the file lifecycle events (`update_transcoded_videos_last_accessed_at`, the regeneration jobs). None has a golden yet.
