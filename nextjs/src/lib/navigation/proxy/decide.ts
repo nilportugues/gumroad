@@ -40,6 +40,7 @@ export async function decideRoute(
     if ((candidate.hosts === "seller" || candidate.hosts === "product") && gate.hostKind) {
       if ((await gate.hostKind(request)) !== (candidate.hosts === "product" ? "product" : "user")) continue;
     }
+    if (candidate.pathGate === "taxonomy" && !(await gate.taxonomyPath?.(request))) continue;
     route = candidate;
     break;
   }

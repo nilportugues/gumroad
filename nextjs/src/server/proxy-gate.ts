@@ -6,6 +6,7 @@ import { readEncryptedCookie, readSignedCookie, type RailsCookieSecrets } from "
 import { railsCookieSecrets, railsSessionCookieName, REMEMBER_COOKIE_NAME } from "./auth/rails-session-config.ts";
 import { parseRememberCookie, wardenUserFromSession } from "./auth/warden.ts";
 import { isFeatureEnabled as flipperIsFeatureEnabled, userActor } from "./infra/flipper.ts";
+import { isTaxonomyPath } from "./discover-taxonomy.ts";
 import { hostKindOf } from "./host-kind.ts";
 
 type Deps = {
@@ -56,6 +57,15 @@ export function createRailsRouteGate(deps: Deps): RouteGate {
         deps.reportError(error);
         // Rails can always serve it.
         return null;
+      }
+    },
+    async taxonomyPath(request) {
+      try {
+        return await isTaxonomyPath(request.url);
+      } catch (error) {
+        deps.reportError(error);
+        // Rails can always serve it.
+        return false;
       }
     },
     async isSignedIn(request) {
