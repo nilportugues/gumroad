@@ -188,8 +188,13 @@ module Parity
         ES_ONLY_SORTS.each_with_object({}) do |(model, sort), snapshot|
           next unless EsClient.indices.exists?(index: model.index_name)
 
-          EsClient.indices.refresh(index: model.index_name)
-          hits = EsClient.search(index: model.index_name, body: { query: { match_all: {} }, sort:, size: 10_000 }).dig("hits", "hits")
+          begin
+            EsClient.indices.refresh(index: model.index_name)
+            hits = EsClient.search(index: model.index_name, body: { query: { match_all: {} }, sort:, size: 10_000 }).dig("hits", "hits")
+          rescue Elasticsearch::Transport::Transport::Errors::NotFound
+            # Another run on the machine recreated the shared test index between the check and the read.
+            next
+          end
           next if hits.empty?
 
           snapshot[model.name] = hits.map { { "source" => Canonical.json(_1["_source"], now) } }
