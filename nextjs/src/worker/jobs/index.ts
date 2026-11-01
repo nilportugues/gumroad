@@ -33,6 +33,7 @@ import {
   reviewReminderJob,
   sendAutoInvoiceEmailJob,
 } from "./subscription-reminder-jobs.ts";
+import { endSubscriptionWorker, setSubscriptionAsDeactivatedWorker, unsubscribeAndFailWorker } from "./subscription-write-jobs.ts";
 import {
   createStripeApplePayDomainWorker,
   createStripeApplePayDomainWorkerRetriesExhausted,
@@ -87,6 +88,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   ExpireRentalPurchasesWorker: expireRentalPurchasesWorker,
   EnqueueMarketingXReconnectEmailJob: enqueueMarketingXReconnectEmailJob,
   ExpireStampedPdfsJob: expireStampedPdfsJob,
+  EndSubscriptionWorker: endSubscriptionWorker,
   FindExpiredSubscriptionsToSetAsDeactivatedWorker: findExpiredSubscriptionsToSetAsDeactivatedWorker,
   FindSubscriptionsWithMissingChargeWorker: findSubscriptionsWithMissingChargeWorker,
   FreeTrialExpiringReminderWorker: freeTrialExpiringReminderWorker,
@@ -110,6 +112,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   ReleaseChargebackRatePayoutPausesJob: releaseChargebackRatePayoutPausesJob,
   ReviewReminderJob: reviewReminderJob,
   SendAutoInvoiceEmailJob: sendAutoInvoiceEmailJob,
+  SetSubscriptionAsDeactivatedWorker: setSubscriptionAsDeactivatedWorker,
   SendCommunityChatRecapNotificationsJob: sendCommunityChatRecapNotificationsJob,
   SendMarketingXReconnectEmailJob: sendMarketingXReconnectEmailJob,
   SendRentalExpiresSoonEmailWorker: sendRentalExpiresSoonEmailWorker,
@@ -119,6 +122,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   SyncStripeBusinessProfileUrlWorker: syncStripeBusinessProfileUrlWorker,
   SyncStuckPurchasesJob: syncStuckPurchasesJob,
   TriggerCommunityChatRecapRunJob: triggerCommunityChatRecapRunJob,
+  UnsubscribeAndFailWorker: unsubscribeAndFailWorker,
   UnblockObjectWorker: unblockObjectWorker,
   UpdateCurrenciesWorker: updateCurrenciesWorker,
   UpdateLargeSellersSalesCountJob: updateLargeSellersSalesCountJob,
