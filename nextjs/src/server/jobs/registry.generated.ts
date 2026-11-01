@@ -1631,7 +1631,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "InvalidateProductCacheWorker": {
     "file": "app/sidekiq/invalidate_product_cache_worker.rb",

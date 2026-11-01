@@ -28,6 +28,7 @@ export const PORTED_JOBS: readonly string[] = [
   "ExpireStampedPdfsJob",
   "ForceFinishLongRunningCommunityChatRecapRunsJob",
   "HandleSnsAwsConfigEventWorker",
+  "InternalNotificationWorker",
   "LiftPlatformStripePauseJob",
   "LogResendEventJob",
   "LogSendgridEventWorker",

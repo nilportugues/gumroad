@@ -30,6 +30,7 @@ import {
 } from "./stripe-jobs.ts";
 import { blockEmailDomainsWorker, blockObjectWorker, unblockObjectWorker } from "./platform-block-jobs.ts";
 import { blockSuspendedAccountIpWorker, checkPaymentAddressWorker } from "./risk-jobs.ts";
+import { internalNotificationWorker } from "./internal-notification-worker.ts";
 import { liftPlatformStripePauseJob, liftPlatformStripePauseJobRetriesExhausted, liftPlatformStripePauseJobRetryIn } from "./lift-platform-stripe-pause-job.ts";
 import { alertOnStalledAbandonedCartEmailsJob, buildTaxRateCacheWorker, recoverAusBacktaxesFromStripeAccountsJob } from "./scheduled-check-jobs.ts";
 import { suspendAccountsWithPaymentAddressWorker, suspendUsersWorker } from "./suspend-jobs.ts";
@@ -66,6 +67,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   ExpireStampedPdfsJob: expireStampedPdfsJob,
   ForceFinishLongRunningCommunityChatRecapRunsJob: forceFinishLongRunningCommunityChatRecapRunsJob,
   HandleSnsAwsConfigEventWorker: handleSnsAwsConfigEventWorker,
+  InternalNotificationWorker: internalNotificationWorker,
   LiftPlatformStripePauseJob: liftPlatformStripePauseJob,
   LogResendEventJob: logResendEventJob,
   LogSendgridEventWorker: logSendgridEventWorker,
