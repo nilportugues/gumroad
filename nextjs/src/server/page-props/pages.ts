@@ -37,6 +37,7 @@ import { SELLER_PRODUCTS_PAGES } from "./seller-products/pages.ts";
 import { URL_REDIRECT_PAGES } from "./url-redirects/pages.ts";
 import { COMMUNITY_PAGES } from "./communities/pages.ts";
 import { DASHBOARD_HOME_PAGES } from "./dashboard-home/pages.ts";
+import { CUSTOMERS_PAGES } from "./customers/pages.ts";
 
 type Params = Record<string, string>;
 
@@ -71,6 +72,7 @@ export const PAGES: Record<string, PageSpec> = {
   ...AUDIENCE_PAGES,
   ...ANALYTICS_PAGES,
   ...DASHBOARD_HOME_PAGES,
+  ...CUSTOMERS_PAGES,
   ...EMAILS_PAGES,
   "/help": {
     component: "HelpCenter/Articles/Index",
