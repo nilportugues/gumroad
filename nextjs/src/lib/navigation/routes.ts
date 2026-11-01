@@ -307,6 +307,7 @@ export const follow_user_from_embed_form_url = url("/follow_from_embed_form");
 export const custom_domain_subscribe_url = url("/subscribe(.:format)");
 export const discover_path = path("/discover(.:format)");
 export const discover_taxonomy_path = path("/*taxonomy(.:format)");
+export const discover_taxonomy_url = url("/*taxonomy(.:format)");
 export const about_path = path("/about(.:format)");
 export const gumclaw_path = path("/gumclaw(.:format)");
 export const features_path = path("/features(.:format)");
