@@ -8,6 +8,7 @@ import { dispatchPendingWorkflowInstallmentScheduleIntentsJob } from "./dispatch
 import { elasticsearchIndexerWorker } from "./elasticsearch-indexer-worker.ts";
 import { enqueueMarketingXReconnectEmailJob } from "./enqueue-marketing-x-reconnect-email-job.ts";
 import { disputeEvidenceDueSoonReminderJob } from "./dispute-evidence-due-soon-reminder-job.ts";
+import { sendCommunityChatRecapNotificationsJob } from "./send-community-chat-recap-notifications-job.ts";
 import { sendMarketingXReconnectEmailJob } from "./send-marketing-x-reconnect-email-job.ts";
 import { handleSnsAwsConfigEventWorker } from "./handle-sns-aws-config-event-worker.ts";
 import { expireStampedPdfsJob, updateLargeSellersSalesCountJob } from "./large-seller-and-stamped-pdf-jobs.ts";
@@ -29,6 +30,7 @@ import {
 } from "./stripe-jobs.ts";
 import { blockEmailDomainsWorker, blockObjectWorker, unblockObjectWorker } from "./platform-block-jobs.ts";
 import { blockSuspendedAccountIpWorker, checkPaymentAddressWorker } from "./risk-jobs.ts";
+import { internalNotificationWorker } from "./internal-notification-worker.ts";
 import { liftPlatformStripePauseJob, liftPlatformStripePauseJobRetriesExhausted, liftPlatformStripePauseJobRetryIn } from "./lift-platform-stripe-pause-job.ts";
 import { alertOnStalledAbandonedCartEmailsJob, buildTaxRateCacheWorker, recoverAusBacktaxesFromStripeAccountsJob } from "./scheduled-check-jobs.ts";
 import { suspendAccountsWithPaymentAddressWorker, suspendUsersWorker } from "./suspend-jobs.ts";
@@ -65,6 +67,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   ExpireStampedPdfsJob: expireStampedPdfsJob,
   ForceFinishLongRunningCommunityChatRecapRunsJob: forceFinishLongRunningCommunityChatRecapRunsJob,
   HandleSnsAwsConfigEventWorker: handleSnsAwsConfigEventWorker,
+  InternalNotificationWorker: internalNotificationWorker,
   LiftPlatformStripePauseJob: liftPlatformStripePauseJob,
   LogResendEventJob: logResendEventJob,
   LogSendgridEventWorker: logSendgridEventWorker,
@@ -77,6 +80,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   ReindexRecommendableProductsWorker: reindexRecommendableProductsWorker,
   ReindexSubscriptionCurrentEmailWorker: reindexSubscriptionCurrentEmailWorker,
   ReleaseChargebackRatePayoutPausesJob: releaseChargebackRatePayoutPausesJob,
+  SendCommunityChatRecapNotificationsJob: sendCommunityChatRecapNotificationsJob,
   SendMarketingXReconnectEmailJob: sendMarketingXReconnectEmailJob,
   SuspendAccountsWithPaymentAddressWorker: suspendAccountsWithPaymentAddressWorker,
   SuspendUsersWorker: suspendUsersWorker,
