@@ -162,7 +162,7 @@ describe "Product page", type: :request do
     end
 
     it "renders a product by its custom permalink", parity: true do
-      product = create(:product, user: seller, name: "Custom", custom_permalink: "custom-one")
+      create(:product, user: seller, name: "Custom", custom_permalink: "custom-one")
 
       get "/l/custom-one"
 
