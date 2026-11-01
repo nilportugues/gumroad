@@ -235,9 +235,11 @@ export function decryptHeader(value: string): string {
 // The receipt, installment and abandoned-cart branches look up purchases and charges; the mailers
 // that reach them are not ported, so they are refused rather than built without those ids.
 const RECORD_MAILER_METHODS = ["purchase_installment", "follower_installment", "direct_affiliate_installment"];
+// CustomerMailer methods HeaderBuilder looks records up for (`receipt_email?`, `abandoned_cart_email?`).
+const CUSTOMER_RECORD_METHODS = ["receipt", "preorder_receipt", "abandoned_cart"];
 
 function checkNoRecordIds(mailerClass: string, mailerMethod: string): void {
-  if (mailerClass === "CustomerMailer" || RECORD_MAILER_METHODS.includes(mailerMethod)) {
+  if ((mailerClass === "CustomerMailer" && CUSTOMER_RECORD_METHODS.includes(mailerMethod)) || RECORD_MAILER_METHODS.includes(mailerMethod)) {
     throw new MailArgumentNotPortedError(`MailerInfo record ids for ${mailerClass}#${mailerMethod}`);
   }
 }

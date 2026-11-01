@@ -23,6 +23,7 @@ import { notifySellerOfNewComment } from "./mailers/comment-mailer.ts";
 import { communityChatRecapNotification } from "./mailers/community-chat-recap-mailer.ts";
 import { notify as internalNotification } from "./mailers/internal-notification-mailer.ts";
 import { marketingXReconnect } from "./mailers/creator-mailer.ts";
+import { paypalPurchaseFailed, subscriptionMagicLink } from "./mailers/customer-mailer.ts";
 import { receiverSignedUp } from "./mailers/invite-mailer.ts";
 import { authenticationToken } from "./mailers/two-factor-authentication-mailer.ts";
 import { confirmationInstructions, type DeviseMailOptions, emailChanged, type SignupMailUser } from "./mailers/user-signup-mailer.ts";
@@ -100,6 +101,13 @@ const NODE_MAILERS: Record<string, Record<string, MailerMethod>> = {
   },
   CreatorMailer: {
     marketing_x_reconnect: (args, deps) => marketingXReconnect(integerArgument(keywords(args, ["marketing_action_id"]).marketing_action_id), deps),
+  },
+  CustomerMailer: {
+    subscription_magic_link: ([subscriptionId, email, ...rest], deps) => {
+      if (rest.length > 0 || typeof email !== "string") return Promise.reject(new MailJobArgumentsError("arity"));
+      return subscriptionMagicLink(integerArgument(subscriptionId), email, [subscriptionId, email], deps);
+    },
+    paypal_purchase_failed: (args, deps) => (args.length === 1 ? paypalPurchaseFailed(integerArgument(args[0]), args, deps) : Promise.reject(new MailJobArgumentsError("arity"))),
   },
   InternalNotificationMailer: {
     notify: (args, deps) => internalNotification(args, deps),

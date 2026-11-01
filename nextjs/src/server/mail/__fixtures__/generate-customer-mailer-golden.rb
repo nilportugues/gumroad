@@ -1,0 +1,297 @@
+# frozen_string_literal: true
+
+# Produces customer-mailer.golden.json from the real application: it boots config/environment
+# in production mode against a scratch MySQL database and a scratch Redis database, then runs
+# CustomerMailer exactly as Sidekiq would,
+# with only the SMTP socket replaced by a recorder. Nothing here re-implements Ruby behaviour.
+#
+#   mysql -uroot -e 'CREATE DATABASE gumroad_ws60'   # then load db/schema.rb's tables into it
+#   USE_DB_WORKER_REPLICAS=true bundle exec ruby nextjs/src/server/mail/__fixtures__/generate-customer-mailer-golden.rb
+#
+# The jobs run as production Sidekiq runs them (scripts/golden/support/sidekiq_executor.rb), so the
+# query cache is on.
+#
+# Environment it needs (defaults shown): DATABASE_NAME=gumroad_ws60, REDIS_DB=10 (flushed). The
+# remaining secrets come from .env.test; the SMTP credentials and the X-GUM header key are fixed
+# below so the Node test can use the same values.
+#
+# Random values are pinned rather than normalised: Kernel.rand (the provider split) and the
+# AES IVs of the Resend headers come from fixed sequences, recorded per case. Date, Message-ID
+# and the MIME boundary stay random; the Node test reads them back from `encoded`.
+require "fileutils"
+require "json"
+
+ROOT = File.expand_path("../../../../..", __dir__)
+FIXTURES = __dir__
+Dir.chdir(ROOT)
+
+REDIS_DB = ENV.fetch("REDIS_DB", "10")
+abort "Refusing to flush Redis db 0" if REDIS_DB == "0"
+
+SMTP_SECRETS = {
+  "SENDGRID_GUMROAD_TRANSACTIONS_API_KEY" => "sg-gumroad-key",
+  "SENDGRID_GUMROAD_FOLLOWER_CONFIRMATION_API_KEY" => "sg-followers-key",
+  "SENDGRID_GR_CREATORS_API_KEY" => "sg-creators-key",
+  "SENDGRID_GR_CUSTOMERS_API_KEY" => "sg-customers-key",
+  "SENDGRID_GR_CUSTOMERS_LEVEL_2_API_KEY" => "sg-customers-level-2-key",
+  "RESEND_DEFAULT_API_KEY" => "re-gumroad-key",
+  "RESEND_FOLLOWERS_API_KEY" => "re-followers-key",
+  "RESEND_CREATORS_API_KEY" => "re-creators-key",
+  "RESEND_CUSTOMERS_API_KEY" => "re-customers-key",
+  "RESEND_CUSTOMERS_LEVEL_2_API_KEY" => "re-customers-level-2-key",
+  "MAILER_HEADERS_ENCRYPTION_KEY_V1" => "ws35-golden-header-key",
+  "OBFUSCATE_IDS_CIPHER_KEY" => "ws40-golden-obfuscate-key",
+  "OBFUSCATE_IDS_NUMERIC_CIPHER_KEY" => "123456789",
+}.freeze
+
+ENV["RAILS_ENV"] = "production"
+ENV["TZ"] = "UTC"
+{
+  "DATABASE_HOST" => "127.0.0.1", "DATABASE_PORT" => "3306", "DATABASE_NAME" => "gumroad_ws60",
+  "DATABASE_USERNAME" => "root", "DATABASE_PASSWORD" => "password",
+  "SECRET_KEY_BASE" => "x" * 64, "DEVISE_SECRET_KEY" => "d" * 64, "REVISION" => "ws60golden",
+  "MEMCACHE_SERVERS" => "localhost:11211", "ELASTICSEARCH_HOST" => "http://localhost:9200",
+}.each { |k, v| ENV[k] ||= v }
+%w[REDIS_HOST SIDEKIQ_REDIS_HOST RPUSH_REDIS_HOST RACK_ATTACK_REDIS_HOST].each { |k| ENV[k] = "localhost:6379/#{REDIS_DB}" }
+SMTP_SECRETS.each { |k, v| ENV[k] = v }
+abort "Use a scratch database, not #{ENV["DATABASE_NAME"]}" if %w[gumroad_test gumroad_development gumroad_production].include?(ENV["DATABASE_NAME"])
+
+require "dotenv"
+Dotenv.parse(File.join(ROOT, ".env.test")).each { |k, v| ENV[k] ||= v }
+
+# A production build's stylesheet: the manifest entry the layout links and the CSS premailer reads.
+VITE_DIR = File.join(ROOT, "public/vite")
+abort "public/vite exists; move it aside first" if File.exist?(VITE_DIR)
+FileUtils.mkdir_p(File.join(VITE_DIR, ".vite"))
+FileUtils.mkdir_p(File.join(VITE_DIR, "assets"))
+File.write(File.join(VITE_DIR, ".vite/manifest.json"), JSON.generate({ "entrypoints/email.ts" => { "file" => "assets/email.js", "css" => ["assets/email-golden.css"] } }))
+FileUtils.cp(File.join(FIXTURES, "email.css"), File.join(VITE_DIR, "assets/email-golden.css"))
+at_exit { FileUtils.rm_rf(VITE_DIR) }
+
+require File.join(ROOT, "config/environment")
+Rails.logger = ActiveSupport::Logger.new(nil)
+ActiveRecord::Base.logger = nil
+ActionMailer::Base.logger = nil
+ActiveJob::Base.logger = Logger.new(nil)
+
+require "active_support/testing/time_helpers"
+require File.join(ROOT, "nextjs/scripts/golden/support/sidekiq_executor")
+
+# Message-IDs embed the host name; pin it so goldens don't record the machine they ran on.
+require "socket"
+Socket.singleton_class.prepend(Module.new { def gethostname = "mail-host.example" })
+include ActiveSupport::Testing::TimeHelpers
+FIXED_NOW = Time.utc(2026, 10, 31, 12, 0, 0)
+travel_to(FIXED_NOW)
+
+# --- pinned randomness -----------------------------------------------------------------------------
+$rands = []
+$rands_used = []
+Kernel.singleton_class.prepend(Module.new do
+  def rand(*args)
+    return super unless args.empty?
+    value = $rands.shift or raise "no pinned Kernel.rand left"
+    $rands_used << value
+    value
+  end
+end)
+
+$iv_seq = 0
+$ivs_used = []
+OpenSSL::Cipher.prepend(Module.new do
+  def random_iv
+    $iv_seq += 1
+    iv = format("ws35-iv-%08d", $iv_seq)
+    $ivs_used << Base64.strict_encode64(iv)
+    self.iv = iv
+  end
+end)
+
+# --- SMTP recorder -----------------------------------------------------------------------------------
+$delivered = []
+# Errors the next deliveries raise instead of succeeding.
+$smtp_failures = []
+Mail::SMTP.prepend(Module.new do
+  def deliver!(mail)
+    failure = $smtp_failures.shift
+    raise failure if failure
+    envelope = Mail::SmtpEnvelope.new(mail)
+    $delivered << {
+      "settings" => settings.slice(:address, :port, :domain, :user_name, :password, :authentication, :enable_starttls_auto)
+        .to_h { |k, v| [k.to_s, v.is_a?(Symbol) ? v.to_s : v] },
+      "encoded" => mail.encoded,
+      "envelope_from" => envelope.from,
+      "envelope_to" => envelope.to,
+    }
+    mail
+  end
+end)
+
+# --- SQL recorder (the shape worker/jobs/__fixtures__/sql-replay.ts replays) --------------------------
+$sql = nil
+module RecordStatements
+  def perform_query(raw_connection, sql, *rest, **kwargs)
+    result = super
+    if $sql
+      statement = { "sql" => sql.gsub(%r{\s*/\*.*?\*/}, "") }
+      if result.respond_to?(:fields) && result.fields
+        statement["result"] = { "fields" => result.fields, "rows" => result.to_a.map { |row| row.map { |v| encode_value(v) } } }
+      elsif !%w[BEGIN COMMIT ROLLBACK].include?(sql)
+        statement["result"] = { "affected" => raw_connection.affected_rows }
+      end
+      $sql << statement
+    end
+    result
+  end
+
+  def encode_value(value)
+    case value
+    when Time then { "$time" => value.utc.iso8601(6) }
+    when BigDecimal then { "$decimal" => value.to_s("F") }
+    else value
+    end
+  end
+end
+ActiveRecord::ConnectionAdapters::Mysql2Adapter.prepend(RecordStatements)
+
+def capture_sql
+  $sql = []
+  yield
+  $sql
+ensure
+  $sql = nil
+end
+
+
+def record_message(name, mailer, method, args, features: {}, redis: {}, rands: [], meta: {})
+  features.each_key { Feature.activate(_1) }
+  redis.each { |k, v| $redis.set(k, v) }
+  $rands.replace(rands)
+  delivery = mailer.public_send(method, *args)
+  rendered = nil
+  statements = capture_sql do
+    rendered = delivery.message.is_a?(ActionMailer::Base::NullMail) ? nil : delivery.message.body.raw_source.dup
+  end
+  result = delivery.deliver_now
+  {
+    **meta,
+    "name" => name,
+    "mailer" => mailer.name,
+    "method" => method.to_s,
+    "job_args" => ActiveJob::Arguments.serialize(args),
+    "statements" => statements,
+    "features" => features.keys,
+    "redis_before" => redis,
+    "rands_used" => $rands_used.dup,
+    "ivs" => $ivs_used.dup,
+    "rendered_html" => rendered,
+    "returned_message" => result.is_a?(Mail::Message),
+    "delivered" => $delivered.dup,
+    "redis_after" => $redis.keys("mail_router:*").sort.to_h { [_1, $redis.get(_1)] },
+    "fallback_after" => $redis.keys("email_router_fallback:*").sort.to_h { [_1, [$redis.get(_1), $redis.ttl(_1)]] },
+  }
+end
+
+# A mailer call that raises while Rails builds the message (a missing row): the delivery job fails.
+def record_error(name, mailer, method, args)
+  $rands.clear
+  delivery = mailer.public_send(method, *args)
+  error = nil
+  statements = capture_sql do
+    delivery.message
+  rescue => e
+    error = { "class" => e.class.name, "message" => e.message }
+  end
+  { "name" => name, "mailer" => mailer.name, "method" => method.to_s, "job_args" => ActiveJob::Arguments.serialize(args), "statements" => statements, "error" => error }
+end
+
+# --- fixtures --------------------------------------------------------------------------------------
+TABLES = %w[users links purchases subscriptions url_redirects purchase_presentments calls refunds].freeze
+def reset!
+  conn = ActiveRecord::Base.connection
+  TABLES.each { |t| conn.execute("DELETE FROM #{t}") }
+  $redis.flushdb
+  $rands.clear
+  $rands_used.clear
+  $iv_seq = 0
+  $ivs_used.clear
+  $delivered.clear
+  $smtp_failures.clear
+end
+
+def insert_user(id:, **attrs)
+  User.insert!({ id:, recommendation_type: "own_products", external_id: (8_000_000_000_000 + id).to_s, created_at: FIXED_NOW, updated_at: FIXED_NOW, **attrs })
+end
+
+def insert_link(id:, user_id:, **attrs)
+  Link.insert!({ id:, user_id:, name: "Product #{id}", unique_permalink: "perm#{id}", price_cents: 100, created_at: FIXED_NOW, updated_at: FIXED_NOW, **attrs })
+end
+
+def insert_purchase(id:, link_id:, seller_id:, **attrs)
+  Purchase.insert!({ id:, link_id:, seller_id:, email: "buyer@example.com", purchase_state: "successful", price_cents: 100, total_transaction_cents: 100,
+                     displayed_price_cents: 100, displayed_price_currency_type: "usd", rate_converted_to_usd: "1", created_at: FIXED_NOW, updated_at: FIXED_NOW, **attrs })
+end
+
+def insert_subscription(id:, link_id:, user_id: nil, **attrs)
+  Subscription.insert!({ id:, link_id:, user_id:, created_at: FIXED_NOW, updated_at: FIXED_NOW, **attrs })
+end
+
+# Rails.cache is the first place User#mailer_level looks, the Redis namespace the second; with neither
+# it sums the seller's sales in Elasticsearch, which the Node port does not do. Cases seed one.
+def seed_mailer_level(user_id, via, level)
+  key = "creator_mailer_level_#{user_id}"
+  Rails.cache.delete(key)
+  case via
+  when :cache then Rails.cache.write(key, level, expires_in: 2.days)
+  when :redis then Redis::Namespace.new(:user_mailer_redis_namespace, redis: $redis).set(key, level.to_s)
+  end
+  { "mailer_level" => { "via" => via.to_s, "level" => level.to_s } }
+end
+
+# Warm the schema cache so the recorded statements are the mailers' own.
+[User, Link, Purchase, Subscription, UrlRedirect].each { _1.columns; _1.first }
+SidekiqExecutor.perform { User.first; User.transaction { User.first } }
+
+messages = []
+errors = []
+
+# CustomerMailer#paypal_purchase_failed
+[
+  ["paypal_failed_subdomain", { username: "seller_name" }, {}, {}],
+  ["paypal_failed_no_username", {}, {}, {}],
+  ["paypal_failed_custom_permalink", { username: "seller" }, { custom_permalink: "my-thing" }, {}],
+  ["paypal_failed_html_name", { username: "seller" }, { name: "Tom & Jerry's <Guide>" }, {}],
+  ["paypal_failed_resend", { username: "seller" }, {}, { "resend" => true, "force_resend" => true }],
+  ["paypal_failed_united_internet", { username: "seller" }, {}, { "resend" => true, "force_resend" => true }, { email: "buyer@web.de" }],
+].each do |name, seller, link, features, purchase = {}|
+  reset!
+  insert_user(id: 201, email: "seller@example.com", **seller)
+  insert_link(id: 301, user_id: 201, **link)
+  insert_purchase(id: 401, link_id: 301, seller_id: 201, **purchase)
+  meta = seed_mailer_level(201, name.end_with?("resend") ? :redis : :cache, name.end_with?("resend") ? :level_2 : :level_1)
+  messages << record_message(name, CustomerMailer, :paypal_purchase_failed, [401], features:, meta:)
+end
+reset!
+errors << record_error("paypal_failed_missing_purchase", CustomerMailer, :paypal_purchase_failed, [404])
+
+# CustomerMailer#subscription_magic_link
+[
+  ["magic_link_default", "buyer@example.com", {}, {}],
+  ["magic_link_html_name", "buyer@example.com", { name: "Tom & Jerry's <Guide>" }, {}],
+  ["magic_link_resend", "buyer@example.com", {}, { "resend" => true, "force_resend" => true }],
+  ["magic_link_united_internet", "buyer@web.de", {}, { "resend" => true, "force_resend" => true }],
+  ["magic_link_invalid_email", "not-an-email", {}, {}],
+  ["magic_link_blank_email", "", {}, {}],
+].each do |name, email, link, features|
+  reset!
+  insert_user(id: 201, email: "seller@example.com", username: "seller")
+  insert_link(id: 301, user_id: 201, **link)
+  insert_subscription(id: 501, link_id: 301, token: "0123456789abcdef0123456789abcdef0123456789abcdef", token_expires_at: FIXED_NOW + 1.day)
+  messages << record_message(name, CustomerMailer, :subscription_magic_link, [501, email], features:)
+end
+reset!
+errors << record_error("magic_link_missing_subscription", CustomerMailer, :subscription_magic_link, [404, "buyer@example.com"])
+
+cases = { "messages" => messages, "errors" => errors }
+File.write(File.join(FIXTURES, "customer-mailer.golden.json"), JSON.pretty_generate({ "now" => FIXED_NOW.iso8601, "secrets" => SMTP_SECRETS, "cases" => cases }) + "\n")
+puts "wrote #{messages.size} messages, #{errors.size} errors"
