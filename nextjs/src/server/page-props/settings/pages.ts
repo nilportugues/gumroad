@@ -1,10 +1,10 @@
 // The Settings::* pages (Settings::BaseController and its show/index actions). Registered in
-// ../pages.ts. Not ported: /settings/payments (see the report in nextjs/src/app/(app)/CONVERTING.md),
-// /profile (ProfilePresenter) and the form submissions, which stay in Rails.
+// ../pages.ts. The form submissions stay in Rails.
 import { loadSellerContext, type SellerContext } from "../../policies/seller-context.ts";
 import { settingsAdvancedUserPolicy } from "../../policies/settings/advanced-user.ts";
 import { settingsAuthorizedApplicationsOauthApplicationPolicy } from "../../policies/settings/authorized-applications-oauth-application.ts";
 import { settingsBillingPolicy } from "../../policies/settings/billing.ts";
+import { settingsPaymentsUserPolicy } from "../../policies/settings/payments-user.ts";
 import { settingsMainUserPolicy } from "../../policies/settings/main-user.ts";
 import { settingsPasswordUserPolicy } from "../../policies/settings/password-user.ts";
 import { settingsSocialConnectionsPolicy } from "../../policies/settings/social-connections.ts";
@@ -14,6 +14,7 @@ import type { ActionContext } from "../load-page.ts";
 import { NotPortedError } from "../not-ported.ts";
 import type { PageSpec } from "../pages.ts";
 import { settingsGuard } from "./guard.ts";
+import { paymentsProps } from "./payments.ts";
 import {
   advancedProps,
   authorizedApplicationsProps,
@@ -86,6 +87,10 @@ export const SETTINGS_PAGES: Record<string, PageSpec> = {
   "/settings/billing": page("Settings/Billing/Show", {
     guard: settingsGuard({ authorize: settingsBillingPolicy.show }),
     props: (_, action) => settingsPage(action, billingProps),
+  }),
+  "/settings/payments": page("Settings/Payments/Show", {
+    guard: settingsGuard({ authorize: (context) => settingsPaymentsUserPolicy.show(context) }),
+    props: (_, action) => settingsPage(action, (context) => paymentsProps(context, { impersonating: action.context.impersonatedUser !== null })),
   }),
   "/settings/authorized_applications": page("Settings/AuthorizedApplications/Index", {
     guard: settingsGuard({ authorize: settingsAuthorizedApplicationsOauthApplicationPolicy.index }),
