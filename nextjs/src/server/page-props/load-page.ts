@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { getRequestContext, type RequestContext } from "@/server/auth/context";
 
 import type { RenderState } from "../controllers/application-controller.ts";
+import { promoteVisitedNavItem } from "../controllers/signed-in-filters.ts";
 import { domainConfig, type DomainConfig } from "./domain.ts";
 import { MetaTagBuilder } from "./meta-tags.ts";
 import { sharedPropsPorts } from "./ports.ts";
@@ -120,6 +121,7 @@ export async function loadPage(
   const pageProps = await action({ context, config, meta, url: request.url, headers: requestHeaders, urlOptions: defaultUrlOptions(request.url, config), state: state?.pageState ?? {} });
   const shared = await sharedProps({ context, config, request, meta, csrfToken, ports, mobileAppWebView });
   const errors = await ports.session.consumeInertiaErrors();
+  if (state?.promoteNavItemPath && context.loggedInUser) await promoteVisitedNavItem(context.loggedInUser, state.promoteNavItemPath);
 
   // config.deep_merge_shared_data: page props win, nested hashes merge.
   const props = filterPartialProps({ errors, ...deepMerge(shared, pageProps) },component, requestHeaders);

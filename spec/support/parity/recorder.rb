@@ -142,8 +142,12 @@ module Parity
       return if @exchanges.empty?
 
       path = fixture_path
+      json = JSON.pretty_generate(fixture) + "\n"
+      # Fixtures are committed: an exception debug page or a backtrace would publish the recording machine's paths.
+      raise "#{path} would record a local path (#{Dir.home}); keep debug pages and backtraces out of the fixture" if json.include?(Dir.home)
+
       FileUtils.mkdir_p(File.dirname(path))
-      File.write(path, JSON.pretty_generate(fixture) + "\n")
+      File.write(path, json)
     end
 
     def fixture

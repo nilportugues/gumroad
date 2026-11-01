@@ -1,4 +1,4 @@
-// Whether Rails would redirect instead of rendering a converted page. A page's redirect() can only
+// Whether Rails would redirect (or 404) instead of rendering a converted page. A page's redirect() can only
 // send 307/308 and a response the proxy builds itself gets a body from Next.js, so the redirects
 // Rails sends (302 from rescue_from, 301 from a before_action) are answered by the /gr-inertia route
 // handler, with the rest of what Rails' controller sends alongside them (processAction). The
@@ -12,7 +12,7 @@ import { defaultUrlOptions } from "./page-props/load-page.ts";
 export async function redirectsBeforeRendering(pattern: string, url: URL, request: Request): Promise<boolean> {
   const spec = PAGES[pattern];
   const params = matchPagePath(url.pathname)?.params ?? {};
-  if (spec?.redirect?.(params)) return true;
+  if (await spec?.redirect?.(params, { url, headers: request.headers })) return true;
   if (!spec?.guard) return false;
 
   const config = domainConfig(process.env);

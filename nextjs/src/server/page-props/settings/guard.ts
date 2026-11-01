@@ -10,13 +10,13 @@ import type { GuardInput, PageGuard } from "../guards.ts";
 import { NotPortedError } from "../not-ported.ts";
 
 const GENERIC_NOT_ALLOWED = "You are not allowed to perform this action.";
-const ADD_EMAIL_MESSAGE = "Please add an email address to your account before continuing.";
+export const ADD_EMAIL_MESSAGE = "Please add an email address to your account before continuing.";
 
 const blank = (value: string | null | undefined) => value == null || value.trim() === "";
 const humanize = (role: string) => role.charAt(0).toUpperCase() + role.slice(1);
 
 // PunditAuthorization#build_error_message
-function notAllowedMessage(context: SellerContext): string {
+export function notAllowedMessage(context: SellerContext): string {
   const c = requireUser(context);
   if (roleOwnerFor(c)) return GENERIC_NOT_ALLOWED;
   try {

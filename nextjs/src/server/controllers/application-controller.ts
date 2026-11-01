@@ -75,6 +75,8 @@ export type FilterOutcome = { halt: ActionResult } | { state: Record<string, unk
 
 export type ActionOptions = {
   skip?: BeforeAction[];
+  // The controller's `opt_out_of_header(:csp)`.
+  optOutOfCsp?: boolean;
   // Devise's `prepend_before_action`s, which run ahead of every ApplicationController filter and so
   // before the session is checked or the host redirected. A redirect answers with the session
   // cookie only: debug_headers has not run yet.
@@ -95,6 +97,9 @@ export type RenderState = {
   // session[:prompt_passkey_setup]: the user id LoginsController marked at sign-in.
   promptPasskeySetup: unknown;
   clearHistory: boolean;
+  // The path of a dashboard page whose visit the render promotes once the props are built (Rails promotes
+  // in an after_action, after the nav props are computed).
+  promoteNavItemPath?: string;
   // What the controller's filters worked out for the action (FilterOutcome.state).
   pageState?: Record<string, unknown>;
 };
@@ -411,11 +416,14 @@ export function afterActions(chain: Chain, result: ActionResult): ControllerResp
 }
 
 // PromotesDashboardNavItems#promote_visited_nav_item
-async function promoteVisit({ auth, request }: Chain, status: number): Promise<void> {
+function promotesVisit({ auth, request }: Chain, status: number): boolean {
   const { loggedInUser, impersonatedUser } = auth.context;
-  if (!loggedInUser || status < 200 || status > 299) return;
-  if (!dashboardNavRequest(request, domainConfig(process.env).validRequestHosts, impersonatedUser !== null)) return;
-  await promoteVisitedNavItem(loggedInUser, request.path);
+  if (!loggedInUser || status < 200 || status > 299) return false;
+  return dashboardNavRequest(request, domainConfig(process.env).validRequestHosts, impersonatedUser !== null);
+}
+
+async function promoteVisit(chain: Chain, status: number): Promise<void> {
+  if (promotesVisit(chain, status)) await promoteVisitedNavItem(chain.auth.context.loggedInUser!, chain.request.path);
 }
 
 async function runChain(
@@ -450,7 +458,7 @@ function applyEtag(request: RailsRequest, response: ControllerResponse): void {
 }
 
 // SecureHeaders::Middleware under config/initializers/secure_headers.rb: flag cookies, then add headers.
-function applySecureHeaders(request: RailsRequest, headers: Headers): void {
+function applySecureHeaders(request: RailsRequest, headers: Headers, options: ActionOptions = {}): void {
   const https = domainConfig(process.env).protocol === "https";
   const requestIsHttps = request.protocol === "https://";
   const cookies = headers.getSetCookie();
@@ -470,7 +478,7 @@ function applySecureHeaders(request: RailsRequest, headers: Headers): void {
       headers.append("set-cookie", line);
     }
   }
-  for (const [name, value] of Object.entries(secureHeaders())) headers.set(name, value);
+  for (const [name, value] of Object.entries(secureHeaders({ optOutOfCsp: options.optOutOfCsp }))) headers.set(name, value);
 }
 
 // Rack::Cors: the "*" resource matches every path, so Origin is always added to Vary.
@@ -540,7 +548,7 @@ export async function processAction(
     const page = publicException(request, status);
     response = { status, headers: page.headers, body: page.body };
   }
-  applySecureHeaders(request, response.headers);
+  applySecureHeaders(request, response.headers, options);
   applyCorsVary(response.headers);
   // Rack::Head
   const body = request.method === "HEAD" || response.body === "" ? null : response.body;
@@ -561,7 +569,7 @@ export async function pageEnvelope(incoming: Request, options: ActionOptions = {
   if (mayTrackUtmVisit(request, domainConfig(process.env).validRequestHosts)) return { response: await forwardToRails(incoming) };
 
   const wrap = (headers: Headers, status: number, body: string | null) => {
-    applySecureHeaders(request, headers);
+    applySecureHeaders(request, headers, options);
     applyCorsVary(headers);
     return { response: new Response(request.method === "HEAD" ? null : body, { status, headers }) };
   };
@@ -570,8 +578,9 @@ export async function pageEnvelope(incoming: Request, options: ActionOptions = {
     if (halted(chain)) return wrap(chain.headers, chain.status, null);
     const renderState = takeRenderState(chain);
     const { headers } = afterActions(chain, { status: 200, body: "", contentType: "text/html; charset=utf-8", inertia: true });
-    await promoteVisit(chain, 200);
-    applySecureHeaders(request, headers);
+    // The page renders after this and builds the nav props from the rows as they are now; it promotes the visit then.
+    if (promotesVisit(chain, 200)) renderState.promoteNavItemPath = chain.request.path;
+    applySecureHeaders(request, headers, options);
     applyCorsVary(headers);
     return { headers, renderState };
   } catch (error) {
