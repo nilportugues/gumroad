@@ -1,0 +1,238 @@
+{
+  "cases": [
+    {
+      "name": "published by name and message",
+      "seller_id": 3,
+      "type": "published",
+      "query": "launch",
+      "page": 1,
+      "ids": [
+        8,
+        7
+      ],
+      "total": 2,
+      "exchanges": [
+        {
+          "method": "POST",
+          "path": "installment-test/_search",
+          "query": {},
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"term\":{\"seller_id\":3}}]}}],\"must\":[{\"exists\":{\"field\":\"published_at\"}},{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"multi_match\":{\"query\":\"launch\",\"fields\":[\"name\",\"message\"]}}]}}],\"must_not\":[{\"exists\":{\"field\":\"workflow_id\"}},{\"exists\":{\"field\":\"deleted_at\"}}]}},\"from\":0,\"size\":25,\"sort\":[\"_score\",{\"created_at\":\"desc\"},{\"id\":\"desc\"}],\"_source\":false,\"aggs\":{}}",
+          "status": 200,
+          "response": {
+            "took": 1,
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 2,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": [
+                {
+                  "_index": "installment-test",
+                  "_type": "_doc",
+                  "_id": "8",
+                  "_score": 3.1585855,
+                  "sort": [
+                    3.1585855,
+                    1735776000000,
+                    8
+                  ]
+                },
+                {
+                  "_index": "installment-test",
+                  "_type": "_doc",
+                  "_id": "7",
+                  "_score": 1.3674214,
+                  "sort": [
+                    1.3674214,
+                    1735689600000,
+                    7
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "scheduled",
+      "seller_id": 3,
+      "type": "scheduled",
+      "query": "  Launch ",
+      "page": 1,
+      "ids": [
+        11
+      ],
+      "total": 1,
+      "exchanges": [
+        {
+          "method": "POST",
+          "path": "installment-test/_search",
+          "query": {},
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"term\":{\"seller_id\":3}}]}}],\"must\":[{\"term\":{\"selected_flags\":\"ready_to_publish\"}},{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"multi_match\":{\"query\":\"launch\",\"fields\":[\"name\",\"message\"]}}]}}],\"must_not\":[{\"exists\":{\"field\":\"workflow_id\"}},{\"exists\":{\"field\":\"deleted_at\"}},{\"exists\":{\"field\":\"published_at\"}}]}},\"from\":0,\"size\":25,\"sort\":[\"_score\",{\"created_at\":\"desc\"},{\"id\":\"desc\"}],\"_source\":false,\"aggs\":{}}",
+          "status": 200,
+          "response": {
+            "took": 1,
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 1,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": [
+                {
+                  "_index": "installment-test",
+                  "_type": "_doc",
+                  "_id": "11",
+                  "_score": 2.3430595,
+                  "sort": [
+                    2.3430595,
+                    1793542091000,
+                    11
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "draft",
+      "seller_id": 3,
+      "type": "draft",
+      "query": "launch",
+      "page": 1,
+      "ids": [
+        12
+      ],
+      "total": 1,
+      "exchanges": [
+        {
+          "method": "POST",
+          "path": "installment-test/_search",
+          "query": {},
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"term\":{\"seller_id\":3}}]}}],\"must\":[{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"multi_match\":{\"query\":\"launch\",\"fields\":[\"name\",\"message\"]}}]}}],\"must_not\":[{\"exists\":{\"field\":\"workflow_id\"}},{\"exists\":{\"field\":\"deleted_at\"}},{\"exists\":{\"field\":\"published_at\"}},{\"term\":{\"selected_flags\":\"ready_to_publish\"}}]}},\"from\":0,\"size\":25,\"sort\":[\"_score\",{\"created_at\":\"desc\"},{\"id\":\"desc\"}],\"_source\":false,\"aggs\":{}}",
+          "status": 200,
+          "response": {
+            "took": 2,
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 1,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": [
+                {
+                  "_index": "installment-test",
+                  "_type": "_doc",
+                  "_id": "12",
+                  "_score": 0.36742145,
+                  "sort": [
+                    0.36742145,
+                    1793542092000,
+                    12
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "no match",
+      "seller_id": 3,
+      "type": "published",
+      "query": "zzz",
+      "page": 1,
+      "ids": [],
+      "total": 0,
+      "exchanges": [
+        {
+          "method": "POST",
+          "path": "installment-test/_search",
+          "query": {},
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"term\":{\"seller_id\":3}}]}}],\"must\":[{\"exists\":{\"field\":\"published_at\"}},{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"multi_match\":{\"query\":\"zzz\",\"fields\":[\"name\",\"message\"]}}]}}],\"must_not\":[{\"exists\":{\"field\":\"workflow_id\"}},{\"exists\":{\"field\":\"deleted_at\"}}]}},\"from\":0,\"size\":25,\"sort\":[\"_score\",{\"created_at\":\"desc\"},{\"id\":\"desc\"}],\"_source\":false,\"aggs\":{}}",
+          "status": 200,
+          "response": {
+            "took": 1,
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 0,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "past the last page",
+      "seller_id": 3,
+      "type": "published",
+      "query": "launch",
+      "page": 2,
+      "ids": [],
+      "total": 2,
+      "exchanges": [
+        {
+          "method": "POST",
+          "path": "installment-test/_search",
+          "query": {},
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"term\":{\"seller_id\":3}}]}}],\"must\":[{\"exists\":{\"field\":\"published_at\"}},{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"multi_match\":{\"query\":\"launch\",\"fields\":[\"name\",\"message\"]}}]}}],\"must_not\":[{\"exists\":{\"field\":\"workflow_id\"}},{\"exists\":{\"field\":\"deleted_at\"}}]}},\"from\":25,\"size\":25,\"sort\":[\"_score\",{\"created_at\":\"desc\"},{\"id\":\"desc\"}],\"_source\":false,\"aggs\":{}}",
+          "status": 200,
+          "response": {
+            "took": 1,
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 2,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,3483 @@
+{
+  "cases": [
+    {
+      "params": {},
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "customer"
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "term": {
+                "customer": true
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "follower"
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "term": {
+                "follower": true
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "affiliate"
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "term": {
+                "affiliate": true
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "bogus"
+      },
+      "query": null,
+      "error": {
+        "class": "ArgumentError",
+        "message": "Invalid type: bogus. Must be one of: customer, follower, affiliate"
+      }
+    },
+    {
+      "params": {
+        "bought_product_ids": [
+          1
+        ]
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "bool": {
+                    "should": [
+                      {
+                        "terms": {
+                          "purchases.product_id": [
+                            1
+                          ]
+                        }
+                      }
+                    ],
+                    "minimum_should_match": 1
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "bought_product_ids": [
+          1,
+          2,
+          3
+        ]
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "bool": {
+                    "should": [
+                      {
+                        "terms": {
+                          "purchases.product_id": [
+                            1,
+                            2,
+                            3
+                          ]
+                        }
+                      }
+                    ],
+                    "minimum_should_match": 1
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "bought_variant_ids": [
+          7
+        ]
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "bool": {
+                    "should": [
+                      {
+                        "terms": {
+                          "purchases.variant_ids": [
+                            7
+                          ]
+                        }
+                      }
+                    ],
+                    "minimum_should_match": 1
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "bought_variant_ids": [
+          7,
+          8
+        ]
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "bool": {
+                    "should": [
+                      {
+                        "terms": {
+                          "purchases.variant_ids": [
+                            7,
+                            8
+                          ]
+                        }
+                      }
+                    ],
+                    "minimum_should_match": 1
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "bought_product_ids": [
+          1,
+          2
+        ],
+        "bought_variant_ids": [
+          7,
+          8
+        ]
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "bool": {
+                    "should": [
+                      {
+                        "terms": {
+                          "purchases.product_id": [
+                            1,
+                            2
+                          ]
+                        }
+                      },
+                      {
+                        "terms": {
+                          "purchases.variant_ids": [
+                            7,
+                            8
+                          ]
+                        }
+                      }
+                    ],
+                    "minimum_should_match": 1
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "not_bought_product_ids": [
+          1
+        ]
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            }
+          ],
+          "must_not": [
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "terms": {
+                    "purchases.product_id": [
+                      1
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "not_bought_product_ids": [
+          1,
+          2
+        ]
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            }
+          ],
+          "must_not": [
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "terms": {
+                    "purchases.product_id": [
+                      1,
+                      2
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "not_bought_variant_ids": [
+          7
+        ]
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            }
+          ],
+          "must_not": [
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "terms": {
+                    "purchases.variant_ids": [
+                      7
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "not_bought_variant_ids": [
+          7,
+          8
+        ]
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            }
+          ],
+          "must_not": [
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "terms": {
+                    "purchases.variant_ids": [
+                      7,
+                      8
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "not_bought_product_ids": [
+          1
+        ],
+        "not_bought_variant_ids": [
+          7
+        ]
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            }
+          ],
+          "must_not": [
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "terms": {
+                    "purchases.product_id": [
+                      1
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "terms": {
+                    "purchases.variant_ids": [
+                      7
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "paid_more_than_cents": 500
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "range": {
+                "max_paid_cents": {
+                  "gt": 500
+                }
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "paid_less_than_cents": 2000
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "range": {
+                "min_paid_cents": {
+                  "lt": 2000
+                }
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "paid_more_than_cents": 500,
+        "paid_less_than_cents": 2000
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "range": {
+                "max_paid_cents": {
+                  "gt": 500
+                }
+              }
+            },
+            {
+              "range": {
+                "min_paid_cents": {
+                  "lt": 2000
+                }
+              }
+            },
+            {
+              "bool": {
+                "should": [
+                  {
+                    "nested": {
+                      "path": "purchases",
+                      "query": {
+                        "bool": {
+                          "filter": [
+                            {
+                              "range": {
+                                "purchases.price_cents": {
+                                  "gt": 500
+                                }
+                              }
+                            },
+                            {
+                              "range": {
+                                "purchases.price_cents": {
+                                  "lt": 2000
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ],
+                "minimum_should_match": 1
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "created_after": "2025-01-01T00:00:00-08:00"
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "range": {
+                "max_created_at": {
+                  "gt": "2025-01-01T00:00:00-08:00"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "created_before": "2025-01-31T23:59:59-08:00"
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "range": {
+                "min_created_at": {
+                  "lt": "2025-01-31T23:59:59-08:00"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "created_after": "2025-01-01T00:00:00-08:00",
+        "created_before": "2025-01-31T23:59:59-08:00"
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "range": {
+                "max_created_at": {
+                  "gt": "2025-01-01T00:00:00-08:00"
+                }
+              }
+            },
+            {
+              "range": {
+                "min_created_at": {
+                  "lt": "2025-01-31T23:59:59-08:00"
+                }
+              }
+            },
+            {
+              "bool": {
+                "should": [
+                  {
+                    "nested": {
+                      "path": "purchases",
+                      "query": {
+                        "bool": {
+                          "filter": [
+                            {
+                              "range": {
+                                "purchases.created_at": {
+                                  "gt": "2025-01-01T00:00:00-08:00"
+                                }
+                              }
+                            },
+                            {
+                              "range": {
+                                "purchases.created_at": {
+                                  "lt": "2025-01-31T23:59:59-08:00"
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "bool": {
+                      "filter": [
+                        {
+                          "exists": {
+                            "field": "follower_id"
+                          }
+                        },
+                        {
+                          "range": {
+                            "follower_created_at": {
+                              "gt": "2025-01-01T00:00:00-08:00"
+                            }
+                          }
+                        },
+                        {
+                          "range": {
+                            "follower_created_at": {
+                              "lt": "2025-01-31T23:59:59-08:00"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "nested": {
+                      "path": "affiliates",
+                      "query": {
+                        "bool": {
+                          "filter": [
+                            {
+                              "range": {
+                                "affiliates.created_at": {
+                                  "gt": "2025-01-01T00:00:00-08:00"
+                                }
+                              }
+                            },
+                            {
+                              "range": {
+                                "affiliates.created_at": {
+                                  "lt": "2025-01-31T23:59:59-08:00"
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ],
+                "minimum_should_match": 1
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "bought_from": "United States"
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "term": {
+                    "purchases.country": "United States"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "bought_from": "Côte d'Ivoire"
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "term": {
+                    "purchases.country": "Côte d'Ivoire"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "active_customers_only": true
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "bool": {
+                    "must_not": [
+                      {
+                        "term": {
+                          "purchases.subscription_cancelled": true
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "bool": {
+                "should": [
+                  {
+                    "nested": {
+                      "path": "purchases",
+                      "query": {
+                        "bool": {
+                          "filter": [
+                            {
+                              "bool": {
+                                "must_not": [
+                                  {
+                                    "term": {
+                                      "purchases.subscription_cancelled": true
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ],
+                "minimum_should_match": 1
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "active_customers_only": "0"
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "active_customers_only": "1"
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "bool": {
+                    "must_not": [
+                      {
+                        "term": {
+                          "purchases.subscription_cancelled": true
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "bool": {
+                "should": [
+                  {
+                    "nested": {
+                      "path": "purchases",
+                      "query": {
+                        "bool": {
+                          "filter": [
+                            {
+                              "bool": {
+                                "must_not": [
+                                  {
+                                    "term": {
+                                      "purchases.subscription_cancelled": true
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ],
+                "minimum_should_match": 1
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "active_customers_only": false
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "minimum_license_uses": 3
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "range": {
+                    "purchases.license_uses": {
+                      "gte": 3
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "bool": {
+                "should": [
+                  {
+                    "nested": {
+                      "path": "purchases",
+                      "query": {
+                        "bool": {
+                          "filter": [
+                            {
+                              "range": {
+                                "purchases.license_uses": {
+                                  "gte": 3
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ],
+                "minimum_should_match": 1
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "affiliate_product_ids": [
+          4
+        ]
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "nested": {
+                "path": "affiliates",
+                "query": {
+                  "terms": {
+                    "affiliates.product_id": [
+                      4
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "affiliate_product_ids": [
+          4,
+          5
+        ]
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "nested": {
+                "path": "affiliates",
+                "query": {
+                  "terms": {
+                    "affiliates.product_id": [
+                      4,
+                      5
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "waitlisted_product_ids": [
+          9
+        ]
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "waitlisted_product_ids": [
+          9,
+          10
+        ]
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "waitlisted_product_ids": [
+          null
+        ]
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "exclude_emails": [
+          "a@example.com"
+        ]
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            }
+          ],
+          "must_not": [
+            {
+              "terms": {
+                "email": [
+                  "a@example.com"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "exclude_emails": [
+          "a@example.com",
+          "b@example.com"
+        ]
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            }
+          ],
+          "must_not": [
+            {
+              "terms": {
+                "email": [
+                  "a@example.com",
+                  "b@example.com"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "exclude_emails": []
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "customer",
+        "bought_product_ids": [
+          1
+        ]
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "term": {
+                "customer": true
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "bool": {
+                    "should": [
+                      {
+                        "terms": {
+                          "purchases.product_id": [
+                            1
+                          ]
+                        }
+                      }
+                    ],
+                    "minimum_should_match": 1
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "customer",
+        "bought_product_ids": [
+          1
+        ],
+        "paid_more_than_cents": 500
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "term": {
+                "customer": true
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "bool": {
+                    "should": [
+                      {
+                        "terms": {
+                          "purchases.product_id": [
+                            1
+                          ]
+                        }
+                      }
+                    ],
+                    "minimum_should_match": 1
+                  }
+                }
+              }
+            },
+            {
+              "range": {
+                "max_paid_cents": {
+                  "gt": 500
+                }
+              }
+            },
+            {
+              "bool": {
+                "should": [
+                  {
+                    "nested": {
+                      "path": "purchases",
+                      "query": {
+                        "bool": {
+                          "filter": [
+                            {
+                              "bool": {
+                                "should": [
+                                  {
+                                    "terms": {
+                                      "purchases.product_id": [
+                                        1
+                                      ]
+                                    }
+                                  }
+                                ],
+                                "minimum_should_match": 1
+                              }
+                            },
+                            {
+                              "range": {
+                                "purchases.price_cents": {
+                                  "gt": 500
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ],
+                "minimum_should_match": 1
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "customer",
+        "bought_product_ids": [
+          1
+        ],
+        "bought_variant_ids": [
+          7
+        ],
+        "paid_more_than_cents": 500,
+        "paid_less_than_cents": 2000
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "term": {
+                "customer": true
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "bool": {
+                    "should": [
+                      {
+                        "terms": {
+                          "purchases.product_id": [
+                            1
+                          ]
+                        }
+                      },
+                      {
+                        "terms": {
+                          "purchases.variant_ids": [
+                            7
+                          ]
+                        }
+                      }
+                    ],
+                    "minimum_should_match": 1
+                  }
+                }
+              }
+            },
+            {
+              "range": {
+                "max_paid_cents": {
+                  "gt": 500
+                }
+              }
+            },
+            {
+              "range": {
+                "min_paid_cents": {
+                  "lt": 2000
+                }
+              }
+            },
+            {
+              "bool": {
+                "should": [
+                  {
+                    "nested": {
+                      "path": "purchases",
+                      "query": {
+                        "bool": {
+                          "filter": [
+                            {
+                              "bool": {
+                                "should": [
+                                  {
+                                    "terms": {
+                                      "purchases.product_id": [
+                                        1
+                                      ]
+                                    }
+                                  },
+                                  {
+                                    "terms": {
+                                      "purchases.variant_ids": [
+                                        7
+                                      ]
+                                    }
+                                  }
+                                ],
+                                "minimum_should_match": 1
+                              }
+                            },
+                            {
+                              "range": {
+                                "purchases.price_cents": {
+                                  "gt": 500
+                                }
+                              }
+                            },
+                            {
+                              "range": {
+                                "purchases.price_cents": {
+                                  "lt": 2000
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ],
+                "minimum_should_match": 1
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "customer",
+        "paid_more_than_cents": 500,
+        "paid_less_than_cents": 2000
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "term": {
+                "customer": true
+              }
+            },
+            {
+              "range": {
+                "max_paid_cents": {
+                  "gt": 500
+                }
+              }
+            },
+            {
+              "range": {
+                "min_paid_cents": {
+                  "lt": 2000
+                }
+              }
+            },
+            {
+              "bool": {
+                "should": [
+                  {
+                    "nested": {
+                      "path": "purchases",
+                      "query": {
+                        "bool": {
+                          "filter": [
+                            {
+                              "range": {
+                                "purchases.price_cents": {
+                                  "gt": 500
+                                }
+                              }
+                            },
+                            {
+                              "range": {
+                                "purchases.price_cents": {
+                                  "lt": 2000
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ],
+                "minimum_should_match": 1
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "customer",
+        "created_after": "2025-01-01T00:00:00-08:00"
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "term": {
+                "customer": true
+              }
+            },
+            {
+              "range": {
+                "max_purchase_created_at": {
+                  "gt": "2025-01-01T00:00:00-08:00"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "customer",
+        "created_after": "2025-01-01T00:00:00-08:00",
+        "created_before": "2025-01-31T23:59:59-08:00"
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "term": {
+                "customer": true
+              }
+            },
+            {
+              "range": {
+                "max_purchase_created_at": {
+                  "gt": "2025-01-01T00:00:00-08:00"
+                }
+              }
+            },
+            {
+              "range": {
+                "min_purchase_created_at": {
+                  "lt": "2025-01-31T23:59:59-08:00"
+                }
+              }
+            },
+            {
+              "bool": {
+                "should": [
+                  {
+                    "nested": {
+                      "path": "purchases",
+                      "query": {
+                        "bool": {
+                          "filter": [
+                            {
+                              "range": {
+                                "purchases.created_at": {
+                                  "gt": "2025-01-01T00:00:00-08:00"
+                                }
+                              }
+                            },
+                            {
+                              "range": {
+                                "purchases.created_at": {
+                                  "lt": "2025-01-31T23:59:59-08:00"
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ],
+                "minimum_should_match": 1
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "customer",
+        "bought_from": "United States"
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "term": {
+                "customer": true
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "term": {
+                    "purchases.country": "United States"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "customer",
+        "active_customers_only": true
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "term": {
+                "customer": true
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "bool": {
+                    "must_not": [
+                      {
+                        "term": {
+                          "purchases.subscription_cancelled": true
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "bool": {
+                "should": [
+                  {
+                    "nested": {
+                      "path": "purchases",
+                      "query": {
+                        "bool": {
+                          "filter": [
+                            {
+                              "bool": {
+                                "must_not": [
+                                  {
+                                    "term": {
+                                      "purchases.subscription_cancelled": true
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ],
+                "minimum_should_match": 1
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "customer",
+        "active_customers_only": true,
+        "bought_product_ids": [
+          1,
+          2
+        ]
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "term": {
+                "customer": true
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "bool": {
+                    "should": [
+                      {
+                        "terms": {
+                          "purchases.product_id": [
+                            1,
+                            2
+                          ]
+                        }
+                      }
+                    ],
+                    "minimum_should_match": 1
+                  }
+                }
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "bool": {
+                    "must_not": [
+                      {
+                        "term": {
+                          "purchases.subscription_cancelled": true
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "bool": {
+                "should": [
+                  {
+                    "nested": {
+                      "path": "purchases",
+                      "query": {
+                        "bool": {
+                          "filter": [
+                            {
+                              "bool": {
+                                "should": [
+                                  {
+                                    "terms": {
+                                      "purchases.product_id": [
+                                        1,
+                                        2
+                                      ]
+                                    }
+                                  }
+                                ],
+                                "minimum_should_match": 1
+                              }
+                            },
+                            {
+                              "bool": {
+                                "must_not": [
+                                  {
+                                    "term": {
+                                      "purchases.subscription_cancelled": true
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ],
+                "minimum_should_match": 1
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "customer",
+        "minimum_license_uses": 3
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "term": {
+                "customer": true
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "range": {
+                    "purchases.license_uses": {
+                      "gte": 3
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "bool": {
+                "should": [
+                  {
+                    "nested": {
+                      "path": "purchases",
+                      "query": {
+                        "bool": {
+                          "filter": [
+                            {
+                              "range": {
+                                "purchases.license_uses": {
+                                  "gte": 3
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ],
+                "minimum_should_match": 1
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "customer",
+        "minimum_license_uses": 3,
+        "bought_product_ids": [
+          1
+        ],
+        "active_customers_only": true
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "term": {
+                "customer": true
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "bool": {
+                    "should": [
+                      {
+                        "terms": {
+                          "purchases.product_id": [
+                            1
+                          ]
+                        }
+                      }
+                    ],
+                    "minimum_should_match": 1
+                  }
+                }
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "bool": {
+                    "must_not": [
+                      {
+                        "term": {
+                          "purchases.subscription_cancelled": true
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "range": {
+                    "purchases.license_uses": {
+                      "gte": 3
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "bool": {
+                "should": [
+                  {
+                    "nested": {
+                      "path": "purchases",
+                      "query": {
+                        "bool": {
+                          "filter": [
+                            {
+                              "bool": {
+                                "should": [
+                                  {
+                                    "terms": {
+                                      "purchases.product_id": [
+                                        1
+                                      ]
+                                    }
+                                  }
+                                ],
+                                "minimum_should_match": 1
+                              }
+                            },
+                            {
+                              "bool": {
+                                "must_not": [
+                                  {
+                                    "term": {
+                                      "purchases.subscription_cancelled": true
+                                    }
+                                  }
+                                ]
+                              }
+                            },
+                            {
+                              "range": {
+                                "purchases.license_uses": {
+                                  "gte": 3
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ],
+                "minimum_should_match": 1
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "customer",
+        "not_bought_product_ids": [
+          2
+        ],
+        "bought_product_ids": [
+          1
+        ]
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "term": {
+                "customer": true
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "bool": {
+                    "should": [
+                      {
+                        "terms": {
+                          "purchases.product_id": [
+                            1
+                          ]
+                        }
+                      }
+                    ],
+                    "minimum_should_match": 1
+                  }
+                }
+              }
+            }
+          ],
+          "must_not": [
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "terms": {
+                    "purchases.product_id": [
+                      2
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "follower",
+        "created_after": "2025-01-01T00:00:00-08:00"
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "term": {
+                "follower": true
+              }
+            },
+            {
+              "range": {
+                "follower_created_at": {
+                  "gt": "2025-01-01T00:00:00-08:00"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "follower",
+        "created_before": "2025-01-31T23:59:59-08:00"
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "term": {
+                "follower": true
+              }
+            },
+            {
+              "range": {
+                "follower_created_at": {
+                  "lt": "2025-01-31T23:59:59-08:00"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "follower",
+        "created_after": "2025-01-01T00:00:00-08:00",
+        "created_before": "2025-01-31T23:59:59-08:00"
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "term": {
+                "follower": true
+              }
+            },
+            {
+              "range": {
+                "follower_created_at": {
+                  "gt": "2025-01-01T00:00:00-08:00"
+                }
+              }
+            },
+            {
+              "range": {
+                "follower_created_at": {
+                  "lt": "2025-01-31T23:59:59-08:00"
+                }
+              }
+            },
+            {
+              "bool": {
+                "should": [
+                  {
+                    "bool": {
+                      "filter": [
+                        {
+                          "exists": {
+                            "field": "follower_id"
+                          }
+                        },
+                        {
+                          "range": {
+                            "follower_created_at": {
+                              "gt": "2025-01-01T00:00:00-08:00"
+                            }
+                          }
+                        },
+                        {
+                          "range": {
+                            "follower_created_at": {
+                              "lt": "2025-01-31T23:59:59-08:00"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "minimum_should_match": 1
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "follower",
+        "bought_product_ids": [
+          1
+        ]
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "term": {
+                "follower": true
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "bool": {
+                    "should": [
+                      {
+                        "terms": {
+                          "purchases.product_id": [
+                            1
+                          ]
+                        }
+                      }
+                    ],
+                    "minimum_should_match": 1
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "follower",
+        "bought_product_ids": [
+          1
+        ],
+        "created_after": "2025-01-01T00:00:00-08:00"
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "term": {
+                "follower": true
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "bool": {
+                    "should": [
+                      {
+                        "terms": {
+                          "purchases.product_id": [
+                            1
+                          ]
+                        }
+                      }
+                    ],
+                    "minimum_should_match": 1
+                  }
+                }
+              }
+            },
+            {
+              "range": {
+                "follower_created_at": {
+                  "gt": "2025-01-01T00:00:00-08:00"
+                }
+              }
+            },
+            {
+              "bool": {
+                "should": [
+                  {
+                    "nested": {
+                      "path": "purchases",
+                      "query": {
+                        "bool": {
+                          "filter": [
+                            {
+                              "bool": {
+                                "should": [
+                                  {
+                                    "terms": {
+                                      "purchases.product_id": [
+                                        1
+                                      ]
+                                    }
+                                  }
+                                ],
+                                "minimum_should_match": 1
+                              }
+                            },
+                            {
+                              "range": {
+                                "purchases.created_at": {
+                                  "gt": "2025-01-01T00:00:00-08:00"
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ],
+                "minimum_should_match": 1
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "follower",
+        "bought_variant_ids": [
+          7
+        ],
+        "created_after": "2025-01-01T00:00:00-08:00",
+        "created_before": "2025-01-31T23:59:59-08:00"
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "term": {
+                "follower": true
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "bool": {
+                    "should": [
+                      {
+                        "terms": {
+                          "purchases.variant_ids": [
+                            7
+                          ]
+                        }
+                      }
+                    ],
+                    "minimum_should_match": 1
+                  }
+                }
+              }
+            },
+            {
+              "range": {
+                "follower_created_at": {
+                  "gt": "2025-01-01T00:00:00-08:00"
+                }
+              }
+            },
+            {
+              "range": {
+                "follower_created_at": {
+                  "lt": "2025-01-31T23:59:59-08:00"
+                }
+              }
+            },
+            {
+              "bool": {
+                "should": [
+                  {
+                    "nested": {
+                      "path": "purchases",
+                      "query": {
+                        "bool": {
+                          "filter": [
+                            {
+                              "bool": {
+                                "should": [
+                                  {
+                                    "terms": {
+                                      "purchases.variant_ids": [
+                                        7
+                                      ]
+                                    }
+                                  }
+                                ],
+                                "minimum_should_match": 1
+                              }
+                            },
+                            {
+                              "range": {
+                                "purchases.created_at": {
+                                  "gt": "2025-01-01T00:00:00-08:00"
+                                }
+                              }
+                            },
+                            {
+                              "range": {
+                                "purchases.created_at": {
+                                  "lt": "2025-01-31T23:59:59-08:00"
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ],
+                "minimum_should_match": 1
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "follower",
+        "waitlisted_product_ids": [
+          9
+        ]
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "term": {
+                "follower": true
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "follower",
+        "waitlisted_product_ids": [
+          9
+        ],
+        "created_after": "2025-01-01T00:00:00-08:00"
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "term": {
+                "follower": true
+              }
+            },
+            {
+              "range": {
+                "follower_created_at": {
+                  "gt": "2025-01-01T00:00:00-08:00"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "follower",
+        "exclude_emails": [
+          "a@example.com"
+        ],
+        "created_after": "2025-01-01T00:00:00-08:00"
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "term": {
+                "follower": true
+              }
+            },
+            {
+              "range": {
+                "follower_created_at": {
+                  "gt": "2025-01-01T00:00:00-08:00"
+                }
+              }
+            }
+          ],
+          "must_not": [
+            {
+              "terms": {
+                "email": [
+                  "a@example.com"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "affiliate",
+        "affiliate_product_ids": [
+          4
+        ]
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "term": {
+                "affiliate": true
+              }
+            },
+            {
+              "nested": {
+                "path": "affiliates",
+                "query": {
+                  "terms": {
+                    "affiliates.product_id": [
+                      4
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "affiliate",
+        "created_after": "2025-01-01T00:00:00-08:00"
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "term": {
+                "affiliate": true
+              }
+            },
+            {
+              "range": {
+                "max_affiliate_created_at": {
+                  "gt": "2025-01-01T00:00:00-08:00"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "affiliate",
+        "created_after": "2025-01-01T00:00:00-08:00",
+        "created_before": "2025-01-31T23:59:59-08:00"
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "term": {
+                "affiliate": true
+              }
+            },
+            {
+              "range": {
+                "max_affiliate_created_at": {
+                  "gt": "2025-01-01T00:00:00-08:00"
+                }
+              }
+            },
+            {
+              "range": {
+                "min_affiliate_created_at": {
+                  "lt": "2025-01-31T23:59:59-08:00"
+                }
+              }
+            },
+            {
+              "bool": {
+                "should": [
+                  {
+                    "nested": {
+                      "path": "affiliates",
+                      "query": {
+                        "bool": {
+                          "filter": [
+                            {
+                              "range": {
+                                "affiliates.created_at": {
+                                  "gt": "2025-01-01T00:00:00-08:00"
+                                }
+                              }
+                            },
+                            {
+                              "range": {
+                                "affiliates.created_at": {
+                                  "lt": "2025-01-31T23:59:59-08:00"
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ],
+                "minimum_should_match": 1
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "affiliate",
+        "affiliate_product_ids": [
+          4,
+          5
+        ],
+        "created_after": "2025-01-01T00:00:00-08:00",
+        "created_before": "2025-01-31T23:59:59-08:00"
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "term": {
+                "affiliate": true
+              }
+            },
+            {
+              "range": {
+                "max_affiliate_created_at": {
+                  "gt": "2025-01-01T00:00:00-08:00"
+                }
+              }
+            },
+            {
+              "range": {
+                "min_affiliate_created_at": {
+                  "lt": "2025-01-31T23:59:59-08:00"
+                }
+              }
+            },
+            {
+              "nested": {
+                "path": "affiliates",
+                "query": {
+                  "terms": {
+                    "affiliates.product_id": [
+                      4,
+                      5
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "bool": {
+                "should": [
+                  {
+                    "nested": {
+                      "path": "affiliates",
+                      "query": {
+                        "bool": {
+                          "filter": [
+                            {
+                              "terms": {
+                                "affiliates.product_id": [
+                                  4,
+                                  5
+                                ]
+                              }
+                            },
+                            {
+                              "range": {
+                                "affiliates.created_at": {
+                                  "gt": "2025-01-01T00:00:00-08:00"
+                                }
+                              }
+                            },
+                            {
+                              "range": {
+                                "affiliates.created_at": {
+                                  "lt": "2025-01-31T23:59:59-08:00"
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ],
+                "minimum_should_match": 1
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "affiliate",
+        "bought_product_ids": [
+          1
+        ],
+        "affiliate_product_ids": [
+          4
+        ]
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "term": {
+                "affiliate": true
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "bool": {
+                    "should": [
+                      {
+                        "terms": {
+                          "purchases.product_id": [
+                            1
+                          ]
+                        }
+                      }
+                    ],
+                    "minimum_should_match": 1
+                  }
+                }
+              }
+            },
+            {
+              "nested": {
+                "path": "affiliates",
+                "query": {
+                  "terms": {
+                    "affiliates.product_id": [
+                      4
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "affiliate",
+        "bought_product_ids": [
+          1
+        ],
+        "paid_more_than_cents": 100
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "term": {
+                "affiliate": true
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "bool": {
+                    "should": [
+                      {
+                        "terms": {
+                          "purchases.product_id": [
+                            1
+                          ]
+                        }
+                      }
+                    ],
+                    "minimum_should_match": 1
+                  }
+                }
+              }
+            },
+            {
+              "range": {
+                "max_paid_cents": {
+                  "gt": 100
+                }
+              }
+            },
+            {
+              "bool": {
+                "should": [
+                  {
+                    "nested": {
+                      "path": "purchases",
+                      "query": {
+                        "bool": {
+                          "filter": [
+                            {
+                              "bool": {
+                                "should": [
+                                  {
+                                    "terms": {
+                                      "purchases.product_id": [
+                                        1
+                                      ]
+                                    }
+                                  }
+                                ],
+                                "minimum_should_match": 1
+                              }
+                            },
+                            {
+                              "range": {
+                                "purchases.price_cents": {
+                                  "gt": 100
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ],
+                "minimum_should_match": 1
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "affiliate_product_ids": [
+          4
+        ],
+        "created_after": "2025-01-01T00:00:00-08:00"
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "range": {
+                "max_created_at": {
+                  "gt": "2025-01-01T00:00:00-08:00"
+                }
+              }
+            },
+            {
+              "nested": {
+                "path": "affiliates",
+                "query": {
+                  "terms": {
+                    "affiliates.product_id": [
+                      4
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "bool": {
+                "should": [
+                  {
+                    "nested": {
+                      "path": "affiliates",
+                      "query": {
+                        "bool": {
+                          "filter": [
+                            {
+                              "terms": {
+                                "affiliates.product_id": [
+                                  4
+                                ]
+                              }
+                            },
+                            {
+                              "range": {
+                                "affiliates.created_at": {
+                                  "gt": "2025-01-01T00:00:00-08:00"
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ],
+                "minimum_should_match": 1
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "bought_product_ids": [
+          1
+        ],
+        "affiliate_product_ids": [
+          4
+        ],
+        "created_after": "2025-01-01T00:00:00-08:00"
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "bool": {
+                    "should": [
+                      {
+                        "terms": {
+                          "purchases.product_id": [
+                            1
+                          ]
+                        }
+                      }
+                    ],
+                    "minimum_should_match": 1
+                  }
+                }
+              }
+            },
+            {
+              "range": {
+                "max_created_at": {
+                  "gt": "2025-01-01T00:00:00-08:00"
+                }
+              }
+            },
+            {
+              "nested": {
+                "path": "affiliates",
+                "query": {
+                  "terms": {
+                    "affiliates.product_id": [
+                      4
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "match_none": {}
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "bought_product_ids": [
+          1
+        ],
+        "created_after": "2025-01-01T00:00:00-08:00",
+        "created_before": "2025-01-31T23:59:59-08:00",
+        "bought_from": "France"
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "bool": {
+                    "should": [
+                      {
+                        "terms": {
+                          "purchases.product_id": [
+                            1
+                          ]
+                        }
+                      }
+                    ],
+                    "minimum_should_match": 1
+                  }
+                }
+              }
+            },
+            {
+              "range": {
+                "max_created_at": {
+                  "gt": "2025-01-01T00:00:00-08:00"
+                }
+              }
+            },
+            {
+              "range": {
+                "min_created_at": {
+                  "lt": "2025-01-31T23:59:59-08:00"
+                }
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "term": {
+                    "purchases.country": "France"
+                  }
+                }
+              }
+            },
+            {
+              "bool": {
+                "should": [
+                  {
+                    "nested": {
+                      "path": "purchases",
+                      "query": {
+                        "bool": {
+                          "filter": [
+                            {
+                              "bool": {
+                                "should": [
+                                  {
+                                    "terms": {
+                                      "purchases.product_id": [
+                                        1
+                                      ]
+                                    }
+                                  }
+                                ],
+                                "minimum_should_match": 1
+                              }
+                            },
+                            {
+                              "term": {
+                                "purchases.country": "France"
+                              }
+                            },
+                            {
+                              "range": {
+                                "purchases.created_at": {
+                                  "gt": "2025-01-01T00:00:00-08:00"
+                                }
+                              }
+                            },
+                            {
+                              "range": {
+                                "purchases.created_at": {
+                                  "lt": "2025-01-31T23:59:59-08:00"
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ],
+                "minimum_should_match": 1
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "not_bought_product_ids": [
+          2
+        ],
+        "created_after": "2025-01-01T00:00:00-08:00"
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "range": {
+                "max_created_at": {
+                  "gt": "2025-01-01T00:00:00-08:00"
+                }
+              }
+            }
+          ],
+          "must_not": [
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "terms": {
+                    "purchases.product_id": [
+                      2
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "customer",
+        "waitlisted_product_ids": [
+          9
+        ],
+        "bought_product_ids": [
+          1
+        ]
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "term": {
+                "customer": true
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "bool": {
+                    "should": [
+                      {
+                        "terms": {
+                          "purchases.product_id": [
+                            1
+                          ]
+                        }
+                      }
+                    ],
+                    "minimum_should_match": 1
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "customer",
+        "bogus_key": 1,
+        "bought_product_ids": [
+          1
+        ]
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "term": {
+                "customer": true
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "bool": {
+                    "should": [
+                      {
+                        "terms": {
+                          "purchases.product_id": [
+                            1
+                          ]
+                        }
+                      }
+                    ],
+                    "minimum_should_match": 1
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "type": "customer",
+        "paid_more_than_cents": null,
+        "created_after": ""
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "term": {
+                "customer": true
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "bought_product_ids": []
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "params": {
+        "bought_product_ids": [
+          1
+        ],
+        "exclude_emails": [
+          "O'Brien@example.com"
+        ],
+        "bought_from": "a'b"
+      },
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "seller_id": 1
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "bool": {
+                    "should": [
+                      {
+                        "terms": {
+                          "purchases.product_id": [
+                            1
+                          ]
+                        }
+                      }
+                    ],
+                    "minimum_should_match": 1
+                  }
+                }
+              }
+            },
+            {
+              "nested": {
+                "path": "purchases",
+                "query": {
+                  "term": {
+                    "purchases.country": "a'b"
+                  }
+                }
+              }
+            },
+            {
+              "bool": {
+                "should": [
+                  {
+                    "nested": {
+                      "path": "purchases",
+                      "query": {
+                        "bool": {
+                          "filter": [
+                            {
+                              "bool": {
+                                "should": [
+                                  {
+                                    "terms": {
+                                      "purchases.product_id": [
+                                        1
+                                      ]
+                                    }
+                                  }
+                                ],
+                                "minimum_should_match": 1
+                              }
+                            },
+                            {
+                              "term": {
+                                "purchases.country": "a'b"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ],
+                "minimum_should_match": 1
+              }
+            }
+          ],
+          "must_not": [
+            {
+              "terms": {
+                "email": [
+                  "O'Brien@example.com"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "error": null
+    }
+  ]
+}

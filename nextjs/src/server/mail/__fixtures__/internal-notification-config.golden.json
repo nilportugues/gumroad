@@ -1,0 +1,84 @@
+{
+  "now": "2026-10-31T12:00:00Z",
+  "secrets": {
+    "SENDGRID_GUMROAD_TRANSACTIONS_API_KEY": "sg-gumroad-key",
+    "SENDGRID_GUMROAD_FOLLOWER_CONFIRMATION_API_KEY": "sg-followers-key",
+    "SENDGRID_GR_CREATORS_API_KEY": "sg-creators-key",
+    "SENDGRID_GR_CUSTOMERS_API_KEY": "sg-customers-key",
+    "SENDGRID_GR_CUSTOMERS_LEVEL_2_API_KEY": "sg-customers-level-2-key",
+    "RESEND_DEFAULT_API_KEY": "re-gumroad-key",
+    "RESEND_FOLLOWERS_API_KEY": "re-followers-key",
+    "RESEND_CREATORS_API_KEY": "re-creators-key",
+    "RESEND_CUSTOMERS_API_KEY": "re-customers-key",
+    "RESEND_CUSTOMERS_LEVEL_2_API_KEY": "re-customers-level-2-key",
+    "MAILER_HEADERS_ENCRYPTION_KEY_V1": "ws42-golden-header-key",
+    "AWS_ACCESS_KEY_ID": "minioadmin",
+    "AWS_SECRET_ACCESS_KEY": "minioadmin"
+  },
+  "overrides": {
+    "INTERNAL_NOTIFICATION_EMAIL": "ops@example.com",
+    "PAYMENTS_NOTIFICATION_EMAIL": "",
+    "INTERNAL_NOTIFICATION_ALWAYS_CC": ""
+  },
+  "cases": [
+    {
+      "name": "risk room uses the overridden recipient",
+      "args": [
+        "risk",
+        "Iffy",
+        "Hi"
+      ],
+      "objects": {},
+      "features": [],
+      "error": null,
+      "s3_requests": [],
+      "ivs": [],
+      "delivered": [
+        {
+          "settings": {
+            "address": "smtp.sendgrid.net",
+            "port": 587,
+            "domain": "gumroad.com",
+            "user_name": "apikey",
+            "password": "sg-gumroad-key",
+            "authentication": "plain",
+            "enable_starttls_auto": true
+          },
+          "encoded": "Date: Sat, 31 Oct 2026 12:00:00 +0000\r\nFrom: noreply@gumroad.com\r\nTo: ops@example.com\r\nMessage-ID: <6ae5d8400_cba618878410b9@mail-host.example.mail>\r\nSubject: [risk] Iffy\r\nMIME-Version: 1.0\r\nContent-Type: multipart/alternative;\r\n boundary=\"--==_mimepart_6ae5d8400_cba6188784096f\"\r\nContent-Transfer-Encoding: 7bit\r\nX-GUM-Email-Provider: sendgrid\r\nX-SMTPAPI: {\"environment\":\"production\",\"category\":[\"InternalNotificationMailer\",\"InternalNotificationMailer.notify\"],\"unique_args\":{\"mailer_class\":\"InternalNotificationMailer\",\"mailer_method\":\"notify\",\"mailer_args\":\"[{room_name:\r\n \\\"risk\\\", sender: \\\"Iffy\\\", message_text: \\\"Hi\\\", attachments_data: [],\r\n s3_attachments: []}]\"}}\r\n\r\n\r\n----==_mimepart_6ae5d8400_cba6188784096f\r\nContent-Type: text/plain;\r\n charset=UTF-8\r\nContent-Transfer-Encoding: 7bit\r\n\r\nIffy\r\n\r\nHi\r\n----==_mimepart_6ae5d8400_cba6188784096f\r\nContent-Type: text/html;\r\n charset=UTF-8\r\nContent-Transfer-Encoding: 7bit\r\n\r\n<!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 4.0 Transitional//EN\" \"http://www.w3.org/TR/REC-html40/loose.dtd\">\r\n<html><body>\r\n<p><strong>Iffy</strong></p>\r\n\r\n<p></p>\r\n<p>Hi</p>\r\n\r\n</body></html>\r\n\r\n----==_mimepart_6ae5d8400_cba6188784096f--\r\n",
+          "envelope_from": "noreply@gumroad.com",
+          "envelope_to": [
+            "ops@example.com"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "payments room has a blank recipient and sends nothing",
+      "args": [
+        "payments",
+        "Iffy",
+        "Hi"
+      ],
+      "objects": {},
+      "features": [],
+      "error": null,
+      "s3_requests": [],
+      "ivs": [],
+      "delivered": []
+    },
+    {
+      "name": "agent reports room has a blank recipient and sends nothing",
+      "args": [
+        "agent_reports",
+        "Iffy",
+        "Hi"
+      ],
+      "objects": {},
+      "features": [],
+      "error": null,
+      "s3_requests": [],
+      "ivs": [],
+      "delivered": []
+    }
+  ]
+}

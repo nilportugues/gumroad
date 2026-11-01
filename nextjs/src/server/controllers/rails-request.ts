@@ -1,0 +1,71 @@
+// The parts of ActionDispatch::Request that controller ports read: host, scheme, query params
+// and cookies, as Rails derives them from the incoming request.
+import { requestCookies } from "./rack-cookies.ts";
+
+export type RailsRequest = {
+  method: string;
+  // request.path and request.query_string (raw, without "?").
+  path: string;
+  queryString: string;
+  headers: Headers;
+  // request.host (no port) and request.host_with_port.
+  host: string;
+  hostWithPort: string;
+  // request.protocol: "https://" or "http://".
+  protocol: string;
+  cookies: Map<string, string | null>;
+};
+
+const STANDARD_PORTS: Record<string, string> = { "http://": "80", "https://": "443" };
+
+export function railsRequest(request: Request): RailsRequest {
+  const url = new URL(request.url);
+  // raw_host_with_port: the last X-Forwarded-Host entry wins over Host.
+  const forwarded = request.headers.get("x-forwarded-host");
+  const rawHost = (forwarded ? forwarded.split(/,\s?/).at(-1) : request.headers.get("host")) ?? url.host;
+  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(/,\s?/)[0];
+  const protocol = `${forwardedProto ?? url.protocol.replace(":", "")}://` === "https://" ? "https://" : "http://";
+  const host = rawHost.replace(/:\d+$/, "");
+  const port = /:(\d+)$/.exec(rawHost)?.[1];
+  return {
+    method: request.method,
+    path: url.pathname,
+    queryString: url.search.replace(/^\?/, ""),
+    headers: request.headers,
+    host,
+    hostWithPort: port && port !== STANDARD_PORTS[protocol] ? `${host}:${port}` : host,
+    protocol,
+    cookies: requestCookies(request.headers.get("cookie")),
+  };
+}
+
+// Rack::Request#fullpath.
+export function fullpath(request: RailsRequest): string {
+  return request.queryString === "" ? request.path : `${request.path}?${request.queryString}`;
+}
+
+// params[name] for a flat (non-bracketed) query key, as Rack's nested query parser reads it: the
+// last occurrence wins and a key without "=" is nil. Undefined when the key is absent.
+export function queryParam(request: RailsRequest, name: string): string | null | undefined {
+  let value: string | null | undefined;
+  for (const pair of request.queryString.split("&")) {
+    if (pair === "") continue;
+    const index = pair.indexOf("=");
+    const key = decode(index === -1 ? pair : pair.slice(0, index));
+    if (key === name) value = index === -1 ? null : decode(pair.slice(index + 1));
+  }
+  return value;
+}
+
+function decode(value: string): string {
+  try {
+    return decodeURIComponent(value.replaceAll("+", " "));
+  } catch {
+    return value;
+  }
+}
+
+// ActiveSupport's String#present?.
+export function isPresent(value: string | null | undefined): value is string {
+  return value != null && /[^\s]/u.test(value);
+}

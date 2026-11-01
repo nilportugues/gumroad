@@ -1,0 +1,157 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { createServer, type Server } from "node:http";
+import type { AddressInfo } from "node:net";
+import path from "node:path";
+
+import { Client as ElasticsearchClient } from "@elastic/elasticsearch";
+import { PrismaClient } from "@prisma/client";
+import { Redis } from "ioredis";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { closeAllRedis } from "@/server/infra/redis";
+
+import { prismaExecutor, type SqlExecutor } from "../src/db";
+import { type Fixture, type FixtureRequest, loadFixture } from "../src/fixture";
+import { startNextServer, type NextServer } from "../src/next-server";
+import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
+import { reencryptCookies, redisSeeder } from "../src/session";
+
+// Replays spec/requests/checkout_parity_spec.rb: GET /checkout recorded through the full Rack stack. The port renders
+// a page whose cart holds nothing and answers the cart_id redirects; the examples under "handed back to Rails" must
+// reach a stand-in origin untouched (the cart merge writes, so it must never run in the port).
+const url = process.env.PARITY_DATABASE_URL;
+const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
+const DIR = "parity/fixtures/requests/checkout_parity_spec";
+const FIRST_COMPILE_TIMEOUT_MS = 240_000;
+const HANDED_BACK_STATUS = 218;
+const SECRET_KEY_BASE = "parity-replay-secret-key-base";
+const ELASTICSEARCH_HOST = process.env.ELASTICSEARCH_HOST ?? "http://localhost:9200";
+const RAILS_PURCHASE_INDEX = "purchase-test";
+const ES_INDEX_SUFFIX = "-ws78";
+const REPLAY_PURCHASE_INDEX = `purchases${ES_INDEX_SUFFIX}`;
+const GEOIP_FIXTURE = path.join(process.cwd(), "src/server/infra/__fixtures__/GeoLite2-City-Test.mmdb");
+const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
+const fromEnvTest = (name: string) => new RegExp(`^${name}=(.+)$`, "m").exec(envTest)?.[1];
+
+const COMPARE = {
+  ignore: [
+    "http",
+    "response.headers.x-original-headers-class",
+    "response.headers.cache-control",
+    "response.headers.link",
+    "response.headers.vary",
+    "response.cookies.XSRF-TOKEN.value",
+    "response.cookies.__profilin",
+    "db.versions",
+    "db.users.updated.*.changes.updated_at",
+    "response.inertia.props.csp_nonce",
+    "response.inertia.props.authenticity_token",
+    "response.inertia.props._inertia_meta.2.content",
+    "response.inertia.props._inertia_meta.1.content",
+    "response.json.props._inertia_meta.1.content",
+    "response.json.props._inertia_meta.2.content",
+    "response.json.props.csp_nonce",
+    "response.json.props.authenticity_token",
+    "response.body",
+  ],
+};
+
+const cases = readdirSync(DIR)
+  .filter((file) => file.endsWith(".json"))
+  .map((file) => {
+    const fixturePath = path.join(DIR, file);
+    const name = file.replace(/\.json$/, "").replace(/^checkout-page-/, "");
+    return { name, fixturePath, index: loadFixture(fixturePath).exchanges.length - 1, handedBack: name.startsWith("handed-back-to-rails") };
+  });
+
+describe.skipIf(!url)("Checkout page parity", () => {
+  let client: PrismaClient;
+  let sql: SqlExecutor;
+  let redis: Redis;
+  let server: NextServer;
+  let rails: Server;
+  const saved = { ...process.env };
+
+  beforeAll(async () => {
+    const es = new ElasticsearchClient({ node: ELASTICSEARCH_HOST });
+    const source = (await es.indices.get({ index: RAILS_PURCHASE_INDEX })).body[RAILS_PURCHASE_INDEX];
+    await es.indices.delete({ index: REPLAY_PURCHASE_INDEX }, { ignore: [404] });
+    await es.indices.create({
+      index: REPLAY_PURCHASE_INDEX,
+      body: { settings: { index: { number_of_shards: 1, number_of_replicas: 0, analysis: source.settings.index.analysis } }, mappings: source.mappings },
+    });
+    await es.close();
+    rails = createServer((_, response) => {
+      response.writeHead(HANDED_BACK_STATUS, { "x-handed-back": "rails" });
+      response.end("handed back");
+    });
+    await new Promise<void>((resolve) => rails.listen(0, "127.0.0.1", resolve));
+    client = new PrismaClient({ datasourceUrl: url });
+    sql = prismaExecutor(client);
+    const [hostAndPort = "", db = "0"] = redisHost.split("/");
+    const [host = "127.0.0.1", port = "6379"] = hostAndPort.split(":");
+    redis = new Redis({ host, port: Number(port), db: Number(db) });
+    const stripeKey = fromEnvTest("STRIPE_PUBLIC_KEY_TEST");
+    const secureIdVersion = fromEnvTest("SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION");
+    const secureIdKey = fromEnvTest("SECURE_EXTERNAL_ID__KEYS__1");
+    server = await startNextServer({
+      RAILS_ENV: "test",
+      OBFUSCATE_IDS_CIPHER_KEY: fromEnvTest("OBFUSCATE_IDS_CIPHER_KEY") ?? "",
+      OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
+      ...(secureIdVersion && secureIdKey ? { SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION: secureIdVersion, SECURE_EXTERNAL_ID__KEYS__1: secureIdKey } : {}),
+      ...(stripeKey ? { STRIPE_PUBLIC_KEY_TEST: stripeKey } : {}),
+      PAYPAL_PARTNER_CLIENT_ID: fromEnvTest("PAYPAL_PARTNER_CLIENT_ID") ?? "",
+      // The spec stubs GlobalConfig for these two keys.
+      RECAPTCHA_MONEY_SITE_KEY: "challenge-site-key",
+      RECAPTCHA_MONEY_SCORE_SITE_KEY: "score-site-key",
+      GEOIP_DATABASE_PATH: GEOIP_FIXTURE,
+      ES_INDEX_SUFFIX,
+      ELASTICSEARCH_HOST,
+      NEXTJS_ROUTE_FLAGS: "nextjs_checkout",
+      RAILS_ORIGIN: `http://127.0.0.1:${(rails.address() as AddressInfo).port}`,
+      SECRET_KEY_BASE,
+      DATABASE_URL: url!,
+      REDIS_HOST: redisHost,
+    });
+  }, FIRST_COMPILE_TIMEOUT_MS);
+
+  afterAll(async () => {
+    await server?.stop();
+    await new Promise<void>((resolve) => (rails ? rails.close(() => resolve()) : resolve()));
+    await closeAllRedis();
+    await redis?.quit();
+    await client?.$disconnect();
+    process.env = saved;
+  });
+
+  it("finds the fixtures", () => {
+    expect(cases.filter((c) => !c.handedBack).length).toBeGreaterThan(25);
+    expect(cases.filter((c) => c.handedBack).length).toBe(5);
+  });
+
+  it.each(cases.map((c) => [c.name, c] as const))(
+    "%s",
+    async (_name, c) => {
+      const options = {
+        sql,
+        redis: redisSeeder(redis),
+        transport: httpTransport(server.baseUrl),
+        interceptHttp: false,
+        rewriteRequest: (request: FixtureRequest, fixture: Fixture, now: Date) => reencryptCookies(request, fixture, SECRET_KEY_BASE, now),
+      };
+      if (c.handedBack) {
+        const result = await replayFixtureExchange(c.fixturePath, c.index, { ...options, compare: { ignore: ["**"] } });
+        expect(result.exchanges[0]!.actual.response.status, server.output().slice(-2000)).toBe(HANDED_BACK_STATUS);
+        return;
+      }
+      const result = await replayFixtureExchange(c.fixturePath, c.index, { ...options, compare: COMPARE });
+      try {
+        assertParity(result);
+      } catch (error) {
+        const logs = server.output().split("\n").filter((line) => /error|Error|at /.test(line)).slice(-25).join("\n");
+        throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
+      }
+    },
+    FIRST_COMPILE_TIMEOUT_MS,
+  );
+});

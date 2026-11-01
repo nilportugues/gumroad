@@ -1,0 +1,1066 @@
+{
+  "cases": [
+    {
+      "name": "a seller with no sales",
+      "user_id": 165,
+      "index": "purchase-test",
+      "total": 0,
+      "eligible_for_store_agent": null,
+      "exchanges": [
+        {
+          "method": "POST",
+          "path": "purchase-test/_search",
+          "query": {},
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"terms\":{\"seller_id\":[165]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"fee_cents_total\":{\"sum\":{\"field\":\"fee_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"fee_refunded_cents_total\":{\"sum\":{\"field\":\"fee_refunded_cents\"}},\"affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}},\"affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}},\"direct_affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}},\"direct_affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}}",
+          "status": 200,
+          "response": {
+            "took": 1,
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 0,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "direct_affiliate_credit_amount_partially_refunded_cents_total": {
+                "value": 0.0
+              },
+              "fee_cents_total": {
+                "value": 0.0
+              },
+              "direct_affiliate_credit_amount_cents_total": {
+                "value": 0.0
+              },
+              "affiliate_credit_amount_cents_total": {
+                "value": 0.0
+              },
+              "amount_refunded_cents_total": {
+                "value": 0.0
+              },
+              "price_cents_total": {
+                "value": 0.0
+              },
+              "fee_refunded_cents_total": {
+                "value": 0.0
+              },
+              "affiliate_credit_amount_partially_refunded_cents_total": {
+                "value": 0.0
+              }
+            }
+          }
+        },
+        {
+          "method": "POST",
+          "path": "purchase-test/_search",
+          "query": {},
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"terms\":{\"affiliate_credit_affiliate_user_id\":[165]}},{\"terms\":{\"direct_affiliate_credit_affiliate_user_id\":[165]}}]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":165}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}}}},\"affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":165}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_cents\"}}}},\"affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":165}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}}}},\"affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":165}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_partially_refunded_cents\"}}}},\"direct_affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":165}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}}}},\"direct_affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":165}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_cents\"}}}},\"direct_affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":165}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}},\"direct_affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":165}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_partially_refunded_cents\"}}}}}}",
+          "status": 200,
+          "response": {
+            "took": 5,
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 0,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "affiliate_credit_fee_partially_refunded_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "direct_affiliate_credit_fee_partially_refunded_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "direct_affiliate_credit_fee_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "affiliate_credit_fee_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "affiliate_credit_amount_partially_refunded_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "direct_affiliate_credit_amount_partially_refunded_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "direct_affiliate_credit_amount_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "affiliate_credit_amount_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "a seller with sales, a refund, a partial refund, a chargeback and a free sale",
+      "user_id": 166,
+      "index": "purchase-test",
+      "total": 17616,
+      "eligible_for_store_agent": null,
+      "exchanges": [
+        {
+          "method": "POST",
+          "path": "purchase-test/_search",
+          "query": {},
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"terms\":{\"seller_id\":[166]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"fee_cents_total\":{\"sum\":{\"field\":\"fee_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"fee_refunded_cents_total\":{\"sum\":{\"field\":\"fee_refunded_cents\"}},\"affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}},\"affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}},\"direct_affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}},\"direct_affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}}",
+          "status": 200,
+          "response": {
+            "took": 3,
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 3,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "direct_affiliate_credit_amount_partially_refunded_cents_total": {
+                "value": 0.0
+              },
+              "fee_cents_total": {
+                "value": 3014.0
+              },
+              "direct_affiliate_credit_amount_cents_total": {
+                "value": 0.0
+              },
+              "affiliate_credit_amount_cents_total": {
+                "value": 0.0
+              },
+              "amount_refunded_cents_total": {
+                "value": 1000.0
+              },
+              "price_cents_total": {
+                "value": 21500.0
+              },
+              "fee_refunded_cents_total": {
+                "value": 130.0
+              },
+              "affiliate_credit_amount_partially_refunded_cents_total": {
+                "value": 0.0
+              }
+            }
+          }
+        },
+        {
+          "method": "POST",
+          "path": "purchase-test/_search",
+          "query": {},
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"terms\":{\"affiliate_credit_affiliate_user_id\":[166]}},{\"terms\":{\"direct_affiliate_credit_affiliate_user_id\":[166]}}]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":166}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}}}},\"affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":166}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_cents\"}}}},\"affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":166}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}}}},\"affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":166}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_partially_refunded_cents\"}}}},\"direct_affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":166}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}}}},\"direct_affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":166}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_cents\"}}}},\"direct_affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":166}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}},\"direct_affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":166}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_partially_refunded_cents\"}}}}}}",
+          "status": 200,
+          "response": {
+            "took": 2,
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 0,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "affiliate_credit_fee_partially_refunded_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "direct_affiliate_credit_fee_partially_refunded_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "direct_affiliate_credit_fee_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "affiliate_credit_fee_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "affiliate_credit_amount_partially_refunded_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "direct_affiliate_credit_amount_partially_refunded_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "direct_affiliate_credit_amount_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "affiliate_credit_amount_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "an affiliate",
+      "user_id": 168,
+      "index": "purchase-test",
+      "total": 1500,
+      "eligible_for_store_agent": null,
+      "exchanges": [
+        {
+          "method": "POST",
+          "path": "purchase-test/_search",
+          "query": {},
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"terms\":{\"seller_id\":[168]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"fee_cents_total\":{\"sum\":{\"field\":\"fee_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"fee_refunded_cents_total\":{\"sum\":{\"field\":\"fee_refunded_cents\"}},\"affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}},\"affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}},\"direct_affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}},\"direct_affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}}",
+          "status": 200,
+          "response": {
+            "took": 1,
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 0,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "direct_affiliate_credit_amount_partially_refunded_cents_total": {
+                "value": 0.0
+              },
+              "fee_cents_total": {
+                "value": 0.0
+              },
+              "direct_affiliate_credit_amount_cents_total": {
+                "value": 0.0
+              },
+              "affiliate_credit_amount_cents_total": {
+                "value": 0.0
+              },
+              "amount_refunded_cents_total": {
+                "value": 0.0
+              },
+              "price_cents_total": {
+                "value": 0.0
+              },
+              "fee_refunded_cents_total": {
+                "value": 0.0
+              },
+              "affiliate_credit_amount_partially_refunded_cents_total": {
+                "value": 0.0
+              }
+            }
+          }
+        },
+        {
+          "method": "POST",
+          "path": "purchase-test/_search",
+          "query": {},
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"terms\":{\"affiliate_credit_affiliate_user_id\":[168]}},{\"terms\":{\"direct_affiliate_credit_affiliate_user_id\":[168]}}]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":168}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}}}},\"affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":168}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_cents\"}}}},\"affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":168}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}}}},\"affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":168}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_partially_refunded_cents\"}}}},\"direct_affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":168}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}}}},\"direct_affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":168}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_cents\"}}}},\"direct_affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":168}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}},\"direct_affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":168}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_partially_refunded_cents\"}}}}}}",
+          "status": 200,
+          "response": {
+            "took": 1,
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 1,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "affiliate_credit_fee_partially_refunded_cents_own": {
+                "doc_count": 1,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "direct_affiliate_credit_fee_partially_refunded_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "direct_affiliate_credit_fee_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "affiliate_credit_fee_cents_own": {
+                "doc_count": 1,
+                "total": {
+                  "value": 150.0
+                }
+              },
+              "affiliate_credit_amount_partially_refunded_cents_own": {
+                "doc_count": 1,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "direct_affiliate_credit_amount_partially_refunded_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "direct_affiliate_credit_amount_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "affiliate_credit_amount_cents_own": {
+                "doc_count": 1,
+                "total": {
+                  "value": 1500.0
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "the seller whose sale paid an affiliate",
+      "user_id": 169,
+      "index": "purchase-test",
+      "total": 15840,
+      "eligible_for_store_agent": null,
+      "exchanges": [
+        {
+          "method": "POST",
+          "path": "purchase-test/_search",
+          "query": {},
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"terms\":{\"seller_id\":[169]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"fee_cents_total\":{\"sum\":{\"field\":\"fee_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"fee_refunded_cents_total\":{\"sum\":{\"field\":\"fee_refunded_cents\"}},\"affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}},\"affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}},\"direct_affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}},\"direct_affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}}",
+          "status": 200,
+          "response": {
+            "took": 0,
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 1,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "direct_affiliate_credit_amount_partially_refunded_cents_total": {
+                "value": 0.0
+              },
+              "fee_cents_total": {
+                "value": 2660.0
+              },
+              "direct_affiliate_credit_amount_cents_total": {
+                "value": 0.0
+              },
+              "affiliate_credit_amount_cents_total": {
+                "value": 1500.0
+              },
+              "amount_refunded_cents_total": {
+                "value": 0.0
+              },
+              "price_cents_total": {
+                "value": 20000.0
+              },
+              "fee_refunded_cents_total": {
+                "value": 0.0
+              },
+              "affiliate_credit_amount_partially_refunded_cents_total": {
+                "value": 0.0
+              }
+            }
+          }
+        },
+        {
+          "method": "POST",
+          "path": "purchase-test/_search",
+          "query": {},
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"terms\":{\"affiliate_credit_affiliate_user_id\":[169]}},{\"terms\":{\"direct_affiliate_credit_affiliate_user_id\":[169]}}]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":169}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}}}},\"affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":169}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_cents\"}}}},\"affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":169}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}}}},\"affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":169}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_partially_refunded_cents\"}}}},\"direct_affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":169}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}}}},\"direct_affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":169}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_cents\"}}}},\"direct_affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":169}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}},\"direct_affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":169}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_partially_refunded_cents\"}}}}}}",
+          "status": 200,
+          "response": {
+            "took": 1,
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 0,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "affiliate_credit_fee_partially_refunded_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "direct_affiliate_credit_fee_partially_refunded_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "direct_affiliate_credit_fee_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "affiliate_credit_fee_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "affiliate_credit_amount_partially_refunded_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "direct_affiliate_credit_amount_partially_refunded_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "direct_affiliate_credit_amount_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "affiliate_credit_amount_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "eligible for the store agent",
+      "user_id": 172,
+      "index": "purchase-test",
+      "total": 12985,
+      "eligible_for_store_agent": true,
+      "exchanges": [
+        {
+          "method": "POST",
+          "path": "purchase-test/_search",
+          "query": {},
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"terms\":{\"seller_id\":[172]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"fee_cents_total\":{\"sum\":{\"field\":\"fee_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"fee_refunded_cents_total\":{\"sum\":{\"field\":\"fee_refunded_cents\"}},\"affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}},\"affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}},\"direct_affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}},\"direct_affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}}",
+          "status": 200,
+          "response": {
+            "took": 1,
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 1,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "direct_affiliate_credit_amount_partially_refunded_cents_total": {
+                "value": 0.0
+              },
+              "fee_cents_total": {
+                "value": 2015.0
+              },
+              "direct_affiliate_credit_amount_cents_total": {
+                "value": 0.0
+              },
+              "affiliate_credit_amount_cents_total": {
+                "value": 0.0
+              },
+              "amount_refunded_cents_total": {
+                "value": 0.0
+              },
+              "price_cents_total": {
+                "value": 15000.0
+              },
+              "fee_refunded_cents_total": {
+                "value": 0.0
+              },
+              "affiliate_credit_amount_partially_refunded_cents_total": {
+                "value": 0.0
+              }
+            }
+          }
+        },
+        {
+          "method": "POST",
+          "path": "purchase-test/_search",
+          "query": {},
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"terms\":{\"affiliate_credit_affiliate_user_id\":[172]}},{\"terms\":{\"direct_affiliate_credit_affiliate_user_id\":[172]}}]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":172}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}}}},\"affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":172}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_cents\"}}}},\"affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":172}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}}}},\"affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":172}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_partially_refunded_cents\"}}}},\"direct_affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":172}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}}}},\"direct_affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":172}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_cents\"}}}},\"direct_affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":172}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}},\"direct_affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":172}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_partially_refunded_cents\"}}}}}}",
+          "status": 200,
+          "response": {
+            "took": 0,
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 0,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "affiliate_credit_fee_partially_refunded_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "direct_affiliate_credit_fee_partially_refunded_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "direct_affiliate_credit_fee_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "affiliate_credit_fee_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "affiliate_credit_amount_partially_refunded_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "direct_affiliate_credit_amount_partially_refunded_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "direct_affiliate_credit_amount_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "affiliate_credit_amount_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              }
+            }
+          }
+        },
+        {
+          "method": "POST",
+          "path": "purchase-test/_search",
+          "query": {},
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"terms\":{\"seller_id\":[172]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"fee_cents_total\":{\"sum\":{\"field\":\"fee_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"fee_refunded_cents_total\":{\"sum\":{\"field\":\"fee_refunded_cents\"}},\"affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}},\"affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}},\"direct_affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}},\"direct_affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}}",
+          "status": 200,
+          "response": {
+            "took": 0,
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 1,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "direct_affiliate_credit_amount_partially_refunded_cents_total": {
+                "value": 0.0
+              },
+              "fee_cents_total": {
+                "value": 2015.0
+              },
+              "direct_affiliate_credit_amount_cents_total": {
+                "value": 0.0
+              },
+              "affiliate_credit_amount_cents_total": {
+                "value": 0.0
+              },
+              "amount_refunded_cents_total": {
+                "value": 0.0
+              },
+              "price_cents_total": {
+                "value": 15000.0
+              },
+              "fee_refunded_cents_total": {
+                "value": 0.0
+              },
+              "affiliate_credit_amount_partially_refunded_cents_total": {
+                "value": 0.0
+              }
+            }
+          }
+        },
+        {
+          "method": "POST",
+          "path": "purchase-test/_search",
+          "query": {},
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"terms\":{\"affiliate_credit_affiliate_user_id\":[172]}},{\"terms\":{\"direct_affiliate_credit_affiliate_user_id\":[172]}}]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":172}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}}}},\"affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":172}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_cents\"}}}},\"affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":172}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}}}},\"affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":172}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_partially_refunded_cents\"}}}},\"direct_affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":172}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}}}},\"direct_affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":172}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_cents\"}}}},\"direct_affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":172}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}},\"direct_affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":172}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_partially_refunded_cents\"}}}}}}",
+          "status": 200,
+          "response": {
+            "took": 0,
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 0,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "affiliate_credit_fee_partially_refunded_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "direct_affiliate_credit_fee_partially_refunded_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "direct_affiliate_credit_fee_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "affiliate_credit_fee_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "affiliate_credit_amount_partially_refunded_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "direct_affiliate_credit_amount_partially_refunded_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "direct_affiliate_credit_amount_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "affiliate_credit_amount_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "under the store agent bar",
+      "user_id": 173,
+      "index": "purchase-test",
+      "total": 4275,
+      "eligible_for_store_agent": false,
+      "exchanges": [
+        {
+          "method": "POST",
+          "path": "purchase-test/_search",
+          "query": {},
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"terms\":{\"seller_id\":[173]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"fee_cents_total\":{\"sum\":{\"field\":\"fee_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"fee_refunded_cents_total\":{\"sum\":{\"field\":\"fee_refunded_cents\"}},\"affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}},\"affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}},\"direct_affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}},\"direct_affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}}",
+          "status": 200,
+          "response": {
+            "took": 1,
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 1,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "direct_affiliate_credit_amount_partially_refunded_cents_total": {
+                "value": 0.0
+              },
+              "fee_cents_total": {
+                "value": 725.0
+              },
+              "direct_affiliate_credit_amount_cents_total": {
+                "value": 0.0
+              },
+              "affiliate_credit_amount_cents_total": {
+                "value": 0.0
+              },
+              "amount_refunded_cents_total": {
+                "value": 0.0
+              },
+              "price_cents_total": {
+                "value": 5000.0
+              },
+              "fee_refunded_cents_total": {
+                "value": 0.0
+              },
+              "affiliate_credit_amount_partially_refunded_cents_total": {
+                "value": 0.0
+              }
+            }
+          }
+        },
+        {
+          "method": "POST",
+          "path": "purchase-test/_search",
+          "query": {},
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"terms\":{\"affiliate_credit_affiliate_user_id\":[173]}},{\"terms\":{\"direct_affiliate_credit_affiliate_user_id\":[173]}}]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":173}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}}}},\"affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":173}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_cents\"}}}},\"affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":173}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}}}},\"affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":173}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_partially_refunded_cents\"}}}},\"direct_affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":173}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}}}},\"direct_affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":173}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_cents\"}}}},\"direct_affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":173}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}},\"direct_affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":173}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_partially_refunded_cents\"}}}}}}",
+          "status": 200,
+          "response": {
+            "took": 0,
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 0,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "affiliate_credit_fee_partially_refunded_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "direct_affiliate_credit_fee_partially_refunded_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "direct_affiliate_credit_fee_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "affiliate_credit_fee_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "affiliate_credit_amount_partially_refunded_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "direct_affiliate_credit_amount_partially_refunded_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "direct_affiliate_credit_amount_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "affiliate_credit_amount_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              }
+            }
+          }
+        },
+        {
+          "method": "POST",
+          "path": "purchase-test/_search",
+          "query": {},
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"terms\":{\"seller_id\":[173]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"fee_cents_total\":{\"sum\":{\"field\":\"fee_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"fee_refunded_cents_total\":{\"sum\":{\"field\":\"fee_refunded_cents\"}},\"affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}},\"affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}},\"direct_affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}},\"direct_affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}}",
+          "status": 200,
+          "response": {
+            "took": 0,
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 1,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "direct_affiliate_credit_amount_partially_refunded_cents_total": {
+                "value": 0.0
+              },
+              "fee_cents_total": {
+                "value": 725.0
+              },
+              "direct_affiliate_credit_amount_cents_total": {
+                "value": 0.0
+              },
+              "affiliate_credit_amount_cents_total": {
+                "value": 0.0
+              },
+              "amount_refunded_cents_total": {
+                "value": 0.0
+              },
+              "price_cents_total": {
+                "value": 5000.0
+              },
+              "fee_refunded_cents_total": {
+                "value": 0.0
+              },
+              "affiliate_credit_amount_partially_refunded_cents_total": {
+                "value": 0.0
+              }
+            }
+          }
+        },
+        {
+          "method": "POST",
+          "path": "purchase-test/_search",
+          "query": {},
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"terms\":{\"affiliate_credit_affiliate_user_id\":[173]}},{\"terms\":{\"direct_affiliate_credit_affiliate_user_id\":[173]}}]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":173}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}}}},\"affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":173}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_cents\"}}}},\"affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":173}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}}}},\"affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":173}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_partially_refunded_cents\"}}}},\"direct_affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":173}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}}}},\"direct_affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":173}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_cents\"}}}},\"direct_affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":173}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}},\"direct_affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":173}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_partially_refunded_cents\"}}}}}}",
+          "status": 200,
+          "response": {
+            "took": 0,
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 0,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "affiliate_credit_fee_partially_refunded_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "direct_affiliate_credit_fee_partially_refunded_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "direct_affiliate_credit_fee_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "affiliate_credit_fee_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "affiliate_credit_amount_partially_refunded_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "direct_affiliate_credit_amount_partially_refunded_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "direct_affiliate_credit_amount_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              },
+              "affiliate_credit_amount_cents_own": {
+                "doc_count": 0,
+                "total": {
+                  "value": 0.0
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
