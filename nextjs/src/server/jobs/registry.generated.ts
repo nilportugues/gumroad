@@ -992,7 +992,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "EnforceRefundPolicyForSellerJob": {
     "file": "app/sidekiq/enforce_refund_policy_for_seller_job.rb",
@@ -3219,7 +3219,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "StaleTransientSuppressionSweepJob": {
     "file": "app/sidekiq/stale_transient_suppression_sweep_job.rb",
@@ -3516,7 +3516,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "UpdateBundlePurchasesContentJob": {
     "file": "app/sidekiq/update_bundle_purchases_content_job.rb",
