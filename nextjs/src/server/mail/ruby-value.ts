@@ -31,7 +31,15 @@ export class GlobalIdRef {
   }
 }
 
-export type RubyValue = null | boolean | number | bigint | string | RubySymbol | RubyHash | GlobalIdRef | RubyValue[];
+// A located record, already rendered as ActiveRecord::Core#inspect (see record-inspect.ts).
+export class InspectedRecord {
+  readonly text: string;
+  constructor(text: string) {
+    this.text = text;
+  }
+}
+
+export type RubyValue = null | boolean | number | bigint | string | RubySymbol | RubyHash | GlobalIdRef | InspectedRecord | RubyValue[];
 
 const NAMED_ESCAPES: Record<string, string> = { "\n": "\\n", "\r": "\\r", "\t": "\\t", "\f": "\\f", "\v": "\\v", "\b": "\\b", "\x07": "\\a", "\x1b": "\\e" };
 
@@ -86,6 +94,7 @@ export function inspect(value: RubyValue): string {
     if (value.entries.length === 0) return "{}";
     return `{${value.entries.map(([k, v]) => `${inspectHashKey(k)}${inspect(v)}`).join(", ")}}`;
   }
+  if (value instanceof InspectedRecord) return value.text;
   throw new MailArgumentNotPortedError("record argument (GlobalID)");
 }
 

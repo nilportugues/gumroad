@@ -105,6 +105,24 @@ Not ported, and why:
 | `upcoming_call_reminder` | Renders `ReceiptPresenter::ItemInfo` (product card, thumbnails, buyer-currency amounts). |
 | `send_to_kindle` | Downloads the file with `Aws::S3::Object#download_file` (ranged GETs) and may attach a stamped PDF. |
 
+## TeamMailer (WS-73)
+
+`TeamMailer#invite` is ported (golden: `team-mailer.golden.json`, from `generate-team-mailer-golden.rb`; 16 messages and the
+missing-record error, with every statement, the HTML and the encoded message). It is the first ported mailer that takes a record:
+the delivery job locates the `TeamInvitation` (GlobalID), `invite` re-reads it from the writer with its seller preloaded, and the
+X-GUM `mailer_args` carry the located record's `#inspect` (`record-inspect.ts`, rendered from the row, strings cut to 50 characters).
+
+- Known divergence: a JavaScript Date holds milliseconds, so the microseconds of the invitation's `datetime(6)` columns read back as
+  `.mmm000` in that header (the same limit as `models/README.md`, "Time"). Only the SendGrid tracking argument (or the encrypted Resend
+  header) differs; the message itself does not.
+- An invitation email Ruby's `Mail::AddressList` could read differently from the format check (a quoted local part, an IP literal, or
+  characters outside `[A-Za-z0-9._%+-]`) is refused (`MailViewNotPortedError`) and the delivery goes back to Rails.
+- `invitation_accepted` stays in Rails: it renders `User#avatar_url` (Active Storage variants through the Rails cache) and a sanitized display name.
+
+Still Ruby, with the reasons in the table above: `receipt`, `grouped_receipt`, `preorder_receipt`, `auto_invoice`, `subscription_restarted`,
+`abandoned_cart*`, `review_response`, `upcoming_call_reminder`, `send_to_kindle`. None of the jobs that hand back for mail can move to Node
+until `receipt` renders: `SendPurchaseReceiptJob` delivers it inline and writes the `CustomerEmailInfo` row after the send.
+
 ## Behaviour kept from Ruby on purpose
 
 These look like bugs but are what recipients get today, so the port reproduces them:
