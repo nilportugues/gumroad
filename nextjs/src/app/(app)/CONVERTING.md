@@ -645,3 +645,23 @@ Flags: `nextjs_social_callbacks`, `nextjs_connections_unlink`, `nextjs_oauth_app
 ### Not covered in WS-10b
 
 Token endpoints (`/oauth/token`, `/revoke`, `/introspect`, `/oauth/token/info`, the device flow, the MCP/Claude/ChatGPT/Muse/IFTTT/Notion aliases): refresh locks, PKCE, dynamic clients and `MobileAccountToken`. Authorization screens (`/oauth/authorize*`, `mobile_pre_authorization`, `/notion/oauth2/authorize`): consent rendering with `PreAuthorization`. Integrations (`circle`, `zoom`, `google_calendar`, `discord`): they call providers through `Ratelimit` (Redis) and Discordrb, and the `oauth_redirect` actions render the unported ERB `application` layout. `mcp_connectors`, `third_party_analytics` and `oauth_completions/stripe` (Stripe call) render ERB or call Stripe. `unlink_twitter` as above. All of these stay in Rails (no entry in `routes.json`).
+## Audience, wishlist and event JSON endpoints (WS-13)
+
+Served by Node, each behind its own flag: `POST /events/track_user_action` (`nextjs_events`), `GET /dashboard/{customers_count,total_revenue,active_members_count,monthly_recurring_revenue}` and
+`POST /dashboard/dismiss_getting_started_checklist` (`nextjs_dashboard_json`), `POST /wishlists` and `PUT|PATCH|DELETE /wishlists/:id` (`nextjs_wishlists_writes`), `GET /customers/paged`
+(`nextjs_customers_paged`, listed ahead of `/customers/:link_id`).
+
+- **JSON actions.** `controllers/json-seller.ts` (`sellerJsonAction`) is Sellers::BaseController for a JSON request: RequireAccountEmail (403 JSON), the policy (401 JSON, `PunditAuthorization`) and a hand-back for any other format.
+  `MutationSpec.formats` (`html` default, `json`, `any`) lets a mutation declare the formats it answers itself; the others still go to Rails before the first write. `ActionContext.peekState` reads the session
+  and guid for the Events concern without consuming the flash.
+- **Events.** `createUserEvent` takes the body params of `EventsController#create`. Event names outside `Event::PERMITTED_NAMES` are dropped for a visitor with no account (still `{success: true}`); `signup` (a `SignupEvent`) and
+  non-string params are handed back. The recorder sends an explicit User-Agent: the replay's HTTP client would otherwise add its own to `browser` and `browser_fingerprint`.
+- **Wishlists.** Rails' ParamsWrapper wraps a JSON body without a `wishlist` key under it, limited to the table's columns; the port does the same. A missing or empty `wishlist` goes to Rails (ParameterMissing).
+- **Customers paged.** Only `page`, `query`, `sort[key|direction]` and `bought_from` are served; any filter parameter (products, variants, amounts, dates, country, license uses, active customers) goes to Rails whole.
+- Parity: `spec/requests/{dashboard_json,wishlists_mutations,customers_paged}_signed_in_spec.rb`, replayed by `parity/__tests__/{dashboard-json,wishlists-mutations,customers-paged}.replay.test.ts` (21, 15 and 11 recorded
+  requests). Seed the recording DB with `rails db:seed` (the Gumroad merchant accounts) and replay against a second, schema-only database, since the replay truncates its own.
+
+Not ported from the WS-13 list, and why: followers (`create`, `from_embed_form`, `confirm`, `cancel`, `destroy`, `new`: the `Follower` model, its confirmation mail, CAPTCHA and cutover callbacks are not in `models/`), wishlist products and followers,
+UTM link CRUD and `GET /u/:permalink` (Addressable query re-encoding), piracy report mutations, `ConsumptionEvent` (`POST /consumption_analytics`), test pings (outbound HTTP), the other customers JSON endpoints (charges, emails,
+missed posts, product purchases), `/customers/import*`, `GET /customers/sales` (no such action in Rails), `PATCH /workflows/:id/emails`, the emails preview/send actions, `POST /audience/export`, `/dashboard/download_tax_form`, the Discover
+autocomplete DELETE and `/discover/categories`, `GET /recommended_products` and `GET /seller_plan/checkout`.
