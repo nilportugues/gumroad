@@ -30,8 +30,8 @@ const SPECS: Record<string, { flag: string; methods: string[]; exclude?: RegExp;
   product_reviews_controller_spec: { flag: "nextjs_api_v2_product_reviews", methods: ["GET"] },
   offer_codes_controller_spec: { flag: "nextjs_api_v2_offer_codes", methods: ["GET"] },
   resource_subscriptions_controller_spec: { flag: "nextjs_api_v2_resource_subscriptions", methods: ["GET", "DELETE"] },
-  // The other sales actions render Purchase#as_json, which is not ported.
-  sales_controller_spec: { flag: "nextjs_api_v2_sales", methods: ["POST"], include: /resend-receipt/ },
+  // WS-17g: #index and #show render Purchase#as_json(version: 2); the writes, #summary and #export are not served yet.
+  sales_controller_spec: { flag: "nextjs_api_v2_sales", methods: ["POST", "GET"], include: /resend-receipt|get-index|get-show/ },
   upsells_controller_spec: { flag: "nextjs_api_v2_upsells", methods: ["GET"] },
   earnings_controller_spec: { flag: "nextjs_api_v2_tax", methods: ["GET"] },
   // #download builds the PDF from Stripe or S3.
@@ -77,6 +77,9 @@ const COMPARE = {
     "db.resource_subscriptions.updated.*.changes.updated_at",
     "jobs.*.at",
     // The cursor holds the created_at of a row the replay seeds relative to its own clock.
+    // daystamp is the created_at minute in the seller's zone, and the replay seeds the row relative to its own clock.
+    "response.json.sale.daystamp",
+    "response.json.sales.*.daystamp",
     "response.json.next_page_key",
     "response.json.next_page_url",
     "http",
@@ -87,7 +90,7 @@ const COMPARE = {
 
 // A page_key holds the created_at of the row that ended the previous page, recorded as an absolute time; the replay seeds that row
 // relative to its own clock, so the key is rebuilt from the row (found by the id the key holds).
-const PAGED_TABLES: Record<string, string> = { product_reviews_controller_spec: "product_reviews", offer_codes_controller_spec: "offer_codes", payouts_controller_spec: "payments" };
+const PAGED_TABLES: Record<string, string> = { product_reviews_controller_spec: "product_reviews", offer_codes_controller_spec: "offer_codes", payouts_controller_spec: "payments", sales_controller_spec: "purchases" };
 function pageKeyAtReplayTime(query: string, fixture: Fixture, request: FixtureRequest, now: Date): string {
   const table = PAGED_TABLES[path.basename(fixture.spec).replace(/\.rb$/u, "")];
   const exchange = fixture.exchanges.find((candidate) => candidate.request === request) ?? fixture.exchanges.at(-1)!;
@@ -101,6 +104,8 @@ function pageKeyAtReplayTime(query: string, fixture: Fixture, request: FixtureRe
 // Examples whose recording cannot replay on another day or without the spec's stubs. The reason is in the test title.
 const SKIPPED: [RegExp, string][] = [
   [/pagination-paginates-with-page-key #1|pagination-still-returns-a-review-whose-id-is-higher.* #1/u, "the spec stubs RESULTS_PER_PAGE to 1; its second page (the page_key request) is replayed"],
+  [/falls-back-to-the-default-timeout|page-key-query-times-out|query-timeout-guard|redis-configured-timeout/u, "the spec stubs WithMaxExecutionTime and the Redis read; the guard is a MySQL statement hint Node does not run"],
+  [/returns-the-sale-s-listed-currency-which-is-the-currency|returns-the-listed-currency-for-a-sale-priced-in-a-zero/u, "the spec stubs the JPY exchange rate in the Rails process"],
   [/returns-aggregated-earnings-in-cents/u, "sales dated 2025-03-15 and the like are seeded relative to the replay's clock, which moves them across the year the request names"],
   [/returns-filed-at-as-iso-8601/u, "filed_at is an epoch number inside json_data, which the seed does not shift"],
 ];
