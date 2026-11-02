@@ -32,6 +32,8 @@ export type MutationInput = {
   routeParams: Record<string, string>;
   // request.parameters (query string, then body).
   params: Params;
+  // request.raw_post.
+  rawBody: Uint8Array;
 };
 
 export type MutationSpec = {
@@ -41,6 +43,11 @@ export type MutationSpec = {
   options?: ActionOptions;
   // A `render json:` action: it takes a request that asks for JSON (the dashboard's `request()`) and hands back any other format.
   json?: boolean;
+  // The controller's `skip_before_action :verify_authenticity_token`: no CSRF check, and no format check either (a webhook has no
+  // Pundit to answer 401 JSON).
+  skipForgeryProtection?: boolean;
+  // Formats the action answers like Rails does. Pundit's 401 JSON is what the default (html only) leaves to Rails.
+  formats?: ("html" | "json")[];
   run(input: MutationInput): Promise<ActionResult>;
 };
 
@@ -110,8 +117,10 @@ export async function mutationResponse(incoming: Request): Promise<Response> {
   try {
     params = requestParams(url, request.headers.get("content-type"), bytes);
     // Pundit answers 401 JSON to a request that is not HTML.
-    if (requestFormat(railsRequest(request)) !== (candidate.json ? "json" : "html")) throw new HandBackToRails(`a request whose format is not ${candidate.json ? "JSON" : "HTML"}`);
-    if (!csrfVerified(railsRequest(request), params)) throw new HandBackToRails("a request Rails would run with a null session");
+    if (!candidate.skipForgeryProtection) {
+      if (!(candidate.formats ?? [candidate.json ? "json" : "html"]).includes(requestFormat(railsRequest(request)) as "html" | "json")) throw new HandBackToRails("a request whose format is not HTML");
+      if (!csrfVerified(railsRequest(request), params)) throw new HandBackToRails("a request Rails would run with a null session");
+    }
   } catch (error) {
     if (error instanceof HandBackToRails) {
       console.warn(`[mutation] ${request.method} ${url.pathname} handed back to Rails: ${error.message}`);
@@ -131,7 +140,7 @@ export async function mutationResponse(incoming: Request): Promise<Response> {
         whodunnit: user === null ? null : String(user.id),
         controllerInfo: { remote_ip: remoteIp(railsReq), request_path: railsReq.path, request_uuid: railsReq.headers.get("x-request-id") ?? randomUUID() },
       };
-      return await withPaperTrailRequest(paperTrail, () => candidate.run({ request: railsReq, context, url: actionUrl, urlOptions: defaultUrlOptions(actionUrl, config), routeParams: routeParams!, params }));
+      return await withPaperTrailRequest(paperTrail, () => candidate.run({ request: railsReq, context, url: actionUrl, urlOptions: defaultUrlOptions(actionUrl, config), routeParams: routeParams!, params, rawBody: bytes }));
     } catch (error) {
       // A NotPortedError is thrown before the first write of its transaction, so Rails can take the request whole.
       if (error instanceof NotPortedError) {
