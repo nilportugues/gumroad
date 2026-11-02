@@ -620,6 +620,17 @@ function enqueueIndexUpdateFor(link: LinkRecord, fields: string[], ctx: Callback
   );
 }
 
+// Product::Caching#invalidate_cache
+export async function invalidateProductCache(linkId: bigint | number, now?: () => Date): Promise<void> {
+  await collaborators.cacheDelete(`link_cache_key_prefix_${String(linkId)}`);
+  const rows = await selectRows(
+    Prisma.sql`SELECT ${Prisma.raw("`product_cached_values`.*")} FROM ${table(PRODUCT_CACHED_VALUES)} WHERE ${column(PRODUCT_CACHED_VALUES, "product_id")} = ${linkId} AND ${freshScope()}`,
+  );
+  for (const row of rows) {
+    await ProductCachedValues.updateBang(ProductCachedValues.load(castRow<ProductCachedValue>("ProductCachedValue", row)), { expired: true }, { now });
+  }
+}
+
 const paperTrail = hasPaperTrail<Link>("Link", { itemType: "Link" });
 const savedKeys = (link: LinkRecord) => Object.keys(link.savedChanges);
 
@@ -661,15 +672,7 @@ export const Links = defineModel<Link>({
     {
       name: "invalidate_cache",
       if: (link) => savedKeys(link).some((key) => !PURCHASE_PROPERTIES.includes(key)),
-      async run(link, ctx) {
-        await collaborators.cacheDelete(`link_cache_key_prefix_${String(link.get("id"))}`);
-        const rows = await selectRows(
-          Prisma.sql`SELECT ${Prisma.raw("`product_cached_values`.*")} FROM ${table(PRODUCT_CACHED_VALUES)} WHERE ${column(PRODUCT_CACHED_VALUES, "product_id")} = ${link.get("id")} AND ${freshScope()}`,
-        );
-        for (const row of rows) {
-          await ProductCachedValues.updateBang(ProductCachedValues.load(castRow<ProductCachedValue>("ProductCachedValue", row)), { expired: true }, { now: ctx.now });
-        }
-      },
+      run: (link, ctx) => invalidateProductCache(link.get("id") as bigint, ctx.now),
     },
     {
       name: "bump_seller_reputation_version_for_rollup_change",

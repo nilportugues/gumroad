@@ -17,3 +17,9 @@ export const PUT = GET;
 export const PATCH = GET;
 export const DELETE = GET;
 export const HEAD = GET;
+
+// The v2 API routes (handler "api-v2") answer every method.
+export const POST = GET;
+export const PUT = GET;
+export const PATCH = GET;
+export const DELETE = GET;
