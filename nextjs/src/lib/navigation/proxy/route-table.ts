@@ -34,6 +34,8 @@ export type RouteEntry = {
   pathGate?: "taxonomy";
   // A route that is not a page: /gr-public/<handler> answers it (server/controllers/public-handlers.ts), whatever the method.
   handler?: string;
+  // A router-level redirect (routes.rb `redirect`): a 301 to this path with the query string kept. No controller runs.
+  redirect?: string;
 };
 
 export type RouteTable = Record<string, string | RouteEntry>;
@@ -41,7 +43,7 @@ export type RouteTable = Record<string, string | RouteEntry>;
 // `pattern` is the table key (and the key of the page in pages.ts); `path` is the URL pattern. They differ
 // for a route that only exists on seller or product-domain hosts, whose key is prefixed with the scope
 // ("seller:/affiliates") because the same path can also be a Gumroad-domain page.
-export type CompiledRoute = Required<Omit<RouteEntry, "flag" | "pathGate" | "handler">> & { pathGate: "taxonomy" | null; handler: string | null; flag: string | null; pattern: string; path: string; regexp: RegExp };
+export type CompiledRoute = Required<Omit<RouteEntry, "flag" | "pathGate" | "handler" | "redirect">> & { pathGate: "taxonomy" | null; handler: string | null; redirect: string | null; flag: string | null; pattern: string; path: string; regexp: RegExp };
 
 const SCOPE_PREFIXES: Record<string, HostScope> = { "seller:": "seller", "product:": "product", "api:": "api" };
 
@@ -90,6 +92,7 @@ export function compileRouteTable(table: RouteTable): CompiledRoute[] {
       inertia: entry.inertia ?? false,
       pathGate: entry.pathGate ?? null,
       handler: entry.handler ?? null,
+      redirect: entry.redirect ?? null,
     };
   });
 }

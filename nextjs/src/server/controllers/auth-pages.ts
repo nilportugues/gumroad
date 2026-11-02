@@ -21,13 +21,13 @@ const WEBAUTHN_CHALLENGE_SESSION_KEY = "webauthn_authentication_challenge";
 const WEBAUTHN_CHALLENGE_BYTES = 32;
 // WebAuthn.configuration.credential_options_timeout
 const WEBAUTHN_TIMEOUT_MS = 120_000;
-const TWO_FACTOR_USER_SESSION_KEY = "verify_two_factor_auth_for";
-const TWO_FACTOR_METHOD_SESSION_KEY = "two_factor_auth_method";
-const TWO_FACTOR_SENT_AT_SESSION_KEY = "two_factor_auth_token_sent_at";
+export const TWO_FACTOR_USER_SESSION_KEY = "verify_two_factor_auth_for";
+export const TWO_FACTOR_METHOD_SESSION_KEY = "two_factor_auth_method";
+export const TWO_FACTOR_SENT_AT_SESSION_KEY = "two_factor_auth_token_sent_at";
 // TwoFactorAuthenticationValidator::RESEND_AUTHENTICATION_TOKEN_COOLDOWN
 const RESEND_COOLDOWN_SECONDS = 60;
 const VERIFY_TWO_FACTOR_PATH = "/two-factor/verify.html";
-const TWO_FACTOR_EXPIRED_FLASH = "Your login session expired. Please sign in again.";
+export const TWO_FACTOR_EXPIRED_FLASH = "Your login session expired. Please sign in again.";
 
 const config = () => domainConfig(process.env);
 
@@ -43,15 +43,15 @@ function urlBase(chain: Chain): string {
 const redirect = (location: string, status = 302, rescued = false): { halt: Redirected } => ({ halt: { status, location, rescued } });
 
 // redirect_to ..., warning: "...": the flash a render shows on the next request.
-function setWarning(chain: Chain, message: string): void {
+export function setWarning(chain: Chain, message: string): void {
   chain.session.data.flash = { discard: [], flashes: { warning: message } };
 }
 
 const sessionValue = (chain: Chain, key: string): unknown => chain.session.data[key];
-const sessionPresent = (value: unknown) => value !== undefined && value !== null && value !== false && value !== "";
+export const sessionPresent = (value: unknown) => value !== undefined && value !== null && value !== false && value !== "";
 
 // ApplicationController#request_referrer_is_a_valid_after_login_path?
-function referrerIsValidAfterLoginPath(chain: Chain): boolean {
+export function referrerIsValidAfterLoginPath(chain: Chain): boolean {
   const from = referrer(chain.request);
   if (!isPresent(from)) return false;
   const base = urlBase(chain);
@@ -73,7 +73,7 @@ function nextParam(chain: Chain): string | null {
   return value ?? null;
 }
 
-const signedInUserHome = async (userId: bigint) => ((await isBuyer(userId)) ? "/library" : "/dashboard");
+export const signedInUserHome = async (userId: bigint) => ((await isBuyer(userId)) ? "/library" : "/dashboard");
 
 // Devise's require_no_authentication, as Gumroad overrides it (SilentAlreadySignedInRedirect): a
 // signed-in visitor is sent where a login would have sent them.

@@ -134,6 +134,8 @@ export type ActionContext = {
   // What the session and cookie jar hold for the Events concern, without consuming the flash (an action that renders no page
   // leaves it for the next one).
   peekState: () => Pick<RenderState, "mobileParam" | "signupReferrer" | "mintedGuid">;
+  // The request's session, cookie jar and resolved auth, for the actions that sign a visitor in or out.
+  chain: Chain;
 };
 
 const GUMROAD_GUID_COOKIE = "_gumroad_guid";
@@ -403,7 +405,7 @@ function haltWithoutDebugHeaders(chain: Chain, redirect: Redirected): Controller
 }
 
 // invalidate_session_if_necessary's Devise sign_out: forget_me!, the remember cookie, the session.
-async function signOut(chain: Chain): Promise<void> {
+export async function signOut(chain: Chain): Promise<void> {
   const { request, session } = chain;
   await prismaAuthStore.forgetRememberedLogins(chain.auth.effects.signedOut!.user.id, chain.now);
   if (deletesCookie(request, REMEMBER_COOKIE_NAME)) chain.cookies.push(deleteCookieHeader(REMEMBER_COOKIE_NAME, { domain: allDomain(request.host), httpOnly: true }));
@@ -553,7 +555,7 @@ async function runChain(
 ): Promise<ControllerResponse> {
   const chain = await beforeActions(request, options, now);
   if (halted(chain)) return chain;
-  const result = await action({ request, context: chain.auth.context, takeRenderState: () => takeRenderState(chain), peekState: () => peekState(chain) });
+  const result = await action({ request, context: chain.auth.context, takeRenderState: () => takeRenderState(chain), peekState: () => peekState(chain), chain });
   const response = afterActions(chain, result);
   await promoteVisit(chain, response.status);
   return response;
@@ -635,6 +637,23 @@ function publicException(request: RailsRequest, status: number): { headers: Head
   const file = path.join(railsRoot(), "public", `${status}.html`);
   if (!existsSync(file)) return { headers: new Headers({ "x-cascade": "pass" }), body: "" };
   return { headers: new Headers({ "content-type": "text/html; charset=utf-8" }), body: request.method === "HEAD" ? "" : readFileSync(file, "utf8") };
+}
+
+// ActionDispatch::Routing::Redirect (routes.rb `redirect`): answered by the router, so no controller filter, session or
+// guid is involved, only the Rack middleware around it.
+export function rackRedirect(incoming: Request, location: string, status = 301): Response {
+  const request = railsRequest(incoming);
+  const target = redirectLocation(request, location);
+  const escaped = target.replace(/[&<>"']/gu, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
+  const response: ControllerResponse = {
+    status,
+    headers: new Headers({ location: target, "content-type": "text/html; charset=utf-8" }),
+    body: `<html><body>You are being <a href="${escaped}">redirected</a>.</body></html>`,
+  };
+  applyEtag(request, response);
+  applySecureHeaders(request, response.headers);
+  applyCorsVary(response.headers);
+  return new Response(request.method === "HEAD" ? null : (response.body as BodyInit), { status: response.status, headers: response.headers });
 }
 
 export async function forwardToRails(request: Request): Promise<Response> {

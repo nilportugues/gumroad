@@ -12,6 +12,7 @@ import { createHash, randomBytes, randomInt } from "node:crypto";
 import { Prisma, type User } from "@prisma/client";
 
 import { defineFlags } from "../../lib/flags.ts";
+import { getConfig } from "../infra/config.ts";
 import { domainConfig } from "../infra/domain.ts";
 import { notifyError } from "../infra/error-reporting.ts";
 import { isFeatureEnabled } from "../infra/flipper.ts";
@@ -214,7 +215,7 @@ const DEFAULT_COLLABORATORS: UserCollaborators = {
   async pwnedCount(password) {
     // Pwned::Password: k-anonymity range lookup on the SHA1 prefix.
     const sha1 = createHash("sha1").update(password).digest("hex").toUpperCase();
-    const response = await fetch(`https://api.pwnedpasswords.com/range/${sha1.slice(0, 5)}`, {
+    const response = await fetch(`${getConfig("PWNED_PASSWORDS_ORIGIN") ?? "https://api.pwnedpasswords.com"}/range/${sha1.slice(0, 5)}`, {
       headers: { "User-Agent": "devise_pwned_password" },
       signal: AbortSignal.timeout(5_000),
     });
@@ -270,6 +271,16 @@ export function setUserCollaborators(overrides: Partial<UserCollaborators>): voi
 
 export function resetUserCollaborators(): void {
   collaborators = { ...DEFAULT_COLLABORATORS };
+}
+
+// devise-pwned_password's sign-in check (Pwned::Password#pwned_count >= min_password_matches, which is 1). A failed lookup counts
+// as not pwned: the gem rescues Pwned::Error.
+export async function passwordIsPwned(password: string): Promise<boolean> {
+  try {
+    return (await collaborators.pwnedCount(password)) >= 1;
+  } catch {
+    return false;
+  }
 }
 
 const isDefault = <K extends keyof UserCollaborators>(name: K) => collaborators[name] === DEFAULT_COLLABORATORS[name];

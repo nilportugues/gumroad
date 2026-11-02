@@ -21,10 +21,13 @@ import "@/server/controllers/dropbox-files";
 import "@/server/controllers/media-locations";
 import "@/server/controllers/public-mutations";
 import "@/server/controllers/seller-mutations";
+import "@/server/controllers/auth-mutations";
 import "@/server/controllers/internal-admin/index";
 import "@/server/controllers/internal-api";
 import { mutationResponse } from "@/server/controllers/mutation";
 
+// GET: the logout and emailed two-factor links, which change state without a form.
+export const GET = mutationResponse;
 export const POST = mutationResponse;
 export const PUT = mutationResponse;
 export const PATCH = mutationResponse;
