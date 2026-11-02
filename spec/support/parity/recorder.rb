@@ -267,11 +267,16 @@ module Parity
           "source" => source,
           "method" => request.request_method,
           "path" => path,
-          "query" => query_with_date_tokens(query || request.query_string, now).presence,
+          "query" => query_with_date_tokens(query || query_string_of(request), now).presence,
           "headers" => headers.sort.to_h,
           "cookies" => parse_cookie_header(env["HTTP_COOKIE"]),
           "remoteIp" => request.remote_ip,
         }.merge(body_field(body)).compact
+      end
+
+      # A controller spec's `get :index, params:` leaves QUERY_STRING empty; the parameters survive only in fullpath.
+      def query_string_of(request)
+        request.query_string.presence || request.fullpath.to_s.split("?", 2)[1].to_s
       end
 
       # A date or UTC time a query parameter holds is as relative to the recording as the rows are: the replayer

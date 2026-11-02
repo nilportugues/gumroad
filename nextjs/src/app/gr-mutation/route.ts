@@ -21,6 +21,7 @@ import "@/server/controllers/dropbox-files";
 import "@/server/controllers/media-locations";
 import "@/server/controllers/public-mutations";
 import "@/server/controllers/seller-mutations";
+import "@/server/controllers/internal-admin/index";
 import { mutationResponse } from "@/server/controllers/mutation";
 
 export const POST = mutationResponse;
