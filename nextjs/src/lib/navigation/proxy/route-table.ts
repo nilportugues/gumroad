@@ -9,6 +9,8 @@ export type HostScope =
   | "seller"
   // Only a custom domain that points at one product (ProductCustomDomainConstraint).
   | "product"
+  // ApiDomainConstraint: api.gumroad.com (every host in development). The same API routes also live under /api on the Gumroad domain.
+  | "api"
   | "any";
 
 export type RouteEntry = {
@@ -41,7 +43,7 @@ export type RouteTable = Record<string, string | RouteEntry>;
 // ("seller:/affiliates") because the same path can also be a Gumroad-domain page.
 export type CompiledRoute = Required<Omit<RouteEntry, "flag" | "pathGate" | "handler">> & { pathGate: "taxonomy" | null; handler: string | null; flag: string | null; pattern: string; path: string; regexp: RegExp };
 
-const SCOPE_PREFIXES: Record<string, HostScope> = { "seller:": "seller", "product:": "product" };
+const SCOPE_PREFIXES: Record<string, HostScope> = { "seller:": "seller", "product:": "product", "api:": "api" };
 
 // "POST /emails": a route for one HTTP method, the key of a mutation.
 const METHOD_PREFIX = /^(POST|PUT|PATCH|DELETE) /;
@@ -95,6 +97,7 @@ export function compileRouteTable(table: RouteTable): CompiledRoute[] {
 function hostMatches(scope: HostScope, host: HostClassification): boolean {
   if (scope === "any") return true;
   if (scope === "gumroad") return host.gumroad;
+  if (scope === "api") return host.api;
   if (scope === "product") return !host.gumroad && host.customDomainLookup !== null;
   return !host.gumroad && (host.sellerSubdomain !== null || host.customDomainLookup !== null);
 }

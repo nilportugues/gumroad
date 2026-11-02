@@ -18,6 +18,8 @@ import { domainConfig } from "../page-props/domain.ts";
 import { avatarUrl } from "../page-props/signed-in/presenters.ts";
 import { userByDomain } from "../page-props/storefront/seller-host.ts";
 import { PAGE_URL_HEADER } from "../page-props/render-state.ts";
+import { apiV2Response } from "./api-v2/base.ts";
+import "./api-v2/index.ts";
 import { type ActionOptions, type ActionResult, HandBackToRails, processAction, type Rendered } from "./application-controller.ts";
 import { chargeData, licenseKeyLookupData, paypalChargeData } from "./public-data.ts";
 import { assertFlatQuery } from "./rails-params.ts";
@@ -25,6 +27,7 @@ import { queryParam, type RailsRequest, railsRequest } from "./rails-request.ts"
 import { esJson } from "../search/es-json.ts";
 
 const TEXT = "text/plain; charset=utf-8";
+const API_V2_HANDLER = "api-v2";
 
 // RobotsController
 const ROBOTS_CACHE_TTL_SECONDS = 3600;
@@ -183,6 +186,8 @@ const HANDLERS: Record<string, Handler> = {
 };
 
 export async function publicHandlerResponse(incoming: Request, name: string): Promise<Response> {
+  // The v2 API routes of every method, which carry bodies (controllers/api-v2/base.ts).
+  if (name === API_V2_HANDLER) return apiV2Response(incoming);
   const handler = HANDLERS[name];
   const target = incoming.headers.get(PAGE_URL_HEADER);
   if (handler === undefined || target === null) return new Response(null, { status: 404 });

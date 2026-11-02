@@ -1,0 +1,193 @@
+{
+  "version": 1,
+  "spec": "spec/requests/api/v2/products_api_categories_parity_spec.rb",
+  "example": "API v2 categories refuses a request without a token",
+  "sessionCookie": "_gumroad_app_session_test",
+  "secretKeyBase": "cac1ab4b06c8de082c0190787d5d62a4ae7f905f44a85ebd22711a50f8629ac7b5b02d8d598b85ab73805ff35def853d498257abbc5a544287e6c5582a7b3919",
+  "recordedOn": "2026-11-02",
+  "exchanges": [
+    {
+      "seed": {
+        "tables": {
+          "taxonomies": {
+            "columns": {
+              "id": "bigint",
+              "parent_id": "bigint",
+              "slug": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "parent_id": null,
+                "slug": "design"
+              },
+              {
+                "id": 2,
+                "parent_id": 1,
+                "slug": "ui-and-web"
+              },
+              {
+                "id": 3,
+                "parent_id": 2,
+                "slug": "figma"
+              },
+              {
+                "id": 4,
+                "parent_id": null,
+                "slug": "unlabelled-example"
+              },
+              {
+                "id": 5,
+                "parent_id": null,
+                "slug": "other"
+              }
+            ]
+          },
+          "taxonomy_hierarchies": {
+            "columns": {
+              "ancestor_id": "bigint",
+              "descendant_id": "bigint",
+              "generations": "int"
+            },
+            "primaryKey": [
+              "ancestor_id",
+              "descendant_id",
+              "generations"
+            ],
+            "rows": [
+              {
+                "ancestor_id": 1,
+                "descendant_id": 1,
+                "generations": 0
+              },
+              {
+                "ancestor_id": 1,
+                "descendant_id": 2,
+                "generations": 1
+              },
+              {
+                "ancestor_id": 1,
+                "descendant_id": 3,
+                "generations": 2
+              },
+              {
+                "ancestor_id": 2,
+                "descendant_id": 2,
+                "generations": 0
+              },
+              {
+                "ancestor_id": 2,
+                "descendant_id": 3,
+                "generations": 1
+              },
+              {
+                "ancestor_id": 3,
+                "descendant_id": 3,
+                "generations": 0
+              },
+              {
+                "ancestor_id": 4,
+                "descendant_id": 4,
+                "generations": 0
+              },
+              {
+                "ancestor_id": 5,
+                "descendant_id": 5,
+                "generations": 0
+              }
+            ]
+          }
+        },
+        "autoIncrement": {
+          "taxonomies": 6
+        }
+      },
+      "redis": {
+        "disable_braintree_sales": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "disable_braintree_sales",
+            "paypal_payout_fee",
+            "seller_refund_policy_new_users_enabled",
+            "store_discover_searches"
+          ]
+        },
+        "paypal_payout_fee": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "seller_refund_policy_new_users_enabled": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "store_discover_searches": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        }
+      },
+      "request": {
+        "source": "request",
+        "method": "GET",
+        "path": "/v2/categories",
+        "headers": {
+          "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
+          "host": "api.test.gumroad.com:31337"
+        },
+        "remoteIp": "127.0.0.1"
+      },
+      "response": {
+        "status": 401,
+        "headers": {
+          "cache-control": "no-store",
+          "content-type": "text/html",
+          "vary": "Origin",
+          "www-authenticate": "Bearer realm=\"Doorkeeper\", error=\"invalid_token\", error_description=\"The access token is invalid\"",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-original-headers-class": "Rack::Headers",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": {
+          "_gumroad_app_session_test": {
+            "value": "lGdjcIf9+hBQ7A0u/SIrtxe/SrKVAMP+MfTUlhDHHCKhDL2R5aMOHK6uNWyx72GdYVd5Jtgei2BHEloYVs18peT213naTvOnNxXHamj7iBwvLnmzvc2m32lhN6ZUdP8wsVNHZOfDLtlmHJvOMpQUvat4H7iNSm9I1LrzmoPS933P5xX3462uCsmtQCjgLBmllKMexxtG3lP7VAIYE64HAHXS5cDm/lwrd7HwBikyfwFGT8Ceu+RK4jav/1jv8rF9GO8CXYp5YExSzZgZUQ4mokLOLmA9W/zqRbityDpQbqm2F4c8uTkfmyGc8E2K4nNMz4/43svhG1THEfOhgnM/aYCWbooosr8vs/xxeAZbpfByuSTtKq/DqswEOwB29v+saLvd--b4/rfXFdNxqebOmD--0HTyq+dnkQxG085P8WJ1uQ==",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          },
+          "_gumroad_guid": {
+            "value": "<volatile>",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          }
+        }
+      },
+      "db": {},
+      "jobs": [],
+      "mails": [],
+      "http": []
+    }
+  ]
+}
