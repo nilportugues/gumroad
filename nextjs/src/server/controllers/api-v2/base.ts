@@ -33,6 +33,8 @@ export type ApiV2Input = {
   token: OauthAccessToken;
   // Api::V2::BaseController#current_resource_owner
   owner: User;
+  // What the route's before_actions loaded (@product, @variant_category...).
+  state: Record<string, any>;
 };
 
 export type ApiV2Route = {
@@ -42,7 +44,7 @@ export type ApiV2Route = {
   // doorkeeper_authorize!(*scopes): any one of them, with `account` always accepted.
   scopes: string[];
   // before_actions that render: a Rendered halts the request (and skips the after_action).
-  before?(input: ApiV2Input): Promise<Rendered | undefined>;
+  before?(input: ApiV2Input): Promise<Rendered | undefined | void>;
   run(input: ApiV2Input): Promise<ActionResult>;
 };
 
@@ -144,7 +146,7 @@ export async function apiV2Response(incoming: Request): Promise<Response> {
       const authorized = await doorkeeperAuthorize(token, route.scopes, { apiV2: true });
       if (!authorized.ok) return { status: authorized.status, body: "", contentType: "text/html", headers: authorized.headers, rescued: true, paramsRead: true };
       const owner = (await currentApiUser(token))!;
-      const input: ApiV2Input = { request: railsReq, url, routeParams, params, rawBody: bytes, token: token!, owner };
+      const input: ApiV2Input = { request: railsReq, url, routeParams: routeParams!, params, rawBody: bytes, token: token!, owner, state: {} };
       const halted = await route.before?.(input);
       if (halted) return { ...halted, rescued: true };
       const result = await route.run(input);
@@ -167,3 +169,12 @@ async function handBack(request: Request, error: HandBackToRails): Promise<Respo
 }
 
 export { requireOauthScope };
+
+// before_action :fetch_product (Api::V2::BaseController), keyed by the route's `:link_id` or `:id`.
+export const loadProduct = (param: "link_id" | "id" = "link_id") =>
+  async function before(input: ApiV2Input): Promise<Rendered | undefined> {
+    const product = await fetchProduct(input.owner, input.routeParams[param]);
+    if (!product) return errorWithObject("product", null);
+    input.state.product = product;
+    return undefined;
+  };
