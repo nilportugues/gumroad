@@ -256,6 +256,39 @@ describe "API v2 product resource reads", type: :request do
     end
   end
 
+  describe "custom html" do
+    it "refuses a seller without access to custom HTML pages", parity: true do
+      api_call(:get, "/products/#{product.external_id}/custom_html", token: read_token)
+
+      expect(response.parsed_body).to eq("success" => false, "message" => "You do not have access to custom HTML pages.")
+    end
+
+    it "shows the landing page of a product that has one", parity: true do
+      Feature.activate_user(:custom_html_pages, seller)
+      Page.create!(pageable: product, custom_html: "<main>Hello</main>")
+
+      api_call(:get, "/products/#{product.external_id}/custom_html", token: read_token)
+
+      expect(response.parsed_body).to include("custom_html" => "<main>Hello</main>", "has_landing_page" => true)
+    end
+
+    it "reports no landing page for a product without one", parity: true do
+      Feature.activate_user(:custom_html_pages, seller)
+
+      api_call(:get, "/products/#{product.unique_permalink}/custom_html", token: read_token, api_host: false)
+
+      expect(response.parsed_body).to include("custom_html" => nil, "has_landing_page" => false)
+    end
+
+    it "says the product was not found", parity: true do
+      Feature.activate_user(:custom_html_pages, seller)
+
+      api_call(:get, "/products/nonexistent/custom_html", token: read_token)
+
+      expect(response.parsed_body["message"]).to eq("The product was not found.")
+    end
+  end
+
   describe "refund policy" do
     it "shows the account-level refund policy", parity: true do
       seller.update!(refund_policy_enabled: true)

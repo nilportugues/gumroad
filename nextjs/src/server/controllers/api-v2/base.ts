@@ -54,6 +54,8 @@ export function registerApiV2(...routes: ApiV2Route[]): void {
   for (const route of routes) if (!REGISTRY.some((known) => known.method === route.method && known.pattern === route.pattern)) REGISTRY.push(route);
 }
 
+export const registeredApiV2Routes = (): readonly ApiV2Route[] => REGISTRY;
+
 function matchPattern(pattern: string, path: string): Record<string, string> | null {
   const names: string[] = [];
   const source = pattern
