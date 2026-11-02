@@ -80,6 +80,12 @@ describe "API v2 product resource reads", type: :request do
       expect(response.parsed_body["success"]).to be(true)
     end
 
+    it "answers a client that asks for JSON", parity: true do
+      api_call(:get, "/products/#{product.external_id}/skus", token: read_token, headers: { "Accept" => "application/json" })
+
+      expect(response.headers["Vary"]).to include("Accept")
+    end
+
     it "marks a CLI user while answering", parity: true do
       api_call(:get, "/products/#{product.external_id}/skus", token: read_token, headers: { "User-Agent" => "gumroad-cli/1.2.3" })
 

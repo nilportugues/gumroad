@@ -44,7 +44,7 @@ const COMPARE = {
 
 const NEXT_VARY = /(?:rsc|next-router-state-tree|next-router-prefetch|next-router-segment-prefetch)(?:, )?/g;
 const withoutNextVary = (vary: unknown) => (typeof vary === "string" ? vary.replace(NEXT_VARY, "") : vary);
-const HANDED_BACK = /hands-back|handed-back|through-rails/;
+const HANDED_BACK = /back-to-rails|through-rails/;
 
 const dirs = existsSync(FIXTURES) ? readdirSync(FIXTURES).filter((dir) => SPEC_PATTERN.test(dir)) : [];
 const cases = dirs.flatMap((spec) =>

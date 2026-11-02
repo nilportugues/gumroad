@@ -2,3 +2,4 @@
 import "./categories.ts";
 import "./product-resources.ts";
 import "./refund-policies.ts";
+import "./product-resource-writes.ts";

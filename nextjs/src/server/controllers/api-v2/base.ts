@@ -68,7 +68,7 @@ function matchPattern(pattern: string, path: string): Record<string, string> | n
   return match === null ? null : Object.fromEntries(names.map((name, index) => [name, decodeURIComponent(match[index + 1]!)]));
 }
 
-export const json = (body: unknown, status = 200, headers?: Record<string, string>): Rendered => ({ status, body: JSON.stringify(body), contentType: "application/json; charset=utf-8", paramsRead: true, ...(headers ? { headers } : {}) });
+export const json = (body: unknown, status = 200, headers?: Record<string, string>): Rendered => ({ status, body: JSON.stringify(body), contentType: "application/json; charset=utf-8", ...(headers ? { headers } : {}) });
 
 // `render_response(success, result)`: `{ success: }.merge(result.as_json(api_scopes:))`.
 export const renderResponse = (success: boolean, result: Record<string, unknown> = {}): Rendered => json({ success, ...result });
@@ -140,7 +140,12 @@ export async function apiV2Response(incoming: Request): Promise<Response> {
     throw error;
   }
 
-  return processAction(request, {}, async ({ request: railsReq }) => {
+  // protect_from_forgery answers an unverified POST, PUT, PATCH or DELETE with a null session and cookie jar: no session, guid or
+  // XSRF-TOKEN cookie. A request that carries a CSRF token might verify, which the port leaves to Rails.
+  const mutating = !["GET", "HEAD"].includes(request.method);
+  if (mutating && (request.headers.has("x-csrf-token") || request.headers.has("x-xsrf-token") || "authenticity_token" in params)) return handBack(request, new HandBackToRails("a write that carries a CSRF token"));
+
+  return processAction(request, mutating ? { bare: true } : {}, async ({ request: railsReq }) => {
     try {
       const token = await doorkeeperToken({ authorization: railsReq.headers.get("authorization"), parameters: params, path: railsReq.path });
       const authorized = await doorkeeperAuthorize(token, route.scopes, { apiV2: true });
