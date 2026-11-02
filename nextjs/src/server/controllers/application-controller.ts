@@ -52,7 +52,8 @@ import { isPresent, queryParam, type RailsRequest, railsRequest } from "./rails-
 // `inertia`: rendered by inertia_rails, which appends X-Inertia to Vary. `rescued`: a before_action
 // halted with it, so the after_actions (XSRF-TOKEN) did not run. `paramsRead`: the controller read
 // params, so Request#should_apply_vary_header? no longer adds Vary: Accept.
-export type Rendered = { status: number; body: string | Uint8Array; contentType: string; inertia?: boolean; headers?: Record<string, string>; rescued?: boolean; paramsRead?: boolean };
+// `cookies`: Set-Cookie lines the action wrote to the cookie jar. An empty `contentType` is a response with none (`head :no_content`).
+export type Rendered = { status: number; body: string | Uint8Array; contentType: string; cookies?: string[]; inertia?: boolean; headers?: Record<string, string>; rescued?: boolean; paramsRead?: boolean };
 // redirect_to from the action. `rescued`: from a rescue_from handler, which skips the after_actions.
 // `flash`: what the action put in flash[:alert] and friends before redirecting.
 export type Redirected = { status: number; location: string; rescued?: boolean; flash?: Record<string, string>; inertiaErrors?: Record<string, unknown> };
@@ -497,7 +498,7 @@ export function afterActions(chain: Chain, result: ActionResult): ControllerResp
     headers.set("location", redirectLocation(request, result.location));
     headers.set("content-type", "text/html; charset=utf-8");
   } else {
-    headers.set("content-type", result.contentType);
+    if (result.contentType !== "") headers.set("content-type", result.contentType);
     for (const [name, value] of Object.entries(result.headers ?? {})) headers.set(name, value);
     // Vary: Accept is only added while the request's params were never read (Request#should_apply_vary_header?),
     // and an Inertia action always reads params[:slug] or the filters' query params.
@@ -507,6 +508,7 @@ export function afterActions(chain: Chain, result: ActionResult): ControllerResp
     if (vary) headers.set("vary", vary);
   }
   if (chain.guid) headers.append("set-cookie", chain.guid);
+  if (!("location" in result)) for (const cookie of result.cookies ?? []) headers.append("set-cookie", cookie);
   if (!result.rescued) {
     for (const cookie of chain.afterCookies) headers.append("set-cookie", cookie);
     if (!chain.bare) headers.append("set-cookie", xsrfCookie(chain));

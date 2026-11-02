@@ -5,6 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { deriveRailsCookieSecrets, readEncryptedCookie } from "@/server/auth/rails-cookies";
 import { railsMessageVerifierVerified } from "@/server/auth/message-verifier";
 import { closeAllRedis } from "@/server/infra/redis";
 
@@ -21,9 +22,9 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES_ROOT = "parity/fixtures/requests";
-const SPEC_DIRS = ["public_files_parity_spec", "public_data_parity_spec"].filter((dir) => existsSync(path.join(FIXTURES_ROOT, dir)));
+const SPEC_DIRS = ["public_files_parity_spec", "public_data_parity_spec", "sellers_switch_parity_spec"].filter((dir) => existsSync(path.join(FIXTURES_ROOT, dir)));
 const NOT_REPLAYED = /github-stars/;
-const ROUTE_FLAGS = ["nextjs_robots", "nextjs_llms", "nextjs_crossdomain", "nextjs_favicon", "nextjs_indexnow_key", "nextjs_acme_challenge", "nextjs_public_lookup_data", "nextjs_embedded_analytics_js", "nextjs_public_working_webhook"];
+const ROUTE_FLAGS = ["nextjs_robots", "nextjs_llms", "nextjs_crossdomain", "nextjs_favicon", "nextjs_indexnow_key", "nextjs_acme_challenge", "nextjs_public_lookup_data", "nextjs_embedded_analytics_js", "nextjs_public_working_webhook", "nextjs_sellers_switch"];
 const INDEXNOW_KEY = "AbCd-1234-EfGh-5678";
 const FIRST_COMPILE_TIMEOUT_MS = 240_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
@@ -35,6 +36,11 @@ const COMPARE = {
     "response.headers.x-original-headers-class",
     // Next.js owns Vary on what it serves (its RSC cache keys).
     "response.headers.vary",
+    // Rack::MiniProfiler's authorization cookie for team members; Rails specs run with PaperTrail off.
+    "response.cookies.__profilin",
+    "db.versions",
+    // Encrypted with a random IV: its content is compared below.
+    "response.cookies.current_seller_id.value",
     // Masked per response; the ACME challenge's is raw bytes of the session's global token.
     "response.cookies.XSRF-TOKEN.value",
   ],
@@ -159,6 +165,13 @@ describe.skipIf(!url)("WS-11 public files parity", () => {
       });
       try {
         assertParity(result);
+        const expectedSeller = loadFixture(fixturePath).exchanges[index]!.response.cookies?.current_seller_id?.value;
+        const actualSeller = result.exchanges[0]!.actual.response.cookies?.current_seller_id?.value;
+        if (expectedSeller !== undefined || actualSeller !== undefined) {
+          const read = (value: string | undefined) => readEncryptedCookie(deriveRailsCookieSecrets(SECRET_KEY_BASE), "current_seller_id", value);
+          expect(read(actualSeller)).toBe(read(expectedSeller));
+          expect(read(actualSeller)).toEqual(expect.any(Number));
+        }
         if (VIEW_TOKEN_CASE.test(_name)) assertViewToken(String(result.exchanges[0]!.actual.response.body ?? ""));
         assertMailJobs(_name, loadFixture(fixturePath).exchanges[index]!.response.json);
       } catch (error) {

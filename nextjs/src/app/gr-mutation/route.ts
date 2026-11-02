@@ -8,6 +8,7 @@ import "@/server/controllers/social-callbacks";
 import "@/server/controllers/connections-mutations";
 import "@/server/controllers/oauth-applications-mutations";
 import "@/server/controllers/public-mutations";
+import "@/server/controllers/seller-mutations";
 import { mutationResponse } from "@/server/controllers/mutation";
 
 export const POST = mutationResponse;
