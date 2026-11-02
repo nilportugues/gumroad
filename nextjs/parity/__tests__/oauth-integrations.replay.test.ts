@@ -20,8 +20,8 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
-const SPECS = ["social_callbacks_parity_spec", "connections_signed_in_spec"];
-const ROUTE_FLAGS = "nextjs_social_callbacks,nextjs_connections_unlink";
+const SPECS = ["social_callbacks_parity_spec", "connections_signed_in_spec", "oauth_applications_signed_in_spec"];
+const ROUTE_FLAGS = "nextjs_social_callbacks,nextjs_connections_unlink,nextjs_oauth_applications";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 // The secrets spec/requests/social_callbacks_parity_spec.rb stubs.
@@ -42,6 +42,14 @@ const COMPARE = {
     "db.users.updated.*.changes.updated_at",
     "db.dashboard_nav_promotions.inserted.*.created_at",
     "db.dashboard_nav_promotions.inserted.*.updated_at",
+    // Random Doorkeeper tokens and client credentials; their format is pinned by models/oauth-application-writes.test.ts.
+    "db.oauth_access_tokens.inserted.*.token",
+    "db.oauth_access_grants.inserted.*.token",
+    "db.oauth_applications.inserted.*.uid",
+    "db.oauth_applications.inserted.*.secret",
+    "response.json.token",
+    // The seed is stamped with the replay's clock, so a row Rails touched seconds after the factory made it is not touched in the same second.
+    "db.oauth_applications.updated.*.changes.updated_at",
     "http",
   ],
 };
