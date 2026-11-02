@@ -127,7 +127,7 @@ function permittedParams(call: ApiCall): Record<string, unknown> {
 const castString = (value: unknown) => (value === undefined ? undefined : value === null ? null : String(value));
 
 // SaveUtmLinkService#resolved_target_resource_id: through the seller's own association, so a foreign id becomes nil.
-async function resolvedTargetResourceId(seller: User, type: unknown, externalIdValue: unknown): Promise<bigint | null> {
+export async function resolvedTargetResourceId(seller: User, type: unknown, externalIdValue: unknown): Promise<bigint | null> {
   if (externalIdValue == null || String(externalIdValue).trim() === "") return null;
   const id = decrypt(String(externalIdValue));
   if (id === null) return null;
