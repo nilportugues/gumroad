@@ -3,13 +3,51 @@
   "spec": "spec/requests/public_files_parity_spec.rb",
   "example": "Public files GET /robots.txt lists the sitemaps on the Gumroad domain",
   "sessionCookie": "_gumroad_app_session_test",
-  "secretKeyBase": "a6a5df61e80792dbb8453b9bb466c99abc26c870dc3cdb1cccae7d72edf59e7ae24c68ae89b414fada0dc07e9d8f18ece91c3b6fe375c0063af24ddce43e73af",
-  "recordedOn": "2026-11-01",
+  "secretKeyBase": "parity-replay-secret-key-base",
+  "recordedOn": "2026-11-02",
   "exchanges": [
     {
       "seed": {
-        "tables": {},
-        "autoIncrement": {}
+        "tables": {
+          "custom_domains": {
+            "columns": {
+              "id": "int",
+              "user_id": "int",
+              "domain": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "ssl_certificate_issued_at": "datetime",
+              "deleted_at": "datetime",
+              "state": "varchar",
+              "failed_verification_attempts_count": "int",
+              "product_id": "bigint",
+              "routable": "tinyint",
+              "routability_checked_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "domain": "hickle.reichert-macgyver.example",
+                "created_at": "<now-11m>",
+                "updated_at": "<now-11m>",
+                "ssl_certificate_issued_at": null,
+                "deleted_at": null,
+                "state": "unverified",
+                "failed_verification_attempts_count": 0,
+                "product_id": null,
+                "routable": null,
+                "routability_checked_at": null
+              }
+            ]
+          }
+        },
+        "autoIncrement": {
+          "custom_domains": 2
+        }
       },
       "redis": {
         "disable_braintree_sales": {

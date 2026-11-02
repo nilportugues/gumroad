@@ -3,13 +3,51 @@
   "spec": "spec/requests/public_files_parity_spec.rb",
   "example": "Public files GET /favicon.ico serves the static icon on the Gumroad domain",
   "sessionCookie": "_gumroad_app_session_test",
-  "secretKeyBase": "a6a5df61e80792dbb8453b9bb466c99abc26c870dc3cdb1cccae7d72edf59e7ae24c68ae89b414fada0dc07e9d8f18ece91c3b6fe375c0063af24ddce43e73af",
-  "recordedOn": "2026-11-01",
+  "secretKeyBase": "parity-replay-secret-key-base",
+  "recordedOn": "2026-11-02",
   "exchanges": [
     {
       "seed": {
-        "tables": {},
-        "autoIncrement": {}
+        "tables": {
+          "custom_domains": {
+            "columns": {
+              "id": "int",
+              "user_id": "int",
+              "domain": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "ssl_certificate_issued_at": "datetime",
+              "deleted_at": "datetime",
+              "state": "varchar",
+              "failed_verification_attempts_count": "int",
+              "product_id": "bigint",
+              "routable": "tinyint",
+              "routability_checked_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "domain": "hickle.reichert-macgyver.example",
+                "created_at": "<now-11m>",
+                "updated_at": "<now-11m>",
+                "ssl_certificate_issued_at": null,
+                "deleted_at": null,
+                "state": "unverified",
+                "failed_verification_attempts_count": 0,
+                "product_id": null,
+                "routable": null,
+                "routability_checked_at": null
+              }
+            ]
+          }
+        },
+        "autoIncrement": {
+          "custom_domains": 2
+        }
       },
       "redis": {
         "disable_braintree_sales": {
@@ -74,13 +112,13 @@
         },
         "cookies": {
           "XSRF-TOKEN": {
-            "value": "nQhFQ8rtAXNLDB5r5W8Daz94lgwQeOncmJdQomquVWBv4KoWvV7_jdQGjLhDs_8AaQKiD2mHtApwruwiVM8mrg",
+            "value": "oJtGP4qHzf0UXw5ivga5sW7Ii8Ixn9HngiDStwXEH58bu3_RSbLk-4U4YhB4SnsWwfp1blfE5l3lutDuycZqRA",
             "path": "/",
             "samesite": "lax",
             "httponly": true
           },
           "_gumroad_app_session_test": {
-            "value": "sTIf3HPhNcocfT3dTRUNTzwUHgh1rGaz4mD6o7+xDYfzqYQcLQQyTbzmAAuK+jZJgK798RNwJQgR3dLrBCrqiC+Qg+spfXMCIrJh4WI8jAazdXWxGMT1ipVJt1aj1ysQ3youolf13E3DPWyg5E5fEVg/3lqv21zMWMN9hV4tRunE4EDYCc+0weS6vUqQDEHF7vfAuRNYTyK9Gc3050Z3uxtGUyJNAN+e437W5pdQ+HcHXQ88+xE84umL8Rzm7QOLGrcAmkSDiKDdTF7oia2frHUva/C4oARvXBK8X7H1q7O9IQi6iQ2L+KIAGIrkLfiHdRd4d7TKk3y5iN+OGU4KUPzZ2ZtjQ/8AtdzS6+3IAFfXIZGJjRsft+6gbPNt3trdHb0q--xmgbxZgwYC6txMLd--68gtTyQaMsZlEOMiDFw3GQ==",
+            "value": "tlyM0f0prQkZN8lsAAZ7MUa/TMItTdXksNuLIOYDnW0jEv1xtLWQjsvJv3nr9HKO8n6bcOtRB4kUUyp647PezAV+/4WX7c4qlTeMerUYWtyAPfQSYH/9MkwrBY7EyQkbWsIRJeAGQ1ROkbN7eyD3P2+dRXFc1/nqAil4sIuNd8SHn0w1G2FHcbR+eatJO4qQLP0izax5VmSMKgSBaIfu463VymL8nILuFvxRMvXf2kC9+SyEXdzVN8vlXpmLkWJXgI2yN2iTVlDjqmjY9crmJY6jrMM+grdzODmuS9heWkYrjrdoEiJ/wGCjORL5zJW9uKZWlR07dV8t+jkG1/Iv8IDWdPRHaaltZTW2t8YTws0DoSEvnBiz3ImW7ru+qvmoA4F/--ycdoXhl1qMBn6fQP--F5v/+psWDR1T3OwiTFQsKg==",
             "domain": "gumroad.com",
             "path": "/",
             "expires": "<now+87672h>",

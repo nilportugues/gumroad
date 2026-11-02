@@ -6,6 +6,8 @@ require "spec_helper"
 # the IndexNow key, crossdomain.xml, the GitHub stars counter), recorded for the Next.js port
 # (PARITY_RECORD=1) and replayed by nextjs/parity/__tests__/ws11-public.replay.test.ts.
 describe "Public files", type: :request do
+  include Parity::SignedInRequests
+
   let(:seller) { create(:named_user) }
   # Production serves public/ from nginx, not from Rack::Static, which would answer /favicon.ico before the router.
   before do
@@ -211,6 +213,61 @@ describe "Public files", type: :request do
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body).to eq("stars" => 5818)
       expect(response.headers["Cache-Control"]).to include("max-age=3600, public")
+    end
+  end
+
+  # Record with SECRET_KEY_BASE=parity-replay-secret-key-base: the script token is signed with it and the port verifies it.
+  describe "GET /js/gumroad-analytics" do
+    # A <script src> asks for */*; an HTML request has no analytics.html template and Rails raises MissingTemplate.
+    SCRIPT_HEADERS = { "Accept" => "*/*" }.freeze
+    let(:product) { create(:product, user: seller, unique_permalink: "landing") }
+
+    before { host! DOMAIN }
+
+    it "embeds the product id and a view token for the referring page", parity: true do
+      get "/js/gumroad-analytics", params: { token: product.analytics_script_token }, headers: SCRIPT_HEADERS.merge("Referer" => "https://landing.example/post")
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include('var id = "landing";')
+    end
+
+    it "embeds the product id without a view token when there is no referrer", parity: true do
+      get "/js/gumroad-analytics", params: { token: product.analytics_script_token }, headers: SCRIPT_HEADERS
+
+      expect(response.body).to include('var token = "";')
+    end
+
+    it "serves the script without a product for a token that does not verify", parity: true do
+      get "/js/gumroad-analytics", params: { token: "forged" }, headers: SCRIPT_HEADERS.merge("Referer" => "https://landing.example/post")
+
+      expect(response.body).to include('var id = "";')
+    end
+
+    it "serves the script without a product when the token is missing", parity: true do
+      get "/js/gumroad-analytics", headers: SCRIPT_HEADERS
+
+      expect(response.body).to include('var id = "";')
+    end
+
+    it "serves the script without a product once the product is deleted", parity: true do
+      token = product.analytics_script_token
+      product.mark_deleted!
+
+      get "/js/gumroad-analytics", params: { token: }, headers: SCRIPT_HEADERS.merge("Referer" => "https://landing.example/post")
+
+      expect(response.body).to include('var id = "";')
+    end
+  end
+
+  describe "POST /working-webhook" do
+    it "answers with the URL the webhook documentation shows", parity: true do
+      host! DOMAIN
+      token = csrf_token_from("/ping")
+
+      post "/working-webhook", headers: { "X-CSRF-Token" => token }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to eq("http://www.gumroad.com")
     end
   end
 end

@@ -1,11 +1,12 @@
 // The small public endpoints that are not pages: RobotsController, LlmsController, FaviconsController, AcmeChallengesController,
 // IndexnowKeysController, PublicController#crossdomain and GithubStarsController. routes.json marks them with a `handler`; the
 // proxy rewrites them to /gr-public/<handler> (app/gr-public/[action]/route.ts), which lands here.
-import { timingSafeEqual } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
 import { db } from "../../lib/db.ts";
+import { railsMessageVerifierGenerate, railsMessageVerifierVerified } from "../auth/message-verifier.ts";
 import { classifyHost } from "../../lib/navigation/proxy/hosts.ts";
 import { railsCache } from "../cache/rails-cache.ts";
 import { getConfig } from "../infra/config.ts";
@@ -19,7 +20,8 @@ import { userByDomain } from "../page-props/storefront/seller-host.ts";
 import { PAGE_URL_HEADER } from "../page-props/render-state.ts";
 import { type ActionOptions, type ActionResult, HandBackToRails, processAction, type Rendered } from "./application-controller.ts";
 import { chargeData, licenseKeyLookupData, paypalChargeData } from "./public-data.ts";
-import { type RailsRequest, railsRequest } from "./rails-request.ts";
+import { assertFlatQuery } from "./rails-params.ts";
+import { queryParam, type RailsRequest, railsRequest } from "./rails-request.ts";
 import { esJson } from "../search/es-json.ts";
 
 const TEXT = "text/plain; charset=utf-8";
@@ -126,6 +128,40 @@ async function githubStars(): Promise<Rendered> {
   return { status: 200, body: esJson({ stars: stars as number | null }), contentType: "application/json; charset=utf-8", headers: { "cache-control": `max-age=${GITHUB_STARS_MAX_AGE_SECONDS}, public` } };
 }
 
+// EmbeddedJavascriptsController#analytics and app/views/embedded_javascripts/analytics.js.erb
+const ANALYTICS_VERIFIER = "product_analytics_view";
+const ANALYTICS_SCRIPT_TOKEN_PURPOSE = "external_landing_page_script";
+const ANALYTICS_VIEW_TOKEN_PURPOSE = "external_landing_page_view";
+const ANALYTICS_VIEW_TOKEN_TTL_MS = 10 * 60_000;
+
+// ActionView::Helpers::JavaScriptHelper#escape_javascript
+const JS_ESCAPES: Record<string, string> = { "\\": "\\\\", "</": "<\\/", "\r\n": "\\n", "\n": "\\n", "\r": "\\n", '"': '\\"', "'": "\\'", "`": "\\`", $: "\\$", "\u2028": "&#x2028;", "\u2029": "&#x2029;" };
+const escapeJavascript = (value: string) => value.replace(/(\\|<\/|\r\n|[\n\r"'`$\u2028\u2029])/gu, (match) => JS_ESCAPES[match]!);
+
+async function analyticsScript(request: RailsRequest): Promise<Rendered> {
+  assertFlatQuery(request.queryString);
+  // Only the template's own format renders: for an HTML request Rails raises MissingTemplate.
+  const accept = request.headers.get("accept") ?? "";
+  if (accept.trim() !== "*/*" && !/javascript/u.test(accept)) throw new HandBackToRails("analytics script requested as something other than a script");
+  const token = queryParam(request, "token");
+  let product: { id: bigint; unique_permalink: string | null } | null = null;
+  if (typeof token === "string" && token !== "") {
+    const payload = railsMessageVerifierVerified(ANALYTICS_VERIFIER, token, ANALYTICS_SCRIPT_TOKEN_PURPOSE);
+    const id = payload !== null && typeof payload === "object" && !Array.isArray(payload) ? (payload as Record<string, unknown>).product_id : undefined;
+    if (typeof id === "number") product = await db.link.findFirst({ where: { id, deleted_at: null }, select: { id: true, unique_permalink: true } });
+  }
+  const referrer = request.headers.get("referer");
+  const viewToken =
+    product && referrer !== null && referrer !== ""
+      ? railsMessageVerifierGenerate(ANALYTICS_VERIFIER, { product_id: Number(product.id), source_url: referrer, event_id: randomUUID() }, ANALYTICS_VIEW_TOKEN_PURPOSE, { expiresAt: new Date(Date.now() + ANALYTICS_VIEW_TOKEN_TTL_MS) })
+      : "";
+  const template = readFileSync(path.join(railsRoot(), "app/views/embedded_javascripts/analytics.js.erb"), "utf8");
+  const body = template
+    .replace("<%= j @product&.unique_permalink.to_s %>", () => escapeJavascript(product?.unique_permalink ?? ""))
+    .replace("<%= j @analytics_token.to_s %>", () => escapeJavascript(viewToken));
+  return { status: 200, body, contentType: "application/javascript; charset=utf-8", headers: { "cache-control": "no-cache" }, paramsRead: true };
+}
+
 type Handler = { options?: ActionOptions; run(request: RailsRequest, url: URL): Promise<ActionResult> };
 
 const HANDLERS: Record<string, Handler> = {
@@ -140,6 +176,7 @@ const HANDLERS: Record<string, Handler> = {
   },
   indexnow: { run: async (_request, url) => indexnowKey(decodeURIComponent(url.pathname.slice(1).replace(/\.txt$/u, ""))) },
   github_stars: { run: () => githubStars() },
+  analytics_js: { run: (request) => analyticsScript(request) },
   charge_data: { options: { optOutOfCsp: true }, run: (request) => chargeData(request) },
   license_key_lookup_data: { options: { optOutOfCsp: true }, run: (request) => licenseKeyLookupData(request) },
   paypal_charge_data: { options: { optOutOfCsp: true }, run: (request) => paypalChargeData(request) },
