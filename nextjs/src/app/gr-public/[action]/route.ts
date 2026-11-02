@@ -1,5 +1,6 @@
 // Internal target of the proxy's rewrites of the small public endpoints (robots.txt, the favicon, ACME challenges...). Never routed
 // to from outside: the proxy sends any request for this path to Rails.
+import "@/server/controllers/mobile-accounts";
 import "@/server/controllers/mobile-simple";
 import { publicHandlerResponse } from "@/server/controllers/public-handlers";
 

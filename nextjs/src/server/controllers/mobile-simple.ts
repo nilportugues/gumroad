@@ -14,6 +14,10 @@ import { NotPortedError } from "../models/user.ts";
 import { HandBackToRails } from "./application-controller.ts";
 import { fetchError, registerMobile, renderJson, UNPROCESSABLE_ENTITY, type MobileAuth, type MobileInput } from "./mobile-api.ts";
 import { recordMediaLocation } from "./media-locations.ts";
+import { createEventBang, EVENT_TYPES, PLATFORMS } from "../models/consumption-event.ts";
+import { truncateToSeconds } from "../models/concerns/ruby-time.ts";
+import { remoteIp } from "../page-props/audience/events.ts";
+import { RoutingError } from "./application-controller.ts";
 
 const MOBILE_API_SCOPES = ["mobile_api"];
 const CREATED = 201;
@@ -124,7 +128,56 @@ async function createMediaLocation(input: MobileInput) {
   return renderJson({ success: await recordMediaLocation(input.params) });
 }
 
+const present = (value: unknown): boolean => value !== undefined && value !== null && value !== "" && value !== false && !(typeof value === "string" && value.trim() === "");
+
+// ISO 8601 with an explicit offset: the one shape `Time.zone.parse` reads the same as Date
+const ISO_WITH_ZONE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/u;
+
+// CreateConsumptionEvent#create_consumption_event!
+async function createConsumptionEvent(input: MobileInput) {
+  const { params } = input;
+  const text = (value: unknown) => (typeof value === "string" ? value : null);
+  if (!present(params.url_redirect_id)) return renderJson({ success: false });
+  const eventType = text(params.event_type);
+  if (eventType === null && params.event_type !== undefined && params.event_type !== null) throw new HandBackToRails("an event_type that is not a string");
+  if (eventType === null || !EVENT_TYPES.includes(eventType)) return renderJson({ success: false });
+  const platform = text(params.platform);
+  if (platform === null && params.platform !== undefined && params.platform !== null) throw new HandBackToRails("a platform that is not a string");
+  if (platform === null || !PLATFORMS.includes(platform)) return renderJson({ success: false });
+
+  const urlRedirectParam = text(params.url_redirect_id);
+  if (urlRedirectParam === null) throw new HandBackToRails("a url_redirect_id that is not a string");
+  const urlRedirectId = externalId(urlRedirectParam);
+  if (urlRedirectId === null) return renderJson({ success: false });
+  for (const name of ["product_file_id", "purchase_id", "consumed_at"]) if (present(params[name]) && typeof params[name] !== "string") throw new HandBackToRails(`a ${name} that is not a string`);
+  if (eventType === "folder_download") throw new HandBackToRails("a folder download event");
+  const productFileId = present(params.product_file_id) ? externalId(params.product_file_id) : null;
+  let purchaseId: bigint | null;
+  if (present(params.purchase_id)) purchaseId = externalId(params.purchase_id);
+  else {
+    const [redirect] = await selectRows<{ purchase_id: bigint | null }>(Prisma.sql`SELECT ${column("url_redirects", "purchase_id")} FROM ${table("url_redirects")} WHERE ${column("url_redirects", "id")} = ${urlRedirectId} LIMIT 1`);
+    if (!redirect) throw new RoutingError("Couldn't find UrlRedirect");
+    purchaseId = redirect.purchase_id;
+  }
+  const [purchase] = purchaseId === null ? [] : await selectRows<{ link_id: bigint | null }>(Prisma.sql`SELECT ${column("purchases", "link_id")} FROM ${table("purchases")} WHERE ${column("purchases", "id")} = ${purchaseId} LIMIT 1`);
+  if (present(params.consumed_at) && !ISO_WITH_ZONE.test(params.consumed_at as string)) throw new HandBackToRails("a consumed_at Node does not parse");
+  const consumedAt = truncateToSeconds(present(params.consumed_at) ? new Date(params.consumed_at as string) : new Date());
+
+  await createEventBang({
+    event_type: eventType,
+    platform,
+    url_redirect_id: urlRedirectId,
+    product_file_id: productFileId,
+    purchase_id: purchaseId,
+    product_id: purchase?.link_id ?? null,
+    consumed_at: consumedAt,
+    ip_address: remoteIp(input.request.headers) ?? "127.0.0.1",
+  });
+  return renderJson({ success: true });
+}
+
 registerMobile(
+  { method: "POST", pattern: "/mobile/consumption_analytics", scopes: MOBILE_API_SCOPES, run: createConsumptionEvent },
   { method: "GET", pattern: "/mobile/feature_flags/:id", scopes: MOBILE_API_SCOPES, run: showFeatureFlag },
   { method: "POST", pattern: "/mobile/devices", scopes: ["creator_api", "mobile_api"], run: createDevice },
   ...["PUT", "PATCH"].flatMap((method) => [
