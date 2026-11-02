@@ -478,7 +478,7 @@ export function afterActions(chain: Chain, result: ActionResult): ControllerResp
     headers.set("location", redirectLocation(request, result.location));
     headers.set("content-type", "text/html; charset=utf-8");
   } else {
-    headers.set("content-type", result.contentType);
+    if (result.contentType !== "") headers.set("content-type", result.contentType);
     for (const [name, value] of Object.entries(result.headers ?? {})) headers.set(name, value);
     // Vary: Accept is only added while the request's params were never read (Request#should_apply_vary_header?),
     // and an Inertia action always reads params[:slug] or the filters' query params.

@@ -22,8 +22,8 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
-const SPECS = ["affiliate_redirect_parity_spec"].filter((dir) => existsSync(path.join(FIXTURES, dir)));
-const ROUTE_FLAGS = ["nextjs_affiliate_redirect"].join(",");
+const SPECS = ["affiliate_redirect_parity_spec", "seller_json_mutations_signed_in_spec"].filter((dir) => existsSync(path.join(FIXTURES, dir)));
+const ROUTE_FLAGS = ["nextjs_affiliate_redirect", "nextjs_customer_actions"].join(",");
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
@@ -64,6 +64,9 @@ const COMPARE = {
     "db.dashboard_nav_promotions.inserted.*.created_at",
     "db.dashboard_nav_promotions.inserted.*.updated_at",
     "db.users.updated.*.changes.updated_at",
+    // The seed is stamped with the replay's clock, so a row Rails touched seconds after the factory made it is not touched in the same second.
+    "db.licenses.updated.*.changes.updated_at",
+    "db.calls.updated.*.changes.updated_at",
     // Delayed jobs are scheduled seconds ahead of the clock, which the replay normalizes to the nearest bucket.
     "jobs.*.at",
     "http",
