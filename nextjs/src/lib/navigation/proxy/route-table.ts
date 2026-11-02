@@ -30,6 +30,8 @@ export type RouteEntry = {
   // The path is only this route when the gate says so (`taxonomy`: DiscoverTaxonomyConstraint). Such a route
   // matches after every other, as a catch-all glob must.
   pathGate?: "taxonomy";
+  // A route that is not a page: /gr-public/<handler> answers it (server/controllers/public-handlers.ts), whatever the method.
+  handler?: string;
 };
 
 export type RouteTable = Record<string, string | RouteEntry>;
@@ -37,7 +39,7 @@ export type RouteTable = Record<string, string | RouteEntry>;
 // `pattern` is the table key (and the key of the page in pages.ts); `path` is the URL pattern. They differ
 // for a route that only exists on seller or product-domain hosts, whose key is prefixed with the scope
 // ("seller:/affiliates") because the same path can also be a Gumroad-domain page.
-export type CompiledRoute = Required<Omit<RouteEntry, "flag" | "pathGate">> & { pathGate: "taxonomy" | null; flag: string | null; pattern: string; path: string; regexp: RegExp };
+export type CompiledRoute = Required<Omit<RouteEntry, "flag" | "pathGate" | "handler">> & { pathGate: "taxonomy" | null; handler: string | null; flag: string | null; pattern: string; path: string; regexp: RegExp };
 
 const SCOPE_PREFIXES: Record<string, HostScope> = { "seller:": "seller", "product:": "product" };
 
@@ -58,6 +60,9 @@ function patternToRegExp(pattern: string): RegExp {
   const source = pattern
     .split("/")
     .map((segment) => {
+      // `:key([a-zA-Z0-9-]{8,128}).txt`: a constrained parameter followed by a literal suffix, as Rails' `constraints: { key: /.../ }`.
+      const constrained = /^:\w+\((.+)\)(.*)$/.exec(segment);
+      if (constrained) return `${constrained[1]}${constrained[2]!.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`;
       if (segment.startsWith(":")) return "[^/.?]+";
       if (segment.startsWith("*")) return ".+";
       return segment.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -82,6 +87,7 @@ export function compileRouteTable(table: RouteTable): CompiledRoute[] {
       signedInOnly: entry.signedInOnly ?? false,
       inertia: entry.inertia ?? false,
       pathGate: entry.pathGate ?? null,
+      handler: entry.handler ?? null,
     };
   });
 }

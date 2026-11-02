@@ -291,7 +291,10 @@ module Parity
         lines.sort.to_h do |line|
           pair, *attributes = line.split(/;\s*/)
           name, value = pair.split("=", 2)
-          parsed = { "value" => Canonical.cookie_value(name, CGI.unescape(value.to_s)) }
+          # AcmeChallengesController#mask_token shadows the CSRF one, so its XSRF-TOKEN cookie holds raw bytes.
+          unescaped = CGI.unescape(value.to_s)
+          unescaped = value.to_s unless unescaped.dup.force_encoding(Encoding::UTF_8).valid_encoding?
+          parsed = { "value" => Canonical.cookie_value(name, unescaped) }
           attributes.each do |attribute|
             key, attr_value = attribute.split("=", 2)
             key = key.downcase

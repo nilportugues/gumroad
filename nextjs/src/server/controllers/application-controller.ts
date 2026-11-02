@@ -26,7 +26,7 @@ import { getConfig, getRequiredConfig } from "../infra/config.ts";
 import { notifyError } from "../infra/error-reporting.ts";
 import { railsEnv, railsRoot } from "../infra/rails-env.ts";
 import { secureHeaders } from "../infra/secure-headers.ts";
-import { formAuthenticityToken } from "../page-props/csrf.ts";
+import { formAuthenticityToken, globalCsrfToken } from "../page-props/csrf.ts";
 import { domainConfig } from "../page-props/domain.ts";
 import { rubyUriParse } from "../models/concerns/ruby-uri.ts";
 import { advance } from "../models/concerns/ruby-time.ts";
@@ -52,7 +52,8 @@ import { isPresent, queryParam, type RailsRequest, railsRequest } from "./rails-
 // `inertia`: rendered by inertia_rails, which appends X-Inertia to Vary. `rescued`: a before_action
 // halted with it, so the after_actions (XSRF-TOKEN) did not run. `paramsRead`: the controller read
 // params, so Request#should_apply_vary_header? no longer adds Vary: Accept.
-export type Rendered = { status: number; body: string; contentType: string; inertia?: boolean; headers?: Record<string, string>; rescued?: boolean; paramsRead?: boolean; cookies?: string[] };
+// `cookies`: Set-Cookie lines the action wrote to the cookie jar. An empty `contentType` is a response with none (`head :no_content`).
+export type Rendered = { status: number; body: string | Uint8Array; contentType: string; cookies?: string[]; inertia?: boolean; headers?: Record<string, string>; rescued?: boolean; paramsRead?: boolean };
 // redirect_to from the action. `rescued`: from a rescue_from handler, which skips the after_actions.
 // `flash`: what the action put in flash[:alert] and friends before redirecting.
 // `cookies`: the Set-Cookie lines the action wrote to the cookie jar, after the session's.
@@ -95,6 +96,12 @@ export type ActionOptions = {
   // They run only when the chain was not halted (`rescued`), ahead of ApplicationController's own
   // after_actions (callbacks defined later run first), so they precede XSRF-TOKEN in the jar.
   afterCookies?: string[];
+  // `request.session_options[:skip] = true` plus `skip_before_action :set_gumroad_guid` (RobotsController): the visitor is
+  // anonymous, and the response carries no session, guid or XSRF-TOKEN cookie.
+  bare?: boolean;
+  // A controller whose own `mask_token` shadows the CSRF one (AcmeChallengesController#mask_token) writes this as the
+  // XSRF-TOKEN cookie instead of the masked token. The cookie value is raw bytes, written the way Rack escapes them.
+  xsrfCookieBytes?: (globalToken: Buffer) => Buffer;
 };
 
 // What the session contributes to rendering an Inertia page: its CSRF token, the flash and
@@ -264,7 +271,7 @@ export function redirectLocation(request: RailsRequest, location: string): strin
   return url.replace(/[\0\r\n]/g, "");
 }
 
-type ControllerResponse = { status: number; headers: Headers; body: string };
+type ControllerResponse = { status: number; headers: Headers; body: string | Uint8Array };
 
 export type Chain = {
   request: RailsRequest;
@@ -281,6 +288,8 @@ export type Chain = {
   sessionCleared: boolean;
   pageState: Record<string, unknown>;
   afterCookies: string[];
+  bare?: boolean;
+  xsrfCookieBytes?: (globalToken: Buffer) => Buffer;
 };
 
 const isHash = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
@@ -330,11 +339,13 @@ export async function beforeActions(request: RailsRequest, options: ActionOption
   // set_csrf_meta_tags: form_authenticity_token reads the session's token or mints one.
   const csrfToken =
     typeof session.data._csrf_token === "string" ? session.data._csrf_token : randomBytes(AUTHENTICITY_TOKEN_LENGTH).toString("base64url");
-  const auth = await resolveRequestAuth(request, now);
+  const auth: ResolvedAuth = options.bare
+    ? { context: { loggedInUser: null, currentSeller: null, impersonatedUser: null }, effects: { signOut: false, signedOut: null, clearCurrentSeller: false }, authenticatedVia: null }
+    : await resolveRequestAuth(request, now);
   // Devise's rememberable strategy signs the visitor in by writing the session and the tracked
   // sign-in fields, which is Rails' to do: the proxy sends such requests there.
   if (auth.authenticatedVia === "remember_cookie") throw new NotPortedError("Devise's remember-cookie sign-in");
-  const chain: Chain = { request, now, headers, session, csrfToken, guid: null, auth, cookies: [], sessionCleared: false, pageState: {}, afterCookies: options.afterCookies ?? [] };
+  const chain: Chain = { request, now, headers, session, csrfToken, guid: null, auth, cookies: [], sessionCleared: false, pageState: {}, afterCookies: options.afterCookies ?? [], bare: options.bare ?? false, xsrfCookieBytes: options.xsrfCookieBytes };
 
   if (options.prepended) {
     const redirect = await options.prepended(chain);
@@ -369,9 +380,9 @@ export async function beforeActions(request: RailsRequest, options: ActionOption
     }
   }
 
-  if (!railsLoggedInUser(auth.context)) setSignupReferrer(request, session, config.rootDomain);
+  if (!railsLoggedInUser(auth.context) && !options.bare) setSignupReferrer(request, session, config.rootDomain);
   if (!options.skip?.includes("check_suspended") && suspendedWriteRequest(auth, request)) return refuseSuspendedWrite(chain);
-  chain.guid = gumroadGuidCookie(request, now);
+  if (!options.bare) chain.guid = gumroadGuidCookie(request, now);
   if (!RECOMMENDER_MODELS.includes(session.data.recommender_model_name as string)) {
     session.data.recommender_model_name = RECOMMENDER_MODELS[Math.floor(Math.random() * RECOMMENDER_MODELS.length)];
   }
@@ -458,9 +469,19 @@ function refuseSuspendedWrite(chain: Chain): ControllerResponse {
 
 export const halted = (outcome: Chain | ControllerResponse): outcome is ControllerResponse => !("session" in outcome);
 
-const xsrfCookie = (chain: Chain) => setCookieHeader(XSRF_TOKEN_COOKIE, { value: formAuthenticityToken(chain.csrfToken), path: "/", sameSite: "lax" });
+const xsrfCookie = (chain: Chain) => {
+  if (chain.xsrfCookieBytes) {
+    // Rack escapes the bytes (URI.encode_www_form_component); the cookie value is not valid UTF-8, so it cannot go through setCookieHeader.
+    const value = Array.from(chain.xsrfCookieBytes(globalCsrfToken(chain.csrfToken)))
+      .map((byte) => (/[*\-._0-9A-Za-z]/.test(String.fromCharCode(byte)) ? String.fromCharCode(byte) : byte === 0x20 ? "+" : `%${byte.toString(16).toUpperCase().padStart(2, "0")}`))
+      .join("");
+    return `${XSRF_TOKEN_COOKIE}=${value}; path=/; samesite=lax`;
+  }
+  return setCookieHeader(XSRF_TOKEN_COOKIE, { value: formAuthenticityToken(chain.csrfToken), path: "/", sameSite: "lax" });
+};
 
-function commitSession({ request, headers, session, csrfToken, now, sessionCleared }: Chain): void {
+function commitSession({ request, headers, session, csrfToken, now, sessionCleared, bare }: Chain): void {
+  if (bare) return;
   if (!sessionCleared) session.data._csrf_token = csrfToken;
   headers.append("set-cookie", sessionCookie(request, session, now));
 }
@@ -500,9 +521,10 @@ export function afterActions(chain: Chain, result: ActionResult): ControllerResp
     if (vary) headers.set("vary", vary);
   }
   if (chain.guid) headers.append("set-cookie", chain.guid);
+  if (!("location" in result)) for (const cookie of result.cookies ?? []) headers.append("set-cookie", cookie);
   if (!result.rescued) {
     for (const cookie of chain.afterCookies) headers.append("set-cookie", cookie);
-    headers.append("set-cookie", xsrfCookie(chain));
+    if (!chain.bare) headers.append("set-cookie", xsrfCookie(chain));
   }
   commitSession(chain);
   for (const cookie of chain.cookies) headers.append("set-cookie", cookie);
@@ -540,7 +562,8 @@ async function runChain(
 // Rack::ETag, then Rack::ConditionalGet.
 function applyEtag(request: RailsRequest, response: ControllerResponse): void {
   let digest: string | null = null;
-  if ((response.status === 200 || response.status === 201) && !response.headers.has("cache-control") && response.body !== "") {
+  // Rack::ETag skips only a Cache-Control that says no-cache; an `expires_in` response is tagged too.
+  if ((response.status === 200 || response.status === 201) && !response.headers.get("cache-control")?.includes("no-cache") && response.body !== "") {
     digest = createHash("sha256").update(response.body).digest("hex").slice(0, ETAG_DIGEST_LENGTH);
     response.headers.set("etag", `W/"${digest}"`);
   }
@@ -656,7 +679,7 @@ export async function processAction(
   applyCorsVary(response.headers);
   // Rack::Head
   const body = request.method === "HEAD" || response.body === "" ? null : response.body;
-  return new Response(body, { status: response.status, headers: response.headers });
+  return new Response(body as BodyInit | null, { status: response.status, headers: response.headers });
 }
 
 // The envelope Rails puts around an Inertia HTML response, for a page Next.js renders itself: an

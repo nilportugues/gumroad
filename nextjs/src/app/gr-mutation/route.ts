@@ -19,6 +19,8 @@ import "@/server/controllers/communities-mutations";
 import "@/server/controllers/secure-redirect-mutations";
 import "@/server/controllers/dropbox-files";
 import "@/server/controllers/media-locations";
+import "@/server/controllers/public-mutations";
+import "@/server/controllers/seller-mutations";
 import { mutationResponse } from "@/server/controllers/mutation";
 
 export const POST = mutationResponse;
