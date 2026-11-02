@@ -24,6 +24,7 @@ import "@/server/controllers/seller-mutations";
 import "@/server/controllers/internal-admin/index";
 import "@/server/controllers/internal-api";
 import "@/server/controllers/product-editor-json";
+import "@/server/controllers/product-editor-mutations";
 import { mutationResponse } from "@/server/controllers/mutation";
 
 export const POST = mutationResponse;
