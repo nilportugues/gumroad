@@ -3,7 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { readEncryptedCookie } from "../auth/rails-cookies.ts";
 import { resetRailsCacheForTesting } from "../cache/rails-cache.ts";
@@ -36,6 +36,7 @@ const ROUTES: Record<string, ReturnType<typeof healthcheckRoute>> = {
 };
 
 // Nothing in Redis, as the generator leaves it.
+const RECORDED_AT = new Date("2026-10-31T21:00:00Z");
 const emptyRedis = { get: async () => null, zremrangebyscore: async () => 0, zcard: async () => 0 } as unknown as ReturnType<HealthcheckDeps["redis"]>;
 
 function describeCookie(line: string, requestCsrf: string | undefined, now: number): Cookie {
@@ -73,6 +74,8 @@ describe("ApplicationController envelope around healthcheck actions", () => {
     process.env.SECRET_KEY_BASE = golden.secretKeyBase;
     delete process.env.REVISION_DEFAULT;
     delete process.env.ENV_IDENTIFIER_DEV;
+    // The recorded session cookies carry an expiry; read them at the time they were recorded.
+    vi.useFakeTimers({ toFake: ["Date"], now: RECORDED_AT });
   });
 
   beforeEach(() => {
@@ -82,6 +85,7 @@ describe("ApplicationController envelope around healthcheck actions", () => {
 
   afterAll(() => {
     setHealthcheckDepsForTesting(null);
+    vi.useRealTimers();
     setSubdomainRedirectorDepsForTesting(null);
     resetRailsCacheForTesting();
     process.env = saved;
