@@ -645,3 +645,24 @@ Flags: `nextjs_social_callbacks`, `nextjs_connections_unlink`, `nextjs_oauth_app
 ### Not covered in WS-10b
 
 Token endpoints (`/oauth/token`, `/revoke`, `/introspect`, `/oauth/token/info`, the device flow, the MCP/Claude/ChatGPT/Muse/IFTTT/Notion aliases): refresh locks, PKCE, dynamic clients and `MobileAccountToken`. Authorization screens (`/oauth/authorize*`, `mobile_pre_authorization`, `/notion/oauth2/authorize`): consent rendering with `PreAuthorization`. Integrations (`circle`, `zoom`, `google_calendar`, `discord`): they call providers through `Ratelimit` (Redis) and Discordrb, and the `oauth_redirect` actions render the unported ERB `application` layout. `mcp_connectors`, `third_party_analytics` and `oauth_completions/stripe` (Stripe call) render ERB or call Stripe. `unlink_twitter` as above. All of these stay in Rails (no entry in `routes.json`).
+
+## Library, communities and upload endpoints (WS-16)
+
+Mutations and JSON endpoints, all recorded from Rails (`spec/requests/{library_mutations,communities_mutations,secure_redirect_mutations}_signed_in_spec.rb`,
+`content_delivery_json_signed_in_spec.rb`; 12 + 20 + 12 + 24 requests plus the sign-in and CSRF set-up) and replayed by `parity/__tests__/content-delivery-mutations.replay.test.ts`
+(64 tests: status, redirect, flash, cookies, JSON, every row written, every job).
+
+- **Flags**: `nextjs_library_writes`, `nextjs_communities_writes`, `nextjs_auth_secure_redirect` (`POST /secure_url_redirect`), `nextjs_s3_utility`, `nextjs_dropbox_files`, `nextjs_media_locations`.
+- **Library** (`controllers/library-mutations.ts`, `models/purchase-library-writes.ts`): archive, unarchive and delete flip one flag of the buyer's purchase. The write carries PaperTrail, the
+  Elasticsearch `flags` update and the creator analytics cache job. Validations are not run (`update!` would raise on a record that fails them). `skip: ["check_suspended"]` is a new `ActionOptions` entry.
+- **Communities** (`controllers/communities-mutations.ts`, `models/community-chat-writes.ts`): chat message create/update/destroy, the read marker (`LastReadCommunityChatMessage.set!`), notification settings.
+  The chat broadcast is `infra/anycable.ts`: an `XADD` to AnyCable's `redisx` stream, byte-for-byte what the real gems write (`scripts/golden/anycable.rb`, `infra/__fixtures__/anycable.golden.json`).
+  AnyCable's Redis is `ANYCABLE_REDIS_URL`, else `REDIS_URL` (the stream `ANYCABLE_REDIS_CHANNEL` or `__anycable__`); a deployment with neither hands the request back before the first write.
+  A message body that is not a hash, or an invalid recap frequency, is Rails' 400/500 and goes to Rails.
+- **Secure redirect** (`controllers/secure-redirect-mutations.ts`, `auth/secure-encrypt.ts`): `SecureEncryptService.decrypt` and the confirmation form. A `send_confirmation_text` destination whose query Ruby's `URI`/`Rack` parse would read differently goes to Rails.
+- **JSON endpoints** (`controllers/json-actions.ts`): `jsonAction` runs a route handler through `processAction`; `jsonSellerGuard` answers Pundit's refusal as `401 {success: false, error}` for JSON (`MutationSpec.anyFormat` lets a mutation take JSON).
+  S3 utility (`generate_multipart_signature`, `current_utc_time_string`, `cdn_url_for_blob`), Dropbox chooser (`index`, `create`, `cancel_upload`; the S3 transfer stays `TransferDropboxFileToS3Worker` in Sidekiq) and `POST /media_locations`.
+  Hand-backs: a Dropbox `link_id` that is not the seller's product (Rails leaves the file row behind), an EPUB location with a CFI, a `consumed_at` that is not ISO 8601 with an offset, a blob on another storage service.
+- **Not served by Node** (still Rails, not in `routes.json`): every `UrlRedirects` route (`/d`, `/r`, `/s`, `/read`, `/zip`, `/media_urls`, `confirm`, `change_purchaser`, `send_to_kindle`, `save_last_content_page`, `play`), `GET /read` and `/library` on custom hosts,
+  the Active Storage engine routes (`/rails/active_storage/**`: its controllers inherit `ActionController::Base`, not `ApplicationController`, so they need their own chain; the signed-id verifier and the SigV4 PUT presign for direct uploads need goldens),
+  PDF/EPUB stamping, and `Purchases/Invoices/New`. The signing building blocks they need already exist (`infra/signed-urls.ts`: CloudFront and S3 presigned downloads, `infra/storage.ts`).
