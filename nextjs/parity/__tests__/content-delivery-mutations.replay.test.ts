@@ -22,8 +22,8 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
-const SPECS = ["library_mutations_signed_in_spec", "communities_mutations_signed_in_spec"];
-const ROUTE_FLAGS = "nextjs_library_writes,nextjs_communities_writes";
+const SPECS = ["library_mutations_signed_in_spec", "communities_mutations_signed_in_spec", "secure_redirect_mutations_spec"];
+const ROUTE_FLAGS = "nextjs_library_writes,nextjs_communities_writes,nextjs_auth_secure_redirect";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
@@ -128,6 +128,7 @@ describe.skipIf(!url)("mutations of library and content delivery", () => {
     server = await startNextServer({
       RAILS_ENV: "test",
       OBFUSCATE_IDS_CIPHER_KEY: obfuscateKey ?? "",
+      SECURE_ENCRYPT_KEY: testEnv("SECURE_ENCRYPT_KEY") ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
       NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS,
       ELASTICSEARCH_HOST: process.env.ELASTICSEARCH_HOST ?? "http://localhost:9200",

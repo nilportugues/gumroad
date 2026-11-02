@@ -9,6 +9,7 @@ import "@/server/controllers/connections-mutations";
 import "@/server/controllers/oauth-applications-mutations";
 import "@/server/controllers/library-mutations";
 import "@/server/controllers/communities-mutations";
+import "@/server/controllers/secure-redirect-mutations";
 import { mutationResponse } from "@/server/controllers/mutation";
 
 export const POST = mutationResponse;
