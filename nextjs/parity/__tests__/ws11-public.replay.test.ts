@@ -165,8 +165,8 @@ describe.skipIf(!url)("WS-11 public files parity", () => {
       });
       try {
         assertParity(result);
-        const expectedSeller = loadFixture(fixturePath).exchanges[index]!.response.cookies?.current_seller_id?.value;
-        const actualSeller = result.exchanges[0]!.actual.response.cookies?.current_seller_id?.value;
+        const expectedSeller = loadFixture(fixturePath).exchanges[index]!.response.cookies?.current_seller_id?.value as string | undefined;
+        const actualSeller = result.exchanges[0]!.actual.response.cookies?.current_seller_id?.value as string | undefined;
         if (expectedSeller !== undefined || actualSeller !== undefined) {
           const read = (value: string | undefined) => readEncryptedCookie(deriveRailsCookieSecrets(SECRET_KEY_BASE), "current_seller_id", value);
           expect(read(actualSeller)).toBe(read(expectedSeller));
