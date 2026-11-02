@@ -100,3 +100,32 @@ export async function summaries(installmentIds: (number | bigint)[]): Promise<Ma
   }
   return new Map(ids.map((id) => [id, counts.get(id) ?? summaryFromItem(undefined)]));
 }
+
+// `display_url(url)`: how a stored click URL is shown. Distinct stored URLs can share it (http vs https, www).
+const displayUrl = (url: string): string => url.replace(/&#46;/gu, ".").replace(/^https?:\/\//iu, "").replace(/^www\./iu, "");
+
+// EmailEngagementDynamoStore.url_click_counts(installment_id): the click total per displayed URL, in the order the table returned them.
+export async function urlClickCounts(installmentId: number | bigint): Promise<Map<string, number>> {
+  const items: Item[] = [];
+  let startKey: unknown;
+  do {
+    const response = await call("Query", {
+      TableName: tableName(),
+      KeyConditionExpression: "pk = :pk AND begins_with(sk, :prefix)",
+      ExpressionAttributeValues: { ":pk": { S: String(installmentId) }, ":prefix": { S: "URL#" } },
+      ...(startKey === undefined ? {} : { ExclusiveStartKey: startKey }),
+    });
+    items.push(...((response.Items as Item[] | undefined) ?? []));
+    startKey = response.LastEvaluatedKey;
+  } while (startKey !== undefined && startKey !== null && Object.keys(startKey as object).length > 0);
+
+  const counts = new Map<string, number>();
+  for (const item of items) {
+    const raw = item.click_url;
+    if (raw !== undefined && raw.S === undefined) throw new NotPortedError("a click_url that is not a string");
+    const url = displayUrl(raw?.S ?? "");
+    if (/^\s*$/u.test(url)) continue;
+    counts.set(url, (counts.get(url) ?? 0) + toI(item.click_count));
+  }
+  return counts;
+}

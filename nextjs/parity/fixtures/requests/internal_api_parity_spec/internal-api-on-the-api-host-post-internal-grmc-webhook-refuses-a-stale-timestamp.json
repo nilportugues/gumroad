@@ -1,0 +1,105 @@
+{
+  "version": 1,
+  "spec": "spec/requests/internal_api_parity_spec.rb",
+  "example": "Internal API on the API host POST /internal/grmc/webhook refuses a stale timestamp",
+  "sessionCookie": "_gumroad_app_session_test",
+  "secretKeyBase": "9eca9341f09cebad46784962e75bf474b568dbbbc8b6caca4fe2a1a202f9a67352a6f26aa84f1e7b93fe42b3f14726104ca09aa6215890c4107038f2846785aa",
+  "recordedOn": "2026-11-02",
+  "exchanges": [
+    {
+      "seed": {
+        "tables": {},
+        "autoIncrement": {}
+      },
+      "redis": {
+        "disable_braintree_sales": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "disable_braintree_sales",
+            "paypal_payout_fee",
+            "seller_refund_policy_new_users_enabled",
+            "store_discover_searches"
+          ]
+        },
+        "paypal_payout_fee": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "seller_refund_policy_new_users_enabled": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "store_discover_searches": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        }
+      },
+      "request": {
+        "source": "request",
+        "method": "POST",
+        "path": "/internal/grmc/webhook",
+        "headers": {
+          "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
+          "content-type": "application/json",
+          "grmc-signature": "t=1793582737515,v0=3abb98d9150906d6fe320c941cb486b4c315fdfaf49b0a1abe3cf74cc7aa561f",
+          "host": "api.test.gumroad.com:31337"
+        },
+        "remoteIp": "127.0.0.1",
+        "body": "{\"job_id\":\"job-1\",\"status\":\"success\",\"nested\":{\"ids\":[1,2]}}"
+      },
+      "response": {
+        "status": 401,
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json; charset=utf-8",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-original-headers-class": "Rack::Headers",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": {
+          "_gumroad_app_session_test": {
+            "value": "MESsZSgKcszCNapdapZI5u4QtsCyQylAWHp7h3nUgD1K2ZhuJA5wXfWZAdoUDidE21UEjf6j5LyXSL2ZQRfKQwveoVrt2fUfkV+McaMlToeGuo+aKqa0sSudFbrm9neVJ7nZoegmSgqdJfCS20NisuR7uBr0btrNe2yJ6RE4tF69dYK5xOw+7JY6szs+RHIoL5wvntoaC+jv6c+YmprLb8fWFq0/RXSdOYO24sD1v2vBp/pHnr0zi+P35YjcAY+tESdvi5FA+xay08C7RADO7zSSCrC5+T8CqEav5Uve4eI4gXAj8PUXeCVxwNFlRcYLVc3Tan6U7K+ZFjDoQMAPhKO/5YfCIt/bstG8h3kK6qsY0gWTAPgaPO97jKOsc0KgkEas--i9AVNSRNYBGhK9O0--Mtdoa1HnYPLjmrjPqAaIbA==",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          },
+          "_gumroad_guid": {
+            "value": "<volatile>",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          }
+        },
+        "json": {
+          "success": false,
+          "message": "invalid timestamp or signature"
+        }
+      },
+      "db": {},
+      "jobs": [],
+      "mails": [],
+      "http": []
+    }
+  ]
+}
