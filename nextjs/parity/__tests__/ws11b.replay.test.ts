@@ -13,6 +13,7 @@ import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { ELASTICSEARCH_HOST, recreateIndex, reindexPurchases, replayIndexName } from "../src/elasticsearch";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
+import type { JobsChannel, RawJob } from "../src/channels";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
 
@@ -22,8 +23,8 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
-const SPECS = ["utm_links_mutations_signed_in_spec"];
-const ROUTE_FLAGS = ["nextjs_utm_links_writes", "nextjs_utm_link_tracking"].join(",");
+const SPECS = ["utm_links_mutations_signed_in_spec", "wishlist_items_mutations_signed_in_spec"];
+const ROUTE_FLAGS = ["nextjs_utm_links_writes", "nextjs_utm_link_tracking", "nextjs_wishlist_items_writes", "nextjs_wishlist_unsubscribe"].join(",");
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "-parity";
@@ -47,13 +48,52 @@ const COMPARE = {
     "db.utm_links.inserted.*.created_at",
     "db.utm_links.inserted.*.updated_at",
     "db.utm_links.updated.*.changes.updated_at",
+    "db.wishlist_followers.inserted.*.created_at",
+    "db.wishlist_followers.inserted.*.updated_at",
+    "db.wishlist_followers.updated.*.changes.updated_at",
+    "db.wishlist_followers.updated.*.changes.deleted_at",
+    "db.wishlist_products.inserted.*.created_at",
+    "db.wishlist_products.inserted.*.updated_at",
+    "db.wishlist_products.updated.*.changes.updated_at",
+    "db.wishlist_products.updated.*.changes.deleted_at",
+    "db.wishlists.updated.*.changes.updated_at",
     "http",
+    "jobs.*.at",
   ],
 };
 
 const NEXT_VARY = /(?:rsc|next-router-state-tree|next-router-prefetch|next-router-segment-prefetch)(?:, )?/g;
 const withoutNextVary = (vary: unknown) => (typeof vary === "string" ? vary.replace(NEXT_VARY, "") : vary);
 const HANDED_BACK = /hands-a-|through-rails/;
+
+// Jobs Node enqueues are BullMQ jobs wrapping the Sidekiq item; jobs of a class Ruby still runs sit in Sidekiq's own lists and schedule.
+const jobKey = (job: { class: string; args: unknown; queue?: string }) => `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
+const redisJobs = (redis: Redis): JobsChannel => ({
+  async reset() {
+    /* the seeder flushes the database */
+  },
+  async drain(): Promise<RawJob[]> {
+    const jobs: RawJob[] = [];
+    for (const key of await redis.keys("bull:*")) {
+      if ((await redis.type(key)) !== "hash") continue;
+      const data = await redis.hget(key, "data");
+      if (data === null) continue;
+      const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as { class: string; args: unknown[]; queue: string; at?: number };
+      jobs.push({ class: item.class, args: item.args, queue: item.queue, ...(item.at === undefined ? {} : { at: item.at }) });
+    }
+    for (const key of await redis.keys("queue:*")) {
+      for (const raw of await redis.lrange(key, 0, -1)) {
+        const item = JSON.parse(raw) as { class: string; args: unknown[]; queue: string };
+        jobs.push({ class: item.class, args: item.args, queue: item.queue });
+      }
+    }
+    for (const raw of await redis.zrange("schedule", "0", "-1")) {
+      const item = JSON.parse(raw) as { class: string; args: unknown[]; queue: string; at: number };
+      jobs.push({ class: item.class, args: item.args, queue: item.queue, at: item.at });
+    }
+    return jobs.sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
+  },
+});
 
 const cases = SPECS.flatMap((spec) => {
   const dir = path.join(FIXTURES, spec);
@@ -136,9 +176,10 @@ describe.skipIf(!url)("ws11b storefront and audience", () => {
     },
     transport: httpTransport(server.baseUrl),
     interceptHttp: false,
+    jobs: redisJobs(redis),
     rewriteRequest: (request: Parameters<typeof reencryptCookies>[0], loaded: Parameters<typeof reencryptCookies>[1], now: Date) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
     // The 404 page body is not recorded.
-    compare: { ignore: [...COMPARE.ignore, ...(name.includes("404") ? ["response.body"] : []), ...(name.includes("generates-a-permalink") ? ["db.utm_links.inserted.*.permalink"] : [])] },
+    compare: { ignore: [...COMPARE.ignore, ...(name.includes("404") ? ["response.body", "response.json", "response.headers.content-type"] : []), ...(name.includes("generates-a-permalink") ? ["db.utm_links.inserted.*.permalink"] : [])] },
   });
 
   it("finds the fixtures", () => {
@@ -156,6 +197,8 @@ describe.skipIf(!url)("ws11b storefront and audience", () => {
     async (name, file, index) => {
       try {
         const fixture = loadFixture(file);
+        const recorded = fixture.exchanges[index]!;
+        recorded.jobs = [...(recorded.jobs ?? [])].sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
         if (HANDED_BACK.test(name)) {
           handedBack.length = 0;
           const handed = await replayFixtureExchange(fixture, index, options(name));
