@@ -10,6 +10,7 @@ import { queryParam, isPresent } from "../rails-request.ts";
 import { requestFormat } from "../rails-params.ts";
 import { appDomainUrl, checkPermissions, createConsumptionEvent, loadRedirect, registerDownload, requireSellerForTestPurchase, type Loaded } from "./access.ts";
 import { aliveProductFiles, displayFilename, hlsPlaylistOrSmilPath, isFileDownloadable, signedLocationForFile, signedUrl, StorageObjectMissing, triggerFilesLifecycleEvents, type DeliveryFile } from "./files.ts";
+import { downloadSubtitleFile, hlsPlaylistAction, smil } from "./streaming.ts";
 import { isListenable, isStreamable, mustBePdfStamped, s3Fields } from "../../models/product-file.ts";
 
 const FOUND = 302;
@@ -142,6 +143,11 @@ async function mediaUrls(token: string, action: ActionContext): Promise<ActionRe
 
 const encryptId = ({ file }: DeliveryFile) => encrypt(file.id);
 
+const PRODUCT_FILE_ROUTES: { pattern: RegExp; run: (token: string, fileId: string, action: ActionContext) => Promise<ActionResult> }[] = [
+  { pattern: /^\/r\/([^/.]+)\/([^/.]+)\/stream\.smil$/u, run: smil },
+  { pattern: /^\/r\/([^/.]+)\/([^/.]+)\/index\.m3u8$/u, run: hlsPlaylistAction },
+];
+
 const ROUTES: { pattern: RegExp; run: (token: string, action: ActionContext) => Promise<ActionResult> }[] = [
   { pattern: /^\/r\/([^/.]+)\/product_files(?:\.json)?$/u, run: downloadProductFiles },
   { pattern: /^\/r\/([^/.]+)$/u, run: show },
@@ -155,5 +161,11 @@ export async function urlRedirectsAction(action: ActionContext): Promise<ActionR
     const match = route.pattern.exec(path);
     if (match) return route.run(decodeURIComponent(match[1]!), action);
   }
+  for (const route of PRODUCT_FILE_ROUTES) {
+    const match = route.pattern.exec(path);
+    if (match) return route.run(decodeURIComponent(match[1]!), decodeURIComponent(match[2]!), action);
+  }
+  const subtitle = /^\/r\/([^/.]+)\/([^/.]+)\/([^/.]+)$/u.exec(path);
+  if (subtitle) return downloadSubtitleFile(decodeURIComponent(subtitle[1]!), decodeURIComponent(subtitle[2]!), decodeURIComponent(subtitle[3]!), action);
   throw new RoutingError("Not Found");
 }

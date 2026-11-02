@@ -31,6 +31,8 @@ const SPEC_OBJECTS: Record<string, string> = {
   "specs/billion-dollar-company-chapter-0.pdf": "%PDF-1.4 delivery spec",
   "specs/ScreenRecording.mov": "delivery spec video",
   "specs/magic.mp3": "delivery spec audio",
+  "specs/captions.srt": "1\n00:00:01,000 --> 00:00:02,000\nHello\n",
+  "attachments/0123456789abcdef0123456789abcdef/movie/hls/index.m3u8": "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000,RESOLUTION=640x360\nindex_360.m3u8\n#EXT-X-ENDLIST\n",
 };
 const SPEC_BUCKET = "gumroad-specs";
 const ROUTE_FLAGS = "nextjs_consumption_analytics,nextjs_url_redirect_writes,nextjs_url_redirect_delivery";
@@ -98,7 +100,7 @@ const COMPARE = {
 
 // X-Amz-Date, the date in the credential scope and the signature depend on the second a URL was signed at.
 const mask = (value: unknown): unknown => {
-  if (typeof value === "string") return value.replace(/X-Amz-Date=\d{8}T\d{6}Z/gu, "X-Amz-Date=<signed-at>").replace(/(X-Amz-Credential=[^&]*?)%2F\d{8}%2F/gu, "$1%2F<date>%2F").replace(/X-Amz-Signature=[0-9a-f]{64}/gu, "X-Amz-Signature=<signature>");
+  if (typeof value === "string") return value.replace(/X-Amz-Date=\d{8}T\d{6}Z/gu, "X-Amz-Date=<signed-at>").replace(/(X-Amz-Credential=[^&]*?)%2F\d{8}%2F/gu, "$1%2F<date>%2F").replace(/X-Amz-Signature=[0-9a-f]{64}/gu, "X-Amz-Signature=<signature>").replace(/(?<![-\w])Expires=\d{10}/gu, "Expires=<expires>").replace(/(?<![-\w])Signature=[A-Za-z0-9+/=_~-]+/gu, "Signature=<signature>");
   if (Array.isArray(value)) return value.map(mask);
   if (value !== null && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, mask(item)]));
   return value;
@@ -156,6 +158,8 @@ describe.skipIf(!url)("url redirect delivery", () => {
       REDIS_HOST: redisHost,
       SIDEKIQ_REDIS_HOST: redisHost,
       RACK_ATTACK_REDIS_HOST: redisHost,
+      ...(testEnv("CLOUDFRONT_PRIVATE_KEY") ? { CLOUDFRONT_PRIVATE_KEY: testEnv("CLOUDFRONT_PRIVATE_KEY")!.replaceAll("\\n", "\n") } : {}),
+      ...(testEnv("CLOUDFRONT_KEYPAIR_ID") ? { CLOUDFRONT_KEYPAIR_ID: testEnv("CLOUDFRONT_KEYPAIR_ID")! } : {}),
       DYNAMODB_ENDPOINT: process.env.DYNAMODB_ENDPOINT ?? "http://localhost:8012",
       ...(testEnv("DYNAMODB_TABLE_PREFIX") ? { DYNAMODB_TABLE_PREFIX: testEnv("DYNAMODB_TABLE_PREFIX")! } : {}),
       AWS_S3_ENDPOINT: process.env.AWS_S3_ENDPOINT ?? "http://localhost:9010",
@@ -193,7 +197,14 @@ describe.skipIf(!url)("url redirect delivery", () => {
   });
 
   it("compiles the handler", async () => {
-    for (const [name, file, index] of [cases[0]!]) {
+    // One request per route shape, so no comparison pays for a route's first compile.
+    const shapes = new Map<string, (typeof cases)[number]>();
+    for (const entry of cases) {
+      const request = loadFixture(entry[1]).exchanges[entry[2]]!.request;
+      const shape = `${request.method} ${request.path.replace(/\/[0-9a-f]{32}/gu, "/:token").replace(/\/[A-Za-z0-9_-]+==/gu, "/:id")}`;
+      if (!shapes.has(shape)) shapes.set(shape, entry);
+    }
+    for (const [name, file, index] of shapes.values()) {
       const { file: _file, ...options } = replayOptions(file, name);
       await replayFixtureExchange(file, index, options).catch(() => undefined);
     }

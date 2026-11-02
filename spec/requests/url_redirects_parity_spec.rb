@@ -25,6 +25,8 @@ describe "Url redirect delivery", type: :request do
     "specs/billion-dollar-company-chapter-0.pdf" => "%PDF-1.4 delivery spec",
     "specs/ScreenRecording.mov" => "delivery spec video",
     "specs/magic.mp3" => "delivery spec audio",
+    "specs/captions.srt" => "1\n00:00:01,000 --> 00:00:02,000\nHello\n",
+    "attachments/0123456789abcdef0123456789abcdef/movie/hls/index.m3u8" => "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000,RESOLUTION=640x360\nindex_360.m3u8\n#EXT-X-ENDLIST\n",
   }.freeze
 
   before do
@@ -544,6 +546,110 @@ describe "Url redirect delivery", type: :request do
       post_json "/consumption_analytics", event_params.merge(url_redirect_id: "garbage")
 
       expect(response.parsed_body).to eq("success" => false)
+    end
+  end
+
+  describe "streaming deliveries" do
+    let(:video) { create(:streamable_video, link: product, display_name: "Lesson") }
+    let(:forwarded) { { "X-Forwarded-For" => "203.0.113.9" } }
+
+    before { video }
+
+    def transcode(file)
+      create(:transcoded_video, streamable: file, key_base_path: "attachments/0123456789abcdef0123456789abcdef", original_video_key: "attachments/0123456789abcdef0123456789abcdef/movie.mp4", is_hls: true)
+    end
+
+    it "serves the SMIL of a video", parity: true do
+      get url_redirect_smil_for_product_file_path(token, video.external_id), headers: forwarded
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to start_with("<smil><body><switch><video src=")
+      expect(ConsumptionEvent.last).to have_attributes(event_type: "watch", product_file_id: video.id)
+    end
+
+    it "starts a rental's viewing window with the SMIL", parity: true do
+      set_purchase_flags(purchase, is_rental: true)
+      url_redirect.update!(is_rental: true)
+
+      get url_redirect_smil_for_product_file_path(token, video.external_id), headers: forwarded
+
+      expect(url_redirect.reload.rental_first_viewed_at).to be_present
+    end
+
+    it "answers 404 for the SMIL of a file the redirect does not hold", parity: true do
+      get url_redirect_smil_for_product_file_path(token, create(:streamable_video, link: create(:product, user: seller)).external_id), headers: forwarded
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "keeps a test purchase's SMIL to the seller", parity: true do
+      test_purchase = create(:free_purchase, link: product, purchaser: seller, email: seller.email, purchase_state: "test_successful")
+      redirect = create(:url_redirect, link: product, purchase: test_purchase, uses: 0, expires_at: nil)
+
+      get url_redirect_smil_for_product_file_path(redirect.token, video.external_id)
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "serves the HLS playlist with signed lines", parity: true do
+      transcode(video)
+
+      get hls_playlist_for_product_file_path(token, video.external_id), headers: forwarded
+
+      expect(response).to have_http_status(:ok)
+      expect(response.media_type).to eq("application/x-mpegurl")
+      expect(response.body).to include("Signature=")
+      expect(ConsumptionEvent.last).to have_attributes(event_type: "watch")
+    end
+
+    it "serves the first file's playlist for an unknown file", parity: true do
+      transcode(video)
+
+      get hls_playlist_for_product_file_path(token, "unknown"), headers: forwarded
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "answers 404 for a video without a playlist", parity: true do
+      get hls_playlist_for_product_file_path(token, video.external_id), headers: forwarded
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "sends a confirmation to a visitor of a seen redirect asking for the playlist", parity: true do
+      transcode(video)
+      url_redirect.update!(has_been_seen: true)
+
+      get hls_playlist_for_product_file_path(token, video.external_id), headers: { "X-Forwarded-For" => "198.51.100.4" }
+
+      expect(response).to redirect_to(confirm_page_path(id: token, destination: "hls_playlist"))
+    end
+
+    it "redirects to the signed subtitle file", parity: true do
+      subtitle = create(:subtitle_file, product_file: video, url: "#{AWS_S3_ENDPOINT}/#{S3_BUCKET}/specs/captions.srt")
+
+      get url_redirect_download_subtitle_file_path(token, video.external_id, subtitle.external_id), headers: forwarded
+
+      expect(response).to have_http_status(:found)
+      expect(response.location).to include("X-Amz-Signature=")
+    end
+
+    it "answers 404 for a subtitle file of another video", parity: true do
+      subtitle = create(:subtitle_file, product_file: create(:streamable_video, link: product), url: "#{AWS_S3_ENDPOINT}/#{S3_BUCKET}/specs/captions.srt")
+
+      get url_redirect_download_subtitle_file_path(token, video.external_id, subtitle.external_id), headers: forwarded
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "answers 404 for a subtitle of a rented video", parity: true do
+      subtitle = create(:subtitle_file, product_file: video, url: "#{AWS_S3_ENDPOINT}/#{S3_BUCKET}/specs/captions.srt")
+      set_purchase_flags(purchase, is_rental: true)
+      url_redirect.update!(is_rental: true)
+
+      get url_redirect_download_subtitle_file_path(token, video.external_id, subtitle.external_id), headers: forwarded
+
+      expect(response).to have_http_status(:not_found)
     end
   end
 end
