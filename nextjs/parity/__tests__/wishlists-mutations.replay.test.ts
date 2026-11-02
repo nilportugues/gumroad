@@ -145,16 +145,10 @@ describe.skipIf(!url)("wishlists mutations", () => {
     expect(cases.length).toBeGreaterThan(0);
   });
 
-  // The first request to a route compiles it, which would age the seeded timestamps past the replayer's tolerance.
+  // The first request down a code path compiles what it imports, which would age the seeded timestamps past the
+  // replayer's tolerance. One warm-up per route is not enough: a 404 never reaches the modules a delete loads.
   it("compiles the handlers", async () => {
-    const warmed = new Set<string>();
-    for (const [, file, index] of cases) {
-      const request = loadFixture(file).exchanges.at(index)!.request;
-      const route = `${request.method} ${request.path.replace(/[?].*/, "")}`;
-      if (warmed.has(route)) continue;
-      warmed.add(route);
-      await replayFixtureExchange(file, index, options()).catch(() => undefined);
-    }
+    for (const [, file, index] of cases) await replayFixtureExchange(file, index, options()).catch(() => undefined);
   }, FIRST_COMPILE_TIMEOUT_MS * 3);
 
   it.each(cases)(
