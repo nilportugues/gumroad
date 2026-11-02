@@ -74,6 +74,9 @@ module Parity
     end
 
     attr_reader :exchanges
+    # What a controller spec passes to `get :show, params: {...}`: the test request keeps neither the params nor, between two
+    # requests of one example, the right path once it returns.
+    attr_accessor :controller_params, :controller_route
 
     def initialize(example)
       @example = example
@@ -228,6 +231,7 @@ module Parity
 
       def request_json(request, source, now)
         env = request.env
+        query = nil
         headers = env.filter_map do |key, value|
           next unless key.start_with?("HTTP_") && key != "HTTP_COOKIE"
 
@@ -236,11 +240,34 @@ module Parity
         headers["content-type"] = env["CONTENT_TYPE"] if env["CONTENT_TYPE"].present?
 
         body = request.raw_post.to_s
+        params = controller_params if source == "controller"
+        self.controller_params = nil
+        route = controller_route if source == "controller"
+        self.controller_route = nil
+        path = request.path
+        if route
+          begin
+            given = params.to_h.symbolize_keys
+            path, extra_keys = Rails.application.routes.generate_extras(route.merge(given))
+            params = given.slice(*extra_keys.map(&:to_sym))
+          rescue ActionController::UrlGenerationError
+            nil
+          end
+        end
+        if params && !params.empty?
+          encoded = params.to_query
+          if request.get? || request.delete? || request.head?
+            query = encoded
+          else
+            body = encoded if body.empty?
+            headers["content-type"] ||= "application/x-www-form-urlencoded"
+          end
+        end
         {
           "source" => source,
           "method" => request.request_method,
-          "path" => request.path,
-          "query" => query_with_date_tokens(request.query_string, now).presence,
+          "path" => path,
+          "query" => query_with_date_tokens(query || request.query_string, now).presence,
           "headers" => headers.sort.to_h,
           "cookies" => parse_cookie_header(env["HTTP_COOKIE"]),
           "remoteIp" => request.remote_ip,
@@ -407,10 +434,12 @@ module Parity
   end
 
   module ControllerHook
-    def process(...)
+    def process(action, **kwargs)
       recorder = Recorder.current
       return super unless recorder
 
+      recorder.controller_params = kwargs[:params]
+      recorder.controller_route = { controller: @controller.controller_path, action: action.to_s }
       recorder.capture(self, "controller") { super }
     end
   end
