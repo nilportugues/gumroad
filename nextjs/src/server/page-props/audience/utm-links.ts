@@ -88,7 +88,7 @@ async function users(ids: number[]): Promise<Map<number, User>> {
 }
 
 // The product and post a page of links points at, with the owners their URLs need.
-async function targets(links: UtmLinkRow[]) {
+export async function targets(links: UtmLinkRow[]) {
   const ids = (type: string) => [...new Set(links.filter((link) => link.target_resource_type === type && link.target_resource_id !== null).map((link) => Number(link.target_resource_id)))];
   const productIds = ids("product_page");
   const postIds = ids("post_page");
@@ -115,7 +115,7 @@ async function targets(links: UtmLinkRow[]) {
   return { products, posts, postLinks, owners };
 }
 
-type Targets = Awaited<ReturnType<typeof targets>>;
+export type Targets = Awaited<ReturnType<typeof targets>>;
 
 // Link#long_url
 function productLongUrl(product: LinkRow, { owners }: Targets): string {
@@ -168,7 +168,7 @@ export function destinationOption(
 const emptyTargets: Targets = { products: new Map(), posts: new Map(), postLinks: new Map(), owners: new Map() };
 
 // UtmLink#utm_url: nil when the target is gone.
-function utmUrl(seller: User, link: UtmLinkRow, resolved: Targets): string | null {
+export function utmUrl(seller: User, link: UtmLinkRow, resolved: Targets): string | null {
   let url: string | null;
   switch (link.target_resource_type) {
     case "profile_page":

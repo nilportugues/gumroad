@@ -98,7 +98,7 @@ export function csrfVerified(request: RailsRequest, params: Params): boolean {
 const PRIVATE_ADDRESS = /^(?:127\.|10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|::1$|fc|fd)/u;
 
 // ActionDispatch::RemoteIp trusts private proxies, so the client is the rightmost X-Forwarded-For entry that is not private.
-function remoteIp(request: RailsRequest): string | null {
+export function remoteIp(request: RailsRequest): string | null {
   const addresses = (request.headers.get("x-forwarded-for") ?? "").split(",").map((entry) => entry.trim()).filter((entry) => entry !== "");
   return [...addresses].reverse().find((address) => !PRIVATE_ADDRESS.test(address)) ?? addresses[0] ?? null;
 }
