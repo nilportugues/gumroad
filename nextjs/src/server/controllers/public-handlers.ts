@@ -19,6 +19,7 @@ import { avatarUrl } from "../page-props/signed-in/presenters.ts";
 import { userByDomain } from "../page-props/storefront/seller-host.ts";
 import { PAGE_URL_HEADER } from "../page-props/render-state.ts";
 import { type ActionOptions, type ActionResult, HandBackToRails, processAction, type Rendered } from "./application-controller.ts";
+import { mobileResponse } from "./mobile-api.ts";
 import { chargeData, licenseKeyLookupData, paypalChargeData } from "./public-data.ts";
 import { assertFlatQuery } from "./rails-params.ts";
 import { queryParam, type RailsRequest, railsRequest } from "./rails-request.ts";
@@ -183,6 +184,8 @@ const HANDLERS: Record<string, Handler> = {
 };
 
 export async function publicHandlerResponse(incoming: Request, name: string): Promise<Response> {
+  // Api::Mobile: every method, and a body to read.
+  if (name === "mobile") return mobileResponse(incoming);
   const handler = HANDLERS[name];
   const target = incoming.headers.get(PAGE_URL_HEADER);
   if (handler === undefined || target === null) return new Response(null, { status: 404 });
