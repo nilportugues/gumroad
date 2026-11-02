@@ -1,5 +1,6 @@
 // Internal target of the proxy's rewrites of the small public endpoints (robots.txt, the favicon, ACME challenges...). Never routed
 // to from outside: the proxy sends any request for this path to Rails.
+import "@/server/controllers/mobile-simple";
 import { publicHandlerResponse } from "@/server/controllers/public-handlers";
 
 type Context = { params: Promise<{ action: string }> };
@@ -8,4 +9,9 @@ export async function GET(request: Request, { params }: Context) {
   return publicHandlerResponse(request, (await params).action);
 }
 
+// The mobile API (name `mobile`) also takes writes.
+export const POST = GET;
+export const PUT = GET;
+export const PATCH = GET;
+export const DELETE = GET;
 export const HEAD = GET;

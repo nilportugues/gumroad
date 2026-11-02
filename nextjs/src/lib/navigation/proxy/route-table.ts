@@ -9,6 +9,8 @@ export type HostScope =
   | "seller"
   // Only a custom domain that points at one product (ProductCustomDomainConstraint).
   | "product"
+  // ApiDomainConstraint: the API host (`api.gumroad.com`), where the mobile and v2 endpoints live.
+  | "api"
   | "any";
 
 export type RouteEntry = {
@@ -95,6 +97,7 @@ export function compileRouteTable(table: RouteTable): CompiledRoute[] {
 function hostMatches(scope: HostScope, host: HostClassification): boolean {
   if (scope === "any") return true;
   if (scope === "gumroad") return host.gumroad;
+  if (scope === "api") return host.api;
   if (scope === "product") return !host.gumroad && host.customDomainLookup !== null;
   return !host.gumroad && (host.sellerSubdomain !== null || host.customDomainLookup !== null);
 }

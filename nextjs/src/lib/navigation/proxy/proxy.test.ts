@@ -123,3 +123,22 @@ describe("decideRoute", () => {
     expect(decision).toEqual({ action: "hard-navigation" });
   });
 });
+
+describe("routes on the API host", () => {
+  const apiRoutes = compileRouteTable({
+    "/mobile/feature_flags/:id": { flag: "nextjs_mobile_feature_flags", hosts: "api", handler: "mobile" },
+    "POST /mobile/devices": { flag: "nextjs_mobile_devices", hosts: "api", handler: "mobile" },
+  });
+  const on = gate(["nextjs_mobile_feature_flags", "nextjs_mobile_devices"], null);
+
+  it("serves them on the API host only, for their own method", async () => {
+    expect(await decideRoute(request("https://api.gumroad.com/mobile/feature_flags/x"), apiRoutes, production, on)).toMatchObject({ action: "handler", handler: "mobile" });
+    expect(await decideRoute(request("https://api.gumroad.com/mobile/devices", { method: "POST" }), apiRoutes, production, on)).toMatchObject({ action: "handler", handler: "mobile" });
+    expect(await decideRoute(request("https://api.gumroad.com/mobile/devices"), apiRoutes, production, on)).toEqual({ action: "rails" });
+    expect(await decideRoute(request("https://gumroad.com/mobile/feature_flags/x"), apiRoutes, production, on)).toEqual({ action: "rails" });
+  });
+
+  it("keeps them on Rails while their flag is off", async () => {
+    expect(await decideRoute(request("https://api.gumroad.com/mobile/feature_flags/x"), apiRoutes, production, gate([], null))).toEqual({ action: "rails" });
+  });
+});
