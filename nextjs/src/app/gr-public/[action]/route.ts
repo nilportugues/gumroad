@@ -11,15 +11,9 @@ export async function GET(request: Request, { params }: Context) {
   return publicHandlerResponse(request, (await params).action);
 }
 
-// The mobile API (name `mobile`) also takes writes.
+// The mobile and v2 APIs (`mobile`, `api-v2`) also take writes.
 export const POST = GET;
 export const PUT = GET;
 export const PATCH = GET;
 export const DELETE = GET;
 export const HEAD = GET;
-
-// The v2 API routes (handler "api-v2") answer every method.
-export const POST = GET;
-export const PUT = GET;
-export const PATCH = GET;
-export const DELETE = GET;
