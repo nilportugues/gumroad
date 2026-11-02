@@ -59,7 +59,7 @@ export type ModelDefinition<R extends Row> = {
   afterRollback?: Callback<R>[];
 };
 
-type ScalarField = { name: string; default: unknown; datetimePrecision: number | null };
+type ScalarField = { name: string; default: unknown; datetimePrecision: number | null; json: boolean };
 
 const TIMESTAMP_COLUMNS = ["created_at", "created_on", "updated_at", "updated_on"];
 const UPDATE_TIMESTAMP_COLUMNS = ["updated_at", "updated_on"];
@@ -78,7 +78,7 @@ function scalarFields(model: Prisma.ModelName): ScalarField[] {
       if (literal !== null && f.type === "Decimal") value = new Prisma.Decimal(literal as string);
       const native = f.nativeType as [string, string[]] | null | undefined;
       const precision = f.type === "DateTime" && native?.[0] === "DateTime" ? Number(native[1][0] ?? 6) : null;
-      return { name: f.name, default: value, datetimePrecision: precision };
+      return { name: f.name, default: value, datetimePrecision: precision, json: f.type === "Json" };
     });
 }
 
@@ -174,7 +174,13 @@ export function defineModel<R extends Row>(def: ModelDefinition<R>) {
 
   function writableAttributes(record: ModelRecord<R>, names: string[]): Partial<R> {
     const out: Record<string, unknown> = {};
-    for (const name of names) if (name !== "id" || record.get(name) != null) out[name] = record.get(name);
+    const jsonColumns = new Set(getFields().filter((f) => f.json).map((f) => f.name));
+    for (const name of names) {
+      if (name === "id" && record.get(name) == null) continue;
+      const value = record.get(name);
+      // ActiveRecord writes a nil JSON attribute as SQL NULL; Prisma would store the JSON literal null.
+      out[name] = value === null && jsonColumns.has(name) ? Prisma.DbNull : value;
+    }
     return out as Partial<R>;
   }
 
