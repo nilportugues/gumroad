@@ -73,4 +73,4 @@ async function destroy(input: MutationInput): Promise<ActionResult> {
   return json({ success: true, message: "Deleted!", imported_customer: await importedCustomerJson(customer.attributes, null) });
 }
 
-registerMutations({ method: "DELETE", pattern: "/imported_customers/:id", format: "json", run: destroy });
+registerMutations({ method: "DELETE", pattern: "/imported_customers/:id", json: true, run: destroy });

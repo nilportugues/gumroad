@@ -108,7 +108,7 @@ async function updateLicense(input: MutationInput): Promise<ActionResult> {
 
 registerMutations(
   ...["PUT", "PATCH"].flatMap((method) => [
-    { method, pattern: "/calls/:id", format: "json" as const, run: update },
-    { method, pattern: "/licenses/:id", format: "json" as const, run: updateLicense },
+    { method, pattern: "/calls/:id", json: true, run: update },
+    { method, pattern: "/licenses/:id", json: true, run: updateLicense },
   ]),
 );

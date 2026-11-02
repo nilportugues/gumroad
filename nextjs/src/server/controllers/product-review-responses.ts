@@ -68,6 +68,6 @@ async function destroy(input: MutationInput): Promise<ActionResult> {
 }
 
 registerMutations(
-  ...["PUT", "PATCH"].map((method) => ({ method, pattern: "/product_review_responses/:id", format: "json" as const, run: update })),
-  { method: "DELETE", pattern: "/product_review_responses/:id", format: "json" as const, run: destroy },
+  ...["PUT", "PATCH"].map((method) => ({ method, pattern: "/product_review_responses/:id", json: true, run: update })),
+  { method: "DELETE", pattern: "/product_review_responses/:id", json: true, run: destroy },
 );

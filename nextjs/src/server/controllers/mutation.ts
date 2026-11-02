@@ -48,9 +48,6 @@ export type MutationSpec = {
   skipForgeryProtection?: boolean;
   // Formats the action answers like Rails does. Pundit's 401 JSON is what the default (html only) leaves to Rails.
   formats?: ("html" | "json")[];
-  // The request format the action answers: "html" (default, an Inertia form) or "json" (a fetch with Accept: application/json). The other
-  // goes to Rails, whose Pundit and Devise failures differ by format.
-  format?: "html" | "json";
   run(input: MutationInput): Promise<ActionResult>;
 };
 
@@ -124,9 +121,6 @@ export async function mutationResponse(incoming: Request): Promise<Response> {
       if (!(candidate.formats ?? [candidate.json ? "json" : "html"]).includes(requestFormat(railsRequest(request)) as "html" | "json")) throw new HandBackToRails("a request whose format is not HTML");
       if (!csrfVerified(railsRequest(request), params)) throw new HandBackToRails("a request Rails would run with a null session");
     }
-    const format = candidate.format ?? "html";
-    if (requestFormat(railsRequest(request)) !== format) throw new HandBackToRails(`a request whose format is not ${format.toUpperCase()}`);
-    if (!csrfVerified(railsRequest(request), params)) throw new HandBackToRails("a request Rails would run with a null session");
   } catch (error) {
     if (error instanceof HandBackToRails) {
       console.warn(`[mutation] ${request.method} ${url.pathname} handed back to Rails: ${error.message}`);

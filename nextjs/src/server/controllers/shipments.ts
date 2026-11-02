@@ -56,4 +56,4 @@ async function markAsShipped(input: MutationInput): Promise<ActionResult> {
   return noContent();
 }
 
-registerMutations({ method: "POST", pattern: "/shipments/:purchase_id/mark_as_shipped", format: "json", run: markAsShipped });
+registerMutations({ method: "POST", pattern: "/shipments/:purchase_id/mark_as_shipped", json: true, run: markAsShipped });
