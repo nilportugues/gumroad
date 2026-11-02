@@ -39,11 +39,11 @@ export async function jsonSellerGuard(input: MutationInput, authorization: (cont
 }
 
 export function jsonAction(incoming: Request, routeParams: Record<string, string>, options: ActionOptions, run: (input: MutationInput) => Promise<ActionResult>): Promise<Response> {
-  return processAction(incoming, options, async ({ request, context }) => {
+  return processAction(incoming, options, async ({ request, context, peekState }) => {
     const config = domainConfig(process.env);
     const url = new URL(`${request.path}${request.queryString === "" ? "" : `?${request.queryString}`}`, `${request.protocol}${request.hostWithPort}`);
     const rawBody = new Uint8Array();
     const params = requestParams(url, null, rawBody);
-    return run({ request, context, url, urlOptions: defaultUrlOptions(url, config), routeParams, params, rawBody });
+    return run({ request, context, peekState, url, urlOptions: defaultUrlOptions(url, config), routeParams, params, rawBody });
   });
 }
