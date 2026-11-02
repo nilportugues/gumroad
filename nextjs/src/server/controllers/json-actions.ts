@@ -42,7 +42,8 @@ export function jsonAction(incoming: Request, routeParams: Record<string, string
   return processAction(incoming, options, async ({ request, context }) => {
     const config = domainConfig(process.env);
     const url = new URL(`${request.path}${request.queryString === "" ? "" : `?${request.queryString}`}`, `${request.protocol}${request.hostWithPort}`);
-    const params = requestParams(url, null, new Uint8Array());
-    return run({ request, context, url, urlOptions: defaultUrlOptions(url, config), routeParams, params });
+    const rawBody = new Uint8Array();
+    const params = requestParams(url, null, rawBody);
+    return run({ request, context, url, urlOptions: defaultUrlOptions(url, config), routeParams, params, rawBody });
   });
 }

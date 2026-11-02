@@ -51,7 +51,7 @@ function redisJobs(redis: Redis): JobsChannel {
         jobs.push({ class: item.class, args: item.args, queue: item.queue, ...(item.at === undefined ? {} : { at: item.at }) });
       }
       // Jobs Node has not ported go to Sidekiq's own structures: the queue lists and the schedule set.
-      const sidekiqItems = [...(await redis.zrange("schedule", 0, -1)), ...(await Promise.all((await redis.keys("queue:*")).map((key) => redis.lrange(key, 0, -1)))).flat()];
+      const sidekiqItems = [...(await redis.zrange("schedule", "0", "-1")), ...(await Promise.all((await redis.keys("queue:*")).map((key) => redis.lrange(key, "0", "-1")))).flat()];
       for (const raw of sidekiqItems) {
         const item = JSON.parse(raw) as { class: string; args: unknown[]; queue: string; at?: number };
         jobs.push({ class: item.class, args: item.args, queue: item.queue, ...(item.at === undefined ? {} : { at: item.at }) });
