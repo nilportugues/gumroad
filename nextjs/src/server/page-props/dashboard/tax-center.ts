@@ -39,7 +39,7 @@ export function formatCentsAsDollars(cents: bigint): string {
 
 // `seller.sales.successful.not_fully_refunded.not_chargedback_or_chargedback_reversed` for the year.
 // Rails binds the Date bounds as dates, so a sale after midnight on Dec 31 is left out.
-async function totals(sellerId: bigint, year: number) {
+export async function totals(sellerId: bigint, year: number) {
   const p = (name: string) => column("purchases", name);
   const [row] = await selectRows<Record<"gross" | "fees" | "taxes" | "affiliate_credit", bigint>>(
     Prisma.sql`SELECT CAST(COALESCE(SUM(${p("total_transaction_cents")}), 0) AS SIGNED) AS gross, CAST(COALESCE(SUM(${p("fee_cents")}), 0) AS SIGNED) AS fees, CAST(COALESCE(SUM(COALESCE(${p("gumroad_tax_cents")}, 0) + COALESCE(${p("tax_cents")}, 0)), 0) AS SIGNED) AS taxes, CAST(COALESCE(SUM(${p("affiliate_credit_cents")}), 0) AS SIGNED) AS affiliate_credit FROM ${table("purchases")} WHERE ${p("seller_id")} = ${sellerId} AND ${p("purchase_state")} = 'successful' AND (purchases.stripe_refunded IS NULL OR purchases.stripe_refunded = 0) AND (purchases.chargeback_date IS NULL OR (purchases.chargeback_date IS NOT NULL AND purchases.flags & '512' != 0)) AND ${p("created_at")} BETWEEN ${`${year}-01-01`} AND ${`${year}-12-31`} AND (purchases.price_cents > 0)`,
