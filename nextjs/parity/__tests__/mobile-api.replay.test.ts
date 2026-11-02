@@ -71,6 +71,8 @@ const COMPARE = {
     "response.json.refresh_token",
     "db.team_memberships.updated.*.changes.updated_at",
     "jobs.*.at",
+    // The posted consumed_at is a fixed instant, which canonicalizes to hours before a clock that keeps moving.
+    "db.consumption_events.inserted.*.consumed_at",
     "http",
     // Rails renders its debug exception page for a 404 in the test environment.
     "response.body",
