@@ -22,6 +22,7 @@ import "@/server/controllers/media-locations";
 import "@/server/controllers/public-mutations";
 import "@/server/controllers/seller-mutations";
 import "@/server/controllers/auth-mutations";
+import "@/server/controllers/auth-account-mutations";
 import "@/server/controllers/internal-admin/index";
 import "@/server/controllers/internal-api";
 import { mutationResponse } from "@/server/controllers/mutation";

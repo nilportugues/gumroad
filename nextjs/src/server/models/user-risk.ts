@@ -391,7 +391,7 @@ async function recordSocialConnectHoldReleased(user: UserRecord, now: () => Date
 }
 
 // invalidate_active_sessions!
-async function invalidateActiveSessions(user: UserRecord, now: () => Date): Promise<void> {
+export async function invalidateActiveSessions(user: UserRecord, now: () => Date): Promise<void> {
   await Users.updateBang(user, { last_active_sessions_invalidated_at: new Date(Math.floor(now().getTime() / 1000) * 1000) }, { now });
   for (const application of await firstPartyMobileApplications()) await revokeAccessTokensFor(application, user.get("id"), now);
 }

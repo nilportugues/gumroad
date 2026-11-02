@@ -105,7 +105,7 @@ async function loginPathFor(chain: Chain, userId: bigint, params: Record<string,
   return safe;
 }
 
-function resetTwoFactorSession(chain: Chain): void {
+export function resetTwoFactorSession(chain: Chain): void {
   delete chain.session.data[TWO_FACTOR_USER_SESSION_KEY];
   delete chain.session.data[TWO_FACTOR_METHOD_SESSION_KEY];
   delete chain.session.data[TWO_FACTOR_SENT_AT_SESSION_KEY];
@@ -124,7 +124,7 @@ async function totpEnabled(userId: bigint): Promise<boolean> {
 }
 
 // TwoFactorAuthenticationValidator#prepare_for_two_factor_authentication
-async function prepareTwoFactorAuthentication(chain: Chain, user: UserRecord, params: Record<string, unknown>): Promise<void> {
+export async function prepareTwoFactorAuthentication(chain: Chain, user: UserRecord, params: Record<string, unknown>): Promise<void> {
   chain.session.data[TWO_FACTOR_USER_SESSION_KEY] = Number(user.get("id"));
   if (await totpEnabled(user.get("id"))) {
     chain.session.data[TWO_FACTOR_METHOD_SESSION_KEY] = "totp";

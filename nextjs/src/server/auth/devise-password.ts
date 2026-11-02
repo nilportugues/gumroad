@@ -15,7 +15,7 @@ export type DeviseConfig = { pepper: string | null; stretches: number };
 export function deviseConfig(): DeviseConfig {
   return {
     pepper: getConfig("DEVISE_PEPPER") || null,
-    stretches: process.env.NODE_ENV === "test" ? MIN_BCRYPT_COST : PRODUCTION_STRETCHES,
+    stretches: process.env.NODE_ENV === "test" || process.env.RAILS_ENV === "test" ? MIN_BCRYPT_COST : PRODUCTION_STRETCHES,
   };
 }
 
@@ -26,7 +26,10 @@ export async function validPassword(encryptedPassword: string | null | undefined
 
 // For WS-10's signup and password change; Rails stays the only writer until then.
 export async function digestPassword(password: string, config = deviseConfig()): Promise<string> {
-  return bcrypt.hash(peppered(password, config), Math.max(config.stretches, MIN_BCRYPT_COST));
+  // bcrypt-ruby writes $2a$ hashes and the prefix is part of the session and remember cookies (authenticatable_salt); the
+  // algorithms differ only for passwords over 255 bytes, which Devise caps at 128.
+  const hash = await bcrypt.hash(peppered(password, config), Math.max(config.stretches, MIN_BCRYPT_COST));
+  return hash.replace(/^\$2b\$/u, "$2a$");
 }
 
 // Devise's `authenticatable_salt`: the bcrypt version, cost and salt, which change with the password.

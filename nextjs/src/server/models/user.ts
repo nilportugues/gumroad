@@ -273,6 +273,9 @@ export function resetUserCollaborators(): void {
   collaborators = { ...DEFAULT_COLLABORATORS };
 }
 
+// Devise.friendly_token
+export const deviseFriendlyToken = (): string => collaborators.friendlyToken();
+
 // devise-pwned_password's sign-in check (Pwned::Password#pwned_count >= min_password_matches, which is 1). A failed lookup counts
 // as not pwned: the gem rescues Pwned::Error.
 export async function passwordIsPwned(password: string): Promise<boolean> {
