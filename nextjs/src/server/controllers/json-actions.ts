@@ -10,8 +10,9 @@ import type { MutationInput } from "./mutation.ts";
 import { requestParams } from "./rails-body.ts";
 import { requestFormat } from "./rails-params.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
+import { escapeHtmlInJson } from "../search/es-json.ts";
 
-export const json = (body: unknown, status = 200): Rendered => ({ status, body: JSON.stringify(body), contentType: "application/json; charset=utf-8", paramsRead: true });
+export const json = (body: unknown, status = 200): Rendered => ({ status, body: escapeHtmlInJson(JSON.stringify(body)), contentType: "application/json; charset=utf-8", paramsRead: true });
 export const plain = (body: string, status = 200): Rendered => ({ status, body, contentType: "text/plain; charset=utf-8", paramsRead: true });
 
 // A request for a signed-in seller endpoint: Rails answers the signed-out one (Devise: 401 JSON or a login redirect).

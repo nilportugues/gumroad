@@ -11,7 +11,12 @@ export type { JsonValue };
 const HTML_UNSAFE = /[<>&\u2028\u2029]/gu;
 
 export function esJson(value: JsonValue): string {
-  return dumpRubyJson(value).replace(HTML_UNSAFE, (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`);
+  return escapeHtmlInJson(dumpRubyJson(value));
+}
+
+// ActiveSupport's escape_html_entities_in_json applied to already-encoded JSON (the characters only occur inside strings).
+export function escapeHtmlInJson(encoded: string): string {
+  return encoded.replace(HTML_UNSAFE, (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`);
 }
 
 // Time#as_json under ActiveSupport::JSON::Encoding.time_precision = 0 (json_time_precision.rb),

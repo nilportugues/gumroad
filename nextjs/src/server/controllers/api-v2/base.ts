@@ -17,6 +17,7 @@ import { PAGE_URL_HEADER } from "../../page-props/render-state.ts";
 import { forwardToRails, HandBackToRails, processAction, type ActionResult, type Rendered } from "../application-controller.ts";
 import { requestParams, type Params } from "../rails-body.ts";
 import type { RailsRequest } from "../rails-request.ts";
+import { escapeHtmlInJson } from "../../search/es-json.ts";
 
 // Doorkeeper.configuration.public_api_read_scopes.concat([:view_public])
 export const PUBLIC_READ_SCOPES = ["edit_products", "view_sales", "mark_sales_as_shipped", "edit_sales", "revenue_share", "ifttt", "view_profile", "view_payouts", "view_tax_data", "account", "view_public"];
@@ -70,7 +71,7 @@ function matchPattern(pattern: string, path: string): Record<string, string> | n
   return match === null ? null : Object.fromEntries(names.map((name, index) => [name, decodeURIComponent(match[index + 1]!)]));
 }
 
-export const json = (body: unknown, status = 200, headers?: Record<string, string>): Rendered => ({ status, body: JSON.stringify(body), contentType: "application/json; charset=utf-8", ...(headers ? { headers } : {}) });
+export const json = (body: unknown, status = 200, headers?: Record<string, string>): Rendered => ({ status, body: escapeHtmlInJson(JSON.stringify(body)), contentType: "application/json; charset=utf-8", ...(headers ? { headers } : {}) });
 
 // `render_response(success, result)`: `{ success: }.merge(result.as_json(api_scopes:))`.
 export const renderResponse = (success: boolean, result: Record<string, unknown> = {}): Rendered => json({ success, ...result });
