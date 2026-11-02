@@ -535,3 +535,7 @@ real services in a request-like executor), replayed by `save-installment.test.ts
   runs on the last instance saved and `after_commit` on the first. A workflow that syncs its emails and then publishes them therefore enqueues no Elasticsearch update
   (the first instance's change tracker never ran). `runtime/transaction.ts` models it with `identity` and `prepare`.
 - The goldens run the services in a Sidekiq-style executor (replicas on); a Puma worker has one pool, so its query cache can serve a read the golden shows twice. Only reads differ.
+
+### `Call`, `License`, `ProductReviewResponse`, `Shipment`, `ImportedCustomer` (WS-12b)
+
+Ported for the seller's JSON actions only (no goldens: the Rails request fixtures of `parity/__tests__/ws12b.replay.test.ts` pin the rows each write changes). `call.ts`: `update!(call_url:)` with the update-time validations. `license.ts`: disable, enable, set/adjust/reset uses under `with_lock`, `has_paper_trail only: [disabled_at, serial]` and the purchase index job. `product-review-response.ts`: update and destroy of an existing response. `shipment.ts`: the tracking URL validation (`displaySafeTrackingLink` decides plain `http(s)` URLs and plain non-URLs; a URL `URI.parse` might reject is refused), the `mark_shipped` transition, the purchase touch and the `order_shipped` mail job; creating a shipment is refused. `imported-customer.ts`: `as_json` and the soft delete; the license a licensed product creates for a customer is refused.
