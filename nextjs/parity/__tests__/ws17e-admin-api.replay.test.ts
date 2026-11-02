@@ -159,6 +159,20 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
     expect(cases.length).toBeGreaterThan(0);
   });
 
+  // The first request down a code path compiles it, which would age the seeded timestamps past the replayer's tolerance.
+  it("compiles the handlers", async () => {
+    for (const [, fixturePath, index] of cases) {
+      await replayFixtureExchange(fixturePath, index, {
+        sql,
+        redis: redisSeeder(redis),
+        transport: httpTransport(server.baseUrl),
+        interceptHttp: false,
+        jobs: redisJobs(redis),
+        rewriteRequest: (request) => ({ ...request, headers: withApiHost(request.headers) }),
+      }).catch(() => undefined);
+    }
+  }, 600_000);
+
   it.each(cases)(
     "%s",
     async (_name, fixturePath, index, fromRequestSpec) => {
