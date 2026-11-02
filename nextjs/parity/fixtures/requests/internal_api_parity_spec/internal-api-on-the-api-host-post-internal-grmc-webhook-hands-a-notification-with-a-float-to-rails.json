@@ -1,0 +1,119 @@
+{
+  "version": 1,
+  "spec": "spec/requests/internal_api_parity_spec.rb",
+  "example": "Internal API on the API host POST /internal/grmc/webhook hands a notification with a float to Rails",
+  "sessionCookie": "_gumroad_app_session_test",
+  "secretKeyBase": "9eca9341f09cebad46784962e75bf474b568dbbbc8b6caca4fe2a1a202f9a67352a6f26aa84f1e7b93fe42b3f14726104ca09aa6215890c4107038f2846785aa",
+  "recordedOn": "2026-11-02",
+  "exchanges": [
+    {
+      "seed": {
+        "tables": {},
+        "autoIncrement": {}
+      },
+      "redis": {
+        "disable_braintree_sales": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "disable_braintree_sales",
+            "paypal_payout_fee",
+            "seller_refund_policy_new_users_enabled",
+            "store_discover_searches"
+          ]
+        },
+        "paypal_payout_fee": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "seller_refund_policy_new_users_enabled": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "store_discover_searches": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        }
+      },
+      "request": {
+        "source": "request",
+        "method": "POST",
+        "path": "/internal/grmc/webhook",
+        "headers": {
+          "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
+          "content-type": "application/json",
+          "grmc-signature": "t=1793586338878,v0=b3a419c0aec5db2c21625c8989eb45829586026a07f001fa66b14344e31c61f2",
+          "host": "api.test.gumroad.com:31337"
+        },
+        "remoteIp": "127.0.0.1",
+        "body": "{\"job_id\":\"job-2\",\"status\":\"success\",\"progress\":0.5}"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "text/html",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-original-headers-class": "Rack::Headers",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": {
+          "XSRF-TOKEN": {
+            "value": "PMQaCklCmudEzx5n6TSa42R5Vq0NbPVVBquAtUwYxAgyGmLqbWGsQCqNbrKTl5g-MXP63AUg-k-8OanHP0z3bA",
+            "path": "/",
+            "samesite": "lax",
+            "httponly": true
+          },
+          "_gumroad_app_session_test": {
+            "value": "UfbjVdJuay66ezzC+xp+g6Ww26Vc/6RlyK2GCQTHLD00Exp9HvGga58gRcOXcyFqbIQA4X93Rh3EqqgVnht6cS/fxtwWi5jlMshmBc2YIUkSt2Zxj/Tje9oZFknLHR+vTAQ2JyLoq2wL0hStl8GAs/aHZO0z6fwnsNveuP6aonx3zsqOZhDRJSurbkH1BFBcGjh6sc42T24Zcz1HOFfT2f8DByjMth2iUNEiCJwFVMtc8QQJeFlHa7gytL2y7Jq9Hku039jv2Q/HnBqHevr8PkdDXOg/etNl7L2vHN/mBSjGi0YjadVgc5sIpjPA8xlU6XjAEJfJGa4JY4pTQgbyZ1hbW/LnVntKKoF+MokSSojPaq81qZyTpy2ufrn/EdFNASD/--82xWnyRQft3Cb5UN--T1WHmVscEQp8jgCD1+qq3w==",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          },
+          "_gumroad_guid": {
+            "value": "<volatile>",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          }
+        }
+      },
+      "db": {},
+      "jobs": [
+        {
+          "class": "HandleGrmcCallbackJob",
+          "args": [
+            {
+              "job_id": "job-2",
+              "status": "success",
+              "progress": 0.5
+            }
+          ],
+          "queue": "default"
+        }
+      ],
+      "mails": [],
+      "http": []
+    }
+  ]
+}

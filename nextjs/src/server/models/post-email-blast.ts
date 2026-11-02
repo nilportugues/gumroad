@@ -45,12 +45,18 @@ export async function hasBeenBlasted(postId: number | bigint): Promise<boolean> 
   return rows.length > 0;
 }
 
-// `PostEmailBlast.create!(post:, requested_at:)` followed by `SendPostBlastEmailsJob.perform_async(blast.id)`.
-export async function createBlastAndEnqueue(post: InstallmentPost, requestedAt: Date | null, now?: () => Date): Promise<ModelRecord<PostEmailBlast>> {
-  const record = PostEmailBlasts.build({ post_id: BigInt(post.id), requested_at: requestedAt });
+// `PostEmailBlast.create!(post:, requested_at:, recipient_filter:)`
+export async function createBlast(post: InstallmentPost, attributes: { requested_at: Date | null; recipient_filter?: string | null }, now?: () => Date): Promise<ModelRecord<PostEmailBlast>> {
+  const record = PostEmailBlasts.build({ post_id: BigInt(post.id), ...attributes });
   record.ivars[POST] = post;
   setAssociation(record, "post", record.get("post_id"), post.row as Installment);
   await PostEmailBlasts.saveBang(record, { now });
+  return record;
+}
+
+// `PostEmailBlast.create!(post:, requested_at:)` followed by `SendPostBlastEmailsJob.perform_async(blast.id)`.
+export async function createBlastAndEnqueue(post: InstallmentPost, requestedAt: Date | null, now?: () => Date): Promise<ModelRecord<PostEmailBlast>> {
+  const record = await createBlast(post, { requested_at: requestedAt }, now);
   await performAsync("SendPostBlastEmailsJob", [Number(record.get("id"))]);
   return record;
 }

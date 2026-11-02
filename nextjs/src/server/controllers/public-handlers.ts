@@ -22,6 +22,7 @@ import { apiV2Response } from "./api-v2/base.ts";
 import "./api-v2/index.ts";
 import { type ActionOptions, type ActionResult, HandBackToRails, processAction, type Rendered } from "./application-controller.ts";
 import { mobileResponse } from "./mobile-api.ts";
+import { internalResponse } from "./internal-api.ts";
 import { chargeData, licenseKeyLookupData, paypalChargeData } from "./public-data.ts";
 import { assertFlatQuery } from "./rails-params.ts";
 import { queryParam, type RailsRequest, railsRequest } from "./rails-request.ts";
@@ -191,6 +192,8 @@ export async function publicHandlerResponse(incoming: Request, name: string): Pr
   if (name === "mobile") return mobileResponse(incoming);
   // The v2 API routes of every method, which carry bodies (controllers/api-v2/base.ts).
   if (name === API_V2_HANDLER) return apiV2Response(incoming);
+  // Api::Internal GETs (controllers/internal-api.ts).
+  if (name === "internal") return internalResponse(incoming);
   const handler = HANDLERS[name];
   const target = incoming.headers.get(PAGE_URL_HEADER);
   if (handler === undefined || target === null) return new Response(null, { status: 404 });
