@@ -14,6 +14,11 @@ import "@/server/controllers/customer-actions";
 import "@/server/controllers/product-review-responses";
 import "@/server/controllers/shipments";
 import "@/server/controllers/imported-customers";
+import "@/server/controllers/library-mutations";
+import "@/server/controllers/communities-mutations";
+import "@/server/controllers/secure-redirect-mutations";
+import "@/server/controllers/dropbox-files";
+import "@/server/controllers/media-locations";
 import { mutationResponse } from "@/server/controllers/mutation";
 
 export const POST = mutationResponse;
