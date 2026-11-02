@@ -30,6 +30,11 @@ describe("v2 API routes", () => {
     for (const route of registered) {
       const [method, pattern] = route.split(" ") as [string, string];
       const prefix = method === "GET" ? "" : `${method} `;
+      // The aliases of WS-17c (/ifttt, /muse, /.well-known, /notion) live on the Gumroad domain only.
+      if (!pattern.startsWith("/v2/")) {
+        expect(keys, route).toContain(`${prefix}${pattern}`);
+        continue;
+      }
       expect(keys, route).toContain(`${prefix}api:${pattern}`);
       expect(keys, route).toContain(`${prefix}/api${pattern}`);
     }

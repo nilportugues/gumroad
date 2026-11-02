@@ -212,6 +212,15 @@ export function addAndValidateFilters(record: ModelRecord<any>, params: FilterPa
 // ----- TimeZone#parse for the `to_be_published_at` the form sends
 
 function parseLocalTime(timezone: string, text: string): Date | null {
+  // An explicit offset (the API's ISO 8601 times) names the instant: the seller's zone only reads a time without one.
+  const zoned = /^\s*(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(Z|[+-]\d{2}:\d{2})\s*$/u.exec(text);
+  if (zoned !== null) {
+    const [year, month, day, hour, minute, second] = zoned.slice(1, 7).map((part) => Number(part ?? 0)) as [number, number, number, number, number, number];
+    if (month < 1 || month > 12 || day < 1 || day > 31 || hour > 24 || minute > 59 || second > 59) return null;
+    const check = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+    if (check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day || hour > 23) return refuse("a publish time Time.new would normalize");
+    return new Date(`${text.trim().slice(0, 16)}:${String(second).padStart(2, "0")}${zoned[7]}`);
+  }
   const match = /^\s*(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?\s*$/u.exec(text);
   if (match === null) return refuse("a publish time in a format TimeZone#parse reads");
   const [year, month, day, hour, minute, second] = match.slice(1).map((part) => Number(part ?? 0)) as [number, number, number, number, number, number];

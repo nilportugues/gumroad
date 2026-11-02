@@ -45,6 +45,14 @@ export type ApiV2Route = {
   scopes: string[];
   // before_actions that render: a Rendered halts the request (and skips the after_action).
   before?(input: ApiV2Input): Promise<Rendered | undefined | void>;
+  // WS-17c: an action with no `doorkeeper_authorize!` (token and owner are null for it), a `require_oauth_scope!` straight after the
+  // authorization, a controller's own `doorkeeper_unauthorized_render_options`, `skip_before_action :verify_authenticity_token` (the
+  // request keeps its session), and `prepend_before_action`s that answer ahead of the whole chain (they may throw HandBackToRails).
+  anonymous?: boolean;
+  requireScope?: string[];
+  unauthorized?(headers: Record<string, string>): Rendered;
+  keepSession?: boolean;
+  preAuth?(input: Pick<ApiV2Input, "request" | "url" | "params" | "rawBody">): void | Promise<void>;
   run(input: ApiV2Input): Promise<ActionResult>;
 };
 
@@ -61,6 +69,10 @@ function matchPattern(pattern: string, path: string): Record<string, string> | n
   const source = pattern
     .split("/")
     .map((segment) => {
+      if (segment.startsWith("*")) {
+        names.push(segment.slice(1));
+        return "(.+)";
+      }
       if (!segment.startsWith(":")) return segment.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
       names.push(segment.slice(1));
       return "([^/.?]+)";
@@ -145,19 +157,31 @@ export async function apiV2Response(incoming: Request): Promise<Response> {
   // protect_from_forgery answers an unverified POST, PUT, PATCH or DELETE with a null session and cookie jar: no session, guid or
   // XSRF-TOKEN cookie. A request that carries a CSRF token might verify, which the port leaves to Rails.
   const mutating = !["GET", "HEAD"].includes(request.method);
-  if (mutating && (request.headers.has("x-csrf-token") || request.headers.has("x-xsrf-token") || "authenticity_token" in params)) return handBack(request, new HandBackToRails("a write that carries a CSRF token"));
+  if (mutating && !route.keepSession && (request.headers.has("x-csrf-token") || request.headers.has("x-xsrf-token") || "authenticity_token" in params)) return handBack(request, new HandBackToRails("a write that carries a CSRF token"));
 
-  return processAction(request, mutating ? { bare: true } : {}, async ({ request: railsReq }) => {
+  return processAction(request, mutating && !route.keepSession ? { bare: true } : {}, async ({ request: railsReq }) => {
     try {
-      const token = await doorkeeperToken({ authorization: railsReq.headers.get("authorization"), parameters: params, path: railsReq.path });
-      const authorized = await doorkeeperAuthorize(token, route.scopes, { apiV2: true });
-      if (!authorized.ok) return { status: authorized.status, body: "", contentType: "text/html", headers: authorized.headers, rescued: true, paramsRead: true };
-      const owner = (await currentApiUser(token))!;
-      const input: ApiV2Input = { request: railsReq, url, routeParams: routeParams!, params, rawBody: bytes, token: token!, owner, state: {} };
+      await route.preAuth?.({ request: railsReq, url, params, rawBody: bytes });
+      let token: OauthAccessToken | null = null;
+      let owner: User | null = null;
+      if (!route.anonymous) {
+        token = await doorkeeperToken({ authorization: railsReq.headers.get("authorization"), parameters: params, path: railsReq.path });
+        const authorized = await doorkeeperAuthorize(token, route.scopes, { apiV2: true });
+        if (!authorized.ok) {
+          if (authorized.status === 401 && route.unauthorized) return { ...route.unauthorized(authorized.headers), rescued: true, paramsRead: true };
+          return { status: authorized.status, body: "", contentType: "text/html", headers: authorized.headers, rescued: true, paramsRead: true };
+        }
+        if (route.requireScope) {
+          const refusal = requireOauthScope(token, route.requireScope);
+          if (refusal) return { status: refusal.status, body: JSON.stringify(refusal.body), contentType: "application/json; charset=utf-8", rescued: true, paramsRead: true };
+        }
+        owner = (await currentApiUser(token))!;
+      }
+      const input: ApiV2Input = { request: railsReq, url, routeParams: routeParams!, params, rawBody: bytes, token: token!, owner: owner!, state: {} };
       const halted = await route.before?.(input);
       if (halted) return { ...halted, rescued: true };
       const result = await route.run(input);
-      await markCliUser(railsReq, owner);
+      if (owner) await markCliUser(railsReq, owner);
       return result;
     } catch (error) {
       // A NotPortedError is thrown before the first write of its transaction, so Rails can take the request whole.
