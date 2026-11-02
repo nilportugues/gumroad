@@ -25,7 +25,7 @@ const present = (value: string | null | undefined): value is string => value !==
 // `product.alive_variants.map(&:external_id)`
 async function aliveVariantExternalIds(productId: bigint): Promise<string[]> {
   const rows = await selectRows<{ id: bigint }>(
-    Prisma.sql`SELECT ${column("variants", "id")} FROM ${table("variants")} INNER JOIN ${table("variant_categories")} ON ${column("variant_categories", "id")} = ${column("variants", "variant_category_id")} WHERE ${column("variant_categories", "link_id")} = ${productId} AND ${column("variant_categories", "deleted_at")} IS NULL AND ${column("variants", "deleted_at")} IS NULL`,
+    Prisma.sql`SELECT ${column("base_variants", "id")} FROM ${table("base_variants")} INNER JOIN ${table("variant_categories")} ON ${column("variant_categories", "id")} = ${column("base_variants", "variant_category_id")} WHERE ${column("variant_categories", "link_id")} = ${productId} AND ${column("variant_categories", "deleted_at")} IS NULL AND ${column("base_variants", "type")} = 'Variant' AND ${column("base_variants", "deleted_at")} IS NULL`,
   );
   return rows.map((row) => encrypt(row.id));
 }

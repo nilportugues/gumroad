@@ -48,11 +48,11 @@ describe "Internal API", type: :request, elasticsearch_wait_for_refresh: true do
 
       it "answers the stored versions to a token with the account scope", parity: true do
         $redis.set(RedisKey.mobile_minimum_version, "1.2.3")
-        $redis.set(RedisKey.mobile_minimum_update_created_at, "2025-01-02T03:04:05Z")
+        $redis.set(RedisKey.mobile_minimum_update_created_at, "update-7")
 
         get "/internal/mobile_minimum_version", headers: bearer(token_for("account"))
 
-        expect(response.parsed_body).to eq("minimum_version" => "1.2.3", "minimum_update_created_at" => "2025-01-02T03:04:05Z")
+        expect(response.parsed_body).to eq("minimum_version" => "1.2.3", "minimum_update_created_at" => "update-7")
       end
     end
 
