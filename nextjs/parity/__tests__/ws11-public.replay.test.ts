@@ -11,6 +11,7 @@ import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
+import type { JobsChannel, RawJob } from "../src/channels";
 import { reencryptCookies, redisSeeder } from "../src/session";
 
 // Replays spec/requests/public_files_parity_spec.rb (robots.txt, llms.txt, the favicon, the IndexNow key, ACME challenges,
@@ -19,9 +20,9 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES_ROOT = "parity/fixtures/requests";
-const SPEC_DIRS = ["public_files_parity_spec"].filter((dir) => existsSync(path.join(FIXTURES_ROOT, dir)));
+const SPEC_DIRS = ["public_files_parity_spec", "public_data_parity_spec"].filter((dir) => existsSync(path.join(FIXTURES_ROOT, dir)));
 const NOT_REPLAYED = /github-stars/;
-const ROUTE_FLAGS = ["nextjs_robots", "nextjs_llms", "nextjs_crossdomain", "nextjs_favicon", "nextjs_indexnow_key", "nextjs_acme_challenge"];
+const ROUTE_FLAGS = ["nextjs_robots", "nextjs_llms", "nextjs_crossdomain", "nextjs_favicon", "nextjs_indexnow_key", "nextjs_acme_challenge", "nextjs_public_lookup_data"];
 const INDEXNOW_KEY = "AbCd-1234-EfGh-5678";
 const FIRST_COMPILE_TIMEOUT_MS = 240_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
@@ -38,6 +39,30 @@ const COMPARE = {
   ],
 };
 
+type SidekiqItem = { class: string; args: unknown[]; queue: string; wrapped?: string };
+
+// Jobs Node enqueues are BullMQ jobs wrapping the Sidekiq item (ported classes) or plain Sidekiq items (the rest). A request spec's
+// ActiveJob adapter is the test one, so Rails' mail deliveries are not in the fixtures: they are read back and asserted separately.
+let mailJobs: SidekiqItem[] = [];
+function redisJobs(redis: Redis): JobsChannel {
+  return {
+    async reset() {
+      mailJobs = [];
+    },
+    async drain(): Promise<RawJob[]> {
+      const items: SidekiqItem[] = [];
+      for (const key of await redis.keys("bull:*")) {
+        if ((await redis.type(key)) !== "hash") continue;
+        const data = await redis.hget(key, "data");
+        if (data !== null) items.push(JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as SidekiqItem);
+      }
+      for (const key of await redis.keys("queue:*")) for (const raw of await redis.lrange(key, 0, -1)) items.push(JSON.parse(raw) as SidekiqItem);
+      mailJobs = items.filter((item) => item.wrapped === "MailDeliveryJob");
+      return items.filter((item) => item.wrapped !== "MailDeliveryJob").map((item) => ({ class: item.class, args: item.args, queue: item.queue }));
+    },
+  };
+}
+
 const cases = SPEC_DIRS.flatMap((dir) =>
   readdirSync(path.join(FIXTURES_ROOT, dir))
     .filter((file) => file.endsWith(".json") && !NOT_REPLAYED.test(file))
@@ -46,6 +71,23 @@ const cases = SPEC_DIRS.flatMap((dir) =>
       return [file.replace(/\.json$/, ""), fixturePath, loadFixture(fixturePath).exchanges.length - 1] as const;
     }),
 );
+
+// CustomerMailer.grouped_receipt(purchases.ids[, recommendations:]).deliver_later(queue: "critical") for a lookup that found purchases.
+function assertMailJobs(name: string, body: unknown) {
+  const success = (body as { success?: boolean } | undefined)?.success === true;
+  if (!/charge-data-|license-key-lookup-data-/.test(name) || /paypal/.test(name)) return;
+  expect(mailJobs).toHaveLength(success ? 1 : 0);
+  if (!success) return;
+  const [job] = mailJobs;
+  expect(job!.queue).toBe("critical");
+  const [mailer, method, delivery, params] = (job!.args[0] as { arguments: [string, string, string, { args: unknown[]; _aj_ruby2_keywords: string[] }] }).arguments;
+  expect([mailer, method, delivery]).toEqual(["CustomerMailer", "grouped_receipt", "deliver_now"]);
+  const ids = params.args[0] as number[];
+  expect(ids.length).toBeGreaterThan(0);
+  expect([...ids].sort((a, b) => a - b)).toEqual(ids);
+  expect(params.args).toHaveLength(/license/.test(name) ? 2 : 1);
+  if (/license/.test(name)) expect(params.args[1]).toMatchObject({ recommendations: !/narrows-to-the-product/.test(name) });
+}
 
 describe.skipIf(!url)("WS-11 public files parity", () => {
   let client: PrismaClient;
@@ -70,6 +112,8 @@ describe.skipIf(!url)("WS-11 public files parity", () => {
       SECRET_KEY_BASE,
       DATABASE_URL: url!,
       REDIS_HOST: redisHost,
+      SIDEKIQ_REDIS_HOST: redisHost,
+      JOBS_REDIS_URL: `redis://${redisHost}`,
     });
   }, FIRST_COMPILE_TIMEOUT_MS);
 
@@ -93,13 +137,15 @@ describe.skipIf(!url)("WS-11 public files parity", () => {
         redis: redisSeeder(redis),
         transport: httpTransport(server.baseUrl),
         interceptHttp: false,
+        jobs: redisJobs(redis),
         rewriteRequest: (request, fixture, now) => reencryptCookies(request, fixture, SECRET_KEY_BASE, now),
         compare: COMPARE,
       });
       try {
         assertParity(result);
+        assertMailJobs(_name, loadFixture(fixturePath).exchanges[index]!.response.json);
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => /error|Error|at /.test(line) && !/built-in version of this loader/.test(line)).slice(-25).join("\n");
+        const logs = server.output().split("\n").filter((line) => !/built-in version of this loader|^\s*$/.test(line)).slice(-40).join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
     },
