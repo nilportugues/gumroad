@@ -20,15 +20,18 @@ import { userByDomain } from "../page-props/storefront/seller-host.ts";
 import { PAGE_URL_HEADER } from "../page-props/render-state.ts";
 import { apiV2Response } from "./api-v2/base.ts";
 import "./api-v2/index.ts";
-import { type ActionOptions, type ActionResult, HandBackToRails, processAction, type Rendered } from "./application-controller.ts";
+import { type ActionContext, type ActionOptions, type ActionResult, HandBackToRails, processAction, type Rendered } from "./application-controller.ts";
 import { mobileResponse } from "./mobile-api.ts";
 import { chargeData, licenseKeyLookupData, paypalChargeData } from "./public-data.ts";
+import { internalAdminResponse } from "./internal-admin/index.ts";
+import { impersonate, redirectToStripeDashboard } from "./internal-admin/admin-web.ts";
 import { assertFlatQuery } from "./rails-params.ts";
 import { queryParam, type RailsRequest, railsRequest } from "./rails-request.ts";
 import { esJson } from "../search/es-json.ts";
 
 const TEXT = "text/plain; charset=utf-8";
 const API_V2_HANDLER = "api-v2";
+const INTERNAL_ADMIN_HANDLER = "internal-admin";
 
 // RobotsController
 const ROBOTS_CACHE_TTL_SECONDS = 3600;
@@ -166,7 +169,7 @@ async function analyticsScript(request: RailsRequest): Promise<Rendered> {
   return { status: 200, body, contentType: "application/javascript; charset=utf-8", headers: { "cache-control": "no-cache" }, paramsRead: true };
 }
 
-type Handler = { options?: ActionOptions; run(request: RailsRequest, url: URL): Promise<ActionResult> };
+type Handler = { options?: ActionOptions; run(request: RailsRequest, url: URL, action: ActionContext): Promise<ActionResult> };
 
 const HANDLERS: Record<string, Handler> = {
   robots: { options: { bare: true }, run: async (request) => robots(request, await sitemapConfigs(request)) },
@@ -184,6 +187,8 @@ const HANDLERS: Record<string, Handler> = {
   charge_data: { options: { optOutOfCsp: true }, run: (request) => chargeData(request) },
   license_key_lookup_data: { options: { optOutOfCsp: true }, run: (request) => licenseKeyLookupData(request) },
   paypal_charge_data: { options: { optOutOfCsp: true }, run: (request) => paypalChargeData(request) },
+  admin_impersonate: { run: (request, url, action) => impersonate(request, url, action) },
+  admin_stripe_dashboard: { run: (request, url, action) => redirectToStripeDashboard(request, url, action) },
 };
 
 export async function publicHandlerResponse(incoming: Request, name: string): Promise<Response> {
@@ -191,6 +196,8 @@ export async function publicHandlerResponse(incoming: Request, name: string): Pr
   if (name === "mobile") return mobileResponse(incoming);
   // The v2 API routes of every method, which carry bodies (controllers/api-v2/base.ts).
   if (name === API_V2_HANDLER) return apiV2Response(incoming);
+  // Api::Internal::Admin: every method, bearer-token authenticated (controllers/internal-admin).
+  if (name === INTERNAL_ADMIN_HANDLER) return internalAdminResponse(incoming);
   const handler = HANDLERS[name];
   const target = incoming.headers.get(PAGE_URL_HEADER);
   if (handler === undefined || target === null) return new Response(null, { status: 404 });
@@ -198,5 +205,5 @@ export async function publicHandlerResponse(incoming: Request, name: string): Pr
   const protocol = incoming.headers.get("x-forwarded-proto") ?? "http";
   const url = new URL(target, `${protocol}://${host}`);
   const request = new Request(url, { method: incoming.method, headers: incoming.headers });
-  return processAction(request, handler.options ?? {}, () => handler.run(railsRequest(request), url));
+  return processAction(request, handler.options ?? {}, (action) => handler.run(railsRequest(request), url, action));
 }
