@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "spec": "spec/requests/public_files_parity_spec.rb",
+  "example": "Public files GET /robots.txt lists the sitemaps on the Gumroad domain",
+  "sessionCookie": "_gumroad_app_session_test",
+  "secretKeyBase": "a6a5df61e80792dbb8453b9bb466c99abc26c870dc3cdb1cccae7d72edf59e7ae24c68ae89b414fada0dc07e9d8f18ece91c3b6fe375c0063af24ddce43e73af",
+  "recordedOn": "2026-11-01",
+  "exchanges": [
+    {
+      "seed": {
+        "tables": {},
+        "autoIncrement": {}
+      },
+      "redis": {
+        "disable_braintree_sales": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "disable_braintree_sales",
+            "paypal_payout_fee",
+            "seller_refund_policy_new_users_enabled",
+            "store_discover_searches"
+          ]
+        },
+        "paypal_payout_fee": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "robots_redis_namespace:sitemap_configs": {
+          "type": "string",
+          "value": "[\"Sitemap: https://cdn.example.com/sitemap/sitemap.xml.gz\"]"
+        },
+        "seller_refund_policy_new_users_enabled": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "store_discover_searches": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        }
+      },
+      "request": {
+        "source": "request",
+        "method": "GET",
+        "path": "/robots.txt",
+        "headers": {
+          "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
+          "host": "app.test.gumroad.com:31337"
+        },
+        "remoteIp": "127.0.0.1"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "max-age=3600, public, stale-while-revalidate=86400",
+          "content-type": "text/plain; charset=utf-8",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-original-headers-class": "Rack::Headers",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "body": "User-agent: *\nDisallow: /purchases/\n\nSitemap: https://cdn.example.com/sitemap/sitemap.xml.gz\n"
+      },
+      "db": {},
+      "jobs": [],
+      "mails": [],
+      "http": []
+    }
+  ]
+}

@@ -16,6 +16,8 @@ export const INERTIA_PAGE_PATH = "/gr-inertia";
 export const MUTATION_PATH = "/gr-mutation";
 // Where the proxy serves the HTML of a page that only exists on seller and product-domain hosts.
 export const HOST_PAGE_PREFIX = "/gr-host";
+// Where the proxy sends a route that is not a page (robots.txt, the favicon...): server/controllers/public-handlers.ts.
+export const PUBLIC_HANDLER_PREFIX = "/gr-public";
 
 async function pageScopeOf(url: URL, headers: Headers): Promise<PageScope> {
   const kind = await hostKindOf(url, headers);
