@@ -57,7 +57,7 @@ function redisJobs(redis: Redis): JobsChannel {
           if (!IGNORED_JOBS.has(item.class)) jobs.push({ class: item.class, args: item.args, queue: item.queue, ...(item.at === undefined ? {} : { at: item.at }) });
         }
       }
-      for (const raw of await redis.zrange("schedule", 0, -1)) {
+      for (const raw of await redis.zrange("schedule", "0", "-1")) {
         const item = JSON.parse(raw) as { class: string; args: unknown[]; queue: string; at?: number };
         if (!IGNORED_JOBS.has(item.class)) jobs.push({ class: item.class, args: item.args, queue: item.queue, ...(item.at === undefined ? {} : { at: item.at }) });
       }
