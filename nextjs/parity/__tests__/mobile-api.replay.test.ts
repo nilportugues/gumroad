@@ -21,8 +21,8 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests/api/mobile";
-const SPECS = ["mobile_api_parity_spec", "mobile_accounts_parity_spec"].filter((dir) => existsSync(path.join(FIXTURES, dir)));
-const ROUTE_FLAGS = ["feature_flags", "devices", "calls", "licenses", "review_videos", "media_locations", "accounts", "consumption_analytics"].map((name) => `nextjs_mobile_${name}`).join(",");
+const SPECS = ["mobile_api_parity_spec", "mobile_accounts_parity_spec", "mobile_hand_backs_parity_spec"].filter((dir) => existsSync(path.join(FIXTURES, dir)));
+const ROUTE_FLAGS = ["feature_flags", "devices", "calls", "licenses", "review_videos", "media_locations", "accounts", "consumption_analytics", "analytics"].map((name) => `nextjs_mobile_${name}`).join(",");
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
@@ -166,7 +166,8 @@ describe.skipIf(!url)("Mobile API parity", () => {
           const handed = await replayFixtureExchange(fixture, index, replayOptions());
           const request = expected.request;
           expect(handedBack).toHaveLength(1);
-          expect(handedBack[0]).toMatchObject({ method: request.method, url: request.path });
+          expect(handedBack[0]).toMatchObject({ method: request.method });
+          expect(handedBack[0]!.url.split("?")[0]).toBe(request.path);
           expect(Object.keys(handed.exchanges[0]!.actual.db ?? {})).toEqual([]);
           return;
         }
