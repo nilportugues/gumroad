@@ -139,7 +139,7 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
       NEXTJS_ROUTE_FLAGS: [...ROUTE_FLAGS, "nextjs_admin_impersonate"].join(","),
       RAILS_ORIGIN: "http://rails.invalid",
       // Cursors are signed with the recording app's secret_key_base, which every fixture of one checkout carries.
-      SECRET_KEY_BASE: SERVER_SECRET,
+      SECRET_KEY_BASE: SERVER_SECRET ?? "",
       DATABASE_URL: url!,
       REDIS_HOST: redisHost,
       SIDEKIQ_REDIS_HOST: redisHost,
