@@ -96,7 +96,7 @@ export function sqlReplay(golden: Statement[]) {
     const q = (name: string) => `\`${name}\``;
     // A Date for a `date` column is quoted as the date alone, as ActiveRecord's Date type does.
     const dateOnly = new Set(model.fields.filter((f) => (f.nativeType as [string, string[]] | null | undefined)?.[0] === "Date").map((f) => f.dbName ?? f.name));
-    const quoteColumn = (c: string, value: unknown) => (dateOnly.has(c) && value instanceof Date ? `'${value.toISOString().slice(0, 10)}'` : quote(value));
+    const quoteColumn = (c: string, value: unknown) => (value === Prisma.DbNull ? "NULL" : dateOnly.has(c) && value instanceof Date ? `'${value.toISOString().slice(0, 10)}'` : quote(value));
     return {
       async create({ data }: { data: Record<string, unknown> }) {
         touch();

@@ -3,6 +3,7 @@
 import "@/server/controllers/emails-mutations";
 import "@/server/controllers/workflows-mutations";
 import "@/server/controllers/products-mutations";
+import "@/server/controllers/settings-mutations";
 import { mutationResponse } from "@/server/controllers/mutation";
 
 export const POST = mutationResponse;

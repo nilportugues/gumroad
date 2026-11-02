@@ -898,6 +898,17 @@ async function productIds(tx: Pick<Tx, "$queryRaw">, userId: unknown): Promise<b
   return rows.map((r) => BigInt(r.id));
 }
 
+// User#clear_products_cache
+export async function clearProductsCache(userId: unknown): Promise<void> {
+  const ids = await productIds(await connection(), userId);
+  try {
+    await collaborators.enqueueBulk("InvalidateProductCacheWorker", ids.map((id) => [id]));
+  } catch (error) {
+    if (!isRedisTransportError(error)) throw error;
+    notifyError(error, { user_id: userId });
+  }
+}
+
 async function approvedAffiliateRequestIds(tx: Pick<Tx, "$queryRaw">, email: string): Promise<bigint[]> {
   const rows = await tx.$queryRaw<{ id: bigint }[]>(
     Prisma.sql`SELECT \`affiliate_requests\`.* FROM \`affiliate_requests\` WHERE \`affiliate_requests\`.\`state\` = 'approved' AND \`affiliate_requests\`.\`email\` = ${email}`,
