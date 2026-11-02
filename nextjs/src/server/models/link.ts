@@ -14,7 +14,7 @@ import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
 import { getRedis } from "../infra/redis.ts";
 
 import { deletable } from "./concerns/deletable.ts";
-import { afterCommitEverywhere } from "./concerns/job-runtime.ts";
+import { afterCommitEverywhere, performAsync } from "./concerns/job-runtime.ts";
 import { jsonDataForAttr, mergeJsonDataWithCurrentRow } from "./concerns/json-data.ts";
 import { hasPaperTrail } from "./concerns/paper-trail.ts";
 import { loadBelongsTo, validatesUniqueness, type BelongsTo } from "./concerns/rails-validations.ts";
@@ -44,9 +44,15 @@ const PURCHASE_PROPERTIES = ["updated_at"];
 const ROLLUP_LINK_COLUMNS = ["deleted_at", "purchase_disabled_at", "banned_at", "draft", "flags", "user_id"];
 const REPUTATION_SUMMARY_FEATURE = "seller_reputation_summary";
 // Product::Searchable::ATTRIBUTE_TO_SEARCH_FIELDS_MAP, for the columns a ported update can change.
-const ATTRIBUTE_TO_SEARCH_FIELDS: Record<string, string[]> = { banned_at: ["is_recommendable", "is_alive_on_profile", "is_alive"] };
-// The columns an update may change; Rails' own callbacks also write updated_at and json_data.
-const PORTED_CHANGES = ["banned_at"];
+const ATTRIBUTE_TO_SEARCH_FIELDS: Record<string, string[]> = {
+  purchase_disabled_at: ["is_recommendable", "is_alive_on_profile", "is_alive"],
+  deleted_at: ["is_recommendable", "is_alive_on_profile", "is_alive"],
+  banned_at: ["is_recommendable", "is_alive_on_profile", "is_alive"],
+  archived: ["is_recommendable", "is_alive_on_profile"],
+};
+// The columns an update may change; Rails' own callbacks also write updated_at and json_data. `flags` is ported for the archived bit only.
+const PORTED_CHANGES = ["banned_at", "purchase_disabled_at", "flags", "deleted_at"];
+const ARCHIVED_BIT = 1n << 4n;
 
 export const NATIVE_TYPES_TO_TAX_CODE = {
   digital: "31000",
@@ -226,7 +232,9 @@ async function getUsdCents(currencyType: string, quantity: number): Promise<numb
 // ---------------------------------------------------------------------------------------------
 // Callbacks, in link.rb's declaration order (included concerns first).
 
-const changedForSearch = (link: LinkRecord) => Object.keys(ATTRIBUTE_TO_SEARCH_FIELDS).flatMap((key) => (link.attributeChanged(key as keyof Link & string) ? ATTRIBUTE_TO_SEARCH_FIELDS[key]! : []));
+const flagsDiff = (link: LinkRecord) => BigInt(link.get("flags") ?? 0) ^ BigInt(link.attributeWas("flags") ?? 0);
+const attributeChangedForSearch = (link: LinkRecord, key: string) => (key === "archived" ? (flagsDiff(link) & ARCHIVED_BIT) !== 0n : link.attributeChanged(key as keyof Link & string));
+const changedForSearch = (link: LinkRecord) => Object.keys(ATTRIBUTE_TO_SEARCH_FIELDS).flatMap((key) => (attributeChangedForSearch(link, key) ? ATTRIBUTE_TO_SEARCH_FIELDS[key]! : []));
 
 const refuseUnportedSave: Callback<Link> = {
   name: "(guard) refuse unported changes",
@@ -235,6 +243,7 @@ const refuseUnportedSave: Callback<Link> = {
     link.untracked(() => {
       const unported = link.changedAttributeNames().filter((name) => !PORTED_CHANGES.includes(name));
       if (unported.length > 0) throw new NotPortedError(`Link#save changing ${unported.join(", ")}`, "app/models/link.rb");
+      if (link.attributeChanged("flags") && (flagsDiff(link) & ~ARCHIVED_BIT) !== 0n) throw new NotPortedError("Link#save changing flags other than archived", "app/models/link.rb");
       if (link.get("unique_permalink") == null) throw new NotPortedError("Link#generate_unique_permalink", "app/models/link.rb:1882");
     });
   },
@@ -698,6 +707,21 @@ export const Links = defineModel<Link>({
         link.set("customizable_price", true);
         link.clearAttributeChanges(["customizable_price"]);
         await enqueueIndexUpdateFor(link, ["customizable_price"], ctx);
+      },
+    },
+  ],
+  afterCommit: [
+    {
+      // indexnow_submission_needed?
+      name: "submit_to_indexnow",
+      on: "update",
+      if: (link) =>
+        link.savedChangeTo("purchase_disabled_at") ||
+        link.savedChangeTo("deleted_at") ||
+        link.savedChangeTo("draft") ||
+        (isPublished(link) && (link.savedChangeTo("name") || link.savedChangeTo("description") || link.savedChangeTo("custom_permalink"))),
+      async run(link) {
+        await performAsync("SubmitToIndexnowJob", [[link.get("id") as bigint]]);
       },
     },
   ],
