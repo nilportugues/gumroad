@@ -6,4 +6,9 @@ function update(context: SellerContext): boolean {
   return roleAdminFor(c) || roleSupportFor(c);
 }
 
-export const audiencePurchasePolicy = { update, manageLicense: update };
+// `update? && record.link.is_physical?`
+function markAsShipped(context: SellerContext, productIsPhysical: boolean): boolean {
+  return update(context) && productIsPhysical;
+}
+
+export const audiencePurchasePolicy = { update, manageLicense: update, markAsShipped };

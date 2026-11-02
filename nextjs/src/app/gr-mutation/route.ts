@@ -9,6 +9,7 @@ import "@/server/controllers/connections-mutations";
 import "@/server/controllers/oauth-applications-mutations";
 import "@/server/controllers/customer-actions";
 import "@/server/controllers/product-review-responses";
+import "@/server/controllers/shipments";
 import { mutationResponse } from "@/server/controllers/mutation";
 
 export const POST = mutationResponse;

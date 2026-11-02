@@ -22,7 +22,7 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
-const SPECS = ["affiliate_redirect_parity_spec", "seller_json_mutations_signed_in_spec", "product_review_responses_signed_in_spec"].filter((dir) => existsSync(path.join(FIXTURES, dir)));
+const SPECS = ["affiliate_redirect_parity_spec", "seller_json_mutations_signed_in_spec", "product_review_responses_signed_in_spec", "shipments_signed_in_spec"].filter((dir) => existsSync(path.join(FIXTURES, dir)));
 const ROUTE_FLAGS = ["nextjs_affiliate_redirect", "nextjs_customer_actions", "nextjs_review_responses"].join(",");
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
@@ -68,6 +68,7 @@ const COMPARE = {
     "db.licenses.updated.*.changes.updated_at",
     "db.calls.updated.*.changes.updated_at",
     "db.product_review_responses.updated.*.changes.updated_at",
+    "db.shipments.updated.*.changes.updated_at",
     // Delayed jobs are scheduled seconds ahead of the clock, which the replay normalizes to the nearest bucket.
     "jobs.*.at",
     "http",
@@ -146,6 +147,8 @@ describe.skipIf(!url)("WS-12b parity", () => {
 
   const replayOptions = (file: string) => {
     const ignore = [...COMPARE.ignore, ...affiliateCookieNames(file).map((name) => `response.cookies.${name}.value`)];
+    // purchase.touch only moves updated_at, and a row the replay seeded a moment ago is touched within the same second: no visible change.
+    if (file.includes("shipments_signed_in_spec")) ignore.push("db.purchases");
     return {
       sql,
       redis: redisSeeder(redis),
@@ -179,6 +182,11 @@ describe.skipIf(!url)("WS-12b parity", () => {
         }
         const result = await replayFixtureExchange(fixture, index, replayOptions(file));
         assertParity(result);
+        // The recorder does not see ActiveJob's test adapter, so Rails' mail job is not in the fixture: Node's has to be in Sidekiq's queue.
+        if (name.endsWith("shipments_signed_in: marking-orders-as-shipped-when-signed-in-marks-the-order-as-shipped")) {
+          const [pushed] = await redis.lrange("queue:low", 0, -1);
+          expect(JSON.parse(pushed!)).toMatchObject({ wrapped: "MailDeliveryJob", queue: "low", args: [{ arguments: ["CustomerLowPriorityMailer", "order_shipped", "deliver_now", { args: [1] }] }] });
+        }
         for (const cookie of affiliateCookieNames(file)) {
           const value = Number((result.exchanges.at(-1)!.actual.response?.cookies?.[cookie] as { value: string }).value);
           expect(Math.abs(value - Date.now() / 1000)).toBeLessThan(AFFILIATE_COOKIE_TOLERANCE_S);
