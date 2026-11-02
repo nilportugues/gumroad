@@ -21,18 +21,20 @@ export async function sellerJsonAction(
   { context, request }: Pick<ActionContext, "context" | "request">,
   policy: JsonSellerPolicy,
   run: (sellerContext: SellerContext) => Promise<ActionResult>,
+  // The controller read params before the filter halted (its own before_actions), so Vary: Accept is not added.
+  { paramsRead = false }: { paramsRead?: boolean } = {},
 ): Promise<ActionResult> {
   if (requestFormat(request) !== "json") throw new HandBackToRails("a seller JSON endpoint requested in another format");
   const user = railsLoggedInUser(context);
   if (!user || !context.currentSeller) throw new HandBackToRails("a signed-out request to a seller JSON endpoint");
-  if (!user.email && !user.unconfirmed_email && !context.impersonatedUser) return { ...jsonResponse({ success: false, error_message: ADD_EMAIL_MESSAGE }, 403), rescued: true };
+  if (!user.email && !user.unconfirmed_email && !context.impersonatedUser) return { ...jsonResponse({ success: false, error_message: ADD_EMAIL_MESSAGE }, 403, paramsRead), rescued: true };
 
   const sellerContext = await loadSellerContext(context);
   try {
     if (!policy(sellerContext)) throw new NotAuthorizedError();
   } catch (error) {
     if (!(error instanceof NotAuthorizedError)) throw error;
-    return { ...jsonResponse({ success: false, error: notAllowedMessage(sellerContext) }, 401), rescued: true };
+    return { ...jsonResponse({ success: false, error: notAllowedMessage(sellerContext) }, 401, paramsRead), rescued: true };
   }
   return run(sellerContext);
 }

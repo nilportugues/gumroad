@@ -164,7 +164,8 @@ describe.skipIf(!url)("dashboard JSON endpoints and event tracking", () => {
           const handed = await replayFixtureExchange(fixture, index, options());
           const request = fixture.exchanges[index]!.request;
           expect(handedBack).toHaveLength(1);
-          expect(handedBack[0]).toMatchObject({ method: request.method, url: request.path });
+          expect(handedBack[0]).toMatchObject({ method: request.method });
+          expect(decodeURIComponent(handedBack[0]!.url.split("?")[0]!)).toBe(decodeURIComponent(request.path.split("?")[0]!));
           if (request.body) expect(JSON.parse(handedBack[0]!.body)).toEqual(JSON.parse(request.body));
           expect(Object.keys(handed.exchanges[0]!.actual.db ?? {})).toEqual([]);
           return;

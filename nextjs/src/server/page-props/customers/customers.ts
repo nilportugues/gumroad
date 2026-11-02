@@ -60,7 +60,15 @@ export function rubyToI(value: string | undefined): number {
   return match ? Number(match[0].replaceAll("_", "")) : 0;
 }
 
-export type CustomersParams = { linkId: string | null; page: string | undefined; query: string | undefined; boughtFrom: string | undefined };
+export type CustomersParams = {
+  linkId: string | null;
+  page: string | undefined;
+  query: string | undefined;
+  boughtFrom: string | undefined;
+  // `GET /customers/paged`: the sort ES takes ahead of the date order, and the 1-indexed page the answer reports.
+  sort?: Record<string, unknown> | null;
+  paged?: boolean;
+};
 
 // `from` is 0-indexed; page 500 (1-indexed) is the last legal ES window (9980).
 export const pageOffset = (page: string | undefined) => Math.min(Math.max(rubyToI(page), 0), MAX_RESULT_WINDOW / CUSTOMERS_PER_PAGE - 1) * CUSTOMERS_PER_PAGE;
@@ -92,6 +100,7 @@ async function fetchSales(seller: User, params: CustomersParams, product: Row | 
     track_total_hits: true,
     seller_query: params.query,
   };
+  if (params.sort) (options.sort as unknown[]).unshift(params.sort);
   return PurchaseSearchService.process(options);
 }
 
@@ -401,7 +410,7 @@ export async function customersProps(context: SellerContext, params: CustomersPa
   const sellerUsername = present(seller.username) ? seller.username : seller.external_id!;
   const customers = loaded.purchases.map((purchase) => customerJson(purchase, { seller, sellerUsername, sellerContext: context, loaded }));
   return {
-    pagination: { page: 1, pages: totalPages(total), next: null },
+    pagination: { page: params.paged ? pageOffset(params.page) / CUSTOMERS_PER_PAGE + 1 : 1, pages: totalPages(total), next: null },
     product_id: product ? encrypt(product.id) : null,
     customers,
     count: total,
