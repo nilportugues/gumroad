@@ -7,6 +7,9 @@ import "@/server/controllers/settings-mutations";
 import "@/server/controllers/social-callbacks";
 import "@/server/controllers/connections-mutations";
 import "@/server/controllers/oauth-applications-mutations";
+import "@/server/controllers/dashboard-json";
+import "@/server/controllers/events-mutations";
+import "@/server/controllers/wishlists-mutations";
 import { mutationResponse } from "@/server/controllers/mutation";
 
 export const POST = mutationResponse;

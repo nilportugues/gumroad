@@ -123,6 +123,9 @@ export type ActionContext = {
   context: RequestContext;
   // Reads the render state and consumes the flash and inertia_errors, as rendering the page does.
   takeRenderState: () => RenderState;
+  // What the session and cookie jar hold for the Events concern, without consuming the flash (an action that renders no page
+  // leaves it for the next one).
+  peekState: () => Pick<RenderState, "mobileParam" | "signupReferrer" | "mintedGuid">;
 };
 
 const GUMROAD_GUID_COOKIE = "_gumroad_guid";
@@ -306,6 +309,15 @@ export function takeRenderState(chain: Chain): RenderState {
   delete data.inertia_errors;
   delete data.inertia_clear_history;
   return state;
+}
+
+function peekState(chain: Chain): Pick<RenderState, "mobileParam" | "signupReferrer" | "mintedGuid"> {
+  const { data } = chain.session;
+  return {
+    mobileParam: data.mobile_param,
+    ...(typeof data.signup_referrer === "string" ? { signupReferrer: data.signup_referrer } : {}),
+    ...(chain.guid ? { mintedGuid: /^_gumroad_guid=([^;]+)/.exec(chain.guid)?.[1] } : {}),
+  };
 }
 
 // The filters ApplicationController runs before the action. Returns the response when one of them
@@ -517,7 +529,7 @@ async function runChain(
 ): Promise<ControllerResponse> {
   const chain = await beforeActions(request, options, now);
   if (halted(chain)) return chain;
-  const result = await action({ request, context: chain.auth.context, takeRenderState: () => takeRenderState(chain) });
+  const result = await action({ request, context: chain.auth.context, takeRenderState: () => takeRenderState(chain), peekState: () => peekState(chain) });
   const response = afterActions(chain, result);
   await promoteVisit(chain, response.status);
   return response;

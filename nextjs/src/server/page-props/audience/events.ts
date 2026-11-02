@@ -10,6 +10,7 @@ import { geoIpLookup } from "../../infra/geo-ip.ts";
 import { isInvalidUriError, rubyUriParse } from "../../models/concerns/ruby-uri.ts";
 import { column, execute, table } from "../../models/sql.ts";
 import { isMobile } from "../shared.ts";
+import { NotPortedError } from "../not-ported.ts";
 import type { RenderState } from "../../controllers/application-controller.ts";
 import { rackParam, type QuerySource } from "./support.ts";
 
@@ -56,7 +57,6 @@ export function remoteIp(headers: Headers): string | null {
   return ips.find((ip) => !TRUSTED_PROXIES.some((proxy) => proxy.test(ip))) ?? ips.at(-1) ?? null;
 }
 
-const castBoolean = (value: string | undefined): boolean | null => (value === undefined || value === "" ? null : !BOOLEAN_FALSE_VALUES.includes(value));
 
 function param(request: QuerySource, name: string): string | undefined {
   const value = rackParam(request, name);
@@ -67,11 +67,19 @@ export type EventSource = {
   context: RequestContext;
   headers: Headers;
   url: URL;
-  state: RenderState | null;
+  state: Pick<RenderState, "mobileParam" | "signupReferrer" | "mintedGuid"> | null;
+  // `params`, when the event comes from a request body (EventsController#create) rather than the query string.
+  params?: Record<string, unknown>;
 };
 
+// FlagShihTzu::TRUE_VALUES, which also holds true and 1 for a value that came from a JSON body.
+const flagTrue = (value: unknown): boolean => value === true || value === 1 || (typeof value === "string" && FLAG_TRUE_VALUES.includes(value));
+// ActiveModel::Type::Boolean#cast
+const castBooleanValue = (value: unknown): boolean | null => (value === undefined || value === null || value === "" ? null : ![false, 0, ...BOOLEAN_FALSE_VALUES].includes(value as never));
+const isBlankString = (value: unknown): boolean => typeof value === "string" && /^[\s\0]*$/u.test(value);
+
 // Events#create_user_event(name): nothing while impersonating.
-export async function createUserEvent(name: string, { context, headers, url, state }: EventSource): Promise<void> {
+export async function createUserEvent(name: string, { context, headers, url, state, params }: EventSource): Promise<void> {
   if (context.impersonatedUser) return;
   const user = railsLoggedInUser(context);
   const query: QuerySource = { queryString: url.search.replace(/^\?/, "") };
@@ -80,24 +88,34 @@ export async function createUserEvent(name: string, { context, headers, url, sta
   const geo = geoIpLookup(ip);
   const userAgent = headers.get("user-agent");
   const requestReferrer = headers.get("referer");
+  // A value of another type than the column's would be cast by ActiveRecord: not modeled.
+  const text = (name: string): string | undefined => {
+    const value = params === undefined ? param(query, name) : params[name];
+    if (value === undefined || value === null) return undefined;
+    if (typeof value !== "string") throw new NotPortedError(`a non-string ${name} parameter`);
+    return value;
+  };
+  const read = (name: string): unknown => (params === undefined ? param(query, name) : params[name]);
   const referrers = (() => {
-    const value = rackParam(query, "referrer");
-    return (Array.isArray(value) ? value : value === undefined ? [] : [value]).filter((entry) => !/^\s*$/u.test(entry));
+    const value = params === undefined ? rackParam(query, "referrer") : params.referrer;
+    const list = Array.isArray(value) ? value : value === undefined || value === null ? [] : [value];
+    if (list.some((entry) => typeof entry !== "string")) throw new NotPortedError("a non-string referrer parameter");
+    return (list as string[]).filter((entry) => !isBlankString(entry));
   })();
   let referrer: string | null = referrers.at(-1) ?? requestReferrer;
   if (referrer !== null && !/^\s*$/u.test(referrer)) referrer = referrer.replace(/[^\x00-\x7f]/gu, "").slice(0, REFERRER_MAX_LENGTH);
 
   const cookies = new Map((headers.get("cookie") ?? "").split(/;\s*/u).filter(Boolean).map((pair) => [pair.slice(0, pair.indexOf("=")), pair.slice(pair.indexOf("=") + 1)]));
   const signupReferrer = state?.signupReferrer;
-  const wasProductRecommended = FLAG_TRUE_VALUES.includes(param(query, "was_product_recommended") ?? "");
+  const wasProductRecommended = flagTrue(read("was_product_recommended"));
   let visitId = 0;
   if (wasProductRecommended) visitId |= FLAG_WAS_PRODUCT_RECOMMENDED;
-  if (FLAG_TRUE_VALUES.includes(param(query, "from_multi_overlay") ?? "")) visitId |= FLAG_FROM_MULTI_OVERLAY;
+  if (flagTrue(read("from_multi_overlay"))) visitId |= FLAG_FROM_MULTI_OVERLAY;
   if (signupReferrer && SEO_REFERRER.test(signupReferrer)) visitId |= FLAG_FROM_SEO;
   // on_custom_domain: false for these dashboard views.
   void FLAG_ON_CUSTOM_DOMAIN;
 
-  const plugins = param(query, "plugins");
+  const plugins = text("plugins");
   const now = new Date();
   const values: Record<string, unknown> = {
     visit_id: visitId,
@@ -108,14 +126,14 @@ export async function createUserEvent(name: string, { context, headers, url, sta
     created_at: now,
     updated_at: now,
     referrer,
-    parent_referrer: param(query, "parent_referrer") ?? null,
+    parent_referrer: text("parent_referrer") ?? null,
     browser: userAgent,
     is_mobile: isMobile(state?.mobileParam, userAgent),
-    view_url: param(query, "view_url") ?? url.pathname,
+    view_url: text("view_url") ?? url.pathname,
     ip_country: geo?.countryName ?? null,
     ip_longitude: 0,
     ip_latitude: 0,
-    is_modal: castBoolean(param(query, "is_modal")),
+    is_modal: castBooleanValue(read("is_modal")),
     browser_fingerprint: createHash("md5").update([userAgent ?? "", plugins ?? ""].join(",")).digest("hex"),
     browser_guid: cookies.get("_gumroad_guid") ?? state?.mintedGuid ?? null,
     referrer_domain: wasProductRecommended ? REFERRER_DOMAIN_FOR_GUMROAD_RECOMMENDED_PRODUCTS : referrerDomain(referrer),
