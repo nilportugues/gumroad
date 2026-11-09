@@ -129,7 +129,7 @@ describe("Purchase#as_json(creator_app_api: true)", () => {
       seller_id: "enc7",
       timestamp: "less than a minute ago",
       daystamp: " 2 Nov 2026  7:00 AM",
-      created_at: "2026-11-02T15:00:00.000Z",
+      created_at: "2026-11-02T15:00:00Z",
       link_name: "Product",
       product_name: "Product",
       product_has_variants: false,
@@ -221,8 +221,8 @@ describe("Link#as_json(mobile: true)", () => {
       "has_rich_content",
     ]);
     expect(json).toMatchObject({
-      updated_at: "2026-01-02T00:00:00.123Z",
-      content_updated_at: "2026-01-01T00:00:00.000Z",
+      updated_at: "2026-01-02T00:00:00Z",
+      content_updated_at: "2026-01-01T00:00:00Z",
       creator_name: "Seller",
       preview_url: "",
       thumbnail_url: null,
@@ -263,7 +263,7 @@ describe("Purchase#json_data_for_mobile", () => {
     expect(mobile()).toMatchObject({
       name: "Product",
       purchase_id: "enc11",
-      purchased_at: "2026-11-02T15:00:00.000Z",
+      purchased_at: "2026-11-02T15:00:00Z",
       user_id: "buy8",
       is_archived: false,
       custom_delivery_url: null,

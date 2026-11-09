@@ -17,8 +17,9 @@ import { longFormattedDatetime } from "./mobile-time.ts";
 const CHARGE_PROCESSOR_IDS = ["stripe", "braintree", "paypal"];
 const MOBILE_PREVIEW_HEIGHT_FLOOR = 0;
 
-// ActiveSupport::TimeWithZone#as_json (ISO 8601 with milliseconds, UTC)
-export const jsonTime = (time: Date | null | undefined): string | null => (time == null ? null : time.toISOString());
+// ActiveSupport::TimeWithZone#as_json under config/initializers/json_time_precision.rb (time_precision = 0): ISO 8601, UTC, no fraction.
+export const jsonTime = (time: Date | null | undefined): string | null =>
+  time == null ? null : time.toISOString().replace(/\.\d{3}Z$/u, "Z");
 
 // String#strip: leading and trailing NUL and ASCII whitespace
 const rubyStrip = (value: string | null): string | null =>
