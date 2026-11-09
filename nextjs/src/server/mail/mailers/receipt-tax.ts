@@ -11,17 +11,17 @@ import { MailViewNotPortedError } from "../views.ts";
 type Id = number | bigint;
 
 // Compliance::Countries
-const EU_VAT_APPLICABLE_COUNTRY_CODES = new Set(["AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE", "GB"]);
-const NORWAY_VAT_APPLICABLE_COUNTRY_CODES = new Set(["NO"]);
-const GST_APPLICABLE_COUNTRY_CODES = new Set(["AU", "SG"]);
-const COUNTRIES_THAT_COLLECT_TAX_ON_ALL_PRODUCTS = new Set(["IS", "JP", "NZ", "ZA", "CH", "AE", "IN"]);
-const COUNTRIES_THAT_COLLECT_TAX_ON_DIGITAL_PRODUCTS = new Set([
+export const EU_VAT_APPLICABLE_COUNTRY_CODES = new Set(["AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE", "GB"]);
+export const NORWAY_VAT_APPLICABLE_COUNTRY_CODES = new Set(["NO"]);
+export const GST_APPLICABLE_COUNTRY_CODES = new Set(["AU", "SG"]);
+export const COUNTRIES_THAT_COLLECT_TAX_ON_ALL_PRODUCTS = new Set(["IS", "JP", "NZ", "ZA", "CH", "AE", "IN"]);
+export const COUNTRIES_THAT_COLLECT_TAX_ON_DIGITAL_PRODUCTS = new Set([
   "BY", "CL", "CO", "CR", "EC", "EG", "GE", "KZ", "MY", "MD", "MA", "RU", "SA", "RS", "KR", "TH", "TR", "UA", "UZ", "VN",
   "BH", "KE", "NG", "OM", "TZ",
 ]);
 const TAX_NAME_BY_COUNTRY_CODE: Record<string, string> = { IN: "GST", NZ: "GST", AU: "GST", SG: "GST", MY: "Service tax", JP: "CT" };
 
-const taxNameFor = (country: string) => (Object.hasOwn(TAX_NAME_BY_COUNTRY_CODE, country) ? TAX_NAME_BY_COUNTRY_CODE[country]! : "VAT");
+export const taxNameFor = (country: string) => (Object.hasOwn(TAX_NAME_BY_COUNTRY_CODE, country) ? TAX_NAME_BY_COUNTRY_CODE[country]! : "VAT");
 
 export type TaxPurchase = {
   id: Id;
