@@ -22,6 +22,7 @@ import { jsonDataHash, authorBylineProps } from "../../presenters/product.ts";
 import type { LinkRow, UserRow } from "../../presenters/product-reads.ts";
 import { fromAddressWithName } from "../audience/mail-addresses.ts";
 import { domainConfig } from "../domain.ts";
+import { hasVariantRichContent, variantProps, versionRows, versionStamps, type VersionRows } from "./edit-variants.ts";
 import data from "./edit-data.generated.json" with { type: "json" };
 
 // Link::NATIVE_TYPE_DIGITAL, _COURSE, _EBOOK: the types whose editor state is the plain product's (no tiers, calls,
@@ -65,7 +66,7 @@ function plain(value: YamlValue | undefined): unknown {
 type Blocker = { blocker: string };
 
 // The rows that would make the editor's state something this port does not model. Each is a table the presenter reads
-// (files, rich content, versions, covers, integrations ...) or a sale, whose count Rails reads from Elasticsearch.
+// (files, rich content, covers, integrations ...) or a sale, whose count Rails reads from Elasticsearch.
 export async function editBlockers(product: LinkRow, seller: UserRow): Promise<string[]> {
   const id = product.id;
   const sellerId = seller.id;
@@ -75,7 +76,9 @@ export async function editBlockers(product: LinkRow, seller: UserRow): Promise<s
     exists("thumbnail", Prisma.sql`${table("thumbnails")} WHERE ${column("thumbnails", "product_id")} = ${id} AND ${column("thumbnails", "deleted_at")} IS NULL`),
     exists("product_files", Prisma.sql`${table("product_files")} WHERE ${column("product_files", "link_id")} = ${id} AND ${column("product_files", "deleted_at")} IS NULL`),
     exists("rich_contents", Prisma.sql`${table("rich_contents")} WHERE ${column("rich_contents", "entity_id")} = ${id} AND ${column("rich_contents", "entity_type")} = 'Link' AND ${column("rich_contents", "deleted_at")} IS NULL`),
-    exists("variant_categories", Prisma.sql`${table("variant_categories")} WHERE ${column("variant_categories", "link_id")} = ${id} AND ${column("variant_categories", "deleted_at")} IS NULL`),
+    // A version enabled for an integration: its `integrations` / `loaded_integrations` props are not read.
+    exists("variant_integrations", Prisma.sql`${table("base_variant_integrations")} INNER JOIN ${table("base_variants")} ON ${column("base_variants", "id")} = ${column("base_variant_integrations", "base_variant_id")} INNER JOIN ${table("variant_categories")} ON ${column("variant_categories", "id")} = ${column("base_variants", "variant_category_id")} WHERE ${column("variant_categories", "link_id")} = ${id} AND ${column("base_variant_integrations", "deleted_at")} IS NULL`),
+    // SKUs hang off the product (`link_id`); versions leave it null.
     exists("skus", Prisma.sql`${table("base_variants")} WHERE ${column("base_variants", "link_id")} = ${id} AND ${column("base_variants", "deleted_at")} IS NULL`),
     exists("integrations", Prisma.sql`${table("product_integrations")} WHERE ${column("product_integrations", "product_id")} = ${id} AND ${column("product_integrations", "deleted_at")} IS NULL`),
     exists("shipping_destinations", Prisma.sql`${table("shipping_destinations")} WHERE ${column("shipping_destinations", "link_id")} = ${id} AND ${column("shipping_destinations", "deleted_at")} IS NULL`),
@@ -104,6 +107,9 @@ export async function editBlockers(product: LinkRow, seller: UserRow): Promise<s
   for (const flag of ["is_recurring_billing", "is_tiered_membership", "is_physical", "is_bundle", "is_in_preorder_state", "free_trial_enabled", "is_collab", "skus_enabled"] as const) {
     if (set(flag)) blockers.push(flag);
   }
+  // `recoverable_hidden_variant_rich_content?` reads `RichContent#has_editor_content?` of the versions' pages when the
+  // product shares one set of pages; the port only serves the case where there are none.
+  if (set("has_same_rich_content_for_all_variants") && (await hasVariantRichContent(id))) blockers.push("hidden_variant_rich_content");
   if (product.max_purchase_count !== null) blockers.push("max_purchase_count");
   if (product.default_offer_code_id !== null) blockers.push("default_offer_code");
   if (product.subscription_duration !== null) blockers.push("subscription_duration");
@@ -118,16 +124,18 @@ export async function assertEditSupported(product: LinkRow, seller: UserRow, cur
   if ((await editBlockers(product, seller)).length > 0) throw new HandBackToRails();
 }
 
-// Product::EditorRevision.current for a product with none of the five collections the digest covers.
-export function editorRevision(product: LinkRow, secretKeyBase = getConfig("SECRET_KEY_BASE") ?? ""): string {
+// Port of app/services/product/editor_revision.rb `fingerprint`/`digest`, for a product whose rich content, files, public
+// files and integrations (editBlockers) are empty: only the versions and their categories contribute.
+export function editorRevision(product: LinkRow, secretKeyBase = getConfig("SECRET_KEY_BASE") ?? "", versions: VersionRows = { categories: [], variants: [] }): string {
+  const stamps = versionStamps(versions);
   const flag = (name: Parameters<typeof LinkFlags.isSet>[1]) => LinkFlags.isSet(product.flags as bigint, name);
   const fingerprint = {
     version: EDITOR_REVISION_VERSION,
     product: Number(product.id),
     product_state: { has_same_rich_content_for_all_variants: flag("has_same_rich_content_for_all_variants"), is_tiered_membership: flag("is_tiered_membership"), is_physical: flag("is_physical") },
     rich_content: [],
-    variants: [],
-    variant_categories: [],
+    variants: stamps.variants,
+    variant_categories: stamps.variant_categories,
     files: [],
     public_files: [],
     integrations: [],
@@ -287,6 +295,7 @@ export async function editProps({ product, seller, sellerExternalId, aiGenerated
   // find_or_initialize_product_refund_policy: an unsaved policy takes the attribute defaults.
   const refundPolicy = refund ?? { max_refund_period_in_days: DEFAULT_REFUND_PERIOD_IN_DAYS, fine_print: null };
 
+  const versions = await versionRows(product.id);
   const tags = await productTagNames(product.id);
   const otherRefundPolicies = await otherProductRefundPolicies(product.id, seller.id);
   const sections = await profileSections(seller);
@@ -302,7 +311,7 @@ export async function editProps({ product, seller, sellerExternalId, aiGenerated
   return {
     product: {
       name: product.name,
-      editor_revision: editorRevision(product),
+      editor_revision: editorRevision(product, undefined, versions),
       loaded_integrations: Object.fromEntries(INTEGRATION_NAMES.map((name) => [name, false])),
       custom_permalink: product.custom_permalink,
       description: product.description ?? "",
@@ -345,7 +354,7 @@ export async function editProps({ product, seller, sellerExternalId, aiGenerated
       first_published_at: product.first_published_at ? instantInTimeZoneIso8601("UTC", product.first_published_at as Date) : null,
       require_shipping: false,
       integrations: Object.fromEntries(INTEGRATION_NAMES.map((name) => [name, null])),
-      variants: [],
+      variants: await variantProps(versions, flag("has_same_rich_content_for_all_variants")),
       availabilities: [],
       shipping_destinations: [],
       shipping_excluded_country_codes: [],
@@ -367,7 +376,8 @@ export async function editProps({ product, seller, sellerExternalId, aiGenerated
       collaborating_user: null,
       rich_content: [],
       files: [],
-      has_same_rich_content_for_all_variants: false,
+      // `recoverable_hidden_variant_rich_content?` is false here (editBlockers).
+      has_same_rich_content_for_all_variants: flag("has_same_rich_content_for_all_variants"),
       is_multiseat_license: flag("is_multiseat_license"),
       call_limitation_info: null,
       native_type: product.native_type,
