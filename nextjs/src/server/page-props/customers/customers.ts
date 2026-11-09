@@ -2,7 +2,7 @@
 // and CustomerPresenter#customer (app/presenters/customer{,s}_presenter.rb).
 //
 // Handed back to Rails (HandBackToRails) when a customer on the page needs a reading the port does not make: a member or
-// installment plan (current subscription price, remaining charges), a preorder, a sent gift whose
+// installment plan (current subscription price, remaining charges), a sent gift whose
 // recipient holds a license, a physical product, a Sku or a tier, several options on one sale, a collaborator sale that also credits a direct affiliate, a UTM link (`utm_url` is built by Addressable), a non-USD price without a
 // stored rate or in a currency the port has no table for, a refund whose json_data is not plain JSON, a commission
 // with files, a review video, a custom field file, a seller whose ping endpoints must be checked (`can_ping`), and a
@@ -161,6 +161,8 @@ type Loaded = {
   gifts: Map<string, Row>;
   // The gift a receiver's purchase was delivered through (`gift_received`), by the receiver's purchase id.
   receivedGifts: Map<string, Row>;
+  // The ids of the preorders the page's purchases belong to (`purchase.preorder.present?`).
+  preorderIds: Set<string>;
 };
 
 // Refund#effective?: a failed or canceled refund counts unless its balance debits were reversed.
@@ -195,14 +197,14 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
   const links = byId(await rowsBy("links", "id", [...new Set(purchases.map((purchase) => purchase.link_id))]));
   for (const link of links.values()) if (link.require_shipping) throw new HandBackToRails();
   for (const purchase of purchases) {
-    if (purchase.subscription_id != null || purchase.preorder_id != null) throw new HandBackToRails();
+    if (purchase.subscription_id != null) throw new HandBackToRails();
     // credits_direct_affiliate?: a collaborator sale that also credits a direct affiliate splits the credit in two (json_data).
     if (purchase.affiliate_id != null && typeof purchase.json_data === "string" && purchase.json_data.includes("direct_affiliate_id")) throw new HandBackToRails();
     // usd_cents_to_currency converts the refundable amount at the rate stored on the sale; without one it would ask Redis.
     if (purchase.displayed_price_currency_type !== "usd" && !(typeof purchase.displayed_price_currency_type === "string" && purchase.displayed_price_currency_type in KNOWN_CURRENCIES && PLAIN_RATE.test(String(purchase.rate_converted_to_usd ?? "").trim()))) throw new HandBackToRails();
     const flags = (name: Parameters<typeof PurchaseFlags.isSet>[1]) => PurchaseFlags.isSet(purchase.flags, name);
     if (flags("is_commission_deposit_purchase")) throw new HandBackToRails();
-    if (flags("is_preorder_authorization") || flags("is_installment_payment")) throw new HandBackToRails();
+    if (flags("is_installment_payment")) throw new HandBackToRails();
   }
   for (const [tableName, columnName] of [
     ["utm_link_driven_sales", "purchase_id"],
@@ -264,6 +266,7 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
     links,
     hasAliveVariants: await productsWithAliveVariants([...links.keys()]),
     receivedGifts,
+    preorderIds: new Set((await rowsBy("preorders", "id", [...new Set(purchases.map((purchase) => purchase.preorder_id).filter((id) => id != null))])).map((preorder) => String(preorder.id))),
     variants,
     upsellNames,
     affiliates,
@@ -385,6 +388,11 @@ export function variantOption(variant: Row, productName: string) {
   };
 }
 
+// CustomerPresenter's `is_preorder`: the authorization of a preorder that still exists, not the purchase it was later charged as.
+export function isPreorder(purchase: Row, preorderIds: Set<string>): boolean {
+  return purchase.preorder_id != null && preorderIds.has(String(purchase.preorder_id)) && PurchaseFlags.isSet(purchase.flags, "is_preorder_authorization");
+}
+
 // Purchase#gift: the sender's gift_given, else the receiver's gift_received.
 export function giftOf(purchase: Row, loaded: Pick<Loaded, "gifts" | "receivedGifts">): Row | undefined {
   const id = String(purchase.id);
@@ -468,7 +476,7 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
     referrer: displayReferrer(purchase, sellerUsername),
     is_additional_contribution: flags("is_additional_contribution"),
     ppp: ppp ? { country: purchase.ip_country, discount: `${Math.round((1 - num(ppp.factor)) * 100)}%` } : null,
-    is_preorder: false,
+    is_preorder: isPreorder(purchase, loaded.preorderIds),
     affiliate: affiliate && affiliateUser ? affiliateJson(purchase, affiliate, affiliateUser) : null,
     license: license
       ? {

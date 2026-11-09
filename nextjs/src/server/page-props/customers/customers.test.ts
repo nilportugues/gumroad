@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { HandBackToRails } from "../../controllers/application-controller.ts";
 import { setSqlClient } from "../../models/sql.ts";
-import { affiliateJson, displayReferrer, giftOf, offerCodeReading, upsellNamesFor, variantOption, pageOffset, refundableCents, refundIsEffective, rubyToI, totalPages } from "./customers.ts";
+import { affiliateJson, displayReferrer, giftOf, isPreorder, offerCodeReading, upsellNamesFor, variantOption, pageOffset, refundableCents, refundIsEffective, rubyToI, totalPages } from "./customers.ts";
 
 const purchase = (overrides: Record<string, unknown>) => ({ flags: 0n, recommended_by: null, referrer: null, ...overrides });
 
@@ -239,5 +239,23 @@ describe("Purchase#gift", () => {
   it("is nothing for a purchase that is neither, even when a gift row shares its id", () => {
     expect(giftOf({ id: 1, flags: 0n }, loaded)).toBeUndefined();
     expect(giftOf({ id: 2, flags: SENDER_FLAG }, loaded)).toBeUndefined();
+  });
+});
+
+describe("CustomerPresenter is_preorder", () => {
+  const AUTHORIZATION_FLAG = 1n << 3n;
+  const preorders = new Set(["9"]);
+
+  it("is true for the authorization of an existing preorder", () => {
+    expect(isPreorder({ preorder_id: 9, flags: AUTHORIZATION_FLAG }, preorders)).toBe(true);
+  });
+
+  it("is false for the purchase a preorder was charged as, and for a preorder that no longer exists", () => {
+    expect(isPreorder({ preorder_id: 9, flags: 0n }, preorders)).toBe(false);
+    expect(isPreorder({ preorder_id: 10, flags: AUTHORIZATION_FLAG }, preorders)).toBe(false);
+  });
+
+  it("is false for a purchase without a preorder", () => {
+    expect(isPreorder({ preorder_id: null, flags: AUTHORIZATION_FLAG }, preorders)).toBe(false);
   });
 });
