@@ -23,7 +23,8 @@ describe "Storefront profile products", type: :request, elasticsearch_wait_for_r
   end
 
   def sell(item, count = 1)
-    count.times { create(:purchase, link: item, seller:) }
+    # The purchase factory charges a card through Stripe; the listing only reads the row.
+    count.times { build(:purchase, link: item, seller:, purchase_state: "successful").save!(validate: false) }
   end
 
   def show_products_section(shown, **attributes)

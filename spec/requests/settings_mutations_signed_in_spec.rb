@@ -280,7 +280,7 @@ describe "Settings mutations when signed in", type: :request do
       send_form(:put, settings_billing_path, billing(country_code: "US", state: ""))
 
       expect(response).to redirect_to(settings_billing_path)
-      expect(response).to have_http_status(:found)
+      expect(response).to have_http_status(:see_other)
       expect(seller.reload.billing_detail).to be_nil
     end
   end
@@ -298,7 +298,7 @@ describe "Settings mutations when signed in", type: :request do
       # eligible_for_ai_product_generation?: confirmed, not suspended, enough sales and a completed payout.
       def make_eligible
         create(:payment_completed, user: seller)
-        create(:purchase, link: create(:product, user: seller, unique_permalink: "aipromo"), seller:, price_cents: 15_000)
+        build(:purchase, link: create(:product, user: seller, unique_permalink: "aipromo"), seller:, price_cents: 15_000, purchase_state: "successful").save!(validate: false)
         index_model_records(Purchase)
       end
 
