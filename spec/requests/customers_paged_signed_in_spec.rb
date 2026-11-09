@@ -109,12 +109,63 @@ describe "Customers table JSON when signed in", type: :request, elasticsearch_wa
     expect(response.parsed_body["pagination"]["page"]).to eq(500)
   end
 
-  it "hands a request with product filters to Rails", parity: true do
+  it "filters by a product", parity: true do
     seed
 
     fetch(page: 1, products: [product.external_id])
 
     expect(response.parsed_body["customers"].size).to eq(2)
+  end
+
+  it "excludes the buyers of a product", parity: true do
+    seed
+
+    fetch(page: 1, excluded_products: [other.external_id])
+
+    expect(response.parsed_body["count"]).to eq(2)
+  end
+
+  it "filters by an amount range", parity: true do
+    seed
+
+    fetch(page: 1, minimum_amount_cents: "1000", maximum_amount_cents: "2000")
+
+    expect(response.parsed_body["count"]).to eq(1)
+  end
+
+  it "filters by a date range in the seller's time zone", parity: true do
+    seed
+    day = ->(days_ago) { days_ago.days.ago.in_time_zone(seller.timezone).to_date.iso8601 }
+
+    fetch(page: 1, created_after: day.call(6), created_before: day.call(2))
+
+    expect(response.parsed_body["count"]).to eq(2)
+  end
+
+  it "drops a date range that ends before it starts", parity: true do
+    seed
+
+    fetch(page: 1, created_after: "2030-01-02", created_before: "2030-01-01")
+
+    expect(response.parsed_body["count"]).to eq(3)
+  end
+
+  it "filters by the country parameter ahead of bought_from", parity: true do
+    seed
+
+    fetch(page: 1, country: "France", bought_from: "Spain")
+
+    expect(response.parsed_body["count"]).to eq(1)
+  end
+
+  it "lists active customers only", parity: true do
+    seed
+    Purchase.find_by(email: "ada@example.com").update_columns(stripe_refunded: true)
+    index_model_records(Purchase)
+
+    fetch(page: 1, active_customers_only: "true")
+
+    expect(response.parsed_body["count"]).to eq(2)
   end
 
   it "answers 403 JSON to a seller without an email address", parity: true do

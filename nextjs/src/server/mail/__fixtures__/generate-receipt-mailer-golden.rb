@@ -406,7 +406,20 @@ def refuse(refused, name, **setup_args)
 end
 
 PRICE = { price_cents: 500, total_transaction_cents: 500, displayed_price_cents: 500 }.freeze
-refuse(refused, "rental", purchase: PRICE.merge(flags: 16384))
+# A rental purchase (Purchase flag 15) whose redirect is not a rental: the plain "View content" button.
+setup(purchase: PRICE.merge(flags: 16384))
+messages << record_message("receipt_rental", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
+# A rental redirect (UrlRedirect flag 3) is what checkout creates. "Watch" only when the product has a video file; with
+# none, the download button partial renders nothing. Not yet recorded from Ruby: the Node port of these two is unproven
+# until this script is run against the real application and the golden regenerated.
+RENTAL = PRICE.merge(flags: 16384)
+setup(purchase: RENTAL, redirect: false)
+insert_url_redirect(id: 601, purchase_id: 401, link_id: 301, flags: 4)
+messages << record_message("receipt_rental_no_video", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
+setup(purchase: RENTAL, redirect: false)
+insert_url_redirect(id: 601, purchase_id: 401, link_id: 301, flags: 4)
+ProductFile.insert!({ link_id: 301, url: "https://example.com/a.mp4", filetype: "mp4", filegroup: "video", created_at: FIXED_NOW, updated_at: FIXED_NOW })
+messages << record_message("receipt_rental_watch", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
 refuse(refused, "bundle", purchase: PRICE.merge(flags: 33_554_432), link: { flags: 33_554_432 })
 refuse(refused, "membership", link: { flags: 2, native_type: "membership" }, purchase: PRICE)
 refuse(refused, "unknown_currency", purchase: PRICE.merge(displayed_price_currency_type: "xxx", rate_converted_to_usd: "1.0"))

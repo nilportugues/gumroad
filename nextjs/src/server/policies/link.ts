@@ -81,3 +81,4 @@ export async function piracyReportsTabVisible(context: SellerContext): Promise<b
 export async function piracyReportsNew(context: SellerContext, featureActive: boolean): Promise<boolean> {
   return featureActive && roleAdminFor(requireUser(context));
 }
+export const productsVariantsLinkPolicy = { index: readOnly };

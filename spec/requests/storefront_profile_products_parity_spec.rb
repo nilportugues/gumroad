@@ -153,7 +153,7 @@ describe "Storefront profile products", type: :request, elasticsearch_wait_for_r
     expect(response.parsed_body["props"]["sections"].first["search_results"]["products"].size).to eq(1)
   end
 
-  it "hands back a profile with a featured product section", parity: true do
+  it "shows a featured product section to a visitor", parity: true do
     featured = product("Featured")
     create(:seller_profile_featured_product_section, seller:, featured_product_id: featured.id)
 
@@ -162,13 +162,41 @@ describe "Storefront profile products", type: :request, elasticsearch_wait_for_r
     expect(response).to be_successful
   end
 
-  it "hands back a profile with a wishlists section", parity: true do
+  it "shows a wishlists section to a visitor", parity: true do
     wishlist = create(:wishlist, user: seller)
     create(:seller_profile_wishlists_section, seller:, shown_wishlists: [wishlist.id])
 
     get_profile
 
     expect(response).to be_successful
+  end
+
+  it "shows no product for a featured product section whose product was deleted", parity: true do
+    featured = product("Featured")
+    create(:seller_profile_featured_product_section, seller:, featured_product_id: featured.id)
+    featured.mark_deleted!
+
+    get_profile
+
+    expect(response).to be_successful
+    expect(inertia_props["sections"].first["props"]).to be_nil
+  end
+
+  it "shows the wishlists of a section in the seller's order with the last thumbnails", parity: true do
+    first = create(:wishlist, user: seller, name: "First")
+    second = create(:wishlist, user: seller, name: "Second")
+    5.times { |n| create(:wishlist_product, wishlist: first, product: product("Item #{n}")) }
+    create(:wishlist_product, wishlist: second, product: product("Only item"))
+    deleted = create(:wishlist, user: seller, name: "Gone")
+    deleted.mark_deleted!
+    create(:seller_profile_wishlists_section, seller:, shown_wishlists: [second.id, deleted.id, first.id])
+
+    get_profile
+
+    expect(response).to be_successful
+    wishlists = inertia_props["sections"].first["wishlists"]
+    expect(wishlists.map { _1["name"] }).to eq(%w[Second First])
+    expect(wishlists.map { _1["thumbnails"].size }).to eq([1, 4])
   end
 
   it "hands back a profile whose products include a membership with tiers", parity: true do

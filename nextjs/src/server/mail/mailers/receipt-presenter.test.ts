@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 
 import { MailViewNotPortedError } from "../views.ts";
-import { assertSupported, autoLinkText, mailSubject, type ReceiptData, simpleFormat } from "./receipt-presenter.ts";
+import { assertSupported, autoLinkText, itemInfo, mailSubject, type ReceiptData, simpleFormat } from "./receipt-presenter.ts";
 
 const data = (purchase: Partial<ReceiptData["purchase"]> = {}, link: Partial<ReceiptData["link"]> = {}, seller: Partial<ReceiptData["seller"]> = {}): ReceiptData => ({
   purchase: {
@@ -15,7 +15,7 @@ const data = (purchase: Partial<ReceiptData["purchase"]> = {}, link: Partial<Rec
   },
   link: { id: 301, user_id: 201, name: "Guide", unique_permalink: "guide", custom_permalink: null, support_email: null, json_data: null, flags: 0, native_type: "digital", price_currency_type: "usd", require_shipping: false, ...link },
   seller: { id: 201, name: "Seller", username: "seller", email: "seller@example.com", unconfirmed_email: null, support_email: null, external_id: "8000000000201", recommendation_type: "no_recommendations", ...seller },
-  displayedPriceUsdCents: 500, presentment: null, taxLines: null, urlRedirectToken: null, licenseKey: null, variantNames: null, tipValueCents: null, customFields: [], refundPolicy: null,
+  displayedPriceUsdCents: 500, presentment: null, taxLines: null, urlRedirectToken: null, urlRedirectIsRental: false, linkStreamable: null, licenseKey: null, variantNames: null, tipValueCents: null, customFields: [], refundPolicy: null,
 });
 
 describe("assertSupported", () => {
@@ -36,7 +36,6 @@ describe("assertSupported", () => {
     ["a subscription purchase", data({ subscription_id: 9 })],
     ["a membership product", data({}, { flags: 1 << 1 })],
     ["a free trial", data({ flags: 1 << 18 })],
-    ["a rental", data({ flags: 1 << 14 })],
     ["a bundle", data({ flags: 1 << 25 })],
     ["a purchase that is not successful", data({ purchase_state: "failed" })],
     ["a purchase priced in euros without a stored rate", data({ displayed_price_currency_type: "eur", rate_converted_to_usd: null })],
@@ -50,6 +49,28 @@ describe("assertSupported", () => {
       expect(() => assertSupported(row)).toThrow(MailViewNotPortedError);
     });
   }
+});
+
+describe("rental receipts", () => {
+  const rental = data({ flags: 1 << 14 });
+
+  it("accepts a rental purchase", () => {
+    expect(() => assertSupported(rental)).not.toThrow();
+  });
+
+  it("names the rental in the subject and adds the expiry note", () => {
+    expect(mailSubject(rental)).toBe("You rented Guide!");
+    expect(mailSubject(data({ flags: 1 << 14, price_cents: 0 }))).toBe("You rented Guide!");
+    expect(itemInfo(rental, null).notes).toEqual(["Your rental of Guide will expire in 30 days or 72 hours after you begin viewing it."]);
+  });
+
+  // UNPROVEN against Ruby: see receipt_rental_no_video and receipt_rental_watch in generate-receipt-mailer-golden.rb.
+  it("offers View content for a non-rental redirect, Watch for a rental redirect with a video, and no button otherwise", () => {
+    const withToken = (extra: Partial<ReceiptData>): ReceiptData => ({ ...rental, urlRedirectToken: "tok", ...extra });
+    expect(itemInfo(withToken({}), null).downloadCta).toEqual({ label: null, path: "/d/tok" });
+    expect(itemInfo(withToken({ urlRedirectIsRental: true, linkStreamable: true }), null).downloadCta).toEqual({ label: "Watch", path: "/s/tok" });
+    expect(itemInfo(withToken({ urlRedirectIsRental: true, linkStreamable: false }), null).downloadCta).toBeNull();
+  });
 });
 
 describe("mailSubject", () => {

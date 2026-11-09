@@ -71,7 +71,7 @@ export type EventSource = {
   state: Pick<RenderState, "mobileParam" | "signupReferrer" | "mintedGuid"> | null;
   // `params`, when the event comes from a request body (EventsController#create) rather than the query string.
   params?: Record<string, unknown>;
-  // `@product` of the Events concern (create_post_event sets it): the event's link_id and price_cents.
+  // `@product`: the event carries its id and price (ProductsController-style actions that fetch one).
   product?: { id: bigint | number; price_cents: number | null };
 };
 
