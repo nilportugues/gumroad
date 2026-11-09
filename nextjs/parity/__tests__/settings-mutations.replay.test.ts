@@ -23,7 +23,7 @@ const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
 const SPECS = ["settings_mutations_signed_in_spec"];
-const ROUTE_FLAGS = "nextjs_settings_third_party_analytics_writes,nextjs_settings_advanced_writes";
+const ROUTE_FLAGS = "nextjs_settings_third_party_analytics_writes,nextjs_settings_advanced_writes,nextjs_settings_billing_writes";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
@@ -98,6 +98,7 @@ const COMPARE = {
     "db.third_party_analytics.updated.*.changes.updated_at",
     "db.custom_domains.updated.*.changes.updated_at",
     "db.blocked_customer_objects.updated.*.changes.updated_at",
+    "db.billing_details.updated.*.changes.updated_at",
     // Delayed jobs are scheduled seconds ahead of the clock, which the replay normalizes to the nearest bucket.
     "jobs.*.at",
     "http",

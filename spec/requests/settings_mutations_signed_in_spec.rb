@@ -245,4 +245,43 @@ describe "Settings mutations when signed in", type: :request do
       expect(flash[:alert]).to eq("Your current role as Support cannot perform this action.")
     end
   end
+
+  describe "billing details" do
+    def billing(**detail)
+      { billing_detail: { full_name: "Alice GmbH", business_name: "Acme GmbH", business_id: "DE123456789", street_address: "1 Unter den Linden",
+                           city: "Berlin", state: "", zip_code: "10115", country_code: "DE", additional_notes: "", auto_email_invoice_enabled: true }.merge(detail) }
+    end
+
+    it "saves a new billing detail", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_billing_path, billing)
+
+      expect(response).to redirect_to(settings_billing_path)
+      expect(response).to have_http_status(:see_other)
+      expect(flash[:notice]).to eq("Your billing details have been saved.")
+      expect(seller.reload.billing_detail).to have_attributes(full_name: "Alice GmbH", business_id: "DE123456789", country_code: "DE")
+    end
+
+    it "updates the billing detail the seller already has", parity: true do
+      create(:billing_detail, purchaser: seller, full_name: "Old Name", country_code: "DE")
+      log_in(seller)
+
+      send_form(:patch, settings_billing_path, billing(full_name: "New Name", auto_email_invoice_enabled: false))
+
+      expect(response).to have_http_status(:see_other)
+      expect(BillingDetail.where(purchaser_id: seller.id).count).to eq(1)
+      expect(seller.reload.billing_detail).to have_attributes(full_name: "New Name", auto_email_invoice_enabled: false)
+    end
+
+    it "refuses a US address without a state and keeps the errors for the form", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_billing_path, billing(country_code: "US", state: ""))
+
+      expect(response).to redirect_to(settings_billing_path)
+      expect(response).to have_http_status(:found)
+      expect(seller.reload.billing_detail).to be_nil
+    end
+  end
 end
