@@ -5,12 +5,13 @@
 // recipient holds a license, a physical product, a Sku, several options on one sale, a collaborator sale that also credits a direct affiliate, a UTM link (`utm_url` is built by Addressable), a non-USD price without a
 // stored rate or in a currency the port has no table for, a refund whose json_data is not plain JSON, a commission
 // with files, a review video, a custom field file, and a
-// sale charged through a processor transaction URL (Stripe Connect, PayPal, Braintree).
+// sale charged through Braintree (its transaction URL embeds the merchant id).
 import { Prisma, type Purchase, type Subscription, type User } from "@prisma/client";
 
 import { encrypt } from "../../../lib/obfuscate-ids.ts";
 import { HandBackToRails } from "../../controllers/application-controller.ts";
 import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
+import { railsEnv, type RailsEnv } from "../../infra/rails-env.ts";
 import { COUNTRIES, historicalNames, isBlockedCountry } from "../../models/compliance-countries.ts";
 import { formattedDollarAmount, usdCentsToCurrency } from "../../models/concerns/currency-helper.ts";
 import LINK_DATA from "../../models/link-data.generated.json" with { type: "json" };
@@ -460,15 +461,28 @@ export function displayReferrer(purchase: Row, sellerUsername: string): string |
   return null;
 }
 
-// Purchase#transaction_url_for_seller: nil unless the sale was charged outside Gumroad's own Stripe account.
-function assertNoTransactionUrl(purchase: Row, merchantAccount: Row | null): void {
-  if (!present(purchase.charge_processor_id) || !present(purchase.stripe_transaction_id)) return;
+// Purchase#transaction_url_for_seller: nil unless the sale was charged outside Gumroad's own Stripe account, else the processor's
+// dashboard page for the charge. Braintree's embeds the merchant id from Rails' configuration, which Node does not read.
+export function transactionUrlForSeller(
+  purchase: Row,
+  merchantAccount: Row | null,
+  env: RailsEnv = railsEnv(),
+): string | null {
+  if (!present(purchase.charge_processor_id) || !present(purchase.stripe_transaction_id)) return null;
   // Purchase#charged_using_gumroad_merchant_account?
   const gumroadAccount = merchantAccount !== null && merchantAccount.user_id == null;
   const stripeWithoutConnect =
     purchase.charge_processor_id === "stripe" &&
     !(merchantAccount !== null && isStripeConnectAccount(merchantAccount as MerchantAccountRow));
-  if (gumroadAccount || stripeWithoutConnect) return;
+  if (gumroadAccount || stripeWithoutConnect) return null;
+
+  const production = env === "production";
+  const chargeId = purchase.stripe_transaction_id;
+  if (purchase.charge_processor_id === "stripe")
+    return `https://manage.stripe.com/${production ? "" : "test/"}payments/${chargeId}`;
+  if (purchase.charge_processor_id === "paypal") {
+    return `https://${production ? "history" : "sandbox"}.paypal.com/us/cgi-bin/webscr?cmd=_history-details-from-hub&id=${chargeId}`;
+  }
   throw new HandBackToRails();
 }
 
@@ -617,7 +631,7 @@ export function affiliateJson(purchase: Row, affiliate: Row, user: Row) {
 type Context = { seller: User; sellerUsername: string; sellerContext: SellerContext; loaded: Loaded };
 
 async function customerJson(purchase: Row, { sellerUsername, sellerContext, loaded }: Context) {
-  assertNoTransactionUrl(
+  const transactionUrl = transactionUrlForSeller(
     purchase,
     purchase.merchant_account_id == null
       ? null
@@ -735,7 +749,7 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
       type: "text",
       value: field.value == null ? "" : String(field.value),
     })),
-    transaction_url_for_seller: null,
+    transaction_url_for_seller: transactionUrl,
     is_access_revoked: isAccessRevoked,
     paypal_refund_expired:
       purchase.card_type === "paypal" && purchase.created_at.getTime() < Date.now() - 183 * 24 * 3600 * 1000,

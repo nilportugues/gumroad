@@ -18,6 +18,7 @@ import {
   isPreorder,
   offerCodeReading,
   subscriptionStatus,
+  transactionUrlForSeller,
   upsellNamesFor,
   pageOffset,
   refundableCents,
@@ -538,5 +539,51 @@ describe("CustomerPresenter is_preorder", () => {
 
   it("is false for a purchase without a preorder", () => {
     expect(isPreorder({ preorder_id: null, flags: AUTHORIZATION_FLAG }, preorders)).toBe(false);
+  });
+});
+
+describe("Purchase#transaction_url_for_seller", () => {
+  const sale = (overrides: Record<string, unknown> = {}) => ({
+    charge_processor_id: "stripe",
+    stripe_transaction_id: "ch_123",
+    ...overrides,
+  });
+  const connectAccount = { charge_processor_id: "stripe", user_id: 5, json_data: '{"meta":{"stripe_connect":"true"}}' };
+  const gumroadAccount = { charge_processor_id: "stripe", user_id: null, json_data: null };
+
+  it("links a sale charged through the seller's Stripe Connect account to Stripe's dashboard", () => {
+    expect(transactionUrlForSeller(sale(), connectAccount, "production")).toBe(
+      "https://manage.stripe.com/payments/ch_123",
+    );
+    expect(transactionUrlForSeller(sale(), connectAccount, "staging")).toBe(
+      "https://manage.stripe.com/test/payments/ch_123",
+    );
+  });
+
+  it("links a PayPal sale to PayPal's transaction history, or its sandbox outside production", () => {
+    const paypal = sale({ charge_processor_id: "paypal", stripe_transaction_id: "PAY-1" });
+
+    expect(transactionUrlForSeller(paypal, null, "production")).toBe(
+      "https://history.paypal.com/us/cgi-bin/webscr?cmd=_history-details-from-hub&id=PAY-1",
+    );
+    expect(transactionUrlForSeller(paypal, null, "development")).toBe(
+      "https://sandbox.paypal.com/us/cgi-bin/webscr?cmd=_history-details-from-hub&id=PAY-1",
+    );
+  });
+
+  it("is nil for a sale charged through Gumroad's own Stripe account, with or without a merchant account row", () => {
+    expect(transactionUrlForSeller(sale(), gumroadAccount, "production")).toBeNull();
+    expect(transactionUrlForSeller(sale(), null, "production")).toBeNull();
+  });
+
+  it("is nil for a sale with no processor or no charge id", () => {
+    expect(transactionUrlForSeller(sale({ charge_processor_id: null }), connectAccount, "production")).toBeNull();
+    expect(transactionUrlForSeller(sale({ stripe_transaction_id: " " }), connectAccount, "production")).toBeNull();
+  });
+
+  it("hands back a Braintree sale, whose URL needs the merchant id", () => {
+    expect(() => transactionUrlForSeller(sale({ charge_processor_id: "braintree" }), null, "production")).toThrow(
+      HandBackToRails,
+    );
   });
 });
