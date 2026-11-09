@@ -28,7 +28,7 @@ const msToCivil = (ms: number): string => new Date(ms).toISOString().slice(0, 10
 export const addDays = (date: string, days: number): string => msToCivil(civilToMs(date) + days * DAY_MS);
 
 // UTC offset in minutes of an IANA zone at an instant.
-function offsetMinutesAt(instantMs: number, iana: string): number {
+export function offsetMinutesAt(instantMs: number, iana: string): number {
   const part = new Intl.DateTimeFormat("en-US", { timeZone: iana, timeZoneName: "longOffset" }).formatToParts(new Date(instantMs)).find((p) => p.type === "timeZoneName")?.value ?? "GMT";
   const match = /GMT(?:([+-])(\d{2}):(\d{2}))?/u.exec(part);
   return match?.[1] ? (match[1] === "-" ? -1 : 1) * (Number(match[2]) * 60 + Number(match[3])) : 0;
