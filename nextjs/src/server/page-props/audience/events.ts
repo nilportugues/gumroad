@@ -8,7 +8,8 @@ import type { RequestContext } from "@/server/auth/context";
 import { railsLoggedInUser } from "../../auth/resolve.ts";
 import { geoIpLookup } from "../../infra/geo-ip.ts";
 import { isInvalidUriError, rubyUriParse } from "../../models/concerns/ruby-uri.ts";
-import { column, execute, table } from "../../models/sql.ts";
+import { transaction } from "../../models/runtime/transaction.ts";
+import { column, execute, selectRows, table } from "../../models/sql.ts";
 import { isMobile } from "../shared.ts";
 import { NotPortedError } from "../not-ported.ts";
 import type { RenderState } from "../../controllers/application-controller.ts";
@@ -70,6 +71,8 @@ export type EventSource = {
   state: Pick<RenderState, "mobileParam" | "signupReferrer" | "mintedGuid"> | null;
   // `params`, when the event comes from a request body (EventsController#create) rather than the query string.
   params?: Record<string, unknown>;
+  // `@product` of the Events concern (create_post_event sets it): the event's link_id and price_cents.
+  product?: { id: bigint | number; price_cents: number | null };
 };
 
 // FlagShihTzu::TRUE_VALUES, which also holds true and 1 for a value that came from a JSON body.
@@ -79,8 +82,8 @@ const castBooleanValue = (value: unknown): boolean | null => (value === undefine
 const isBlankString = (value: unknown): boolean => typeof value === "string" && /^[\s\0]*$/u.test(value);
 
 // Events#create_user_event(name): nothing while impersonating.
-export async function createUserEvent(name: string, { context, headers, url, state, params }: EventSource): Promise<void> {
-  if (context.impersonatedUser) return;
+export async function createUserEvent(name: string, { context, headers, url, state, params, product }: EventSource): Promise<number | null> {
+  if (context.impersonatedUser) return null;
   const user = railsLoggedInUser(context);
   const query: QuerySource = { queryString: url.search.replace(/^\?/, "") };
 
@@ -122,7 +125,7 @@ export async function createUserEvent(name: string, { context, headers, url, sta
     ip_address: ip,
     event_name: name,
     user_id: user?.id ?? null,
-    link_id: null,
+    link_id: product?.id ?? null,
     created_at: now,
     updated_at: now,
     referrer,
@@ -138,10 +141,12 @@ export async function createUserEvent(name: string, { context, headers, url, sta
     browser_guid: cookies.get("_gumroad_guid") ?? state?.mintedGuid ?? null,
     referrer_domain: wasProductRecommended ? REFERRER_DOMAIN_FOR_GUMROAD_RECOMMENDED_PRODUCTS : referrerDomain(referrer),
     ip_state: geo?.regionName ?? null,
-    price_cents: null,
+    price_cents: product?.price_cents ?? null,
   };
   const names = Object.keys(values);
-  await execute(
-    Prisma.sql`INSERT INTO ${table(EVENTS)} (${Prisma.join(names.map((name) => column(EVENTS, name)))}) VALUES (${Prisma.join(names.map((name) => values[name]))})`,
-  );
+  return transaction(async () => {
+    await execute(Prisma.sql`INSERT INTO ${table(EVENTS)} (${Prisma.join(names.map((name) => column(EVENTS, name)))}) VALUES (${Prisma.join(names.map((name) => values[name]))})`);
+    const [row] = await selectRows<{ id: bigint }>(Prisma.sql`SELECT LAST_INSERT_ID() AS ${Prisma.raw("`id`")}`);
+    return Number(row!.id);
+  });
 }

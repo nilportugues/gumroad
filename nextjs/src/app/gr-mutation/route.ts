@@ -25,6 +25,7 @@ import "@/server/controllers/internal-admin/index";
 import "@/server/controllers/internal-api";
 import "@/server/controllers/utm-links-mutations";
 import "@/server/controllers/wishlist-items-mutations";
+import "@/server/controllers/post-views-mutations";
 import { mutationResponse } from "@/server/controllers/mutation";
 
 export const POST = mutationResponse;

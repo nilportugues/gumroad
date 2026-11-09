@@ -833,3 +833,16 @@ The dispatcher gained optional route fields for these controllers: `anonymous` (
 - **Parity.** `spec/requests/api/v2/{users,utm_links,emails,workflows,pages,help_articles,mcp}_parity_spec.rb` (177 recorded requests) replayed by `parity/__tests__/api-v2-ws17c.replay.test.ts`; a fixture named `hands-back` must reach the stand-in for Rails and write nothing. Ignored: random permalinks and guids of a created UTM link (shape asserted), `GenerateSubscribePreviewJob` (an `until_executed` lock the Rails run already holds), the fallback `SendToElasticsearchWorker`, and a page key (its `created_at` is relative to the recording).
 - **Hand-backs (Rails).** SEO updates of the profile, every write of custom HTML or pages (sanitizer, moderation, `touch` of the owner), the default profile render, the rendered document of a rich text page, `/v2/emails/:id/preview`, an email without a subject (friendly_id uuid slug), an email with files or a variant, workflow email writes (`Workflow::SaveInstallmentsService`), the IFTTT sale trigger (`Purchase#as_json_for_ifttt`), MCP JSON-RPC calls, an MCP request from a foreign origin or with a body that is not JSON, and the Notion link preview.
 - **Not routed (still Rails):** `Api::V2::MarketingActionsController` (the `auto_marketing` flag is decided by `Marketing::Eligibility`), `POST /{client}/v1/oauth2/register` (Doorkeeper application validation).
+
+## WS-11b storefront and audience
+
+Second pass over the storefront and audience routes the first wave left. Replayed by `parity/__tests__/ws11b.replay.test.ts` against specs recorded from Rails (`utm_links_mutations_signed_in_spec`, `wishlist_items_mutations_signed_in_spec`, `post_views_signed_in_spec`).
+
+| Routes | Port |
+| --- | --- |
+| `POST/PATCH/PUT/DELETE /dashboard/utm_links` | `controllers/utm-links-mutations.ts`, on `models/utm-link.ts` and the `SaveUtmLinkService` pieces Api::V2 already used. |
+| `GET /u/:permalink` | `controllers/utm-link-tracking.ts` (handler `utm_tracking`) reusing `utmUrl`. |
+| `POST/DELETE /wishlists/:wishlist_id/followers`, `POST /wishlists/:wishlist_id/products`, `DELETE .../products/:id` (also on seller hosts), `GET .../followers/unsubscribe` | `controllers/wishlist-items-mutations.ts`, `wishlist-unsubscribe.ts`, `models/wishlist-follower.ts`. Adding a product with an option, recurrence, quantity, rent, versions or a rental product hands back to Rails. |
+| `POST /posts/:id/increment_post_views` | `controllers/post-views-mutations.ts`; `infra/bots.ts` (BOT_MAP dumped from Ruby); `createUserEvent` now takes a product and returns the event id. |
+
+Not ported (blockers): Followers (`Follower::CreateService`, `FollowRecaptcha`, the newsletter cutover, `ConfirmedFollowerEvent` callbacks and the confirmation mailer), profile sections (JSON-schema validation and `SaveContentUpsellsService`), `Wishlists::ProductsController#index` (`WishlistPresenter#public_items`), `RecommendedProducts`, the ERB marketing pages (`home#*`, `gumclaw`), collaborators, affiliates and affiliate requests, product reviews and review videos, comments, commissions, piracy reports, pages, embedded overlay scripts, customers JSON, subscriptions unsubscribe/magic link, Action Mailbox ingresses and the remaining routes of the stream list.
