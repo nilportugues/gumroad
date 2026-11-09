@@ -23,6 +23,8 @@ import "./api-v2/index.ts";
 import { type ActionContext, type ActionOptions, type ActionResult, HandBackToRails, processAction, type Rendered } from "./application-controller.ts";
 import { mobileResponse } from "./mobile-api.ts";
 import { internalResponse } from "./internal-api.ts";
+import { railsLoggedInUser } from "../auth/resolve.ts";
+import { computeDiscount } from "./offer-codes.ts";
 import { chargeData, licenseKeyLookupData, paypalChargeData } from "./public-data.ts";
 import { internalAdminResponse } from "./internal-admin/index.ts";
 import { impersonate, redirectToStripeDashboard } from "./internal-admin/admin-web.ts";
@@ -195,6 +197,8 @@ const HANDLERS: Record<string, Handler> = {
   paypal_charge_data: { options: { optOutOfCsp: true }, run: (request) => paypalChargeData(request) },
   admin_impersonate: { run: (request, url, action) => impersonate(request, url, action) },
   admin_stripe_dashboard: { run: (request, url, action) => redirectToStripeDashboard(request, url, action) },
+  // OfferCodesController#compute_discount
+  compute_discount: { run: (request, _url, action) => computeDiscount(request, railsLoggedInUser(action.context) !== null) },
   url_redirects: { run: (_request, _url, action) => urlRedirectsAction(action) },
 };
 

@@ -41,23 +41,23 @@ const EDITOR_REVISION_VERSION = "v4";
 // User::LAST_ALLOWED_TIME_FOR_PRODUCT_LEVEL_REFUND_POLICY (`Time.new(2025, 3, 31).end_of_day`, in the server's zone: UTC)
 const LAST_ALLOWED_TIME_FOR_PRODUCT_LEVEL_REFUND_POLICY = Date.UTC(2025, 2, 31, 23, 59, 59, 999);
 // RefundPolicy::ALLOWED_REFUND_PERIODS_IN_DAYS, DEFAULT_REFUND_PERIOD_IN_DAYS
-const ALLOWED_REFUND_PERIODS_IN_DAYS: ReadonlyArray<readonly [number, string]> = [
+export const ALLOWED_REFUND_PERIODS_IN_DAYS: ReadonlyArray<readonly [number, string]> = [
   [0, "No refunds allowed"],
   [7, "7-day money back guarantee"],
   [14, "14-day money back guarantee"],
   [30, "30-day money back guarantee"],
   [183, "6-month money back guarantee"],
 ];
-const DEFAULT_REFUND_PERIOD_IN_DAYS = 30;
+export const DEFAULT_REFUND_PERIOD_IN_DAYS = 30;
 // RendersCustomHtmlPages::GLOBAL_NAV_PATHS
 const CUSTOM_HTML_GLOBAL_NAV_PATHS = ["/library", "/checkout"];
 
 const TAXONOMY_LABELS = data.taxonomy_labels as Record<string, string>;
-const present = (value: unknown): boolean => value !== null && value !== undefined && !(typeof value === "string" && value.trim() === "") && !(Array.isArray(value) && value.length === 0);
-const refundPeriodTitle = (days: number | null) => ALLOWED_REFUND_PERIODS_IN_DAYS.find(([key]) => key === days)?.[1] ?? null;
+export const present = (value: unknown): boolean => value !== null && value !== undefined && !(typeof value === "string" && value.trim() === "") && !(Array.isArray(value) && value.length === 0);
+export const refundPeriodTitle = (days: number | null) => ALLOWED_REFUND_PERIODS_IN_DAYS.find(([key]) => key === days)?.[1] ?? null;
 
 // `Object#as_json` of a parsed json_data value.
-function plain(value: YamlValue | undefined): unknown {
+export function plain(value: YamlValue | undefined): unknown {
   if (value instanceof RubyHash) return Object.fromEntries(value.entries.map(([key, entry]) => [key, plain(entry)]));
   if (Array.isArray(value)) return value.map((entry) => plain(entry));
   return value === undefined ? null : value;
@@ -67,7 +67,7 @@ type Blocker = { blocker: string };
 
 // The rows that would make the editor's state something this port does not model. Each is a table the presenter reads
 // (files, rich content, covers, integrations ...) or a sale, whose count Rails reads from Elasticsearch.
-export async function editBlockers(product: LinkRow, seller: UserRow): Promise<string[]> {
+export async function rowBlockers(product: LinkRow, seller: UserRow): Promise<string[]> {
   const id = product.id;
   const sellerId = seller.id;
   const exists = (name: string, from: Prisma.Sql) => Prisma.sql`(SELECT ${Prisma.raw(`'${name}'`)} AS blocker FROM ${from} LIMIT 1)`;
@@ -97,8 +97,11 @@ export async function editBlockers(product: LinkRow, seller: UserRow): Promise<s
     exists("taxonomy_attribute_values", Prisma.sql`${table("taxonomy_attributes")} WHERE ${column("taxonomy_attributes", "active")} = TRUE AND JSON_TYPE(${column("taxonomy_attributes", "values")}) NOT IN ('ARRAY', 'NULL')`),
   ];
   const rows = await selectRows<Blocker>(Prisma.sql`${Prisma.join(probes, " UNION ALL ")}`);
-  const blockers = rows.map((row) => row.blocker);
+  return rows.map((row) => row.blocker);
+}
 
+export async function editBlockers(product: LinkRow, seller: UserRow): Promise<string[]> {
+  const blockers = await rowBlockers(product, seller);
   const flags = product.flags;
   const set = (flag: Parameters<typeof LinkFlags.isSet>[1]) => LinkFlags.isSet(flags as bigint, flag);
   if (!(EDIT_NATIVE_TYPES as readonly (string | null)[]).includes(product.native_type)) blockers.push("native_type");
@@ -188,7 +191,7 @@ async function taxonomyAttributes() {
 
 type SectionRow = { id: bigint; header: string | null; json_data: unknown };
 
-async function profileSections(seller: UserRow) {
+export async function profileSections(seller: UserRow) {
   const rows = await selectRows<SectionRow>(
     Prisma.sql`SELECT ${column("seller_profile_sections", "id")}, ${column("seller_profile_sections", "header")}, ${column("seller_profile_sections", "json_data")} FROM ${table("seller_profile_sections")} WHERE ${column("seller_profile_sections", "seller_id")} = ${seller.id} AND ${column("seller_profile_sections", "type")} = 'SellerProfileProductsSection' AND ${column("seller_profile_sections", "product_id")} IS NULL ORDER BY ${column("seller_profile_sections", "id")} ASC`,
   );
@@ -239,7 +242,7 @@ export async function otherProductRefundPolicies(productId: bigint, sellerId: bi
 }
 
 // User#account_level_refund_policy_enabled?
-async function accountLevelRefundPolicyEnabled(seller: UserRow, now: Date): Promise<boolean> {
+export async function accountLevelRefundPolicyEnabled(seller: UserRow, now: Date): Promise<boolean> {
   if (await isFeatureEnabled("seller_refund_policy_disabled_for_all")) return false;
   const delayed = (await isFeatureEnabled("account_level_refund_policy_delayed_for_sellers", userActor(seller.id))) && now.getTime() <= LAST_ALLOWED_TIME_FOR_PRODUCT_LEVEL_REFUND_POLICY;
   if (delayed) return false;
@@ -261,10 +264,8 @@ async function autoMarketingEnabled(seller: UserRow): Promise<boolean> {
   }
 }
 
-export type EditPropsInput = { product: LinkRow; seller: UserRow; sellerExternalId: string; aiGenerated: boolean; now?: Date };
-
-export async function editProps({ product, seller, sellerExternalId, aiGenerated, now = new Date() }: EditPropsInput) {
-  const flag = (name: Parameters<typeof LinkFlags.isSet>[1]) => LinkFlags.isSet(product.flags as bigint, name);
+// The json_data-backed settings (`custom_summary`, `custom_attributes`, ...) as Link's accessors read them.
+export function jsonSettings(product: LinkRow) {
   const json = jsonDataHash(product.json_data);
   const jsonValue = (key: string) => (json ? jsonGet(json, key) : undefined);
   const jsonText = (key: string): string | null => {
@@ -280,6 +281,14 @@ export async function editProps({ product, seller, sellerExternalId, aiGenerated
     const value = jsonValue("custom_attributes");
     return present(value) ? (plain(value) as unknown[]) : [];
   })();
+  return { jsonValue, jsonText, jsonObject, customAttributes };
+}
+
+export type EditPropsInput = { product: LinkRow; seller: UserRow; sellerExternalId: string; aiGenerated: boolean; now?: Date };
+
+export async function editProps({ product, seller, sellerExternalId, aiGenerated, now = new Date() }: EditPropsInput) {
+  const flag = (name: Parameters<typeof LinkFlags.isSet>[1]) => LinkFlags.isSet(product.flags as bigint, name);
+  const { jsonValue, jsonText, jsonObject, customAttributes } = jsonSettings(product);
 
   const [refund] = await selectRows<{ max_refund_period_in_days: number | null; fine_print: string | null }>(
     Prisma.sql`SELECT ${column("refund_policies", "max_refund_period_in_days")}, ${column("refund_policies", "fine_print")} FROM ${table("refund_policies")} WHERE ${column("refund_policies", "product_id")} = ${product.id} LIMIT 1`,
