@@ -45,8 +45,8 @@ a letter suffix (`nextjs/ws-12d-bundle-edit`). This table maps every merged bran
 | WS-14 Discover and search | 34, 37, 65, 83 | Discover page; personalised and deferred parts hand back |
 | WS-15 Analytics and exports | 58, 70, 79, 84 | Dashboards, customers, analytics; exports not started |
 | WS-16 Library and content delivery | 61, 81 | Library and unavailable pages; `/d` download page not started |
-| WS-17 Public API and mobile API | — | Not started |
-| WS-18 Admin | — | Not started |
+| WS-17 Public API and mobile API | 17a (products), 17b (sales, licenses), 17c (users, content, MCP), 17d (`Api::Internal`), 17f (mobile) | v2 routes served through the shared dispatcher; `Api::Internal` GETs go through one handler. 17e is counted under WS-18. |
+| WS-18 Admin | 17e (internal admin API, `Admin::BaseController` entry points) | Done in code; admin web UI was already deleted. Sidekiq and Flipper UI mounts stay in Rails until WS-40. The `impersonates a suspended seller` case in `spec/requests/admin/impersonate_spec.rb` has no recorded fixture yet. |
 | WS-19 AI, MCP and moderation | 75 (agent page) | Agent page only |
 | WS-20 Checkout and orders | 48 (offer-code pricing), 72 (subscription access), 78 | Empty-cart checkout only; no purchase path |
 | WS-21 Payment processors | 33 (Stripe client), 49 (refunds, disputes), 66 | Job guards; processor calls hand back |
