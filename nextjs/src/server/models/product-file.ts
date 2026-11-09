@@ -34,7 +34,7 @@ export const isEpub = (file: ProductFile) => file.filetype === "epub";
 export const mustBePdfStamped = (file: ProductFile) => isPdf(file) && ProductFileFlags.isSet(file.flags, "pdf_stamp_enabled");
 
 export const browserReadable = (file: ProductFile) => isPdf(file) || (isEpub(file) && (file.size === null || file.size <= BigInt(MAX_EPUB_READER_ARCHIVE_SIZE)));
-const canDisableDownloads = (file: ProductFile) => isStreamable(file) || browserReadable(file);
+export const canDisableDownloads = (file: ProductFile) => isStreamable(file) || browserReadable(file);
 // ProductFile#stream_only?
 export const isStreamOnly = (file: ProductFile) => canDisableDownloads(file) && ProductFileFlags.isSet(file.flags, "stream_only");
 export const canSendToKindle = (file: ProductFile) => (isPdf(file) || isEpub(file)) && file.size !== null && file.size < BigInt(MAX_ALLOWED_FILE_SIZE_FOR_SEND_TO_KINDLE);

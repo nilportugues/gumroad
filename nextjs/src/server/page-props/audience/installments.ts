@@ -1,8 +1,7 @@
 // InstallmentPresenter#props: one email (a post or a workflow email) as the workflow and email pages list it.
 //
-// Not ported, each refused with NotPortedError: a post with attached files (ProductFile#as_json signs
-// download URLs and reads thumbnails) and a post that was ever sent as a blast (its delivery state is read from Redis counters).
-import { Prisma, type Installment, type InstallmentRule, type User } from "@prisma/client";
+// Attached files are serialized by product-file-json.ts, which refuses the few it cannot (thumbnails, subtitles, web builds).
+import type { Installment, InstallmentRule, User } from "@prisma/client";
 
 import { truncateAtSeparator } from "../../html/installment-message.ts";
 import { stripTags } from "../../html/sanitizer.ts";
@@ -11,8 +10,8 @@ import { summaries, summary, type EngagementSummary } from "../../models/email-e
 import { MEMBER_CANCELLATION_WORKFLOW_TRIGGER } from "../../models/workflow.ts";
 import { filterValue, parseJsonData, castBoolean } from "../../models/with-filtering.ts";
 import { rubyFloatRoundDigits } from "../../models/concerns/ruby-numeric.ts";
-import { column, selectRows, table } from "../../models/sql.ts";
 import { NotPortedError } from "../not-ported.ts";
+import { installmentFiles } from "./product-file-json.ts";
 import { externalId, present } from "./support.ts";
 import { jsonFilters } from "./filters.ts";
 
@@ -53,13 +52,6 @@ export function displayedName(installment: Pick<Installment, "name" | "message">
   return truncateAtSeparator(stripTags(installment.message), DISPLAYED_NAME_LENGTH, " ");
 }
 
-export async function aliveProductFileCount(installmentId: number): Promise<number> {
-  const [row] = await selectRows<{ count: bigint | number }>(
-    Prisma.sql`SELECT COUNT(*) AS count FROM ${table("product_files")} WHERE ${column("product_files", "installment_id")} = ${installmentId} AND ${column("product_files", "deleted_at")} IS NULL`,
-  );
-  return Number(row?.count ?? 0);
-}
-
 // Installment#member_cancellation_trigger?
 export function memberCancellationTrigger(installment: Installment, workflowTrigger: string | null): boolean {
   const own = filterValue({ jsonData: () => parseJsonData(installment.json_data) }, "workflow_trigger");
@@ -81,7 +73,7 @@ export type PropsOptions = {
 // The attributes InstallmentPresenter#props starts from, up to the product permalink: the same for a
 // post and for a workflow email.
 export async function installmentBaseProps({ seller, installment, context }: Omit<PropsOptions, "workflowTrigger">): Promise<Record<string, unknown>> {
-  if ((await aliveProductFileCount(installment.id)) > 0) throw new NotPortedError("InstallmentPresenter#props for an email with files (ProductFile#as_json)");
+  const attached = await installmentFiles(installment.id, seller.id);
   const flags = installment.flags;
   const published = installment.published_at !== null;
   const json = parseJsonData(installment.json_data);
@@ -89,14 +81,14 @@ export async function installmentBaseProps({ seller, installment, context }: Omi
   const props: Record<string, unknown> = {
     name: displayedName(installment),
     message: installment.message,
-    files: [],
+    files: attached.files,
     published_at: installment.published_at ? installment.published_at.toISOString() : null,
     updated_at: installment.updated_at.toISOString(),
     external_id: externalId(installment.id),
-    stream_only: false,
+    stream_only: attached.streamOnly,
     call_to_action_text: installment.call_to_action_text,
     call_to_action_url: installment.call_to_action_url,
-    streamable: false,
+    streamable: attached.streamable,
     sent_count: installment.customer_count,
     click_count: context.engagement.click_pair_count,
     open_count: context.engagement.open_count,

@@ -301,8 +301,8 @@ one server and compares headers, props and URL (skipped when the Rails app's nod
 the blast's Redis keys, non-opener resends) and the form context. Parity: `spec/requests/emails_signed_in_spec.rb`, replayed by
 `audience-pages.replay.test.ts`, which rebuilds the `installments` Elasticsearch index from each fixture's rows.
 
-Throw `NotPortedError` (500): a post with attached files (`ProductFile#as_json`),
-a `page`/`query` parameter that is an array or hash. A `quota_deferred_until` is a Redis timestamp the replayer does not move, so
+Files of a post are serialized by `audience/product-file-json.ts` (`ProductFile#as_json`). Throw `NotPortedError` (500): a post file with a
+thumbnail, subtitle files or a web build, a `page`/`query` parameter that is an array or hash. A `quota_deferred_until` is a Redis timestamp the replayer does not move, so
 `delivery.scheduled_for` is ignored in the comparison.
 
 ## Elasticsearch search (WS-65)
