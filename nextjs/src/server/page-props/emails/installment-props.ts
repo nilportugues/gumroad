@@ -1,7 +1,5 @@
 // InstallmentPresenter#props for a post (an installment outside a workflow): the attributes of
 // audience/installments.ts plus the profile, blast and resend state.
-//
-// Not ported, refused with NotPortedError: a post with attached files.
 import { Prisma, type Installment, type InstallmentRule, type User } from "@prisma/client";
 
 import { getRedis } from "../../infra/redis.ts";
