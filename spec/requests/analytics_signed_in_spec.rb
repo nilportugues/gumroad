@@ -12,7 +12,8 @@ describe "Sales analytics dashboard when signed in", type: :request do
   before { host! DOMAIN }
 
   def sell(product, days_ago:, hour:, price_cents: 500, **attributes)
-    create(:purchase, link: product, seller:, price_cents:, created_at: days_ago.days.ago.in_time_zone(seller.timezone).change(hour:, min: 30).utc, **attributes)
+    # The purchase factory charges a card through Stripe; the dashboard only reads the row.
+    build(:purchase, link: product, seller:, price_cents:, purchase_state: "successful", created_at: days_ago.days.ago.in_time_zone(seller.timezone).change(hour:, min: 30).utc, **attributes).tap { |row| row.save!(validate: false) }
   end
 
   it "redirects a signed-out visitor to the login page", parity: true do

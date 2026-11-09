@@ -34,7 +34,8 @@ describe "Churn dashboard when signed in", type: :request, elasticsearch_wait_fo
       deactivated_at: deactivated_days_ago && at_midday(deactivated_days_ago),
       price:
     )
-    create(:purchase, link: product, seller:, subscription:, is_original_subscription_purchase: true, created_at: at_midday(created_days_ago), price_cents:)
+    # The purchase factory charges a card through Stripe; the dashboard only reads the row.
+    build(:purchase, link: product, seller:, subscription:, is_original_subscription_purchase: true, created_at: at_midday(created_days_ago), price_cents:, purchase_state: "successful").tap { |row| row.save!(validate: false) }
   end
 
   it "redirects a signed-out visitor to the login page", parity: true do
@@ -45,7 +46,7 @@ describe "Churn dashboard when signed in", type: :request, elasticsearch_wait_fo
 
   it "has no churn to report for a seller without subscription products", parity: true do
     create(:product, user: seller, name: "One-off")
-    create(:purchase, link: Link.last, seller:, created_at: at_midday(40))
+    build(:purchase, link: Link.last, seller:, created_at: at_midday(40), purchase_state: "successful").tap { |row| row.save!(validate: false) }
     sign_in_with_indexed_sales
 
     get churn_dashboard_path
