@@ -4,6 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const flipper = vi.hoisted(() => vi.fn());
 vi.mock("../../infra/flipper.ts", () => ({ isFeatureEnabled: flipper, userActor: (id: string) => `User;${id}` }));
 
+process.env.OBFUSCATE_IDS_CIPHER_KEY ??= "customers-test-obfuscate-key";
+process.env.OBFUSCATE_IDS_NUMERIC_CIPHER_KEY ??= "123456789";
+
 import { HandBackToRails } from "../../controllers/application-controller.ts";
 import { setSqlClient } from "../../models/sql.ts";
 import { affiliateJson, displayReferrer, giftOf, isPreorder, offerCodeReading, subscriptionStatus, upsellNamesFor, pageOffset, refundableCents, refundIsEffective, rubyToI, totalPages } from "./customers.ts";
