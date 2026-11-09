@@ -40,7 +40,7 @@ a letter suffix (`nextjs/ws-12d-bundle-edit`). This table maps every merged bran
 | WS-00 … WS-06 Foundation | 01, 02, 03, 04, 05, 06, 38 (query cache), 43 (page envelope), 50 (signed-in shared props), 55 (page spec options) | Done |
 | WS-10 Settings and account | 53, 54 (auth pages), 56, 62 (payments, profile) | Most pages; mutations still in Rails |
 | WS-11 Help center, pages, blog, profiles | 55, 64, 68, 84 (profile products) | Profiles with featured products or wishlists hand back |
-| WS-12 Products and bundles | 39 (link writes), 69, 71, 77, 80 | Product page partly rendered; editor for plain digital products only; bundles not started |
+| WS-12 Products and bundles | 39 (link writes), 69, 71, 77, 80 | Product page partly rendered; editor for plain digital products only; `GET /bundles/:id` redirect ported (301 to the product editor); bundle editors (Product, Content, Share), `create_from_email` and bundle writes still in Rails |
 | WS-13 Audience, emails, workflows | 51, 57, 59, 63, 67, 74, 82; mailers 31, 35, 40, 60, 73, 76, 85 | Pages and their mutations; receipt mailer for common shapes |
 | WS-14 Discover and search | 34, 37, 65, 83 | Discover page; personalised and deferred parts hand back |
 | WS-15 Analytics and exports | 58, 70, 79, 84 | Dashboards, customers, analytics; exports not started |
