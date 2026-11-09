@@ -51,11 +51,11 @@ async function fetchVisibleProduct(permalink: string | null, sellerId: bigint | 
 // PunditAuthorization#default_user_not_authorized for a JSON request.
 const notAuthorized = (context: SellerContext): ActionResult => ({ ...json({ success: false, error: notAllowedMessage(context) }, 401), rescued: true });
 
-type Found = { halt: ActionResult } | { halt: null; seller: User; product: LinkRecord; context: SellerContext };
+export type Found = { halt: ActionResult } | { halt: null; seller: User; product: LinkRecord; context: SellerContext };
 
 // `fetch_product_and_enforce_ownership` (`Link.fetch(permalink, user: current_seller) || e404`), or `fetch_product_and_enforce_access`
 // (the product of any seller, then 404 unless it is current_seller's or the user collaborates on it), then `authorize`.
-async function find(input: MutationInput, access: "ownership" | "access", authorization: (context: SellerContext, product: Link) => void): Promise<Found> {
+export async function find(input: MutationInput, access: "ownership" | "access", authorization: (context: SellerContext, product: Link) => void): Promise<Found> {
   const halted = accountEmailRequired(input);
   if (halted) return { halt: halted };
   const seller = input.context.currentSeller!;
