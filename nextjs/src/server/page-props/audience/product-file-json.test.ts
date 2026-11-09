@@ -4,6 +4,9 @@ import { NotPortedError } from "../not-ported.ts";
 import { installmentFiles } from "./product-file-json.ts";
 import { setSqlClient } from "../../models/sql.ts";
 
+const signDownload = vi.hoisted(() => vi.fn());
+vi.mock("../../infra/signed-urls.ts", () => ({ signedDownloadUrlForS3KeyAndFilename: signDownload }));
+
 vi.mock("../../infra/storage.ts", () => ({ storageConfig: () => ({ s3BaseUrl: "https://s3.example.com/bucket/" }) }));
 
 process.env.OBFUSCATE_IDS_CIPHER_KEY ??= "ws13e-test-obfuscate-key";
@@ -16,7 +19,7 @@ const NOW = new Date("2026-01-01T00:00:00Z");
 type Tables = {
   product_files?: Record<string, unknown>[];
   active_storage_attachments?: { record_id: number }[];
-  subtitle_files?: { product_file_id: number }[];
+  subtitle_files?: { id?: number; product_file_id: number; url?: string | null; language?: string | null; size?: number | null }[];
   product_builds?: { product_file_id: number }[];
   links?: { id: number; name: string; user_id: number }[];
   transcoded_videos?: { id: number; key: string | null }[];
@@ -36,7 +39,7 @@ function answering(tables: Tables) {
       const sql = query.sql;
       if (sql.includes("FROM `product_files` WHERE `product_files`.`installment_id`")) return tables.product_files ?? [];
       if (sql.includes("FROM `active_storage_attachments`")) return (tables.active_storage_attachments ?? []).map((row) => ({ id: row.record_id }));
-      if (sql.includes("FROM `subtitle_files`")) return (tables.subtitle_files ?? []).map((row) => ({ id: row.product_file_id }));
+      if (sql.includes("FROM `subtitle_files`")) return (tables.subtitle_files ?? []).map((row, index) => ({ id: row.id ?? index + 1, product_file_id: row.product_file_id, url: row.url ?? null, language: row.language ?? null, size: row.size ?? null }));
       if (sql.includes("FROM `product_builds`")) return (tables.product_builds ?? []).map((row) => ({ id: row.product_file_id }));
       if (sql.includes("FROM `links`")) return tables.links ?? [];
       if (sql.includes("FROM `transcoded_videos`")) return tables.transcoded_videos ?? [];
@@ -147,12 +150,43 @@ describe("installmentFiles", () => {
 
   it.each([
     ["a thumbnail on a video", { product_files: [file({ filetype: "mp4", filegroup: "video" })], active_storage_attachments: [{ record_id: 1 }] }],
-    ["subtitle files", { product_files: [file({})], subtitle_files: [{ product_file_id: 1 }] }],
     ["a web build", { product_files: [file({})], product_builds: [{ product_file_id: 1 }] }],
   ])("hands back a file with %s", async (_name, tables) => {
     answering(tables);
 
     await expect(installmentFiles(5, SELLER_ID)).rejects.toBeInstanceOf(NotPortedError);
+  });
+
+  describe("subtitle files", () => {
+    const SUBTITLE_URL = `${BASE}attachments/fedcba9876543210fedcba9876543210/original/captions.vtt`;
+    const subtitle = { product_file_id: 1, url: SUBTITLE_URL, language: "English", size: 1536 };
+
+    it("lists each alive subtitle with a signed video URL, in the order the query returns them", async () => {
+      signDownload.mockResolvedValue("https://files.example.com/signed");
+      answering({ product_files: [file({ filetype: "mp4", filegroup: "video" })], subtitle_files: [subtitle, { ...subtitle, language: "French", size: null }] });
+
+      const [json] = (await installmentFiles(5, SELLER_ID)).files;
+
+      expect(json?.subtitle_files).toEqual([
+        { url: SUBTITLE_URL, file_name: "captions", extension: "VTT", language: "English", file_size: 1536, size: "1.5 KB", signed_url: "https://files.example.com/signed", status: { type: "saved" } },
+        { url: SUBTITLE_URL, file_name: "captions", extension: "VTT", language: "French", file_size: null, size: null, signed_url: "https://files.example.com/signed", status: { type: "saved" } },
+      ]);
+      expect(signDownload).toHaveBeenCalledWith("attachments/fedcba9876543210fedcba9876543210/original/captions.vtt", "captions.vtt", { isVideo: true });
+    });
+
+    it("hands back when the subtitle's S3 object is missing", async () => {
+      signDownload.mockRejectedValue(Object.assign(new Error("missing"), { name: "NotFound" }));
+      answering({ product_files: [file({})], subtitle_files: [subtitle] });
+
+      await expect(installmentFiles(5, SELLER_ID)).rejects.toBeInstanceOf(NotPortedError);
+    });
+
+    it("lets other signing errors through", async () => {
+      signDownload.mockRejectedValue(new Error("boom"));
+      answering({ product_files: [file({})], subtitle_files: [subtitle] });
+
+      await expect(installmentFiles(5, SELLER_ID)).rejects.toThrow("boom");
+    });
   });
 
   it("serializes a PDF that has a thumbnail attachment, which as_json does not read", async () => {
