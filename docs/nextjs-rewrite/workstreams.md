@@ -62,9 +62,16 @@ criteria; "state" above is what is ported and proven by replay or golden.
 
 Known gaps a branch left on purpose. Each still hands back to Rails (or throws `NotPortedError`) until closed.
 
-- **Product file thumbnails** (`ProductFile#as_json`, `thumbnail`): needs the ActiveStorage `signed_id` (check the verifier name and purpose
-  `server/auth/message-verifier.ts` would need) and the URL: `cdn_url_for(thumbnail.url)` for a browser-renderable image, the cached
-  `thumbnail_variant.url` (`Rails.cache`) for a video. Images do not need the variant, so they can go first. Only provable against a Ruby golden.
+- **Product file thumbnails** (`ProductFile#as_json`, `thumbnail`, and the same gap for review videos, custom field files, commission files and
+  the avatar's `signed_id` in `page-props/settings/profile.ts`): everything but one piece is in Node already. `infra/active-storage.ts` has
+  `publicStorageUrl` and the variant digest, `signed-in/avatar.ts` shows the variant lookup and the `Rails.cache` read, `cdnUrlFor` the CDN
+  rewrite. A browser-renderable image is `cdnUrlFor(publicStorageUrl(blob.key))`; a streamable file is the processed 1280x720 variant's URL
+  (`attachment_product_file_thumbnail_<attachment id>_variant_url` in the cache), and hands back when no variant record exists, as the
+  avatar does. The missing piece is `blob.signed_id`: it should be
+  `railsMessageVerifierGenerate("ActiveStorage", blob.id, "blob_id")` (no expiry), but it has no Rails golden and the editor posts it
+  back to resolve the attachment, so a wrong token would only show on save. Record one from Rails
+  (`Rails.application.message_verifier("ActiveStorage")`, `blob.signed_id`) with a known `SECRET_KEY_BASE`, add it to
+  `auth/message-verifier.test.ts`, then wire the four readers.
 - **Subtitle whose S3 object is missing**: Ruby retries the key under another Unicode normalization (`S3KeyUnicodeNormalization`) before it
   gives up and drops the subtitle. `signedDownloadUrlForS3KeyAndFilename` has no retry, so the case hands back.
 - **`POST /customer_surcharge`** (WS-20a): only the arithmetic is in `tax/customer-surcharge.ts`. The endpoint also needs `BuyerCurrencyQuote`
