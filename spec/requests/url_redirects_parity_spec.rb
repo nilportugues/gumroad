@@ -657,7 +657,7 @@ describe "Url redirect delivery", type: :request do
     let(:kindle_pdf) { create(:readable_document, link: product, size: 50) }
     let(:forwarded) { { "X-Forwarded-For" => "203.0.113.9" } }
 
-    def kindle(params, headers: forwarded)
+    def kindle(headers: forwarded, **params)
       post send_to_kindle_path(token), params: params.to_json, headers: json_headers.merge("X-CSRF-Token" => csrf_token).merge(headers)
     end
 
@@ -708,7 +708,7 @@ describe "Url redirect delivery", type: :request do
     it "answers 404 to a visitor who has not confirmed a seen redirect", parity: true do
       url_redirect.update!(has_been_seen: true)
 
-      kindle({ file_external_id: kindle_pdf.external_id, email: "dude@kindle.com" }, headers: { "X-Forwarded-For" => "198.51.100.4" })
+      kindle(file_external_id: kindle_pdf.external_id, email: "dude@kindle.com", headers: { "X-Forwarded-For" => "198.51.100.4" })
 
       expect(response).to have_http_status(:not_found)
     end

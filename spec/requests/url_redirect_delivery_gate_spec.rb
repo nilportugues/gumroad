@@ -20,7 +20,7 @@ describe "Url redirect delivery gate", type: :request do
     end
   end
   let(:url_redirect) { create(:url_redirect, link: product, purchase:) }
-  let(:product_file) { product.product_files.alive.first }
+  let(:product_file) { create(:readable_document, link: product) }
 
   describe "GET /r/:id" do
     it "sends a refunded purchase to a 404", parity: true do
@@ -41,7 +41,7 @@ describe "Url redirect delivery gate", type: :request do
     end
 
     it "sends revoked access to the expired page", parity: true do
-      purchase.update!(is_access_revoked: true)
+      purchase.update_attribute(:is_access_revoked, true)
       log_in(buyer)
 
       get url_redirect_path(url_redirect.token)
@@ -84,7 +84,7 @@ describe "Url redirect delivery gate", type: :request do
 
   describe "GET /r/:id/product_files" do
     it "sends revoked access to the expired page", parity: true do
-      purchase.update!(is_access_revoked: true)
+      purchase.update_attribute(:is_access_revoked, true)
       log_in(buyer)
 
       get url_redirect_download_product_files_path(url_redirect.token, product_file_ids: [product_file.external_id])
@@ -144,7 +144,7 @@ describe "Url redirect delivery gate", type: :request do
 
   describe "GET /d/:id/play" do
     it "sends revoked access to the expired page", parity: true do
-      purchase.update!(is_access_revoked: true)
+      purchase.update_attribute(:is_access_revoked, true)
       log_in(buyer)
 
       get url_redirect_play_path(url_redirect.token)
@@ -153,7 +153,7 @@ describe "Url redirect delivery gate", type: :request do
     end
 
     it "answers 404 for a redirect without a purchase", parity: true do
-      link_only = create(:url_redirect, link: product)
+      link_only = create(:url_redirect, link: product, purchase: nil)
       log_in(seller)
 
       get url_redirect_play_path(link_only.token)
@@ -184,7 +184,7 @@ describe "Url redirect delivery gate", type: :request do
 
   describe "GET /r/:id/:product_file_id/:subtitle_file_id" do
     it "sends revoked access to the expired page", parity: true do
-      purchase.update!(is_access_revoked: true)
+      purchase.update_attribute(:is_access_revoked, true)
       log_in(buyer)
 
       get url_redirect_download_subtitle_file_path(url_redirect.token, product_file.external_id, "subtitle")

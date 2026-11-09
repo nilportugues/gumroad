@@ -38,7 +38,7 @@ describe "Url redirect download page", type: :request do
       inertia_visit url_redirect_download_page_path(url_redirect.token, display: "mobile_app")
 
       expect(response).to be_successful
-      expect(inertia_props_of(response)["is_mobile_app_web_view"]).to be(true)
+      expect(response.parsed_body.dig("props", "is_mobile_app_web_view")).to be(true)
     end
 
     it "offers a signed-out visitor the signup form for a guest purchase", parity: true do
@@ -51,7 +51,7 @@ describe "Url redirect download page", type: :request do
     end
 
     it "renders a redirect without a purchase", parity: true do
-      link_only = create(:url_redirect, link: product)
+      link_only = create(:url_redirect, link: product, purchase: nil)
       log_in(seller)
 
       get url_redirect_download_page_path(link_only.token)
@@ -95,7 +95,7 @@ describe "Url redirect download page", type: :request do
     end
 
     it "sends revoked access to the expired page", parity: true do
-      purchase.update!(is_access_revoked: true)
+      purchase.update_attribute(:is_access_revoked, true)
       log_in(buyer)
 
       get url_redirect_download_page_path(url_redirect.token)
