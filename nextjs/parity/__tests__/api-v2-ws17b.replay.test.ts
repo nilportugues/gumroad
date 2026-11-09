@@ -33,6 +33,7 @@ const SPECS: Record<string, { flag: string; methods: string[]; exclude?: RegExp;
   // WS-17g: #index and #show render Purchase#as_json(version: 2); the writes, #summary and #export are not served yet.
   sales_controller_spec: { flag: "nextjs_api_v2_sales", methods: ["POST", "GET"], include: /resend-receipt|get-index|get-show/ },
   upsells_controller_spec: { flag: "nextjs_api_v2_upsells", methods: ["GET"] },
+  subscribers_controller_spec: { flag: "nextjs_api_v2_subscribers", methods: ["GET"] },
   earnings_controller_spec: { flag: "nextjs_api_v2_tax", methods: ["GET"] },
   // #download builds the PDF from Stripe or S3.
   tax_forms_controller_spec: { flag: "nextjs_api_v2_tax", methods: ["GET"], exclude: /-get-download-|-download-/ },
@@ -90,7 +91,7 @@ const COMPARE = {
 
 // A page_key holds the created_at of the row that ended the previous page, recorded as an absolute time; the replay seeds that row
 // relative to its own clock, so the key is rebuilt from the row (found by the id the key holds).
-const PAGED_TABLES: Record<string, string> = { product_reviews_controller_spec: "product_reviews", offer_codes_controller_spec: "offer_codes", payouts_controller_spec: "payments", sales_controller_spec: "purchases" };
+const PAGED_TABLES: Record<string, string> = { product_reviews_controller_spec: "product_reviews", offer_codes_controller_spec: "offer_codes", payouts_controller_spec: "payments", sales_controller_spec: "purchases", subscribers_controller_spec: "subscriptions" };
 function pageKeyAtReplayTime(query: string, fixture: Fixture, request: FixtureRequest, now: Date): string {
   const table = PAGED_TABLES[path.basename(fixture.spec).replace(/\.rb$/u, "")];
   const exchange = fixture.exchanges.find((candidate) => candidate.request === request) ?? fixture.exchanges.at(-1)!;
@@ -106,6 +107,7 @@ const SKIPPED: [RegExp, string][] = [
   [/pagination-paginates-with-page-key #1|pagination-still-returns-a-review-whose-id-is-higher.* #1/u, "the spec stubs RESULTS_PER_PAGE to 1; its second page (the page_key request) is replayed"],
   [/falls-back-to-the-default-timeout|page-key-query-times-out|query-timeout-guard|redis-configured-timeout/u, "the spec stubs WithMaxExecutionTime and the Redis read; the guard is a MySQL statement hint Node does not run"],
   [/returns-the-sale-s-listed-currency-which-is-the-currency|returns-the-listed-currency-for-a-sale-priced-in-a-zero/u, "the spec stubs the JPY exchange rate in the Rails process"],
+  [/with-pagination-returns-a-link-to-the-next-page-i-3b7b3129 #1/u, "the spec stubs RESULTS_PER_PAGE to 1; the page_key request after it is replayed"],
   [/returns-aggregated-earnings-in-cents/u, "sales dated 2025-03-15 and the like are seeded relative to the replay's clock, which moves them across the year the request names"],
   [/returns-filed-at-as-iso-8601/u, "filed_at is an epoch number inside json_data, which the seed does not shift"],
 ];
