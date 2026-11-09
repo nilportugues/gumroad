@@ -1,7 +1,7 @@
 // DiscoverController#index (Discover/Index): the search params, the taxonomy lookup, the product search and its
 // cards, the DiscoverSearch write and the SEO meta tags. Whatever the port cannot prove is handed to Rails whole
 // by the controller's filter (controllers/discover-page.ts), before anything renders: the deferred props the port
-// cannot answer, the autocomplete request, curated products, Black Friday and the affiliate cookie.
+// cannot answer, an autocomplete request it cannot answer, curated products, Black Friday and the affiliate cookie.
 import { Prisma } from "@prisma/client";
 import { timingSafeEqual } from "node:crypto";
 
@@ -12,12 +12,15 @@ import { isFeatureEnabled, parseGateValues, readFeatureDoc, userActor } from "..
 import { column, selectRows, table } from "../../models/sql.ts";
 import { bit, findLink } from "../../presenters/product-reads.ts";
 import { cardForWeb, type PresenterRequest } from "../../presenters/product.ts";
+import { autocompleteProps } from "../../presenters/discover/autocomplete.ts";
+import { recentlyViewedProps } from "../../presenters/discover/recently-viewed.ts";
 import { botUserAgents, type CardForSeo, canonicalUrl, categoryPage, DISCOVER_INDEX_PATH, tagPageMetaDescription, tagPageTitle, taxonomyLabel } from "../../presenters/discover/seo.ts";
 import { normalizeSearchParamValues, searchProductsWithFacets, validFilterTokens } from "../../search/search-products.ts";
 import { type Params, present } from "../../search/ruby-params.ts";
 import { defer } from "../lazy-props.ts";
 import { MetaTagBuilder } from "../meta-tags.ts";
 import { NotPortedError } from "../not-ported.ts";
+import { recommendedWishlistsProps } from "./recommended-wishlists.ts";
 import { taxonomiesForNav, taxonomyByPath, type TaxonomyRow } from "./taxonomies.ts";
 
 export const RECOMMENDED_PRODUCTS_COUNT = 8;
@@ -191,7 +194,7 @@ const mysqlTime = (date: Date) => date.toISOString().replace("T", " ").replace("
 
 // CreateDiscoverSearch#create_discover_search!
 export async function createDiscoverSearch(
-  extras: { query: string | null; taxonomyId: bigint | null },
+  extras: { query: string | null; taxonomyId: bigint | null; autocomplete?: boolean },
   request: DiscoverRequest,
   visitor: DiscoverVisitor,
   params: Params,
@@ -204,9 +207,9 @@ export async function createDiscoverSearch(
   const stamp = mysqlTime(now);
   await db.$transaction(async (tx) => {
     await tx.$executeRaw(
-      Prisma.sql`INSERT INTO ${table("discover_searches")} (${Prisma.raw("`query`, `taxonomy_id`, `user_id`, `ip_address`, `browser_guid`, `autocomplete`, `created_at`, `updated_at`")}) VALUES (${extras.query}, ${extras.taxonomyId}, ${visitor?.id ?? null}, ${request.remoteIp}, ${request.guid}, ${false}, ${stamp}, ${stamp})`,
+      Prisma.sql`INSERT INTO ${table("discover_searches")} (${Prisma.raw("`query`, `taxonomy_id`, `user_id`, `ip_address`, `browser_guid`, `autocomplete`, `created_at`, `updated_at`")}) VALUES (${extras.query}, ${extras.taxonomyId}, ${visitor?.id ?? null}, ${request.remoteIp}, ${request.guid}, ${extras.autocomplete === true}, ${stamp}, ${stamp})`,
     );
-    if (extras.query !== null && extras.query.trim() !== "") {
+    if (extras.autocomplete !== true && extras.query !== null && extras.query.trim() !== "") {
       const inserted = await tx.$queryRaw<{ id: bigint }[]>(Prisma.sql`SELECT LAST_INSERT_ID() AS id`);
       await tx.$executeRaw(Prisma.sql`INSERT INTO ${table("discover_search_suggestions")} (${Prisma.raw("`discover_search_id`, `created_at`, `updated_at`")}) VALUES (${inserted[0]!.id}, ${stamp}, ${stamp})`);
     }
@@ -270,18 +273,26 @@ export function isDeferredOnlyRequest(headers: Headers): boolean {
   return requested.some((name) => name !== "") && requested.every((name) => name === "" || DEFERRED_PROPS.includes(name));
 }
 
+// DiscoverController#autocomplete_results_data
+export const autocompleteResults = (params: Params, visitor: DiscoverVisitor, guid: string | null) =>
+  autocompleteProps(params.query, { user: visitor ? { id: visitor.id } : null, browserGuid: guid });
+
 export const isAutocompleteOnlyRequest = (headers: Headers) => headers.get("x-inertia-partial-data") === "autocomplete_results";
 
 // What a deferred-only request asks for, when the port can answer all of it: the other props are Rails'.
-// DiscoverController#recently_viewed_data is nil for an offer code page, for a visitor with no identity and while
-// the flag is dark; its view history (Discover::RecentlyViewedPresenter) is not ported.
-export async function deferredPropsPortable(requested: string[], prepared: PreparedSearch, visitor: DiscoverVisitor, guid: string | null): Promise<boolean> {
+// recommended_wishlists is answered for a visitor who is not signed in (the signed-in seller is current_seller, which
+// the service excludes and the cards follow); recently_viewed is handed back mid-ramp, where Rails logs the exposure.
+export async function deferredPropsPortable(requested: string[], prepared: PreparedSearch, visitor: DiscoverVisitor, guid: string | null, request: DiscoverRequest): Promise<boolean> {
   for (const name of requested) {
     if (name === "recommended_products") {
       // The root page's strip is a random sample of a cached list (`discover_all_top_products`).
       if (!rubyPresent(prepared.params.offer_code) && !prepared.taxonomy) return false;
     } else if (name === "recently_viewed") {
-      if (!(await recentlyViewedIsNil(prepared, visitor, guid))) return false;
+      if (await recentlyViewedMidRamp(prepared, visitor, guid)) return false;
+      if (await notPorted(() => recentlyViewedData(prepared, visitor, request))) return false;
+    } else if (name === "recommended_wishlists") {
+      if (visitor) return false;
+      if (await notPorted(() => recommendedWishlistsProps(prepared.taxonomy?.id ?? null))) return false;
     } else {
       return false;
     }
@@ -289,16 +300,39 @@ export async function deferredPropsPortable(requested: string[], prepared: Prepa
   return true;
 }
 
+// Whether a prop the port builds hits something it cannot reproduce.
+async function notPorted(build: () => Promise<unknown>): Promise<boolean> {
+  try {
+    await build();
+    return false;
+  } catch (error) {
+    if (error instanceof NotPortedError) return true;
+    throw error;
+  }
+}
+
 export const requestedDeferredProps = (headers: Headers): string[] => (headers.get("x-inertia-partial-data") ?? "").split(",").filter((name) => name !== "");
 
-async function recentlyViewedIsNil(prepared: PreparedSearch, visitor: DiscoverVisitor, guid: string | null): Promise<boolean> {
-  if (rubyPresent(prepared.params.offer_code)) return true;
-  if (!visitor && !guid) return true;
-  // Anonymous visitors are Flipper::Actor.new("browser_guid:#{guid}"); the percentage-of-actors gate is the ramp.
+// Anonymous visitors are Flipper::Actor.new("browser_guid:#{guid}"); the percentage-of-actors gate is the ramp.
+async function recentlyViewedState(visitor: DiscoverVisitor, guid: string | null) {
   const actor = visitor ? userActor(visitor.id) : { flipperId: `browser_guid:${guid}` };
   const rampPercentage = parseGateValues(await readFeatureDoc(RECENTLY_VIEWED_FEATURE)).percentageOfActors;
-  const midRamp = rampPercentage > 0 && rampPercentage < 100;
-  return !(await isFeatureEnabled(RECENTLY_VIEWED_FEATURE, actor)) && !midRamp;
+  return { treatment: await isFeatureEnabled(RECENTLY_VIEWED_FEATURE, actor), midRamp: rampPercentage > 0 && rampPercentage < 100 };
+}
+
+const hasRecentlyViewedIdentity = (prepared: PreparedSearch, visitor: DiscoverVisitor, guid: string | null): boolean => !rubyPresent(prepared.params.offer_code) && (visitor !== null || rubyPresent(guid));
+
+async function recentlyViewedMidRamp(prepared: PreparedSearch, visitor: DiscoverVisitor, guid: string | null): Promise<boolean> {
+  return hasRecentlyViewedIdentity(prepared, visitor, guid) ? (await recentlyViewedState(visitor, guid)).midRamp : false;
+}
+
+// DiscoverController#recently_viewed_data. Mid-ramp both arms log an exposure line, which the port does not write.
+async function recentlyViewedData(prepared: PreparedSearch, visitor: DiscoverVisitor, request: DiscoverRequest) {
+  if (!hasRecentlyViewedIdentity(prepared, visitor, request.guid)) return null;
+  const { treatment, midRamp } = await recentlyViewedState(visitor, request.guid);
+  if (midRamp) throw new NotPortedError("Discover recently_viewed exposure logging");
+  if (!treatment) return null;
+  return recentlyViewedProps({ user: visitor, browserGuid: request.guid, request: presenterRequest(request), includeRatedAsAdult: showsNsfwProducts(visitor) === true });
 }
 
 // DiscoverController#recommendations for what deferredPropsPortable lets through.
@@ -326,16 +360,13 @@ async function recommendedProducts(prepared: PreparedSearch, request: DiscoverRe
 // The deferred props alone: a deferred-only request skips the search, the cards, the DiscoverSearch write and the meta
 // tags (`inertia_meta.clear`), so Inertia's merge keeps the full load's canonical and JSON-LD.
 export function deferredProps(prepared: PreparedSearch, request: DiscoverRequest, visitor: DiscoverVisitor): Record<string, unknown> {
-  const notPorted = (name: string) => () => {
-    throw new NotPortedError(`Discover ${name}`);
-  };
   return {
     recommended_products: defer(() => recommendedProducts(prepared, request)),
-    recommended_wishlists: defer(notPorted("recommended_wishlists")),
-    recently_viewed: defer(async () => {
-      if (await recentlyViewedIsNil(prepared, visitor, request.guid)) return null;
-      throw new NotPortedError("Discover recently_viewed");
+    recommended_wishlists: defer(async () => {
+      if (visitor) throw new NotPortedError("Discover recommended_wishlists for a signed-in visitor");
+      return recommendedWishlistsProps(prepared.taxonomy?.id ?? null);
     }),
+    recently_viewed: defer(() => recentlyViewedData(prepared, visitor, request)),
   };
 }
 

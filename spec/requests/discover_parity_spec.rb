@@ -173,6 +173,69 @@ describe "Discover", type: :request do
 
         expect(response).to be_successful
       end
+
+      it "answers an autocomplete visit and stores the search", parity: true do
+        Feature.activate(:store_discover_searches)
+        cookies[:_gumroad_guid] = "discover-guid"
+
+        expect { get "/discover", params: { query: "Rig kit" }, headers: partial_headers.call("autocomplete_results") }.to change(DiscoverSearch, :count).by(1)
+
+        expect(response).to be_successful
+      end
+
+      it "answers an autocomplete visit with the visitor's recent searches", parity: true do
+        cookies[:_gumroad_guid] = "discover-guid"
+        ["rig kit", "rigging", "film"].each do |query|
+          search = DiscoverSearch.create!(query:, browser_guid: "discover-guid")
+          search.create_discover_search_suggestion!
+        end
+
+        get "/discover", params: { query: "rig" }, headers: partial_headers.call("autocomplete_results")
+
+        expect(response).to be_successful
+      end
+
+      it "answers an autocomplete visit without a query for a visitor with no history", parity: true do
+        get "/discover", headers: partial_headers.call("autocomplete_results")
+
+        expect(response).to be_successful
+      end
+
+      it "answers an autocomplete visit without a query for a visitor who viewed products", parity: true do
+        cookies[:_gumroad_guid] = "discover-guid"
+        add_page_view(Link.find_by!(name: "Rig kit 2"), 1.day.ago.iso8601, browser_guid: "discover-guid")
+        add_page_view(Link.find_by!(name: "Short film pack"), 2.days.ago.iso8601, browser_guid: "discover-guid")
+        ProductPageView.__elasticsearch__.refresh_index!
+
+        get "/discover", headers: partial_headers.call("autocomplete_results")
+
+        expect(response).to be_successful
+      end
+
+      it "answers the deferred recommended wishlists for a category", parity: true do
+        modeling_wishlist = create(:wishlist, user: create(:user, name: "Modeler"), name: "Modeling picks", recommendable: true)
+        create(:wishlist_product, wishlist: modeling_wishlist, product: Link.find_by!(name: "Rig kit 1"))
+        film_wishlist = create(:wishlist, user: create(:user, name: "Filmmaker"), name: "Film picks", recommendable: true)
+        create(:wishlist_product, wishlist: film_wishlist, product: Link.find_by!(name: "Short film pack"))
+
+        get "/3d/3d-modeling", headers: partial_headers.call("recommended_wishlists")
+
+        expect(response).to be_successful
+      end
+
+      it "answers the deferred recently viewed row when the flag is on", parity: true do
+        Feature.activate(:discover_recently_viewed)
+        cookies[:_gumroad_guid] = "discover-guid"
+        add_page_view(Link.find_by!(name: "Rig kit 2"), 1.day.ago.iso8601, browser_guid: "discover-guid")
+        add_page_view(Link.find_by!(name: "Rig kit 3"), 2.days.ago.iso8601, browser_guid: "discover-guid")
+        ProductPageView.__elasticsearch__.refresh_index!
+
+        get "/discover", headers: partial_headers.call("recently_viewed")
+
+        expect(response).to be_successful
+      ensure
+        Feature.deactivate(:discover_recently_viewed)
+      end
     end
   end
 
@@ -203,6 +266,30 @@ describe "Discover", type: :request do
       expect { get "/discover", params: { query: "rig kit" } }.to change(DiscoverSearch, :count).by(1)
 
       expect(response).to be_successful
+    end
+
+    it "answers an autocomplete visit with the buyer's history", parity: true do
+      Feature.activate(:store_discover_searches)
+      search = DiscoverSearch.create!(query: "rig kit", user: buyer)
+      search.create_discover_search_suggestion!
+      add_page_view(Link.find_by!(name: "Rig kit 2"), 1.day.ago.iso8601, user_id: buyer.id)
+      ProductPageView.__elasticsearch__.refresh_index!
+
+      get "/discover", headers: partial_headers.call("autocomplete_results")
+
+      expect(response).to be_successful
+    end
+
+    it "answers the deferred recently viewed row when the flag is on", parity: true do
+      Feature.activate(:discover_recently_viewed)
+      add_page_view(Link.find_by!(name: "Rig kit 2"), 1.day.ago.iso8601, user_id: buyer.id)
+      ProductPageView.__elasticsearch__.refresh_index!
+
+      get "/discover", headers: partial_headers.call("recently_viewed")
+
+      expect(response).to be_successful
+    ensure
+      Feature.deactivate(:discover_recently_viewed)
     end
 
     it "renders the page for a buyer who has purchased", parity: true do

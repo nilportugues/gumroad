@@ -2,7 +2,7 @@
 // The featured product and wishlists sections of a seller's profile, as ProfileSectionsPresenter#section_props renders
 // them for a visitor who is not signed in. A product or card the port cannot prove throws NotPortedError, which
 // `assertProductSectionsRender` turns into a hand-back before the page starts rendering.
-import type { User } from "@prisma/client";
+import type { User, Wishlist } from "@prisma/client";
 
 import { classifyHost } from "../../../lib/navigation/proxy/hosts.ts";
 import { db } from "../../../lib/db.ts";
@@ -63,31 +63,35 @@ export async function wishlistsSectionProps(base: SectionBase, data: Record<stri
   const wishlists = await db.wishlist.findMany({ where: { id: { in: shown.map(BigInt) }, deleted_at: null }, orderBy: { id: "asc" } });
   wishlists.sort((a, b) => shown.indexOf(Number(a.id)) - shown.indexOf(Number(b.id)));
   const cards = [];
-  for (const wishlist of wishlists) {
-    const owner = await findUserById(wishlist.user_id);
-    // Rails raises on a wishlist without an owner, or an owner without a subdomain to build its URL on.
-    const host = owner ? subdomainWithProtocol(owner) : null;
-    if (!owner || host === null) throw new NotPortedError("WishlistPresenter#card_props for a wishlist whose owner has no subdomain");
-    const items = await db.wishlistProduct.findMany({ where: { wishlist_id: wishlist.id, deleted_at: null }, orderBy: { id: "desc" }, take: WISHLIST_CARD_THUMBNAILS });
-    const last = items.reverse();
-    const thumbnails = [];
-    for (const item of last) {
-      const product = await findLink(item.product_id);
-      if (!product) throw new NotPortedError("WishlistPresenter#product_thumbnail for a missing product");
-      thumbnails.push({ url: await thumbnailOrCoverUrl(product.id), native_type: product.native_type });
-    }
-    cards.push({
-      id: externalId(wishlist.id),
-      url: `${host}/wishlists/${urlSlug(wishlist)}?layout=${PROFILE_LAYOUT}`,
-      name: wishlist.name,
-      description: wishlist.description,
-      seller: await authorBylineProps(owner),
-      thumbnails: thumbnails.length < WISHLIST_CARD_THUMBNAILS ? thumbnails.slice(-1) : thumbnails,
-      product_count: await db.wishlistProduct.count({ where: { wishlist_id: wishlist.id, deleted_at: null } }),
-      follower_count: wishlist.follower_count,
-      following: false,
-      can_follow: true,
-    });
-  }
+  for (const wishlist of wishlists) cards.push(await wishlistCardProps(wishlist, { layout: PROFILE_LAYOUT }));
   return { ...base, shown_wishlists: shown.map((id) => externalId(BigInt(id))), wishlists: cards };
+}
+
+// WishlistPresenter#card_props for a visitor who is not signed in (`following` false, `can_follow` true); the url
+// carries `layout` and `recommended_by` the way url_for sorts them.
+export async function wishlistCardProps(wishlist: Wishlist, { layout, recommendedBy = null }: { layout: string; recommendedBy?: string | null }) {
+  const owner = await findUserById(wishlist.user_id!);
+  // Rails raises on a wishlist without an owner, or an owner without a subdomain to build its URL on.
+  const host = owner ? subdomainWithProtocol(owner) : null;
+  if (!owner || host === null) throw new NotPortedError("WishlistPresenter#card_props for a wishlist whose owner has no subdomain");
+  const items = await db.wishlistProduct.findMany({ where: { wishlist_id: wishlist.id, deleted_at: null }, orderBy: { id: "desc" }, take: WISHLIST_CARD_THUMBNAILS });
+  const thumbnails = [];
+  for (const item of items.reverse()) {
+    const product = await findLink(item.product_id);
+    if (!product) throw new NotPortedError("WishlistPresenter#product_thumbnail for a missing product");
+    thumbnails.push({ url: await thumbnailOrCoverUrl(product.id), native_type: product.native_type });
+  }
+  const query = [`layout=${layout}`, ...(recommendedBy ? [`recommended_by=${recommendedBy}`] : [])].join("&");
+  return {
+    id: externalId(wishlist.id),
+    url: `${host}/wishlists/${urlSlug(wishlist)}?${query}`,
+    name: wishlist.name,
+    description: wishlist.description,
+    seller: await authorBylineProps(owner),
+    thumbnails: thumbnails.length < WISHLIST_CARD_THUMBNAILS ? thumbnails.slice(-1) : thumbnails,
+    product_count: await db.wishlistProduct.count({ where: { wishlist_id: wishlist.id, deleted_at: null } }),
+    follower_count: wishlist.follower_count,
+    following: false,
+    can_follow: true,
+  };
 }

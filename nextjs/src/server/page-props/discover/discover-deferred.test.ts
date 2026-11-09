@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   search: vi.fn(),
   findLink: vi.fn(),
   card: vi.fn(),
+  wishlists: vi.fn(),
+  recentlyViewed: vi.fn(),
 }));
 
 vi.mock("../../infra/flipper.ts", async (importOriginal) => ({
@@ -24,10 +26,13 @@ vi.mock("../../presenters/product-reads.ts", async (importOriginal) => ({
   findLink: mocks.findLink,
 }));
 vi.mock("../../presenters/product.ts", () => ({ cardForWeb: mocks.card }));
+vi.mock("./recommended-wishlists.ts", () => ({ recommendedWishlistsProps: mocks.wishlists }));
+vi.mock("../../presenters/discover/recently-viewed.ts", () => ({ recentlyViewedProps: mocks.recentlyViewed }));
 vi.mock("../../../lib/db.ts", () => ({ db: {} }));
 
 import { deferredProps, deferredPropsPortable, requestedDeferredProps, type DiscoverRequest, type PreparedSearch } from "./discover.ts";
 import { isLazyProp } from "../lazy-props.ts";
+import { NotPortedError } from "../not-ported.ts";
 
 const request: DiscoverRequest = {
   path: "/discover",
@@ -49,6 +54,8 @@ beforeEach(() => {
   mocks.search.mockReset();
   mocks.findLink.mockReset();
   mocks.card.mockReset();
+  mocks.wishlists.mockReset();
+  mocks.recentlyViewed.mockReset();
 });
 
 describe("deferred Discover props", () => {
@@ -57,28 +64,53 @@ describe("deferred Discover props", () => {
   });
 
   it("answers recommended_products for an offer code page and a taxonomy page", async () => {
-    expect(await deferredPropsPortable(["recommended_products"], prepared({ offer_code: "X" }), null, null)).toBe(true);
-    expect(await deferredPropsPortable(["recommended_products"], prepared({}, { id: 5n }), null, null)).toBe(true);
+    expect(await deferredPropsPortable(["recommended_products"], prepared({ offer_code: "X" }), null, null, request)).toBe(true);
+    expect(await deferredPropsPortable(["recommended_products"], prepared({}, { id: 5n }), null, null, request)).toBe(true);
   });
 
-  it("hands back the root page's random recommendations and the wishlists", async () => {
-    expect(await deferredPropsPortable(["recommended_products"], prepared({}), null, null)).toBe(false);
-    expect(await deferredPropsPortable(["recommended_wishlists"], prepared({ offer_code: "X" }), null, null)).toBe(false);
-    expect(await deferredPropsPortable(["recommended_products", "recommended_wishlists"], prepared({}, { id: 5n }), null, null)).toBe(false);
+  it("hands back the root page's random recommendations", async () => {
+    expect(await deferredPropsPortable(["recommended_products"], prepared({}), null, null, request)).toBe(false);
+    expect(await deferredPropsPortable(["recommended_products", "recommended_wishlists"], prepared({}), null, null, request)).toBe(false);
+  });
+
+  it("answers recommended_wishlists for a visitor who is not signed in, scoped to the taxonomy", async () => {
+    mocks.wishlists.mockResolvedValue([{ id: "w" }]);
+    expect(await deferredPropsPortable(["recommended_wishlists"], prepared({}), null, null, request)).toBe(true);
+    expect(await deferredPropsPortable(["recommended_products", "recommended_wishlists"], prepared({}, { id: 5n }), null, null, request)).toBe(true);
+    expect(mocks.wishlists).toHaveBeenLastCalledWith(5n);
+    expect(await resolve(deferredProps(prepared({}), request, null), "recommended_wishlists")).toEqual([{ id: "w" }]);
+    expect(mocks.wishlists).toHaveBeenLastCalledWith(null);
+  });
+
+  it("hands back recommended_wishlists for a signed-in visitor and a wishlist the port cannot build", async () => {
+    const visitor = { id: 7n, flags: 0n, currency_type: "usd" };
+    expect(await deferredPropsPortable(["recommended_wishlists"], prepared({}), visitor, null, request)).toBe(false);
+    expect(mocks.wishlists).not.toHaveBeenCalled();
+    mocks.wishlists.mockRejectedValue(new NotPortedError("card"));
+    expect(await deferredPropsPortable(["recommended_wishlists"], prepared({}), null, null, request)).toBe(false);
   });
 
   it("answers recently_viewed with nil for an offer code page, a visitor with no identity and a dark flag", async () => {
-    expect(await deferredPropsPortable(["recently_viewed"], prepared({ offer_code: "X" }), null, "guid")).toBe(true);
-    expect(await deferredPropsPortable(["recently_viewed"], prepared({}), null, null)).toBe(true);
-    expect(await deferredPropsPortable(["recently_viewed"], prepared({}), null, "guid")).toBe(true);
+    expect(await deferredPropsPortable(["recently_viewed"], prepared({ offer_code: "X" }), null, "guid", request)).toBe(true);
+    expect(await deferredPropsPortable(["recently_viewed"], prepared({}), null, null, request)).toBe(true);
+    expect(await deferredPropsPortable(["recently_viewed"], prepared({}), null, "guid", { ...request, guid: "guid" })).toBe(true);
     expect(await resolve(deferredProps(prepared({}), { ...request, guid: "guid" }, null), "recently_viewed")).toBeNull();
+    expect(mocks.recentlyViewed).not.toHaveBeenCalled();
   });
 
-  it("hands back recently_viewed once the flag is on or ramping", async () => {
+  it("builds recently_viewed once the flag is fully on", async () => {
     mocks.doc = { boolean: "true" };
-    expect(await deferredPropsPortable(["recently_viewed"], prepared({}), null, "guid")).toBe(false);
+    mocks.recentlyViewed.mockResolvedValue({ products: [], anonymous_key: "key" });
+    const withGuid = { ...request, guid: "guid" };
+    expect(await deferredPropsPortable(["recently_viewed"], prepared({}), null, "guid", withGuid)).toBe(true);
+    expect(await resolve(deferredProps(prepared({}), withGuid, null), "recently_viewed")).toEqual({ products: [], anonymous_key: "key" });
+    expect(mocks.recentlyViewed).toHaveBeenLastCalledWith(expect.objectContaining({ user: null, browserGuid: "guid", includeRatedAsAdult: false }));
+  });
+
+  it("hands back recently_viewed while the flag ramps, where Rails logs the exposure", async () => {
     mocks.doc = { percentage_of_actors: "50" };
-    expect(await deferredPropsPortable(["recently_viewed"], prepared({}), null, "guid")).toBe(false);
+    expect(await deferredPropsPortable(["recently_viewed"], prepared({}), null, "guid", { ...request, guid: "guid" })).toBe(false);
+    expect(mocks.recentlyViewed).not.toHaveBeenCalled();
   });
 
   it("returns no recommended products on an offer code page without searching", async () => {

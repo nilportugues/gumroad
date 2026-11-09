@@ -19,11 +19,14 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 // Replays Discover (spec/requests/discover_parity_spec.rb), signed out and signed in. Only the last request of each
 // example is replayed, against `next dev` with the page flag on. The `products` index is rebuilt from the seeded
 // rows before every exchange, under the name the server derives from ES_INDEX_SUFFIX. What the port hands to Rails
-// (the deferred props, the autocomplete request, a buyer with purchases) is proven by the request reaching it.
+// (a signed-in visitor's wishlists, a buyer with purchases) is proven by the request reaching it. The fixtures that
+// read product_page_views (autocomplete history, recently_viewed) need that index seeded by the replayer, which only
+// rebuilds `products` and `purchases` today.
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests/discover_parity_spec";
-const HANDED_BACK = /deferred|autocomplete|buyer-who-has-purchased/;
+// A signed-in seller is the service's current_seller, and a buyer's cart or purchases make curated products.
+const HANDED_BACK = /signed-in-answers-the-deferred-recommended-wishlists|buyer-who-has-purchased/;
 const RAILS_ANSWER = "rails answered";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";

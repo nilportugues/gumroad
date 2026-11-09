@@ -4,13 +4,13 @@ import { railsLoggedInUser } from "../../auth/resolve.ts";
 import { DISCOVER_OPTIONS } from "../../controllers/discover-page.ts";
 import { remoteIp } from "../audience/events.ts";
 import type { PageSpec } from "../pages.ts";
-import { createDiscoverSearch, type DiscoverRequest, deferredProps, discoverProps, isDeferredOnlyRequest, isSearching, prepareSearch, searchResults, setMetaTags } from "./discover.ts";
+import { autocompleteResults, createDiscoverSearch, type DiscoverRequest, deferredProps, discoverProps, isAutocompleteOnlyRequest, isDeferredOnlyRequest, isSearching, prepareSearch, requestParams, searchResults, setMetaTags } from "./discover.ts";
 
 const discoverPage: PageSpec = {
   component: "Discover/Index",
   options: DISCOVER_OPTIONS,
   props: async (_, action) => {
-    const { url, headers, context, meta } = action;
+    const { url, headers, context, meta, state } = action;
     const visitor = railsLoggedInUser(context);
     const sent = /(?:^|;\s*)_gumroad_guid=([^;]+)/.exec(headers.get("cookie") ?? "")?.[1];
     const guid = sent ? decodeURIComponent(sent) : (action.renderState?.mintedGuid ?? null);
@@ -27,6 +27,12 @@ const discoverPage: PageSpec = {
       cookies: new Map<string, string | null>(),
       guid,
     };
+    if (isAutocompleteOnlyRequest(headers)) {
+      // create_discover_search! comes first, and only for a present query.
+      const params = requestParams(request.path, queryString);
+      if (typeof params.query === "string" && params.query.trim() !== "") await createDiscoverSearch({ query: params.query, taxonomyId: null, autocomplete: true }, request, visitor, params);
+      return { autocomplete_results: state.autocomplete ?? (await autocompleteResults(params, visitor, guid)) };
+    }
     const prepared = await prepareSearch(request, visitor);
     if (isDeferredOnlyRequest(headers)) {
       for (const key of meta.keys()) meta.remove(key);
