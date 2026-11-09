@@ -83,7 +83,7 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
     end
 
     it "hands an archive of the buyer's own purchase to Rails", parity: true do
-      purchase = library_purchase
+      purchase = create(:free_purchase, link: create(:product, user: seller, price_cents: 0), purchaser: buyer, email: buyer.email)
 
       post "/mobile/purchases/#{purchase.external_id}/archive", params: auth(buyer)
 
@@ -139,7 +139,7 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
 
     it "hands a sales page with a subscription sale to Rails", parity: true do
       membership = create(:membership_product, user: seller)
-      purchase_row(link: membership, seller:, purchase_state: "successful", subscription: create(:subscription, link: membership, user: buyer))
+      purchase_row(link: membership, seller:, purchase_state: "successful", is_original_subscription_purchase: true, subscription: create(:subscription, link: membership, user: buyer))
       index_model_records(Purchase)
 
       get "/mobile/sales", params: auth(seller)

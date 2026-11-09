@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import path from "node:path";
 
+import { Client as ElasticsearchClient } from "@elastic/elasticsearch";
 import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -10,6 +11,7 @@ import { closeAllRedis } from "@/server/infra/redis";
 
 import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
+import { ELASTICSEARCH_HOST, recreateIndex, reindexPurchases, replayIndexName } from "../src/elasticsearch";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
@@ -21,6 +23,7 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests/api/mobile";
+const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "-mobile";
 const SPECS = ["mobile_api_parity_spec", "mobile_accounts_parity_spec", "mobile_hand_backs_parity_spec", "mobile_purchases_sales_parity_spec", "mobile_products_subscriptions_parity_spec"].filter((dir) => existsSync(path.join(FIXTURES, dir)));
 const ROUTE_FLAGS = ["feature_flags", "devices", "calls", "licenses", "review_videos", "media_locations", "accounts", "consumption_analytics", "analytics", "purchases", "sales", "url_redirect_delivery", "products", "subscriptions", "preorders", "installments"].map((name) => `nextjs_mobile_${name}`).join(",");
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
@@ -59,6 +62,11 @@ const COMPARE = {
     "response.cookies.XSRF-TOKEN.value",
     // PaperTrail is off in the Rails specs; the goldens of each write pin the versions Node writes.
     "db.versions",
+    // The specs send fixed years-old dates, which the fixtures store as "now minus N hours", so the value drifts with the replay day.
+    "db.media_locations.inserted.*.consumed_at",
+    "db.media_locations.updated.*.changes.consumed_at.*",
+    // Minute of the sale in the seller's time zone, stamped by the factory's clock.
+    "response.json.purchases.*.daystamp",
     // The seed is stamped with the replay's clock, so a row Rails touched seconds after the factory made it is not touched in the same second.
     "db.licenses.updated.*.changes.updated_at",
     "db.calls.updated.*.changes.updated_at",
@@ -90,6 +98,7 @@ describe.skipIf(!url)("Mobile API parity", () => {
   let client: PrismaClient;
   let sql: SqlExecutor;
   let redis: Redis;
+  let es: ElasticsearchClient;
   let server: NextServer;
   let rails: Server;
   const handedBack: { method: string; url: string; body: string }[] = [];
@@ -98,6 +107,7 @@ describe.skipIf(!url)("Mobile API parity", () => {
   beforeAll(async () => {
     client = new PrismaClient({ datasourceUrl: url });
     sql = prismaExecutor(client);
+    es = new ElasticsearchClient({ node: ELASTICSEARCH_HOST });
     const [hostAndPort = "", db = "0"] = redisHost.split("/");
     const [host = "127.0.0.1", port = "6379"] = hostAndPort.split(":");
     redis = new Redis({ host, port: Number(port), db: Number(db) });
@@ -118,7 +128,8 @@ describe.skipIf(!url)("Mobile API parity", () => {
       MOBILE_TOKEN: testEnv("MOBILE_TOKEN") ?? "",
       MOBILE_API_OAUTH_APPLICATION_UID: testEnv("MOBILE_API_OAUTH_APPLICATION_UID") ?? "",
       NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS,
-      ELASTICSEARCH_HOST: process.env.ELASTICSEARCH_HOST ?? "http://localhost:9200",
+      ELASTICSEARCH_HOST,
+      ES_INDEX_SUFFIX,
       RAILS_ORIGIN: `http://127.0.0.1:${railsPort}`,
       SECRET_KEY_BASE,
       DATABASE_URL: url!,
@@ -138,13 +149,22 @@ describe.skipIf(!url)("Mobile API parity", () => {
     rails?.close();
     await closeAllRedis();
     await redis?.quit();
+    await es?.close();
     await client?.$disconnect();
     process.env = saved;
   });
 
   const replayOptions = () => ({
     sql,
-    redis: redisSeeder(redis),
+    redis: {
+      async reset(entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0], exchange?: unknown) {
+        await redisSeeder(redis).reset(entries);
+        if (!exchange) return;
+        const purchases = { model: "Purchase", name: replayIndexName("purchases", ES_INDEX_SUFFIX) } as const;
+        await recreateIndex(es, purchases);
+        await reindexPurchases(es, purchases.name, sql);
+      },
+    },
     transport: httpTransport(server.baseUrl),
     interceptHttp: false,
     jobs: redisJobs(redis),
@@ -163,7 +183,7 @@ describe.skipIf(!url)("Mobile API parity", () => {
         const fixture = loadFixture(file);
         const expected = fixture.exchanges[index]!;
         expected.jobs = [...(expected.jobs ?? [])].sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
-        if (name.includes("hands-a-")) {
+        if (/hands-an?-/.test(name)) {
           handedBack.length = 0;
           const handed = await replayFixtureExchange(fixture, index, replayOptions());
           const request = expected.request;
