@@ -1,10 +1,11 @@
 // DiscoverController#index's filters: everything the port cannot answer exactly goes to Rails whole, before the
-// page renders. The deferred props the port cannot answer and the autocomplete request are Rails'; curated products (a visitor with a
-// cart or purchases), the Black Friday page, the affiliate cookie and a card the product presenter cannot build
-// are too.
+// page renders. The deferred props and the autocomplete request the port cannot answer are Rails'; curated products
+// (a visitor with a cart or purchases), the Black Friday page, the affiliate cookie and a card the product presenter
+// cannot build are too.
 import { railsLoggedInUser } from "../auth/resolve.ts";
 import { remoteIp } from "../page-props/audience/events.ts";
 import {
+  autocompleteResults,
   blackFridayFeatureActive,
   deferredPropsPortable,
   type DiscoverRequest,
@@ -49,17 +50,25 @@ export async function discoverFilters(chain: Chain): Promise<FilterOutcome> {
   // A nested query changes what `params` holds (requestParams refuses it).
   const rawParams = requestParams(request.path, request.queryString);
   if (AFFILIATE_PARAMS.some((name) => name in rawParams)) throw new HandBackToRails();
-  if (isAutocompleteOnlyRequest(request.headers)) throw new HandBackToRails();
   const deferredOnly = isDeferredOnlyRequest(request.headers);
 
   const visitor = railsLoggedInUser(chain.auth.context);
   const guid = guidOf(request, chain.guid);
+  if (isAutocompleteOnlyRequest(request.headers)) {
+    // The search box answers before format_search_params!, the curated products and the Black Friday check.
+    try {
+      return { state: { autocomplete: await autocompleteResults(rawParams, visitor, guid) } };
+    } catch (error) {
+      if (error instanceof NotPortedError) throw new HandBackToRails();
+      throw error;
+    }
+  }
   if (await hasCuratedProductSources(visitor, guid)) throw new HandBackToRails();
   if (await blackFridayFeatureActive(rawParams)) throw new HandBackToRails();
 
   const prepared = await prepareSearch(request, visitor);
   if (deferredOnly) {
-    if (!(await deferredPropsPortable(requestedDeferredProps(request.headers), prepared, visitor, guid))) throw new HandBackToRails();
+    if (!(await deferredPropsPortable(requestedDeferredProps(request.headers), prepared, visitor, guid, discoverRequestOf(request, guid)))) throw new HandBackToRails();
     return { state: {} };
   }
   try {

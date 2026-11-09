@@ -14,16 +14,22 @@ export async function hasAttachment(recordType: string, recordId: bigint, name: 
   return rows.length > 0;
 }
 
-// `thumbnail_alive&.url`
-export async function thumbnailUrl(productId: bigint): Promise<string | null> {
+async function thumbnailUrlWhere(productId: bigint, aliveOnly: boolean): Promise<string | null> {
+  const deleted = aliveOnly ? Prisma.sql` AND ${column("thumbnails", "deleted_at")} IS NULL` : Prisma.empty;
   const [thumbnail] = await selectRows<{ id: bigint; unsplash_url: string | null }>(
-    Prisma.sql`SELECT ${column("thumbnails", "id")}, ${column("thumbnails", "unsplash_url")} FROM ${table("thumbnails")} WHERE ${column("thumbnails", "product_id")} = ${productId} AND ${column("thumbnails", "deleted_at")} IS NULL ORDER BY ${column("thumbnails", "id")} ASC LIMIT 1`,
+    Prisma.sql`SELECT ${column("thumbnails", "id")}, ${column("thumbnails", "unsplash_url")} FROM ${table("thumbnails")} WHERE ${column("thumbnails", "product_id")} = ${productId}${deleted} ORDER BY ${column("thumbnails", "id")} ASC LIMIT 1`,
   );
   if (!thumbnail) return null;
   if (present(thumbnail.unsplash_url)) return thumbnail.unsplash_url;
   if (await hasAttachment("Thumbnail", thumbnail.id, "file")) throw new NotPortedError("Thumbnail#url for an uploaded file");
   return null;
 }
+
+// `thumbnail_alive&.url`
+export const thumbnailUrl = (productId: bigint) => thumbnailUrlWhere(productId, true);
+
+// `thumbnail&.url`: the has_one without the alive scope, so a soft-deleted thumbnail still answers.
+export const anyThumbnailUrl = (productId: bigint) => thumbnailUrlWhere(productId, false);
 
 // `thumbnail_alive&.url || display_asset_previews.find(&:image_url?)&.url`
 export async function thumbnailOrCoverUrl(productId: bigint): Promise<string | null> {

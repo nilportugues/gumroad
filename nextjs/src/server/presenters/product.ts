@@ -160,7 +160,7 @@ export function subdomainWithProtocol(user: Pick<UserRow, "username">): string |
 }
 
 // Link#long_url
-export function longUrl(row: LinkRow, seller: UserRow, options: { recommendedBy?: string | null; recommenderModelName?: string | null; layout?: string | null; affiliateId?: string | null; query?: string | null; code?: string | null; host?: string | null } = {}): string {
+export function longUrl(row: LinkRow, seller: UserRow, options: { recommendedBy?: string | null; recommenderModelName?: string | null; layout?: string | null; affiliateId?: string | null; query?: string | null; code?: string | null; autocomplete?: boolean; host?: string | null } = {}): string {
   const config = domainConfig(process.env);
   const host = options.host ?? subdomainWithProtocol(seller) ?? `${config.protocol}://${config.domain}`;
   const query = queryString({
@@ -170,6 +170,7 @@ export function longUrl(row: LinkRow, seller: UserRow, options: { recommendedBy?
     query: options.query,
     affiliate_id: options.affiliateId,
     code: options.code,
+    autocomplete: options.autocomplete ? "true" : null,
   });
   return `${host}/l/${encodeURIComponent(link.generalPermalink(row)!)}${query}`;
 }
