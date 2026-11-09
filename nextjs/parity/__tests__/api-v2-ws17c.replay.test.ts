@@ -88,6 +88,11 @@ const COMPARE = {
     "db.users.updated.*.changes.updated_at",
     "db.installments.updated.*.changes.updated_at",
     "db.installment_rules.updated.*.changes.updated_at",
+    // The first request to a route compiles it, and a delete stamps the replay's clock plus that compile.
+    "db.installments.updated.*.changes.deleted_at",
+    // An instant in 2099 is masked as whole hours from now, so the minute of the hour moves it by one.
+    "response.json.email.scheduled_at",
+    "db.installment_rules.inserted.*.to_be_published_at",
     "jobs.*.at",
     "http",
     // Rails renders its debug exception page for a 404 in the test environment.
