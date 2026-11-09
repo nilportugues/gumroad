@@ -53,6 +53,8 @@ const stripeKey = /^STRIPE_PUBLIC_KEY_TEST=(.+)$/m.exec(envTest)?.[1];
 // values (CSP nonce, masked CSRF tokens).
 const COMPARE = {
   ignore: [
+    // The seed is stamped with the replay's clock, so a touch Rails made in the factory's second is not one here.
+    "db.url_redirects.updated.*.changes.updated_at",
     "response.headers.x-original-headers-class",
     "response.headers.cache-control",
     // Rack::MiniProfiler's authorization cookie for team members; its token lives in the Rails process.

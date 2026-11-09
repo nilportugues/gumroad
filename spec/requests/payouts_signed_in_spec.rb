@@ -202,7 +202,7 @@ describe "Payouts page when signed in", type: :request do
 
     it "adds the Gumroad fee kept by an instant payout and its arrival date", parity: true do
       payment = completed_payment(days_ago: 1, amount_cents: 7000, bank_account: bank)
-      payment.update!(payout_type: Payouts::PAYOUT_TYPE_INSTANT, gumroad_fee_cents: 70, arrival_date: 1.day.from_now.to_i)
+      payment.update!(payout_type: Payouts::PAYOUT_TYPE_INSTANT, gumroad_fee_cents: 70, arrival_date: Time.utc(2030, 1, 2).to_i)
 
       visit_payouts
 
