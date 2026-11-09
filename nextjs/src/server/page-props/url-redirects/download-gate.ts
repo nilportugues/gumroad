@@ -20,6 +20,8 @@ export type GateInput = {
   path: string;
   fullpath: string;
   display: string | null;
+  // params[:action], which the confirm page sends the buyer back to. Defaults to the download page.
+  destination?: string;
   // The buyer content page's background poll (download_page_polling_request?).
   isPoll: boolean;
   hasBeenSeen: boolean;
@@ -66,6 +68,6 @@ export function decideAccess(input: GateInput): GateDecision {
   if (!input.hasBeenSeen || purchase === null) return { kind: "pass" };
 
   // to_query sorts the keys.
-  const query = [`destination=download_page`, ...(input.display ? [`display=${cgiEscape(input.display)}`] : []), `id=${cgiEscape(token)}`].join("&");
+  const query = [`destination=${cgiEscape(input.destination ?? "download_page")}`, ...(input.display ? [`display=${cgiEscape(input.display)}`] : []), `id=${cgiEscape(token)}`].join("&");
   return redirect(`/confirm?${query}`);
 }
