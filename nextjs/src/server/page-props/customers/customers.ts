@@ -3,14 +3,14 @@
 //
 // Handed back to Rails (HandBackToRails) when a customer on the page needs a reading the port does not make: a member or
 // installment plan (current subscription price, remaining charges), a preorder, a received gift or a sent gift whose
-// recipient holds a license, a bundle, a physical product or a chosen variant (`to_option`, shipping), an upsell, an affiliate, a UTM link (`utm_url` is built by Addressable), a non-USD price without a
+// recipient holds a license, a bundle, a physical product or a chosen variant (`to_option`, shipping), an upsell, a collaborator sale that also credits a direct affiliate, a UTM link (`utm_url` is built by Addressable), a non-USD price without a
 // stored rate or in a currency the port has no table for, a refund whose json_data is not plain JSON, a commission
 // with files, a review video, a custom field file, a seller whose ping endpoints must be checked (`can_ping`), and a
 // sale charged through a processor transaction URL (Stripe Connect, PayPal, Braintree).
 import { Prisma, type Purchase, type User } from "@prisma/client";
 
 import { encrypt } from "../../../lib/obfuscate-ids.ts";
-import { usdCentsToCurrency } from "../../models/concerns/currency-helper.ts";
+import { formattedDollarAmount, usdCentsToCurrency } from "../../models/concerns/currency-helper.ts";
 import LINK_DATA from "../../models/link-data.generated.json" with { type: "json" };
 import { HandBackToRails } from "../../controllers/application-controller.ts";
 import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
@@ -139,6 +139,8 @@ type Loaded = {
   offerCodes: Map<string, Row>;
   // Purchases with a PurchaseOfferCodeDiscount (`has_cached_offer_code?`), whose discount is the cached one, not the code's.
   cachedDiscounts: Set<string>;
+  affiliates: Map<string, Row>;
+  affiliateUsers: Map<string, Row>;
   licenses: Map<string, Row>;
   reviews: Map<string, Row>;
   responses: Map<string, Row>;
@@ -180,7 +182,9 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
   const links = byId(await rowsBy("links", "id", [...new Set(purchases.map((purchase) => purchase.link_id))]));
   for (const link of links.values()) if (link.require_shipping) throw new HandBackToRails();
   for (const purchase of purchases) {
-    if (purchase.subscription_id != null || purchase.preorder_id != null || purchase.affiliate_id != null) throw new HandBackToRails();
+    if (purchase.subscription_id != null || purchase.preorder_id != null) throw new HandBackToRails();
+    // credits_direct_affiliate?: a collaborator sale that also credits a direct affiliate splits the credit in two (json_data).
+    if (purchase.affiliate_id != null && typeof purchase.json_data === "string" && purchase.json_data.includes("direct_affiliate_id")) throw new HandBackToRails();
     // usd_cents_to_currency converts the refundable amount at the rate stored on the sale; without one it would ask Redis.
     if (purchase.displayed_price_currency_type !== "usd" && !(typeof purchase.displayed_price_currency_type === "string" && purchase.displayed_price_currency_type in KNOWN_CURRENCIES && PLAIN_RATE.test(String(purchase.rate_converted_to_usd ?? "").trim()))) throw new HandBackToRails();
     const flags = (name: Parameters<typeof PurchaseFlags.isSet>[1]) => PurchaseFlags.isSet(purchase.flags, name);
@@ -195,6 +199,11 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
   ] as const) {
     if (purchaseIds.length > 0 && (await exists(Prisma.sql`SELECT 1 FROM ${table(tableName)} WHERE ${column(tableName, columnName)} IN (${inList(purchaseIds)}) LIMIT 1`))) throw new HandBackToRails();
   }
+
+  const affiliates = byId(await rowsBy("affiliates", "id", [...new Set(purchases.map((purchase) => purchase.affiliate_id).filter((id) => id != null))]));
+  const affiliateUsers = byId(await rowsBy("users", "id", [...new Set([...affiliates.values()].map((affiliate) => affiliate.affiliate_user_id).filter((id) => id != null))]));
+  // `purchase.affiliate.affiliate_user` raises for an affiliate without a user, which is Rails' to answer.
+  if ([...affiliates.values()].some((affiliate) => !affiliateUsers.has(String(affiliate.affiliate_user_id)))) throw new HandBackToRails();
 
   const refundedCents = new Map<string, number>();
   for (const refund of await rowsBy("refunds", "purchase_id", purchaseIds)) {
@@ -227,6 +236,8 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
     purchases,
     links,
     hasAliveVariants: await productsWithAliveVariants([...links.keys()]),
+    affiliates,
+    affiliateUsers,
     cachedDiscounts: new Set((await rowsBy("purchase_offer_code_discounts", "purchase_id", purchaseIds)).map((discount) => String(discount.purchase_id))),
     offerCodes: byId(await rowsBy("offer_codes", "id", [...new Set(purchases.map((purchase) => purchase.offer_code_id).filter((id) => id != null))])),
     licenses: new Map((await rowsBy("licenses", "purchase_id", purchaseIds, Prisma.sql` AND ${column("licenses", "deleted_at")} IS NULL`)).map((license) => [String(license.purchase_id), license])),
@@ -328,6 +339,16 @@ export async function offerCodeReading(purchase: Row, offerCode: Row | null, cac
   return { discountCode, beforeOfferCode: price === null ? displayed : price * quantity };
 }
 
+// CustomerPresenter's `affiliate`: the affiliate's form_email, the credit this sale paid them (own_affiliate_credit_cents, with no
+// direct affiliate to subtract) and the STI type.
+export function affiliateJson(purchase: Row, affiliate: Row, user: Row) {
+  return {
+    email: present(user.unconfirmed_email) ? user.unconfirmed_email : present(user.email) ? user.email : null,
+    amount: formattedDollarAmount(num(purchase.affiliate_credit_cents ?? 0)),
+    type: affiliate.type,
+  };
+}
+
 type Context = { seller: User; sellerUsername: string; sellerContext: SellerContext; loaded: Loaded };
 
 async function customerJson(purchase: Row, { sellerUsername, sellerContext, loaded }: Context) {
@@ -341,6 +362,8 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
   const displayed = num(purchase.displayed_price_cents);
   const offerCode = purchase.offer_code_id == null ? null : (loaded.offerCodes.get(String(purchase.offer_code_id)) ?? null);
   const { discountCode, beforeOfferCode } = await offerCodeReading(purchase, offerCode, loaded.cachedDiscounts.has(id));
+  const affiliate = purchase.affiliate_id == null ? undefined : loaded.affiliates.get(String(purchase.affiliate_id));
+  const affiliateUser = affiliate ? loaded.affiliateUsers.get(String(affiliate.affiliate_user_id)) : undefined;
   const tip = loaded.tips.get(id);
   const license = loaded.licenses.get(id);
   const review = loaded.reviews.get(id);
@@ -391,7 +414,7 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
     is_additional_contribution: flags("is_additional_contribution"),
     ppp: ppp ? { country: purchase.ip_country, discount: `${Math.round((1 - num(ppp.factor)) * 100)}%` } : null,
     is_preorder: false,
-    affiliate: null,
+    affiliate: affiliate && affiliateUser ? affiliateJson(purchase, affiliate, affiliateUser) : null,
     license: license
       ? {
           id: secureExternalId("License", license.id, LICENSE_SCOPE, { expiresAt: new Date(Date.now() + LICENSE_TTL_MS) }),

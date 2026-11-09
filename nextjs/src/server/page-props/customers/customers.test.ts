@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { HandBackToRails } from "../../controllers/application-controller.ts";
 import { setSqlClient } from "../../models/sql.ts";
-import { displayReferrer, offerCodeReading, pageOffset, refundableCents, refundIsEffective, rubyToI, totalPages } from "./customers.ts";
+import { affiliateJson, displayReferrer, offerCodeReading, pageOffset, refundableCents, refundIsEffective, rubyToI, totalPages } from "./customers.ts";
 
 const purchase = (overrides: Record<string, unknown>) => ({ flags: 0n, recommended_by: null, referrer: null, ...overrides });
 
@@ -141,5 +141,25 @@ describe("CustomerPresenter discount and cents_before_offer_code", () => {
     answering({});
 
     expect(await offerCodeReading(sale(), null, false)).toEqual({ discountCode: null, beforeOfferCode: 800 });
+  });
+});
+
+describe("CustomerPresenter affiliate", () => {
+  const user = { email: "affiliate@example.com", unconfirmed_email: null };
+
+  it("shows the affiliate's email, the credit this sale paid them and their type", () => {
+    expect(affiliateJson({ affiliate_credit_cents: 1250 }, { type: "DirectAffiliate" }, user)).toEqual({ email: "affiliate@example.com", amount: "$12.50", type: "DirectAffiliate" });
+  });
+
+  it("drops the cents of a whole-dollar credit and groups thousands", () => {
+    expect(affiliateJson({ affiliate_credit_cents: 500 }, { type: "GlobalAffiliate" }, user).amount).toBe("$5");
+    expect(affiliateJson({ affiliate_credit_cents: 123456 }, { type: "Collaborator" }, user).amount).toBe("$1,234.56");
+  });
+
+  it("prefers the unconfirmed email, as User#form_email does, and treats a missing credit as zero", () => {
+    const pending = { email: "old@example.com", unconfirmed_email: "new@example.com" };
+
+    expect(affiliateJson({ affiliate_credit_cents: null }, { type: "DirectAffiliate" }, pending)).toMatchObject({ email: "new@example.com", amount: "$0" });
+    expect(affiliateJson({ affiliate_credit_cents: 0 }, { type: "DirectAffiliate" }, { email: " ", unconfirmed_email: "" }).email).toBeNull();
   });
 });
