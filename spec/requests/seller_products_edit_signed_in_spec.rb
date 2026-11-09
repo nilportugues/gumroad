@@ -9,7 +9,7 @@ describe "Product editor when signed in", type: :request do
   include Parity::SignedInDashboard
 
   let(:seller) { create(:user, name: "Edit Seller") }
-  let(:product) { create(:product, user: seller, name: "Plain product", price_cents: 500) }
+  let(:product) { create(:product, user: seller, name: "Plain product", price_cents: 500, unique_permalink: "plain") }
 
   # The first visit inserts the seller's holdout row; the port only reads it.
   before { Marketing::HoldoutAssignment.for_seller!(seller) }
