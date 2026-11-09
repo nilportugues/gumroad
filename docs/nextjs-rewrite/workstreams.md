@@ -44,7 +44,7 @@ a letter suffix (`nextjs/ws-12d-bundle-edit`). This table maps every merged bran
 | WS-13 Audience, emails, workflows | 51, 57, 59, 63, 67, 74, 82; mailers 31, 35, 40, 60, 73, 76, 85 | Pages and their mutations; receipt mailer for common shapes |
 | WS-14 Discover and search | 34, 37, 65, 83 | Discover page; personalised and deferred parts hand back |
 | WS-15 Analytics and exports | 58, 70, 79, 84 | Dashboards, customers, analytics; exports not started |
-| WS-16 Library and content delivery | 61, 81 | Library and unavailable pages; `/d` download page not started |
+| WS-16 Library and content delivery | 61, 81, 16b (download page) | Library and unavailable pages; `/d/:id` gate, redirects and visit writes in Node, rendering only for a content page that lists nothing (files, rich content, variants, posts, integrations, licenses, polls hand back) |
 | WS-17 Public API and mobile API | — | Not started |
 | WS-18 Admin | — | Not started |
 | WS-19 AI, MCP and moderation | 75 (agent page) | Agent page only |

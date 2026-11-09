@@ -42,9 +42,9 @@ const safeDecode = (value: string) => {
   }
 };
 
-const present = (value: string | null | undefined): value is string => isPresent(value);
+export const present = (value: string | null | undefined): value is string => isPresent(value);
 
-type Loaded = {
+export type Loaded = {
   redirect: UrlRedirect;
   purchase: Purchase | null;
   product: Link | null;
@@ -59,7 +59,7 @@ type Loaded = {
 // UrlRedirect.find_by(token:) then the checks fetch_url_redirect makes for a redirect that hangs off
 // an installment. Those, an imported customer and the records the layout props read through the
 // presenters (reviews, post-purchase custom fields, calls, bundles) are left to Rails.
-async function load(token: string): Promise<Loaded> {
+export async function load(token: string): Promise<Loaded> {
   const redirect = await db.urlRedirect.findUnique({ where: { token } });
   if (!redirect) throw new RoutingError("Not Found");
   if (redirect.installment_id !== null || redirect.imported_customer_id !== null) throw new HandBackToRails();
@@ -142,7 +142,7 @@ export function unavailableFilters(page: UnavailablePage) {
 
 // `rich_content_json.present?` for the default destination: any page the product or a variant has, or a
 // completed commission, is left to Rails.
-async function hasRichContent({ product, purchase }: Loaded): Promise<boolean> {
+export async function hasRichContent({ product, purchase }: Loaded): Promise<boolean> {
   if (!product) return false;
   const categories = await db.variantCategory.findMany({ where: { link_id: Number(product.id) }, select: { id: true } });
   const variants = await db.baseVariant.findMany({ where: { variant_category_id: { in: categories.map((category) => category.id) } }, select: { id: true } });
@@ -158,7 +158,7 @@ async function hasRichContent({ product, purchase }: Loaded): Promise<boolean> {
 }
 
 // Purchase#claim_by_seller?
-function claimBySeller(loaded: Loaded, user: User | null): boolean {
+export function claimBySeller(loaded: Loaded, user: User | null): boolean {
   const { purchase, product } = loaded;
   if (!purchase || !user || !product || product.user_id !== user.id) return false;
   if (product.user_id === purchase.purchaser_id) return false;
@@ -215,7 +215,7 @@ function disablesReviewsAfterYear(seller: User | null): boolean {
 }
 
 // UrlRedirectPresenter#download_page_layout_props
-function layoutProps(loaded: Loaded, emailConfirmationRequired: boolean, now: Date) {
+export function layoutProps(loaded: Loaded, emailConfirmationRequired: boolean, now: Date) {
   const { redirect, purchase, product, seller, purchaser, receiptPurchase, variantId } = loaded;
   return {
     terms_page_url: `${rootDomainWithProtocol()}/terms`,
