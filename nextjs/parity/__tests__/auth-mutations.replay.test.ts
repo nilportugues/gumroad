@@ -90,6 +90,12 @@ const COMPARE = {
     "response.headers.link",
     "response.cookies.__profilin",
     "response.body",
+    // Random per request: the CSP nonce and the CSRF token, which the page repeats in its meta tags.
+    "response.inertia.props.csp_nonce",
+    "response.inertia.props.authenticity_token",
+    "response.inertia.props._inertia_meta.2.content",
+    "response.inertia.props._inertia_meta.12.value",
+    "response.headers.cache-control",
     // Every cookie value is encrypted or signed with a random IV; the session, remember and two-factor payloads are compared decrypted.
     "response.cookies.*.value",
     "db.versions",
@@ -258,6 +264,16 @@ describe.skipIf(!url)("mutations of the authentication pages", () => {
       try {
         const fixture = loadFixture(file);
         const { file: _file, ...options } = replayOptions(file);
+        if (/-hands-an?-/.test(name)) {
+          handedBack.length = 0;
+          const handed = await replayFixtureExchange(fixture, index, options);
+          const request = fixture.exchanges[index]!.request;
+          expect(handedBack).toHaveLength(1);
+          expect(handedBack[0]).toMatchObject({ method: request.method });
+          expect(handedBack[0]!.url.split("?")[0]).toBe(request.path);
+          expect(Object.keys(handed.exchanges[0]!.actual.db ?? {})).toEqual([]);
+          return;
+        }
         const result = await replayFixtureExchange(fixture, index, options);
         assertParity(result);
         const { expected, actual } = result.exchanges[0]!;

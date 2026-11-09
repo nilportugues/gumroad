@@ -21,7 +21,7 @@ describe "Review reminder links", type: :request do
       expect(user.reload.opted_out_of_review_reminders?).to eq(true)
     end
 
-    it "sends a signed-out visitor to the login page", parity: true do
+    it "hands a signed-out visitor to Rails, which sends them to the login page", parity: true do
       get "/users/unsubscribe_review_reminders"
 
       expect(response).to redirect_to(login_url(next: "/users/unsubscribe_review_reminders"))
