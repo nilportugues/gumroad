@@ -152,7 +152,7 @@ const nodeConfig = {
 
 export default [
   includeIgnoreFile(fileURLToPath(import.meta.resolve("./.gitignore"))),
-  { ignores: ["vendor", "web/**/*"] },
+  { ignores: ["vendor", "web/**/*", "nextjs/**"] },
   prettierRecommended,
   js.configs.recommended,
   baseConfig,
