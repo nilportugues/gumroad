@@ -652,4 +652,73 @@ describe "Url redirect delivery", type: :request do
       expect(response).to have_http_status(:not_found)
     end
   end
+
+  describe "POST /r/:id/send_to_kindle" do
+    let(:kindle_pdf) { create(:readable_document, link: product, size: 50) }
+    let(:forwarded) { { "X-Forwarded-For" => "203.0.113.9" } }
+
+    def kindle(params, headers: forwarded)
+      post send_to_kindle_path(token), params: params.to_json, headers: json_headers.merge("X-CSRF-Token" => csrf_token).merge(headers)
+    end
+
+    before { kindle_pdf }
+
+    it "asks for an email", parity: true do
+      kindle(file_external_id: kindle_pdf.external_id)
+
+      expect(response.parsed_body).to eq("success" => false, "error" => "Please enter a valid Kindle email address")
+    end
+
+    it "queues the file for a kindle address", parity: true do
+      kindle(file_external_id: kindle_pdf.external_id, email: "dude@kindle.com")
+
+      expect(response.parsed_body).to eq("success" => true)
+      expect(ConsumptionEvent.last).to have_attributes(event_type: "read", product_file_id: kindle_pdf.id)
+    end
+
+    it "refuses an address that is not a kindle one", parity: true do
+      kindle(file_external_id: kindle_pdf.external_id, email: "dude@example.com")
+
+      expect(response.parsed_body).to eq("success" => false, "error" => "Please enter a valid Kindle email address")
+    end
+
+    it "answers 404 for a refunded purchase", parity: true do
+      purchase.update_columns(stripe_refunded: true)
+
+      kindle(file_external_id: kindle_pdf.external_id, email: "dude@kindle.com")
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "answers 404 for an unknown file", parity: true do
+      kindle(file_external_id: "unknown", email: "dude@kindle.com")
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body).to eq("success" => false, "error" => "File not found")
+    end
+
+    it "refuses a file that cannot be sent", parity: true do
+      other = create(:non_readable_document, link: product, size: 50)
+
+      kindle(file_external_id: other.external_id, email: "dude@kindle.com")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it "answers 404 to a visitor who has not confirmed a seen redirect", parity: true do
+      url_redirect.update!(has_been_seen: true)
+
+      kindle({ file_external_id: kindle_pdf.external_id, email: "dude@kindle.com" }, headers: { "X-Forwarded-For" => "198.51.100.4" })
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "hands a signed in buyer's address to Rails", parity: true do
+      log_in(buyer)
+
+      kindle(file_external_id: kindle_pdf.external_id, email: "dude@kindle.com")
+
+      expect(response.parsed_body).to eq("success" => true)
+    end
+  end
 end

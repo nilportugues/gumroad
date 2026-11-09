@@ -11,6 +11,7 @@ import { isPresent } from "../rails-request.ts";
 import { safeRedirectPath } from "../rails-params.ts";
 import { appLoginRedirect, checkPermissions, claimBySeller, confirmedRedirectCookie, isTestPurchase, loadRedirect, redirectPaths, requireSellerForTestPurchase, viewerOf, type Loaded } from "./access.ts";
 import { recordConsumptionEvent } from "./consumption-analytics.ts";
+import { sendToKindle } from "./kindle.ts";
 
 const FOUND = 302;
 const UNPROCESSABLE_ENTITY = 422;
@@ -115,6 +116,7 @@ const SKIP_SUSPENSION_CHECK: ActionOptions = { skip: ["check_suspended"] };
 
 registerMutations(
   { method: "POST", pattern: "/r/:id/save_last_content_page", formats: ["any"], run: saveLastContentPage },
+  { method: "POST", pattern: "/r/:id/send_to_kindle", formats: ["any"], run: sendToKindle },
   { method: "POST", pattern: "/confirm-redirect", options: SKIP_SUSPENSION_CHECK, run: confirm },
   { method: "POST", pattern: "/r/:id/change_purchaser", run: changePurchaserAction },
   // skip_before_action :check_suspended

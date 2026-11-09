@@ -25,7 +25,7 @@ const plain = (body: string, contentType: string): Rendered => ({ status: 200, b
 const xmlAttribute = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 
 // UrlRedirect#product_file(external id)
-function findFile(files: DeliveryFile[], externalId: string): DeliveryFile | undefined {
+export function findFile(files: DeliveryFile[], externalId: string): DeliveryFile | undefined {
   const id = decrypt(externalId);
   return id === null ? undefined : files.find(({ file }) => file.id === BigInt(id));
 }

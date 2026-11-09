@@ -40,7 +40,7 @@ export const viewerOf = (action: ActionLike): Viewer => ({ loggedInUser: railsLo
 
 export const requestIp = (request: RailsRequest) => remoteIp(request.headers) ?? LOCAL_ADDRESS;
 
-const isTeamMember = (user: User) => UserFlags.isSet(user.flags, "is_team_member");
+export const isTeamMember = (user: User) => UserFlags.isSet(user.flags, "is_team_member");
 
 export const appDomainUrl = (path: string): string => {
   const config = domainConfig(process.env);
@@ -114,7 +114,7 @@ export function claimBySeller({ purchase, product }: Loaded, user: User | null, 
 }
 
 // UrlRedirectsController#test_purchase_viewer?
-const testPurchaseViewer = (loaded: Loaded, viewer: Viewer) => viewer.loggedInUser !== null && (loaded.purchase?.purchaser_id === viewer.loggedInUser.id || isTeamMember(viewer.loggedInUser));
+export const testPurchaseViewer = (loaded: Loaded, viewer: Viewer) => viewer.loggedInUser !== null && (loaded.purchase?.purchaser_id === viewer.loggedInUser.id || isTeamMember(viewer.loggedInUser));
 
 // Subscription#alive?
 function subscriptionAlive(subscription: Subscription, now: Date): boolean {
@@ -123,14 +123,14 @@ function subscriptionAlive(subscription: Subscription, now: Date): boolean {
 }
 
 // Subscription#grant_access_to_product?
-function grantsAccess(subscription: Subscription, product: Link | null, now: Date): boolean {
+export function grantsAccess(subscription: Subscription, product: Link | null, now: Date): boolean {
   if (SubscriptionFlags.isSet(subscription.flags, "is_installment_plan")) return subscription.cancelled_at === null && subscription.failed_at === null;
   if (subscriptionAlive(subscription, now)) return true;
   return !(product !== null && LinkFlags.isSet(product.flags, "block_access_after_membership_cancellation"));
 }
 
 // UrlRedirectsController#viewer_owns_subscription?. `true_original_purchase&.gift_given.nil?` short-circuits to nil (falsy) without one.
-async function viewerOwnsSubscription({ purchase, subscription }: Loaded, viewer: Viewer): Promise<boolean> {
+export async function viewerOwnsSubscription({ purchase, subscription }: Loaded, viewer: Viewer): Promise<boolean> {
   if (!purchase || PurchaseFlags.isSet(purchase.flags, "is_gift_receiver_purchase")) return false;
   if (!viewer.currentUser || !subscription || subscription.user_id === null || viewer.loggedInUser?.id !== subscription.user_id) return false;
   const candidates = await db.purchase.findMany({ where: { subscription_id: subscription.id }, orderBy: { id: "asc" }, select: { id: true, flags: true } });
