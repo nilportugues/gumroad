@@ -35,7 +35,7 @@ const SPEC_OBJECTS: Record<string, string> = {
   "attachments/0123456789abcdef0123456789abcdef/movie/hls/index.m3u8": "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000,RESOLUTION=640x360\nindex_360.m3u8\n#EXT-X-ENDLIST\n",
 };
 const SPEC_BUCKET = "gumroad-specs";
-const ROUTE_FLAGS = "nextjs_consumption_analytics,nextjs_url_redirect_writes,nextjs_url_redirect_delivery";
+const ROUTE_FLAGS = "nextjs_consumption_analytics,nextjs_media_locations,nextjs_mobile_consumption_analytics,nextjs_mobile_media_locations,nextjs_mobile_url_redirect_delivery,nextjs_mobile_url_redirects,nextjs_url_redirect_confirm,nextjs_url_redirect_delivery,nextjs_url_redirect_download_archive,nextjs_url_redirect_download_page,nextjs_url_redirect_download_product_files,nextjs_url_redirect_expired,nextjs_url_redirect_hls_playlist,nextjs_url_redirect_membership_inactive,nextjs_url_redirect_play,nextjs_url_redirect_read,nextjs_url_redirect_rental_expired,nextjs_url_redirect_show,nextjs_url_redirect_smil,nextjs_url_redirect_stream,nextjs_url_redirect_subtitle_files,nextjs_url_redirect_writes";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
@@ -45,6 +45,9 @@ const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "m").ex
 // The product reindex of a post attached to a product asks Elasticsearch for a document the replay does not hold, and Node then
 // queues the fallback job Rails never needed.
 const IGNORED_JOBS = new Set(["SendToElasticsearchWorker"]);
+// A request spec's mail goes through the test adapter, so the fixtures hold none: the port must enqueue it.
+const MAIL_WRAPPER = "ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper";
+const mailJobs: RawJob[] = [];
 const jobKey = (job: { class: string; args: unknown; queue?: string }) => `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
 
 function redisJobs(redis: Redis): JobsChannel {
@@ -68,7 +71,9 @@ function redisJobs(redis: Redis): JobsChannel {
         const item = JSON.parse(raw) as { class: string; args: unknown[]; queue: string; at?: number };
         jobs.push({ class: item.class, args: item.args, queue: item.queue, ...(item.at === undefined ? {} : { at: item.at }) });
       }
-      return jobs.sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
+      mailJobs.length = 0;
+      mailJobs.push(...jobs.filter((job) => job.class === MAIL_WRAPPER));
+      return jobs.filter((job) => job.class !== MAIL_WRAPPER).sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
     },
   };
 }
@@ -234,6 +239,14 @@ describe.skipIf(!url)("url redirect delivery", () => {
         const [{ expected: want, actual }] = result.exchanges as [(typeof result.exchanges)[number]];
         const differences = compareExchange(mask(want) as typeof want, mask(actual) as typeof actual, { ...COMPARE, ignore: [...COMPARE.ignore, ...(want.response.status === 404 ? ["response.body"] : [])], ...(fixture.sessionCookie ? { sessionCookie: fixture.sessionCookie } : {}) });
         if (differences.length > 0) throw new Error(`${fixture.example}\n${formatDifferences(differences)}`);
+        if (_name.includes("send-to-kindle-queues-the-file")) {
+          expect(mailJobs).toHaveLength(1);
+          const wrapped = (mailJobs[0]!.args as { job_class: string; queue_name: string; arguments: unknown[] }[])[0]!;
+          expect(wrapped).toMatchObject({ job_class: "MailDeliveryJob", queue_name: "critical" });
+          expect(wrapped.arguments.slice(0, 2)).toEqual(["CustomerMailer", "send_to_kindle"]);
+        } else {
+          expect(mailJobs).toHaveLength(0);
+        }
         // The confirmation cookie holds the token, whatever IV it was encrypted with.
         const cookie = actual.response.cookies?.confirmed_redirect;
         const recorded = want.response.cookies?.confirmed_redirect;
