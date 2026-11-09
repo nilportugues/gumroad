@@ -62,6 +62,17 @@ criteria; "state" above is what is ported and proven by replay or golden.
 
 Known gaps a branch left on purpose. Each still hands back to Rails (or throws `NotPortedError`) until closed.
 
+Parity replays still failing after the first full run against real Rails (setup in [parity-local-stack.md](parity-local-stack.md)):
+
+- `seller-products.replay` "keeps hiding the versions' pages when they are blank" (`/products/p/edit`): Node hands the request back although `editBlockers` is empty and `editProps` renders against the same rows. The hand-back comes from before the controller; not isolated.
+- `customers.replay` "leaves a member to Rails": the replay saw no hand-back for a member the page now serves.
+- `settings-mutations.replay` two AI promo dismissal examples: Node answers 401 where Rails answers 200 for an eligible seller; the fixtures are new.
+- `api-v2-ws17c.replay`: `DELETE /v2/emails/:id` stamps `deleted_at` 10s later than Rails, and `schedule` differs by an hour (`scheduled_at` far in the future).
+- `ws17e-admin-api.replay` "paginates comments with a cursor #2": window of `<now-180m>` comments, ages out.
+- `internal-api.replay`: five examples (`internal_api_parity_spec.rb`) and one that needs a Redis job.
+- `discover_parity_spec.rb` autocomplete examples (:170-:283): Rails spins at 100% CPU recording them, so the 8 missing fixtures are still missing.
+- `churn`/`analytics` and the rest of section 1 of [parity-debt.md](parity-debt.md) not yet recorded: `mobile_api_parity_spec.rb` stream refusals, `settings_mutations` billing/AI promo replays above, `discover`.
+
 - **Product file thumbnails** (`ProductFile#as_json`, `thumbnail`, and the same gap for review videos, custom field files, commission files and
   the avatar's `signed_id` in `page-props/settings/profile.ts`): everything but one piece is in Node already. `infra/active-storage.ts` has
   `publicStorageUrl` and the variant digest, `signed-in/avatar.ts` shows the variant lookup and the `Rails.cache` read, `cdnUrlFor` the CDN
