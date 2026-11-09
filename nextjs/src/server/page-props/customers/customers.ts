@@ -3,7 +3,7 @@
 //
 // Handed back to Rails (HandBackToRails) when a customer on the page needs a reading the port does not make: a member or
 // installment plan (current subscription price, remaining charges), a preorder, a received gift or a sent gift whose
-// recipient holds a license, a bundle, a physical product, a Sku or a tier, several options on one sale, an upsell, a collaborator sale that also credits a direct affiliate, a UTM link (`utm_url` is built by Addressable), a non-USD price without a
+// recipient holds a license, a bundle, a physical product, a Sku or a tier, several options on one sale, a collaborator sale that also credits a direct affiliate, a UTM link (`utm_url` is built by Addressable), a non-USD price without a
 // stored rate or in a currency the port has no table for, a refund whose json_data is not plain JSON, a commission
 // with files, a review video, a custom field file, a seller whose ping endpoints must be checked (`can_ping`), and a
 // sale charged through a processor transaction URL (Stripe Connect, PayPal, Braintree).
@@ -141,6 +141,8 @@ type Loaded = {
   cachedDiscounts: Set<string>;
   // The option each purchase picked (`variant_attributes.first`), by purchase id.
   variants: Map<string, Row>;
+  // `upsell_purchase&.upsell&.name`, by purchase id.
+  upsellNames: Map<string, string | null>;
   affiliates: Map<string, Row>;
   affiliateUsers: Map<string, Row>;
   licenses: Map<string, Row>;
@@ -174,6 +176,13 @@ export function refundIsEffective(refund: Row): boolean {
   return reversed !== true;
 }
 
+// `purchase.upsell_purchase&.upsell&.name` for each purchase that has an upsell purchase.
+export async function upsellNamesFor(purchaseIds: unknown[]): Promise<Map<string, string | null>> {
+  const upsellPurchases = await rowsBy("upsell_purchases", "purchase_id", purchaseIds);
+  const upsells = byId(await rowsBy("upsells", "id", [...new Set(upsellPurchases.map((upsellPurchase) => upsellPurchase.upsell_id))]));
+  return new Map(upsellPurchases.map((upsellPurchase) => [String(upsellPurchase.purchase_id), upsells.get(String(upsellPurchase.upsell_id))?.name ?? null] as const));
+}
+
 // Purchase.where(id: ids).in_order_of(:id, ids) with the associations CustomerPresenter reads, after handing back what it cannot.
 async function load(ids: string[], seller: User): Promise<Loaded> {
   const rows = await rowsBy("purchases", "id", ids);
@@ -194,7 +203,6 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
     if (flags("is_preorder_authorization") || flags("is_installment_payment")) throw new HandBackToRails();
   }
   for (const [tableName, columnName] of [
-    ["upsell_purchases", "purchase_id"],
     ["utm_link_driven_sales", "purchase_id"],
     ["commissions", "deposit_purchase_id"],
   ] as const) {
@@ -217,6 +225,8 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
     const link = links.get(String(purchases.find((purchase) => String(purchase.id) === purchaseId)!.link_id))!;
     if (variant.type !== "Variant" || LinkFlags.isSet(link.flags, "is_tiered_membership")) throw new HandBackToRails();
   }
+
+  const upsellNames = await upsellNamesFor(purchaseIds);
 
   const refundedCents = new Map<string, number>();
   for (const refund of await rowsBy("refunds", "purchase_id", purchaseIds)) {
@@ -250,6 +260,7 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
     links,
     hasAliveVariants: await productsWithAliveVariants([...links.keys()]),
     variants,
+    upsellNames,
     affiliates,
     affiliateUsers,
     cachedDiscounts: new Set((await rowsBy("purchase_offer_code_discounts", "purchase_id", purchaseIds)).map((discount) => String(discount.purchase_id))),
@@ -438,7 +449,7 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
         ? { type: "fixed", cents: discountCode.amount_cents, code: discountCode.code }
         : { type: "percent", percents: discountCode.amount_percentage, code: discountCode.code }
       : null,
-    upsell: null,
+    upsell: loaded.upsellNames.get(id) ?? null,
     subscription: null,
     is_multiseat_license: flags("is_multiseat_license"),
     referrer: displayReferrer(purchase, sellerUsername),

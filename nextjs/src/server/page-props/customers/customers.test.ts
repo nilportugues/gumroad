@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { HandBackToRails } from "../../controllers/application-controller.ts";
 import { setSqlClient } from "../../models/sql.ts";
-import { affiliateJson, displayReferrer, offerCodeReading, variantOption, pageOffset, refundableCents, refundIsEffective, rubyToI, totalPages } from "./customers.ts";
+import { affiliateJson, displayReferrer, offerCodeReading, upsellNamesFor, variantOption, pageOffset, refundableCents, refundIsEffective, rubyToI, totalPages } from "./customers.ts";
 
 const purchase = (overrides: Record<string, unknown>) => ({ flags: 0n, recommended_by: null, referrer: null, ...overrides });
 
@@ -189,5 +189,36 @@ describe("Variant#to_option on a customer", () => {
 
   it("flags a pay-what-you-want option and keeps a call's duration", () => {
     expect(variantOption(variant({ customizable_price: 1, duration_in_minutes: 30 }), "Course")).toMatchObject({ is_pwyw: true, duration_in_minutes: 30 });
+  });
+});
+
+describe("CustomerPresenter upsell", () => {
+  function answering(upsellPurchases: Record<string, unknown>[], upsells: Record<string, unknown>[]) {
+    setSqlClient(() => ({
+      $queryRaw: (async (query: { sql: string }) => {
+        if (query.sql.includes("FROM `upsell_purchases`")) return upsellPurchases;
+        if (query.sql.includes("FROM `upsells`")) return upsells;
+        throw new Error(`unexpected statement: ${query.sql}`);
+      }) as never,
+      $executeRaw: (async () => 0) as never,
+    }));
+  }
+
+  it("names the upsell each purchase was sold through", async () => {
+    answering([{ id: 1, purchase_id: 5, upsell_id: 9 }, { id: 2, purchase_id: 6, upsell_id: 9 }], [{ id: 9, name: "Add the workbook" }]);
+
+    expect(await upsellNamesFor([5, 6, 7])).toEqual(new Map([["5", "Add the workbook"], ["6", "Add the workbook"]]));
+  });
+
+  it("reports no name for an unnamed or missing upsell", async () => {
+    answering([{ id: 1, purchase_id: 5, upsell_id: 9 }, { id: 2, purchase_id: 6, upsell_id: 10 }], [{ id: 9, name: null }]);
+
+    expect(await upsellNamesFor([5, 6])).toEqual(new Map([["5", null], ["6", null]]));
+  });
+
+  it("reads nothing for a page without purchases", async () => {
+    answering([], []);
+
+    expect((await upsellNamesFor([])).size).toBe(0);
   });
 });
