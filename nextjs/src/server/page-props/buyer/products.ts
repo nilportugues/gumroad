@@ -7,7 +7,7 @@ import { NotPortedError } from "../not-ported.ts";
 
 const present = (value: string | null | undefined): value is string => value != null && value.trim() !== "";
 
-async function hasAttachment(recordType: string, recordId: bigint, name: string): Promise<boolean> {
+export async function hasAttachment(recordType: string, recordId: bigint, name: string): Promise<boolean> {
   const rows = await selectRows(
     Prisma.sql`SELECT 1 FROM ${table("active_storage_attachments")} WHERE ${column("active_storage_attachments", "record_type")} = ${recordType} AND ${column("active_storage_attachments", "record_id")} = ${recordId} AND ${column("active_storage_attachments", "name")} = ${name} LIMIT 1`,
   );

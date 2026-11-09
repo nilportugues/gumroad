@@ -1,13 +1,14 @@
 // Port of app/controllers/api/mobile/purchases_controller.rb and app/controllers/api/mobile/sales_controller.rb (index, show).
 //
-// Only the answers that need none of Purchase#json_data_for_mobile / Purchase#as_json are served here: the unconfirmed-account 403,
-// the 404 for a purchase that is not the caller's, and the empty list. Everything else (a purchase that exists, a non-empty page,
-// every write: archive, unarchive, destroy, sales#update) goes to Rails whole, because the serializers (UrlRedirect#product_json_data,
-// Link#as_json(mobile: true), formatted prices, product updates) are not ported and no parity recording covers them.
+// Served here: the unconfirmed-account 403, the 404 for a purchase that is not the caller's, the empty lists, and sales#index rows
+// whose Purchase#as_json(creator_app_api: true) is ported (presenters/mobile-serializers.ts: USD, no recurrence). Everything else (a
+// purchase that exists, a non-empty library page, sales#show, every write: archive, unarchive, destroy, sales#update) goes to Rails
+// whole, because UrlRedirect#product_json_data, Preorder#mobile_json_data and the product-updates preloader are not ported.
 import { Prisma } from "@prisma/client";
 
 import { decrypt } from "../../lib/obfuscate-ids.ts";
 import { column, selectRows, table } from "../models/sql.ts";
+import { creatorAppPurchasesJson } from "../presenters/mobile-serializer-reads.ts";
 import { PurchaseSearchService } from "../search/purchase-search.ts";
 
 import { HandBackToRails } from "./application-controller.ts";
@@ -117,7 +118,7 @@ const purchaseAction = (verb: string) => async (input: MobileInput, auth: Mobile
   throw new HandBackToRails(`${verb} of a purchase that exists`);
 };
 
-// SalesController#index with a seller whose search matches nothing (no rows to serialize with Purchase#as_json(creator_app_api: true)).
+// SalesController#index. A row the creator-app serializer does not reproduce throws NotPortedError, which hands the request to Rails.
 async function salesIndex(input: MobileInput, auth: MobileAuth | null) {
   const query = input.params.query;
   if (query !== undefined && query !== null && typeof query !== "string")
@@ -136,8 +137,13 @@ async function salesIndex(input: MobileInput, auth: MobileAuth | null) {
     sort: [{ created_at: { order: "desc" } }, { id: { order: "desc" } }],
     track_total_hits: true,
   });
-  if (result.total !== 0 || result.ids.length > 0) throw new HandBackToRails("a sales page with rows");
-  return renderJson({ success: true, purchases: [], pagination: { count: 0, page, pages: 0, next: null } });
+  if (result.total === null) throw new HandBackToRails("a sales page without a total");
+  const pages = Math.ceil(result.total / SALES_PER_PAGE);
+  return renderJson({
+    success: true,
+    purchases: await creatorAppPurchasesJson(result.ids.map((id) => BigInt(id))),
+    pagination: { count: result.total, page, pages, next: page < pages ? page + 1 : null },
+  });
 }
 
 // before_action :fetch_purchase: current_resource_owner.sales.find_by_external_id
