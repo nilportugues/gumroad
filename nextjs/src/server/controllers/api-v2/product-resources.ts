@@ -3,7 +3,7 @@
 import type { BaseVariant, Link } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
-import { NotPortedError } from "../../page-props/not-ported.ts";
+import { hasEditorContent } from "../../models/rich-content.ts";
 import { type ApiV2Input, EDIT_PRODUCTS_SCOPES, errorWithObject, loadProduct, PUBLIC_READ_SCOPES, registerApiV2, renderResponse, successWithObject } from "./base.ts";
 import {
   aliveVariantCategories,
@@ -122,19 +122,15 @@ export async function variantRichContentJson(link: Link, variant: BaseVariant): 
   }));
 }
 
-// `!recoverable_hidden_variant_rich_content?` for a product that shares one set of pages across its versions.
-async function hidesVariantRichContent(link: Link): Promise<boolean> {
+// `!recoverable_hidden_variant_rich_content?` (Link#recoverable_hidden_variant_rich_content?, app/models/link.rb) for a product that shares one set of pages across its versions.
+export async function hidesVariantRichContent(link: Link): Promise<boolean> {
   if (linkFlag(link, "is_physical")) return true;
   const pages = await db.richContent.findMany({ where: { entity_type: "Link", entity_id: link.id, deleted_at: null } });
-  // RichContent#has_editor_content? is a title, or a body that walks the node tree; the walk is not ported.
-  const undecided = pages.some((page) => !page.title && Array.isArray(page.description) && page.description.length > 0);
-  if (undecided) throw new NotPortedError("variant rich content of a product whose shared pages may be blank");
-  if (pages.some((page) => page.title)) return true;
+  if (pages.some(hasEditorContent)) return true;
   const variants = await aliveVariants(link);
   if (variants.length === 0) return true;
   const variantPages = await db.richContent.findMany({ where: { entity_type: "BaseVariant", entity_id: { in: variants.map((variant) => variant.id) }, deleted_at: null } });
-  if (variantPages.some((page) => !page.title && Array.isArray(page.description) && page.description.length > 0)) throw new NotPortedError("variant rich content of a product whose shared pages may be blank");
-  return !variantPages.some((page) => page.title);
+  return !variantPages.some(hasEditorContent);
 }
 
 export async function successWithVariant(link: Link, variant: BaseVariant) {
