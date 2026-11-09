@@ -14,14 +14,14 @@ import { assertParity, httpTransport, replayFixtureExchange } from "../src/repla
 import { reencryptCookies, redisSeeder } from "../src/session";
 
 // Replays spec/requests/url_redirect_unavailable_pages_spec.rb (the expired, rental expired, membership inactive and
-// confirm pages of UrlRedirectsController): visits recorded through the full Rack stack, signed out or after a real
+// confirm pages of UrlRedirectsController) and url_redirect_download_page_spec.rb (the download page): visits recorded through the full Rack stack, signed out or after a real
 // login. The request under test is the last exchange of each fixture.
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES_ROOT = "parity/fixtures/requests";
-const SPEC_DIRS = ["url_redirect_unavailable_pages_spec"].filter((dir) => existsSync(path.join(FIXTURES_ROOT, dir)));
+const SPEC_DIRS = ["url_redirect_unavailable_pages_spec", "url_redirect_download_page_spec"].filter((dir) => existsSync(path.join(FIXTURES_ROOT, dir)));
 // Every flag in routes.json that a dashboard page sits behind.
-const ROUTE_FLAGS = ["nextjs_url_redirect_expired", "nextjs_url_redirect_rental_expired", "nextjs_url_redirect_membership_inactive", "nextjs_url_redirect_confirm"];
+const ROUTE_FLAGS = ["nextjs_url_redirect_expired", "nextjs_url_redirect_rental_expired", "nextjs_url_redirect_membership_inactive", "nextjs_url_redirect_confirm", "nextjs_url_redirect_download_page"];
 const FIRST_COMPILE_TIMEOUT_MS = 240_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
@@ -39,6 +39,8 @@ const COMPARE = {
     // Rack::MiniProfiler's authorization cookie for team members; its token lives in the Rails process.
     "response.cookies.__profilin",
     "response.cookies.XSRF-TOKEN.value",
+    // Encrypted under a random IV.
+    "response.cookies.confirmed_redirect.value",
     // insert_all leaves these to the database clock, which is not UTC on every machine.
     "db.dashboard_nav_promotions.inserted.*.created_at",
     "db.dashboard_nav_promotions.inserted.*.updated_at",

@@ -44,7 +44,7 @@ a letter suffix (`nextjs/ws-12d-bundle-edit`). This table maps every merged bran
 | WS-13 Audience, emails, workflows | 51, 57, 59, 63, 67, 74, 82; mailers 31, 35, 40, 60, 73, 76, 85 | Pages and their mutations; receipt mailer for common shapes |
 | WS-14 Discover and search | 34, 37, 65, 83 | Discover page; personalised and deferred parts hand back |
 | WS-15 Analytics and exports | 58, 70, 79, 84 | Dashboards, customers, analytics; exports: CSV builders, CSV-safe writer and enqueue calls ported (ws-15b), job bodies and DB reads stay with WS-30/WS-45 |
-| WS-16 Library and content delivery | 61, 81 | Library and unavailable pages; `/d` download page not started |
+| WS-16 Library and content delivery | 61, 81, 16b (download page) | Library and unavailable pages; `/d/:id` gate, redirects and visit writes in Node, rendering only for a content page that lists nothing (files, rich content, variants, posts, integrations, licenses, polls hand back) |
 | WS-17 Public API and mobile API | 17a (products), 17b (sales, licenses), 17c (users, content, MCP), 17d (`Api::Internal`), 17f (mobile) | v2 routes served through the shared dispatcher; `Api::Internal` GETs go through one handler. 17e is counted under WS-18. |
 | WS-18 Admin | 17e (internal admin API, `Admin::BaseController` entry points) | Done in code; admin web UI was already deleted. Sidekiq and Flipper UI mounts stay in Rails until WS-40. The `impersonates a suspended seller` case in `spec/requests/admin/impersonate_spec.rb` has no recorded fixture yet. |
 | WS-19 AI, MCP and moderation | 75 (agent page) | Agent page only |
