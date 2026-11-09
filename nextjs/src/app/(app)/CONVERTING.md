@@ -302,7 +302,7 @@ the blast's Redis keys, non-opener resends) and the form context. Parity: `spec/
 `audience-pages.replay.test.ts`, which rebuilds the `installments` Elasticsearch index from each fixture's rows.
 
 Files of a post are serialized by `audience/product-file-json.ts` (`ProductFile#as_json`). Throw `NotPortedError` (500): a post file with a
-thumbnail, a web build or a subtitle whose S3 object is missing, a `page`/`query` parameter that is an array or hash. A `quota_deferred_until` is a Redis timestamp the replayer does not move, so
+thumbnail or a subtitle whose S3 object is missing, a `page`/`query` parameter that is an array or hash. A `quota_deferred_until` is a Redis timestamp the replayer does not move, so
 `delivery.scheduled_for` is ignored in the comparison.
 
 ## Elasticsearch search (WS-65)

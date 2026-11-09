@@ -2,11 +2,12 @@
 // summaries derived from the same rows.
 //
 // Not ported, each refused with NotPortedError: a streamable or image file with a thumbnail attachment
-// (ActiveStorage URL and signed id), a file owned by a web build, and a subtitle whose S3 object is missing (Ruby retries
+// (ActiveStorage URL and signed id), and a subtitle whose S3 object is missing (Ruby retries
 // the key under another Unicode normalization before giving up, which the signing helper does not do yet).
 import { Prisma, type ProductFile } from "@prisma/client";
 
 import { encrypt } from "../../../lib/obfuscate-ids.ts";
+import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
 import { signedDownloadUrlForS3KeyAndFilename } from "../../infra/signed-urls.ts";
 import {
   ProductFileFlags,
@@ -34,6 +35,15 @@ type SubtitleRow = {
   url: string | null;
   language: string | null;
   size: number | null;
+};
+
+type BuildRow = {
+  product_file_id: bigint | number;
+  number: number;
+  status: string;
+  created_at: Date;
+  site_unpacked_at: Date | null;
+  user_id: bigint | number;
 };
 
 export type InstallmentFiles = {
@@ -85,6 +95,30 @@ function displayExtension(file: ProductFile, fields: S3Fields | null): string {
   return s3Extension !== "" ? s3Extension : (file.filetype ?? "").toUpperCase();
 }
 
+// `product_build` (has_one) of every file, with the owner of the build's product for the player flag.
+async function buildsByFile(fileIds: bigint[]): Promise<Map<bigint, BuildRow>> {
+  const rows = await selectRows<BuildRow>(
+    Prisma.sql`SELECT ${column("product_builds", "product_file_id")}, ${column("product_builds", "number")}, ${column("product_builds", "status")}, ${column("product_builds", "created_at")}, ${column("product_builds", "site_unpacked_at")}, ${column("links", "user_id")} FROM ${table("product_builds")} INNER JOIN ${table("links")} ON ${column("links", "id")} = ${column("product_builds", "product_id")} WHERE ${column("product_builds", "product_file_id")} IN (${Prisma.join(fileIds)}) ORDER BY ${column("product_builds", "id")} DESC`,
+  );
+  // has_one reads the first row by primary key; iterating newest first lets the oldest overwrite.
+  return new Map(rows.map((row) => [BigInt(row.product_file_id), row]));
+}
+
+// ProductFile#web_build_summary. Time attributes are rendered with ActiveSupport::JSON::Encoding.time_precision = 0.
+async function webBuildSummary(build: BuildRow | undefined): Promise<Record<string, unknown> | null> {
+  if (build === undefined) return null;
+  const live = build.status === "live";
+  // ProductBuild#player_enabled? is only asked once the build is live, as `playable?` and `version_history` short-circuit.
+  const playerEnabled = live && (await isFeatureEnabled("product_build_player", userActor(String(build.user_id))));
+  return {
+    number: build.number,
+    status: build.status,
+    deployed_at: build.created_at.toISOString().replace(/\.\d{3}Z$/u, "Z"),
+    playable: playerEnabled && build.site_unpacked_at !== null,
+    version_history: playerEnabled,
+  };
+}
+
 // `alive_subtitle_files` of every file, in id order (the association has no explicit order).
 async function aliveSubtitles(fileIds: bigint[]): Promise<Map<bigint, SubtitleRow[]>> {
   const rows = await selectRows<SubtitleRow>(
@@ -130,6 +164,7 @@ function fileJson(
   transcoding: boolean,
   productName: string | null,
   subtitles: Record<string, unknown>[],
+  webBuild: Record<string, unknown> | null,
 ): Record<string, unknown> {
   const streamable = isStreamable(file);
   const name = nameDisplayable(file, fields);
@@ -146,7 +181,7 @@ function fileJson(
     hide_kindle_and_read_buttons: ProductFileFlags.isSet(file.flags, "hide_kindle_and_read_buttons"),
     is_streamable: streamable,
     can_disable_downloads: canDisableDownloads(file),
-    web_build: null,
+    web_build: webBuild,
     stream_only: isStreamOnly(file),
     width: streamable ? file.width : null,
     height: streamable ? file.height : null,
@@ -175,7 +210,7 @@ export async function installmentFiles(installmentId: number, sellerId: bigint |
       Prisma.sql`${column("active_storage_attachments", "record_type")} = 'ProductFile' AND ${column("active_storage_attachments", "name")} = 'thumbnail'`,
     ),
     aliveSubtitles(ids),
-    idsWithRows("product_builds", "product_file_id", ids, Prisma.sql`1 = 1`),
+    buildsByFile(ids),
     selectRows<{ id: bigint | number; name: string | null; user_id: bigint | number | null }>(
       Prisma.sql`SELECT ${column("links", "id")}, ${column("links", "name")}, ${column("links", "user_id")} FROM ${table("links")} WHERE ${column("links", "id")} IN (SELECT ${column("product_files", "link_id")} FROM ${table("product_files")} WHERE ${column("product_files", "id")} IN (${Prisma.join(ids)}))`,
     ),
@@ -186,7 +221,6 @@ export async function installmentFiles(installmentId: number, sellerId: bigint |
 
   const json = await Promise.all(
     files.map(async (file) => {
-      if (builds.has(file.id)) throw new NotPortedError("ProductFile#as_json for a file owned by a web build");
       if (
         thumbnails.has(file.id) &&
         (isStreamable(file) || BROWSER_RENDERABLE_IMAGE_FILETYPES.includes(file.filetype ?? ""))
@@ -205,6 +239,7 @@ export async function installmentFiles(installmentId: number, sellerId: bigint |
         transcoding,
         link?.name ?? null,
         await subtitleJson(subtitles.get(file.id) ?? [], ownerExternalId),
+        await webBuildSummary(builds.get(file.id)),
       );
     }),
   );

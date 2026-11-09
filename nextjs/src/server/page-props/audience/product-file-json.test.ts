@@ -5,6 +5,8 @@ import { installmentFiles } from "./product-file-json.ts";
 import { setSqlClient } from "../../models/sql.ts";
 
 const signDownload = vi.hoisted(() => vi.fn());
+const playerEnabled = vi.hoisted(() => vi.fn());
+vi.mock("../../infra/flipper.ts", () => ({ isFeatureEnabled: playerEnabled, userActor: (id: string) => `User;${id}` }));
 vi.mock("../../infra/signed-urls.ts", () => ({ signedDownloadUrlForS3KeyAndFilename: signDownload }));
 
 vi.mock("../../infra/storage.ts", () => ({ storageConfig: () => ({ s3BaseUrl: "https://s3.example.com/bucket/" }) }));
@@ -20,7 +22,7 @@ type Tables = {
   product_files?: Record<string, unknown>[];
   active_storage_attachments?: { record_id: number }[];
   subtitle_files?: { id?: number; product_file_id: number; url?: string | null; language?: string | null; size?: number | null }[];
-  product_builds?: { product_file_id: number }[];
+  product_builds?: { product_file_id: number; number?: number; status?: string; created_at?: Date; site_unpacked_at?: Date | null; user_id?: number }[];
   links?: { id: number; name: string; user_id: number }[];
   transcoded_videos?: { id: number; key: string | null }[];
 };
@@ -40,7 +42,7 @@ function answering(tables: Tables) {
       if (sql.includes("FROM `product_files` WHERE `product_files`.`installment_id`")) return tables.product_files ?? [];
       if (sql.includes("FROM `active_storage_attachments`")) return (tables.active_storage_attachments ?? []).map((row) => ({ id: row.record_id }));
       if (sql.includes("FROM `subtitle_files`")) return (tables.subtitle_files ?? []).map((row, index) => ({ id: row.id ?? index + 1, product_file_id: row.product_file_id, url: row.url ?? null, language: row.language ?? null, size: row.size ?? null }));
-      if (sql.includes("FROM `product_builds`")) return (tables.product_builds ?? []).map((row) => ({ id: row.product_file_id }));
+      if (sql.includes("FROM `product_builds`")) return (tables.product_builds ?? []).map((row) => ({ number: 1, status: "live", created_at: NOW, site_unpacked_at: NOW, user_id: 9, ...row }));
       if (sql.includes("FROM `links`")) return tables.links ?? [];
       if (sql.includes("FROM `transcoded_videos`")) return tables.transcoded_videos ?? [];
       throw new Error(`unexpected statement: ${sql}`);
@@ -150,11 +152,46 @@ describe("installmentFiles", () => {
 
   it.each([
     ["a thumbnail on a video", { product_files: [file({ filetype: "mp4", filegroup: "video" })], active_storage_attachments: [{ record_id: 1 }] }],
-    ["a web build", { product_files: [file({})], product_builds: [{ product_file_id: 1 }] }],
   ])("hands back a file with %s", async (_name, tables) => {
     answering(tables);
 
     await expect(installmentFiles(5, SELLER_ID)).rejects.toBeInstanceOf(NotPortedError);
+  });
+
+  describe("web build", () => {
+    const build = { product_file_id: 1, number: 3, created_at: new Date("2026-02-03T04:05:06.789Z") };
+
+    it("summarizes the build that owns the file, with the time at second precision", async () => {
+      playerEnabled.mockResolvedValue(true);
+      answering({ product_files: [file({ filetype: "zip" })], product_builds: [build] });
+
+      const [json] = (await installmentFiles(5, SELLER_ID)).files;
+
+      expect(json?.web_build).toEqual({ number: 3, status: "live", deployed_at: "2026-02-03T04:05:06Z", playable: true, version_history: true });
+      expect(playerEnabled).toHaveBeenCalledWith("product_build_player", "User;9");
+    });
+
+    it("is not playable until the site is unpacked, but still offers the version history", async () => {
+      playerEnabled.mockResolvedValue(true);
+      answering({ product_files: [file({})], product_builds: [{ ...build, site_unpacked_at: null }] });
+
+      expect((await installmentFiles(5, SELLER_ID)).files[0]?.web_build).toMatchObject({ playable: false, version_history: true });
+    });
+
+    it("is neither playable nor versioned when the seller lacks the player flag", async () => {
+      playerEnabled.mockResolvedValue(false);
+      answering({ product_files: [file({})], product_builds: [build] });
+
+      expect((await installmentFiles(5, SELLER_ID)).files[0]?.web_build).toMatchObject({ playable: false, version_history: false });
+    });
+
+    it("does not read the flag for a build that is not live", async () => {
+      playerEnabled.mockClear();
+      answering({ product_files: [file({})], product_builds: [{ ...build, status: "superseded" }] });
+
+      expect((await installmentFiles(5, SELLER_ID)).files[0]?.web_build).toMatchObject({ status: "superseded", playable: false, version_history: false });
+      expect(playerEnabled).not.toHaveBeenCalled();
+    });
   });
 
   describe("subtitle files", () => {
