@@ -24,8 +24,8 @@ const LINEBREAKERS = new Set([
 // libxml2 2.13 parses only these as raw text, so their `&` stays literal.
 const RAW_TEXT = new Set(["script", "style"]);
 
-const AMP = String.fromCharCode(0xe000);
-const ESCAPED_SENTINEL = String.fromCharCode(0xe001);
+export const AMP = String.fromCharCode(0xe000);
+export const ESCAPED_SENTINEL = String.fromCharCode(0xe001);
 
 type Node = { nodeName: string; value?: string; childNodes?: Node[] };
 
@@ -35,7 +35,7 @@ const isXmlChar = (cp: number) => cp === 0x9 || cp === 0xa || cp === 0xd || (cp 
 const NAME_START = /[\p{L}_:]/u;
 const NAME_CHAR = /[\p{L}\p{Nd}\p{Mn}\p{Mc}._:-]/u;
 
-function restoreSentinels(text: string, decode: boolean): string {
+export function restoreSentinels(text: string, decode: boolean): string {
   const chars = [...text];
   let out = "";
   for (let i = 0; i < chars.length; i++) {
