@@ -2,11 +2,11 @@
 //   app/sidekiq/update_purchase_healthcheck_threshold_job.rb
 //   app/sidekiq/find_expired_subscriptions_to_set_as_deactivated_worker.rb
 //   app/sidekiq/send_rental_expires_soon_email_worker.rb
-// and, handed back to Rails as soon as their read finds a row (the rest saves purchases or calls
-// the charge processor, which Node does not do yet):
-//   app/sidekiq/expire_rental_purchases_worker.rb
-//   app/sidekiq/sync_stuck_purchases_job.rb
+// and the one that also writes events (the rest of the jobs below hand back to Rails as soon as
+// their read finds a row; they save purchases or call the charge processor, which Node does not do yet):
 //   app/sidekiq/create_missing_purchase_events_worker.rb
+//   app/sidekiq/expire_rental_purchases_worker.rb (handed back)
+//   app/sidekiq/sync_stuck_purchases_job.rb (handed back)
 // Golden: __fixtures__/purchase-reads-jobs.golden.json (scripts/golden/purchase-reads-jobs.rb).
 import { Prisma, type Subscription } from "@prisma/client";
 import type { Redis } from "ioredis";
@@ -22,12 +22,15 @@ import {
   isChargedbackNotReversedOrRefunded,
   purchaseIdFrom,
   rentalsToExpireFirstBatch,
-  successfulWithoutEventsFirstBatch,
+  successfulWithoutEventsEach,
 } from "../../server/models/purchase.ts";
+import { Events, EventFlags } from "../../server/models/event.ts";
+import { instantInTimeZoneIso8601 } from "../../server/models/concerns/rails-time-zone.ts";
+import { extractDomain } from "../../server/search/referrer.ts";
 import { castRow, findInBatches } from "../../server/models/sql.ts";
 import { DEACTIVATION_COLUMNS, pastAndNotDeactivated, SUBSCRIPTIONS } from "../../server/models/subscription.ts";
 import { findUrlRedirectForPurchase, isRental } from "../../server/models/url-redirect.ts";
-import { NotPortedError } from "../../server/models/user.ts";
+import { findUser, NotPortedError } from "../../server/models/user.ts";
 import { deliverLater } from "../../server/mail/active-job.ts";
 import { mailRoute } from "../../server/mail/delivery.ts";
 import { type JobDeps, modelJob } from "./support/job-deps.ts";
@@ -116,6 +119,9 @@ export const syncStuckPurchasesJobWith = modelJob({ min: 0 }, async (_args, deps
   await beforeSideEffects(() => handBackIfAny(rows, "Purchase#sync_status_with_charge_processor"));
 });
 
+const REGENERATE_CREATOR_ANALYTICS_CACHE_WORKER = "RegenerateCreatorAnalyticsCacheWorker";
+
+// Port of app/sidekiq/create_missing_purchase_events_worker.rb
 export const createMissingPurchaseEventsWorkerWith = modelJob({ min: 0, max: 1 }, async (args, deps) => {
   // An explicit date arrives as a JSON string, which Ruby cannot call #tomorrow on; run it in Ruby.
   await beforeSideEffects(() => {
@@ -124,8 +130,39 @@ export const createMissingPurchaseEventsWorkerWith = modelJob({ min: 0, max: 1 }
   // Date.yesterday, in UTC.
   const today = toCalendarDate(deps.now());
   const yesterday = addDays(today, -1);
-  const rows = await successfulWithoutEventsFirstBatch(dateToS(yesterday), dateToS(today));
-  await beforeSideEffects(() => handBackIfAny(rows, "Event.create! for a purchase without events"));
+  const analyticsDaysToRegenerate = new Map<string, [bigint, string]>();
+  await successfulWithoutEventsEach(dateToS(yesterday), dateToS(today), async (purchase) => {
+    const referrer = purchase.referrer ?? null;
+    await Events.createBang(
+      {
+        event_name: "purchase",
+        created_at: purchase.created_at,
+        user_id: purchase.purchaser_id,
+        link_id: purchase.link_id,
+        purchase_id: purchase.id,
+        ip_address: purchase.ip_address,
+        referrer,
+        referrer_domain: extractDomain(referrer),
+        price_cents: purchase.price_cents,
+        card_type: purchase.card_type,
+        card_visual: purchase.card_visual,
+        purchase_state: purchase.purchase_state,
+        billing_zip: purchase.zip_code,
+        ip_country: purchase.ip_country,
+        ip_state: purchase.ip_state,
+        browser_guid: purchase.browser_guid,
+        visit_id: Number(EventFlags.set(null, "manufactured", true)),
+      } as never,
+      { now: deps.now },
+    );
+    const seller = await findUser(purchase.seller_id);
+    if (seller === null) throw new TypeError("undefined method 'timezone' for nil");
+    const date = instantInTimeZoneIso8601(String(seller.get("timezone")), purchase.created_at as Date).slice(0, 10);
+    analyticsDaysToRegenerate.set(`${String(purchase.seller_id)} ${date}`, [BigInt(purchase.seller_id as bigint), date]);
+  });
+  for (const [sellerId, date] of analyticsDaysToRegenerate.values()) {
+    await performAsync(REGENERATE_CREATOR_ANALYTICS_CACHE_WORKER, [Number(sellerId), date]);
+  }
 });
 
 export const updatePurchaseHealthcheckThresholdJob = updatePurchaseHealthcheckThresholdJobWith();
