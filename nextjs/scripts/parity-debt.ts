@@ -28,7 +28,7 @@ function readDescription(rest: string): Part | null {
   const quote = rest[0];
   if (quote !== '"' && quote !== "'") {
     const constant = /^([A-Z][\w:]*)/.exec(rest);
-    return constant ? { text: constant[1], module: true, dynamic: false } : null;
+    return constant ? { text: constant[1] ?? "", module: true, dynamic: false } : null;
   }
   let text = "";
   let dynamic = false;
@@ -56,7 +56,7 @@ function readDescription(rest: string): Part | null {
 function fullDescription(parts: Part[]): string {
   return parts.reduce((name, part, i) => {
     if (i === 0) return part.text;
-    return name + (parts[i - 1].module && /^(#|::|\.)/.test(part.text) ? "" : " ") + part.text;
+    return name + (parts[i - 1]?.module && /^(#|::|\.)/.test(part.text) ? "" : " ") + part.text;
   }, "");
 }
 
@@ -73,9 +73,9 @@ function parseSpec(path: string, spec: string): Example[] {
     .forEach((text, index) => {
       const match = GROUP.exec(text);
       if (!match) return;
-      const [, ws, kind, rest] = match;
+      const [, ws = "", kind = "", rest = ""] = match;
       const indent = ws.length;
-      while (stack.length > 0 && stack[stack.length - 1].indent >= indent) stack.pop();
+      while (stack.length > 0 && (stack.at(-1)?.indent ?? 0) >= indent) stack.pop();
       const part = readDescription(rest.trimStart());
       const tagged = /\bparity:\s*true\b/.test(text);
       if (EXAMPLE_KINDS.includes(kind)) {
@@ -107,7 +107,7 @@ function walk(dir: string, accept: (name: string) => boolean): string[] {
 
 function main() {
   const args = process.argv.slice(2);
-  const filter = args.includes("--spec") ? args[args.indexOf("--spec") + 1] : "";
+  const filter = args.includes("--spec") ? (args[args.indexOf("--spec") + 1] ?? "") : "";
   const fixtures = new Map<string, string[]>();
   for (const file of walk(FIXTURES_DIR, (n) => n.endsWith(".json"))) {
     const { spec, example } = JSON.parse(readFileSync(file, "utf8")) as { spec: string; example: string };
