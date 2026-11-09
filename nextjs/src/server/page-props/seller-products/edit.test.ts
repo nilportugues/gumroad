@@ -5,8 +5,8 @@ import { instantInTimeZoneIso8601 } from "../../models/concerns/rails-time-zone.
 import { LinkFlags } from "../../models/link.ts";
 import type { LinkRow, UserRow } from "../../presenters/product-reads.ts";
 import { setSqlClient } from "../../models/sql.ts";
-import { assertEditSupported, editorRevision, otherProductRefundPolicies, productTagNames } from "./edit.ts";
-import { variantProps, versionStamps, type VersionRows } from "./edit-variants.ts";
+import { assertEditSupported, editBlockers, editorRevision, otherProductRefundPolicies, productTagNames } from "./edit.ts";
+import { recoverableHiddenVariantRichContent, variantProps, versionStamps, type VersionRows } from "./edit-variants.ts";
 import golden from "./__fixtures__/editor-revision.golden.json" with { type: "json" };
 
 process.env.OBFUSCATE_IDS_CIPHER_KEY ??= "ws12f-obfuscate-key";
@@ -94,11 +94,55 @@ describe("variantProps", () => {
   });
 });
 
-describe("hidden variant pages", () => {
-  it("hands back a product sharing its content while a version holds pages", async () => {
-    setSqlClient(() => ({ $queryRaw: async (query: { sql: string }) => (query.sql.includes("SELECT 1 AS present") ? [{ present: 1 }] : []), $executeRaw: async () => 0 }) as never);
-    await expect(assertEditSupported(product({ flags: LinkFlags.set(0n, "has_same_rich_content_for_all_variants", true) }), seller, 9n)).rejects.toBeInstanceOf(HandBackToRails);
-    await expect(assertEditSupported(product(), seller, 9n)).resolves.toBeUndefined();
+describe("recoverableHiddenVariantRichContent", () => {
+  const answerPages = (pages: { title: string | null; description: unknown }[]) => setSqlClient(() => ({ $queryRaw: async () => pages, $executeRaw: async () => 0 }) as never);
+  const blank = [{ type: "paragraph" }];
+  const hello = [{ type: "paragraph", content: [{ type: "text", text: "Hello" }] }];
+
+  it("is true when a version holds a page with a body", async () => {
+    answerPages([{ title: null, description: blank }, { title: null, description: hello }]);
+    await expect(recoverableHiddenVariantRichContent(5n)).resolves.toBe(true);
+  });
+
+  it("is true for a titled page with a blank body", async () => {
+    answerPages([{ title: "Welcome", description: blank }]);
+    await expect(recoverableHiddenVariantRichContent(5n)).resolves.toBe(true);
+  });
+
+  it("is false when the versions hold no pages or only blank ones", async () => {
+    answerPages([]);
+    await expect(recoverableHiddenVariantRichContent(5n)).resolves.toBe(false);
+    answerPages([{ title: null, description: blank }]);
+    await expect(recoverableHiddenVariantRichContent(5n)).resolves.toBe(false);
+  });
+
+  it("no longer hands back a product that shares its content while a version holds pages", async () => {
+    blockedBy();
+    await expect(assertEditSupported(product({ flags: LinkFlags.set(0n, "has_same_rich_content_for_all_variants", true) }), seller, 9n)).resolves.toBeUndefined();
+  });
+
+  it("serves the versions' pages when they are recoverable and hides them otherwise", async () => {
+    const page = { id: 11n, entity_id: 7n, title: null, description: hello, updated_at: new Date("2026-01-04T00:00:00Z") };
+    const version = { id: 7, type: "Variant", name: "Standard", description: null, price_difference_cents: 0, max_purchase_count: null, sales_count_for_inventory_cache: 0, created_at: new Date("2026-01-02T00:00:00Z"), updated_at: new Date("2026-01-03T00:00:00Z") };
+    setSqlClient(() => ({ $queryRaw: async (query: { sql: string }) => (query.sql.includes("FROM `rich_contents`") ? [page] : []), $executeRaw: async () => 0 }) as never);
+    const [shown] = await variantProps({ categories: [], variants: [version] }, false);
+    const [hidden] = await variantProps({ categories: [], variants: [version] }, true);
+    expect(shown!.rich_content).toHaveLength(1);
+    expect(hidden!.rich_content).toEqual([]);
+  });
+});
+
+describe("skus", () => {
+  it("does not probe for SKU rows", async () => {
+    let sql = "";
+    setSqlClient(() => ({ $queryRaw: async (query: { sql: string }) => ((sql = query.sql), []), $executeRaw: async () => 0 }) as never);
+    await editBlockers(product(), seller);
+    expect(sql).not.toMatch(/`base_variants`\.`link_id`/);
+  });
+
+  it("accepts a product with skus_enabled set: edit_props reads neither the flag nor the SKU rows", async () => {
+    blockedBy();
+    await expect(assertEditSupported(product({ flags: LinkFlags.set(0n, "skus_enabled", true) }), seller, 9n)).resolves.toBeUndefined();
   });
 });
 
@@ -121,7 +165,7 @@ describe("assertEditSupported", () => {
     await expect(assertEditSupported(product(), seller, 10n)).rejects.toBeInstanceOf(HandBackToRails);
   });
 
-  it.each(["product_files", "rich_contents", "variant_integrations", "skus", "sales", "asset_previews", "integrations", "existing_files"])("hands back a product with %s", async (blocker) => {
+  it.each(["product_files", "rich_contents", "variant_integrations", "sales", "asset_previews", "integrations", "existing_files"])("hands back a product with %s", async (blocker) => {
     blockedBy(blocker);
     await expect(assertEditSupported(product(), seller, 9n)).rejects.toBeInstanceOf(HandBackToRails);
   });

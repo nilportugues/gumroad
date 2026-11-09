@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 
 import { encrypt as externalId } from "../../../lib/obfuscate-ids.ts";
+import { hasEditorContent } from "../../models/rich-content.ts";
 import { column, selectRows, table } from "../../models/sql.ts";
 
 const INTEGRATION_NAMES = ["circle", "discord", "zoom", "google_calendar"] as const;
@@ -96,7 +97,7 @@ const integrationFlags = () => Object.fromEntries(INTEGRATION_NAMES.map((name) =
 
 // The `variants` prop of ProductPresenter#edit_props for a product whose versions have no files, integrations or sales
 // (editBlockers), served in `in_order` (created_at; ties by id). `sharesRichContent` is the product's
-// has_same_rich_content_for_all_variants flag, which hides the versions' own pages.
+// has_same_rich_content_for_all_variants flag unless the hidden pages are recoverable, which hides the versions' own pages.
 export async function variantProps({ variants }: VersionRows, sharesRichContent: boolean) {
   const versions = variants
     .filter((row) => row.type === "Variant")
@@ -127,11 +128,11 @@ export async function variantProps({ variants }: VersionRows, sharesRichContent:
   });
 }
 
-// Whether any version of the product holds a live content page, the case `recoverable_hidden_variant_rich_content?`
-// needs `RichContent#has_editor_content?` for when the shared-content flag is on.
-export async function hasVariantRichContent(productId: bigint): Promise<boolean> {
-  const [row] = await selectRows<{ present: number }>(
-    Prisma.sql`SELECT 1 AS present FROM ${table("rich_contents")} INNER JOIN ${table("base_variants")} ON ${column("base_variants", "id")} = ${column("rich_contents", "entity_id")} INNER JOIN ${table("variant_categories")} ON ${column("variant_categories", "id")} = ${column("base_variants", "variant_category_id")} WHERE ${column("rich_contents", "entity_type")} = 'BaseVariant' AND ${column("rich_contents", "deleted_at")} IS NULL AND ${column("base_variants", "deleted_at")} IS NULL AND ${column("variant_categories", "link_id")} = ${productId} AND ${column("variant_categories", "deleted_at")} IS NULL LIMIT 1`,
+// Link#recoverable_hidden_variant_rich_content? for a product with the shared-content flag on that is not physical and
+// has no product-level pages (editBlockers): true when any live version holds a page with `has_editor_content?`.
+export async function recoverableHiddenVariantRichContent(productId: bigint): Promise<boolean> {
+  const rows = await selectRows<{ title: string | null; description: unknown }>(
+    Prisma.sql`SELECT ${column("rich_contents", "title")}, ${column("rich_contents", "description")} FROM ${table("rich_contents")} INNER JOIN ${table("base_variants")} ON ${column("base_variants", "id")} = ${column("rich_contents", "entity_id")} INNER JOIN ${table("variant_categories")} ON ${column("variant_categories", "id")} = ${column("base_variants", "variant_category_id")} WHERE ${column("rich_contents", "entity_type")} = 'BaseVariant' AND ${column("rich_contents", "deleted_at")} IS NULL AND ${column("base_variants", "deleted_at")} IS NULL AND ${column("variant_categories", "link_id")} = ${productId} AND ${column("variant_categories", "deleted_at")} IS NULL`,
   );
-  return row !== undefined;
+  return rows.some(hasEditorContent);
 }
