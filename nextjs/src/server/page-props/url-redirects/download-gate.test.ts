@@ -131,3 +131,9 @@ describe("isPollingRequest", () => {
     expect(isPollingRequest(new Headers())).toBe(false);
   });
 });
+
+describe("decideAccess destination", () => {
+  it("sends the confirm page the action that was asked for", () => {
+    expect(decideAccess(input({ hasBeenSeen: true, destination: "play" }))).toEqual(redirectTo("/confirm?destination=play&id=tok123"));
+  });
+});

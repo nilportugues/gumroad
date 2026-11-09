@@ -513,6 +513,18 @@ GET renders only. Parity: `spec/requests/communities_signed_in_spec.rb` (replaye
   after_actions: `register_that_user_has_downloaded_product` (`uses` increment, `mark_as_seen`, the encrypted `confirmed_redirect` cookie),
   `create_consumption_event!` and the file lifecycle events (`update_transcoded_videos_last_accessed_at`, the regeneration jobs). None has a golden yet.
 
+- **Delivery routes (WS-16c): the gate only.** `/r/:id`, `/r/:id/product_files`, `/zip/:id`, `/s/:id[/:product_file_id]`, `/read/:id[/:product_file_id]`,
+  `/d/:id/play`, `/r/:id/:product_file_id/{index.m3u8,stream.smil,:subtitle_file_id[/captions.vtt]}` and mobile `url_redirects` `stream`, `hls_playlist`,
+  `download` are `route.ts` handlers (`page-props/url-redirects/delivery.ts`, `controllers/mobile-url-redirects.ts`) that answer what the gate refuses
+  (`decideAccess` with `destination` = the action name, `read`'s rescue into `/library` or `/`, `smil`'s `require_seller_for_test_purchase`, `play` without a
+  purchase, the mobile 404 and 401 JSON) and hand every request that passes to Rails before any write. What stays in Rails and why: the S3/CloudFront
+  signatures (`signed_download_url_for_s3_key_and_filename`, `signed_video_url`, `signed_location_for_file`: key, expiry and cache group are not
+  reproducible byte for byte without a golden per signer), `hls_playlist` and `smil` bodies (they embed those signed URLs), the `read` and `stream` Inertia props,
+  `play`'s grant (`ProductBuild#player_grant`) and Flipper flag, `send_to_kindle` (a POST that mails the file), `media_urls`, `save_last_content_page`, and the
+  writes (`uses`, `mark_as_seen`, consumption events, the rental first-view stamp). Flags: `nextjs_url_redirect_{show,download_product_files,download_archive,stream,read,play,hls_playlist,smil,subtitle_files}`
+  and `nextjs_mobile_url_redirect_delivery`. Parity: `spec/requests/url_redirect_delivery_gate_spec.rb` and the `url_redirects` examples of `mobile_api_parity_spec.rb`
+  (written without recording; no Ruby in this environment).
+
 ## Product page render (WS-77)
 
 `Products/Show` is served from Node on `/l/:id[/:code]`, `seller:/l/:id[/:code]` and `product:/`, `product:/l/:id[/:code]` (same flag, `nextjs_product_page`, no new routes). The client page is `app/(app)/l/ProductsShow.tsx`, mounted by `l/[id]`, `gr-host/seller/l/[id]` and `gr-host/product/**` with `InertiaShell clientOnly`: `Product/index.tsx` creates DOM nodes while rendering, which Rails never did on the server either.

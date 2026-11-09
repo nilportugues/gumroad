@@ -77,7 +77,7 @@ async function assertRenderable(loaded: Loaded): Promise<Download> {
 }
 
 // !Subscription#grant_access_to_product?
-async function membershipInactive({ subscription, product }: Loaded, now: Date): Promise<boolean> {
+export async function membershipInactive({ subscription, product }: Pick<Loaded, "subscription" | "product">, now: Date): Promise<boolean> {
   if (!subscription) return false;
   const { cancelled_at: cancelledAt, failed_at: failedAt, ended_at: endedAt } = subscription;
   if (SubscriptionFlags.isSet(subscription.flags, "is_installment_plan")) return cancelledAt !== null || failedAt !== null;
@@ -87,7 +87,7 @@ async function membershipInactive({ subscription, product }: Loaded, now: Date):
 }
 
 // viewer_owns_subscription?: gift-origin subscriptions get no bypass, and the gift lookup runs last.
-async function viewerOwnsSubscription({ purchase, subscription }: Loaded, viewer: User | null): Promise<boolean> {
+export async function viewerOwnsSubscription({ purchase, subscription }: Loaded, viewer: User | null): Promise<boolean> {
   if (!purchase || !subscription || !viewer || PurchaseFlags.isSet(purchase.flags, "is_gift_receiver_purchase")) return false;
   if (subscription.user_id === null || subscription.user_id !== viewer.id) return false;
   const originals = await db.purchase.findMany({ where: { subscription_id: subscription.id }, orderBy: { id: "asc" }, select: { id: true, flags: true } });
@@ -169,25 +169,12 @@ async function recordVisit(loaded: Loaded, chain: Chain): Promise<void> {
   );
 }
 
-export async function downloadPageFilters(chain: Chain): Promise<FilterOutcome> {
-  requireHtml(chain);
-  assertFlatQuery(chain.request.queryString);
-  const segment = DOWNLOAD_PATH.exec(chain.request.path)?.[1];
-  if (segment === undefined) throw new RoutingError("Not Found");
-  const token = safeDecode(segment);
-  const loaded = await load(token);
+// The facts check_permissions reads, for any action that runs it. `destination` is params[:action].
+export async function buildGateInput(chain: Chain, loaded: Loaded, { destination, isPoll }: { destination: string; isPoll: boolean }): Promise<{ gate: GateInput; viewer: User | null }> {
   const { redirect, purchase, product } = loaded;
-
-  // redirect_bundle_purchase_to_library_if_needed and redirect_to_coffee_page_if_needed.
-  if (purchase && PurchaseFlags.isSet(purchase.flags, "is_bundle_purchase")) throw new HandBackToRails("a bundle purchase");
-  if (product?.native_type === "coffee") throw new HandBackToRails("a coffee purchase");
-  // sign_in_mobile_app_viewer needs doorkeeper.
-  if (present(queryParam(chain.request, "access_token"))) throw new HandBackToRails("a mobile app token");
-
   const config = domainConfig(process.env);
   const viewer = railsLoggedInUser(chain.auth.context);
   const display = queryParam(chain.request, "display");
-  const isPoll = isPollingRequest(chain.request.headers);
   const ownsSubscription = await viewerOwnsSubscription(loaded, viewer);
 
   const gate: GateInput = {
@@ -195,6 +182,7 @@ export async function downloadPageFilters(chain: Chain): Promise<FilterOutcome> 
     path: chain.request.path,
     fullpath: chain.request.queryString === "" ? chain.request.path : `${chain.request.path}?${chain.request.queryString}`,
     display: present(display) ? display : null,
+    destination,
     isPoll,
     hasBeenSeen: UrlRedirectFlags.isSet(redirect.flags, "has_been_seen"),
     purchase: purchase
@@ -214,6 +202,26 @@ export async function downloadPageFilters(chain: Chain): Promise<FilterOutcome> 
     remoteIp: remoteIp(chain.request.headers),
     loginUrl: (next) => `${config.protocol}://${config.domain}/login?next=${cgiEscape(next)}`,
   };
+  return { gate, viewer };
+}
+
+export async function downloadPageFilters(chain: Chain): Promise<FilterOutcome> {
+  requireHtml(chain);
+  assertFlatQuery(chain.request.queryString);
+  const segment = DOWNLOAD_PATH.exec(chain.request.path)?.[1];
+  if (segment === undefined) throw new RoutingError("Not Found");
+  const token = safeDecode(segment);
+  const loaded = await load(token);
+  const { redirect, purchase, product } = loaded;
+
+  // redirect_bundle_purchase_to_library_if_needed and redirect_to_coffee_page_if_needed.
+  if (purchase && PurchaseFlags.isSet(purchase.flags, "is_bundle_purchase")) throw new HandBackToRails("a bundle purchase");
+  if (product?.native_type === "coffee") throw new HandBackToRails("a coffee purchase");
+  // sign_in_mobile_app_viewer needs doorkeeper.
+  if (present(queryParam(chain.request, "access_token"))) throw new HandBackToRails("a mobile app token");
+
+  const isPoll = isPollingRequest(chain.request.headers);
+  const { gate, viewer } = await buildGateInput(chain, loaded, { destination: "download_page", isPoll });
 
   const decision = decideAccess(gate);
   if (decision.kind === "notFound") throw new RoutingError("Not Found");
