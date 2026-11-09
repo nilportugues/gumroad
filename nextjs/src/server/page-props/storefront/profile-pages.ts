@@ -5,7 +5,7 @@
 // or card the port cannot prove (see featured-and-wishlist-sections.ts), a products section whose cards the
 // port cannot prove (see presenters/product.ts) or a request carrying the visitor's search params, a seller
 // with custom HTML pages, an affiliate param (it writes a cookie), a seller with an uploaded subscribe
-// preview or a reputation summary, and any non-HTML format.
+// preview, and any non-HTML format.
 import { Prisma, type User } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
@@ -45,11 +45,6 @@ const squish = (value: string) => value.replace(/\s+/gu, " ").trim();
 
 const hostUrl = (chain: Chain) => new URL(`${chain.request.protocol}${chain.request.hostWithPort}`);
 
-// Users the pages render for need none of these: each needs a Rails-only computation.
-async function assertCreatorProfileSupported(seller: User): Promise<void> {
-  if (await isFeatureEnabled("seller_reputation_summary", userActor(seller.id))) throw new HandBackToRails();
-}
-
 // ApplicationController#set_noindex_header_for_unproven_storefront
 async function setNoindexForUnprovenStorefront(chain: Chain, seller: User): Promise<void> {
   if (isCompliant(Users.load(seller))) return;
@@ -68,7 +63,6 @@ async function storefrontFilters(chain: Chain, options: { noindex: boolean; affi
     const page = await db.page.findFirst({ where: { pageable_type: "User", pageable_id: seller.id, slug: null }, orderBy: { id: "asc" } });
     if (present(page?.custom_html) && (await isFeatureEnabled("custom_html_pages", userActor(seller.id)))) throw new HandBackToRails();
   }
-  await assertCreatorProfileSupported(seller);
   return seller;
 }
 

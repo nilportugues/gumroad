@@ -225,4 +225,28 @@ describe "Storefront profile products", type: :request, elasticsearch_wait_for_r
 
     expect(response).to be_successful
   end
+
+  it "serves the seller's reputation summary while the flag is on", parity: true do
+    Feature.activate_user(:seller_reputation_summary, seller)
+    first = product("Alpha ebook", display_product_reviews: true)
+    second = product("Beta course", display_product_reviews: true)
+    ProductReviewStat.create!(link: first, reviews_count: 8, average_rating: 5.0, ratings_of_five_count: 8)
+    ProductReviewStat.create!(link: second, reviews_count: 4, average_rating: 3.5, ratings_of_four_count: 3, ratings_of_one_count: 1)
+    show_products_section([first, second])
+
+    get_profile
+
+    expect(response).to be_successful
+    expect(inertia_props["creator_profile"]["reputation"]).to eq("average" => 4.4, "count" => 12, "products_count" => 2)
+  end
+
+  it "keeps a null reputation below the display gate while the flag is on", parity: true do
+    Feature.activate_user(:seller_reputation_summary, seller)
+    show_products_section([product("Alpha ebook")])
+
+    get_profile
+
+    expect(response).to be_successful
+    expect(inertia_props["creator_profile"]).to include("reputation" => nil)
+  end
 end
