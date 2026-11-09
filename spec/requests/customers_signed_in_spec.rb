@@ -238,7 +238,7 @@ describe "Customers page when signed in", type: :request, elasticsearch_wait_for
     expect(inertia_props_of(response).dig("customers_presenter", "products").map { _1["name"] }).to eq(["Archived but sold"])
   end
 
-  it "leaves a refunded customer to Rails", parity: true do
+  it "shows a partially refunded customer", parity: true do
     purchase = sell(product, days_ago: 3, price_cents: 500)
     purchase.update_columns(stripe_partially_refunded: true)
     create(:refund, purchase:, amount_cents: 100)
@@ -246,7 +246,60 @@ describe "Customers page when signed in", type: :request, elasticsearch_wait_for
 
     get customers_path
 
-    expect(customers_of(response).first["partially_refunded"]).to eq(true)
+    customer = customers_of(response).first
+    expect(customer["partially_refunded"]).to eq(true)
+    expect(customer.dig("price", "cents_refundable")).to eq(400)
+  end
+
+  it "counts a failed refund whose balance was not reversed against the refundable amount, and one that was reversed not", parity: true do
+    kept = sell(product, days_ago: 3, price_cents: 500)
+    reversed = sell(product, days_ago: 4, price_cents: 500)
+    create(:refund, purchase: kept, amount_cents: 100, status: "failed")
+    create(:refund, purchase: reversed, amount_cents: 100, status: "failed", balance_reversed_on_failure: true)
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    expect(customers_of(response).map { _1.dig("price", "cents_refundable") }).to eq([400, 500])
+  end
+
+  it "shows a fully refunded customer", parity: true do
+    purchase = sell(product, days_ago: 3, price_cents: 500)
+    purchase.update_columns(stripe_refunded: true)
+    create(:refund, purchase:, amount_cents: 500)
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    customer = customers_of(response).first
+    expect(customer["refunded"]).to eq(true)
+    expect(customer.dig("price", "cents_refundable")).to eq(0)
+    expect(customer["is_access_revoked"]).to be_nil
+  end
+
+  it "shows the recipient of a gift on the sender's row", parity: true do
+    sender = sell(product, days_ago: 3, is_gift_sender_purchase: true)
+    create(:gift, link: product, gifter_purchase: sender, giftee_email: "giftee@example.com")
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    customer = customers_of(response).first
+    expect(customer["giftee_email"]).to eq("giftee@example.com")
+    expect(customer["is_gift_sender_purchase"]).to eq(true)
+  end
+
+  it "reports the refundable amount of a non-USD sale in its own currency", parity: true do
+    eur_product = create(:product, user: seller, name: "Euro", price_currency_type: "eur", price_cents: 1000)
+    purchase = sell(eur_product, days_ago: 3, displayed_price_currency_type: "eur", displayed_price_cents: 1000, rate_converted_to_usd: "0.8", price_cents: 1250)
+    create(:refund, purchase:, amount_cents: 250)
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    price = customers_of(response).first["price"]
+    expect(price["currency_type"]).to eq("eur")
+    expect(price["cents_refundable"]).to eq(800)
   end
 
   it "leaves a member to Rails", parity: true do

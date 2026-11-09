@@ -2,13 +2,17 @@
 // and CustomerPresenter#customer (app/presenters/customer{,s}_presenter.rb).
 //
 // Handed back to Rails (HandBackToRails) when a customer on the page needs a reading the port does not make: a member or
-// installment plan (current subscription price, remaining charges), a preorder, a gift, a bundle, a physical product or
-// a chosen variant (`to_option`, shipping), a refund, a cached offer code discount, an upsell, an affiliate, a UTM link,
-// a non-USD price, a commission with files, a review video, a custom field file, a seller whose ping endpoints must be
-// checked (`can_ping`), and a sale charged through a processor transaction URL (Stripe Connect, PayPal, Braintree).
+// installment plan (current subscription price, remaining charges), a preorder, a received gift or a sent gift whose
+// recipient holds a license, a bundle, a physical product or a chosen variant (`to_option`, shipping), a cached offer
+// code discount, an upsell, an affiliate, a UTM link (`utm_url` is built by Addressable), a non-USD price without a
+// stored rate or in a currency the port has no table for, a refund whose json_data is not plain JSON, a commission
+// with files, a review video, a custom field file, a seller whose ping endpoints must be checked (`can_ping`), and a
+// sale charged through a processor transaction URL (Stripe Connect, PayPal, Braintree).
 import { Prisma, type User } from "@prisma/client";
 
 import { encrypt } from "../../../lib/obfuscate-ids.ts";
+import { usdCentsToCurrency } from "../../models/concerns/currency-helper.ts";
+import LINK_DATA from "../../models/link-data.generated.json" with { type: "json" };
 import { HandBackToRails } from "../../controllers/application-controller.ts";
 import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
 import { COUNTRIES, historicalNames, isBlockedCountry } from "../../models/compliance-countries.ts";
@@ -26,6 +30,11 @@ import { requireUser, roleAdminFor, roleSupportFor, type SellerContext } from ".
 export const CUSTOMERS_PER_PAGE = 20;
 // Keep pagination within Elasticsearch's index.max_result_window.
 export const MAX_RESULT_WINDOW = 10_000;
+// Refund::TERMINAL_FAILURE_STATUSES
+const TERMINAL_FAILURE_STATUSES = ["failed", "canceled"];
+const KNOWN_CURRENCIES = LINK_DATA.currencies as Record<string, unknown>;
+// A stored rate String#to_f reads the way Number does.
+const PLAIN_RATE = /^\d+(?:\.\d+)?$/u;
 const NON_GIFT_SUCCESS_STATES = ["preorder_authorization_successful", "successful", "not_charged"];
 // ChargeProcessor.charge_processor_ids
 const CHARGE_PROCESSOR_IDS = ["stripe", "braintree", "paypal"];
@@ -139,7 +148,25 @@ type Loaded = {
   calls: Map<string, Row>;
   ppp: Map<string, Row>;
   merchantAccounts: Map<string, Row>;
+  // Purchase#amount_refunded_cents: the sum of the effective refunds.
+  refundedCents: Map<string, number>;
+  gifts: Map<string, Row>;
 };
+
+// Refund#effective?: a failed or canceled refund counts unless its balance debits were reversed.
+export function refundIsEffective(refund: Row): boolean {
+  if (!TERMINAL_FAILURE_STATUSES.includes(refund.status)) return true;
+  let data: unknown = {};
+  try {
+    if (typeof refund.json_data === "string" && refund.json_data !== "") data = JSON.parse(refund.json_data);
+  } catch {
+    throw new HandBackToRails();
+  }
+  if (data === null || typeof data !== "object" || Array.isArray(data)) throw new HandBackToRails();
+  const reversed = (data as Record<string, unknown>).balance_reversed_on_failure;
+  if (reversed !== undefined && reversed !== null && typeof reversed !== "boolean") throw new HandBackToRails();
+  return reversed !== true;
+}
 
 // Purchase.where(id: ids).in_order_of(:id, ids) with the associations CustomerPresenter reads, after handing back what it cannot.
 async function load(ids: string[], seller: User): Promise<Loaded> {
@@ -152,14 +179,14 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
   for (const link of links.values()) if (link.require_shipping) throw new HandBackToRails();
   for (const purchase of purchases) {
     if (purchase.subscription_id != null || purchase.preorder_id != null || purchase.affiliate_id != null) throw new HandBackToRails();
-    if (purchase.displayed_price_currency_type !== "usd") throw new HandBackToRails();
+    // usd_cents_to_currency converts the refundable amount at the rate stored on the sale; without one it would ask Redis.
+    if (purchase.displayed_price_currency_type !== "usd" && !(typeof purchase.displayed_price_currency_type === "string" && purchase.displayed_price_currency_type in KNOWN_CURRENCIES && PLAIN_RATE.test(String(purchase.rate_converted_to_usd ?? "").trim()))) throw new HandBackToRails();
     const flags = (name: Parameters<typeof PurchaseFlags.isSet>[1]) => PurchaseFlags.isSet(purchase.flags, name);
-    if (flags("is_gift_sender_purchase") || flags("is_gift_receiver_purchase") || flags("is_bundle_purchase") || flags("is_commission_deposit_purchase")) throw new HandBackToRails();
+    if (flags("is_gift_receiver_purchase") || flags("is_bundle_purchase") || flags("is_commission_deposit_purchase")) throw new HandBackToRails();
     if (flags("is_preorder_authorization") || flags("is_installment_payment")) throw new HandBackToRails();
   }
   for (const [tableName, columnName] of [
     ["base_variants_purchases", "purchase_id"],
-    ["refunds", "purchase_id"],
     ["purchase_offer_code_discounts", "purchase_id"],
     ["upsell_purchases", "purchase_id"],
     ["utm_link_driven_sales", "purchase_id"],
@@ -167,6 +194,19 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
   ] as const) {
     if (purchaseIds.length > 0 && (await exists(Prisma.sql`SELECT 1 FROM ${table(tableName)} WHERE ${column(tableName, columnName)} IN (${inList(purchaseIds)}) LIMIT 1`))) throw new HandBackToRails();
   }
+
+  const refundedCents = new Map<string, number>();
+  for (const refund of await rowsBy("refunds", "purchase_id", purchaseIds)) {
+    if (!refundIsEffective(refund)) continue;
+    const key = String(refund.purchase_id);
+    refundedCents.set(key, (refundedCents.get(key) ?? 0) + num(refund.amount_cents ?? 0));
+  }
+
+  // Purchase#giftee_email reads the gift of a sender; its linked_license may be the recipient's, which is Rails' to answer.
+  const senderIds = purchases.filter((purchase) => PurchaseFlags.isSet(purchase.flags, "is_gift_sender_purchase")).map((purchase) => purchase.id);
+  const gifts = new Map((await rowsBy("gifts", "gifter_purchase_id", senderIds)).map((gift) => [String(gift.gifter_purchase_id), gift]));
+  const gifteeIds = [...gifts.values()].map((gift) => gift.giftee_purchase_id).filter((id) => id != null);
+  if (gifteeIds.length > 0 && (await exists(Prisma.sql`SELECT 1 FROM ${table("licenses")} WHERE ${column("licenses", "purchase_id")} IN (${inList(gifteeIds)}) LIMIT 1`))) throw new HandBackToRails();
 
   const reviews = byId(await rowsBy("product_reviews", "purchase_id", purchaseIds));
   const reviewsByPurchase = new Map([...reviews.values()].map((review) => [String(review.purchase_id), review]));
@@ -197,6 +237,8 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
     purchasers: byId(await rowsBy("users", "id", [...new Set(purchases.map((purchase) => purchase.purchaser_id).filter((id) => id != null))])),
     calls: new Map((await rowsBy("calls", "purchase_id", purchaseIds)).map((call) => [String(call.purchase_id), call])),
     merchantAccounts: byId(await rowsBy("merchant_accounts", "id", [...new Set(purchases.map((purchase) => purchase.merchant_account_id).filter((id) => id != null))])),
+    refundedCents,
+    gifts,
     ppp: new Map((await rowsBy("purchasing_power_parity_infos", "purchase_id", purchaseIds)).map((info) => [String(info.purchase_id), info])),
   };
 }
@@ -251,16 +293,24 @@ function assertNoTransactionUrl(purchase: Row, merchantAccount: Row | null): voi
   throw new HandBackToRails();
 }
 
+// Purchase#amount_refundable_cents_in_currency
+export function refundableCents(purchase: Row, refundedCents: number, currency: string): Promise<number> {
+  const refundable = CHARGE_PROCESSOR_IDS.includes(purchase.charge_processor_id) ? num(purchase.price_cents) - refundedCents : 0;
+  return usdCentsToCurrency(currency, refundable, currency === "usd" ? undefined : Number(String(purchase.rate_converted_to_usd).trim()));
+}
+
 const iso = (date: Date) => date.toISOString().replace(/\.\d{3}Z$/u, "Z");
 
 type Context = { seller: User; sellerUsername: string; sellerContext: SellerContext; loaded: Loaded };
 
-function customerJson(purchase: Row, { sellerUsername, sellerContext, loaded }: Context) {
+async function customerJson(purchase: Row, { sellerUsername, sellerContext, loaded }: Context) {
   assertNoTransactionUrl(purchase, purchase.merchant_account_id == null ? null : (loaded.merchantAccounts.get(String(purchase.merchant_account_id)) ?? null));
   const flags = (name: Parameters<typeof PurchaseFlags.isSet>[1]) => PurchaseFlags.isSet(purchase.flags, name);
   const link = loaded.links.get(String(purchase.link_id))!;
   const id = String(purchase.id);
   const quantity = purchase.quantity ?? 1;
+  const currency = String(purchase.displayed_price_currency_type);
+  const gift = flags("is_gift_sender_purchase") ? loaded.gifts.get(id) : undefined;
   const displayed = num(purchase.displayed_price_cents);
   const offerCode = purchase.offer_code_id == null ? null : (loaded.offerCodes.get(String(purchase.offer_code_id)) ?? null);
   const offerCodeDeleted = offerCode !== null && offerCode.deleted_at != null;
@@ -289,8 +339,8 @@ function customerJson(purchase: Row, { sellerUsername, sellerContext, loaded }: 
   return {
     id: encrypt(purchase.id),
     email: purchase.email,
-    giftee_email: null,
-    is_gift_sender_purchase: false,
+    giftee_email: gift?.giftee_email ?? null,
+    is_gift_sender_purchase: flags("is_gift_sender_purchase"),
     is_gift_receiver_purchase: false,
     name: present((purchase.full_name ?? "").trim()) ? purchase.full_name.trim() : (purchaser?.name ?? ""),
     physical: null,
@@ -303,8 +353,8 @@ function customerJson(purchase: Row, { sellerUsername, sellerContext, loaded }: 
     price: {
       cents: displayed,
       cents_before_offer_code: beforeOfferCode,
-      cents_refundable: CHARGE_PROCESSOR_IDS.includes(purchase.charge_processor_id) ? num(purchase.price_cents) : 0,
-      currency_type: "usd",
+      cents_refundable: await refundableCents(purchase, loaded.refundedCents.get(id) ?? 0, currency),
+      currency_type: currency,
       recurrence: null,
       tip_cents: tip ? num(tip.value_cents) : null,
     },
@@ -411,7 +461,8 @@ export async function customersProps(context: SellerContext, params: CustomersPa
   const total = result.total ?? 0;
   const loaded = await load(result.ids, seller);
   const sellerUsername = present(seller.username) ? seller.username : seller.external_id!;
-  const customers = loaded.purchases.map((purchase) => customerJson(purchase, { seller, sellerUsername, sellerContext: context, loaded }));
+  const customers = [];
+  for (const purchase of loaded.purchases) customers.push(await customerJson(purchase, { seller, sellerUsername, sellerContext: context, loaded }));
   return {
     pagination: { page: params.paged ? pageOffset(params.page) / CUSTOMERS_PER_PAGE + 1 : 1, pages: totalPages(total), next: null },
     product_id: product ? encrypt(product.id) : null,
