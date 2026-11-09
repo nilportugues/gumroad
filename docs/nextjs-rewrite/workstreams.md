@@ -40,7 +40,7 @@ a letter suffix (`nextjs/ws-12d-bundle-edit`). This table maps every merged bran
 | WS-00 … WS-06 Foundation | 01, 02, 03, 04, 05, 06, 38 (query cache), 43 (page envelope), 50 (signed-in shared props), 55 (page spec options) | Done |
 | WS-10 Settings and account | 53, 54 (auth pages), 56, 62 (payments, profile) | Most pages; mutations still in Rails |
 | WS-11 Help center, pages, blog, profiles | 55, 64, 68, 84 (profile products) | Profiles with featured products or wishlists hand back |
-| WS-12 Products and bundles | 39 (link writes), 69, 71, 77, 80, 12f | Product page partly rendered; editor for plain digital products only, now including tags and other-product refund policies (variants, files, rich content still hand back); `GET /bundles/:id` redirect ported (301 to the product editor); bundle editors (Product, Content, Share), `create_from_email` and bundle writes still in Rails |
+| WS-12 Products and bundles | 39 (link writes), 69, 71, 77, 80, 12f, 12g | Product page partly rendered; editor for plain digital products only, now including tags, other-product refund policies and plain versions with their categories (SKUs, tiers, integrations on versions, files, shared-content version pages still hand back); `GET /bundles/:id` redirect ported (301 to the product editor); bundle editors (Product, Content, Share), `create_from_email` and bundle writes still in Rails |
 | WS-13 Audience, emails, workflows | 51, 57, 59, 63, 67, 74, 82; mailers 31, 35, 40, 60, 73, 76, 85 | Pages and their mutations; receipt mailer for common shapes |
 | WS-14 Discover and search | 34, 37, 65, 83 | Discover page; personalised and deferred parts hand back |
 | WS-15 Analytics and exports | 58, 70, 79, 84 | Dashboards, customers, analytics; exports: CSV builders, CSV-safe writer and enqueue calls ported (ws-15b), job bodies and DB reads stay with WS-30/WS-45 |
@@ -52,7 +52,7 @@ a letter suffix (`nextjs/ws-12d-bundle-edit`). This table maps every merged bran
 | WS-21 Payment processors | 33 (Stripe client), 49 (refunds, disputes), 66 | Job guards; processor calls hand back |
 | WS-22 Sales tax and VAT | 22 (pure calculation) | Receipt tax lines (85); US zip to state, tax country lists, offline regional VAT id shape checks and tax-cents rounding in `server/tax/`. TaxJar, `ZipTaxRate` selection, GeoIP and vendor VAT validators (VIES, Vatstack, IRAS, Revenu Quebec) hand back. |
 | WS-23 Balances and payouts | 72 (payouts page), 74 (balance stats) | Read side; no payout execution |
-| WS-30 Jobs and cron | 30b, 32, 36, 41, 42, 44, 45, 46, 47, 49, 52, 59, 63, 66, 74, 76 | Many jobs in Node, most with early hand-backs |
+| WS-30 Jobs and cron | 30b, 30c, 32, 36, 41, 42, 44, 45, 46, 47, 49, 52, 59, 63, 66, 74, 76 | Many jobs in Node, most with early hand-backs; `CreateMissingPurchaseEventsWorker` now runs fully in Node. Mail, Stripe/PayPal and money-ledger jobs hand back by design |
 | WS-40 Removal | — | Not started |
 
 No route is flipped in production yet and no shadow traffic has run, so no stream has met its done
