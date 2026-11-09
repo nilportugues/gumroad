@@ -15,7 +15,7 @@ const WISHLIST_FOLLOWERS = "wishlist_followers";
 const DISCOVER_OPTED_OUT_FLAG = 1n;
 
 // Wishlist#url_slug
-const urlSlug = (wishlist: Wishlist) => `${parameterize(wishlist.name)}-${encryptNumeric(Number(wishlist.id))}`;
+export const urlSlug = (wishlist: Wishlist) => `${parameterize(wishlist.name)}-${encryptNumeric(Number(wishlist.id))}`;
 
 // `current_seller.wishlists.alive`
 export function aliveWishlistsOf(userId: bigint): Promise<Wishlist[]> {

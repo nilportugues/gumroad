@@ -70,6 +70,8 @@ export type EventSource = {
   state: Pick<RenderState, "mobileParam" | "signupReferrer" | "mintedGuid"> | null;
   // `params`, when the event comes from a request body (EventsController#create) rather than the query string.
   params?: Record<string, unknown>;
+  // `@product`: the event carries its id and price (ProductsController-style actions that fetch one).
+  product?: { id: bigint | number; price_cents: number | null };
 };
 
 // FlagShihTzu::TRUE_VALUES, which also holds true and 1 for a value that came from a JSON body.
@@ -79,7 +81,7 @@ const castBooleanValue = (value: unknown): boolean | null => (value === undefine
 const isBlankString = (value: unknown): boolean => typeof value === "string" && /^[\s\0]*$/u.test(value);
 
 // Events#create_user_event(name): nothing while impersonating.
-export async function createUserEvent(name: string, { context, headers, url, state, params }: EventSource): Promise<void> {
+export async function createUserEvent(name: string, { context, headers, url, state, params, product }: EventSource): Promise<void> {
   if (context.impersonatedUser) return;
   const user = railsLoggedInUser(context);
   const query: QuerySource = { queryString: url.search.replace(/^\?/, "") };
@@ -122,7 +124,7 @@ export async function createUserEvent(name: string, { context, headers, url, sta
     ip_address: ip,
     event_name: name,
     user_id: user?.id ?? null,
-    link_id: null,
+    link_id: product?.id ?? null,
     created_at: now,
     updated_at: now,
     referrer,
@@ -138,7 +140,7 @@ export async function createUserEvent(name: string, { context, headers, url, sta
     browser_guid: cookies.get("_gumroad_guid") ?? state?.mintedGuid ?? null,
     referrer_domain: wasProductRecommended ? REFERRER_DOMAIN_FOR_GUMROAD_RECOMMENDED_PRODUCTS : referrerDomain(referrer),
     ip_state: geo?.regionName ?? null,
-    price_cents: null,
+    price_cents: product?.price_cents ?? null,
   };
   const names = Object.keys(values);
   await execute(

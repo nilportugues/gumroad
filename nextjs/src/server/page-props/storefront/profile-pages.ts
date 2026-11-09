@@ -1,8 +1,8 @@
 // UsersController#show, #subscribe, AffiliateRequestsController#new on a seller's subdomain or custom
 // domain (`seller:/`, `seller:/subscribe`, `seller:/affiliates`), for visitors who are not signed in.
 //
-// Handed to Rails (HandBackToRails, decided in the filters): a featured product section (it needs
-// ProductPresenter#product_props) or a wishlists section (WishlistPresenter), a products section whose cards the
+// Handed to Rails (HandBackToRails, decided in the filters): a featured product or wishlists section whose product
+// or card the port cannot prove (see featured-and-wishlist-sections.ts), a products section whose cards the
 // port cannot prove (see presenters/product.ts) or a request carrying the visitor's search params, a seller
 // with custom HTML pages, an affiliate param (it writes a cookie), a seller with an uploaded subscribe
 // preview or a reputation summary, and any non-HTML format.
@@ -26,6 +26,7 @@ import { creatorProfile } from "../settings/profile.ts";
 import type { MetaTagBuilder } from "../meta-tags.ts";
 import type { PageSpec } from "../pages.ts";
 import { requireHtmlPage, setHostMeta } from "./post-pages.ts";
+import { FEATURED_PRODUCT_SECTION_TYPE, featuredProductSectionProps, WISHLISTS_SECTION_TYPE, wishlistsSectionProps } from "./featured-and-wishlist-sections.ts";
 import { assertProductSectionsRender, DEFAULT_PRODUCTS_SECTION_ID, PRODUCTS_SECTION_TYPE, productsSectionProps, sectionHeader, type ProductsSectionRow } from "./product-sections.ts";
 import { setFaviconMetaTags } from "./post.ts";
 import { sellerOfHost } from "./seller-host.ts";
@@ -35,7 +36,7 @@ const DEFAULT_PRODUCTS_TAB_NAME = "Products";
 const POSTS_PER_SECTION = 999;
 const SHOWN_ON_PROFILE_FLAG = 2 ** 7;
 const PROFILE_SECTION_FLAG_HIDE_HEADER = 2 ** 1;
-const SUPPORTED_SECTION_TYPES = ["SellerProfileRichTextSection", "SellerProfileSubscribeSection", "SellerProfilePostsSection", PRODUCTS_SECTION_TYPE];
+const SUPPORTED_SECTION_TYPES = ["SellerProfileRichTextSection", "SellerProfileSubscribeSection", "SellerProfilePostsSection", PRODUCTS_SECTION_TYPE, FEATURED_PRODUCT_SECTION_TYPE, WISHLISTS_SECTION_TYPE];
 // ProfileSectionsPresenter::VISITOR_SEARCH_PARAMS: a visitor's filters re-run the section searches.
 const VISITOR_SEARCH_PARAMS = ["query", "tags", "filetypes", "min_price", "max_price", "rating", "sort", "from", "size", "recommended_by"];
 
@@ -153,6 +154,10 @@ async function sectionsProps(seller: User, request: PresenterRequest) {
       switch (section.type) {
         case PRODUCTS_SECTION_TYPE:
           return productsSectionProps(seller, section as ProductsSectionRow, sectionHeader(section, hideHeader), request);
+        case FEATURED_PRODUCT_SECTION_TYPE:
+          return featuredProductSectionProps(seller, base, data, request);
+        case WISHLISTS_SECTION_TYPE:
+          return wishlistsSectionProps(base, data);
         case "SellerProfileRichTextSection":
           return { ...base, text: data.text ?? null };
         case "SellerProfileSubscribeSection":
@@ -180,7 +185,9 @@ async function visiblePosts(seller: User, shownPosts: number[]) {
 async function assertSectionsSupported(chain: Chain, seller: User): Promise<void> {
   const sections = await db.sellerProfileSection.findMany({ where: { seller_id: seller.id, product_id: null }, select: { type: true } });
   if (sections.some((section) => !SUPPORTED_SECTION_TYPES.includes(section.type))) throw new HandBackToRails();
-  const productsShown = sections.some((section) => section.type === PRODUCTS_SECTION_TYPE) || (sections.length === 0 && (await defaultProductsSectionAvailable(seller)));
+  const productsShown =
+    sections.some((section) => [PRODUCTS_SECTION_TYPE, FEATURED_PRODUCT_SECTION_TYPE, WISHLISTS_SECTION_TYPE].includes(section.type)) ||
+    (sections.length === 0 && (await defaultProductsSectionAvailable(seller)));
   if (!productsShown) return;
   if (VISITOR_SEARCH_PARAMS.some((name) => queryParam(chain.request, name) !== undefined || chain.request.queryString.includes(`${name}[`))) throw new HandBackToRails();
   // Render the sections once ahead of the page: a card the port cannot prove is Rails' to answer.

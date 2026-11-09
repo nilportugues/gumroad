@@ -38,21 +38,21 @@ a letter suffix (`nextjs/ws-12d-bundle-edit`). This table maps every merged bran
 | Planned stream | Merged branches (`nextjs/ws-…`) | State |
 | --- | --- | --- |
 | WS-00 … WS-06 Foundation | 01, 02, 03, 04, 05, 06, 38 (query cache), 43 (page envelope), 50 (signed-in shared props), 55 (page spec options) | Done |
-| WS-10 Settings and account | 53, 54 (auth pages), 56, 62 (payments, profile) | Most pages; mutations still in Rails |
-| WS-11 Help center, pages, blog, profiles | 55, 64, 68, 84 (profile products) | Profiles with featured products or wishlists hand back |
-| WS-12 Products and bundles | 39 (link writes), 69, 71, 77, 80 | Product page partly rendered; editor for plain digital products only; bundles not started |
-| WS-13 Audience, emails, workflows | 51, 57, 59, 63, 67, 74, 82; mailers 31, 35, 40, 60, 73, 76, 85 | Pages and their mutations; receipt mailer for common shapes |
+| WS-10 Settings and account | 10a, 10b (OAuth integrations), 53, 54 (auth pages), 56, 62 (payments, profile), 10c (billing), 10d (team members, AI promo dismissal) | Most pages; billing, third-party analytics, advanced, team member role/remove/restore and the AI promo dismissal write in Node. Profile, main settings, password and team invitations stay in Rails (avatar and sections, reconfirmation, bcrypt and sessions, mail parsing and throttling) |
+| WS-11 Help center, pages, blog, profiles | 11, 55, 64, 68, 84 (profile products) | Profiles with featured products or wishlists hand back |
+| WS-12 Products and bundles | 12a, 12b (reviews, offers, affiliates), 12c (editor JSON endpoints, duplicates, build history), 39 (link writes), 69, 71, 77, 80, 12f, 12g | Product page partly rendered; editor for plain digital products only, now including tags, other-product refund policies and plain versions with their categories (SKUs, tiers, integrations on versions, files, shared-content version pages still hand back); `GET /bundles/:id` redirect ported (301 to the product editor); bundle editors (Product, Content, Share), `create_from_email` and bundle writes still in Rails |
+| WS-13 Audience, emails, workflows | 51, 57, 59, 63, 67, 74, 82; mailers 31, 35, 40, 60, 73, 76, 85, 13d | Pages and their mutations; receipt mailer for common shapes, plus rentals with a plain url_redirect (proven against the Ruby golden). Rental redirects, gift sender, free trial and subscription receipts, and preorders still hand back |
 | WS-14 Discover and search | 34, 37, 65, 83 | Discover page; personalised and deferred parts hand back |
-| WS-15 Analytics and exports | 58, 70, 79, 84 | Dashboards, customers, analytics; exports not started |
-| WS-16 Library and content delivery | 61, 81 | Library and unavailable pages; `/d` download page not started |
-| WS-17 Public API and mobile API | — | Not started |
-| WS-18 Admin | — | Not started |
-| WS-19 AI, MCP and moderation | 75 (agent page) | Agent page only |
+| WS-15 Analytics and exports | 58, 70, 79, 84 | Dashboards, customers, analytics; exports: CSV builders, CSV-safe writer and enqueue calls ported (ws-15b), job bodies and DB reads stay with WS-30/WS-45 |
+| WS-16 Library and content delivery | 61, 81, 16b (download page), 16c (delivery routes) | Library and unavailable pages; `/d/:id` gate, redirects and visit writes in Node, rendering only for a content page that lists nothing (files, rich content, variants, posts, integrations, licenses, polls hand back); `/r`, `/s`, `/zip`, `/read`, `/d/:id/play`, HLS, smil and caption routes and mobile stream/hls_playlist/download run the access gate in Node, but every request that passes the gate (signed S3/CloudFront URLs, `uses` and consumption writes) hands back to Rails |
+| WS-17 Public API and mobile API | 17a (products), 17b (sales, licenses), 17c (users, content, MCP), 17d (`Api::Internal`), 17f (mobile), 17h (mobile purchases and sales), 17i (mobile serializers) | v2 routes served through the shared dispatcher; `Api::Internal` GETs go through one handler. Mobile sales index serializes USD sales natively; purchases index/search/show, sales show and all writes still hand back (`UrlRedirect#product_json_data`, `Preorder#mobile_json_data`, subscriptions and non-USD are not ported). 17e is counted under WS-18. |
+| WS-18 Admin | 17e (internal admin API, `Admin::BaseController` entry points) | Done in code; admin web UI was already deleted. Sidekiq and Flipper UI mounts stay in Rails until WS-40. The `impersonates a suspended seller` case in `spec/requests/admin/impersonate_spec.rb` has no recorded fixture yet. |
+| WS-19 AI, MCP and moderation | 75 (agent page), 19a (content moderation logic), 19b (MCP protocol), 19c (AI service helpers) | Agent page; MCP JSON-RPC envelope, revision negotiation, `tools/list` and tool argument checks. Tool bodies, OAuth client registration and `ProductFileIngest` hand back to Rails; moderation decisions in `server/content-moderation` with injected OpenAI, DB and enqueue seams, not wired to any route (content extractor HTML/CSS/SVG parsing and Rails golden vectors still to do); AI: store-agent formatter, scopes, HTML undo and prompts only, no LLM client or agent loop |
 | WS-20 Checkout and orders | 48 (offer-code pricing), 72 (subscription access), 78 | Empty-cart checkout only; no purchase path |
 | WS-21 Payment processors | 33 (Stripe client), 49 (refunds, disputes), 66 | Job guards; processor calls hand back |
-| WS-22 Sales tax and VAT | — | Receipt tax lines only (85) |
-| WS-23 Balances and payouts | 72 (payouts page), 74 (balance stats) | Read side; no payout execution |
-| WS-30 Jobs and cron | 30b, 32, 36, 41, 42, 44, 45, 46, 47, 49, 52, 59, 63, 66, 74, 76 | Many jobs in Node, most with early hand-backs |
+| WS-22 Sales tax and VAT | 22 (pure calculation) | Receipt tax lines (85); US zip to state, tax country lists, offline regional VAT id shape checks and tax-cents rounding in `server/tax/`. TaxJar, `ZipTaxRate` selection, GeoIP and vendor VAT validators (VIES, Vatstack, IRAS, Revenu Quebec) hand back. |
+| WS-23 Balances and payouts | 72 (payouts page), 74 (balance stats), 23b (chargeback reserve) | Read side; no payout execution. The chargeback-rate reserve is computed in Node; daily frequency, US sellers with a completed payout (Stripe instant eligibility), cached stats for large sellers, PayPal Connect and non-USD still hand back |
+| WS-30 Jobs and cron | 30b, 30c, 32, 36, 41, 42, 44, 45, 46, 47, 49, 52, 59, 63, 66, 74, 76 | Many jobs in Node, most with early hand-backs; `CreateMissingPurchaseEventsWorker` now runs fully in Node. Mail, Stripe/PayPal and money-ledger jobs hand back by design |
 | WS-40 Removal | — | Not started |
 
 No route is flipped in production yet and no shadow traffic has run, so no stream has met its done

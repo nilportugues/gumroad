@@ -45,7 +45,7 @@ export function featuredImageUrl(message: string | null): string | null {
 const WORD = "[\\p{L}\\p{M}\\p{Nd}\\p{Pc}]";
 
 // ActiveSupport's String#titleize over String#underscore and #humanize, with no custom inflections.
-function titleize(word: string): string {
+export function titleize(word: string): string {
   const underscored = word
     .replace(/([A-Z\d]+)([A-Z][a-z])/g, "$1_$2")
     .replace(/([a-z\d])([A-Z])/g, "$1_$2")

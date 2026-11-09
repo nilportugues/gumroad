@@ -65,6 +65,12 @@ function matchPattern(pattern: string, path: string): Record<string, string> | n
   const source = pattern
     .split("/")
     .map((segment) => {
+      // `:id([A-Za-z0-9_=-]+).json`: a constrained parameter and a literal suffix, as routes.json writes a format-bound route.
+      const constrained = /^:(\w+)\((.+)\)(.*)$/u.exec(segment);
+      if (constrained) {
+        names.push(constrained[1]!);
+        return `(${constrained[2]})${constrained[3]!.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}`;
+      }
       if (!segment.startsWith(":")) return segment.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
       names.push(segment.slice(1));
       return "([^/.?]+)";

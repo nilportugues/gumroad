@@ -4,15 +4,20 @@
 // A request Rails would answer differently from what the port can prove is handed back before its first write: a missing or
 // malformed `user` param (strong parameters raise inside the action's own rescue), a value of a type the column would cast, and
 // a custom domain to verify, which resolves DNS.
+import type { BillingDetail } from "@prisma/client";
+
 import { notifyError } from "../infra/error-reporting.ts";
+import { billingDetailOfPurchaser, BillingDetails } from "../models/billing-detail.ts";
 import { activeBlockedEmails, blockEmailBang, unblockActive } from "../models/blocked-customer-object.ts";
 import { aliveCustomDomainOf, CustomDomainDeletable } from "../models/custom-domain.ts";
 import { saveThirdPartyAnalytics, ThirdPartyAnalyticInvalid, type SnippetParams } from "../models/third-party-analytic.ts";
+import type { ModelRecord } from "../models/runtime/record.ts";
 import { transaction } from "../models/runtime/transaction.ts";
 import { isValidEmailFormat, NotPortedError, setFlag, setJsonDataForAttr, Users, findUserBang, type UserFlag, type UserRecord } from "../models/user.ts";
 import { domainConfig } from "../page-props/domain.ts";
 import { settingsGuard } from "../page-props/settings/guard.ts";
 import { settingsAdvancedUserPolicy } from "../policies/settings/advanced-user.ts";
+import { settingsBillingPolicy } from "../policies/settings/billing.ts";
 import { settingsThirdPartyAnalyticsUserPolicy } from "../policies/settings/third-party-analytics-user.ts";
 import { HandBackToRails, type ActionResult } from "./application-controller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
@@ -173,9 +178,51 @@ async function updateAdvanced(input: MutationInput): Promise<ActionResult> {
   return redirect(ADVANCED_PATH, toSentence(seller.errors.fullMessages()));
 }
 
+// Settings::BillingController#update (app/controllers/settings/billing_controller.rb). Only a plain string, null or boolean
+// is ported: Rails drops other types of a permitted key, and a blank boolean is nil in a NOT NULL column.
+const BILLING_PATH = "/settings/billing";
+const FLASH_BILLING_SAVED = "Your billing details have been saved.";
+const BILLING_TEXT_ATTRIBUTES = ["full_name", "business_name", "business_id", "street_address", "city", "state", "zip_code", "country_code", "additional_notes"] as const;
+// ActiveModel::Type::Boolean's FALSE_VALUES, for the strings that reach the port.
+const BOOLEAN_FALSE_STRINGS = ["0", "f", "F", "false", "FALSE", "off", "OFF"];
+
+// `params.require(:billing_detail).permit(...)`: a non-blank hash. Anything else raises inside the action.
+function billingDetailAttributes(params: Record<string, unknown>): Partial<BillingDetail> {
+  const detail = params.billing_detail;
+  if (!isHash(detail) || Object.keys(detail).length === 0) throw new HandBackToRails("a request without a billing_detail hash");
+  const attributes: Record<string, unknown> = {};
+  for (const key of BILLING_TEXT_ATTRIBUTES) if (key in detail) attributes[key] = stringValue(detail[key]);
+  if ("auto_email_invoice_enabled" in detail) {
+    const value = detail.auto_email_invoice_enabled;
+    if (typeof value === "boolean") attributes.auto_email_invoice_enabled = value;
+    else if (typeof value === "string" && value !== "") attributes.auto_email_invoice_enabled = !BOOLEAN_FALSE_STRINGS.includes(value);
+    else throw new HandBackToRails("an auto_email_invoice_enabled value that does not cast cleanly");
+  }
+  return attributes as Partial<BillingDetail>;
+}
+
+// inertia_errors(billing_detail): `billing_detail.<attribute>` keys, each attribute's messages joined as a sentence.
+function billingErrors(detail: ModelRecord<BillingDetail>): Record<string, unknown> {
+  const attributes = [...new Set(detail.errors.details.map((error) => error.attribute))];
+  return Object.fromEntries(attributes.map((attribute) => [`billing_detail.${attribute}`, toSentence(detail.errors.on(attribute))]));
+}
+
+async function updateBillingDetail(input: MutationInput): Promise<ActionResult> {
+  const denied = await guard(input, settingsBillingPolicy.update);
+  if (denied) return denied;
+
+  const attributes = billingDetailAttributes(input.params);
+  const purchaserId = input.context.currentSeller!.id;
+  const detail = (await billingDetailOfPurchaser(purchaserId)) ?? BillingDetails.build({ purchaser_id: purchaserId });
+  detail.assign(attributes);
+  if (await BillingDetails.save(detail)) return { status: SEE_OTHER, location: BILLING_PATH, flash: { notice: FLASH_BILLING_SAVED } };
+  return { status: FOUND, location: BILLING_PATH, inertiaErrors: billingErrors(detail) };
+}
+
 registerMutations(
   ...["PUT", "PATCH"].flatMap((method) => [
     { method, pattern: ANALYTICS_PATH, run: updateThirdPartyAnalytics },
     { method, pattern: ADVANCED_PATH, run: updateAdvanced },
+    { method, pattern: BILLING_PATH, run: updateBillingDetail },
   ]),
 );

@@ -4,7 +4,7 @@ import { railsLoggedInUser } from "../../auth/resolve.ts";
 import { DISCOVER_OPTIONS } from "../../controllers/discover-page.ts";
 import { remoteIp } from "../audience/events.ts";
 import type { PageSpec } from "../pages.ts";
-import { createDiscoverSearch, type DiscoverRequest, discoverProps, isSearching, prepareSearch, searchResults, setMetaTags } from "./discover.ts";
+import { createDiscoverSearch, type DiscoverRequest, deferredProps, discoverProps, isDeferredOnlyRequest, isSearching, prepareSearch, searchResults, setMetaTags } from "./discover.ts";
 
 const discoverPage: PageSpec = {
   component: "Discover/Index",
@@ -28,13 +28,17 @@ const discoverPage: PageSpec = {
       guid,
     };
     const prepared = await prepareSearch(request, visitor);
+    if (isDeferredOnlyRequest(headers)) {
+      for (const key of meta.keys()) meta.remove(key);
+      return deferredProps(prepared, request, visitor);
+    }
     const results = await searchResults(prepared, request);
     if (isSearching(prepared.params)) {
       const query = prepared.params.query;
       await createDiscoverSearch({ query: query === undefined || query === null ? null : String(query), taxonomyId: prepared.taxonomy?.id ?? null }, request, visitor, prepared.params);
     }
     setMetaTags(meta, prepared, results, visitor !== null, queryString);
-    return discoverProps(prepared, results, visitor);
+    return discoverProps(prepared, results, visitor, request);
   },
 };
 
