@@ -6,6 +6,7 @@ import * as Routes from "@/lib/navigation/routes";
 
 import type { ActionOptions, Redirected } from "../controllers/application-controller.ts";
 import { LOGIN_OPTIONS, SECURE_REDIRECT_OPTIONS, SIGNUP_OPTIONS, TWO_FACTOR_OPTIONS } from "../controllers/auth-pages.ts";
+import { REVIEW_REMINDER_OPTIONS, reviewReminderProps } from "../controllers/review-reminders.ts";
 import { loginPageProps, secureRedirectPageProps, signupPageProps, twoFactorPageProps } from "./auth-pages.ts";
 import { BUYER_PAGES } from "./buyer/pages.ts";
 import { assetHost } from "./domain.ts";
@@ -120,6 +121,15 @@ export const PAGES: Record<string, PageSpec> = {
   "/oauth/login": { component: "Logins/New", options: LOGIN_OPTIONS, props: (_, action) => loginPageProps(action) },
   "/signup": { component: "Signup/New", options: SIGNUP_OPTIONS, props: (_, action) => signupPageProps(action) },
   "/two-factor": { component: "TwoFactorAuthentication/Show", options: TWO_FACTOR_OPTIONS, props: (_, action) => twoFactorPageProps(action) },
+  // Users::ReviewRemindersController: the opt-out is written by the filters (controllers/review-reminders.ts).
+  "/users/subscribe_review_reminders": { component: "Users/ReviewReminders/Subscribe", options: REVIEW_REMINDER_OPTIONS.subscribe, props: () => ({}) },
+  "/users/unsubscribe_review_reminders": { component: "Users/ReviewReminders/Unsubscribe", options: REVIEW_REMINDER_OPTIONS.unsubscribe, props: () => ({}) },
+  "/users/subscribe_review_reminders/:id": { component: "Users/ReviewReminders/Subscribe", options: REVIEW_REMINDER_OPTIONS.subscribeByToken, props: () => ({}) },
+  "/users/unsubscribe_review_reminders/:id": {
+    component: "Users/ReviewReminders/Unsubscribe",
+    options: REVIEW_REMINDER_OPTIONS.unsubscribeByToken,
+    props: (_, action) => reviewReminderProps(action.state),
+  },
   "/secure_url_redirect": { component: "SecureRedirect/New", options: SECURE_REDIRECT_OPTIONS, props: (_, action) => secureRedirectPageProps(action) },
   "/help/category/:slug": {
     component: "HelpCenter/Categories/Show",
