@@ -4,6 +4,7 @@ import "@/server/controllers/emails-mutations";
 import "@/server/controllers/workflows-mutations";
 import "@/server/controllers/products-mutations";
 import "@/server/controllers/settings-mutations";
+import "@/server/controllers/settings-team-mutations";
 import "@/server/controllers/social-callbacks";
 import "@/server/controllers/connections-mutations";
 import "@/server/controllers/oauth-applications-mutations";
@@ -25,6 +26,8 @@ import "@/server/controllers/auth-mutations";
 import "@/server/controllers/auth-account-mutations";
 import "@/server/controllers/internal-admin/index";
 import "@/server/controllers/internal-api";
+import "@/server/controllers/product-editor-json";
+import "@/server/controllers/product-editor-mutations";
 import { mutationResponse } from "@/server/controllers/mutation";
 
 // GET: the logout and emailed two-factor links, which change state without a form.

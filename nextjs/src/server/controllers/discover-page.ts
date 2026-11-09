@@ -1,16 +1,18 @@
 // DiscoverController#index's filters: everything the port cannot answer exactly goes to Rails whole, before the
-// page renders. The deferred props and the autocomplete request are Rails'; curated products (a visitor with a
+// page renders. The deferred props the port cannot answer and the autocomplete request are Rails'; curated products (a visitor with a
 // cart or purchases), the Black Friday page, the affiliate cookie and a card the product presenter cannot build
 // are too.
 import { railsLoggedInUser } from "../auth/resolve.ts";
 import { remoteIp } from "../page-props/audience/events.ts";
 import {
   blackFridayFeatureActive,
+  deferredPropsPortable,
   type DiscoverRequest,
   hasCuratedProductSources,
   isAutocompleteOnlyRequest,
   isDeferredOnlyRequest,
   prepareSearch,
+  requestedDeferredProps,
   requestParams,
   searchResults,
 } from "../page-props/discover/discover.ts";
@@ -47,7 +49,8 @@ export async function discoverFilters(chain: Chain): Promise<FilterOutcome> {
   // A nested query changes what `params` holds (requestParams refuses it).
   const rawParams = requestParams(request.path, request.queryString);
   if (AFFILIATE_PARAMS.some((name) => name in rawParams)) throw new HandBackToRails();
-  if (isDeferredOnlyRequest(request.headers) || isAutocompleteOnlyRequest(request.headers)) throw new HandBackToRails();
+  if (isAutocompleteOnlyRequest(request.headers)) throw new HandBackToRails();
+  const deferredOnly = isDeferredOnlyRequest(request.headers);
 
   const visitor = railsLoggedInUser(chain.auth.context);
   const guid = guidOf(request, chain.guid);
@@ -55,6 +58,10 @@ export async function discoverFilters(chain: Chain): Promise<FilterOutcome> {
   if (await blackFridayFeatureActive(rawParams)) throw new HandBackToRails();
 
   const prepared = await prepareSearch(request, visitor);
+  if (deferredOnly) {
+    if (!(await deferredPropsPortable(requestedDeferredProps(request.headers), prepared, visitor, guid))) throw new HandBackToRails();
+    return { state: {} };
+  }
   try {
     await searchResults(prepared, discoverRequestOf(request, guid));
   } catch (error) {

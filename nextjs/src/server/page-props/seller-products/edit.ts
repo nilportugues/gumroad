@@ -22,6 +22,7 @@ import { jsonDataHash, authorBylineProps } from "../../presenters/product.ts";
 import type { LinkRow, UserRow } from "../../presenters/product-reads.ts";
 import { fromAddressWithName } from "../audience/mail-addresses.ts";
 import { domainConfig } from "../domain.ts";
+import { hasVariantRichContent, variantProps, versionRows, versionStamps, type VersionRows } from "./edit-variants.ts";
 import data from "./edit-data.generated.json" with { type: "json" };
 
 // Link::NATIVE_TYPE_DIGITAL, _COURSE, _EBOOK: the types whose editor state is the plain product's (no tiers, calls,
@@ -65,7 +66,7 @@ function plain(value: YamlValue | undefined): unknown {
 type Blocker = { blocker: string };
 
 // The rows that would make the editor's state something this port does not model. Each is a table the presenter reads
-// (files, rich content, versions, covers, integrations, tags ...) or a sale, whose count Rails reads from Elasticsearch.
+// (files, rich content, covers, integrations ...) or a sale, whose count Rails reads from Elasticsearch.
 export async function editBlockers(product: LinkRow, seller: UserRow): Promise<string[]> {
   const id = product.id;
   const sellerId = seller.id;
@@ -75,12 +76,13 @@ export async function editBlockers(product: LinkRow, seller: UserRow): Promise<s
     exists("thumbnail", Prisma.sql`${table("thumbnails")} WHERE ${column("thumbnails", "product_id")} = ${id} AND ${column("thumbnails", "deleted_at")} IS NULL`),
     exists("product_files", Prisma.sql`${table("product_files")} WHERE ${column("product_files", "link_id")} = ${id} AND ${column("product_files", "deleted_at")} IS NULL`),
     exists("rich_contents", Prisma.sql`${table("rich_contents")} WHERE ${column("rich_contents", "entity_id")} = ${id} AND ${column("rich_contents", "entity_type")} = 'Link' AND ${column("rich_contents", "deleted_at")} IS NULL`),
-    exists("variant_categories", Prisma.sql`${table("variant_categories")} WHERE ${column("variant_categories", "link_id")} = ${id} AND ${column("variant_categories", "deleted_at")} IS NULL`),
+    // A version enabled for an integration: its `integrations` / `loaded_integrations` props are not read.
+    exists("variant_integrations", Prisma.sql`${table("base_variant_integrations")} INNER JOIN ${table("base_variants")} ON ${column("base_variants", "id")} = ${column("base_variant_integrations", "base_variant_id")} INNER JOIN ${table("variant_categories")} ON ${column("variant_categories", "id")} = ${column("base_variants", "variant_category_id")} WHERE ${column("variant_categories", "link_id")} = ${id} AND ${column("base_variant_integrations", "deleted_at")} IS NULL`),
+    // SKUs hang off the product (`link_id`); versions leave it null.
     exists("skus", Prisma.sql`${table("base_variants")} WHERE ${column("base_variants", "link_id")} = ${id} AND ${column("base_variants", "deleted_at")} IS NULL`),
     exists("integrations", Prisma.sql`${table("product_integrations")} WHERE ${column("product_integrations", "product_id")} = ${id} AND ${column("product_integrations", "deleted_at")} IS NULL`),
     exists("shipping_destinations", Prisma.sql`${table("shipping_destinations")} WHERE ${column("shipping_destinations", "link_id")} = ${id} AND ${column("shipping_destinations", "deleted_at")} IS NULL`),
     exists("shipping_exclusions", Prisma.sql`${table("shipping_exclusions")} WHERE ${column("shipping_exclusions", "product_id")} = ${id}`),
-    exists("tags", Prisma.sql`${table("product_taggings")} WHERE ${column("product_taggings", "product_id")} = ${id}`),
     exists("collaborator", Prisma.sql`${table("affiliates_links")} INNER JOIN ${table("affiliates")} ON ${column("affiliates", "id")} = ${column("affiliates_links", "affiliate_id")} WHERE ${column("affiliates_links", "link_id")} = ${id} AND ${column("affiliates", "type")} = 'Collaborator'`),
     exists("custom_html", Prisma.sql`${table("pages")} WHERE ${column("pages", "pageable_type")} = 'Link' AND ${column("pages", "pageable_id")} = ${id}`),
     exists("custom_domain", Prisma.sql`${table("custom_domains")} WHERE ${column("custom_domains", "product_id")} = ${id} AND ${column("custom_domains", "deleted_at")} IS NULL`),
@@ -92,7 +94,6 @@ export async function editBlockers(product: LinkRow, seller: UserRow): Promise<s
     exists("reviews", Prisma.sql`${table("product_review_stats")} WHERE ${column("product_review_stats", "link_id")} = ${id} AND ${column("product_review_stats", "reviews_count")} > 0`),
     // The picker offers the seller's whole file library.
     exists("existing_files", Prisma.sql`${table("product_files")} INNER JOIN ${table("links")} ON ${column("links", "id")} = ${column("product_files", "link_id")} WHERE ${column("links", "user_id")} = ${sellerId} AND ${column("product_files", "deleted_at")} IS NULL`),
-    exists("other_refund_policies", Prisma.sql`${table("refund_policies")} WHERE ${column("refund_policies", "seller_id")} = ${sellerId} AND ${column("refund_policies", "product_id")} IS NOT NULL AND ${column("refund_policies", "product_id")} <> ${id}`),
     exists("seller_custom_domain", Prisma.sql`${table("custom_domains")} WHERE ${column("custom_domains", "user_id")} = ${sellerId} AND ${column("custom_domains", "deleted_at")} IS NULL`),
     exists("seller_refund_policy_missing", Prisma.sql`${table("users")} WHERE ${column("users", "id")} = ${sellerId} AND NOT EXISTS (SELECT 1 FROM ${table("refund_policies")} WHERE ${column("refund_policies", "seller_id")} = ${sellerId} AND ${column("refund_policies", "product_id")} IS NULL)`),
     exists("taxonomy_attribute_values", Prisma.sql`${table("taxonomy_attributes")} WHERE ${column("taxonomy_attributes", "active")} = TRUE AND JSON_TYPE(${column("taxonomy_attributes", "values")}) NOT IN ('ARRAY', 'NULL')`),
@@ -106,6 +107,9 @@ export async function editBlockers(product: LinkRow, seller: UserRow): Promise<s
   for (const flag of ["is_recurring_billing", "is_tiered_membership", "is_physical", "is_bundle", "is_in_preorder_state", "free_trial_enabled", "is_collab", "skus_enabled"] as const) {
     if (set(flag)) blockers.push(flag);
   }
+  // `recoverable_hidden_variant_rich_content?` reads `RichContent#has_editor_content?` of the versions' pages when the
+  // product shares one set of pages; the port only serves the case where there are none.
+  if (set("has_same_rich_content_for_all_variants") && (await hasVariantRichContent(id))) blockers.push("hidden_variant_rich_content");
   if (product.max_purchase_count !== null) blockers.push("max_purchase_count");
   if (product.default_offer_code_id !== null) blockers.push("default_offer_code");
   if (product.subscription_duration !== null) blockers.push("subscription_duration");
@@ -120,16 +124,18 @@ export async function assertEditSupported(product: LinkRow, seller: UserRow, cur
   if ((await editBlockers(product, seller)).length > 0) throw new HandBackToRails();
 }
 
-// Product::EditorRevision.current for a product with none of the five collections the digest covers.
-export function editorRevision(product: LinkRow, secretKeyBase = getConfig("SECRET_KEY_BASE") ?? ""): string {
+// Port of app/services/product/editor_revision.rb `fingerprint`/`digest`, for a product whose rich content, files, public
+// files and integrations (editBlockers) are empty: only the versions and their categories contribute.
+export function editorRevision(product: LinkRow, secretKeyBase = getConfig("SECRET_KEY_BASE") ?? "", versions: VersionRows = { categories: [], variants: [] }): string {
+  const stamps = versionStamps(versions);
   const flag = (name: Parameters<typeof LinkFlags.isSet>[1]) => LinkFlags.isSet(product.flags as bigint, name);
   const fingerprint = {
     version: EDITOR_REVISION_VERSION,
     product: Number(product.id),
     product_state: { has_same_rich_content_for_all_variants: flag("has_same_rich_content_for_all_variants"), is_tiered_membership: flag("is_tiered_membership"), is_physical: flag("is_physical") },
     rich_content: [],
-    variants: [],
-    variant_categories: [],
+    variants: stamps.variants,
+    variant_categories: stamps.variant_categories,
     files: [],
     public_files: [],
     integrations: [],
@@ -211,6 +217,32 @@ async function customAttributeNameSuggestions(productId: bigint, sellerId: bigin
   return [...new Set(rows.map((row) => rubyStrip(String(row.name))).filter((name) => name !== ""))];
 }
 
+// Port of app/models/concerns/product/tags.rb: `has_many :tags, through: :product_taggings`, ordered by tag_id.
+export async function productTagNames(productId: bigint): Promise<string[]> {
+  const rows = await selectRows<{ name: string | null }>(
+    Prisma.sql`SELECT ${column("tags", "name")} FROM ${table("product_taggings")} INNER JOIN ${table("tags")} ON ${column("tags", "id")} = ${column("product_taggings", "tag_id")} WHERE ${column("product_taggings", "product_id")} = ${productId} ORDER BY ${column("product_taggings", "tag_id")} ASC, ${column("product_taggings", "id")} ASC`,
+  );
+  return rows.map((row) => row.name as string);
+}
+
+// Links.flags bit for `archived` (Link::flag 5), as in Link.visible_and_not_archived.
+const LINK_ARCHIVED_FLAG = 1n << 4n;
+
+// Port of app/models/product_refund_policy.rb (#as_json, .for_visible_and_not_archived_products) as read by
+// ProductPresenter#edit_props: the seller's other products' policies, most recently updated first.
+export async function otherProductRefundPolicies(productId: bigint, sellerId: bigint) {
+  const rows = await selectRows<{ id: bigint; fine_print: string | null; max_refund_period_in_days: number | null; product_name: string | null }>(
+    Prisma.sql`SELECT ${column("refund_policies", "id")}, ${column("refund_policies", "fine_print")}, ${column("refund_policies", "max_refund_period_in_days")}, ${column("links", "name")} AS product_name FROM ${table("refund_policies")} INNER JOIN ${table("links")} ON ${column("links", "id")} = ${column("refund_policies", "product_id")} WHERE ${column("refund_policies", "seller_id")} = ${sellerId} AND ${column("refund_policies", "product_id")} IS NOT NULL AND ${column("refund_policies", "product_id")} <> ${productId} AND ${column("links", "deleted_at")} IS NULL AND (${column("links", "flags")} & ${LINK_ARCHIVED_FLAG}) = 0 ORDER BY ${column("refund_policies", "updated_at")} DESC, ${column("refund_policies", "id")} DESC`,
+  );
+  return rows.map((row) => ({
+    fine_print: row.fine_print,
+    id: externalId(row.id),
+    max_refund_period_in_days: row.max_refund_period_in_days,
+    product_name: row.product_name,
+    title: refundPeriodTitle(row.max_refund_period_in_days),
+  }));
+}
+
 // User#account_level_refund_policy_enabled?
 async function accountLevelRefundPolicyEnabled(seller: UserRow, now: Date): Promise<boolean> {
   if (await isFeatureEnabled("seller_refund_policy_disabled_for_all")) return false;
@@ -263,6 +295,9 @@ export async function editProps({ product, seller, sellerExternalId, aiGenerated
   // find_or_initialize_product_refund_policy: an unsaved policy takes the attribute defaults.
   const refundPolicy = refund ?? { max_refund_period_in_days: DEFAULT_REFUND_PERIOD_IN_DAYS, fine_print: null };
 
+  const versions = await versionRows(product.id);
+  const tags = await productTagNames(product.id);
+  const otherRefundPolicies = await otherProductRefundPolicies(product.id, seller.id);
   const sections = await profileSections(seller);
   const actor = userActor(seller.id);
   const sellerRecord = Users.load(castRow<User>("User", seller as never));
@@ -276,7 +311,7 @@ export async function editProps({ product, seller, sellerExternalId, aiGenerated
   return {
     product: {
       name: product.name,
-      editor_revision: editorRevision(product),
+      editor_revision: editorRevision(product, undefined, versions),
       loaded_integrations: Object.fromEntries(INTEGRATION_NAMES.map((name) => [name, false])),
       custom_permalink: product.custom_permalink,
       description: product.description ?? "",
@@ -319,13 +354,13 @@ export async function editProps({ product, seller, sellerExternalId, aiGenerated
       first_published_at: product.first_published_at ? instantInTimeZoneIso8601("UTC", product.first_published_at as Date) : null,
       require_shipping: false,
       integrations: Object.fromEntries(INTEGRATION_NAMES.map((name) => [name, null])),
-      variants: [],
+      variants: await variantProps(versions, flag("has_same_rich_content_for_all_variants")),
       availabilities: [],
       shipping_destinations: [],
       shipping_excluded_country_codes: [],
       section_ids: sections.filter((section) => section.shown.includes(Number(product.id))).map((section) => externalId(section.row.id)),
       taxonomy_id: product.taxonomy_id === null || product.taxonomy_id === undefined ? null : String(product.taxonomy_id),
-      tags: [],
+      tags,
       display_product_reviews: flag("display_product_reviews"),
       is_adult: flag("is_adult"),
       discover_fee_per_thousand: product.discover_fee_per_thousand,
@@ -341,7 +376,8 @@ export async function editProps({ product, seller, sellerExternalId, aiGenerated
       collaborating_user: null,
       rich_content: [],
       files: [],
-      has_same_rich_content_for_all_variants: false,
+      // `recoverable_hidden_variant_rich_content?` is false here (editBlockers).
+      has_same_rich_content_for_all_variants: flag("has_same_rich_content_for_all_variants"),
       is_multiseat_license: flag("is_multiseat_license"),
       call_limitation_info: null,
       native_type: product.native_type,
@@ -354,7 +390,7 @@ export async function editProps({ product, seller, sellerExternalId, aiGenerated
     id: externalId(product.id),
     unique_permalink: product.unique_permalink,
     thumbnail: null,
-    refund_policies: [],
+    refund_policies: otherRefundPolicies,
     currency_type: product.price_currency_type,
     is_tiered_membership: false,
     can_close_membership_tiers: false,

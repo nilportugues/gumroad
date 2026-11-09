@@ -13,6 +13,7 @@ export function fakeDatabase() {
   let transactions = 0;
   const queries: { sql: string; values: unknown[] }[] = [];
   let queryResult: unknown[] = [];
+  const queued: unknown[][] = [];
 
   const delegate = <R extends Row>(model: string): Delegate<R> => ({
     async create({ data }) {
@@ -33,7 +34,7 @@ export function fakeDatabase() {
   const delegates = new Map<string, Delegate<Row>>();
   const $queryRaw = async (query: { sql: string; values: unknown[] }) => {
     queries.push({ sql: query.sql, values: query.values });
-    return queryResult;
+    return queued.length > 0 ? queued.shift()! : queryResult;
   };
   // `tx.user`, `tx.link`, ... resolve to recording delegates named after the property.
   const tx = new Proxy({} as Tx, {
@@ -68,6 +69,10 @@ export function fakeDatabase() {
     },
     nextQueryResult(rows: unknown[]) {
       queryResult = rows;
+    },
+    // One answer per query, in the order the queries run; later queries get the `nextQueryResult` rows.
+    queueQueryResults(...batches: unknown[][]) {
+      queued.push(...batches);
     },
   };
 }

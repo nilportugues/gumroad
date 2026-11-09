@@ -6,7 +6,7 @@ import { storageConfig } from "../../infra/storage.ts";
 import { parseJsonData, filterValue } from "../../models/with-filtering.ts";
 import { column, selectRows, table } from "../../models/sql.ts";
 import { audienceTypes, affiliateProductsForFilterBox, productsForFilterBox } from "../audience/user-presenter.ts";
-import { engagementOf, flagSet, preloadEngagement } from "../audience/installments.ts";
+import { displayedName, engagementOf, flagSet, preloadEngagement } from "../audience/installments.ts";
 import { timeZoneAbbreviation } from "../audience/workflows.ts";
 import { externalId, paramToI, present, stringParam, type QuerySource } from "../audience/support.ts";
 import DATA from "../audience/audience-data.generated.json" with { type: "json" };
@@ -183,10 +183,7 @@ async function emailedPostOptions(seller: User, savedId: string | null) {
   const rows = await selectRows<Installment>(
     Prisma.sql`SELECT * FROM ${table(INSTALLMENTS)} WHERE ${column(INSTALLMENTS, "seller_id")} = ${seller.id} AND ${aliveNotWorkflow} AND ${column(INSTALLMENTS, "published_at")} IS NOT NULL AND ${column(INSTALLMENTS, "flags")} & ${FLAG_SEND_EMAILS} > 0 AND ${column(INSTALLMENTS, "flags")} & ${FLAG_SINGLE_RECIPIENT_EMAIL} = 0 AND ${column(INSTALLMENTS, "installment_type")} IN ('seller', 'product', 'variant') ORDER BY ${column(INSTALLMENTS, "published_at")} DESC LIMIT ${EMAILED_POST_OPTIONS_LIMIT}`,
   );
-  const option = (row: Installment) => {
-    if (!present(row.name)) throw new NotPortedError("Installment#displayed_name for an email without a name (truncate(strip_tags(message)))");
-    return { external_id: externalId(row.id), name: row.name };
-  };
+  const option = (row: Installment) => ({ external_id: externalId(row.id), name: displayedName(row) });
   const posts = rows.map(option);
   if (!present(savedId) || posts.some((post) => post.external_id === savedId)) return posts;
   const saved = await findInstallmentByExternalId(seller, savedId);

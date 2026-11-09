@@ -35,6 +35,7 @@ import { PAYOUTS_PAGES } from "./payouts/pages.ts";
 import { CHECKOUT_PAGES } from "./checkout-pages.ts";
 import { AGENT_PAGES } from "./agent/pages.ts";
 import { SELLER_PRODUCTS_PAGES } from "./seller-products/pages.ts";
+import { BUNDLES_PAGES } from "./bundles/pages.ts";
 import { URL_REDIRECT_PAGES } from "./url-redirects/pages.ts";
 import { COMMUNITY_PAGES } from "./communities/pages.ts";
 import { DISCOVER_PAGES } from "./discover/pages.ts";
@@ -162,6 +163,7 @@ export const PAGES: Record<string, PageSpec> = {
   ...PIRACY_REPORT_PAGES,
   ...AGENT_PAGES,
   ...SELLER_PRODUCTS_PAGES,
+  ...BUNDLES_PAGES,
   ...URL_REDIRECT_PAGES,
   ...COMMUNITY_PAGES,
   ...DISCOVER_PAGES,

@@ -68,6 +68,8 @@ export type CustomersParams = {
   // `GET /customers/paged`: the sort ES takes ahead of the date order, and the 1-indexed page the answer reports.
   sort?: Record<string, unknown> | null;
   paged?: boolean;
+  // PurchaseSearchService options of the filter box (`GET /customers/paged`).
+  filters?: Record<string, unknown>;
 };
 
 // `from` is 0-indexed; page 500 (1-indexed) is the last legal ES window (9980).
@@ -99,6 +101,7 @@ async function fetchSales(seller: User, params: CustomersParams, product: Row | 
     sort: [{ created_at: { order: "desc" } }, { id: { order: "desc" } }],
     track_total_hits: true,
     seller_query: params.query,
+    ...params.filters,
   };
   if (params.sort) (options.sort as unknown[]).unshift(params.sort);
   return PurchaseSearchService.process(options);
