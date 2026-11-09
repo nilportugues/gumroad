@@ -4,13 +4,21 @@
 // A code or cart that needs more than that hands back to Rails (HandBackToRails): an existing-customers, tiered
 // or once-per-cart-fixed code, a new-customers code for a signed-in buyer (purchase history), a code limited to
 // options, and a line whose product has cross-sells to apply optimistically.
-import { Prisma, type Link, type OfferCode } from "@prisma/client";
+import { Prisma, type Link } from "@prisma/client";
 
-import { selectRows, castRow, column, table } from "../models/sql.ts";
 import type { OfferCodeRecord } from "../models/offer-code.ts";
-import { applicable, asRecord, currencyValid, fullDiscount, normalizeCode, star } from "../presenters/best-offer-code.ts";
+import { selectRows, castRow, column, table } from "../models/sql.ts";
 import { paramToI } from "../page-props/audience/support.ts";
+import {
+  applicable,
+  asRecord,
+  currencyValid,
+  fullDiscount,
+  normalizeCode,
+  star,
+} from "../presenters/best-offer-code.ts";
 import { esJson, type JsonValue } from "../search/es-json.ts";
+
 import { HandBackToRails, type Rendered } from "./application-controller.ts";
 import { parseQuery, type Query } from "./rails-query.ts";
 import type { RailsRequest } from "./rails-request.ts";
@@ -27,10 +35,13 @@ export const INELIGIBILITY_MESSAGES: Record<string, string> = {
 };
 
 export const PARTIAL_APPLICATION_MESSAGES: Record<string, string> = {
-  insufficient_times_of_use: "The discount code was applied to some products. The rest exceed the quantity still available on the code.",
+  insufficient_times_of_use:
+    "The discount code was applied to some products. The rest exceed the quantity still available on the code.",
   sold_out: "The discount code was applied to some products. The rest exceed its remaining usage limit.",
-  unmet_minimum_purchase_quantity: "The discount code was applied to some products. The rest do not meet its minimum quantity.",
-  not_existing_customer: "The discount code was applied to some products. The rest are only discounted for existing customers.",
+  unmet_minimum_purchase_quantity:
+    "The discount code was applied to some products. The rest do not meet its minimum quantity.",
+  not_existing_customer:
+    "The discount code was applied to some products. The rest are only discounted for existing customers.",
   not_new_customer: "The discount code was applied to some products. The rest are only discounted for new customers.",
   option_not_eligible: "The code applies to some items. The selected options for the other items are not eligible.",
 };
@@ -40,7 +51,11 @@ export const PARTIAL_APPLICATION_MESSAGES: Record<string, string> = {
 const DISPLAY_PRIORITY = ["unmet_minimum_purchase_quantity", "insufficient_times_of_use", "sold_out"] as const;
 
 export type CartLine = { permalink?: string; quantity?: string };
-export type ComputeResult = { products_data: Record<string, Record<string, unknown>>; error_code: string | null; partial_ineligibility_code: string | null };
+export type ComputeResult = {
+  products_data: Record<string, Record<string, unknown>>;
+  error_code: string | null;
+  partial_ineligibility_code: string | null;
+};
 
 // OfferCodesController#product_params: only scalar line-item fields are read; a nested or repeated shape reads as absent.
 export function cartLines(query: Query): Record<string, CartLine> {
@@ -62,7 +77,9 @@ async function visibleLinks(permalinks: string[]): Promise<Link[]> {
   const rows = await selectRows<Record<string, unknown>>(
     Prisma.sql`SELECT ${star("links")} FROM ${table("links")} WHERE ${column("links", "deleted_at")} IS NULL AND ${column("links", "unique_permalink")} IN (${Prisma.join(permalinks)})`,
   );
-  const byPermalink = new Map(rows.map((row) => castRow<Link>("Link", row)).map((link) => [link.unique_permalink, link]));
+  const byPermalink = new Map(
+    rows.map((row) => castRow<Link>("Link", row)).map((link) => [link.unique_permalink, link]),
+  );
   return permalinks.flatMap((permalink) => byPermalink.get(permalink) ?? []);
 }
 
@@ -76,15 +93,32 @@ async function sellerHasAvailableCrossSells(userId: bigint | number): Promise<bo
 
 function assertSupported(code: OfferCodeRecord, signedIn: boolean): void {
   const { row } = code;
-  if (row.existing_customers_only || code.tiered() || (row.amount_cents != null && code.oncePerCart)) throw new HandBackToRails("compute_discount for an existing-customers, tiered or once-per-cart code");
-  if (row.new_customers_only && signedIn) throw new HandBackToRails("compute_discount new-customers code for a signed-in buyer");
+  if (row.existing_customers_only || code.tiered() || (row.amount_cents != null && code.oncePerCart))
+    throw new HandBackToRails("compute_discount for an existing-customers, tiered or once-per-cart code");
+  if (row.new_customers_only && signedIn)
+    throw new HandBackToRails("compute_discount new-customers code for a signed-in buyer");
 }
 
 // OfferCodeDiscountComputingService#process
-export async function processDiscount(code: string, lines: Record<string, CartLine>, signedIn: boolean, now: Date): Promise<ComputeResult> {
+export async function processDiscount(
+  code: string,
+  lines: Record<string, CartLine>,
+  signedIn: boolean,
+  now: Date,
+): Promise<ComputeResult> {
   const entriesByPermalink = new Map<string, CartLine[]>();
-  for (const line of Object.values(lines)) entriesByPermalink.set(line.permalink as string, [...(entriesByPermalink.get(line.permalink as string) ?? []), line]);
-  const permalinks = [...new Set(Object.values(lines).map((line) => line.permalink).filter((permalink): permalink is string => permalink !== undefined))];
+  for (const line of Object.values(lines))
+    entriesByPermalink.set(line.permalink as string, [
+      ...(entriesByPermalink.get(line.permalink as string) ?? []),
+      line,
+    ]);
+  const permalinks = [
+    ...new Set(
+      Object.values(lines)
+        .map((line) => line.permalink)
+        .filter((permalink): permalink is string => permalink !== undefined),
+    ),
+  ];
   const links = await visibleLinks(permalinks);
 
   // `OfferCode.none if code.blank?`
@@ -114,9 +148,13 @@ export async function processDiscount(code: string, lines: Record<string, CartLi
     applicableCodes.push(offerCode);
     assertSupported(offerCode, signedIn);
     if (await offerCode.hasVariants()) throw new HandBackToRails("compute_discount for a code limited to options");
-    if (await sellerHasAvailableCrossSells(link.user_id as bigint)) throw new HandBackToRails("compute_discount with cross-sells to apply optimistically");
+    if (await sellerHasAvailableCrossSells(link.user_id as bigint))
+      throw new HandBackToRails("compute_discount with cross-sells to apply optimistically");
 
-    const quantity = (entriesByPermalink.get(link.unique_permalink!) ?? []).reduce((sum, line) => sum + paramToI(line.quantity ?? ""), 0);
+    const quantity = (entriesByPermalink.get(link.unique_permalink!) ?? []).reduce(
+      (sum, line) => sum + paramToI(line.quantity ?? ""),
+      0,
+    );
     const { minimum_quantity: minimum, max_purchase_count: max } = offerCode.row;
     const meetsMinimum = minimum == null || quantity >= minimum;
     const left = async () => {
@@ -152,7 +190,8 @@ export async function computeDiscount(request: RailsRequest, signedIn: boolean, 
     throw new HandBackToRails("compute_discount with a malformed query");
   }
   // `normalize_code(params[:code])` calls `to_s`: an array or hash code is Ruby's to render.
-  if (query.code !== undefined && typeof query.code !== "string") throw new HandBackToRails("compute_discount with a non-scalar code");
+  if (query.code !== undefined && typeof query.code !== "string")
+    throw new HandBackToRails("compute_discount with a non-scalar code");
   const result = await processDiscount(normalizeCode(query.code ?? ""), cartLines(query), signedIn, now);
 
   const response =
@@ -161,7 +200,14 @@ export async function computeDiscount(request: RailsRequest, signedIn: boolean, 
       : {
           valid: true,
           products_data: result.products_data,
-          ...(result.partial_ineligibility_code === null ? {} : { notice: PARTIAL_APPLICATION_MESSAGES[result.partial_ineligibility_code] }),
+          ...(result.partial_ineligibility_code === null
+            ? {}
+            : { notice: PARTIAL_APPLICATION_MESSAGES[result.partial_ineligibility_code] }),
         };
-  return { status: 200, body: esJson(response as JsonValue), contentType: "application/json; charset=utf-8", paramsRead: true };
+  return {
+    status: 200,
+    body: esJson(response as JsonValue),
+    contentType: "application/json; charset=utf-8",
+    paramsRead: true,
+  };
 }

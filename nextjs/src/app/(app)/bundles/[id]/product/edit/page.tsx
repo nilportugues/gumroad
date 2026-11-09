@@ -2,6 +2,7 @@
 import { renderPage } from "@/server/page-props/render-page";
 
 import { InertiaShell } from "../../../../_shell/InertiaShell";
+
 import BundlesProductEdit from "./BundlesProductEdit";
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {

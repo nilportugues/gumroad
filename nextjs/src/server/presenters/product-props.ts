@@ -5,37 +5,63 @@
 //
 // Goldens: spec/requests/product_page_parity_spec.rb, replayed by parity/__tests__/product-page.replay.test.ts.
 import { Prisma } from "@prisma/client";
+import type { User } from "@prisma/client";
 
 import { encrypt } from "../../lib/obfuscate-ids.ts";
 import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
 import { geoIpLookup } from "../infra/geo-ip.ts";
 import { LinkFlags } from "../models/link.ts";
-import { collaboratingProductIds, linkPolicy } from "../policies/link.ts";
-import type { SellerContext } from "../policies/seller-context.ts";
-import { bestOfferCodeResult, defaultOfferCodes, saleLabel } from "./best-offer-code.ts";
-import { PurchaseSearchService } from "../search/purchase-search.ts";
 import { getFactor } from "../models/purchasing-power-parity.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { isFlagSet, tiktokPixelId, Users } from "../models/user.ts";
 import { thumbnailUrl } from "../page-props/buyer/products.ts";
 import { NotPortedError } from "../page-props/not-ported.ts";
-import { durationDisplayable, numberToHumanSize, pluralize, resolutionDisplayable } from "./human-size.ts";
+import { collaboratingProductIds, linkPolicy } from "../policies/link.ts";
+import type { SellerContext } from "../policies/seller-context.ts";
+import { PurchaseSearchService } from "../search/purchase-search.ts";
+
+import { bestOfferCodeResult, defaultOfferCodes, saleLabel } from "./best-offer-code.ts";
 import { htmlSafeDescription } from "./description.ts";
+import { durationDisplayable, numberToHumanSize, pluralize, resolutionDisplayable } from "./human-size.ts";
 import { findLink, findUserById, type LinkRow, type PriceRow, reviewStat, type UserRow } from "./product-reads.ts";
-import { authorBylineProps, buyerCurrencyDisplayProps, linkFields, longUrl, type PresenterRequest, urlForProductPage } from "./product.ts";
-import type { User } from "@prisma/client";
+import {
+  authorBylineProps,
+  buyerCurrencyDisplayProps,
+  linkFields,
+  longUrl,
+  type PresenterRequest,
+  urlForProductPage,
+} from "./product.ts";
 
 const RENTAL_FLAG_POSITION = 1;
 const DEFAULT_CURRENCY = "usd";
 const LAST_ALLOWED_TIME_FOR_PRODUCT_LEVEL_REFUND_POLICY = new Date(Date.UTC(2025, 2, 31, 23, 59, 59, 999));
 const INSTALLMENT_ELIGIBLE_NATIVE_TYPES = new Set(["call", "course", "digital", "ebook", "bundle"]);
-const RECURRENCE_MONTHS: Record<string, number> = { monthly: 1, quarterly: 3, biannually: 6, yearly: 12, every_two_years: 24 };
+const RECURRENCE_MONTHS: Record<string, number> = {
+  monthly: 1,
+  quarterly: 3,
+  biannually: 6,
+  yearly: 12,
+  every_two_years: 24,
+};
 const ALL_RECURRENCES = Object.keys(RECURRENCE_MONTHS);
-const RENEWAL_REMINDER_DAYS: Record<string, number> = { monthly: 1, quarterly: 7, biannually: 7, yearly: 7, every_two_years: 7 };
+const RENEWAL_REMINDER_DAYS: Record<string, number> = {
+  monthly: 1,
+  quarterly: 7,
+  biannually: 7,
+  yearly: 7,
+  every_two_years: 7,
+};
 const LONG_RENEWAL_THRESHOLD_IN_MONTHS = 12;
 const LONG_RENEWAL_ADVANCE_REMINDER_DAYS = 30;
 const MAX_EPUB_READER_ARCHIVE_SIZE = 32 * 1024 * 1024;
-const RATING_COLUMNS = ["ratings_of_one_count", "ratings_of_two_count", "ratings_of_three_count", "ratings_of_four_count", "ratings_of_five_count"];
+const RATING_COLUMNS = [
+  "ratings_of_one_count",
+  "ratings_of_two_count",
+  "ratings_of_three_count",
+  "ratings_of_four_count",
+  "ratings_of_five_count",
+];
 const PURCHASE_TYPES = ["buy_only", "rent_only", "buy_and_rent"] as const;
 const SUBSCRIPTION_DURATIONS = ["monthly", "yearly", "quarterly", "biannually", "every_two_years"] as const;
 const TRIAL_UNITS = ["week", "month"] as const;
@@ -52,7 +78,8 @@ const USER_REFUND_POLICY_ENABLED_FLAG = 46;
 type Row = Record<string, unknown>;
 const present = (value: string | null | undefined): value is string => value != null && value.trim() !== "";
 const num = (value: unknown): number | null => (value === null || value === undefined ? null : Number(value));
-const flag = (row: LinkRow, name: Parameters<typeof LinkFlags.isSet>[1]) => LinkFlags.isSet(row.flags as bigint | number, name);
+const flag = (row: LinkRow, name: Parameters<typeof LinkFlags.isSet>[1]) =>
+  LinkFlags.isSet(row.flags as bigint | number, name);
 const externalId = (id: bigint | number) => encrypt(id);
 const isoDate = (value: Date) => value.toISOString().slice(0, 10);
 
@@ -60,7 +87,9 @@ const isoDate = (value: Date) => value.toISOString().slice(0, 10);
 export function jsonData(row: { json_data?: unknown }): Record<string, unknown> {
   if (typeof row.json_data !== "string" || row.json_data.trim() === "") return {};
   const parsed: unknown = JSON.parse(row.json_data);
-  return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {};
+  return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
+    ? (parsed as Record<string, unknown>)
+    : {};
 }
 
 export type ProductPageViewer = {
@@ -89,7 +118,8 @@ const alivePricesOf = (productId: bigint) =>
     Prisma.sql`SELECT ${star("prices")} FROM ${table("prices")} WHERE ${column("prices", "link_id")} = ${productId} AND ${column("prices", "deleted_at")} IS NULL ORDER BY ${column("prices", "id")} ASC`,
   );
 
-const sellerFlagBit = (seller: UserRow, position: number) => ((BigInt(seller.flags ?? 0) >> BigInt(position - 1)) & 1n) === 1n;
+const sellerFlagBit = (seller: UserRow, position: number) =>
+  ((BigInt(seller.flags ?? 0) >> BigInt(position - 1)) & 1n) === 1n;
 
 // -------------------------------------------------------------------------------------------------
 // Reviews (Product::ReviewStat#rating_stats, ProductReviewStat#rating_percentages)
@@ -105,7 +135,10 @@ export function ratingPercentages(counts: number[], reviewsCount: number): numbe
   if (reviewsCount === 0) return counts;
   const percentages = counts.map((count) => (count / reviewsCount) * 100);
   // Increment the ratings with the largest remainder so the total is 100.
-  const remainders = percentages.map((percentage, index) => [percentage % 1, index + 1] as const).sort((a, b) => a[0] - b[0] || a[1] - b[1]).reverse();
+  const remainders = percentages
+    .map((percentage, index) => [percentage % 1, index + 1] as const)
+    .sort((a, b) => a[0] - b[0] || a[1] - b[1])
+    .reverse();
   const threshold = Math.round(remainders.reduce((sum, [remainder]) => sum + remainder, 0));
   for (const [, rating] of remainders.slice(0, threshold)) percentages[rating - 1]! += 1;
   return percentages.map((percentage) => Math.floor(percentage));
@@ -124,7 +157,12 @@ const ACTIVE_SALES_SEARCH_OPTIONS = {
 };
 
 async function successfulSalesCount(productId: bigint): Promise<number> {
-  const result = await PurchaseSearchService.process({ ...ACTIVE_SALES_SEARCH_OPTIONS, product: Number(productId), size: 0, track_total_hits: true });
+  const result = await PurchaseSearchService.process({
+    ...ACTIVE_SALES_SEARCH_OPTIONS,
+    product: Number(productId),
+    size: 0,
+    track_total_hits: true,
+  });
   return result.total ?? 0;
 }
 
@@ -132,16 +170,25 @@ async function successfulSalesCount(productId: bigint): Promise<number> {
 // Files (Link#file_info_for_product_page, #has_stream_only_files?, #streamable?)
 
 const isStreamable = (file: Row) => file.filegroup === "video";
-const isBrowserReadable = (file: Row) => file.filetype === "pdf" || (file.filetype === "epub" && (file.size === null || Number(file.size) <= MAX_EPUB_READER_ARCHIVE_SIZE));
+const isBrowserReadable = (file: Row) =>
+  file.filetype === "pdf" ||
+  (file.filetype === "epub" && (file.size === null || Number(file.size) <= MAX_EPUB_READER_ARCHIVE_SIZE));
 const PRODUCT_FILE_STREAM_ONLY_FLAG = 4;
-const isStreamOnly = (file: Row) => (isStreamable(file) || isBrowserReadable(file)) && ((Number(file.flags) >> (PRODUCT_FILE_STREAM_ONLY_FLAG - 1)) & 1) === 1;
+const isStreamOnly = (file: Row) =>
+  (isStreamable(file) || isBrowserReadable(file)) &&
+  ((Number(file.flags) >> (PRODUCT_FILE_STREAM_ONLY_FLAG - 1)) & 1) === 1;
 
 function fileInfo(file: Row, requireShipping: boolean): [string, string][] {
   if (file.filegroup === "image" && requireShipping) return [];
   const entries: [string, string | null][] = [
     ["Size", numberToHumanSize(num(file.size))],
     ["Duration", durationDisplayable(num(file.duration))],
-    ["Length", num(file.pagelength) === null ? null : pluralize(num(file.pagelength)!, file.filetype === "epub" ? "section" : "page")],
+    [
+      "Length",
+      num(file.pagelength) === null
+        ? null
+        : pluralize(num(file.pagelength)!, file.filetype === "epub" ? "section" : "page"),
+    ],
     ["Resolution", resolutionDisplayable(num(file.width), num(file.height))],
   ];
   return entries.filter((entry): entry is [string, string] => entry[1] !== null && entry[1].trim() !== "");
@@ -153,7 +200,9 @@ function attributesProps(row: LinkRow, files: Row[]) {
   const removed = ((data.removed_file_info_attributes as string[] | undefined) ?? []).map(String);
   const info = !flag(row, "is_bundle") && files.length === 1 ? fileInfo(files[0]!, !!row.require_shipping) : [];
   return [
-    ...custom.filter((attribute) => present(attribute.name as string) || present(attribute.value as string)).map((attribute) => ({ name: attribute.name, value: attribute.value })),
+    ...custom
+      .filter((attribute) => present(attribute.name as string) || present(attribute.value as string))
+      .map((attribute) => ({ name: attribute.name, value: attribute.value })),
     ...info.filter(([key]) => !removed.includes(key)).map(([name, value]) => ({ name, value })),
   ];
 }
@@ -161,10 +210,23 @@ function attributesProps(row: LinkRow, files: Row[]) {
 // -------------------------------------------------------------------------------------------------
 // Options (Link#options, BaseVariant#to_option, Sku#to_option_for_product)
 
-type VariantRow = Row & { id: bigint; name: string | null; description: string | null; price_difference_cents: number | null; max_purchase_count: number | null; sales_count_for_inventory_cache: number | null; customizable_price: unknown; duration_in_minutes: number | null; flags: number };
+type VariantRow = Row & {
+  id: bigint;
+  name: string | null;
+  description: string | null;
+  price_difference_cents: number | null;
+  max_purchase_count: number | null;
+  sales_count_for_inventory_cache: number | null;
+  customizable_price: unknown;
+  duration_in_minutes: number | null;
+  flags: number;
+};
 const BASE_VARIANT_CLOSED_FLAG = 3;
 
-const quantityLeft = (variant: VariantRow) => (variant.max_purchase_count === null ? null : Math.max(variant.max_purchase_count - (variant.sales_count_for_inventory_cache ?? 0), 0));
+const quantityLeft = (variant: VariantRow) =>
+  variant.max_purchase_count === null
+    ? null
+    : Math.max(variant.max_purchase_count - (variant.sales_count_for_inventory_cache ?? 0), 0);
 
 async function optionRecords(row: LinkRow): Promise<VariantRow[]> {
   if (flag(row, "skus_enabled")) {
@@ -193,7 +255,11 @@ async function recurrencePriceValues(variant: VariantRow, productPrices: PriceRo
     // link.recurrence_price_enabled?: a buy price of the product itself
     if (!productPrices.some((price) => !isRental(price) && price.recurrence === recurrence)) continue;
     const price = prices.find((candidate) => !isRental(candidate as PriceRow) && candidate.recurrence === recurrence);
-    if (price) values[recurrence] = { price_cents: Number(price.price_cents), suggested_price_cents: num(price.suggested_price_cents) };
+    if (price)
+      values[recurrence] = {
+        price_cents: Number(price.price_cents),
+        suggested_price_cents: num(price.suggested_price_cents),
+      };
   }
   return values;
 }
@@ -203,11 +269,19 @@ const isRental = (price: PriceRow) => (Number(price.flags ?? 0) & RENTAL_FLAG_PO
 // BaseVariant#to_option of a Variant, for a buyer who is not subscribed (`subscribed: false`).
 export async function variantToOption(row: LinkRow, variant: VariantRow, productPrices: PriceRow[], sellerId: bigint) {
   const tiered = flag(row, "is_tiered_membership");
-  const closeFeature = tiered ? await isFeatureEnabled("close_membership_tier_to_new_buyers", userActor(sellerId)) : false;
+  const closeFeature = tiered
+    ? await isFeatureEnabled("close_membership_tier_to_new_buyers", userActor(sellerId))
+    : false;
   return variantOptionProps(row, variant, productPrices, tiered, closeFeature);
 }
 
-async function variantOptionProps(row: LinkRow, variant: VariantRow, productPrices: PriceRow[], tiered: boolean, closeFeature: boolean) {
+async function variantOptionProps(
+  row: LinkRow,
+  variant: VariantRow,
+  productPrices: PriceRow[],
+  tiered: boolean,
+  closeFeature: boolean,
+) {
   const closed = closeFeature && ((Number(variant.flags) >> (BASE_VARIANT_CLOSED_FLAG - 1)) & 1) === 1;
   return {
     id: externalId(variant.id),
@@ -224,11 +298,22 @@ async function variantOptionProps(row: LinkRow, variant: VariantRow, productPric
 async function optionsProps(row: LinkRow, records: VariantRow[], productPrices: PriceRow[], sellerId: bigint) {
   const skus = flag(row, "skus_enabled");
   const tiered = flag(row, "is_tiered_membership");
-  const closeFeature = tiered ? await isFeatureEnabled("close_membership_tier_to_new_buyers", userActor(sellerId)) : false;
+  const closeFeature = tiered
+    ? await isFeatureEnabled("close_membership_tier_to_new_buyers", userActor(sellerId))
+    : false;
   return Promise.all(
     records.map(async (variant) => {
       if (skus) {
-        return { id: externalId(variant.id), name: variant.name, quantity_left: quantityLeft(variant), description: variant.description ?? "", price_difference_cents: variant.price_difference_cents, recurrence_price_values: null, is_pwyw: false, duration_in_minutes: variant.duration_in_minutes };
+        return {
+          id: externalId(variant.id),
+          name: variant.name,
+          quantity_left: quantityLeft(variant),
+          description: variant.description ?? "",
+          price_difference_cents: variant.price_difference_cents,
+          recurrence_price_values: null,
+          is_pwyw: false,
+          duration_in_minutes: variant.duration_in_minutes,
+        };
       }
       return variantOptionProps(row, variant, productPrices, tiered, closeFeature);
     }),
@@ -241,7 +326,8 @@ async function optionsProps(row: LinkRow, records: VariantRow[], productPrices: 
 type Priced = { purchaseType: (typeof PURCHASE_TYPES)[number] | null; prices: PriceRow[] };
 
 const subscriptionDuration = (row: LinkRow) => SUBSCRIPTION_DURATIONS[row.subscription_duration ?? -1] ?? null;
-const forCurrency = (row: LinkRow, prices: PriceRow[]) => prices.filter((price) => price.currency === row.price_currency_type);
+const forCurrency = (row: LinkRow, prices: PriceRow[]) =>
+  prices.filter((price) => price.currency === row.price_currency_type);
 
 function rentalPriceCents(row: LinkRow, priced: Priced): number | null {
   if (priced.purchaseType !== "rent_only" && priced.purchaseType !== "buy_and_rent") return null;
@@ -251,12 +337,14 @@ function rentalPriceCents(row: LinkRow, priced: Priced): number | null {
 function buyPriceCents(row: LinkRow, priced: Priced): number | null {
   if (priced.purchaseType !== "buy_only" && priced.purchaseType !== "buy_and_rent") return null;
   let relevant = forCurrency(row, priced.prices).filter((price) => !isRental(price));
-  if (flag(row, "is_recurring_billing") && subscriptionDuration(row) !== null) relevant = relevant.filter((price) => price.recurrence === subscriptionDuration(row));
+  if (flag(row, "is_recurring_billing") && subscriptionDuration(row) !== null)
+    relevant = relevant.filter((price) => price.recurrence === subscriptionDuration(row));
   return relevant.at(-1)?.price_cents ?? null;
 }
 
 // Product::Prices#default_price_cents
-const defaultPriceCents = (row: LinkRow, priced: Priced) => (priced.purchaseType === "rent_only" ? rentalPriceCents(row, priced) : buyPriceCents(row, priced));
+const defaultPriceCents = (row: LinkRow, priced: Priced) =>
+  priced.purchaseType === "rent_only" ? rentalPriceCents(row, priced) : buyPriceCents(row, priced);
 
 // -------------------------------------------------------------------------------------------------
 // Recurrences (Link#recurrences)
@@ -264,12 +352,20 @@ const defaultPriceCents = (row: LinkRow, priced: Priced) => (priced.purchaseType
 async function recurrencesProps(row: LinkRow, prices: PriceRow[]) {
   if (!flag(row, "is_recurring_billing")) return null;
   const reminders = await isFeatureEnabled("membership_renewal_reminders", userActor(row.user_id!));
-  const enabledPrices = prices.filter((price) => !isRental(price) && RECURRENCE_MONTHS[price.recurrence ?? ""] !== undefined).sort((a, b) => RECURRENCE_MONTHS[a.recurrence!]! - RECURRENCE_MONTHS[b.recurrence!]!);
+  const enabledPrices = prices
+    .filter((price) => !isRental(price) && RECURRENCE_MONTHS[price.recurrence ?? ""] !== undefined)
+    .sort((a, b) => RECURRENCE_MONTHS[a.recurrence!]! - RECURRENCE_MONTHS[b.recurrence!]!);
   const leadDays = (recurrence: string) => {
-    const advance = RECURRENCE_MONTHS[recurrence]! >= LONG_RENEWAL_THRESHOLD_IN_MONTHS ? LONG_RENEWAL_ADVANCE_REMINDER_DAYS : null;
+    const advance =
+      RECURRENCE_MONTHS[recurrence]! >= LONG_RENEWAL_THRESHOLD_IN_MONTHS ? LONG_RENEWAL_ADVANCE_REMINDER_DAYS : null;
     return [advance, RENEWAL_REMINDER_DAYS[recurrence]!].filter((days): days is number => days !== null);
   };
-  const enabled = enabledPrices.map((price) => ({ recurrence: price.recurrence, price_cents: price.price_cents, id: externalId(price.id), renewal_reminder_days: reminders ? leadDays(price.recurrence!) : [] }));
+  const enabled = enabledPrices.map((price) => ({
+    recurrence: price.recurrence,
+    price_cents: price.price_cents,
+    id: externalId(price.id),
+    renewal_reminder_days: reminders ? leadDays(price.recurrence!) : [],
+  }));
   const defaultPrice = prices.find((price) => price.recurrence === (subscriptionDuration(row) ?? ""));
   const defaultRecurrence = defaultPrice?.recurrence ?? enabled[0]?.recurrence ?? null;
   if (defaultRecurrence === null) return null;
@@ -283,12 +379,17 @@ async function recurrencesProps(row: LinkRow, prices: PriceRow[]) {
 // ActionController::Base.helpers.simple_format for text with no markup to sanitize.
 function simpleFormat(text: string): string {
   if (/[<>&]/.test(text)) throw new NotPortedError("simple_format over a refund policy's fine print with markup");
-  const paragraphs = text.replace(/\r\n?/g, "\n").split(/\n\n+/).map((paragraph) => paragraph.replace(/([^\n]\n)(?=[^\n])/g, "$1<br />"));
+  const paragraphs = text
+    .replace(/\r\n?/g, "\n")
+    .split(/\n\n+/)
+    .map((paragraph) => paragraph.replace(/([^\n]\n)(?=[^\n])/g, "$1<br />"));
   return paragraphs.map((paragraph) => `<p>${paragraph}</p>`).join("\n\n") || "<p></p>";
 }
 
 async function refundPolicyProps(row: LinkRow, seller: UserRow) {
-  const policyProps = (policy: Row & { max_refund_period_in_days: number | null; fine_print: string | null; updated_at: Date }) => ({
+  const policyProps = (
+    policy: Row & { max_refund_period_in_days: number | null; fine_print: string | null; updated_at: Date },
+  ) => ({
     title: REFUND_PERIOD_TITLES[policy.max_refund_period_in_days ?? -1] ?? null,
     fine_print: present(policy.fine_print) ? simpleFormat(policy.fine_print) : null,
     updated_at: isoDate(policy.updated_at),
@@ -296,7 +397,11 @@ async function refundPolicyProps(row: LinkRow, seller: UserRow) {
   let accountLevel = sellerFlagBit(seller, USER_REFUND_POLICY_ENABLED_FLAG);
   if (accountLevel) {
     if (await isFeatureEnabled("seller_refund_policy_disabled_for_all")) accountLevel = false;
-    else if ((await isFeatureEnabled("account_level_refund_policy_delayed_for_sellers", userActor(seller.id))) && new Date() <= LAST_ALLOWED_TIME_FOR_PRODUCT_LEVEL_REFUND_POLICY) accountLevel = false;
+    else if (
+      (await isFeatureEnabled("account_level_refund_policy_delayed_for_sellers", userActor(seller.id))) &&
+      new Date() <= LAST_ALLOWED_TIME_FOR_PRODUCT_LEVEL_REFUND_POLICY
+    )
+      accountLevel = false;
   }
   if (accountLevel) {
     const [policy] = await selectRows<any>(
@@ -328,14 +433,20 @@ function complianceBlocked(ip: string | null): boolean {
   const country = location.countryCode;
   if (country !== null && BLOCKED_COUNTRIES.has(country)) return true;
   if (!country || !location.regionName) return false;
-  return (BLOCKED_SUBDIVISIONS[country.toUpperCase()] ?? []).includes(location.regionName.toUpperCase().replace(`${country.toUpperCase()}-`, ""));
+  return (BLOCKED_SUBDIVISIONS[country.toUpperCase()] ?? []).includes(
+    location.regionName.toUpperCase().replace(`${country.toUpperCase()}-`, ""),
+  );
 }
 
 async function pppDetails(row: LinkRow, seller: UserRow, ip: string | null) {
   const geo = ip ? geoIpLookup(ip) : null;
-  const enabled = !flag(row, "purchasing_power_parity_disabled") && sellerFlagBitByName(seller, "purchasing_power_parity_enabled");
+  const enabled =
+    !flag(row, "purchasing_power_parity_disabled") && sellerFlagBitByName(seller, "purchasing_power_parity_enabled");
   if (!enabled || !geo) return null;
-  const factor = await getFactor(geo.countryCode, seller as unknown as { purchasing_power_parity_limit: number | null });
+  const factor = await getFactor(
+    geo.countryCode,
+    seller as unknown as { purchasing_power_parity_limit: number | null },
+  );
   if (factor >= 1) return null;
   throw new NotPortedError("Link#ppp_details with a country factor below 1");
 }
@@ -378,14 +489,22 @@ async function remainingForSale(row: LinkRow, closeFeature: boolean): Promise<nu
           Prisma.sql`SELECT ${star("base_variants")} FROM ${table("base_variants")} WHERE ${column("base_variants", "type")} = 'Variant' AND ${column("base_variants", "variant_category_id")} IN (${Prisma.join(categories.map((category) => category.id))}) ORDER BY ${column("base_variants", "id")} ASC`,
         );
   const alive = variants.filter((variant) => variant.deleted_at === null);
-  const closed = (variant: VariantRow) => flag(row, "is_tiered_membership") && closeFeature && ((Number(variant.flags) >> (BASE_VARIANT_CLOSED_FLAG - 1)) & 1) === 1;
-  const available = (variant: VariantRow) => !closed(variant) && (variant.max_purchase_count === null || quantityLeft(variant)! > 0);
+  const closed = (variant: VariantRow) =>
+    flag(row, "is_tiered_membership") &&
+    closeFeature &&
+    ((Number(variant.flags) >> (BASE_VARIANT_CLOSED_FLAG - 1)) & 1) === 1;
+  const available = (variant: VariantRow) =>
+    !closed(variant) && (variant.max_purchase_count === null || quantityLeft(variant)! > 0);
   const categoryAvailable = (category: { id: bigint }) => {
     const own = alive.filter((variant) => variant.variant_category_id === category.id);
     return own.length === 0 || own.some(available);
   };
   if (categories.length > 0 && !categories.some(categoryAvailable)) return 0;
-  const tiers = variants.filter((variant) => categories.some((category) => category.id === variant.variant_category_id && (category.title ?? "").toLowerCase() === "tier"));
+  const tiers = variants.filter((variant) =>
+    categories.some(
+      (category) => category.id === variant.variant_category_id && (category.title ?? "").toLowerCase() === "tier",
+    ),
+  );
   if (tiers.length === 1) return quantityLeft(tiers[0]!);
   let bundleLeft: number | null = null;
   if (flag(row, "is_bundle")) {
@@ -400,7 +519,8 @@ async function remainingForSale(row: LinkRow, closeFeature: boolean): Promise<nu
     }
     bundleLeft = lefts.length === 0 ? null : Math.min(...lefts);
   }
-  const productLeft = row.max_purchase_count === null ? null : row.max_purchase_count - (row.sales_count_for_inventory_cache ?? 0);
+  const productLeft =
+    row.max_purchase_count === null ? null : row.max_purchase_count - (row.sales_count_for_inventory_cache ?? 0);
   const left = [productLeft, bundleLeft].filter((count): count is number => count !== null);
   return left.length === 0 ? null : Math.max(Math.min(...left), 0);
 }
@@ -416,7 +536,12 @@ async function aliveBundleProducts(bundleId: bigint): Promise<BundleProduct[]> {
   for (const row of rows) {
     const product = await findLink(row.product_id as bigint);
     if (!product) throw new NotPortedError("BundleProduct without a product");
-    const [variant] = row.variant_id == null ? [] : await selectRows<VariantRow>(Prisma.sql`SELECT ${star("base_variants")} FROM ${table("base_variants")} WHERE ${column("base_variants", "id")} = ${row.variant_id as bigint} LIMIT 1`);
+    const [variant] =
+      row.variant_id == null
+        ? []
+        : await selectRows<VariantRow>(
+            Prisma.sql`SELECT ${star("base_variants")} FROM ${table("base_variants")} WHERE ${column("base_variants", "id")} = ${row.variant_id as bigint} LIMIT 1`,
+          );
     result.push({ row, quantity: Number(row.quantity), product, variant: variant ?? null });
   }
   return result;
@@ -426,16 +551,25 @@ async function aliveBundleProducts(bundleId: bigint): Promise<BundleProduct[]> {
 async function bundleProductsProps(bundle: LinkRow, viewer: ProductPageViewerInput) {
   const props = [];
   for (const { quantity, product, variant } of await aliveBundleProducts(bundle.id)) {
-    const priced: Priced = { purchaseType: PURCHASE_TYPES[product.purchase_type ?? -1] ?? null, prices: await alivePricesOf(product.id) };
+    const priced: Priced = {
+      purchaseType: PURCHASE_TYPES[product.purchase_type ?? -1] ?? null,
+      prices: await alivePricesOf(product.id),
+    };
     const memberPrice = defaultPriceCents(product, priced);
     if (memberPrice === null) throw new NotPortedError("BundleProduct#standalone_price_cents without a price");
     const seller = await findUserById(product.user_id!);
     props.push({
       id: linkFields.externalId(product),
       name: product.name,
-      ratings: !flag(bundle, "hide_bundle_product_reviews") && flag(product, "display_product_reviews") ? await reviewSummary(product) : null,
+      ratings:
+        !flag(bundle, "hide_bundle_product_reviews") && flag(product, "display_product_reviews")
+          ? await reviewSummary(product)
+          : null,
       price: (memberPrice + (variant?.price_difference_cents ?? 0)) * quantity,
-      currency_code: (present(product.price_currency_type) ? product.price_currency_type : DEFAULT_CURRENCY).toLowerCase(),
+      currency_code: (present(product.price_currency_type)
+        ? product.price_currency_type
+        : DEFAULT_CURRENCY
+      ).toLowerCase(),
       thumbnail_url: await thumbnailUrl(product.id),
       native_type: product.native_type,
       url: await urlForProductPage(product, seller!, viewer.request, { recommendedBy: viewer.recommendedBy }),
@@ -461,7 +595,12 @@ async function assertNoCollaborator(row: LinkRow): Promise<void> {
 // BestOfferCodeService#default_offer_codes is empty: no default offer code and no shop-wide sale.
 async function assertNoDefaultOfferCodes(row: LinkRow): Promise<void> {
   if (row.default_offer_code_id !== null) throw new NotPortedError("BestOfferCodeService with a default offer code");
-  if (await hasRows("offer_codes", Prisma.sql`${column("offer_codes", "user_id")} = ${row.user_id} AND ${column("offer_codes", "deleted_at")} IS NULL AND ${column("offer_codes", "universal")} = TRUE AND ${column("offer_codes", "auto_apply")} = TRUE`)) {
+  if (
+    await hasRows(
+      "offer_codes",
+      Prisma.sql`${column("offer_codes", "user_id")} = ${row.user_id} AND ${column("offer_codes", "deleted_at")} IS NULL AND ${column("offer_codes", "universal")} = TRUE AND ${column("offer_codes", "auto_apply")} = TRUE`,
+    )
+  ) {
     throw new NotPortedError("User#auto_apply_offer_code_for");
   }
 }
@@ -481,7 +620,12 @@ async function installmentPlan(productId: bigint) {
 }
 
 // ProductProps#pwyw_default_price_cents
-function pwywDefaultPriceCents(row: LinkRow, options: { price_difference_cents: number | null }[], rental: { price_cents: number } | null, priceCents: number): number | null {
+function pwywDefaultPriceCents(
+  row: LinkRow,
+  options: { price_difference_cents: number | null }[],
+  rental: { price_cents: number } | null,
+  priceCents: number,
+): number | null {
   if (flag(row, "is_tiered_membership") || flag(row, "is_recurring_billing")) return null;
   if (priceCents !== 0 || (row.suggested_price_cents ?? 0) !== 0) return null;
   if (rental !== null && rental.price_cents !== 0) return null;
@@ -495,14 +639,18 @@ export async function lowestTierPriceCents(row: LinkRow, forDefaultDuration: boo
   const tiers = await selectRows<VariantRow>(
     Prisma.sql`SELECT ${star("base_variants")} FROM ${table("base_variants")} INNER JOIN ${table("variant_categories")} ON ${column("variant_categories", "id")} = ${column("base_variants", "variant_category_id")} WHERE ${column("variant_categories", "link_id")} = ${row.id} AND ${column("variant_categories", "deleted_at")} IS NULL AND ${column("variant_categories", "title")} = 'Tier' AND ${column("base_variants", "deleted_at")} IS NULL ORDER BY ${column("base_variants", "id")} ASC`,
   );
-  const open = tiers.filter((tier) => !(closeFeature && ((Number(tier.flags) >> (BASE_VARIANT_CLOSED_FLAG - 1)) & 1) === 1));
+  const open = tiers.filter(
+    (tier) => !(closeFeature && ((Number(tier.flags) >> (BASE_VARIANT_CLOSED_FLAG - 1)) & 1) === 1),
+  );
   const offered = open.length > 0 ? open : tiers;
   if (offered.length === 0) return 0;
   const variantPrices = await selectRows<Row>(
     Prisma.sql`SELECT ${star("prices")} FROM ${table("prices")} WHERE ${column("prices", "variant_id")} IN (${Prisma.join(offered.map((tier) => tier.id))}) AND ${column("prices", "deleted_at")} IS NULL`,
   );
   const duration = SUBSCRIPTION_DURATIONS[row.subscription_duration ?? -1] ?? null;
-  const buy = variantPrices.filter((price) => !isRental(price as PriceRow) && (!forDefaultDuration || price.recurrence === duration));
+  const buy = variantPrices.filter(
+    (price) => !isRental(price as PriceRow) && (!forDefaultDuration || price.recurrence === duration),
+  );
   return buy.length === 0 ? 0 : Math.min(...buy.map((price) => Number(price.price_cents)));
 }
 
@@ -512,7 +660,8 @@ export async function minimumOfferPriceCents(row: LinkRow): Promise<number | nul
   const priced: Priced = { purchaseType: PURCHASE_TYPES[row.purchase_type ?? -1] ?? null, prices };
   if (flag(row, "is_tiered_membership")) return lowestTierPriceCents(row, false);
   const candidates: (number | null)[] = [buyPriceCents(row, priced)];
-  if (priced.purchaseType === "rent_only" || priced.purchaseType === "buy_and_rent") candidates.push(rentalPriceCents(row, priced));
+  if (priced.purchaseType === "rent_only" || priced.purchaseType === "buy_and_rent")
+    candidates.push(rentalPriceCents(row, priced));
   if (flag(row, "is_recurring_billing")) {
     const buyPrices = prices.filter((price) => !isRental(price));
     if (buyPrices.length > 0) candidates.push(Math.min(...buyPrices.map((price) => price.price_cents!)));
@@ -523,7 +672,9 @@ export async function minimumOfferPriceCents(row: LinkRow): Promise<number | nul
   const options = await selectRows<{ price_difference_cents: number | null }>(
     Prisma.sql`SELECT ${column("base_variants", "price_difference_cents")} FROM ${table("base_variants")} WHERE ${column("base_variants", "deleted_at")} IS NULL AND (${column("base_variants", "link_id")} = ${row.id} OR ${column("base_variants", "variant_category_id")} IN (SELECT ${column("variant_categories", "id")} FROM ${table("variant_categories")} WHERE ${column("variant_categories", "link_id")} = ${row.id} AND ${column("variant_categories", "deleted_at")} IS NULL))`,
   );
-  const differences = options.map((option) => option.price_difference_cents).filter((cents): cents is number => cents !== null);
+  const differences = options
+    .map((option) => option.price_difference_cents)
+    .filter((cents): cents is number => cents !== null);
   return lowest + (differences.length === 0 ? 0 : Math.min(...differences));
 }
 
@@ -538,12 +689,19 @@ export async function closedMembershipForNewBuyers(row: LinkRow): Promise<boolea
   const tiers = await selectRows<VariantRow>(
     Prisma.sql`SELECT ${star("base_variants")} FROM ${table("base_variants")} INNER JOIN ${table("variant_categories")} ON ${column("variant_categories", "id")} = ${column("base_variants", "variant_category_id")} WHERE ${column("variant_categories", "link_id")} = ${row.id} AND ${column("variant_categories", "deleted_at")} IS NULL AND ${column("variant_categories", "title")} = 'Tier' AND ${column("base_variants", "deleted_at")} IS NULL`,
   );
-  const available = (tier: VariantRow) => !(closeFeature && ((Number(tier.flags) >> (BASE_VARIANT_CLOSED_FLAG - 1)) & 1) === 1) && (tier.max_purchase_count === null || quantityLeft(tier)! > 0);
+  const available = (tier: VariantRow) =>
+    !(closeFeature && ((Number(tier.flags) >> (BASE_VARIANT_CLOSED_FLAG - 1)) & 1) === 1) &&
+    (tier.max_purchase_count === null || quantityLeft(tier)! > 0);
   return tiers.length > 0 && !tiers.some(available);
 }
 
 export const remainingForSaleCount = async (row: LinkRow) =>
-  remainingForSale(row, flag(row, "is_tiered_membership") ? await isFeatureEnabled("close_membership_tier_to_new_buyers", userActor(row.user_id!)) : false);
+  remainingForSale(
+    row,
+    flag(row, "is_tiered_membership")
+      ? await isFeatureEnabled("close_membership_tier_to_new_buyers", userActor(row.user_id!))
+      : false,
+  );
 
 export type ProductPageViewerInput = {
   user: User | null;
@@ -564,25 +722,69 @@ export type ProductPageViewerInput = {
 
 export async function productProps(row: LinkRow, seller: UserRow, viewer: ProductPageViewerInput) {
   const sellerActor = userActor(seller.id);
-  if (await isFeatureEnabled("seller_reputation_summary", sellerActor)) throw new NotPortedError("User#seller_reputation_summary");
+  if (await isFeatureEnabled("seller_reputation_summary", sellerActor))
+    throw new NotPortedError("User#seller_reputation_summary");
   let canEdit = false;
   if (viewer.user && viewer.context) {
     // A purchase of the visitor's goes through Purchase#purchase_info, and a wishlist through WishlistPresenter#listing_props.
-    if (await hasRows("purchases", Prisma.sql`${column("purchases", "link_id")} = ${row.id} AND ${column("purchases", "purchaser_id")} = ${viewer.user.id}`)) throw new NotPortedError("Purchase#purchase_info");
-    if (viewer.context.seller && (await hasRows("wishlists", Prisma.sql`${column("wishlists", "user_id")} = ${viewer.context.seller.id} AND ${column("wishlists", "deleted_at")} IS NULL`))) throw new NotPortedError("WishlistPresenter#listing_props");
-    canEdit = linkPolicy.edit(viewer.context, { id: row.id, user_id: row.user_id, flags: row.flags as bigint | number }, await collaboratingProductIds(viewer.context, [row.id]));
+    if (
+      await hasRows(
+        "purchases",
+        Prisma.sql`${column("purchases", "link_id")} = ${row.id} AND ${column("purchases", "purchaser_id")} = ${viewer.user.id}`,
+      )
+    )
+      throw new NotPortedError("Purchase#purchase_info");
+    if (
+      viewer.context.seller &&
+      (await hasRows(
+        "wishlists",
+        Prisma.sql`${column("wishlists", "user_id")} = ${viewer.context.seller.id} AND ${column("wishlists", "deleted_at")} IS NULL`,
+      ))
+    )
+      throw new NotPortedError("WishlistPresenter#listing_props");
+    canEdit = linkPolicy.edit(
+      viewer.context,
+      { id: row.id, user_id: row.user_id, flags: row.flags as bigint | number },
+      await collaboratingProductIds(viewer.context, [row.id]),
+    );
   }
-  if (viewer.purchaseId !== null || viewer.purchaseEmailDigest !== null) throw new NotPortedError("Link#purchase_for_email_digest");
-  if (viewer.browserGuid !== null && (await hasRows("purchases", Prisma.sql`${column("purchases", "link_id")} = ${row.id} AND ${column("purchases", "browser_guid")} = ${viewer.browserGuid}`))) {
+  if (viewer.purchaseId !== null || viewer.purchaseEmailDigest !== null)
+    throw new NotPortedError("Link#purchase_for_email_digest");
+  if (
+    viewer.browserGuid !== null &&
+    (await hasRows(
+      "purchases",
+      Prisma.sql`${column("purchases", "link_id")} = ${row.id} AND ${column("purchases", "browser_guid")} = ${viewer.browserGuid}`,
+    ))
+  ) {
     throw new NotPortedError("Link#purchase_info_for_product_page");
   }
   await assertNoCollaborator(row);
   // The page head preloads the call calendar through the Vite manifest, which Node does not have.
   if (row.native_type === "call") throw new NotPortedError("PageMeta::Product vite_asset_path for the call calendar");
   const published = row.deleted_at === null && row.purchase_disabled_at === null && !row.draft;
-  if (flag(row, "waitlist_enabled") && !published && row.deleted_at === null && row.banned_at === null && !flag(row, "is_unpublished_by_admin")) throw new NotPortedError("ProductProps#waitlist_props");
-  if (await hasRows("public_files", Prisma.sql`${column("public_files", "resource_type")} = 'Link' AND ${column("public_files", "resource_id")} = ${row.id} AND ${column("public_files", "deleted_at")} IS NULL`)) throw new NotPortedError("PublicFilePresenter#props");
-  if (await hasRows("asset_previews", Prisma.sql`${column("asset_previews", "link_id")} = ${row.id} AND ${column("asset_previews", "deleted_at")} IS NULL`)) throw new NotPortedError("AssetPreview#as_json");
+  if (
+    flag(row, "waitlist_enabled") &&
+    !published &&
+    row.deleted_at === null &&
+    row.banned_at === null &&
+    !flag(row, "is_unpublished_by_admin")
+  )
+    throw new NotPortedError("ProductProps#waitlist_props");
+  if (
+    await hasRows(
+      "public_files",
+      Prisma.sql`${column("public_files", "resource_type")} = 'Link' AND ${column("public_files", "resource_id")} = ${row.id} AND ${column("public_files", "deleted_at")} IS NULL`,
+    )
+  )
+    throw new NotPortedError("PublicFilePresenter#props");
+  if (
+    await hasRows(
+      "asset_previews",
+      Prisma.sql`${column("asset_previews", "link_id")} = ${row.id} AND ${column("asset_previews", "deleted_at")} IS NULL`,
+    )
+  )
+    throw new NotPortedError("AssetPreview#as_json");
 
   const [files, prices] = await Promise.all([aliveProductFiles(row.id), alivePricesOf(row.id)]);
   const priced: Priced = { purchaseType: PURCHASE_TYPES[row.purchase_type ?? -1] ?? null, prices };
@@ -592,19 +794,29 @@ export async function productProps(row: LinkRow, seller: UserRow, viewer: Produc
   const priceCents = defaultPriceCents(row, priced);
   if (priceCents === null) throw new NotPortedError("ProductProps with a product that has no price");
   const rentalPrice = rentalPriceCents(row, priced);
-  const rental = rentalPrice !== null ? { price_cents: rentalPrice, rent_only: priced.purchaseType === "rent_only" } : null;
+  const rental =
+    rentalPrice !== null ? { price_cents: rentalPrice, rent_only: priced.purchaseType === "rent_only" } : null;
   const options = await optionsProps(row, records, prices, seller.id);
   const closeFeature = tiered ? await isFeatureEnabled("close_membership_tier_to_new_buyers", sellerActor) : false;
   const plan = await installmentPlan(row.id);
   const recurrences = await recurrencesProps(row, prices);
   const data = jsonData(row);
-  const closedIds = new Set(closeFeature ? records.filter((record) => ((Number(record.flags) >> (BASE_VARIANT_CLOSED_FLAG - 1)) & 1) === 1).map((record) => record.id) : []);
+  const closedIds = new Set(
+    closeFeature
+      ? records
+          .filter((record) => ((Number(record.flags) >> (BASE_VARIANT_CLOSED_FLAG - 1)) & 1) === 1)
+          .map((record) => record.id)
+      : [],
+  );
 
   const product = {
     id: linkFields.externalId(row),
     permalink: row.unique_permalink,
     name: row.name,
-    seller: await authorBylineProps(seller, { recommendedBy: viewer.recommendedBy, customDomainUrl: viewer.sellerCustomDomainUrl }),
+    seller: await authorBylineProps(seller, {
+      recommendedBy: viewer.recommendedBy,
+      customDomainUrl: viewer.sellerCustomDomainUrl,
+    }),
     collaborating_user: null,
     covers: [],
     main_cover_id: null,
@@ -626,15 +838,28 @@ export async function productProps(row: LinkRow, seller: UserRow, viewer: Produc
     price_cents: priceCents,
     buyer_currency_display: await buyerCurrencyDisplayProps(row, seller),
     rental_price_cents: rentalPrice,
-    pwyw: row.customizable_price ? { suggested_price_cents: row.suggested_price_cents, default_price_cents: pwywDefaultPriceCents(row, options, rental, priceCents) } : null,
-    eligible_for_installment_plans: !recurring && !tiered && !flag(row, "is_in_preorder_state") && INSTALLMENT_ELIGIBLE_NATIVE_TYPES.has(row.native_type ?? ""),
+    pwyw: row.customizable_price
+      ? {
+          suggested_price_cents: row.suggested_price_cents,
+          default_price_cents: pwywDefaultPriceCents(row, options, rental, priceCents),
+        }
+      : null,
+    eligible_for_installment_plans:
+      !recurring &&
+      !tiered &&
+      !flag(row, "is_in_preorder_state") &&
+      INSTALLMENT_ELIGIBLE_NATIVE_TYPES.has(row.native_type ?? ""),
     allow_installment_plan: plan !== null,
-    installment_plan: plan ? { number_of_installments: plan.number_of_installments, recurrence: plan.recurrence } : null,
+    installment_plan: plan
+      ? { number_of_installments: plan.number_of_installments, recurrence: plan.recurrence }
+      : null,
     is_legacy_subscription: !tiered && recurring,
     is_tiered_membership: tiered,
     is_recurring_billing: recurring,
     is_physical: flag(row, "is_physical"),
-    custom_view_content_button_text: present(data.custom_view_content_button_text as string) ? data.custom_view_content_button_text : null,
+    custom_view_content_button_text: present(data.custom_view_content_button_text as string)
+      ? data.custom_view_content_button_text
+      : null,
     is_multiseat_license: flag(row, "is_multiseat_license") && row.native_type !== "call",
     is_licensed: flag(row, "is_licensed"),
     hide_sold_out_variants: flag(row, "hide_sold_out_variants"),
@@ -643,7 +868,14 @@ export async function productProps(row: LinkRow, seller: UserRow, viewer: Produc
     duration_in_months: row.duration_in_months,
     rental,
     is_quantity_enabled: flag(row, "quantity_enabled"),
-    free_trial: flag(row, "free_trial_enabled") ? { duration: { unit: TRIAL_UNITS[row.free_trial_duration_unit ?? -1] ?? null, amount: row.free_trial_duration_amount } } : null,
+    free_trial: flag(row, "free_trial_enabled")
+      ? {
+          duration: {
+            unit: TRIAL_UNITS[row.free_trial_duration_unit ?? -1] ?? null,
+            amount: row.free_trial_duration_amount,
+          },
+        }
+      : null,
     recurrences,
     options,
     analytics: analyticsData(seller),
@@ -659,14 +891,25 @@ export async function productProps(row: LinkRow, seller: UserRow, viewer: Produc
   const result = await bestOfferCodeResult(row, defaults, viewer.discountCode, viewer.quantity);
   const urlCode = present(viewer.discountCode) ? viewer.discountCode : null;
   const selectionQuantity = Math.max(viewer.quantity, 1);
-  const inputs = { url_code: urlCode, quantity: selectionQuantity, recurrence: recurrences?.default ?? null, option_id: null, price_cents: null };
+  const inputs = {
+    url_code: urlCode,
+    quantity: selectionQuantity,
+    recurrence: recurrences?.default ?? null,
+    option_id: null,
+    price_cents: null,
+  };
   let selection: Record<string, unknown> = { ...inputs, options: {}, rent_options: null };
   if (urlCode !== null || defaults.codes.length > 0) {
     // The same code answers every option it covers (a code limited to options is handed back), so it is
     // quoted once; a tier closed to new buyers cannot be picked and is left out.
     const quote = await bestOfferCodeResult(row, defaults, urlCode, selectionQuantity);
     const entry = { discount_code: quote, sale_label: saleLabel(quote, defaults.auto) };
-    const quotes = () => Object.fromEntries((records.length === 0 ? [null] : records).filter((record) => record === null || !closedIds.has(record.id)).map((record) => [record === null ? "" : externalId(record.id), entry]));
+    const quotes = () =>
+      Object.fromEntries(
+        (records.length === 0 ? [null] : records)
+          .filter((record) => record === null || !closedIds.has(record.id))
+          .map((record) => [record === null ? "" : externalId(record.id), entry]),
+      );
     selection = { ...inputs, options: quotes(), rent_options: rental && !rental.rent_only ? quotes() : null };
     if (rental?.rent_only) selection.options = quotes();
   }
@@ -679,4 +922,3 @@ export async function productProps(row: LinkRow, seller: UserRow, viewer: Produc
     wishlists: [],
   };
 }
-

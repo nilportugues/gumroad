@@ -2,12 +2,13 @@
 // Not ported: the lookups that need ActiveStorage and S3 (a product's cover previews, thumbnail and
 // signed file URLs). `extractFromProduct` takes them already resolved, and `extractFromPage` takes
 // the page sanitizers (Ai::PageSanitizer, Pages::RichContentSanitizer, not ported yet) as functions.
+import { squish } from "../search/plaintext.ts";
+
 import { cssImageUrls } from "./css-image-urls.ts";
 import { HtmlDocument, attribute } from "./html-document.ts";
 import { orderedImageUrls } from "./image-selection.ts";
 import { isRubyTruthy, rubySplit, rubyStrip } from "./ruby.ts";
 import { isSelfContainedSvg } from "./self-contained-svg.ts";
-import { squish } from "../search/plaintext.ts";
 
 export const PERMITTED_IMAGE_TYPES: readonly string[] = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 export const MAX_PAGE_TEXT_LENGTH = 20_000;
@@ -203,11 +204,11 @@ export function partitionPageImages(
   return [[...new Set(imageUrls)], svgSources];
 }
 
-
 export type ExtractionResult = { text: string; imageUrls: string[] };
 
 // ActiveSupport `blank?` for the values that reach the image lists.
-const isBlank = (value: string | null | undefined): boolean => value === null || value === undefined || /^[\s\0]*$/u.test(value);
+const isBlank = (value: string | null | undefined): boolean =>
+  value === null || value === undefined || /^[\s\0]*$/u.test(value);
 
 export type PostInput = { name: string | null; message: string | null; seller: SellerHostSources | null };
 
@@ -227,11 +228,11 @@ export type ProductInput = {
   description: string | null;
   seller: SellerHostSources | null;
   // `alive_rich_contents` descriptions: arrays of ProseMirror-style nodes.
-  richContentDescriptions: ReadonlyArray<ReadonlyArray<unknown>>;
+  richContentDescriptions: readonly (readonly unknown[])[];
   // Resolved by the caller, in this order: original (never variant) cover preview URLs of permitted
   // image types, the thumbnail's original URL, and signed one-hour URLs of embedded image files,
   // with files whose S3 object is missing already left out.
-  coverImageUrls: ReadonlyArray<string | null>;
+  coverImageUrls: readonly (string | null)[];
   thumbnailImageUrl: string | null;
   richContentFileImageUrls: readonly string[];
 };
@@ -311,8 +312,7 @@ export function extractFromPage(page: PageInput, options: PageExtractionOptions)
   // or URL can't become a token the blocklist matches.
   const text = squish(
     `${truncateOnBoundary(links, MAX_PAGE_LINK_TEXT_LENGTH)} ` +
-      `${truncateOnBoundary(prose, MAX_PAGE_TEXT_LENGTH)} ` +
-      truncateOnBoundary(svgText, MAX_PAGE_SVG_TEXT_LENGTH),
+      `${truncateOnBoundary(prose, MAX_PAGE_TEXT_LENGTH)} ${truncateOnBoundary(svgText, MAX_PAGE_SVG_TEXT_LENGTH)}`,
   );
 
   return { text, imageUrls: orderedImageUrls(imageUrls, options.secretKeyBase) };
@@ -332,7 +332,7 @@ function linkTargets(document: HtmlDocument): string[] {
 // painted images. Each attribute is read only off the element it belongs to, so a video's src never
 // reaches the image classifier.
 function pageImageUrls(document: HtmlDocument): string[] {
-  const sources: Array<string | null> = [];
+  const sources: (string | null)[] = [];
   for (const element of document.byTag("img")) sources.push(attribute(element, "src"));
   for (const element of document.byTag("video")) sources.push(attribute(element, "poster"));
   for (const element of document.byTag("img", "source")) {

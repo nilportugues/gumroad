@@ -17,8 +17,18 @@ import { attribute, textOf, type HtmlDocument } from "./html-document.ts";
 // CSS properties that paint an image the visitor sees. url() also appears in fonts and SVG filter
 // references, which the image moderation endpoint rejects.
 export const IMAGE_CSS_PROPERTIES: readonly string[] = [
-  "background", "background-image", "border-image", "border-image-source", "content", "cursor",
-  "list-style", "list-style-image", "mask", "mask-border", "mask-border-source", "mask-image",
+  "background",
+  "background-image",
+  "border-image",
+  "border-image-source",
+  "content",
+  "cursor",
+  "list-style",
+  "list-style-image",
+  "mask",
+  "mask-border",
+  "mask-border-source",
+  "mask-image",
 ];
 
 // CssToken.node is a plain string, so `node === "function"` does not narrow the union.
@@ -119,8 +129,8 @@ function flattenBlocks(css: string): string {
 }
 
 // Property nodes plus the :error nodes marking content the parse dropped.
-function ruleProperties(rules: CssRule[]): Array<CssProperty | CssError> {
-  return rules.flatMap((rule): Array<CssProperty | CssError> => {
+function ruleProperties(rules: CssRule[]): (CssProperty | CssError)[] {
+  return rules.flatMap((rule): (CssProperty | CssError)[] => {
     switch (rule.node) {
       case "style_rule":
         return rule.children;
@@ -142,7 +152,8 @@ function cssVarReferences(nodes: CssNode[]): string[] {
     const names = cssVarReferences(node.value);
     if (node.name.toLowerCase() === "var") {
       for (const token of node.value) {
-        if (token.node === "ident" && (token as CssToken).value?.startsWith("--")) names.push((token as CssToken).value!);
+        if (token.node === "ident" && (token as CssToken).value?.startsWith("--"))
+          names.push((token as CssToken).value!);
       }
     }
     return names;

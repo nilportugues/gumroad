@@ -2,6 +2,7 @@
 // controller stay in Rails (the reads hide a claimed action from older clients, and the turns call a language model).
 import { railsEnv } from "../infra/rails-env.ts";
 import { eligibleForStoreAgent } from "../page-props/signed-in/policy-props.ts";
+
 import { type MobileAuth, registerMobile, renderJson } from "./mobile-api.ts";
 
 const MOBILE_API_SCOPES = ["mobile_api"];
@@ -16,7 +17,10 @@ const SUGGESTIONS = ["How are my sales doing?", "List my products", "Create a 20
 async function meta(_input: unknown, auth: MobileAuth | null) {
   if (!(await eligibleForStoreAgent(auth!.owner, railsEnv() === "development"))) {
     // A before_action's halt: its after_actions do not run.
-    return { ...renderJson({ success: false, error: "You don't have access to the store agent." }, FORBIDDEN), rescued: true };
+    return {
+      ...renderJson({ success: false, error: "You don't have access to the store agent." }, FORBIDDEN),
+      rescued: true,
+    };
   }
   return renderJson({ success: true, enabled: true, greeting: GREETING, suggestions: SUGGESTIONS });
 }

@@ -4,26 +4,32 @@
 import { createHmac } from "node:crypto";
 
 import { Prisma } from "@prisma/client";
+import type { User } from "@prisma/client";
 
 import { encrypt as externalId } from "../../../lib/obfuscate-ids.ts";
 import { HandBackToRails } from "../../controllers/application-controller.ts";
-import { evaluateFeature, isFeatureEnabled, parseGateValues, readFeatureDoc, userActor } from "../../infra/flipper.ts";
 import { getConfig } from "../../infra/config.ts";
+import { evaluateFeature, isFeatureEnabled, parseGateValues, readFeatureDoc, userActor } from "../../infra/flipper.ts";
 import { railsEnv } from "../../infra/rails-env.ts";
-import { instantInTimeZoneIso8601 } from "../../models/concerns/rails-time-zone.ts";
 import { jsonGet } from "../../models/concerns/json-data.ts";
 import { RubyHash, type YamlValue } from "../../models/concerns/psych.ts";
+import { instantInTimeZoneIso8601 } from "../../models/concerns/rails-time-zone.ts";
 import { LinkFlags } from "../../models/link.ts";
-import { column, selectRows, table } from "../../models/sql.ts";
+import { column, selectRows, table, castRow } from "../../models/sql.ts";
 import { rubyStrip, subdomain as userSubdomain, UserFlags, Users } from "../../models/user.ts";
-import { castRow } from "../../models/sql.ts";
-import type { User } from "@prisma/client";
-import { jsonDataHash, authorBylineProps } from "../../presenters/product.ts";
 import type { LinkRow, UserRow } from "../../presenters/product-reads.ts";
+import { jsonDataHash, authorBylineProps } from "../../presenters/product.ts";
 import { fromAddressWithName } from "../audience/mail-addresses.ts";
 import { domainConfig } from "../domain.ts";
-import { recoverableHiddenVariantRichContent, variantProps, versionRows, versionStamps, type VersionRows } from "./edit-variants.ts";
+
 import data from "./edit-data.generated.json" with { type: "json" };
+import {
+  recoverableHiddenVariantRichContent,
+  variantProps,
+  versionRows,
+  versionStamps,
+  type VersionRows,
+} from "./edit-variants.ts";
 
 // Link::NATIVE_TYPE_DIGITAL, _COURSE, _EBOOK: the types whose editor state is the plain product's (no tiers, calls,
 // shipping, commissions, bundle contents or coffee amounts).
@@ -41,7 +47,7 @@ const EDITOR_REVISION_VERSION = "v4";
 // User::LAST_ALLOWED_TIME_FOR_PRODUCT_LEVEL_REFUND_POLICY (`Time.new(2025, 3, 31).end_of_day`, in the server's zone: UTC)
 const LAST_ALLOWED_TIME_FOR_PRODUCT_LEVEL_REFUND_POLICY = Date.UTC(2025, 2, 31, 23, 59, 59, 999);
 // RefundPolicy::ALLOWED_REFUND_PERIODS_IN_DAYS, DEFAULT_REFUND_PERIOD_IN_DAYS
-export const ALLOWED_REFUND_PERIODS_IN_DAYS: ReadonlyArray<readonly [number, string]> = [
+export const ALLOWED_REFUND_PERIODS_IN_DAYS: readonly (readonly [number, string])[] = [
   [0, "No refunds allowed"],
   [7, "7-day money back guarantee"],
   [14, "14-day money back guarantee"],
@@ -53,8 +59,13 @@ export const DEFAULT_REFUND_PERIOD_IN_DAYS = 30;
 const CUSTOM_HTML_GLOBAL_NAV_PATHS = ["/library", "/checkout"];
 
 const TAXONOMY_LABELS = data.taxonomy_labels as Record<string, string>;
-export const present = (value: unknown): boolean => value !== null && value !== undefined && !(typeof value === "string" && value.trim() === "") && !(Array.isArray(value) && value.length === 0);
-export const refundPeriodTitle = (days: number | null) => ALLOWED_REFUND_PERIODS_IN_DAYS.find(([key]) => key === days)?.[1] ?? null;
+export const present = (value: unknown): boolean =>
+  value !== null &&
+  value !== undefined &&
+  !(typeof value === "string" && value.trim() === "") &&
+  !(Array.isArray(value) && value.length === 0);
+export const refundPeriodTitle = (days: number | null) =>
+  ALLOWED_REFUND_PERIODS_IN_DAYS.find(([key]) => key === days)?.[1] ?? null;
 
 // `Object#as_json` of a parsed json_data value.
 export function plain(value: YamlValue | undefined): unknown {
@@ -70,31 +81,92 @@ type Blocker = { blocker: string };
 export async function rowBlockers(product: LinkRow, seller: UserRow): Promise<string[]> {
   const id = product.id;
   const sellerId = seller.id;
-  const exists = (name: string, from: Prisma.Sql) => Prisma.sql`(SELECT ${Prisma.raw(`'${name}'`)} AS blocker FROM ${from} LIMIT 1)`;
+  const exists = (name: string, from: Prisma.Sql) =>
+    Prisma.sql`(SELECT ${Prisma.raw(`'${name}'`)} AS blocker FROM ${from} LIMIT 1)`;
   const probes = [
-    exists("asset_previews", Prisma.sql`${table("asset_previews")} WHERE ${column("asset_previews", "link_id")} = ${id} AND ${column("asset_previews", "deleted_at")} IS NULL`),
-    exists("thumbnail", Prisma.sql`${table("thumbnails")} WHERE ${column("thumbnails", "product_id")} = ${id} AND ${column("thumbnails", "deleted_at")} IS NULL`),
-    exists("product_files", Prisma.sql`${table("product_files")} WHERE ${column("product_files", "link_id")} = ${id} AND ${column("product_files", "deleted_at")} IS NULL`),
-    exists("rich_contents", Prisma.sql`${table("rich_contents")} WHERE ${column("rich_contents", "entity_id")} = ${id} AND ${column("rich_contents", "entity_type")} = 'Link' AND ${column("rich_contents", "deleted_at")} IS NULL`),
+    exists(
+      "asset_previews",
+      Prisma.sql`${table("asset_previews")} WHERE ${column("asset_previews", "link_id")} = ${id} AND ${column("asset_previews", "deleted_at")} IS NULL`,
+    ),
+    exists(
+      "thumbnail",
+      Prisma.sql`${table("thumbnails")} WHERE ${column("thumbnails", "product_id")} = ${id} AND ${column("thumbnails", "deleted_at")} IS NULL`,
+    ),
+    exists(
+      "product_files",
+      Prisma.sql`${table("product_files")} WHERE ${column("product_files", "link_id")} = ${id} AND ${column("product_files", "deleted_at")} IS NULL`,
+    ),
+    exists(
+      "rich_contents",
+      Prisma.sql`${table("rich_contents")} WHERE ${column("rich_contents", "entity_id")} = ${id} AND ${column("rich_contents", "entity_type")} = 'Link' AND ${column("rich_contents", "deleted_at")} IS NULL`,
+    ),
     // A version enabled for an integration: its `integrations` / `loaded_integrations` props are not read.
-    exists("variant_integrations", Prisma.sql`${table("base_variant_integrations")} INNER JOIN ${table("base_variants")} ON ${column("base_variants", "id")} = ${column("base_variant_integrations", "base_variant_id")} INNER JOIN ${table("variant_categories")} ON ${column("variant_categories", "id")} = ${column("base_variants", "variant_category_id")} WHERE ${column("variant_categories", "link_id")} = ${id} AND ${column("base_variant_integrations", "deleted_at")} IS NULL`),
-    exists("integrations", Prisma.sql`${table("product_integrations")} WHERE ${column("product_integrations", "product_id")} = ${id} AND ${column("product_integrations", "deleted_at")} IS NULL`),
-    exists("shipping_destinations", Prisma.sql`${table("shipping_destinations")} WHERE ${column("shipping_destinations", "link_id")} = ${id} AND ${column("shipping_destinations", "deleted_at")} IS NULL`),
-    exists("shipping_exclusions", Prisma.sql`${table("shipping_exclusions")} WHERE ${column("shipping_exclusions", "product_id")} = ${id}`),
-    exists("collaborator", Prisma.sql`${table("affiliates_links")} INNER JOIN ${table("affiliates")} ON ${column("affiliates", "id")} = ${column("affiliates_links", "affiliate_id")} WHERE ${column("affiliates_links", "link_id")} = ${id} AND ${column("affiliates", "type")} = 'Collaborator'`),
-    exists("custom_html", Prisma.sql`${table("pages")} WHERE ${column("pages", "pageable_type")} = 'Link' AND ${column("pages", "pageable_id")} = ${id}`),
-    exists("custom_domain", Prisma.sql`${table("custom_domains")} WHERE ${column("custom_domains", "product_id")} = ${id} AND ${column("custom_domains", "deleted_at")} IS NULL`),
-    exists("installment_plan", Prisma.sql`${table("product_installment_plans")} WHERE ${column("product_installment_plans", "link_id")} = ${id} AND ${column("product_installment_plans", "deleted_at")} IS NULL`),
-    exists("public_files", Prisma.sql`${table("public_files")} WHERE ${column("public_files", "resource_type")} = 'Link' AND ${column("public_files", "resource_id")} = ${id} AND ${column("public_files", "deleted_at")} IS NULL`),
-    exists("product_builds", Prisma.sql`${table("product_builds")} WHERE ${column("product_builds", "product_id")} = ${id}`),
-    exists("waitlist", Prisma.sql`${table("waitlist_entries")} WHERE ${column("waitlist_entries", "product_id")} = ${id}`),
+    exists(
+      "variant_integrations",
+      Prisma.sql`${table("base_variant_integrations")} INNER JOIN ${table("base_variants")} ON ${column("base_variants", "id")} = ${column("base_variant_integrations", "base_variant_id")} INNER JOIN ${table("variant_categories")} ON ${column("variant_categories", "id")} = ${column("base_variants", "variant_category_id")} WHERE ${column("variant_categories", "link_id")} = ${id} AND ${column("base_variant_integrations", "deleted_at")} IS NULL`,
+    ),
+    exists(
+      "integrations",
+      Prisma.sql`${table("product_integrations")} WHERE ${column("product_integrations", "product_id")} = ${id} AND ${column("product_integrations", "deleted_at")} IS NULL`,
+    ),
+    exists(
+      "shipping_destinations",
+      Prisma.sql`${table("shipping_destinations")} WHERE ${column("shipping_destinations", "link_id")} = ${id} AND ${column("shipping_destinations", "deleted_at")} IS NULL`,
+    ),
+    exists(
+      "shipping_exclusions",
+      Prisma.sql`${table("shipping_exclusions")} WHERE ${column("shipping_exclusions", "product_id")} = ${id}`,
+    ),
+    exists(
+      "collaborator",
+      Prisma.sql`${table("affiliates_links")} INNER JOIN ${table("affiliates")} ON ${column("affiliates", "id")} = ${column("affiliates_links", "affiliate_id")} WHERE ${column("affiliates_links", "link_id")} = ${id} AND ${column("affiliates", "type")} = 'Collaborator'`,
+    ),
+    exists(
+      "custom_html",
+      Prisma.sql`${table("pages")} WHERE ${column("pages", "pageable_type")} = 'Link' AND ${column("pages", "pageable_id")} = ${id}`,
+    ),
+    exists(
+      "custom_domain",
+      Prisma.sql`${table("custom_domains")} WHERE ${column("custom_domains", "product_id")} = ${id} AND ${column("custom_domains", "deleted_at")} IS NULL`,
+    ),
+    exists(
+      "installment_plan",
+      Prisma.sql`${table("product_installment_plans")} WHERE ${column("product_installment_plans", "link_id")} = ${id} AND ${column("product_installment_plans", "deleted_at")} IS NULL`,
+    ),
+    exists(
+      "public_files",
+      Prisma.sql`${table("public_files")} WHERE ${column("public_files", "resource_type")} = 'Link' AND ${column("public_files", "resource_id")} = ${id} AND ${column("public_files", "deleted_at")} IS NULL`,
+    ),
+    exists(
+      "product_builds",
+      Prisma.sql`${table("product_builds")} WHERE ${column("product_builds", "product_id")} = ${id}`,
+    ),
+    exists(
+      "waitlist",
+      Prisma.sql`${table("waitlist_entries")} WHERE ${column("waitlist_entries", "product_id")} = ${id}`,
+    ),
     exists("sales", Prisma.sql`${table("purchases")} WHERE ${column("purchases", "link_id")} = ${id}`),
-    exists("reviews", Prisma.sql`${table("product_review_stats")} WHERE ${column("product_review_stats", "link_id")} = ${id} AND ${column("product_review_stats", "reviews_count")} > 0`),
+    exists(
+      "reviews",
+      Prisma.sql`${table("product_review_stats")} WHERE ${column("product_review_stats", "link_id")} = ${id} AND ${column("product_review_stats", "reviews_count")} > 0`,
+    ),
     // The picker offers the seller's whole file library.
-    exists("existing_files", Prisma.sql`${table("product_files")} INNER JOIN ${table("links")} ON ${column("links", "id")} = ${column("product_files", "link_id")} WHERE ${column("links", "user_id")} = ${sellerId} AND ${column("product_files", "deleted_at")} IS NULL`),
-    exists("seller_custom_domain", Prisma.sql`${table("custom_domains")} WHERE ${column("custom_domains", "user_id")} = ${sellerId} AND ${column("custom_domains", "deleted_at")} IS NULL`),
-    exists("seller_refund_policy_missing", Prisma.sql`${table("users")} WHERE ${column("users", "id")} = ${sellerId} AND NOT EXISTS (SELECT 1 FROM ${table("refund_policies")} WHERE ${column("refund_policies", "seller_id")} = ${sellerId} AND ${column("refund_policies", "product_id")} IS NULL)`),
-    exists("taxonomy_attribute_values", Prisma.sql`${table("taxonomy_attributes")} WHERE ${column("taxonomy_attributes", "active")} = TRUE AND JSON_TYPE(${column("taxonomy_attributes", "values")}) NOT IN ('ARRAY', 'NULL')`),
+    exists(
+      "existing_files",
+      Prisma.sql`${table("product_files")} INNER JOIN ${table("links")} ON ${column("links", "id")} = ${column("product_files", "link_id")} WHERE ${column("links", "user_id")} = ${sellerId} AND ${column("product_files", "deleted_at")} IS NULL`,
+    ),
+    exists(
+      "seller_custom_domain",
+      Prisma.sql`${table("custom_domains")} WHERE ${column("custom_domains", "user_id")} = ${sellerId} AND ${column("custom_domains", "deleted_at")} IS NULL`,
+    ),
+    exists(
+      "seller_refund_policy_missing",
+      Prisma.sql`${table("users")} WHERE ${column("users", "id")} = ${sellerId} AND NOT EXISTS (SELECT 1 FROM ${table("refund_policies")} WHERE ${column("refund_policies", "seller_id")} = ${sellerId} AND ${column("refund_policies", "product_id")} IS NULL)`,
+    ),
+    exists(
+      "taxonomy_attribute_values",
+      Prisma.sql`${table("taxonomy_attributes")} WHERE ${column("taxonomy_attributes", "active")} = TRUE AND JSON_TYPE(${column("taxonomy_attributes", "values")}) NOT IN ('ARRAY', 'NULL')`,
+    ),
   ];
   const rows = await selectRows<Blocker>(Prisma.sql`${Prisma.join(probes, " UNION ALL ")}`);
   return rows.map((row) => row.blocker);
@@ -105,32 +177,50 @@ export async function editBlockers(product: LinkRow, seller: UserRow): Promise<s
   const flags = product.flags;
   const set = (flag: Parameters<typeof LinkFlags.isSet>[1]) => LinkFlags.isSet(flags as bigint, flag);
   if (!(EDIT_NATIVE_TYPES as readonly (string | null)[]).includes(product.native_type)) blockers.push("native_type");
-  for (const flag of ["is_recurring_billing", "is_tiered_membership", "is_physical", "is_bundle", "is_in_preorder_state", "free_trial_enabled", "is_collab"] as const) {
+  for (const flag of [
+    "is_recurring_billing",
+    "is_tiered_membership",
+    "is_physical",
+    "is_bundle",
+    "is_in_preorder_state",
+    "free_trial_enabled",
+    "is_collab",
+  ] as const) {
     if (set(flag)) blockers.push(flag);
   }
   if (product.max_purchase_count !== null) blockers.push("max_purchase_count");
   if (product.default_offer_code_id !== null) blockers.push("default_offer_code");
   if (product.subscription_duration !== null) blockers.push("subscription_duration");
-  if (product.free_trial_duration_amount !== null || product.free_trial_duration_unit !== null) blockers.push("free_trial");
+  if (product.free_trial_duration_amount !== null || product.free_trial_duration_unit !== null)
+    blockers.push("free_trial");
   if (product.price_currency_type === null) blockers.push("price_currency_type");
   return blockers;
 }
 
 export async function assertEditSupported(product: LinkRow, seller: UserRow, currentSellerId: bigint): Promise<void> {
   // A collaborator edits the owner's product: `collaborator_editing?` narrows the file picker and `waitlist` goes blank.
-  if (product.user_id === null || product.user_id !== seller.id || currentSellerId !== seller.id) throw new HandBackToRails();
+  if (product.user_id === null || product.user_id !== seller.id || currentSellerId !== seller.id)
+    throw new HandBackToRails();
   if ((await editBlockers(product, seller)).length > 0) throw new HandBackToRails();
 }
 
 // Port of app/services/product/editor_revision.rb `fingerprint`/`digest`, for a product whose rich content, files, public
 // files and integrations (editBlockers) are empty: only the versions and their categories contribute.
-export function editorRevision(product: LinkRow, secretKeyBase = getConfig("SECRET_KEY_BASE") ?? "", versions: VersionRows = { categories: [], variants: [] }): string {
+export function editorRevision(
+  product: LinkRow,
+  secretKeyBase = getConfig("SECRET_KEY_BASE") ?? "",
+  versions: VersionRows = { categories: [], variants: [] },
+): string {
   const stamps = versionStamps(versions);
   const flag = (name: Parameters<typeof LinkFlags.isSet>[1]) => LinkFlags.isSet(product.flags as bigint, name);
   const fingerprint = {
     version: EDITOR_REVISION_VERSION,
     product: Number(product.id),
-    product_state: { has_same_rich_content_for_all_variants: flag("has_same_rich_content_for_all_variants"), is_tiered_membership: flag("is_tiered_membership"), is_physical: flag("is_physical") },
+    product_state: {
+      has_same_rich_content_for_all_variants: flag("has_same_rich_content_for_all_variants"),
+      is_tiered_membership: flag("is_tiered_membership"),
+      is_physical: flag("is_physical"),
+    },
     rich_content: [],
     variants: stamps.variants,
     variant_categories: stamps.variant_categories,
@@ -149,17 +239,28 @@ type NavTaxonomy = { key: string; label: string | null; slug: string; parent_key
 
 // Discover::TaxonomyPresenter#taxonomies_for_nav, uncached (Rails keeps it in Rails.cache for an hour).
 async function taxonomiesForNav(): Promise<NavTaxonomy[]> {
-  const rows = await selectRows<{ id: bigint; slug: string; parent_id: bigint | null; recent_sales_count: number | null }>(
+  const rows = await selectRows<{
+    id: bigint;
+    slug: string;
+    parent_id: bigint | null;
+    recent_sales_count: number | null;
+  }>(
     Prisma.sql`SELECT ${column("taxonomies", "id")}, ${column("taxonomies", "slug")}, ${column("taxonomies", "parent_id")}, ${column("taxonomy_stats", "recent_sales_count")} FROM ${table("taxonomies")} LEFT OUTER JOIN ${table("taxonomy_stats")} ON ${column("taxonomy_stats", "taxonomy_id")} = ${column("taxonomies", "id")} ORDER BY ${column("taxonomies", "id")} ASC`,
   );
-  const sortKey = (row: (typeof rows)[number]): [number, string] => (row.slug === "other" ? [1, row.slug] : [-(row.recent_sales_count ?? 0), row.slug]);
+  const sortKey = (row: (typeof rows)[number]): [number, string] =>
+    row.slug === "other" ? [1, row.slug] : [-(row.recent_sales_count ?? 0), row.slug];
   return [...rows]
     .sort((a, b) => {
       const [aCount, aSlug] = sortKey(a);
       const [bCount, bSlug] = sortKey(b);
       return aCount === bCount ? compare(aSlug, bSlug) : aCount - bCount;
     })
-    .map((row) => ({ key: String(row.id), label: TAXONOMY_LABELS[row.slug] ?? null, slug: row.slug, parent_key: row.parent_id === null ? null : String(row.parent_id) }));
+    .map((row) => ({
+      key: String(row.id),
+      label: TAXONOMY_LABELS[row.slug] ?? null,
+      slug: row.slug,
+      parent_key: row.parent_id === null ? null : String(row.parent_id),
+    }));
 }
 
 // Discover::TaxonomyPresenter#taxonomies_for_category_picker
@@ -175,17 +276,32 @@ export async function taxonomiesForCategoryPicker(): Promise<NavTaxonomy[]> {
     breadcrumbs.set(taxonomy.key, value);
     return value;
   };
-  return taxonomies.map((taxonomy) => ({ taxonomy, sort: breadcrumb(taxonomy).toLowerCase() })).sort((a, b) => compare(a.sort, b.sort)).map(({ taxonomy }) => taxonomy);
+  return taxonomies
+    .map((taxonomy) => ({ taxonomy, sort: breadcrumb(taxonomy).toLowerCase() }))
+    .sort((a, b) => compare(a.sort, b.sort))
+    .map(({ taxonomy }) => taxonomy);
 }
 
 async function taxonomyAttributes() {
-  const rows = await selectRows<{ taxonomy_id: bigint; name: string; label: string; value_type: string; values: unknown }>(
+  const rows = await selectRows<{
+    taxonomy_id: bigint;
+    name: string;
+    label: string;
+    value_type: string;
+    values: unknown;
+  }>(
     Prisma.sql`SELECT ${column("taxonomy_attributes", "taxonomy_id")}, ${column("taxonomy_attributes", "name")}, ${column("taxonomy_attributes", "label")}, ${column("taxonomy_attributes", "value_type")}, ${column("taxonomy_attributes", "values")} FROM ${table("taxonomy_attributes")} WHERE ${column("taxonomy_attributes", "active")} = TRUE ORDER BY ${column("taxonomy_attributes", "position")} ASC, ${column("taxonomy_attributes", "id")} ASC`,
   );
   return rows.map((row) => {
     const values = typeof row.values === "string" ? (JSON.parse(row.values) as unknown) : row.values;
     // TaxonomyAttribute#normalized_options: Array(values).map(&:to_s)
-    return { taxonomy_id: String(row.taxonomy_id), name: row.name, label: row.label, value_type: row.value_type, values: Array.isArray(values) ? values.map((value) => String(value)) : [] };
+    return {
+      taxonomy_id: String(row.taxonomy_id),
+      name: row.name,
+      label: row.label,
+      value_type: row.value_type,
+      values: Array.isArray(values) ? values.map((value) => String(value)) : [],
+    };
   });
 }
 
@@ -197,12 +313,19 @@ export async function profileSections(seller: UserRow) {
   );
   return Promise.all(
     rows.map(async (row) => {
-      const data = (typeof row.json_data === "string" ? JSON.parse(row.json_data) : (row.json_data ?? {})) as { shown_products?: number[]; add_new_products?: boolean };
+      const data = (typeof row.json_data === "string" ? JSON.parse(row.json_data) : (row.json_data ?? {})) as {
+        shown_products?: number[];
+        add_new_products?: boolean;
+      };
       const shown = data.shown_products ?? [];
       const names =
         shown.length === 0
           ? []
-          : (await selectRows<{ name: string | null }>(Prisma.sql`SELECT ${column("links", "name")} FROM ${table("links")} WHERE ${column("links", "user_id")} = ${seller.id} AND ${column("links", "id")} IN (${Prisma.join(shown)}) ORDER BY ${column("links", "id")} ASC`)).map((link) => link.name);
+          : (
+              await selectRows<{ name: string | null }>(
+                Prisma.sql`SELECT ${column("links", "name")} FROM ${table("links")} WHERE ${column("links", "user_id")} = ${seller.id} AND ${column("links", "id")} IN (${Prisma.join(shown)}) ORDER BY ${column("links", "id")} ASC`,
+              )
+            ).map((link) => link.name);
       return { row, shown, names, defaultSection: data.add_new_products ?? null };
     }),
   );
@@ -229,7 +352,12 @@ const LINK_ARCHIVED_FLAG = 1n << 4n;
 // Port of app/models/product_refund_policy.rb (#as_json, .for_visible_and_not_archived_products) as read by
 // ProductPresenter#edit_props: the seller's other products' policies, most recently updated first.
 export async function otherProductRefundPolicies(productId: bigint, sellerId: bigint) {
-  const rows = await selectRows<{ id: bigint; fine_print: string | null; max_refund_period_in_days: number | null; product_name: string | null }>(
+  const rows = await selectRows<{
+    id: bigint;
+    fine_print: string | null;
+    max_refund_period_in_days: number | null;
+    product_name: string | null;
+  }>(
     Prisma.sql`SELECT ${column("refund_policies", "id")}, ${column("refund_policies", "fine_print")}, ${column("refund_policies", "max_refund_period_in_days")}, ${column("links", "name")} AS product_name FROM ${table("refund_policies")} INNER JOIN ${table("links")} ON ${column("links", "id")} = ${column("refund_policies", "product_id")} WHERE ${column("refund_policies", "seller_id")} = ${sellerId} AND ${column("refund_policies", "product_id")} IS NOT NULL AND ${column("refund_policies", "product_id")} <> ${productId} AND ${column("links", "deleted_at")} IS NULL AND (${column("links", "flags")} & ${LINK_ARCHIVED_FLAG}) = 0 ORDER BY ${column("refund_policies", "updated_at")} DESC, ${column("refund_policies", "id")} DESC`,
   );
   return rows.map((row) => ({
@@ -244,7 +372,9 @@ export async function otherProductRefundPolicies(productId: bigint, sellerId: bi
 // User#account_level_refund_policy_enabled?
 export async function accountLevelRefundPolicyEnabled(seller: UserRow, now: Date): Promise<boolean> {
   if (await isFeatureEnabled("seller_refund_policy_disabled_for_all")) return false;
-  const delayed = (await isFeatureEnabled("account_level_refund_policy_delayed_for_sellers", userActor(seller.id))) && now.getTime() <= LAST_ALLOWED_TIME_FOR_PRODUCT_LEVEL_REFUND_POLICY;
+  const delayed =
+    (await isFeatureEnabled("account_level_refund_policy_delayed_for_sellers", userActor(seller.id))) &&
+    now.getTime() <= LAST_ALLOWED_TIME_FOR_PRODUCT_LEVEL_REFUND_POLICY;
   if (delayed) return false;
   return UserFlags.isSet(seller.flags as bigint, "refund_policy_enabled");
 }
@@ -258,7 +388,11 @@ async function autoMarketingEnabled(seller: UserRow): Promise<boolean> {
   if (!assignment) throw new HandBackToRails();
   if (assignment.marketing_holdout) return false;
   try {
-    return evaluateFeature("auto_marketing", parseGateValues(await readFeatureDoc("auto_marketing")), userActor(seller.id));
+    return evaluateFeature(
+      "auto_marketing",
+      parseGateValues(await readFeatureDoc("auto_marketing")),
+      userActor(seller.id),
+    );
   } catch {
     return false;
   }
@@ -274,7 +408,12 @@ export function jsonSettings(product: LinkRow) {
   };
   const jsonObject = (key: string) => {
     const value = jsonValue(key);
-    const hash = value instanceof RubyHash ? value : value !== null && typeof value === "object" && !Array.isArray(value) ? new RubyHash(Object.entries(value)) : null;
+    const hash =
+      value instanceof RubyHash
+        ? value
+        : value !== null && typeof value === "object" && !Array.isArray(value)
+          ? new RubyHash(Object.entries(value))
+          : null;
     return hash && hash.entries.length > 0 ? plain(hash) : {};
   };
   const customAttributes = (() => {
@@ -284,7 +423,13 @@ export function jsonSettings(product: LinkRow) {
   return { jsonValue, jsonText, jsonObject, customAttributes };
 }
 
-export type EditPropsInput = { product: LinkRow; seller: UserRow; sellerExternalId: string; aiGenerated: boolean; now?: Date };
+export type EditPropsInput = {
+  product: LinkRow;
+  seller: UserRow;
+  sellerExternalId: string;
+  aiGenerated: boolean;
+  now?: Date;
+};
 
 export async function editProps({ product, seller, sellerExternalId, aiGenerated, now = new Date() }: EditPropsInput) {
   const flag = (name: Parameters<typeof LinkFlags.isSet>[1]) => LinkFlags.isSet(product.flags as bigint, name);
@@ -301,7 +446,8 @@ export async function editProps({ product, seller, sellerExternalId, aiGenerated
 
   const versions = await versionRows(product.id);
   // Link#recoverable_hidden_variant_rich_content?; the product has no pages of its own and is not physical (editBlockers).
-  const sharesRichContent = flag("has_same_rich_content_for_all_variants") && !(await recoverableHiddenVariantRichContent(product.id));
+  const sharesRichContent =
+    flag("has_same_rich_content_for_all_variants") && !(await recoverableHiddenVariantRichContent(product.id));
   const tags = await productTagNames(product.id);
   const otherRefundPolicies = await otherProductRefundPolicies(product.id, seller.id);
   const sections = await profileSections(seller);
@@ -311,8 +457,13 @@ export async function editProps({ product, seller, sellerExternalId, aiGenerated
   const subdomainName = userSubdomain(sellerRecord);
   const subdomainHost = subdomainName ? subdomainName.split(":")[0]! : null;
   const sellerTimezone = (seller.timezone as string | null) ?? "UTC";
-  const mailDomain = railsEnv() === "production" ? getConfig("CUSTOMERS_MAIL_DOMAIN_PROD", "customers.gumroad.com") : getConfig("CUSTOMERS_MAIL_DOMAIN_DEV", "staging.customers.gumroad.com");
-  const s3Bucket = { development: "gumroad-dev", staging: "gumroad_dev", test: "gumroad-specs", production: "gumroad" }[railsEnv()];
+  const mailDomain =
+    railsEnv() === "production"
+      ? getConfig("CUSTOMERS_MAIL_DOMAIN_PROD", "customers.gumroad.com")
+      : getConfig("CUSTOMERS_MAIL_DOMAIN_DEV", "staging.customers.gumroad.com");
+  const s3Bucket = { development: "gumroad-dev", staging: "gumroad_dev", test: "gumroad-specs", production: "gumroad" }[
+    railsEnv()
+  ];
 
   return {
     product: {
@@ -356,16 +507,25 @@ export async function editProps({ product, seller, sellerExternalId, aiGenerated
         title: refundPeriodTitle(refundPolicy.max_refund_period_in_days),
       },
       covers: [],
-      is_published: !product.draft && product.purchase_disabled_at === null && product.banned_at === null && product.deleted_at === null,
-      first_published_at: product.first_published_at ? instantInTimeZoneIso8601("UTC", product.first_published_at as Date) : null,
+      is_published:
+        !product.draft &&
+        product.purchase_disabled_at === null &&
+        product.banned_at === null &&
+        product.deleted_at === null,
+      first_published_at: product.first_published_at
+        ? instantInTimeZoneIso8601("UTC", product.first_published_at as Date)
+        : null,
       require_shipping: false,
       integrations: Object.fromEntries(INTEGRATION_NAMES.map((name) => [name, null])),
       variants: await variantProps(versions, sharesRichContent),
       availabilities: [],
       shipping_destinations: [],
       shipping_excluded_country_codes: [],
-      section_ids: sections.filter((section) => section.shown.includes(Number(product.id))).map((section) => externalId(section.row.id)),
-      taxonomy_id: product.taxonomy_id === null || product.taxonomy_id === undefined ? null : String(product.taxonomy_id),
+      section_ids: sections
+        .filter((section) => section.shown.includes(Number(product.id)))
+        .map((section) => externalId(section.row.id)),
+      taxonomy_id:
+        product.taxonomy_id === null || product.taxonomy_id === undefined ? null : String(product.taxonomy_id),
       tags,
       display_product_reviews: flag("display_product_reviews"),
       is_adult: flag("is_adult"),
@@ -401,10 +561,18 @@ export async function editProps({ product, seller, sellerExternalId, aiGenerated
     can_close_membership_tiers: false,
     is_listed_on_discover: false,
     is_physical: false,
-    profile_sections: sections.map((section) => ({ id: externalId(section.row.id), header: section.row.header ?? "", product_names: section.names, default: section.defaultSection })),
+    profile_sections: sections.map((section) => ({
+      id: externalId(section.row.id),
+      header: section.row.header ?? "",
+      product_names: section.names,
+      default: section.defaultSection,
+    })),
     taxonomies: await taxonomiesForCategoryPicker(),
     taxonomy_attributes: await taxonomyAttributes(),
-    earliest_membership_price_change_date: instantInTimeZoneIso8601(sellerTimezone, new Date(now.getTime() + MINIMUM_DAYS_TIL_EXISTING_MEMBERSHIP_PRICE_CHANGE * DAY_MS)),
+    earliest_membership_price_change_date: instantInTimeZoneIso8601(
+      sellerTimezone,
+      new Date(now.getTime() + MINIMUM_DAYS_TIL_EXISTING_MEMBERSHIP_PRICE_CHANGE * DAY_MS),
+    ),
     custom_domain_verification_status: null,
     sales_count_for_inventory: 0,
     successful_sales_count: 0,
@@ -417,7 +585,10 @@ export async function editProps({ product, seller, sellerExternalId, aiGenerated
     available_countries: data.shipping_countries,
     google_client_id: getConfig("GOOGLE_CLIENT_ID"),
     seller_refund_policy_enabled: await accountLevelRefundPolicyEnabled(seller, now),
-    seller_refund_policy: { title: refundPeriodTitle(sellerRefund!.max_refund_period_in_days), fine_print: sellerRefund!.fine_print },
+    seller_refund_policy: {
+      title: refundPeriodTitle(sellerRefund!.max_refund_period_in_days),
+      fine_print: sellerRefund!.fine_print,
+    },
     cancellation_discounts_enabled: await isFeatureEnabled("cancellation_discounts", actor),
     receipt_email_from: fromAddressWithName(seller.name, `noreply@${mailDomain}`),
     price_checker_enabled: await isFeatureEnabled("price_checker", actor),

@@ -2,7 +2,14 @@
 // SalesTaxCalculator#calculate's lookup-table branch. The endpoint itself stays in Rails: its response also carries
 // GeoIP-detected currency, the signed FX quote and direct-listed amount tokens, which are not provable here.
 // Callers pass in what needs a database or a vendor: the ZipTaxRate row and the Feature flags.
-import { lookupTaxCents, type BusinessVatStatus, type SalesTaxCalculation, zeroBusinessVat, zeroTax, salesTaxCalculationToHash } from "./sales-tax-calculation.ts";
+import {
+  lookupTaxCents,
+  type BusinessVatStatus,
+  type SalesTaxCalculation,
+  zeroBusinessVat,
+  zeroTax,
+  salesTaxCalculationToHash,
+} from "./sales-tax-calculation.ts";
 
 export type LookupRate = { country: string; combinedRate: string };
 
@@ -52,7 +59,14 @@ export type SurchargeTotals = {
 // The body of the products loop in CustomerSurchargeController#calculate_all: the last line decides `vat_id_valid`,
 // any line can raise `has_vat_id_input`, and only a positive tax is added up.
 export function surchargeTotals(lines: SurchargeLine[]): SurchargeTotals {
-  const totals: SurchargeTotals = { vat_id_valid: false, has_vat_id_input: false, shipping_rate_cents: 0, tax_cents: 0, tax_included_cents: 0, subtotal: 0 };
+  const totals: SurchargeTotals = {
+    vat_id_valid: false,
+    has_vat_id_input: false,
+    shipping_rate_cents: 0,
+    tax_cents: 0,
+    tax_included_cents: 0,
+    subtotal: 0,
+  };
   for (const { taxResult, shippingUsdCents } of lines) {
     totals.vat_id_valid = taxResult.businessVatStatus === "valid";
     totals.has_vat_id_input ||= salesTaxCalculationToHash(taxResult).has_vat_id_input;
@@ -65,7 +79,10 @@ export function surchargeTotals(lines: SurchargeLine[]): SurchargeTotals {
 
 // `charge_canonical_total_cents` for one-time lines: subtotal + tax + shipping. Installment, preorder and commission
 // lines charge less than the agreement total now; they are not covered.
-export const oneTimeChargeTotalCents = (totals: SurchargeTotals): number => totals.subtotal + totals.tax_cents + totals.shipping_rate_cents;
+export const oneTimeChargeTotalCents = (totals: SurchargeTotals): number =>
+  totals.subtotal + totals.tax_cents + totals.shipping_rate_cents;
 
 // CustomerSurchargeController#calculate_all: `products` must be an array of hashes, otherwise 400.
-export const validProductsParam = (products: unknown): boolean => Array.isArray(products) && products.every((item) => typeof item === "object" && item !== null && !Array.isArray(item));
+export const validProductsParam = (products: unknown): boolean =>
+  Array.isArray(products) &&
+  products.every((item) => typeof item === "object" && item !== null && !Array.isArray(item));

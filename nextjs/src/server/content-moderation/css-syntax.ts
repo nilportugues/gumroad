@@ -14,7 +14,7 @@ export type CssProperty = { node: "property"; name: string; children: CssNode[] 
 export type CssError = { node: "error" };
 export type CssNode = CssToken | CssFunction | CssSimpleBlock | CssProperty | CssError;
 
-export type CssStyleRule = { node: "style_rule"; children: Array<CssProperty | CssError> };
+export type CssStyleRule = { node: "style_rule"; children: (CssProperty | CssError)[] };
 export type CssAtRule = { node: "at_rule"; name: string; block: CssToken[] | null };
 export type CssRule = CssStyleRule | CssAtRule | CssError;
 
@@ -41,7 +41,8 @@ export function tokenize(input: string): CssToken[] {
   let pos = 0;
 
   const at = (offset = 0) => chars[pos + offset];
-  const validEscapeAt = (offset: number) => chars[pos + offset] === "\\" && chars[pos + offset + 1] !== undefined && !isNewline(chars[pos + offset + 1]);
+  const validEscapeAt = (offset: number) =>
+    chars[pos + offset] === "\\" && chars[pos + offset + 1] !== undefined && !isNewline(chars[pos + offset + 1]);
 
   function consumeEscape(): string {
     // Called after the backslash is consumed.
@@ -78,7 +79,11 @@ export function tokenize(input: string): CssToken[] {
     const first = chars[pos + offset];
     if (first === "-") {
       const second = chars[pos + offset + 1];
-      return isNameStart(second) || second === "-" || (second === "\\" && chars[pos + offset + 2] !== undefined && !isNewline(chars[pos + offset + 2]));
+      return (
+        isNameStart(second) ||
+        second === "-" ||
+        (second === "\\" && chars[pos + offset + 2] !== undefined && !isNewline(chars[pos + offset + 2]))
+      );
     }
     if (isNameStart(first)) return true;
     return first === "\\" && chars[pos + offset + 1] !== undefined && !isNewline(chars[pos + offset + 1]);
@@ -331,8 +336,8 @@ class Parser {
   }
 }
 
-function declarationList(parser: Parser): Array<CssProperty | CssError> {
-  const out: Array<CssProperty | CssError> = [];
+function declarationList(parser: Parser): (CssProperty | CssError)[] {
+  const out: (CssProperty | CssError)[] = [];
 
   while (!parser.done) {
     const token = parser.peek()!;
@@ -370,7 +375,7 @@ function declaration(values: CssNode[]): CssProperty | CssError {
 }
 
 // Crass.parse_properties
-export function parseProperties(css: string): Array<CssProperty | CssError> {
+export function parseProperties(css: string): (CssProperty | CssError)[] {
   return declarationList(new Parser(tokenize(css)));
 }
 

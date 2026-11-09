@@ -15,10 +15,54 @@ import { parseFragment } from "parse5";
 import { HTML4_ENTITIES } from "./html4-entities.generated.ts";
 
 const LINEBREAKERS = new Set([
-  "address", "blockquote", "center", "dir", "div", "dl", "fieldset", "form", "h1", "h2", "h3", "h4", "h5", "h6", "hr",
-  "isindex", "menu", "noframes", "noscript", "ol", "p", "pre", "table", "ul", "article", "aside", "canvas", "dd", "dt",
-  "figcaption", "figure", "footer", "header", "hgroup", "li", "main", "nav", "output", "section", "tfoot", "video",
-  "frameset", "tbody", "td", "th", "thead", "tr", "br",
+  "address",
+  "blockquote",
+  "center",
+  "dir",
+  "div",
+  "dl",
+  "fieldset",
+  "form",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "hr",
+  "isindex",
+  "menu",
+  "noframes",
+  "noscript",
+  "ol",
+  "p",
+  "pre",
+  "table",
+  "ul",
+  "article",
+  "aside",
+  "canvas",
+  "dd",
+  "dt",
+  "figcaption",
+  "figure",
+  "footer",
+  "header",
+  "hgroup",
+  "li",
+  "main",
+  "nav",
+  "output",
+  "section",
+  "tfoot",
+  "video",
+  "frameset",
+  "tbody",
+  "td",
+  "th",
+  "thead",
+  "tr",
+  "br",
 ]);
 
 // libxml2 2.13 parses only these as raw text, so their `&` stays literal.
@@ -30,7 +74,13 @@ export const ESCAPED_SENTINEL = String.fromCharCode(0xe001);
 type Node = { nodeName: string; value?: string; childNodes?: Node[] };
 
 // IS_CHAR: what htmlParseCharRef accepts.
-const isXmlChar = (cp: number) => cp === 0x9 || cp === 0xa || cp === 0xd || (cp >= 0x20 && cp <= 0xd7ff) || (cp >= 0xe000 && cp <= 0xfffd) || (cp >= 0x10000 && cp <= 0x10ffff);
+const isXmlChar = (cp: number) =>
+  cp === 0x9 ||
+  cp === 0xa ||
+  cp === 0xd ||
+  (cp >= 0x20 && cp <= 0xd7ff) ||
+  (cp >= 0xe000 && cp <= 0xfffd) ||
+  (cp >= 0x10000 && cp <= 0x10ffff);
 
 const NAME_START = /[\p{L}_:]/u;
 const NAME_CHAR = /[\p{L}\p{Nd}\p{Mn}\p{Mc}._:-]/u;

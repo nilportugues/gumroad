@@ -6,31 +6,41 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 
 import { db } from "../../lib/db.ts";
-import { railsMessageVerifierGenerate, railsMessageVerifierVerified } from "../auth/message-verifier.ts";
 import { classifyHost } from "../../lib/navigation/proxy/hosts.ts";
+import { railsMessageVerifierGenerate, railsMessageVerifierVerified } from "../auth/message-verifier.ts";
+import { railsLoggedInUser } from "../auth/resolve.ts";
 import { railsCache } from "../cache/rails-cache.ts";
 import { getConfig } from "../infra/config.ts";
-import { getNamespacedRedis, getRedis } from "../infra/redis.ts";
 import { railsRoot } from "../infra/rails-env.ts";
+import { getNamespacedRedis, getRedis } from "../infra/redis.ts";
 import { storageConfig } from "../infra/storage.ts";
 import { isAccountActive, Users } from "../models/user.ts";
 import { domainConfig } from "../page-props/domain.ts";
+import { PAGE_URL_HEADER } from "../page-props/render-state.ts";
 import { avatarUrl } from "../page-props/signed-in/presenters.ts";
 import { userByDomain } from "../page-props/storefront/seller-host.ts";
-import { PAGE_URL_HEADER } from "../page-props/render-state.ts";
+
 import { apiV2Response } from "./api-v2/base.ts";
 import "./api-v2/index.ts";
-import { type ActionContext, type ActionOptions, type ActionResult, HandBackToRails, processAction, type Rendered } from "./application-controller.ts";
-import { mobileResponse } from "./mobile-api.ts";
+import {
+  type ActionContext,
+  type ActionOptions,
+  type ActionResult,
+  HandBackToRails,
+  processAction,
+  type Rendered,
+} from "./application-controller.ts";
+import { impersonate, redirectToStripeDashboard } from "./internal-admin/admin-web.ts";
+import { internalAdminResponse } from "./internal-admin/index.ts";
 import { internalResponse } from "./internal-api.ts";
-import { railsLoggedInUser } from "../auth/resolve.ts";
+import { mobileResponse } from "./mobile-api.ts";
 import { computeDiscount } from "./offer-codes.ts";
 import { chargeData, licenseKeyLookupData, paypalChargeData } from "./public-data.ts";
-import { internalAdminResponse } from "./internal-admin/index.ts";
-import { impersonate, redirectToStripeDashboard } from "./internal-admin/admin-web.ts";
 import { assertFlatQuery } from "./rails-params.ts";
 import { queryParam, type RailsRequest, railsRequest } from "./rails-request.ts";
+
 import { esJson } from "../search/es-json.ts";
+
 import { urlRedirectsAction } from "./url-redirects/deliveries.ts";
 import { utmLinkRedirect } from "./utm-link-tracking.ts";
 import { wishlistUnsubscribe } from "./wishlist-unsubscribe.ts";
@@ -65,7 +75,13 @@ async function sitemapConfigs(request: RailsRequest): Promise<string[]> {
 // RobotsService#user_agent_rules and app/views/robots/index.erb
 function robots(request: RailsRequest, sitemaps: string[]): Rendered {
   const disallow = ROBOTS_DISALLOWED_PATHS.map((rule) => `Disallow: ${rule}`);
-  const rules = [...(storefrontHost(request) ? ["User-agent: bingbot", `Crawl-delay: ${STOREFRONT_BINGBOT_CRAWL_DELAY_SECONDS}`, ...disallow, ""] : []), "User-agent: *", ...disallow];
+  const rules = [
+    ...(storefrontHost(request)
+      ? ["User-agent: bingbot", `Crawl-delay: ${STOREFRONT_BINGBOT_CRAWL_DELAY_SECONDS}`, ...disallow, ""]
+      : []),
+    "User-agent: *",
+    ...disallow,
+  ];
   const body = `${rules.map((rule) => `${rule}\n`).join("")}\n${sitemaps.map((sitemap) => `${sitemap}\n`).join("")}`;
   const cacheControl = `max-age=${ROBOTS_CACHE_TTL_SECONDS}, public, stale-while-revalidate=${ROBOTS_STALE_WHILE_REVALIDATE_SECONDS}`;
   return { status: 200, body, contentType: TEXT, headers: { "cache-control": cacheControl }, paramsRead: true };
@@ -73,7 +89,12 @@ function robots(request: RailsRequest, sitemaps: string[]): Rendered {
 
 // app/views/llms/index.erb has no ERB tags: it is served as it is.
 function llms(): Rendered {
-  return { status: 200, body: readFileSync(path.join(railsRoot(), "app/views/llms/index.erb"), "utf8"), contentType: TEXT, paramsRead: true };
+  return {
+    status: 200,
+    body: readFileSync(path.join(railsRoot(), "app/views/llms/index.erb"), "utf8"),
+    contentType: TEXT,
+    paramsRead: true,
+  };
 }
 
 // app/views/public/crossdomain.xml.erb
@@ -122,7 +143,9 @@ async function acmeChallenge(token: string): Promise<Rendered> {
   } catch {
     // A stalled read is "no challenge staged" (REDIS_TRANSPORT_ERRORS).
   }
-  return content === null || content === "" ? empty(404) : { status: 200, body: content, contentType: TEXT, paramsRead: true };
+  return content === null || content === ""
+    ? empty(404)
+    : { status: 200, body: content, contentType: TEXT, paramsRead: true };
 }
 
 // IndexnowKeysController#show: ActiveSupport::SecurityUtils.secure_compare against GlobalConfig.get("INDEXNOW_KEY").
@@ -130,7 +153,8 @@ function indexnowKey(candidate: string): Rendered {
   const key = getConfig("INDEXNOW_KEY");
   const given = Buffer.from(candidate);
   const known = Buffer.from(key ?? "");
-  if (key !== undefined && key !== "" && given.length === known.length && timingSafeEqual(given, known)) return { status: 200, body: key, contentType: TEXT, paramsRead: true };
+  if (key !== undefined && key !== "" && given.length === known.length && timingSafeEqual(given, known))
+    return { status: 200, body: key, contentType: TEXT, paramsRead: true };
   return { status: 404, body: "", contentType: "text/plain", paramsRead: true };
 }
 
@@ -138,7 +162,12 @@ function indexnowKey(candidate: string): Rendered {
 async function githubStars(): Promise<Rendered> {
   const stars = await railsCache().read(GITHUB_STARS_CACHE_KEY);
   if (stars === undefined) throw new HandBackToRails("github_stars without a cached count");
-  return { status: 200, body: esJson({ stars: stars as number | null }), contentType: "application/json; charset=utf-8", headers: { "cache-control": `max-age=${GITHUB_STARS_MAX_AGE_SECONDS}, public` } };
+  return {
+    status: 200,
+    body: esJson({ stars: stars as number | null }),
+    contentType: "application/json; charset=utf-8",
+    headers: { "cache-control": `max-age=${GITHUB_STARS_MAX_AGE_SECONDS}, public` },
+  };
 }
 
 // EmbeddedJavascriptsController#analytics and app/views/embedded_javascripts/analytics.js.erb
@@ -148,34 +177,69 @@ const ANALYTICS_VIEW_TOKEN_PURPOSE = "external_landing_page_view";
 const ANALYTICS_VIEW_TOKEN_TTL_MS = 10 * 60_000;
 
 // ActionView::Helpers::JavaScriptHelper#escape_javascript
-const JS_ESCAPES: Record<string, string> = { "\\": "\\\\", "</": "<\\/", "\r\n": "\\n", "\n": "\\n", "\r": "\\n", '"': '\\"', "'": "\\'", "`": "\\`", $: "\\$", "\u2028": "&#x2028;", "\u2029": "&#x2029;" };
-const escapeJavascript = (value: string) => value.replace(/(\\|<\/|\r\n|[\n\r"'`$\u2028\u2029])/gu, (match) => JS_ESCAPES[match]!);
+const JS_ESCAPES: Record<string, string> = {
+  "\\": "\\\\",
+  "</": "<\\/",
+  "\r\n": "\\n",
+  "\n": "\\n",
+  "\r": "\\n",
+  '"': '\\"',
+  "'": "\\'",
+  "`": "\\`",
+  $: "\\$",
+  "\u2028": "&#x2028;",
+  "\u2029": "&#x2029;",
+};
+const escapeJavascript = (value: string) =>
+  value.replace(/(\\|<\/|\r\n|[\n\r"'`$\u2028\u2029])/gu, (match) => JS_ESCAPES[match]!);
 
 async function analyticsScript(request: RailsRequest): Promise<Rendered> {
   assertFlatQuery(request.queryString);
   // Only the template's own format renders: for an HTML request Rails raises MissingTemplate.
   const accept = request.headers.get("accept") ?? "";
-  if (accept.trim() !== "*/*" && !/javascript/u.test(accept)) throw new HandBackToRails("analytics script requested as something other than a script");
+  if (accept.trim() !== "*/*" && !/javascript/u.test(accept))
+    throw new HandBackToRails("analytics script requested as something other than a script");
   const token = queryParam(request, "token");
   let product: { id: bigint; unique_permalink: string | null } | null = null;
   if (typeof token === "string" && token !== "") {
     const payload = railsMessageVerifierVerified(ANALYTICS_VERIFIER, token, ANALYTICS_SCRIPT_TOKEN_PURPOSE);
-    const id = payload !== null && typeof payload === "object" && !Array.isArray(payload) ? (payload as Record<string, unknown>).product_id : undefined;
-    if (typeof id === "number") product = await db.link.findFirst({ where: { id, deleted_at: null }, select: { id: true, unique_permalink: true } });
+    const id =
+      payload !== null && typeof payload === "object" && !Array.isArray(payload)
+        ? (payload as Record<string, unknown>).product_id
+        : undefined;
+    if (typeof id === "number")
+      product = await db.link.findFirst({
+        where: { id, deleted_at: null },
+        select: { id: true, unique_permalink: true },
+      });
   }
   const referrer = request.headers.get("referer");
   const viewToken =
     product && referrer !== null && referrer !== ""
-      ? railsMessageVerifierGenerate(ANALYTICS_VERIFIER, { product_id: Number(product.id), source_url: referrer, event_id: randomUUID() }, ANALYTICS_VIEW_TOKEN_PURPOSE, { expiresAt: new Date(Date.now() + ANALYTICS_VIEW_TOKEN_TTL_MS) })
+      ? railsMessageVerifierGenerate(
+          ANALYTICS_VERIFIER,
+          { product_id: Number(product.id), source_url: referrer, event_id: randomUUID() },
+          ANALYTICS_VIEW_TOKEN_PURPOSE,
+          { expiresAt: new Date(Date.now() + ANALYTICS_VIEW_TOKEN_TTL_MS) },
+        )
       : "";
   const template = readFileSync(path.join(railsRoot(), "app/views/embedded_javascripts/analytics.js.erb"), "utf8");
   const body = template
     .replace("<%= j @product&.unique_permalink.to_s %>", () => escapeJavascript(product?.unique_permalink ?? ""))
     .replace("<%= j @analytics_token.to_s %>", () => escapeJavascript(viewToken));
-  return { status: 200, body, contentType: "application/javascript; charset=utf-8", headers: { "cache-control": "no-cache" }, paramsRead: true };
+  return {
+    status: 200,
+    body,
+    contentType: "application/javascript; charset=utf-8",
+    headers: { "cache-control": "no-cache" },
+    paramsRead: true,
+  };
 }
 
-type Handler = { options?: ActionOptions; run(request: RailsRequest, url: URL, action: ActionContext): Promise<ActionResult> };
+type Handler = {
+  options?: ActionOptions;
+  run(request: RailsRequest, url: URL, action: ActionContext): Promise<ActionResult>;
+};
 
 const HANDLERS: Record<string, Handler> = {
   robots: { options: { bare: true }, run: async (request) => robots(request, await sitemapConfigs(request)) },
@@ -184,10 +248,14 @@ const HANDLERS: Record<string, Handler> = {
   favicon: { run: (request) => favicon(request) },
   // The bytes are Rails' own: AcmeChallengesController#mask_token shadows the CSRF one, so the XSRF-TOKEN cookie is the first two and last two bytes of the global token around "...".
   acme_challenge: {
-    options: { xsrfCookieBytes: (token) => Buffer.concat([token.subarray(0, 2), Buffer.from("..."), token.subarray(-2)]) },
+    options: {
+      xsrfCookieBytes: (token) => Buffer.concat([token.subarray(0, 2), Buffer.from("..."), token.subarray(-2)]),
+    },
     run: (_request, url) => acmeChallenge(decodeURIComponent(url.pathname.split("/").at(-1) ?? "")),
   },
-  indexnow: { run: async (_request, url) => indexnowKey(decodeURIComponent(url.pathname.slice(1).replace(/\.txt$/u, ""))) },
+  indexnow: {
+    run: async (_request, url) => indexnowKey(decodeURIComponent(url.pathname.slice(1).replace(/\.txt$/u, ""))),
+  },
   github_stars: { run: () => githubStars() },
   wishlist_unsubscribe: { run: (request) => wishlistUnsubscribe(request) },
   utm_tracking: { run: (_request, url) => utmLinkRedirect(decodeURIComponent(url.pathname.split("/").at(-1) ?? "")) },
@@ -198,7 +266,9 @@ const HANDLERS: Record<string, Handler> = {
   admin_impersonate: { run: (request, url, action) => impersonate(request, url, action) },
   admin_stripe_dashboard: { run: (request, url, action) => redirectToStripeDashboard(request, url, action) },
   // OfferCodesController#compute_discount
-  compute_discount: { run: (request, _url, action) => computeDiscount(request, railsLoggedInUser(action.context) !== null) },
+  compute_discount: {
+    run: (request, _url, action) => computeDiscount(request, railsLoggedInUser(action.context) !== null),
+  },
   url_redirects: { run: (_request, _url, action) => urlRedirectsAction(action) },
 };
 

@@ -126,7 +126,8 @@ function main() {
     const unresolved: Example[] = [];
     for (const example of examples) {
       if (example.shared) unresolved.push(example);
-      else if (!recorded.some((r) => (example.dynamic ? example.regex.test(r) : r === example.name))) (example.dynamic ? unresolved : missing).push(example);
+      else if (!recorded.some((r) => (example.dynamic ? example.regex.test(r) : r === example.name)))
+        (example.dynamic ? unresolved : missing).push(example);
     }
     report[spec] = { tagged: examples.length, recorded: recorded.length, missing, unresolved };
   }
@@ -143,11 +144,15 @@ function main() {
     missing += entry.missing.length;
     unresolved += entry.unresolved.length;
     if (entry.missing.length === 0 && entry.unresolved.length === 0) continue;
-    console.log(`${spec}: ${entry.tagged} tagged, ${entry.recorded} fixtures, ${entry.missing.length} without a fixture, ${entry.unresolved.length} unresolved`);
+    console.log(
+      `${spec}: ${entry.tagged} tagged, ${entry.recorded} fixtures, ${entry.missing.length} without a fixture, ${entry.unresolved.length} unresolved`,
+    );
     for (const e of entry.missing) console.log(`  missing     :${e.line} ${e.name}`);
     for (const e of entry.unresolved) console.log(`  unresolved  :${e.line} ${e.name.replaceAll(HOLE, "#{...}")}`);
   }
-  console.log(`\n${Object.keys(report).length} spec files, ${tagged} tagged examples, ${missing} without a fixture, ${unresolved} unresolved`);
+  console.log(
+    `\n${Object.keys(report).length} spec files, ${tagged} tagged examples, ${missing} without a fixture, ${unresolved} unresolved`,
+  );
 }
 
 main();

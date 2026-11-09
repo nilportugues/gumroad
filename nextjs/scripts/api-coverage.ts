@@ -42,7 +42,6 @@ const RESTFUL: Record<string, [string[], string, boolean]> = {
   update: [["PATCH", "PUT"], "", true],
   destroy: [["DELETE"], "", true],
 };
-const COLLECTION_ACTIONS = ["index", "create", "new"];
 const SINGULAR_ACTIONS = ["show", "new", "create", "edit", "update", "destroy"];
 const CANONICAL_ACTIONS = ["index", "create", "new", "show", "update", "destroy"];
 const VERBS = ["get", "post", "put", "patch", "delete"];
@@ -60,13 +59,21 @@ type Frame = {
   unresolved: string | null;
 };
 
-const singularize = (word: string) => (word.endsWith("ies") ? `${word.slice(0, -3)}y` : word.endsWith("s") ? word.slice(0, -1) : word);
+const singularize = (word: string) =>
+  word.endsWith("ies") ? `${word.slice(0, -3)}y` : word.endsWith("s") ? word.slice(0, -1) : word;
 const pluralize = (word: string) => (/[^aeiou]y$/u.test(word) ? `${word.slice(0, -1)}ies` : `${word}s`);
 const join2 = (...parts: string[]) => parts.filter((part) => part !== "").join("/");
 const absolute = (path: string) => `/${path.replace(/^\/+/u, "")}`.replace(/\/+$/u, "") || "/";
 
-function parseArgs(rest: string): { positional: string | null; symbol: string | null; options: Record<string, string> } {
-  const trimmed = rest.replace(/^\(/u, "").replace(/\)\s*(do.*)?$/u, "").trim();
+function parseArgs(rest: string): {
+  positional: string | null;
+  symbol: string | null;
+  options: Record<string, string>;
+} {
+  const trimmed = rest
+    .replace(/^\(/u, "")
+    .replace(/\)\s*(do.*)?$/u, "")
+    .trim();
   let positional: string | null = null;
   let symbol: string | null = null;
   const first = /^(?:"([^"]*)"|'([^']*)'|:(\w+))\s*(,|$)/u.exec(trimmed);
@@ -75,14 +82,19 @@ function parseArgs(rest: string): { positional: string | null; symbol: string | 
     symbol = first[3] ?? null;
   }
   const options: Record<string, string> = {};
-  for (const match of trimmed.matchAll(/(\w+):\s*(\[[^\]]*\]|"[^"]*"|'[^']*'|:\w+|true|false|[A-Za-z_][\w:.]*(?:\([^)]*\))?|\{[^}]*\})/gu)) {
+  for (const match of trimmed.matchAll(
+    /(\w+):\s*(\[[^\]]*\]|"[^"]*"|'[^']*'|:\w+|true|false|[A-Za-z_][\w:.]*(?:\([^)]*\))?|\{[^}]*\})/gu,
+  )) {
     options[match[1]!] = match[2]!;
   }
   return { positional, symbol, options };
 }
 
 const stringOf = (value: string | undefined) => (value === undefined ? undefined : value.replace(/^["':]|["']$/gu, ""));
-const listOf = (value: string | undefined) => (value === undefined ? undefined : [...value.matchAll(/:(\w+)/gu)].map((match) => match[1]!).concat(value.startsWith(":") ? [] : []));
+const listOf = (value: string | undefined) =>
+  value === undefined
+    ? undefined
+    : [...value.matchAll(/:(\w+)/gu)].map((match) => match[1]!).concat(value.startsWith(":") ? [] : []);
 
 function onlyList(value: string | undefined): string[] | undefined {
   if (value === undefined) return undefined;
@@ -93,14 +105,36 @@ function parseBlock(lines: string[], start: number, end: number, initialModule: 
   const routes: Route[] = [];
   const stack: Frame[] = [{ kind: "scope", path: initialPath, module: initialModule, unresolved: null }];
   const top = () => stack[stack.length - 1]!;
-  const unresolved = (path: string, source: string, frame: Frame) => routes.push({ method: "?", path, controller: "?", action: "?", unresolved: frame.unresolved ?? source });
-  const controllerOf = (frame: Frame, name: string) => (name.startsWith("/") ? name.slice(1) : join2(frame.module, name));
+  const unresolved = (path: string, source: string, frame: Frame) =>
+    routes.push({ method: "?", path, controller: "?", action: "?", unresolved: frame.unresolved ?? source });
+  const controllerOf = (frame: Frame, name: string) =>
+    name.startsWith("/") ? name.slice(1) : join2(frame.module, name);
 
-  const addRoutes = (methods: string[], path: string, controller: string, action: string, frame: Frame, source: string) => {
-    for (const method of methods) routes.push({ method, path: absolute(path), controller, action, unresolved: frame.unresolved === null ? null : frame.unresolved || source });
+  const addRoutes = (
+    methods: string[],
+    path: string,
+    controller: string,
+    action: string,
+    frame: Frame,
+    source: string,
+  ) => {
+    for (const method of methods)
+      routes.push({
+        method,
+        path: absolute(path),
+        controller,
+        action,
+        unresolved: frame.unresolved === null ? null : frame.unresolved || source,
+      });
   };
 
-  const resourceRoutes = (frame: Frame, name: string, args: ReturnType<typeof parseArgs>, singular: boolean, source: string): Frame => {
+  const resourceRoutes = (
+    frame: Frame,
+    name: string,
+    args: ReturnType<typeof parseArgs>,
+    singular: boolean,
+    source: string,
+  ): Frame => {
     const options = args.options;
     const pathName = stringOf(options.path) ?? name;
     const controllerName = stringOf(options.controller) ?? (singular ? pluralize(name) : name);
@@ -120,7 +154,13 @@ function parseBlock(lines: string[], start: number, end: number, initialModule: 
     for (const action of actions) {
       const spec = RESTFUL[action];
       if (!spec) {
-        routes.push({ method: "?", path: absolute(collectionPath), controller, action, unresolved: `unknown action ${action}: ${source}` });
+        routes.push({
+          method: "?",
+          path: absolute(collectionPath),
+          controller,
+          action,
+          unresolved: `unknown action ${action}: ${source}`,
+        });
         continue;
       }
       const [methods, suffix, member] = spec;
@@ -140,19 +180,27 @@ function parseBlock(lines: string[], start: number, end: number, initialModule: 
     };
   };
 
-  const verb = (frame: Frame, method: string, args: ReturnType<typeof parseArgs>, source: string, nameOverride?: string) => {
+  const verb = (
+    frame: Frame,
+    method: string,
+    args: ReturnType<typeof parseArgs>,
+    source: string,
+    nameOverride?: string,
+  ) => {
     const { positional, symbol, options } = args;
     const name = positional ?? symbol;
     const to = options.to;
     const toValue = to?.startsWith('"') || to?.startsWith("'") ? stringOf(to) : undefined;
     const via = options.via ? listOf(options.via)!.map((verbName) => verbName.toUpperCase()) : [method.toUpperCase()];
     if (name === null || name === undefined) return unresolved("?", `no path: ${source}`, frame);
-    if (to !== undefined && toValue === undefined) return unresolved(name, `non-controller target (${to}): ${source}`, frame);
+    if (to !== undefined && toValue === undefined)
+      return unresolved(name, `non-controller target (${to}): ${source}`, frame);
     const on = stringOf(options.on);
     let basePath: string;
     let controller: string | undefined;
     let action: string | undefined = stringOf(options.action);
-    const inResource = frame.kind === "resources" || frame.kind === "resource" || frame.kind === "member" || frame.kind === "collection";
+    const inResource =
+      frame.kind === "resources" || frame.kind === "resource" || frame.kind === "member" || frame.kind === "collection";
     if (inResource) {
       const asMember = frame.kind === "member" || on === "member";
       const asCollection = frame.kind === "collection" || on === "collection";
@@ -175,7 +223,8 @@ function parseBlock(lines: string[], start: number, end: number, initialModule: 
       controller = controllerOf(frame, target!);
       action = targetAction;
     }
-    if (controller === undefined || action === undefined) return unresolved(basePath, `no controller: ${source}`, frame);
+    if (controller === undefined || action === undefined)
+      return unresolved(basePath, `no controller: ${source}`, frame);
     void nameOverride;
     addRoutes(via, basePath.replace(/\/+/gu, "/"), controller, action, frame, source);
   };
@@ -207,7 +256,8 @@ function parseBlock(lines: string[], start: number, end: number, initialModule: 
       const kind = brace[1] as "collection" | "member";
       const inner = /^(\w+)\b\s*(.*)$/u.exec(brace[2]!);
       const nested: Frame = { ...frame, kind };
-      if (frame.kind !== "resources" && frame.kind !== "resource") unresolved("?", `${kind} outside resources: ${text}`, { ...frame, unresolved: "" });
+      if (frame.kind !== "resources" && frame.kind !== "resource")
+        unresolved("?", `${kind} outside resources: ${text}`, { ...frame, unresolved: "" });
       else if (inner && VERBS.includes(inner[1]!)) verb(nested, inner[1]!, parseArgs(inner[2]!), text);
       else unresolved("?", text, { ...frame, unresolved: "" });
       continue;
@@ -218,19 +268,29 @@ function parseBlock(lines: string[], start: number, end: number, initialModule: 
       const path = word === "namespace" ? name : args.positional;
       // A scope without a path inside resources keeps the nesting (`scope module: :x do resources :y`).
       const keepsNesting = !path && (frame.kind === "resources" || frame.kind === "resource");
-      push({ ...frame, kind: keepsNesting ? frame.kind : "scope", path: path ? `${frame.path}/${path}` : frame.path, module: module ? join2(frame.module, module) : frame.module, unresolved: frame.unresolved });
+      push({
+        ...frame,
+        kind: keepsNesting ? frame.kind : "scope",
+        path: path ? `${frame.path}/${path}` : frame.path,
+        module: module ? join2(frame.module, module) : frame.module,
+        unresolved: frame.unresolved,
+      });
     } else if (word === "devise_scope") {
       push({ ...frame, kind: "scope" });
     } else if ((word === "resources" || word === "resource") && args.symbol !== null) {
       const next = resourceRoutes(frame, args.symbol, args, word === "resource", text);
       push(next);
-    } else if ((word === "collection" || word === "member") && (frame.kind === "resources" || frame.kind === "resource")) {
+    } else if (
+      (word === "collection" || word === "member") &&
+      (frame.kind === "resources" || frame.kind === "resource")
+    ) {
       push({ ...frame, kind: word });
     } else if (VERBS.includes(word)) {
       verb(frame, word, args, text);
       if (opens) stack.push({ ...frame, kind: "other", unresolved: `block under a route: ${text}` });
     } else if (word === "match") {
-      if (args.options.via === undefined) unresolved(args.positional ?? "?", `match without via: ${text}`, { ...frame, unresolved: "" });
+      if (args.options.via === undefined)
+        unresolved(args.positional ?? "?", `match without via: ${text}`, { ...frame, unresolved: "" });
       else verb(frame, "match", args, text);
     } else {
       unresolved("?", text, { ...frame, unresolved: "" });
@@ -242,7 +302,8 @@ function parseBlock(lines: string[], start: number, end: number, initialModule: 
 
 function blockEnd(lines: string[], start: number): number {
   const indent = /^\s*/u.exec(lines[start]!)![0].length;
-  for (let i = start + 1; i < lines.length; i++) if (lines[i]!.trim() === "end" && /^\s*/u.exec(lines[i]!)![0].length === indent) return i;
+  for (let i = start + 1; i < lines.length; i++)
+    if (lines[i]!.trim() === "end" && /^\s*/u.exec(lines[i]!)![0].length === indent) return i;
   throw new Error(`no end for the block at line ${start + 1}`);
 }
 
@@ -258,7 +319,12 @@ function railsRoutes(): Record<Namespace, Route[]> {
   const internalApi = find(/^\s*namespace :internal do/u);
   const internalGumroad = find(/^\s*namespace :internal do/u, internalApi + 1);
   const run = (start: number, module: string) => parseBlock(lines, start, blockEnd(lines, start), module, "");
-  return { v2: run(v2, "api"), mobile: run(mobile, "api"), "internal-api-host": run(internalApi, "api"), "internal-gumroad": run(internalGumroad, "api") };
+  return {
+    v2: run(v2, "api"),
+    mobile: run(mobile, "api"),
+    "internal-api-host": run(internalApi, "api"),
+    "internal-gumroad": run(internalGumroad, "api"),
+  };
 }
 
 // ---- Node side ----
@@ -272,7 +338,8 @@ function sourceLiterals(): Set<string> {
       const full = join(dir, name);
       if (statSync(full).isDirectory()) walk(full);
       else if (full.endsWith(".ts") && !full.endsWith(".test.ts")) {
-        for (const match of readFileSync(full, "utf8").matchAll(/["'`](\/[A-Za-z0-9_:*./-]*)["'`]/gu)) found.add(normalizeParams(match[1]!));
+        for (const match of readFileSync(full, "utf8").matchAll(/["'`](\/[A-Za-z0-9_:*./-]*)["'`]/gu))
+          found.add(normalizeParams(match[1]!));
       }
     }
   };
@@ -290,7 +357,9 @@ function fixtureRequests(): Fixture[] {
       if (statSync(full).isDirectory()) walk(full);
       else if (full.endsWith(".json")) {
         const text = readFileSync(full, "utf8");
-        for (const match of text.matchAll(/"source": "(?:request|controller)",\s*"method": "(\w+)",\s*"path": "([^"?]+)/gu)) {
+        for (const match of text.matchAll(
+          /"source": "(?:request|controller)",\s*"method": "(\w+)",\s*"path": "([^"?]+)/gu,
+        )) {
           const ahead = text.slice(match.index!, match.index! + 1200);
           found.push({ method: match[1]!, path: match[2]!, host: /"host": "([^"]+)"/u.exec(ahead)?.[1] ?? "" });
         }
@@ -302,8 +371,17 @@ function fixtureRequests(): Fixture[] {
 }
 
 const routeRegex = (path: string) =>
-  new RegExp(`^${path.split("/").map((part) => (part.startsWith(":") ? "[^/]+" : part.startsWith("*") ? ".+" : part.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"))).join("/")}/?$`, "u");
-const paramCount = (path: string) => path.split("/").filter((part) => part.startsWith(":") || part.startsWith("*")).length;
+  new RegExp(
+    `^${path
+      .split("/")
+      .map((part) =>
+        part.startsWith(":") ? "[^/]+" : part.startsWith("*") ? ".+" : part.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"),
+      )
+      .join("/")}/?$`,
+    "u",
+  );
+const paramCount = (path: string) =>
+  path.split("/").filter((part) => part.startsWith(":") || part.startsWith("*")).length;
 
 // ---- the report ----
 
@@ -327,7 +405,11 @@ function build(): string {
   const lookup = (ns: Namespace, method: string, path: string) => {
     const prefix = method === "GET" ? "" : `${method} `;
     const candidates =
-      ns === "v2" ? [`${prefix}api:${path}`, `${prefix}/api${path}`] : ns === "mobile" ? [`${prefix}${path}`] : [`${prefix}${path}`, `${prefix}api:${path}`, `${prefix}/api${path}`];
+      ns === "v2"
+        ? [`${prefix}api:${path}`, `${prefix}/api${path}`]
+        : ns === "mobile"
+          ? [`${prefix}${path}`]
+          : [`${prefix}${path}`, `${prefix}api:${path}`, `${prefix}/api${path}`];
     for (const candidate of candidates) {
       const hit = index.get(normalizeParams(candidate));
       if (!hit) continue;
@@ -339,7 +421,6 @@ function build(): string {
     return null;
   };
 
-  const sections: string[] = [];
   const totals: Record<string, Record<string, number>> = {};
   const rowsByNs = {} as Record<Namespace, Row[]>;
   for (const ns of Object.keys(routes) as Namespace[]) {
@@ -357,7 +438,9 @@ function build(): string {
     for (const fixture of fixtures) {
       const path = own(fixture);
       if (path === null) continue;
-      const matches = nsRoutes.filter((route) => route.method === fixture.method.toUpperCase() && routeRegex(patternOf(route)).test(path));
+      const matches = nsRoutes.filter(
+        (route) => route.method === fixture.method.toUpperCase() && routeRegex(patternOf(route)).test(path),
+      );
       if (matches.length === 0) continue;
       const fewest = Math.min(...matches.map((route) => paramCount(route.path)));
       for (const route of matches) if (paramCount(route.path) === fewest) covered.add(`${route.method} ${route.path}`);
@@ -365,9 +448,17 @@ function build(): string {
     const rows: Row[] = routes[ns].map((route) => {
       if (route.unresolved !== null) return { ...route, status: "unresolved", flag: "", fixture: "" };
       const entry = lookup(ns, route.method, route.path);
-      const served = entry !== null && (entry.handler !== undefined || entry.mutation === true) && literals.has(normalizeParams(route.path));
+      const served =
+        entry !== null &&
+        (entry.handler !== undefined || entry.mutation === true) &&
+        literals.has(normalizeParams(route.path));
       const status = entry === null ? "not registered" : served ? "native" : "hands back";
-      return { ...route, status, flag: entry?.flag ?? "", fixture: covered.has(`${route.method} ${route.path}`) ? "y" : "n" };
+      return {
+        ...route,
+        status,
+        flag: entry?.flag ?? "",
+        fixture: covered.has(`${route.method} ${route.path}`) ? "y" : "n",
+      };
     });
     rowsByNs[ns] = rows;
     const counts: Record<string, number> = {};
@@ -375,7 +466,11 @@ function build(): string {
     totals[ns] = counts;
   }
 
-  const classOf = (controller: string) => controller.split("/").map((part) => part.replace(/(^|_)(\w)/gu, (_, __, letter: string) => letter.toUpperCase())).join("::") + "Controller";
+  const classOf = (controller: string) =>
+    `${controller
+      .split("/")
+      .map((part) => part.replace(/(^|_)(\w)/gu, (_, __, letter: string) => letter.toUpperCase()))
+      .join("::")}Controller`;
   const out: string[] = [
     "# API route coverage",
     "",
@@ -398,12 +493,23 @@ function build(): string {
   for (const ns of Object.keys(routes) as Namespace[]) {
     const counts = totals[ns]!;
     const total = rowsByNs[ns].length;
-    out.push(`| ${TITLES[ns]} | ${total} | ${counts.native ?? 0} | ${counts["hands back"] ?? 0} | ${counts["not registered"] ?? 0} | ${counts.unresolved ?? 0} |`);
+    out.push(
+      `| ${TITLES[ns]} | ${total} | ${counts.native ?? 0} | ${counts["hands back"] ?? 0} | ${counts["not registered"] ?? 0} | ${counts.unresolved ?? 0} |`,
+    );
   }
   for (const ns of Object.keys(routes) as Namespace[]) {
-    out.push("", `## ${TITLES[ns]}`, "", "| Route | Ruby controller#action | Status | Flag | Fixture |", "| --- | --- | --- | --- | --- |");
+    out.push(
+      "",
+      `## ${TITLES[ns]}`,
+      "",
+      "| Route | Ruby controller#action | Status | Flag | Fixture |",
+      "| --- | --- | --- | --- | --- |",
+    );
     const resolved = rowsByNs[ns].filter((row) => row.unresolved === null);
-    for (const row of resolved) out.push(`| \`${row.method} ${row.path}\` | \`${classOf(row.controller)}#${row.action}\` | ${row.status} | ${row.flag === "" ? "-" : `\`${row.flag}\``} | ${row.fixture} |`);
+    for (const row of resolved)
+      out.push(
+        `| \`${row.method} ${row.path}\` | \`${classOf(row.controller)}#${row.action}\` | ${row.status} | ${row.flag === "" ? "-" : `\`${row.flag}\``} | ${row.fixture} |`,
+      );
     const unresolvedRows = rowsByNs[ns].filter((row) => row.unresolved !== null);
     if (unresolvedRows.length > 0) {
       out.push("", "Unresolved:", "");

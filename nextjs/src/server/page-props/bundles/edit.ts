@@ -10,8 +10,8 @@ import { HandBackToRails } from "../../controllers/application-controller.ts";
 import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
 import { LinkFlags } from "../../models/link.ts";
 import { column, selectRows, table } from "../../models/sql.ts";
-import { cardForWeb } from "../../presenters/product.ts";
 import { findLink, type LinkRow, type UserRow } from "../../presenters/product-reads.ts";
+import { cardForWeb } from "../../presenters/product.ts";
 import { NotPortedError } from "../not-ported.ts";
 import {
   accountLevelRefundPolicyEnabled,
@@ -30,7 +30,20 @@ import {
 const NATIVE_TYPE_BUNDLE = "bundle";
 // Rows the bundle presenters never read: the product editor's rich content, integrations, shipping, builds, waitlist and
 // file picker, and the seller-wide domain and attribute probes. `custom_html` stays for the Share tab.
-const UNREAD_BY_BUNDLE_PRODUCT_EDITOR = ["rich_contents", "variant_integrations", "integrations", "shipping_destinations", "shipping_exclusions", "custom_domain", "product_builds", "waitlist", "existing_files", "seller_custom_domain", "taxonomy_attribute_values", "custom_html"];
+const UNREAD_BY_BUNDLE_PRODUCT_EDITOR = [
+  "rich_contents",
+  "variant_integrations",
+  "integrations",
+  "shipping_destinations",
+  "shipping_exclusions",
+  "custom_domain",
+  "product_builds",
+  "waitlist",
+  "existing_files",
+  "seller_custom_domain",
+  "taxonomy_attribute_values",
+  "custom_html",
+];
 const UNREAD_BY_SHARE_EDITOR = UNREAD_BY_BUNDLE_PRODUCT_EDITOR.filter((name) => name !== "custom_html");
 
 export type BundleTab = "product" | "share";
@@ -50,12 +63,19 @@ export async function bundleBlockers(bundle: LinkRow, seller: UserRow, tab: Bund
   return blockers;
 }
 
-export async function assertBundleEditSupported(bundle: LinkRow, seller: UserRow, currentSellerId: bigint, tab: BundleTab): Promise<void> {
+export async function assertBundleEditSupported(
+  bundle: LinkRow,
+  seller: UserRow,
+  currentSellerId: bigint,
+  tab: BundleTab,
+): Promise<void> {
   // A collaborator edits the owner's bundle: `collaborator_for_display` and the file picker differ.
-  if (bundle.user_id === null || bundle.user_id !== seller.id || currentSellerId !== seller.id) throw new HandBackToRails();
+  if (bundle.user_id === null || bundle.user_id !== seller.id || currentSellerId !== seller.id)
+    throw new HandBackToRails();
   if ((await bundleBlockers(bundle, seller, tab)).length > 0) throw new HandBackToRails();
   // Bundles::ShareController#ensure_published redirects with a flash alert; `Link#published?`.
-  if (tab === "share" && (bundle.draft || bundle.purchase_disabled_at !== null || bundle.deleted_at !== null)) throw new HandBackToRails();
+  if (tab === "share" && (bundle.draft || bundle.purchase_disabled_at !== null || bundle.deleted_at !== null))
+    throw new HandBackToRails();
 }
 
 // `created_at.iso8601`: second precision, UTC (config.time_zone is unset).
@@ -66,7 +86,8 @@ async function bundleProduct(member: LinkRow, quantity: number) {
   const [category] = await selectRows<{ one: number }>(
     Prisma.sql`SELECT 1 AS one FROM ${table("variant_categories")} WHERE ${column("variant_categories", "link_id")} = ${member.id} AND ${column("variant_categories", "deleted_at")} IS NULL LIMIT 1`,
   );
-  if (category || LinkFlags.isSet(member.flags as bigint, "skus_enabled")) throw new NotPortedError("A bundle product with versions or SKUs (BundlePresenter.bundle_product)");
+  if (category || LinkFlags.isSet(member.flags as bigint, "skus_enabled"))
+    throw new NotPortedError("A bundle product with versions or SKUs (BundlePresenter.bundle_product)");
   return {
     ...(await cardForWeb(member.id)),
     is_quantity_enabled: LinkFlags.isSet(member.flags as bigint, "quantity_enabled"),
@@ -84,7 +105,8 @@ async function bundleProducts(bundleId: bigint) {
   );
   const products: Record<string, unknown>[] = [];
   for (const row of rows) {
-    if (row.variant_id !== null) throw new NotPortedError("A bundle product with a selected version (BundlePresenter.bundle_product)");
+    if (row.variant_id !== null)
+      throw new NotPortedError("A bundle product with a selected version (BundlePresenter.bundle_product)");
     const member = await findLink(row.product_id);
     if (!member) throw new NotPortedError("A bundle product whose product is gone");
     products.push(await bundleProduct(member, row.quantity));
@@ -118,7 +140,11 @@ async function refundPolicies(bundle: LinkRow, seller: UserRow) {
 }
 
 // BundlePresenter#shared_props
-async function sharedProps(bundle: LinkRow, seller: UserRow, policy: Awaited<ReturnType<typeof refundPolicies>>["own"]) {
+async function sharedProps(
+  bundle: LinkRow,
+  seller: UserRow,
+  policy: Awaited<ReturnType<typeof refundPolicies>>["own"],
+) {
   const flag = (name: Parameters<typeof LinkFlags.isSet>[1]) => LinkFlags.isSet(bundle.flags as bigint, name);
   const { jsonValue, jsonText, customAttributes } = jsonSettings(bundle);
   const sections = await profileSections(seller);
@@ -149,8 +175,14 @@ async function sharedProps(bundle: LinkRow, seller: UserRow, policy: Awaited<Ret
       hide_bundle_product_reviews: flag("hide_bundle_product_reviews"),
       is_adult: flag("is_adult"),
       discover_fee_per_thousand: bundle.discover_fee_per_thousand,
-      section_ids: sections.filter((section) => section.shown.includes(Number(bundle.id))).map((section) => externalId(section.row.id)),
-      is_published: !bundle.draft && bundle.purchase_disabled_at === null && bundle.banned_at === null && bundle.deleted_at === null,
+      section_ids: sections
+        .filter((section) => section.shown.includes(Number(bundle.id)))
+        .map((section) => externalId(section.row.id)),
+      is_published:
+        !bundle.draft &&
+        bundle.purchase_disabled_at === null &&
+        bundle.banned_at === null &&
+        bundle.deleted_at === null,
       products: await bundleProducts(bundle.id),
       collaborating_user: null,
       public_files: [],
@@ -191,7 +223,12 @@ export async function bundleEditShareProps({ bundle, seller, now = new Date() }:
   return {
     ...shared,
     taxonomies: await taxonomiesForCategoryPicker(),
-    profile_sections: sections.map((section) => ({ id: externalId(section.row.id), header: section.row.header ?? "", product_names: section.names, default: section.defaultSection })),
+    profile_sections: sections.map((section) => ({
+      id: externalId(section.row.id),
+      header: section.row.header ?? "",
+      product_names: section.names,
+      default: section.defaultSection,
+    })),
     currency_type: bundle.price_currency_type,
     sales_count_for_inventory: 0,
     ratings: NO_RATINGS,

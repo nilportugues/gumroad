@@ -31,13 +31,17 @@ export const isListenable = (file: ProductFile) => file.filegroup === "audio";
 export const isExternalLink = (file: ProductFile) => file.filetype === "link";
 export const isPdf = (file: ProductFile) => file.filetype === "pdf";
 export const isEpub = (file: ProductFile) => file.filetype === "epub";
-export const mustBePdfStamped = (file: ProductFile) => isPdf(file) && ProductFileFlags.isSet(file.flags, "pdf_stamp_enabled");
+export const mustBePdfStamped = (file: ProductFile) =>
+  isPdf(file) && ProductFileFlags.isSet(file.flags, "pdf_stamp_enabled");
 
-export const browserReadable = (file: ProductFile) => isPdf(file) || (isEpub(file) && (file.size === null || file.size <= BigInt(MAX_EPUB_READER_ARCHIVE_SIZE)));
+export const browserReadable = (file: ProductFile) =>
+  isPdf(file) || (isEpub(file) && (file.size === null || file.size <= BigInt(MAX_EPUB_READER_ARCHIVE_SIZE)));
 export const canDisableDownloads = (file: ProductFile) => isStreamable(file) || browserReadable(file);
 // ProductFile#stream_only?
-export const isStreamOnly = (file: ProductFile) => canDisableDownloads(file) && ProductFileFlags.isSet(file.flags, "stream_only");
-export const canSendToKindle = (file: ProductFile) => (isPdf(file) || isEpub(file)) && file.size !== null && file.size < BigInt(MAX_ALLOWED_FILE_SIZE_FOR_SEND_TO_KINDLE);
+export const isStreamOnly = (file: ProductFile) =>
+  canDisableDownloads(file) && ProductFileFlags.isSet(file.flags, "stream_only");
+export const canSendToKindle = (file: ProductFile) =>
+  (isPdf(file) || isEpub(file)) && file.size !== null && file.size < BigInt(MAX_ALLOWED_FILE_SIZE_FOR_SEND_TO_KINDLE);
 
 // File.extname: the extension of the last path component, "" for none or a dotfile.
 export function rubyExtname(value: string): string {
@@ -55,7 +59,9 @@ export function s3Fields(url: string | null, ownerExternalId: string | null): S3
   if (url === null || url.trim() === "" || !url.startsWith(baseUrl)) return null;
   const parts = rubySplit(url, "/");
   const relative = url.slice(baseUrl.length);
-  const namespaced = new RegExp(`^[^/]+/[^/]+/[A-Za-z0-9]{${GUID_LENGTH}}/original/`, "u").test(relative) || (ownerExternalId !== null && ownerExternalId !== "" && rubySplit(relative, "/")[1] === ownerExternalId);
+  const namespaced =
+    new RegExp(`^[^/]+/[^/]+/[A-Za-z0-9]{${GUID_LENGTH}}/original/`, "u").test(relative) ||
+    (ownerExternalId !== null && ownerExternalId !== "" && rubySplit(relative, "/")[1] === ownerExternalId);
   const startingIndex = namespaced ? 8 : 7;
   const maxSplitCount = namespaced ? 9 : 8;
   const filename = parts.length > maxSplitCount ? parts.slice(startingIndex).join("/") : parts.at(-1)!;

@@ -7,6 +7,7 @@ import { encrypt } from "../../lib/obfuscate-ids.ts";
 import { OfferCodeRecord } from "../models/offer-code.ts";
 import { castRow, column, selectRows, table } from "../models/sql.ts";
 import { NotPortedError } from "../page-props/not-ported.ts";
+
 import type { LinkRow } from "./product-reads.ts";
 
 export const DEFAULT_SALE_LABEL = "Sale";
@@ -23,7 +24,10 @@ export const normalizeCode = (code: string) => code.normalize("NFC").trim().toLo
 export const asRecord = (row: Record<string, unknown>) => new OfferCodeRecord(castRow<OfferCode>("OfferCode", row));
 
 // OfferCode#is_currency_valid?
-export const currencyValid = (code: OfferCodeRecord, product: LinkRow) => code.row.amount_percentage != null || code.row.currency_type == null || product.price_currency_type === code.row.currency_type;
+export const currencyValid = (code: OfferCodeRecord, product: LinkRow) =>
+  code.row.amount_percentage != null ||
+  code.row.currency_type == null ||
+  product.price_currency_type === code.row.currency_type;
 
 // OfferCode#applicable?
 export async function applicable(code: OfferCodeRecord, product: LinkRow): Promise<boolean> {
@@ -50,7 +54,9 @@ const ruby = (date: Date | null) => (date ? date.toISOString() : null);
 export async function fullDiscount(code: OfferCodeRecord): Promise<Record<string, unknown>> {
   const { row } = code;
   const cents = row.amount_percentage == null;
-  const json: Record<string, unknown> = cents ? { type: "fixed", cents: row.amount_cents } : { type: "percent", percents: row.amount_percentage };
+  const json: Record<string, unknown> = cents
+    ? { type: "fixed", cents: row.amount_cents }
+    : { type: "percent", percents: row.amount_percentage };
   json.product_ids = row.universal ? null : (await code.products()).map((product) => encrypt(product.id));
   json.expires_at = ruby(row.expires_at);
   json.minimum_quantity = row.minimum_quantity;
@@ -65,7 +71,8 @@ export async function fullDiscount(code: OfferCodeRecord): Promise<Record<string
 }
 
 function assertSupported(code: OfferCodeRecord): void {
-  if (code.row.existing_customers_only) throw new NotPortedError("OfferCode#evaluate_for_buyer for an existing-customers code");
+  if (code.row.existing_customers_only)
+    throw new NotPortedError("OfferCode#evaluate_for_buyer for an existing-customers code");
   if (code.tiered()) throw new NotPortedError("OfferCode#evaluate_for_buyer for a tiered code");
   if (code.oncePerCart) throw new NotPortedError("OfferCodeDiscountComputingService once-per-cart allocation");
 }
@@ -77,7 +84,8 @@ async function evaluateCode(product: LinkRow, code: string | null, quantity: num
   const found = await findOfferCode(product, normalized);
   if (!found) return { valid: false, error_code: "invalid_offer" };
   assertSupported(found);
-  if (await found.hasVariants()) throw new NotPortedError("OfferCode#applicable_to_variant? for a code limited to options");
+  if (await found.hasVariants())
+    throw new NotPortedError("OfferCode#applicable_to_variant? for a code limited to options");
 
   // OfferCodeDiscountComputingService: the user's alive codes with this code string, the first applicable one.
   const candidates = (
@@ -117,7 +125,8 @@ export type DefaultOfferCodes = { codes: OfferCodeRecord[]; auto: OfferCodeRecor
 
 // User#auto_apply_offer_code_for(product) and BestOfferCodeService#default_offer_codes for an anonymous visitor.
 export async function defaultOfferCodes(product: LinkRow): Promise<DefaultOfferCodes> {
-  if (product.default_offer_code_id !== null) throw new NotPortedError("Link#effective_default_offer_code with an explicit default");
+  if (product.default_offer_code_id !== null)
+    throw new NotPortedError("Link#effective_default_offer_code with an explicit default");
   const [row] = await selectRows<Record<string, unknown>>(
     Prisma.sql`SELECT ${star("offer_codes")} FROM ${table("offer_codes")} WHERE ${column("offer_codes", "user_id")} = ${product.user_id} AND ${column("offer_codes", "deleted_at")} IS NULL AND ${column("offer_codes", "universal")} = 1 AND ${column("offer_codes", "auto_apply")} = 1 AND ${column("offer_codes", "new_customers_only")} = 0 ORDER BY ${column("offer_codes", "id")} ASC LIMIT 1`,
   );
@@ -127,7 +136,13 @@ export async function defaultOfferCodes(product: LinkRow): Promise<DefaultOfferC
 }
 
 // BestOfferCodeService#result
-export async function bestOfferCodeResult(product: LinkRow, defaults: DefaultOfferCodes, urlCode: string | null, quantity: number, now = new Date()): Promise<CodeResult | null> {
+export async function bestOfferCodeResult(
+  product: LinkRow,
+  defaults: DefaultOfferCodes,
+  urlCode: string | null,
+  quantity: number,
+  now = new Date(),
+): Promise<CodeResult | null> {
   const url = present(urlCode) ? urlCode : null;
   const defaultCodes = defaults.codes.map((code) => code.row.code).filter(present);
   if (url === null && defaultCodes.length === 0) return null;

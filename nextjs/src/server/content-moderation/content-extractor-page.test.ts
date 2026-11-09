@@ -25,7 +25,15 @@ const options = {
 
 function extract(overrides: Partial<PageInput>) {
   return extractFromPage(
-    { customHtml: null, content: null, title: "About my studio", seoTitle: null, seoDescription: null, seller: SELLER, ...overrides },
+    {
+      customHtml: null,
+      content: null,
+      title: "About my studio",
+      seoTitle: null,
+      seoDescription: null,
+      seller: SELLER,
+      ...overrides,
+    },
     options,
   );
 }
@@ -57,7 +65,10 @@ describe("extractFromPage", () => {
 <video src="https://public-files.gumroad.com/withsrc.mov"
        poster="https://cdn.example.com/with-src.jpg"></video>`,
     });
-    expect(sorted(result.imageUrls)).toEqual(["https://cdn.example.com/no-src.jpg", "https://cdn.example.com/with-src.jpg"]);
+    expect(sorted(result.imageUrls)).toEqual([
+      "https://cdn.example.com/no-src.jpg",
+      "https://cdn.example.com/with-src.jpg",
+    ]);
   });
 
   it("keeps an img src and a sibling video's poster, and takes neither element's other attribute", () => {
@@ -66,7 +77,10 @@ describe("extractFromPage", () => {
 <video src="https://public-files.gumroad.com/clip.mov"
        poster="https://cdn.example.com/frame.jpg"></video>`,
     });
-    expect(sorted(result.imageUrls)).toEqual(["https://cdn.example.com/frame.jpg", "https://cdn.example.com/photo.png"]);
+    expect(sorted(result.imageUrls)).toEqual([
+      "https://cdn.example.com/frame.jpg",
+      "https://cdn.example.com/photo.png",
+    ]);
   });
 
   it("extracts the title, visible text, link targets, and remote image URLs", () => {
@@ -149,7 +163,11 @@ describe("extractFromPage", () => {
 <a href="HTTPS://elsewhere.example/shop">Shop</a>`,
     });
     expect(sorted(result.imageUrls)).toEqual(
-      sorted(["HTTPS://cdn.example.com/upper.png", "Http://cdn.example.com/mixed.png", "HTTPS://cdn.example.com/poster.jpg"]),
+      sorted([
+        "HTTPS://cdn.example.com/upper.png",
+        "Http://cdn.example.com/mixed.png",
+        "HTTPS://cdn.example.com/poster.jpg",
+      ]),
     );
     expect(result.text).toContain("HTTPS://elsewhere.example/shop");
   });
@@ -165,8 +183,12 @@ describe("extractFromPage", () => {
   });
 
   it("re-encodes a percent-encoded raster data URL into the base64 form the classifier can review", () => {
-    const result = extract({ customHtml: `<style>.tile { background-image: url("data:image/png,%89PNG%0D%0A") }</style>` });
-    expect(result.imageUrls).toEqual([`data:image/png;base64,${Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a]).toString("base64")}`]);
+    const result = extract({
+      customHtml: `<style>.tile { background-image: url("data:image/png,%89PNG%0D%0A") }</style>`,
+    });
+    expect(result.imageUrls).toEqual([
+      `data:image/png;base64,${Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a]).toString("base64")}`,
+    ]);
   });
 
   it("reviews a self-contained SVG data URL as markup text instead of blocking the page on it", () => {
@@ -293,7 +315,11 @@ describe("extractFromPage", () => {
 </style>`,
     });
     expect(sorted(result.imageUrls)).toEqual(
-      sorted(["https://cdn.example.com/escaped.png", "https://cdn.example.com/var.png", "https://cdn.example.com/set.png"]),
+      sorted([
+        "https://cdn.example.com/escaped.png",
+        "https://cdn.example.com/var.png",
+        "https://cdn.example.com/set.png",
+      ]),
     );
   });
 
@@ -333,7 +359,9 @@ describe("extractFromPage", () => {
   .e { --unused-by-a-non-image-property: url("https://dead.example.com/text-only.png") }
 </style>`,
     });
-    expect(sorted(result.imageUrls)).toEqual(sorted(["https://cdn.example.com/chained.png", "https://cdn.example.com/fallback.png"]));
+    expect(sorted(result.imageUrls)).toEqual(
+      sorted(["https://cdn.example.com/chained.png", "https://cdn.example.com/fallback.png"]),
+    );
   });
 
   it("leaves font URLs out of the image set, so a custom font cannot block a page", () => {
@@ -347,7 +375,9 @@ describe("extractFromPage", () => {
   });
 
   it("excludes relative image sources, which have no absolute form to send", () => {
-    const result = extract({ customHtml: `<img src="/local/asset.png"><img src="https://cdn.example.com/remote.png">` });
+    const result = extract({
+      customHtml: `<img src="/local/asset.png"><img src="https://cdn.example.com/remote.png">`,
+    });
     expect(result.imageUrls).toEqual(["https://cdn.example.com/remote.png"]);
   });
 
@@ -363,7 +393,9 @@ describe("extractFromPage", () => {
   });
 
   it("keeps link targets when the prose alone would exhaust the whole text budget", () => {
-    const result = extract({ customHtml: `<p>${"word ".repeat(8_000)}</p><a href="https://linkfarm.example/deals">deals</a>` });
+    const result = extract({
+      customHtml: `<p>${"word ".repeat(8_000)}</p><a href="https://linkfarm.example/deals">deals</a>`,
+    });
     expect(result.text).toContain("https://linkfarm.example/deals");
   });
 
@@ -383,7 +415,9 @@ describe("extractFromPage", () => {
   });
 
   it("decodes character references in attributes the way libxml2 does", () => {
-    const result = extract({ customHtml: `<a href="https://elsewhere.example/?a=1&amp;b=2">x</a><img src="https://cdn.example.com/a.png?x=1&#38;y=2">` });
+    const result = extract({
+      customHtml: `<a href="https://elsewhere.example/?a=1&amp;b=2">x</a><img src="https://cdn.example.com/a.png?x=1&#38;y=2">`,
+    });
     expect(result.text).toContain("https://elsewhere.example/?a=1&b=2");
     expect(result.imageUrls).toEqual(["https://cdn.example.com/a.png?x=1&y=2"]);
   });
@@ -404,12 +438,18 @@ describe("extractFromPost", () => {
   });
 
   it("ignores images without a src attribute", () => {
-    const result = extractFromPost({ ...post, message: `<div><p>Hello</p><img><img src="https://cdn.example.com/post.png"></div>` });
+    const result = extractFromPost({
+      ...post,
+      message: `<div><p>Hello</p><img><img src="https://cdn.example.com/post.png"></div>`,
+    });
     expect(result.imageUrls).toEqual(["https://cdn.example.com/post.png"]);
   });
 
   it("ignores images with an empty src attribute", () => {
-    const result = extractFromPost({ ...post, message: `<div><p>Hello</p><img src=""><img src="https://cdn.example.com/post.png"></div>` });
+    const result = extractFromPost({
+      ...post,
+      message: `<div><p>Hello</p><img src=""><img src="https://cdn.example.com/post.png"></div>`,
+    });
     expect(result.imageUrls).toEqual(["https://cdn.example.com/post.png"]);
   });
 
@@ -423,7 +463,10 @@ describe("extractFromPost", () => {
     });
 
     it("leaves third-party URLs intact so off-site abuse is still moderated", () => {
-      const result = extractFromPost({ ...post, message: `<p>Mine: ${own} and theirs: https://evil.example.com/scam</p>` });
+      const result = extractFromPost({
+        ...post,
+        message: `<p>Mine: ${own} and theirs: https://evil.example.com/scam</p>`,
+      });
       expect(result.text).not.toContain("seller-studio");
       expect(result.text).toContain("https://evil.example.com/scam");
     });

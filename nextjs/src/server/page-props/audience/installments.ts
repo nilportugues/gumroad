@@ -5,15 +5,16 @@ import type { Installment, InstallmentRule, User } from "@prisma/client";
 
 import { truncateAtSeparator } from "../../html/installment-message.ts";
 import { stripTags } from "../../html/sanitizer.ts";
-import { displayableTimeDuration } from "../../models/installment-rule.ts";
-import { summaries, summary, type EngagementSummary } from "../../models/email-engagement-store.ts";
-import { MEMBER_CANCELLATION_WORKFLOW_TRIGGER } from "../../models/workflow.ts";
-import { filterValue, parseJsonData, castBoolean } from "../../models/with-filtering.ts";
 import { rubyFloatRoundDigits } from "../../models/concerns/ruby-numeric.ts";
+import { summaries, summary, type EngagementSummary } from "../../models/email-engagement-store.ts";
+import { displayableTimeDuration } from "../../models/installment-rule.ts";
+import { filterValue, parseJsonData, castBoolean } from "../../models/with-filtering.ts";
+import { MEMBER_CANCELLATION_WORKFLOW_TRIGGER } from "../../models/workflow.ts";
 import { NotPortedError } from "../not-ported.ts";
+
+import { jsonFilters } from "./filters.ts";
 import { installmentFiles } from "./product-file-json.ts";
 import { externalId, present } from "./support.ts";
-import { jsonFilters } from "./filters.ts";
 
 export const INSTALLMENTS = "installments";
 // Installment flags (flag_shih_tzu: flag n is bit n - 1).
@@ -59,7 +60,8 @@ export function memberCancellationTrigger(installment: Installment, workflowTrig
 }
 
 // The installments' engagement counters, read in one batch (Installment.preload_engagement_summaries!).
-export const preloadEngagement = (installments: Installment[]) => summaries(installments.map((installment) => installment.id));
+export const preloadEngagement = (installments: Installment[]) =>
+  summaries(installments.map((installment) => installment.id));
 export { summary as engagementOf };
 
 export type PropsOptions = {
@@ -72,7 +74,11 @@ export type PropsOptions = {
 
 // The attributes InstallmentPresenter#props starts from, up to the product permalink: the same for a
 // post and for a workflow email.
-export async function installmentBaseProps({ seller, installment, context }: Omit<PropsOptions, "workflowTrigger">): Promise<Record<string, unknown>> {
+export async function installmentBaseProps({
+  seller,
+  installment,
+  context,
+}: Omit<PropsOptions, "workflowTrigger">): Promise<Record<string, unknown>> {
   const attached = await installmentFiles(installment.id, seller.id);
   const flags = installment.flags;
   const published = installment.published_at !== null;
@@ -112,11 +118,17 @@ export async function installmentBaseProps({ seller, installment, context }: Omi
 }
 
 // InstallmentPresenter#props, for an email that belongs to a workflow.
-export async function workflowInstallmentProps({ seller, installment, context, workflowTrigger }: PropsOptions): Promise<Record<string, unknown>> {
+export async function workflowInstallmentProps({
+  seller,
+  installment,
+  context,
+  workflowTrigger,
+}: PropsOptions): Promise<Record<string, unknown>> {
   const flags = installment.flags;
   const published = installment.published_at !== null;
   const rule = context.rule;
-  if (rule === null) throw new NotPortedError("InstallmentPresenter#props for a workflow email without an installment rule");
+  if (rule === null)
+    throw new NotPortedError("InstallmentPresenter#props for a workflow email without an installment rule");
   const props = await installmentBaseProps({ seller, installment, context });
   const duration = displayableTimeDuration(rule);
   const period = rule.time_period ?? "";

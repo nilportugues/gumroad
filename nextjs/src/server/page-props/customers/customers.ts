@@ -9,27 +9,26 @@
 import { Prisma, type Purchase, type Subscription, type User } from "@prisma/client";
 
 import { encrypt } from "../../../lib/obfuscate-ids.ts";
-import { formattedDollarAmount, usdCentsToCurrency } from "../../models/concerns/currency-helper.ts";
-import LINK_DATA from "../../models/link-data.generated.json" with { type: "json" };
 import { HandBackToRails } from "../../controllers/application-controller.ts";
 import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
-import { currentSubscriptionPriceCents } from "../../models/subscription-pricing.ts";
-import { defaultSubscriptionDeps, SubscriptionFlags, SubscriptionRecord } from "../../models/subscription.ts";
-import { NotPortedError } from "../../models/user.ts";
-import { variantToOption } from "../../presenters/product-props.ts";
-import type { LinkRow, PriceRow } from "../../presenters/product-reads.ts";
 import { COUNTRIES, historicalNames, isBlockedCountry } from "../../models/compliance-countries.ts";
+import { formattedDollarAmount, usdCentsToCurrency } from "../../models/concerns/currency-helper.ts";
+import LINK_DATA from "../../models/link-data.generated.json" with { type: "json" };
 import { LinkFlags } from "../../models/link.ts";
 import { isStripeConnectAccount, type MerchantAccountRow } from "../../models/merchant-account.ts";
 import { originalPrice } from "../../models/offer-code.ts";
-import { secureExternalId } from "../../models/secure-external-id.ts";
 import { PurchaseRecord } from "../../models/purchase-pricing.ts";
+import { secureExternalId } from "../../models/secure-external-id.ts";
 import { castRow, column, selectRows, table } from "../../models/sql.ts";
-import { UserFlags } from "../../models/user.ts";
-import { PurchaseSearchService } from "../../search/purchase-search.ts";
-import { PurchaseFlags } from "../../search/flags.ts";
-import { extractDomain } from "../../search/referrer.ts";
+import { currentSubscriptionPriceCents } from "../../models/subscription-pricing.ts";
+import { defaultSubscriptionDeps, SubscriptionFlags, SubscriptionRecord } from "../../models/subscription.ts";
+import { NotPortedError, UserFlags } from "../../models/user.ts";
 import { requireUser, roleAdminFor, roleSupportFor, type SellerContext } from "../../policies/seller-context.ts";
+import { variantToOption } from "../../presenters/product-props.ts";
+import type { LinkRow, PriceRow } from "../../presenters/product-reads.ts";
+import { PurchaseFlags } from "../../search/flags.ts";
+import { PurchaseSearchService } from "../../search/purchase-search.ts";
+import { extractDomain } from "../../search/referrer.ts";
 
 export const CUSTOMERS_PER_PAGE = 20;
 // Keep pagination within Elasticsearch's index.max_result_window.
@@ -86,8 +85,10 @@ export type CustomersParams = {
 };
 
 // `from` is 0-indexed; page 500 (1-indexed) is the last legal ES window (9980).
-export const pageOffset = (page: string | undefined) => Math.min(Math.max(rubyToI(page), 0), MAX_RESULT_WINDOW / CUSTOMERS_PER_PAGE - 1) * CUSTOMERS_PER_PAGE;
-export const totalPages = (total: number) => Math.min(Math.ceil(total / CUSTOMERS_PER_PAGE), MAX_RESULT_WINDOW / CUSTOMERS_PER_PAGE);
+export const pageOffset = (page: string | undefined) =>
+  Math.min(Math.max(rubyToI(page), 0), MAX_RESULT_WINDOW / CUSTOMERS_PER_PAGE - 1) * CUSTOMERS_PER_PAGE;
+export const totalPages = (total: number) =>
+  Math.min(Math.ceil(total / CUSTOMERS_PER_PAGE), MAX_RESULT_WINDOW / CUSTOMERS_PER_PAGE);
 
 // `Link.fetch(params[:link_id])`: nil for an unknown permalink, which lists every customer.
 async function fetchProduct(linkId: string | null): Promise<Row | null> {
@@ -124,9 +125,16 @@ async function fetchSales(seller: User, params: CustomersParams, product: Row | 
 
 const inList = (ids: unknown[]) => Prisma.join(ids as (bigint | number)[]);
 
-async function rowsBy(tableName: string, columnName: string, ids: unknown[], extra: Prisma.Sql = Prisma.empty): Promise<Row[]> {
+async function rowsBy(
+  tableName: string,
+  columnName: string,
+  ids: unknown[],
+  extra: Prisma.Sql = Prisma.empty,
+): Promise<Row[]> {
   if (ids.length === 0) return [];
-  return selectRows<Row>(Prisma.sql`SELECT ${Prisma.raw(`\`${tableName}\`.*`)} FROM ${table(tableName)} WHERE ${column(tableName, columnName)} IN (${inList(ids)})${extra} ORDER BY ${column(tableName, "id")} ASC`);
+  return selectRows<Row>(
+    Prisma.sql`SELECT ${Prisma.raw(`\`${tableName}\`.*`)} FROM ${table(tableName)} WHERE ${column(tableName, columnName)} IN (${inList(ids)})${extra} ORDER BY ${column(tableName, "id")} ASC`,
+  );
 }
 
 const groupBy = (rows: Row[], key: string) => {
@@ -191,8 +199,15 @@ export function refundIsEffective(refund: Row): boolean {
 // `purchase.upsell_purchase&.upsell&.name` for each purchase that has an upsell purchase.
 export async function upsellNamesFor(purchaseIds: unknown[]): Promise<Map<string, string | null>> {
   const upsellPurchases = await rowsBy("upsell_purchases", "purchase_id", purchaseIds);
-  const upsells = byId(await rowsBy("upsells", "id", [...new Set(upsellPurchases.map((upsellPurchase) => upsellPurchase.upsell_id))]));
-  return new Map(upsellPurchases.map((upsellPurchase) => [String(upsellPurchase.purchase_id), upsells.get(String(upsellPurchase.upsell_id))?.name ?? null] as const));
+  const upsells = byId(
+    await rowsBy("upsells", "id", [...new Set(upsellPurchases.map((upsellPurchase) => upsellPurchase.upsell_id))]),
+  );
+  return new Map(
+    upsellPurchases.map(
+      (upsellPurchase) =>
+        [String(upsellPurchase.purchase_id), upsells.get(String(upsellPurchase.upsell_id))?.name ?? null] as const,
+    ),
+  );
 }
 
 // Purchase.where(id: ids).in_order_of(:id, ids) with the associations CustomerPresenter reads, after handing back what it cannot.
@@ -206,9 +221,22 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
   for (const link of links.values()) if (link.require_shipping) throw new HandBackToRails();
   for (const purchase of purchases) {
     // credits_direct_affiliate?: a collaborator sale that also credits a direct affiliate splits the credit in two (json_data).
-    if (purchase.affiliate_id != null && typeof purchase.json_data === "string" && purchase.json_data.includes("direct_affiliate_id")) throw new HandBackToRails();
+    if (
+      purchase.affiliate_id != null &&
+      typeof purchase.json_data === "string" &&
+      purchase.json_data.includes("direct_affiliate_id")
+    )
+      throw new HandBackToRails();
     // usd_cents_to_currency converts the refundable amount at the rate stored on the sale; without one it would ask Redis.
-    if (purchase.displayed_price_currency_type !== "usd" && !(typeof purchase.displayed_price_currency_type === "string" && purchase.displayed_price_currency_type in KNOWN_CURRENCIES && PLAIN_RATE.test(String(purchase.rate_converted_to_usd ?? "").trim()))) throw new HandBackToRails();
+    if (
+      purchase.displayed_price_currency_type !== "usd" &&
+      !(
+        typeof purchase.displayed_price_currency_type === "string" &&
+        purchase.displayed_price_currency_type in KNOWN_CURRENCIES &&
+        PLAIN_RATE.test(String(purchase.rate_converted_to_usd ?? "").trim())
+      )
+    )
+      throw new HandBackToRails();
     const flags = (name: Parameters<typeof PurchaseFlags.isSet>[1]) => PurchaseFlags.isSet(purchase.flags, name);
     if (flags("is_commission_deposit_purchase")) throw new HandBackToRails();
     if (flags("is_installment_payment")) throw new HandBackToRails();
@@ -217,26 +245,49 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
     ["utm_link_driven_sales", "purchase_id"],
     ["commissions", "deposit_purchase_id"],
   ] as const) {
-    if (purchaseIds.length > 0 && (await exists(Prisma.sql`SELECT 1 FROM ${table(tableName)} WHERE ${column(tableName, columnName)} IN (${inList(purchaseIds)}) LIMIT 1`))) throw new HandBackToRails();
+    if (
+      purchaseIds.length > 0 &&
+      (await exists(
+        Prisma.sql`SELECT 1 FROM ${table(tableName)} WHERE ${column(tableName, columnName)} IN (${inList(purchaseIds)}) LIMIT 1`,
+      ))
+    )
+      throw new HandBackToRails();
   }
 
-  const affiliates = byId(await rowsBy("affiliates", "id", [...new Set(purchases.map((purchase) => purchase.affiliate_id).filter((id) => id != null))]));
-  const affiliateUsers = byId(await rowsBy("users", "id", [...new Set([...affiliates.values()].map((affiliate) => affiliate.affiliate_user_id).filter((id) => id != null))]));
+  const affiliates = byId(
+    await rowsBy("affiliates", "id", [
+      ...new Set(purchases.map((purchase) => purchase.affiliate_id).filter((id) => id != null)),
+    ]),
+  );
+  const affiliateUsers = byId(
+    await rowsBy("users", "id", [
+      ...new Set([...affiliates.values()].map((affiliate) => affiliate.affiliate_user_id).filter((id) => id != null)),
+    ]),
+  );
   // `purchase.affiliate.affiliate_user` raises for an affiliate without a user, which is Rails' to answer.
-  if ([...affiliates.values()].some((affiliate) => !affiliateUsers.has(String(affiliate.affiliate_user_id)))) throw new HandBackToRails();
+  if ([...affiliates.values()].some((affiliate) => !affiliateUsers.has(String(affiliate.affiliate_user_id))))
+    throw new HandBackToRails();
 
   // A Sku (shipping) is Rails' to answer, and so is a purchase of several options, since `variant_attributes.first` has no order.
   const picks = groupBy(await rowsBy("base_variants_purchases", "purchase_id", purchaseIds), "purchase_id");
   if ([...picks.values()].some((rows) => rows.length > 1)) throw new HandBackToRails();
-  const variantRows = byId(await rowsBy("base_variants", "id", [...new Set([...picks.values()].flat().map((pick) => pick.base_variant_id))]));
-  const variants = new Map([...picks].map(([purchaseId, [pick]]) => [purchaseId, variantRows.get(String(pick!.base_variant_id))] as const).filter((entry): entry is [string, Row] => entry[1] !== undefined));
+  const variantRows = byId(
+    await rowsBy("base_variants", "id", [...new Set([...picks.values()].flat().map((pick) => pick.base_variant_id))]),
+  );
+  const variants = new Map(
+    [...picks]
+      .map(([purchaseId, [pick]]) => [purchaseId, variantRows.get(String(pick!.base_variant_id))] as const)
+      .filter((entry): entry is [string, Row] => entry[1] !== undefined),
+  );
   if (variants.size !== picks.size) throw new HandBackToRails();
-  for (const [purchaseId, variant] of variants) {
-    const link = links.get(String(purchases.find((purchase) => String(purchase.id) === purchaseId)!.link_id))!;
-    if (variant.type !== "Variant") throw new HandBackToRails();
-  }
-  const tieredLinkIds = [...links.values()].filter((link) => LinkFlags.isSet(link.flags, "is_tiered_membership")).map((link) => link.id);
-  const tierPrices = groupBy(await rowsBy("prices", "link_id", tieredLinkIds, Prisma.sql` AND ${column("prices", "deleted_at")} IS NULL`), "link_id");
+  for (const variant of variants.values()) if (variant.type !== "Variant") throw new HandBackToRails();
+  const tieredLinkIds = [...links.values()]
+    .filter((link) => LinkFlags.isSet(link.flags, "is_tiered_membership"))
+    .map((link) => link.id);
+  const tierPrices = groupBy(
+    await rowsBy("prices", "link_id", tieredLinkIds, Prisma.sql` AND ${column("prices", "deleted_at")} IS NULL`),
+    "link_id",
+  );
   const subscriptions = await subscriptionReadings(purchases);
 
   const upsellNames = await upsellNamesFor(purchaseIds);
@@ -249,54 +300,130 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
   }
 
   // Purchase#giftee_email reads the gift of a sender; its linked_license may be the recipient's, which is Rails' to answer.
-  const senderIds = purchases.filter((purchase) => PurchaseFlags.isSet(purchase.flags, "is_gift_sender_purchase")).map((purchase) => purchase.id);
-  const gifts = new Map((await rowsBy("gifts", "gifter_purchase_id", senderIds)).map((gift) => [String(gift.gifter_purchase_id), gift]));
-  const receiverIds = purchases.filter((purchase) => PurchaseFlags.isSet(purchase.flags, "is_gift_receiver_purchase")).map((purchase) => purchase.id);
-  const receivedGifts = new Map((await rowsBy("gifts", "giftee_purchase_id", receiverIds)).map((gift) => [String(gift.giftee_purchase_id), gift]));
+  const senderIds = purchases
+    .filter((purchase) => PurchaseFlags.isSet(purchase.flags, "is_gift_sender_purchase"))
+    .map((purchase) => purchase.id);
+  const gifts = new Map(
+    (await rowsBy("gifts", "gifter_purchase_id", senderIds)).map((gift) => [String(gift.gifter_purchase_id), gift]),
+  );
+  const receiverIds = purchases
+    .filter((purchase) => PurchaseFlags.isSet(purchase.flags, "is_gift_receiver_purchase"))
+    .map((purchase) => purchase.id);
+  const receivedGifts = new Map(
+    (await rowsBy("gifts", "giftee_purchase_id", receiverIds)).map((gift) => [String(gift.giftee_purchase_id), gift]),
+  );
   const gifteeIds = [...gifts.values()].map((gift) => gift.giftee_purchase_id).filter((id) => id != null);
-  if (gifteeIds.length > 0 && (await exists(Prisma.sql`SELECT 1 FROM ${table("licenses")} WHERE ${column("licenses", "purchase_id")} IN (${inList(gifteeIds)}) LIMIT 1`))) throw new HandBackToRails();
+  if (
+    gifteeIds.length > 0 &&
+    (await exists(
+      Prisma.sql`SELECT 1 FROM ${table("licenses")} WHERE ${column("licenses", "purchase_id")} IN (${inList(gifteeIds)}) LIMIT 1`,
+    ))
+  )
+    throw new HandBackToRails();
 
   const reviews = byId(await rowsBy("product_reviews", "purchase_id", purchaseIds));
   const reviewsByPurchase = new Map([...reviews.values()].map((review) => [String(review.purchase_id), review]));
   const reviewIds = [...reviews.values()].map((review) => review.id);
-  if (reviewIds.length > 0 && (await exists(Prisma.sql`SELECT 1 FROM ${table("product_review_videos")} WHERE ${column("product_review_videos", "product_review_id")} IN (${inList(reviewIds)}) LIMIT 1`))) throw new HandBackToRails();
-  const responses = new Map((await rowsBy("product_review_responses", "product_review_id", reviewIds)).map((response) => [String(response.product_review_id), response]));
+  if (
+    reviewIds.length > 0 &&
+    (await exists(
+      Prisma.sql`SELECT 1 FROM ${table("product_review_videos")} WHERE ${column("product_review_videos", "product_review_id")} IN (${inList(reviewIds)}) LIMIT 1`,
+    ))
+  )
+    throw new HandBackToRails();
+  const responses = new Map(
+    (await rowsBy("product_review_responses", "product_review_id", reviewIds)).map((response) => [
+      String(response.product_review_id),
+      response,
+    ]),
+  );
 
   const customFields = groupBy(await rowsBy("purchase_custom_fields", "purchase_id", purchaseIds), "purchase_id");
   const fieldRows = [...customFields.values()].flat();
-  if (fieldRows.some((field) => field.field_type === "fileUpload" || field.field_type === "file")) throw new HandBackToRails();
-  const fieldNames = byId(await rowsBy("custom_fields", "id", [...new Set(fieldRows.map((field) => field.custom_field_id).filter((id) => id != null))]));
+  if (fieldRows.some((field) => field.field_type === "fileUpload" || field.field_type === "file"))
+    throw new HandBackToRails();
+  const fieldNames = byId(
+    await rowsBy("custom_fields", "id", [
+      ...new Set(fieldRows.map((field) => field.custom_field_id).filter((id) => id != null)),
+    ]),
+  );
 
   // can_ping: a seller with ping endpoints (resource subscriptions or a legacy notification endpoint) is Rails' to answer.
-  if (await exists(Prisma.sql`SELECT 1 FROM ${table("resource_subscriptions")} WHERE ${column("resource_subscriptions", "user_id")} = ${seller.id} LIMIT 1`)) throw new HandBackToRails();
+  if (
+    await exists(
+      Prisma.sql`SELECT 1 FROM ${table("resource_subscriptions")} WHERE ${column("resource_subscriptions", "user_id")} = ${seller.id} LIMIT 1`,
+    )
+  )
+    throw new HandBackToRails();
 
   return {
     purchases,
     links,
     hasAliveVariants: await productsWithAliveVariants([...links.keys()]),
     receivedGifts,
-    preorderIds: new Set((await rowsBy("preorders", "id", [...new Set(purchases.map((purchase) => purchase.preorder_id).filter((id) => id != null))])).map((preorder) => String(preorder.id))),
+    preorderIds: new Set(
+      (
+        await rowsBy("preorders", "id", [
+          ...new Set(purchases.map((purchase) => purchase.preorder_id).filter((id) => id != null)),
+        ])
+      ).map((preorder) => String(preorder.id)),
+    ),
     variants,
     tierPrices,
     subscriptions,
     upsellNames,
     affiliates,
     affiliateUsers,
-    cachedDiscounts: new Set((await rowsBy("purchase_offer_code_discounts", "purchase_id", purchaseIds)).map((discount) => String(discount.purchase_id))),
-    offerCodes: byId(await rowsBy("offer_codes", "id", [...new Set(purchases.map((purchase) => purchase.offer_code_id).filter((id) => id != null))])),
-    licenses: new Map((await rowsBy("licenses", "purchase_id", purchaseIds, Prisma.sql` AND ${column("licenses", "deleted_at")} IS NULL`)).map((license) => [String(license.purchase_id), license])),
+    cachedDiscounts: new Set(
+      (await rowsBy("purchase_offer_code_discounts", "purchase_id", purchaseIds)).map((discount) =>
+        String(discount.purchase_id),
+      ),
+    ),
+    offerCodes: byId(
+      await rowsBy("offer_codes", "id", [
+        ...new Set(purchases.map((purchase) => purchase.offer_code_id).filter((id) => id != null)),
+      ]),
+    ),
+    licenses: new Map(
+      (
+        await rowsBy(
+          "licenses",
+          "purchase_id",
+          purchaseIds,
+          Prisma.sql` AND ${column("licenses", "deleted_at")} IS NULL`,
+        )
+      ).map((license) => [String(license.purchase_id), license]),
+    ),
     reviews: reviewsByPurchase,
     responses,
     customFields,
     fieldNames,
     tips: new Map((await rowsBy("tips", "purchase_id", purchaseIds)).map((tip) => [String(tip.purchase_id), tip])),
-    urlRedirects: new Map((await rowsBy("url_redirects", "purchase_id", purchaseIds)).map((redirect) => [String(redirect.purchase_id), redirect])),
-    purchasers: byId(await rowsBy("users", "id", [...new Set(purchases.map((purchase) => purchase.purchaser_id).filter((id) => id != null))])),
+    urlRedirects: new Map(
+      (await rowsBy("url_redirects", "purchase_id", purchaseIds)).map((redirect) => [
+        String(redirect.purchase_id),
+        redirect,
+      ]),
+    ),
+    purchasers: byId(
+      await rowsBy("users", "id", [
+        ...new Set(purchases.map((purchase) => purchase.purchaser_id).filter((id) => id != null)),
+      ]),
+    ),
     calls: new Map((await rowsBy("calls", "purchase_id", purchaseIds)).map((call) => [String(call.purchase_id), call])),
-    merchantAccounts: byId(await rowsBy("merchant_accounts", "id", [...new Set(purchases.map((purchase) => purchase.merchant_account_id).filter((id) => id != null))])),
+    merchantAccounts: byId(
+      await rowsBy("merchant_accounts", "id", [
+        ...new Set(purchases.map((purchase) => purchase.merchant_account_id).filter((id) => id != null)),
+      ]),
+    ),
     refundedCents,
     gifts,
-    ppp: new Map((await rowsBy("purchasing_power_parity_infos", "purchase_id", purchaseIds)).map((info) => [String(info.purchase_id), info])),
+    ppp: new Map(
+      (await rowsBy("purchasing_power_parity_infos", "purchase_id", purchaseIds)).map((info) => [
+        String(info.purchase_id),
+        info,
+      ]),
+    ),
   };
 }
 
@@ -345,15 +472,23 @@ function assertNoTransactionUrl(purchase: Row, merchantAccount: Row | null): voi
   if (!present(purchase.charge_processor_id) || !present(purchase.stripe_transaction_id)) return;
   // Purchase#charged_using_gumroad_merchant_account?
   const gumroadAccount = merchantAccount !== null && merchantAccount.user_id == null;
-  const stripeWithoutConnect = purchase.charge_processor_id === "stripe" && !(merchantAccount !== null && isStripeConnectAccount(merchantAccount as MerchantAccountRow));
+  const stripeWithoutConnect =
+    purchase.charge_processor_id === "stripe" &&
+    !(merchantAccount !== null && isStripeConnectAccount(merchantAccount as MerchantAccountRow));
   if (gumroadAccount || stripeWithoutConnect) return;
   throw new HandBackToRails();
 }
 
 // Purchase#amount_refundable_cents_in_currency
 export function refundableCents(purchase: Row, refundedCents: number, currency: string): Promise<number> {
-  const refundable = CHARGE_PROCESSOR_IDS.includes(purchase.charge_processor_id) ? num(purchase.price_cents) - refundedCents : 0;
-  return usdCentsToCurrency(currency, refundable, currency === "usd" ? undefined : Number(String(purchase.rate_converted_to_usd).trim()));
+  const refundable = CHARGE_PROCESSOR_IDS.includes(purchase.charge_processor_id)
+    ? num(purchase.price_cents) - refundedCents
+    : 0;
+  return usdCentsToCurrency(
+    currency,
+    refundable,
+    currency === "usd" ? undefined : Number(String(purchase.rate_converted_to_usd).trim()),
+  );
 }
 
 const iso = (date: Date) => date.toISOString().replace(/\.\d{3}Z$/u, "Z");
@@ -362,7 +497,11 @@ type ShownCode = { amount_cents: number | null; amount_percentage: number | null
 
 // CustomerPresenter's `discount` (Purchase#original_offer_code) and `cents_before_offer_code`
 // (Purchase#displayed_price_cents_before_offer_code(include_deleted: true)).
-export async function offerCodeReading(purchase: Row, offerCode: Row | null, cached: boolean): Promise<{ discountCode: ShownCode | null; beforeOfferCode: number }> {
+export async function offerCodeReading(
+  purchase: Row,
+  offerCode: Row | null,
+  cached: boolean,
+): Promise<{ discountCode: ShownCode | null; beforeOfferCode: number }> {
   const displayed = num(purchase.displayed_price_cents);
   const quantity = purchase.quantity ?? 1;
   // original_offer_code (include_deleted: false) hides a deleted code, the listed price (include_deleted: true) does not.
@@ -373,13 +512,19 @@ export async function offerCodeReading(purchase: Row, offerCode: Row | null, cac
     const shown = await record.originalOfferCode(false);
     const cachedCode = (await (await record.purchaseOfferCodeDiscount())?.offerCode())?.row.code;
     return {
-      discountCode: shown && cachedCode !== undefined ? { amount_cents: shown.amount_cents, amount_percentage: shown.amount_percentage, code: cachedCode } : null,
+      discountCode:
+        shown && cachedCode !== undefined
+          ? { amount_cents: shown.amount_cents, amount_percentage: shown.amount_percentage, code: cachedCode }
+          : null,
       beforeOfferCode: (await record.displayedPriceCentsBeforeOfferCode(true)) ?? displayed,
     };
   }
   const discountCode = offerCode && !deleted ? (offerCode as ShownCode) : null;
   if (!offerCode) return { discountCode, beforeOfferCode: displayed };
-  const price = originalPrice({ amount_cents: offerCode.amount_cents, amount_percentage: offerCode.amount_percentage }, displayed);
+  const price = originalPrice(
+    { amount_cents: offerCode.amount_cents, amount_percentage: offerCode.amount_percentage },
+    displayed,
+  );
   return { discountCode, beforeOfferCode: price === null ? displayed : price * quantity };
 }
 
@@ -401,14 +546,19 @@ export function subscriptionStatus(subscription: Row, lastPurchaseState: string 
     if (subscription.ended_at != null) return "fixed_subscription_period_ended";
     return subscription.cancelled_at != null ? "cancelled" : null;
   }
-  const alive = subscription.failed_at == null && subscription.ended_at == null && (subscription.cancelled_at == null || subscription.cancelled_at.getTime() > now.getTime());
+  const alive =
+    subscription.failed_at == null &&
+    subscription.ended_at == null &&
+    (subscription.cancelled_at == null || subscription.cancelled_at.getTime() > now.getTime());
   if (alive && lastPurchaseState === "failed") return "pending_failure";
   if (alive && subscription.cancelled_at != null) return "pending_cancellation";
   return "alive";
 }
 
 async function subscriptionReadings(purchases: Row[]): Promise<Map<string, SubscriptionReading>> {
-  const rows = await rowsBy("subscriptions", "id", [...new Set(purchases.map((purchase) => purchase.subscription_id).filter((id) => id != null))]);
+  const rows = await rowsBy("subscriptions", "id", [
+    ...new Set(purchases.map((purchase) => purchase.subscription_id).filter((id) => id != null)),
+  ]);
   if (rows.length === 0) return new Map();
   const now = new Date();
   const newest = new Map<string, string>();
@@ -420,13 +570,18 @@ async function subscriptionReadings(purchases: Row[]): Promise<Map<string, Subsc
   const readings = new Map<string, SubscriptionReading>();
   for (const row of rows) {
     if (SubscriptionFlags.isSet(row.flags, "renewal_disabled_due_to_indian_card_mandate")) throw new HandBackToRails();
-    const record = new SubscriptionRecord(castRow<Subscription>("Subscription", row), { now: () => now, featureActive: defaultSubscriptionDeps.featureActive });
+    const record = new SubscriptionRecord(castRow<Subscription>("Subscription", row), {
+      now: () => now,
+      featureActive: defaultSubscriptionDeps.featureActive,
+    });
     try {
       readings.set(String(row.id), {
         id: encrypt(row.id),
         status: subscriptionStatus(row, newest.get(String(row.id)) ?? null, now),
         isInstallmentPlan: record.flag("is_installment_plan"),
-        remainingCharges: record.hasFixedLength() ? num(row.charge_occurrence_count) - (await record.successfulPurchasesCount()) : null,
+        remainingCharges: record.hasFixedLength()
+          ? num(row.charge_occurrence_count) - (await record.successfulPurchasesCount())
+          : null,
         recurrence: await record.recurrence(),
         currentPriceCents: await currentSubscriptionPriceCents(record),
       });
@@ -441,7 +596,11 @@ async function subscriptionReadings(purchases: Row[]): Promise<Map<string, Subsc
 
 // CustomerPresenter's `is_preorder`: the authorization of a preorder that still exists, not the purchase it was later charged as.
 export function isPreorder(purchase: Row, preorderIds: Set<string>): boolean {
-  return purchase.preorder_id != null && preorderIds.has(String(purchase.preorder_id)) && PurchaseFlags.isSet(purchase.flags, "is_preorder_authorization");
+  return (
+    purchase.preorder_id != null &&
+    preorderIds.has(String(purchase.preorder_id)) &&
+    PurchaseFlags.isSet(purchase.flags, "is_preorder_authorization")
+  );
 }
 
 // Purchase#gift: the sender's gift_given, else the receiver's gift_received.
@@ -465,7 +624,12 @@ export function affiliateJson(purchase: Row, affiliate: Row, user: Row) {
 type Context = { seller: User; sellerUsername: string; sellerContext: SellerContext; loaded: Loaded };
 
 async function customerJson(purchase: Row, { sellerUsername, sellerContext, loaded }: Context) {
-  assertNoTransactionUrl(purchase, purchase.merchant_account_id == null ? null : (loaded.merchantAccounts.get(String(purchase.merchant_account_id)) ?? null));
+  assertNoTransactionUrl(
+    purchase,
+    purchase.merchant_account_id == null
+      ? null
+      : (loaded.merchantAccounts.get(String(purchase.merchant_account_id)) ?? null),
+  );
   const flags = (name: Parameters<typeof PurchaseFlags.isSet>[1]) => PurchaseFlags.isSet(purchase.flags, name);
   const link = loaded.links.get(String(purchase.link_id))!;
   const id = String(purchase.id);
@@ -473,17 +637,20 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
   const currency = String(purchase.displayed_price_currency_type);
   const gift = giftOf(purchase, loaded);
   const displayed = num(purchase.displayed_price_cents);
-  const offerCode = purchase.offer_code_id == null ? null : (loaded.offerCodes.get(String(purchase.offer_code_id)) ?? null);
+  const offerCode =
+    purchase.offer_code_id == null ? null : (loaded.offerCodes.get(String(purchase.offer_code_id)) ?? null);
   const { discountCode, beforeOfferCode } = await offerCodeReading(purchase, offerCode, loaded.cachedDiscounts.has(id));
   const affiliate = purchase.affiliate_id == null ? undefined : loaded.affiliates.get(String(purchase.affiliate_id));
   const affiliateUser = affiliate ? loaded.affiliateUsers.get(String(affiliate.affiliate_user_id)) : undefined;
   const variant = loaded.variants.get(id);
-  const subscription = purchase.subscription_id == null ? undefined : loaded.subscriptions.get(String(purchase.subscription_id));
+  const subscription =
+    purchase.subscription_id == null ? undefined : loaded.subscriptions.get(String(purchase.subscription_id));
   const tip = loaded.tips.get(id);
   const license = loaded.licenses.get(id);
   const review = loaded.reviews.get(id);
   const call = loaded.calls.get(id);
-  const purchaser = purchase.purchaser_id == null ? null : (loaded.purchasers.get(String(purchase.purchaser_id)) ?? null);
+  const purchaser =
+    purchase.purchaser_id == null ? null : (loaded.purchasers.get(String(purchase.purchaser_id)) ?? null);
   const ppp = flags("is_purchasing_power_parity_discounted") ? loaded.ppp.get(id) : undefined;
   const refunded = purchase.stripe_refunded === true || purchase.stripe_refunded === 1;
   const chargedBack = purchase.chargeback_date != null;
@@ -491,7 +658,8 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
   const accessRevoked = flags("is_access_revoked");
   const update = roleAdminFor(requireUser(sellerContext)) || roleSupportFor(requireUser(sellerContext));
   // Audience::PurchasePolicy#undo_revoke_access? / #revoke_access? (no refund, not physical, not a member)
-  const revokeAccess = update && !accessRevoked && !refunded && !LinkFlags.isSet(link.flags, "is_physical") && subscription === undefined;
+  const revokeAccess =
+    update && !accessRevoked && !refunded && !LinkFlags.isSet(link.flags, "is_physical") && subscription === undefined;
   const isAccessRevoked = accessRevoked ? (update ? true : null) : revokeAccess ? false : null;
 
   return {
@@ -525,7 +693,12 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
       : null,
     upsell: loaded.upsellNames.get(id) ?? null,
     subscription: subscription
-      ? { id: subscription.id, status: subscription.status, is_installment_plan: subscription.isInstallmentPlan, remaining_charges: subscription.remainingCharges }
+      ? {
+          id: subscription.id,
+          status: subscription.status,
+          is_installment_plan: subscription.isInstallmentPlan,
+          remaining_charges: subscription.remainingCharges,
+        }
       : null,
     is_multiseat_license: flags("is_multiseat_license"),
     referrer: displayReferrer(purchase, sellerUsername),
@@ -535,30 +708,57 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
     affiliate: affiliate && affiliateUser ? affiliateJson(purchase, affiliate, affiliateUser) : null,
     license: license
       ? {
-          id: secureExternalId("License", license.id, LICENSE_SCOPE, { expiresAt: new Date(Date.now() + LICENSE_TTL_MS) }),
+          id: secureExternalId("License", license.id, LICENSE_SCOPE, {
+            expiresAt: new Date(Date.now() + LICENSE_TTL_MS),
+          }),
           key: license.serial,
           enabled: license.disabled_at == null,
           uses: license.uses,
         }
       : null,
     review: review
-      ? { rating: review.rating, message: present(review.message) ? review.message : null, response: loaded.responses.has(String(review.id)) ? { message: loaded.responses.get(String(review.id))!.message } : null, videos: [] }
+      ? {
+          rating: review.rating,
+          message: present(review.message) ? review.message : null,
+          response: loaded.responses.has(String(review.id))
+            ? { message: loaded.responses.get(String(review.id))!.message }
+            : null,
+          videos: [],
+        }
       : null,
-    call: call ? { id: encrypt(call.id), call_url: call.call_url, start_time: iso(call.start_time), end_time: iso(call.end_time) } : null,
+    call: call
+      ? {
+          id: encrypt(call.id),
+          call_url: call.call_url,
+          start_time: iso(call.start_time),
+          end_time: iso(call.end_time),
+        }
+      : null,
     commission: null,
     custom_fields: (loaded.customFields.get(id) ?? []).map((field) => ({
-      attribute: present(loaded.fieldNames.get(String(field.custom_field_id))?.name) ? loaded.fieldNames.get(String(field.custom_field_id))!.name : field.name,
+      attribute: present(loaded.fieldNames.get(String(field.custom_field_id))?.name)
+        ? loaded.fieldNames.get(String(field.custom_field_id))!.name
+        : field.name,
       type: "text",
       value: field.value == null ? "" : String(field.value),
     })),
     transaction_url_for_seller: null,
     is_access_revoked: isAccessRevoked,
-    paypal_refund_expired: purchase.card_type === "paypal" && purchase.created_at.getTime() < Date.now() - 183 * 24 * 3600 * 1000,
+    paypal_refund_expired:
+      purchase.card_type === "paypal" && purchase.created_at.getTime() < Date.now() - 183 * 24 * 3600 * 1000,
     refunded,
     partially_refunded: purchase.stripe_partially_refunded === true || purchase.stripe_partially_refunded === 1,
     chargedback: chargedBack && !chargebackReversed && !refunded,
     has_options: variant !== undefined || loaded.hasAliveVariants.has(String(purchase.link_id)),
-    option: variant === undefined ? null : await variantToOption(link as LinkRow, variant as never, (loaded.tierPrices.get(String(link.id)) ?? []) as PriceRow[], BigInt(link.user_id)),
+    option:
+      variant === undefined
+        ? null
+        : await variantToOption(
+            link as LinkRow,
+            variant as never,
+            (loaded.tierPrices.get(String(link.id)) ?? []) as PriceRow[],
+            BigInt(link.user_id),
+          ),
     utm_link: null,
     download_count: link.native_type === "coffee" ? null : (loaded.urlRedirects.get(id)?.uses ?? 0),
   };
@@ -577,14 +777,33 @@ async function productsForFilterBox(seller: User) {
     shown.push(product);
   }
   const productIds = shown.map((product) => product.id);
-  const categories = productIds.length === 0 ? [] : await selectRows<Row>(Prisma.sql`SELECT ${Prisma.raw("`variant_categories`.*")} FROM ${table("variant_categories")} WHERE ${column("variant_categories", "link_id")} IN (${inList(productIds)}) AND ${column("variant_categories", "deleted_at")} IS NULL`);
+  const categories =
+    productIds.length === 0
+      ? []
+      : await selectRows<Row>(
+          Prisma.sql`SELECT ${Prisma.raw("`variant_categories`.*")} FROM ${table("variant_categories")} WHERE ${column("variant_categories", "link_id")} IN (${inList(productIds)}) AND ${column("variant_categories", "deleted_at")} IS NULL`,
+        );
   const categoryIds = categories.map((category) => category.id);
-  const variants = categoryIds.length === 0 ? [] : await selectRows<Row>(Prisma.sql`SELECT ${Prisma.raw("`base_variants`.*")} FROM ${table("base_variants")} WHERE ${column("base_variants", "variant_category_id")} IN (${inList(categoryIds)}) AND ${column("base_variants", "deleted_at")} IS NULL AND ${column("base_variants", "type")} = 'Variant'`);
-  const skus = productIds.length === 0 ? [] : await selectRows<Row>(Prisma.sql`SELECT ${Prisma.raw("`base_variants`.*")} FROM ${table("base_variants")} WHERE ${column("base_variants", "link_id")} IN (${inList(productIds)}) AND ${column("base_variants", "deleted_at")} IS NULL AND ${column("base_variants", "type")} = 'Sku' AND (${column("base_variants", "flags")} & 1 = 0)`);
+  const variants =
+    categoryIds.length === 0
+      ? []
+      : await selectRows<Row>(
+          Prisma.sql`SELECT ${Prisma.raw("`base_variants`.*")} FROM ${table("base_variants")} WHERE ${column("base_variants", "variant_category_id")} IN (${inList(categoryIds)}) AND ${column("base_variants", "deleted_at")} IS NULL AND ${column("base_variants", "type")} = 'Variant'`,
+        );
+  const skus =
+    productIds.length === 0
+      ? []
+      : await selectRows<Row>(
+          Prisma.sql`SELECT ${Prisma.raw("`base_variants`.*")} FROM ${table("base_variants")} WHERE ${column("base_variants", "link_id")} IN (${inList(productIds)}) AND ${column("base_variants", "deleted_at")} IS NULL AND ${column("base_variants", "type")} = 'Sku' AND (${column("base_variants", "flags")} & 1 = 0)`,
+        );
   return shown.map((product) => {
     const physical = LinkFlags.isSet(product.flags, "is_physical");
     const first = categories.find((category) => Number(category.link_id) === Number(product.id));
-    const options = physical ? skus.filter((sku) => Number(sku.link_id) === Number(product.id)) : first ? variants.filter((variant) => Number(variant.variant_category_id) === Number(first.id)) : [];
+    const options = physical
+      ? skus.filter((sku) => Number(sku.link_id) === Number(product.id))
+      : first
+        ? variants.filter((variant) => Number(variant.variant_category_id) === Number(first.id))
+        : [];
     return {
       id: encrypt(product.id),
       permalink: product.unique_permalink,
@@ -613,7 +832,9 @@ async function hasSuccessfulSales(productId: bigint | number): Promise<boolean> 
 
 // User#audience_types includes :customers: any audience member that is a customer.
 const hasCustomerAudience = (sellerId: bigint) =>
-  exists(Prisma.sql`SELECT 1 FROM ${table("audience_members")} WHERE ${column("audience_members", "seller_id")} = ${sellerId} AND ${column("audience_members", "customer")} = ${true} LIMIT 1`);
+  exists(
+    Prisma.sql`SELECT 1 FROM ${table("audience_members")} WHERE ${column("audience_members", "seller_id")} = ${sellerId} AND ${column("audience_members", "customer")} = ${true} LIMIT 1`,
+  );
 
 export async function customersProps(context: SellerContext, params: CustomersParams) {
   const seller = context.seller!;
@@ -623,9 +844,14 @@ export async function customersProps(context: SellerContext, params: CustomersPa
   const loaded = await load(result.ids, seller);
   const sellerUsername = present(seller.username) ? seller.username : seller.external_id!;
   const customers = [];
-  for (const purchase of loaded.purchases) customers.push(await customerJson(purchase, { seller, sellerUsername, sellerContext: context, loaded }));
+  for (const purchase of loaded.purchases)
+    customers.push(await customerJson(purchase, { seller, sellerUsername, sellerContext: context, loaded }));
   return {
-    pagination: { page: params.paged ? pageOffset(params.page) / CUSTOMERS_PER_PAGE + 1 : 1, pages: totalPages(total), next: null },
+    pagination: {
+      page: params.paged ? pageOffset(params.page) / CUSTOMERS_PER_PAGE + 1 : 1,
+      pages: totalPages(total),
+      next: null,
+    },
     product_id: product ? encrypt(product.id) : null,
     customers,
     count: total,

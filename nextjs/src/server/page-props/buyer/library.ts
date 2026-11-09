@@ -13,6 +13,7 @@ import { LinkFlags } from "../../models/link.ts";
 import { castRow, column, selectRows, table } from "../../models/sql.ts";
 import { PurchaseFlags } from "../../search/flags.ts";
 import { domainConfig } from "../domain.ts";
+
 import { thumbnailOrCoverUrl } from "./products.ts";
 import { avatarUrl, profileUrl } from "./users.ts";
 
@@ -21,7 +22,12 @@ const LINKS = "links";
 // LibraryPresenter::PER_PAGE
 const PER_PAGE = 15;
 const LIBRARY_RECOMMENDER = "library";
-const SUCCESS_STATES = ["preorder_authorization_successful", "successful", "not_charged", "gift_receiver_purchase_successful"];
+const SUCCESS_STATES = [
+  "preorder_authorization_successful",
+  "successful",
+  "not_charged",
+  "gift_receiver_purchase_successful",
+];
 
 export type LibraryParams = {
   page: string;
@@ -33,7 +39,8 @@ export type LibraryParams = {
   subscriptionsOnly: boolean;
 };
 
-const flag = (name: Parameters<typeof PurchaseFlags.condition>[0], enabled: boolean) => PurchaseFlags.condition(name, enabled);
+const flag = (name: Parameters<typeof PurchaseFlags.condition>[0], enabled: boolean) =>
+  PurchaseFlags.condition(name, enabled);
 
 // `Purchase.visible_in_library`, for one purchaser.
 const visibleInLibrary = (userId: bigint) => Prisma.sql`${column(PURCHASES, "purchaser_id")} = ${userId}
@@ -63,11 +70,16 @@ const bundleLinkIds = (bundleIds: string[]) => bundleIds.flatMap((id) => decrypt
 
 // Whether the port can answer. The controller's filter asks before the page renders, since a page
 // that is rendering cannot hand the request back.
-export async function assertLibrarySupported(userId: bigint, params: Pick<LibraryParams, "bundles" | "subscriptionsOnly">): Promise<void> {
+export async function assertLibrarySupported(
+  userId: bigint,
+  params: Pick<LibraryParams, "bundles" | "subscriptionsOnly">,
+): Promise<void> {
   if (params.subscriptionsOnly) throw new HandBackToRails();
   const base = visibleInLibrary(userId);
   // library_download_location looks for a replacement renewal when the purchase was refunded.
-  const refunded = await selectRows(Prisma.sql`SELECT 1 FROM ${table(PURCHASES)} WHERE ${base} AND purchases.subscription_id IS NOT NULL AND purchases.stripe_refunded = 1 LIMIT 1`);
+  const refunded = await selectRows(
+    Prisma.sql`SELECT 1 FROM ${table(PURCHASES)} WHERE ${base} AND purchases.subscription_id IS NOT NULL AND purchases.stripe_refunded = 1 LIMIT 1`,
+  );
   if (refunded.length > 0) throw new HandBackToRails();
   const linkIds = bundleLinkIds(rubySplitComma(params.bundles));
   if (linkIds.length === 0) return;
@@ -85,20 +97,33 @@ async function noAccessMembershipPurchaseIds(base: Prisma.Sql): Promise<bigint[]
   );
   if (pairs.length === 0) return [];
   const subscriptionIds = [...new Set(pairs.flatMap((pair) => pair.subscription_id ?? []))];
-  const subscriptions = new Map((await db.subscription.findMany({ where: { id: { in: subscriptionIds } } })).map((subscription) => [subscription.id, subscription]));
+  const subscriptions = new Map(
+    (await db.subscription.findMany({ where: { id: { in: subscriptionIds } } })).map((subscription) => [
+      subscription.id,
+      subscription,
+    ]),
+  );
   const linkIds = [...new Set([...subscriptions.values()].flatMap((subscription) => subscription.link_id ?? []))];
   const links = new Map((await db.link.findMany({ where: { id: { in: linkIds } } })).map((link) => [link.id, link]));
   const now = new Date();
   return pairs.flatMap((pair) => {
     const subscription = pair.subscription_id === null ? undefined : subscriptions.get(pair.subscription_id);
     if (!subscription) return [];
-    return grantsAccess(subscription, subscription.link_id === null ? null : (links.get(subscription.link_id) ?? null), now) ? [] : [pair.id];
+    return grantsAccess(
+      subscription,
+      subscription.link_id === null ? null : (links.get(subscription.link_id) ?? null),
+      now,
+    )
+      ? []
+      : [pair.id];
   });
 }
 
 // `replaced_bundle_purchase_ids`: a bundle row is dropped only when one of its member rows is in the library.
 async function replacedBundlePurchaseIds(base: Prisma.Sql): Promise<bigint[]> {
-  const bundles = await selectRows<{ id: bigint }>(Prisma.sql`SELECT ${column(PURCHASES, "id")} AS id FROM ${table(PURCHASES)} WHERE ${base} AND ${flag("is_bundle_purchase", true)}`);
+  const bundles = await selectRows<{ id: bigint }>(
+    Prisma.sql`SELECT ${column(PURCHASES, "id")} AS id FROM ${table(PURCHASES)} WHERE ${base} AND ${flag("is_bundle_purchase", true)}`,
+  );
   if (bundles.length === 0) return [];
   const rows = await selectRows<{ bundle_purchase_id: bigint }>(
     Prisma.sql`SELECT DISTINCT bundle_purchase_id FROM ${table("bundle_product_purchases")} WHERE bundle_purchase_id IN (${Prisma.join(bundles.map((row) => row.id))}) AND product_purchase_id IN (SELECT purchases.id FROM ${table(PURCHASES)} WHERE ${base})`,
@@ -106,12 +131,15 @@ async function replacedBundlePurchaseIds(base: Prisma.Sql): Promise<bigint[]> {
   return rows.map((row) => row.bundle_purchase_id);
 }
 
-const notIn = (ids: bigint[]) => (ids.length === 0 ? Prisma.sql`1 = 1` : Prisma.sql`${column(PURCHASES, "id")} NOT IN (${Prisma.join(ids)})`);
+const notIn = (ids: bigint[]) =>
+  ids.length === 0 ? Prisma.sql`1 = 1` : Prisma.sql`${column(PURCHASES, "id")} NOT IN (${Prisma.join(ids)})`;
 
 // `bundle_filter_options`
 async function bundleFilterOptions(base: Prisma.Sql, replacedIds: bigint[]) {
   if (replacedIds.length === 0) return [];
-  const rows = await selectRows<{ link_id: bigint }>(Prisma.sql`SELECT ${column(PURCHASES, "link_id")} AS link_id FROM ${table(PURCHASES)} WHERE ${base} AND ${column(PURCHASES, "id")} IN (${Prisma.join(replacedIds)}) ORDER BY ${column(PURCHASES, "id")} DESC`);
+  const rows = await selectRows<{ link_id: bigint }>(
+    Prisma.sql`SELECT ${column(PURCHASES, "link_id")} AS link_id FROM ${table(PURCHASES)} WHERE ${base} AND ${column(PURCHASES, "id")} IN (${Prisma.join(replacedIds)}) ORDER BY ${column(PURCHASES, "id")} DESC`,
+  );
   const linkIds = [...new Set(rows.map((row) => row.link_id))];
   const links = new Map((await db.link.findMany({ where: { id: { in: linkIds } } })).map((link) => [link.id, link]));
   return linkIds.flatMap((id) => {
@@ -129,8 +157,12 @@ export async function libraryProps(user: User, params: LibraryParams) {
   const visible = Prisma.sql`${base} AND ${notIn(await noAccessMembershipPurchaseIds(base))}`;
   const cards = Prisma.sql`${visible} AND ${notIn(replacedIds)}`;
 
-  const archivedCount = await count(Prisma.sql`SELECT COUNT(*) AS count FROM ${table(PURCHASES)} WHERE ${visible} AND ${flag("is_archived", true)}`);
-  const unarchivedCount = await count(Prisma.sql`SELECT COUNT(*) AS count FROM ${table(PURCHASES)} WHERE ${visible} AND ${flag("is_archived", false)}`);
+  const archivedCount = await count(
+    Prisma.sql`SELECT COUNT(*) AS count FROM ${table(PURCHASES)} WHERE ${visible} AND ${flag("is_archived", true)}`,
+  );
+  const unarchivedCount = await count(
+    Prisma.sql`SELECT COUNT(*) AS count FROM ${table(PURCHASES)} WHERE ${visible} AND ${flag("is_archived", false)}`,
+  );
 
   // The filters, over the archive partition of the library.
   const conditions: Prisma.Sql[] = [cards, flag("is_archived", params.showArchivedOnly)];
@@ -142,9 +174,15 @@ export async function libraryProps(user: User, params: LibraryParams) {
     joins = Prisma.sql`${joins} INNER JOIN ${table(LINKS)} ON ${column(LINKS, "id")} = ${column(PURCHASES, "link_id")}`;
   };
   if (creatorIds.length > 0) {
-    const creatorUserIds = (await db.user.findMany({ where: { external_id: { in: creatorIds } }, select: { id: true } })).map((row) => row.id);
+    const creatorUserIds = (
+      await db.user.findMany({ where: { external_id: { in: creatorIds } }, select: { id: true } })
+    ).map((row) => row.id);
     joinLink();
-    conditions.push(creatorUserIds.length === 0 ? Prisma.sql`1 = 0` : Prisma.sql`${column(LINKS, "user_id")} IN (${Prisma.join(creatorUserIds)})`);
+    conditions.push(
+      creatorUserIds.length === 0
+        ? Prisma.sql`1 = 0`
+        : Prisma.sql`${column(LINKS, "user_id")} IN (${Prisma.join(creatorUserIds)})`,
+    );
   }
   if (bundleIds.length > 0) {
     const linkIds = bundleLinkIds(bundleIds);
@@ -176,7 +214,8 @@ export async function libraryProps(user: User, params: LibraryParams) {
   if (sort === "purchase_date") {
     order = Prisma.sql`ORDER BY ${column(PURCHASES, "id")} DESC`;
   } else {
-    if (!linkJoined) orderedJoins = Prisma.sql`${joins} INNER JOIN ${table(LINKS)} ON ${column(LINKS, "id")} = ${column(PURCHASES, "link_id")}`;
+    if (!linkJoined)
+      orderedJoins = Prisma.sql`${joins} INNER JOIN ${table(LINKS)} ON ${column(LINKS, "id")} = ${column(PURCHASES, "link_id")}`;
     order = Prisma.sql`ORDER BY COALESCE(links.content_updated_at, links.created_at) DESC, ${column(PURCHASES, "id")} DESC`;
   }
   const pageRows = await selectRows(
@@ -186,7 +225,13 @@ export async function libraryProps(user: User, params: LibraryParams) {
 
   return {
     results: await buildCards(purchases),
-    pagination: { page, pages, from: Math.min(offset + 1, total), to: Math.min(offset + purchases.length, total), count: total },
+    pagination: {
+      page,
+      pages,
+      from: Math.min(offset + 1, total),
+      to: Math.min(offset + purchases.length, total),
+      count: total,
+    },
     creators: await creatorsForTab(cards, params.showArchivedOnly),
     bundles: await bundleFilterOptions(base, replacedIds),
     // assertLibrarySupported hands back whenever the selected bundles have a download page.
@@ -210,7 +255,8 @@ async function count(sql: Prisma.Sql): Promise<number> {
 }
 
 // `creator.name || creator.username || creator.external_id`, with User#username's own fallback.
-const creatorName = (creator: User) => creator.name ?? (creator.username && creator.username.trim() !== "" ? creator.username : creator.external_id);
+const creatorName = (creator: User) =>
+  creator.name ?? (creator.username && creator.username.trim() !== "" ? creator.username : creator.external_id);
 
 async function creatorsForTab(base: Prisma.Sql, showArchivedOnly: boolean) {
   const rows = await selectRows<{ user_id: bigint; count: bigint }>(
@@ -218,7 +264,11 @@ async function creatorsForTab(base: Prisma.Sql, showArchivedOnly: boolean) {
   );
   const counts = new Map(rows.map((row) => [row.user_id, Number(row.count)]));
   const creators = await db.user.findMany({ where: { id: { in: [...counts.keys()] } }, orderBy: { id: "asc" } });
-  return creators.map((creator) => ({ id: creator.external_id, name: creatorName(creator), count: counts.get(creator.id) }));
+  return creators.map((creator) => ({
+    id: creator.external_id,
+    name: creatorName(creator),
+    count: counts.get(creator.id),
+  }));
 }
 
 async function buildCards(purchases: Purchase[]) {
