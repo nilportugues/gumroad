@@ -1,13 +1,14 @@
 // ProfilePresenter#profile_settings_props (app/presenters/profile_presenter.rb) for
-// Settings::ProfileController#show. A profile with saved sections, a membership product, a
-// reputation summary or an uploaded avatar throws NotPortedError: those need ProfileSectionsPresenter's
-// Elasticsearch product search, ProductPresenter.card_for_web, the reputation summary and Active Storage.
+// Settings::ProfileController#show. A profile with saved sections, a membership product or
+// an uploaded avatar throws NotPortedError: those need ProfileSectionsPresenter's
+// Elasticsearch product search, ProductPresenter.card_for_web and Active Storage.
 import { createHash } from "node:crypto";
 
 import { db } from "../../../lib/db.ts";
 import { encrypt as externalId } from "../../../lib/obfuscate-ids.ts";
 import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
 import { LinkFlags } from "../../models/link.ts";
+import { reputationProps } from "../../models/user-reputation-summary.ts";
 import { FONT_CHOICES, normalizeHexColor } from "../../models/seller-profile.ts";
 import { sellerProfile, subdomain, UserFlags, Users, username } from "../../models/user.ts";
 import { settingsMainUserPolicy } from "../../policies/settings/main-user.ts";
@@ -66,7 +67,6 @@ function layoutVersion(tabs: Tab[], sectionUpdatedAt: Date | null): string {
 export async function creatorProfile(seller: Seller, canEdit: boolean) {
   const record = Users.load(seller);
   const youtube = await db.userYoutubeIdentity.findFirst({ where: { user_id: seller.id } });
-  if (await isFeatureEnabled("seller_reputation_summary", userActor(seller.id))) throw new NotPortedError("User#seller_reputation_summary");
   return {
     external_id: seller.external_id,
     avatar_url: await avatarUrl(seller),
@@ -78,6 +78,7 @@ export async function creatorProfile(seller: Seller, canEdit: boolean) {
     can_edit: canEdit,
     follow_recaptcha_site_key: followRecaptchaSiteKey(seller),
     hide_follow_form: UserFlags.isSet(seller.flags, "hide_follow_form"),
+    ...(await reputationProps(seller.id)),
   };
 }
 
