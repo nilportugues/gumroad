@@ -867,6 +867,19 @@ The sale and subscriber objects of the v2 API, served from batched row reads (`m
 - **Known divergence.** `country`/`state` fall back to the GeoIP database when the purchase has none; a Node host without `lib/GeoIP2-City.mmdb` would omit them where Rails would not.
 - **Not served (still Rails), WS-17g remainder.** `licenses#verify|enable|disable|decrement_uses_count|rotate` (need `Purchase#payload_for_ping_notification`, a large ping payload, plus the license writes), `sales#mark_as_shipped|revoke_access|undo_revoke_access` (purchase updates run search-index and callback side effects that have no golden yet), `sales#summary` and `#export` (`Api::V2::SalesSummary`, `Exports::PurchaseExportService`), `sales#refund` (money), `payouts#*` (phase 2), all the `mobile/*` purchase endpoints (`Purchase#json_data_for_mobile`, `UrlRedirect#product_json_data`), the admin purchases/licenses/url_redirects/products reads and the non-money `purchases#*` web routes.
 
+## WS-11b storefront and audience
+
+Second pass over the storefront and audience routes the first wave left. Replayed by `parity/__tests__/ws11b.replay.test.ts` against specs recorded from Rails (`utm_links_mutations_signed_in_spec`, `wishlist_items_mutations_signed_in_spec`, `post_views_signed_in_spec`).
+
+| Routes | Port |
+| --- | --- |
+| `POST/PATCH/PUT/DELETE /dashboard/utm_links` | `controllers/utm-links-mutations.ts`, on `models/utm-link.ts` and the `SaveUtmLinkService` pieces Api::V2 already used. |
+| `GET /u/:permalink` | `controllers/utm-link-tracking.ts` (handler `utm_tracking`) reusing `utmUrl`. |
+| `POST/DELETE /wishlists/:wishlist_id/followers`, `POST /wishlists/:wishlist_id/products`, `DELETE .../products/:id` (also on seller hosts), `GET .../followers/unsubscribe` | `controllers/wishlist-items-mutations.ts`, `wishlist-unsubscribe.ts`, `models/wishlist-follower.ts`. Adding a product with an option, recurrence, quantity, rent, versions or a rental product hands back to Rails. |
+| `POST /posts/:id/increment_post_views` | `controllers/post-views-mutations.ts`; `infra/bots.ts` (BOT_MAP dumped from Ruby); `createUserEvent` now takes a product and returns the event id. |
+
+Not ported (blockers): Followers (`Follower::CreateService`, `FollowRecaptcha`, the newsletter cutover, `ConfirmedFollowerEvent` callbacks and the confirmation mailer), profile sections (JSON-schema validation and `SaveContentUpsellsService`), `Wishlists::ProductsController#index` (`WishlistPresenter#public_items`), `RecommendedProducts`, the ERB marketing pages (`home#*`, `gumclaw`), collaborators, affiliates and affiliate requests, product reviews and review videos, comments, commissions, piracy reports, pages, embedded overlay scripts, customers JSON, subscriptions unsubscribe/magic link, Action Mailbox ingresses and the remaining routes of the stream list.
+
 ## WS-12c product editor
 
 The JSON endpoints around the product editor and the product page that need no write to the `Link` save path. Parity: `spec/requests/product_editor_{json,mutations}_signed_in_spec.rb` (28 + 17 recorded requests), replayed by `parity/__tests__/ws12c.replay.test.ts` (status, JSON, cookies, rows written, jobs; Ruby-runtime jobs are read from Sidekiq's `queue:*`). Record into a freshly created database: the replay leaves its seed behind.

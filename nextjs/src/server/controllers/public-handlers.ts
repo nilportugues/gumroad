@@ -30,6 +30,8 @@ import { assertFlatQuery } from "./rails-params.ts";
 import { queryParam, type RailsRequest, railsRequest } from "./rails-request.ts";
 import { esJson } from "../search/es-json.ts";
 import { urlRedirectsAction } from "./url-redirects/deliveries.ts";
+import { utmLinkRedirect } from "./utm-link-tracking.ts";
+import { wishlistUnsubscribe } from "./wishlist-unsubscribe.ts";
 
 const TEXT = "text/plain; charset=utf-8";
 const API_V2_HANDLER = "api-v2";
@@ -185,6 +187,8 @@ const HANDLERS: Record<string, Handler> = {
   },
   indexnow: { run: async (_request, url) => indexnowKey(decodeURIComponent(url.pathname.slice(1).replace(/\.txt$/u, ""))) },
   github_stars: { run: () => githubStars() },
+  wishlist_unsubscribe: { run: (request) => wishlistUnsubscribe(request) },
+  utm_tracking: { run: (_request, url) => utmLinkRedirect(decodeURIComponent(url.pathname.split("/").at(-1) ?? "")) },
   analytics_js: { run: (request) => analyticsScript(request) },
   charge_data: { options: { optOutOfCsp: true }, run: (request) => chargeData(request) },
   license_key_lookup_data: { options: { optOutOfCsp: true }, run: (request) => licenseKeyLookupData(request) },
