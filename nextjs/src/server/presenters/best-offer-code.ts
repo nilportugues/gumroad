@@ -14,19 +14,19 @@ type Invalid = { valid: false; error_code: string };
 type Valid = { valid: true; code: string; discount: Record<string, unknown> };
 export type CodeResult = Invalid | Valid;
 
-const star = (name: string) => Prisma.raw(`\`${name}\`.*`);
+export const star = (name: string) => Prisma.raw(`\`${name}\`.*`);
 const present = (value: string | null | undefined): value is string => value != null && value.trim() !== "";
 
 // OfferCode.normalize_code
 export const normalizeCode = (code: string) => code.normalize("NFC").trim().toLowerCase();
 
-const asRecord = (row: Record<string, unknown>) => new OfferCodeRecord(castRow<OfferCode>("OfferCode", row));
+export const asRecord = (row: Record<string, unknown>) => new OfferCodeRecord(castRow<OfferCode>("OfferCode", row));
 
 // OfferCode#is_currency_valid?
-const currencyValid = (code: OfferCodeRecord, product: LinkRow) => code.row.amount_percentage != null || code.row.currency_type == null || product.price_currency_type === code.row.currency_type;
+export const currencyValid = (code: OfferCodeRecord, product: LinkRow) => code.row.amount_percentage != null || code.row.currency_type == null || product.price_currency_type === code.row.currency_type;
 
 // OfferCode#applicable?
-async function applicable(code: OfferCodeRecord, product: LinkRow): Promise<boolean> {
+export async function applicable(code: OfferCodeRecord, product: LinkRow): Promise<boolean> {
   if (!code.row.universal) return (await code.products()).some((candidate) => candidate.id === product.id);
   if ((await code.excludedProducts()).some((candidate) => candidate.id === product.id)) return false;
   return present(code.row.currency_type) ? product.price_currency_type === code.row.currency_type : true;
@@ -47,7 +47,7 @@ async function findOfferCode(product: LinkRow, code: string): Promise<OfferCodeR
 const ruby = (date: Date | null) => (date ? date.toISOString() : null);
 
 // OfferCode#discount, in full
-async function fullDiscount(code: OfferCodeRecord): Promise<Record<string, unknown>> {
+export async function fullDiscount(code: OfferCodeRecord): Promise<Record<string, unknown>> {
   const { row } = code;
   const cents = row.amount_percentage == null;
   const json: Record<string, unknown> = cents ? { type: "fixed", cents: row.amount_cents } : { type: "percent", percents: row.amount_percentage };
