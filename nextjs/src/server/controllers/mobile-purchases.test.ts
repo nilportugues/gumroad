@@ -2,10 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { MobileAction, MobileAuth, MobileInput } from "./mobile-api.ts";
 
-const { actions, selectRows, process } = vi.hoisted(() => ({
+const { actions, selectRows, process, creatorAppPurchasesJson } = vi.hoisted(() => ({
   actions: [] as MobileAction[],
   selectRows: vi.fn(),
   process: vi.fn(),
+  creatorAppPurchasesJson: vi.fn(),
 }));
 
 vi.mock("./mobile-api.ts", async (original) => ({
@@ -16,6 +17,7 @@ vi.mock("../models/sql.ts", async (original) => ({
   ...(await original<typeof import("../models/sql.ts")>()),
   selectRows,
 }));
+vi.mock("../presenters/mobile-serializer-reads.ts", () => ({ creatorAppPurchasesJson }));
 vi.mock("../search/purchase-search.ts", () => ({ PurchaseSearchService: { process } }));
 vi.mock("../../lib/obfuscate-ids.ts", () => ({
   decrypt: (value: string) => (/^\d+$/u.test(value) ? Number(value) : null),
@@ -35,6 +37,7 @@ const status = (result: unknown) => (result as { status: number }).status;
 beforeEach(() => {
   selectRows.mockReset();
   process.mockReset();
+  creatorAppPurchasesJson.mockReset();
 });
 
 describe("registration", () => {
@@ -142,6 +145,7 @@ describe("GET /mobile/sales", () => {
 
   it("answers an empty page when the search matches nothing", async () => {
     process.mockResolvedValue({ total: 0, ids: [], response: {} });
+    creatorAppPurchasesJson.mockResolvedValue([]);
     const result = await run(input({ page: "3" }), authFor());
     expect(body(result)).toEqual({
       success: true,
@@ -151,9 +155,39 @@ describe("GET /mobile/sales", () => {
     expect(process).toHaveBeenCalledWith(expect.objectContaining({ from: 40, size: 20, track_total_hits: true }));
   });
 
-  it("hands back when the search has hits", async () => {
+  it("serializes the hits in search order with the page count", async () => {
+    process.mockResolvedValue({ total: 45, ids: ["9", "4"], response: {} });
+    creatorAppPurchasesJson.mockResolvedValue([{ id: "a" }, { id: "b" }]);
+    const result = await run(input({ page: "2" }), authFor());
+    expect(creatorAppPurchasesJson).toHaveBeenCalledWith([9n, 4n]);
+    expect(body(result)).toEqual({
+      success: true,
+      purchases: [{ id: "a" }, { id: "b" }],
+      pagination: { count: 45, page: 2, pages: 3, next: 3 },
+    });
+  });
+
+  it("has no next page on the last page", async () => {
+    process.mockResolvedValue({ total: 20, ids: ["9"], response: {} });
+    creatorAppPurchasesJson.mockResolvedValue([{ id: "a" }]);
+    expect(body(await run(input(), authFor())).pagination).toEqual({ count: 20, page: 1, pages: 1, next: null });
+  });
+
+  it("answers an empty page beyond the last page", async () => {
+    process.mockResolvedValue({ total: 1, ids: [], response: {} });
+    creatorAppPurchasesJson.mockResolvedValue([]);
+    expect(body(await run(input({ page: "2" }), authFor())).pagination).toEqual({
+      count: 1,
+      page: 2,
+      pages: 1,
+      next: null,
+    });
+  });
+
+  it("hands back when a row is not a shape the serializer reproduces", async () => {
     process.mockResolvedValue({ total: 2, ids: ["1", "2"], response: {} });
-    await expect(run(input(), authFor())).rejects.toThrow();
+    creatorAppPurchasesJson.mockRejectedValue(new Error("not ported"));
+    await expect(run(input(), authFor())).rejects.toThrow("not ported");
   });
 });
 

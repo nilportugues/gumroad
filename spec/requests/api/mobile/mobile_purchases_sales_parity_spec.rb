@@ -3,7 +3,8 @@
 require "spec_helper"
 
 # The Api::Mobile purchases and sales answers the Next.js port serves itself (nextjs/src/server/controllers/mobile-purchases.ts):
-# the unconfirmed 403, the 404 for a purchase that is not the caller's, and the empty listings. The examples that end in
+# the unconfirmed 403, the 404 for a purchase that is not the caller's, the empty listings and the sales rows whose
+# Purchase#as_json(creator_app_api: true) is ported (USD, no recurrence, no uploaded thumbnail). The examples that end in
 # `hands a ...` are the cases it leaves to Rails whole; the replay asserts Node forwards each one and writes nothing.
 describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_for_refresh: true do
   include Parity::MobileApi
@@ -116,8 +117,38 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
       expect(response).to have_http_status(:ok)
     end
 
-    it "hands a sales page with rows to Rails", parity: true do
+    it "serves a sales page of USD sales", parity: true do
       library_purchase
+      purchase_row(link: product, seller:, purchase_state: "successful", price_cents: 0, email: "free@example.com")
+      index_model_records(Purchase)
+
+      get "/mobile/sales", params: auth(seller)
+
+      expect(response.parsed_body["purchases"].size).to eq(2)
+      expect(response.parsed_body["pagination"]).to eq("count" => 2, "page" => 1, "pages" => 1, "next" => nil)
+    end
+
+    it "serves a sales page beyond the last page as an empty list", parity: true do
+      library_purchase
+      index_model_records(Purchase)
+
+      get "/mobile/sales", params: auth(seller).merge(page: "2")
+
+      expect(response.parsed_body).to include("purchases" => [], "pagination" => { "count" => 1, "page" => 2, "pages" => 1, "next" => nil })
+    end
+
+    it "hands a sales page with a subscription sale to Rails", parity: true do
+      membership = create(:membership_product, user: seller)
+      purchase_row(link: membership, seller:, purchase_state: "successful", subscription: create(:subscription, link: membership, user: buyer))
+      index_model_records(Purchase)
+
+      get "/mobile/sales", params: auth(seller)
+
+      expect(response.parsed_body["purchases"].size).to eq(1)
+    end
+
+    it "hands a sales page with a sale in another currency to Rails", parity: true do
+      purchase_row(link: product, seller:, purchase_state: "successful", displayed_price_currency_type: "eur")
       index_model_records(Purchase)
 
       get "/mobile/sales", params: auth(seller)
