@@ -58,6 +58,19 @@ a letter suffix (`nextjs/ws-12d-bundle-edit`). This table maps every merged bran
 No route is flipped in production yet and no shadow traffic has run, so no stream has met its done
 criteria; "state" above is what is ported and proven by replay or golden.
 
+### Open items
+
+Known gaps a branch left on purpose. Each still hands back to Rails (or throws `NotPortedError`) until closed.
+
+- **Product file thumbnails** (`ProductFile#as_json`, `thumbnail`): needs the ActiveStorage `signed_id` (check the verifier name and purpose
+  `server/auth/message-verifier.ts` would need) and the URL: `cdn_url_for(thumbnail.url)` for a browser-renderable image, the cached
+  `thumbnail_variant.url` (`Rails.cache`) for a video. Images do not need the variant, so they can go first. Only provable against a Ruby golden.
+- **Subtitle whose S3 object is missing**: Ruby retries the key under another Unicode normalization (`S3KeyUnicodeNormalization`) before it
+  gives up and drops the subtitle. `signedDownloadUrlForS3KeyAndFilename` has no retry, so the case hands back.
+- **`POST /customer_surcharge`** (WS-20a): only the arithmetic is in `tax/customer-surcharge.ts`. The endpoint also needs `BuyerCurrencyQuote`
+  (Stripe FX quotes), `DirectListedAmountToken`, `PaymentMethodListToken` and GeoIP currency detection. A first cut could serve the cart with no
+  buyer-local-currency seller and hand back the rest.
+
 ## Dependency graph
 
 ```
