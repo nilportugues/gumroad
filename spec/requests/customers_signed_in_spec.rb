@@ -302,7 +302,7 @@ describe "Customers page when signed in", type: :request, elasticsearch_wait_for
     expect(price["cents_refundable"]).to eq(800)
   end
 
-  it "leaves a member to Rails", parity: true do
+  it "serves a member with its subscription", parity: true do
     membership = create(:membership_product, user: seller, name: "Club")
     create(:membership_purchase, link: membership, seller:, created_at: at_midday(3))
     sign_in_with_indexed_sales
