@@ -47,7 +47,7 @@ a letter suffix (`nextjs/ws-12d-bundle-edit`). This table maps every merged bran
 | WS-16 Library and content delivery | 61, 81, 16b (download page) | Library and unavailable pages; `/d/:id` gate, redirects and visit writes in Node, rendering only for a content page that lists nothing (files, rich content, variants, posts, integrations, licenses, polls hand back) |
 | WS-17 Public API and mobile API | 17a (products), 17b (sales, licenses), 17c (users, content, MCP), 17d (`Api::Internal`), 17f (mobile) | v2 routes served through the shared dispatcher; `Api::Internal` GETs go through one handler. 17e is counted under WS-18. |
 | WS-18 Admin | 17e (internal admin API, `Admin::BaseController` entry points) | Done in code; admin web UI was already deleted. Sidekiq and Flipper UI mounts stay in Rails until WS-40. The `impersonates a suspended seller` case in `spec/requests/admin/impersonate_spec.rb` has no recorded fixture yet. |
-| WS-19 AI, MCP and moderation | 75 (agent page) | Agent page only |
+| WS-19 AI, MCP and moderation | 75 (agent page), 19b (MCP protocol), 19c (AI service helpers) | Agent page; MCP JSON-RPC envelope, revision negotiation, `tools/list` and tool argument checks. Tool bodies, OAuth client registration and `ProductFileIngest` hand back to Rails; AI: store-agent formatter, scopes, HTML undo and prompts only, no LLM client or agent loop |
 | WS-20 Checkout and orders | 48 (offer-code pricing), 72 (subscription access), 78 | Empty-cart checkout only; no purchase path |
 | WS-21 Payment processors | 33 (Stripe client), 49 (refunds, disputes), 66 | Job guards; processor calls hand back |
 | WS-22 Sales tax and VAT | — | Receipt tax lines only (85) |

@@ -15,7 +15,7 @@ import { NotPortedError, UserFlags } from "../../models/user.ts";
 import { NotPortedError as PageNotPortedError } from "../../page-props/not-ported.ts";
 import { PAGE_URL_HEADER } from "../../page-props/render-state.ts";
 import { forwardToRails, HandBackToRails, processAction, type ActionResult, type Rendered } from "../application-controller.ts";
-import { requestParams, type Params } from "../rails-body.ts";
+import { parseNestedQuery, requestParams, type Params } from "../rails-body.ts";
 import type { RailsRequest } from "../rails-request.ts";
 import { escapeHtmlInJson } from "../../search/es-json.ts";
 
@@ -53,6 +53,8 @@ export type ApiV2Route = {
   requireScope?: string[];
   unauthorized?(headers: Record<string, string>): Rendered;
   keepSession?: boolean;
+  // The action reads the JSON body itself (`request.raw_post`), so a body that is an array or a scalar is not a hand-back.
+  rawJsonBody?: boolean;
   preAuth?(input: Pick<ApiV2Input, "request" | "url" | "params" | "rawBody">): void | Promise<void>;
   run(input: ApiV2Input): Promise<ActionResult>;
 };
@@ -149,7 +151,7 @@ export async function apiV2Response(incoming: Request): Promise<Response> {
 
   let params: Params;
   try {
-    params = { ...requestParams(url, request.headers.get("content-type"), bytes), ...routeParams };
+    params = { ...(route.rawJsonBody ? rawJsonParams(url, request.headers.get("content-type"), bytes) : requestParams(url, request.headers.get("content-type"), bytes)), ...routeParams };
   } catch (error) {
     if (error instanceof HandBackToRails) return handBack(request, error);
     throw error;
@@ -193,6 +195,24 @@ export async function apiV2Response(incoming: Request): Promise<Response> {
       throw error;
     }
   });
+}
+
+// For a `rawJsonBody` route: params are the query string, plus the body when it is an object. A JSON array or scalar is what the
+// action reads from the raw body, so it is not params. Any other body that fails to parse still hands back.
+function rawJsonParams(url: URL, contentType: string | null, bytes: Uint8Array): Params {
+  try {
+    return requestParams(url, contentType, bytes);
+  } catch (error) {
+    if (!(error instanceof HandBackToRails)) throw error;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(Buffer.from(bytes).toString("utf8"));
+    } catch {
+      throw error;
+    }
+    if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) throw error;
+    return parseNestedQuery(url.search.replace(/^\?/u, ""));
+  }
 }
 
 async function handBack(request: Request, error: HandBackToRails): Promise<Response> {

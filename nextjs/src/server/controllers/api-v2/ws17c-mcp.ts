@@ -1,8 +1,12 @@
 // Api::V2::McpController (the /muse, /claude and /chatgpt connector paths and the `.well-known` documents) and
-// Api::V2::NotionUnfurlUrlsController. The JSON-RPC tools (Mcp::Server), dynamic client registration and the product preview of the Notion
-// unfurl stay in Rails.
+// Api::V2::NotionUnfurlUrlsController. The JSON-RPC envelope and tools/list are ported (../../mcp/server.ts); a tool call that runs,
+// dynamic client registration and the product preview of the Notion unfurl stay in Rails.
 import { domainConfig } from "../../page-props/domain.ts";
 import { HandBackToRails, type ActionResult } from "../application-controller.ts";
+import { isFeatureEnabled } from "../../infra/flipper.ts";
+import { METHOD_HEADER, MCP_PROTOCOL_FLAG, NAME_HEADER, VERSION_HEADER } from "../../mcp/constants.ts";
+import { recordProtocolTelemetry } from "../../mcp/protocol-telemetry.ts";
+import { RpcSession, rpcHttpStatus } from "../../mcp/server.ts";
 import { head, renderJson, type ApiCall } from "./ws17c-base.ts";
 
 // Mcp::OauthClientRegistration::MCP_SCOPES
@@ -94,10 +98,27 @@ export function mcpPreAuth({ request, rawBody }: Pick<ApiCall, "request" | "rawB
 
 export const MCP_AUTHORIZE_SCOPES = [...PUBLIC_SCOPES, "view_public"];
 
+// Api::V2::McpController#mcp. mcpPreAuth has checked that a POST body is JSON.
 export async function mcp(call: ApiCall): Promise<ActionResult> {
   if (call.request.method === "GET") return head(405, { Allow: "POST" }, false);
-  // Mcp::Server dispatches the tools against the seller's store.
-  throw new HandBackToRails("an MCP JSON-RPC call");
+  if (call.request.method !== "POST") throw new HandBackToRails("an MCP request with a method other than GET or POST");
+  const text = new TextDecoder().decode(call.rawBody);
+  // A fraction, an exponent or an integer past 2^53 would not survive JSON.parse as Ruby reads it; Rails answers those.
+  if (/\d\.\d|\d[eE][+-]?\d|\d{16}/u.test(text)) throw new HandBackToRails("an MCP body with a number JavaScript cannot read exactly");
+  const connector = call.url.pathname.split("/")[1] ?? null;
+  const session = new RpcSession(
+    {
+      protocolVersion: call.request.headers.get(VERSION_HEADER),
+      method: call.request.headers.get(METHOD_HEADER),
+      name: call.request.headers.get(NAME_HEADER),
+    },
+    () => isFeatureEnabled(MCP_PROTOCOL_FLAG),
+  );
+  const reply = await session.handle(JSON.parse(text));
+  // A tool call hands back before this point, so Rails records its own requests.
+  await recordProtocolTelemetry(connector, session.counts);
+  if (reply === null) return head(202, {}, false);
+  return renderJson(reply, rpcHttpStatus(reply, session.protocolEra));
 }
 
 export const NOTION_UNAUTHORIZED = { error: { status: 401, message: "Request need to be authorized. Required parameter for authorizing request is missing or invalid." } };
