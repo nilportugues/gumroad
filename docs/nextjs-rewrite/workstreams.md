@@ -50,7 +50,7 @@ a letter suffix (`nextjs/ws-12d-bundle-edit`). This table maps every merged bran
 | WS-19 AI, MCP and moderation | 75 (agent page), 19b (MCP protocol), 19c (AI service helpers) | Agent page; MCP JSON-RPC envelope, revision negotiation, `tools/list` and tool argument checks. Tool bodies, OAuth client registration and `ProductFileIngest` hand back to Rails; AI: store-agent formatter, scopes, HTML undo and prompts only, no LLM client or agent loop |
 | WS-20 Checkout and orders | 48 (offer-code pricing), 72 (subscription access), 78 | Empty-cart checkout only; no purchase path |
 | WS-21 Payment processors | 33 (Stripe client), 49 (refunds, disputes), 66 | Job guards; processor calls hand back |
-| WS-22 Sales tax and VAT | — | Receipt tax lines only (85) |
+| WS-22 Sales tax and VAT | 22 (pure calculation) | Receipt tax lines (85); US zip to state, tax country lists, offline regional VAT id shape checks and tax-cents rounding in `server/tax/`. TaxJar, `ZipTaxRate` selection, GeoIP and vendor VAT validators (VIES, Vatstack, IRAS, Revenu Quebec) hand back. |
 | WS-23 Balances and payouts | 72 (payouts page), 74 (balance stats) | Read side; no payout execution |
 | WS-30 Jobs and cron | 30b, 32, 36, 41, 42, 44, 45, 46, 47, 49, 52, 59, 63, 66, 74, 76 | Many jobs in Node, most with early hand-backs |
 | WS-40 Removal | — | Not started |
