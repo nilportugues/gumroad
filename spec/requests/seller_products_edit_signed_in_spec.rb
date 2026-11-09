@@ -200,6 +200,48 @@ describe "Product editor when signed in", type: :request do
     expect(props["variants"].first["rich_content"]).to eq([])
   end
 
+  it "serves the editor for a product with SKUs enabled, which the editor does not read", parity: true do
+    category = create(:variant_category, link: product, title: "Edition")
+    version = create(:variant, variant_category: category, name: "Standard")
+    product.update!(skus_enabled: true)
+    create(:sku, link: product, name: "Standard - Large")
+    log_in(seller)
+
+    get edit_link_path(product.unique_permalink)
+
+    expect(response).to be_successful
+    expect(inertia_props_of(response)["product"]["variants"].map { _1["id"] }).to eq([version.external_id])
+  end
+
+  it "serves the versions' own pages when the shared content is blank and a version holds the real pages", parity: true do
+    category = create(:variant_category, link: product, title: "Edition")
+    version = create(:variant, variant_category: category, name: "Standard")
+    create(:rich_content, entity: version, title: "Welcome", description: [{ "type" => "paragraph", "content" => [{ "type" => "text", "text" => "Hello" }] }])
+    product.update!(has_same_rich_content_for_all_variants: true)
+    log_in(seller)
+
+    get edit_link_path(product.unique_permalink)
+
+    props = inertia_props_of(response)["product"]
+    expect(props["has_same_rich_content_for_all_variants"]).to eq(false)
+    expect(props["variants"].first["rich_content"].map { _1["title"] }).to eq(["Welcome"])
+    expect(props["rich_content"]).to eq([])
+  end
+
+  it "keeps hiding the versions' pages when they are blank", parity: true do
+    category = create(:variant_category, link: product, title: "Edition")
+    version = create(:variant, variant_category: category, name: "Standard")
+    create(:rich_content, entity: version, title: nil, description: [{ "type" => "paragraph" }])
+    product.update!(has_same_rich_content_for_all_variants: true)
+    log_in(seller)
+
+    get edit_link_path(product.unique_permalink)
+
+    props = inertia_props_of(response)["product"]
+    expect(props["has_same_rich_content_for_all_variants"]).to eq(true)
+    expect(props["variants"].first["rich_content"]).to eq([])
+  end
+
   it "sends a signed-out visitor to the login page", parity: true do
     get edit_link_path(product.unique_permalink)
 
