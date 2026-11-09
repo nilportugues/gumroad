@@ -154,6 +154,22 @@ describe "Product editor when signed in", type: :request do
     end
   end
 
+  it "lists the product's tags and the seller's other refund policies", parity: true do
+    product.tag!("illustration")
+    product.tag!("ebooks")
+    visible = create(:product, user: seller, name: "Visible product")
+    visible.find_or_initialize_product_refund_policy.update!(max_refund_period_in_days: 14, fine_print: "Within two weeks")
+    archived = create(:product, user: seller, name: "Archived product", archived: true)
+    archived.find_or_initialize_product_refund_policy.update!(max_refund_period_in_days: 7)
+    log_in(seller)
+
+    get edit_link_path(product.unique_permalink)
+
+    props = inertia_props_of(response)
+    expect(props["product"]["tags"]).to eq(%w[illustration ebooks])
+    expect(props["refund_policies"].map { _1["product_name"] }).to eq(["Visible product"])
+  end
+
   it "sends a signed-out visitor to the login page", parity: true do
     get edit_link_path(product.unique_permalink)
 

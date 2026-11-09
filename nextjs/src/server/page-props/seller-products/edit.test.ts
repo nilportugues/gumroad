@@ -5,8 +5,11 @@ import { instantInTimeZoneIso8601 } from "../../models/concerns/rails-time-zone.
 import { LinkFlags } from "../../models/link.ts";
 import type { LinkRow, UserRow } from "../../presenters/product-reads.ts";
 import { setSqlClient } from "../../models/sql.ts";
-import { assertEditSupported, editorRevision } from "./edit.ts";
+import { assertEditSupported, editorRevision, otherProductRefundPolicies, productTagNames } from "./edit.ts";
 import golden from "./__fixtures__/editor-revision.golden.json" with { type: "json" };
+
+process.env.OBFUSCATE_IDS_CIPHER_KEY ??= "ws12f-obfuscate-key";
+process.env.OBFUSCATE_IDS_NUMERIC_CIPHER_KEY ??= "123456789";
 
 const product = (overrides: Partial<LinkRow> = {}): LinkRow =>
   ({ id: 5n, user_id: 9n, native_type: "digital", flags: 0n, max_purchase_count: null, default_offer_code_id: null, subscription_duration: null, free_trial_duration_amount: null, free_trial_duration_unit: null, price_currency_type: "usd", ...overrides }) as LinkRow;
@@ -45,7 +48,7 @@ describe("assertEditSupported", () => {
     await expect(assertEditSupported(product(), seller, 10n)).rejects.toBeInstanceOf(HandBackToRails);
   });
 
-  it.each(["product_files", "rich_contents", "variant_categories", "sales", "tags", "asset_previews", "integrations", "existing_files"])("hands back a product with %s", async (blocker) => {
+  it.each(["product_files", "rich_contents", "variant_categories", "sales", "asset_previews", "integrations", "existing_files"])("hands back a product with %s", async (blocker) => {
     blockedBy(blocker);
     await expect(assertEditSupported(product(), seller, 9n)).rejects.toBeInstanceOf(HandBackToRails);
   });
@@ -65,5 +68,25 @@ describe("assertEditSupported", () => {
     blockedBy();
     await expect(assertEditSupported(product({ max_purchase_count: 3 }), seller, 9n)).rejects.toBeInstanceOf(HandBackToRails);
     await expect(assertEditSupported(product({ default_offer_code_id: 1n }), seller, 9n)).rejects.toBeInstanceOf(HandBackToRails);
+  });
+});
+
+describe("productTagNames", () => {
+  it("reads the tag names in tag_id order", async () => {
+    let sql = "";
+    setSqlClient(() => ({ $queryRaw: async (query: { sql: string }) => ((sql = query.sql), [{ name: "art" }, { name: "music" }]), $executeRaw: async () => 0 }) as never);
+    await expect(productTagNames(5n)).resolves.toEqual(["art", "music"]);
+    expect(sql).toMatch(/ORDER BY `product_taggings`\.`tag_id` ASC/);
+  });
+});
+
+describe("otherProductRefundPolicies", () => {
+  it("shapes ProductRefundPolicy#as_json from the seller's other visible, unarchived products", async () => {
+    let sql = "";
+    setSqlClient(() => ({ $queryRaw: async (query: { sql: string }) => ((sql = query.sql), [{ id: 3n, fine_print: "Fine", max_refund_period_in_days: 14, product_name: "Other" }]), $executeRaw: async () => 0 }) as never);
+    const [policy] = await otherProductRefundPolicies(5n, 9n);
+    expect(policy).toEqual({ fine_print: "Fine", id: expect.any(String), max_refund_period_in_days: 14, product_name: "Other", title: "14-day money back guarantee" });
+    expect(sql).toMatch(/`updated_at` DESC/);
+    expect(sql).toMatch(/`deleted_at` IS NULL/);
   });
 });
