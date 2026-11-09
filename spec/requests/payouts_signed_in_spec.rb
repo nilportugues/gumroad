@@ -238,6 +238,64 @@ describe "Payouts page when signed in", type: :request do
     end
   end
 
+  describe "the chargeback-rate payout reserve" do
+    def hold_for_chargeback_rate!
+      seller.update!(payouts_paused_internally: true, payouts_paused_by: User::PAYOUT_PAUSE_SOURCE_SYSTEM)
+      seller.comments.create!(
+        content: "Payouts automatically paused due to chargeback rate.",
+        comment_type: Comment::COMMENT_TYPE_ON_PROBATION,
+        author_name: User::SYSTEM_PAYOUT_PAUSE_COMMENT_AUTHORS[:high_chargeback_rate]
+      )
+    end
+
+    it "pays the whole rows that fit under 75 percent and reports the reserve", parity: true do
+      create(:ach_account, user: seller)
+      4.times { |i| balance(amount_cents: 100_00, days_ago: 20 - i) }
+      hold_for_chargeback_rate!
+
+      visit_payouts
+
+      expect(props).to include("payout_reserve_percent" => 25, "payouts_status" => "paused")
+      expect(props["next_payout_period_data"]).to include("payout_cents" => 300_00, "payout_reserve_cents" => 100_00, "payout_waiting_cents" => 0, "payout_reserve_percent" => 25)
+    end
+
+    it "puts the whole-row leftover on the waiting line", parity: true do
+      create(:ach_account, user: seller)
+      3.times { |i| balance(amount_cents: 100_00, days_ago: 20 - i) }
+      hold_for_chargeback_rate!
+
+      visit_payouts
+
+      expect(props["next_payout_period_data"]).to include("payout_cents" => 200_00, "payout_reserve_cents" => 75_00, "payout_waiting_cents" => 25_00)
+    end
+
+    it "pays nothing when the fitting rows are below the minimum", parity: true do
+      create(:ach_account, user: seller)
+      balance(amount_cents: 60_00, days_ago: 20)
+      balance(amount_cents: 70_00, days_ago: 19)
+      hold_for_chargeback_rate!
+
+      visit_payouts
+
+      expect(props["next_payout_period_data"]).to include("payout_cents" => 0, "payout_reserve_cents" => 32_50, "payout_waiting_cents" => 97_50)
+    end
+
+    it "anchors the reserve on what was already paid under the hold", parity: true do
+      create(:ach_account, user: seller)
+      hold_for_chargeback_rate!
+      paid = balance(amount_cents: 75_00, days_ago: 30)
+      paid.mark_processing!
+      paid.mark_paid!
+      create(:payment_completed, user: seller, amount_cents: 75_00, created_at: 1.minute.from_now).balances << paid
+      balance(amount_cents: 25_00, days_ago: 20)
+      balance(amount_cents: 80_00, days_ago: 19)
+
+      visit_payouts
+
+      expect(props["next_payout_period_data"]).to include("payout_reserve_cents" => 45_00)
+    end
+  end
+
   describe "other sections" do
     it "enables the tax center link for a seller in the United States", parity: true do
       create(:user_compliance_info, user: seller)

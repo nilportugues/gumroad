@@ -2,9 +2,10 @@
 // (app/helpers/payouts_helper.rb) for the Payouts page.
 //
 // What the port cannot prove goes to Rails whole (`HandBackToRails`, decided before the page renders by
-// `planPayouts`): daily payouts, a chargeback-rate reserve, a seller that may be eligible for instant payouts
+// `planPayouts`): daily payouts, a seller that may be eligible for instant payouts
 // (Stripe is asked about the bank account), a cached balance-stats blob, a PayPal connected account, an
 // account in a currency other than USD and bank account classes whose routing number is not derivable.
+// The chargeback-rate reserve is read from the ledger here (see `reserveBreakdown`).
 import { Prisma, type User } from "@prisma/client";
 
 import { encrypt as externalId } from "../../../lib/obfuscate-ids.ts";
@@ -93,9 +94,9 @@ const paidPaymentsCentsForDate = (userId: bigint, date: Date) =>
     Prisma.sql`SELECT CAST(COALESCE(SUM(payments.amount_cents), 0) AS SIGNED) AS value FROM payments WHERE payments.user_id = ${userId} AND payments.payout_period_end_date = ${ymd(date)} AND payments.state IN (${Prisma.join(PAYMENT_STATES_PAID_FOR_DATE)})`,
   );
 
-type UnpaidBalance = { id: number; merchant_account_id: number | null };
+type UnpaidBalance = { id: number; merchant_account_id: number | null; date: Date; amount_cents: bigint | number | null };
 const unpaidBalancesUpToDate = (userId: bigint, date: Date) =>
-  selectRows<UnpaidBalance>(Prisma.sql`SELECT balances.id, balances.merchant_account_id FROM balances WHERE balances.user_id = ${userId} AND balances.state = 'unpaid' AND balances.date <= ${ymd(date)} ORDER BY balances.id ASC`);
+  selectRows<UnpaidBalance>(Prisma.sql`SELECT balances.id, balances.merchant_account_id, balances.date, balances.amount_cents FROM balances WHERE balances.user_id = ${userId} AND balances.state = 'unpaid' AND balances.date <= ${ymd(date)} ORDER BY balances.id ASC`);
 
 // `user.payments.where("date(created_at) = ?", Date.today).first.present?`
 const paidOn = async (userId: bigint, date: Date) =>
@@ -106,6 +107,69 @@ async function activeBankAccount(userId: bigint): Promise<BankAccountRow | null>
 }
 
 const bankAccountById = (id: bigint) => one<BankAccountRow>(Prisma.sql`SELECT ${BANK_COLUMNS} FROM bank_accounts WHERE bank_accounts.id = ${id} LIMIT 1`);
+
+// ---- chargeback-rate payout reserve ----
+
+const RESERVE_PERCENT = C.chargebackRatePayoutReservePercent;
+const RESERVE_HOLD_PAYMENT_STATES = ["creating", "processing", "unclaimed", "completed"];
+
+// Port of app/business/payments/payouts/payouts.rb Payouts.chargeback_rate_reserve_cents: ceil, so a 1-cent leftover cannot round the seller into a full payout.
+export function chargebackRateReserveCents(unpaidCents: number): number {
+  if (unpaidCents <= 0) return 0;
+  return Math.ceil((unpaidCents * RESERVE_PERCENT) / 100.0);
+}
+
+// Port of app/modules/user/risk.rb User#chargeback_rate_payout_hold_started_at: the newest probation comment of a pausing author.
+async function chargebackRateHoldStartedAt(userId: bigint): Promise<Date | null> {
+  const row = await one<{ created_at: Date }>(
+    Prisma.sql`SELECT comments.created_at FROM comments WHERE comments.commentable_id = ${userId} AND comments.commentable_type = 'User' AND comments.comment_type = 'on' AND comments.author_name IN (${Prisma.join(C.systemPayoutPausingAuthors)}) ORDER BY comments.created_at DESC, comments.id DESC LIMIT 1`,
+  );
+  return row?.created_at ?? null;
+}
+
+// Port of app/business/payments/payouts/payouts.rb Payouts.paid_cents_under_chargeback_rate_hold: USD balance cents of payouts made since the hold began, plus
+// processing balances that no payment has claimed yet.
+async function paidCentsUnderChargebackRateHold(userId: bigint): Promise<number> {
+  const startedAt = await chargebackRateHoldStartedAt(userId);
+  if (startedAt === null) return 0;
+  const viaPayments = await sumOf(
+    Prisma.sql`SELECT CAST(COALESCE(SUM(balances.amount_cents), 0) AS SIGNED) AS value FROM payments INNER JOIN payments_balances ON payments_balances.payment_id = payments.id INNER JOIN balances ON balances.id = payments_balances.balance_id WHERE payments.user_id = ${userId} AND payments.state IN (${Prisma.join(RESERVE_HOLD_PAYMENT_STATES)}) AND payments.created_at >= ${startedAt}`,
+  );
+  const claimedWithoutPayment = await sumOf(
+    Prisma.sql`SELECT CAST(COALESCE(SUM(balances.amount_cents), 0) AS SIGNED) AS value FROM balances LEFT OUTER JOIN payments_balances ON payments_balances.balance_id = balances.id LEFT OUTER JOIN payments ON payments.id = payments_balances.payment_id WHERE balances.user_id = ${userId} AND balances.state = 'processing' AND payments.id IS NULL AND balances.updated_at >= ${startedAt}`,
+  );
+  return viaPayments + claimedWithoutPayment;
+}
+
+// Port of app/business/payments/payouts/payouts.rb Payouts.chargeback_rate_reserve_cents_for_run: 25% of (unpaid + paid under the hold), clamped to what is left.
+async function chargebackRateReserveCentsForRun(userId: bigint, unpaidCents: number): Promise<number> {
+  if (unpaidCents <= 0) return 0;
+  return Math.min(chargebackRateReserveCents(unpaidCents + (await paidCentsUnderChargebackRateHold(userId))), unpaidCents);
+}
+
+// Port of app/business/payments/payouts/payouts.rb Payouts.payable_cents_after_chargeback_rate_reserve (apply_chargeback_rate_reserve with the reserve active):
+// the oldest whole rows that fit under the cap, nothing when that prefix misses the minimum.
+export function payableCentsUnderReserve(balances: { date: Date; id: number; amount_cents: bigint | number | null }[], reserveCents: number, minimumCents: number): number {
+  const cap = balances.reduce((sum, balance) => sum + num(balance.amount_cents), 0) - reserveCents;
+  if (cap <= 0) return 0;
+  let running = 0;
+  const ordered = [...balances].sort((a, b) => a.date.getTime() - b.date.getTime() || a.id - b.id);
+  for (const balance of ordered) {
+    const cents = num(balance.amount_cents);
+    if (cents <= 0) continue;
+    if (running + cents > cap) break;
+    running += cents;
+  }
+  return running < minimumCents ? 0 : running;
+}
+
+// The reserve fields of the current period (PayoutsHelper#current_payout_period_data).
+async function reserveBreakdown(userId: bigint, balances: UnpaidBalance[], minimumCents: number) {
+  const unpaidCents = balances.reduce((sum, balance) => sum + num(balance.amount_cents), 0);
+  const reserve = await chargebackRateReserveCentsForRun(userId, unpaidCents);
+  const payoutCents = payableCentsUnderReserve(balances, reserve, minimumCents);
+  return { payout_cents: payoutCents, payout_reserve_cents: reserve, payout_waiting_cents: unpaidCents - reserve - payoutCents, payout_reserve_percent: RESERVE_PERCENT };
+}
 
 // ---- bank accounts ----
 
@@ -230,7 +294,6 @@ export async function planPayouts(seller: Seller, pageParam: string | null, now 
   if (await balanceStatsCacheApplies(seller.id)) throw new HandBackToRails();
 
   const facts = await payoutFacts(seller, now);
-  if (facts.chargebackRateReserveActive) throw new HandBackToRails();
   // User#eligible_for_instant_payouts? asks Stripe about the bank account once the account is seasoned.
   const compliant = seller.user_risk_state === "compliant";
   const paused = UserFlags.isSet(seller.flags, "payouts_paused_internally") || UserFlags.isSet(seller.flags, "payouts_paused_by_user");
@@ -346,9 +409,10 @@ async function currentPayoutPeriodData(ctx: Context): Promise<Period> {
     const end = await currentPayoutEndDate(ledger);
     data.displayable_payout_period_range = displayablePayoutPeriodRange(previous?.payout_period_end_date ?? null, end, plan.today);
     const balances = await unpaidBalancesUpToDate(seller.id, end);
-    const payoutCents = await unpaidBalanceCentsUpToDate(seller.id, end);
-    data.payout_cents = payoutCents;
-    data.payout_displayed_amount = formattedDollarAmount(payoutCents, { noCentsIfWhole: false });
+    // Under the chargeback-rate hold the reserve decides what pays; its fields keep the Ruby key order.
+    if (ctx.facts.chargebackRateReserveActive) Object.assign(data, await reserveBreakdown(seller.id, balances, minimum));
+    else data.payout_cents = await unpaidBalanceCentsUpToDate(seller.id, end);
+    data.payout_displayed_amount = formattedDollarAmount(data.payout_cents as number, { noCentsIfWhole: false });
     data.payout_date_formatted = formattedPayoutDate(await nextPayoutDate(ledger));
     data.type = STANDARD_TYPE;
     Object.assign(
@@ -554,7 +618,7 @@ export function payoutsProps(plan: PayoutsPlan, now = new Date()): PayoutsProps 
     rest: async () => ({
       payouts_status: payoutsStatus(seller),
       payouts_paused_by: (await ctx()).facts.payoutsPausedBySource,
-      payout_reserve_percent: null,
+      payout_reserve_percent: (await ctx()).facts.chargebackRateReserveActive ? RESERVE_PERCENT : null,
       instant_payout: null,
       show_instant_payouts_notice: false,
       tax_center_enabled: await taxCenterEnabled(seller.id),

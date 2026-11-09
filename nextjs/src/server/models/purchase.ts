@@ -89,13 +89,21 @@ export async function inProgressCreatedBetween(range: { begin: Date; end: Date }
   return rows.map((row) => castRow<Purchase>("Purchase", row));
 }
 
-// CreateMissingPurchaseEventsWorker's relation, first `find_each` batch: successful purchases created
-// on `day` (a `YYYY-MM-DD` string; Date#to_s) and not preorders, with no events row.
-export function successfulWithoutEventsFirstBatch(day: string, nextDay: string): Promise<Purchase[]> {
-  return firstBatch({
-    joins: Prisma.sql`LEFT OUTER JOIN ${table("events")} ON ${column("events", "purchase_id")} = ${column(PURCHASES, "id")} `,
-    where: Prisma.sql`${purchaseScopes.successful()} AND (purchases.created_at >= ${day} and purchases.created_at < ${nextDay}) AND (purchases.preorder_id is null and events.id is null)`,
-  });
+// CreateMissingPurchaseEventsWorker's relation, walked the way `find_each` does: successful purchases
+// created on `day` (a `YYYY-MM-DD` string; Date#to_s) and not preorders, with no events row. `each`
+// creates the missing event, so the next batch is keyed on the last id rather than re-read from the start.
+export async function successfulWithoutEventsEach(day: string, nextDay: string, each: (purchase: Purchase) => Promise<void>): Promise<void> {
+  let after: bigint | number | null = null;
+  for (;;) {
+    const idCondition: Prisma.Sql = after === null ? Prisma.empty : Prisma.sql` AND ${column(PURCHASES, "id")} > ${after}`;
+    const batch: Purchase[] = await firstBatch({
+      joins: Prisma.sql`LEFT OUTER JOIN ${table("events")} ON ${column("events", "purchase_id")} = ${column(PURCHASES, "id")} `,
+      where: Prisma.sql`${purchaseScopes.successful()} AND (purchases.created_at >= ${day} and purchases.created_at < ${nextDay}) AND (purchases.preorder_id is null and events.id is null)${idCondition}`,
+    });
+    for (const purchase of batch) await each(purchase);
+    if (batch.length < BATCH_SIZE) return;
+    after = batch.at(-1)!.id;
+  }
 }
 
 // Purchase#refunded? (stripe_refunded?)

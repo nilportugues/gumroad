@@ -42,7 +42,7 @@ async function canCreatePhysicalProducts(user: User, now: Date): Promise<boolean
 }
 
 // User#eligible_for_ai_product_generation?
-async function eligibleForAiProductGeneration(user: User): Promise<boolean> {
+export async function eligibleForAiProductGeneration(user: User): Promise<boolean> {
   if (user.confirmed_at === null || isSuspended(user)) return false;
   if ((await salesCentsTotal(user.id)) < MIN_SALES_CENTS_VALUE_FOR_AI_PRODUCT_GENERATION) return false;
   return hasCompletedPayouts(user.id);

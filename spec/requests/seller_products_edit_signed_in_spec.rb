@@ -154,6 +154,52 @@ describe "Product editor when signed in", type: :request do
     end
   end
 
+  it "lists the product's tags and the seller's other refund policies", parity: true do
+    product.tag!("illustration")
+    product.tag!("ebooks")
+    visible = create(:product, user: seller, name: "Visible product")
+    visible.find_or_initialize_product_refund_policy.update!(max_refund_period_in_days: 14, fine_print: "Within two weeks")
+    archived = create(:product, user: seller, name: "Archived product", archived: true)
+    archived.find_or_initialize_product_refund_policy.update!(max_refund_period_in_days: 7)
+    log_in(seller)
+
+    get edit_link_path(product.unique_permalink)
+
+    props = inertia_props_of(response)
+    expect(props["product"]["tags"]).to eq(%w[illustration ebooks])
+    expect(props["refund_policies"].map { _1["product_name"] }).to eq(["Visible product"])
+  end
+
+  it "lists the versions of a product with their prices, limits and pages", parity: true do
+    category = create(:variant_category, link: product, title: "Edition")
+    create(:variant, variant_category: category, name: "Standard", price_difference_cents: 0)
+    deluxe = create(:variant, variant_category: category, name: "Deluxe", description: "With extras", price_difference_cents: 500, max_purchase_count: 10)
+    create(:rich_content, entity: deluxe, title: "Welcome", description: [{ "type" => "paragraph", "content" => [{ "type" => "text", "text" => "Hello" }] }])
+    create(:variant_category, link: product, title: "Gone").mark_deleted!
+    log_in(seller)
+
+    get edit_link_path(product.unique_permalink)
+
+    variants = inertia_props_of(response)["product"]["variants"]
+    expect(variants.map { _1["name"] }).to eq(%w[Standard Deluxe])
+    expect(variants.last).to include("price_difference_cents" => 500, "max_purchase_count" => 10, "sales_count_for_inventory" => 0)
+    expect(variants.last["rich_content"].map { _1["title"] }).to eq(["Welcome"])
+  end
+
+  it "hides the versions' own pages while the product shares one set of content", parity: true do
+    category = create(:variant_category, link: product, title: "Edition")
+    version = create(:variant, variant_category: category, name: "Standard")
+    product.update!(has_same_rich_content_for_all_variants: true)
+    log_in(seller)
+
+    get edit_link_path(product.unique_permalink)
+
+    props = inertia_props_of(response)["product"]
+    expect(props["has_same_rich_content_for_all_variants"]).to eq(true)
+    expect(props["variants"].map { _1["id"] }).to eq([version.external_id])
+    expect(props["variants"].first["rich_content"]).to eq([])
+  end
+
   it "sends a signed-out visitor to the login page", parity: true do
     get edit_link_path(product.unique_permalink)
 

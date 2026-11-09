@@ -140,6 +140,7 @@ and can do, written before its Inertia plumbing is removed.
 - [x] External IDs (`ObfuscateIds`) ported, with Ruby golden vectors (43 passing tests).
 - [x] `flag_shih_tzu` flags ported (`nextjs/src/lib/flags.ts`); needs golden SQL tests in WS-02.
 - [x] Phase 0 (WS-00 to WS-06).
-- [ ] Phases 1 to 3 are in progress at once: pages from every phase-1 stream except WS-17 and WS-18, the
+- [ ] Phases 1 to 3 are in progress at once: pages from every phase-1 stream except WS-18, API routes from
+  WS-17 (merged, not flipped), the
   read side of WS-20 and WS-23, and job bodies for WS-30. Nothing is flipped in production. Per-stream
   state: [workstreams.md](workstreams.md#execution-log-branches-against-planned-streams).

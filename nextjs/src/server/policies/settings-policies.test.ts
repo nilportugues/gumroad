@@ -67,6 +67,13 @@ describe("settings policies", () => {
     expectMatrix(settingsProfilePolicy.manageSocialConnections, ["owner"]);
   });
 
+  it("generate_product_details_with_ai: eligible owner, admin and marketing; any role of a Gumroad team member", () => {
+    expectMatrix((context) => userPolicy.generateProductDetailsWithAi(context, true), ["owner", "admin", "marketing"]);
+    expectMatrix((context) => userPolicy.generateProductDetailsWithAi(context, false), []);
+    const teamMember = { ...contextFor("support"), user: { ...members.support, flags: 2n ** 27n } };
+    expect(userPolicy.generateProductDetailsWithAi(teamMember, true)).toBe(true);
+  });
+
   it("deactivate: owner only", () => {
     expectMatrix(userPolicy.deactivate, ["owner"]);
   });

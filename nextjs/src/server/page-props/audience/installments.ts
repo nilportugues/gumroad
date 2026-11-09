@@ -1,10 +1,11 @@
 // InstallmentPresenter#props: one email (a post or a workflow email) as the workflow and email pages list it.
 //
 // Not ported, each refused with NotPortedError: a post with attached files (ProductFile#as_json signs
-// download URLs and reads thumbnails), a post without a name (the name is read off the stripped
-// message), and a post that was ever sent as a blast (its delivery state is read from Redis counters).
+// download URLs and reads thumbnails) and a post that was ever sent as a blast (its delivery state is read from Redis counters).
 import { Prisma, type Installment, type InstallmentRule, type User } from "@prisma/client";
 
+import { truncateAtSeparator } from "../../html/installment-message.ts";
+import { stripTags } from "../../html/sanitizer.ts";
 import { displayableTimeDuration } from "../../models/installment-rule.ts";
 import { summaries, summary, type EngagementSummary } from "../../models/email-engagement-store.ts";
 import { MEMBER_CANCELLATION_WORKFLOW_TRIGGER } from "../../models/workflow.ts";
@@ -43,10 +44,13 @@ const percent = (count: number, delivered: number | null): number | null => {
   return rubyFloatRoundDigits((count / delivered) * 100, 1);
 };
 
-// Installment#displayed_name: the name, or the message cut to 48 characters.
-function displayedName(installment: Installment): string {
+const DISPLAYED_NAME_LENGTH = 48;
+
+// Installment#displayed_name: the name, or the message's text cut at a word boundary. A nil message stays nil.
+export function displayedName(installment: Pick<Installment, "name" | "message">): string | null {
   if (present(installment.name)) return installment.name;
-  throw new NotPortedError("Installment#displayed_name for an email without a name (truncate(strip_tags(message)))");
+  if (installment.message === null) return null;
+  return truncateAtSeparator(stripTags(installment.message), DISPLAYED_NAME_LENGTH, " ");
 }
 
 export async function aliveProductFileCount(installmentId: number): Promise<number> {

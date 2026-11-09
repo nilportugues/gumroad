@@ -1,6 +1,6 @@
 // Port of ReceiptPresenter and its parts (app/presenters/receipt_presenter/*.rb) for the receipts Node renders:
-// one successful USD purchase of a digital or physical product, sold outside a subscription, preorder, gift,
-// bundle, rental, call or commission. Everything here is a pure function of rows the mailer has already read
+// one successful purchase of a digital or physical product, sold outside a subscription, preorder, gift,
+// bundle, call or commission. Everything here is a pure function of rows the mailer has already read
 // (in the statement order Rails reads them), so receipt-presenter.test.ts can call it directly.
 //
 // Anything outside that shape throws MailViewNotPortedError in `assertSupported`, before a statement is sent
@@ -92,6 +92,9 @@ export type ReceiptData = {
   // PaymentInfo#today_tax_price_attributes: null when the purchase is not taxable
   taxLines: TaxLine[] | null;
   urlRedirectToken: string | null;
+  // UrlRedirect#is_rental, and Link#streamable? (a live video file), read only for a rental redirect
+  urlRedirectIsRental: boolean;
+  linkStreamable: boolean | null;
   // Purchase#license_key
   licenseKey: string | null;
   variantNames: string[] | null;
@@ -107,7 +110,6 @@ const NOT_PORTED_PURCHASE_FLAGS = [
   "is_gift_receiver_purchase",
   "is_gift_sender_purchase",
   "is_preorder_authorization",
-  "is_rental",
   "is_free_trial_purchase",
   "is_upgrade_purchase",
   "is_bundle_purchase",
@@ -181,6 +183,7 @@ export function displayName(seller: ReceiptSellerRow): string | null {
 // ReceiptPresenter::MailSubject for one purchase, which is all `assertSupported` lets through.
 export function mailSubject(data: ReceiptData): string {
   const { purchase, link } = data;
+  if (purchaseFlag(purchase, "is_rental")) return `You rented ${link.name}!`;
   if (purchase.price_cents === 0) return `You got ${link.name}!`;
   return `You bought ${link.name}!`;
 }
@@ -276,6 +279,7 @@ export function itemInfo(data: ReceiptData, customReceiptText: string | null) {
   const coffee = link.native_type === "coffee";
   const notes: string[] = [];
   if (linkFlag(link, "is_physical")) notes.push("Your order will ship shortly. The creator will notify you when your package is on its way.");
+  if (purchaseFlag(purchase, "is_rental")) notes.push(`Your rental of ${link.name} will expire in 30 days or 72 hours after you begin viewing it.`);
 
   const general: Attribute[] = [];
   if (data.variantNames !== null && data.variantNames.length > 0 && !coffee) {
@@ -305,8 +309,16 @@ export function itemInfo(data: ReceiptData, customReceiptText: string | null) {
     customReceiptNote: customReceiptText,
     licenseKey: data.licenseKey,
     showDownloadButton: data.urlRedirectToken !== null && !coffee,
+    downloadCta: downloadCta(data),
     generalAttributes: general,
   };
+}
+
+// shared/_download_button: a rental redirect gets "Watch" when the product has a video file and no button at all otherwise.
+// UNPROVEN: no Ruby golden covers a rental redirect yet (generate-receipt-mailer-golden.rb: receipt_rental_*).
+function downloadCta(data: ReceiptData): { label: string | null; path: string } | null {
+  if (!data.urlRedirectIsRental) return { label: null, path: `/d/${data.urlRedirectToken}` };
+  return data.linkStreamable ? { label: "Watch", path: `/s/${data.urlRedirectToken}` } : null;
 }
 
 // --- FooterInfo ----------------------------------------------------------------------------------------
