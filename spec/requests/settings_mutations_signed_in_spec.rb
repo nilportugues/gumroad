@@ -284,4 +284,128 @@ describe "Settings mutations when signed in", type: :request do
       expect(seller.reload.billing_detail).to be_nil
     end
   end
+
+  describe "JSON actions of the settings pages", elasticsearch_wait_for_refresh: true do
+    let(:json_headers) { { "Accept" => "application/json", "Content-Type" => "application/json" } }
+
+    before { Purchase.__elasticsearch__.create_index!(force: true) }
+
+    def send_json(method, path, body = nil)
+      public_send(method, path, params: body&.to_json, headers: json_headers.merge("X-CSRF-Token" => csrf_token))
+    end
+
+    describe "dismissing the AI product generation promo" do
+      # eligible_for_ai_product_generation?: confirmed, not suspended, enough sales and a completed payout.
+      def make_eligible
+        create(:payment_completed, user: seller)
+        create(:purchase, link: create(:product, user: seller, unique_permalink: "aipromo"), seller:, price_cents: 15_000)
+        index_model_records(Purchase)
+      end
+
+      it "marks the promo as dismissed for an eligible seller", parity: true do
+        make_eligible
+        log_in(seller)
+
+        send_json(:post, settings_dismiss_ai_product_generation_promo_path)
+
+        expect(response).to have_http_status(:ok)
+        expect(seller.reload.dismissed_create_products_with_ai_promo_alert).to be(true)
+      end
+
+      it "answers 200 when the promo is already dismissed", parity: true do
+        make_eligible
+        seller.update!(dismissed_create_products_with_ai_promo_alert: true)
+        log_in(seller)
+
+        send_json(:post, settings_dismiss_ai_product_generation_promo_path)
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "refuses a seller who is not eligible", parity: true do
+        log_in(seller)
+
+        send_json(:post, settings_dismiss_ai_product_generation_promo_path)
+
+        expect(response).to have_http_status(:unauthorized)
+        expect(seller.reload.dismissed_create_products_with_ai_promo_alert).to be(false)
+      end
+
+      it "answers 403 JSON to a seller without an email address", parity: true do
+        log_in(seller)
+        seller.update_columns(email: nil, unconfirmed_email: nil)
+
+        send_json(:post, settings_dismiss_ai_product_generation_promo_path)
+
+        expect(response).to have_http_status(:forbidden)
+      end
+    end
+
+    describe "team members" do
+      let(:member) { create(:user, name: "Team Member", email: "member@example.com") }
+      let!(:membership) { create(:team_membership, user: member, seller:, role: TeamMembership::ROLE_MARKETING) }
+
+      it "changes the role of a member", parity: true do
+        log_in(seller)
+
+        send_json(:put, settings_team_member_path(membership.external_id, format: :json), team_membership: { role: TeamMembership::ROLE_ADMIN })
+
+        expect(response.parsed_body).to eq("success" => true)
+        expect(membership.reload.role).to eq(TeamMembership::ROLE_ADMIN)
+      end
+
+      it "accepts PATCH", parity: true do
+        log_in(seller)
+
+        send_json(:patch, settings_team_member_path(membership.external_id, format: :json), team_membership: { role: TeamMembership::ROLE_SUPPORT })
+
+        expect(response.parsed_body).to eq("success" => true)
+        expect(membership.reload.role).to eq(TeamMembership::ROLE_SUPPORT)
+      end
+
+      it "removes a member and restores them", parity: true do
+        log_in(seller)
+
+        send_json(:delete, settings_team_member_path(membership.external_id, format: :json))
+
+        expect(response.parsed_body).to eq("success" => true)
+        expect(membership.reload.deleted?).to be(true)
+
+        send_json(:put, restore_settings_team_member_path(membership.external_id, format: :json))
+
+        expect(response.parsed_body).to eq("success" => true)
+        expect(membership.reload.deleted?).to be(false)
+      end
+
+      it "lets a member leave the team", parity: true do
+        log_in(member)
+        switch_to(membership)
+
+        send_json(:delete, settings_team_member_path(membership.external_id, format: :json))
+
+        expect(response.parsed_body).to eq("success" => true)
+        expect(membership.reload.deleted?).to be(true)
+      end
+
+      it "answers 404 JSON for a membership of another seller", parity: true do
+        other = create(:team_membership, role: TeamMembership::ROLE_SUPPORT)
+        log_in(seller)
+
+        send_json(:delete, settings_team_member_path(other.external_id, format: :json))
+
+        expect(response).to have_http_status(:not_found)
+        expect(response.parsed_body).to eq("success" => false, "error" => "Not found")
+        expect(other.reload.deleted?).to be(false)
+      end
+
+      it "refuses a member whose role cannot manage the team", parity: true do
+        member_with_role(TeamMembership::ROLE_SUPPORT)
+
+        send_json(:put, settings_team_member_path(membership.external_id, format: :json), team_membership: { role: TeamMembership::ROLE_ADMIN })
+
+        expect(response).to have_http_status(:unauthorized)
+        expect(membership.reload.role).to eq(TeamMembership::ROLE_MARKETING)
+      end
+    end
+  end
 end
