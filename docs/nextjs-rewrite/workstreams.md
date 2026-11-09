@@ -47,7 +47,7 @@ a letter suffix (`nextjs/ws-12d-bundle-edit`). This table maps every merged bran
 | WS-16 Library and content delivery | 61, 81 | Library and unavailable pages; `/d` download page not started |
 | WS-17 Public API and mobile API | — | Not started |
 | WS-18 Admin | — | Not started |
-| WS-19 AI, MCP and moderation | 75 (agent page) | Agent page only |
+| WS-19 AI, MCP and moderation | 75 (agent page), 19a (content moderation logic) | Agent page only; moderation decisions ported under `nextjs/src/server/content-moderation` with injected OpenAI, DB and enqueue seams, not wired to any route; content extractor HTML/CSS/SVG parsing and the Rails golden vectors still to do |
 | WS-20 Checkout and orders | 48 (offer-code pricing), 72 (subscription access), 78 | Empty-cart checkout only; no purchase path |
 | WS-21 Payment processors | 33 (Stripe client), 49 (refunds, disputes), 66 | Job guards; processor calls hand back |
 | WS-22 Sales tax and VAT | — | Receipt tax lines only (85) |
