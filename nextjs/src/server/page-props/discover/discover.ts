@@ -1,20 +1,21 @@
 // DiscoverController#index (Discover/Index): the search params, the taxonomy lookup, the product search and its
 // cards, the DiscoverSearch write and the SEO meta tags. Whatever the port cannot prove is handed to Rails whole
-// by the controller's filter (controllers/discover-page.ts), before anything renders: the deferred props, the
-// autocomplete request, curated products, Black Friday and the affiliate cookie.
+// by the controller's filter (controllers/discover-page.ts), before anything renders: the deferred props the port
+// cannot answer, the autocomplete request, curated products, Black Friday and the affiliate cookie.
 import { Prisma } from "@prisma/client";
 import { timingSafeEqual } from "node:crypto";
 
 import { HandBackToRails } from "../../controllers/application-controller.ts";
 import { assertFlatQuery } from "../../controllers/rails-params.ts";
 import { parseQuery, type Query } from "../../controllers/rails-query.ts";
-import { isFeatureEnabled } from "../../infra/flipper.ts";
+import { isFeatureEnabled, parseGateValues, readFeatureDoc, userActor } from "../../infra/flipper.ts";
 import { column, selectRows, table } from "../../models/sql.ts";
 import { bit, findLink } from "../../presenters/product-reads.ts";
 import { cardForWeb, type PresenterRequest } from "../../presenters/product.ts";
 import { botUserAgents, type CardForSeo, canonicalUrl, categoryPage, DISCOVER_INDEX_PATH, tagPageMetaDescription, tagPageTitle, taxonomyLabel } from "../../presenters/discover/seo.ts";
 import { normalizeSearchParamValues, searchProductsWithFacets, validFilterTokens } from "../../search/search-products.ts";
 import { type Params, present } from "../../search/ruby-params.ts";
+import { defer } from "../lazy-props.ts";
 import { MetaTagBuilder } from "../meta-tags.ts";
 import { NotPortedError } from "../not-ported.ts";
 import { taxonomiesForNav, taxonomyByPath, type TaxonomyRow } from "./taxonomies.ts";
@@ -26,7 +27,10 @@ const NO_MATCH_OFFER_CODE = "__no_match__";
 const SHOW_NSFW_PRODUCTS_FLAG = 44;
 const DEFERRED_PROPS = ["recommended_products", "recommended_wishlists", "recently_viewed"];
 const GUMROAD_SEARCH_RECOMMENDATION = "search";
+const GUMROAD_DISCOVER_RECOMMENDATION = "discover";
+const FEATURED_DESCRIPTION_MAX_LENGTH = 300;
 const DISCOVER_LAYOUT = "discover";
+const RECENTLY_VIEWED_FEATURE = "discover_recently_viewed";
 const NON_SEARCH_PARAMS = new Set(["taxonomy", "format"]);
 
 export type DiscoverVisitor = { id: bigint; flags: bigint | number | null; currency_type: string | null } | null;
@@ -268,13 +272,75 @@ export function isDeferredOnlyRequest(headers: Headers): boolean {
 
 export const isAutocompleteOnlyRequest = (headers: Headers) => headers.get("x-inertia-partial-data") === "autocomplete_results";
 
-export async function discoverProps(prepared: PreparedSearch, results: SearchResults, visitor: DiscoverVisitor): Promise<Record<string, unknown>> {
+// What a deferred-only request asks for, when the port can answer all of it: the other props are Rails'.
+// DiscoverController#recently_viewed_data is nil for an offer code page, for a visitor with no identity and while
+// the flag is dark; its view history (Discover::RecentlyViewedPresenter) is not ported.
+export async function deferredPropsPortable(requested: string[], prepared: PreparedSearch, visitor: DiscoverVisitor, guid: string | null): Promise<boolean> {
+  for (const name of requested) {
+    if (name === "recommended_products") {
+      // The root page's strip is a random sample of a cached list (`discover_all_top_products`).
+      if (!rubyPresent(prepared.params.offer_code) && !prepared.taxonomy) return false;
+    } else if (name === "recently_viewed") {
+      if (!(await recentlyViewedIsNil(prepared, visitor, guid))) return false;
+    } else {
+      return false;
+    }
+  }
+  return true;
+}
+
+export const requestedDeferredProps = (headers: Headers): string[] => (headers.get("x-inertia-partial-data") ?? "").split(",").filter((name) => name !== "");
+
+async function recentlyViewedIsNil(prepared: PreparedSearch, visitor: DiscoverVisitor, guid: string | null): Promise<boolean> {
+  if (rubyPresent(prepared.params.offer_code)) return true;
+  if (!visitor && !guid) return true;
+  // Anonymous visitors are Flipper::Actor.new("browser_guid:#{guid}"); the percentage-of-actors gate is the ramp.
+  const actor = visitor ? userActor(visitor.id) : { flipperId: `browser_guid:${guid}` };
+  const rampPercentage = parseGateValues(await readFeatureDoc(RECENTLY_VIEWED_FEATURE)).percentageOfActors;
+  const midRamp = rampPercentage > 0 && rampPercentage < 100;
+  return !(await isFeatureEnabled(RECENTLY_VIEWED_FEATURE, actor)) && !midRamp;
+}
+
+// DiscoverController#recommendations for what deferredPropsPortable lets through.
+async function recommendedProducts(prepared: PreparedSearch, request: DiscoverRequest): Promise<Record<string, unknown>[]> {
+  // Don't show any recommended/featured products when offer codes are present
+  if (rubyPresent(prepared.params.offer_code)) return [];
+  if (!prepared.taxonomy) throw new NotPortedError("Discover recommended_products");
+
+  const result = await searchProductsWithFacets({ size: RECOMMENDED_PRODUCTS_COUNT, taxonomy_id: prepared.taxonomy.id, include_taxonomy_descendants: true });
+  const cards: Record<string, unknown>[] = [];
+  for (const id of result.product_ids) {
+    if (!(await findLink(BigInt(id)))) continue;
+    cards.push(
+      await cardForWeb(BigInt(id), {
+        request: presenterRequest(request),
+        recommendedBy: GUMROAD_DISCOVER_RECOMMENDATION,
+        target: DISCOVER_LAYOUT,
+        descriptionMaxLength: FEATURED_DESCRIPTION_MAX_LENGTH,
+      }),
+    );
+  }
+  return cards;
+}
+
+// The deferred props alone: a deferred-only request skips the search, the cards, the DiscoverSearch write and the meta
+// tags (`inertia_meta.clear`), so Inertia's merge keeps the full load's canonical and JSON-LD.
+export function deferredProps(prepared: PreparedSearch, request: DiscoverRequest, visitor: DiscoverVisitor): Record<string, unknown> {
+  const notPorted = (name: string) => () => {
+    throw new NotPortedError(`Discover ${name}`);
+  };
+  return {
+    recommended_products: defer(() => recommendedProducts(prepared, request)),
+    recommended_wishlists: defer(notPorted("recommended_wishlists")),
+    recently_viewed: defer(async () => {
+      if (await recentlyViewedIsNil(prepared, visitor, request.guid)) return null;
+      throw new NotPortedError("Discover recently_viewed");
+    }),
+  };
+}
+
+export async function discoverProps(prepared: PreparedSearch, results: SearchResults, visitor: DiscoverVisitor, request: DiscoverRequest): Promise<Record<string, unknown>> {
   const { params } = prepared;
-  const { defer } = await import("../lazy-props.ts");
-  const deferred = (name: string) =>
-    defer(() => {
-      throw new NotPortedError(`Discover ${name}`);
-    });
   return {
     search_results: results,
     currency_code: visitor?.currency_type ?? "usd",
@@ -285,8 +351,6 @@ export async function discoverProps(prepared: PreparedSearch, results: SearchRes
     is_black_friday_page: params.offer_code === BLACK_FRIDAY_CODE,
     black_friday_offer_code: BLACK_FRIDAY_CODE,
     black_friday_stats: null,
-    recommended_products: deferred("recommended_products"),
-    recommended_wishlists: deferred("recommended_wishlists"),
-    recently_viewed: deferred("recently_viewed"),
+    ...deferredProps(prepared, request, visitor),
   };
 }
