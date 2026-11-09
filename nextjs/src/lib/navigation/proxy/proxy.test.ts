@@ -124,6 +124,23 @@ describe("decideRoute", () => {
   });
 });
 
+describe("router-level redirects", () => {
+  const redirects = compileRouteTable({
+    "/users/sign_in": { flag: "nextjs_auth_devise_redirects", redirect: "/login" },
+    "POST /users/sign_in": { flag: "nextjs_auth_login_writes", mutation: true },
+  });
+  const on = gate(["nextjs_auth_devise_redirects", "nextjs_auth_login_writes"], null);
+
+  it("answers a GET with the target and the query string, and leaves other methods to their own route", async () => {
+    expect(await decideRoute(request("https://gumroad.com/users/sign_in?next=%2Fdashboard"), redirects, production, on)).toMatchObject({ action: "redirect", location: "/login?next=%2Fdashboard" });
+    expect(await decideRoute(request("https://gumroad.com/users/sign_in", { method: "POST" }), redirects, production, on)).toMatchObject({ action: "mutation" });
+  });
+
+  it("stays with Rails while the flag is off", async () => {
+    expect(await decideRoute(request("https://gumroad.com/users/sign_in"), redirects, production, gate([], null))).toEqual({ action: "rails" });
+  });
+});
+
 describe("routes on the API host", () => {
   const apiRoutes = compileRouteTable({
     "/mobile/feature_flags/:id": { flag: "nextjs_mobile_feature_flags", hosts: "api", handler: "mobile" },

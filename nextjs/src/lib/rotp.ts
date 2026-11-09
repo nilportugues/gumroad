@@ -41,3 +41,14 @@ export function hotp(secret: string, counter: number): string {
 export function totpAt(secret: string, time: Date): string {
   return hotp(secret, Math.floor(Math.floor(time.getTime() / 1000) / INTERVAL_SECONDS));
 }
+
+// ROTP::TOTP#verify(code, drift_behind:) as active_model_otp's authenticate_totp calls it: every interval counter from `drift`
+// seconds ago to now is tried, and the code must match byte for byte.
+export function verifyTotp(secret: string, code: string, driftBehindSeconds: number, time: Date): boolean {
+  const now = Math.floor(time.getTime() / 1000);
+  let matched = false;
+  for (let counter = Math.floor((now - driftBehindSeconds) / INTERVAL_SECONDS); counter <= Math.floor(now / INTERVAL_SECONDS); counter++) {
+    if (code !== "" && code === hotp(secret, counter)) matched = true;
+  }
+  return matched;
+}

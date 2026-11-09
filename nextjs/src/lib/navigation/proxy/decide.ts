@@ -10,6 +10,8 @@ export type RouteDecision =
   | { action: "mutation"; route: CompiledRoute }
   // A route that is not a page (robots.txt, the favicon...): /gr-public/<handler> answers it.
   | { action: "handler"; route: CompiledRoute; handler: string }
+  // A router-level redirect (routes.rb `redirect`): the proxy answers with the 301 itself.
+  | { action: "redirect"; route: CompiledRoute; location: string }
   // An X-Inertia request for a page Next.js serves: answered with the Inertia JSON (or 409).
   | { action: "inertia"; route: CompiledRoute }
   // Next's client router asked for a flight payload of a Rails page: answer with something that is not
@@ -53,6 +55,7 @@ export async function decideRoute(
     if (route.signedInOnly && (await gate.isSignedIn(request)) === false) return toRails;
     if (await gate.signsInViaRememberCookie?.(request)) return toRails;
   }
+  if (route.redirect !== null) return { action: "redirect", route, location: `${route.redirect}${request.url.search}` };
   if (route.mutation) return { action: "mutation", route };
   if (route.handler !== null) return { action: "handler", route, handler: route.handler };
   if (isInertiaRequest) return route.inertia ? { action: "inertia", route } : { action: "rails" };

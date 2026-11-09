@@ -28,6 +28,7 @@ export type MutationInput = {
   request: RailsRequest;
   context: ActionContext["context"];
   peekState: ActionContext["peekState"];
+  chain: ActionContext["chain"];
   url: URL;
   urlOptions: { protocol: string; host: string };
   // The route's `:id` and friends.
@@ -139,7 +140,7 @@ export async function mutationResponse(incoming: Request): Promise<Response> {
     throw error;
   }
 
-  return processAction(request, candidate.options ?? {}, async ({ request: railsReq, context, peekState }) => {
+  return processAction(request, candidate.options ?? {}, async ({ request: railsReq, context, peekState, chain }) => {
     const config = domainConfig(process.env);
     const actionUrl = new URL(`${railsReq.path}${railsReq.queryString === "" ? "" : `?${railsReq.queryString}`}`, `${railsReq.protocol}${railsReq.hostWithPort}`);
     try {
@@ -150,7 +151,7 @@ export async function mutationResponse(incoming: Request): Promise<Response> {
         whodunnit: user === null ? null : String(user.id),
         controllerInfo: { remote_ip: remoteIp(railsReq), request_path: railsReq.path, request_uuid: railsReq.headers.get("x-request-id") ?? randomUUID() },
       };
-      return await withPaperTrailRequest(paperTrail, () => candidate.run({ request: railsReq, context, peekState, url: actionUrl, urlOptions: defaultUrlOptions(actionUrl, config), routeParams: routeParams!, params, rawBody: bytes }));
+      return await withPaperTrailRequest(paperTrail, () => candidate.run({ request: railsReq, context, peekState, chain, url: actionUrl, urlOptions: defaultUrlOptions(actionUrl, config), routeParams: routeParams!, params, rawBody: bytes }));
     } catch (error) {
       // A NotPortedError is thrown before the first write of its transaction, so Rails can take the request whole.
       if (error instanceof NotPortedError || error instanceof PageNotPortedError) {
