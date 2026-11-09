@@ -6,6 +6,7 @@
 // statement lands in the same place (repeats are query-cache hits in both).
 import { Prisma } from "@prisma/client";
 import { LinkFlags } from "../../models/link.ts";
+import { UrlRedirectFlags } from "../../models/url-redirect.ts";
 import { getUsdCents, rubyStringToF } from "../../models/concerns/currency-helper.ts";
 import type { Charge, Purchase } from "@prisma/client";
 
@@ -55,6 +56,10 @@ import {
 
 type Id = number | bigint;
 
+// The rental-redirect rendering (Watch button, product_files read) has no Ruby golden yet; receipt_rental_no_video and
+// receipt_rental_watch in the generator record it. Flip this once the golden is regenerated and the replay passes.
+const RENTAL_REDIRECT_PROVEN = false;
+
 const linkFlagSet = (link: ReceiptLinkRow, name: Parameters<typeof LinkFlags.isSet>[1]) => LinkFlags.isSet(link.flags ?? 0, name);
 
 // RedisKey.recommended_products_associated_product_ids_limit
@@ -78,7 +83,7 @@ async function loadReceiptData(purchase: ReceiptPurchaseRow & Record<string, unk
   const link = await findRow<ReceiptLinkRow>("links", purchase.link_id);
   if (!link) throw new TypeError("undefined method 'name' for nil");
 
-  const data: ReceiptData = { purchase, link, seller, displayedPriceUsdCents: 0, presentment: null, taxLines: null, urlRedirectToken: null, licenseKey: null, variantNames: null, tipValueCents: null, customFields: [], refundPolicy: null };
+  const data: ReceiptData = { purchase, link, seller, displayedPriceUsdCents: 0, presentment: null, taxLines: null, urlRedirectToken: null, urlRedirectIsRental: false, linkStreamable: null, licenseKey: null, variantNames: null, tipValueCents: null, customFields: [], refundPolicy: null };
   return { data, supportEmails: supportEmails.map((row) => row.support_email) };
 }
 
@@ -99,8 +104,8 @@ async function loadItemData(data: ReceiptData): Promise<void> {
   // show_download_button
   if (redirect) {
     data.urlRedirectToken = String(redirect.token);
-    const flags = Number(redirect.flags ?? 0);
-    if ((flags & 1) !== 0 || redirect.is_rental === true) throw new MailViewNotPortedError("download button for a rental");
+    data.urlRedirectIsRental = UrlRedirectFlags.isSet(Number(redirect.flags ?? 0), "is_rental");
+    if (data.urlRedirectIsRental && !RENTAL_REDIRECT_PROVEN) throw new MailViewNotPortedError("download button for a rental redirect");
   }
   if (linkFlagSet(data.link, "is_licensed")) {
     // Purchase#uses_license_key?: a licensed product with versions keeps its key only when the versions' content has a
@@ -207,7 +212,8 @@ function itemSection(item: ReturnType<typeof itemInfo>, card: Card, data: Receip
 `;
   const notes = item.notes.map((note) => `    <p style="font-weight: bold">\n      ${h(note)}\n    </p>\n`).join("");
   const customNote = item.customReceiptNote === null ? "" : `    ${simpleFormat(item.customReceiptNote)}\n`;
-  const download = item.showDownloadButton ? `    ${downloadButton(viewContentButtonText(data.link), mailerUrl(`/d/${data.urlRedirectToken}`))}\n` : "";
+  const cta = item.showDownloadButton ? item.downloadCta : null;
+  const download = item.showDownloadButton ? `    ${cta ? downloadButton(cta.label ?? viewContentButtonText(data.link), mailerUrl(cta.path)) : ""}\n` : "";
   return `${cell}
 <div class="details">
 ${notes}
@@ -339,12 +345,20 @@ export async function receipt(args: RubyValue[], deps: MailerDeps = {}): Promise
 
   await loadItemData(data);
   const customReceiptText = jsonDataString(data.link.json_data, "custom_receipt_text");
-  const item = itemInfo(data, customReceiptText);
   // User#avatar_url: `avatar.attached?`. An uploaded avatar goes through Active Storage variants and their cache.
   const [attachment] = await rows(
     Prisma.sql`SELECT ${star("active_storage_attachments")} FROM ${table("active_storage_attachments")} WHERE ${column("active_storage_attachments", "record_id")} = ${seller.id} AND ${column("active_storage_attachments", "record_type")} = ${"User"} AND ${column("active_storage_attachments", "name")} = ${"avatar"} LIMIT 1`,
   );
   if (attachment) throw new MailViewNotPortedError("seller with an uploaded avatar");
+  // shared/_download_button for a rental redirect: `link.streamable?` is `alive_product_files.map(&:filegroup).include?("video")`.
+  // UNPROVEN: the position of this read is not recorded from Ruby (receipt_rental_watch in the generator).
+  if (data.urlRedirectIsRental && data.urlRedirectToken !== null && data.link.native_type !== "coffee") {
+    const files = await rows(
+      Prisma.sql`SELECT ${star("product_files")} FROM ${table("product_files")} WHERE ${column("product_files", "link_id")} = ${data.link.id} AND ${column("product_files", "deleted_at")} IS NULL ORDER BY ${column("product_files", "position")} ASC`,
+    );
+    data.linkStreamable = files.some((file) => file.filegroup === "video");
+  }
+  const item = itemInfo(data, customReceiptText);
   const avatar = `${domainConfig().assetHost ?? ""}/images/gumroad-default-avatar-5.png`;
   const name = displayName(seller)!;
   const assetHost = domainConfig().assetHost ?? "";

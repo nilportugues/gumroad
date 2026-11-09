@@ -77,6 +77,12 @@ hand-off, in the transaction Rails opens for `mark_sent!`, and not when `RescueS
   sorts and transfer-encodes the others differently), and for arguments that are not Strings and String-keyed Hashes;
   and view helper inputs `view-helpers.ts` does not cover (`ViewHelperNotPortedError`).
 
+## CustomerMailer receipt: rentals
+
+A rental purchase whose redirect is not a rental is ported and replays the Ruby golden (`receipt_rental`). The rental
+redirect checkout creates (Watch button, or none without a video file) is written but unproven: it hands back to Rails
+until `RENTAL_REDIRECT_PROVEN` in `receipt-mailer.ts` is flipped after regenerating the golden's `receipt_rental_*` cases.
+
 ## CustomerMailer
 
 Ported (goldens: `customer-mailer.golden.json`, from `generate-customer-mailer-golden.rb`, which runs the real
