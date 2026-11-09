@@ -11,7 +11,7 @@ import { purchaseAsJsonCreatorApp } from "./mobile-serializers.ts";
 const present = (value: string | null | undefined): value is string => value != null && value.trim() !== "";
 
 // link.thumbnail&.alive&.url.presence: has_one :thumbnail is the first row whatever its state; only an alive one has a url.
-async function thumbnailUrlsByProduct(productIds: bigint[]): Promise<Map<bigint, string | null>> {
+export async function thumbnailUrlsByProduct(productIds: bigint[]): Promise<Map<bigint, string | null>> {
   const urls = new Map<bigint, string | null>();
   if (productIds.length === 0) return urls;
   const rows = await selectRows<{

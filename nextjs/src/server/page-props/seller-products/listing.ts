@@ -122,7 +122,7 @@ const USD = "usd";
 const BUY_ONLY = 0;
 const RECURRENCES = ["monthly", "yearly", "quarterly", "biannually", "every_two_years"] as const;
 // BasePrice::Recurrence#recurrence_long_indicator
-const RECURRENCE_LABELS: Record<string, string> = {
+export const RECURRENCE_LABELS: Record<string, string> = {
   monthly: "a month",
   quarterly: "every 3 months",
   biannually: "every 6 months",

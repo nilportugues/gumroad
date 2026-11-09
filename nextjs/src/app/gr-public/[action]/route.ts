@@ -5,6 +5,10 @@ import "@/server/controllers/mobile-analytics";
 import "@/server/controllers/mobile-simple";
 import "@/server/controllers/mobile-url-redirects";
 import "@/server/controllers/mobile-purchases";
+import "@/server/controllers/mobile-products";
+import "@/server/controllers/mobile-subscriptions";
+import "@/server/controllers/mobile-preorders";
+import "@/server/controllers/mobile-installments";
 import { publicHandlerResponse } from "@/server/controllers/public-handlers";
 
 type Context = { params: Promise<{ action: string }> };
