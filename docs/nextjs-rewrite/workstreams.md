@@ -51,7 +51,7 @@ a letter suffix (`nextjs/ws-12d-bundle-edit`). This table maps every merged bran
 | WS-20 Checkout and orders | 48 (offer-code pricing), 72 (subscription access), 78 | Empty-cart checkout only; no purchase path |
 | WS-21 Payment processors | 33 (Stripe client), 49 (refunds, disputes), 66 | Job guards; processor calls hand back |
 | WS-22 Sales tax and VAT | 22 (pure calculation) | Receipt tax lines (85); US zip to state, tax country lists, offline regional VAT id shape checks and tax-cents rounding in `server/tax/`. TaxJar, `ZipTaxRate` selection, GeoIP and vendor VAT validators (VIES, Vatstack, IRAS, Revenu Quebec) hand back. |
-| WS-23 Balances and payouts | 72 (payouts page), 74 (balance stats) | Read side; no payout execution |
+| WS-23 Balances and payouts | 72 (payouts page), 74 (balance stats), 23b (chargeback reserve) | Read side; no payout execution. The chargeback-rate reserve is computed in Node; daily frequency, US sellers with a completed payout (Stripe instant eligibility), cached stats for large sellers, PayPal Connect and non-USD still hand back |
 | WS-30 Jobs and cron | 30b, 30c, 32, 36, 41, 42, 44, 45, 46, 47, 49, 52, 59, 63, 66, 74, 76 | Many jobs in Node, most with early hand-backs; `CreateMissingPurchaseEventsWorker` now runs fully in Node. Mail, Stripe/PayPal and money-ledger jobs hand back by design |
 | WS-40 Removal | — | Not started |
 
