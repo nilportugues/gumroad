@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { HandBackToRails } from "../../controllers/application-controller.ts";
 import { setSqlClient } from "../../models/sql.ts";
-import { affiliateJson, displayReferrer, offerCodeReading, pageOffset, refundableCents, refundIsEffective, rubyToI, totalPages } from "./customers.ts";
+import { affiliateJson, displayReferrer, offerCodeReading, variantOption, pageOffset, refundableCents, refundIsEffective, rubyToI, totalPages } from "./customers.ts";
 
 const purchase = (overrides: Record<string, unknown>) => ({ flags: 0n, recommended_by: null, referrer: null, ...overrides });
 
@@ -161,5 +161,33 @@ describe("CustomerPresenter affiliate", () => {
 
     expect(affiliateJson({ affiliate_credit_cents: null }, { type: "DirectAffiliate" }, pending)).toMatchObject({ email: "new@example.com", amount: "$0" });
     expect(affiliateJson({ affiliate_credit_cents: 0 }, { type: "DirectAffiliate" }, { email: " ", unconfirmed_email: "" }).email).toBeNull();
+  });
+});
+
+describe("Variant#to_option on a customer", () => {
+  const variant = (overrides: Record<string, unknown> = {}) => ({
+    id: 7, name: "Large", description: "Big one", price_difference_cents: 300, max_purchase_count: null, sales_count_for_inventory_cache: 0,
+    customizable_price: 0, duration_in_minutes: null, ...overrides,
+  });
+
+  it("describes the option the buyer picked", () => {
+    expect(variantOption(variant(), "Course")).toMatchObject({
+      name: "Large", description: "Big one", price_difference_cents: 300, quantity_left: null, recurrence_price_values: null, is_pwyw: false, duration_in_minutes: null,
+    });
+  });
+
+  it("takes the product's name for an untitled option and an empty string for a missing one", () => {
+    expect(variantOption(variant({ name: "Untitled" }), "Course").name).toBe("Course");
+    expect(variantOption(variant({ name: null, description: null }), "Course")).toMatchObject({ name: "", description: "" });
+  });
+
+  it("counts the stock left, never below zero", () => {
+    expect(variantOption(variant({ max_purchase_count: 10, sales_count_for_inventory_cache: 4 }), "Course").quantity_left).toBe(6);
+    expect(variantOption(variant({ max_purchase_count: 2, sales_count_for_inventory_cache: 5 }), "Course").quantity_left).toBe(0);
+    expect(variantOption(variant({ max_purchase_count: 2, sales_count_for_inventory_cache: null }), "Course").quantity_left).toBe(2);
+  });
+
+  it("flags a pay-what-you-want option and keeps a call's duration", () => {
+    expect(variantOption(variant({ customizable_price: 1, duration_in_minutes: 30 }), "Course")).toMatchObject({ is_pwyw: true, duration_in_minutes: 30 });
   });
 });

@@ -3,7 +3,7 @@
 //
 // Handed back to Rails (HandBackToRails) when a customer on the page needs a reading the port does not make: a member or
 // installment plan (current subscription price, remaining charges), a preorder, a received gift or a sent gift whose
-// recipient holds a license, a bundle, a physical product or a chosen variant (`to_option`, shipping), an upsell, a collaborator sale that also credits a direct affiliate, a UTM link (`utm_url` is built by Addressable), a non-USD price without a
+// recipient holds a license, a bundle, a physical product, a Sku or a tier, several options on one sale, an upsell, a collaborator sale that also credits a direct affiliate, a UTM link (`utm_url` is built by Addressable), a non-USD price without a
 // stored rate or in a currency the port has no table for, a refund whose json_data is not plain JSON, a commission
 // with files, a review video, a custom field file, a seller whose ping endpoints must be checked (`can_ping`), and a
 // sale charged through a processor transaction URL (Stripe Connect, PayPal, Braintree).
@@ -139,6 +139,8 @@ type Loaded = {
   offerCodes: Map<string, Row>;
   // Purchases with a PurchaseOfferCodeDiscount (`has_cached_offer_code?`), whose discount is the cached one, not the code's.
   cachedDiscounts: Set<string>;
+  // The option each purchase picked (`variant_attributes.first`), by purchase id.
+  variants: Map<string, Row>;
   affiliates: Map<string, Row>;
   affiliateUsers: Map<string, Row>;
   licenses: Map<string, Row>;
@@ -192,7 +194,6 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
     if (flags("is_preorder_authorization") || flags("is_installment_payment")) throw new HandBackToRails();
   }
   for (const [tableName, columnName] of [
-    ["base_variants_purchases", "purchase_id"],
     ["upsell_purchases", "purchase_id"],
     ["utm_link_driven_sales", "purchase_id"],
     ["commissions", "deposit_purchase_id"],
@@ -204,6 +205,18 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
   const affiliateUsers = byId(await rowsBy("users", "id", [...new Set([...affiliates.values()].map((affiliate) => affiliate.affiliate_user_id).filter((id) => id != null))]));
   // `purchase.affiliate.affiliate_user` raises for an affiliate without a user, which is Rails' to answer.
   if ([...affiliates.values()].some((affiliate) => !affiliateUsers.has(String(affiliate.affiliate_user_id)))) throw new HandBackToRails();
+
+  // A Sku (shipping) or a tier (`recurrence_price_values`) is Rails' to answer, and so is a purchase of several options, since
+  // `variant_attributes.first` has no order.
+  const picks = groupBy(await rowsBy("base_variants_purchases", "purchase_id", purchaseIds), "purchase_id");
+  if ([...picks.values()].some((rows) => rows.length > 1)) throw new HandBackToRails();
+  const variantRows = byId(await rowsBy("base_variants", "id", [...new Set([...picks.values()].flat().map((pick) => pick.base_variant_id))]));
+  const variants = new Map([...picks].map(([purchaseId, [pick]]) => [purchaseId, variantRows.get(String(pick!.base_variant_id))] as const).filter((entry): entry is [string, Row] => entry[1] !== undefined));
+  if (variants.size !== picks.size) throw new HandBackToRails();
+  for (const [purchaseId, variant] of variants) {
+    const link = links.get(String(purchases.find((purchase) => String(purchase.id) === purchaseId)!.link_id))!;
+    if (variant.type !== "Variant" || LinkFlags.isSet(link.flags, "is_tiered_membership")) throw new HandBackToRails();
+  }
 
   const refundedCents = new Map<string, number>();
   for (const refund of await rowsBy("refunds", "purchase_id", purchaseIds)) {
@@ -236,6 +249,7 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
     purchases,
     links,
     hasAliveVariants: await productsWithAliveVariants([...links.keys()]),
+    variants,
     affiliates,
     affiliateUsers,
     cachedDiscounts: new Set((await rowsBy("purchase_offer_code_discounts", "purchase_id", purchaseIds)).map((discount) => String(discount.purchase_id))),
@@ -339,6 +353,22 @@ export async function offerCodeReading(purchase: Row, offerCode: Row | null, cac
   return { discountCode, beforeOfferCode: price === null ? displayed : price * quantity };
 }
 
+// Variant#to_option (BaseVariant#to_option for a Variant of a product that is not a membership: never closed to new buyers, no
+// recurrence prices). quantity_left reads sales_count_for_inventory_cache, the column Ruby re-reads for a persisted variant.
+export function variantOption(variant: Row, productName: string) {
+  const max = variant.max_purchase_count;
+  return {
+    id: encrypt(variant.id),
+    name: variant.name === "Untitled" ? productName : (variant.name ?? ""),
+    quantity_left: max == null ? null : Math.max(num(max) - num(variant.sales_count_for_inventory_cache ?? 0), 0),
+    description: variant.description ?? "",
+    price_difference_cents: variant.price_difference_cents,
+    recurrence_price_values: null,
+    is_pwyw: variant.customizable_price === true || variant.customizable_price === 1,
+    duration_in_minutes: variant.duration_in_minutes,
+  };
+}
+
 // CustomerPresenter's `affiliate`: the affiliate's form_email, the credit this sale paid them (own_affiliate_credit_cents, with no
 // direct affiliate to subtract) and the STI type.
 export function affiliateJson(purchase: Row, affiliate: Row, user: Row) {
@@ -364,6 +394,7 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
   const { discountCode, beforeOfferCode } = await offerCodeReading(purchase, offerCode, loaded.cachedDiscounts.has(id));
   const affiliate = purchase.affiliate_id == null ? undefined : loaded.affiliates.get(String(purchase.affiliate_id));
   const affiliateUser = affiliate ? loaded.affiliateUsers.get(String(affiliate.affiliate_user_id)) : undefined;
+  const variant = loaded.variants.get(id);
   const tip = loaded.tips.get(id);
   const license = loaded.licenses.get(id);
   const review = loaded.reviews.get(id);
@@ -439,8 +470,8 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
     refunded,
     partially_refunded: purchase.stripe_partially_refunded === true || purchase.stripe_partially_refunded === 1,
     chargedback: chargedBack && !chargebackReversed && !refunded,
-    has_options: loaded.hasAliveVariants.has(String(purchase.link_id)),
-    option: null,
+    has_options: variant !== undefined || loaded.hasAliveVariants.has(String(purchase.link_id)),
+    option: variant === undefined ? null : variantOption(variant, link.name),
     utm_link: null,
     download_count: link.native_type === "coffee" ? null : (loaded.urlRedirects.get(id)?.uses ?? 0),
   };
