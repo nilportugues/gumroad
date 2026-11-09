@@ -170,6 +170,36 @@ describe "Product editor when signed in", type: :request do
     expect(props["refund_policies"].map { _1["product_name"] }).to eq(["Visible product"])
   end
 
+  it "lists the versions of a product with their prices, limits and pages", parity: true do
+    category = create(:variant_category, link: product, title: "Edition")
+    create(:variant, variant_category: category, name: "Standard", price_difference_cents: 0)
+    deluxe = create(:variant, variant_category: category, name: "Deluxe", description: "With extras", price_difference_cents: 500, max_purchase_count: 10)
+    create(:rich_content, entity: deluxe, title: "Welcome", description: [{ "type" => "paragraph", "content" => [{ "type" => "text", "text" => "Hello" }] }])
+    create(:variant_category, link: product, title: "Gone").mark_deleted!
+    log_in(seller)
+
+    get edit_link_path(product.unique_permalink)
+
+    variants = inertia_props_of(response)["product"]["variants"]
+    expect(variants.map { _1["name"] }).to eq(%w[Standard Deluxe])
+    expect(variants.last).to include("price_difference_cents" => 500, "max_purchase_count" => 10, "sales_count_for_inventory" => 0)
+    expect(variants.last["rich_content"].map { _1["title"] }).to eq(["Welcome"])
+  end
+
+  it "hides the versions' own pages while the product shares one set of content", parity: true do
+    category = create(:variant_category, link: product, title: "Edition")
+    version = create(:variant, variant_category: category, name: "Standard")
+    product.update!(has_same_rich_content_for_all_variants: true)
+    log_in(seller)
+
+    get edit_link_path(product.unique_permalink)
+
+    props = inertia_props_of(response)["product"]
+    expect(props["has_same_rich_content_for_all_variants"]).to eq(true)
+    expect(props["variants"].map { _1["id"] }).to eq([version.external_id])
+    expect(props["variants"].first["rich_content"]).to eq([])
+  end
+
   it "sends a signed-out visitor to the login page", parity: true do
     get edit_link_path(product.unique_permalink)
 
