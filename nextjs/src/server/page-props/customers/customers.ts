@@ -4,7 +4,7 @@
 // Handed back to Rails (HandBackToRails) when a customer on the page needs a reading the port does not make: a member whose renewals an Indian card mandate disabled, a sent gift whose
 // recipient holds a license, a physical product, a Sku, several options on one sale, a collaborator sale that also credits a direct affiliate, a UTM link (`utm_url` is built by Addressable), a non-USD price without a
 // stored rate or in a currency the port has no table for, a refund whose json_data is not plain JSON, a commission
-// with files, a review video, a custom field file, a seller whose ping endpoints must be checked (`can_ping`), and a
+// with files, a review video, a custom field file, and a
 // sale charged through a processor transaction URL (Stripe Connect, PayPal, Braintree).
 import { Prisma, type Purchase, type Subscription, type User } from "@prisma/client";
 
@@ -17,6 +17,7 @@ import LINK_DATA from "../../models/link-data.generated.json" with { type: "json
 import { LinkFlags } from "../../models/link.ts";
 import { isStripeConnectAccount, type MerchantAccountRow } from "../../models/merchant-account.ts";
 import { originalPrice } from "../../models/offer-code.ts";
+import { canPingSales } from "../../models/ping-notification.ts";
 import { PurchaseRecord } from "../../models/purchase-pricing.ts";
 import { secureExternalId } from "../../models/secure-external-id.ts";
 import { castRow, column, selectRows, table } from "../../models/sql.ts";
@@ -347,14 +348,6 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
       ...new Set(fieldRows.map((field) => field.custom_field_id).filter((id) => id != null)),
     ]),
   );
-
-  // can_ping: a seller with ping endpoints (resource subscriptions or a legacy notification endpoint) is Rails' to answer.
-  if (
-    await exists(
-      Prisma.sql`SELECT 1 FROM ${table("resource_subscriptions")} WHERE ${column("resource_subscriptions", "user_id")} = ${seller.id} LIMIT 1`,
-    )
-  )
-    throw new HandBackToRails();
 
   return {
     purchases,
@@ -860,7 +853,7 @@ export async function customersProps(context: SellerContext, params: CustomersPa
     countries: COUNTRIES.filter((country) => !isBlockedCountry(country.alpha2) && country.alpha2 !== "SY")
       .map((country) => country.common_name)
       .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
-    can_ping: false,
+    can_ping: await canPingSales(seller),
     show_refund_fee_notice: !UserFlags.isSet(seller.flags, "refund_fee_notice_shown"),
     license_uses_filter_enabled: await isFeatureEnabled("license_uses_sales_filter", userActor(seller.id)),
     can_send_emails: await hasCustomerAudience(seller.id),
