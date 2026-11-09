@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { canBeBundle } from "./pages.ts";
 
-// Link flag bits: is_recurring_billing (2) and is_bundle (26), as Link::FLAGS in app/models/link.rb.
-const IS_RECURRING_BILLING = 1n << 2n;
-const IS_BUNDLE = 1n << 26n;
+// flag_shih_tzu positions are 1-based: is_recurring_billing is position 2 and is_bundle position 26 in
+// app/models/link.rb, so their bits are 1 << 1 and 1 << 25.
+const IS_RECURRING_BILLING = 1n << 1n;
+const IS_BUNDLE = 1n << 25n;
 
 const product = (flags: bigint, native_type: string | null) => ({ flags, native_type }) as const;
 
