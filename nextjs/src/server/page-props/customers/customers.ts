@@ -1,19 +1,23 @@
 // CustomersController#index (`/customers`, `/customers/:link_id`): fetch_sales over PurchaseSearchService, CustomersPresenter
 // and CustomerPresenter#customer (app/presenters/customer{,s}_presenter.rb).
 //
-// Handed back to Rails (HandBackToRails) when a customer on the page needs a reading the port does not make: a member or
-// installment plan (current subscription price, remaining charges), a sent gift whose
-// recipient holds a license, a physical product, a Sku or a tier, several options on one sale, a collaborator sale that also credits a direct affiliate, a UTM link (`utm_url` is built by Addressable), a non-USD price without a
+// Handed back to Rails (HandBackToRails) when a customer on the page needs a reading the port does not make: a member whose renewals an Indian card mandate disabled, a sent gift whose
+// recipient holds a license, a physical product, a Sku, several options on one sale, a collaborator sale that also credits a direct affiliate, a UTM link (`utm_url` is built by Addressable), a non-USD price without a
 // stored rate or in a currency the port has no table for, a refund whose json_data is not plain JSON, a commission
 // with files, a review video, a custom field file, a seller whose ping endpoints must be checked (`can_ping`), and a
 // sale charged through a processor transaction URL (Stripe Connect, PayPal, Braintree).
-import { Prisma, type Purchase, type User } from "@prisma/client";
+import { Prisma, type Purchase, type Subscription, type User } from "@prisma/client";
 
 import { encrypt } from "../../../lib/obfuscate-ids.ts";
 import { formattedDollarAmount, usdCentsToCurrency } from "../../models/concerns/currency-helper.ts";
 import LINK_DATA from "../../models/link-data.generated.json" with { type: "json" };
 import { HandBackToRails } from "../../controllers/application-controller.ts";
 import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
+import { currentSubscriptionPriceCents } from "../../models/subscription-pricing.ts";
+import { defaultSubscriptionDeps, SubscriptionFlags, SubscriptionRecord } from "../../models/subscription.ts";
+import { NotPortedError } from "../../models/user.ts";
+import { variantToOption } from "../../presenters/product-props.ts";
+import type { LinkRow, PriceRow } from "../../presenters/product-reads.ts";
 import { COUNTRIES, historicalNames, isBlockedCountry } from "../../models/compliance-countries.ts";
 import { LinkFlags } from "../../models/link.ts";
 import { isStripeConnectAccount, type MerchantAccountRow } from "../../models/merchant-account.ts";
@@ -141,6 +145,10 @@ type Loaded = {
   cachedDiscounts: Set<string>;
   // The option each purchase picked (`variant_attributes.first`), by purchase id.
   variants: Map<string, Row>;
+  // The alive prices of each tiered membership, for the `recurrence_price_values` of the tier a buyer picked.
+  tierPrices: Map<string, Row[]>;
+  // What CustomerPresenter reads off `purchase.subscription`, by subscription id.
+  subscriptions: Map<string, SubscriptionReading>;
   // `upsell_purchase&.upsell&.name`, by purchase id.
   upsellNames: Map<string, string | null>;
   affiliates: Map<string, Row>;
@@ -197,7 +205,6 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
   const links = byId(await rowsBy("links", "id", [...new Set(purchases.map((purchase) => purchase.link_id))]));
   for (const link of links.values()) if (link.require_shipping) throw new HandBackToRails();
   for (const purchase of purchases) {
-    if (purchase.subscription_id != null) throw new HandBackToRails();
     // credits_direct_affiliate?: a collaborator sale that also credits a direct affiliate splits the credit in two (json_data).
     if (purchase.affiliate_id != null && typeof purchase.json_data === "string" && purchase.json_data.includes("direct_affiliate_id")) throw new HandBackToRails();
     // usd_cents_to_currency converts the refundable amount at the rate stored on the sale; without one it would ask Redis.
@@ -218,8 +225,7 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
   // `purchase.affiliate.affiliate_user` raises for an affiliate without a user, which is Rails' to answer.
   if ([...affiliates.values()].some((affiliate) => !affiliateUsers.has(String(affiliate.affiliate_user_id)))) throw new HandBackToRails();
 
-  // A Sku (shipping) or a tier (`recurrence_price_values`) is Rails' to answer, and so is a purchase of several options, since
-  // `variant_attributes.first` has no order.
+  // A Sku (shipping) is Rails' to answer, and so is a purchase of several options, since `variant_attributes.first` has no order.
   const picks = groupBy(await rowsBy("base_variants_purchases", "purchase_id", purchaseIds), "purchase_id");
   if ([...picks.values()].some((rows) => rows.length > 1)) throw new HandBackToRails();
   const variantRows = byId(await rowsBy("base_variants", "id", [...new Set([...picks.values()].flat().map((pick) => pick.base_variant_id))]));
@@ -227,8 +233,11 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
   if (variants.size !== picks.size) throw new HandBackToRails();
   for (const [purchaseId, variant] of variants) {
     const link = links.get(String(purchases.find((purchase) => String(purchase.id) === purchaseId)!.link_id))!;
-    if (variant.type !== "Variant" || LinkFlags.isSet(link.flags, "is_tiered_membership")) throw new HandBackToRails();
+    if (variant.type !== "Variant") throw new HandBackToRails();
   }
+  const tieredLinkIds = [...links.values()].filter((link) => LinkFlags.isSet(link.flags, "is_tiered_membership")).map((link) => link.id);
+  const tierPrices = groupBy(await rowsBy("prices", "link_id", tieredLinkIds, Prisma.sql` AND ${column("prices", "deleted_at")} IS NULL`), "link_id");
+  const subscriptions = await subscriptionReadings(purchases);
 
   const upsellNames = await upsellNamesFor(purchaseIds);
 
@@ -268,6 +277,8 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
     receivedGifts,
     preorderIds: new Set((await rowsBy("preorders", "id", [...new Set(purchases.map((purchase) => purchase.preorder_id).filter((id) => id != null))])).map((preorder) => String(preorder.id))),
     variants,
+    tierPrices,
+    subscriptions,
     upsellNames,
     affiliates,
     affiliateUsers,
@@ -372,20 +383,60 @@ export async function offerCodeReading(purchase: Row, offerCode: Row | null, cac
   return { discountCode, beforeOfferCode: price === null ? displayed : price * quantity };
 }
 
-// Variant#to_option (BaseVariant#to_option for a Variant of a product that is not a membership: never closed to new buyers, no
-// recurrence prices). quantity_left reads sales_count_for_inventory_cache, the column Ruby re-reads for a persisted variant.
-export function variantOption(variant: Row, productName: string) {
-  const max = variant.max_purchase_count;
-  return {
-    id: encrypt(variant.id),
-    name: variant.name === "Untitled" ? productName : (variant.name ?? ""),
-    quantity_left: max == null ? null : Math.max(num(max) - num(variant.sales_count_for_inventory_cache ?? 0), 0),
-    description: variant.description ?? "",
-    price_difference_cents: variant.price_difference_cents,
-    recurrence_price_values: null,
-    is_pwyw: variant.customizable_price === true || variant.customizable_price === 1,
-    duration_in_minutes: variant.duration_in_minutes,
-  };
+export type SubscriptionReading = {
+  id: string;
+  status: string | null;
+  isInstallmentPlan: boolean;
+  remainingCharges: number | null;
+  recurrence: string | null;
+  // Subscription#current_subscription_price_cents, null when it has none.
+  currentPriceCents: number | null;
+};
+
+// Subscription#status for a subscription whose renewals are not disabled by an Indian card mandate (Rails' to answer).
+// `lastPurchaseState` is the state of the subscription's newest purchase.
+export function subscriptionStatus(subscription: Row, lastPurchaseState: string | null, now: Date): string | null {
+  if (subscription.deactivated_at != null) {
+    if (subscription.failed_at != null) return "failed_payment";
+    if (subscription.ended_at != null) return "fixed_subscription_period_ended";
+    return subscription.cancelled_at != null ? "cancelled" : null;
+  }
+  const alive = subscription.failed_at == null && subscription.ended_at == null && (subscription.cancelled_at == null || subscription.cancelled_at.getTime() > now.getTime());
+  if (alive && lastPurchaseState === "failed") return "pending_failure";
+  if (alive && subscription.cancelled_at != null) return "pending_cancellation";
+  return "alive";
+}
+
+async function subscriptionReadings(purchases: Row[]): Promise<Map<string, SubscriptionReading>> {
+  const rows = await rowsBy("subscriptions", "id", [...new Set(purchases.map((purchase) => purchase.subscription_id).filter((id) => id != null))]);
+  if (rows.length === 0) return new Map();
+  const now = new Date();
+  const newest = new Map<string, string>();
+  for (const purchase of await selectRows<Row>(
+    Prisma.sql`SELECT ${column("purchases", "subscription_id")}, ${column("purchases", "purchase_state")} FROM ${table("purchases")} WHERE ${column("purchases", "subscription_id")} IN (${inList(rows.map((row) => row.id))}) ORDER BY ${column("purchases", "created_at")} ASC, ${column("purchases", "id")} ASC`,
+  )) {
+    newest.set(String(purchase.subscription_id), purchase.purchase_state);
+  }
+  const readings = new Map<string, SubscriptionReading>();
+  for (const row of rows) {
+    if (SubscriptionFlags.isSet(row.flags, "renewal_disabled_due_to_indian_card_mandate")) throw new HandBackToRails();
+    const record = new SubscriptionRecord(castRow<Subscription>("Subscription", row), { now: () => now, featureActive: defaultSubscriptionDeps.featureActive });
+    try {
+      readings.set(String(row.id), {
+        id: encrypt(row.id),
+        status: subscriptionStatus(row, newest.get(String(row.id)) ?? null, now),
+        isInstallmentPlan: record.flag("is_installment_plan"),
+        remainingCharges: record.hasFixedLength() ? num(row.charge_occurrence_count) - (await record.successfulPurchasesCount()) : null,
+        recurrence: await record.recurrence(),
+        currentPriceCents: await currentSubscriptionPriceCents(record),
+      });
+    } catch (error) {
+      // A reading the port does not make (an auto-renewal code it cannot price, a subscription with no original purchase).
+      if (error instanceof NotPortedError) throw new HandBackToRails();
+      throw error;
+    }
+  }
+  return readings;
 }
 
 // CustomerPresenter's `is_preorder`: the authorization of a preorder that still exists, not the purchase it was later charged as.
@@ -427,6 +478,7 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
   const affiliate = purchase.affiliate_id == null ? undefined : loaded.affiliates.get(String(purchase.affiliate_id));
   const affiliateUser = affiliate ? loaded.affiliateUsers.get(String(affiliate.affiliate_user_id)) : undefined;
   const variant = loaded.variants.get(id);
+  const subscription = purchase.subscription_id == null ? undefined : loaded.subscriptions.get(String(purchase.subscription_id));
   const tip = loaded.tips.get(id);
   const license = loaded.licenses.get(id);
   const review = loaded.reviews.get(id);
@@ -438,8 +490,8 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
   const chargebackReversed = flags("chargeback_reversed");
   const accessRevoked = flags("is_access_revoked");
   const update = roleAdminFor(requireUser(sellerContext)) || roleSupportFor(requireUser(sellerContext));
-  // Audience::PurchasePolicy#undo_revoke_access? / #revoke_access? (no refund, not physical, not a member: handed back above)
-  const revokeAccess = update && !accessRevoked && !refunded && !LinkFlags.isSet(link.flags, "is_physical");
+  // Audience::PurchasePolicy#undo_revoke_access? / #revoke_access? (no refund, not physical, not a member)
+  const revokeAccess = update && !accessRevoked && !refunded && !LinkFlags.isSet(link.flags, "is_physical") && subscription === undefined;
   const isAccessRevoked = accessRevoked ? (update ? true : null) : revokeAccess ? false : null;
 
   return {
@@ -457,11 +509,12 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
     product: { name: link.name, permalink: link.unique_permalink, native_type: link.native_type },
     created_at: iso(purchase.created_at),
     price: {
-      cents: displayed,
+      // listed_price_cents: a member is listed at what their next charge will be.
+      cents: subscription?.currentPriceCents ?? displayed,
       cents_before_offer_code: beforeOfferCode,
       cents_refundable: await refundableCents(purchase, loaded.refundedCents.get(id) ?? 0, currency),
       currency_type: currency,
-      recurrence: null,
+      recurrence: subscription?.recurrence ?? null,
       tip_cents: tip ? num(tip.value_cents) : null,
     },
     quantity,
@@ -471,7 +524,9 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
         : { type: "percent", percents: discountCode.amount_percentage, code: discountCode.code }
       : null,
     upsell: loaded.upsellNames.get(id) ?? null,
-    subscription: null,
+    subscription: subscription
+      ? { id: subscription.id, status: subscription.status, is_installment_plan: subscription.isInstallmentPlan, remaining_charges: subscription.remainingCharges }
+      : null,
     is_multiseat_license: flags("is_multiseat_license"),
     referrer: displayReferrer(purchase, sellerUsername),
     is_additional_contribution: flags("is_additional_contribution"),
@@ -503,7 +558,7 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
     partially_refunded: purchase.stripe_partially_refunded === true || purchase.stripe_partially_refunded === 1,
     chargedback: chargedBack && !chargebackReversed && !refunded,
     has_options: variant !== undefined || loaded.hasAliveVariants.has(String(purchase.link_id)),
-    option: variant === undefined ? null : variantOption(variant, link.name),
+    option: variant === undefined ? null : await variantToOption(link as LinkRow, variant as never, (loaded.tierPrices.get(String(link.id)) ?? []) as PriceRow[], BigInt(link.user_id)),
     utm_link: null,
     download_count: link.native_type === "coffee" ? null : (loaded.urlRedirects.get(id)?.uses ?? 0),
   };

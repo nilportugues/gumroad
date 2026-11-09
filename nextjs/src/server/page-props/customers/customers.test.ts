@@ -1,9 +1,13 @@
 // The pure readings of CustomerPresenter / CustomersController that the recorded fixtures reach only in part.
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const flipper = vi.hoisted(() => vi.fn());
+vi.mock("../../infra/flipper.ts", () => ({ isFeatureEnabled: flipper, userActor: (id: string) => `User;${id}` }));
 
 import { HandBackToRails } from "../../controllers/application-controller.ts";
 import { setSqlClient } from "../../models/sql.ts";
-import { affiliateJson, displayReferrer, giftOf, isPreorder, offerCodeReading, upsellNamesFor, variantOption, pageOffset, refundableCents, refundIsEffective, rubyToI, totalPages } from "./customers.ts";
+import { affiliateJson, displayReferrer, giftOf, isPreorder, offerCodeReading, subscriptionStatus, upsellNamesFor, pageOffset, refundableCents, refundIsEffective, rubyToI, totalPages } from "./customers.ts";
+import { variantToOption } from "../../presenters/product-props.ts";
 
 const purchase = (overrides: Record<string, unknown>) => ({ flags: 0n, recommended_by: null, referrer: null, ...overrides });
 
@@ -165,30 +169,104 @@ describe("CustomerPresenter affiliate", () => {
 });
 
 describe("Variant#to_option on a customer", () => {
-  const variant = (overrides: Record<string, unknown> = {}) => ({
-    id: 7, name: "Large", description: "Big one", price_difference_cents: 300, max_purchase_count: null, sales_count_for_inventory_cache: 0,
-    customizable_price: 0, duration_in_minutes: null, ...overrides,
-  });
+  const TIERED_FLAG = 1n << 18n;
+  const product = (overrides: Record<string, unknown> = {}) => ({ id: 3, name: "Course", flags: 0n, user_id: 9, ...overrides }) as never;
+  const variant = (overrides: Record<string, unknown> = {}) =>
+    ({
+      id: 7, name: "Large", description: "Big one", price_difference_cents: 300, max_purchase_count: null, sales_count_for_inventory_cache: 0,
+      customizable_price: 0, duration_in_minutes: null, flags: 0, deleted_at: null, ...overrides,
+    }) as never;
 
-  it("describes the option the buyer picked", () => {
-    expect(variantOption(variant(), "Course")).toMatchObject({
+  it("describes the option the buyer picked", async () => {
+    expect(await variantToOption(product(), variant(), [], 9n)).toMatchObject({
       name: "Large", description: "Big one", price_difference_cents: 300, quantity_left: null, recurrence_price_values: null, is_pwyw: false, duration_in_minutes: null,
     });
   });
 
-  it("takes the product's name for an untitled option and an empty string for a missing one", () => {
-    expect(variantOption(variant({ name: "Untitled" }), "Course").name).toBe("Course");
-    expect(variantOption(variant({ name: null, description: null }), "Course")).toMatchObject({ name: "", description: "" });
+  it("takes the product's name for an untitled option and an empty string for a missing one", async () => {
+    expect((await variantToOption(product(), variant({ name: "Untitled" }), [], 9n)).name).toBe("Course");
+    expect(await variantToOption(product(), variant({ name: null, description: null }), [], 9n)).toMatchObject({ name: "", description: "" });
   });
 
-  it("counts the stock left, never below zero", () => {
-    expect(variantOption(variant({ max_purchase_count: 10, sales_count_for_inventory_cache: 4 }), "Course").quantity_left).toBe(6);
-    expect(variantOption(variant({ max_purchase_count: 2, sales_count_for_inventory_cache: 5 }), "Course").quantity_left).toBe(0);
-    expect(variantOption(variant({ max_purchase_count: 2, sales_count_for_inventory_cache: null }), "Course").quantity_left).toBe(2);
+  it("counts the stock left, never below zero", async () => {
+    expect((await variantToOption(product(), variant({ max_purchase_count: 10, sales_count_for_inventory_cache: 4 }), [], 9n)).quantity_left).toBe(6);
+    expect((await variantToOption(product(), variant({ max_purchase_count: 2, sales_count_for_inventory_cache: 5 }), [], 9n)).quantity_left).toBe(0);
+    expect((await variantToOption(product(), variant({ max_purchase_count: 2, sales_count_for_inventory_cache: null }), [], 9n)).quantity_left).toBe(2);
   });
 
-  it("flags a pay-what-you-want option and keeps a call's duration", () => {
-    expect(variantOption(variant({ customizable_price: 1, duration_in_minutes: 30 }), "Course")).toMatchObject({ is_pwyw: true, duration_in_minutes: 30 });
+  it("flags a pay-what-you-want option and keeps a call's duration", async () => {
+    expect(await variantToOption(product(), variant({ customizable_price: 1, duration_in_minutes: 30 }), [], 9n)).toMatchObject({ is_pwyw: true, duration_in_minutes: 30 });
+  });
+
+  describe("a tier of a membership", () => {
+    const monthlyPrice = { id: 1, link_id: 3, recurrence: "monthly", price_cents: 500, flags: 0 };
+
+    function answering(prices: Record<string, unknown>[]) {
+      setSqlClient(() => ({
+        $queryRaw: (async (query: { sql: string }) => {
+          if (query.sql.includes("FROM `prices`")) return prices;
+          throw new Error(`unexpected statement: ${query.sql}`);
+        }) as never,
+        $executeRaw: (async () => 0) as never,
+      }));
+    }
+
+    beforeEach(() => flipper.mockResolvedValue(false));
+
+    it("lists the tier's price for each recurrence the product offers", async () => {
+      answering([{ id: 2, variant_id: 7, recurrence: "monthly", price_cents: 700, suggested_price_cents: null, flags: 0 }]);
+
+      const option = await variantToOption(product({ flags: TIERED_FLAG }), variant(), [monthlyPrice] as never, 9n);
+
+      expect(option.recurrence_price_values).toEqual({ monthly: { price_cents: 700, suggested_price_cents: null } });
+    });
+
+    it("lists no price for a tier that was deleted since", async () => {
+      answering([{ id: 2, variant_id: 7, recurrence: "monthly", price_cents: 700, suggested_price_cents: null, flags: 0 }]);
+
+      const option = await variantToOption(product({ flags: TIERED_FLAG }), variant({ deleted_at: new Date() }), [monthlyPrice] as never, 9n);
+
+      expect(option.recurrence_price_values).toEqual({});
+    });
+
+    it("reports no stock for a tier closed to new buyers when the seller has the feature", async () => {
+      answering([]);
+      flipper.mockResolvedValue(true);
+
+      const option = await variantToOption(product({ flags: TIERED_FLAG }), variant({ flags: 1 << 2, max_purchase_count: 10 }), [], 9n);
+
+      expect(option.quantity_left).toBe(0);
+      expect(flipper).toHaveBeenCalledWith("close_membership_tier_to_new_buyers", "User;9");
+    });
+  });
+});
+
+describe("Subscription#status", () => {
+  const NOW = new Date("2026-06-01T00:00:00Z");
+  const past = new Date("2026-05-01T00:00:00Z");
+  const future = new Date("2026-07-01T00:00:00Z");
+  const row = (overrides: Record<string, unknown> = {}) => ({ deactivated_at: null, failed_at: null, ended_at: null, cancelled_at: null, ...overrides });
+
+  it("is alive for a running subscription", () => {
+    expect(subscriptionStatus(row(), "successful", NOW)).toBe("alive");
+    expect(subscriptionStatus(row(), null, NOW)).toBe("alive");
+  });
+
+  it("is pending failure when the newest charge failed and pending cancellation when it ends in the future", () => {
+    expect(subscriptionStatus(row(), "failed", NOW)).toBe("pending_failure");
+    expect(subscriptionStatus(row({ cancelled_at: future }), "successful", NOW)).toBe("pending_cancellation");
+    expect(subscriptionStatus(row({ cancelled_at: future }), "failed", NOW)).toBe("pending_failure");
+  });
+
+  it("names why a deactivated subscription ended, failure first", () => {
+    expect(subscriptionStatus(row({ deactivated_at: past, failed_at: past, cancelled_at: past }), "failed", NOW)).toBe("failed_payment");
+    expect(subscriptionStatus(row({ deactivated_at: past, ended_at: past }), null, NOW)).toBe("fixed_subscription_period_ended");
+    expect(subscriptionStatus(row({ deactivated_at: past, cancelled_at: past }), null, NOW)).toBe("cancelled");
+    expect(subscriptionStatus(row({ deactivated_at: past }), null, NOW)).toBeNull();
+  });
+
+  it("is not alive once its cancellation date passed, so a failed charge no longer makes it pending", () => {
+    expect(subscriptionStatus(row({ cancelled_at: past }), "failed", NOW)).toBe("alive");
   });
 });
 

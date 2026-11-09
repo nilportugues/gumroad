@@ -183,6 +183,8 @@ async function optionRecords(row: LinkRow): Promise<VariantRow[]> {
 
 // Variant#recurrence_price_values (not for the editor)
 async function recurrencePriceValues(variant: VariantRow, productPrices: PriceRow[]) {
+  // A deleted tier offers no price (`alive? && link.recurrence_price_enabled?`); only a subscription's own attrs would revive one.
+  if (variant.deleted_at != null) return {};
   const prices = await selectRows<Row>(
     Prisma.sql`SELECT ${star("prices")} FROM ${table("prices")} WHERE ${column("prices", "variant_id")} = ${variant.id} AND ${column("prices", "deleted_at")} IS NULL ORDER BY ${column("prices", "id")} ASC`,
   );
@@ -198,6 +200,27 @@ async function recurrencePriceValues(variant: VariantRow, productPrices: PriceRo
 
 const isRental = (price: PriceRow) => (Number(price.flags ?? 0) & RENTAL_FLAG_POSITION) === RENTAL_FLAG_POSITION;
 
+// BaseVariant#to_option of a Variant, for a buyer who is not subscribed (`subscribed: false`).
+export async function variantToOption(row: LinkRow, variant: VariantRow, productPrices: PriceRow[], sellerId: bigint) {
+  const tiered = flag(row, "is_tiered_membership");
+  const closeFeature = tiered ? await isFeatureEnabled("close_membership_tier_to_new_buyers", userActor(sellerId)) : false;
+  return variantOptionProps(row, variant, productPrices, tiered, closeFeature);
+}
+
+async function variantOptionProps(row: LinkRow, variant: VariantRow, productPrices: PriceRow[], tiered: boolean, closeFeature: boolean) {
+  const closed = closeFeature && ((Number(variant.flags) >> (BASE_VARIANT_CLOSED_FLAG - 1)) & 1) === 1;
+  return {
+    id: externalId(variant.id),
+    name: variant.name === "Untitled" ? row.name : (variant.name ?? ""),
+    quantity_left: closed ? 0 : quantityLeft(variant),
+    description: variant.description ?? "",
+    price_difference_cents: variant.price_difference_cents,
+    recurrence_price_values: tiered ? await recurrencePriceValues(variant, productPrices) : null,
+    is_pwyw: !!variant.customizable_price,
+    duration_in_minutes: variant.duration_in_minutes,
+  };
+}
+
 async function optionsProps(row: LinkRow, records: VariantRow[], productPrices: PriceRow[], sellerId: bigint) {
   const skus = flag(row, "skus_enabled");
   const tiered = flag(row, "is_tiered_membership");
@@ -207,17 +230,7 @@ async function optionsProps(row: LinkRow, records: VariantRow[], productPrices: 
       if (skus) {
         return { id: externalId(variant.id), name: variant.name, quantity_left: quantityLeft(variant), description: variant.description ?? "", price_difference_cents: variant.price_difference_cents, recurrence_price_values: null, is_pwyw: false, duration_in_minutes: variant.duration_in_minutes };
       }
-      const closed = closeFeature && ((Number(variant.flags) >> (BASE_VARIANT_CLOSED_FLAG - 1)) & 1) === 1;
-      return {
-        id: externalId(variant.id),
-        name: variant.name === "Untitled" ? row.name : (variant.name ?? ""),
-        quantity_left: closed ? 0 : quantityLeft(variant),
-        description: variant.description ?? "",
-        price_difference_cents: variant.price_difference_cents,
-        recurrence_price_values: tiered ? await recurrencePriceValues(variant, productPrices) : null,
-        is_pwyw: !!variant.customizable_price,
-        duration_in_minutes: variant.duration_in_minutes,
-      };
+      return variantOptionProps(row, variant, productPrices, tiered, closeFeature);
     }),
   );
 }
