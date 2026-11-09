@@ -3,12 +3,11 @@
 //
 // Handed back to Rails (HandBackToRails) when a customer on the page needs a reading the port does not make: a member or
 // installment plan (current subscription price, remaining charges), a preorder, a received gift or a sent gift whose
-// recipient holds a license, a bundle, a physical product or a chosen variant (`to_option`, shipping), a cached offer
-// code discount, an upsell, an affiliate, a UTM link (`utm_url` is built by Addressable), a non-USD price without a
+// recipient holds a license, a bundle, a physical product or a chosen variant (`to_option`, shipping), an upsell, an affiliate, a UTM link (`utm_url` is built by Addressable), a non-USD price without a
 // stored rate or in a currency the port has no table for, a refund whose json_data is not plain JSON, a commission
 // with files, a review video, a custom field file, a seller whose ping endpoints must be checked (`can_ping`), and a
 // sale charged through a processor transaction URL (Stripe Connect, PayPal, Braintree).
-import { Prisma, type User } from "@prisma/client";
+import { Prisma, type Purchase, type User } from "@prisma/client";
 
 import { encrypt } from "../../../lib/obfuscate-ids.ts";
 import { usdCentsToCurrency } from "../../models/concerns/currency-helper.ts";
@@ -20,7 +19,8 @@ import { LinkFlags } from "../../models/link.ts";
 import { isStripeConnectAccount, type MerchantAccountRow } from "../../models/merchant-account.ts";
 import { originalPrice } from "../../models/offer-code.ts";
 import { secureExternalId } from "../../models/secure-external-id.ts";
-import { column, selectRows, table } from "../../models/sql.ts";
+import { PurchaseRecord } from "../../models/purchase-pricing.ts";
+import { castRow, column, selectRows, table } from "../../models/sql.ts";
 import { UserFlags } from "../../models/user.ts";
 import { PurchaseSearchService } from "../../search/purchase-search.ts";
 import { PurchaseFlags } from "../../search/flags.ts";
@@ -137,6 +137,8 @@ type Loaded = {
   links: Map<string, Row>;
   hasAliveVariants: Set<string>;
   offerCodes: Map<string, Row>;
+  // Purchases with a PurchaseOfferCodeDiscount (`has_cached_offer_code?`), whose discount is the cached one, not the code's.
+  cachedDiscounts: Set<string>;
   licenses: Map<string, Row>;
   reviews: Map<string, Row>;
   responses: Map<string, Row>;
@@ -187,7 +189,6 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
   }
   for (const [tableName, columnName] of [
     ["base_variants_purchases", "purchase_id"],
-    ["purchase_offer_code_discounts", "purchase_id"],
     ["upsell_purchases", "purchase_id"],
     ["utm_link_driven_sales", "purchase_id"],
     ["commissions", "deposit_purchase_id"],
@@ -226,6 +227,7 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
     purchases,
     links,
     hasAliveVariants: await productsWithAliveVariants([...links.keys()]),
+    cachedDiscounts: new Set((await rowsBy("purchase_offer_code_discounts", "purchase_id", purchaseIds)).map((discount) => String(discount.purchase_id))),
     offerCodes: byId(await rowsBy("offer_codes", "id", [...new Set(purchases.map((purchase) => purchase.offer_code_id).filter((id) => id != null))])),
     licenses: new Map((await rowsBy("licenses", "purchase_id", purchaseIds, Prisma.sql` AND ${column("licenses", "deleted_at")} IS NULL`)).map((license) => [String(license.purchase_id), license])),
     reviews: reviewsByPurchase,
@@ -301,6 +303,31 @@ export function refundableCents(purchase: Row, refundedCents: number, currency: 
 
 const iso = (date: Date) => date.toISOString().replace(/\.\d{3}Z$/u, "Z");
 
+type ShownCode = { amount_cents: number | null; amount_percentage: number | null; code: string | null };
+
+// CustomerPresenter's `discount` (Purchase#original_offer_code) and `cents_before_offer_code`
+// (Purchase#displayed_price_cents_before_offer_code(include_deleted: true)).
+export async function offerCodeReading(purchase: Row, offerCode: Row | null, cached: boolean): Promise<{ discountCode: ShownCode | null; beforeOfferCode: number }> {
+  const displayed = num(purchase.displayed_price_cents);
+  const quantity = purchase.quantity ?? 1;
+  // original_offer_code (include_deleted: false) hides a deleted code, the listed price (include_deleted: true) does not.
+  const deleted = offerCode !== null && offerCode.deleted_at != null;
+  if (cached) {
+    // The cached discount carries its own amount, the pre-discount prices and once_per_cart, so PurchaseRecord reads it.
+    const record = new PurchaseRecord(castRow<Purchase>("Purchase", purchase), null);
+    const shown = await record.originalOfferCode(false);
+    const cachedCode = (await (await record.purchaseOfferCodeDiscount())?.offerCode())?.row.code;
+    return {
+      discountCode: shown && cachedCode !== undefined ? { amount_cents: shown.amount_cents, amount_percentage: shown.amount_percentage, code: cachedCode } : null,
+      beforeOfferCode: (await record.displayedPriceCentsBeforeOfferCode(true)) ?? displayed,
+    };
+  }
+  const discountCode = offerCode && !deleted ? (offerCode as ShownCode) : null;
+  if (!offerCode) return { discountCode, beforeOfferCode: displayed };
+  const price = originalPrice({ amount_cents: offerCode.amount_cents, amount_percentage: offerCode.amount_percentage }, displayed);
+  return { discountCode, beforeOfferCode: price === null ? displayed : price * quantity };
+}
+
 type Context = { seller: User; sellerUsername: string; sellerContext: SellerContext; loaded: Loaded };
 
 async function customerJson(purchase: Row, { sellerUsername, sellerContext, loaded }: Context) {
@@ -313,14 +340,7 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
   const gift = flags("is_gift_sender_purchase") ? loaded.gifts.get(id) : undefined;
   const displayed = num(purchase.displayed_price_cents);
   const offerCode = purchase.offer_code_id == null ? null : (loaded.offerCodes.get(String(purchase.offer_code_id)) ?? null);
-  const offerCodeDeleted = offerCode !== null && offerCode.deleted_at != null;
-  // original_offer_code (include_deleted: false) hides a deleted code, the listed price (include_deleted: true) does not.
-  const discountCode = offerCode && !offerCodeDeleted ? offerCode : null;
-  let beforeOfferCode = displayed;
-  if (offerCode) {
-    const price = originalPrice({ amount_cents: offerCode.amount_cents, amount_percentage: offerCode.amount_percentage }, displayed);
-    if (price !== null) beforeOfferCode = price * quantity;
-  }
+  const { discountCode, beforeOfferCode } = await offerCodeReading(purchase, offerCode, loaded.cachedDiscounts.has(id));
   const tip = loaded.tips.get(id);
   const license = loaded.licenses.get(id);
   const review = loaded.reviews.get(id);

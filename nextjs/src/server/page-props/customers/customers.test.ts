@@ -2,7 +2,8 @@
 import { describe, expect, it } from "vitest";
 
 import { HandBackToRails } from "../../controllers/application-controller.ts";
-import { displayReferrer, pageOffset, refundableCents, refundIsEffective, rubyToI, totalPages } from "./customers.ts";
+import { setSqlClient } from "../../models/sql.ts";
+import { displayReferrer, offerCodeReading, pageOffset, refundableCents, refundIsEffective, rubyToI, totalPages } from "./customers.ts";
 
 const purchase = (overrides: Record<string, unknown>) => ({ flags: 0n, recommended_by: null, referrer: null, ...overrides });
 
@@ -67,5 +68,78 @@ describe("Purchase#amount_refundable_cents_in_currency", () => {
   it("converts the refundable dollars at the rate stored on the sale", async () => {
     expect(await refundableCents({ charge_processor_id: "stripe", price_cents: 1250, rate_converted_to_usd: "0.8" }, 250, "eur")).toBe(800);
     expect(await refundableCents({ charge_processor_id: "stripe", price_cents: 1000, rate_converted_to_usd: "110" }, 0, "jpy")).toBe(1100);
+  });
+});
+
+describe("CustomerPresenter discount and cents_before_offer_code", () => {
+  const CODE_ID = 11;
+  const sale = (overrides: Record<string, unknown> = {}) => ({ id: 5, offer_code_id: null, displayed_price_cents: 800, quantity: 2, flags: 0, ...overrides });
+  const code = (overrides: Record<string, unknown> = {}) => ({ id: CODE_ID, code: "SPRING", flags: 0, amount_cents: null, amount_percentage: 20, deleted_at: null, ...overrides });
+  const discount = (overrides: Record<string, unknown> = {}) => ({
+    purchase_id: 5, offer_code_id: CODE_ID, offer_code_amount: 20, offer_code_is_percent: true, once_per_cart: false,
+    pre_discount_minimum_price_cents: 500, pre_discount_displayed_price_cents: null, ...overrides,
+  });
+
+  function answering(tables: { purchase_offer_code_discounts?: Record<string, unknown>[]; offer_codes?: Record<string, unknown>[] }) {
+    setSqlClient(() => ({
+      $queryRaw: (async (query: { sql: string }) => {
+        if (query.sql.includes("FROM `purchase_offer_code_discounts`")) return tables.purchase_offer_code_discounts ?? [];
+        if (query.sql.includes("FROM `offer_codes`")) return tables.offer_codes ?? [];
+        if (query.sql.includes("FROM `tips`")) return [];
+        throw new Error(`unexpected statement: ${query.sql}`);
+      }) as never,
+      $executeRaw: (async () => 0) as never,
+    }));
+  }
+
+  it("reads the cached discount, not the code's current amount, once the code was edited", async () => {
+    answering({ purchase_offer_code_discounts: [discount({ offer_code_amount: 20 })], offer_codes: [code({ amount_percentage: 50 })] });
+
+    expect(await offerCodeReading(sale(), null, true)).toEqual({
+      discountCode: { amount_cents: null, amount_percentage: 20, code: "SPRING" },
+      beforeOfferCode: 1000,
+    });
+  });
+
+  it("reports a fixed cached discount with its cents", async () => {
+    answering({ purchase_offer_code_discounts: [discount({ offer_code_is_percent: false, offer_code_amount: 300 })], offer_codes: [code()] });
+
+    expect((await offerCodeReading(sale(), null, true)).discountCode).toEqual({ amount_cents: 300, amount_percentage: null, code: "SPRING" });
+  });
+
+  it("uses the stored pre-discount price of a once-per-cart fixed discount", async () => {
+    answering({
+      purchase_offer_code_discounts: [discount({ offer_code_is_percent: false, offer_code_amount: 300, once_per_cart: true, pre_discount_displayed_price_cents: 1100 })],
+      offer_codes: [code()],
+    });
+
+    expect((await offerCodeReading(sale(), null, true)).beforeOfferCode).toBe(1100);
+  });
+
+  it("adds the discount back to a once-per-cart fixed sale that stored no pre-discount price", async () => {
+    answering({ purchase_offer_code_discounts: [discount({ offer_code_is_percent: false, offer_code_amount: 300, once_per_cart: true })], offer_codes: [code()] });
+
+    expect((await offerCodeReading(sale(), null, true)).beforeOfferCode).toBe(1100);
+  });
+
+  it("keeps reading the purchase's own code when no discount is cached", async () => {
+    answering({});
+
+    expect(await offerCodeReading(sale({ offer_code_id: CODE_ID }), code(), false)).toEqual({
+      discountCode: code(),
+      beforeOfferCode: 2000,
+    });
+  });
+
+  it("hides a deleted code's discount but still lists the price before it", async () => {
+    answering({});
+
+    expect(await offerCodeReading(sale({ offer_code_id: CODE_ID }), code({ deleted_at: new Date() }), false)).toMatchObject({ discountCode: null, beforeOfferCode: 2000 });
+  });
+
+  it("has no discount and the displayed price for a sale without a code", async () => {
+    answering({});
+
+    expect(await offerCodeReading(sale(), null, false)).toEqual({ discountCode: null, beforeOfferCode: 800 });
   });
 });
