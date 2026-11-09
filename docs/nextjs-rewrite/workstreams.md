@@ -38,7 +38,7 @@ a letter suffix (`nextjs/ws-12d-bundle-edit`). This table maps every merged bran
 | Planned stream | Merged branches (`nextjs/ws-…`) | State |
 | --- | --- | --- |
 | WS-00 … WS-06 Foundation | 01, 02, 03, 04, 05, 06, 38 (query cache), 43 (page envelope), 50 (signed-in shared props), 55 (page spec options) | Done |
-| WS-10 Settings and account | 53, 54 (auth pages), 56, 62 (payments, profile) | Most pages; mutations still in Rails |
+| WS-10 Settings and account | 53, 54 (auth pages), 56, 62 (payments, profile), 10c (billing), 10d (team members, AI promo dismissal) | Most pages; billing, third-party analytics, advanced, team member role/remove/restore and the AI promo dismissal write in Node. Profile, main settings, password and team invitations stay in Rails (avatar and sections, reconfirmation, bcrypt and sessions, mail parsing and throttling) |
 | WS-11 Help center, pages, blog, profiles | 55, 64, 68, 84 (profile products) | Profiles with featured products or wishlists hand back |
 | WS-12 Products and bundles | 39 (link writes), 69, 71, 77, 80, 12f, 12g | Product page partly rendered; editor for plain digital products only, now including tags, other-product refund policies and plain versions with their categories (SKUs, tiers, integrations on versions, files, shared-content version pages still hand back); `GET /bundles/:id` redirect ported (301 to the product editor); bundle editors (Product, Content, Share), `create_from_email` and bundle writes still in Rails |
 | WS-13 Audience, emails, workflows | 51, 57, 59, 63, 67, 74, 82; mailers 31, 35, 40, 60, 73, 76, 85 | Pages and their mutations; receipt mailer for common shapes |
