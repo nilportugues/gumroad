@@ -1,12 +1,14 @@
-// LibraryPresenter#library_props for LibraryController#index, for a library of one-time purchases.
-// A buyer whose library holds a membership or installment plan (subscription labels, no-access
-// filtering, billing-only cards), a bundle (replaced rows, ZIP downloads), or a request that asks for
-// the subscriptions tab, a bundle filter or purchase analytics, goes to Rails whole (HandBackToRails).
+// Port of app/presenters/library_presenter.rb: LibraryPresenter#library_props for LibraryController#index.
+// Memberships that still grant access, installment plans and bundles (member rows replace the bundle row)
+// are served here. A request for the subscriptions tab (status labels, billing-only cards), a bundle filter
+// that resolves to a bundle purchase with a download page (ZIP archives), or a refunded subscription row
+// (replacement renewal redirects) goes to Rails whole (HandBackToRails).
 import { Prisma, type Link, type Purchase, type User } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
-import { encrypt } from "../../../lib/obfuscate-ids.ts";
+import { decrypt, encrypt } from "../../../lib/obfuscate-ids.ts";
 import { HandBackToRails } from "../../controllers/application-controller.ts";
+import { grantsAccess } from "../../controllers/url-redirects/access.ts";
 import { LinkFlags } from "../../models/link.ts";
 import { castRow, column, selectRows, table } from "../../models/sql.ts";
 import { PurchaseFlags } from "../../search/flags.ts";
@@ -56,26 +58,82 @@ export function rubySplitComma(value: string): string[] {
 // Integer("12abc") style `to_i`: leading digits, else 0.
 const rubyToI = (value: string) => Number.parseInt(/^\s*[+-]?\d+/.exec(value)?.[0] ?? "0", 10) || 0;
 
+// `bundle_ids.filter_map { Link.from_external_id(_1) }`
+const bundleLinkIds = (bundleIds: string[]) => bundleIds.flatMap((id) => decrypt(id) ?? []);
+
 // Whether the port can answer. The controller's filter asks before the page renders, since a page
 // that is rendering cannot hand the request back.
 export async function assertLibrarySupported(userId: bigint, params: Pick<LibraryParams, "bundles" | "subscriptionsOnly">): Promise<void> {
-  if (params.subscriptionsOnly || rubySplitComma(params.bundles).length > 0) throw new HandBackToRails();
-  const rows = await selectRows(
-    Prisma.sql`SELECT 1 FROM ${table(PURCHASES)} INNER JOIN ${table(LINKS)} ON ${column(LINKS, "id")} = ${column(PURCHASES, "link_id")} WHERE ${visibleInLibrary(userId)} AND (purchases.subscription_id IS NOT NULL OR ${LinkFlags.condition("is_recurring_billing", true)} OR ${flag("is_bundle_purchase", true)}) LIMIT 1`,
+  if (params.subscriptionsOnly) throw new HandBackToRails();
+  const base = visibleInLibrary(userId);
+  // library_download_location looks for a replacement renewal when the purchase was refunded.
+  const refunded = await selectRows(Prisma.sql`SELECT 1 FROM ${table(PURCHASES)} WHERE ${base} AND purchases.subscription_id IS NOT NULL AND purchases.stripe_refunded = 1 LIMIT 1`);
+  if (refunded.length > 0) throw new HandBackToRails();
+  const linkIds = bundleLinkIds(rubySplitComma(params.bundles));
+  if (linkIds.length === 0) return;
+  // bundle_downloads: the ZIP archive state is not ported, so a bundle with a download page hands back.
+  const downloads = await selectRows(
+    Prisma.sql`SELECT 1 FROM ${table(PURCHASES)} INNER JOIN ${table("url_redirects")} ON url_redirects.purchase_id = purchases.id WHERE ${base} AND ${flag("is_bundle_purchase", true)} AND ${column(PURCHASES, "link_id")} IN (${Prisma.join(linkIds)}) LIMIT 1`,
   );
-  if (rows.length > 0) throw new HandBackToRails();
+  if (downloads.length > 0) throw new HandBackToRails();
+}
+
+// `no_access_membership_purchase_ids`: a purchase whose subscription row is missing stays visible.
+async function noAccessMembershipPurchaseIds(base: Prisma.Sql): Promise<bigint[]> {
+  const pairs = await selectRows<{ id: bigint; subscription_id: bigint | null }>(
+    Prisma.sql`SELECT ${column(PURCHASES, "id")} AS id, ${column(PURCHASES, "subscription_id")} AS subscription_id FROM ${table(PURCHASES)} INNER JOIN ${table(LINKS)} ON ${column(LINKS, "id")} = ${column(PURCHASES, "link_id")} WHERE ${base} AND ${LinkFlags.condition("is_recurring_billing", true)} ORDER BY ${column(PURCHASES, "id")} ASC`,
+  );
+  if (pairs.length === 0) return [];
+  const subscriptionIds = [...new Set(pairs.flatMap((pair) => pair.subscription_id ?? []))];
+  const subscriptions = new Map((await db.subscription.findMany({ where: { id: { in: subscriptionIds } } })).map((subscription) => [subscription.id, subscription]));
+  const linkIds = [...new Set([...subscriptions.values()].flatMap((subscription) => subscription.link_id ?? []))];
+  const links = new Map((await db.link.findMany({ where: { id: { in: linkIds } } })).map((link) => [link.id, link]));
+  const now = new Date();
+  return pairs.flatMap((pair) => {
+    const subscription = pair.subscription_id === null ? undefined : subscriptions.get(pair.subscription_id);
+    if (!subscription) return [];
+    return grantsAccess(subscription, subscription.link_id === null ? null : (links.get(subscription.link_id) ?? null), now) ? [] : [pair.id];
+  });
+}
+
+// `replaced_bundle_purchase_ids`: a bundle row is dropped only when one of its member rows is in the library.
+async function replacedBundlePurchaseIds(base: Prisma.Sql): Promise<bigint[]> {
+  const bundles = await selectRows<{ id: bigint }>(Prisma.sql`SELECT ${column(PURCHASES, "id")} AS id FROM ${table(PURCHASES)} WHERE ${base} AND ${flag("is_bundle_purchase", true)}`);
+  if (bundles.length === 0) return [];
+  const rows = await selectRows<{ bundle_purchase_id: bigint }>(
+    Prisma.sql`SELECT DISTINCT bundle_purchase_id FROM ${table("bundle_product_purchases")} WHERE bundle_purchase_id IN (${Prisma.join(bundles.map((row) => row.id))}) AND product_purchase_id IN (SELECT purchases.id FROM ${table(PURCHASES)} WHERE ${base})`,
+  );
+  return rows.map((row) => row.bundle_purchase_id);
+}
+
+const notIn = (ids: bigint[]) => (ids.length === 0 ? Prisma.sql`1 = 1` : Prisma.sql`${column(PURCHASES, "id")} NOT IN (${Prisma.join(ids)})`);
+
+// `bundle_filter_options`
+async function bundleFilterOptions(base: Prisma.Sql, replacedIds: bigint[]) {
+  if (replacedIds.length === 0) return [];
+  const rows = await selectRows<{ link_id: bigint }>(Prisma.sql`SELECT ${column(PURCHASES, "link_id")} AS link_id FROM ${table(PURCHASES)} WHERE ${base} AND ${column(PURCHASES, "id")} IN (${Prisma.join(replacedIds)}) ORDER BY ${column(PURCHASES, "id")} DESC`);
+  const linkIds = [...new Set(rows.map((row) => row.link_id))];
+  const links = new Map((await db.link.findMany({ where: { id: { in: linkIds } } })).map((link) => [link.id, link]));
+  return linkIds.flatMap((id) => {
+    const link = links.get(id);
+    return link ? [{ id: encrypt(link.id), label: link.name }] : [];
+  });
 }
 
 export async function libraryProps(user: User, params: LibraryParams) {
   const sort = params.sort === "purchase_date" ? "purchase_date" : "recently_updated";
   const creatorIds = rubySplitComma(params.creators);
+  const bundleIds = rubySplitComma(params.bundles);
   const base = visibleInLibrary(user.id);
+  const replacedIds = await replacedBundlePurchaseIds(base);
+  const visible = Prisma.sql`${base} AND ${notIn(await noAccessMembershipPurchaseIds(base))}`;
+  const cards = Prisma.sql`${visible} AND ${notIn(replacedIds)}`;
 
-  const archivedCount = await count(Prisma.sql`SELECT COUNT(*) AS count FROM ${table(PURCHASES)} WHERE ${base} AND ${flag("is_archived", true)}`);
-  const unarchivedCount = await count(Prisma.sql`SELECT COUNT(*) AS count FROM ${table(PURCHASES)} WHERE ${base} AND ${flag("is_archived", false)}`);
+  const archivedCount = await count(Prisma.sql`SELECT COUNT(*) AS count FROM ${table(PURCHASES)} WHERE ${visible} AND ${flag("is_archived", true)}`);
+  const unarchivedCount = await count(Prisma.sql`SELECT COUNT(*) AS count FROM ${table(PURCHASES)} WHERE ${visible} AND ${flag("is_archived", false)}`);
 
   // The filters, over the archive partition of the library.
-  const conditions: Prisma.Sql[] = [base, flag("is_archived", params.showArchivedOnly)];
+  const conditions: Prisma.Sql[] = [cards, flag("is_archived", params.showArchivedOnly)];
   let joins = Prisma.empty;
   let linkJoined = false;
   const joinLink = () => {
@@ -87,6 +145,14 @@ export async function libraryProps(user: User, params: LibraryParams) {
     const creatorUserIds = (await db.user.findMany({ where: { external_id: { in: creatorIds } }, select: { id: true } })).map((row) => row.id);
     joinLink();
     conditions.push(creatorUserIds.length === 0 ? Prisma.sql`1 = 0` : Prisma.sql`${column(LINKS, "user_id")} IN (${Prisma.join(creatorUserIds)})`);
+  }
+  if (bundleIds.length > 0) {
+    const linkIds = bundleLinkIds(bundleIds);
+    conditions.push(
+      linkIds.length === 0
+        ? Prisma.sql`1 = 0`
+        : Prisma.sql`purchases.id IN (SELECT bpp.product_purchase_id FROM ${table("bundle_product_purchases")} bpp INNER JOIN ${table(PURCHASES)} bundle ON bundle.id = bpp.bundle_purchase_id WHERE bundle.link_id IN (${Prisma.join(linkIds)}))`,
+    );
   }
   if (params.query !== "") {
     // sanitize_sql_like escapes backslash, percent and underscore with a backslash.
@@ -121,8 +187,9 @@ export async function libraryProps(user: User, params: LibraryParams) {
   return {
     results: await buildCards(purchases),
     pagination: { page, pages, from: Math.min(offset + 1, total), to: Math.min(offset + purchases.length, total), count: total },
-    creators: await creatorsForTab(base, params.showArchivedOnly),
-    bundles: [],
+    creators: await creatorsForTab(cards, params.showArchivedOnly),
+    bundles: await bundleFilterOptions(base, replacedIds),
+    // assertLibrarySupported hands back whenever the selected bundles have a download page.
     bundle_downloads: [],
     archived_count: archivedCount,
     unarchived_count: unarchivedCount,
@@ -130,7 +197,7 @@ export async function libraryProps(user: User, params: LibraryParams) {
       sort,
       query: params.query,
       creators: creatorIds,
-      bundles: [],
+      bundles: bundleIds,
       show_archived_only: params.showArchivedOnly,
       subscriptions_only: false,
     },

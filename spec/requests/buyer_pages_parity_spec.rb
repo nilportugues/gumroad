@@ -352,12 +352,43 @@ describe "Buyer pages", type: :request do
         expect(flash[:alert]).to eq("Your current role as Admin cannot perform this action.")
       end
 
-      # The port hands these to Rails, so there is nothing to replay.
-      it "renders a library with a membership", parity: false do
-        create(:membership_purchase, purchaser: buyer).tap { _1.create_url_redirect! }
+      it "lists a membership that grants access and hides one whose access ended", parity: true do
+        active = create(:membership_purchase, purchaser: buyer, link: create(:membership_product, name: "Active membership")).tap { _1.create_url_redirect! }
+        ended = create(:membership_purchase, purchaser: buyer, link: create(:membership_product, name: "Ended membership")).tap { _1.create_url_redirect! }
+        ended.link.update!(block_access_after_membership_cancellation: true)
+        ended.subscription.update!(cancelled_at: 1.day.ago)
         log_in(buyer)
 
         get library_path
+
+        expect(response).to be_successful
+        props = inertia_props_of(response)
+        expect(props["results"].map { _1.dig("purchase", "id") }).to eq([active.external_id])
+        expect(props).to include("archived_count" => 0, "unarchived_count" => 1)
+      end
+
+      it "renders member purchases instead of the bundle purchase and offers the bundle filter", parity: true do
+        bundle_purchase = create(:purchase, purchaser: buyer, email: buyer.email, link: create(:product, :bundle)).tap { _1.create_url_redirect! }
+        bundle_purchase.link.bundle_products.each do |bundle_product|
+          member = create(:purchase, purchaser: buyer, email: buyer.email, link: bundle_product.product, is_bundle_product_purchase: true).tap { _1.create_url_redirect! }
+          BundleProductPurchase.create!(bundle_purchase:, product_purchase: member)
+        end
+        log_in(buyer)
+
+        get library_path(bundles: bundle_purchase.link.external_id)
+
+        expect(response).to be_successful
+        props = inertia_props_of(response)
+        expect(props["bundles"]).to eq([{ "id" => bundle_purchase.link.external_id, "label" => bundle_purchase.link.name }])
+        expect(props["results"].map { _1.dig("product", "name") }).to match_array(bundle_purchase.link.bundle_products.map { _1.product.name })
+      end
+
+      # The subscriptions tab is handed to Rails, so there is nothing to replay.
+      it "renders the subscriptions tab", parity: false do
+        create(:membership_purchase, purchaser: buyer).tap { _1.create_url_redirect! }
+        log_in(buyer)
+
+        get library_path(subscriptions_only: "true")
 
         expect(response).to be_successful
       end
