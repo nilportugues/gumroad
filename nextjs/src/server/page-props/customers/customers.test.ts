@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { HandBackToRails } from "../../controllers/application-controller.ts";
 import { setSqlClient } from "../../models/sql.ts";
-import { affiliateJson, displayReferrer, offerCodeReading, upsellNamesFor, variantOption, pageOffset, refundableCents, refundIsEffective, rubyToI, totalPages } from "./customers.ts";
+import { affiliateJson, displayReferrer, giftOf, offerCodeReading, upsellNamesFor, variantOption, pageOffset, refundableCents, refundIsEffective, rubyToI, totalPages } from "./customers.ts";
 
 const purchase = (overrides: Record<string, unknown>) => ({ flags: 0n, recommended_by: null, referrer: null, ...overrides });
 
@@ -220,5 +220,24 @@ describe("CustomerPresenter upsell", () => {
     answering([], []);
 
     expect((await upsellNamesFor([])).size).toBe(0);
+  });
+});
+
+describe("Purchase#gift", () => {
+  const SENDER_FLAG = 1n << 6n;
+  const RECEIVER_FLAG = 1n << 5n;
+  const loaded = {
+    gifts: new Map([["1", { giftee_email: "sent-to@example.com" }]]),
+    receivedGifts: new Map([["2", { giftee_email: "received-by@example.com" }]]),
+  };
+
+  it("is the gift a sender gave and the gift a receiver was handed", () => {
+    expect(giftOf({ id: 1, flags: SENDER_FLAG }, loaded)).toEqual({ giftee_email: "sent-to@example.com" });
+    expect(giftOf({ id: 2, flags: RECEIVER_FLAG }, loaded)).toEqual({ giftee_email: "received-by@example.com" });
+  });
+
+  it("is nothing for a purchase that is neither, even when a gift row shares its id", () => {
+    expect(giftOf({ id: 1, flags: 0n }, loaded)).toBeUndefined();
+    expect(giftOf({ id: 2, flags: SENDER_FLAG }, loaded)).toBeUndefined();
   });
 });

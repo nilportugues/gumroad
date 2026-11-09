@@ -2,8 +2,8 @@
 // and CustomerPresenter#customer (app/presenters/customer{,s}_presenter.rb).
 //
 // Handed back to Rails (HandBackToRails) when a customer on the page needs a reading the port does not make: a member or
-// installment plan (current subscription price, remaining charges), a preorder, a received gift or a sent gift whose
-// recipient holds a license, a bundle, a physical product, a Sku or a tier, several options on one sale, a collaborator sale that also credits a direct affiliate, a UTM link (`utm_url` is built by Addressable), a non-USD price without a
+// installment plan (current subscription price, remaining charges), a preorder, a sent gift whose
+// recipient holds a license, a physical product, a Sku or a tier, several options on one sale, a collaborator sale that also credits a direct affiliate, a UTM link (`utm_url` is built by Addressable), a non-USD price without a
 // stored rate or in a currency the port has no table for, a refund whose json_data is not plain JSON, a commission
 // with files, a review video, a custom field file, a seller whose ping endpoints must be checked (`can_ping`), and a
 // sale charged through a processor transaction URL (Stripe Connect, PayPal, Braintree).
@@ -159,6 +159,8 @@ type Loaded = {
   // Purchase#amount_refunded_cents: the sum of the effective refunds.
   refundedCents: Map<string, number>;
   gifts: Map<string, Row>;
+  // The gift a receiver's purchase was delivered through (`gift_received`), by the receiver's purchase id.
+  receivedGifts: Map<string, Row>;
 };
 
 // Refund#effective?: a failed or canceled refund counts unless its balance debits were reversed.
@@ -199,7 +201,7 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
     // usd_cents_to_currency converts the refundable amount at the rate stored on the sale; without one it would ask Redis.
     if (purchase.displayed_price_currency_type !== "usd" && !(typeof purchase.displayed_price_currency_type === "string" && purchase.displayed_price_currency_type in KNOWN_CURRENCIES && PLAIN_RATE.test(String(purchase.rate_converted_to_usd ?? "").trim()))) throw new HandBackToRails();
     const flags = (name: Parameters<typeof PurchaseFlags.isSet>[1]) => PurchaseFlags.isSet(purchase.flags, name);
-    if (flags("is_gift_receiver_purchase") || flags("is_bundle_purchase") || flags("is_commission_deposit_purchase")) throw new HandBackToRails();
+    if (flags("is_commission_deposit_purchase")) throw new HandBackToRails();
     if (flags("is_preorder_authorization") || flags("is_installment_payment")) throw new HandBackToRails();
   }
   for (const [tableName, columnName] of [
@@ -238,6 +240,8 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
   // Purchase#giftee_email reads the gift of a sender; its linked_license may be the recipient's, which is Rails' to answer.
   const senderIds = purchases.filter((purchase) => PurchaseFlags.isSet(purchase.flags, "is_gift_sender_purchase")).map((purchase) => purchase.id);
   const gifts = new Map((await rowsBy("gifts", "gifter_purchase_id", senderIds)).map((gift) => [String(gift.gifter_purchase_id), gift]));
+  const receiverIds = purchases.filter((purchase) => PurchaseFlags.isSet(purchase.flags, "is_gift_receiver_purchase")).map((purchase) => purchase.id);
+  const receivedGifts = new Map((await rowsBy("gifts", "giftee_purchase_id", receiverIds)).map((gift) => [String(gift.giftee_purchase_id), gift]));
   const gifteeIds = [...gifts.values()].map((gift) => gift.giftee_purchase_id).filter((id) => id != null);
   if (gifteeIds.length > 0 && (await exists(Prisma.sql`SELECT 1 FROM ${table("licenses")} WHERE ${column("licenses", "purchase_id")} IN (${inList(gifteeIds)}) LIMIT 1`))) throw new HandBackToRails();
 
@@ -259,6 +263,7 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
     purchases,
     links,
     hasAliveVariants: await productsWithAliveVariants([...links.keys()]),
+    receivedGifts,
     variants,
     upsellNames,
     affiliates,
@@ -380,6 +385,14 @@ export function variantOption(variant: Row, productName: string) {
   };
 }
 
+// Purchase#gift: the sender's gift_given, else the receiver's gift_received.
+export function giftOf(purchase: Row, loaded: Pick<Loaded, "gifts" | "receivedGifts">): Row | undefined {
+  const id = String(purchase.id);
+  if (PurchaseFlags.isSet(purchase.flags, "is_gift_sender_purchase")) return loaded.gifts.get(id);
+  if (PurchaseFlags.isSet(purchase.flags, "is_gift_receiver_purchase")) return loaded.receivedGifts.get(id);
+  return undefined;
+}
+
 // CustomerPresenter's `affiliate`: the affiliate's form_email, the credit this sale paid them (own_affiliate_credit_cents, with no
 // direct affiliate to subtract) and the STI type.
 export function affiliateJson(purchase: Row, affiliate: Row, user: Row) {
@@ -399,7 +412,7 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
   const id = String(purchase.id);
   const quantity = purchase.quantity ?? 1;
   const currency = String(purchase.displayed_price_currency_type);
-  const gift = flags("is_gift_sender_purchase") ? loaded.gifts.get(id) : undefined;
+  const gift = giftOf(purchase, loaded);
   const displayed = num(purchase.displayed_price_cents);
   const offerCode = purchase.offer_code_id == null ? null : (loaded.offerCodes.get(String(purchase.offer_code_id)) ?? null);
   const { discountCode, beforeOfferCode } = await offerCodeReading(purchase, offerCode, loaded.cachedDiscounts.has(id));
@@ -426,11 +439,11 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
     email: purchase.email,
     giftee_email: gift?.giftee_email ?? null,
     is_gift_sender_purchase: flags("is_gift_sender_purchase"),
-    is_gift_receiver_purchase: false,
+    is_gift_receiver_purchase: flags("is_gift_receiver_purchase"),
     name: present((purchase.full_name ?? "").trim()) ? purchase.full_name.trim() : (purchaser?.name ?? ""),
     physical: null,
     shipping: null,
-    is_bundle_purchase: false,
+    is_bundle_purchase: flags("is_bundle_purchase"),
     is_existing_user: purchaser !== null,
     can_contact: purchase.can_contact === true || purchase.can_contact === 1,
     product: { name: link.name, permalink: link.unique_permalink, native_type: link.native_type },
