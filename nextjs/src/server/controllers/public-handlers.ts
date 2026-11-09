@@ -29,6 +29,7 @@ import { impersonate, redirectToStripeDashboard } from "./internal-admin/admin-w
 import { assertFlatQuery } from "./rails-params.ts";
 import { queryParam, type RailsRequest, railsRequest } from "./rails-request.ts";
 import { esJson } from "../search/es-json.ts";
+import { urlRedirectsAction } from "./url-redirects/deliveries.ts";
 
 const TEXT = "text/plain; charset=utf-8";
 const API_V2_HANDLER = "api-v2";
@@ -190,6 +191,7 @@ const HANDLERS: Record<string, Handler> = {
   paypal_charge_data: { options: { optOutOfCsp: true }, run: (request) => paypalChargeData(request) },
   admin_impersonate: { run: (request, url, action) => impersonate(request, url, action) },
   admin_stripe_dashboard: { run: (request, url, action) => redirectToStripeDashboard(request, url, action) },
+  url_redirects: { run: (_request, _url, action) => urlRedirectsAction(action) },
 };
 
 export async function publicHandlerResponse(incoming: Request, name: string): Promise<Response> {

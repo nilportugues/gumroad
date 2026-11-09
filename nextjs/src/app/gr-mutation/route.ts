@@ -28,6 +28,7 @@ import "@/server/controllers/internal-admin/index";
 import "@/server/controllers/internal-api";
 import "@/server/controllers/product-editor-json";
 import "@/server/controllers/product-editor-mutations";
+import "@/server/controllers/url-redirects/mutations";
 import { mutationResponse } from "@/server/controllers/mutation";
 
 // GET: the logout and emailed two-factor links, which change state without a form.

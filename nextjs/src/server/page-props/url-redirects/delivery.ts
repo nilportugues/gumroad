@@ -2,7 +2,7 @@
 // download_product_files, download_subtitle_file, subtitle_file_vtt, smil): the redirects and 404s that check_permissions and
 // require_seller_for_test_purchase answer before the action runs. Everything past the gate signs an S3 or CloudFront URL, builds
 // a playlist or presenter props, or writes (rental stamp, use count, consumption event), so a request that passes goes to Rails
-// untouched. Nothing here writes, which is what makes that hand-back safe.
+// untouched (except the actions in SERVED_BY_NODE). Nothing here writes, which is what makes that hand-back safe.
 import { railsLoggedInUser } from "../../auth/resolve.ts";
 import {
   HandBackToRails,
@@ -14,6 +14,7 @@ import {
 } from "../../controllers/application-controller.ts";
 import { assertFlatQuery, requestFormat } from "../../controllers/rails-params.ts";
 import { queryParam } from "../../controllers/rails-request.ts";
+import { urlRedirectsAction } from "../../controllers/url-redirects/deliveries.ts";
 
 import { decideAccess } from "./download-gate.ts";
 import { buildGateInput } from "./download-page.ts";
@@ -116,8 +117,12 @@ async function gate(action: DeliveryAction, token: string, chain: Chain): Promis
   return { state: {} };
 }
 
-// The route handlers' entry point. A request that is not decided by the gate is forwarded to Rails.
+// Actions controllers/url-redirects/deliveries.ts carries past the gate (it runs the same before_actions itself), so they skip
+// deliveryFilters. The rest stop at the gate and go to Rails.
+const SERVED_BY_NODE = new Set<DeliveryAction>(["show", "download_product_files", "download_archive", "hls_playlist", "smil", "download_subtitle_file"]);
+
 export function deliveryResponse(incoming: Request, action: DeliveryAction): Promise<Response> {
+  if (SERVED_BY_NODE.has(action)) return processAction(incoming, {}, urlRedirectsAction);
   return processAction(incoming, { filters: deliveryFilters(action) }, (): Promise<ActionResult> => {
     throw new HandBackToRails(`${action} past the access gate`);
   });
