@@ -1,17 +1,26 @@
 // Port of app/sidekiq/delete_product_files_archives_worker.rb up to the first ProductFilesArchive#mark_deleted!: nothing to do, a
-// product (or variant) whose deletion was undone, and a deleted one with no live archive finish here. A live archive to delete is
-// handed back to Rails before any write (the soft delete runs PaperTrail and CdnDeletable callbacks). Golden:
+// product (or variant) whose deletion was undone, and a deleted one with no live archive finish here, and a variant with no category
+// (or a category with no product) fails with Ruby's NoMethodError / RecordNotFound. A live archive to delete is handed back to Rails
+// before any write (the soft delete runs PaperTrail and CdnDeletable callbacks); so is a deleted SKU, whose archives query is a Mysql2 error. Golden:
 // __fixtures__/delete-product-files-archives-worker.golden.json (scripts/golden/delete-product-files-archives-worker.rb).
 import { Prisma, type BaseVariant, type Link } from "@prisma/client";
 
 import { beforeSideEffects } from "../../server/jobs/hand-back.ts";
 import { findByIdBang, findOneBy, recordIdFrom } from "../../server/models/row-reads.ts";
+import { RecordNotFound } from "../../server/models/runtime/errors.ts";
 import { column, selectRows, table } from "../../server/models/sql.ts";
 import { NotPortedError } from "../../server/models/user.ts";
 
 import { modelJob } from "./support/job-deps.ts";
 
 const ARCHIVES = "product_files_archives";
+
+class NoMethodError extends Error {
+  readonly rubyClass = "NoMethodError";
+  constructor(method: string, receiver: string) {
+    super(`undefined method '${method}' for ${receiver}`);
+  }
+}
 
 // `owner.product_files_archives.alive.each(&:mark_deleted!)`: the load runs in Rails too, so a live archive is where Node stops.
 async function handBackIfLiveArchives(ownerColumn: "link_id" | "variant_id", ownerId: unknown) {
@@ -38,21 +47,16 @@ export const deleteProductFilesArchivesWorkerWith = modelJob(
     const variant = variantId === null ? null : await findByIdBang<BaseVariant>("BaseVariant", variantId);
     let productKey = productId;
     if (productKey === null) {
-      // `Link.find(variant.variant_category.link_id)`: a SKU has no category, and a dangling one is a NoMethodError in Rails.
+      // `Link.find(variant.variant_category.link_id)`: a SKU has no category method; a missing category is a nil receiver.
+      if (variant!.type !== "Variant") throw new NoMethodError("variant_category", "an instance of Sku");
       const category = await findOneBy<{ link_id: bigint | number | null }>(
         "VariantCategory",
         "id",
         variant!.variant_category_id,
       );
-      if (category === null || category.link_id === null) {
-        await beforeSideEffects(() => {
-          throw new NotPortedError(
-            "Link.find(variant.variant_category.link_id)",
-            "the variant has no category or the category no product",
-          );
-        });
-      }
-      productKey = BigInt(category!.link_id!);
+      if (category === null) throw new NoMethodError("link_id", "nil");
+      if (category.link_id === null) throw new RecordNotFound("Couldn't find Link without an ID");
+      productKey = BigInt(category.link_id);
     }
     const product = await findByIdBang<Link>("Link", productKey);
 

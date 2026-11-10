@@ -91,8 +91,9 @@ No debt line was open for the sales-threshold hand-back, so none was closed.
 `schedule-affiliate-workflows.golden.json` was regenerated on lane 15 (`gumroad_test_15`, Redis 56-58, `PARITY_ES_INDEX_SUFFIX=-c15`) with seven token cases (Integer, 2**70, negative, true, false); the 40 existing cases are unchanged. `ScheduleAffiliateWorkflowJobsJob` still hands back a Float, Array or Hash token (Rails casts an Array to an IN list). No debt line was open for it.
 
 `delete-product-files-archives-worker.golden.json` was recorded on lane 15 (`gumroad_test_15`, Redis 56-59, `PARITY_ES_INDEX_SUFFIX=-c15`). The one remaining
-hand-back of `DeleteProductFilesArchivesWorker` is `ProductFilesArchive#mark_deleted!` (PaperTrail, CdnDeletable); a variant without a category
-or a category without a product (Ruby NoMethodError) and non-Integer ids hand back too. No debt line was open for it.
+hand-back of `DeleteProductFilesArchivesWorker` is `ProductFilesArchive#mark_deleted!` (PaperTrail, CdnDeletable); a deleted SKU (Rails fails on a
+Mysql2 unknown-column error) and non-Integer ids hand back too. A variant without a category, a missing category row (NoMethodError) and a category without a product
+(RecordNotFound `Couldn't find Link without an ID`) now fail in Node like Ruby: six new golden cases on lane 15, the 28 existing ones unchanged. No debt line was open for it.
 
 `remove-suspended-account-follows-worker.golden.json` was recorded on lane 15 (`gumroad_test_15`, Redis 56-58, `PARITY_ES_INDEX_SUFFIX=-c15`). The one remaining
 hand-back of `RemoveSuspendedAccountFollowsWorker` is `Follower#mark_deleted!` (confirmed_at reset and Follower callbacks) for a live follow; a non-Integer user id hands back too. No debt line was open for it.

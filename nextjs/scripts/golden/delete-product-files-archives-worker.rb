@@ -86,5 +86,12 @@ cases << run("a deleted variant whose product link is missing", [nil, 1], seed: 
 cases << run("the variant id as digits", [nil, "1"], seed: alive_variant.merge(base_variants: [variant_row(1, 1, **DELETED)], product_files_archives: [archive_row(1, variant_id: 1)]))
 cases << run("the variant of a deleted product, ignoring the product's own archives", [1, 1], seed: { links: [link_row(1, **DELETED)], variant_categories: [category_row(1, 1)], base_variants: [variant_row(1, 1)], product_files_archives: [archive_row(1, link_id: 1)] })
 
+cases << run("a variant without a category", [nil, 1], seed: { base_variants: [variant_row(1, nil, **DELETED)] })
+cases << run("a variant without a category, with a product", [1, 1], seed: { links: [link_row(1)], base_variants: [variant_row(1, nil, **DELETED)] })
+cases << run("a variant whose category row is missing", [nil, 1], seed: { base_variants: [variant_row(1, 99, **DELETED)] })
+cases << run("a variant whose category has no product", [nil, 1], seed: { variant_categories: [category_row(1, nil)], base_variants: [variant_row(1, 1, **DELETED)] })
+cases << run("a SKU without a category", [nil, 1], seed: { base_variants: [variant_row(1, nil, type: "Sku", **DELETED)] })
+cases << run("a SKU whose deletion was undone, with a product", [1, 1], seed: { links: [link_row(1)], base_variants: [variant_row(1, nil, type: "Sku")] })
+
 File.write(OUT, JSON.pretty_generate({ "now" => NOW.to_f, "cases" => cases }) + "\n")
 puts "wrote #{OUT.relative_path_from(Rails.root)} (#{cases.size} cases)"
