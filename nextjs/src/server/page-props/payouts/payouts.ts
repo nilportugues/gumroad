@@ -349,7 +349,11 @@ export type PayoutsPlan = {
   dailyFallback: boolean;
   // A cacheable seller whose blob is missing: the page computes live and enqueues UpdateUserBalanceStatsCacheWorker.
   refreshBalanceStatsCache: boolean;
+  // The blob's two periods, when one exists: Rails serves them as stored, however stale, and still enqueues the refresh.
+  cached: CachedPeriods | null;
 };
+
+type CachedPeriods = { next: Record<string, unknown> | null; processing: Record<string, unknown>[] };
 
 const completedDisplayable = (userId: bigint) =>
   Prisma.sql`FROM payments WHERE payments.user_id = ${userId} AND payments.state = 'completed' AND payments.created_at >= ${OLDEST_DISPLAYABLE}`;
@@ -386,16 +390,31 @@ export async function balanceStatsCacheApplies(userId: bigint): Promise<boolean>
   }
 }
 
-// UserBalanceStatsService#read_cache: a blob that is absent, unparseable or JSON null is a miss, and so is an unreadable Redis.
-export async function balanceStatsCacheHit(userId: bigint): Promise<boolean> {
+// UserBalanceStatsService#read_cache: a blob that is absent, unparseable or JSON null/false is a miss (null here), and so is an
+// unreadable Redis.
+export async function readBalanceStatsBlob(userId: bigint): Promise<unknown> {
   try {
     const data = await getRedis("main").get(balanceStatsCacheKey(userId));
-    if (data === null) return false;
+    if (data === null) return null;
     const parsed: unknown = JSON.parse(data);
-    return parsed !== null && parsed !== false;
+    return parsed === false ? null : parsed;
   } catch {
-    return false;
+    return null;
   }
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+// `cached.slice(:next_payout_period_data, :processing_payout_periods_data)` and what the presenter then does with each key.
+// A blob that makes Rails raise (no processing list, a period that is not a hash) is served by Rails.
+function cachedPeriods(blob: unknown): CachedPeriods {
+  if (!isRecord(blob)) throw new HandBackToRails();
+  const next = blob.next_payout_period_data ?? null;
+  const processing = blob.processing_payout_periods_data;
+  if ((next !== null && !isRecord(next)) || !Array.isArray(processing) || !processing.every(isRecord))
+    throw new HandBackToRails();
+  return { next, processing };
 }
 
 export async function planPayouts(seller: Seller, pageParam: string | null, now = new Date()): Promise<PayoutsPlan> {
@@ -409,7 +428,8 @@ export async function planPayouts(seller: Seller, pageParam: string | null, now 
   const frequency = storedFrequency === "daily" ? "weekly" : storedFrequency;
   // A cached blob is served as is by Rails and a job refreshes it; only a miss (computed live, job enqueued) is ported.
   const refreshBalanceStatsCache = await balanceStatsCacheApplies(seller.id);
-  if (refreshBalanceStatsCache && (await balanceStatsCacheHit(seller.id))) throw new HandBackToRails();
+  const blob = refreshBalanceStatsCache ? await readBalanceStatsBlob(seller.id) : null;
+  const cached = blob === null ? null : cachedPeriods(blob);
 
   const facts = await payoutFacts(seller, now);
   // User#eligible_for_instant_payouts? asks Stripe about the bank account once the account is seasoned.
@@ -467,6 +487,7 @@ export async function planPayouts(seller: Seller, pageParam: string | null, now 
     frequency: frequency as PayoutFrequency,
     dailyFallback: storedFrequency === "daily",
     refreshBalanceStatsCache,
+    cached,
   };
 
   // Everything the props would throw NotPortedError for: Rails serves those requests.
@@ -811,6 +832,10 @@ export function payoutsProps(plan: PayoutsPlan, now = new Date()): PayoutsProps 
   return {
     next: async () => {
       await refreshCache();
+      // `payout_periods[:next_payout_period_data]&.merge(stripe_connect_routing_active: ...)`
+      if (plan.cached) {
+        return plan.cached.next && { ...plan.cached.next, stripe_connect_routing_active: await connectRouting() };
+      }
       // UserBalanceStatsService#next_payout_period_data: none while a standard payout is still processing.
       const pending = await one(
         Prisma.sql`SELECT payments.id FROM payments WHERE payments.user_id = ${seller.id} AND payments.state = 'processing' AND (JSON_UNQUOTE(JSON_EXTRACT(payments.json_data, '$.type')) != ${INSTANT_TYPE} OR JSON_EXTRACT(payments.json_data, '$.type') IS NULL) LIMIT 1`,
@@ -821,6 +846,10 @@ export function payoutsProps(plan: PayoutsPlan, now = new Date()): PayoutsProps 
     },
     processing: async () => {
       await refreshCache();
+      if (plan.cached) {
+        const routing = await connectRouting();
+        return plan.cached.processing.map((item) => ({ ...item, stripe_connect_routing_active: routing }));
+      }
       const result: Period[] = [];
       for (const { payment, bank } of plan.processingPayments) {
         const data = await period(await oldPayoutPeriodData(await ctx(), payment, bank), false);

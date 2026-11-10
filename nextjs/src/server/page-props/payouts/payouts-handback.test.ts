@@ -122,13 +122,45 @@ describe.skipIf(!url)("planPayouts hands back what it cannot prove", () => {
     };
     afterEach(cleanUp);
 
-    it("hands back a seller whose blob is cached", async () => {
+    it("serves the two periods of a cached blob as stored", async () => {
+      const user = await cacheable();
+      await redis().set(
+        balanceStatsCacheKey(USER_ID),
+        JSON.stringify({
+          generated_at: "2026-03-04T11:00:00Z",
+          next_payout_period_data: { status: "payable", payout_cents: 1 },
+          processing_payout_periods_data: [{ payout_cents: 2 }],
+        }),
+      );
+      const plan = await planPayouts(user, null, NOW);
+      expect(plan.refreshBalanceStatsCache).toBe(true);
+      expect(plan.cached).toEqual({ next: { status: "payable", payout_cents: 1 }, processing: [{ payout_cents: 2 }] });
+    });
+
+    it("serves a blob whose next period is null", async () => {
       const user = await cacheable();
       await redis().set(
         balanceStatsCacheKey(USER_ID),
         JSON.stringify({ next_payout_period_data: null, processing_payout_periods_data: [] }),
       );
-      await expect(planPayouts(user, null, NOW)).rejects.toBeInstanceOf(HandBackToRails);
+      expect((await planPayouts(user, null, NOW)).cached).toEqual({ next: null, processing: [] });
+    });
+
+    it("hands back a blob Rails would raise on", async () => {
+      const user = await cacheable();
+      const key = balanceStatsCacheKey(USER_ID);
+      for (const blob of [
+        { next_payout_period_data: null },
+        { next_payout_period_data: false, processing_payout_periods_data: [] },
+        { next_payout_period_data: null, processing_payout_periods_data: {} },
+        { next_payout_period_data: null, processing_payout_periods_data: ["x"] },
+        [],
+        "text",
+        true,
+      ]) {
+        await redis().set(key, JSON.stringify(blob));
+        await expect(planPayouts(user, null, NOW), JSON.stringify(blob)).rejects.toBeInstanceOf(HandBackToRails);
+      }
     });
 
     it("computes live and plans the refresh job when the blob is missing", async () => {
@@ -138,7 +170,7 @@ describe.skipIf(!url)("planPayouts hands back what it cannot prove", () => {
 
     it("reads an unparseable or null blob as a miss", async () => {
       const user = await cacheable();
-      for (const blob of ["{not json", "null", ""]) {
+      for (const blob of ["{not json", "null", "false", ""]) {
         await redis().set(balanceStatsCacheKey(USER_ID), blob);
         expect((await planPayouts(user, null, NOW)).refreshBalanceStatsCache, blob).toBe(true);
       }

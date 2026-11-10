@@ -216,8 +216,9 @@ fixture or golden that covers the behaviour, or with the covering check not run.
    examples at :251-:283 (whole rows under 75 percent, leftover on the waiting line, below the minimum, reserve
    anchored on what was already paid) have no fixture. The `paidCentsUnderChargebackRateHold` SQL (payments in
    `creating/processing/unclaimed/completed`) has no Rails comparison at all. The page only reads; no payout
-   execution is ported. Cached balance stats: only the miss is ported (live compute plus the refresh job, two recorded examples,
-   job compared in `checkout-payouts.replay.test.ts`); a blob that exists is read and handed back, so the cached-blob path has no Rails comparison.
+   execution is ported. Cached balance stats: a miss is computed live plus the refresh job, and a blob that exists is served as
+   stored (its `next_payout_period_data` and `processing_payout_periods_data`, plus the routing flag), five recorded examples compared in
+   `checkout-payouts.replay.test.ts`. A blob Rails would raise on (no processing list, a period that is not a hash) hands back and is unit-tested only.
 3. **Sales tax rounding and validation** (`server/tax/sales-tax-calculation.ts`, `regional-vat-id-shape.ts`,
    `sales-tax-countries.ts`). Money: `lookupTaxCents` rounds half away from zero in BigInt arithmetic; its tests
    are `customer_surcharge_controller_spec` vectors "then derived half-up cases", i.e. the extra cases are

@@ -339,6 +339,45 @@ describe "Payouts page when signed in", type: :request do
       expect(props["next_payout_period_data"]).to include("status" => "payable", "payout_cents" => 12_000)
       expect(UpdateUserBalanceStatsCacheWorker.jobs).to be_empty
     end
+
+    describe "with a cached blob" do
+      let(:blob_key) { "balance_stats_for_user_#{seller.id}_v2" }
+
+      it "serves the next period from the blob, not from the ledger, and queues the refresh", parity: true do
+        UserBalanceStatsService.new(user: seller).write_cache
+        balance(amount_cents: 3_000, days_ago: 21)
+
+        visit_payouts
+
+        expect(response).to be_successful
+        expect(props["next_payout_period_data"]).to include("status" => "payable", "payout_cents" => 12_000, "stripe_connect_routing_active" => false)
+        expect(UpdateUserBalanceStatsCacheWorker.jobs.map { _1["args"] }).to eq([[seller.id]])
+      end
+
+      it "serves a processing payout from the blob and no next period", parity: true do
+        payment = create(
+          :payment, user: seller, amount_cents: 4_000, processor: PayoutProcessorType::STRIPE, currency: Currency::USD,
+                    bank_account: seller.active_bank_account, stripe_transfer_id: "tr_cached", stripe_connect_account_id: "acct_cached",
+                    created_at: 1.day.ago, payout_period_end_date: Date.current - 10
+        )
+        UserBalanceStatsService.new(user: seller).write_cache
+        payment.update_columns(amount_cents: 4_500)
+
+        visit_payouts
+
+        expect(props["next_payout_period_data"]).to be_nil
+        expect(props["processing_payout_periods_data"].map { _1["payout_cents"] }).to eq([4_000])
+      end
+
+      it "computes the periods live when the blob cannot be parsed", parity: true do
+        $redis.set(blob_key, "{not json")
+
+        visit_payouts
+
+        expect(props["next_payout_period_data"]).to include("status" => "payable", "payout_cents" => 12_000)
+        expect(UpdateUserBalanceStatsCacheWorker.jobs.map { _1["args"] }).to eq([[seller.id]])
+      end
+    end
   end
 
   describe "team members" do
