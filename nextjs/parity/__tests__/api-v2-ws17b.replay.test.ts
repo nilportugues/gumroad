@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { decryptNumeric } from "@/lib/obfuscate-ids";
 import { closeAllRedis } from "@/server/infra/redis";
@@ -39,6 +39,14 @@ const SPECS: Record<string, { flag: string; methods: string[]; exclude?: RegExp;
   tax_forms_controller_spec: { flag: "nextjs_api_v2_tax", methods: ["GET"], exclude: /-get-download-|-download-/ },
 };
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
+// Both clocks are pinned (no date drifting) so the replay does not age. This is the instant the specs froze their clock at (it decides the
+// UTC day of `free_trial_ends_on`).
+const PARITY_NOW = Date.parse("2026-11-09T23:37:39Z");
+// The spec's `cancelled_at: Date.new(2026, 1, 10)` was recorded as `<now-7296h>`, which only resolves to that day from a whole-hour instant
+// on 2026-11-10 UTC; at the recording's minute it lands on the 9th. That is a day after the clock above, so these examples seed from
+// this one and skip what that shift moves (`free_trial_ends_on`, and the relative `timestamp` the server words from its own clock).
+const SUBSCRIPTION_END_NOW = Date.parse("2026-11-10T00:00:00Z");
+const SUBSCRIPTION_END_EXAMPLE = /includes-web-csv-parity-fields-in-the-response/u;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
 const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "m").exec(envTest)?.[1];
@@ -160,6 +168,8 @@ describe.skipIf(!url)("Api::V2 endpoints of WS-17b", () => {
     const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1];
     server = await startNextServer({
       RAILS_ENV: "test",
+      NODE_OPTIONS: `--require ${path.resolve(import.meta.dirname, "..", "src", "fixed-clock-preload.cjs")}`,
+      PARITY_CLOCK_OFFSET_MS: String(PARITY_NOW - Date.now()),
       OBFUSCATE_IDS_CIPHER_KEY: obfuscateKey ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: testEnv("OBFUSCATE_IDS_NUMERIC_CIPHER_KEY") ?? "0",
       NEXTJS_ROUTE_FLAGS: Object.values(SPECS).map((spec) => spec.flag).join(","),
@@ -176,9 +186,11 @@ describe.skipIf(!url)("Api::V2 endpoints of WS-17b", () => {
       ...(testEnv("AWS_ACCESS_KEY_ID") ? { AWS_ACCESS_KEY_ID: testEnv("AWS_ACCESS_KEY_ID")! } : {}),
       ...(testEnv("AWS_SECRET_ACCESS_KEY") ? { AWS_SECRET_ACCESS_KEY: testEnv("AWS_SECRET_ACCESS_KEY")! } : {}),
     });
+    vi.useFakeTimers({ now: PARITY_NOW, toFake: ["Date"], shouldAdvanceTime: true });
   }, FIRST_COMPILE_TIMEOUT_MS);
 
   afterAll(async () => {
+    vi.useRealTimers();
     await server?.stop();
     rails?.close();
     await closeAllRedis();
@@ -192,6 +204,7 @@ describe.skipIf(!url)("Api::V2 endpoints of WS-17b", () => {
     redis: { reset: (entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0]) => redisSeeder(redis).reset(entries) },
     transport: httpTransport(server.baseUrl),
     interceptHttp: false,
+    driftDates: false,
     jobs: redisJobs(redis),
     // `/v2/earnings.json` -> `/api/v2/earnings`: the main host serves the same routes under /api, without a format suffix.
     rewriteRequest: (request: FixtureRequest, fixture: Fixture, now: Date): FixtureRequest => ({
@@ -201,6 +214,7 @@ describe.skipIf(!url)("Api::V2 endpoints of WS-17b", () => {
     }),
     compare: COMPARE,
   });
+  const subscriptionEndCompare = { ignore: [...COMPARE.ignore, "response.json.sales.*.free_trial_ends_on", "response.json.sale.free_trial_ends_on", "response.json.sales.*.timestamp", "response.json.sale.timestamp"] };
 
   it("finds the fixtures", () => {
     expect(cases.length).toBeGreaterThan(0);
@@ -212,12 +226,17 @@ describe.skipIf(!url)("Api::V2 endpoints of WS-17b", () => {
   it.each(replayed)(
     "%s",
     async (_name, file, index) => {
+      const subscriptionEnd = SUBSCRIPTION_END_EXAMPLE.test(_name);
+      const resumeAt = Date.now();
+      if (subscriptionEnd) vi.setSystemTime(SUBSCRIPTION_END_NOW);
       try {
-        const result = await replayFixtureExchange(loadFixture(file), index, options());
+        const result = await replayFixtureExchange(loadFixture(file), index, subscriptionEnd ? { ...options(), compare: subscriptionEndCompare } : options());
         assertParity(result);
       } catch (error) {
         const logs = server.output().split("\n").filter((line) => !line.startsWith("Next.js includes")).slice(-30).join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
+      } finally {
+        if (subscriptionEnd) vi.setSystemTime(resumeAt + (Date.now() - SUBSCRIPTION_END_NOW));
       }
     },
     FIRST_COMPILE_TIMEOUT_MS,
