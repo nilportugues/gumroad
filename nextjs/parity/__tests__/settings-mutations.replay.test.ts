@@ -25,7 +25,8 @@ const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
 const SPECS = ["settings_mutations_signed_in_spec"];
-const ROUTE_FLAGS = "nextjs_settings_third_party_analytics_writes,nextjs_settings_advanced_writes,nextjs_settings_billing_writes,nextjs_settings_dismiss_ai_promo_writes,nextjs_settings_team_members_writes";
+const ROUTE_FLAGS =
+  "nextjs_settings_third_party_analytics_writes,nextjs_settings_advanced_writes,nextjs_settings_billing_writes,nextjs_settings_dismiss_ai_promo_writes,nextjs_settings_team_members_writes";
 const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "-settings";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
@@ -50,7 +51,8 @@ function withoutLockedRepeats<T extends { class: string; args: unknown; queue?: 
     return !seen.has(key) && seen.add(key) !== undefined;
   });
 }
-const jobKey = (job: { class: string; args: unknown; queue?: string }) => `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
+const jobKey = (job: { class: string; args: unknown; queue?: string }) =>
+  `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
 
 function redisJobs(redis: Redis): JobsChannel {
   return {
@@ -63,9 +65,19 @@ function redisJobs(redis: Redis): JobsChannel {
         if ((await redis.type(key)) !== "hash") continue;
         const data = await redis.hget(key, "data");
         if (data === null) continue;
-        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as { class: string; args: unknown[]; queue: string; at?: number };
+        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as {
+          class: string;
+          args: unknown[];
+          queue: string;
+          at?: number;
+        };
         if (IGNORED_JOBS.has(item.class)) continue;
-        jobs.push({ class: item.class, args: item.args, queue: item.queue, ...(item.at === undefined ? {} : { at: item.at }) });
+        jobs.push({
+          class: item.class,
+          args: item.args,
+          queue: item.queue,
+          ...(item.at === undefined ? {} : { at: item.at }),
+        });
       }
       // Jobs of a class Ruby still runs sit in Sidekiq's own lists and schedule.
       for (const key of await redis.keys("queue:*")) {
@@ -76,7 +88,8 @@ function redisJobs(redis: Redis): JobsChannel {
       }
       for (const raw of await redis.zrange("schedule", "0", "-1")) {
         const item = JSON.parse(raw) as { class: string; args: unknown[]; queue: string; at: number };
-        if (!IGNORED_JOBS.has(item.class)) jobs.push({ class: item.class, args: item.args, queue: item.queue, at: item.at });
+        if (!IGNORED_JOBS.has(item.class))
+          jobs.push({ class: item.class, args: item.args, queue: item.queue, at: item.at });
       }
       return withoutLockedRepeats(jobs).sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
     },
@@ -114,7 +127,14 @@ const cases = SPECS.flatMap((spec) => {
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
     .filter((file) => file.endsWith(".json"))
-    .map((file) => [`${spec}: ${file.replace(/\.json$/, "")}`, path.join(dir, file), loadFixture(path.join(dir, file)).exchanges.length - 1] as const);
+    .map(
+      (file) =>
+        [
+          `${spec}: ${file.replace(/\.json$/, "")}`,
+          path.join(dir, file),
+          loadFixture(path.join(dir, file)).exchanges.length - 1,
+        ] as const,
+    );
 });
 
 describe.skipIf(!url)("mutations of the settings pages", () => {
@@ -139,7 +159,11 @@ describe.skipIf(!url)("mutations of the settings pages", () => {
       const chunks: Buffer[] = [];
       request.on("data", (chunk: Buffer) => chunks.push(chunk));
       request.on("end", () => {
-        handedBack.push({ method: request.method ?? "", url: request.url ?? "", body: Buffer.concat(chunks).toString("utf8") });
+        handedBack.push({
+          method: request.method ?? "",
+          url: request.url ?? "",
+          body: Buffer.concat(chunks).toString("utf8"),
+        });
         response.writeHead(204).end();
       });
     });
@@ -184,7 +208,11 @@ describe.skipIf(!url)("mutations of the settings pages", () => {
     transport: httpTransport(server.baseUrl),
     interceptHttp: false,
     jobs: redisJobs(redis),
-    rewriteRequest: (request: Parameters<typeof reencryptCookies>[0], loaded: Parameters<typeof reencryptCookies>[1], now: Date) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
+    rewriteRequest: (
+      request: Parameters<typeof reencryptCookies>[0],
+      loaded: Parameters<typeof reencryptCookies>[1],
+      now: Date,
+    ) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
     compare: COMPARE,
     file,
   });
@@ -203,12 +231,19 @@ describe.skipIf(!url)("mutations of the settings pages", () => {
     expect(cases.length).toBeGreaterThan(0);
   });
 
-  it("compiles the handler", async () => {
-    for (const [name, file, index] of [cases.find(([name]) => name.includes("saves-the-pixel-ids")) ?? cases[0]!, cases.find(([name]) => name.includes("saves-the-ping-endpoint")) ?? cases[0]!]) {
-      const { file: _file, ...options } = replayOptions(file, name);
-      await replayFixtureExchange(file, index, options).catch(() => undefined);
-    }
-  }, FIRST_COMPILE_TIMEOUT_MS);
+  it(
+    "compiles the handler",
+    async () => {
+      for (const [name, file, index] of [
+        cases.find(([name]) => name.includes("saves-the-pixel-ids")) ?? cases[0]!,
+        cases.find(([name]) => name.includes("saves-the-ping-endpoint")) ?? cases[0]!,
+      ]) {
+        const { file: _file, ...options } = replayOptions(file, name);
+        await replayFixtureExchange(file, index, options).catch(() => undefined);
+      }
+    },
+    FIRST_COMPILE_TIMEOUT_MS,
+  );
 
   it.each(cases)(
     "%s",
@@ -217,7 +252,9 @@ describe.skipIf(!url)("mutations of the settings pages", () => {
         const fixture = loadFixture(file);
         // Rails and Node push in different orders across stores: both sides are compared sorted.
         const expected = fixture.exchanges[index]!;
-        expected.jobs = withoutLockedRepeats([...(expected.jobs ?? [])]).sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
+        expected.jobs = withoutLockedRepeats([...(expected.jobs ?? [])]).sort((a, b) =>
+          jobKey(a).localeCompare(jobKey(b)),
+        );
         const { file: _file, ...options } = replayOptions(file, _name);
         if (_name.includes("hands-a-")) {
           // Whatever Node cannot prove goes to Rails whole, before its first write.
@@ -233,7 +270,12 @@ describe.skipIf(!url)("mutations of the settings pages", () => {
         const result = await replayFixtureExchange(fixture, index, options);
         assertParity(result);
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => !line.startsWith("Next.js includes")).slice(-40).join("\n");
+        const logs = server
+          .output()
+          .split("\n")
+          .filter((line) => !line.startsWith("Next.js includes"))
+          .slice(-40)
+          .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
     },

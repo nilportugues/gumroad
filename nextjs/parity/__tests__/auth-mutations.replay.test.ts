@@ -63,7 +63,11 @@ function redisJobs(redis: Redis): JobsChannel {
         if ((await redis.type(key)) !== "hash") continue;
         const data = await redis.hget(key, "data");
         if (data === null) continue;
-        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as { class: string; args: unknown[]; queue: string };
+        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as {
+          class: string;
+          args: unknown[];
+          queue: string;
+        };
         jobs.push({ class: item.class, args: item.args, queue: item.queue });
       }
       for (const key of await redis.keys("queue:*")) {
@@ -125,12 +129,28 @@ const cases = SPECS.flatMap((spec) => {
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
     .filter((file) => file.endsWith(".json"))
-    .map((file) => [`${spec}: ${file.replace(/\.json$/, "")}`, path.join(dir, file), loadFixture(path.join(dir, file)).exchanges.length - 1] as const);
+    .map(
+      (file) =>
+        [
+          `${spec}: ${file.replace(/\.json$/, "")}`,
+          path.join(dir, file),
+          loadFixture(path.join(dir, file)).exchanges.length - 1,
+        ] as const,
+    );
 });
 
-function decryptedSession(secretKeyBase: string, fixture: Fixture, value: string | undefined): Record<string, unknown> | null {
+function decryptedSession(
+  secretKeyBase: string,
+  fixture: Fixture,
+  value: string | undefined,
+): Record<string, unknown> | null {
   if (!value || !fixture.sessionCookie) return null;
-  const decoded = readEncryptedCookie(deriveRailsCookieSecrets(secretKeyBase), fixture.sessionCookie, value, new Date(0));
+  const decoded = readEncryptedCookie(
+    deriveRailsCookieSecrets(secretKeyBase),
+    fixture.sessionCookie,
+    value,
+    new Date(0),
+  );
   return decoded !== null && typeof decoded === "object" ? (decoded as Record<string, unknown>) : null;
 }
 
@@ -183,7 +203,11 @@ describe.skipIf(!url)("mutations of the authentication pages", () => {
       const chunks: Buffer[] = [];
       request.on("data", (chunk: Buffer) => chunks.push(chunk));
       request.on("end", () => {
-        handedBack.push({ method: request.method ?? "", url: request.url ?? "", body: Buffer.concat(chunks).toString("utf8") });
+        handedBack.push({
+          method: request.method ?? "",
+          url: request.url ?? "",
+          body: Buffer.concat(chunks).toString("utf8"),
+        });
         response.writeHead(204).end();
       });
     });
@@ -209,8 +233,12 @@ describe.skipIf(!url)("mutations of the authentication pages", () => {
       RACK_ATTACK_REDIS_HOST: redisHost,
       DYNAMODB_ENDPOINT: process.env.DYNAMODB_ENDPOINT ?? "http://localhost:8012",
       ...(testEnv("DEVISE_SECRET_KEY") ? { DEVISE_SECRET_KEY: testEnv("DEVISE_SECRET_KEY")! } : {}),
-      ...(testEnv("SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION") ? { SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION: testEnv("SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION")! } : {}),
-      ...(testEnv("SECURE_EXTERNAL_ID__KEYS__1") ? { SECURE_EXTERNAL_ID__KEYS__1: testEnv("SECURE_EXTERNAL_ID__KEYS__1")! } : {}),
+      ...(testEnv("SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION")
+        ? { SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION: testEnv("SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION")! }
+        : {}),
+      ...(testEnv("SECURE_EXTERNAL_ID__KEYS__1")
+        ? { SECURE_EXTERNAL_ID__KEYS__1: testEnv("SECURE_EXTERNAL_ID__KEYS__1")! }
+        : {}),
       ...(testEnv("DYNAMODB_TABLE_PREFIX") ? { DYNAMODB_TABLE_PREFIX: testEnv("DYNAMODB_TABLE_PREFIX")! } : {}),
       AWS_S3_ENDPOINT: process.env.AWS_S3_ENDPOINT ?? "http://localhost:9010",
       ...(testEnv("AWS_ACCESS_KEY_ID") ? { AWS_ACCESS_KEY_ID: testEnv("AWS_ACCESS_KEY_ID")! } : {}),
@@ -220,12 +248,18 @@ describe.skipIf(!url)("mutations of the authentication pages", () => {
 
   const replayOptions = (file: string) => ({
     sql,
-    redis: { reset: (entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0]) => redisSeeder(redis).reset(entries) },
+    redis: {
+      reset: (entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0]) => redisSeeder(redis).reset(entries),
+    },
     transport: httpTransport(server.baseUrl),
     interceptHttp: false,
     jobs: redisJobs(redis),
     // Behind Rails' load balancer the client address is the X-Forwarded-For entry; the recording's was 127.0.0.1.
-    rewriteRequest: (request: Parameters<typeof reencryptCookies>[0], loaded: Parameters<typeof reencryptCookies>[1], now: Date) => {
+    rewriteRequest: (
+      request: Parameters<typeof reencryptCookies>[0],
+      loaded: Parameters<typeof reencryptCookies>[1],
+      now: Date,
+    ) => {
       const rewritten = reencryptCookies(request, loaded, SECRET_KEY_BASE, now);
       return { ...rewritten, headers: { ...rewritten.headers, "x-forwarded-for": rewritten.remoteIp ?? "127.0.0.1" } };
     },
@@ -247,16 +281,20 @@ describe.skipIf(!url)("mutations of the authentication pages", () => {
     expect(cases.length).toBeGreaterThan(0);
   });
 
-  it("compiles the handlers", async () => {
-    for (const [, file, index] of [
-      cases.find(([name]) => name.includes("signs-in-with-an-email")) ?? cases[0]!,
-      cases.find(([name]) => name.includes("signs-out-with-delete")) ?? cases[0]!,
-      cases.find(([name]) => name.includes("signs-in-with-the-token")) ?? cases[0]!,
-    ]) {
-      const { file: _file, ...options } = replayOptions(file);
-      await replayFixtureExchange(file, index, options).catch(() => undefined);
-    }
-  }, FIRST_COMPILE_TIMEOUT_MS);
+  it(
+    "compiles the handlers",
+    async () => {
+      for (const [, file, index] of [
+        cases.find(([name]) => name.includes("signs-in-with-an-email")) ?? cases[0]!,
+        cases.find(([name]) => name.includes("signs-out-with-delete")) ?? cases[0]!,
+        cases.find(([name]) => name.includes("signs-in-with-the-token")) ?? cases[0]!,
+      ]) {
+        const { file: _file, ...options } = replayOptions(file);
+        await replayFixtureExchange(file, index, options).catch(() => undefined);
+      }
+    },
+    FIRST_COMPILE_TIMEOUT_MS,
+  );
 
   it.each(cases)(
     "%s",
@@ -264,7 +302,7 @@ describe.skipIf(!url)("mutations of the authentication pages", () => {
       try {
         const fixture = loadFixture(file);
         const { file: _file, ...options } = replayOptions(file);
-        if (/-hands-an?-/.test(name)) {
+        if (/-hands-an?-/u.test(name)) {
           handedBack.length = 0;
           const handed = await replayFixtureExchange(fixture, index, options);
           const request = fixture.exchanges[index]!.request;
@@ -279,13 +317,27 @@ describe.skipIf(!url)("mutations of the authentication pages", () => {
         const { expected, actual } = result.exchanges[0]!;
         const sessionCookie = fixture.sessionCookie;
         if (sessionCookie && fixture.secretKeyBase) {
-          const rails = decryptedSession(fixture.secretKeyBase, fixture, expected.response.cookies?.[sessionCookie]?.value as string | undefined);
-          const node = decryptedSession(SECRET_KEY_BASE, fixture, actual.response.cookies?.[sessionCookie]?.value as string | undefined);
+          const rails = decryptedSession(
+            fixture.secretKeyBase,
+            fixture,
+            expected.response.cookies?.[sessionCookie]?.value as string | undefined,
+          );
+          const node = decryptedSession(
+            SECRET_KEY_BASE,
+            fixture,
+            actual.response.cookies?.[sessionCookie]?.value as string | undefined,
+          );
           sameSessions(rails, node);
           // A sign-in stamps the session with the time it happened.
-          const stamp = (session: Record<string, unknown> | null) => (session?.["warden.user.user.session"] as { last_sign_in_at?: number } | undefined)?.last_sign_in_at;
-          const before = decryptedSession(fixture.secretKeyBase, fixture, fixture.exchanges[index]!.request.cookies?.[sessionCookie]);
-          if (stamp(rails) !== undefined && stamp(rails) !== stamp(before)) expect(Math.abs(stamp(node)! - Date.now() / 1000)).toBeLessThan(SECONDS_TOLERANCE);
+          const stamp = (session: Record<string, unknown> | null) =>
+            (session?.["warden.user.user.session"] as { last_sign_in_at?: number } | undefined)?.last_sign_in_at;
+          const before = decryptedSession(
+            fixture.secretKeyBase,
+            fixture,
+            fixture.exchanges[index]!.request.cookies?.[sessionCookie],
+          );
+          if (stamp(rails) !== undefined && stamp(rails) !== stamp(before))
+            expect(Math.abs(stamp(node)! - Date.now() / 1000)).toBeLessThan(SECONDS_TOLERANCE);
         }
         // The mail jobs of a request spec go through the test adapter, so the fixture holds none: the port must enqueue the token mail.
         const mail = MAILS.find(([fragment]) => name.includes(fragment));
@@ -304,22 +356,50 @@ describe.skipIf(!url)("mutations of the authentication pages", () => {
           expect(row.encrypted_password!.startsWith("$2a$04$")).toBe(true);
         }
         // The cookies the harness cannot compare by value, decrypted.
-        const secrets = { rails: deriveRailsCookieSecrets(fixture.secretKeyBase ?? SECRET_KEY_BASE), node: deriveRailsCookieSecrets(SECRET_KEY_BASE) };
+        const secrets = {
+          rails: deriveRailsCookieSecrets(fixture.secretKeyBase ?? SECRET_KEY_BASE),
+          node: deriveRailsCookieSecrets(SECRET_KEY_BASE),
+        };
         for (const [cookieName, railsCookie] of Object.entries(expected.response.cookies ?? {})) {
           const nodeCookie = actual.response.cookies?.[cookieName];
           if (cookieName.startsWith("_gumroad_two_factor_")) {
-            const wantValue = readEncryptedCookie(secrets.rails, cookieName, railsCookie.value as string, new Date(0)) as string;
-            const gotValue = readEncryptedCookie(secrets.node, cookieName, nodeCookie?.value as string, new Date(0)) as string;
+            const wantValue = readEncryptedCookie(
+              secrets.rails,
+              cookieName,
+              railsCookie.value as string,
+              new Date(0),
+            ) as string;
+            const gotValue = readEncryptedCookie(
+              secrets.node,
+              cookieName,
+              nodeCookie?.value as string,
+              new Date(0),
+            ) as string;
             expect(gotValue.split(",")[0]).toBe(wantValue.split(",")[0]);
           }
           if (cookieName === "remember_user_token" && railsCookie.value) {
-            const wantValue = readSignedCookie(secrets.rails, cookieName, railsCookie.value as string, new Date(0)) as unknown[];
-            const gotValue = readSignedCookie(secrets.node, cookieName, nodeCookie?.value as string, new Date(0)) as unknown[];
+            const wantValue = readSignedCookie(
+              secrets.rails,
+              cookieName,
+              railsCookie.value as string,
+              new Date(0),
+            ) as unknown[];
+            const gotValue = readSignedCookie(
+              secrets.node,
+              cookieName,
+              nodeCookie?.value as string,
+              new Date(0),
+            ) as unknown[];
             expect(gotValue.slice(0, 2)).toEqual(wantValue.slice(0, 2));
           }
         }
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => !line.startsWith("Next.js includes")).slice(-40).join("\n");
+        const logs = server
+          .output()
+          .split("\n")
+          .filter((line) => !line.startsWith("Next.js includes"))
+          .slice(-40)
+          .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
     },

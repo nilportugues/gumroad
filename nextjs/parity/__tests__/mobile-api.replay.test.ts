@@ -24,14 +24,40 @@ const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests/api/mobile";
 const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "-mobile";
-const SPECS = ["mobile_api_parity_spec", "mobile_accounts_parity_spec", "mobile_hand_backs_parity_spec", "mobile_purchases_sales_parity_spec", "mobile_products_subscriptions_parity_spec"].filter((dir) => existsSync(path.join(FIXTURES, dir)));
-const ROUTE_FLAGS = ["feature_flags", "devices", "calls", "licenses", "review_videos", "media_locations", "accounts", "consumption_analytics", "analytics", "purchases", "sales", "url_redirect_delivery", "products", "subscriptions", "preorders", "installments"].map((name) => `nextjs_mobile_${name}`).join(",");
+const SPECS = [
+  "mobile_api_parity_spec",
+  "mobile_accounts_parity_spec",
+  "mobile_hand_backs_parity_spec",
+  "mobile_purchases_sales_parity_spec",
+  "mobile_products_subscriptions_parity_spec",
+].filter((dir) => existsSync(path.join(FIXTURES, dir)));
+const ROUTE_FLAGS = [
+  "feature_flags",
+  "devices",
+  "calls",
+  "licenses",
+  "review_videos",
+  "media_locations",
+  "accounts",
+  "consumption_analytics",
+  "analytics",
+  "purchases",
+  "sales",
+  "url_redirect_delivery",
+  "products",
+  "subscriptions",
+  "preorders",
+  "installments",
+]
+  .map((name) => `nextjs_mobile_${name}`)
+  .join(",");
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
 const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "m").exec(envTest)?.[1];
 
-const jobKey = (job: { class: string; args: unknown; queue?: string }) => `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
+const jobKey = (job: { class: string; args: unknown; queue?: string }) =>
+  `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
 
 // Jobs Node enqueues are BullMQ jobs wrapping the Sidekiq item; the key of a job is what its Sidekiq twin is compared by.
 function redisJobs(redis: Redis): JobsChannel {
@@ -45,8 +71,18 @@ function redisJobs(redis: Redis): JobsChannel {
         if ((await redis.type(key)) !== "hash") continue;
         const data = await redis.hget(key, "data");
         if (data === null) continue;
-        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as { class: string; args: unknown[]; queue: string; at?: number };
-        jobs.push({ class: item.class, args: item.args, queue: item.queue, ...(item.at === undefined ? {} : { at: item.at }) });
+        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as {
+          class: string;
+          args: unknown[];
+          queue: string;
+          at?: number;
+        };
+        jobs.push({
+          class: item.class,
+          args: item.args,
+          queue: item.queue,
+          ...(item.at === undefined ? {} : { at: item.at }),
+        });
       }
       return jobs.sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
     },
@@ -91,7 +127,14 @@ const cases = SPECS.flatMap((spec) => {
   const dir = path.join(FIXTURES, spec);
   return readdirSync(dir)
     .filter((file) => file.endsWith(".json"))
-    .map((file) => [`${spec.replace(/_spec$/, "")}: ${file.replace(/\.json$/, "")}`, path.join(dir, file), loadFixture(path.join(dir, file)).exchanges.length - 1] as const);
+    .map(
+      (file) =>
+        [
+          `${spec.replace(/_spec$/, "")}: ${file.replace(/\.json$/, "")}`,
+          path.join(dir, file),
+          loadFixture(path.join(dir, file)).exchanges.length - 1,
+        ] as const,
+    );
 });
 
 describe.skipIf(!url)("Mobile API parity", () => {
@@ -115,7 +158,11 @@ describe.skipIf(!url)("Mobile API parity", () => {
       const chunks: Buffer[] = [];
       request.on("data", (chunk: Buffer) => chunks.push(chunk));
       request.on("end", () => {
-        handedBack.push({ method: request.method ?? "", url: request.url ?? "", body: Buffer.concat(chunks).toString("utf8") });
+        handedBack.push({
+          method: request.method ?? "",
+          url: request.url ?? "",
+          body: Buffer.concat(chunks).toString("utf8"),
+        });
         response.writeHead(204).end();
       });
     });
@@ -168,7 +215,11 @@ describe.skipIf(!url)("Mobile API parity", () => {
     transport: httpTransport(server.baseUrl),
     interceptHttp: false,
     jobs: redisJobs(redis),
-    rewriteRequest: (request: Parameters<typeof reencryptCookies>[0], loaded: Parameters<typeof reencryptCookies>[1], now: Date) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
+    rewriteRequest: (
+      request: Parameters<typeof reencryptCookies>[0],
+      loaded: Parameters<typeof reencryptCookies>[1],
+      now: Date,
+    ) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
     compare: COMPARE,
   });
 
@@ -183,7 +234,7 @@ describe.skipIf(!url)("Mobile API parity", () => {
         const fixture = loadFixture(file);
         const expected = fixture.exchanges[index]!;
         expected.jobs = [...(expected.jobs ?? [])].sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
-        if (/hands-an?-/.test(name)) {
+        if (/hands-an?-/u.test(name)) {
           handedBack.length = 0;
           const handed = await replayFixtureExchange(fixture, index, replayOptions());
           const request = expected.request;
@@ -195,7 +246,12 @@ describe.skipIf(!url)("Mobile API parity", () => {
         }
         assertParity(await replayFixtureExchange(fixture, index, replayOptions()));
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => !line.startsWith("Next.js includes")).slice(-40).join("\n");
+        const logs = server
+          .output()
+          .split("\n")
+          .filter((line) => !line.startsWith("Next.js includes"))
+          .slice(-40)
+          .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
     },

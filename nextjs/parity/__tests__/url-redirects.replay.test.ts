@@ -11,10 +11,10 @@ import { deriveRailsCookieSecrets, readEncryptedCookie } from "@/server/auth/rai
 import { closeAllRedis } from "@/server/infra/redis";
 
 import type { JobsChannel, RawJob } from "../src/channels";
+import { compareExchange, formatDifferences } from "../src/compare";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
-import { compareExchange, formatDifferences } from "../src/compare";
 import { httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
 
@@ -32,10 +32,12 @@ const SPEC_OBJECTS: Record<string, string> = {
   "specs/ScreenRecording.mov": "delivery spec video",
   "specs/magic.mp3": "delivery spec audio",
   "specs/captions.srt": "1\n00:00:01,000 --> 00:00:02,000\nHello\n",
-  "attachments/0123456789abcdef0123456789abcdef/movie/hls/index.m3u8": "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000,RESOLUTION=640x360\nindex_360.m3u8\n#EXT-X-ENDLIST\n",
+  "attachments/0123456789abcdef0123456789abcdef/movie/hls/index.m3u8":
+    "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000,RESOLUTION=640x360\nindex_360.m3u8\n#EXT-X-ENDLIST\n",
 };
 const SPEC_BUCKET = "gumroad-specs";
-const ROUTE_FLAGS = "nextjs_consumption_analytics,nextjs_media_locations,nextjs_mobile_consumption_analytics,nextjs_mobile_media_locations,nextjs_mobile_url_redirect_delivery,nextjs_mobile_url_redirects,nextjs_url_redirect_confirm,nextjs_url_redirect_delivery,nextjs_url_redirect_download_archive,nextjs_url_redirect_download_page,nextjs_url_redirect_download_product_files,nextjs_url_redirect_expired,nextjs_url_redirect_hls_playlist,nextjs_url_redirect_membership_inactive,nextjs_url_redirect_play,nextjs_url_redirect_read,nextjs_url_redirect_rental_expired,nextjs_url_redirect_show,nextjs_url_redirect_smil,nextjs_url_redirect_stream,nextjs_url_redirect_subtitle_files,nextjs_url_redirect_writes";
+const ROUTE_FLAGS =
+  "nextjs_consumption_analytics,nextjs_media_locations,nextjs_mobile_consumption_analytics,nextjs_mobile_media_locations,nextjs_mobile_url_redirect_delivery,nextjs_mobile_url_redirects,nextjs_url_redirect_confirm,nextjs_url_redirect_delivery,nextjs_url_redirect_download_archive,nextjs_url_redirect_download_page,nextjs_url_redirect_download_product_files,nextjs_url_redirect_expired,nextjs_url_redirect_hls_playlist,nextjs_url_redirect_membership_inactive,nextjs_url_redirect_play,nextjs_url_redirect_read,nextjs_url_redirect_rental_expired,nextjs_url_redirect_show,nextjs_url_redirect_smil,nextjs_url_redirect_stream,nextjs_url_redirect_subtitle_files,nextjs_url_redirect_writes";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
@@ -48,7 +50,8 @@ const IGNORED_JOBS = new Set(["SendToElasticsearchWorker"]);
 // A request spec's mail goes through the test adapter, so the fixtures hold none: the port must enqueue it.
 const MAIL_WRAPPER = "ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper";
 const mailJobs: RawJob[] = [];
-const jobKey = (job: { class: string; args: unknown; queue?: string }) => `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
+const jobKey = (job: { class: string; args: unknown; queue?: string }) =>
+  `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
 
 function redisJobs(redis: Redis): JobsChannel {
   return {
@@ -61,15 +64,33 @@ function redisJobs(redis: Redis): JobsChannel {
         if ((await redis.type(key)) !== "hash") continue;
         const data = await redis.hget(key, "data");
         if (data === null) continue;
-        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as { class: string; args: unknown[]; queue: string; at?: number };
+        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as {
+          class: string;
+          args: unknown[];
+          queue: string;
+          at?: number;
+        };
         if (IGNORED_JOBS.has(item.class)) continue;
-        jobs.push({ class: item.class, args: item.args, queue: item.queue, ...(item.at === undefined ? {} : { at: item.at }) });
+        jobs.push({
+          class: item.class,
+          args: item.args,
+          queue: item.queue,
+          ...(item.at === undefined ? {} : { at: item.at }),
+        });
       }
       // Jobs Node has not ported go to Sidekiq's own structures: the queue lists and the schedule set.
-      const sidekiqItems = [...(await redis.zrange("schedule", "0", "-1")), ...(await Promise.all((await redis.keys("queue:*")).map((key) => redis.lrange(key, "0", "-1")))).flat()];
+      const sidekiqItems = [
+        ...(await redis.zrange("schedule", "0", "-1")),
+        ...(await Promise.all((await redis.keys("queue:*")).map((key) => redis.lrange(key, "0", "-1")))).flat(),
+      ];
       for (const raw of sidekiqItems) {
         const item = JSON.parse(raw) as { class: string; args: unknown[]; queue: string; at?: number };
-        jobs.push({ class: item.class, args: item.args, queue: item.queue, ...(item.at === undefined ? {} : { at: item.at }) });
+        jobs.push({
+          class: item.class,
+          args: item.args,
+          queue: item.queue,
+          ...(item.at === undefined ? {} : { at: item.at }),
+        });
       }
       mailJobs.length = 0;
       mailJobs.push(...jobs.filter((job) => job.class === MAIL_WRAPPER));
@@ -105,9 +126,16 @@ const COMPARE = {
 
 // X-Amz-Date, the date in the credential scope and the signature depend on the second a URL was signed at.
 const mask = (value: unknown): unknown => {
-  if (typeof value === "string") return value.replace(/X-Amz-Date=\d{8}T\d{6}Z/gu, "X-Amz-Date=<signed-at>").replace(/(X-Amz-Credential=[^&]*?)%2F\d{8}%2F/gu, "$1%2F<date>%2F").replace(/X-Amz-Signature=[0-9a-f]{64}/gu, "X-Amz-Signature=<signature>").replace(/(?<![-\w])Expires=\d{10}/gu, "Expires=<expires>").replace(/(?<![-\w])Signature=[A-Za-z0-9+/=_~-]+/gu, "Signature=<signature>");
+  if (typeof value === "string")
+    return value
+      .replace(/X-Amz-Date=\d{8}T\d{6}Z/gu, "X-Amz-Date=<signed-at>")
+      .replace(/(X-Amz-Credential=[^&]*?)%2F\d{8}%2F/gu, "$1%2F<date>%2F")
+      .replace(/X-Amz-Signature=[0-9a-f]{64}/gu, "X-Amz-Signature=<signature>")
+      .replace(/(?<![-\w])Expires=\d{10}/gu, "Expires=<expires>")
+      .replace(/(?<![-\w])Signature=[A-Za-z0-9+/=_~-]+/gu, "Signature=<signature>");
   if (Array.isArray(value)) return value.map(mask);
-  if (value !== null && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, mask(item)]));
+  if (value !== null && typeof value === "object")
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, mask(item)]));
   return value;
 };
 
@@ -116,7 +144,14 @@ const cases = SPECS.flatMap((spec) => {
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
     .filter((file) => file.endsWith(".json"))
-    .map((file) => [`${spec}: ${file.replace(/\.json$/, "")}`, path.join(dir, file), loadFixture(path.join(dir, file)).exchanges.length - 1] as const);
+    .map(
+      (file) =>
+        [
+          `${spec}: ${file.replace(/\.json$/, "")}`,
+          path.join(dir, file),
+          loadFixture(path.join(dir, file)).exchanges.length - 1,
+        ] as const,
+    );
 });
 
 describe.skipIf(!url)("url redirect delivery", () => {
@@ -131,8 +166,14 @@ describe.skipIf(!url)("url redirect delivery", () => {
   const secrets = deriveRailsCookieSecrets(SECRET_KEY_BASE);
 
   beforeAll(async () => {
-    const storage = new S3Client({ region: "us-east-1", endpoint: process.env.AWS_S3_ENDPOINT ?? "http://localhost:9010", forcePathStyle: true, credentials: { accessKeyId: "minioadmin", secretAccessKey: "minioadmin" } });
-    for (const [key, body] of Object.entries(SPEC_OBJECTS)) await storage.send(new PutObjectCommand({ Bucket: SPEC_BUCKET, Key: key, Body: body }));
+    const storage = new S3Client({
+      region: "us-east-1",
+      endpoint: process.env.AWS_S3_ENDPOINT ?? "http://localhost:9010",
+      forcePathStyle: true,
+      credentials: { accessKeyId: "minioadmin", secretAccessKey: "minioadmin" },
+    });
+    for (const [key, body] of Object.entries(SPEC_OBJECTS))
+      await storage.send(new PutObjectCommand({ Bucket: SPEC_BUCKET, Key: key, Body: body }));
     client = new PrismaClient({ datasourceUrl: url });
     sql = prismaExecutor(client);
     const [hostAndPort = "", db = "0"] = redisHost.split("/");
@@ -142,7 +183,11 @@ describe.skipIf(!url)("url redirect delivery", () => {
       const chunks: Buffer[] = [];
       request.on("data", (chunk: Buffer) => chunks.push(chunk));
       request.on("end", () => {
-        handedBack.push({ method: request.method ?? "", url: request.url ?? "", body: Buffer.concat(chunks).toString("utf8") });
+        handedBack.push({
+          method: request.method ?? "",
+          url: request.url ?? "",
+          body: Buffer.concat(chunks).toString("utf8"),
+        });
         response.writeHead(204).end();
       });
     });
@@ -163,7 +208,9 @@ describe.skipIf(!url)("url redirect delivery", () => {
       REDIS_HOST: redisHost,
       SIDEKIQ_REDIS_HOST: redisHost,
       RACK_ATTACK_REDIS_HOST: redisHost,
-      ...(testEnv("CLOUDFRONT_PRIVATE_KEY") ? { CLOUDFRONT_PRIVATE_KEY: testEnv("CLOUDFRONT_PRIVATE_KEY")!.replaceAll("\\n", "\n") } : {}),
+      ...(testEnv("CLOUDFRONT_PRIVATE_KEY")
+        ? { CLOUDFRONT_PRIVATE_KEY: testEnv("CLOUDFRONT_PRIVATE_KEY")!.replaceAll("\\n", "\n") }
+        : {}),
       ...(testEnv("CLOUDFRONT_KEYPAIR_ID") ? { CLOUDFRONT_KEYPAIR_ID: testEnv("CLOUDFRONT_KEYPAIR_ID")! } : {}),
       DYNAMODB_ENDPOINT: process.env.DYNAMODB_ENDPOINT ?? "http://localhost:8012",
       ...(testEnv("DYNAMODB_TABLE_PREFIX") ? { DYNAMODB_TABLE_PREFIX: testEnv("DYNAMODB_TABLE_PREFIX")! } : {}),
@@ -183,7 +230,11 @@ describe.skipIf(!url)("url redirect delivery", () => {
     transport: httpTransport(server.baseUrl),
     interceptHttp: false,
     jobs: redisJobs(redis),
-    rewriteRequest: (request: Parameters<typeof reencryptCookies>[0], loaded: Parameters<typeof reencryptCookies>[1], now: Date) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
+    rewriteRequest: (
+      request: Parameters<typeof reencryptCookies>[0],
+      loaded: Parameters<typeof reencryptCookies>[1],
+      now: Date,
+    ) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
     compare: COMPARE,
     file,
   });
@@ -201,19 +252,23 @@ describe.skipIf(!url)("url redirect delivery", () => {
     expect(cases.length).toBeGreaterThan(0);
   });
 
-  it("compiles the handler", async () => {
-    // One request per route shape, so no comparison pays for a route's first compile.
-    const shapes = new Map<string, (typeof cases)[number]>();
-    for (const entry of cases) {
-      const request = loadFixture(entry[1]).exchanges[entry[2]]!.request;
-      const shape = `${request.method} ${request.path.replace(/\/[0-9a-f]{32}/gu, "/:token").replace(/\/[A-Za-z0-9_-]+==/gu, "/:id")}`;
-      if (!shapes.has(shape)) shapes.set(shape, entry);
-    }
-    for (const [name, file, index] of shapes.values()) {
-      const { file: _file, ...options } = replayOptions(file, name);
-      await replayFixtureExchange(file, index, options).catch(() => undefined);
-    }
-  }, FIRST_COMPILE_TIMEOUT_MS);
+  it(
+    "compiles the handler",
+    async () => {
+      // One request per route shape, so no comparison pays for a route's first compile.
+      const shapes = new Map<string, (typeof cases)[number]>();
+      for (const entry of cases) {
+        const request = loadFixture(entry[1]).exchanges[entry[2]]!.request;
+        const shape = `${request.method} ${request.path.replace(/\/[0-9a-f]{32}/gu, "/:token").replace(/\/[A-Za-z0-9_-]+==/gu, "/:id")}`;
+        if (!shapes.has(shape)) shapes.set(shape, entry);
+      }
+      for (const [name, file, index] of shapes.values()) {
+        const { file: _file, ...options } = replayOptions(file, name);
+        await replayFixtureExchange(file, index, options).catch(() => undefined);
+      }
+    },
+    FIRST_COMPILE_TIMEOUT_MS,
+  );
 
   it.each(cases)(
     "%s",
@@ -237,7 +292,11 @@ describe.skipIf(!url)("url redirect delivery", () => {
         }
         const result = await replayFixtureExchange(fixture, index, options);
         const [{ expected: want, actual }] = result.exchanges as [(typeof result.exchanges)[number]];
-        const differences = compareExchange(mask(want) as typeof want, mask(actual) as typeof actual, { ...COMPARE, ignore: [...COMPARE.ignore, ...(want.response.status === 404 ? ["response.body"] : [])], ...(fixture.sessionCookie ? { sessionCookie: fixture.sessionCookie } : {}) });
+        const differences = compareExchange(mask(want) as typeof want, mask(actual) as typeof actual, {
+          ...COMPARE,
+          ignore: [...COMPARE.ignore, ...(want.response.status === 404 ? ["response.body"] : [])],
+          ...(fixture.sessionCookie ? { sessionCookie: fixture.sessionCookie } : {}),
+        });
         if (differences.length > 0) throw new Error(`${fixture.example}\n${formatDifferences(differences)}`);
         if (_name.includes("send-to-kindle-queues-the-file")) {
           expect(mailJobs).toHaveLength(1);
@@ -251,9 +310,18 @@ describe.skipIf(!url)("url redirect delivery", () => {
         const cookie = actual.response.cookies?.confirmed_redirect;
         const recorded = want.response.cookies?.confirmed_redirect;
         expect(cookie === undefined).toBe(recorded === undefined);
-        if (cookie) expect(readEncryptedCookie(secrets, "confirmed_redirect", String(cookie.value))).toBe(/^\/r\/([^/]+)/u.exec(want.request.path)?.[1] ?? new URLSearchParams(String(want.request.body ?? "")).get("id"));
+        if (cookie)
+          expect(readEncryptedCookie(secrets, "confirmed_redirect", String(cookie.value))).toBe(
+            /^\/r\/([^/]+)/u.exec(want.request.path)?.[1] ??
+              new URLSearchParams(String(want.request.body ?? "")).get("id"),
+          );
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => !line.startsWith("Next.js includes")).slice(-40).join("\n");
+        const logs = server
+          .output()
+          .split("\n")
+          .filter((line) => !line.startsWith("Next.js includes"))
+          .slice(-40)
+          .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
     },

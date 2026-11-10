@@ -2,8 +2,8 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import path from "node:path";
 
-import { PrismaClient } from "@prisma/client";
 import { Client as ElasticsearchClient } from "@elastic/elasticsearch";
+import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -23,9 +23,29 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests/api/v2";
-const WS17C_SPEC_DIRS = ["users", "utm_links", "emails", "workflows", "pages", "help_articles", "mcp"].map((name) => `${name}_parity_spec`);
-const SPECS = existsSync(FIXTURES) ? readdirSync(FIXTURES).filter((dir) => WS17C_SPEC_DIRS.includes(dir) && (process.env.WS17C_SPEC ? dir.startsWith(process.env.WS17C_SPEC) : true)) : [];
-const ROUTE_FLAGS = ["user", "pages", "help_articles", "marketing_actions", "utm_links", "emails", "workflows", "mcp", "well_known", "notion_unfurl"].map((name) => `nextjs_api_v2_${name}`).join(",");
+const WS17C_SPEC_DIRS = ["users", "utm_links", "emails", "workflows", "pages", "help_articles", "mcp"].map(
+  (name) => `${name}_parity_spec`,
+);
+const SPECS = existsSync(FIXTURES)
+  ? readdirSync(FIXTURES).filter(
+      (dir) =>
+        WS17C_SPEC_DIRS.includes(dir) && (process.env.WS17C_SPEC ? dir.startsWith(process.env.WS17C_SPEC) : true),
+    )
+  : [];
+const ROUTE_FLAGS = [
+  "user",
+  "pages",
+  "help_articles",
+  "marketing_actions",
+  "utm_links",
+  "emails",
+  "workflows",
+  "mcp",
+  "well_known",
+  "notion_unfurl",
+]
+  .map((name) => `nextjs_api_v2_${name}`)
+  .join(",");
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
@@ -47,7 +67,8 @@ async function resetAudienceIndex() {
   await es.close();
 }
 
-const jobKey = (job: { class: string; args: unknown; queue?: string }) => `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
+const jobKey = (job: { class: string; args: unknown; queue?: string }) =>
+  `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
 
 // Jobs Node enqueues are BullMQ jobs wrapping the Sidekiq item; the key of a job is what its Sidekiq twin is compared by.
 function redisJobs(redis: Redis): JobsChannel {
@@ -61,16 +82,33 @@ function redisJobs(redis: Redis): JobsChannel {
         if ((await redis.type(key)) !== "hash") continue;
         const data = await redis.hget(key, "data");
         if (data === null) continue;
-        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as { class: string; args: unknown[]; queue: string; at?: number };
-        jobs.push({ class: item.class, args: item.args, queue: item.queue, ...(item.at === undefined ? {} : { at: item.at }) });
+        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as {
+          class: string;
+          args: unknown[];
+          queue: string;
+          at?: number;
+        };
+        jobs.push({
+          class: item.class,
+          args: item.args,
+          queue: item.queue,
+          ...(item.at === undefined ? {} : { at: item.at }),
+        });
       }
       for (const key of await redis.keys("queue:*")) {
         for (const raw of await redis.lrange(key, 0, -1)) {
           const item = JSON.parse(raw) as { class: string; args: unknown[]; queue: string; at?: number };
-          jobs.push({ class: item.class, args: item.args, queue: item.queue, ...(item.at === undefined ? {} : { at: item.at }) });
+          jobs.push({
+            class: item.class,
+            args: item.args,
+            queue: item.queue,
+            ...(item.at === undefined ? {} : { at: item.at }),
+          });
         }
       }
-      return jobs.filter((job) => !LOCKED_JOBS.has(job.class) && !FALLBACK_JOBS.has(job.class)).sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
+      return jobs
+        .filter((job) => !LOCKED_JOBS.has(job.class) && !FALLBACK_JOBS.has(job.class))
+        .sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
     },
   };
 }
@@ -104,7 +142,14 @@ const cases = SPECS.flatMap((spec) => {
   const dir = path.join(FIXTURES, spec);
   return readdirSync(dir)
     .filter((file) => file.endsWith(".json"))
-    .map((file) => [`${spec.replace(/_parity_spec$/, "")}: ${file.replace(/\.json$/, "")}`, path.join(dir, file), loadFixture(path.join(dir, file)).exchanges.length - 1] as const);
+    .map(
+      (file) =>
+        [
+          `${spec.replace(/_parity_spec$/, "")}: ${file.replace(/\.json$/, "")}`,
+          path.join(dir, file),
+          loadFixture(path.join(dir, file)).exchanges.length - 1,
+        ] as const,
+    );
 });
 
 describe.skipIf(!url)("WS-17c API v2 parity", () => {
@@ -127,7 +172,11 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
       const chunks: Buffer[] = [];
       request.on("data", (chunk: Buffer) => chunks.push(chunk));
       request.on("end", () => {
-        handedBack.push({ method: request.method ?? "", url: request.url ?? "", body: Buffer.concat(chunks).toString("utf8") });
+        handedBack.push({
+          method: request.method ?? "",
+          url: request.url ?? "",
+          body: Buffer.concat(chunks).toString("utf8"),
+        });
         response.writeHead(204).end();
       });
     });
@@ -170,7 +219,11 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
     transport: httpTransport(server.baseUrl),
     interceptHttp: false,
     jobs: redisJobs(redis),
-    rewriteRequest: (request: Parameters<typeof reencryptCookies>[0], loaded: Parameters<typeof reencryptCookies>[1], now: Date) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
+    rewriteRequest: (
+      request: Parameters<typeof reencryptCookies>[0],
+      loaded: Parameters<typeof reencryptCookies>[1],
+      now: Date,
+    ) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
     compare: { ignore: [...COMPARE.ignore, ...random] },
   });
 
@@ -184,7 +237,9 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
       try {
         const fixture = loadFixture(file);
         const expected = fixture.exchanges[index]!;
-        expected.jobs = [...(expected.jobs ?? [])].filter((job) => !LOCKED_JOBS.has(job.class) && !FALLBACK_JOBS.has(job.class)).sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
+        expected.jobs = [...(expected.jobs ?? [])]
+          .filter((job) => !LOCKED_JOBS.has(job.class) && !FALLBACK_JOBS.has(job.class))
+          .sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
         if (name.includes("hands-back")) {
           handedBack.length = 0;
           const handed = await replayFixtureExchange(fixture, index, replayOptions());
@@ -194,9 +249,25 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
           return;
         }
         const paginates = name.includes("paginates-with-a-page-key");
-        const createsUtmLink = Object.keys(expected.db ?? {}).includes("utm_links") && name.includes("-creates-") || name.includes("-ignores-a-utm-parameter");
+        const createsUtmLink =
+          (Object.keys(expected.db ?? {}).includes("utm_links") && name.includes("-creates-")) ||
+          name.includes("-ignores-a-utm-parameter");
         // SecureRandom.alphanumeric(8) permalinks and the guid cookie Rails mints for a request without one.
-        const result = await replayFixtureExchange(fixture, index, replayOptions(createsUtmLink ? ["response.json.utm_link.short_url", "db.utm_links.inserted.*.permalink", "db.utm_links.inserted.*.browser_guid"] : paginates ? ["response.json.next_page_key", "response.json.next_page_url"] : []));
+        const result = await replayFixtureExchange(
+          fixture,
+          index,
+          replayOptions(
+            createsUtmLink
+              ? [
+                  "response.json.utm_link.short_url",
+                  "db.utm_links.inserted.*.permalink",
+                  "db.utm_links.inserted.*.browser_guid",
+                ]
+              : paginates
+                ? ["response.json.next_page_key", "response.json.next_page_url"]
+                : [],
+          ),
+        );
         assertParity(result);
         if (paginates) {
           // The key is the created_at of the tenth email, which the factory stamped relative to the recording's clock.
@@ -205,13 +276,22 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
           expect(body.next_page_url).toBe(`/v2/emails?page_key=${body.next_page_key}&type=draft`);
         }
         if (createsUtmLink) {
-          const inserted = (result.exchanges[0]!.actual.db as { utm_links: { inserted: { permalink: string; browser_guid: string }[] } }).utm_links.inserted[0]!;
+          const inserted = (
+            result.exchanges[0]!.actual.db as { utm_links: { inserted: { permalink: string; browser_guid: string }[] } }
+          ).utm_links.inserted[0]!;
           expect(inserted.permalink).toMatch(/^[a-z0-9]{8}$/);
           expect(inserted.browser_guid).toMatch(/^[0-9a-f-]{36}$/);
-          expect((result.exchanges[0]!.actual.response.json as { utm_link: { short_url: string } }).utm_link.short_url).toMatch(new RegExp(`/u/${inserted.permalink}$`));
+          expect(
+            (result.exchanges[0]!.actual.response.json as { utm_link: { short_url: string } }).utm_link.short_url,
+          ).toMatch(new RegExp(`/u/${inserted.permalink}$`));
         }
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => !line.startsWith("Next.js includes")).slice(-40).join("\n");
+        const logs = server
+          .output()
+          .split("\n")
+          .filter((line) => !line.startsWith("Next.js includes"))
+          .slice(-40)
+          .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
     },
