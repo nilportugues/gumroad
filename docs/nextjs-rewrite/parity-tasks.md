@@ -66,7 +66,7 @@ From "Open items" in [workstreams.md](workstreams.md). Each needs Node code plus
 
 - C1 Product file thumbnails and `blob.signed_id` (record a golden token first).
 - C2 Subtitle whose S3 object is missing (`S3KeyUnicodeNormalization` retry).
-- C3 `POST /customer_surcharge` beyond the plain cart.
+- C3 `POST /customer_surcharge` beyond the plain cart (the plain cart is ported; record `spec/requests/customer_surcharge_parity_spec.rb`, then widen).
 - C4 Customers page: physical products and Skus, UTM links, commissions, review videos, custom field files, Braintree sales,
   gifts to licence holders, multi-option sales, collaborator sales, India mandate members. Split by item.
 
