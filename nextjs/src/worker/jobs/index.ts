@@ -57,6 +57,7 @@ import { scheduleWorkflowInstallmentJob } from "./schedule-workflow-installment-
 import { publishScheduledPostJob } from "./publish-scheduled-post-job.ts";
 import { sendLastPostJob } from "./send-last-post-job.ts";
 import { deleteWishlistProductsJob } from "./delete-wishlist-products-job.ts";
+import { deleteProductFilesArchivesWorker } from "./delete-product-files-archives-worker.ts";
 import { fightDisputeJob, payoutUsersWorker, refundPurchaseWorker, updateUserBalanceStatsCacheWorker } from "./refund-payout-guard-jobs.ts";
 import { flushInstallmentDeliveredDeltasJob, scheduleAffiliateWorkflowJobsJob, scheduleWorkflowEmailsWorker, sendWorkflowInstallmentRescheduleJob, updateInstallmentEventsCountCacheWorker } from "./workflow-jobs.ts";
 import {
@@ -175,6 +176,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   FightDisputeJob: fightDisputeJob,
   PayoutUsersWorker: payoutUsersWorker,
   DeleteWishlistProductsJob: deleteWishlistProductsJob,
+  DeleteProductFilesArchivesWorker: deleteProductFilesArchivesWorker,
   RefundPurchaseWorker: refundPurchaseWorker,
   UpdateUserBalanceStatsCacheWorker: updateUserBalanceStatsCacheWorker,
 };
