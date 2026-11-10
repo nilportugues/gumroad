@@ -202,6 +202,38 @@ describe "Emails mutations when signed in", type: :request, elasticsearch_wait_f
     expect(flash[:alert]).to eq("Please include a message as part of the update.")
   end
 
+  it "keeps the call to action of a draft whose link and text are valid", parity: true do
+    installment = post_for("Call to action", slug: "call-to-action", call_to_action_text: "Buy now", call_to_action_url: "https://example.com/offer?a=1")
+    log_in(seller)
+
+    send_form(:put, email_path(installment.external_id), form(name: "Call to action", message: "<p>Edited body</p>"))
+
+    expect(response).to redirect_to(edit_email_path(installment.external_id))
+    expect(installment.reload).to have_attributes(message: "<p>Edited body</p>", call_to_action_text: "Buy now", call_to_action_url: "https://example.com/offer?a=1")
+  end
+
+  it "answers with the validation error when a draft has a call to action link and no text", parity: true do
+    installment = post_for("Call to action", slug: "call-to-action")
+    installment.update_columns(call_to_action_url: "https://example.com/offer", call_to_action_text: "  ")
+    log_in(seller)
+
+    send_form(:put, email_path(installment.external_id), form(name: "Call to action"))
+
+    expect(response).to redirect_to(edit_email_path(installment.external_id))
+    expect(flash[:alert]).to eq("Please enter text for your call to action.")
+  end
+
+  it "answers with the validation error when a draft has a call to action link that is not a web address", parity: true do
+    installment = post_for("Call to action", slug: "call-to-action")
+    installment.update_columns(call_to_action_url: "ftp://example.com/offer", call_to_action_text: "Buy now")
+    log_in(seller)
+
+    send_form(:put, email_path(installment.external_id), form(name: "Call to action"))
+
+    expect(response).to redirect_to(edit_email_path(installment.external_id))
+    expect(flash[:alert]).to eq("Please provide a valid URL for your call to action.")
+  end
+
   it "answers 404 when updating someone else's email", parity: true do
     other = create(:audience_installment)
     log_in(seller)

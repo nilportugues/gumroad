@@ -3,7 +3,7 @@
 // worker/jobs/__fixtures__/workflow-writes.golden.json (scripts/golden/workflow-writes.rb).
 //
 // What Node cannot prove throws NotPortedError before the first write of the transaction, like the Installment writes
-// it calls (installment-writes.ts): an email with files, a call to action, a message the sanitizer would judge, an audience
+// it calls (installment-writes.ts): an email with files, a message the sanitizer would judge, an audience
 // filter that asks DynamoDB, a seller content moderation would review.
 import { randomUUID } from "node:crypto";
 

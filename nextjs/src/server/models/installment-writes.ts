@@ -4,12 +4,13 @@
 // What Node cannot prove throws NotPortedError, before the first write of the save:
 // - a post whose audience filter Node cannot read (audience-member filters in installment-audience.ts), which the
 //   sending-limit validation needs;
-// - a message Rails::HTML::Sanitizer would have to judge, a call to action, a post without a slug, a post with files (video
+// - a message Rails::HTML::Sanitizer would have to judge, a post without a slug, a post with files (video
 //   transcoding), and a seller that content moderation would review (it asks an AI model).
 import { randomUUID } from "node:crypto";
 
 import { Prisma, type Installment } from "@prisma/client";
 
+import { HTTP_URI_REGEXP } from "../../lib/ruby-uri-regexp.ts";
 import { generateSlug, RESERVED_WORDS } from "./friendly-id.ts";
 import { INSTALLMENT_ATTRIBUTE_TO_SEARCH_FIELDS } from "../search/documents/simple.ts";
 import { filterCount } from "../search/audience-member-search.ts";
@@ -70,7 +71,8 @@ export function post(record: InstallmentModel): InstallmentPost {
 const flag = (record: InstallmentModel, name: Parameters<typeof InstallmentFlags.isSet>[1]) => InstallmentFlags.isSet(record.get("flags") as number, name);
 const isPublishing = (record: InstallmentModel) => record.ivars[PUBLISHING] === true;
 const published = (record: InstallmentModel) => record.get("published_at") !== null;
-const present = (value: string | null | undefined) => value !== null && value !== undefined && !/^[\t\n\v\f\r ]*$/u.test(value);
+// String#present?: `[[:space:]]` is the Unicode White_Space property.
+const present = (value: string | null | undefined) => value !== null && value !== undefined && !/^\p{White_Space}*$/u.test(value);
 
 // `scrubbed_message.blank?`: Loofah keeps `br` and `p` and the text around them. Node judges the messages whose text is plain.
 function messageHasText(message: string | null): boolean {
@@ -106,7 +108,11 @@ const validations: Callback<Installment>[] = [
   {
     name: "validate_call_to_action_url_and_text",
     run(record) {
-      if (present(record.get("call_to_action_url")) || present(record.get("call_to_action_text"))) refuse("a call to action (validate_call_to_action_url_and_text)");
+      const url = record.get("call_to_action_url");
+      const text = record.get("call_to_action_text");
+      if (!present(url) && !present(text)) return;
+      if (!present(text)) record.errors.add("base", "Please enter text for your call to action.");
+      if (url === null || !present(url) || !HTTP_URI_REGEXP.test(url)) record.errors.add("base", "Please provide a valid URL for your call to action.");
     },
   },
   {
