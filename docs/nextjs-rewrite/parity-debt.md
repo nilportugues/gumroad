@@ -79,6 +79,7 @@ against the JSON. Findings:
 | Golden | Lacks | Why it matters |
 | --- | --- | --- |
 | `nextjs/src/server/mail/__fixtures__/receipt-mailer.golden.json` | `receipt_rental_no_video`, `receipt_rental_watch` | Defined in `generate-receipt-mailer-golden.rb` (:418, :422), absent from the file. Gate for `RENTAL_REDIRECT_PROVEN` (section 4.5) |
+| same file | `receipt_gift_sender` | Defined in the generator, absent from the file. Gate for `unproven.giftSender` in `receipt-presenter.ts`: set it to `false` after regenerating and replaying, and check the `gifts` read lands where Rails sends it (`loadReceiptData`, `receipt-mailer.ts`) |
 
 Regenerate (the generator's own header has the DB setup: scratch database `gumroad_ws76` loaded from `db/schema.rb`,
 Redis db 10):

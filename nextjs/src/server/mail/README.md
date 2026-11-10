@@ -83,6 +83,13 @@ A rental purchase whose redirect is not a rental is ported and replays the Ruby 
 redirect checkout creates (Watch button, or none without a video file) is written but unproven: it hands back to Rails
 until `RENTAL_REDIRECT_PROVEN` in `receipt-mailer.ts` is flipped after regenerating the golden's `receipt_rental_*` cases.
 
+## CustomerMailer receipt: gift the buyer sent
+
+Written and unit-tested (subject, "Gift sent to" and "Message" lines, no download button, quantity or questions note) but
+unproven: `unproven.giftSender` in `receipt-presenter.ts` keeps it handing back to Rails until the golden's
+`receipt_gift_sender` case is recorded. A hidden recipient, a physical or licensed gift and a gift receiver's receipt
+always hand back.
+
 ## CustomerMailer
 
 Ported (goldens: `customer-mailer.golden.json`, from `generate-customer-mailer-golden.rb`, which runs the real
