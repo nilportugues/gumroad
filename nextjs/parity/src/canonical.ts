@@ -167,7 +167,7 @@ function utcOffset(name: string, now: Date): number | null {
 
 // JSON.parse that keeps integers outside the safe range exact, as { $big }, the way Ruby writes them.
 export function parseJson(text: string): Json {
-  return JSON.parse(text, (this: unknown, _key, value, context?: { source?: string }) => {
+  return JSON.parse(text, (_key, value, context?: { source?: string }) => {
     if (
       typeof value === "number" &&
       !Number.isSafeInteger(value) &&
