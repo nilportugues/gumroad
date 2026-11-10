@@ -85,7 +85,7 @@ describe.skipIf(!url)("Offer codes compute_discount parity", () => {
   });
 
   it("finds the fixtures", () => {
-    expect(cases).toHaveLength(11);
+    expect(cases).toHaveLength(14);
   });
 
   it.each(cases)(
