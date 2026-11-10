@@ -111,6 +111,8 @@ hand-back of `RemoveSuspendedAccountFollowsWorker` is `Follower#mark_deleted!` (
 `PUT|PATCH /mobile/licenses/:id` no longer hands back an `enabled` that is an array or hash: Rails' boolean cast turns it into true (lane 16, Redis 60-64; example
 "enables a disabled license when enabled is an array" recorded and replayed in `mobile-api.replay.test.ts`). No debt line was open for it.
 
+`DELETE /links/:id` (`nextjs_products_writes`) no longer hands back a product with public files: `Link#delete!` runs `alive_public_files.update_all(scheduled_for_deletion_at: 10.minutes.from_now)`, ported as `schedulePublicFilesForDeletion` (no `updated_at` change, the file rows are not soft-deleted). Example "schedules the public files of a deleted product for deletion" recorded and replayed in `products-mutations.replay.test.ts` (lane 15, Redis 55-59). Still handing back: a product shown in a profile section and one with a custom domain. No debt line was open for it.
+
 Regenerate (the generator's own header has the DB setup: scratch database `gumroad_ws76` loaded from `db/schema.rb`,
 Redis db 10):
 

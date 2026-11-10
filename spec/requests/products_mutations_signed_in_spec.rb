@@ -169,6 +169,18 @@ describe "Products mutations when signed in", type: :request do
     expect(CancelSubscriptionsForProductWorker.jobs.size).to eq(1)
   end
 
+  it "schedules the public files of a deleted product for deletion", parity: true do
+    live = create(:public_file, resource: product, seller:)
+    gone = create(:public_file, resource: product, seller:, deleted_at: Time.utc(2025, 1, 2))
+    log_in(seller)
+
+    send_json(:delete, link_path(product.unique_permalink))
+
+    expect(response.parsed_body).to eq("success" => true)
+    expect(live.reload.scheduled_for_deletion_at).to be_present
+    expect(gone.reload.scheduled_for_deletion_at).to be_nil
+  end
+
   it "answers 404 when deleting a product of another seller", parity: true do
     other = create(:product, unique_permalink: "notmine")
     log_in(seller)

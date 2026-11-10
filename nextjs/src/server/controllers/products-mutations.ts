@@ -7,7 +7,7 @@ import { railsLoggedInUser } from "../auth/resolve.ts";
 import { LinkDeletable, LinkFlags, Links, type LinkRecord } from "../models/link.ts";
 import { performAsync } from "../models/concerns/job-runtime.ts";
 import { SubscriptionFlags } from "../models/subscription.ts";
-import { castRow, column, selectRows, table } from "../models/sql.ts";
+import { castRow, column, execute, selectRows, table } from "../models/sql.ts";
 import { NotPortedError } from "../models/user.ts";
 import { notAllowedMessage } from "../page-props/settings/guard.ts";
 import { esJson, type JsonValue } from "../search/es-json.ts";
@@ -85,7 +85,7 @@ const startedAt = (): (() => Date) => {
 
 const DELETE_JOBS_DELAY_SECONDS = 10 * 60;
 
-// What Link#delete! also touches, which the port does not write: refuse before the first write.
+// What Link#delete! also touches, which the port does not write (its public files it does: see schedulePublicFilesForDeletion): refuse before the first write.
 async function refuseUnportedDeleteSideEffects(product: LinkRecord): Promise<void> {
   const id = product.get("id");
   const present = async (sql: Prisma.Sql) => (await selectRows(sql)).length > 0;
@@ -101,9 +101,15 @@ async function refuseUnportedDeleteSideEffects(product: LinkRecord): Promise<voi
   if (await present(Prisma.sql`SELECT 1 FROM ${table("custom_domains")} WHERE ${column("custom_domains", "product_id")} = ${id} AND ${column("custom_domains", "deleted_at")} IS NULL LIMIT 1`)) {
     throw new NotPortedError("Link#delete! of a product with a custom domain", "app/models/link.rb:565");
   }
-  if (await present(Prisma.sql`SELECT 1 FROM ${table("public_files")} WHERE ${column("public_files", "resource_id")} = ${id} AND ${column("public_files", "resource_type")} = 'Link' AND ${column("public_files", "deleted_at")} IS NULL LIMIT 1`)) {
-    throw new NotPortedError("Link#delete! of a product with public files", "app/models/link.rb:566");
-  }
+}
+
+// `alive_public_files.update_all(scheduled_for_deletion_at: 10.minutes.from_now)`: update_all leaves updated_at alone.
+export async function schedulePublicFilesForDeletion(productId: bigint | number, now: Date = new Date()): Promise<void> {
+  const files = "public_files";
+  const at = new Date(now.getTime() + DELETE_JOBS_DELAY_SECONDS * 1000);
+  await execute(
+    Prisma.sql`UPDATE ${table(files)} SET ${column(files, "scheduled_for_deletion_at")} = ${at} WHERE ${column(files, "resource_id")} = ${productId} AND ${column(files, "resource_type")} = 'Link' AND ${column(files, "deleted_at")} IS NULL`,
+  );
 }
 
 registerMutations(
@@ -119,6 +125,7 @@ registerMutations(
       const product = found.product;
       const id = product.get("id");
       await LinkDeletable.markDeletedBang(product, { now });
+      await schedulePublicFilesForDeletion(id);
       // Subscription.active: not a test subscription, not failed or ended, not cancelled before now
       const [active] = await selectRows(
         Prisma.sql`SELECT 1 FROM ${table("subscriptions")} WHERE ${column("subscriptions", "link_id")} = ${id} AND ${SubscriptionFlags.condition("is_test_subscription", false)} AND ${column("subscriptions", "failed_at")} IS NULL AND ${column("subscriptions", "ended_at")} IS NULL AND (${column("subscriptions", "cancelled_at")} IS NULL OR ${column("subscriptions", "cancelled_at")} > ${now()}) LIMIT 1`,
