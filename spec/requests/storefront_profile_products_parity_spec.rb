@@ -219,10 +219,53 @@ describe "Storefront profile products", type: :request, elasticsearch_wait_for_r
     expect(response).to be_successful
   end
 
-  it "hands back a visit that carries the visitor's search filters", parity: true do
+  it "serves a visit that carries the visitor's search filters", parity: true do
     show_products_section([product("Alpha ebook")])
 
     get_profile(query: "alpha", sort: "price_asc")
+
+    expect(response).to be_successful
+  end
+
+  it "narrows a section to the products matching the visitor's query, tags and price range", parity: true do
+    cheap = product("Alpha ebook", price_cents: 500)
+    cheap.tag!("writing")
+    pricey = product("Alpha course", price_cents: 5_000)
+    pricey.tag!("writing")
+    other = product("Beta pack", price_cents: 700)
+    show_products_section([cheap, pricey, other], show_filters: true)
+
+    get_profile(query: "alpha", tags: "writing", max_price: "10")
+
+    expect(response).to be_successful
+    expect(inertia_props["sections"].first["search_results"]["products"].map { _1["name"] }).to eq(["Alpha ebook"])
+  end
+
+  it "applies the visitor's sort and carries recommended_by into the card links", parity: true do
+    first = product("Alpha ebook", price_cents: 500)
+    second = product("Beta course", price_cents: 1_500)
+    show_products_section([first, second])
+
+    get_profile(sort: "price_desc", recommended_by: "discover")
+
+    expect(response).to be_successful
+    expect(inertia_props["sections"].first["search_results"]["products"].map { _1["name"] }).to eq(["Beta course", "Alpha ebook"])
+  end
+
+  it "applies the visitor's filters to the default products section", parity: true do
+    product("Alpha ebook")
+    product("Beta course")
+
+    get_profile(query: "beta")
+
+    expect(response).to be_successful
+    expect(inertia_props["sections"].first["search_results"]["products"].map { _1["name"] }).to eq(["Beta course"])
+  end
+
+  it "hands back a visit whose search filter is a nested param", parity: true do
+    show_products_section([product("Alpha ebook")])
+
+    get_profile("tags" => ["writing"])
 
     expect(response).to be_successful
   end

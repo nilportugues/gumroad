@@ -104,6 +104,31 @@ describe "Storefront pages", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
+    it "sets a direct affiliate's cookie for a visit carrying ?affiliate_id=", parity: true do
+      affiliate = create(:direct_affiliate, seller:)
+
+      get "/", params: { affiliate_id: affiliate.external_id_numeric }
+
+      expect(response).to be_successful
+      expect(response.headers["Set-Cookie"]).to include(affiliate.cookie_key)
+    end
+
+    it "sets a global affiliate's cookie for a visit carrying the short ?a= param", parity: true do
+      affiliate = create(:user).global_affiliate
+
+      get "/", params: { a: affiliate.external_id_numeric }
+
+      expect(response).to be_successful
+      expect(response.headers["Set-Cookie"]).to include(affiliate.cookie_key)
+    end
+
+    it "sets no affiliate cookie for an unknown affiliate id", parity: true do
+      get "/", params: { affiliate_id: 123_456 }
+
+      expect(response).to be_successful
+      expect(response.headers["Set-Cookie"].to_s).not_to include("_gumroad_affiliate_id_")
+    end
+
     it "answers an Inertia visit with the page as JSON", parity: true do
       get "/", headers: { "X-Inertia" => "true", "X-Requested-With" => "XMLHttpRequest" }
 
