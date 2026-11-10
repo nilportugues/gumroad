@@ -700,7 +700,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "DeleteExpiredProductCachedValuesWorker": {
     "file": "app/sidekiq/delete_expired_product_cached_values_worker.rb",
