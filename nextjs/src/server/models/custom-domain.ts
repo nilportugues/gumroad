@@ -121,6 +121,14 @@ export const CustomDomains = defineModel<CustomDomain>({
 
 export const CustomDomainDeletable = deletable(CustomDomains);
 
+// `product.custom_domain` (has_one, -> { alive }, foreign_key: "product_id").
+export async function aliveCustomDomainOfProduct(productId: unknown): Promise<CustomDomainRecord | null> {
+  const [row] = await selectRows(
+    Prisma.sql`SELECT ${Prisma.raw("`custom_domains`.*")} FROM ${table("custom_domains")} WHERE ${column("custom_domains", "product_id")} = ${productId} AND ${column("custom_domains", "deleted_at")} IS NULL LIMIT 1`,
+  );
+  return row ? CustomDomains.load(castRow<CustomDomain>("CustomDomain", row)) : null;
+}
+
 // `user.custom_domain` (has_one, -> { alive }), with the user set as its inverse.
 export async function aliveCustomDomainOf(userId: unknown, userRow: Row): Promise<CustomDomainRecord | null> {
   const [row] = await selectRows(

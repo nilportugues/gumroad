@@ -4,8 +4,10 @@
 import { Prisma, type Link, type User } from "@prisma/client";
 
 import { railsLoggedInUser } from "../auth/resolve.ts";
+import { aliveCustomDomainOfProduct, CustomDomainDeletable } from "../models/custom-domain.ts";
 import { LinkDeletable, LinkFlags, Links, type LinkRecord } from "../models/link.ts";
 import { performAsync } from "../models/concerns/job-runtime.ts";
+import { assertProfileSectionsEditable, clearFeaturedProductSections, removeFromProfileSections } from "../models/seller-profile-products-sections.ts";
 import { SubscriptionFlags } from "../models/subscription.ts";
 import { castRow, column, execute, selectRows, table } from "../models/sql.ts";
 import { NotPortedError } from "../models/user.ts";
@@ -85,24 +87,6 @@ const startedAt = (): (() => Date) => {
 
 const DELETE_JOBS_DELAY_SECONDS = 10 * 60;
 
-// What Link#delete! also touches, which the port does not write (its public files it does: see schedulePublicFilesForDeletion): refuse before the first write.
-async function refuseUnportedDeleteSideEffects(product: LinkRecord): Promise<void> {
-  const id = product.get("id");
-  const present = async (sql: Prisma.Sql) => (await selectRows(sql)).length > 0;
-  if (
-    await present(
-      Prisma.sql`SELECT 1 FROM ${table("seller_profile_sections")} WHERE ${column("seller_profile_sections", "seller_id")} = ${product.get("user_id")} AND (
-        (${column("seller_profile_sections", "type")} = 'SellerProfileFeaturedProductSection' AND CAST(JSON_EXTRACT(${column("seller_profile_sections", "json_data")}, "$.featured_product_id") AS UNSIGNED) = ${id})
-        OR (${column("seller_profile_sections", "type")} = 'SellerProfileProductsSection' AND JSON_CONTAINS(JSON_EXTRACT(${column("seller_profile_sections", "json_data")}, "$.shown_products"), CAST(${id} AS JSON)))) LIMIT 1`,
-    )
-  ) {
-    throw new NotPortedError("Link#delete! on a product shown in a profile section", "app/models/link.rb:2167");
-  }
-  if (await present(Prisma.sql`SELECT 1 FROM ${table("custom_domains")} WHERE ${column("custom_domains", "product_id")} = ${id} AND ${column("custom_domains", "deleted_at")} IS NULL LIMIT 1`)) {
-    throw new NotPortedError("Link#delete! of a product with a custom domain", "app/models/link.rb:565");
-  }
-}
-
 // `alive_public_files.update_all(scheduled_for_deletion_at: 10.minutes.from_now)`: update_all leaves updated_at alone.
 export async function schedulePublicFilesForDeletion(productId: bigint | number, now: Date = new Date()): Promise<void> {
   const files = "public_files";
@@ -120,11 +104,15 @@ registerMutations(
     async run(input) {
       const found = await find(input, "ownership", (context) => authorize(linkPolicy.destroy, context));
       if (found.halt) return found.halt;
-      await refuseUnportedDeleteSideEffects(found.product);
+      await assertProfileSectionsEditable(found.seller.id, found.product.get("id"));
       const now = startedAt();
       const product = found.product;
       const id = product.get("id");
       await LinkDeletable.markDeletedBang(product, { now });
+      await clearFeaturedProductSections(found.seller.id, id, now);
+      await removeFromProfileSections(found.seller.id, id, now);
+      const customDomain = await aliveCustomDomainOfProduct(id);
+      if (customDomain !== null) await CustomDomainDeletable.markDeletedBang(customDomain, { now });
       await schedulePublicFilesForDeletion(id);
       // Subscription.active: not a test subscription, not failed or ended, not cancelled before now
       const [active] = await selectRows(
