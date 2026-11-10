@@ -56,7 +56,11 @@ async function libraryPage(action: ActionContext) {
   const user = railsLoggedInUser(action.context);
   if (!user) throw new TypeError("undefined method for nil: logged_in_user");
   const params = libraryParams({ queryString: action.url.search.replace(/^\?/, "") } as RailsRequest);
-  return { ...(await libraryProps(user, params)), purchase_analytics: await purchaseAnalyticsProps(user.id, params.purchaseId), receipt_purchases: await receiptPurchases(user.id, params.purchaseId) };
+  return {
+    ...(await libraryProps(user, params)),
+    purchase_analytics: await purchaseAnalyticsProps(user.id, params.purchaseIds ?? []),
+    receipt_purchases: await receiptPurchases(user.id, params.purchaseIds ?? []),
+  };
 }
 
 export const BUYER_PAGES: Record<string, PageSpec> = {

@@ -11,7 +11,7 @@ import { notAllowedMessage } from "../page-props/settings/guard.ts";
 import { type ActionOptions, type Chain, type FilterOutcome, HandBackToRails, type Redirected, RoutingError } from "./application-controller.ts";
 import { requireNoAuthentication } from "./auth-pages.ts";
 import { assertFlatQuery, cgiEscape, requestFormat } from "./rails-params.ts";
-import { fullpath, isPresent, queryParam } from "./rails-request.ts";
+import { fullpath, isPresent, queryParam, queryParamStrings } from "./rails-request.ts";
 
 const INVALID_RESET_TOKEN = "That reset password token doesn't look valid (or may have expired).";
 
@@ -97,6 +97,8 @@ export type SignedInPage = {
   beforeAction?: (chain: Chain, context: AuthorizedSellerContext) => Promise<Redirected | null>;
   // The page reads a nested parameter (`sort[key]`) and checks the query string itself.
   nestedQuery?: boolean;
+  // Names whose `name[]` form the page reads itself, while any other bracketed key still hands back.
+  arrayParams?: string[];
   // The action's own redirects, after `authorize` and before it renders.
   action?: (chain: Chain, context: AuthorizedSellerContext) => Promise<Redirected | null>;
   // What the action reads from the request and hands the props (`action.state`).
@@ -109,7 +111,7 @@ export type SignedInPage = {
 export function signedInFilters(page: SignedInPage) {
   return async (chain: Chain): Promise<FilterOutcome> => {
     requireHtml(chain);
-    if (!page.nestedQuery) assertFlatQuery(chain.request.queryString);
+    if (!page.nestedQuery) assertFlatQuery(chain.request.queryString, page.arrayParams);
 
     const context = await loadSellerContext(chain.auth.context);
     if (context.user && page.requireAccountEmail && blank(context.user.email) && blank(context.user.unconfirmed_email) && chain.auth.context.impersonatedUser === null) {
@@ -141,11 +143,21 @@ export const REVIEWS_OPTIONS: ActionOptions = { filters: signedInFilters({ autho
 // request for purchase analytics) goes to Rails whole.
 export const libraryParams = (request: Chain["request"]) => {
   const text = (name: string) => queryParam(request, name) ?? "";
-  return { page: text("page"), sort: text("sort"), query: text("query"), creators: text("creators"), bundles: text("bundles"), showArchivedOnly: text("show_archived_only") === "true", purchaseId: queryParam(request, "purchase_id") ?? undefined, subscriptionsOnly: text("subscriptions_only") === "true" };
+  return {
+    page: text("page"),
+    sort: text("sort"),
+    query: text("query"),
+    creators: text("creators"),
+    bundles: text("bundles"),
+    showArchivedOnly: text("show_archived_only") === "true",
+    purchaseIds: queryParamStrings(request, "purchase_id"),
+    subscriptionsOnly: text("subscriptions_only") === "true",
+  };
 };
 
 export const LIBRARY_OPTIONS: ActionOptions = {
   filters: signedInFilters({
+    arrayParams: ["purchase_id"],
     requireAccountEmail: true,
     authorize: purchasePolicy.index,
     beforeAction: async (chain, context) => {

@@ -57,6 +57,24 @@ export function queryParam(request: RailsRequest, name: string): string | null |
   return value;
 }
 
+// `Array(params[name]).select { _1.is_a?(String) }`: a flat key gives its last value, `name[]` keys give each value in order.
+// Null for a flat key mixed with `name[]` (a Rack ParameterTypeError) or `name[key]` (a hash), which the port does not answer.
+export function queryParamStrings(request: RailsRequest, name: string): string[] | null {
+  let flat: string | null | undefined;
+  const list: (string | null)[] = [];
+  for (const pair of request.queryString.split("&")) {
+    if (pair === "") continue;
+    const index = pair.indexOf("=");
+    const key = decode(index === -1 ? pair : pair.slice(0, index));
+    const value = index === -1 ? null : decode(pair.slice(index + 1));
+    if (key === name) flat = value;
+    else if (key === `${name}[]`) list.push(value);
+    else if (key.startsWith(`${name}[`)) return null;
+  }
+  if (flat !== undefined && list.length > 0) return null;
+  return (flat === undefined ? list : [flat]).filter((value): value is string => value !== null);
+}
+
 function decode(value: string): string {
   try {
     return decodeURIComponent(value.replaceAll("+", " "));

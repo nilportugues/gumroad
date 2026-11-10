@@ -471,6 +471,24 @@ describe "Buyer pages", type: :request do
         expect(event).to include("quantity" => 2, "tax" => "1.50", "currency" => "usd")
       end
 
+      it "builds an analytics event and a receipt purchase for each id of a purchase_id list", parity: true do
+        first_product = create(:product, name: "First tracked", unique_permalink: "firsttracked")
+        first_product.user.update!(google_analytics_id: "G-12345678")
+        second_product = create(:product, name: "Second tracked", unique_permalink: "secondtracked")
+        second_product.user.update!(facebook_pixel_id: "1234567890")
+        first = library_purchase(link: first_product)
+        second = library_purchase(link: second_product, quantity: 3)
+        log_in(buyer)
+
+        get library_path(purchase_id: [second.external_id, "not-an-id", first.external_id])
+
+        expect(response).to be_successful
+        props = inertia_props_of(response)
+        expect(props["purchase_analytics"].keys).to eq([first.external_id, second.external_id])
+        expect(props["purchase_analytics"][second.external_id]["purchase_event"]).to include("quantity" => 3, "permalink" => "secondtracked")
+        expect(props["receipt_purchases"].map { _1["id"] }).to eq([first.external_id, second.external_id])
+      end
+
       it "leaves out a tracked purchase that is not in the buyer's library", parity: true do
         revoked = library_purchase(link: create(:product, name: "Revoked tracked"), is_access_revoked: true)
         library_purchase(link: create(:product, name: "Kept"))

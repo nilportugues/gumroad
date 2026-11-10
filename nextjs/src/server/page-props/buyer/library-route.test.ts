@@ -123,6 +123,31 @@ describe("GET /library?purchase_id=", () => {
     });
   });
 
+  it("renders an analytics event and a receipt purchase for each id of a purchase_id[] list", async () => {
+    answering({
+      users: [seller({ google_analytics_id: "UA-1" })],
+      purchases: [purchase(), purchase({ id: 6n })],
+      links: [product()],
+    });
+    const props = await render(`purchase_id[]=${EXTERNAL_ID}&purchase_id%5B%5D=${encrypt(6)}`);
+    expect(Object.keys(props.purchase_analytics as object)).toEqual([EXTERNAL_ID, encrypt(6)]);
+    expect((props.receipt_purchases as { id: string }[]).map((receipt) => receipt.id)).toEqual([
+      EXTERNAL_ID,
+      encrypt(6),
+    ]);
+  });
+
+  it("lets a purchase_id[] list through the filter and hands back a list mixed with a flat purchase_id", async () => {
+    answering({ users: [seller()], purchases: [purchase()], links: [product()] });
+    expect(await page.options!.filters!(chain(`purchase_id[]=${EXTERNAL_ID}`))).toEqual({ state: {} });
+    await expect(
+      page.options!.filters!(chain(`purchase_id=${EXTERNAL_ID}&purchase_id[]=${EXTERNAL_ID}`)),
+    ).rejects.toBeInstanceOf(HandBackToRails);
+    await expect(page.options!.filters!(chain(`purchase_id[]=${EXTERNAL_ID}&creators[]=x`))).rejects.toBeInstanceOf(
+      HandBackToRails,
+    );
+  });
+
   it("renders whole-dollar tax without cents and no analytics for a seller without pixel ids", async () => {
     answering({ users: [seller({ facebook_pixel_id: "9" })], purchases: [purchase({ tax_cents: 200 })], links: [product()] });
     const event = ((await render(`purchase_id=${EXTERNAL_ID}`)).purchase_analytics as Record<string, { purchase_event: { tax: string } }>)[EXTERNAL_ID]!.purchase_event;
