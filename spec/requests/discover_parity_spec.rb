@@ -42,6 +42,8 @@ describe "Discover", type: :request do
     Link.import(refresh: true, force: true)
   end
 
+  def set_cookie_names = Array(response.headers["Set-Cookie"]).join("\n").scan(/^([^=\n]+)=/).flatten
+
   # The suite's `<model>-test` indices are shared with every other run on this Elasticsearch.
   ES_MODELS = [Link, Purchase, Installment, ConfirmedFollowerEvent, ProductPageView, AudienceMember].freeze
 
@@ -151,6 +153,24 @@ describe "Discover", type: :request do
         get "/discover", params: { offer_code: SearchProducts::BLACK_FRIDAY_CODE }
 
         expect(response).to be_successful
+      end
+
+      it "renders the root page and sets the cookie of an affiliate in the query", parity: true do
+        affiliate = create(:direct_affiliate, seller: Link.first.user, products: [Link.first])
+
+        get "/discover", params: { affiliate_id: affiliate.external_id_numeric }
+
+        expect(response).to be_successful
+        expect(set_cookie_names).to include(affiliate.cookie_key)
+      end
+
+      it "sets the cookie of a global affiliate on an autocomplete visit", parity: true do
+        affiliate = create(:user).global_affiliate
+
+        get "/discover", params: { a: affiliate.external_id_numeric, query: "rig" }, headers: partial_headers.call("autocomplete_results")
+
+        expect(response).to be_successful
+        expect(set_cookie_names).to include(affiliate.cookie_key)
       end
 
       it "answers the deferred recommended wishlists", parity: true do

@@ -1,6 +1,6 @@
 // DiscoverController#index's filters: everything the port cannot answer exactly goes to Rails whole, before the
 // page renders. The deferred props and the autocomplete request the port cannot answer are Rails'; curated products
-// (a visitor whose cart has alive products or who has purchases), the Black Friday page, the affiliate cookie and a card the product presenter
+// (a visitor whose cart has alive products or who has purchases), the Black Friday page and a card the product presenter
 // cannot build are too.
 import { railsLoggedInUser } from "../auth/resolve.ts";
 import { remoteIp } from "../page-props/audience/events.ts";
@@ -18,12 +18,10 @@ import {
   searchResults,
 } from "../page-props/discover/discover.ts";
 import { NotPortedError } from "../page-props/not-ported.ts";
-
+import { affiliateCookieForParams } from "./affiliate-redirect.ts";
 import { type ActionOptions, type Chain, type FilterOutcome, HandBackToRails } from "./application-controller.ts";
 
 const GUID_COOKIE = "_gumroad_guid";
-const AFFILIATE_PARAMS = ["affiliate_id", "a"];
-
 export function discoverRequestOf(
   request: Chain["request"],
   guid: string | null,
@@ -55,7 +53,9 @@ export async function discoverFilters(chain: Chain): Promise<FilterOutcome> {
   const { request } = chain;
   // A nested query changes what `params` holds (requestParams refuses it).
   const rawParams = requestParams(request.path, request.queryString);
-  if (AFFILIATE_PARAMS.some((name) => name in rawParams)) throw new HandBackToRails();
+  // before_action :set_affiliate_cookie runs ahead of every branch below, the search box and deferred fetches included.
+  const affiliateCookie = await affiliateCookieForParams(request, chain.now);
+  if (affiliateCookie !== null) chain.cookies.push(affiliateCookie);
   const deferredOnly = isDeferredOnlyRequest(request.headers);
 
   const visitor = railsLoggedInUser(chain.auth.context);

@@ -70,6 +70,14 @@ const COMPARE = {
   ],
 };
 
+// The value of an affiliate cookie is the second it was set; the case checks it is the second of the replay instead.
+const AFFILIATE_COOKIE_PREFIX = "_gumroad_affiliate_id_";
+const AFFILIATE_COOKIE_TOLERANCE_S = 120;
+const affiliateCookieNames = (file: string): string[] =>
+  Object.keys(loadFixture(file).exchanges.at(-1)!.response?.cookies ?? {}).filter((name) =>
+    name.startsWith(AFFILIATE_COOKIE_PREFIX),
+  );
+
 const cases = existsSync(FIXTURES)
   ? readdirSync(FIXTURES)
       .filter((file) => file.endsWith(".json"))
@@ -174,7 +182,12 @@ describe.skipIf(!url)("Discover parity", () => {
           transport: httpTransport(server.baseUrl),
           interceptHttp: false,
           rewriteRequest: (request, fixture, now) => reencryptCookies(request, fixture, SECRET_KEY_BASE, now),
-          compare: COMPARE,
+          compare: {
+            ignore: [
+              ...COMPARE.ignore,
+              ...affiliateCookieNames(file).map((cookie) => `response.cookies.${cookie}.value`),
+            ],
+          },
         });
         if (HANDED_BACK.test(name)) {
           expect(railsRequests.at(-1)).toMatchObject({
@@ -184,6 +197,12 @@ describe.skipIf(!url)("Discover parity", () => {
           expect(result.exchanges[0]!.actual.response.body).toBe(RAILS_ANSWER);
         } else {
           assertParity(result);
+          for (const cookie of affiliateCookieNames(file)) {
+            const value = Number(
+              (result.exchanges.at(-1)!.actual.response?.cookies?.[cookie] as { value: string }).value,
+            );
+            expect(Math.abs(value - Date.now() / 1000)).toBeLessThan(AFFILIATE_COOKIE_TOLERANCE_S);
+          }
         }
       } catch (error) {
         const logs = server
