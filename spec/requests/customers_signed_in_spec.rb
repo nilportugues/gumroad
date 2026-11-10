@@ -313,7 +313,7 @@ describe "Customers page when signed in", type: :request, elasticsearch_wait_for
     expect(customers_of(response).first["subscription"]).to be_present
   end
 
-  it "leaves a physical product sale to Rails", parity: true do
+  it "lists a physical product sale with its shipping", parity: true do
     physical = create(:physical_product, user: seller, name: "Poster")
     build(:physical_purchase, link: physical, seller:, created_at: at_midday(3), purchase_state: "successful").tap { _1.save!(validate: false) }
     sign_in_with_indexed_sales

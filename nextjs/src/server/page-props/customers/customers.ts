@@ -2,7 +2,7 @@
 // and CustomerPresenter#customer (app/presenters/customer{,s}_presenter.rb).
 //
 // Handed back to Rails (HandBackToRails) when a customer on the page needs a reading the port does not make: a member whose renewals an Indian card mandate disabled and whose next charge is free under a limited-cycle discount,
-// a sent gift whose recipient holds a license on a product with option content, a physical product, a Sku, a UTM link (`utm_url` is built by Addressable), a non-USD price without a
+// a sent gift whose recipient holds a license on a product with option content, a shipping sale that is a subscription or has a recurring price or a tracking URL the port cannot parse, a UTM link (`utm_url` is built by Addressable), a non-USD price without a
 // stored rate or in a currency the port has no table for, a refund whose json_data is not plain JSON, a commission
 // with files, a review video, and a custom field answer that carries a file (its signed id).
 import { Prisma, type Purchase, type Subscription, type User } from "@prisma/client";
@@ -31,6 +31,8 @@ import type { LinkRow, PriceRow } from "../../presenters/product-reads.ts";
 import { PurchaseFlags } from "../../search/flags.ts";
 import { PurchaseSearchService } from "../../search/purchase-search.ts";
 import { extractDomain } from "../../search/referrer.ts";
+
+import { physicalJson, shippingJson, shippingReading, skuOption, type ShippingReading } from "./shipping.ts";
 
 export const CUSTOMERS_PER_PAGE = 20;
 // Keep pagination within Elasticsearch's index.max_result_window.
@@ -155,6 +157,8 @@ type Loaded = {
   cachedDiscounts: Set<string>;
   // The option each purchase picked (`variant_attributes.first`), by purchase id.
   variants: Map<string, Row>;
+  // `shipping` of each purchase of a product that requires it, by purchase id.
+  shippings: Map<string, ShippingReading>;
   // The alive prices of each tiered membership, for the `recurrence_price_values` of the tier a buyer picked.
   tierPrices: Map<string, Row[]>;
   // What CustomerPresenter reads off `purchase.subscription`, by subscription id.
@@ -216,6 +220,36 @@ export async function upsellNamesFor(purchaseIds: unknown[]): Promise<Map<string
   );
 }
 
+// The shipping price and shipment of the purchases whose product requires shipping.
+async function shippingReadings(purchases: Row[], links: Map<string, Row>): Promise<Map<string, ShippingReading>> {
+  const shipped = purchases.filter((purchase) => links.get(String(purchase.link_id))!.require_shipping);
+  const ids = shipped.map((purchase) => purchase.id);
+  const prices = byId(
+    await rowsBy("prices", "id", [...new Set(shipped.map((purchase) => purchase.price_id).filter((id) => id != null))]),
+  );
+  const shipments = groupBy(await rowsBy("shipments", "purchase_id", ids), "purchase_id");
+  const knownRate = (currency: string) => currency in KNOWN_CURRENCIES;
+  const readings = new Map<string, ShippingReading>();
+  for (const purchase of shipped) {
+    const own = shipments.get(String(purchase.id)) ?? [];
+    // `has_one :shipment` takes an arbitrary row of several.
+    if (own.length > 1) throw new HandBackToRails();
+    const link = links.get(String(purchase.link_id))!;
+    const plainRate = PLAIN_RATE.test(String(purchase.rate_converted_to_usd ?? "").trim());
+    readings.set(
+      String(purchase.id),
+      await shippingReading(
+        purchase,
+        link,
+        prices.get(String(purchase.price_id)),
+        own[0] ?? null,
+        (currency) => knownRate(currency) && plainRate,
+      ),
+    );
+  }
+  return readings;
+}
+
 // Purchase.where(id: ids).in_order_of(:id, ids) with the associations CustomerPresenter reads, after handing back what it cannot.
 async function load(ids: string[], seller: User): Promise<Loaded> {
   const rows = await rowsBy("purchases", "id", ids);
@@ -224,7 +258,6 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
   const purchaseIds = purchases.map((purchase) => purchase.id);
 
   const links = byId(await rowsBy("links", "id", [...new Set(purchases.map((purchase) => purchase.link_id))]));
-  for (const link of links.values()) if (link.require_shipping) throw new HandBackToRails();
   for (const purchase of purchases) {
     // usd_cents_to_currency converts the refundable amount at the rate stored on the sale; without one it would ask Redis.
     if (
@@ -269,7 +302,7 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
 
   const directAffiliateCredits = await directCreditsOf(purchases, affiliates);
 
-  // A Sku (shipping) is Rails' to answer. A sale of several options shows the first of `variant_attributes`, which the preload
+  // A sale of several options shows the first of `variant_attributes`, which the preload
   // assembles in the order of the join rows.
   const picks = groupBy(
     (await rowsBy("base_variants_purchases", "purchase_id", purchaseIds)).sort((a, b) => num(a.id) - num(b.id)),
@@ -284,7 +317,9 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
       .filter((entry): entry is [string, Row] => entry[1] !== undefined),
   );
   if (variants.size !== picks.size) throw new HandBackToRails();
-  for (const variant of variants.values()) if (variant.type !== "Variant") throw new HandBackToRails();
+  for (const variant of variants.values())
+    if (variant.type !== "Variant" && variant.type !== "Sku") throw new HandBackToRails();
+  const shippings = await shippingReadings(purchases, links);
   const tieredLinkIds = [...links.values()]
     .filter((link) => LinkFlags.isSet(link.flags, "is_tiered_membership"))
     .map((link) => link.id);
@@ -370,6 +405,7 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
       ).map((preorder) => String(preorder.id)),
     ),
     variants,
+    shippings,
     tierPrices,
     subscriptions,
     upsellNames,
@@ -793,8 +829,10 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
     is_gift_sender_purchase: flags("is_gift_sender_purchase"),
     is_gift_receiver_purchase: flags("is_gift_receiver_purchase"),
     name: present((purchase.full_name ?? "").trim()) ? purchase.full_name.trim() : (purchaser?.name ?? ""),
-    physical: null,
-    shipping: null,
+    physical: variant?.type === "Sku" ? physicalJson(purchase, variant) : null,
+    shipping: link.require_shipping
+      ? shippingJson(purchase, loaded.shippings.get(id)!, LinkFlags.isSet(link.flags, "is_physical"))
+      : null,
     is_bundle_purchase: flags("is_bundle_purchase"),
     is_existing_user: purchaser !== null,
     can_contact: purchase.can_contact === true || purchase.can_contact === 1,
@@ -881,12 +919,14 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
     option:
       variant === undefined
         ? null
-        : await variantToOption(
-            link as LinkRow,
-            variant as never,
-            (loaded.tierPrices.get(String(link.id)) ?? []) as PriceRow[],
-            BigInt(link.user_id),
-          ),
+        : variant.type === "Sku"
+          ? skuOption(variant)
+          : await variantToOption(
+              link as LinkRow,
+              variant as never,
+              (loaded.tierPrices.get(String(link.id)) ?? []) as PriceRow[],
+              BigInt(link.user_id),
+            ),
     utm_link: null,
     download_count: link.native_type === "coffee" ? null : (loaded.urlRedirects.get(id)?.uses ?? 0),
   };
