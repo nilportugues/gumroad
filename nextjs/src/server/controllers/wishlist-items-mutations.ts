@@ -112,22 +112,35 @@ registerMutations(
       if (!isHash(attributes) || Object.keys(attributes).length === 0) throw new HandBackToRails("a wishlist_product parameter that is not a populated hash");
       const { product_id: productId, option_id: optionId, recurrence, quantity, rent } = attributes;
       if (typeof productId !== "string") throw new HandBackToRails("a non-string product_id");
-      // Variants, recurring billing and non-default quantity or rent decide validations this port does not run.
-      if ((optionId !== undefined && optionId !== null && optionId !== "") || (recurrence !== undefined && recurrence !== null && recurrence !== "") || (quantity !== undefined && String(quantity) !== "1") || (rent !== undefined && !["false", "0", false, "f"].includes(rent as never))) {
-        throw new HandBackToRails("a wishlist product with an option, recurrence, quantity or rent");
+      // An explicit quantity or rent, an empty or non-string option or recurrence and every product that sells rentals stay in Rails.
+      if ((quantity !== undefined && String(quantity) !== "1") || (rent !== undefined && !["false", "0", false, "f"].includes(rent as never))) {
+        throw new HandBackToRails("a wishlist product with a quantity or rent");
+      }
+      if ((optionId != null && typeof optionId !== "string") || (recurrence != null && (typeof recurrence !== "string" || recurrence === ""))) {
+        throw new HandBackToRails("a wishlist product with an option or recurrence that is not a string");
       }
       const productNumericId = decrypt(productId);
       const [product] = productNumericId === null ? [] : await selectRows<{ id: bigint; flags: bigint; purchase_type: number | null }>(Prisma.sql`SELECT ${Prisma.raw("`links`.*")} FROM ${table("links")} WHERE ${column("links", "id")} = ${productNumericId} LIMIT 1`);
       if (!product) throw new RoutingError("Not Found");
-      const recurring = LinkFlags.isSet(product.flags as never, "is_recurring_billing");
-      const versioned = LinkFlags.isSet(product.flags as never, "skus_enabled") || LinkFlags.isSet(product.flags as never, "quantity_enabled");
-      const [variant] = await selectRows(
-        Prisma.sql`SELECT 1 AS one FROM ${table("base_variants")} JOIN ${table("variant_categories")} ON ${column("variant_categories", "id")} = ${column("base_variants", "variant_category_id")} WHERE ${column("variant_categories", "link_id")} = ${product.id} LIMIT 1`,
-      );
-      if (recurring || versioned || variant || (product.purchase_type ?? BUY_ONLY) !== BUY_ONLY) throw new HandBackToRails("a product with versions, recurring billing, rent or quantity");
+      if (LinkFlags.isSet(product.flags as never, "skus_enabled") || LinkFlags.isSet(product.flags as never, "quantity_enabled") || (product.purchase_type ?? BUY_ONLY) !== BUY_ONLY) {
+        throw new HandBackToRails("a product with skus, quantity or rent");
+      }
+      // `product.variants_or_skus.find_by_external_id!(option_id)`: alive versions of an alive category.
+      let variantId: bigint | null = null;
+      if (optionId) {
+        const optionNumericId = decrypt(optionId);
+        const [variant] =
+          optionNumericId === null
+            ? []
+            : await selectRows<{ id: bigint }>(
+                Prisma.sql`SELECT ${column("base_variants", "id")} FROM ${table("base_variants")} JOIN ${table("variant_categories")} ON ${column("variant_categories", "id")} = ${column("base_variants", "variant_category_id")} WHERE ${column("base_variants", "id")} = ${optionNumericId} AND ${column("base_variants", "type")} = 'Variant' AND ${column("base_variants", "deleted_at")} IS NULL AND ${column("variant_categories", "link_id")} = ${product.id} AND ${column("variant_categories", "deleted_at")} IS NULL LIMIT 1`,
+              );
+        if (!variant) throw new RoutingError("Not Found");
+        variantId = variant.id;
+      }
 
       const [existing] = await selectRows(
-        Prisma.sql`SELECT ${Prisma.raw("`wishlist_products`.*")} FROM ${table("wishlist_products")} WHERE ${column("wishlist_products", "wishlist_id")} = ${wishlist.id} AND ${column("wishlist_products", "deleted_at")} IS NULL AND ${column("wishlist_products", "product_id")} = ${product.id} AND ${column("wishlist_products", "variant_id")} IS NULL AND ${column("wishlist_products", "recurrence")} IS NULL LIMIT 1`,
+        Prisma.sql`SELECT ${Prisma.raw("`wishlist_products`.*")} FROM ${table("wishlist_products")} WHERE ${column("wishlist_products", "wishlist_id")} = ${wishlist.id} AND ${column("wishlist_products", "deleted_at")} IS NULL AND ${column("wishlist_products", "product_id")} = ${product.id} AND ${variantId === null ? Prisma.sql`${column("wishlist_products", "variant_id")} IS NULL` : Prisma.sql`${column("wishlist_products", "variant_id")} = ${variantId}`} AND ${recurrence == null ? Prisma.sql`${column("wishlist_products", "recurrence")} IS NULL` : Prisma.sql`${column("wishlist_products", "recurrence")} = ${recurrence}`} LIMIT 1`,
       );
       let record: ModelRecord<WishlistProduct>;
       if (existing) {
@@ -135,7 +148,7 @@ registerMutations(
         // `update({})` of an unchanged record saves nothing.
         if (record.hasChangesToSave()) await WishlistProducts.save(record);
       } else {
-        record = WishlistProducts.build({ wishlist_id: wishlist.id, product_id: product.id, variant_id: null, recurrence: null, quantity: 1, rent: false } as Partial<WishlistProduct>);
+        record = WishlistProducts.build({ wishlist_id: wishlist.id, product_id: product.id, variant_id: variantId, recurrence: (recurrence as string | undefined) ?? null, quantity: 1, rent: false } as Partial<WishlistProduct>);
         if (!(await WishlistProducts.save(record))) return jsonResponse({ error: record.errors.fullMessages()[0] }, UNPROCESSABLE_ENTITY);
       }
       const [follower] = await selectRows(Prisma.sql`SELECT 1 AS one FROM ${table("wishlist_followers")} WHERE ${column("wishlist_followers", "wishlist_id")} = ${wishlist.id} AND ${column("wishlist_followers", "deleted_at")} IS NULL LIMIT 1`);
