@@ -15,16 +15,36 @@ import { getRedis } from "../infra/redis.ts";
 
 import { deletable } from "./concerns/deletable.ts";
 import { afterCommitEverywhere, performAsync } from "./concerns/job-runtime.ts";
-import { jsonDataForAttr, mergeJsonDataWithCurrentRow } from "./concerns/json-data.ts";
+import {
+  jsonData,
+  jsonDataForAttr,
+  jsonGet,
+  mergeJsonDataWithCurrentRow,
+  setJsonDataForAttr,
+  toHash,
+} from "./concerns/json-data.ts";
 import { hasPaperTrail } from "./concerns/paper-trail.ts";
+import { RubyHash, type YamlValue } from "./concerns/psych.ts";
 import { loadBelongsTo, validatesUniqueness, type BelongsTo } from "./concerns/rails-validations.ts";
+import { rubyJsonGenerate, rubyJsonParse } from "./concerns/serialized-columns.ts";
 import LINK_DATA from "./link-data.generated.json" with { type: "json" };
 import { freshScope, PRODUCT_CACHED_VALUES, ProductCachedValues } from "./product-cached-value.ts";
 import { defineModel, type Callback, type CallbackContext } from "./runtime/define-model.ts";
 import type { ModelRecord, Row } from "./runtime/record.ts";
-import { isBlank, rubyLength, validatesInclusionOf, validatesLengthOf, validatesPresenceOf } from "./runtime/validators.ts";
+import {
+  isBlank,
+  rubyLength,
+  validatesInclusionOf,
+  validatesLengthOf,
+  validatesPresenceOf,
+} from "./runtime/validators.ts";
 import { castRow, column, selectRows, table, execute } from "./sql.ts";
-import { isReservedEmailDomain, isValidEmailFormat, MAX_PRICE_USD_CENTS_UNLESS_VERIFIED, NotPortedError } from "./user.ts";
+import {
+  isReservedEmailDomain,
+  isValidEmailFormat,
+  MAX_PRICE_USD_CENTS_UNLESS_VERIFIED,
+  NotPortedError,
+} from "./user.ts";
 
 export type LinkRecord = ModelRecord<Link>;
 
@@ -52,6 +72,8 @@ const ATTRIBUTE_TO_SEARCH_FIELDS: Record<string, string[]> = {
 };
 // The columns an update may change; Rails' own callbacks also write updated_at and json_data. `flags` is ported for the archived bit only.
 const PORTED_CHANGES = ["banned_at", "purchase_disabled_at", "flags", "deleted_at"];
+// The only json_data keys a ported update writes: `attr_json_data_accessor :sections, :main_section_index`.
+const PORTED_JSON_DATA_KEYS = ["sections", "main_section_index"];
 const ARCHIVED_BIT = 1n << 4n;
 
 export const NATIVE_TYPES_TO_TAX_CODE = {
@@ -76,9 +98,21 @@ const DISCOVER_FEES_PER_THOUSAND = [100, ...Array.from({ length: 701 }, (_, i) =
 const PURCHASE_TYPES = ["buy_only", "rent_only", "buy_and_rent"] as const;
 const SUBSCRIPTION_DURATIONS = ["monthly", "yearly", "quarterly", "biannually", "every_two_years"] as const;
 // BasePrice::Recurrence::RECURRENCE_TO_NUMBER_OF_MONTHS
-const RECURRENCE_MONTHS: Record<string, number> = { monthly: 1, quarterly: 3, biannually: 6, yearly: 12, every_two_years: 24 };
+const RECURRENCE_MONTHS: Record<string, number> = {
+  monthly: 1,
+  quarterly: 3,
+  biannually: 6,
+  yearly: 12,
+  every_two_years: 24,
+};
 
-type CurrencyData = { min_price: number; single_unit: boolean; min_price_formatted: string; double_min_price_in_currency: string; min_price_in_currency: string };
+type CurrencyData = {
+  min_price: number;
+  single_unit: boolean;
+  min_price_formatted: string;
+  double_min_price_in_currency: string;
+  min_price_in_currency: string;
+};
 // CURRENCY_CHOICES (config/currencies.json) and the messages Money formats from it.
 const CURRENCIES = LINK_DATA.currencies as Record<string, CurrencyData>;
 
@@ -170,12 +204,19 @@ const purchaseType = (link: LinkRecord) => PURCHASE_TYPES[link.get("purchase_typ
 const rentOnly = (link: LinkRecord) => purchaseType(link) === "rent_only";
 const buyable = (link: LinkRecord) => ["buy_only", "buy_and_rent"].includes(purchaseType(link) ?? "");
 const rentable = (link: LinkRecord) => ["rent_only", "buy_and_rent"].includes(purchaseType(link) ?? "");
-const subscriptionDuration = (link: LinkRecord) => SUBSCRIPTION_DURATIONS[link.get("subscription_duration") ?? -1] ?? null;
-export const isPublished = (link: LinkRecord) => link.get("deleted_at") == null && link.get("purchase_disabled_at") == null && !link.get("draft");
+const subscriptionDuration = (link: LinkRecord) =>
+  SUBSCRIPTION_DURATIONS[link.get("subscription_duration") ?? -1] ?? null;
+export const isPublished = (link: LinkRecord) =>
+  link.get("deleted_at") == null && link.get("purchase_disabled_at") == null && !link.get("draft");
 const currency = (link: LinkRecord) => CURRENCIES[link.get("price_currency_type") ?? ""];
 
 const USER: BelongsTo = { name: "user", foreignKey: "user_id", targetTable: "users", targetModel: "User" };
-const DEFAULT_OFFER_CODE: BelongsTo = { name: "default_offer_code", foreignKey: "default_offer_code_id", targetTable: "offer_codes", targetModel: "OfferCode" };
+const DEFAULT_OFFER_CODE: BelongsTo = {
+  name: "default_offer_code",
+  foreignKey: "default_offer_code_id",
+  targetTable: "offer_codes",
+  targetModel: "OfferCode",
+};
 
 const eq = (tableName: string, name: string, value: unknown) =>
   value == null ? Prisma.sql`${column(tableName, name)} IS NULL` : Prisma.sql`${column(tableName, name)} = ${value}`;
@@ -195,7 +236,8 @@ async function defaultPrice(link: LinkRecord): Promise<PriceRow | undefined> {
   if (rentOnly(link)) return (await pricesForCurrency(link)).filter(isRental).at(-1);
   let relevant = (await pricesForCurrency(link)).filter((p) => !isRental(p));
   const duration = subscriptionDuration(link);
-  if (isFlagSet(link, "is_recurring_billing") && duration !== null) relevant = relevant.filter((p) => p.recurrence === duration);
+  if (isFlagSet(link, "is_recurring_billing") && duration !== null)
+    relevant = relevant.filter((p) => p.recurrence === duration);
   return relevant.at(-1);
 }
 
@@ -224,27 +266,73 @@ async function getUsdCents(currencyType: string, quantity: number): Promise<numb
   const code = currencyType.toUpperCase();
   const rate = await collaborators.redis().get(`currencies:${code}`);
   const rateFloat = rate == null ? 0 : Number.parseFloat(rate);
-  if (!(rateFloat > 0)) throw new NotPortedError(`CurrencyHelper#query_rate(${code})`, "app/helpers/currency_helper.rb:96");
+  if (!(rateFloat > 0))
+    throw new NotPortedError(`CurrencyHelper#query_rate(${code})`, "app/helpers/currency_helper.rb:96");
   const converted = new Prisma.Decimal(quantity).div(rateFloat);
-  return (CURRENCIES[currencyType]?.single_unit ? converted.mul(100) : converted).toDecimalPlaces(0, Prisma.Decimal.ROUND_HALF_UP).toNumber();
+  return (CURRENCIES[currencyType]?.single_unit ? converted.mul(100) : converted)
+    .toDecimalPlaces(0, Prisma.Decimal.ROUND_HALF_UP)
+    .toNumber();
 }
 
 // ---------------------------------------------------------------------------------------------
 // Callbacks, in link.rb's declaration order (included concerns first).
 
 const flagsDiff = (link: LinkRecord) => BigInt(link.get("flags") ?? 0) ^ BigInt(link.attributeWas("flags") ?? 0);
-const attributeChangedForSearch = (link: LinkRecord, key: string) => (key === "archived" ? (flagsDiff(link) & ARCHIVED_BIT) !== 0n : link.attributeChanged(key as keyof Link & string));
-const changedForSearch = (link: LinkRecord) => Object.keys(ATTRIBUTE_TO_SEARCH_FIELDS).flatMap((key) => (attributeChangedForSearch(link, key) ? ATTRIBUTE_TO_SEARCH_FIELDS[key]! : []));
+const attributeChangedForSearch = (link: LinkRecord, key: string) =>
+  key === "archived" ? (flagsDiff(link) & ARCHIVED_BIT) !== 0n : link.attributeChanged(key as keyof Link & string);
+const changedForSearch = (link: LinkRecord) =>
+  Object.keys(ATTRIBUTE_TO_SEARCH_FIELDS).flatMap((key) =>
+    attributeChangedForSearch(link, key) ? ATTRIBUTE_TO_SEARCH_FIELDS[key]! : [],
+  );
+
+// The json_data keys whose value differs from the stored row.
+function changedJsonDataKeys(link: LinkRecord): string[] {
+  const was = link.attributeInDatabase("json_data");
+  const base = (was == null ? null : toHash(rubyJsonParse(was))) ?? new RubyHash([]);
+  const mine = jsonData(link);
+  const keys = [...new Set([...base.entries, ...mine.entries].map(([key]) => key as string))];
+  return keys.filter((key) => {
+    const [before, after] = [jsonGet(base, key), jsonGet(mine, key)];
+    return (
+      (before === undefined) !== (after === undefined) ||
+      (before !== undefined && rubyJsonGenerate(before) !== rubyJsonGenerate(after!))
+    );
+  });
+}
+
+// `product.sections = ids; product.main_section_index = index`: the profile sections of the product page and which one leads.
+export function assignProductSections(link: LinkRecord, sectionIds: number[], mainSectionIndex: number): void {
+  setJsonDataForAttr(link, "sections", sectionIds as YamlValue);
+  setJsonDataForAttr(link, "main_section_index", mainSectionIndex);
+}
+
+// `product.sections`: the stored ids, [] when blank.
+export function productSections(link: LinkRecord): number[] {
+  const value = jsonDataForAttr(link, "sections", []);
+  return Array.isArray(value) ? value.map(Number) : [];
+}
 
 const refuseUnportedSave: Callback<Link> = {
   name: "(guard) refuse unported changes",
   run(link) {
-    if (link.newRecord) throw new NotPortedError("Link#save on a new record", "app/models/link.rb:225 (associate_price, permalink generation, after_create)");
+    if (link.newRecord)
+      throw new NotPortedError(
+        "Link#save on a new record",
+        "app/models/link.rb:225 (associate_price, permalink generation, after_create)",
+      );
     link.untracked(() => {
-      const unported = link.changedAttributeNames().filter((name) => !PORTED_CHANGES.includes(name));
-      if (unported.length > 0) throw new NotPortedError(`Link#save changing ${unported.join(", ")}`, "app/models/link.rb");
-      if (link.attributeChanged("flags") && (flagsDiff(link) & ~ARCHIVED_BIT) !== 0n) throw new NotPortedError("Link#save changing flags other than archived", "app/models/link.rb");
-      if (link.get("unique_permalink") == null) throw new NotPortedError("Link#generate_unique_permalink", "app/models/link.rb:1882");
+      const jsonDataUnported =
+        link.attributeChanged("json_data") &&
+        changedJsonDataKeys(link).some((key) => !PORTED_JSON_DATA_KEYS.includes(key));
+      const unported = link
+        .changedAttributeNames()
+        .filter((name) => (name === "json_data" ? jsonDataUnported : !PORTED_CHANGES.includes(name)));
+      if (unported.length > 0)
+        throw new NotPortedError(`Link#save changing ${unported.join(", ")}`, "app/models/link.rb");
+      if (link.attributeChanged("flags") && (flagsDiff(link) & ~ARCHIVED_BIT) !== 0n)
+        throw new NotPortedError("Link#save changing flags other than archived", "app/models/link.rb");
+      if (link.get("unique_permalink") == null)
+        throw new NotPortedError("Link#generate_unique_permalink", "app/models/link.rb:1882");
     });
   },
 };
@@ -257,7 +345,10 @@ const beforeValidation: Callback<Link>[] = [
     run(link) {
       const count = link.get("max_purchase_count");
       if (count == null) return;
-      link.set("max_purchase_count", Math.min(Math.max(count, MAX_PURCHASE_COUNT_RANGE[0]), MAX_PURCHASE_COUNT_RANGE[1]));
+      link.set(
+        "max_purchase_count",
+        Math.min(Math.max(count, MAX_PURCHASE_COUNT_RANGE[0]), MAX_PURCHASE_COUNT_RANGE[1]),
+      );
     },
   },
   {
@@ -270,7 +361,11 @@ const beforeValidation: Callback<Link>[] = [
       if (!isBlank(link.get("custom_permalink"))) link.attributeChanged("custom_permalink");
     },
   },
-  { name: "release_custom_permalink_if_possible", if: (link) => link.attributeChanged("custom_permalink"), run: () => undefined },
+  {
+    name: "release_custom_permalink_if_possible",
+    if: (link) => link.attributeChanged("custom_permalink"),
+    run: () => undefined,
+  },
 ];
 
 const validations: Callback<Link>[] = [
@@ -307,7 +402,8 @@ const validations: Callback<Link>[] = [
   {
     name: "validates :unique_permalink, format: /\\A[a-zA-Z_]+\\z/",
     run(link) {
-      if (!/^[a-zA-Z_]+$/u.test(String(link.get("unique_permalink") ?? ""))) link.errors.add("unique_permalink", "invalid");
+      if (!/^[a-zA-Z_]+$/u.test(String(link.get("unique_permalink") ?? "")))
+        link.errors.add("unique_permalink", "invalid");
     },
   },
   {
@@ -315,14 +411,23 @@ const validations: Callback<Link>[] = [
     run(link) {
       const value = link.get("custom_permalink");
       if (isBlank(value)) return;
-      if (!/^[a-zA-Z0-9_-]+$/u.test(value!)) link.errors.add("custom_permalink", "invalid", { message: "can only contain letters, numbers, dashes, and underscores" });
+      if (!/^[a-zA-Z0-9_-]+$/u.test(value!))
+        link.errors.add("custom_permalink", "invalid", {
+          message: "can only contain letters, numbers, dashes, and underscores",
+        });
       if (rubyLength(value) > CUSTOM_PERMALINK_MAX_LENGTH) {
-        link.errors.add("custom_permalink", "too_long", { count: CUSTOM_PERMALINK_MAX_LENGTH, message: `must be ${CUSTOM_PERMALINK_MAX_LENGTH} characters or fewer` });
+        link.errors.add("custom_permalink", "too_long", {
+          count: CUSTOM_PERMALINK_MAX_LENGTH,
+          message: `must be ${CUSTOM_PERMALINK_MAX_LENGTH} characters or fewer`,
+        });
       }
     },
   },
   {
-    ...validatesUniqueness<Link>("Link", "links", "custom_permalink", { scope: ["user_id"], message: "is already used by another one of your products" }),
+    ...validatesUniqueness<Link>("Link", "links", "custom_permalink", {
+      scope: ["user_id"],
+      message: "is already used by another one of your products",
+    }),
     unless: (link) => isBlank(link.get("custom_permalink")),
   },
   {
@@ -340,7 +445,12 @@ const validations: Callback<Link>[] = [
     run(link) {
       const suggested = link.get("suggested_price_cents");
       if (suggested == null || (suggested >= MIN_PRICE_CENTS && suggested <= MAX_PRICE_CENTS)) return;
-      link.errors.add("base", suggested > 0 ? "Sorry, the suggested price entered is too large." : "Sorry, the suggested price entered is too low.");
+      link.errors.add(
+        "base",
+        suggested > 0
+          ? "Sorry, the suggested price entered is too large."
+          : "Sorry, the suggested price entered is too low.",
+      );
     },
   },
   {
@@ -387,13 +497,20 @@ const validations: Callback<Link>[] = [
     name: "free_trial_only_enabled_if_recurring_billing",
     run(link) {
       if (isFlagSet(link, "is_recurring_billing")) return;
-      if (isFlagSet(link, "free_trial_enabled") || !isBlank(link.get("free_trial_duration_unit")) || !isBlank(link.get("free_trial_duration_amount"))) {
+      if (
+        isFlagSet(link, "free_trial_enabled") ||
+        !isBlank(link.get("free_trial_duration_unit")) ||
+        !isBlank(link.get("free_trial_duration_amount"))
+      ) {
         link.errors.add("base", "Free trials are only allowed for subscription products.");
       }
     },
   },
   validatesInclusionOf<Link>(["native_type"], { in: NATIVE_TYPES }),
-  validatesInclusionOf<Link>(["discover_fee_per_thousand"], { in: DISCOVER_FEES_PER_THOUSAND, message: "must be between 30% and 100%" }),
+  validatesInclusionOf<Link>(["discover_fee_per_thousand"], {
+    in: DISCOVER_FEES_PER_THOUSAND,
+    message: "must be between 30% and 100%",
+  }),
   // free_trial_duration_amount's validations only run for a new record or a changed amount.
   { ...validatesPresenceOf<Link>(["free_trial_duration_unit"]), if: (link) => isFlagSet(link, "free_trial_enabled") },
   {
@@ -411,13 +528,15 @@ const validations: Callback<Link>[] = [
       for (const { price_cents: cents } of rows) {
         if (cents == null || cents === 0) continue;
         if (cents > MAX_PRICE_CENTS) link.errors.add("base", "Sorry, the price entered is too large.");
-        else if (cents < config.min_price) link.errors.add("base", `Sorry, a product must be at least ${config.min_price_formatted}.`);
+        else if (cents < config.min_price)
+          link.errors.add("base", `Sorry, a product must be at least ${config.min_price_formatted}.`);
         else {
           const user = await loadUser(link, ctx);
           if (user === null) throw new NoMethodError("undefined method 'max_product_price' for nil");
           // User#max_product_price
           const max = user.verified ? null : MAX_PRICE_USD_CENTS_UNLESS_VERIFIED;
-          if (max !== null && (await getUsdCents(currencyType!, cents)) > max) link.errors.add("base", "Sorry, we don't support pricing products above $5,000.");
+          if (max !== null && (await getUsdCents(currencyType!, cents)) > max)
+            link.errors.add("base", "Sorry, we don't support pricing products above $5,000.");
         }
       }
     },
@@ -425,7 +544,8 @@ const validations: Callback<Link>[] = [
   {
     name: "require_shipping_for_physical",
     run(link) {
-      if (isFlagSet(link, "is_physical") && !link.get("require_shipping")) link.errors.add("base", "Shipping form is required for physical products.");
+      if (isFlagSet(link, "is_physical") && !link.get("require_shipping"))
+        link.errors.add("base", "Shipping form is required for physical products.");
     },
   },
   {
@@ -483,13 +603,17 @@ const validations: Callback<Link>[] = [
       const text = jsonDataForAttr(link, "custom_view_content_button_text");
       if (isBlank(text) || rubyLength(text) <= MAX_VIEW_CONTENT_BUTTON_TEXT_LENGTH) return;
       const over = rubyLength(text) - MAX_VIEW_CONTENT_BUTTON_TEXT_LENGTH;
-      link.errors.add("base", `Button: ${over} ${over === 1 ? "character" : "characters"} over limit (max: ${MAX_VIEW_CONTENT_BUTTON_TEXT_LENGTH})`);
+      link.errors.add(
+        "base",
+        `Button: ${over} ${over === 1 ? "character" : "characters"} over limit (max: ${MAX_VIEW_CONTENT_BUTTON_TEXT_LENGTH})`,
+      );
     },
   },
   {
     name: "validates :custom_receipt_text, length:",
     run(link) {
-      if (rubyLength(jsonDataForAttr(link, "custom_receipt_text")) > MAX_CUSTOM_RECEIPT_TEXT_LENGTH) link.errors.add("custom_receipt_text", "too_long", { count: MAX_CUSTOM_RECEIPT_TEXT_LENGTH });
+      if (rubyLength(jsonDataForAttr(link, "custom_receipt_text")) > MAX_CUSTOM_RECEIPT_TEXT_LENGTH)
+        link.errors.add("custom_receipt_text", "too_long", { count: MAX_CUSTOM_RECEIPT_TEXT_LENGTH });
     },
   },
   {
@@ -505,7 +629,10 @@ const validations: Callback<Link>[] = [
     run(link) {
       const text = jsonDataForAttr(link, "custom_failed_payment_text");
       if (!NON_PLAIN_TEXT_PATTERN.test(text == null ? "" : String(text))) return;
-      link.errors.add("base", "Failed payment message: links and HTML are not allowed. We add the payment update link for you.");
+      link.errors.add(
+        "base",
+        "Failed payment message: links and HTML are not allowed. We add the payment update link for you.",
+      );
     },
   },
   validatesPresenceOf<Link>(["filetype"]),
@@ -571,7 +698,9 @@ async function countOf(sql: Prisma.Sql): Promise<number> {
 }
 
 const offSale = (link: LinkRecord) =>
-  link.get("deleted_at") != null || isFlagSet(link, "archived") || (link.get("purchase_disabled_at") != null && link.attributeChanged("purchase_disabled_at"));
+  link.get("deleted_at") != null ||
+  isFlagSet(link, "archived") ||
+  (link.get("purchase_disabled_at") != null && link.attributeChanged("purchase_disabled_at"));
 
 async function firstAliveCategory(link: LinkRecord): Promise<{ id: bigint } | undefined> {
   const [row] = await selectRows<{ id: bigint }>(
@@ -589,26 +718,38 @@ async function maxAliveVariantPriceDifference(link: LinkRecord): Promise<number>
 }
 
 // ProductInstallmentPlan#valid?: the first full message, or null when valid.
-async function installmentPlanError(link: LinkRecord, plan: { number_of_installments: number | null }): Promise<string | null> {
+async function installmentPlanError(
+  link: LinkRecord,
+  plan: { number_of_installments: number | null },
+): Promise<string | null> {
   const errors: string[] = [];
   const installments = plan.number_of_installments;
-  if (installments == null) errors.push("Number of installments can't be blank", "Number of installments is not a number");
+  if (installments == null)
+    errors.push("Number of installments can't be blank", "Number of installments is not a number");
   else if (installments <= 1) errors.push("Number of installments must be greater than 1");
-  if (isFlagSet(link, "is_recurring_billing") || isFlagSet(link, "is_tiered_membership")) errors.push("Installment plans are not available for membership products");
-  else if (isFlagSet(link, "is_in_preorder_state")) errors.push("Installment plans are not available for pre-order products");
-  else if (!INSTALLMENT_PLAN_NATIVE_TYPES.includes(link.get("native_type"))) errors.push("Installment plans are not available for this product type");
+  if (isFlagSet(link, "is_recurring_billing") || isFlagSet(link, "is_tiered_membership"))
+    errors.push("Installment plans are not available for membership products");
+  else if (isFlagSet(link, "is_in_preorder_state"))
+    errors.push("Installment plans are not available for pre-order products");
+  else if (!INSTALLMENT_PLAN_NATIVE_TYPES.includes(link.get("native_type")))
+    errors.push("Installment plans are not available for this product type");
   if (isFlagSet(link, "is_bundle")) {
-    throw new NotPortedError("ProductInstallmentPlan#validate_bundle_content_eligibility", "app/models/product_installment_plan.rb:69");
+    throw new NotPortedError(
+      "ProductInstallmentPlan#validate_bundle_content_eligibility",
+      "app/models/product_installment_plan.rb:69",
+    );
   }
   const hasPaidVariants = (await maxAliveVariantPriceDifference(link)) > 0;
-  if (link.get("customizable_price") && !hasPaidVariants) errors.push('Installment plans are not available for "pay what you want" pricing');
+  if (link.get("customizable_price") && !hasPaidVariants)
+    errors.push('Installment plans are not available for "pay what you want" pricing');
   const first = await defaultPriceCents(link);
   const second = await defaultPriceCents(link);
   if (second == null) throw new NoMethodError("undefined method '+' for nil");
   const maxPriceCents = Math.max(first!, second + (await maxAliveVariantPriceDifference(link)));
   const config = currency(link);
   if (!config) throw new NoMethodError("undefined method '[]' for nil");
-  if (config.min_price * (installments ?? 0) > maxPriceCents) errors.push(`The minimum price for each installment must be at least ${config.min_price_in_currency}.`);
+  if (config.min_price * (installments ?? 0) > maxPriceCents)
+    errors.push(`The minimum price for each installment must be at least ${config.min_price_in_currency}.`);
   return errors[0] ?? null;
 }
 
@@ -616,7 +757,10 @@ async function installmentPlanError(link: LinkRecord, plan: { number_of_installm
 function enqueueIndexUpdateFor(link: LinkRecord, fields: string[], ctx: CallbackContext): Promise<void> {
   const now = ctx.now ?? (() => new Date());
   return import("../search/product-indexing.ts").then(({ enqueueIndexUpdatesFor }) =>
-    enqueueIndexUpdatesFor([link.get("id") as bigint], fields, { now, featureActive: (name, actor) => collaborators.isFeatureEnabled(name, actor) }),
+    enqueueIndexUpdatesFor([link.get("id") as bigint], fields, {
+      now,
+      featureActive: (name, actor) => collaborators.isFeatureEnabled(name, actor),
+    }),
   );
 }
 
@@ -627,7 +771,11 @@ export async function invalidateProductCache(linkId: bigint | number, now?: () =
     Prisma.sql`SELECT ${Prisma.raw("`product_cached_values`.*")} FROM ${table(PRODUCT_CACHED_VALUES)} WHERE ${column(PRODUCT_CACHED_VALUES, "product_id")} = ${linkId} AND ${freshScope()}`,
   );
   for (const row of rows) {
-    await ProductCachedValues.updateBang(ProductCachedValues.load(castRow<ProductCachedValue>("ProductCachedValue", row)), { expired: true }, { now });
+    await ProductCachedValues.updateBang(
+      ProductCachedValues.load(castRow<ProductCachedValue>("ProductCachedValue", row)),
+      { expired: true },
+      { now },
+    );
   }
 }
 
@@ -654,7 +802,8 @@ export const Links = defineModel<Link>({
       name: "remove_xml_tags",
       run: (link) => {
         const description = link.get("description");
-        if (!isBlank(description)) link.set("description", description!.replace(/<!--\?xml.+\?-->|<!--\[if gte mso.+<!\[endif\]-->/gsu, ""));
+        if (!isBlank(description))
+          link.set("description", description!.replace(/<!--\?xml.+\?-->|<!--\[if gte mso.+<!\[endif\]-->/gsu, ""));
       },
     },
   ],
@@ -686,7 +835,9 @@ export const Links = defineModel<Link>({
           try {
             await collaborators.redis().incr(`seller_reputation_summary/version/${String(user.id)}`);
           } catch (error) {
-            console.error(`Seller reputation summary bump failed for user ${String(user.id)}: ${(error as Error).message}`);
+            console.error(
+              `Seller reputation summary bump failed for user ${String(user.id)}: ${(error as Error).message}`,
+            );
           }
         });
       },
@@ -706,7 +857,9 @@ export const Links = defineModel<Link>({
         const sum = row ? Object.values(row)[0] : null;
         if (sum != null && Number(sum) > 0) return;
         if (link.get("customizable_price") === true) return;
-        await execute(Prisma.sql`UPDATE ${table("links")} SET ${column("links", "customizable_price")} = TRUE WHERE ${column("links", "id")} = ${link.get("id")}`);
+        await execute(
+          Prisma.sql`UPDATE ${table("links")} SET ${column("links", "customizable_price")} = TRUE WHERE ${column("links", "id")} = ${link.get("id")}`,
+        );
         link.set("customizable_price", true);
         link.clearAttributeChanges(["customizable_price"]);
         await enqueueIndexUpdateFor(link, ["customizable_price"], ctx);
@@ -722,7 +875,8 @@ export const Links = defineModel<Link>({
         link.savedChangeTo("purchase_disabled_at") ||
         link.savedChangeTo("deleted_at") ||
         link.savedChangeTo("draft") ||
-        (isPublished(link) && (link.savedChangeTo("name") || link.savedChangeTo("description") || link.savedChangeTo("custom_permalink"))),
+        (isPublished(link) &&
+          (link.savedChangeTo("name") || link.savedChangeTo("description") || link.savedChangeTo("custom_permalink"))),
       async run(link) {
         await performAsync("SubmitToIndexnowJob", [[link.get("id") as bigint]]);
       },
@@ -746,15 +900,24 @@ export function bannedAtValue(at: Date | null): Date | null {
 }
 
 // `link.enqueue_index_update_for(fields)` for a product that was not loaded as a record (SaveFilesService on a post).
-export function enqueueLinkIndexUpdate(linkId: bigint | number, fields: string[], now: () => Date = () => new Date()): Promise<void> {
+export function enqueueLinkIndexUpdate(
+  linkId: bigint | number,
+  fields: string[],
+  now: () => Date = () => new Date(),
+): Promise<void> {
   return import("../search/product-indexing.ts").then(({ enqueueIndexUpdatesFor }) =>
-    enqueueIndexUpdatesFor([linkId], fields, { now, featureActive: (name, actor) => collaborators.isFeatureEnabled(name, actor) }),
+    enqueueIndexUpdatesFor([linkId], fields, {
+      now,
+      featureActive: (name, actor) => collaborators.isFeatureEnabled(name, actor),
+    }),
   );
 }
 
 // `Link.find(id)`
 export async function findLinkBang(id: bigint | number): Promise<LinkRecord> {
-  const [row] = await selectRows(Prisma.sql`SELECT ${Prisma.raw("`links`.*")} FROM ${table("links")} WHERE ${column("links", "id")} = ${id} LIMIT 1`);
+  const [row] = await selectRows(
+    Prisma.sql`SELECT ${Prisma.raw("`links`.*")} FROM ${table("links")} WHERE ${column("links", "id")} = ${id} LIMIT 1`,
+  );
   if (!row) throw Object.assign(new Error(`Couldn't find Link with 'id'=${String(id)}`), { name: "RecordNotFound" });
   return Links.load(castRow<Link>("Link", row));
 }

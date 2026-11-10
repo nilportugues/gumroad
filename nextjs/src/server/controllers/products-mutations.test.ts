@@ -1,16 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { execute, selectRows, registerMutations, calls, performAsync, collaboratingProductIds, updateBang } = vi.hoisted(
-  () => ({
+const { execute, selectRows, registerMutations, calls, performAsync, collaboratingProductIds, updateBang, saveBang } =
+  vi.hoisted(() => ({
     collaboratingProductIds: vi.fn(),
     updateBang: vi.fn(),
+    saveBang: vi.fn(),
     execute: vi.fn(),
     selectRows: vi.fn(),
     registerMutations: vi.fn(),
     calls: [] as string[],
     performAsync: vi.fn(),
-  }),
-);
+  }));
 
 vi.mock("../models/sql.ts", async (original) => ({
   ...(await original<typeof import("../models/sql.ts")>()),
@@ -29,11 +29,18 @@ vi.mock("../policies/link.ts", async (original) => ({
 }));
 vi.mock("../policies/authorize.ts", () => ({ authorize: vi.fn() }));
 vi.mock("../models/concerns/job-runtime.ts", () => ({ performAsync }));
+vi.mock("../models/runtime/transaction.ts", () => ({
+  transaction: async (fn: () => Promise<unknown>) => (calls.push("begin"), fn()),
+}));
+// The section id "sec-<n>" decrypts to n.
+vi.mock("../../lib/obfuscate-ids.ts", () => ({
+  decrypt: (value: string) => (value.startsWith("sec-") ? Number(value.slice(4)) : null),
+}));
 vi.mock("../models/link.ts", async (original) => {
   const actual = await original<typeof import("../models/link.ts")>();
   return {
     ...actual,
-    Links: { ...actual.Links, updateBang },
+    Links: { ...actual.Links, updateBang, saveBang },
     LinkDeletable: { markDeletedBang: async () => void calls.push("mark link deleted") },
   };
 });
@@ -62,6 +69,7 @@ beforeEach(() => {
   performAsync.mockReset();
   collaboratingProductIds.mockReset();
   updateBang.mockReset();
+  saveBang.mockReset();
   calls.length = 0;
 });
 
@@ -143,5 +151,77 @@ describe("POST /links/:id/unpublish", () => {
 
     await expect(handler().run(input)).rejects.toThrow("Not Found");
     expect(updateBang).not.toHaveBeenCalled();
+  });
+});
+
+describe("PUT /links/:id/sections", () => {
+  const OTHER_SELLERS_PRODUCT = {
+    id: 42n,
+    user_id: 99n,
+    unique_permalink: "abc",
+    flags: 0n,
+    deleted_at: null,
+    json_data: null,
+  };
+  const handler = () =>
+    registerMutations.mock.calls[0]!.find(
+      (spec: { method: string; pattern: string }) => spec.method === "PUT" && spec.pattern === "/links/:id/sections",
+    ) as { run: (input: unknown) => Promise<{ status: number; body: string }> };
+  const input = async (params: Record<string, unknown>, host?: string) => ({
+    params,
+    routeParams: { id: "abc" },
+    request: {
+      host: host ?? (await import("../page-props/domain.ts")).domainConfig(process.env).validDiscoverRequestHost,
+    },
+    context: { currentSeller: { id: 7n }, impersonatedUser: null },
+  });
+  const savedJsonData = () => saveBang.mock.calls[0]![0].get("json_data") as string;
+  const staleQuery = () => selectRows.mock.calls[1]![0] as { sql: string; values: unknown[] };
+
+  it("stores the decrypted section ids and the leading index on a product the user collaborates on, then deletes the product's other sections", async () => {
+    selectRows.mockResolvedValueOnce([OTHER_SELLERS_PRODUCT]).mockResolvedValueOnce([{ id: 5n }, { id: 6n }]);
+    collaboratingProductIds.mockResolvedValueOnce(new Set([42n]));
+
+    const result = await handler().run(await input({ sections: ["sec-11", "sec-12"], main_section_index: "1" }));
+
+    expect(result).toMatchObject({ status: 204, body: "" });
+    expect(savedJsonData()).toBe('{"sections":[11,12],"main_section_index":1}');
+    expect(staleQuery().sql).toContain(
+      "`seller_profile_sections`.`product_id` = ? AND `seller_profile_sections`.`id` NOT IN (?,?)",
+    );
+    expect(staleQuery().values).toEqual([42n, 11, 12]);
+    expect(execute.mock.calls.map(([sql]) => (sql as { values: unknown[] }).values)).toEqual([[5n], [6n]]);
+    expect(calls).toEqual(["begin"]);
+  });
+
+  it("deletes every section of the product when none are kept", async () => {
+    selectRows.mockResolvedValueOnce([OTHER_SELLERS_PRODUCT]).mockResolvedValueOnce([]);
+    collaboratingProductIds.mockResolvedValueOnce(new Set([42n]));
+
+    await handler().run(await input({}));
+
+    expect(savedJsonData()).toBe('{"sections":[],"main_section_index":0}');
+    expect(staleQuery().sql).not.toContain("NOT IN");
+  });
+
+  it("answers 404 for another seller's product the user does not collaborate on", async () => {
+    selectRows.mockResolvedValueOnce([OTHER_SELLERS_PRODUCT]);
+    collaboratingProductIds.mockResolvedValueOnce(new Set());
+
+    await expect(handler().run(await input({ sections: ["sec-11"] }))).rejects.toThrow("Not Found");
+    expect(saveBang).not.toHaveBeenCalled();
+  });
+
+  it("hands back a section id that does not decrypt before writing", async () => {
+    selectRows.mockResolvedValueOnce([OTHER_SELLERS_PRODUCT]);
+    collaboratingProductIds.mockResolvedValueOnce(new Set([42n]));
+
+    await expect(handler().run(await input({ sections: ["garbage"] }))).rejects.toThrow("section id");
+    expect(saveBang).not.toHaveBeenCalled();
+  });
+
+  it("hands back a request to a host the route is not drawn for", async () => {
+    await expect(handler().run(await input({ sections: [] }, "app.example.com"))).rejects.toThrow("discover host");
+    expect(selectRows).not.toHaveBeenCalled();
   });
 });
