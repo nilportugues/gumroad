@@ -412,4 +412,81 @@ describe "Customers page when signed in", type: :request, elasticsearch_wait_for
 
     expect(customers_of(response).map { _1["utm_link"]&.fetch("utm_url") }).to all(be_present)
   end
+
+  # Needs recording: the sender's row shows the license of the recipient's purchase (Purchase#linked_license).
+  it "shows the recipient's license on the sender's row of a gift of a licensed product", parity: true do
+    licensed = create(:product, user: seller, name: "Licensed", is_licensed: true)
+    sender = sell(licensed, days_ago: 3, is_gift_sender_purchase: true, email: "gifter@example.com")
+    receiver = sell(licensed, days_ago: 3, is_gift_receiver_purchase: true, purchase_state: "gift_receiver_purchase_successful", email: "giftee@example.com")
+    create(:gift, link: licensed, gifter_purchase: sender, giftee_purchase: receiver, gifter_email: "gifter@example.com", giftee_email: "giftee@example.com")
+    create(:license, link: licensed, purchase: receiver, uses: 2)
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    sender_row = customers_of(response).find { _1["is_gift_sender_purchase"] }
+    expect(sender_row["license"]).to include("uses" => 2, "enabled" => true)
+  end
+
+  # Needs recording: Purchase#variant_attributes.first picks the option of a sale of several.
+  it "shows the first option of a sale of several options", parity: true do
+    category = create(:variant_category, link: product, title: "Size")
+    small = create(:variant, variant_category: category, name: "Small")
+    large = create(:variant, variant_category: category, name: "Large")
+    sale = sell(product, days_ago: 3)
+    sale.variant_attributes = [small, large]
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    expect(customers_of(response).first["option"]).to include("name" => "Small")
+  end
+
+  # Needs recording: own_affiliate_credit_cents takes the direct affiliate's part off a collaborator sale.
+  it "shows the collaborator's own credit on a sale that also credits a direct affiliate", parity: true do
+    collaborator = create(:collaborator, seller:, affiliate_user: create(:user), affiliate_basis_points: 5000)
+    direct_affiliate = create(:direct_affiliate, seller:, affiliate_user: create(:user), affiliate_basis_points: 1000, products: [product])
+    sell(product, days_ago: 3, price_cents: 1000, affiliate: collaborator, affiliate_credit_cents: 400, direct_affiliate_id: direct_affiliate.id, direct_affiliate_credit_cents: 100)
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    expect(customers_of(response).first["affiliate"]).to be_present
+  end
+
+  # Needs recording: Subscription#status is payment_method_update_required for a renewal an Indian card mandate disabled.
+  it "asks a member whose renewals an Indian card mandate disabled for a new payment method", parity: true do
+    Feature.activate_user(StripeChargeProcessor::INDIA_CARD_MANDATE_RELIABILITY_FEATURE, seller)
+    create(:merchant_account, user: nil, charge_processor_id: StripeChargeProcessor.charge_processor_id, charge_processor_merchant_id: nil)
+    membership = create(:membership_product, user: seller, name: "Club")
+    purchase = create(:membership_purchase, link: membership, seller:, created_at: at_midday(3))
+    purchase.subscription.update_flag!(:renewal_disabled_due_to_indian_card_mandate, true, true)
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    expect(customers_of(response).first.dig("subscription", "status")).to eq("payment_method_update_required")
+  end
+
+  # Needs recording: Purchase#transaction_url_for_seller for a charge Gumroad did not make through Stripe.
+  it "links a Braintree sale to the seller's transaction page", parity: true do
+    sell(product, days_ago: 3, charge_processor_id: BraintreeChargeProcessor.charge_processor_id, stripe_transaction_id: "bt_txn_123")
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    expect(customers_of(response).first["transaction_url_for_seller"]).to include("bt_txn_123")
+  end
+
+  # Needs recording: a file field answered with no attachment lists no files.
+  it "shows a file custom field answered without an attachment", parity: true do
+    field = create(:custom_field, seller:, products: [product], name: "Brief", type: CustomField::TYPE_FILE, required: false)
+    purchase = sell(product, days_ago: 3)
+    create(:purchase_custom_field, purchase:, custom_field: field, name: "Brief", value: nil, type: CustomField::TYPE_FILE)
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    expect(customers_of(response).first["custom_fields"]).to eq([{ "attribute" => "Brief", "type" => "file", "files" => [] }])
+  end
 end
