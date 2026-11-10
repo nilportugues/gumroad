@@ -29,6 +29,7 @@ const SPECS = [
   "mobile_accounts_parity_spec",
   "mobile_hand_backs_parity_spec",
   "mobile_purchases_sales_parity_spec",
+  "mobile_sales_access_parity_spec",
   "mobile_products_subscriptions_parity_spec",
 ].filter((dir) => existsSync(path.join(FIXTURES, dir)));
 const ROUTE_FLAGS = [
@@ -106,6 +107,7 @@ const COMPARE = {
     // The seed is stamped with the replay's clock, so a row Rails touched seconds after the factory made it is not touched in the same second.
     "db.licenses.updated.*.changes.updated_at",
     "db.calls.updated.*.changes.updated_at",
+    "db.purchases.updated.*.changes.updated_at",
     "db.product_review_videos.updated.*.changes.updated_at",
     "db.media_locations.updated.*.changes.updated_at",
     // Doorkeeper mints the tokens at random.
