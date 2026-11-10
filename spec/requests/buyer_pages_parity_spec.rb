@@ -385,6 +385,40 @@ describe "Buyer pages", type: :request do
         expect(props["results"].map { _1.dig("product", "name") }).to match_array(bundle_purchase.link.bundle_products.map { _1.product.name })
       end
 
+      # The purchase factory charges a card through Stripe, and a refund is a column the page only reads.
+      def subscription_purchase(subscription, original:, **attributes)
+        build(:purchase, purchaser: buyer, email: buyer.email, link: subscription.link, subscription:, is_original_subscription_purchase: original, purchase_state: "successful", succeeded_at: Time.current, **attributes)
+          .tap { _1.save!(validate: false) }.tap { _1.create_url_redirect! }
+      end
+
+      it "links a refunded membership signup to the buyer's paid renewal", parity: true do
+        subscription = create(:subscription, user: buyer, link: create(:membership_product, name: "Refunded signup"))
+        subscription_purchase(subscription, original: true, stripe_refunded: true)
+        older_renewal = subscription_purchase(subscription, original: false, succeeded_at: 2.days.ago)
+        renewal = subscription_purchase(subscription, original: false, succeeded_at: 1.day.ago)
+        subscription_purchase(subscription, original: false, succeeded_at: Time.current, stripe_refunded: true)
+        log_in(buyer)
+
+        get library_path
+
+        expect(response).to be_successful
+        results = inertia_props_of(response)["results"]
+        expect(results.size).to eq(1)
+        expect(results.first.dig("purchase", "download_url")).to eq(renewal.url_redirect.download_page_url)
+        expect(results.first.dig("purchase", "download_url")).not_to eq(older_renewal.url_redirect.download_page_url)
+      end
+
+      it "gives a refunded membership signup no download link when there is no paid renewal", parity: true do
+        subscription = create(:subscription, user: buyer, link: create(:membership_product, name: "Refunded alone"))
+        subscription_purchase(subscription, original: true, stripe_refunded: true)
+        log_in(buyer)
+
+        get library_path
+
+        expect(response).to be_successful
+        expect(inertia_props_of(response)["results"].map { _1.dig("purchase", "download_url") }).to eq([nil])
+      end
+
       # The subscriptions tab is handed to Rails, so there is nothing to replay.
       it "renders the subscriptions tab", parity: false do
         create(:membership_purchase, purchaser: buyer).tap { _1.create_url_redirect! }

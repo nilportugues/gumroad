@@ -1,8 +1,8 @@
 // Port of app/presenters/library_presenter.rb: LibraryPresenter#library_props for LibraryController#index.
 // Memberships that still grant access, installment plans and bundles (member rows replace the bundle row)
-// are served here. A request for the subscriptions tab (status labels, billing-only cards), a bundle filter
-// that resolves to a bundle purchase with a download page (ZIP archives), or a refunded subscription row
-// (replacement renewal redirects) goes to Rails whole (HandBackToRails).
+// are served here, a refunded subscription row linking to the buyer's latest paid renewal (library_download_location).
+// A request for the subscriptions tab (status labels, billing-only cards) or a bundle filter that resolves
+// to a bundle purchase with a download page (ZIP archives) goes to Rails whole (HandBackToRails).
 import { Prisma, type Link, type Purchase, type User } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
@@ -11,6 +11,7 @@ import { HandBackToRails } from "../../controllers/application-controller.ts";
 import { grantsAccess } from "../../controllers/url-redirects/access.ts";
 import { LinkFlags } from "../../models/link.ts";
 import { castRow, column, selectRows, table } from "../../models/sql.ts";
+import { SubscriptionFlags } from "../../models/subscription.ts";
 import { PurchaseFlags } from "../../search/flags.ts";
 import { domainConfig } from "../domain.ts";
 
@@ -76,11 +77,6 @@ export async function assertLibrarySupported(
 ): Promise<void> {
   if (params.subscriptionsOnly) throw new HandBackToRails();
   const base = visibleInLibrary(userId);
-  // library_download_location looks for a replacement renewal when the purchase was refunded.
-  const refunded = await selectRows(
-    Prisma.sql`SELECT 1 FROM ${table(PURCHASES)} WHERE ${base} AND purchases.subscription_id IS NOT NULL AND purchases.stripe_refunded = 1 LIMIT 1`,
-  );
-  if (refunded.length > 0) throw new HandBackToRails();
   const linkIds = bundleLinkIds(rubySplitComma(params.bundles));
   if (linkIds.length === 0) return;
   // bundle_downloads: the ZIP archive state is not ported, so a bundle with a download page hands back.
@@ -88,6 +84,57 @@ export async function assertLibrarySupported(
     Prisma.sql`SELECT 1 FROM ${table(PURCHASES)} INNER JOIN ${table("url_redirects")} ON url_redirects.purchase_id = purchases.id WHERE ${base} AND ${flag("is_bundle_purchase", true)} AND ${column(PURCHASES, "link_id")} IN (${Prisma.join(linkIds)}) LIMIT 1`,
   );
   if (downloads.length > 0) throw new HandBackToRails();
+}
+
+type RenewalCandidate = { subscription_id: bigint; link_id: bigint; purchase_state: string; token: string | null };
+
+// The first candidate (already ordered succeeded_at DESC, id DESC) that is in the subscription's
+// successful state and has a download page.
+export function pickReplacementToken(candidates: RenewalCandidate[], successfulState: string): string | null {
+  return candidates.find((candidate) => candidate.purchase_state === successfulState && candidate.token)?.token ?? null;
+}
+
+// `replacement_redirects_for`: a refunded original (or gift receiver) row links to the viewer's own
+// latest paid renewal instead of its own download page. Keyed by purchase id; null when none exists.
+export async function replacementTokens(userId: bigint, purchases: Purchase[]): Promise<Map<bigint, string | null>> {
+  const refunded = purchases.filter(
+    (purchase) =>
+      purchase.stripe_refunded === true &&
+      purchase.subscription_id !== null &&
+      (PurchaseFlags.isSet(purchase.flags, "is_original_subscription_purchase") ||
+        PurchaseFlags.isSet(purchase.flags, "is_gift_receiver_purchase")),
+  );
+  const tokens = new Map<bigint, string | null>();
+  if (refunded.length === 0) return tokens;
+  const pairs = new Map(refunded.map((purchase) => [`${purchase.subscription_id}:${purchase.link_id}`, purchase]));
+  const pairConditions = [...pairs.values()].map(
+    (purchase) =>
+      Prisma.sql`(${column(PURCHASES, "subscription_id")} = ${purchase.subscription_id} AND ${column(PURCHASES, "link_id")} = ${purchase.link_id})`,
+  );
+  // Only the viewer's own renewals qualify: UrlRedirectsController#check_permissions authorizes against the
+  // rendered purchase's purchaser, so another owner's renewal would bounce the viewer to verification.
+  const candidates = await selectRows<RenewalCandidate>(
+    Prisma.sql`SELECT ${column(PURCHASES, "subscription_id")} AS subscription_id, ${column(PURCHASES, "link_id")} AS link_id, ${column(PURCHASES, "purchase_state")} AS purchase_state, (SELECT url_redirects.token FROM ${table("url_redirects")} WHERE url_redirects.purchase_id = purchases.id ORDER BY url_redirects.id ASC LIMIT 1) AS token FROM ${table(PURCHASES)} WHERE (${Prisma.join(pairConditions, " OR ")}) AND ${column(PURCHASES, "purchaser_id")} = ${userId} AND ${column(PURCHASES, "purchase_state")} IN ('successful', 'test_successful') AND (purchases.stripe_refunded IS NULL OR purchases.stripe_refunded = 0) AND (purchases.chargeback_date IS NULL OR ${flag("chargeback_reversed", true)}) AND ${flag("is_access_revoked", false)} AND ${flag("is_original_subscription_purchase", false)} AND ${flag("is_gift_receiver_purchase", false)} ORDER BY ${column(PURCHASES, "succeeded_at")} DESC, ${column(PURCHASES, "id")} DESC`,
+  );
+  const subscriptionIds = [...new Set(refunded.flatMap((purchase) => purchase.subscription_id ?? []))];
+  const subscriptions = await selectRows<{ id: bigint; flags: bigint | number }>(
+    Prisma.sql`SELECT ${column("subscriptions", "id")} AS id, ${column("subscriptions", "flags")} AS flags FROM ${table("subscriptions")} WHERE ${column("subscriptions", "id")} IN (${Prisma.join(subscriptionIds)})`,
+  );
+  const testSubscriptions = new Set(
+    subscriptions
+      .filter((subscription) => SubscriptionFlags.isSet(subscription.flags, "is_test_subscription"))
+      .map((subscription) => BigInt(subscription.id)),
+  );
+  for (const purchase of refunded) {
+    const matching = candidates.filter(
+      (candidate) =>
+        BigInt(candidate.subscription_id) === purchase.subscription_id &&
+        BigInt(candidate.link_id) === purchase.link_id,
+    );
+    const state = testSubscriptions.has(purchase.subscription_id!) ? "test_successful" : "successful";
+    tokens.set(purchase.id, pickReplacementToken(matching, state));
+  }
+  return tokens;
 }
 
 // `no_access_membership_purchase_ids`: a purchase whose subscription row is missing stays visible.
@@ -224,7 +271,7 @@ export async function libraryProps(user: User, params: LibraryParams) {
   const purchases = pageRows.map((row) => castRow<Purchase>("Purchase", row));
 
   return {
-    results: await buildCards(purchases),
+    results: await buildCards(user.id, purchases),
     pagination: {
       page,
       pages,
@@ -271,7 +318,8 @@ async function creatorsForTab(base: Prisma.Sql, showArchivedOnly: boolean) {
   }));
 }
 
-async function buildCards(purchases: Purchase[]) {
+async function buildCards(userId: bigint, purchases: Purchase[]) {
+  const replacements = await replacementTokens(userId, purchases);
   const sellerData = new Map<bigint, { name: string | null; profile_url: string; avatar_url: string }>();
   const cards = [];
   for (const purchase of purchases) {
@@ -286,6 +334,10 @@ async function buildCards(purchases: Purchase[]) {
     }
     const redirect = await db.urlRedirect.findFirst({ where: { purchase_id: purchase.id }, orderBy: { id: "asc" } });
     const config = domainConfig(process.env);
+    // library_download_location: a refunded row has no page of its own.
+    const downloadToken = purchase.stripe_refunded
+      ? (replacements.get(purchase.id) ?? null)
+      : (redirect?.token ?? null);
     cards.push({
       product: {
         name: product.name,
@@ -296,7 +348,7 @@ async function buildCards(purchases: Purchase[]) {
       purchase: {
         id: encrypt(purchase.id),
         is_archived: PurchaseFlags.isSet(purchase.flags, "is_archived"),
-        download_url: redirect ? `${config.protocol}://${config.domain}/d/${redirect.token}` : null,
+        download_url: downloadToken ? `${config.protocol}://${config.domain}/d/${downloadToken}` : null,
         variants: (await variantNames(purchase.id)).join(", "),
       },
     });
