@@ -74,6 +74,56 @@ describe "API v2 MCP and Notion", type: :request do
     end
   end
 
+  describe "MCP tool calls" do
+    let(:product) { create(:product, user: seller, name: "Sketch pack", unique_permalink: "sketchpk") }
+    let(:other_product) { create(:product, user: seller, name: "Icon set", unique_permalink: "iconset") }
+
+    def call_tool(name, arguments = {}, scopes: "view_sales")
+      body = { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name:, arguments: } }
+      post "/muse/v1/mcp", params: body.to_json, headers: rpc.merge(auth(scopes))
+    end
+
+    def sell(link, email:, price_cents:, at:, **attributes)
+      build(:purchase, link:, seller:, email:, price_cents:, purchase_state: "successful", created_at: Time.utc(*at), **attributes).tap { |row| row.save!(validate: false) }
+    end
+
+    before do
+      sell(product, email: "ada@example.com", price_cents: 1000, at: [2026, 3, 2, 10])
+      sell(product, email: "ada@example.com", price_cents: 500, at: [2026, 3, 5, 10], stripe_refunded: true)
+      sell(other_product, email: "bob@example.com", price_cents: 2500, at: [2026, 3, 3, 10])
+      sell(other_product, email: "cy@example.com", price_cents: 0, at: [2026, 3, 1, 0])
+      sell(other_product, email: "cy@example.com", price_cents: 700, at: [2026, 3, 2, 14, 24])
+    end
+
+    it "reports the spend of each buyer", parity: true do
+      call_tool("get_customers")
+    end
+
+    it "reports the spend of a buyer in a date range", parity: true do
+      call_tool("get_customers", { email: "ada@example.com", start_date: "2026-03-02", end_date: "2026-03-04" })
+    end
+
+    it "reports the buyers who went from free to paid", parity: true do
+      call_tool("get_customers", { breakdown: "conversion" })
+    end
+
+    it "reports sales totals by product", parity: true do
+      call_tool("get_sales_totals", { start_date: "2026-03-01", end_date: "2026-03-31" })
+    end
+
+    it "reports sales totals for one product", parity: true do
+      call_tool("get_sales_totals", { start_date: "2026-03-01", end_date: "2026-03-31", product_id: other_product.unique_permalink })
+    end
+
+    it "refuses a sales totals range that is too long", parity: true do
+      call_tool("get_sales_totals", { start_date: "2024-01-01", end_date: "2026-03-31" })
+    end
+
+    it "hands back a sales totals breakdown by country", parity: true do
+      call_tool("get_sales_totals", { start_date: "2026-03-01", end_date: "2026-03-31", breakdown: "country" })
+    end
+  end
+
   describe "Notion unfurl" do
     it "refuses a request without a token", parity: true do
       post "/notion/unfurl", params: { uri: "https://dude.test.gumroad.com:31337/l/abc" }
