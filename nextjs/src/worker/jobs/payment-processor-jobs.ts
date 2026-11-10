@@ -18,7 +18,7 @@ import { getRedis } from "../../server/infra/redis.ts";
 import { beforeSideEffects } from "../../server/jobs/hand-back.ts";
 import { pushBulkWith } from "../../server/jobs/push-bulk.ts";
 import { currentJobsRuntime, performAsync } from "../../server/models/concerns/job-runtime.ts";
-import { rubyToI } from "../../server/models/concerns/ruby-numeric.ts";
+import { rubyStringToBigInt } from "../../server/models/concerns/ruby-numeric.ts";
 import { ago, rubyTimeToF } from "../../server/models/concerns/ruby-time.ts";
 import { findPurchaseBang, purchaseIdFrom } from "../../server/models/purchase.ts";
 import { findByIdBang, findOneBy, recordIdFrom } from "../../server/models/row-reads.ts";
@@ -58,8 +58,7 @@ async function cacheableUserIds(redis: Redis): Promise<bigint[]> {
   } catch {
     return [];
   }
-  const salesThreshold = threshold === null ? DEFAULT_SALES_CACHING_THRESHOLD : rubyToI(threshold);
-  if (!Number.isSafeInteger(salesThreshold)) throw new NotPortedError("UserBalanceStatsService.cacheable_users", "a sales threshold beyond 2**53");
+  const salesThreshold = threshold === null ? BigInt(DEFAULT_SALES_CACHING_THRESHOLD) : rubyStringToBigInt(threshold);
   // The bound values are interpolated as quoted strings, as ActiveRecord renders them.
   const conditions = [Prisma.sql`(large_sellers.sales_count >= ${String(salesThreshold)})`];
   if (excluded.length > 0) conditions.push(Prisma.sql`(large_sellers.user_id NOT IN (${Prisma.join(excluded, ", ")}))`);
