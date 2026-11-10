@@ -13,6 +13,8 @@ import { variantToOption } from "../../presenters/product-props.ts";
 
 import {
   affiliateJson,
+  commissionReadings,
+  shownReviewVideos,
   displayReferrer,
   directCreditsOf,
   futureSubscriptionCharge,
@@ -701,5 +703,107 @@ describe("Purchase#linked_license of a gift sender", () => {
       base_variants_purchases: [{ id: 1, purchase_id: 2, base_variant_id: 4 }],
     });
     await expect(gifteeLicensesOf(gifts)).rejects.toThrow(HandBackToRails);
+  });
+});
+
+describe("commissions and review videos", () => {
+  const DEPOSIT = 1n << 28n;
+  const COMPLETION = 1n << 29n;
+  type Tables = Record<string, Record<string, unknown>[]>;
+  function answering(tables: Tables) {
+    setSqlClient(() => ({
+      $queryRaw: (async (query: { sql: string }) => {
+        for (const [key, rows] of Object.entries(tables)) {
+          const [name, byColumn] = key.split(":");
+          if (query.sql.includes(`FROM \`${name}\``) && (!byColumn || query.sql.includes(`\`${byColumn}\` IN`)))
+            return rows;
+        }
+        return [];
+      }) as never,
+      $executeRaw: (async () => 0) as never,
+    }));
+  }
+  const deposit = { id: 10, flags: DEPOSIT };
+  const commission = { id: 3, deposit_purchase_id: 10, completion_purchase_id: null, status: "in_progress" };
+  const asDeposit = "commissions:deposit_purchase_id";
+
+  it("reads an open commission as editable with no completion", async () => {
+    answering({ [asDeposit]: [commission] });
+
+    const readings = await commissionReadings([deposit]);
+
+    expect(readings.get("10")).toMatchObject({ status: "in_progress", filesAreEditable: true, completion: null });
+  });
+
+  it("folds a charged completion into the deposit row and locks the files", async () => {
+    answering({
+      [asDeposit]: [{ ...commission, completion_purchase_id: 11, status: "completed" }],
+      purchases: [{ id: 11, purchase_state: "successful", displayed_price_cents: 500, offer_code_id: null }],
+      tips: [{ purchase_id: 11, value_cents: 50 }],
+    });
+
+    const reading = (await commissionReadings([deposit])).get("10")!;
+
+    expect(reading.filesAreEditable).toBe(false);
+    expect(reading.completion).toEqual({ displayedCents: 500, beforeOfferCode: 500, tipCents: 50 });
+  });
+
+  it("leaves a failed completion out of the row but still locks the files", async () => {
+    answering({
+      [asDeposit]: [{ ...commission, completion_purchase_id: 11 }],
+      purchases: [{ id: 11, purchase_state: "failed", displayed_price_cents: 500 }],
+    });
+
+    const reading = (await commissionReadings([deposit])).get("10")!;
+
+    expect(reading).toMatchObject({ filesAreEditable: false, completion: null });
+  });
+
+  it("reads a completion purchase's own commission without folding", async () => {
+    answering({
+      "commissions:completion_purchase_id": [{ ...commission, completion_purchase_id: 11, status: "completed" }],
+    });
+
+    const readings = await commissionReadings([{ id: 11, flags: COMPLETION }]);
+
+    expect(readings.get("11")).toMatchObject({ status: "completed", completion: null });
+  });
+
+  it("hands back a commission with files and a completion that is still in progress", async () => {
+    answering({ [asDeposit]: [commission], active_storage_attachments: [{ 1: 1 }] });
+    await expect(commissionReadings([deposit])).rejects.toBeInstanceOf(HandBackToRails);
+
+    answering({
+      [asDeposit]: [{ ...commission, completion_purchase_id: 11 }],
+      purchases: [{ id: 11, purchase_state: "in_progress" }],
+    });
+    await expect(commissionReadings([deposit])).rejects.toBeInstanceOf(HandBackToRails);
+  });
+
+  it("lists the pending video before the approved one and skips rejected ones", async () => {
+    answering({
+      product_review_videos: [
+        { id: 1, product_review_id: 7, approval_status: "approved" },
+        { id: 2, product_review_id: 7, approval_status: "pending_review" },
+      ],
+      video_files: [
+        { id: 20, record_id: 1 },
+        { id: 21, record_id: 2 },
+      ],
+    });
+
+    const shown = await shownReviewVideos([7]);
+
+    expect(shown.get("7")!.map((video) => video.id)).toEqual([2, 1]);
+  });
+
+  it("hands back a video whose file has a thumbnail", async () => {
+    answering({
+      product_review_videos: [{ id: 1, product_review_id: 7, approval_status: "approved" }],
+      video_files: [{ id: 20, record_id: 1 }],
+      active_storage_attachments: [{ 1: 1 }],
+    });
+
+    await expect(shownReviewVideos([7])).rejects.toBeInstanceOf(HandBackToRails);
   });
 });

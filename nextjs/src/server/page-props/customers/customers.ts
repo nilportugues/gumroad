@@ -4,7 +4,8 @@
 // Handed back to Rails (HandBackToRails) when a customer on the page needs a reading the port does not make: a member whose renewals an Indian card mandate disabled and whose next charge is free under a limited-cycle discount,
 // a sent gift whose recipient holds a license on a product with option content, a shipping sale that is a subscription or has a recurring price or a tracking URL the port cannot parse, a UTM link (`utm_url` is built by Addressable), a non-USD price without a
 // stored rate or in a currency the port has no table for, a refund whose json_data is not plain JSON, a commission
-// with files, a review video, and a custom field answer that carries a file (its signed id).
+// with files or a completion still in progress, a review video whose file has a thumbnail, and a custom field answer that
+// carries a file (its signed id).
 import { Prisma, type Purchase, type Subscription, type User } from "@prisma/client";
 
 import { encrypt } from "../../../lib/obfuscate-ids.ts";
@@ -189,6 +190,18 @@ type Loaded = {
   receivedGifts: Map<string, Row>;
   // The ids of the preorders the page's purchases belong to (`purchase.preorder.present?`).
   preorderIds: Set<string>;
+  commissions: Map<string, CommissionReading>;
+  // The alive pending and approved videos of each review, by review id, in the order CustomerPresenter lists them.
+  reviewVideos: Map<string, Row[]>;
+};
+
+// Purchase#commission with what the presenter and the deposit row read off it. `completion` is the completion purchase
+// when it is charged (`charged_commission_completion_purchase`).
+export type CommissionReading = {
+  id: string;
+  status: string;
+  filesAreEditable: boolean;
+  completion: { displayedCents: number; beforeOfferCode: number; tipCents: number | null } | null;
 };
 
 // Refund#effective?: a failed or canceled refund counts unless its balance debits were reversed.
@@ -250,6 +263,131 @@ async function shippingReadings(purchases: Row[], links: Map<string, Row>): Prom
   return readings;
 }
 
+const attachmentExists = (recordType: string, name: string, recordIds: unknown[]) =>
+  exists(
+    Prisma.sql`SELECT 1 FROM ${table("active_storage_attachments")} WHERE ${column("active_storage_attachments", "record_type")} = ${recordType} AND ${column("active_storage_attachments", "name")} = ${name} AND ${column("active_storage_attachments", "record_id")} IN (${inList(recordIds)}) LIMIT 1`,
+  );
+
+// CustomerPresenter#review_videos_props: the pending video, then the approved one. Their thumbnail (and the file's signed_id) is
+// Rails' to answer, so a video whose file has a thumbnail attached hands back.
+export async function shownReviewVideos(reviewIds: unknown[]): Promise<Map<string, Row[]>> {
+  const shown = new Map<string, Row[]>();
+  const videos = await rowsBy(
+    "product_review_videos",
+    "product_review_id",
+    reviewIds,
+    Prisma.sql` AND ${column("product_review_videos", "deleted_at")} IS NULL AND ${column("product_review_videos", "approval_status")} IN ('pending_review', 'approved')`,
+  );
+  if (videos.length === 0) return shown;
+  const files = groupBy(
+    await rowsBy(
+      "video_files",
+      "record_id",
+      videos.map((video) => video.id),
+      Prisma.sql` AND ${column("video_files", "record_type")} = 'ProductReviewVideo'`,
+    ),
+    "record_id",
+  );
+  // `video.video_file` is a has_one with no order, and a video without one would raise in `thumbnail_url`.
+  if (videos.some((video) => files.get(String(video.id))?.length !== 1)) throw new HandBackToRails();
+  if (
+    await attachmentExists(
+      "VideoFile",
+      "thumbnail",
+      [...files.values()].flat().map((file) => file.id),
+    )
+  )
+    throw new HandBackToRails();
+  const byReview = groupBy(videos, "product_review_id");
+  for (const [reviewId, list] of byReview) {
+    const pending = list.filter((video) => video.approval_status === "pending_review");
+    const approved = list.filter((video) => video.approval_status === "approved");
+    // At most one of each is guaranteed; more would make `find` order-dependent.
+    if (pending.length > 1 || approved.length > 1) throw new HandBackToRails();
+    shown.set(reviewId, [...pending, ...approved]);
+  }
+  return shown;
+}
+
+// Purchase#commission (the deposit's commission_as_deposit, the completion's commission_as_completion) and the completion
+// purchase CustomerPresenter folds into a deposit row.
+export async function commissionReadings(purchases: Row[]): Promise<Map<string, CommissionReading>> {
+  const idsWith = (flag: "is_commission_deposit_purchase" | "is_commission_completion_purchase") =>
+    purchases.filter((purchase) => PurchaseFlags.isSet(purchase.flags, flag)).map((purchase) => purchase.id);
+  const asDeposit = await rowsBy("commissions", "deposit_purchase_id", idsWith("is_commission_deposit_purchase"));
+  const asCompletion = await rowsBy(
+    "commissions",
+    "completion_purchase_id",
+    idsWith("is_commission_completion_purchase"),
+  );
+  const rows = [...asDeposit, ...asCompletion];
+  const readings = new Map<string, CommissionReading>();
+  if (rows.length === 0) return readings;
+  // The files' signed_id is Rails' to answer.
+  if (
+    await attachmentExists(
+      "Commission",
+      "files",
+      rows.map((row) => row.id),
+    )
+  )
+    throw new HandBackToRails();
+
+  const completions = byId(
+    await rowsBy("purchases", "id", [
+      ...new Set(asDeposit.map((row) => row.completion_purchase_id).filter((id) => id != null)),
+    ]),
+  );
+  // An in_progress completion may be waiting on the buyer's presentment settlement (pending_buyer_presentment_settlement?),
+  // which also counts as charged and reads Charge and flow of funds.
+  if ([...completions.values()].some((completion) => completion.purchase_state === "in_progress"))
+    throw new HandBackToRails();
+  const charged = [...completions.values()].filter((completion) => completion.purchase_state === "successful");
+  const chargedIds = charged.map((completion) => completion.id);
+  const tips = new Map((await rowsBy("tips", "purchase_id", chargedIds)).map((tip) => [String(tip.purchase_id), tip]));
+  const offerCodes = byId(
+    await rowsBy("offer_codes", "id", [
+      ...new Set(charged.map((completion) => completion.offer_code_id).filter((id) => id != null)),
+    ]),
+  );
+  const cached = new Set(
+    (await rowsBy("purchase_offer_code_discounts", "purchase_id", chargedIds)).map((discount) =>
+      String(discount.purchase_id),
+    ),
+  );
+
+  const reading = (row: Row) => ({
+    id: encrypt(row.id),
+    status: row.status as string,
+    filesAreEditable: row.status !== "completed" && row.completion_purchase_id == null,
+  });
+  // The completion row shows the commission but is not folded into anything.
+  for (const row of asCompletion)
+    readings.set(String(row.completion_purchase_id), { ...reading(row), completion: null });
+  for (const row of asDeposit) {
+    const completion = completions.get(String(row.completion_purchase_id));
+    const base = reading(row);
+    const key = String(row.deposit_purchase_id);
+    if (completion === undefined || completion.purchase_state !== "successful") {
+      readings.set(key, { ...base, completion: null });
+      continue;
+    }
+    const offerCode =
+      completion.offer_code_id == null ? null : (offerCodes.get(String(completion.offer_code_id)) ?? null);
+    const { beforeOfferCode } = await offerCodeReading(completion, offerCode, cached.has(String(completion.id)));
+    const tip = tips.get(String(completion.id));
+    readings.set(key, {
+      ...base,
+      completion: {
+        displayedCents: num(completion.displayed_price_cents),
+        beforeOfferCode,
+        tipCents: tip ? num(tip.value_cents) : null,
+      },
+    });
+  }
+  return readings;
+}
+
 // Purchase.where(id: ids).in_order_of(:id, ids) with the associations CustomerPresenter reads, after handing back what it cannot.
 async function load(ids: string[], seller: User): Promise<Loaded> {
   const rows = await rowsBy("purchases", "id", ids);
@@ -270,21 +408,16 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
     )
       throw new HandBackToRails();
     const flags = (name: Parameters<typeof PurchaseFlags.isSet>[1]) => PurchaseFlags.isSet(purchase.flags, name);
-    if (flags("is_commission_deposit_purchase")) throw new HandBackToRails();
     if (flags("is_installment_payment")) throw new HandBackToRails();
   }
-  for (const [tableName, columnName] of [
-    ["utm_link_driven_sales", "purchase_id"],
-    ["commissions", "deposit_purchase_id"],
-  ] as const) {
-    if (
-      purchaseIds.length > 0 &&
-      (await exists(
-        Prisma.sql`SELECT 1 FROM ${table(tableName)} WHERE ${column(tableName, columnName)} IN (${inList(purchaseIds)}) LIMIT 1`,
-      ))
-    )
-      throw new HandBackToRails();
-  }
+  if (
+    purchaseIds.length > 0 &&
+    (await exists(
+      Prisma.sql`SELECT 1 FROM ${table("utm_link_driven_sales")} WHERE ${column("utm_link_driven_sales", "purchase_id")} IN (${inList(purchaseIds)}) LIMIT 1`,
+    ))
+  )
+    throw new HandBackToRails();
+  const commissions = await commissionReadings(purchases);
 
   const affiliates = byId(
     await rowsBy("affiliates", "id", [
@@ -355,13 +488,7 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
   const reviews = byId(await rowsBy("product_reviews", "purchase_id", purchaseIds));
   const reviewsByPurchase = new Map([...reviews.values()].map((review) => [String(review.purchase_id), review]));
   const reviewIds = [...reviews.values()].map((review) => review.id);
-  if (
-    reviewIds.length > 0 &&
-    (await exists(
-      Prisma.sql`SELECT 1 FROM ${table("product_review_videos")} WHERE ${column("product_review_videos", "product_review_id")} IN (${inList(reviewIds)}) LIMIT 1`,
-    ))
-  )
-    throw new HandBackToRails();
+  const reviewVideos = await shownReviewVideos(reviewIds);
   const responses = new Map(
     (await rowsBy("product_review_responses", "product_review_id", reviewIds)).map((response) => [
       String(response.product_review_id),
@@ -392,6 +519,8 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
 
   return {
     purchases,
+    commissions,
+    reviewVideos,
     links,
     hasAliveVariants: await productsWithAliveVariants([...links.keys()]),
     receivedGifts,
@@ -807,6 +936,8 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
   const tip = loaded.tips.get(id);
   const ownLicense = loaded.licenses.get(id);
   const license = ownLicense && present(ownLicense.serial) ? ownLicense : (loaded.gifteeLicenses.get(id) ?? ownLicense);
+  const commission = loaded.commissions.get(id);
+  const completion = commission?.completion ?? null;
   const review = loaded.reviews.get(id);
   const call = loaded.calls.get(id);
   const purchaser =
@@ -840,12 +971,18 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
     created_at: iso(purchase.created_at),
     price: {
       // listed_price_cents: a member is listed at what their next charge will be.
-      cents: subscription?.currentPriceCents ?? displayed,
-      cents_before_offer_code: beforeOfferCode,
+      cents: (subscription?.currentPriceCents ?? displayed) + (completion?.displayedCents ?? 0),
+      cents_before_offer_code: completion ? beforeOfferCode + completion.beforeOfferCode : beforeOfferCode,
       cents_refundable: await refundableCents(purchase, loaded.refundedCents.get(id) ?? 0, currency),
       currency_type: currency,
       recurrence: subscription?.recurrence ?? null,
-      tip_cents: tip ? num(tip.value_cents) : null,
+      // listed_tip_cents: the deposit's tip, plus the completion's when it has one.
+      tip_cents:
+        completion?.tipCents == null
+          ? tip
+            ? num(tip.value_cents)
+            : null
+          : (tip ? num(tip.value_cents) : 0) + completion.tipCents,
     },
     quantity,
     discount: discountCode
@@ -888,7 +1025,13 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
           response: loaded.responses.has(String(review.id))
             ? { message: loaded.responses.get(String(review.id))!.message }
             : null,
-          videos: [],
+          videos: (loaded.reviewVideos.get(String(review.id)) ?? []).map((video) => ({
+            id: encrypt(video.id),
+            approval_status: video.approval_status,
+            thumbnail_url: null,
+            can_approve: update,
+            can_reject: update,
+          })),
         }
       : null,
     call: call
@@ -899,7 +1042,9 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
           end_time: iso(call.end_time),
         }
       : null,
-    commission: null,
+    commission: commission
+      ? { id: commission.id, files: [], status: commission.status, files_are_editable: commission.filesAreEditable }
+      : null,
     custom_fields: (loaded.customFields.get(id) ?? []).map((field) => {
       const attribute = present(loaded.fieldNames.get(String(field.custom_field_id))?.name)
         ? loaded.fieldNames.get(String(field.custom_field_id))!.name
