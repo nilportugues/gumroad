@@ -50,6 +50,18 @@ async function findOfferCode(product: LinkRow, code: string): Promise<OfferCodeR
 
 const ruby = (date: Date | null) => (date ? date.toISOString() : null);
 
+// OfferCode#option_ids_by_product
+async function optionIdsByProduct(code: OfferCodeRecord): Promise<Record<string, string[]>> {
+  const grouped = new Map<string, string[]>();
+  for (const variant of await code.variants()) {
+    const productId = await variant.owningProductId();
+    if (productId === null) throw new NotPortedError("OfferCode#option_ids_by_product for an option with no product");
+    const key = encrypt(productId);
+    grouped.set(key, [...(grouped.get(key) ?? []), encrypt(variant.row.id)]);
+  }
+  return Object.fromEntries(grouped);
+}
+
 // OfferCode#discount, in full
 export async function fullDiscount(code: OfferCodeRecord): Promise<Record<string, unknown>> {
   const { row } = code;
@@ -66,6 +78,7 @@ export async function fullDiscount(code: OfferCodeRecord): Promise<Record<string
     const excluded = await code.excludedProducts();
     if (excluded.length > 0) json.excluded_product_ids = excluded.map((product) => encrypt(product.id));
   }
+  if (await code.hasVariants()) json.option_ids_by_product = await optionIdsByProduct(code);
   if (row.new_customers_only) json.new_customers_only = true;
   return json;
 }

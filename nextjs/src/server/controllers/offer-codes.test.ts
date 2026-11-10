@@ -2,9 +2,17 @@
 // sold_out, partial (capped universal code), whitespace and missing-products examples, plus the hand-backs.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { encrypt } from "../../lib/obfuscate-ids.ts";
 import { HandBackToRails } from "./application-controller.ts";
 
-const { selectRows, quantityLeft } = vi.hoisted(() => ({ selectRows: vi.fn(), quantityLeft: vi.fn() }));
+process.env.OBFUSCATE_IDS_CIPHER_KEY = "offer-codes-test-key";
+process.env.OBFUSCATE_IDS_NUMERIC_CIPHER_KEY = "12345";
+
+const { selectRows, quantityLeft, restrictedVariants } = vi.hoisted(() => ({
+  selectRows: vi.fn(),
+  quantityLeft: vi.fn(),
+  restrictedVariants: [] as { id: number; productId: number }[],
+}));
 
 vi.mock("../models/sql.ts", async (original) => ({
   ...(await original<typeof import("../models/sql.ts")>()),
@@ -19,7 +27,10 @@ vi.mock("../presenters/best-offer-code.ts", () => ({
     oncePerCart: false,
     tiered: () => false,
     inactive: (now: Date) => row.expires_at != null && (row.expires_at as Date).getTime() < now.getTime(),
-    hasVariants: async () => false,
+    restrictedVariantsFor: async (product: { id: number }) =>
+      restrictedVariants
+        .filter((variant) => String(variant.productId) === String(product.id))
+        .map((variant) => ({ row: { id: variant.id } })),
     quantityLeft,
   }),
   applicable: async () => true,
@@ -73,6 +84,7 @@ function stubDb({ links = [link(1)], codes = [code()], crossSells = false } = {}
 beforeEach(() => {
   selectRows.mockReset();
   quantityLeft.mockReset();
+  restrictedVariants.length = 0;
 });
 
 describe("cartLines (OfferCodesController#product_params)", () => {
@@ -174,6 +186,60 @@ describe("GET /offer_codes/compute_discount", () => {
     const result = await body(`code=off&${cartQuery(["perm1", "perm2", "perm3"])}`);
     expect(Object.keys(result.products_data)).toHaveLength(3);
     expect(result).not.toHaveProperty("notice");
+  });
+});
+
+describe("a code limited to options (entries_eligible_for_option_scope)", () => {
+  const optionLine = (index: number, permalink: string, option: string | null, quantity = 1) =>
+    `products[${index}][permalink]=${permalink}&products[${index}][quantity]=${quantity}` +
+    (option === null ? "" : `&products[${index}][variant_external_id]=${option}`);
+  const inScope = encrypt(31);
+
+  beforeEach(() => restrictedVariants.push({ id: 31, productId: 1 }));
+
+  it("discounts a line that picks an option the code covers", async () => {
+    stubDb();
+    expect(Object.keys((await body(`code=off&${optionLine(0, "perm1", inScope)}`)).products_data)).toEqual(["perm1"]);
+  });
+
+  it("keeps a line that omits the option, as the product page preview does", async () => {
+    stubDb();
+    expect((await body(`code=off&${optionLine(0, "perm1", null)}`)).valid).toBe(true);
+  });
+
+  it("answers option_not_eligible when the only line picks another option", async () => {
+    stubDb();
+    expect(await body(`code=off&${optionLine(0, "perm1", encrypt(32))}`)).toEqual({
+      valid: false,
+      error_code: "option_not_eligible",
+      error_message: "This code does not apply to the selected option.",
+    });
+  });
+
+  it("treats a blank option as out of scope", async () => {
+    stubDb();
+    expect((await body(`code=off&${optionLine(0, "perm1", "")}`)).error_code).toBe("option_not_eligible");
+  });
+
+  it("counts only the covered lines toward the minimum quantity and explains the rest", async () => {
+    stubDb({ codes: [code({ minimum_quantity: 2 })] });
+    const query = `${optionLine(0, "perm1", inScope, 2)}&${optionLine(1, "perm1", encrypt(32), 5)}`;
+    const result = await body(`code=off&${query}`);
+    expect(Object.keys(result.products_data)).toEqual(["perm1"]);
+    expect(result.notice).toBe(
+      "The code applies to some items. The selected options for the other items are not eligible.",
+    );
+    expect(
+      (await body(`code=off&${optionLine(0, "perm1", inScope, 1)}&${optionLine(1, "perm1", encrypt(32), 5)}`))
+        .error_code,
+    ).toBe("unmet_minimum_purchase_quantity");
+  });
+
+  it("does not limit a product the code has no options for", async () => {
+    stubDb({ links: [link(1), link(2)] });
+    const result = await body(`code=off&${optionLine(0, "perm1", encrypt(32))}&${optionLine(1, "perm2", encrypt(32))}`);
+    expect(Object.keys(result.products_data)).toEqual(["perm2"]);
+    expect(result.notice).toContain("The code applies to some items");
   });
 });
 

@@ -2,10 +2,11 @@
 // app/services/offer_code_discount_computing_service.rb (cart of permalinks, `key_by_input: false`).
 //
 // A code or cart that needs more than that hands back to Rails (HandBackToRails): an existing-customers, tiered
-// or once-per-cart-fixed code, a new-customers code for a signed-in buyer (purchase history), a code limited to
-// options, and a line whose product has cross-sells to apply optimistically.
+// or once-per-cart-fixed code, a new-customers code for a signed-in buyer (purchase history) and a line whose
+// product has cross-sells to apply optimistically.
 import { Prisma, type Link } from "@prisma/client";
 
+import { encrypt } from "../../lib/obfuscate-ids.ts";
 import type { OfferCodeRecord } from "../models/offer-code.ts";
 import { selectRows, castRow, column, table } from "../models/sql.ts";
 import { paramToI } from "../page-props/audience/support.ts";
@@ -47,10 +48,15 @@ export const PARTIAL_APPLICATION_MESSAGES: Record<string, string> = {
 };
 
 // OfferCodeDiscountComputingService::PRODUCT_LEVEL_INELIGIBILITIES_BY_DISPLAY_PRIORITY. Only the entries a ported code
-// can reach: the customer-scoped and option ones need the hand-backs above.
-const DISPLAY_PRIORITY = ["unmet_minimum_purchase_quantity", "insufficient_times_of_use", "sold_out"] as const;
+// can reach: the customer-scoped ones need the hand-backs above.
+const DISPLAY_PRIORITY = [
+  "unmet_minimum_purchase_quantity",
+  "insufficient_times_of_use",
+  "sold_out",
+  "option_not_eligible",
+] as const;
 
-export type CartLine = { permalink?: string; quantity?: string };
+export type CartLine = { permalink?: string; quantity?: string; variant_external_id?: string };
 export type ComputeResult = {
   products_data: Record<string, Record<string, unknown>>;
   error_code: string | null;
@@ -147,14 +153,24 @@ export async function processDiscount(
     if (offerCode === null) continue;
     applicableCodes.push(offerCode);
     assertSupported(offerCode, signedIn);
-    if (await offerCode.hasVariants()) throw new HandBackToRails("compute_discount for a code limited to options");
     if (await sellerHasAvailableCrossSells(link.user_id as bigint))
       throw new HandBackToRails("compute_discount with cross-sells to apply optimistically");
 
-    const quantity = (entriesByPermalink.get(link.unique_permalink!) ?? []).reduce(
-      (sum, line) => sum + paramToI(line.quantity ?? ""),
-      0,
-    );
+    // entries_eligible_for_option_scope: a line that omits the option stays (the product page previews that way);
+    // a blank or unknown one is out of scope. The cart's quantity counts only the lines that stay.
+    const entries = entriesByPermalink.get(link.unique_permalink!) ?? [];
+    const restricted = await offerCode.restrictedVariantsFor(link);
+    const restrictedIds = new Set(restricted.map((variant) => encrypt(variant.row.id)));
+    const eligible =
+      restricted.length === 0
+        ? entries
+        : entries.filter(
+            (line) => line.variant_external_id === undefined || restrictedIds.has(line.variant_external_id),
+          );
+    if (eligible.length < entries.length) ineligibilities.add("option_not_eligible");
+    if (eligible.length === 0) continue;
+
+    const quantity = eligible.reduce((sum, line) => sum + paramToI(line.quantity ?? ""), 0);
     const { minimum_quantity: minimum, max_purchase_count: max } = offerCode.row;
     const meetsMinimum = minimum == null || quantity >= minimum;
     const left = async () => {

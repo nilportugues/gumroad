@@ -79,4 +79,33 @@ describe "Offer codes compute_discount", type: :request do
 
     expect(response.parsed_body["error_code"]).to eq("invalid_offer")
   end
+
+  describe "a code limited to options" do
+    let(:category) { create(:variant_category, link: product) }
+    let!(:covered) { create(:variant, variant_category: category, name: "Covered") }
+    let!(:other) { create(:variant, variant_category: category, name: "Other") }
+    let!(:code) { create(:offer_code, user: seller, products: [product], variants: [covered], amount_cents: 100) }
+
+    def option_cart(*options)
+      options.each_with_index.to_h { |(option, quantity), i| [i.to_s, { permalink: product.unique_permalink, quantity: quantity || 1, variant_external_id: option.external_id }] }
+    end
+
+    it "discounts a line that picks a covered option and lists the options in the discount", parity: true do
+      get "/offer_codes/compute_discount", params: { code: code.code, products: option_cart([covered]) }
+
+      expect(response.parsed_body.dig("products_data", product.unique_permalink, "option_ids_by_product")).to be_present
+    end
+
+    it "reports option_not_eligible when the only line picks another option", parity: true do
+      get "/offer_codes/compute_discount", params: { code: code.code, products: option_cart([other]) }
+
+      expect(response.parsed_body["error_code"]).to eq("option_not_eligible")
+    end
+
+    it "discounts the covered lines of a mixed cart and explains the rest", parity: true do
+      get "/offer_codes/compute_discount", params: { code: code.code, products: option_cart([covered], [other, 2]) }
+
+      expect(response.parsed_body["notice"]).to eq("The code applies to some items. The selected options for the other items are not eligible.")
+    end
+  end
 end
