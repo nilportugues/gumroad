@@ -109,6 +109,71 @@ describe "Offer codes compute_discount", type: :request do
     end
   end
 
+  describe "a signed-in buyer is measured against their purchase history" do
+    let(:buyer) { create(:user) }
+
+    def purchased(product, **attributes)
+      build(:purchase, link: product, seller: product.user, purchaser: buyer, email: buyer.email, purchase_state: "successful", **attributes).save!(validate: false)
+    end
+
+    before { log_in(buyer, token_path: "/login") }
+
+    it "gives an existing-customers code to a buyer who owns the product", parity: true do
+      code = create(:offer_code, user: seller, products: [product], existing_customers_only: true, ownership_products: [product], amount_cents: 100)
+      purchased(product)
+
+      get "/offer_codes/compute_discount", params: { code: code.code, products: cart(product) }
+
+      expect(response.parsed_body.dig("products_data", product.unique_permalink, "cents")).to eq(100)
+    end
+
+    it "reports not_existing_customer for a buyer who owns nothing", parity: true do
+      code = create(:offer_code, user: seller, products: [product], existing_customers_only: true, ownership_products: [product])
+
+      get "/offer_codes/compute_discount", params: { code: code.code, products: cart(product) }
+
+      expect(response.parsed_body["error_code"]).to eq("not_existing_customer")
+    end
+
+    it "recognizes a guest purchase made with the buyer's confirmed email", parity: true do
+      code = create(:offer_code, user: seller, products: [product], existing_customers_only: true, ownership_products: [product])
+      purchased(product, purchaser: nil)
+
+      get "/offer_codes/compute_discount", params: { code: code.code, products: cart(product) }
+
+      expect(response.parsed_body["valid"]).to be true
+    end
+
+    it "gives a tiered code the tier the buyer's ownership has reached", parity: true do
+      code = create(:tiered_offer_code, user: seller, products: [product], ownership_duration_tiers: [
+                      { "months" => 0, "amount_percentage" => 10 },
+                      { "months" => 12, "amount_percentage" => 50 },
+                    ])
+      purchased(product, created_at: 14.months.ago)
+
+      get "/offer_codes/compute_discount", params: { code: code.code, products: cart(product) }
+
+      expect(response.parsed_body.dig("products_data", product.unique_permalink, "percents")).to eq(50)
+    end
+
+    it "gives a new-customers code to a buyer with no earlier purchase from the seller", parity: true do
+      code = create(:offer_code, :for_new_customers, user: seller, products: [product], amount_cents: 100)
+
+      get "/offer_codes/compute_discount", params: { code: code.code, products: cart(product) }
+
+      expect(response.parsed_body["valid"]).to be true
+    end
+
+    it "reports not_new_customer for a buyer who bought from the seller before", parity: true do
+      code = create(:offer_code, :for_new_customers, user: seller, products: [product], amount_cents: 100)
+      purchased(create(:product, user: seller, price_cents: 500))
+
+      get "/offer_codes/compute_discount", params: { code: code.code, products: cart(product) }
+
+      expect(response.parsed_body["error_code"]).to eq("not_new_customer")
+    end
+  end
+
   describe "a code limited to options" do
     let(:category) { create(:variant_category, link: product) }
     let!(:covered) { create(:variant, variant_category: category, name: "Covered") }

@@ -267,7 +267,7 @@ const HANDLERS: Record<string, Handler> = {
   admin_stripe_dashboard: { run: (request, url, action) => redirectToStripeDashboard(request, url, action) },
   // OfferCodesController#compute_discount
   compute_discount: {
-    run: (request, _url, action) => computeDiscount(request, railsLoggedInUser(action.context) !== null),
+    run: (request, _url, action) => computeDiscount(request, railsLoggedInUser(action.context)),
   },
   url_redirects: { run: (_request, _url, action) => urlRedirectsAction(action) },
 };
