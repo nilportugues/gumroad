@@ -25,6 +25,7 @@ import {
   subscriptionStatus,
   transactionUrlForSeller,
   upsellNamesFor,
+  utmLinkReadings,
   pageOffset,
   refundableCents,
   refundIsEffective,
@@ -805,5 +806,67 @@ describe("commissions and review videos", () => {
     });
 
     await expect(shownReviewVideos([7])).rejects.toBeInstanceOf(HandBackToRails);
+  });
+});
+
+describe("Purchase#utm_link", () => {
+  const seller = { id: 7n, username: "seller1" } as never;
+  const utmLink = (overrides: Record<string, unknown> = {}) => ({
+    id: 3,
+    seller_id: 7,
+    title: "Launch",
+    target_resource_type: "profile_page",
+    target_resource_id: null,
+    utm_source: "news letter",
+    utm_medium: "email",
+    utm_campaign: "Spring&Sale",
+    utm_term: null,
+    utm_content: "",
+    ...overrides,
+  });
+
+  function answering(driven: Record<string, unknown>[], links: Record<string, unknown>[]) {
+    setSqlClient(() => ({
+      $queryRaw: (async (query: { sql: string }) => {
+        if (query.sql.includes("FROM `utm_link_driven_sales`")) return driven;
+        if (query.sql.includes("FROM `utm_links`")) return links;
+        throw new Error(`unexpected statement: ${query.sql}`);
+      }) as never,
+      $executeRaw: (async () => 0) as never,
+    }));
+  }
+
+  it("renders the link with a sorted, percent-encoded utm_url, leaving out blank term and content", async () => {
+    answering([{ purchase_id: 5, utm_link_id: 3 }], [utmLink()]);
+
+    const readings = await utmLinkReadings([5, 6], seller);
+
+    expect(readings.size).toBe(1);
+    expect(readings.get("5")).toEqual({
+      title: "Launch",
+      utm_url: "http://seller1.localhost:3000?utm_campaign=Spring%26Sale&utm_medium=email&utm_source=news%20letter",
+      source: "news letter",
+      medium: "email",
+      campaign: "Spring&Sale",
+      term: null,
+      content: "",
+    });
+  });
+
+  it("hands back a purchase driven through several visits, a vanished link, and another seller's link", async () => {
+    answering(
+      [
+        { purchase_id: 5, utm_link_id: 3 },
+        { purchase_id: 5, utm_link_id: 3 },
+      ],
+      [utmLink()],
+    );
+    await expect(utmLinkReadings([5], seller)).rejects.toThrow(HandBackToRails);
+
+    answering([{ purchase_id: 5, utm_link_id: 3 }], []);
+    await expect(utmLinkReadings([5], seller)).rejects.toThrow(HandBackToRails);
+
+    answering([{ purchase_id: 5, utm_link_id: 3 }], [utmLink({ seller_id: 8 })]);
+    await expect(utmLinkReadings([5], seller)).rejects.toThrow(HandBackToRails);
   });
 });

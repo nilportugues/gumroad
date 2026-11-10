@@ -396,4 +396,20 @@ describe "Customers page when signed in", type: :request, elasticsearch_wait_for
 
     expect(inertia_props_of(response).dig("customers_presenter", "license_uses_filter_enabled")).to eq(true)
   end
+
+  # Needs recording: its utm_url exercises Addressable's sorting and percent-encoding.
+  it "lists a sale driven by a UTM link with the link's sorted, encoded utm_url", parity: true do
+    sale = sell(product, days_ago: 4)
+    product_link = create(:utm_link, seller:, target_resource_type: :product_page, target_resource: product, utm_source: "news letter", utm_campaign: "Spring&Sale", utm_term: "a b", utm_content: "")
+    visit = create(:utm_link_visit, utm_link: product_link)
+    create(:utm_link_driven_sale, utm_link: product_link, utm_link_visit: visit, purchase: sale)
+    other_sale = sell(product, days_ago: 6)
+    profile_link = create(:utm_link, seller:, target_resource_type: :profile_page)
+    create(:utm_link_driven_sale, utm_link: profile_link, utm_link_visit: create(:utm_link_visit, utm_link: profile_link), purchase: other_sale)
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    expect(customers_of(response).map { _1["utm_link"]&.fetch("utm_url") }).to all(be_present)
+  end
 end

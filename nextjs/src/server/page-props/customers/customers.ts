@@ -2,7 +2,7 @@
 // and CustomerPresenter#customer (app/presenters/customer{,s}_presenter.rb).
 //
 // Handed back to Rails (HandBackToRails) when a customer on the page needs a reading the port does not make: a member whose renewals an Indian card mandate disabled and whose next charge is free under a limited-cycle discount,
-// a sent gift whose recipient holds a license on a product with option content, a shipping sale that is a subscription or has a recurring price or a tracking URL the port cannot parse, a UTM link (`utm_url` is built by Addressable), a non-USD price without a
+// a sent gift whose recipient holds a license on a product with option content, a shipping sale that is a subscription or has a recurring price or a tracking URL the port cannot parse, a UTM link of another seller or with a post whose seller has no subdomain, a non-USD price without a
 // stored rate or in a currency the port has no table for, a refund whose json_data is not plain JSON, a commission
 // with files or a completion still in progress, a review video whose file has a thumbnail, and a custom field answer that
 // carries a file (its signed id).
@@ -32,6 +32,7 @@ import type { LinkRow, PriceRow } from "../../presenters/product-reads.ts";
 import { PurchaseFlags } from "../../search/flags.ts";
 import { PurchaseSearchService } from "../../search/purchase-search.ts";
 import { extractDomain } from "../../search/referrer.ts";
+import { targets as utmTargets, utmUrl, type UtmLinkRow } from "../audience/utm-links.ts";
 
 import { physicalJson, shippingJson, shippingReading, skuOption, type ShippingReading } from "./shipping.ts";
 
@@ -164,6 +165,8 @@ type Loaded = {
   tierPrices: Map<string, Row[]>;
   // What CustomerPresenter reads off `purchase.subscription`, by subscription id.
   subscriptions: Map<string, SubscriptionReading>;
+  // CustomerPresenter's `utm_link` hash, by purchase id.
+  utmLinks: Map<string, Record<string, unknown>>;
   // `upsell_purchase&.upsell&.name`, by purchase id.
   upsellNames: Map<string, string | null>;
   affiliates: Map<string, Row>;
@@ -388,6 +391,43 @@ export async function commissionReadings(purchases: Row[]): Promise<Map<string, 
   return readings;
 }
 
+// `purchase.utm_link` (has_one through utm_link_driven_sale) as CustomerPresenter renders it.
+export async function utmLinkReadings(
+  purchaseIds: unknown[],
+  seller: User,
+): Promise<Map<string, Record<string, unknown>>> {
+  const driven = await rowsBy("utm_link_driven_sales", "purchase_id", purchaseIds);
+  // has_one picks an arbitrary row when a purchase was driven by several visits.
+  if (new Set(driven.map((sale) => String(sale.purchase_id))).size !== driven.length) throw new HandBackToRails();
+  const linkRows = byId(await rowsBy("utm_links", "id", [...new Set(driven.map((sale) => sale.utm_link_id))]));
+  if (driven.some((sale) => !linkRows.has(String(sale.utm_link_id)))) throw new HandBackToRails();
+  const links = [...linkRows.values()] as unknown as UtmLinkRow[];
+  if (links.some((link) => String(link.seller_id) !== String(seller.id))) throw new HandBackToRails();
+  const resolved = await utmTargets(links);
+  const readings = new Map<string, Record<string, unknown>>();
+  for (const sale of driven) {
+    const link = linkRows.get(String(sale.utm_link_id)) as unknown as UtmLinkRow;
+    let url: string | null;
+    try {
+      url = utmUrl(seller, link, resolved);
+    } catch (error) {
+      // A post whose seller has no subdomain: Installment#full_url is Rails' to answer.
+      if (error instanceof Error && error.name === "NotPortedError") throw new HandBackToRails();
+      throw error;
+    }
+    readings.set(String(sale.purchase_id), {
+      title: link.title,
+      utm_url: url,
+      source: link.utm_source,
+      medium: link.utm_medium,
+      campaign: link.utm_campaign,
+      term: link.utm_term,
+      content: link.utm_content,
+    });
+  }
+  return readings;
+}
+
 // Purchase.where(id: ids).in_order_of(:id, ids) with the associations CustomerPresenter reads, after handing back what it cannot.
 async function load(ids: string[], seller: User): Promise<Loaded> {
   const rows = await rowsBy("purchases", "id", ids);
@@ -410,13 +450,6 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
     const flags = (name: Parameters<typeof PurchaseFlags.isSet>[1]) => PurchaseFlags.isSet(purchase.flags, name);
     if (flags("is_installment_payment")) throw new HandBackToRails();
   }
-  if (
-    purchaseIds.length > 0 &&
-    (await exists(
-      Prisma.sql`SELECT 1 FROM ${table("utm_link_driven_sales")} WHERE ${column("utm_link_driven_sales", "purchase_id")} IN (${inList(purchaseIds)}) LIMIT 1`,
-    ))
-  )
-    throw new HandBackToRails();
   const commissions = await commissionReadings(purchases);
 
   const affiliates = byId(
@@ -463,6 +496,7 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
   const subscriptions = await subscriptionReadings(purchases);
 
   const upsellNames = await upsellNamesFor(purchaseIds);
+  const utmLinks = await utmLinkReadings(purchaseIds, seller);
 
   const refundedCents = new Map<string, number>();
   for (const refund of await rowsBy("refunds", "purchase_id", purchaseIds)) {
@@ -538,6 +572,7 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
     tierPrices,
     subscriptions,
     upsellNames,
+    utmLinks,
     affiliates,
     affiliateUsers,
     cachedDiscounts: new Set(
@@ -1072,7 +1107,7 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
               (loaded.tierPrices.get(String(link.id)) ?? []) as PriceRow[],
               BigInt(link.user_id),
             ),
-    utm_link: null,
+    utm_link: loaded.utmLinks.get(id) ?? null,
     download_count: link.native_type === "coffee" ? null : (loaded.urlRedirects.get(id)?.uses ?? 0),
   };
 }
