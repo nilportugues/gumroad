@@ -128,6 +128,13 @@ run.call("two affiliates, the first not sending posts", affiliates: [affiliate_r
 run.call("a seller in another time zone", users: [user_row(1, timezone: "Tokyo"), user_row(2), user_row(3)], installments: [installment_row(filters: { created_after: "2025-01-15T00:00:00.000+09:00" })],
                                           affiliates: [affiliate_row(created_at: "2025-01-14 15:30:00")])
 run.call("no assignment holds the token", ["missing"])
+run.call("an integer token that an assignment holds as digits", [5], affiliates_links: [assignment_row(token: "5")])
+run.call("an integer token no assignment holds", [7], affiliates_links: [assignment_row(token: "5")])
+run.call("an integer token past 2**53", [2**70], affiliates_links: [assignment_row(token: (2**70).to_s)])
+run.call("a negative integer token", [-3], affiliates_links: [assignment_row(token: "-3")])
+run.call("a true token that an assignment holds as 1", [true], affiliates_links: [assignment_row(token: "1")])
+run.call("a false token that an assignment holds as 0", [false], affiliates_links: [assignment_row(token: "0")])
+run.call("a false token no assignment holds", [false])
 run.call("the sweep", [nil])
 
 File.write(OUT, JSON.pretty_generate({ "now" => NOW.to_f, "cases" => cases }) + "\n")

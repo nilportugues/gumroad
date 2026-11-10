@@ -11,7 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createJobsRuntime } from "../../server/jobs/runtime.ts";
 import { parseRubyJson, RubyFloat, type JsonValue } from "../../server/jobs/sidekiq/ruby-json.ts";
-import { asSidekiqJob, contextFor, rubyRuntimeRegistry, sequentialJids, snapshotRedis, type RedisSnapshot } from "./__fixtures__/golden.ts";
+import { asSidekiqJob, contextFor, recordingSidekiqRedis, rubyRuntimeRegistry, sequentialJids, snapshotRedis, type RedisSnapshot } from "./__fixtures__/golden.ts";
 import { sqlReplay, type Statement } from "./__fixtures__/sql-replay.ts";
 import { scheduleAffiliateWorkflowJobsJobWith } from "./workflow-jobs.ts";
 
@@ -68,4 +68,18 @@ describe("ScheduleAffiliateWorkflowJobsJob with a token", () => {
       expect(JSON.parse(withoutJobIds(await snapshotRedis(redis!)))).toEqual(JSON.parse(withoutJobIds(c.redis)));
     });
   }
+});
+
+describe("ScheduleAffiliateWorkflowJobsJob with a token Node does not cast", () => {
+  const handBack = async (token: JsonValue) => {
+    const sql = sqlReplay([]);
+    const recording = recordingSidekiqRedis();
+    const runtime = createJobsRuntime({ sidekiqRedis: recording.redis, bullmqRedis: recording.redis, registry: rubyRuntimeRegistry(), now: () => 0, newJid: sequentialJids() });
+    await expect(asSidekiqJob(() => scheduleAffiliateWorkflowJobsJobWith({ logError: () => {} })([token], contextFor(runtime)), 0)).rejects.toMatchObject({ name: "HandBackToRuby" });
+    expect(sql.log).toEqual([]);
+  };
+
+  it("hands a Float back before any statement", () => handBack(new RubyFloat(1.5)));
+  it("hands an Array back before any statement", () => handBack(["tok"]));
+  it("hands a Hash back before any statement", () => handBack({ id: 1 }));
 });
