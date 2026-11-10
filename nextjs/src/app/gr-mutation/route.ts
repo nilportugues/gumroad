@@ -5,6 +5,7 @@ import "@/server/controllers/workflows-mutations";
 import "@/server/controllers/products-mutations";
 import "@/server/controllers/settings-mutations";
 import "@/server/controllers/settings-team-mutations";
+import "@/server/controllers/settings-payments-mutations";
 import "@/server/controllers/social-callbacks";
 import "@/server/controllers/connections-mutations";
 import "@/server/controllers/oauth-applications-mutations";
