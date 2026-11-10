@@ -181,10 +181,17 @@ describe("tracking URLs against Ruby's URI::RFC3986_Parser", () => {
     expect(url("https://example.com?a=1")).toBe("https://example.com?a=1");
   });
 
-  it("is nil for a blank host or a userinfo, hands back an IP literal", () => {
+  it("is nil for a blank host or a userinfo, a plain IPv6 literal is kept", () => {
     expect(url("https:///x")).toBeNull();
     expect(url("https://user:pw@example.com/x")).toBeNull();
-    expect(() => url("https://[::1]/x")).toThrow(HandBackToRails);
+    expect(url("https://user@[::1]/x")).toBeNull();
+  });
+
+  it("keeps a plain IPv6 literal host and hands back the rest of the IP literals", () => {
+    for (const host of ["::1", "2001:db8::8a2e:370:7334", "fe80::1", "1:2:3:4:5:6:7:8", "::ffff:192.0.2.1", "1::"])
+      expect(url(`https://[${host}]:8080/x?y=1`)).toBe(`https://[${host}]:8080/x?y=1`);
+    for (const host of ["fe80::1%25eth0", "v1.fe", "1:2:3", "::g", "1:2:3:4:5:6:7:8:9", "1::2::3"])
+      expect(() => url(`https://[${host}]/x`)).toThrow(HandBackToRails);
   });
 });
 

@@ -24,7 +24,7 @@ const OUTSIDE_PLAIN_ASCII = /[^\x01-\x7F]/u;
 const BLANK = /^[\t\n\v\f\r ]*$/u;
 const STRIP = /^[\t\n\v\f\r ]+|[\t\n\v\f\r ]+$/gu;
 // URI::RFC3986_Parser's URI pattern (uri 1.1.1) for an http(s) URL: scheme, authority (userinfo, reg-name or IPv4 host, port),
-// path-abempty, a query of anything but `#`, and a fragment. An IP-literal host is not modelled (see classifyHttpUrl).
+// path-abempty, a query of anything but `#`, and a fragment.
 const HEX = "[0-9A-Fa-f]";
 const SEG = String.raw`(?:%${HEX}{2}|[!$&-.0-9:;=@A-Z_a-z~/])`;
 const FRAGMENT = String.raw`(?:%${HEX}{2}|[!$&-.0-9:;=@A-Z_a-z~/?])*`;
@@ -35,13 +35,32 @@ const HTTP_URL = new RegExp(
   "iu",
 );
 
+// RFC 3986 IPv6address (the grammar URI::RFC3986_Parser's IP-literal embeds); a zone id or an IPvFuture is not modelled.
+const H16 = "[0-9A-Fa-f]{1,4}";
+const DEC_OCTET = "(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])";
+const LS32 = `(?:${H16}:${H16}|${DEC_OCTET}(?:\\.${DEC_OCTET}){3})`;
+const IPV6_ADDRESS = new RegExp(
+  `^(?:${[
+    `(?:${H16}:){6}${LS32}`,
+    `::(?:${H16}:){5}${LS32}`,
+    `(?:${H16})?::(?:${H16}:){4}${LS32}`,
+    `(?:(?:${H16}:){0,1}${H16})?::(?:${H16}:){3}${LS32}`,
+    `(?:(?:${H16}:){0,2}${H16})?::(?:${H16}:){2}${LS32}`,
+    `(?:(?:${H16}:){0,3}${H16})?::${H16}:${LS32}`,
+    `(?:(?:${H16}:){0,4}${H16})?::${LS32}`,
+    `(?:(?:${H16}:){0,5}${H16})?::${H16}`,
+    `(?:(?:${H16}:){0,6}${H16})?::`,
+  ].join("|")})$`,
+  "u",
+);
+
 // Whether Shipment.display_safe_tracking_link keeps a stripped, ASCII, control-free URL starting `http(s)://`: false when URI.parse
-// raises InvalidURIError, or the host is blank or a userinfo is present. null for an IP-literal host.
+// raises InvalidURIError, or the host is blank or a userinfo is present. null for an IP-literal host that is not a plain IPv6 address (invalid, zone id, IPvFuture).
 function classifyHttpUrl(url: string): boolean | null {
   const match = HTTP_URL.exec(url);
   if (match === null) return false;
   const [, userinfo, host] = match as unknown as [string, string | undefined, string];
-  if (host.startsWith("[")) return null;
+  if (host.startsWith("[")) return IPV6_ADDRESS.test(host.slice(1, -1)) ? !userinfo : null;
   return host !== "" && !userinfo;
 }
 
