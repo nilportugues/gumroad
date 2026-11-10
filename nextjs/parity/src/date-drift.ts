@@ -26,6 +26,9 @@ const DAY_MS = 86_400_000;
 const ISO_DATE = /\b(\d{4})-(\d{2})-(\d{2})\b/gu;
 const SHORT_DATE = /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) ( ?\d{1,2}), (\d{4})\b/gu;
 // "Wednesday, November 4th": strftime-style chart labels carry no year, so the recording's year is assumed.
+// strftime "%B %e, %Y" pads a single-digit day with a space ("November  9, 2026").
+const LONG_DATE =
+  /\b(January|February|March|April|May|June|July|August|September|October|November|December) ( ?\d{1,2}), (\d{4})\b/gu;
 const WEEKDAY_DATE =
   /\b(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday), (January|February|March|April|May|June|July|August|September|October|November|December) (\d{1,2})(st|nd|rd|th)\b/gu;
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -73,10 +76,20 @@ export function shiftOrdinalDates(value: Json, days: number, recordedOn?: string
               const moved = new Date(at.getTime() + days * DAY_MS);
               return `${WEEKDAYS[moved.getUTCDay()]}, ${MONTHS[moved.getUTCMonth()]} ${ordinalize(moved.getUTCDate())}`;
             });
-    return shiftIso(value).replace(ORDINAL_DATE, (_match, month: string, day: string, _suffix, year: string) => {
-      const shifted = new Date(Date.UTC(Number(year), MONTHS.indexOf(month), Number(day)) + days * DAY_MS);
-      return `${MONTHS[shifted.getUTCMonth()]} ${ordinalize(shifted.getUTCDate())}, ${shifted.getUTCFullYear()}`;
-    });
+    return shiftIso(value)
+      .replace(ORDINAL_DATE, (match, month: string, day: string, _suffix, year: string) => {
+        const at = new Date(Date.UTC(Number(year), MONTHS.indexOf(month), Number(day)));
+        if (anchor !== null && !withinWindow(at, anchor)) return match;
+        const shifted = new Date(at.getTime() + days * DAY_MS);
+        return `${MONTHS[shifted.getUTCMonth()]} ${ordinalize(shifted.getUTCDate())}, ${shifted.getUTCFullYear()}`;
+      })
+      .replace(LONG_DATE, (match, month: string, day: string, year: string) => {
+        const at = new Date(Date.UTC(Number(year), MONTHS.indexOf(month), Number(day)));
+        if (anchor !== null && !withinWindow(at, anchor)) return match;
+        const moved = new Date(at.getTime() + days * DAY_MS);
+        const shown = day.startsWith(" ") ? String(moved.getUTCDate()).padStart(2, " ") : String(moved.getUTCDate());
+        return `${MONTHS[moved.getUTCMonth()]} ${shown}, ${moved.getUTCFullYear()}`;
+      });
   }
   if (Array.isArray(value)) return value.map((item) => shiftOrdinalDates(item, days, recordedOn));
   if (value !== null && typeof value === "object") return shiftObject(value as Record<string, Json>, days, recordedOn);
@@ -86,13 +99,23 @@ export function shiftOrdinalDates(value: Json, days: number, recordedOn?: string
 // Dates the application pins in code, not computed from the request's day.
 const CONSTANT_KEYS = new Set(["confirmations_version"]);
 const ISO_KEY = /^\d{4}-\d{2}-\d{2}$/u;
+// A date column is recorded as a token relative to the recording day, so even a constant the spec pins (a 1975
+// birthday) is seeded a day later on the next day and its response moves with it, however far from today.
+const SEEDED_DATE_KEYS = new Set(["date_of_birth"]);
+
+const shiftSeededDate = (text: string, days: number) =>
+  ISO_KEY.test(text) ? new Date(Date.parse(`${text}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10) : text;
 
 function shiftObject(value: Record<string, Json>, days: number, recordedOn?: string): Json {
   const moved: Record<string, Json> = Object.fromEntries(
     Object.entries(value).map(([key, item]) => [
       // Charts key a row per day ("2026-11-04").
       ISO_KEY.test(key) ? (shiftOrdinalDates(key, days, recordedOn) as string) : key,
-      CONSTANT_KEYS.has(key) ? item : shiftOrdinalDates(item, days, recordedOn),
+      SEEDED_DATE_KEYS.has(key) && typeof item === "string" && recordedOn !== undefined
+        ? shiftSeededDate(item, days)
+        : CONSTANT_KEYS.has(key)
+          ? item
+          : shiftOrdinalDates(item, days, recordedOn),
     ]),
   );
   // A date of birth is stored as three integers, seeded relative to the day of the request.

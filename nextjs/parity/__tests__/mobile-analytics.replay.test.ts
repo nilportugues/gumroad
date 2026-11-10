@@ -144,7 +144,9 @@ describe.skipIf(!url)("mobile analytics parity", () => {
       },
       transport: httpTransport(server.baseUrl),
       interceptHttp: false,
-            compare: COMPARE,
+      // The clock is pinned to the recording, so nothing ages.
+      driftDates: false,
+      compare: COMPARE,
     });
 
   // The first request to a route compiles it, which would age the seeded timestamps past the replayer's tolerance.

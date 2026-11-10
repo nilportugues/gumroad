@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { closeAllRedis } from "@/server/infra/redis";
 
@@ -24,6 +24,9 @@ const SPEC_DIRS = ["agent_signed_in_spec", "piracy_reports_signed_in_spec", "gen
 // Every flag in routes.json that a dashboard page sits behind.
 const ROUTE_FLAGS = ["nextjs_agent", "nextjs_piracy_reports", "nextjs_generate_invoice_redirect", "nextjs_dispute_evidence", "nextjs_dispute_evidence_success"];
 const FIRST_COMPILE_TIMEOUT_MS = 240_000;
+// The recording's day and hour. The counter-notice window counts business days, so it does not move with the date
+// the way the drifted fixtures do; the clock is pinned instead (see dashboard-pages.replay.test.ts).
+const PARITY_NOW = Date.parse("2026-11-09T23:00:00Z");
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
 const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1];
@@ -92,6 +95,8 @@ describe.skipIf(!url)("WS-75 pages parity", () => {
     redis = new Redis({ host, port: Number(port), db: Number(db) });
     server = await startNextServer({
       RAILS_ENV: "test",
+      NODE_OPTIONS: `--require ${path.resolve(import.meta.dirname, "..", "src", "fixed-clock-preload.cjs")}`,
+      PARITY_CLOCK_OFFSET_MS: String(PARITY_NOW - Date.now()),
       OBFUSCATE_IDS_CIPHER_KEY: obfuscateKey ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
       ...(secureIdVersion && secureIdKey ? { SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION: secureIdVersion, SECURE_EXTERNAL_ID__KEYS__1: secureIdKey } : {}),
@@ -102,9 +107,11 @@ describe.skipIf(!url)("WS-75 pages parity", () => {
       DATABASE_URL: url!,
       REDIS_HOST: redisHost,
     });
+    vi.useFakeTimers({ now: PARITY_NOW, toFake: ["Date"], shouldAdvanceTime: true });
   }, FIRST_COMPILE_TIMEOUT_MS);
 
   afterAll(async () => {
+    vi.useRealTimers();
     await server?.stop();
     await closeAllRedis();
     await redis?.quit();
@@ -124,6 +131,7 @@ describe.skipIf(!url)("WS-75 pages parity", () => {
         redis: redisSeeder(redis),
         transport: httpTransport(server.baseUrl),
         interceptHttp: false,
+        driftDates: false,
         rewriteRequest: (request, fixture, now) => reencryptCookies(request, fixture, SECRET_KEY_BASE, now),
         compare: COMPARE,
       });
