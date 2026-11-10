@@ -328,7 +328,7 @@ describe "Customers page when signed in", type: :request, elasticsearch_wait_for
     commission_product = create(:commission_product, user: seller, name: "Portrait")
     deposit = sell(commission_product, days_ago: 3, is_commission_deposit_purchase: true)
     completion = sell(commission_product, days_ago: 1, is_commission_completion_purchase: true)
-    commission = Commission.find_or_create_by!(deposit_purchase: deposit)
+    commission = Commission.find_or_create_by!(deposit_purchase: deposit) { _1.status = Commission::STATUS_IN_PROGRESS }
     commission.update_columns(completion_purchase_id: completion.id, status: Commission::STATUS_COMPLETED)
     sign_in_with_indexed_sales
 
@@ -400,11 +400,11 @@ describe "Customers page when signed in", type: :request, elasticsearch_wait_for
   # Needs recording: its utm_url exercises Addressable's sorting and percent-encoding.
   it "lists a sale driven by a UTM link with the link's sorted, encoded utm_url", parity: true do
     sale = sell(product, days_ago: 4)
-    product_link = create(:utm_link, seller:, target_resource_type: :product_page, target_resource: product, utm_source: "news letter", utm_campaign: "Spring&Sale", utm_term: "a b", utm_content: "")
+    product_link = create(:utm_link, seller:, target_resource_type: "product_page", target_resource_id: product.id, utm_source: "news letter", utm_campaign: "Spring&Sale", utm_term: "a b", utm_content: "")
     visit = create(:utm_link_visit, utm_link: product_link)
     create(:utm_link_driven_sale, utm_link: product_link, utm_link_visit: visit, purchase: sale)
     other_sale = sell(product, days_ago: 6)
-    profile_link = create(:utm_link, seller:, target_resource_type: :profile_page)
+    profile_link = create(:utm_link, seller:, target_resource_type: "profile_page")
     create(:utm_link_driven_sale, utm_link: profile_link, utm_link_visit: create(:utm_link_visit, utm_link: profile_link), purchase: other_sale)
     sign_in_with_indexed_sales
 
