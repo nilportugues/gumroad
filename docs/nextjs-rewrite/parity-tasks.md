@@ -57,7 +57,7 @@ Each is one worktree (see "Lane isolation"). Tasks that need a Rails recording: 
 
 ## Last full run
 
-2026-11-10, alone on its lane after every branch above was merged: 59 files passed, 2,655 tests passed, 12 skipped, 0 failed.
+2026-11-10, alone on its lane after every branch above was merged: 59 files passed, 2,657 tests passed, 12 skipped, 0 failed.
 Unit tests (`npx vitest run src`): the only failure in this sandbox is `src/worker/jobs/workflow-jobs.test.ts` "reschedule: one recipient",
 which needs Redis on 127.0.0.1:6379. The stack is the one in [parity-local-stack.md](parity-local-stack.md); the command is in its
 "Replay environment" section without a file argument. Two replays cannot share a checkout: both start `next dev` in `.next/dev`, so run one at a time.
