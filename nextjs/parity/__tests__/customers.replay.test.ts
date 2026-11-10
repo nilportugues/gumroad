@@ -115,6 +115,7 @@ describe.skipIf(!url)("customers parity when signed in", () => {
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
       ...(stripeKey ? { STRIPE_PUBLIC_KEY_TEST: stripeKey } : {}),
       NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS,
+      ...(testEnv("BRAINTREE_MERCHANT_ID") ? { BRAINTREE_MERCHANT_ID: testEnv("BRAINTREE_MERCHANT_ID")! } : {}),
       ...(testEnv("SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION") ? { SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION: testEnv("SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION")! } : {}),
       ...(testEnv("SECURE_EXTERNAL_ID__KEYS__1") ? { SECURE_EXTERNAL_ID__KEYS__1: testEnv("SECURE_EXTERNAL_ID__KEYS__1")! } : {}),
       ELASTICSEARCH_HOST,
