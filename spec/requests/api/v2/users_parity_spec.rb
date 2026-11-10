@@ -195,25 +195,49 @@ describe "API v2 user", type: :request do
       get "/ifttt/v1/user/info", headers: auth(token_for(scopes: "ifttt"))
     end
 
-    it "hands back the sale trigger newest first", parity: true do
+    it "returns the sale trigger newest first", parity: true do
       product = create(:product, user: seller, name: "Sketch pack")
       purchase_row(link: product, seller:, email: "one@example.com", created_at: Time.utc(2024, 3, 1, 12))
       purchase_row(link: product, seller:, email: "two@example.com", created_at: Time.utc(2024, 3, 2, 12))
       post "/ifttt/v1/triggers/sale", params: { limit: 5 }, headers: auth(token_for(scopes: "ifttt"))
     end
 
-    it "hands back the sale trigger after a time", parity: true do
+    it "returns the sale trigger after a time, oldest first", parity: true do
       product = create(:product, user: seller, name: "Sketch pack")
       purchase_row(link: product, seller:, email: "one@example.com", created_at: Time.utc(2024, 3, 1, 12))
       purchase_row(link: product, seller:, email: "two@example.com", created_at: Time.utc(2024, 3, 2, 12))
       post "/ifttt/v1/triggers/sale", params: { after: Time.utc(2024, 3, 2).to_i }, headers: auth(token_for(scopes: "ifttt"))
     end
 
-    it "hands back the sale trigger before a time", parity: true do
+    it "returns the sale trigger before a time", parity: true do
       product = create(:product, user: seller, name: "Sketch pack")
       purchase_row(link: product, seller:, email: "one@example.com", created_at: Time.utc(2024, 3, 1, 12))
       purchase_row(link: product, seller:, email: "two@example.com", created_at: Time.utc(2024, 3, 2, 12))
       post "/ifttt/v1/triggers/sale", params: { before: Time.utc(2024, 3, 2).to_i }, headers: auth(token_for(scopes: "ifttt"))
+    end
+
+    it "returns the sale trigger limited, preferring the purchaser's account email", parity: true do
+      product = create(:product, user: seller, name: "Sketch pack", description: "<p>Draw <strong>more</strong></p>")
+      buyer = create(:user, email: "account@example.com")
+      purchase_row(link: product, seller:, email: "one@example.com", created_at: Time.utc(2024, 3, 1, 12))
+      purchase_row(link: product, seller:, email: "two@example.com", purchaser: buyer, created_at: Time.utc(2024, 3, 2, 12))
+      purchase_row(link: product, seller:, email: "three@example.com", purchase_state: "failed", created_at: Time.utc(2024, 3, 3, 12))
+      purchase_row(link: product, seller: create(:user), email: "other@example.com", created_at: Time.utc(2024, 3, 4, 12))
+      post "/ifttt/v1/triggers/sale", params: { limit: 1 }, headers: auth(token_for(scopes: "ifttt"))
+    end
+
+    it "returns an empty sale trigger for a seller without sales", parity: true do
+      post "/ifttt/v1/triggers/sale", headers: auth(token_for(scopes: "ifttt"))
+    end
+
+    it "hands back the sale trigger for a purchase priced in another currency", parity: true do
+      product = create(:product, user: seller, name: "Sketch pack")
+      purchase_row(link: product, seller:, email: "one@example.com", displayed_price_currency_type: "eur", displayed_price_cents: 90, rate_converted_to_usd: "1.11", created_at: Time.utc(2024, 3, 1, 12))
+      post "/ifttt/v1/triggers/sale", headers: auth(token_for(scopes: "ifttt"))
+    end
+
+    it "hands back the sale trigger for a limit that is not a plain integer", parity: true do
+      post "/ifttt/v1/triggers/sale", params: { limit: "010" }, headers: auth(token_for(scopes: "ifttt"))
     end
   end
 end

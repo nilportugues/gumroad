@@ -268,6 +268,9 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
         const createsUtmLink =
           (Object.keys(expected.db ?? {}).includes("utm_links") && name.includes("-creates-")) ||
           name.includes("-ignores-a-utm-parameter");
+        // meta.timestamp is created_at.to_i: the replay seeds the row relative to its own clock, so it only compares in kind.
+        const iftttSales = name.includes("-sale-trigger");
+        if (iftttSales) handedBack.length = 0;
         // SecureRandom.alphanumeric(8) permalinks and the guid cookie Rails mints for a request without one.
         const result = await replayFixtureExchange(
           fixture,
@@ -281,10 +284,21 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
                 ]
               : paginates
                 ? ["response.json.next_page_key", "response.json.next_page_url"]
-                : [],
+                : iftttSales
+                  ? ["response.json.data.*.meta.timestamp"]
+                  : [],
           ),
         );
         assertParity(result);
+        if (iftttSales) {
+          expect(handedBack).toHaveLength(0);
+          const rows = (result.exchanges[0]!.actual.response.json as { data: { meta: { timestamp: number } }[] }).data;
+          const wanted = (expected.response.json as { data: unknown[] }).data;
+          expect(rows).toHaveLength(wanted.length);
+          for (const row of rows) expect(Number.isInteger(row.meta.timestamp)).toBe(true);
+          const times = rows.map((row) => row.meta.timestamp);
+          expect(times).toEqual([...times].sort((a, b) => (name.includes("oldest-first") ? a - b : b - a)));
+        }
         if (paginates) {
           // The key is the created_at of the tenth email, which the factory stamped relative to the recording's clock.
           const body = result.exchanges[0]!.actual.response.json as { next_page_key: string; next_page_url: string };

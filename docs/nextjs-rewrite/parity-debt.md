@@ -63,9 +63,6 @@ Total: 119. Exact example names: `node scripts/parity-debt.ts`.
 
 ### 1.2 Known gaps outside the tagged specs
 
-- `spec/requests/admin/impersonate_spec.rb:48` "impersonates a suspended seller": the execution log says it has
-  no fixture. It is not tagged and `admin_impersonate_parity_spec.rb` (13 fixtures) has no equivalent. Add the
-  example to the parity spec, record it, and extend `ws17e-admin-api.replay.test.ts` (flag `nextjs_admin_impersonate`).
 - `nextjs_mobile_url_redirects` (`/mobile/url_redirects/fetch_placeholder_products`) has only
   `spec/controllers/api/mobile/url_redirects_controller_spec.rb` and no replay naming it. Tag an example in
   `mobile_api_parity_spec.rb`, record it, and add the flag to `ROUTE_FLAGS` in `mobile-api.replay.test.ts`.
@@ -188,7 +185,7 @@ area is closed. Flags not listed under a replay are covered by the replay file i
 | `url-redirect-pages`, `url-redirects` | `url_redirect_*` (36 missing, 1.1) | `nextjs_url_redirect_*` (16 flags) $, `nextjs_url_redirect_writes` $, `nextjs_consumption_analytics` |
 | `ws75-pages` | `agent_signed_in_spec`, `piracy_reports_signed_in_spec`, `dispute_evidence_signed_in_spec`, `generate_invoice_redirect_spec` | `nextjs_agent`, `_piracy_reports`, `_dispute_evidence`, `_dispute_evidence_success`, `_generate_invoice_redirect` |
 | `internal-api` | `internal_api_parity_spec`, `internal_agent_parity_spec` | `nextjs_internal_agent`, `_internal_api_host`, `_internal_installments`, `_internal_product_files`, `_internal_product_posts`, `_internal_review_videos` |
-| `ws17e-admin-api` | `controllers/api/internal/admin/*`, `admin_impersonate_parity_spec` | `nextjs_admin_api_auth`, `_campaigns`, `_piracy`, `_users`, `nextjs_admin_impersonate` (suspended-seller case missing, 1.2) |
+| `ws17e-admin-api` | `controllers/api/internal/admin/*`, `admin_impersonate_parity_spec` | `nextjs_admin_api_auth`, `_campaigns`, `_piracy`, `_users`, `nextjs_admin_impersonate` |
 | `api-v2-products`, `api-v2-ws17b`, `api-v2-ws17c`, `api-token-auth` | `api/v2/*_parity_spec`, `controllers/api/v2/*` | `nextjs_api_v2_*` (17 flags; licenses are not served in Node, see 4.6; `payouts_media` records the Polish and Bosnian IBAN-prefixed `bank_account_visual`, while Card and European destinations still hand back with no example) |
 | `mobile-api`, `mobile-analytics` | `api/mobile/*_parity_spec` (37 missing, 1.1) | `nextjs_mobile_*` (17 flags); `nextjs_mobile_url_redirects` has no replay (1.2) |
 
@@ -290,7 +287,7 @@ or an S3 test bucket, DynamoDB local, `bundle install`, `npm ci` in `nextjs/`, a
 5. **Pages**: `seller_products_edit_signed_in_spec.rb` (`seller-products`), `storefront_profile_products_parity_spec.rb`
    (`storefront-profile-products`), `discover_parity_spec.rb` (`discover`, needs Elasticsearch and the
    `ProductPageView` index).
-6. **The two gaps outside the tagged specs** (1.2).
+6. **The gap outside the tagged specs** (1.2).
 7. **Close-out**: `cd nextjs && node scripts/parity-debt.ts` must end with `0 without a fixture, 0 unresolved`;
    `git status` shows only new fixture files plus the receipt golden; `npm run parity` is green with
    `PARITY_DATABASE_URL`. Only then walk the flag table in section 3 and enable flags in staging, lowest

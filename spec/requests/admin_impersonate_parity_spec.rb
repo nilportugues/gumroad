@@ -27,6 +27,16 @@ describe "Admin impersonation entry points", type: :request do
       expect($redis.get(RedisKey.impersonated_user(admin.id)).to_i).to eq(seller.id)
     end
 
+    it "impersonates a suspended seller", parity: true do
+      seller.update!(user_risk_state: "suspended_for_fraud")
+      log_in(admin)
+
+      get admin_impersonate_path(user_identifier: seller.email)
+
+      expect(response).to redirect_to(products_path)
+      expect($redis.get(RedisKey.impersonated_user(admin.id)).to_i).to eq(seller.id)
+    end
+
     it "impersonates a seller by username", parity: true do
       log_in(admin)
 
