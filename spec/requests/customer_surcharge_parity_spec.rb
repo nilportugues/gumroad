@@ -119,6 +119,16 @@ describe "Customer surcharge", type: :request do
     expect(response.body).to eq("")
   end
 
+  %w[xml text js].each do |format|
+    it "answers a malformed products param with an empty 400 for the #{format} format param", parity: true do
+      post "/customer_surcharge?format=#{format}", params: { products: ["not-a-product"] }.to_json,
+                                                    headers: json_headers.merge("X-CSRF-Token" => csrf_token)
+
+      expect(response).to have_http_status(:bad_request)
+      expect(response.body).to eq("")
+    end
+  end
+
   describe "Singapore, Spanish and physical lines" do
     let(:physical_product) { create(:physical_product, user: seller, unique_permalink: "surchargephysical") }
 

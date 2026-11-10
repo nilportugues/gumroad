@@ -182,6 +182,10 @@ fixture or golden that covers the behaviour, or with the covering check not run.
    are "derived from the Ruby source" in `sales-tax.test.ts`. No tax golden or fixture exists for them. TaxJar,
    `ZipTaxRate`, GeoIP and vendor validators hand back. Close with a golden generator that calls
    `SalesTaxCalculator` and the validators on the same inputs (none exists in `nextjs/scripts/golden`).
+   Recorded 2026-11-10 (lane 15): the empty 400 typed by a registered `format` param (`xml`, `text`, `js`). Disproved by recording:
+   a Singapore rate with an empty `applicable_years` is not served as `[]` (`json_data_for_attr` reads a blank list as nil, so
+   Rails raises `NoMethodError` on `include?`); the Node hand-back is right and stays. A missing or empty `products` renders
+   the exceptions app, whose test-env body (debug page, `text/plain`) differs from production's, so a fixture cannot pin it.
 4. **Billing and team writes** (`settings-mutations.ts`, `server/models/billing-detail.ts`,
    `policies/settings/billing.ts`). Security and compliance: they write billing details and change team roles,
    remove and restore members. The 13 examples in 1.1 (billing :255-:277, team :348-:401) have no fixture, so

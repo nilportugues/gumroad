@@ -10,7 +10,7 @@
 // split, completion surcharges, once-per-cart codes), a subscription renewal, a VAT id, a Payment Element or list-token request, a seller with
 // `buyer_currency_charging` on, a Singapore rate table whose `applicable_years` is not plain, a Spanish buyer the GeoIP database
 // places in the Canary Islands, a bundle bound for an EU-27 rate, a missing `products` (ParameterMissing is rendered by the exceptions
-// app) and a request whose format is neither html nor json (the content type of `head`). The 400 (malformed `products`) and
+// app) and a request whose format is neither html, json nor a registered `format` param (the content type of `head`). The 400 (malformed `products`) and
 // 503 (RateUnavailable) answers are served: an empty body typed by the request format.
 import { Prisma } from "@prisma/client";
 import type { User } from "@prisma/client";
@@ -50,6 +50,7 @@ import {
 import { HandBackToRails, type ActionResult, type Rendered } from "./application-controller.ts";
 import { jsonResponse } from "./json-seller.ts";
 import { registerMutations, remoteIp, type MutationInput } from "./mutation.ts";
+import { queryParam } from "./rails-request.ts";
 import { requestFormat } from "./signed-in-filters.ts";
 
 type Row = Record<string, unknown>;
@@ -361,11 +362,31 @@ export function detectedBuyerCurrency(
   return BUYER_CURRENCY_BY_COUNTRY[countryCode.toUpperCase()] ?? null;
 }
 
+// Mime types Rails registers for the `format` query values below (Mime::Type.register in action_dispatch/http/mime_types.rb).
+const FORMAT_PARAM_CONTENT_TYPES: Record<string, string> = {
+  text: "text/plain",
+  txt: "text/plain",
+  js: "text/javascript",
+  css: "text/css",
+  csv: "text/csv",
+  xml: "application/xml",
+};
+
 // `head :bad_request` / `head :service_unavailable`: no body, typed by the request format without a charset.
 function headResponse(status: number, request: MutationInput["request"]): Rendered {
   const format = requestFormat(request);
-  if (format === "other") return handBack("with a request format whose content type is not modelled");
-  return { status, body: "", contentType: format === "json" ? "application/json" : "text/html", paramsRead: true };
+  // "other" reaches here from an Accept header (not modelled) or a `format` param; only a registered param is typed.
+  const param = queryParam(request, "format");
+  const contentType =
+    format === "json"
+      ? "application/json"
+      : format === "html"
+        ? "text/html"
+        : typeof param === "string"
+          ? FORMAT_PARAM_CONTENT_TYPES[param]
+          : undefined;
+  if (contentType === undefined) return handBack("with a request format whose content type is not modelled");
+  return { status, body: "", contentType, paramsRead: true };
 }
 
 type CartLine = Row;

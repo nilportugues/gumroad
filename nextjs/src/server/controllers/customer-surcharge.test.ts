@@ -290,6 +290,18 @@ describe("error answers", () => {
     expect(await answer({ products: ["abc"] })).toMatchObject({ status: 400, body: "", contentType: "text/html" });
   });
 
+  it("types the empty 400 of a registered format param by that format", async () => {
+    const answerWithFormat = async (format: string) =>
+      (await calculateAll({
+        params: { products: ["abc"] },
+        request: requestWith({ accept: "application/json" }, `format=${format}`),
+      })) as { status: number; body: string; contentType: string };
+
+    expect(await answerWithFormat("xml")).toMatchObject({ status: 400, body: "", contentType: "application/xml" });
+    expect(await answerWithFormat("text")).toMatchObject({ status: 400, body: "", contentType: "text/plain" });
+    expect(await answerWithFormat("js")).toMatchObject({ status: 400, body: "", contentType: "text/javascript" });
+  });
+
   it("answers an untrustworthy exchange rate with an empty 503", async () => {
     links = [link({ price_currency_type: "eur" })];
     getRate.mockRejectedValue(new RateUnavailable("EUR"));
@@ -369,6 +381,9 @@ describe("hand-backs", () => {
   });
 
   it("hands back a request format whose content type is not modelled", async () => {
+    await expect(
+      calculateAll({ params: { products: "x" }, request: requestWith({}, "format=nonsense") }),
+    ).rejects.toBeInstanceOf(HandBackToRails);
     await expect(
       calculateAll({
         params: { products: "x" },
