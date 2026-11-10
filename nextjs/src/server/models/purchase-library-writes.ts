@@ -1,5 +1,6 @@
-// The one write the library makes to a purchase: `update!(is_archived:)` and `update!(is_deleted_by_buyer:)`
-// (LibraryController#archive, #unarchive, #delete). Both change only `flags`, so the callbacks that fire are the
+// The writes the library and the customers page make to a purchase: `update!(is_archived:)`, `update!(is_deleted_by_buyer:)`
+// (LibraryController#archive, #unarchive, #delete) and `update!(is_access_revoked:)` (PurchasesController#revoke_access,
+// #undo_revoke_access). Each changes only `flags`, so the callbacks that fire are the
 // ones `flags` reaches: PaperTrail, the Elasticsearch update (Purchase::ATTRIBUTE_TO_SEARCH_FIELDS) and
 // Purchase::CreatorAnalyticsCallbacks. The others (inventory counters, workflows, fees) key off purchase_state,
 // stripe_refunded and chargeback_date, which this write never changes. Validations are not run: `update!` would
@@ -88,7 +89,7 @@ export function loadLibraryPurchase(row: Purchase, sellerTimezone: string): Libr
   return record;
 }
 
-export type LibraryFlag = "is_archived" | "is_deleted_by_buyer";
+export type LibraryFlag = "is_archived" | "is_deleted_by_buyer" | "is_access_revoked";
 
 // `purchase.update!(flag => value)`
 export async function setLibraryFlag(record: LibraryPurchase, flag: LibraryFlag, value: boolean, options: { now?: () => Date } = {}): Promise<void> {
