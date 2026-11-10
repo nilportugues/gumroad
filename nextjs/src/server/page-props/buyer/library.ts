@@ -1,8 +1,9 @@
 // Port of app/presenters/library_presenter.rb: LibraryPresenter#library_props for LibraryController#index.
 // Memberships that still grant access, installment plans and bundles (member rows replace the bundle row)
 // are served here, a refunded subscription row linking to the buyer's latest paid renewal (library_download_location).
-// A request for the subscriptions tab (status labels, billing-only cards) or a bundle filter that resolves
-// to a bundle purchase with a download page (ZIP archives) goes to Rails whole (HandBackToRails).
+// A request for the subscriptions tab (status labels, billing-only cards), a bundle filter that resolves
+// to a bundle purchase with a download page (ZIP archives) or a `purchase_id` whose seller has pixel ids
+// (PurchaseSellerAnalyticsPresenter) goes to Rails whole (HandBackToRails).
 import { Prisma, type Link, type Purchase, type User } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
@@ -10,6 +11,7 @@ import { decrypt, encrypt } from "../../../lib/obfuscate-ids.ts";
 import { HandBackToRails } from "../../controllers/application-controller.ts";
 import { grantsAccess } from "../../controllers/url-redirects/access.ts";
 import { LinkFlags } from "../../models/link.ts";
+import { tiktokPixelId, Users } from "../../models/user.ts";
 import { castRow, column, selectRows, table } from "../../models/sql.ts";
 import { SubscriptionFlags } from "../../models/subscription.ts";
 import { PurchaseFlags } from "../../search/flags.ts";
@@ -38,6 +40,8 @@ export type LibraryParams = {
   bundles: string;
   showArchivedOnly: boolean;
   subscriptionsOnly: boolean;
+  // LibraryController#tracked_purchase_external_ids: the checkout's `?purchase_id=`. A flat query makes it a string, the last one given.
+  purchaseId?: string;
 };
 
 const flag = (name: Parameters<typeof PurchaseFlags.condition>[0], enabled: boolean) =>
@@ -73,9 +77,10 @@ const bundleLinkIds = (bundleIds: string[]) => bundleIds.flatMap((id) => decrypt
 // that is rendering cannot hand the request back.
 export async function assertLibrarySupported(
   userId: bigint,
-  params: Pick<LibraryParams, "bundles" | "subscriptionsOnly">,
+  params: Pick<LibraryParams, "bundles" | "subscriptionsOnly" | "purchaseId">,
 ): Promise<void> {
   if (params.subscriptionsOnly) throw new HandBackToRails();
+  if (await trackedPurchaseHasPixels(userId, params.purchaseId)) throw new HandBackToRails();
   const base = visibleInLibrary(userId);
   const linkIds = bundleLinkIds(rubySplitComma(params.bundles));
   if (linkIds.length === 0) return;
@@ -84,6 +89,43 @@ export async function assertLibrarySupported(
     Prisma.sql`SELECT 1 FROM ${table(PURCHASES)} INNER JOIN ${table("url_redirects")} ON url_redirects.purchase_id = purchases.id WHERE ${base} AND ${flag("is_bundle_purchase", true)} AND ${column(PURCHASES, "link_id")} IN (${Prisma.join(linkIds)}) LIMIT 1`,
   );
   if (downloads.length > 0) throw new HandBackToRails();
+}
+
+// `[external_id].select(&:is_a?(String))` and `logged_in_user.purchases.by_external_ids`: the id of the one tracked purchase, or null.
+const trackedPurchaseId = (externalId: string | undefined) => (externalId === undefined || externalId === "" ? null : decrypt(externalId));
+
+// `purchase_analytics_props` is `{}` unless the product's seller has a Google Analytics, Facebook or TikTok id (any present value, as Ruby's
+// truthiness); the props it would build for one are not ported.
+async function trackedPurchaseHasPixels(userId: bigint, externalId: string | undefined): Promise<boolean> {
+  const id = trackedPurchaseId(externalId);
+  if (id === null) return false;
+  const [row] = await selectRows(
+    Prisma.sql`SELECT ${Prisma.raw("`users`.*")} FROM ${table(PURCHASES)} INNER JOIN ${table(LINKS)} ON ${column(LINKS, "id")} = ${column(PURCHASES, "link_id")} INNER JOIN ${table("users")} ON ${column("users", "id")} = ${column(LINKS, "user_id")} WHERE ${column(PURCHASES, "purchaser_id")} = ${userId} AND ${column(PURCHASES, "id")} = ${id} LIMIT 1`,
+  );
+  if (!row) return false;
+  const seller = castRow<User>("User", row);
+  const present = (value: unknown) => value !== null && value !== undefined;
+  return present(seller.google_analytics_id) || present(seller.facebook_pixel_id) || present(tiktokPixelId(Users.load(seller)));
+}
+
+// `LibraryPresenter#receipt_purchases` for the tracked purchase: it must be in the library, and a membership that no longer grants access is dropped.
+export async function receiptPurchases(userId: bigint, externalId: string | undefined) {
+  const id = trackedPurchaseId(externalId);
+  if (id === null) return [];
+  const [row] = await selectRows(
+    Prisma.sql`SELECT ${Prisma.raw("`purchases`.*")} FROM ${table(PURCHASES)} WHERE ${visibleInLibrary(userId)} AND ${column(PURCHASES, "id")} = ${id} LIMIT 1`,
+  );
+  if (!row) return [];
+  const purchase = castRow<Purchase>("Purchase", row);
+  const product = await db.link.findUniqueOrThrow({ where: { id: purchase.link_id! } });
+  if (LinkFlags.isSet(product.flags, "is_recurring_billing") && purchase.subscription_id !== null) {
+    const subscription = await db.subscription.findUnique({ where: { id: purchase.subscription_id } });
+    if (subscription && !grantsAccess(subscription, product, new Date())) return [];
+  }
+  const analytics = await selectRows(
+    Prisma.sql`SELECT 1 FROM ${table("third_party_analytics")} WHERE ${column("third_party_analytics", "deleted_at")} IS NULL AND ${column("third_party_analytics", "location")} IN ('receipt', 'all') AND (${column("third_party_analytics", "link_id")} = ${product.id} OR (${column("third_party_analytics", "user_id")} = ${product.user_id} AND ${column("third_party_analytics", "link_id")} IS NULL)) LIMIT 1`,
+  );
+  return [{ id: encrypt(purchase.id), email: purchase.email, permalink: product.unique_permalink, has_third_party_analytics: analytics.length > 0 }];
 }
 
 type RenewalCandidate = { subscription_id: bigint; link_id: bigint; purchase_state: string; token: string | null };

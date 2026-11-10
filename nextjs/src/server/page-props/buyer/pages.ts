@@ -15,7 +15,7 @@ import {
   WISHLISTS_OPTIONS,
 } from "../../controllers/buyer-pages.ts";
 import { railsLoggedInUser } from "../../auth/resolve.ts";
-import { libraryProps } from "./library.ts";
+import { libraryProps, receiptPurchases } from "./library.ts";
 import { reviewsProps } from "./reviews.ts";
 import { aliveFollowingWishlistsOf, aliveWishlistsOf, wishlistsLibraryProps } from "./wishlists.ts";
 import { queryParam, type RailsRequest } from "../../controllers/rails-request.ts";
@@ -55,8 +55,9 @@ async function libraryPage(action: ActionContext) {
   action.meta.set({ title: "Library" });
   const user = railsLoggedInUser(action.context);
   if (!user) throw new TypeError("undefined method for nil: logged_in_user");
-  const props = await libraryProps(user, libraryParams({ queryString: action.url.search.replace(/^\?/, "") } as RailsRequest));
-  return { ...props, purchase_analytics: {}, receipt_purchases: [] };
+  const params = libraryParams({ queryString: action.url.search.replace(/^\?/, "") } as RailsRequest);
+  // trackedPurchaseHasPixels handed back a purchase whose seller has pixel ids, so no analytics props remain.
+  return { ...(await libraryProps(user, params)), purchase_analytics: {}, receipt_purchases: await receiptPurchases(user.id, params.purchaseId) };
 }
 
 export const BUYER_PAGES: Record<string, PageSpec> = {

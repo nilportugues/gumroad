@@ -419,6 +419,46 @@ describe "Buyer pages", type: :request do
         expect(inertia_props_of(response)["results"].map { _1.dig("purchase", "download_url") }).to eq([nil])
       end
 
+      it "lists the purchase tracked by the checkout's purchase_id as a receipt purchase", parity: true do
+        purchase = library_purchase(link: create(:product, name: "Just bought", unique_permalink: "justbought"))
+        library_purchase(link: create(:product, name: "Bought earlier"))
+        log_in(buyer)
+
+        get library_path(purchase_id: purchase.external_id)
+
+        expect(response).to be_successful
+        props = inertia_props_of(response)
+        expect(props["purchase_analytics"]).to eq({})
+        expect(props["receipt_purchases"]).to eq([{ "id" => purchase.external_id, "email" => buyer.email, "permalink" => "justbought", "has_third_party_analytics" => false }])
+      end
+
+      it "flags a tracked purchase whose seller has a receipt analytics snippet", parity: true do
+        product = create(:product, name: "Tracked product")
+        create(:third_party_analytic, user: product.user, link: nil, location: "receipt")
+        purchase = library_purchase(link: product)
+        log_in(buyer)
+
+        get library_path(purchase_id: purchase.external_id)
+
+        expect(response).to be_successful
+        expect(inertia_props_of(response)["receipt_purchases"].map { _1["has_third_party_analytics"] }).to eq([true])
+      end
+
+      it "leaves out a tracked purchase that is not in the buyer's library", parity: true do
+        revoked = library_purchase(link: create(:product, name: "Revoked tracked"), is_access_revoked: true)
+        library_purchase(link: create(:product, name: "Kept"))
+        someone_else = create(:free_purchase, email: "other@example.com", link: create(:product)).tap { _1.create_url_redirect! }
+        log_in(buyer)
+
+        get library_path(purchase_id: someone_else.external_id)
+        expect(inertia_props_of(response)).to include("purchase_analytics" => {}, "receipt_purchases" => [])
+
+        get library_path(purchase_id: revoked.external_id)
+
+        expect(response).to be_successful
+        expect(inertia_props_of(response)).to include("purchase_analytics" => {}, "receipt_purchases" => [])
+      end
+
       # The subscriptions tab is handed to Rails, so there is nothing to replay.
       it "renders the subscriptions tab", parity: false do
         create(:membership_purchase, purchaser: buyer).tap { _1.create_url_redirect! }
