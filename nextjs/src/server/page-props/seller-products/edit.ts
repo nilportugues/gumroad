@@ -1,7 +1,8 @@
 // ProductPresenter#edit_props for LinksController#edit (Products/Edit), for the products whose editor state is
 // proven: a plain digital, course or ebook product. Everything the port does not read is a row that does not exist
 // (`editBlockers`), and a product with one goes to Rails whole (HandBackToRails) before anything renders. Sales
-// (`successful_sales_count`, Elasticsearch), reviews (`rating_stats`) and a product-level purchase limit are served.
+// (`successful_sales_count`, Elasticsearch), reviews (`rating_stats`), a product-level purchase limit, the free trial
+// and subscription duration settings and a live installment plan are served.
 import { createHmac } from "node:crypto";
 
 import { Prisma } from "@prisma/client";
@@ -57,6 +58,9 @@ export const ALLOWED_REFUND_PERIODS_IN_DAYS: readonly (readonly [number, string]
   [183, "6-month money back guarantee"],
 ];
 export const DEFAULT_REFUND_PERIOD_IN_DAYS = 30;
+// Link.subscription_duration and Link.free_trial_duration_unit enums
+const SUBSCRIPTION_DURATIONS = ["monthly", "yearly", "quarterly", "biannually", "every_two_years"] as const;
+const FREE_TRIAL_DURATION_UNITS = ["week", "month"] as const;
 // RendersCustomHtmlPages::GLOBAL_NAV_PATHS
 const CUSTOM_HTML_GLOBAL_NAV_PATHS = ["/library", "/checkout"];
 
@@ -174,9 +178,10 @@ export async function rowBlockers(product: LinkRow, seller: UserRow): Promise<st
   return rows.map((row) => row.blocker);
 }
 
-// Probes the editor reads itself: `successful_sales_count` (Elasticsearch) and `rating_stats` (product_review_stats).
+// Probes the editor reads itself: `successful_sales_count` (Elasticsearch), `rating_stats` (product_review_stats) and the
+// installment plan (product_installment_plans).
 // Bundle editors keep them as blockers, so they are dropped here and not in rowBlockers.
-const SERVED_ROW_BLOCKERS = ["sales", "reviews"];
+const SERVED_ROW_BLOCKERS = ["sales", "reviews", "installment_plan"];
 
 export async function editBlockers(product: LinkRow, seller: UserRow): Promise<string[]> {
   const blockers = (await rowBlockers(product, seller)).filter((name) => !SERVED_ROW_BLOCKERS.includes(name));
@@ -189,15 +194,11 @@ export async function editBlockers(product: LinkRow, seller: UserRow): Promise<s
     "is_physical",
     "is_bundle",
     "is_in_preorder_state",
-    "free_trial_enabled",
     "is_collab",
   ] as const) {
     if (set(flag)) blockers.push(flag);
   }
   if (product.default_offer_code_id !== null) blockers.push("default_offer_code");
-  if (product.subscription_duration !== null) blockers.push("subscription_duration");
-  if (product.free_trial_duration_amount !== null || product.free_trial_duration_unit !== null)
-    blockers.push("free_trial");
   if (product.price_currency_type === null) blockers.push("price_currency_type");
   return blockers;
 }
@@ -428,6 +429,20 @@ export function jsonSettings(product: LinkRow) {
   return { jsonValue, jsonText, jsonObject, customAttributes };
 }
 
+// The enum readers return nil for a value outside the enum.
+export const subscriptionDuration = (product: LinkRow): string | null =>
+  SUBSCRIPTION_DURATIONS[product.subscription_duration ?? -1] ?? null;
+export const freeTrialDurationUnit = (product: LinkRow): string | null =>
+  FREE_TRIAL_DURATION_UNITS[product.free_trial_duration_unit ?? -1] ?? null;
+
+// ProductPresenter::InstallmentPlanProps#installment_plan_props: `has_one :installment_plan, -> { alive }`.
+export async function installmentPlanProps(productId: bigint) {
+  const [plan] = await selectRows<{ number_of_installments: number; recurrence: string }>(
+    Prisma.sql`SELECT ${column("product_installment_plans", "number_of_installments")}, ${column("product_installment_plans", "recurrence")} FROM ${table("product_installment_plans")} WHERE ${column("product_installment_plans", "link_id")} = ${productId} AND ${column("product_installment_plans", "deleted_at")} IS NULL ORDER BY ${column("product_installment_plans", "id")} ASC LIMIT 1`,
+  );
+  return plan ? { number_of_installments: plan.number_of_installments, recurrence: plan.recurrence } : null;
+}
+
 export type EditPropsInput = {
   product: LinkRow;
   seller: UserRow;
@@ -458,6 +473,7 @@ export async function editProps({ product, seller, sellerExternalId, aiGenerated
   const sharesRichContent =
     flag("has_same_rich_content_for_all_variants") && !(await recoverableHiddenVariantRichContent(product.id));
   const tags = await productTagNames(product.id);
+  const installmentPlan = await installmentPlanProps(product.id);
   const otherRefundPolicies = await otherProductRefundPolicies(product.id, seller.id);
   const sections = await profileSections(seller);
   const actor = userActor(seller.id);
@@ -484,9 +500,11 @@ export async function editProps({ product, seller, sellerExternalId, aiGenerated
       price_cents: product.price_cents as number,
       customizable_price: !!product.customizable_price,
       suggested_price_cents: product.suggested_price_cents,
+      // ProductInstallmentPlan.eligible_for_product? holds: the memberships, pre-orders and other native types that
+      // fail it are editBlockers.
       eligible_for_installment_plans: true,
-      allow_installment_plan: false,
-      installment_plan: null,
+      allow_installment_plan: installmentPlan !== null,
+      installment_plan: installmentPlan,
       custom_button_text_option: jsonText("custom_button_text_option"),
       custom_summary: (jsonValue("custom_summary") ?? null) as string | null,
       custom_html: null,
@@ -540,14 +558,14 @@ export async function editProps({ product, seller, sellerExternalId, aiGenerated
       is_adult: flag("is_adult"),
       discover_fee_per_thousand: product.discover_fee_per_thousand,
       custom_domain: "",
-      free_trial_enabled: false,
-      free_trial_duration_amount: null,
-      free_trial_duration_unit: null,
+      free_trial_enabled: flag("free_trial_enabled"),
+      free_trial_duration_amount: product.free_trial_duration_amount,
+      free_trial_duration_unit: freeTrialDurationUnit(product),
       should_include_last_post: flag("should_include_last_post"),
       should_show_all_posts: flag("should_show_all_posts"),
       block_access_after_membership_cancellation: flag("block_access_after_membership_cancellation"),
       duration_in_months: product.duration_in_months,
-      subscription_duration: null,
+      subscription_duration: subscriptionDuration(product),
       collaborating_user: null,
       rich_content: [],
       files: [],

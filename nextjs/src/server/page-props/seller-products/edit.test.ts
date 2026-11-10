@@ -5,7 +5,7 @@ import { instantInTimeZoneIso8601 } from "../../models/concerns/rails-time-zone.
 import { LinkFlags } from "../../models/link.ts";
 import type { LinkRow, UserRow } from "../../presenters/product-reads.ts";
 import { setSqlClient } from "../../models/sql.ts";
-import { assertEditSupported, editBlockers, editorRevision, otherProductRefundPolicies, productTagNames, salesCountForInventory } from "./edit.ts";
+import { assertEditSupported, editBlockers, editorRevision, freeTrialDurationUnit, installmentPlanProps, subscriptionDuration, otherProductRefundPolicies, productTagNames, salesCountForInventory } from "./edit.ts";
 import { recoverableHiddenVariantRichContent, variantProps, versionStamps, type VersionRows } from "./edit-variants.ts";
 import golden from "./__fixtures__/editor-revision.golden.json" with { type: "json" };
 
@@ -175,7 +175,7 @@ describe("assertEditSupported", () => {
     await expect(assertEditSupported(product({ native_type: nativeType }), seller, 9n)).rejects.toBeInstanceOf(HandBackToRails);
   });
 
-  it.each(["is_recurring_billing", "is_tiered_membership", "is_physical", "is_in_preorder_state", "free_trial_enabled", "is_collab"] as const)("hands back a product with %s set", async (flag) => {
+  it.each(["is_recurring_billing", "is_tiered_membership", "is_physical", "is_in_preorder_state", "is_collab"] as const)("hands back a product with %s set", async (flag) => {
     blockedBy();
     const flags = LinkFlags.set(0n, flag, true);
     await expect(assertEditSupported(product({ flags }), seller, 9n)).rejects.toBeInstanceOf(HandBackToRails);
@@ -184,6 +184,19 @@ describe("assertEditSupported", () => {
   it("hands back a product with a default offer code", async () => {
     blockedBy();
     await expect(assertEditSupported(product({ default_offer_code_id: 1n }), seller, 9n)).rejects.toBeInstanceOf(HandBackToRails);
+  });
+
+  it("serves a product with a free trial and a subscription duration", async () => {
+    blockedBy();
+    const trial = product({ flags: LinkFlags.set(0n, "free_trial_enabled", true), free_trial_duration_amount: 2, free_trial_duration_unit: 1, subscription_duration: 1 });
+    await expect(editBlockers(trial, seller)).resolves.toEqual([]);
+    await expect(assertEditSupported(trial, seller, 9n)).resolves.toBeUndefined();
+  });
+
+  it("serves a product with a live installment plan but still hands back one with a membership flag", async () => {
+    blockedBy("installment_plan");
+    await expect(editBlockers(product(), seller)).resolves.toEqual([]);
+    await expect(editBlockers(product({ flags: LinkFlags.set(0n, "is_recurring_billing", true) }), seller)).resolves.toEqual(["is_recurring_billing"]);
   });
 
   it("serves a product with sales, reviews and a purchase limit", async () => {
@@ -226,5 +239,26 @@ describe("otherProductRefundPolicies", () => {
     expect(policy).toEqual({ fine_print: "Fine", id: expect.any(String), max_refund_period_in_days: 14, product_name: "Other", title: "14-day money back guarantee" });
     expect(sql).toMatch(/`updated_at` DESC/);
     expect(sql).toMatch(/`deleted_at` IS NULL/);
+  });
+});
+
+describe("subscriptionDuration and freeTrialDurationUnit", () => {
+  it("name the enum value, or nil outside the enum", () => {
+    expect([0, 1, 2, 3, 4, 5, null].map((value) => subscriptionDuration(product({ subscription_duration: value })))).toEqual(["monthly", "yearly", "quarterly", "biannually", "every_two_years", null, null]);
+    expect([0, 1, 2, null].map((value) => freeTrialDurationUnit(product({ free_trial_duration_unit: value })))).toEqual(["week", "month", null, null]);
+  });
+});
+
+describe("installmentPlanProps", () => {
+  it("serves the live plan's installments and recurrence", async () => {
+    let sql = "";
+    setSqlClient(() => ({ $queryRaw: async (query: { sql: string }) => ((sql = query.sql), [{ number_of_installments: 3, recurrence: "monthly" }]), $executeRaw: async () => 0 }) as never);
+    await expect(installmentPlanProps(5n)).resolves.toEqual({ number_of_installments: 3, recurrence: "monthly" });
+    expect(sql).toMatch(/`deleted_at` IS NULL/);
+  });
+
+  it("is nil without a live plan", async () => {
+    setSqlClient(() => ({ $queryRaw: async () => [], $executeRaw: async () => 0 }) as never);
+    await expect(installmentPlanProps(5n)).resolves.toBeNull();
   });
 });
