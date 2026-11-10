@@ -2,19 +2,22 @@
 // answer needs no vendor: one-time, non-physical lines with no VAT id, no TaxJar buyer (US taxable state, Canada with a
 // province) and no seller in the buyer-currency rollout, so the response carries no FX quote and no direct-listed token.
 //
-// Everything else hands back to Rails before anything is written (nothing here writes): a physical, preorder, commission,
+// Physical lines are served through their ShippingDestination (exact country, then ELSEWHERE).
+//
+// Everything else hands back to Rails before anything is written (nothing here writes): a preorder, commission,
 // membership or installment line, a subscription renewal, a VAT id, a Payment Element or list-token request, a seller with
-// `buyer_currency_charging` on, Singapore (`applicable_years`), a Spanish rate (the GeoIP subdivision names), a bundle bound
-// for an EU-27 rate, a missing `products` (ParameterMissing is rendered by the exceptions app) and a request whose format
-// is neither html nor json (the content type of `head`). The 400 (malformed `products`) and 503 (RateUnavailable) answers
-// are served: an empty body typed by the request format.
+// `buyer_currency_charging` on, a Singapore rate table whose `applicable_years` is not plain, a Spanish buyer the GeoIP database
+// places in the Canary Islands, a physical line whose product has a continent-wide shipping destination (needs the countries
+// gem's continents), a bundle bound for an EU-27 rate, a missing `products` (ParameterMissing is rendered by the exceptions
+// app) and a request whose format is neither html nor json (the content type of `head`). The 400 (malformed `products`) and
+// 503 (RateUnavailable) answers are served: an empty body typed by the request format.
 import { Prisma } from "@prisma/client";
 import type { User } from "@prisma/client";
 
 import { BUYER_CURRENCY_BY_COUNTRY } from "../infra/buyer-currency-countries.ts";
 import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
 import { geoIpLookup, type GeoIpResult } from "../infra/geo-ip.ts";
-import { getRate, RateUnavailable } from "../models/concerns/currency-helper.ts";
+import { getRate, getUsdCents, RateUnavailable, rubyStringToF } from "../models/concerns/currency-helper.ts";
 import { LinkFlags } from "../models/link.ts";
 import { castRow, column, selectRows, table } from "../models/sql.ts";
 import { jsonDataForAttr, Users } from "../models/user.ts";
@@ -57,6 +60,13 @@ const BUYER_LOCAL_CURRENCY_FEATURE = "buyer_local_currency";
 const SPECIAL_EPUBLICATION_COUNTRIES = ["IS", "CH", "MX"];
 const SELLER_RESPONSIBLE_FLAG = 1;
 const EPUBLICATION_RATE_FLAG = 2;
+
+const VIRTUAL_COUNTRY_FLAG = 1;
+const ELSEWHERE = "ELSEWHERE";
+// ShippingDestination::Destinations::VIRTUAL_COUNTRY_CODES
+const VIRTUAL_COUNTRY_CODES = ["EUROPE", "ASIA", "NORTH AMERICA"];
+// Subdivision iso codes of the Canary Islands autonomous community and its two provinces.
+const CANARY_REGION_CODES = ["CN", "TF", "GC"];
 
 const handBack = (reason: string): never => {
   throw new HandBackToRails(`customer_surcharge ${reason}`);
@@ -130,6 +140,40 @@ async function firstZipTaxRate(
   return row ?? null;
 }
 
+// `rate.applicable_years` (attr_json_data_accessor over the JSON-coded json_data); Ruby raises on a missing list.
+function applicableYears(row: Row): number[] {
+  let years: unknown;
+  try {
+    years = (JSON.parse(String(row.json_data)) as { applicable_years?: unknown } | null)?.applicable_years;
+  } catch {
+    return handBack("for a Singapore rate with unreadable json_data");
+  }
+  if (!Array.isArray(years) || !years.every((year) => Number.isSafeInteger(year))) {
+    return handBack("for a Singapore rate without a plain applicable_years list");
+  }
+  return years as number[];
+}
+
+// SalesTaxCalculator#calculate_with_lookup_table, Singapore: the rate listing the current year, else the one with the
+// latest year. `sort_by` is unstable and raises on an empty list, so only an unambiguous answer is served.
+async function singaporeRate(): Promise<Row | null> {
+  const rates = await selectRows<Row>(
+    Prisma.sql`SELECT ${Prisma.raw("`zip_tax_rates`.*")} FROM ${table("zip_tax_rates")} WHERE ${column("zip_tax_rates", "deleted_at")} IS NULL AND ${column("zip_tax_rates", "country")} = ${"SG"} AND (${column("zip_tax_rates", "flags")} & ${SELLER_RESPONSIBLE_FLAG}) = 0 AND (${column("zip_tax_rates", "flags")} & ${EPUBLICATION_RATE_FLAG}) = 0 ORDER BY ${column("zip_tax_rates", "created_at")} ASC, ${column("zip_tax_rates", "id")} ASC`,
+  );
+  const year = new Date().getUTCFullYear();
+  const current = rates.find((rate) => applicableYears(rate).includes(year));
+  if (current !== undefined) return current;
+  if (rates.length <= 1) return rates[0] ?? null;
+  const latest = rates.map((rate) => {
+    const years = applicableYears(rate);
+    return years.length === 0 ? handBack("for a Singapore rate with no applicable years") : Math.max(...years);
+  });
+  const best = Math.max(...latest);
+  if (latest.filter((value) => value === best).length > 1)
+    return handBack("for Singapore rates tied on their latest year");
+  return rates[latest.indexOf(best)] ?? null;
+}
+
 // SalesTaxCalculator#calculate_with_lookup_table for a buyer who is neither a US taxable state nor a Canadian province.
 async function lookupRate(link: LinkRow, location: BuyerLocation, state: string | null): Promise<Row | null> {
   const country = location.country;
@@ -139,7 +183,7 @@ async function lookupRate(link: LinkRow, location: BuyerLocation, state: string 
 
   if (EU_VAT_APPLICABLE_COUNTRY_CODES.includes(code) || code === "NO") return firstZipTaxRate(code, { epublication });
   if (code === "AU") return firstZipTaxRate(code, { epublication: false });
-  if (code === "SG") return handBack("for Singapore, whose rate year comes from json_data");
+  if (code === "SG") return singaporeRate();
   if (code === "CA") return firstZipTaxRate(code, { state, epublication: false });
 
   const collects =
@@ -149,11 +193,23 @@ async function lookupRate(link: LinkRow, location: BuyerLocation, state: string 
   return firstZipTaxRate(code, SPECIAL_EPUBLICATION_COUNTRIES.includes(code) ? { epublication } : {});
 }
 
+// The GeoIP leg of `is_vat_exempt?`: a Spanish IP in a subdivision named like the Canary Islands. The lookup keeps only
+// the last subdivision's iso code, so a Canary region (or an unknown one) is left to Rails.
+function esExemptByGeoIp(ip: string | null): boolean {
+  const geocode = geoIpLookup(ip);
+  if (geocode === null || geocode.countryCode !== "ES") return false;
+  if (geocode.regionName === null || CANARY_REGION_CODES.includes(geocode.regionName)) {
+    return handBack("for a Spanish rate and a buyer IP in the Canary Islands or an unnamed region");
+  }
+  return false;
+}
+
 // SalesTaxCalculator#calculate for a buyer with no VAT id. A TaxJar buyer (US taxable state, Canadian province) hands back.
 export async function calculateSalesTax(
   link: LinkRow,
   priceCents: number,
   location: BuyerLocation,
+  ip: string | null = null,
 ): Promise<SalesTaxCalculation> {
   const region = buyerTaxRegion(location);
   const sellerId = link.user_id;
@@ -161,14 +217,14 @@ export async function calculateSalesTax(
   if (sellerId !== null && (await hasBrazilianStripeConnectAccount(sellerId))) return zeroTax(priceCents);
   if (region.isUsTaxableState || region.isCaTaxable) return handBack("for a buyer taxed through TaxJar");
 
+  const isPhysical = flagSet(link, "is_physical");
   const row = await lookupRate(link, location, region.state);
   let rate: { country: string; combinedRate: string } | null = null;
   let eligible = false;
   if (row !== null) {
     const country = String(row.country);
     // is_vat_exempt?: only Spain's rows can be exempt.
-    const exempt = esVatExemptWithoutGeoIp(country, location);
-    if (exempt === undefined) return handBack("for a Spanish rate, which reads the GeoIP subdivision names");
+    const exempt = esVatExemptWithoutGeoIp(country, location) ?? esExemptByGeoIp(ip);
     if (!exempt) {
       rate = { country, combinedRate: new Prisma.Decimal(row.combined_rate as never).toFixed(7) };
       const flag = `collect_tax_${country.toLowerCase()}`;
@@ -176,11 +232,11 @@ export async function calculateSalesTax(
       eligible = taxEligible({
         rateCountry: country,
         rateIsSellerOwn: row.user_id !== null && row.user_id !== undefined,
-        isPhysical: false,
+        isPhysical,
         region,
         featureActive: (name) => name === flag && flagActive,
         entirelyPhysicalShipment: () =>
-          flagSet(link, "is_bundle") ? handBack("for a bundle bound for an EU rate") : false,
+          flagSet(link, "is_bundle") ? handBack("for a bundle bound for an EU rate") : isPhysical,
       });
     }
   }
@@ -193,6 +249,62 @@ export async function calculateSalesTax(
     taxEligible: eligible,
     isQuebec: false,
   });
+}
+
+// `quantity.to_i` for the values a cart sends; anything Ruby would fail on or read fractionally is its to answer.
+function shippingQuantity(value: unknown): bigint {
+  if (typeof value === "number" && Number.isSafeInteger(value)) return BigInt(value);
+  const match = typeof value === "string" ? /^\s*([+-]?\d+)\s*$/u.exec(value) : null;
+  if (match?.[1] === undefined) return handBack("with a quantity that is not an integer");
+  return BigInt(match[1]);
+}
+
+// ShippingDestination.for_product_and_country_code for a physical product: the buyer's country, else ELSEWHERE.
+// A continent-wide destination would need the countries gem's continents, so it stays with Rails.
+async function shippingDestinationFor(link: LinkRow, country: string): Promise<Row | null> {
+  const [excluded] = await selectRows<Row>(
+    Prisma.sql`SELECT 1 AS excluded FROM ${table("shipping_exclusions")} WHERE ${column("shipping_exclusions", "product_id")} = ${link.id} AND ${column("shipping_exclusions", "country_code")} = ${country} LIMIT 1`,
+  );
+  if (excluded !== undefined) return null;
+
+  const alive = Prisma.sql`${column("shipping_destinations", "link_id")} = ${link.id} AND ${column("shipping_destinations", "deleted_at")} IS NULL`;
+  const first = async (condition: Prisma.Sql): Promise<Row | null> => {
+    const [row] = await selectRows<Row>(
+      Prisma.sql`SELECT ${Prisma.raw("`shipping_destinations`.*")} FROM ${table("shipping_destinations")} WHERE ${alive} AND ${condition} ORDER BY ${column("shipping_destinations", "id")} ASC LIMIT 1`,
+    );
+    return row ?? null;
+  };
+
+  const exact = await first(Prisma.sql`${column("shipping_destinations", "country_code")} = ${country}`);
+  if (exact !== null) return exact;
+  const virtual = await first(
+    Prisma.sql`(${column("shipping_destinations", "flags")} & ${VIRTUAL_COUNTRY_FLAG}) != 0 AND ${column("shipping_destinations", "country_code")} IN (${Prisma.join(VIRTUAL_COUNTRY_CODES)})`,
+  );
+  if (virtual !== null) return handBack("for a product shipping to a continent");
+  return first(Prisma.sql`${column("shipping_destinations", "country_code")} = ${ELSEWHERE}`);
+}
+
+// CustomerSurchargeController#calculate_surcharges' shipping: ShippingDestination#calculate_shipping_rate in USD cents.
+async function shippingUsdCents(
+  link: LinkRow,
+  country: string | null,
+  quantityParam: unknown,
+  rate: number | undefined,
+): Promise<number> {
+  if (country === null) return 0;
+  const destination = await shippingDestinationFor(link, country);
+  if (destination === null) return 0;
+
+  const quantity = shippingQuantity(quantityParam);
+  if (quantity < 1n) return 0;
+  const currencyType = String(link.price_currency_type);
+  if (rate === 0) return handBack("with a zero exchange rate");
+  const oneItem = BigInt(String(destination.one_item_rate_cents));
+  const multipleItems = BigInt(String(destination.multiple_items_rate_cents));
+  return (
+    (await getUsdCents(currencyType, oneItem, rate)) +
+    (await getUsdCents(currencyType, multipleItems * (quantity - 1n), rate))
+  );
 }
 
 // Checkout::BuyerCurrencyEligibility.seller_enabled?
@@ -258,7 +370,7 @@ async function calculateAllLines({
 
   const lines: SurchargeLine[] = [];
   const sellerIds = new Set<bigint>();
-  const rates = new Set<string>();
+  const rates = new Map<string, number>();
   let allLinesQuotable = true;
   for (const item of products as CartLine[]) {
     const permalink = item.permalink;
@@ -269,25 +381,29 @@ async function calculateAllLines({
       continue;
     }
     if (
-      flagSet(link, "is_physical") ||
       flagSet(link, "is_in_preorder_state") ||
       flagSet(link, "is_recurring_billing") ||
       link.native_type === "commission" ||
       !NOT_INSTALLMENTS.has(item.pay_in_installments) ||
       !blank(item.subscription_id)
     ) {
-      return handBack("for a physical, preorder, commission, membership, installment or renewal line");
+      return handBack("for a preorder, commission, membership, installment or renewal line");
     }
 
     const submittedPrice = submittedPriceCents(item.price);
     const listedCurrency = String(link.price_currency_type ?? "").toLowerCase();
     // The listed rate only prices shipping, but `get_rate` is the call that can fail the whole request (503 in calculateAll).
     if (listedCurrency !== "usd" && !rates.has(listedCurrency)) {
-      await getRate(String(link.price_currency_type));
-      rates.add(listedCurrency);
+      rates.set(listedCurrency, rubyStringToF(await getRate(String(link.price_currency_type))));
     }
 
-    lines.push({ taxResult: await calculateSalesTax(link, submittedPrice, location), shippingUsdCents: 0 });
+    const shipping = flagSet(link, "is_physical")
+      ? await shippingUsdCents(link, location.country ?? null, item.quantity, rates.get(listedCurrency))
+      : 0;
+    lines.push({
+      taxResult: await calculateSalesTax(link, submittedPrice, location, remoteIp(request)),
+      shippingUsdCents: shipping,
+    });
     if (link.user_id !== null) sellerIds.add(link.user_id);
   }
 

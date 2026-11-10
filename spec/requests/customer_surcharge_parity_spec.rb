@@ -111,4 +111,68 @@ describe "Customer surcharge", type: :request do
     expect(response).to have_http_status(:bad_request)
     expect(response.body).to eq("")
   end
+
+  describe "Singapore, Spanish and physical lines" do
+    let(:physical_product) { create(:physical_product, user: seller, unique_permalink: "surchargephysical") }
+
+    def create_sg_rate(years, rate)
+      create(:zip_tax_rate, country: "SG", state: nil, zip_code: nil, combined_rate: rate, is_seller_responsible: false, applicable_years: years)
+    end
+
+    it "taxes a Singapore buyer with the rate listing the current year", parity: true do
+      create_sg_rate([Time.current.year - 1], 0.08)
+      create_sg_rate([Time.current.year], 0.09)
+
+      post_surcharge(products: [line(product, price: 1_000)], country: "SG")
+
+      expect(response.parsed_body).to include("tax_cents" => 90, "has_vat_id_input" => true)
+    end
+
+    it "falls back to the Singapore rate with the latest year", parity: true do
+      create_sg_rate([2001], 0.07)
+      create_sg_rate([2003, 2002], 0.08)
+
+      post_surcharge(products: [line(product, price: 1_000)], country: "SG")
+
+      expect(response.parsed_body).to include("tax_cents" => 80)
+    end
+
+    it "taxes a Spanish buyer outside the Canary Islands and exempts a Canary postal code", parity: true do
+      create(:zip_tax_rate, combined_rate: 0.21, country: "ES", state: nil, zip_code: nil, is_seller_responsible: false)
+
+      post_surcharge(products: [line(product, price: 1_000)], country: "ES", postal_code: "08001")
+      expect(response.parsed_body).to include("tax_cents" => 210)
+
+      post_surcharge(products: [line(product, price: 1_000)], country: "ES", postal_code: "35001")
+      expect(response.parsed_body).to include("tax_cents" => 0)
+    end
+
+    it "adds the shipping rate of the buyer's country for a physical line", parity: true do
+      physical_product.shipping_destinations << create(:shipping_destination, country_code: "US", one_item_rate_cents: 500, multiple_items_rate_cents: 200)
+
+      post_surcharge(products: [line(physical_product, price: 1_000, quantity: 3)], country: "US", postal_code: "94104")
+
+      expect(response.parsed_body).to include("shipping_rate_cents" => 900, "subtotal" => 1_000, "charge_canonical_total_cents" => 1_900)
+    end
+
+    it "falls back to the ELSEWHERE destination and charges nothing for an excluded country", parity: true do
+      physical_product.shipping_destinations << create(:shipping_destination, country_code: "ELSEWHERE", one_item_rate_cents: 800, multiple_items_rate_cents: 300)
+      physical_product.shipping_exclusions.create!(country_code: "FR")
+
+      post_surcharge(products: [line(physical_product)], country: "IT")
+      expect(response.parsed_body).to include("shipping_rate_cents" => 800)
+
+      post_surcharge(products: [line(physical_product)], country: "FR")
+      expect(response.parsed_body).to include("shipping_rate_cents" => 0)
+    end
+
+    it "drops VAT on a physical line bound for the EU", parity: true do
+      create_de_vat_rate
+      physical_product.shipping_destinations << create(:shipping_destination, country_code: "DE", one_item_rate_cents: 500, multiple_items_rate_cents: 0)
+
+      post_surcharge(products: [line(physical_product, price: 1_000)], country: "DE", postal_code: "10115")
+
+      expect(response.parsed_body).to include("tax_cents" => 0, "shipping_rate_cents" => 500)
+    end
+  end
 end
