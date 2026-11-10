@@ -77,9 +77,7 @@ Parity replays still failing after the first full run against real Rails (setup 
   the buyer reviews page's review videos) plus `blobSignedId` (`infra/active-storage.ts`: `railsMessageVerifierGenerate("ActiveStorage", blob.id,
   "blob_id")`, wired into the settings profile's `profile_picture_blob_id` and the customers panel's custom field files, `customers/file-details.ts`).
   Still handing back: a 1280x720 thumbnail variant Rails has not processed yet (no `active_storage_variant_records` row, as the avatar does), and
-  on `/customers` a review video whose thumbnail variant is unprocessed (the commission files and review video thumbnails are served). Record `nextjs/scripts/golden/active-storage.rb` to add the Rails goldens for
-  `blob.signed_id` and the 1280x720 digests; `active-storage.test.ts` asserts them once present, and until then only checks tokens derived with
-  the verifier port (proven against Rails for another verifier name), so the `ActiveStorage` salt and `blob_id` purpose are unrecorded.
+  on `/customers` a review video whose thumbnail variant is unprocessed (the commission files and review video thumbnails are served). `blob.signed_id` and the 1280x720 thumbnail digests are proven against the Rails golden (`active-storage.golden.json`, recorded 2026-11-10).
 - **`POST /customer_surcharge`** (WS-20a, `nextjs_checkout_surcharge`): served for one-time, non-physical lines when no seller has
   `buyer_currency_charging` on and the buyer is taxed from the lookup table (`controllers/customer-surcharge.ts`). Still hands back: a VAT id
   (vendor validation), a US taxable state or Canadian province (TaxJar), a Singapore table whose `applicable_years` is missing, empty or

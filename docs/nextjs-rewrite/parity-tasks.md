@@ -39,7 +39,7 @@ Each is one worktree (see "Lane isolation"). Tasks that need a Rails recording: 
 
 | Task | Work | Needs |
 | --- | --- | --- |
-| E1 | Record `nextjs/scripts/golden/active-storage.rb` and add the `blob.signed_id` and 1280x720 digest goldens to `active-storage.test.ts`. Until then the `ActiveStorage` salt and `blob_id` purpose are unproven against Rails | Rails run |
+| E1 | Done 2026-11-10: `active-storage.golden.json` re-recorded from Rails; `blob.signed_id` and the 1280x720 digests are asserted against it | none |
 | E2 | Customers page: parity examples for the cases ported without a recording (gift with a licensed recipient, sale of several options, collaborator sale with a direct affiliate, Indian-mandate member, Braintree sale, file custom field without attachment), then re-record and replay | specs + recording |
 | E3 | Customers page: commissions with files, review videos with a thumbnail, shipping subscriptions and recurring prices, purchases with several shipments, tracking URLs `URI.parse` might reject | Node code |
 | E4 | Customers page: member on an Indian mandate whose next charge is free under a limited-cycle discount (export `renewal_pre_discount_total_cents`) and gift licence with option content (`variant_content_permits_license_key?`) | Node code |
