@@ -77,6 +77,8 @@ spec example has a fixture. What is left on the parity side is in [parity-tasks.
   "blob_id")`, wired into the settings profile's `profile_picture_blob_id` and the customers panel's custom field files, `customers/file-details.ts`).
   Still handing back: a 1280x720 thumbnail variant Rails has not processed yet (no `active_storage_variant_records` row, as the avatar does), and
   on `/customers` a review video whose thumbnail variant is unprocessed (the commission files and review video thumbnails are served). `blob.signed_id` and the 1280x720 thumbnail digests are proven against the Rails golden (`active-storage.golden.json`, recorded 2026-11-10).
+- **Dashboard home product card thumbnail** (WS-15, `nextjs_dashboard`, lane 19): `creator-home.ts` renders `thumbnail` as `thumbnail_alive&.url` for an Unsplash
+  thumbnail (`thumbnailUrl`, `unsplash_url`) and `null` for none or a soft-deleted one; an uploaded file still hands the dashboard back to Rails (Active Storage variant URL).
 - **`POST /customer_surcharge`** (WS-20a, `nextjs_checkout_surcharge`): served for one-time, non-physical lines when no seller has
   `buyer_currency_charging` on and the buyer is taxed from the lookup table (`controllers/customer-surcharge.ts`). Still hands back: a VAT id
   (vendor validation), a US taxable state or Canadian province (TaxJar), a Singapore table whose `applicable_years` is missing, partly empty, or

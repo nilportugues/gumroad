@@ -1,7 +1,7 @@
 // CreatorHomePresenter#creator_home_props (app/presenters/creator_home_presenter.rb) for GET /dashboard.
 //
-// Handed back to Rails (HandBackToRails) for what the port does not read: a product card whose product has an alive
-// thumbnail (Active Storage URL), a Stripe compliance request carrying a verification error (the message table lives in
+// Handed back to Rails (HandBackToRails) for what the port does not read: a product card whose alive thumbnail is an
+// uploaded file (Active Storage URL; an Unsplash thumbnail renders), a Stripe compliance request carrying a verification error (the message table lives in
 // UserComplianceInfoRequest), a seller whose payout destination is a Stripe or PayPal Connect account, and a
 // seller whose balance stats are cached (a large seller past the caching threshold).
 import { Prisma, type User } from "@prisma/client";
@@ -21,6 +21,8 @@ import { followerEventSources } from "../../search/following.ts";
 import { indexName } from "../../infra/elasticsearch.ts";
 import { PurchaseSearchService } from "../../search/purchase-search.ts";
 import { aggregationValue, type Aggregations } from "../../search/purchase-sales.ts";
+import { thumbnailUrl } from "../buyer/products.ts";
+import { NotPortedError } from "../not-ported.ts";
 import { activeBankAccount } from "../signed-in/reads.ts";
 import { aliveUserComplianceInfoRow } from "../../models/user-compliance-info.ts";
 import { taxCenterEnabled } from "../dashboard/tax-center.ts";
@@ -105,6 +107,16 @@ type ProductCard = {
   last_30: number;
 };
 
+// `product.thumbnail_alive&.url`
+export async function cardThumbnail(productId: bigint): Promise<string | null> {
+  try {
+    return await thumbnailUrl(productId);
+  } catch (error) {
+    if (error instanceof NotPortedError) throw new HandBackToRails();
+    throw error;
+  }
+}
+
 async function productCard(product: { id: bigint; name: string | null; unique_permalink: string | null }, dailyTotals: number[]): Promise<ProductCard> {
   const productId = Number(product.id);
   const sales = (await PurchaseSearchService.process({ ...ACTIVE_SALES_SEARCH_OPTIONS, product: productId, size: 0, track_total_hits: true })).total;
@@ -120,7 +132,7 @@ async function productCard(product: { id: bigint; name: string | null; unique_pe
   return {
     id: product.unique_permalink!,
     name: product.name,
-    thumbnail: null,
+    thumbnail: await cardThumbnail(product.id),
     sales: sales ?? 0,
     revenue,
     visits: views.count,
@@ -166,7 +178,6 @@ async function bestSellingProducts(seller: User, now: Date): Promise<ProductCard
     const product = byId.get(productId);
     // Link#alive?
     if (!product || product.purchase_disabled_at !== null || product.banned_at !== null || product.deleted_at !== null) continue;
-    if (await exists(Prisma.sql`SELECT 1 FROM ${table("thumbnails")} WHERE ${column("thumbnails", "product_id")} = ${product.id} AND ${column("thumbnails", "deleted_at")} IS NULL LIMIT 1`)) throw new HandBackToRails();
     const days = daysByProduct.get(productId);
     cards.push(await productCard(product, dates.map((date) => days?.get(date)?.total ?? 0)));
   }
