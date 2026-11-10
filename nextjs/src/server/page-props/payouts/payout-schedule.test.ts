@@ -24,7 +24,17 @@ describe("payout schedule", () => {
     const offsets = GOLDEN.balanceSets as unknown as Record<string, [number, number][]>;
     let checked = 0;
     for (const row of GOLDEN.cases as unknown[][]) {
-      const [today, frequency, bankAccountType, balanceSet, paidToday, cycle, next, endDate, ranges] = row as [string, PayoutFrequency, string | null, string, boolean, string | null, string | null, string | null, string[] | null];
+      const [today, frequency, bankAccountType, balanceSet, paidToday, cycle, next, endDate, ranges] = row as [
+        string,
+        PayoutFrequency,
+        string | null,
+        string,
+        boolean,
+        string | null,
+        string | null,
+        string | null,
+        string[] | null,
+      ];
       const day = utc(today);
       const balances = offsets[balanceSet]!.map(([offset, cents]) => [addDays(day, offset), cents] as const);
       const ledger: Ledger = {
@@ -33,7 +43,10 @@ describe("payout schedule", () => {
         minimumPayoutAmountCents: 1000,
         daysBeforeCycleDate: daysBeforeCycleDate(payoutWeekday({ bankAccountType, payoutsViaPaypal: false })),
         unpaidBalanceCents: async () => balances.reduce((sum, [, cents]) => sum + cents, 0),
-        unpaidBalanceCentsUpToDate: async (date) => balances.filter(([balanceDate]) => balanceDate.getTime() <= date.getTime()).reduce((sum, [, cents]) => sum + cents, 0),
+        unpaidBalanceCentsUpToDate: async (date) =>
+          balances
+            .filter(([balanceDate]) => balanceDate.getTime() <= date.getTime())
+            .reduce((sum, [, cents]) => sum + cents, 0),
         paidToday: async () => paidToday,
       };
       const label = JSON.stringify(row);
@@ -44,7 +57,10 @@ describe("payout schedule", () => {
       const end = await currentPayoutEndDate(ledger);
       expect(isoDate(end), label).toBe(endDate);
       if (ranges) {
-        expect([null, addDays(day, -9), day].map((previous) => displayablePayoutPeriodRange(previous, end, day)), label).toEqual(ranges);
+        expect(
+          [null, addDays(day, -9), day].map((previous) => displayablePayoutPeriodRange(previous, end, day)),
+          label,
+        ).toEqual(ranges);
       }
       checked += 1;
     }
@@ -69,7 +85,8 @@ describe("payout schedule", () => {
   });
 
   it("ordinalizes like ActiveSupport", () => {
-    for (const [day, text] of Object.entries(GOLDEN.ordinals as Record<string, string>)) expect(ordinalize(Number(day))).toBe(text);
+    for (const [day, text] of Object.entries(GOLDEN.ordinals as Record<string, string>))
+      expect(ordinalize(Number(day))).toBe(text);
     expect(formattedPayoutDate(utc("2026-03-22"))).toBe("March 22nd, 2026");
     expect(formattedPayoutDate(null)).toBe("");
   });

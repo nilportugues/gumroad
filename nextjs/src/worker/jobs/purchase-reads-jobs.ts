@@ -12,10 +12,14 @@ import { Prisma, type Subscription } from "@prisma/client";
 import type { Redis } from "ioredis";
 
 import { getRedis } from "../../server/infra/redis.ts";
-import { RubyFloat, type JsonValue } from "../../server/jobs/sidekiq/ruby-json.ts";
 import { beforeSideEffects } from "../../server/jobs/hand-back.ts";
-import { addDays, ago, dateToS, toCalendarDate } from "../../server/models/concerns/ruby-time.ts";
+import { RubyFloat, type JsonValue } from "../../server/jobs/sidekiq/ruby-json.ts";
+import { deliverLater } from "../../server/mail/active-job.ts";
+import { mailRoute } from "../../server/mail/delivery.ts";
 import { performAsync } from "../../server/models/concerns/job-runtime.ts";
+import { instantInTimeZoneIso8601 } from "../../server/models/concerns/rails-time-zone.ts";
+import { addDays, ago, dateToS, toCalendarDate } from "../../server/models/concerns/ruby-time.ts";
+import { Events, EventFlags } from "../../server/models/event.ts";
 import {
   countSuccessfulCreatedBetween,
   findPurchaseBang,
@@ -25,15 +29,12 @@ import {
   rentalsToExpireFirstBatch,
   successfulWithoutEventsEach,
 } from "../../server/models/purchase.ts";
-import { Events, EventFlags } from "../../server/models/event.ts";
-import { instantInTimeZoneIso8601 } from "../../server/models/concerns/rails-time-zone.ts";
-import { extractDomain } from "../../server/search/referrer.ts";
 import { castRow, findInBatches } from "../../server/models/sql.ts";
 import { DEACTIVATION_COLUMNS, pastAndNotDeactivated, SUBSCRIPTIONS } from "../../server/models/subscription.ts";
 import { findUrlRedirectForPurchase, isRental } from "../../server/models/url-redirect.ts";
 import { findUser, NotPortedError } from "../../server/models/user.ts";
-import { deliverLater } from "../../server/mail/active-job.ts";
-import { mailRoute } from "../../server/mail/delivery.ts";
+import { extractDomain } from "../../server/search/referrer.ts";
+
 import { type JobDeps, modelJob } from "./support/job-deps.ts";
 
 // RedisKey.min_successful_purchases_in_last_10_minutes
@@ -49,7 +50,10 @@ const THRESHOLD_TTL_SECONDS = 3_600;
 export type HealthcheckDeps = { redis: () => Redis };
 const defaultHealthcheckDeps: HealthcheckDeps = { redis: () => getRedis("main") };
 
-export const updatePurchaseHealthcheckThresholdJobWith = (overrides: Partial<JobDeps> = {}, healthcheck: Partial<HealthcheckDeps> = {}) => {
+export const updatePurchaseHealthcheckThresholdJobWith = (
+  overrides: Partial<JobDeps> = {},
+  healthcheck: Partial<HealthcheckDeps> = {},
+) => {
   const { redis } = { ...defaultHealthcheckDeps, ...healthcheck };
   return modelJob({ min: 0 }, async (_args, deps) => {
     const now = deps.now();
@@ -76,7 +80,10 @@ export const findExpiredSubscriptionsToSetAsDeactivatedWorkerWith = modelJob({ m
       pastAndNotDeactivated(columnName, now),
       1_000,
       async (rows) => {
-        for (const row of rows) await performAsync(SET_SUBSCRIPTION_AS_DEACTIVATED_WORKER, [Number(castRow<Pick<Subscription, "id">>("Subscription", row).id)]);
+        for (const row of rows)
+          await performAsync(SET_SUBSCRIPTION_AS_DEACTIVATED_WORKER, [
+            Number(castRow<Pick<Subscription, "id">>("Subscription", row).id),
+          ]);
       },
       Prisma.raw("`subscriptions`.`id`"),
     );
@@ -87,18 +94,36 @@ export const sendRentalExpiresSoonEmailWorkerWith = modelJob({ min: 2 }, async (
   const [purchaseId, secondsTillExpiration] = args;
   await beforeSideEffects(() => {
     // The mail's arguments are serialised by ActiveJob; Node serialises integers and strings.
-    if (!(typeof secondsTillExpiration === "string" || secondsTillExpiration === null || Number.isSafeInteger(secondsTillExpiration))) {
-      throw new NotPortedError(`rental_expiring_soon(${JSON.stringify(secondsTillExpiration)})`, "send_rental_expires_soon_email_worker.rb:11");
+    if (
+      !(
+        typeof secondsTillExpiration === "string" ||
+        secondsTillExpiration === null ||
+        Number.isSafeInteger(secondsTillExpiration)
+      )
+    ) {
+      throw new NotPortedError(
+        `rental_expiring_soon(${JSON.stringify(secondsTillExpiration)})`,
+        "send_rental_expires_soon_email_worker.rb:11",
+      );
     }
   });
   const purchase = await findPurchaseBang(await beforeSideEffects(() => purchaseIdFrom(purchaseId)));
   const urlRedirect = await findUrlRedirectForPurchase(purchase.id);
   if (urlRedirect === null) throw new TypeError("undefined method 'is_rental' for nil");
-  if (!isRental(urlRedirect) || urlRedirect.rental_first_viewed_at != null || isChargedbackNotReversedOrRefunded(purchase)) return;
+  if (
+    !isRental(urlRedirect) ||
+    urlRedirect.rental_first_viewed_at != null ||
+    isChargedbackNotReversedOrRefunded(purchase)
+  )
+    return;
 
   const mailer = "CustomerLowPriorityMailer";
   const method = "rental_expiring_soon";
-  await deliverLater(runtime, { mailer, method, args: [Number(purchase.id), secondsTillExpiration as number | string | null], queue: "low" }, mailRoute(mailer, method));
+  await deliverLater(
+    runtime,
+    { mailer, method, args: [Number(purchase.id), secondsTillExpiration as number | string | null], queue: "low" },
+    mailRoute(mailer, method),
+  );
 });
 
 // Handing back after the first batch is safe: the read is all the job has done.
@@ -125,7 +150,8 @@ function rubyReceiver(value: JsonValue): string {
   if (value === null) return "nil";
   if (typeof value === "boolean") return String(value);
   if (typeof value === "string") return "an instance of String";
-  if (typeof value === "number" || typeof value === "bigint") return `an instance of ${typeof value === "bigint" || Number.isInteger(value) ? "Integer" : "Float"}`;
+  if (typeof value === "number" || typeof value === "bigint")
+    return `an instance of ${typeof value === "bigint" || Number.isInteger(value) ? "Integer" : "Float"}`;
   if (Array.isArray(value)) return "an instance of Array";
   return value instanceof RubyFloat ? "an instance of Float" : "an instance of Hash";
 }
@@ -168,7 +194,10 @@ export const createMissingPurchaseEventsWorkerWith = modelJob({ min: 0, max: 1 }
     const seller = await findUser(purchase.seller_id);
     if (seller === null) throw new TypeError("undefined method 'timezone' for nil");
     const date = instantInTimeZoneIso8601(String(seller.get("timezone")), purchase.created_at as Date).slice(0, 10);
-    analyticsDaysToRegenerate.set(`${String(purchase.seller_id)} ${date}`, [BigInt(purchase.seller_id as bigint), date]);
+    analyticsDaysToRegenerate.set(`${String(purchase.seller_id)} ${date}`, [
+      BigInt(purchase.seller_id as bigint),
+      date,
+    ]);
   });
   for (const [sellerId, date] of analyticsDaysToRegenerate.values()) {
     await performAsync(REGENERATE_CREATOR_ANALYTICS_CACHE_WORKER, [Number(sellerId), date]);

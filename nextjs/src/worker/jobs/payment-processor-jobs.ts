@@ -22,11 +22,12 @@ import { rubyStringToBigInt } from "../../server/models/concerns/ruby-numeric.ts
 import { ago, rubyTimeToF } from "../../server/models/concerns/ruby-time.ts";
 import { findPurchaseBang, purchaseIdFrom } from "../../server/models/purchase.ts";
 import { findByIdBang, findOneBy, recordIdFrom } from "../../server/models/row-reads.ts";
-import { column, columnIn, findInBatches, selectRows, table } from "../../server/models/sql.ts";
 import { isBlank } from "../../server/models/runtime/validators.ts";
+import { column, columnIn, findInBatches, selectRows, table } from "../../server/models/sql.ts";
 import { NotPortedError } from "../../server/models/user.ts";
 import { stripePlatformAccountId } from "../../server/stripe/config.ts";
 import { Payout } from "../../server/stripe/resources.ts";
+
 import { type JobDeps, modelJob } from "./support/job-deps.ts";
 
 // ActiveRecord::Batches::DEFAULT_BATCH_SIZE
@@ -70,7 +71,10 @@ async function cacheableUserIds(redis: Redis): Promise<bigint[]> {
 
 const jobId = (id: bigint) => (id > BigInt(Number.MAX_SAFE_INTEGER) ? id : Number(id));
 
-export const largeSellersUpdateUserBalanceStatsCacheWorkerWith = (overrides: Partial<JobDeps> = {}, extra: Partial<BalanceStatsDeps> = {}) => {
+export const largeSellersUpdateUserBalanceStatsCacheWorkerWith = (
+  overrides: Partial<JobDeps> = {},
+  extra: Partial<BalanceStatsDeps> = {},
+) => {
   const redis = extra.redis ?? (() => getRedis("main"));
   const batchSize = extra.pushBulkBatchSize ?? PUSH_BULK_BATCH_SIZE;
   return modelJob({ min: 0 }, async (_args, deps) => {
@@ -114,7 +118,12 @@ const HANDLED_EVENT_PREFIXES = [
 // Handled prefixes that `handle_event_for_gumroad` (no connected account, or the platform's own id)
 // routes to no handler: it only dispatches charge., capital., radar., refund and payment_intent.
 // events to the charge processor and checkout.session / customer.subscription. to SellerPlan.
-const PLATFORM_ACCOUNT_NOOP_PREFIXES = ["account.application.deauthorized", "account.updated", "capability.updated", "payout."];
+const PLATFORM_ACCOUNT_NOOP_PREFIXES = [
+  "account.application.deauthorized",
+  "account.updated",
+  "capability.updated",
+  "payout.",
+];
 
 // `stripe_connect_account_id.present? && != STRIPE_PLATFORM_ACCOUNT_ID`
 function isConnectedAccountEvent(params: Record<string, unknown>): boolean {
@@ -128,12 +137,17 @@ function isConnectedAccountEvent(params: Record<string, unknown>): boolean {
 // an object fails in `to_hash`, which Node leaves to Ruby.
 export const handleStripeEventWorker = modelJob({ min: 1 }, async ([params]) => {
   await beforeSideEffects(() => {
-    if (params === null || typeof params !== "object" || Array.isArray(params)) throw new NotPortedError("StripeEventHandler#initialize", "params is not a Hash");
+    if (params === null || typeof params !== "object" || Array.isArray(params))
+      throw new NotPortedError("StripeEventHandler#initialize", "params is not a Hash");
     const event = params as Record<string, unknown>;
     const type = event.type;
     if (typeof type !== "string" || !HANDLED_EVENT_PREFIXES.some((prefix) => type.startsWith(prefix))) return;
-    if (!isConnectedAccountEvent(event) && PLATFORM_ACCOUNT_NOOP_PREFIXES.some((prefix) => type.startsWith(prefix))) return;
-    throw new NotPortedError("StripeEventHandler#handle_stripe_event", "stripe_event_handler.rb:handle_stripe_event (charge processor, Stripe API reads and ledger writes)");
+    if (!isConnectedAccountEvent(event) && PLATFORM_ACCOUNT_NOOP_PREFIXES.some((prefix) => type.startsWith(prefix)))
+      return;
+    throw new NotPortedError(
+      "StripeEventHandler#handle_stripe_event",
+      "stripe_event_handler.rb:handle_stripe_event (charge processor, Stripe API reads and ledger writes)",
+    );
   });
 })();
 
@@ -147,7 +161,10 @@ export const executeScheduledPayoutsJobWith = modelJob({ min: 0 }, async (_args,
   const due = Prisma.sql`${column(t, "status")} = 'pending' AND ${column(t, "scheduled_at")} <= ${deps.now()}`;
   await beforeSideEffects(() =>
     findInBatches(t, due, FIND_EACH_BATCH_SIZE, async () => {
-      throw new NotPortedError("ScheduledPayout#execute!", "scheduled_payout.rb:execute! (row lock, refund and payout enqueues)");
+      throw new NotPortedError(
+        "ScheduledPayout#execute!",
+        "scheduled_payout.rb:execute! (row lock, refund and payout enqueues)",
+      );
     }),
   );
 });
@@ -179,9 +196,13 @@ function stuckAgeSql(creatingCutoff: Date, today: string, processingCutoff: Date
 // which Rails does; an empty first batch is the whole job.
 export const syncStuckPayoutsJobWith = modelJob({ min: 1 }, async ([processor], deps) => {
   await beforeSideEffects(() => {
-    if (typeof processor !== "string") throw new NotPortedError("SyncStuckPayoutsJob#perform", "the processor is not a String");
+    if (typeof processor !== "string")
+      throw new NotPortedError("SyncStuckPayoutsJob#perform", "the processor is not a String");
     return findInBatches("payments", stuckPaymentsCondition(processor, deps.now()), FIND_EACH_BATCH_SIZE, async () => {
-      throw new NotPortedError("Payment#sync_with_payout_processor", "payment.rb:sync_with_payout_processor (payout processor call)");
+      throw new NotPortedError(
+        "Payment#sync_with_payout_processor",
+        "payment.rb:sync_with_payout_processor (payout processor call)",
+      );
     });
   });
 });
@@ -196,7 +217,10 @@ export const updatePayoutStatusWorker = modelJob({ min: 1 }, async ([paymentId])
   const payment = await findByIdBang<{ state: string | null }>("Payment", id);
   if (payment.state !== "processing") return;
   await beforeSideEffects(() => {
-    throw new NotPortedError("PaypalPayoutProcessor.get_latest_payment_state_from_paypal", "update_payout_status_worker.rb (PayPal transaction search)");
+    throw new NotPortedError(
+      "PaypalPayoutProcessor.get_latest_payment_state_from_paypal",
+      "update_payout_status_worker.rb (PayPal transaction search)",
+    );
   });
 })();
 
@@ -221,7 +245,10 @@ export const failAbandonedPurchaseWorkerWith = modelJob({ min: 1 }, async ([purc
     return;
   }
   await beforeSideEffects(() => {
-    throw new NotPortedError("FailAbandonedPurchaseWorker#with_stripe_error_handler", "fail_abandoned_purchase_worker.rb (Stripe intent retrieve and cancel)");
+    throw new NotPortedError(
+      "FailAbandonedPurchaseWorker#with_stripe_error_handler",
+      "fail_abandoned_purchase_worker.rb (Stripe intent retrieve and cancel)",
+    );
   });
 });
 
@@ -249,7 +276,10 @@ export const lowBalanceFraudCheckWorker = modelJob({ min: 1 }, async ([purchaseI
   if (seller === null) throw new TypeError("undefined method 'check_for_low_balance_and_probate' for nil");
   if ((await unpaidBalanceCents(seller.id)) > LOW_BALANCE_THRESHOLD_CENTS) return;
   await beforeSideEffects(() => {
-    throw new NotPortedError("User#check_for_low_balance_and_probate", "user/low_balance_fraud_check.rb (AdminMailer.low_balance_notify, disable_refunds_and_put_on_probation!)");
+    throw new NotPortedError(
+      "User#check_for_low_balance_and_probate",
+      "user/low_balance_fraud_check.rb (AdminMailer.low_balance_notify, disable_refunds_and_put_on_probation!)",
+    );
   });
 })();
 
@@ -260,34 +290,49 @@ export const lowBalanceFraudCheckWorker = modelJob({ min: 1 }, async ([purchaseI
 // nil; a String (not expanded) answers String#[] with a substring or nil, never "available".
 function balanceTransactionStatus(payout: Record<string, unknown>): unknown {
   const balanceTransaction = payout.balance_transaction;
-  if (balanceTransaction === undefined || balanceTransaction === null) throw new TypeError("undefined method '[]' for nil");
+  if (balanceTransaction === undefined || balanceTransaction === null)
+    throw new TypeError("undefined method '[]' for nil");
   if (typeof balanceTransaction === "string") return balanceTransaction.includes("status") ? "status" : null;
-  if (typeof balanceTransaction === "object" && !Array.isArray(balanceTransaction)) return (balanceTransaction as Record<string, unknown>).status ?? null;
-  throw new NotPortedError("HandlePayoutReversedWorker#balance_transaction_completed?", "balance_transaction is not an object");
+  if (typeof balanceTransaction === "object" && !Array.isArray(balanceTransaction))
+    return (balanceTransaction as Record<string, unknown>).status ?? null;
+  throw new NotPortedError(
+    "HandlePayoutReversedWorker#balance_transaction_completed?",
+    "balance_transaction is not an object",
+  );
 }
 
 // A paid reversing payout whose balance transaction is available is recorded by
 // `StripePayoutProcessor.handle_stripe_event_payout_reversed` (credits, balance writes), which Rails runs.
 // The read before it is a GET, so handing the job back after it is safe.
-export const handlePayoutReversedWorker = modelJob({ min: 3 }, async ([paymentId, reversingPayoutId, stripeConnectAccountId]) => {
-  await beforeSideEffects(() => {
-    const printable = typeof paymentId === "string" || Number.isSafeInteger(paymentId);
-    if (!printable || typeof reversingPayoutId !== "string" || typeof stripeConnectAccountId !== "string") throw new NotPortedError("Stripe::Payout.retrieve", "an id Node does not print as Ruby does");
-  });
-  const payout = (await Payout.retrieve({ id: reversingPayoutId as string, expand: ["balance_transaction"] }, { stripeAccount: stripeConnectAccountId as string })) as unknown as Record<string, unknown>;
-  if (balanceTransactionStatus(payout) === "available" && payout.status === "paid") {
-    // `Payment.find(payment_id)` is evaluated before the processor method is called.
-    await findByIdBang("Payment", await beforeSideEffects(() => recordIdFrom(paymentId, "Payment.find")));
+export const handlePayoutReversedWorker = modelJob(
+  { min: 3 },
+  async ([paymentId, reversingPayoutId, stripeConnectAccountId]) => {
     await beforeSideEffects(() => {
-      throw new NotPortedError("StripePayoutProcessor.handle_stripe_event_payout_reversed", "stripe_payout_processor.rb (payout reversal credits and balance writes)");
+      const printable = typeof paymentId === "string" || Number.isSafeInteger(paymentId);
+      if (!printable || typeof reversingPayoutId !== "string" || typeof stripeConnectAccountId !== "string")
+        throw new NotPortedError("Stripe::Payout.retrieve", "an id Node does not print as Ruby does");
     });
-  }
-  if (payout.status === "failed") return;
-  throw new Error(
-    "Timed out waiting for reversing payout to become finalized (to transition to `failed` state or its balance transaction " +
-      `to transition to \`available\` state). Payment ID: ${String(paymentId)}. Reversing payout ID: ${reversingPayoutId as string}`,
-  );
-})();
+    const payout = (await Payout.retrieve(
+      { id: reversingPayoutId as string, expand: ["balance_transaction"] },
+      { stripeAccount: stripeConnectAccountId as string },
+    )) as unknown as Record<string, unknown>;
+    if (balanceTransactionStatus(payout) === "available" && payout.status === "paid") {
+      // `Payment.find(payment_id)` is evaluated before the processor method is called.
+      await findByIdBang("Payment", await beforeSideEffects(() => recordIdFrom(paymentId, "Payment.find")));
+      await beforeSideEffects(() => {
+        throw new NotPortedError(
+          "StripePayoutProcessor.handle_stripe_event_payout_reversed",
+          "stripe_payout_processor.rb (payout reversal credits and balance writes)",
+        );
+      });
+    }
+    if (payout.status === "failed") return;
+    throw new Error(
+      "Timed out waiting for reversing payout to become finalized (to transition to `failed` state or its balance transaction " +
+        `to transition to \`available\` state). Payment ID: ${String(paymentId)}. Reversing payout ID: ${reversingPayoutId as string}`,
+    );
+  },
+)();
 
 export const largeSellersUpdateUserBalanceStatsCacheWorker = largeSellersUpdateUserBalanceStatsCacheWorkerWith();
 export const executeScheduledPayoutsJob = executeScheduledPayoutsJobWith();

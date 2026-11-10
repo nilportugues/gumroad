@@ -22,14 +22,27 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
-const SPECS = ["affiliate_redirect_parity_spec", "seller_json_mutations_signed_in_spec", "product_review_responses_signed_in_spec", "shipments_signed_in_spec", "imported_customers_signed_in_spec"].filter((dir) => existsSync(path.join(FIXTURES, dir)));
-const ROUTE_FLAGS = ["nextjs_affiliate_redirect", "nextjs_customer_actions", "nextjs_review_responses", "nextjs_imported_customers", "nextjs_purchase_access_writes"].join(",");
+const SPECS = [
+  "affiliate_redirect_parity_spec",
+  "seller_json_mutations_signed_in_spec",
+  "product_review_responses_signed_in_spec",
+  "shipments_signed_in_spec",
+  "imported_customers_signed_in_spec",
+].filter((dir) => existsSync(path.join(FIXTURES, dir)));
+const ROUTE_FLAGS = [
+  "nextjs_affiliate_redirect",
+  "nextjs_customer_actions",
+  "nextjs_review_responses",
+  "nextjs_imported_customers",
+  "nextjs_purchase_access_writes",
+].join(",");
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
 const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "m").exec(envTest)?.[1];
 
-const jobKey = (job: { class: string; args: unknown; queue?: string }) => `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
+const jobKey = (job: { class: string; args: unknown; queue?: string }) =>
+  `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
 
 // Jobs Node enqueues are BullMQ jobs wrapping the Sidekiq item; the key of a job is what its Sidekiq twin is compared by.
 function redisJobs(redis: Redis): JobsChannel {
@@ -43,8 +56,18 @@ function redisJobs(redis: Redis): JobsChannel {
         if ((await redis.type(key)) !== "hash") continue;
         const data = await redis.hget(key, "data");
         if (data === null) continue;
-        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as { class: string; args: unknown[]; queue: string; at?: number };
-        jobs.push({ class: item.class, args: item.args, queue: item.queue, ...(item.at === undefined ? {} : { at: item.at }) });
+        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as {
+          class: string;
+          args: unknown[];
+          queue: string;
+          at?: number;
+        };
+        jobs.push({
+          class: item.class,
+          args: item.args,
+          queue: item.queue,
+          ...(item.at === undefined ? {} : { at: item.at }),
+        });
       }
       return jobs.sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
     },
@@ -83,13 +106,23 @@ const COMPARE = {
 // The value of an affiliate cookie is the second it was set; the case checks it is the second of the replay instead.
 const AFFILIATE_COOKIE_PREFIX = "_gumroad_affiliate_id_";
 const AFFILIATE_COOKIE_TOLERANCE_S = 120;
-const affiliateCookieNames = (file: string): string[] => Object.keys(loadFixture(file).exchanges.at(-1)!.response?.cookies ?? {}).filter((name) => name.startsWith(AFFILIATE_COOKIE_PREFIX));
+const affiliateCookieNames = (file: string): string[] =>
+  Object.keys(loadFixture(file).exchanges.at(-1)!.response?.cookies ?? {}).filter((name) =>
+    name.startsWith(AFFILIATE_COOKIE_PREFIX),
+  );
 
 const cases = SPECS.flatMap((spec) => {
   const dir = path.join(FIXTURES, spec);
   return readdirSync(dir)
     .filter((file) => file.endsWith(".json"))
-    .map((file) => [`${spec.replace(/_spec$/, "")}: ${file.replace(/\.json$/, "")}`, path.join(dir, file), loadFixture(path.join(dir, file)).exchanges.length - 1] as const);
+    .map(
+      (file) =>
+        [
+          `${spec.replace(/_spec$/, "")}: ${file.replace(/\.json$/, "")}`,
+          path.join(dir, file),
+          loadFixture(path.join(dir, file)).exchanges.length - 1,
+        ] as const,
+    );
 });
 
 describe.skipIf(!url)("WS-12b parity", () => {
@@ -111,7 +144,11 @@ describe.skipIf(!url)("WS-12b parity", () => {
       const chunks: Buffer[] = [];
       request.on("data", (chunk: Buffer) => chunks.push(chunk));
       request.on("end", () => {
-        handedBack.push({ method: request.method ?? "", url: request.url ?? "", body: Buffer.concat(chunks).toString("utf8") });
+        handedBack.push({
+          method: request.method ?? "",
+          url: request.url ?? "",
+          body: Buffer.concat(chunks).toString("utf8"),
+        });
         response.writeHead(204).end();
       });
     });
@@ -122,7 +159,12 @@ describe.skipIf(!url)("WS-12b parity", () => {
       RAILS_ENV: "test",
       OBFUSCATE_IDS_CIPHER_KEY: /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1] ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
-      ...(secureIdKey ? { SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION: testEnv("SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION") ?? "1", SECURE_EXTERNAL_ID__KEYS__1: secureIdKey } : {}),
+      ...(secureIdKey
+        ? {
+            SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION: testEnv("SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION") ?? "1",
+            SECURE_EXTERNAL_ID__KEYS__1: secureIdKey,
+          }
+        : {}),
       NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS,
       ELASTICSEARCH_HOST: process.env.ELASTICSEARCH_HOST ?? "http://localhost:9200",
       RAILS_ORIGIN: `http://127.0.0.1:${railsPort}`,
@@ -158,7 +200,11 @@ describe.skipIf(!url)("WS-12b parity", () => {
       transport: httpTransport(server.baseUrl),
       interceptHttp: false,
       jobs: redisJobs(redis),
-      rewriteRequest: (request: Parameters<typeof reencryptCookies>[0], loaded: Parameters<typeof reencryptCookies>[1], now: Date) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
+      rewriteRequest: (
+        request: Parameters<typeof reencryptCookies>[0],
+        loaded: Parameters<typeof reencryptCookies>[1],
+        now: Date,
+      ) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
       compare: { ignore },
     };
   };
@@ -188,14 +234,25 @@ describe.skipIf(!url)("WS-12b parity", () => {
         // The recorder does not see ActiveJob's test adapter, so Rails' mail job is not in the fixture: Node's has to be in Sidekiq's queue.
         if (name.endsWith("shipments_signed_in: marking-orders-as-shipped-when-signed-in-marks-the-order-as-shipped")) {
           const [pushed] = await redis.lrange("queue:low", 0, -1);
-          expect(JSON.parse(pushed!)).toMatchObject({ wrapped: "MailDeliveryJob", queue: "low", args: [{ arguments: ["CustomerLowPriorityMailer", "order_shipped", "deliver_now", { args: [1] }] }] });
+          expect(JSON.parse(pushed!)).toMatchObject({
+            wrapped: "MailDeliveryJob",
+            queue: "low",
+            args: [{ arguments: ["CustomerLowPriorityMailer", "order_shipped", "deliver_now", { args: [1] }] }],
+          });
         }
         for (const cookie of affiliateCookieNames(file)) {
-          const value = Number((result.exchanges.at(-1)!.actual.response?.cookies?.[cookie] as { value: string }).value);
+          const value = Number(
+            (result.exchanges.at(-1)!.actual.response?.cookies?.[cookie] as { value: string }).value,
+          );
           expect(Math.abs(value - Date.now() / 1000)).toBeLessThan(AFFILIATE_COOKIE_TOLERANCE_S);
         }
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => !line.startsWith("Next.js includes")).slice(-40).join("\n");
+        const logs = server
+          .output()
+          .split("\n")
+          .filter((line) => !line.startsWith("Next.js includes"))
+          .slice(-40)
+          .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
     },

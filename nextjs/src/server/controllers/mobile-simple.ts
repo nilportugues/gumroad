@@ -8,12 +8,20 @@ import { Calls } from "../models/call.ts";
 import { Devices } from "../models/device.ts";
 import { disableBang, enableBang, findLicense } from "../models/license.ts";
 import { findAliveVideo, setApprovalStatusBang } from "../models/product-review-video.ts";
-import { castRow, column, selectRows, table } from "../models/sql.ts";
 import { RecordInvalid } from "../models/runtime/errors.ts";
+import { castRow, column, selectRows, table } from "../models/sql.ts";
 import { NotPortedError } from "../models/user.ts";
+
 import { HandBackToRails } from "./application-controller.ts";
-import { fetchError, registerMobile, renderJson, UNPROCESSABLE_ENTITY, type MobileAuth, type MobileInput } from "./mobile-api.ts";
 import { recordMediaLocation } from "./media-locations.ts";
+import {
+  fetchError,
+  registerMobile,
+  renderJson,
+  UNPROCESSABLE_ENTITY,
+  type MobileAuth,
+  type MobileInput,
+} from "./mobile-api.ts";
 import { recordConsumptionEvent } from "./url-redirects/consumption-analytics.ts";
 
 const MOBILE_API_SCOPES = ["mobile_api"];
@@ -52,7 +60,8 @@ async function showFeatureFlag(input: MobileInput, auth: MobileAuth | null) {
 // DevicesController#device_params: `params.require(:device).permit(:token, :device_type, :app_type, :app_version)`. Only scalars pass permit.
 function devicePermitted(params: MobileInput["params"]): Partial<Device> {
   const device = params.device;
-  if (device === null || typeof device !== "object" || Array.isArray(device) || Object.keys(device).length === 0) throw new HandBackToRails("a request without a device");
+  if (device === null || typeof device !== "object" || Array.isArray(device) || Object.keys(device).length === 0)
+    throw new HandBackToRails("a request without a device");
   const permitted: Partial<Device> = {};
   for (const key of ["token", "device_type", "app_type", "app_version"] as const) {
     const value = (device as Record<string, unknown>)[key];
@@ -72,14 +81,25 @@ async function createDevice(input: MobileInput, auth: MobileAuth | null) {
 
 async function updateCall(input: MobileInput, auth: MobileAuth | null) {
   const id = externalId(input.params.id);
-  const [row] = id === null ? [] : await selectRows(Prisma.sql`SELECT ${Prisma.raw("`calls`.*")} FROM ${table("calls")} WHERE ${column("calls", "id")} = ${id} LIMIT 1`);
+  const [row] =
+    id === null
+      ? []
+      : await selectRows(
+          Prisma.sql`SELECT ${Prisma.raw("`calls`.*")} FROM ${table("calls")} WHERE ${column("calls", "id")} = ${id} LIMIT 1`,
+        );
   const call = row ? Calls.load(castRow<Call>("Call", row)) : null;
   const purchaseId = call?.get("purchase_id");
-  const [purchase] = purchaseId == null ? [] : await selectRows<{ seller_id: bigint | null }>(Prisma.sql`SELECT ${column("purchases", "seller_id")} FROM ${table("purchases")} WHERE ${column("purchases", "id")} = ${purchaseId} LIMIT 1`);
+  const [purchase] =
+    purchaseId == null
+      ? []
+      : await selectRows<{ seller_id: bigint | null }>(
+          Prisma.sql`SELECT ${column("purchases", "seller_id")} FROM ${table("purchases")} WHERE ${column("purchases", "id")} = ${purchaseId} LIMIT 1`,
+        );
   if (call === null || !purchase || purchase.seller_id !== owner(auth).id) return fetchError("Could not find call");
 
   const url = input.params.call_url;
-  if (url !== undefined && url !== null && typeof url !== "string") throw new HandBackToRails("a call_url that is not a string");
+  if (url !== undefined && url !== null && typeof url !== "string")
+    throw new HandBackToRails("a call_url that is not a string");
   try {
     await Calls.updateBang(call, { call_url: url ?? null });
   } catch (error) {
@@ -94,8 +114,14 @@ async function updateLicense(input: MobileInput, auth: MobileAuth | null) {
   const id = externalId(input.params.id);
   const license = id === null ? null : await findLicense(id);
   const purchaseId = license?.get("purchase_id");
-  const [purchase] = purchaseId == null ? [] : await selectRows<{ seller_id: bigint | null }>(Prisma.sql`SELECT ${column("purchases", "seller_id")} FROM ${table("purchases")} WHERE ${column("purchases", "id")} = ${purchaseId} LIMIT 1`);
-  if (license === null || !purchase || purchase.seller_id !== owner(auth).id) return fetchError("Could not find license");
+  const [purchase] =
+    purchaseId == null
+      ? []
+      : await selectRows<{ seller_id: bigint | null }>(
+          Prisma.sql`SELECT ${column("purchases", "seller_id")} FROM ${table("purchases")} WHERE ${column("purchases", "id")} = ${purchaseId} LIMIT 1`,
+        );
+  if (license === null || !purchase || purchase.seller_id !== owner(auth).id)
+    return fetchError("Could not find license");
 
   if (castBoolean(input.params.enabled) === true) await enableBang(license);
   else await disableBang(license);
@@ -111,11 +137,13 @@ const reviewVideoAction = (status: "approved" | "rejected") => async (input: Mob
       : await selectRows<{ seller_id: bigint | null }>(
           Prisma.sql`SELECT ${column("purchases", "seller_id")} FROM ${table("product_reviews")} INNER JOIN ${table("purchases")} ON ${column("purchases", "id")} = ${column("product_reviews", "purchase_id")} WHERE ${column("product_reviews", "id")} = ${video.get("product_review_id")} LIMIT 1`,
         );
-  if (video === null || !seller || seller.seller_id !== owner(auth).id) return fetchError("Could not find review video");
+  if (video === null || !seller || seller.seller_id !== owner(auth).id)
+    return fetchError("Could not find review video");
   try {
     await setApprovalStatusBang(video, status);
   } catch (error) {
-    if (error instanceof RecordInvalid) throw new NotPortedError("ProductReviewVideo#update!", "a video that no longer validates");
+    if (error instanceof RecordInvalid)
+      throw new NotPortedError("ProductReviewVideo#update!", "a video that no longer validates");
     throw error;
   }
   return renderJson({ success: true });
@@ -126,10 +154,9 @@ async function createMediaLocation(input: MobileInput) {
   return renderJson({ success: await recordMediaLocation(input.params) });
 }
 
-const present = (value: unknown): boolean => value !== undefined && value !== null && value !== "" && value !== false && !(typeof value === "string" && value.trim() === "");
-
 // CreateConsumptionEvent#create_consumption_event!
-const createConsumptionEvent = async (input: MobileInput) => renderJson({ success: await recordConsumptionEvent(input.params, input.request.headers) });
+const createConsumptionEvent = async (input: MobileInput) =>
+  renderJson({ success: await recordConsumptionEvent(input.params, input.request.headers) });
 
 registerMobile(
   { method: "POST", pattern: "/mobile/consumption_analytics", scopes: MOBILE_API_SCOPES, run: createConsumptionEvent },
@@ -139,7 +166,17 @@ registerMobile(
     { method, pattern: "/mobile/calls/:id", scopes: MOBILE_API_SCOPES, run: updateCall },
     { method, pattern: "/mobile/licenses/:id", scopes: MOBILE_API_SCOPES, run: updateLicense },
   ]),
-  { method: "POST", pattern: "/mobile/review_videos/:id/approve", scopes: MOBILE_API_SCOPES, run: reviewVideoAction("approved") },
-  { method: "POST", pattern: "/mobile/review_videos/:id/reject", scopes: MOBILE_API_SCOPES, run: reviewVideoAction("rejected") },
+  {
+    method: "POST",
+    pattern: "/mobile/review_videos/:id/approve",
+    scopes: MOBILE_API_SCOPES,
+    run: reviewVideoAction("approved"),
+  },
+  {
+    method: "POST",
+    pattern: "/mobile/review_videos/:id/reject",
+    scopes: MOBILE_API_SCOPES,
+    run: reviewVideoAction("rejected"),
+  },
   { method: "POST", pattern: "/mobile/media_locations", scopes: MOBILE_API_SCOPES, run: createMediaLocation },
 );

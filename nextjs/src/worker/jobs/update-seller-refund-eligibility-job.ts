@@ -6,9 +6,18 @@
 import { Prisma } from "@prisma/client";
 
 import { beforeSideEffects } from "../../server/jobs/hand-back.ts";
-import { column, selectRows, table } from "../../server/models/sql.ts";
 import { settledReasonWithoutHistory } from "../../server/models/low-balance-probation-recovery.ts";
-import { findUserBang, isFlagSet, isOnProbation, NotPortedError, setFlag, Users, type UserRecord } from "../../server/models/user.ts";
+import { column, selectRows, table } from "../../server/models/sql.ts";
+import {
+  findUserBang,
+  isFlagSet,
+  isOnProbation,
+  NotPortedError,
+  setFlag,
+  Users,
+  type UserRecord,
+} from "../../server/models/user.ts";
+
 import { modelJob } from "./support/job-deps.ts";
 
 // LowBalanceProbationRecovery::RECOVERY_THRESHOLD_CENTS
@@ -27,7 +36,11 @@ async function unpaidBalanceCents(user: UserRecord): Promise<bigint> {
 // LowBalanceProbationRecovery#recover_automatically! returns its precheck without a write for every
 // reason that settles before the version history is read; the rest needs the locked transition.
 async function requireNoRecoveryWrite(user: UserRecord): Promise<void> {
-  if ((await settledReasonWithoutHistory(user)) === null) throw new NotPortedError("LowBalanceProbationRecovery#recover_automatically!", "app/services/low_balance_probation_recovery.rb");
+  if ((await settledReasonWithoutHistory(user)) === null)
+    throw new NotPortedError(
+      "LowBalanceProbationRecovery#recover_automatically!",
+      "app/services/low_balance_probation_recovery.rb",
+    );
 }
 
 export const updateSellerRefundEligibilityJobWith = modelJob({ min: 1 }, async ([userId], deps) => {
@@ -44,7 +57,8 @@ export const updateSellerRefundEligibilityJobWith = modelJob({ min: 1 }, async (
     await Users.saveBang(user, { now: deps.now });
   };
   if (unpaid > 0n && isFlagSet(user, "refunds_disabled")) await setRefundsDisabled(false);
-  else if (unpaid < BigInt(DISABLE_REFUNDS_BELOW_CENTS) && !isFlagSet(user, "refunds_disabled")) await setRefundsDisabled(true);
+  else if (unpaid < BigInt(DISABLE_REFUNDS_BELOW_CENTS) && !isFlagSet(user, "refunds_disabled"))
+    await setRefundsDisabled(true);
 
   // check_for_high_balance_and_remove_low_balance_probation!
   if (!isOnProbation(user)) return;

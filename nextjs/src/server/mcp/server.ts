@@ -2,6 +2,7 @@
 // envelopes, initialize, ping, server/discover, tools/list and the argument checks of tools/call).
 // A valid tools/call runs here only for the tools in ./tool-bodies.ts; the rest read and write the seller's store and hand back to Rails.
 import { HandBackToRails } from "../controllers/application-controller.ts";
+
 import {
   HEADER_MISMATCH,
   LEGACY_PROTOCOL_VERSION,
@@ -43,7 +44,8 @@ export class McpError extends Error {
   }
 }
 
-export const isHash = (value: unknown): value is Hash => typeof value === "object" && value !== null && !Array.isArray(value);
+export const isHash = (value: unknown): value is Hash =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
 
 // String#presence: a blank header is no header.
 const presence = (value: string | null): string | null => (value === null || value.trim() === "" ? null : value);
@@ -72,7 +74,7 @@ function declaredVersion(container: unknown): string | null {
 function isClientResponse(body: Hash): boolean {
   if ("method" in body || "params" in body || !validId(body.id)) return false;
   // Exactly one of result and error (XOR).
-  if (("result" in body) === ("error" in body)) return false;
+  if ("result" in body === "error" in body) return false;
   if ("result" in body) return isHash(body.result);
   const error = body.error;
   return isHash(error) && Number.isInteger(error.code) && typeof error.message === "string";
@@ -129,7 +131,14 @@ export class RpcSession {
       if (body.jsonrpc !== "2.0") return rpcError(id, "Invalid Request", INVALID_REQUEST);
       // No server requests are issued, so an unsolicited client reply needs no dispatch and no response.
       if (isClientResponse(body)) return null;
-      if (!(typeof body.method === "string" && (!("id" in body) || validId(body.id)) && !("result" in body) && !("error" in body))) {
+      if (
+        !(
+          typeof body.method === "string" &&
+          (!("id" in body) || validId(body.id)) &&
+          !("result" in body) &&
+          !("error" in body)
+        )
+      ) {
         return rpcError(id, "Invalid Request", INVALID_REQUEST);
       }
 
@@ -160,15 +169,24 @@ export class RpcSession {
     if (declared === null) return;
 
     if (nested !== null && topLevel !== null && nested !== topLevel) {
-      throw new McpError(`_meta ${VERSION_META_KEY} must not differ between params and the request`, HEADER_MISMATCH, { declared: nested, top_level: topLevel });
+      throw new McpError(`_meta ${VERSION_META_KEY} must not differ between params and the request`, HEADER_MISMATCH, {
+        declared: nested,
+        top_level: topLevel,
+      });
     }
     const header = presence(this.headers.protocolVersion);
     if (header === null || declared !== header) {
-      throw new McpError(`${VERSION_HEADER} and _meta ${VERSION_META_KEY} must agree`, HEADER_MISMATCH, { header, declared });
+      throw new McpError(`${VERSION_HEADER} and _meta ${VERSION_META_KEY} must agree`, HEADER_MISMATCH, {
+        header,
+        declared,
+      });
     }
     const supported = await this.supportedVersions();
     if (!supported.includes(declared)) {
-      throw new McpError(`Unsupported protocol version: ${declared}`, UNSUPPORTED_PROTOCOL_VERSION, { supported, requested: declared });
+      throw new McpError(`Unsupported protocol version: ${declared}`, UNSUPPORTED_PROTOCOL_VERSION, {
+        supported,
+        requested: declared,
+      });
     }
     if (declared === MODERN_PROTOCOL_VERSION) this.era = "modern";
   }
@@ -176,12 +194,18 @@ export class RpcSession {
   private validateModernTransport(method: string, params: Hash): void {
     if (this.era !== "modern") return;
     if (presence(this.headers.method) !== method) {
-      throw new McpError(`${METHOD_HEADER} must repeat the request method`, HEADER_MISMATCH, { header: this.headers.method, method });
+      throw new McpError(`${METHOD_HEADER} must repeat the request method`, HEADER_MISMATCH, {
+        header: this.headers.method,
+        method,
+      });
     }
     if (method !== "tools/call") return;
     const name = params.name ?? null;
     if (presence(this.headers.name) === null || this.headers.name !== name) {
-      throw new McpError(`${NAME_HEADER} must repeat the tool name`, HEADER_MISMATCH, { header: this.headers.name, name });
+      throw new McpError(`${NAME_HEADER} must repeat the tool name`, HEADER_MISMATCH, {
+        header: this.headers.name,
+        name,
+      });
     }
   }
 

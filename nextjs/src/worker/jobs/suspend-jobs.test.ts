@@ -14,7 +14,16 @@ import { setSellerProfileCacheForTesting } from "../../server/models/seller-prof
 import { resetRiskCollaborators, setRiskCollaborators } from "../../server/models/user-risk.ts";
 import { resetUserCollaborators, setUserCollaborators } from "../../server/models/user.ts";
 import { esRecorder } from "../../server/search/__fixtures__/job-harness.ts";
-import { asSidekiqJob, contextFor, recordingSidekiqRedis, rubyRuntimeRegistry, sequentialJids, snapshotRedis, type RedisSnapshot } from "./__fixtures__/golden.ts";
+
+import {
+  asSidekiqJob,
+  contextFor,
+  recordingSidekiqRedis,
+  rubyRuntimeRegistry,
+  sequentialJids,
+  snapshotRedis,
+  type RedisSnapshot,
+} from "./__fixtures__/golden.ts";
 import { sqlReplay, type Statement } from "./__fixtures__/sql-replay.ts";
 import { suspendAccountsWithPaymentAddressWorkerWith, suspendUsersWorkerWith } from "./suspend-jobs.ts";
 
@@ -28,7 +37,9 @@ type SuspendJobCase = {
   cache: [string, string][];
   es?: { method: string; path: string; query: string | null; body: string | null }[];
 };
-const golden = parseRubyJson(readFileSync(new URL("./__fixtures__/suspend-jobs.golden.json", import.meta.url), "utf8")) as unknown as {
+const golden = parseRubyJson(
+  readFileSync(new URL("./__fixtures__/suspend-jobs.golden.json", import.meta.url), "utf8"),
+) as unknown as {
   now: number;
   cases: SuspendJobCase[];
 };
@@ -41,7 +52,8 @@ const HANDLERS = {
 
 const takesLocks = (redis: RedisSnapshot) => Object.keys(redis).some((key) => key.startsWith("uniquejobs"));
 const url = process.env.JOBS_REDIS_URL;
-if (url && /\/0$|^[^/]*\/\/[^/]+$/.test(url)) throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
+if (url && /\/0$|^[^/]*\/\/[^/]+$/.test(url))
+  throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
 let realRedis: Redis | undefined;
 
 const MOBILE_UID_ENV = "MOBILE_API_OAUTH_APPLICATION_UID";
@@ -79,7 +91,13 @@ async function run(job: keyof typeof HANDLERS, args: JsonValue[], locks: boolean
     sidekiqRedis = recording.redis;
     snapshot = async () => recording.snapshot();
   }
-  const runtime = createJobsRuntime({ sidekiqRedis, bullmqRedis: sidekiqRedis, registry: rubyRuntimeRegistry(), now: () => golden.now, newJid: sequentialJids() });
+  const runtime = createJobsRuntime({
+    sidekiqRedis,
+    bullmqRedis: sidekiqRedis,
+    registry: rubyRuntimeRegistry(),
+    now: () => golden.now,
+    newJid: sequentialJids(),
+  });
   const cache: [string, string][] = [];
   setSellerProfileCacheForTesting({ delete: async (name) => void cache.push(["cache_delete", name]) });
   setUserCollaborators({ now });
@@ -122,7 +140,11 @@ describe("suspend jobs", () => {
 
   it("SuspendUsersWorker hands a delay it cannot validate like Rails back to Rails", async () => {
     const sql = sqlReplay([]);
-    const { error } = await run("SuspendUsersWorker", [3, ["5"], "spam", null, { action: "hold", delay_days: "1.5" }], false);
+    const { error } = await run(
+      "SuspendUsersWorker",
+      [3, ["5"], "spam", null, { action: "hold", delay_days: "1.5" }],
+      false,
+    );
     expect((error as Error).name).toBe("HandBackToRuby");
     expect(sql.log).toEqual([]);
   });

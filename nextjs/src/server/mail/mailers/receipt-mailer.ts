@@ -5,26 +5,25 @@
 // Rails reads in the order the view asks; this reads in that order too, so the first occurrence of each distinct
 // statement lands in the same place (repeats are query-cache hits in both).
 import { Prisma } from "@prisma/client";
-import { LinkFlags } from "../../models/link.ts";
-import { PurchaseFlags } from "../../search/flags.ts";
-import { UrlRedirectFlags } from "../../models/url-redirect.ts";
-import { getUsdCents, rubyStringToF } from "../../models/concerns/currency-helper.ts";
 import type { Charge, Purchase } from "@prisma/client";
 
 import { encrypt as obfuscateId } from "../../../lib/obfuscate-ids.ts";
 import { isBlank } from "../../html/text-helper.ts";
-import { ArgumentError, chargeOfPurchase, findChargeOrNil } from "../../models/charge.ts";
-import { column, columnIn, inList, selectRows, table } from "../../models/sql.ts";
-import { secureExternalId } from "../../models/secure-external-id.ts";
 import { domainConfig } from "../../infra/domain.ts";
+import { ArgumentError, chargeOfPurchase, findChargeOrNil } from "../../models/charge.ts";
+import { getUsdCents, rubyStringToF } from "../../models/concerns/currency-helper.ts";
+import { LinkFlags } from "../../models/link.ts";
+import { secureExternalId } from "../../models/secure-external-id.ts";
+import { column, columnIn, inList, selectRows, table } from "../../models/sql.ts";
+import { UrlRedirectFlags } from "../../models/url-redirect.ts";
+import { PurchaseFlags } from "../../search/flags.ts";
 import { applicationMail, findRow, type MailerDeps, RecordNotFoundError } from "../application-mailer.ts";
-import { defaultRouterDeps, rubyToI } from "../mailer-info.ts";
 import type { RenderedMail } from "../compose.ts";
+import { defaultRouterDeps, rubyToI } from "../mailer-info.ts";
 import type { RubyValue } from "../ruby-value.ts";
 import { linkTo } from "../view-helpers.ts";
 import { emailLayout, h, mailerUrl, MailViewNotPortedError } from "../views.ts";
-import { taxLines } from "./receipt-tax.ts";
-import { cardPrice, floatToS, numberToSi, SAMPLED_ASSOCIATED_IDS, recommendedProducts, type RecommendedProducts } from "./receipt-recommended.ts";
+
 import {
   customersDeliveryOptions,
   customersNoreply,
@@ -55,6 +54,15 @@ import {
   shippingInfo,
   simpleFormat,
 } from "./receipt-presenter.ts";
+import {
+  cardPrice,
+  floatToS,
+  numberToSi,
+  SAMPLED_ASSOCIATED_IDS,
+  recommendedProducts,
+  type RecommendedProducts,
+} from "./receipt-recommended.ts";
+import { taxLines } from "./receipt-tax.ts";
 
 type Id = number | bigint;
 
@@ -62,34 +70,66 @@ type Id = number | bigint;
 // receipt_rental_watch in the generator record it. Flip this once the golden is regenerated and the replay passes.
 const RENTAL_REDIRECT_PROVEN = false;
 
-const linkFlagSet = (link: ReceiptLinkRow, name: Parameters<typeof LinkFlags.isSet>[1]) => LinkFlags.isSet(link.flags ?? 0, name);
+const linkFlagSet = (link: ReceiptLinkRow, name: Parameters<typeof LinkFlags.isSet>[1]) =>
+  LinkFlags.isSet(link.flags ?? 0, name);
 
 // RedisKey.recommended_products_associated_product_ids_limit
 const ASSOCIATED_PRODUCT_IDS_LIMIT_KEY = "recommended_products_associated_product_ids_limit";
 
 const star = (name: string) => Prisma.raw(`\`${name}\`.*`);
 const byPurchase = (tableName: string, purchaseId: Id, limit1: boolean, extra: Prisma.Sql = Prisma.empty) =>
-  selectRows<Record<string, unknown>>(Prisma.sql`SELECT ${star(tableName)} FROM ${table(tableName)} WHERE ${column(tableName, "purchase_id")} = ${purchaseId}${extra}${limit1 ? Prisma.raw(" LIMIT 1") : Prisma.empty}`);
+  selectRows<Record<string, unknown>>(
+    Prisma.sql`SELECT ${star(tableName)} FROM ${table(tableName)} WHERE ${column(tableName, "purchase_id")} = ${purchaseId}${extra}${limit1 ? Prisma.raw(" LIMIT 1") : Prisma.empty}`,
+  );
 
 // Everything below the first `Purchase.find_by`, in the order Rails sends it. A refusal before the last read is
 // fine: the delivery goes back to Rails, nothing has been written.
-async function loadReceiptData(purchase: ReceiptPurchaseRow & Record<string, unknown>): Promise<{ data: ReceiptData; supportEmails: (string | null)[] }> {
+async function loadReceiptData(
+  purchase: ReceiptPurchaseRow & Record<string, unknown>,
+): Promise<{ data: ReceiptData; supportEmails: (string | null)[] }> {
   const seller = (await findRow<ReceiptSellerRow>("users", purchase.seller_id))!;
   // `@chargeable.support_email`, ahead of the subject
   const supportEmails = await selectRows<{ support_email: string | null }>(
     Prisma.sql`SELECT ${column("links", "support_email")} FROM ${table("purchases")} INNER JOIN ${table("links")} ON ${column("links", "id")} = ${column("purchases", "link_id")} WHERE ${column("purchases", "id")} = ${purchase.id}`,
   );
   // MailSubject: `purchases.one?`, `purchases.first`, then `link_name`
-  await selectRows(Prisma.sql`SELECT COUNT(*) FROM (SELECT 1 AS one FROM ${table("purchases")} WHERE ${column("purchases", "id")} = ${purchase.id} LIMIT 2) subquery_for_count`);
-  await selectRows(Prisma.sql`SELECT ${star("purchases")} FROM ${table("purchases")} WHERE ${column("purchases", "id")} = ${purchase.id} ORDER BY ${column("purchases", "id")} ASC LIMIT 1`);
+  await selectRows(
+    Prisma.sql`SELECT COUNT(*) FROM (SELECT 1 AS one FROM ${table("purchases")} WHERE ${column("purchases", "id")} = ${purchase.id} LIMIT 2) subquery_for_count`,
+  );
+  await selectRows(
+    Prisma.sql`SELECT ${star("purchases")} FROM ${table("purchases")} WHERE ${column("purchases", "id")} = ${purchase.id} ORDER BY ${column("purchases", "id")} ASC LIMIT 1`,
+  );
   const link = await findRow<ReceiptLinkRow>("links", purchase.link_id);
   if (!link) throw new TypeError("undefined method 'name' for nil");
 
-  const data: ReceiptData = { purchase, link, seller, displayedPriceUsdCents: 0, presentment: null, taxLines: null, urlRedirectToken: null, urlRedirectIsRental: false, linkStreamable: null, licenseKey: null, variantNames: null, tipValueCents: null, customFields: [], refundPolicy: null, gift: null };
+  const data: ReceiptData = {
+    purchase,
+    link,
+    seller,
+    displayedPriceUsdCents: 0,
+    presentment: null,
+    taxLines: null,
+    urlRedirectToken: null,
+    urlRedirectIsRental: false,
+    linkStreamable: null,
+    licenseKey: null,
+    variantNames: null,
+    tipValueCents: null,
+    customFields: [],
+    refundPolicy: null,
+    gift: null,
+  };
   // MailSubject: `purchase.giftee_name_or_email` reads `gift_given` for a gift the buyer sent. UNPROVEN position (unproven.giftSender).
   if (!unproven.giftSender && PurchaseFlags.isSet(purchase.flags ?? 0, "is_gift_sender_purchase")) {
-    const [gift] = await selectRows<Record<string, unknown>>(Prisma.sql`SELECT ${star("gifts")} FROM ${table("gifts")} WHERE ${column("gifts", "gifter_purchase_id")} = ${purchase.id} LIMIT 1`);
-    if (gift) data.gift = { giftee_email: (gift.giftee_email as string | null) ?? null, gift_note: (gift.gift_note as string | null) ?? null, flags: (gift.flags as number | bigint | null) ?? 0 };
+    const [gift] = await selectRows<Record<string, unknown>>(
+      Prisma.sql`SELECT ${star("gifts")} FROM ${table("gifts")} WHERE ${column("gifts", "gifter_purchase_id")} = ${purchase.id} LIMIT 1`,
+    );
+    if (gift)
+      data.gift = {
+        giftee_email: (gift.giftee_email as string | null) ?? null,
+        gift_note: (gift.gift_note as string | null) ?? null,
+        flags: (gift.flags as number | bigint | null) ?? 0,
+      };
   }
   return { data, supportEmails: supportEmails.map((row) => row.support_email) };
 }
@@ -108,12 +148,15 @@ async function loadItemData(data: ReceiptData): Promise<void> {
   const { purchase } = data;
   // ChargeInfo's presentment decision reads the buyer-currency row of every purchase that moved money.
   // show_download_button short-circuits on `!is_gift_sender_purchase`, so a gift the buyer sent never reads the redirect.
-  const [redirect] = PurchaseFlags.isSet(purchase.flags ?? 0, "is_gift_sender_purchase") ? [] : await byPurchase("url_redirects", purchase.id, true);
+  const [redirect] = PurchaseFlags.isSet(purchase.flags ?? 0, "is_gift_sender_purchase")
+    ? []
+    : await byPurchase("url_redirects", purchase.id, true);
   // show_download_button
   if (redirect) {
     data.urlRedirectToken = String(redirect.token);
     data.urlRedirectIsRental = UrlRedirectFlags.isSet(Number(redirect.flags ?? 0), "is_rental");
-    if (data.urlRedirectIsRental && !RENTAL_REDIRECT_PROVEN) throw new MailViewNotPortedError("download button for a rental redirect");
+    if (data.urlRedirectIsRental && !RENTAL_REDIRECT_PROVEN)
+      throw new MailViewNotPortedError("download button for a rental redirect");
   }
   if (linkFlagSet(data.link, "is_licensed")) {
     // Purchase#uses_license_key?: a licensed product with versions keeps its key only when the versions' content has a
@@ -146,14 +189,23 @@ async function loadItemData(data: ReceiptData): Promise<void> {
       const type = String(row.field_type);
       // PurchaseCustomField#value: a boolean for terms and checkboxes, else the string
       const raw = row.value === null || row.value === undefined ? null : String(row.value);
-      const value = type === "checkbox" || type === "terms" ? raw !== null && !["0", "f", "false", "off", "no", ""].includes(raw.toLowerCase()) : (raw ?? "");
+      const value =
+        type === "checkbox" || type === "terms"
+          ? raw !== null && !["0", "f", "false", "off", "no", ""].includes(raw.toLowerCase())
+          : (raw ?? "");
       return { name: String(row.name), value, type };
     },
   );
   const [policy] = await byPurchase("purchase_refund_policies", purchase.id, true);
-  if (policy) data.refundPolicy = { title: String(policy.title), fine_print: policy.fine_print === null ? null : String(policy.fine_print) } satisfies ReceiptRefundPolicy;
+  if (policy)
+    data.refundPolicy = {
+      title: String(policy.title),
+      fine_print: policy.fine_print === null ? null : String(policy.fine_print),
+    } satisfies ReceiptRefundPolicy;
   // card_for_email: the thumbnail, then the avatar
-  const [thumbnail] = await rows(Prisma.sql`SELECT ${star("thumbnails")} FROM ${table("thumbnails")} WHERE ${column("thumbnails", "product_id")} = ${data.link.id} AND ${column("thumbnails", "deleted_at")} IS NULL LIMIT 1`);
+  const [thumbnail] = await rows(
+    Prisma.sql`SELECT ${star("thumbnails")} FROM ${table("thumbnails")} WHERE ${column("thumbnails", "product_id")} = ${data.link.id} AND ${column("thumbnails", "deleted_at")} IS NULL LIMIT 1`,
+  );
   if (thumbnail) throw new MailViewNotPortedError("product with a thumbnail");
 }
 
@@ -163,7 +215,9 @@ function attributesPartial(attributes: Attribute[]): string {
   if (attributes.length === 0) return "";
   const body = attributes
     .map((attribute) => {
-      const label = isBlank(attribute.label) ? "" : `              <span class="attribute-label">${h(attribute.label)}</span>\n              <br>\n`;
+      const label = isBlank(attribute.label)
+        ? ""
+        : `              <span class="attribute-label">${h(attribute.label)}</span>\n              <br>\n`;
       const value = "html" in attribute ? attribute.html : autoLinkText(attribute.text);
       return `        <tr>\n          <td>\n${label}              ${value}\n          </td>\n        </tr>\n`;
     })
@@ -188,7 +242,14 @@ ${total}</div>
 `;
 }
 
-type Card = { name: string; thumbnailUrl: string; url: string; sellerName: string; sellerProfileUrl: string; sellerAvatarUrl: string };
+type Card = {
+  name: string;
+  thumbnailUrl: string;
+  url: string;
+  sellerName: string;
+  sellerProfileUrl: string;
+  sellerAvatarUrl: string;
+};
 
 function itemSection(item: ReturnType<typeof itemInfo>, card: Card, data: ReceiptData): string {
   const sellerLinks = `\n  <div class="section">
@@ -221,7 +282,9 @@ function itemSection(item: ReturnType<typeof itemInfo>, card: Card, data: Receip
   const notes = item.notes.map((note) => `    <p style="font-weight: bold">\n      ${h(note)}\n    </p>\n`).join("");
   const customNote = item.customReceiptNote === null ? "" : `    ${simpleFormat(item.customReceiptNote)}\n`;
   const cta = item.showDownloadButton ? item.downloadCta : null;
-  const download = item.showDownloadButton ? `    ${cta ? downloadButton(cta.label ?? viewContentButtonText(data.link), mailerUrl(cta.path)) : ""}\n` : "";
+  const download = item.showDownloadButton
+    ? `    ${cta ? downloadButton(cta.label ?? viewContentButtonText(data.link), mailerUrl(cta.path)) : ""}\n`
+    : "";
   return `${cell}
 <div class="details">
 ${notes}
@@ -236,7 +299,10 @@ ${download}
 
 // customer_mailer/receipt/sections/_recommended_products and _product_card
 function productCardPartial(card: RecommendedProducts["cards"][number]): string {
-  const image = linkTo("", card.url, { target: "_blank" }).replace(/>[^<]*<\/a>$/u, `><img alt="${h(card.name)}" src="${h(card.thumbnailUrl)}" /></a>`);
+  const image = linkTo("", card.url, { target: "_blank" }).replace(
+    />[^<]*<\/a>$/u,
+    `><img alt="${h(card.name)}" src="${h(card.thumbnailUrl)}" /></a>`,
+  );
   const rating =
     card.ratings && card.ratings.count > 0
       ? `      <div class="rating">\n        ★\n        <span class="rating-average">${h(floatToS(card.ratings.average))}</span>\n        ${h(`(${numberToSi(card.ratings.count)})`)}\n      </div>\n`
@@ -266,7 +332,9 @@ ${rating}  </div>
 function recommendedSection(recommended: RecommendedProducts | null): string {
   if (recommended === null) return "";
   const { cards } = recommended;
-  const productRows = Array.from({ length: Math.ceil(cards.length / 2) }, (_, index) => cards.slice(index * 2, index * 2 + 2));
+  const productRows = Array.from({ length: Math.ceil(cards.length / 2) }, (_, index) =>
+    cards.slice(index * 2, index * 2 + 2),
+  );
   const body = productRows
     .map((row, rowIndex) => {
       const cells = row
@@ -304,21 +372,35 @@ ${body}      </tbody>
 export async function receipt(args: RubyValue[], deps: MailerDeps = {}): Promise<RenderedMail | null> {
   const [purchaseIdArgument] = args;
   const purchaseId = purchaseIdArgument === null || purchaseIdArgument === undefined ? null : purchaseIdArgument;
-  if (args.length !== 1 || (purchaseId !== null && typeof purchaseId !== "number" && typeof purchaseId !== "bigint")) throw new MailViewNotPortedError("receipt arguments other than a purchase id");
+  if (args.length !== 1 || (purchaseId !== null && typeof purchaseId !== "number" && typeof purchaseId !== "bigint"))
+    throw new MailViewNotPortedError("receipt arguments other than a purchase id");
 
-  const found = purchaseId === null ? null : await findRow<ReceiptPurchaseRow & Record<string, unknown>>("purchases", purchaseId);
+  const found =
+    purchaseId === null ? null : await findRow<ReceiptPurchaseRow & Record<string, unknown>>("purchases", purchaseId);
   // `purchase&.split_charge_receipt_sent?` reads the purchase's charge, then `Charge.find_by(id: nil)`
-  if (found && (await chargeOfPurchase(found as unknown as Purchase)) !== null) throw new MailViewNotPortedError("receipt of a purchase that belongs to a charge");
+  if (found && (await chargeOfPurchase(found as unknown as Purchase)) !== null)
+    throw new MailViewNotPortedError("receipt of a purchase that belongs to a charge");
   const noCharge: Charge | null = await findChargeOrNil(null);
-  if (!found) throw new ArgumentError(noCharge === null ? "Either purchase or charge must be present" : "Only one of purchase or charge must be present");
+  if (!found)
+    throw new ArgumentError(
+      noCharge === null
+        ? "Either purchase or charge must be present"
+        : "Only one of purchase or charge must be present",
+    );
   const purchase = found;
 
   // successful_purchases.none?
-  await selectRows(Prisma.sql`SELECT 1 AS one FROM ${table("purchases")} WHERE ${column("purchases", "id")} = ${purchase.id} LIMIT 1`);
+  await selectRows(
+    Prisma.sql`SELECT 1 AS one FROM ${table("purchases")} WHERE ${column("purchases", "id")} = ${purchase.id} LIMIT 1`,
+  );
 
   const { data, supportEmails } = await loadReceiptData(purchase);
   assertSupported(data);
-  data.displayedPriceUsdCents = await getUsdCents(purchase.displayed_price_currency_type!, purchase.displayed_price_cents, purchase.displayed_price_currency_type === "usd" ? undefined : rubyStringToF(purchase.rate_converted_to_usd!));
+  data.displayedPriceUsdCents = await getUsdCents(
+    purchase.displayed_price_currency_type!,
+    purchase.displayed_price_cents,
+    purchase.displayed_price_currency_type === "usd" ? undefined : rubyStringToF(purchase.rate_converted_to_usd!),
+  );
   const seller = data.seller;
   const subject = mailSubject(data);
   const from = fromEmailAddressWithName(seller.name, customersNoreply());
@@ -326,7 +408,9 @@ export async function receipt(args: RubyValue[], deps: MailerDeps = {}): Promise
 
   // ---- render
   // unbundled_purchases
-  await selectRows(Prisma.sql`SELECT ${star("purchases")} FROM ${table("purchases")} WHERE ${column("purchases", "id")} = ${purchase.id}`);
+  await selectRows(
+    Prisma.sql`SELECT ${star("purchases")} FROM ${table("purchases")} WHERE ${column("purchases", "id")} = ${purchase.id}`,
+  );
   if ((purchase.total_transaction_cents ?? 0) !== 0) {
     const [presentment] = await byPurchase("purchase_presentments", purchase.id, true);
     if (presentment) {
@@ -380,7 +464,10 @@ export async function receipt(args: RubyValue[], deps: MailerDeps = {}): Promise
   };
 
   const shipping = shippingInfo(data);
-  const invoiceLink = linkTo("Generate invoice", mailerUrl(`/purchases/${externalId}/invoice/new`, { email: purchase.email ?? "" }));
+  const invoiceLink = linkTo(
+    "Generate invoice",
+    mailerUrl(`/purchases/${externalId}/invoice/new`, { email: purchase.email ?? "" }),
+  );
   data.taxLines = await taxLines(purchase, data.presentment);
   const payment = paymentInfo(data, invoiceLink);
 
@@ -422,9 +509,16 @@ export async function receipt(args: RubyValue[], deps: MailerDeps = {}): Promise
   let recommended: RecommendedProducts | null = null;
   if (sellerIds.length > 0) {
     // Half of four or more associated ids are sampled at random.
-    if (limitedAssociatedIds.length >= SAMPLED_ASSOCIATED_IDS) throw new MailViewNotPortedError("receipt whose recommendations sample associated products at random");
+    if (limitedAssociatedIds.length >= SAMPLED_ASSOCIATED_IDS)
+      throw new MailViewNotPortedError("receipt whose recommendations sample associated products at random");
     if (bundleProducts.length > 0) throw new MailViewNotPortedError("receipt whose buyer owns bundles");
-    recommended = await recommendedProducts({ cartProductIds: [data.link.id], associatedIds: limitedAssociatedIds, excludeIds: associatedIds, sellerIds, seller });
+    recommended = await recommendedProducts({
+      cartProductIds: [data.link.id],
+      associatedIds: limitedAssociatedIds,
+      excludeIds: associatedIds,
+      sellerIds,
+      seller,
+    });
   }
 
   const paymentSection = payment.present
@@ -436,7 +530,10 @@ ${payment.notes.map((note) => `      <div>\n        ${h(note)}\n      </div>\n`)
   </div>
 `
     : "";
-  const shippingSection = shipping.attributes.length > 0 ? `  <div>\n    <h3>${h(shipping.title)}</h3>\n    ${attributesPartial(shipping.attributes)}\n  </div>\n` : "";
+  const shippingSection =
+    shipping.attributes.length > 0
+      ? `  <div>\n    <h3>${h(shipping.title)}</h3>\n    ${attributesPartial(shipping.attributes)}\n  </div>\n`
+      : "";
   const itemsSection = `<div>
     <div class="item">
       ${itemSection(item, card, data)}
@@ -452,7 +549,12 @@ ${info.productQuestionsNote === null ? "" : `    <div>\n      ${info.productQues
 `;
 
   // The footer renders last: the unsubscribe link encrypts the purchase id with a fresh IV.
-  const unsubscribeToken = secureExternalId("Purchase", purchase.id as bigint | number, "unsubscribe", deps.randomIv ? { randomIv: deps.randomIv } : {});
+  const unsubscribeToken = secureExternalId(
+    "Purchase",
+    purchase.id as bigint | number,
+    "unsubscribe",
+    deps.randomIv ? { randomIv: deps.randomIv } : {},
+  );
   const footer = `<p>\n    ${linkTo("Unsubscribe", mailerUrl(`/purchases/${unsubscribeToken}/unsubscribe`))}\n</p>\n`;
 
   const html = emailLayout(`${receiptPartial}\n`, { footer });

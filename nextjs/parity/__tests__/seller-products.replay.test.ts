@@ -21,8 +21,17 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES_ROOT = "parity/fixtures/requests";
-const SPEC_DIRS = readdirSync(FIXTURES_ROOT).filter((dir) => /^seller_products_.*_spec$/.test(dir) && existsSync(path.join(FIXTURES_ROOT, dir)));
-const ROUTE_FLAGS = ["nextjs_products_index", "nextjs_products_archived", "nextjs_products_affiliated", "nextjs_collabs", "nextjs_products_new", "nextjs_products_edit"];
+const SPEC_DIRS = readdirSync(FIXTURES_ROOT).filter(
+  (dir) => /^seller_products_.*_spec$/.test(dir) && existsSync(path.join(FIXTURES_ROOT, dir)),
+);
+const ROUTE_FLAGS = [
+  "nextjs_products_index",
+  "nextjs_products_archived",
+  "nextjs_products_affiliated",
+  "nextjs_collabs",
+  "nextjs_products_new",
+  "nextjs_products_edit",
+];
 const FIRST_COMPILE_TIMEOUT_MS = 240_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
@@ -42,7 +51,10 @@ async function createEmptyPurchasesIndex() {
   await es.indices.delete({ index: REPLAY_PURCHASE_INDEX }, { ignore: [404] });
   await es.indices.create({
     index: REPLAY_PURCHASE_INDEX,
-    body: { settings: { index: { number_of_shards: 1, number_of_replicas: 0, analysis: source.settings.index.analysis } }, mappings: source.mappings },
+    body: {
+      settings: { index: { number_of_shards: 1, number_of_replicas: 0, analysis: source.settings.index.analysis } },
+      mappings: source.mappings,
+    },
   });
   await es.close();
 }
@@ -94,7 +106,11 @@ const cases = SPEC_DIRS.flatMap((dir) =>
     .filter((file) => file.endsWith(".json"))
     .map((file) => {
       const fixturePath = path.join(FIXTURES_ROOT, dir, file);
-      return [`${dir.replace(/^seller_products_|_spec$/g, "")}: ${file.replace(/\.json$/, "")}`, fixturePath, loadFixture(fixturePath).exchanges.length - 1] as const;
+      return [
+        `${dir.replace(/^seller_products_|_spec$/g, "")}: ${file.replace(/\.json$/, "")}`,
+        fixturePath,
+        loadFixture(fixturePath).exchanges.length - 1,
+      ] as const;
     }),
 );
 
@@ -167,10 +183,18 @@ describe.skipIf(!url)("Seller products pages parity when signed in", () => {
       } catch (error) {
         const output = server.output();
         if (process.env.PARITY_DUMP_SERVER) writeFileSync(process.env.PARITY_DUMP_SERVER, output);
-        const logs = output.split("\n").filter((line) => /error|Error|at /.test(line)).slice(-25).join("\n");
+        const logs = output
+          .split("\n")
+          .filter((line) => /error|Error|at /.test(line))
+          .slice(-25)
+          .join("\n");
         // A page graph that calls a Routes helper the compat table lacks fails to compile: name them all.
-        const missing = [...new Set([...output.matchAll(/Export (\w+) doesn't exist/g)].map((match) => match[1]))].join(", ");
-        throw new Error(`${(error as Error).message}\n--- server ---\n${logs}${missing ? `\nmissing Routes helpers: ${missing}` : ""}`);
+        const missing = [...new Set([...output.matchAll(/Export (\w+) doesn't exist/g)].map((match) => match[1]))].join(
+          ", ",
+        );
+        throw new Error(
+          `${(error as Error).message}\n--- server ---\n${logs}${missing ? `\nmissing Routes helpers: ${missing}` : ""}`,
+        );
       }
     },
     FIRST_COMPILE_TIMEOUT_MS,

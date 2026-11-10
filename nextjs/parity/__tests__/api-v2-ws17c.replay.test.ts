@@ -23,9 +23,16 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests/api/v2";
-const WS17C_SPEC_DIRS = ["users", "utm_links", "emails", "workflows", "pages", "help_articles", "mcp", "payouts_media"].map(
-  (name) => `${name}_parity_spec`,
-);
+const WS17C_SPEC_DIRS = [
+  "users",
+  "utm_links",
+  "emails",
+  "workflows",
+  "pages",
+  "help_articles",
+  "mcp",
+  "payouts_media",
+].map((name) => `${name}_parity_spec`);
 const SPECS = existsSync(FIXTURES)
   ? readdirSync(FIXTURES).filter(
       (dir) =>

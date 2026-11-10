@@ -6,11 +6,34 @@ vi.mock("./sql.ts", async (importOriginal) => ({ ...(await importOriginal<typeof
 import { settledReasonWithoutHistory } from "./low-balance-probation-recovery.ts";
 import type { UserRecord } from "./user.ts";
 
-type CommentRow = { id: bigint; comment_type: string; author_id: bigint | null; author_name: string | null; idempotency_key: string | null; deleted_at: Date | null };
+type CommentRow = {
+  id: bigint;
+  comment_type: string;
+  author_id: bigint | null;
+  author_name: string | null;
+  idempotency_key: string | null;
+  deleted_at: Date | null;
+};
 
 const PROBATION = "LowBalanceFraudCheck";
-const probation = (id: number, overrides: Partial<CommentRow> = {}): CommentRow => ({ id: BigInt(id), comment_type: "on", author_id: null, author_name: PROBATION, idempotency_key: null, deleted_at: null, ...overrides });
-const comment = (id: number, commentType: string, overrides: Partial<CommentRow> = {}): CommentRow => ({ id: BigInt(id), comment_type: commentType, author_id: null, author_name: null, idempotency_key: null, deleted_at: null, ...overrides });
+const probation = (id: number, overrides: Partial<CommentRow> = {}): CommentRow => ({
+  id: BigInt(id),
+  comment_type: "on",
+  author_id: null,
+  author_name: PROBATION,
+  idempotency_key: null,
+  deleted_at: null,
+  ...overrides,
+});
+const comment = (id: number, commentType: string, overrides: Partial<CommentRow> = {}): CommentRow => ({
+  id: BigInt(id),
+  comment_type: commentType,
+  author_id: null,
+  author_name: null,
+  idempotency_key: null,
+  deleted_at: null,
+  ...overrides,
+});
 
 const user = (attributes: Record<string, unknown> = {}) => {
   const values: Record<string, unknown> = { id: 5n, user_risk_state: "on_probation", deleted_at: null, ...attributes };
@@ -76,10 +99,13 @@ describe("settledReasonWithoutHistory", () => {
     expect(await settledReasonWithoutHistory(user())).toBe("probation_comment_deleted");
   });
 
-  it.each(["flag_note", "suspension_note", "flagged", "compliant"])("settles a probation followed by a %s decision", async (type) => {
-    answer([probation(1), comment(2, type, { author_name: "Admin" })]);
-    expect(await settledReasonWithoutHistory(user())).toBe("newer_risk_decision");
-  });
+  it.each(["flag_note", "suspension_note", "flagged", "compliant"])(
+    "settles a probation followed by a %s decision",
+    async (type) => {
+      answer([probation(1), comment(2, type, { author_name: "Admin" })]);
+      expect(await settledReasonWithoutHistory(user())).toBe("newer_risk_decision");
+    },
+  );
 
   it("ignores comments that are not decisions", async () => {
     answer([probation(1), comment(2, "note")]);

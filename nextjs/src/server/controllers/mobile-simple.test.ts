@@ -14,7 +14,10 @@ vi.mock("./mobile-api.ts", async (original) => ({
   ...(await original<typeof import("./mobile-api.ts")>()),
   registerMobile: (...registered: MobileAction[]) => void actions.push(...registered),
 }));
-vi.mock("../models/sql.ts", async (original) => ({ ...(await original<typeof import("../models/sql.ts")>()), selectRows }));
+vi.mock("../models/sql.ts", async (original) => ({
+  ...(await original<typeof import("../models/sql.ts")>()),
+  selectRows,
+}));
 vi.mock("../models/license.ts", () => ({ findLicense, enableBang, disableBang }));
 vi.mock("../../lib/obfuscate-ids.ts", () => ({ decrypt: () => 7, encrypt: (value: number | bigint) => `enc${value}` }));
 

@@ -4,15 +4,27 @@
 //     PayPal email needs PayPal's API, or a delay_days Rails would reject, hands back before any suspension)
 import { Prisma, type Comment, type ScheduledPayout } from "@prisma/client";
 
+import { beforeSideEffects } from "../../server/jobs/hand-back.ts";
 import type { JsonValue } from "../../server/jobs/sidekiq/ruby-json.ts";
 import { COMMENT_TYPES, Comments } from "../../server/models/comment.ts";
+import {
+  currentPayoutProcessor,
+  paypalPayoutEmailNeedsApi,
+  paypalPayoutEmailNotPorted,
+} from "../../server/models/current-payout-processor.ts";
 import { isBlank } from "../../server/models/runtime/validators.ts";
 import { ScheduledPayouts } from "../../server/models/scheduled-payout.ts";
 import { castRow, column, columnIn, columnNotIn, findInBatches, selectRows, table } from "../../server/models/sql.ts";
 import { fireRiskEvent, formattedDateFullMonth } from "../../server/models/user-risk.ts";
-import { beforeSideEffects } from "../../server/jobs/hand-back.ts";
-import { currentPayoutProcessor, paypalPayoutEmailNeedsApi, paypalPayoutEmailNotPorted } from "../../server/models/current-payout-processor.ts";
-import { findUserBang, nameOrUsername, NotPortedError, RISK_STATES, Users, type UserRecord } from "../../server/models/user.ts";
+import {
+  findUserBang,
+  nameOrUsername,
+  NotPortedError,
+  RISK_STATES,
+  Users,
+  type UserRecord,
+} from "../../server/models/user.ts";
+
 import { modelJob, type JobDeps } from "./support/job-deps.ts";
 
 const SUSPENDED_STATES = RISK_STATES.SUSPENDED as readonly string[];
@@ -24,7 +36,13 @@ const loadUser = (row: Record<string, unknown>) => Users.load(castRow("User", ro
 // ---------------------------------------------------------------------------------------------
 // SuspendAccountsWithPaymentAddressWorker
 
-async function suspendUser(user: UserRecord, suspendedUser: UserRecord, identifierType: string, identifierValue: unknown, deps: JobDeps): Promise<void> {
+async function suspendUser(
+  user: UserRecord,
+  suspendedUser: UserRecord,
+  identifierType: string,
+  identifierValue: unknown,
+  deps: JobDeps,
+): Promise<void> {
   const date = formattedDateFullMonth(deps.now());
   await fireRiskEvent(
     user,
@@ -62,18 +80,23 @@ async function suspendUsersWithSameStripeFingerprint(suspendedUser: UserRecord, 
     )
   ).map((r) => r.user_id);
 
-  await findInBatches("users", Prisma.sql`(${notSuspended()}) AND ${columnIn("users", "id", userIds)}`, 1000, async (rows) => {
-    for (const row of rows) {
-      const user = loadUser(row);
-      const theirs = (
-        await selectRows<{ stripe_fingerprint: string | null }>(
-          Prisma.sql`SELECT ${column(b, "stripe_fingerprint")} FROM ${table(b)} WHERE ${column(b, "user_id")} = ${user.get("id")} AND ${column(b, "deleted_at")} IS NULL`,
-        )
-      ).map((r) => r.stripe_fingerprint);
-      const matching = fingerprints.find((fingerprint) => theirs.includes(fingerprint));
-      await suspendUser(user, suspendedUser, "bank account fingerprint", matching, deps);
-    }
-  });
+  await findInBatches(
+    "users",
+    Prisma.sql`(${notSuspended()}) AND ${columnIn("users", "id", userIds)}`,
+    1000,
+    async (rows) => {
+      for (const row of rows) {
+        const user = loadUser(row);
+        const theirs = (
+          await selectRows<{ stripe_fingerprint: string | null }>(
+            Prisma.sql`SELECT ${column(b, "stripe_fingerprint")} FROM ${table(b)} WHERE ${column(b, "user_id")} = ${user.get("id")} AND ${column(b, "deleted_at")} IS NULL`,
+          )
+        ).map((r) => r.stripe_fingerprint);
+        const matching = fingerprints.find((fingerprint) => theirs.includes(fingerprint));
+        await suspendUser(user, suspendedUser, "bank account fingerprint", matching, deps);
+      }
+    },
+  );
 }
 
 export const suspendAccountsWithPaymentAddressWorkerWith = modelJob({ min: 1 }, async ([userId], deps) => {
@@ -103,7 +126,11 @@ const serializable = (id: bigint) => id >= SIGNED_BIGINT_MIN && id <= SIGNED_BIG
 // The predicate `where(<column> => values)` builds: nils become IS NULL, a single value an
 // equality (`= NULL` when it casts to nil, 1=0 when out of range), several a HomogeneousIn that
 // drops what does not cast.
-function columnPredicates(name: string, values: (string | number | bigint | null)[], kind: "id" | "string"): Prisma.Sql[] {
+function columnPredicates(
+  name: string,
+  values: (string | number | bigint | null)[],
+  kind: "id" | "string",
+): Prisma.Sql[] {
   const col = column("users", name);
   const present = values.filter((v): v is string | number | bigint => v !== null);
   const parts: Prisma.Sql[] = [];
@@ -128,8 +155,16 @@ type UserIdArg = string | number | bigint | null;
 function userIdList(userIds: JsonValue): UserIdArg[] {
   const list = Array.isArray(userIds) ? userIds : [userIds];
   for (const id of list) {
-    const ok = id === null || typeof id === "string" || typeof id === "bigint" || (typeof id === "number" && Number.isInteger(id));
-    if (!ok) throw new NotPortedError(`SuspendUsersWorker with user id ${JSON.stringify(id)}`, "app/sidekiq/suspend_users_worker.rb:11");
+    const ok =
+      id === null ||
+      typeof id === "string" ||
+      typeof id === "bigint" ||
+      (typeof id === "number" && Number.isInteger(id));
+    if (!ok)
+      throw new NotPortedError(
+        `SuspendUsersWorker with user id ${JSON.stringify(id)}`,
+        "app/sidekiq/suspend_users_worker.rb:11",
+      );
   }
   return list as UserIdArg[];
 }
@@ -140,16 +175,27 @@ type ScheduledPayoutArg = { action: string; delayDays: JsonValue } | null;
 function scheduledPayoutArg(scheduledPayout: JsonValue | undefined): ScheduledPayoutArg {
   if (isBlank(scheduledPayout)) return null;
   if (typeof scheduledPayout !== "object" || Array.isArray(scheduledPayout) || scheduledPayout === null) {
-    throw new NotPortedError("SuspendUsersWorker with a non-Hash scheduled_payout", "app/sidekiq/suspend_users_worker.rb:20");
+    throw new NotPortedError(
+      "SuspendUsersWorker with a non-Hash scheduled_payout",
+      "app/sidekiq/suspend_users_worker.rb:20",
+    );
   }
   const params = scheduledPayout as Record<string, JsonValue>;
   if (isBlank(params.action)) return null;
   const delayDays = params.delay_days;
-  const plainInteger = (typeof delayDays === "number" && Number.isInteger(delayDays) && delayDays >= 0) || (typeof delayDays === "string" && /^\d+$/u.test(delayDays));
+  const plainInteger =
+    (typeof delayDays === "number" && Number.isInteger(delayDays) && delayDays >= 0) ||
+    (typeof delayDays === "string" && /^\d+$/u.test(delayDays));
   if (!isBlank(delayDays) && !plainInteger) {
-    throw new NotPortedError(`ScheduledPayout delay_days ${JSON.stringify(delayDays)}`, "app/models/scheduled_payout.rb:18");
+    throw new NotPortedError(
+      `ScheduledPayout delay_days ${JSON.stringify(delayDays)}`,
+      "app/models/scheduled_payout.rb:18",
+    );
   }
-  return { action: String(params.action), delayDays: isBlank(delayDays) ? DEFAULT_SCHEDULED_PAYOUT_DELAY_DAYS : Number(delayDays) };
+  return {
+    action: String(params.action),
+    delayDays: isBlank(delayDays) ? DEFAULT_SCHEDULED_PAYOUT_DELAY_DAYS : Number(delayDays),
+  };
 }
 
 async function unpaidBalanceCents(user: UserRecord): Promise<bigint> {
@@ -160,7 +206,12 @@ async function unpaidBalanceCents(user: UserRecord): Promise<bigint> {
   return sum == null ? 0n : BigInt(String(sum));
 }
 
-async function createScheduledPayout(user: UserRecord, author: UserRecord, scheduledPayout: NonNullable<ScheduledPayoutArg>, deps: JobDeps): Promise<void> {
+async function createScheduledPayout(
+  user: UserRecord,
+  author: UserRecord,
+  scheduledPayout: NonNullable<ScheduledPayoutArg>,
+  deps: JobDeps,
+): Promise<void> {
   const record = await ScheduledPayouts.createBang(
     {
       user_id: BigInt(user.get("id") as bigint),
@@ -185,39 +236,50 @@ async function createScheduledPayout(user: UserRecord, author: UserRecord, sched
   );
 }
 
-export const suspendUsersWorkerWith = modelJob({ min: 4, max: 5 }, async ([authorId, userIds, reason, additionalNotes, rawScheduledPayout], deps) => {
-  const { ids, scheduledPayout } = await beforeSideEffects(() => ({ ids: userIdList(userIds!), scheduledPayout: scheduledPayoutArg(rawScheduledPayout) }));
-  const author = await findUserBang(authorId);
-  const authorName = nameOrUsername(author);
-  const where = Prisma.sql`(${Prisma.join([...columnPredicates("id", ids, "id"), ...columnPredicates("external_id", ids, "string")], " OR ")})`;
-  // A retry skips users already suspended, so a seller whose processor Rails reads from PayPal
-  // must be found before the first suspension.
-  if (scheduledPayout?.action === "payout") {
-    await beforeSideEffects(() =>
-      findInBatches("users", where, 100, async (rows) => {
-        for (const row of rows) {
-          const user = loadUser(row);
-          if (SUSPENDED_STATES.includes(String(user.get("user_risk_state")))) continue;
-          if (await paypalPayoutEmailNeedsApi(user)) throw paypalPayoutEmailNotPorted();
-        }
-      }),
-    );
-  }
-  await findInBatches("users", where, 100, async (rows) => {
-    for (const row of rows) {
-      const user = loadUser(row);
-      const wasSuspended = SUSPENDED_STATES.includes(String(user.get("user_risk_state")));
-      let content = `Suspended for a policy violation by ${String(authorName ?? "")} on ${formattedDateFullMonth(deps.now())} as part of mass suspension. Reason: ${String(reason ?? "")}.`;
-      if (!isBlank(additionalNotes)) content += `\nAdditional notes: ${String(additionalNotes)}`;
-      await fireRiskEvent(user, "suspend_for_tos_violation", { author_id: authorId as never, content }, { now: deps.now });
-
-      if (wasSuspended || !SUSPENDED_STATES.includes(String(user.get("user_risk_state")))) continue;
-      if (scheduledPayout === null) continue;
-      if ((await unpaidBalanceCents(user)) <= 0n) continue;
-      await createScheduledPayout(user, author, scheduledPayout, deps);
+export const suspendUsersWorkerWith = modelJob(
+  { min: 4, max: 5 },
+  async ([authorId, userIds, reason, additionalNotes, rawScheduledPayout], deps) => {
+    const { ids, scheduledPayout } = await beforeSideEffects(() => ({
+      ids: userIdList(userIds!),
+      scheduledPayout: scheduledPayoutArg(rawScheduledPayout),
+    }));
+    const author = await findUserBang(authorId);
+    const authorName = nameOrUsername(author);
+    const where = Prisma.sql`(${Prisma.join([...columnPredicates("id", ids, "id"), ...columnPredicates("external_id", ids, "string")], " OR ")})`;
+    // A retry skips users already suspended, so a seller whose processor Rails reads from PayPal
+    // must be found before the first suspension.
+    if (scheduledPayout?.action === "payout") {
+      await beforeSideEffects(() =>
+        findInBatches("users", where, 100, async (rows) => {
+          for (const row of rows) {
+            const user = loadUser(row);
+            if (SUSPENDED_STATES.includes(String(user.get("user_risk_state")))) continue;
+            if (await paypalPayoutEmailNeedsApi(user)) throw paypalPayoutEmailNotPorted();
+          }
+        }),
+      );
     }
-  });
-});
+    await findInBatches("users", where, 100, async (rows) => {
+      for (const row of rows) {
+        const user = loadUser(row);
+        const wasSuspended = SUSPENDED_STATES.includes(String(user.get("user_risk_state")));
+        let content = `Suspended for a policy violation by ${String(authorName ?? "")} on ${formattedDateFullMonth(deps.now())} as part of mass suspension. Reason: ${String(reason ?? "")}.`;
+        if (!isBlank(additionalNotes)) content += `\nAdditional notes: ${String(additionalNotes)}`;
+        await fireRiskEvent(
+          user,
+          "suspend_for_tos_violation",
+          { author_id: authorId as never, content },
+          { now: deps.now },
+        );
+
+        if (wasSuspended || !SUSPENDED_STATES.includes(String(user.get("user_risk_state")))) continue;
+        if (scheduledPayout === null) continue;
+        if ((await unpaidBalanceCents(user)) <= 0n) continue;
+        await createScheduledPayout(user, author, scheduledPayout, deps);
+      }
+    });
+  },
+);
 
 export const suspendAccountsWithPaymentAddressWorker = suspendAccountsWithPaymentAddressWorkerWith();
 export const suspendUsersWorker = suspendUsersWorkerWith();

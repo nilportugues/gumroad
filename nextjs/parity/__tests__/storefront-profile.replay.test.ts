@@ -68,7 +68,11 @@ const cases = FIXTURE_DIRS.flatMap((dir) =>
     .filter((file) => file.endsWith(".json"))
     .map((file) => {
       const exchanges = loadFixture(path.join(dir, file)).exchanges;
-      return [`${path.basename(dir)}/${file.replace(/\.json$/, "")}`, path.join(dir, file), exchanges.length - 1] as const;
+      return [
+        `${path.basename(dir)}/${file.replace(/\.json$/, "")}`,
+        path.join(dir, file),
+        exchanges.length - 1,
+      ] as const;
     }),
 );
 
@@ -121,10 +125,15 @@ describe.skipIf(!url)("WS-68 storefront profile pages parity", () => {
 
   // The first request to a route compiles it, which would age the seeded timestamps past the replayer's
   // tolerance for the first fixture that hits it.
-  it("warms up the routes", async () => {
-    const headers = { "x-forwarded-host": "app.test.gumroad.com:31337" };
-    for (const warmPath of WARM_PATHS) await fetch(new URL(warmPath, server.baseUrl), { headers, redirect: "manual" });
-  }, FIRST_COMPILE_TIMEOUT_MS * 2);
+  it(
+    "warms up the routes",
+    async () => {
+      const headers = { "x-forwarded-host": "app.test.gumroad.com:31337" };
+      for (const warmPath of WARM_PATHS)
+        await fetch(new URL(warmPath, server.baseUrl), { headers, redirect: "manual" });
+    },
+    FIRST_COMPILE_TIMEOUT_MS * 2,
+  );
 
   it("finds the fixtures", () => {
     expect(cases.length).toBeGreaterThan(0);
@@ -145,7 +154,12 @@ describe.skipIf(!url)("WS-68 storefront profile pages parity", () => {
       try {
         assertParity(result);
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => /error|Error|at /.test(line)).slice(-25).join("\n");
+        const logs = server
+          .output()
+          .split("\n")
+          .filter((line) => /error|Error|at /.test(line))
+          .slice(-25)
+          .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
     },

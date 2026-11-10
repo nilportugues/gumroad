@@ -10,12 +10,22 @@ import type { AddressInfo } from "node:net";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { openUriRead } from "../../lib/ruby-open-uri.ts";
+import { parseRubyJson, RubyFloat } from "../../server/jobs/sidekiq/ruby-json.ts";
 import { setCurrencyDepsForTesting } from "../../server/models/concerns/currency-helper.ts";
 import { rubyFloatRoundDigits } from "../../server/models/concerns/ruby-numeric.ts";
 import { setPurchasingPowerParityDepsForTesting } from "../../server/models/purchasing-power-parity.ts";
-import { parseRubyJson, RubyFloat } from "../../server/jobs/sidekiq/ruby-json.ts";
-import { asSidekiqJob, contextFor, goldenRuntime, recordingSidekiqRedis, type RedisSnapshot } from "./__fixtures__/golden.ts";
-import { integerOrNil, updatePurchasingPowerParityFactorsWorkerWith } from "./update-purchasing-power-parity-factors-worker.ts";
+
+import {
+  asSidekiqJob,
+  contextFor,
+  goldenRuntime,
+  recordingSidekiqRedis,
+  type RedisSnapshot,
+} from "./__fixtures__/golden.ts";
+import {
+  integerOrNil,
+  updatePurchasingPowerParityFactorsWorkerWith,
+} from "./update-purchasing-power-parity-factors-worker.ts";
 
 type Case = {
   name: string;
@@ -23,11 +33,16 @@ type Case = {
   redis: RedisSnapshot;
   redis_before: RedisSnapshot;
   commands: string[][];
-  requests: Array<{ method: string; path: string; query: string | null }>;
-  responses: Array<{ status: number; headers: Record<string, string>; body: string }>;
+  requests: { method: string; path: string; query: string | null }[];
+  responses: { status: number; headers: Record<string, string>; body: string }[];
   hand_back?: boolean;
 };
-const golden = parseRubyJson(readFileSync(new URL("./__fixtures__/update-purchasing-power-parity-factors-job.golden.json", import.meta.url), "utf8")) as unknown as {
+const golden = parseRubyJson(
+  readFileSync(
+    new URL("./__fixtures__/update-purchasing-power-parity-factors-job.golden.json", import.meta.url),
+    "utf8",
+  ),
+) as unknown as {
   now: number;
   cases: Case[];
   round2: [number | string | RubyFloat, number | string | RubyFloat][];
@@ -53,7 +68,9 @@ beforeAll(async () => {
       return;
     }
     const body = Buffer.from(next.body, "base64");
-    const headers = Object.fromEntries(Object.entries(next.headers).map(([name, value]) => [name, value.replace(/http:\/\/127\.0\.0\.1:\d+/u, origin)]));
+    const headers = Object.fromEntries(
+      Object.entries(next.headers).map(([name, value]) => [name, value.replace(/http:\/\/127\.0\.0\.1:\d+/u, origin)]),
+    );
     response.writeHead(next.status, "X", { ...headers, "Content-Length": String(body.length) }).end(body);
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -113,10 +130,16 @@ describe("UpdatePurchasingPowerParityFactorsWorker", () => {
         expect(fake.commands).toEqual([]);
         return;
       }
-      expect(error === null ? null : withoutPort(error.message)).toEqual(c.error === null ? null : withoutPort(c.error.message));
+      expect(error === null ? null : withoutPort(error.message)).toEqual(
+        c.error === null ? null : withoutPort(c.error.message),
+      );
       expect(fake.commands).toEqual(c.commands);
       const stored = Object.fromEntries([...fake.data].filter(([key]) => KEY.test(key)));
-      const expected = Object.fromEntries(Object.entries(c.redis).filter(([key]) => KEY.test(key)).map(([key, entry]) => [key, entry.value]));
+      const expected = Object.fromEntries(
+        Object.entries(c.redis)
+          .filter(([key]) => KEY.test(key))
+          .map(([key, entry]) => [key, entry.value]),
+      );
       expect(stored).toEqual(expected);
     });
   }
@@ -125,9 +148,19 @@ describe("UpdatePurchasingPowerParityFactorsWorker", () => {
 describe("Float#round(2)", () => {
   // parseRubyJson keeps a whole-number Float apart from an Integer
   const decode = (value: number | string | RubyFloat): number =>
-    value instanceof RubyFloat ? value.value : value === "NaN" ? Number.NaN : value === "Infinity" ? Infinity : value === "-Infinity" ? -Infinity : (value as number);
+    value instanceof RubyFloat
+      ? value.value
+      : value === "NaN"
+        ? Number.NaN
+        : value === "Infinity"
+          ? Infinity
+          : value === "-Infinity"
+            ? -Infinity
+            : (value as number);
   it(`rounds ${golden.round2.length} inputs as Ruby does`, () => {
-    const wrong = golden.round2.filter(([input, expected]) => !Object.is(rubyFloatRoundDigits(decode(input), 2), decode(expected)));
+    const wrong = golden.round2.filter(
+      ([input, expected]) => !Object.is(rubyFloatRoundDigits(decode(input), 2), decode(expected)),
+    );
     expect(wrong.slice(0, 10)).toEqual([]);
   });
 });
@@ -150,12 +183,14 @@ describe("Integer(header, exception: false)", () => {
     expect(integerOrNil(header)).toBe(expected);
   });
 
-  it.each(["", "08", "0x", "0x_1", "1__0", "1_", "_1", "- 1", "1.0", "12abc", " 1", "1 ", "٣"])("reads %j as nil", (header) => {
-    expect(integerOrNil(header)).toBeNull();
-  });
+  it.each(["", "08", "0x", "0x_1", "1__0", "1_", "_1", "- 1", "1.0", "12abc", " 1", "1 ", "٣"])(
+    "reads %j as nil",
+    (header) => {
+      expect(integerOrNil(header)).toBeNull();
+    },
+  );
 
   it("reads a missing header as nil", () => {
     expect(integerOrNil(null)).toBeNull();
   });
 });
-

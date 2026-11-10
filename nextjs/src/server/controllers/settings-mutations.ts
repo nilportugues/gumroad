@@ -12,15 +12,29 @@ import { notifyError } from "../infra/error-reporting.ts";
 import { billingDetailOfPurchaser, BillingDetails } from "../models/billing-detail.ts";
 import { activeBlockedEmails, blockEmailBang, unblockActive } from "../models/blocked-customer-object.ts";
 import { aliveCustomDomainOf, CustomDomainDeletable } from "../models/custom-domain.ts";
-import { saveThirdPartyAnalytics, ThirdPartyAnalyticInvalid, type SnippetParams } from "../models/third-party-analytic.ts";
 import type { ModelRecord } from "../models/runtime/record.ts";
 import { transaction } from "../models/runtime/transaction.ts";
-import { isValidEmailFormat, NotPortedError, setFlag, setJsonDataForAttr, Users, findUserBang, type UserFlag, type UserRecord } from "../models/user.ts";
+import {
+  saveThirdPartyAnalytics,
+  ThirdPartyAnalyticInvalid,
+  type SnippetParams,
+} from "../models/third-party-analytic.ts";
+import {
+  isValidEmailFormat,
+  NotPortedError,
+  setFlag,
+  setJsonDataForAttr,
+  Users,
+  findUserBang,
+  type UserFlag,
+  type UserRecord,
+} from "../models/user.ts";
 import { domainConfig } from "../page-props/domain.ts";
 import { settingsGuard } from "../page-props/settings/guard.ts";
 import { settingsAdvancedUserPolicy } from "../policies/settings/advanced-user.ts";
 import { settingsBillingPolicy } from "../policies/settings/billing.ts";
 import { settingsThirdPartyAnalyticsUserPolicy } from "../policies/settings/third-party-analytics-user.ts";
+
 import { HandBackToRails, type ActionResult } from "./application-controller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 
@@ -33,8 +47,13 @@ const FLASH_ACCOUNT_UPDATED = "Your account has been updated!";
 const FLASH_SOMETHING_BROKE = "Something broke. We're looking into what happened. Sorry about this!";
 const FLASH_BLOCK_FAILED = "Sorry, something went wrong. Please try again.";
 
-const isHash = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
-const redirect = (location: string, alert: string, status = FOUND): ActionResult => ({ status, location, flash: { alert } });
+const isHash = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
+const redirect = (location: string, alert: string, status = FOUND): ActionResult => ({
+  status,
+  location,
+  flash: { alert },
+});
 
 // FlagShihTzu::TRUE_VALUES
 const TRUE_VALUES: unknown[] = [true, 1, "1", "t", "T", "true", "TRUE"];
@@ -61,7 +80,8 @@ function requireUser(params: Record<string, unknown>): Record<string, unknown> {
 }
 
 // Strong parameters' PERMITTED_SCALAR_TYPES; an array or hash under a scalar key is dropped, not an error.
-export const isPermittedScalar = (value: unknown) => value === null || ["string", "number", "boolean"].includes(typeof value);
+export const isPermittedScalar = (value: unknown) =>
+  value === null || ["string", "number", "boolean"].includes(typeof value);
 
 // A permitted scalar for a string column: ActiveModel::Type::String casts true/false to "t"/"f" and an integer to its digits.
 // Floats are handed back: a JSON `1.0` is a Ruby Float, which JS cannot tell from `1`.
@@ -101,7 +121,8 @@ function permittedSnippets(value: unknown): SnippetParams[] {
   return value.map((entry) => {
     if (!isHash(entry)) throw new HandBackToRails("a snippet that is not a hash");
     const snippet: Record<string, unknown> = {};
-    for (const key of SNIPPET_KEYS) if (key in entry && isPermittedScalar(entry[key])) snippet[key] = plainStringValue(entry[key]);
+    for (const key of SNIPPET_KEYS)
+      if (key in entry && isPermittedScalar(entry[key])) snippet[key] = plainStringValue(entry[key]);
     return snippet;
   });
 }
@@ -117,7 +138,13 @@ function assignAnalyticsAttributes(seller: UserRecord, user: Record<string, unkn
 }
 
 async function guard(input: MutationInput, authorize: Parameters<typeof settingsGuard>[0]["authorize"]) {
-  return settingsGuard({ authorize })({ context: input.context, config: domainConfig(process.env), url: input.url, params: input.routeParams, urlOptions: input.urlOptions });
+  return settingsGuard({ authorize })({
+    context: input.context,
+    config: domainConfig(process.env),
+    url: input.url,
+    params: input.routeParams,
+    urlOptions: input.urlOptions,
+  });
 }
 
 async function updateThirdPartyAnalytics(input: MutationInput): Promise<ActionResult> {
@@ -131,7 +158,8 @@ async function updateThirdPartyAnalytics(input: MutationInput): Promise<ActionRe
     return await Users.withLock(seller, async () => {
       assignAnalyticsAttributes(seller, user);
       await saveThirdPartyAnalytics(snippets, seller.get("id"));
-      if (await Users.save(seller)) return { status: SEE_OTHER, location: ANALYTICS_PATH, flash: { notice: FLASH_CHANGES_SAVED } };
+      if (await Users.save(seller))
+        return { status: SEE_OTHER, location: ANALYTICS_PATH, flash: { notice: FLASH_CHANGES_SAVED } };
       return redirect(ANALYTICS_PATH, toSentence(seller.errors.fullMessages()));
     });
   } catch (error) {
@@ -170,10 +198,15 @@ async function updateAdvanced(input: MutationInput): Promise<ActionResult> {
 
   const user = requireUser(input.params);
   const { domain, blocked_customer_emails: emails } = input.params;
-  if (!(domain === undefined || domain === null || typeof domain === "string")) throw new HandBackToRails("a domain that is not a string");
-  if (typeof domain === "string" && domain.trim() !== "") throw new HandBackToRails("a custom domain, which Rails verifies over DNS");
+  if (!(domain === undefined || domain === null || typeof domain === "string"))
+    throw new HandBackToRails("a domain that is not a string");
+  if (typeof domain === "string" && domain.trim() !== "")
+    throw new HandBackToRails("a custom domain, which Rails verifies over DNS");
   if (isHash(emails) || Array.isArray(emails)) throw new HandBackToRails("blocked emails that are a hash or a list");
-  const endpoint = "notification_endpoint" in user && isPermittedScalar(user.notification_endpoint) ? stringValue(user.notification_endpoint) : undefined;
+  const endpoint =
+    "notification_endpoint" in user && isPermittedScalar(user.notification_endpoint)
+      ? stringValue(user.notification_endpoint)
+      : undefined;
 
   const seller = await findUserBang(input.context.currentSeller!.id);
   try {
@@ -202,7 +235,8 @@ async function updateAdvanced(input: MutationInput): Promise<ActionResult> {
     if (customDomain !== null) await CustomDomainDeletable.markDeletedBang(customDomain);
   }
 
-  if (await Users.save(seller)) return { status: SEE_OTHER, location: ADVANCED_PATH, flash: { notice: FLASH_ACCOUNT_UPDATED } };
+  if (await Users.save(seller))
+    return { status: SEE_OTHER, location: ADVANCED_PATH, flash: { notice: FLASH_ACCOUNT_UPDATED } };
   return redirect(ADVANCED_PATH, toSentence(seller.errors.fullMessages()));
 }
 
@@ -210,20 +244,32 @@ async function updateAdvanced(input: MutationInput): Promise<ActionResult> {
 // is ported: Rails drops other types of a permitted key, and a blank boolean is nil in a NOT NULL column.
 const BILLING_PATH = "/settings/billing";
 const FLASH_BILLING_SAVED = "Your billing details have been saved.";
-const BILLING_TEXT_ATTRIBUTES = ["full_name", "business_name", "business_id", "street_address", "city", "state", "zip_code", "country_code", "additional_notes"] as const;
+const BILLING_TEXT_ATTRIBUTES = [
+  "full_name",
+  "business_name",
+  "business_id",
+  "street_address",
+  "city",
+  "state",
+  "zip_code",
+  "country_code",
+  "additional_notes",
+] as const;
 // ActiveModel::Type::Boolean's FALSE_VALUES, for the strings that reach the port.
 const BOOLEAN_FALSE_STRINGS = ["0", "f", "F", "false", "FALSE", "off", "OFF"];
 
 // `params.require(:billing_detail).permit(...)`: a non-blank hash. Anything else raises inside the action.
 function billingDetailAttributes(params: Record<string, unknown>): Partial<BillingDetail> {
   const detail = params.billing_detail;
-  if (!isHash(detail) || Object.keys(detail).length === 0) throw new HandBackToRails("a request without a billing_detail hash");
+  if (!isHash(detail) || Object.keys(detail).length === 0)
+    throw new HandBackToRails("a request without a billing_detail hash");
   const attributes: Record<string, unknown> = {};
   for (const key of BILLING_TEXT_ATTRIBUTES) if (key in detail) attributes[key] = stringValue(detail[key]);
   if ("auto_email_invoice_enabled" in detail) {
     const value = detail.auto_email_invoice_enabled;
     if (typeof value === "boolean") attributes.auto_email_invoice_enabled = value;
-    else if (typeof value === "string" && value !== "") attributes.auto_email_invoice_enabled = !BOOLEAN_FALSE_STRINGS.includes(value);
+    else if (typeof value === "string" && value !== "")
+      attributes.auto_email_invoice_enabled = !BOOLEAN_FALSE_STRINGS.includes(value);
     else throw new HandBackToRails("an auto_email_invoice_enabled value that does not cast cleanly");
   }
   return attributes as Partial<BillingDetail>;
@@ -232,7 +278,9 @@ function billingDetailAttributes(params: Record<string, unknown>): Partial<Billi
 // inertia_errors(billing_detail): `billing_detail.<attribute>` keys, each attribute's messages joined as a sentence.
 function billingErrors(detail: ModelRecord<BillingDetail>): Record<string, unknown> {
   const attributes = [...new Set(detail.errors.details.map((error) => error.attribute))];
-  return Object.fromEntries(attributes.map((attribute) => [`billing_detail.${attribute}`, toSentence(detail.errors.on(attribute))]));
+  return Object.fromEntries(
+    attributes.map((attribute) => [`billing_detail.${attribute}`, toSentence(detail.errors.on(attribute))]),
+  );
 }
 
 async function updateBillingDetail(input: MutationInput): Promise<ActionResult> {
@@ -243,7 +291,8 @@ async function updateBillingDetail(input: MutationInput): Promise<ActionResult> 
   const purchaserId = input.context.currentSeller!.id;
   const detail = (await billingDetailOfPurchaser(purchaserId)) ?? BillingDetails.build({ purchaser_id: purchaserId });
   detail.assign(attributes);
-  if (await BillingDetails.save(detail)) return { status: SEE_OTHER, location: BILLING_PATH, flash: { notice: FLASH_BILLING_SAVED } };
+  if (await BillingDetails.save(detail))
+    return { status: SEE_OTHER, location: BILLING_PATH, flash: { notice: FLASH_BILLING_SAVED } };
   return { status: FOUND, location: BILLING_PATH, inertiaErrors: billingErrors(detail) };
 }
 

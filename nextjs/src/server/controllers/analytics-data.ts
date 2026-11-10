@@ -2,25 +2,38 @@
 // fetch for a date range. Sellers::BaseController runs RequireAccountEmail and authenticate_user!, then
 // `set_time_range`, then the action authorizes `:analytics`.
 import { railsLoggedInUser } from "../auth/resolve.ts";
-import { notAllowedMessage } from "../page-props/settings/guard.ts";
 import { CreatorAnalyticsCachingProxy } from "../page-props/analytics/caching-proxy.ts";
+import { parseRailsDate } from "../page-props/analytics/churn.ts";
 import { CreatorAnalyticsWeb, type AnalyticsSeller } from "../page-props/analytics/creator-analytics-web.ts";
+import { rackParam } from "../page-props/audience/support.ts";
+import { notAllowedMessage } from "../page-props/settings/guard.ts";
 import { analyticsPolicy } from "../policies/seller-analytics.ts";
 import { loadSellerContext, NotAuthorizedError } from "../policies/seller-context.ts";
 import { addDays, civilDateInZone, TimeZoneNotPortedError } from "../search/civil-time.ts";
 import { MAX_HOURLY_DATE_RANGE_DAYS } from "../search/creator-analytics-sales.ts";
 import { esJson, type JsonValue } from "../search/es-json.ts";
-import { rackParam } from "../page-props/audience/support.ts";
-import { type ActionContext, type ActionOptions, type ActionResult, HandBackToRails, processAction, type Rendered } from "./application-controller.ts";
+
+import {
+  type ActionContext,
+  type ActionOptions,
+  type ActionResult,
+  HandBackToRails,
+  processAction,
+  type Rendered,
+} from "./application-controller.ts";
 import { assertFlatQuery, requestFormat } from "./rails-params.ts";
-import { parseRailsDate } from "../page-props/analytics/churn.ts";
 
 const ADD_EMAIL_MESSAGE = "Please add an email address to your account before continuing.";
 const DEFAULT_RANGE_DAYS = 29;
 const JSON_TYPE = "application/json; charset=utf-8";
 
 // `render json:` answers Vary: Accept (params_read is not set by `params[...]` reads on this request).
-const json = (value: unknown, status = 200, paramsRead = false): Rendered => ({ status, body: esJson(value as JsonValue), contentType: JSON_TYPE, paramsRead });
+const json = (value: unknown, status = 200, paramsRead = false): Rendered => ({
+  status,
+  body: esJson(value as JsonValue),
+  contentType: JSON_TYPE,
+  paramsRead,
+});
 
 // ApplicationController#strip_timestamp_location: `timestamp.gsub(/([^(]+).*/, '\1').strip`, nil for nil. An array
 // param has no gsub (NoMethodError), which set_time_range rescues like a parse failure: null. gsub keeps any
@@ -79,7 +92,12 @@ async function respond(action: ActionContext, by: "date" | "state" | "referral")
       case "json":
         return { ...json({ success: false, error: message }, 401), rescued: true };
       default:
-        return { status: 302, location: "/dashboard", ...(request.queryString.includes("account_switched") ? {} : { flash: { alert: message } }), rescued: true };
+        return {
+          status: 302,
+          location: "/dashboard",
+          ...(request.queryString.includes("account_switched") ? {} : { flash: { alert: message } }),
+          rescued: true,
+        };
     }
   }
 
@@ -87,7 +105,11 @@ async function respond(action: ActionContext, by: "date" | "state" | "referral")
     if (by === "referral" && rackParam({ queryString: request.queryString }, "interval") === "hour") {
       if (endDate < startDate) return json({ error: "Invalid date range." }, 400);
       const days = Math.round((Date.parse(endDate) - Date.parse(startDate)) / 86_400_000);
-      if (days > MAX_HOURLY_DATE_RANGE_DAYS) return json({ error: `Date range cannot exceed ${MAX_HOURLY_DATE_RANGE_DAYS} days for the hourly interval.` }, 400);
+      if (days > MAX_HOURLY_DATE_RANGE_DAYS)
+        return json(
+          { error: `Date range cannot exceed ${MAX_HOURLY_DATE_RANGE_DAYS} days for the hourly interval.` },
+          400,
+        );
       // Hourly data bypasses the cache, which only stores day-keyed data.
       const dates: string[] = [];
       for (let date = startDate; date <= endDate; date = addDays(date, 1)) dates.push(date);
@@ -104,5 +126,6 @@ async function respond(action: ActionContext, by: "date" | "state" | "referral")
 export const ANALYTICS_DATA_OPTIONS: ActionOptions = {};
 
 export function analyticsDataResponse(by: "date" | "state" | "referral") {
-  return (incoming: Request): Promise<Response> => processAction(incoming, ANALYTICS_DATA_OPTIONS, (action) => respond(action, by));
+  return (incoming: Request): Promise<Response> =>
+    processAction(incoming, ANALYTICS_DATA_OPTIONS, (action) => respond(action, by));
 }

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LinkFlags } from "../models/link.ts";
 import { PurchaseFlags } from "../search/flags.ts";
+
 import type { MutationInput, MutationSpec } from "./mutation.ts";
 
 const { specs, selectRows, setLibraryFlag, loadSellerContext } = vi.hoisted(() => ({
@@ -11,11 +12,25 @@ const { specs, selectRows, setLibraryFlag, loadSellerContext } = vi.hoisted(() =
   loadSellerContext: vi.fn(),
 }));
 
-vi.mock("./mutation.ts", () => ({ registerMutations: (...registered: MutationSpec[]) => void specs.push(...registered) }));
-vi.mock("../models/sql.ts", async (original) => ({ ...(await original<typeof import("../models/sql.ts")>()), selectRows, castRow: (_: string, row: unknown) => row }));
-vi.mock("../models/purchase-library-writes.ts", () => ({ loadLibraryPurchase: (row: unknown, timezone: string) => ({ row, timezone }), setLibraryFlag }));
-vi.mock("../policies/seller-context.ts", async (original) => ({ ...(await original<typeof import("../policies/seller-context.ts")>()), loadSellerContext }));
-vi.mock("../../lib/obfuscate-ids.ts", () => ({ decrypt: (value: string) => (/^\d+$/u.test(value) ? Number(value) : null) }));
+vi.mock("./mutation.ts", () => ({
+  registerMutations: (...registered: MutationSpec[]) => void specs.push(...registered),
+}));
+vi.mock("../models/sql.ts", async (original) => ({
+  ...(await original<typeof import("../models/sql.ts")>()),
+  selectRows,
+  castRow: (_: string, row: unknown) => row,
+}));
+vi.mock("../models/purchase-library-writes.ts", () => ({
+  loadLibraryPurchase: (row: unknown, timezone: string) => ({ row, timezone }),
+  setLibraryFlag,
+}));
+vi.mock("../policies/seller-context.ts", async (original) => ({
+  ...(await original<typeof import("../policies/seller-context.ts")>()),
+  loadSellerContext,
+}));
+vi.mock("../../lib/obfuscate-ids.ts", () => ({
+  decrypt: (value: string) => (/^\d+$/u.test(value) ? Number(value) : null),
+}));
 
 await import("./purchase-access-writes.ts");
 
@@ -26,14 +41,33 @@ const undo = find("/purchases/:id/undo_revoke_access");
 const seller = { id: 7n, timezone: "Pacific Time (US & Canada)" };
 const REVOKED = PurchaseFlags.set(0n, "is_access_revoked", true);
 const PHYSICAL = LinkFlags.set(0n, "is_physical", true);
-const purchaseRow = (overrides: Record<string, unknown> = {}) => ({ id: 5n, seller_id: 7n, link_id: 9n, subscription_id: null, stripe_refunded: false, flags: 0n, ...overrides });
+const purchaseRow = (overrides: Record<string, unknown> = {}) => ({
+  id: 5n,
+  seller_id: 7n,
+  link_id: 9n,
+  subscription_id: null,
+  stripe_refunded: false,
+  flags: 0n,
+  ...overrides,
+});
 const input = (id = "5", signedIn = true): MutationInput =>
-  ({ routeParams: { id }, context: { currentSeller: signedIn ? seller : null, loggedInUser: signedIn ? seller : null, impersonatedUser: null } }) as unknown as MutationInput;
+  ({
+    routeParams: { id },
+    context: {
+      currentSeller: signedIn ? seller : null,
+      loggedInUser: signedIn ? seller : null,
+      impersonatedUser: null,
+    },
+  }) as unknown as MutationInput;
 const body = (result: unknown) => JSON.parse((result as { body: string }).body);
 const status = (result: unknown) => (result as { status: number }).status;
 
 // selectRows runs for the purchase, then its link, then (only for a subscription purchase) the subscription.
-function stage(purchase: Record<string, unknown> | undefined, linkFlags: bigint | bigint[] = 0n, subscription?: Record<string, unknown>) {
+function stage(
+  purchase: Record<string, unknown> | undefined,
+  linkFlags: bigint | bigint[] = 0n,
+  subscription?: Record<string, unknown>,
+) {
   selectRows.mockResolvedValueOnce(purchase ? [purchase] : []);
   if (!purchase) return;
   selectRows.mockResolvedValueOnce([{ flags: linkFlags }]);
@@ -52,7 +86,11 @@ describe("PUT /purchases/:id/revoke_access", () => {
     stage(purchaseRow());
     const result = await revoke.run(input());
     expect(status(result)).toBe(204);
-    expect(setLibraryFlag).toHaveBeenCalledWith({ row: purchaseRow(), timezone: seller.timezone }, "is_access_revoked", true);
+    expect(setLibraryFlag).toHaveBeenCalledWith(
+      { row: purchaseRow(), timezone: seller.timezone },
+      "is_access_revoked",
+      true,
+    );
   });
 
   it("answers 404 JSON for another seller's purchase and writes nothing", async () => {

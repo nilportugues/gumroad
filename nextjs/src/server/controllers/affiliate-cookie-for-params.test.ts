@@ -26,13 +26,20 @@ vi.mock("../page-props/domain.ts", () => ({ domainConfig: () => ({}) }));
 vi.mock("../presenters/product.ts", () => ({ longUrl: () => "", subdomainWithProtocol: () => null }));
 vi.mock("../presenters/product-reads.ts", () => ({ findUserById: async () => null }));
 
-import { HandBackToRails } from "./application-controller.ts";
 import { affiliateCookieForParams } from "./affiliate-redirect.ts";
+import { HandBackToRails } from "./application-controller.ts";
 import type { RailsRequest } from "./rails-request.ts";
 
 const request = (queryString: string) => ({ queryString, host: "seller.example.com" }) as RailsRequest;
 const NOW = new Date("2026-01-01T00:00:00Z");
-const affiliate = (over: Record<string, unknown> = {}) => ({ id: 7n, type: "DirectAffiliate", deleted_at: null, seller_id: 1n, affiliate_user_id: 2n, ...over });
+const affiliate = (over: Record<string, unknown> = {}) => ({
+  id: 7n,
+  type: "DirectAffiliate",
+  deleted_at: null,
+  seller_id: 1n,
+  affiliate_user_id: 2n,
+  ...over,
+});
 
 describe("affiliateCookieForParams", () => {
   beforeEach(() => {
@@ -81,7 +88,9 @@ describe("affiliateCookieForParams", () => {
 
   it("hands a nested param and an id beyond the obfuscated range back to Rails", async () => {
     await expect(affiliateCookieForParams(request("a[]=1007"), NOW)).rejects.toBeInstanceOf(HandBackToRails);
-    await expect(affiliateCookieForParams(request("affiliate_id%5Bx%5D=1"), NOW)).rejects.toBeInstanceOf(HandBackToRails);
+    await expect(affiliateCookieForParams(request("affiliate_id%5Bx%5D=1"), NOW)).rejects.toBeInstanceOf(
+      HandBackToRails,
+    );
     await expect(affiliateCookieForParams(request("a=99999999999"), NOW)).rejects.toBeInstanceOf(HandBackToRails);
   });
 });

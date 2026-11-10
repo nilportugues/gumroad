@@ -2,7 +2,10 @@ import type { Prisma } from "@prisma/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const selectRows = vi.hoisted(() => vi.fn());
-vi.mock("../../models/sql.ts", async (importOriginal) => ({ ...(await importOriginal<typeof import("../../models/sql.ts")>()), selectRows }));
+vi.mock("../../models/sql.ts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../models/sql.ts")>()),
+  selectRows,
+}));
 vi.mock("../../../lib/db.ts", () => ({ db: {} }));
 
 import { hasCuratedProductSources } from "./discover.ts";

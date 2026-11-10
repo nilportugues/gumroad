@@ -24,7 +24,12 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../../../lib/db.ts", () => ({ db: mocks.db }));
-vi.mock("./unavailable.ts", async (importOriginal) => ({ ...(await importOriginal<object>()), load: mocks.load, hasRichContent: mocks.hasRichContent, layoutProps: () => ({ token: "tok123" }) }));
+vi.mock("./unavailable.ts", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  load: mocks.load,
+  hasRichContent: mocks.hasRichContent,
+  layoutProps: () => ({ token: "tok123" }),
+}));
 vi.mock("../../models/consumption-event.ts", () => ({ createEventBang: mocks.createEventBang }));
 vi.mock("../../auth/rails-session-config.ts", async () => {
   const { deriveRailsCookieSecrets } = await import("../../auth/rails-cookies.ts");
@@ -37,7 +42,17 @@ const NOW = new Date("2026-03-01T12:00:00Z");
 
 const loaded = (overrides: Record<string, unknown> = {}) => ({
   redirect: { id: 11n, token: "tok123", purchase_id: 5n, link_id: 3n, flags: 0n },
-  purchase: { id: 5n, link_id: 3n, purchaser_id: null, flags: 0n, stripe_refunded: null, chargeback_date: null, rental_expired: null, ip_address: null, json_data: null },
+  purchase: {
+    id: 5n,
+    link_id: 3n,
+    purchaser_id: null,
+    flags: 0n,
+    stripe_refunded: null,
+    chargeback_date: null,
+    rental_expired: null,
+    ip_address: null,
+    json_data: null,
+  },
   product: { id: 3n, user_id: 2n, flags: 0n, native_type: "digital" },
   seller: null,
   purchaser: null,
@@ -65,9 +80,26 @@ beforeEach(() => {
   vi.resetAllMocks();
   mocks.load.mockResolvedValue(loaded());
   mocks.hasRichContent.mockResolvedValue(false);
-  mocks.db.user.findUnique.mockResolvedValue({ id: 2n, google_analytics_id: null, facebook_pixel_id: null, json_data: null });
-  for (const model of [mocks.db.baseVariantsPurchase, mocks.db.baseVariant, mocks.db.variantCategory, mocks.db.baseVariantsProductFile]) model.findMany.mockResolvedValue([]);
-  for (const model of [mocks.db.productFile, mocks.db.productIntegration, mocks.db.thirdPartyAnalytic, mocks.db.installment]) model.count.mockResolvedValue(0);
+  mocks.db.user.findUnique.mockResolvedValue({
+    id: 2n,
+    google_analytics_id: null,
+    facebook_pixel_id: null,
+    json_data: null,
+  });
+  for (const model of [
+    mocks.db.baseVariantsPurchase,
+    mocks.db.baseVariant,
+    mocks.db.variantCategory,
+    mocks.db.baseVariantsProductFile,
+  ])
+    model.findMany.mockResolvedValue([]);
+  for (const model of [
+    mocks.db.productFile,
+    mocks.db.productIntegration,
+    mocks.db.thirdPartyAnalytic,
+    mocks.db.installment,
+  ])
+    model.count.mockResolvedValue(0);
 });
 
 function purchasedVariant({ files = false, deleted = false }: { files?: boolean; deleted?: boolean }) {
@@ -83,7 +115,16 @@ describe("downloadPageFilters", () => {
     const request = chain();
     await expect(downloadPageFilters(request)).resolves.toEqual({ state: {} });
 
-    expect(mocks.createEventBang).toHaveBeenCalledWith(expect.objectContaining({ event_type: "view", platform: "web", url_redirect_id: 11n, purchase_id: 5n, product_id: 3n, product_file_id: null }));
+    expect(mocks.createEventBang).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event_type: "view",
+        platform: "web",
+        url_redirect_id: 11n,
+        purchase_id: 5n,
+        product_id: 3n,
+        product_file_id: null,
+      }),
+    );
     expect(mocks.db.$executeRaw).toHaveBeenCalledTimes(2);
     expect(String(mocks.db.$executeRaw.mock.calls[0]![0].sql)).toContain("uses = COALESCE(uses, 0) + 1");
     expect(String(mocks.db.$executeRaw.mock.calls[1]![0].sql)).toContain("flags = COALESCE(flags, 0) |");
@@ -95,7 +136,9 @@ describe("downloadPageFilters", () => {
   it("writes nothing when the access check redirects", async () => {
     mocks.load.mockResolvedValue(loaded({ purchase: { ...loaded().purchase, flags: 1n << 24n } }));
     const request = chain();
-    await expect(downloadPageFilters(request)).resolves.toEqual({ halt: { status: 302, location: "/r/tok123/expired", rescued: true } });
+    await expect(downloadPageFilters(request)).resolves.toEqual({
+      halt: { status: 302, location: "/r/tok123/expired", rescued: true },
+    });
 
     expect(mocks.createEventBang).not.toHaveBeenCalled();
     expect(mocks.db.$executeRaw).not.toHaveBeenCalled();
@@ -109,7 +152,9 @@ describe("downloadPageFilters", () => {
 
   it("asks for the purchase email once the link was opened", async () => {
     mocks.load.mockResolvedValue(loaded({ redirect: { ...loaded().redirect, flags: 1n } }));
-    await expect(downloadPageFilters(chain())).resolves.toEqual({ halt: { status: 302, location: "/confirm?destination=download_page&id=tok123", rescued: true } });
+    await expect(downloadPageFilters(chain())).resolves.toEqual({
+      halt: { status: 302, location: "/confirm?destination=download_page&id=tok123", rescued: true },
+    });
   });
 
   describe("shapes Rails renders", () => {
@@ -121,9 +166,21 @@ describe("downloadPageFilters", () => {
       ["a purchased variant with files", () => purchasedVariant({ files: true })],
       ["a deleted purchased variant", () => purchasedVariant({ deleted: true })],
       ["rich content", () => mocks.hasRichContent.mockResolvedValue(true)],
-      ["a license key", () => mocks.load.mockResolvedValue(loaded({ product: { ...loaded().product, flags: 1n << 6n } }))],
-      ["a bundle purchase", () => mocks.load.mockResolvedValue(loaded({ purchase: { ...loaded().purchase, flags: 1n << 25n } }))],
-      ["a saved content page that is not a string", () => mocks.load.mockResolvedValue(loaded({ purchase: { ...loaded().purchase, json_data: '{"last_content_page_id":5}' } }))],
+      [
+        "a license key",
+        () => mocks.load.mockResolvedValue(loaded({ product: { ...loaded().product, flags: 1n << 6n } })),
+      ],
+      [
+        "a bundle purchase",
+        () => mocks.load.mockResolvedValue(loaded({ purchase: { ...loaded().purchase, flags: 1n << 25n } })),
+      ],
+      [
+        "a saved content page that is not a string",
+        () =>
+          mocks.load.mockResolvedValue(
+            loaded({ purchase: { ...loaded().purchase, json_data: '{"last_content_page_id":5}' } }),
+          ),
+      ],
     ])("hand back %s without recording the visit", async (_, arrange) => {
       arrange();
       await expect(downloadPageFilters(chain())).rejects.toBeInstanceOf(HandBackToRails);
@@ -133,7 +190,11 @@ describe("downloadPageFilters", () => {
     });
 
     it("hands back a poll that passes the access check, and the mobile app token sign-in", async () => {
-      const poll = { "x-inertia": "true", "x-inertia-partial-component": "UrlRedirects/DownloadPage", "x-inertia-partial-data": "audio_durations" };
+      const poll = {
+        "x-inertia": "true",
+        "x-inertia-partial-component": "UrlRedirects/DownloadPage",
+        "x-inertia-partial-data": "audio_durations",
+      };
       await expect(downloadPageFilters(chain({ headers: poll }))).rejects.toBeInstanceOf(HandBackToRails);
 
       const withToken = chain();
@@ -156,7 +217,8 @@ describe("downloadPageFilters", () => {
   });
 
   describe("coffee product", () => {
-    const coffee = () => mocks.load.mockResolvedValue(loaded({ product: { ...loaded().product, native_type: "coffee" } }));
+    const coffee = () =>
+      mocks.load.mockResolvedValue(loaded({ product: { ...loaded().product, native_type: "coffee" } }));
 
     it("redirects to the seller's coffee page without recording a visit", async () => {
       coffee();
@@ -164,7 +226,9 @@ describe("downloadPageFilters", () => {
       const outcome = await downloadPageFilters(chain());
 
       expect(outcome).toMatchObject({ halt: { status: 302, rescued: true } });
-      expect((outcome as { halt: { location: string } }).halt.location).toMatch(/^https?:\/\/some-seller\.[^/]+\/coffee$/u);
+      expect((outcome as { halt: { location: string } }).halt.location).toMatch(
+        /^https?:\/\/some-seller\.[^/]+\/coffee$/u,
+      );
       expect(mocks.createEventBang).not.toHaveBeenCalled();
       expect(mocks.db.$executeRaw).not.toHaveBeenCalled();
     });
@@ -176,7 +240,9 @@ describe("downloadPageFilters", () => {
       request.request.queryString = "purchase_email=a%2Bb%40example.com";
       const outcome = await downloadPageFilters(request);
 
-      expect((outcome as { halt: { location: string } }).halt.location).toMatch(/\/coffee\?purchase_email=a%2Bb%40example\.com$/u);
+      expect((outcome as { halt: { location: string } }).halt.location).toMatch(
+        /\/coffee\?purchase_email=a%2Bb%40example\.com$/u,
+      );
     });
 
     it("hands back when the seller has no username to build a subdomain from", async () => {
