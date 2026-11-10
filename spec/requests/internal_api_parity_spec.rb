@@ -700,11 +700,32 @@ describe "Internal API", type: :request, elasticsearch_wait_for_refresh: true do
         expect(response).to have_http_status(:not_found)
       end
 
-      it "hands a product of another seller to Rails", parity: true do
+      it "answers 404 for a product of another seller the user does not collaborate on", parity: true do
         other = create(:product, user: create(:user), unique_permalink: "theirs")
         log_in(seller)
 
         get "/internal/products/#{other.unique_permalink}/existing_product_files", headers: JSON_ACCEPT
+
+        expect(response).to have_http_status(:not_found)
+      end
+
+      it "lists nothing for a collaborator on a product without files", parity: true do
+        collaborator = create(:collaborator, seller:)
+        create(:product_affiliate, affiliate: collaborator, product:)
+        log_in(collaborator.affiliate_user)
+
+        get "/internal/products/#{product.unique_permalink}/existing_product_files", headers: JSON_ACCEPT
+
+        expect(response.parsed_body).to eq("existing_files" => [])
+      end
+
+      it "answers 404 for a collaborator on another product of the seller", parity: true do
+        collaborator = create(:collaborator, seller:)
+        create(:product_affiliate, affiliate: collaborator, product: create(:product, user: seller, unique_permalink: "collabone"))
+        product
+        log_in(collaborator.affiliate_user)
+
+        get "/internal/products/#{product.unique_permalink}/existing_product_files", headers: JSON_ACCEPT
 
         expect(response).to have_http_status(:not_found)
       end
