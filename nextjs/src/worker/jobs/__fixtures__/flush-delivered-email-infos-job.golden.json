@@ -1,0 +1,2622 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "nothing buffered",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "rows": {},
+      "redis_before": {},
+      "job": "FlushDeliveredEmailInfosJob",
+      "args": [],
+      "chunk": 1000,
+      "max_chunks": 50,
+      "lose_lock_at": null
+    },
+    {
+      "name": "a sent email delivered",
+      "error": null,
+      "statements": [
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '1' THEN '2026-11-03 10:00:00' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` = 1 AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 1
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "email_infos": {
+          "fields": [
+            "id",
+            "purchase_id",
+            "installment_id",
+            "type",
+            "email_name",
+            "state",
+            "sent_at",
+            "delivered_at",
+            "opened_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:00.000000Z"
+              },
+              null
+            ]
+          ]
+        }
+      },
+      "redis_before": {
+        "email_info:delivered_buffer": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":1,\"t\":1793700000}"
+          ],
+          "expires": false
+        }
+      },
+      "job": "FlushDeliveredEmailInfosJob",
+      "args": [],
+      "chunk": 1000,
+      "max_chunks": 50,
+      "lose_lock_at": null
+    },
+    {
+      "name": "a created email delivered",
+      "error": null,
+      "statements": [
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '1' THEN '2026-11-03 10:00:00' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` = 1 AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 1
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "email_infos": {
+          "fields": [
+            "id",
+            "purchase_id",
+            "installment_id",
+            "type",
+            "email_name",
+            "state",
+            "sent_at",
+            "delivered_at",
+            "opened_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              null,
+              {
+                "$time": "2026-11-03T10:00:00.000000Z"
+              },
+              null
+            ]
+          ]
+        }
+      },
+      "redis_before": {
+        "email_info:delivered_buffer": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":1,\"t\":1793700000}"
+          ],
+          "expires": false
+        }
+      },
+      "job": "FlushDeliveredEmailInfosJob",
+      "args": [],
+      "chunk": 1000,
+      "max_chunks": 50,
+      "lose_lock_at": null
+    },
+    {
+      "name": "a delivered email is not moved",
+      "error": null,
+      "statements": [
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '1' THEN '2026-11-03 10:00:00' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` = 1 AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "email_infos": {
+          "fields": [
+            "id",
+            "purchase_id",
+            "installment_id",
+            "type",
+            "email_name",
+            "state",
+            "sent_at",
+            "delivered_at",
+            "opened_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-02T09:00:00.000000Z"
+              },
+              null
+            ]
+          ]
+        }
+      },
+      "redis_before": {
+        "email_info:delivered_buffer": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":1,\"t\":1793700000}"
+          ],
+          "expires": false
+        }
+      },
+      "job": "FlushDeliveredEmailInfosJob",
+      "args": [],
+      "chunk": 1000,
+      "max_chunks": 50,
+      "lose_lock_at": null
+    },
+    {
+      "name": "a opened email is not moved",
+      "error": null,
+      "statements": [
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '1' THEN '2026-11-03 10:00:01' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` = 1 AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "email_infos": {
+          "fields": [
+            "id",
+            "purchase_id",
+            "installment_id",
+            "type",
+            "email_name",
+            "state",
+            "sent_at",
+            "delivered_at",
+            "opened_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "opened",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-02T09:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-02T09:30:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "redis_before": {
+        "email_info:delivered_buffer": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":1,\"t\":1793700001}"
+          ],
+          "expires": false
+        }
+      },
+      "job": "FlushDeliveredEmailInfosJob",
+      "args": [],
+      "chunk": 1000,
+      "max_chunks": 50,
+      "lose_lock_at": null
+    },
+    {
+      "name": "a bounced email is not moved",
+      "error": null,
+      "statements": [
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '1' THEN '2026-11-03 10:00:02' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` = 1 AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "email_infos": {
+          "fields": [
+            "id",
+            "purchase_id",
+            "installment_id",
+            "type",
+            "email_name",
+            "state",
+            "sent_at",
+            "delivered_at",
+            "opened_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "bounced",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-02T09:00:00.000000Z"
+              },
+              null
+            ]
+          ]
+        }
+      },
+      "redis_before": {
+        "email_info:delivered_buffer": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":1,\"t\":1793700002}"
+          ],
+          "expires": false
+        }
+      },
+      "job": "FlushDeliveredEmailInfosJob",
+      "args": [],
+      "chunk": 1000,
+      "max_chunks": 50,
+      "lose_lock_at": null
+    },
+    {
+      "name": "an email with no state is not moved",
+      "error": null,
+      "statements": [
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '1' THEN '2026-11-03 10:00:00' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` = 1 AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "email_infos": {
+          "fields": [
+            "id",
+            "purchase_id",
+            "installment_id",
+            "type",
+            "email_name",
+            "state",
+            "sent_at",
+            "delivered_at",
+            "opened_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              null,
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "redis_before": {
+        "email_info:delivered_buffer": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":1,\"t\":1793700000}"
+          ],
+          "expires": false
+        }
+      },
+      "job": "FlushDeliveredEmailInfosJob",
+      "args": [],
+      "chunk": 1000,
+      "max_chunks": 50,
+      "lose_lock_at": null
+    },
+    {
+      "name": "a created email that already has a delivered time",
+      "error": null,
+      "statements": [
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '1' THEN '2026-11-03 10:00:00' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` = 1 AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 1
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "email_infos": {
+          "fields": [
+            "id",
+            "purchase_id",
+            "installment_id",
+            "type",
+            "email_name",
+            "state",
+            "sent_at",
+            "delivered_at",
+            "opened_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:00.000000Z"
+              },
+              null
+            ]
+          ]
+        }
+      },
+      "redis_before": {
+        "email_info:delivered_buffer": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":1,\"t\":1793700000}"
+          ],
+          "expires": false
+        }
+      },
+      "job": "FlushDeliveredEmailInfosJob",
+      "args": [],
+      "chunk": 1000,
+      "max_chunks": 50,
+      "lose_lock_at": null
+    },
+    {
+      "name": "an email of another type is not touched",
+      "error": null,
+      "statements": [
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '1' THEN '2026-11-03 10:00:00' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` = 1 AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "email_infos": {
+          "fields": [
+            "id",
+            "purchase_id",
+            "installment_id",
+            "type",
+            "email_name",
+            "state",
+            "sent_at",
+            "delivered_at",
+            "opened_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              "creator_contacting_customers_email",
+              "sent",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              null,
+              null
+            ],
+            [
+              2,
+              1,
+              1,
+              "EmailInfo",
+              "creator_contacting_customers_email",
+              "sent",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "redis_before": {
+        "email_info:delivered_buffer": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":1,\"t\":1793700000}"
+          ],
+          "expires": false
+        }
+      },
+      "job": "FlushDeliveredEmailInfosJob",
+      "args": [],
+      "chunk": 1000,
+      "max_chunks": 50,
+      "lose_lock_at": null
+    },
+    {
+      "name": "an email of another installment is not touched",
+      "error": null,
+      "statements": [
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '1' THEN '2026-11-03 10:00:00' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` = 1 AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "email_infos": {
+          "fields": [
+            "id",
+            "purchase_id",
+            "installment_id",
+            "type",
+            "email_name",
+            "state",
+            "sent_at",
+            "delivered_at",
+            "opened_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              2,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "sent",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "redis_before": {
+        "email_info:delivered_buffer": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":1,\"t\":1793700000}"
+          ],
+          "expires": false
+        }
+      },
+      "job": "FlushDeliveredEmailInfosJob",
+      "args": [],
+      "chunk": 1000,
+      "max_chunks": 50,
+      "lose_lock_at": null
+    },
+    {
+      "name": "an entry with no email info",
+      "error": null,
+      "statements": [
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '1' THEN '2026-11-03 10:00:00' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` = 1 AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {},
+      "redis_before": {
+        "email_info:delivered_buffer": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":1,\"t\":1793700000}"
+          ],
+          "expires": false
+        }
+      },
+      "job": "FlushDeliveredEmailInfosJob",
+      "args": [],
+      "chunk": 1000,
+      "max_chunks": 50,
+      "lose_lock_at": null
+    },
+    {
+      "name": "the earliest of three deliveries of a purchase wins",
+      "error": null,
+      "statements": [
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '1' THEN '2026-11-03 10:00:00' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` = 1 AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 1
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "email_infos": {
+          "fields": [
+            "id",
+            "purchase_id",
+            "installment_id",
+            "type",
+            "email_name",
+            "state",
+            "sent_at",
+            "delivered_at",
+            "opened_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:00.000000Z"
+              },
+              null
+            ]
+          ]
+        }
+      },
+      "redis_before": {
+        "email_info:delivered_buffer": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":1,\"t\":1793700060}",
+            "{\"i\":1,\"p\":1,\"t\":1793700000}",
+            "{\"i\":1,\"p\":1,\"t\":1793700030}"
+          ],
+          "expires": false
+        }
+      },
+      "job": "FlushDeliveredEmailInfosJob",
+      "args": [],
+      "chunk": 1000,
+      "max_chunks": 50,
+      "lose_lock_at": null
+    },
+    {
+      "name": "an entry at the epoch",
+      "error": null,
+      "statements": [
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '1' THEN '1970-01-01 00:00:00' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` = 1 AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 1
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "email_infos": {
+          "fields": [
+            "id",
+            "purchase_id",
+            "installment_id",
+            "type",
+            "email_name",
+            "state",
+            "sent_at",
+            "delivered_at",
+            "opened_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "1970-01-01T00:00:00.000000Z"
+              },
+              null
+            ]
+          ]
+        }
+      },
+      "redis_before": {
+        "email_info:delivered_buffer": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":1,\"t\":0}"
+          ],
+          "expires": false
+        }
+      },
+      "job": "FlushDeliveredEmailInfosJob",
+      "args": [],
+      "chunk": 1000,
+      "max_chunks": 50,
+      "lose_lock_at": null
+    },
+    {
+      "name": "an entry far in the future",
+      "error": null,
+      "statements": [
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '1' THEN '2100-01-01 00:00:00' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` = 1 AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 1
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "email_infos": {
+          "fields": [
+            "id",
+            "purchase_id",
+            "installment_id",
+            "type",
+            "email_name",
+            "state",
+            "sent_at",
+            "delivered_at",
+            "opened_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2100-01-01T00:00:00.000000Z"
+              },
+              null
+            ]
+          ]
+        }
+      },
+      "redis_before": {
+        "email_info:delivered_buffer": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":1,\"t\":4102444800}"
+          ],
+          "expires": false
+        }
+      },
+      "job": "FlushDeliveredEmailInfosJob",
+      "args": [],
+      "chunk": 1000,
+      "max_chunks": 50,
+      "lose_lock_at": null
+    },
+    {
+      "name": "several purchases of one installment",
+      "error": null,
+      "statements": [
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '3' THEN '2026-11-03 10:00:03' WHEN '1' THEN '2026-11-03 10:00:01' WHEN '2' THEN '2026-11-03 10:00:02' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` IN (3, 1, 2) AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 3
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "email_infos": {
+          "fields": [
+            "id",
+            "purchase_id",
+            "installment_id",
+            "type",
+            "email_name",
+            "state",
+            "sent_at",
+            "delivered_at",
+            "opened_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:01.000000Z"
+              },
+              null
+            ],
+            [
+              2,
+              2,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:02.000000Z"
+              },
+              null
+            ],
+            [
+              3,
+              3,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:03.000000Z"
+              },
+              null
+            ]
+          ]
+        }
+      },
+      "redis_before": {
+        "email_info:delivered_buffer": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":3,\"t\":1793700003}",
+            "{\"i\":1,\"p\":1,\"t\":1793700001}",
+            "{\"i\":1,\"p\":2,\"t\":1793700002}"
+          ],
+          "expires": false
+        }
+      },
+      "job": "FlushDeliveredEmailInfosJob",
+      "args": [],
+      "chunk": 1000,
+      "max_chunks": 50,
+      "lose_lock_at": null
+    },
+    {
+      "name": "several installments",
+      "error": null,
+      "statements": [
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '2' THEN '2026-11-03 10:00:02' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 2 AND `email_infos`.`purchase_id` = 2 AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '1' THEN '2026-11-03 10:00:01' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` = 1 AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '3' THEN '2026-11-03 10:00:03' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 3 AND `email_infos`.`purchase_id` = 3 AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 1
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "email_infos": {
+          "fields": [
+            "id",
+            "purchase_id",
+            "installment_id",
+            "type",
+            "email_name",
+            "state",
+            "sent_at",
+            "delivered_at",
+            "opened_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:01.000000Z"
+              },
+              null
+            ],
+            [
+              2,
+              2,
+              2,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:02.000000Z"
+              },
+              null
+            ],
+            [
+              3,
+              3,
+              3,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:03.000000Z"
+              },
+              null
+            ]
+          ]
+        }
+      },
+      "redis_before": {
+        "email_info:delivered_buffer": {
+          "type": "list",
+          "value": [
+            "{\"i\":2,\"p\":2,\"t\":1793700002}",
+            "{\"i\":1,\"p\":1,\"t\":1793700001}",
+            "{\"i\":3,\"p\":3,\"t\":1793700003}",
+            "{\"i\":1,\"p\":1,\"t\":1793700004}"
+          ],
+          "expires": false
+        }
+      },
+      "job": "FlushDeliveredEmailInfosJob",
+      "args": [],
+      "chunk": 1000,
+      "max_chunks": 50,
+      "lose_lock_at": null
+    },
+    {
+      "name": "the same purchase in two installments",
+      "error": null,
+      "statements": [
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '1' THEN '2026-11-03 10:00:00' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` = 1 AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '1' THEN '2026-11-03 10:00:05' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 2 AND `email_infos`.`purchase_id` = 1 AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 1
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "email_infos": {
+          "fields": [
+            "id",
+            "purchase_id",
+            "installment_id",
+            "type",
+            "email_name",
+            "state",
+            "sent_at",
+            "delivered_at",
+            "opened_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:00.000000Z"
+              },
+              null
+            ],
+            [
+              2,
+              1,
+              2,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:05.000000Z"
+              },
+              null
+            ]
+          ]
+        }
+      },
+      "redis_before": {
+        "email_info:delivered_buffer": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":1,\"t\":1793700000}",
+            "{\"i\":2,\"p\":1,\"t\":1793700005}"
+          ],
+          "expires": false
+        }
+      },
+      "job": "FlushDeliveredEmailInfosJob",
+      "args": [],
+      "chunk": 1000,
+      "max_chunks": 50,
+      "lose_lock_at": null
+    },
+    {
+      "name": "a purchase and installment id past 32 bits",
+      "error": null,
+      "statements": [
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '6000000000' THEN '2026-11-03 10:00:00' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 5000000000 AND `email_infos`.`purchase_id` = 6000000000 AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 1
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "email_infos": {
+          "fields": [
+            "id",
+            "purchase_id",
+            "installment_id",
+            "type",
+            "email_name",
+            "state",
+            "sent_at",
+            "delivered_at",
+            "opened_at"
+          ],
+          "rows": [
+            [
+              1,
+              6000000000,
+              5000000000,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:00.000000Z"
+              },
+              null
+            ]
+          ]
+        }
+      },
+      "redis_before": {
+        "email_info:delivered_buffer": {
+          "type": "list",
+          "value": [
+            "{\"i\":5000000000,\"p\":6000000000,\"t\":1793700000}"
+          ],
+          "expires": false
+        }
+      },
+      "job": "FlushDeliveredEmailInfosJob",
+      "args": [],
+      "chunk": 1000,
+      "max_chunks": 50,
+      "lose_lock_at": null
+    },
+    {
+      "name": "another process holds the lock",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "email_info:delivered_buffer": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":1,\"t\":1793700000}"
+          ],
+          "expires": false
+        },
+        "email_info:delivered_flush_lock": {
+          "type": "string",
+          "value": "held-by-another-process",
+          "expires": true
+        }
+      },
+      "cache": [],
+      "rows": {
+        "email_infos": {
+          "fields": [
+            "id",
+            "purchase_id",
+            "installment_id",
+            "type",
+            "email_name",
+            "state",
+            "sent_at",
+            "delivered_at",
+            "opened_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "sent",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "redis_before": {
+        "email_info:delivered_buffer": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":1,\"t\":1793700000}"
+          ],
+          "expires": false
+        },
+        "email_info:delivered_flush_lock": {
+          "type": "string",
+          "value": "held-by-another-process",
+          "expires": true
+        }
+      },
+      "job": "FlushDeliveredEmailInfosJob",
+      "args": [],
+      "chunk": 1000,
+      "max_chunks": 50,
+      "lose_lock_at": null
+    },
+    {
+      "name": "a chunk of two entries then a short one",
+      "error": null,
+      "statements": [
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '1' THEN '2026-11-03 10:00:01' WHEN '2' THEN '2026-11-03 10:00:02' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` IN (1, 2) AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 2
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '3' THEN '2026-11-03 10:00:03' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` = 3 AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 1
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "email_infos": {
+          "fields": [
+            "id",
+            "purchase_id",
+            "installment_id",
+            "type",
+            "email_name",
+            "state",
+            "sent_at",
+            "delivered_at",
+            "opened_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:01.000000Z"
+              },
+              null
+            ],
+            [
+              2,
+              2,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:02.000000Z"
+              },
+              null
+            ],
+            [
+              3,
+              3,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:03.000000Z"
+              },
+              null
+            ]
+          ]
+        }
+      },
+      "redis_before": {
+        "email_info:delivered_buffer": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":1,\"t\":1793700001}",
+            "{\"i\":1,\"p\":2,\"t\":1793700002}",
+            "{\"i\":1,\"p\":3,\"t\":1793700003}"
+          ],
+          "expires": false
+        }
+      },
+      "job": "FlushDeliveredEmailInfosJob",
+      "args": [],
+      "chunk": 2,
+      "max_chunks": 50,
+      "lose_lock_at": null
+    },
+    {
+      "name": "a buffer that fills the chunk exactly",
+      "error": null,
+      "statements": [
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '1' THEN '2026-11-03 10:00:01' WHEN '2' THEN '2026-11-03 10:00:02' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` IN (1, 2) AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 2
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '3' THEN '2026-11-03 10:00:03' WHEN '4' THEN '2026-11-03 10:00:04' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` IN (3, 4) AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 2
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "email_infos": {
+          "fields": [
+            "id",
+            "purchase_id",
+            "installment_id",
+            "type",
+            "email_name",
+            "state",
+            "sent_at",
+            "delivered_at",
+            "opened_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:01.000000Z"
+              },
+              null
+            ],
+            [
+              2,
+              2,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:02.000000Z"
+              },
+              null
+            ],
+            [
+              3,
+              3,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:03.000000Z"
+              },
+              null
+            ],
+            [
+              4,
+              4,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:04.000000Z"
+              },
+              null
+            ]
+          ]
+        }
+      },
+      "redis_before": {
+        "email_info:delivered_buffer": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":1,\"t\":1793700001}",
+            "{\"i\":1,\"p\":2,\"t\":1793700002}",
+            "{\"i\":1,\"p\":3,\"t\":1793700003}",
+            "{\"i\":1,\"p\":4,\"t\":1793700004}"
+          ],
+          "expires": false
+        }
+      },
+      "job": "FlushDeliveredEmailInfosJob",
+      "args": [],
+      "chunk": 2,
+      "max_chunks": 50,
+      "lose_lock_at": null
+    },
+    {
+      "name": "a chunk of four split into slices of four purchases",
+      "error": null,
+      "statements": [
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '1' THEN '2026-11-03 10:00:01' WHEN '2' THEN '2026-11-03 10:00:02' WHEN '3' THEN '2026-11-03 10:00:03' WHEN '4' THEN '2026-11-03 10:00:04' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` IN (1, 2, 3, 4) AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 4
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '5' THEN '2026-11-03 10:00:05' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` = 5 AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 1
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "email_infos": {
+          "fields": [
+            "id",
+            "purchase_id",
+            "installment_id",
+            "type",
+            "email_name",
+            "state",
+            "sent_at",
+            "delivered_at",
+            "opened_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:01.000000Z"
+              },
+              null
+            ],
+            [
+              2,
+              2,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:02.000000Z"
+              },
+              null
+            ],
+            [
+              3,
+              3,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:03.000000Z"
+              },
+              null
+            ],
+            [
+              4,
+              4,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:04.000000Z"
+              },
+              null
+            ],
+            [
+              5,
+              5,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:05.000000Z"
+              },
+              null
+            ]
+          ]
+        }
+      },
+      "redis_before": {
+        "email_info:delivered_buffer": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":1,\"t\":1793700001}",
+            "{\"i\":1,\"p\":2,\"t\":1793700002}",
+            "{\"i\":1,\"p\":3,\"t\":1793700003}",
+            "{\"i\":1,\"p\":4,\"t\":1793700004}",
+            "{\"i\":1,\"p\":5,\"t\":1793700005}"
+          ],
+          "expires": false
+        }
+      },
+      "job": "FlushDeliveredEmailInfosJob",
+      "args": [],
+      "chunk": 4,
+      "max_chunks": 50,
+      "lose_lock_at": null
+    },
+    {
+      "name": "the chunk cap leaves the rest buffered",
+      "error": null,
+      "statements": [
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '1' THEN '2026-11-03 10:00:01' WHEN '2' THEN '2026-11-03 10:00:02' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` IN (1, 2) AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 2
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '3' THEN '2026-11-03 10:00:03' WHEN '4' THEN '2026-11-03 10:00:04' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` IN (3, 4) AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 2
+          }
+        }
+      ],
+      "redis": {
+        "email_info:delivered_buffer": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":5,\"t\":1793700005}",
+            "{\"i\":1,\"p\":6,\"t\":1793700006}",
+            "{\"i\":1,\"p\":7,\"t\":1793700007}"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {
+        "email_infos": {
+          "fields": [
+            "id",
+            "purchase_id",
+            "installment_id",
+            "type",
+            "email_name",
+            "state",
+            "sent_at",
+            "delivered_at",
+            "opened_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:01.000000Z"
+              },
+              null
+            ],
+            [
+              2,
+              2,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:02.000000Z"
+              },
+              null
+            ],
+            [
+              3,
+              3,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:03.000000Z"
+              },
+              null
+            ],
+            [
+              4,
+              4,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:04.000000Z"
+              },
+              null
+            ],
+            [
+              5,
+              5,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "sent",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              null,
+              null
+            ],
+            [
+              6,
+              6,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "sent",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              null,
+              null
+            ],
+            [
+              7,
+              7,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "sent",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "redis_before": {
+        "email_info:delivered_buffer": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":1,\"t\":1793700001}",
+            "{\"i\":1,\"p\":2,\"t\":1793700002}",
+            "{\"i\":1,\"p\":3,\"t\":1793700003}",
+            "{\"i\":1,\"p\":4,\"t\":1793700004}",
+            "{\"i\":1,\"p\":5,\"t\":1793700005}",
+            "{\"i\":1,\"p\":6,\"t\":1793700006}",
+            "{\"i\":1,\"p\":7,\"t\":1793700007}"
+          ],
+          "expires": false
+        }
+      },
+      "job": "FlushDeliveredEmailInfosJob",
+      "args": [],
+      "chunk": 2,
+      "max_chunks": 2,
+      "lose_lock_at": null
+    },
+    {
+      "name": "a chunk cap of zero",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "email_info:delivered_buffer": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":1,\"t\":1793700000}"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {
+        "email_infos": {
+          "fields": [
+            "id",
+            "purchase_id",
+            "installment_id",
+            "type",
+            "email_name",
+            "state",
+            "sent_at",
+            "delivered_at",
+            "opened_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "sent",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "redis_before": {
+        "email_info:delivered_buffer": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":1,\"t\":1793700000}"
+          ],
+          "expires": false
+        }
+      },
+      "job": "FlushDeliveredEmailInfosJob",
+      "args": [],
+      "chunk": 1000,
+      "max_chunks": 0,
+      "lose_lock_at": null
+    },
+    {
+      "name": "an unfinished chunk is applied before the buffer",
+      "error": null,
+      "statements": [
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '1' THEN '2026-11-03 10:00:01' WHEN '2' THEN '2026-11-03 10:00:02' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` IN (1, 2) AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 2
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '3' THEN '2026-11-03 10:00:03' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` = 3 AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 1
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "email_infos": {
+          "fields": [
+            "id",
+            "purchase_id",
+            "installment_id",
+            "type",
+            "email_name",
+            "state",
+            "sent_at",
+            "delivered_at",
+            "opened_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:01.000000Z"
+              },
+              null
+            ],
+            [
+              2,
+              2,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:02.000000Z"
+              },
+              null
+            ],
+            [
+              3,
+              3,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:03.000000Z"
+              },
+              null
+            ]
+          ]
+        }
+      },
+      "redis_before": {
+        "email_info:delivered_buffer": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":3,\"t\":1793700003}"
+          ],
+          "expires": false
+        },
+        "email_info:delivered_inflight": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":1,\"t\":1793700001}",
+            "{\"i\":1,\"p\":2,\"t\":1793700002}"
+          ],
+          "expires": false
+        }
+      },
+      "job": "FlushDeliveredEmailInfosJob",
+      "args": [],
+      "chunk": 1000,
+      "max_chunks": 50,
+      "lose_lock_at": null
+    },
+    {
+      "name": "an unfinished chunk alone",
+      "error": null,
+      "statements": [
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '1' THEN '2026-11-03 10:00:00' WHEN '2' THEN '2026-11-03 10:00:01' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` IN (1, 2) AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 2
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "email_infos": {
+          "fields": [
+            "id",
+            "purchase_id",
+            "installment_id",
+            "type",
+            "email_name",
+            "state",
+            "sent_at",
+            "delivered_at",
+            "opened_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:00.000000Z"
+              },
+              null
+            ],
+            [
+              2,
+              2,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:01.000000Z"
+              },
+              null
+            ]
+          ]
+        }
+      },
+      "redis_before": {
+        "email_info:delivered_inflight": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":1,\"t\":1793700000}",
+            "{\"i\":1,\"p\":2,\"t\":1793700001}"
+          ],
+          "expires": false
+        }
+      },
+      "job": "FlushDeliveredEmailInfosJob",
+      "args": [],
+      "chunk": 1000,
+      "max_chunks": 50,
+      "lose_lock_at": null
+    },
+    {
+      "name": "an unfinished chunk longer than the chunk size",
+      "error": null,
+      "statements": [
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '1' THEN '2026-11-03 10:00:01' WHEN '2' THEN '2026-11-03 10:00:02' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` IN (1, 2) AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 2
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '3' THEN '2026-11-03 10:00:03' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` = 3 AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 1
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "email_infos": {
+          "fields": [
+            "id",
+            "purchase_id",
+            "installment_id",
+            "type",
+            "email_name",
+            "state",
+            "sent_at",
+            "delivered_at",
+            "opened_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:01.000000Z"
+              },
+              null
+            ],
+            [
+              2,
+              2,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:02.000000Z"
+              },
+              null
+            ],
+            [
+              3,
+              3,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:03.000000Z"
+              },
+              null
+            ]
+          ]
+        }
+      },
+      "redis_before": {
+        "email_info:delivered_inflight": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":1,\"t\":1793700001}",
+            "{\"i\":1,\"p\":2,\"t\":1793700002}",
+            "{\"i\":1,\"p\":3,\"t\":1793700003}"
+          ],
+          "expires": false
+        }
+      },
+      "job": "FlushDeliveredEmailInfosJob",
+      "args": [],
+      "chunk": 2,
+      "max_chunks": 50,
+      "lose_lock_at": null
+    },
+    {
+      "name": "the lock is lost before the first chunk",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "email_info:delivered_buffer": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":1,\"t\":1793700000}"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {
+        "email_infos": {
+          "fields": [
+            "id",
+            "purchase_id",
+            "installment_id",
+            "type",
+            "email_name",
+            "state",
+            "sent_at",
+            "delivered_at",
+            "opened_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "sent",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "redis_before": {
+        "email_info:delivered_buffer": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":1,\"t\":1793700000}"
+          ],
+          "expires": false
+        }
+      },
+      "job": "FlushDeliveredEmailInfosJob",
+      "args": [],
+      "chunk": 1000,
+      "max_chunks": 50,
+      "lose_lock_at": 1
+    },
+    {
+      "name": "the lock is lost while the first chunk is applied",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "email_info:delivered_inflight": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":1,\"t\":1793700000}"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {
+        "email_infos": {
+          "fields": [
+            "id",
+            "purchase_id",
+            "installment_id",
+            "type",
+            "email_name",
+            "state",
+            "sent_at",
+            "delivered_at",
+            "opened_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "sent",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "redis_before": {
+        "email_info:delivered_buffer": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":1,\"t\":1793700000}"
+          ],
+          "expires": false
+        }
+      },
+      "job": "FlushDeliveredEmailInfosJob",
+      "args": [],
+      "chunk": 1000,
+      "max_chunks": 50,
+      "lose_lock_at": 2
+    },
+    {
+      "name": "the lock is lost between two installments",
+      "error": null,
+      "statements": [
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '1' THEN '2026-11-03 10:00:00' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` = 1 AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 1
+          }
+        }
+      ],
+      "redis": {
+        "email_info:delivered_inflight": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":1,\"t\":1793700000}",
+            "{\"i\":2,\"p\":2,\"t\":1793700001}"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {
+        "email_infos": {
+          "fields": [
+            "id",
+            "purchase_id",
+            "installment_id",
+            "type",
+            "email_name",
+            "state",
+            "sent_at",
+            "delivered_at",
+            "opened_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:00.000000Z"
+              },
+              null
+            ],
+            [
+              2,
+              2,
+              2,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "sent",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "redis_before": {
+        "email_info:delivered_buffer": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":1,\"t\":1793700000}",
+            "{\"i\":2,\"p\":2,\"t\":1793700001}"
+          ],
+          "expires": false
+        }
+      },
+      "job": "FlushDeliveredEmailInfosJob",
+      "args": [],
+      "chunk": 1000,
+      "max_chunks": 50,
+      "lose_lock_at": 3
+    },
+    {
+      "name": "the lock is lost before the second chunk",
+      "error": null,
+      "statements": [
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '1' THEN '2026-11-03 10:00:01' WHEN '2' THEN '2026-11-03 10:00:02' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` IN (1, 2) AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 2
+          }
+        }
+      ],
+      "redis": {
+        "email_info:delivered_inflight": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":3,\"t\":1793700003}",
+            "{\"i\":1,\"p\":4,\"t\":1793700004}"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {
+        "email_infos": {
+          "fields": [
+            "id",
+            "purchase_id",
+            "installment_id",
+            "type",
+            "email_name",
+            "state",
+            "sent_at",
+            "delivered_at",
+            "opened_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:01.000000Z"
+              },
+              null
+            ],
+            [
+              2,
+              2,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:02.000000Z"
+              },
+              null
+            ],
+            [
+              3,
+              3,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "sent",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              null,
+              null
+            ],
+            [
+              4,
+              4,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "sent",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "redis_before": {
+        "email_info:delivered_buffer": {
+          "type": "list",
+          "value": [
+            "{\"i\":1,\"p\":1,\"t\":1793700001}",
+            "{\"i\":1,\"p\":2,\"t\":1793700002}",
+            "{\"i\":1,\"p\":3,\"t\":1793700003}",
+            "{\"i\":1,\"p\":4,\"t\":1793700004}"
+          ],
+          "expires": false
+        }
+      },
+      "job": "FlushDeliveredEmailInfosJob",
+      "args": [],
+      "chunk": 2,
+      "max_chunks": 50,
+      "lose_lock_at": 4
+    },
+    {
+      "name": "many entries across installments",
+      "error": null,
+      "statements": [
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '1' THEN '2026-11-03 10:00:01' WHEN '4' THEN '2026-11-03 10:00:04' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 2 AND `email_infos`.`purchase_id` IN (1, 4) AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 2
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '2' THEN '2026-11-03 10:00:02' WHEN '5' THEN '2026-11-03 10:00:05' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 3 AND `email_infos`.`purchase_id` IN (2, 5) AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 2
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '3' THEN '2026-11-03 10:00:03' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` = 3 AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '6' THEN '2026-11-03 10:00:06' WHEN '9' THEN '2026-11-03 10:00:09' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` IN (6, 9) AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 2
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '7' THEN '2026-11-03 10:00:07' WHEN '10' THEN '2026-11-03 10:00:10' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 2 AND `email_infos`.`purchase_id` IN (7, 10) AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 2
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '8' THEN '2026-11-03 10:00:08' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 3 AND `email_infos`.`purchase_id` = 8 AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '11' THEN '2026-11-03 10:00:11' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 3 AND `email_infos`.`purchase_id` = 11 AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET state = 'delivered', delivered_at = CASE purchase_id WHEN '12' THEN '2026-11-03 10:00:12' END WHERE `email_infos`.`type` = 'CreatorContactingCustomersEmailInfo' AND `email_infos`.`installment_id` = 1 AND `email_infos`.`purchase_id` = 12 AND `email_infos`.`state` IN ('created', 'sent')",
+          "result": {
+            "affected": 1
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "email_infos": {
+          "fields": [
+            "id",
+            "purchase_id",
+            "installment_id",
+            "type",
+            "email_name",
+            "state",
+            "sent_at",
+            "delivered_at",
+            "opened_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              2,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:01.000000Z"
+              },
+              null
+            ],
+            [
+              2,
+              2,
+              3,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:02.000000Z"
+              },
+              null
+            ],
+            [
+              3,
+              3,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:03.000000Z"
+              },
+              null
+            ],
+            [
+              4,
+              4,
+              2,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:04.000000Z"
+              },
+              null
+            ],
+            [
+              5,
+              5,
+              3,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:05.000000Z"
+              },
+              null
+            ],
+            [
+              6,
+              6,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:06.000000Z"
+              },
+              null
+            ],
+            [
+              7,
+              7,
+              2,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:07.000000Z"
+              },
+              null
+            ],
+            [
+              8,
+              8,
+              3,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:08.000000Z"
+              },
+              null
+            ],
+            [
+              9,
+              9,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:09.000000Z"
+              },
+              null
+            ],
+            [
+              10,
+              10,
+              2,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:10.000000Z"
+              },
+              null
+            ],
+            [
+              11,
+              11,
+              3,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:11.000000Z"
+              },
+              null
+            ],
+            [
+              12,
+              12,
+              1,
+              "CreatorContactingCustomersEmailInfo",
+              "creator_contacting_customers_email",
+              "delivered",
+              {
+                "$time": "2026-11-01T08:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T10:00:12.000000Z"
+              },
+              null
+            ]
+          ]
+        }
+      },
+      "redis_before": {
+        "email_info:delivered_buffer": {
+          "type": "list",
+          "value": [
+            "{\"i\":2,\"p\":1,\"t\":1793700001}",
+            "{\"i\":3,\"p\":2,\"t\":1793700002}",
+            "{\"i\":1,\"p\":3,\"t\":1793700003}",
+            "{\"i\":2,\"p\":4,\"t\":1793700004}",
+            "{\"i\":3,\"p\":5,\"t\":1793700005}",
+            "{\"i\":1,\"p\":6,\"t\":1793700006}",
+            "{\"i\":2,\"p\":7,\"t\":1793700007}",
+            "{\"i\":3,\"p\":8,\"t\":1793700008}",
+            "{\"i\":1,\"p\":9,\"t\":1793700009}",
+            "{\"i\":2,\"p\":10,\"t\":1793700010}",
+            "{\"i\":3,\"p\":11,\"t\":1793700011}",
+            "{\"i\":1,\"p\":12,\"t\":1793700012}"
+          ],
+          "expires": false
+        }
+      },
+      "job": "FlushDeliveredEmailInfosJob",
+      "args": [],
+      "chunk": 5,
+      "max_chunks": 50,
+      "lose_lock_at": null
+    }
+  ]
+}

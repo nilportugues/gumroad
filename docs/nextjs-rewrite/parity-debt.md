@@ -114,6 +114,8 @@ hand-back of `RemoveSuspendedAccountFollowsWorker` is `Follower#mark_deleted!` (
 
 `delete-expired-oauth-device-authorizations-job.golden.json` was recorded on lane 20 (`gumroad_test_20`, Redis 36-39, `PARITY_ES_INDEX_SUFFIX=-c20`). `DeleteExpiredOauthDeviceAuthorizationsJob` has no hand-back; no debt line was open for it.
 
+`flush-delivered-email-infos-job.golden.json` was recorded on lane 20 (`gumroad_test_20`, Redis 37 for `REDIS_HOST` and `SIDEKIQ_REDIS_HOST`, `PARITY_ES_INDEX_SUFFIX=-c20`); its replay needs `JOBS_REDIS_URL` and is skipped without it. The one hand-back of `FlushDeliveredEmailInfosJob` is a buffer entry that is not `{i, p, t}` integers (never written by `EmailInfo.buffer_delivered`); no debt line was open for it.
+
 `PUT|PATCH /mobile/licenses/:id` no longer hands back an `enabled` that is an array or hash: Rails' boolean cast turns it into true (lane 16, Redis 60-64; example
 "enables a disabled license when enabled is an array" recorded and replayed in `mobile-api.replay.test.ts`). No debt line was open for it.
 
