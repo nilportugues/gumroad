@@ -88,6 +88,8 @@ No debt line was open for the sales-threshold hand-back, so none was closed.
 `delete-wishlist-products-job.golden.json` was recorded on lane 15 (`gumroad_test_15`, Redis 56-59). The one remaining hand-back of
 `DeleteWishlistProductsJob` is `WishlistProduct#mark_deleted!` (its save re-runs `Wishlist#update_recommendable`); no debt line was open for it.
 
+`discover_parity_spec.rb` gained two affiliate-cookie examples (`?affiliate_id=` on the root page, `?a=` of a global affiliate on a search box visit), recorded on lane 16 (`gumroad_test_16`, Redis 61-63, replay Redis 60, `PARITY_ES_INDEX_SUFFIX=-c16`); `discover.replay.test.ts` checks the cookie value is the replay's own second, as `ws12b.replay` does. They close the discover affiliate-param hand-back; no debt line was open for it.
+
 `schedule-affiliate-workflows.golden.json` was regenerated on lane 15 (`gumroad_test_15`, Redis 56-58, `PARITY_ES_INDEX_SUFFIX=-c15`) with seven token cases (Integer, 2**70, negative, true, false); the 40 existing cases are unchanged. `ScheduleAffiliateWorkflowJobsJob` still hands back a Float, Array or Hash token (Rails casts an Array to an IN list). No debt line was open for it.
 
 Two examples in `spec/requests/settings_mutations_signed_in_spec.rb` (integer and boolean third-party analytics snippet fields) were recorded on lane 15 (`gumroad_test_15`, Redis 56-58, `PARITY_ES_INDEX_SUFFIX=-c15`) and replay green in `settings-mutations`. Rails casts `true` to `"1"` on a varchar column and `"t"` on a text one. `stringValue` in `settings-mutations.ts` still casts a boolean to `"t"`/`"f"` for the `users` varchar columns (`google_analytics_id`, `facebook_pixel_id`, `facebook_meta_tag`) and is unproven against Rails; no debt line was open for it.

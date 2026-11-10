@@ -1,7 +1,7 @@
 // DiscoverController#index (Discover/Index): the search params, the taxonomy lookup, the product search and its
 // cards, the DiscoverSearch write and the SEO meta tags. Whatever the port cannot prove is handed to Rails whole
 // by the controller's filter (controllers/discover-page.ts), before anything renders: the deferred props the port
-// cannot answer, an autocomplete request it cannot answer, curated products, Black Friday and the affiliate cookie.
+// cannot answer, an autocomplete request it cannot answer, curated products and Black Friday.
 import { timingSafeEqual } from "node:crypto";
 
 import { Prisma } from "@prisma/client";
