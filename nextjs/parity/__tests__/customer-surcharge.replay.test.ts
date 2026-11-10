@@ -22,6 +22,7 @@ const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const DIR = "parity/fixtures/requests/customer_surcharge_parity_spec";
 const FIRST_COMPILE_TIMEOUT_MS = 240_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
+const GEOIP_FIXTURE = path.join(process.cwd(), "src/server/infra/__fixtures__/GeoLite2-City-Test.mmdb");
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
 
 const COMPARE = {
@@ -68,6 +69,7 @@ describe.skipIf(!url)("Customer surcharge parity", () => {
       OBFUSCATE_IDS_CIPHER_KEY: /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1] ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
       NEXTJS_ROUTE_FLAGS: "nextjs_checkout_surcharge",
+      GEOIP_DATABASE_PATH: GEOIP_FIXTURE,
       RAILS_ORIGIN: `http://127.0.0.1:${(rails.address() as AddressInfo).port}`,
       SECRET_KEY_BASE,
       DATABASE_URL: url!,
