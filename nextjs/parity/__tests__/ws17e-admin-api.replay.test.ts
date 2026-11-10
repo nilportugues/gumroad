@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { closeAllRedis } from "@/server/infra/redis";
 
@@ -80,6 +80,12 @@ function redisJobs(redis: Redis): JobsChannel {
     },
   };
 }
+
+// The cursor of this example is signed, so it cannot move with the replay's clock: it names the second comment's created_at, 2026-11-02
+// 00:21:09 UTC, which is `<now-120m>` only at the instant the spec froze its clock at. Seeding from that instant keeps the third comment
+// (`<now-180m>`) on the next page whatever day the replay runs.
+const CURSOR_PAGE_EXAMPLE = /paginates-comments-with-a-cursor #2/u;
+const CURSOR_PAGE_NOW = Date.parse("2026-11-02T02:21:09Z");
 
 // Only the exchanges of routes routes.json sends to Node are replayed; the rest stay with Rails.
 const SERVED_ROUTES = Object.keys(JSON.parse(readFileSync("routes.json", "utf8")) as Record<string, unknown>)
@@ -176,14 +182,26 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
   it.each(cases)(
     "%s",
     async (_name, fixturePath, index, fromRequestSpec) => {
+      const pinned = CURSOR_PAGE_EXAMPLE.test(_name);
+      if (pinned) vi.useFakeTimers({ now: CURSOR_PAGE_NOW, toFake: ["Date"], shouldAdvanceTime: true });
       const result = await replayFixtureExchange(fixturePath, index, {
+        ...(pinned ? { driftDates: false } : {}),
         sql,
         redis: redisSeeder(redis),
         transport: httpTransport(server.baseUrl),
         interceptHttp: false,
         jobs: redisJobs(redis),
         rewriteRequest: (request) => ({ ...request, headers: withApiHost(request.headers) }),
-        compare: fromRequestSpec ? { ignore: [...COMPARE.ignore, "response.cookies._gumroad_app_session_test.value"] } : { ignore: [...COMPARE.ignore, "response.cookies"] },
+        compare: {
+          ignore: [
+            ...COMPARE.ignore,
+            ...(fromRequestSpec ? ["response.cookies._gumroad_app_session_test.value"] : ["response.cookies"]),
+            // The server stamps the token with its own, unpinned clock.
+            ...(pinned ? ["db.admin_api_tokens.updated.*.changes.last_used_at"] : []),
+          ],
+        },
+      }).finally(() => {
+        if (pinned) vi.useRealTimers();
       });
       try {
         assertParity(result);
