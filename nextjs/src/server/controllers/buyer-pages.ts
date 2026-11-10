@@ -141,7 +141,7 @@ export const REVIEWS_OPTIONS: ActionOptions = { filters: signedInFilters({ autho
 // request for purchase analytics) goes to Rails whole.
 export const libraryParams = (request: Chain["request"]) => {
   const text = (name: string) => queryParam(request, name) ?? "";
-  return { page: text("page"), sort: text("sort"), query: text("query"), creators: text("creators"), bundles: text("bundles"), showArchivedOnly: text("show_archived_only") === "true", subscriptionsOnly: text("subscriptions_only") === "true" };
+  return { page: text("page"), sort: text("sort"), query: text("query"), creators: text("creators"), bundles: text("bundles"), showArchivedOnly: text("show_archived_only") === "true", purchaseId: queryParam(request, "purchase_id") ?? undefined, subscriptionsOnly: text("subscriptions_only") === "true" };
 };
 
 export const LIBRARY_OPTIONS: ActionOptions = {
@@ -150,7 +150,6 @@ export const LIBRARY_OPTIONS: ActionOptions = {
     authorize: purchasePolicy.index,
     beforeAction: async (chain, context) => {
       if (context.user.confirmed_at === null) throw new HandBackToRails();
-      if (queryParam(chain.request, "purchase_id") !== undefined) throw new HandBackToRails();
       await assertLibrarySupported(context.user.id, libraryParams(chain.request));
       return null;
     },
