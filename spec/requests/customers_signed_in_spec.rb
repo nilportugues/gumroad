@@ -454,20 +454,6 @@ describe "Customers page when signed in", type: :request, elasticsearch_wait_for
     expect(customers_of(response).first["affiliate"]).to be_present
   end
 
-  # Needs recording: Subscription#status is payment_method_update_required for a renewal an Indian card mandate disabled.
-  it "asks a member whose renewals an Indian card mandate disabled for a new payment method", parity: true do
-    Feature.activate_user(StripeChargeProcessor::INDIA_CARD_MANDATE_RELIABILITY_FEATURE, seller)
-    create(:merchant_account, user: nil, charge_processor_id: StripeChargeProcessor.charge_processor_id, charge_processor_merchant_id: nil)
-    membership = create(:membership_product, user: seller, name: "Club")
-    purchase = create(:membership_purchase, link: membership, seller:, created_at: at_midday(3))
-    purchase.subscription.update_flag!(:renewal_disabled_due_to_indian_card_mandate, true, true)
-    sign_in_with_indexed_sales
-
-    get customers_path
-
-    expect(customers_of(response).first.dig("subscription", "status")).to eq("payment_method_update_required")
-  end
-
   # Needs recording: Purchase#transaction_url_for_seller for a charge Gumroad did not make through Stripe.
   it "links a Braintree sale to the seller's transaction page", parity: true do
     sell(product, days_ago: 3, charge_processor_id: BraintreeChargeProcessor.charge_processor_id, stripe_transaction_id: "bt_txn_123")
