@@ -1,8 +1,9 @@
 // Port of UrlRedirectsController#download_page (GET /d/:id): the before_actions that gate it, the
 // props UrlRedirectPresenter#download_page_with_content_props builds, and the after_actions that record
-// the visit. Only a purchase whose content page has nothing to list is rendered here: files, rich
-// content, variants, licenses, posts, integrations, communities and third-party analytics hand back to
-// Rails, as do the polls, the mobile app token sign-in and bundle, coffee and installment redirects.
+// the visit. Only a purchase whose content page has nothing to list is rendered here: files (including
+// files on a purchased variant), rich content, licenses, posts, integrations, communities and third-party
+// analytics hand back to Rails, as do the polls, the mobile app token sign-in and bundle redirects. A saved
+// content page is echoed as last_content_page_id; a coffee product redirects to the seller's coffee page.
 import { Prisma, type Link, type User } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
@@ -17,6 +18,8 @@ import { setCookieHeader } from "../../controllers/rack-cookies.ts";
 import { getConfig } from "../../infra/config.ts";
 import { truncateToSeconds } from "../../models/concerns/ruby-time.ts";
 import { LinkFlags } from "../../models/link.ts";
+import { parseJsonData } from "../../models/with-filtering.ts";
+import { subdomainWithProtocol } from "../../presenters/product.ts";
 import { SubscriptionFlags } from "../../models/subscription.ts";
 import { UrlRedirectFlags } from "../../models/url-redirect.ts";
 import { createEventBang } from "../../models/consumption-event.ts";
@@ -64,9 +67,8 @@ async function assertRenderable(loaded: Loaded): Promise<Download> {
 
   if (LinkFlags.isSet(product.flags, "is_licensed") || LinkFlags.isSet(product.flags, "community_chat_enabled")) throw new HandBackToRails("a license key or community chat");
   if (present(seller.google_analytics_id) || present(seller.facebook_pixel_id) || (seller.json_data ?? "").includes("tiktok_pixel_id")) throw new HandBackToRails("seller analytics");
-  if (purchase && present(purchase.json_data) && purchase.json_data.includes("last_content_page_id")) throw new HandBackToRails("a saved content page");
 
-  if (purchase && (await db.baseVariantsPurchase.count({ where: { purchase_id: Number(purchase.id) } })) > 0) throw new HandBackToRails("a purchased variant");
+  if (purchase && (await purchasedVariantHasFiles(purchase.id, product.id))) throw new HandBackToRails("a purchased variant with files");
   if ((await db.productFile.count({ where: { link_id: product.id, deleted_at: null } })) > 0) throw new HandBackToRails("product files");
   if (await hasRichContent(loaded)) throw new HandBackToRails("rich content");
   if ((await db.productIntegration.count({ where: { product_id: product.id, deleted_at: null } })) > 0) throw new HandBackToRails("integrations");
@@ -74,6 +76,31 @@ async function assertRenderable(loaded: Loaded): Promise<Download> {
   // The posts list, which Purchase.product_installments filters per buyer.
   if (purchase && (await db.installment.count({ where: { deleted_at: null, published_at: { not: null }, OR: [{ seller_id: Number(seller.id) }, { link_id: Number(product.id) }] } })) > 0) throw new HandBackToRails("posts");
   return { loaded, product, seller };
+}
+
+// Purchase#last_content_page_id: json_data_for_attr, nil unless the stored value is present?.
+export function lastContentPageId(jsonData: string | null): string | null {
+  const value = parseJsonData(jsonData).last_content_page_id;
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "string") throw new HandBackToRails("a saved content page that is not a string");
+  return value.trim() === "" ? null : value;
+}
+
+// UrlRedirect#has_purchased_variants_from_categories_with_files? and the variant branch of alive_product_files:
+// a purchased Variant lists its own files and those of its alive category siblings. Variants without files
+// render like the product (rich content on them is refused by hasRichContent); a deleted purchased variant
+// picks its content provider differently, so it hands back.
+async function purchasedVariantHasFiles(purchaseId: bigint, productId: bigint): Promise<boolean> {
+  const links = await db.baseVariantsPurchase.findMany({ where: { purchase_id: Number(purchaseId) }, select: { base_variant_id: true } });
+  if (links.length === 0) return false;
+  const purchased = await db.baseVariant.findMany({ where: { id: { in: links.flatMap((link) => link.base_variant_id ?? []) }, type: "Variant" } });
+  if (purchased.length === 0) return false;
+  if (purchased.some((variant) => variant.deleted_at !== null)) return true;
+  const categories = await db.variantCategory.findMany({ where: { link_id: Number(productId) }, select: { id: true } });
+  const siblings = await db.baseVariant.findMany({ where: { variant_category_id: { in: categories.map((category) => category.id) }, deleted_at: null }, select: { id: true } });
+  const joins = await db.baseVariantsProductFile.findMany({ where: { base_variant_id: { in: [...siblings.map((variant) => variant.id), ...purchased.map((variant) => variant.id)] } }, select: { product_file_id: true } });
+  if (joins.length === 0) return false;
+  return (await db.productFile.count({ where: { id: { in: joins.flatMap((join) => join.product_file_id ?? []) }, deleted_at: null } })) > 0;
 }
 
 // !Subscription#grant_access_to_product?
@@ -113,7 +140,7 @@ export async function downloadPageProps(token: string, { loggedInUser, display, 
       content_items: [],
       bundle_products: [],
       rich_content_pages: null,
-      last_content_page_id: null,
+      last_content_page_id: purchase ? lastContentPageId(purchase.json_data) : null,
       posts: [],
       video_transcoding_info: null,
       custom_receipt: null,
@@ -169,6 +196,15 @@ async function recordVisit(loaded: Loaded, chain: Chain): Promise<void> {
   );
 }
 
+// custom_domain_coffee_url on the seller's subdomain, purchase_email passed through when given (an empty
+// value stays, a bare key is nil and drops out).
+async function coffeePageUrl(sellerId: bigint | null, purchaseEmail: string | null | undefined): Promise<string> {
+  const seller = sellerId === null ? null : await db.user.findUnique({ where: { id: sellerId } });
+  const host = seller ? subdomainWithProtocol(seller) : null;
+  if (host === null) throw new HandBackToRails("a coffee seller without a subdomain");
+  return `${host}/coffee${purchaseEmail === undefined || purchaseEmail === null ? "" : `?purchase_email=${cgiEscape(purchaseEmail)}`}`;
+}
+
 // The facts check_permissions reads, for any action that runs it. `destination` is params[:action].
 export async function buildGateInput(chain: Chain, loaded: Loaded, { destination, isPoll }: { destination: string; isPoll: boolean }): Promise<{ gate: GateInput; viewer: User | null }> {
   const { redirect, purchase, product } = loaded;
@@ -216,7 +252,7 @@ export async function downloadPageFilters(chain: Chain): Promise<FilterOutcome> 
 
   // redirect_bundle_purchase_to_library_if_needed and redirect_to_coffee_page_if_needed.
   if (purchase && PurchaseFlags.isSet(purchase.flags, "is_bundle_purchase")) throw new HandBackToRails("a bundle purchase");
-  if (product?.native_type === "coffee") throw new HandBackToRails("a coffee purchase");
+  if (product?.native_type === "coffee") return { halt: { status: 302, location: await coffeePageUrl(product.user_id, queryParam(chain.request, "purchase_email")), rescued: true } };
   // sign_in_mobile_app_viewer needs doorkeeper.
   if (present(queryParam(chain.request, "access_token"))) throw new HandBackToRails("a mobile app token");
 

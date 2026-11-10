@@ -32,6 +32,28 @@ describe "Url redirect download page", type: :request do
       expect(ConsumptionEvent.where(url_redirect_id: url_redirect.id, event_type: "view").count).to eq(1)
     end
 
+    it "echoes the saved content page id", parity: true do
+      purchase.update!(last_content_page_id: "saved-page-id")
+      log_in(buyer)
+
+      get url_redirect_download_page_path(url_redirect.token)
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)).to include("content" => include("last_content_page_id" => "saved-page-id"))
+    end
+
+    it "redirects a coffee purchase to the seller's coffee page", parity: true do
+      product.update_columns(native_type: Link::NATIVE_TYPE_COFFEE)
+      seller.update_columns(username: "paritycoffee")
+      log_in(buyer)
+
+      get url_redirect_download_page_path(url_redirect.token, purchase_email: "buyer+1@example.com")
+
+      expect(response).to have_http_status(:found)
+      expect(response.location).to end_with("/coffee?purchase_email=buyer%2B1%40example.com")
+      expect(url_redirect.reload.uses).to eq(0)
+    end
+
     it "answers an Inertia visit with the page as JSON", parity: true do
       log_in(buyer)
 

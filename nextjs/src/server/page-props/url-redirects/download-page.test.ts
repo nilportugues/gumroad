@@ -5,7 +5,10 @@ import { HandBackToRails, RoutingError, type Chain } from "../../controllers/app
 const mocks = vi.hoisted(() => ({
   db: {
     user: { findUnique: vi.fn() },
-    baseVariantsPurchase: { count: vi.fn() },
+    baseVariantsPurchase: { findMany: vi.fn() },
+    baseVariant: { findMany: vi.fn() },
+    variantCategory: { findMany: vi.fn() },
+    baseVariantsProductFile: { findMany: vi.fn() },
     productFile: { count: vi.fn() },
     productIntegration: { count: vi.fn() },
     thirdPartyAnalytic: { count: vi.fn() },
@@ -28,7 +31,7 @@ vi.mock("../../auth/rails-session-config.ts", async () => {
   return { railsCookieSecrets: () => deriveRailsCookieSecrets("test-secret-key-base") };
 });
 
-const { downloadPageFilters } = await import("./download-page.ts");
+const { downloadPageFilters, lastContentPageId } = await import("./download-page.ts");
 
 const NOW = new Date("2026-03-01T12:00:00Z");
 
@@ -63,8 +66,17 @@ beforeEach(() => {
   mocks.load.mockResolvedValue(loaded());
   mocks.hasRichContent.mockResolvedValue(false);
   mocks.db.user.findUnique.mockResolvedValue({ id: 2n, google_analytics_id: null, facebook_pixel_id: null, json_data: null });
-  for (const model of [mocks.db.baseVariantsPurchase, mocks.db.productFile, mocks.db.productIntegration, mocks.db.thirdPartyAnalytic, mocks.db.installment]) model.count.mockResolvedValue(0);
+  for (const model of [mocks.db.baseVariantsPurchase, mocks.db.baseVariant, mocks.db.variantCategory, mocks.db.baseVariantsProductFile]) model.findMany.mockResolvedValue([]);
+  for (const model of [mocks.db.productFile, mocks.db.productIntegration, mocks.db.thirdPartyAnalytic, mocks.db.installment]) model.count.mockResolvedValue(0);
 });
+
+function purchasedVariant({ files = false, deleted = false }: { files?: boolean; deleted?: boolean }) {
+  mocks.db.baseVariantsPurchase.findMany.mockResolvedValue([{ base_variant_id: 7 }]);
+  mocks.db.baseVariant.findMany.mockResolvedValue([{ id: 7, deleted_at: deleted ? NOW : null }]);
+  mocks.db.variantCategory.findMany.mockResolvedValue([{ id: 1 }]);
+  mocks.db.baseVariantsProductFile.findMany.mockResolvedValue(files ? [{ product_file_id: 9 }] : []);
+  mocks.db.productFile.count.mockResolvedValue(files ? 1 : 0);
+}
 
 describe("downloadPageFilters", () => {
   it("records the visit: a view event, the use count, the seen flag and the confirmed cookie", async () => {
@@ -106,12 +118,12 @@ describe("downloadPageFilters", () => {
       ["integrations", () => mocks.db.productIntegration.count.mockResolvedValue(1)],
       ["third-party analytics", () => mocks.db.thirdPartyAnalytic.count.mockResolvedValue(1)],
       ["posts", () => mocks.db.installment.count.mockResolvedValue(1)],
-      ["a purchased variant", () => mocks.db.baseVariantsPurchase.count.mockResolvedValue(1)],
+      ["a purchased variant with files", () => purchasedVariant({ files: true })],
+      ["a deleted purchased variant", () => purchasedVariant({ deleted: true })],
       ["rich content", () => mocks.hasRichContent.mockResolvedValue(true)],
       ["a license key", () => mocks.load.mockResolvedValue(loaded({ product: { ...loaded().product, flags: 1n << 6n } }))],
-      ["a coffee product", () => mocks.load.mockResolvedValue(loaded({ product: { ...loaded().product, native_type: "coffee" } }))],
       ["a bundle purchase", () => mocks.load.mockResolvedValue(loaded({ purchase: { ...loaded().purchase, flags: 1n << 25n } }))],
-      ["a saved content page", () => mocks.load.mockResolvedValue(loaded({ purchase: { ...loaded().purchase, json_data: "---\nlast_content_page_id: abc\n" } }))],
+      ["a saved content page that is not a string", () => mocks.load.mockResolvedValue(loaded({ purchase: { ...loaded().purchase, json_data: '{"last_content_page_id":5}' } }))],
     ])("hand back %s without recording the visit", async (_, arrange) => {
       arrange();
       await expect(downloadPageFilters(chain())).rejects.toBeInstanceOf(HandBackToRails);
@@ -128,6 +140,58 @@ describe("downloadPageFilters", () => {
       withToken.request.queryString = "access_token=abc";
       await expect(downloadPageFilters(withToken)).rejects.toBeInstanceOf(HandBackToRails);
       expect(mocks.db.$executeRaw).not.toHaveBeenCalled();
+    });
+  });
+
+  it("renders a purchased variant that has no files and records the visit", async () => {
+    purchasedVariant({});
+    await expect(downloadPageFilters(chain())).resolves.toEqual({ state: {} });
+    expect(mocks.createEventBang).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores a deleted file attached to a purchased variant", async () => {
+    purchasedVariant({ files: true });
+    mocks.db.productFile.count.mockResolvedValue(0);
+    await expect(downloadPageFilters(chain())).resolves.toEqual({ state: {} });
+  });
+
+  describe("coffee product", () => {
+    const coffee = () => mocks.load.mockResolvedValue(loaded({ product: { ...loaded().product, native_type: "coffee" } }));
+
+    it("redirects to the seller's coffee page without recording a visit", async () => {
+      coffee();
+      mocks.db.user.findUnique.mockResolvedValue({ id: 2n, username: "some_seller" });
+      const outcome = await downloadPageFilters(chain());
+
+      expect(outcome).toMatchObject({ halt: { status: 302, rescued: true } });
+      expect((outcome as { halt: { location: string } }).halt.location).toMatch(/^https?:\/\/some-seller\.[^/]+\/coffee$/u);
+      expect(mocks.createEventBang).not.toHaveBeenCalled();
+      expect(mocks.db.$executeRaw).not.toHaveBeenCalled();
+    });
+
+    it("passes purchase_email through, escaped", async () => {
+      coffee();
+      mocks.db.user.findUnique.mockResolvedValue({ id: 2n, username: "seller" });
+      const request = chain();
+      request.request.queryString = "purchase_email=a%2Bb%40example.com";
+      const outcome = await downloadPageFilters(request);
+
+      expect((outcome as { halt: { location: string } }).halt.location).toMatch(/\/coffee\?purchase_email=a%2Bb%40example\.com$/u);
+    });
+
+    it("hands back when the seller has no username to build a subdomain from", async () => {
+      coffee();
+      mocks.db.user.findUnique.mockResolvedValue({ id: 2n, username: null });
+      await expect(downloadPageFilters(chain())).rejects.toBeInstanceOf(HandBackToRails);
+    });
+  });
+
+  describe("lastContentPageId", () => {
+    it("reads the saved page, and treats blank or missing values as nil", () => {
+      expect(lastContentPageId('{"last_content_page_id":"abc"}')).toBe("abc");
+      expect(lastContentPageId('{"last_content_page_id":"  "}')).toBeNull();
+      expect(lastContentPageId('{"other":1}')).toBeNull();
+      expect(lastContentPageId(null)).toBeNull();
     });
   });
 });
