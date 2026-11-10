@@ -10,7 +10,7 @@ import { longUrl, subdomainWithProtocol } from "../presenters/product.ts";
 import { type LinkRow, type Row, type UserRow, findUserById } from "../presenters/product-reads.ts";
 import { HandBackToRails, RoutingError, allDomain, processAction, type ActionResult } from "./application-controller.ts";
 import { setCookieHeader } from "./rack-cookies.ts";
-import type { RailsRequest } from "./rails-request.ts";
+import { isPresent, queryParam, type RailsRequest } from "./rails-request.ts";
 
 const AFFILIATE_COOKIE_NAME_PREFIX = "_gumroad_affiliate_id_";
 const MAX_NUMERIC_ID = 2 ** 30 - 1;
@@ -68,6 +68,21 @@ async function affiliateCookie(request: RailsRequest, affiliate: AffiliateRow, n
     path: "/",
     sameSite: "lax",
   });
+}
+
+// AffiliateCookie#set_affiliate_cookie on a page that carries ?affiliate_id= or ?a=: the cookie line, or null when
+// there is none to set. A nested shape (`a[]=1`) and an id beyond the obfuscated range are Rails'.
+export async function affiliateCookieForParams(request: RailsRequest, now: Date): Promise<string | null> {
+  const pairs = request.queryString.split("&").filter((pair) => pair !== "");
+  if (pairs.some((pair) => /^(?:affiliate_id|a)(?:\[|%5B)/iu.test(pair))) throw new HandBackToRails("a nested affiliate param");
+  // AffiliateQueryParams#fetch_affiliate_id: `params[:affiliate_id].presence || params[:a].presence`, then `.to_i`.
+  const raw = [queryParam(request, AFFILIATE_QUERY_PARAM), queryParam(request, SHORT_QUERY_PARAM)].find(isPresent);
+  if (raw === undefined) return null;
+  const id = rubyToI(raw);
+  if (id === 0) return null;
+  if (id < 0 || id > MAX_NUMERIC_ID) throw new HandBackToRails("an affiliate id outside the obfuscated range");
+  const affiliate = await findAffiliate(decryptNumeric(id));
+  return affiliate === null ? null : affiliateCookie(request, affiliate, now);
 }
 
 // Addressable::URI.encode_component(value, CharacterClasses::UNRESERVED)

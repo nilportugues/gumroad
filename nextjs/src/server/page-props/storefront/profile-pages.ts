@@ -3,16 +3,16 @@
 //
 // Handed to Rails (HandBackToRails, decided in the filters): a featured product or wishlists section whose product
 // or card the port cannot prove (see featured-and-wishlist-sections.ts), a products section whose cards the
-// port cannot prove (see presenters/product.ts) or a request carrying the visitor's search params, a seller
-// with custom HTML pages, an affiliate param (it writes a cookie), a seller with an uploaded subscribe
-// preview, and any non-HTML format.
+// port cannot prove (see presenters/product.ts), a nested visitor search param (`tags[]=`), a nested or oversized
+// affiliate param, a seller with custom HTML pages, a seller with an uploaded subscribe preview, and any non-HTML
+// format.
 import { Prisma, type User } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
 import { decrypt, encrypt as externalId } from "../../../lib/obfuscate-ids.ts";
 import { type Chain, type FilterOutcome, HandBackToRails, RoutingError } from "../../controllers/application-controller.ts";
 import { requestCookies } from "../../controllers/rack-cookies.ts";
-import { isPresent, queryParam } from "../../controllers/rails-request.ts";
+import { affiliateCookieForParams } from "../../controllers/affiliate-redirect.ts";
 import type { PresenterRequest } from "../../presenters/product.ts";
 import { domainConfig } from "../domain.ts";
 import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
@@ -27,7 +27,8 @@ import type { MetaTagBuilder } from "../meta-tags.ts";
 import type { PageSpec } from "../pages.ts";
 import { requireHtmlPage, setHostMeta } from "./post-pages.ts";
 import { FEATURED_PRODUCT_SECTION_TYPE, featuredProductSectionProps, WISHLISTS_SECTION_TYPE, wishlistsSectionProps } from "./featured-and-wishlist-sections.ts";
-import { assertProductSectionsRender, DEFAULT_PRODUCTS_SECTION_ID, PRODUCTS_SECTION_TYPE, productsSectionProps, sectionHeader, type ProductsSectionRow } from "./product-sections.ts";
+import type { Params } from "../../search/ruby-params.ts";
+import { assertProductSectionsRender, DEFAULT_PRODUCTS_SECTION_ID, PRODUCTS_SECTION_TYPE, productsSectionProps, sectionHeader, visitorSearchParams, type ProductsSectionRow } from "./product-sections.ts";
 import { setFaviconMetaTags } from "./post.ts";
 import { sellerOfHost } from "./seller-host.ts";
 
@@ -37,8 +38,6 @@ const POSTS_PER_SECTION = 999;
 const SHOWN_ON_PROFILE_FLAG = 2 ** 7;
 const PROFILE_SECTION_FLAG_HIDE_HEADER = 2 ** 1;
 const SUPPORTED_SECTION_TYPES = ["SellerProfileRichTextSection", "SellerProfileSubscribeSection", "SellerProfilePostsSection", PRODUCTS_SECTION_TYPE, FEATURED_PRODUCT_SECTION_TYPE, WISHLISTS_SECTION_TYPE];
-// ProfileSectionsPresenter::VISITOR_SEARCH_PARAMS: a visitor's filters re-run the section searches.
-const VISITOR_SEARCH_PARAMS = ["query", "tags", "filetypes", "min_price", "max_price", "rating", "sort", "from", "size", "recommended_by"];
 
 const present = (value: string | null | undefined): value is string => value != null && value.trim() !== "";
 const squish = (value: string) => value.replace(/\s+/gu, " ").trim();
@@ -56,8 +55,11 @@ async function setNoindexForUnprovenStorefront(chain: Chain, seller: User): Prom
 
 async function storefrontFilters(chain: Chain, options: { noindex: boolean; affiliateCookie?: boolean; customHtml?: boolean }): Promise<User> {
   requireHtmlPage(chain);
-  if (options.affiliateCookie && (isPresent(queryParam(chain.request, "affiliate_id")) || isPresent(queryParam(chain.request, "a")))) throw new HandBackToRails();
   const seller = await sellerOfHost(hostUrl(chain));
+  if (options.affiliateCookie) {
+    const cookie = await affiliateCookieForParams(chain.request, chain.now);
+    if (cookie !== null) chain.cookies.push(cookie);
+  }
   if (options.noindex) await setNoindexForUnprovenStorefront(chain, seller);
   if (options.customHtml) {
     const page = await db.page.findFirst({ where: { pageable_type: "User", pageable_id: seller.id, slug: null }, orderBy: { id: "asc" } });
@@ -138,7 +140,7 @@ async function defaultProductsSectionAvailable(seller: User): Promise<boolean> {
 }
 
 // ProfileSectionsPresenter#cached_sections + #section_props for the visitor shape.
-async function sectionsProps(seller: User, request: PresenterRequest) {
+async function sectionsProps(seller: User, request: PresenterRequest, visitor: Params | null) {
   const sections = await db.sellerProfileSection.findMany({ where: { seller_id: seller.id, product_id: null }, orderBy: { id: "asc" } });
   return Promise.all(
     sections.map(async (section) => {
@@ -147,7 +149,7 @@ async function sectionsProps(seller: User, request: PresenterRequest) {
       const base = { id: externalId(section.id), header: hideHeader ? null : section.header, type: section.type };
       switch (section.type) {
         case PRODUCTS_SECTION_TYPE:
-          return productsSectionProps(seller, section as ProductsSectionRow, sectionHeader(section, hideHeader), request);
+          return productsSectionProps(seller, section as ProductsSectionRow, sectionHeader(section, hideHeader), request, visitor);
         case FEATURED_PRODUCT_SECTION_TYPE:
           return featuredProductSectionProps(seller, base, data, request);
         case WISHLISTS_SECTION_TYPE:
@@ -183,21 +185,21 @@ async function assertSectionsSupported(chain: Chain, seller: User): Promise<void
     sections.some((section) => [PRODUCTS_SECTION_TYPE, FEATURED_PRODUCT_SECTION_TYPE, WISHLISTS_SECTION_TYPE].includes(section.type)) ||
     (sections.length === 0 && (await defaultProductsSectionAvailable(seller)));
   if (!productsShown) return;
-  if (VISITOR_SEARCH_PARAMS.some((name) => queryParam(chain.request, name) !== undefined || chain.request.queryString.includes(`${name}[`))) throw new HandBackToRails();
+  const visitor = await visitorSearchParams(chain.request.queryString);
   // Render the sections once ahead of the page: a card the port cannot prove is Rails' to answer.
   const url = hostUrl(chain);
   url.pathname = chain.request.path;
   url.search = chain.request.queryString;
-  await assertProductSectionsRender(() => sectionsProps(seller, presenterRequest(url, chain.request.headers)).then(() => defaultSection(seller, presenterRequest(url, chain.request.headers))), () => {
+  await assertProductSectionsRender(() => sectionsProps(seller, presenterRequest(url, chain.request.headers), visitor).then(() => defaultSection(seller, presenterRequest(url, chain.request.headers), visitor)), () => {
     throw new HandBackToRails();
   });
 }
 
 // ProfileSectionsPresenter#cached_default_products_section, for a seller with no saved sections and products to show.
-async function defaultSection(seller: User, request: PresenterRequest): Promise<Record<string, unknown> | null> {
+async function defaultSection(seller: User, request: PresenterRequest, visitor: Params | null): Promise<Record<string, unknown> | null> {
   const saved = await db.sellerProfileSection.count({ where: { seller_id: seller.id, product_id: null } });
   if (saved > 0 || !(await defaultProductsSectionAvailable(seller))) return null;
-  return productsSectionProps(seller, null, { id: DEFAULT_PRODUCTS_SECTION_ID, header: null }, request);
+  return productsSectionProps(seller, null, { id: DEFAULT_PRODUCTS_SECTION_ID, header: null }, request, visitor);
 }
 
 // ProfilePresenter#seller_analytics
@@ -217,10 +219,10 @@ async function sellerAnalytics(seller: User) {
 }
 
 // ProfilePresenter#profile_props (include_default_products_section; none applies once the filters passed)
-async function profileProps(seller: User, request: PresenterRequest) {
+async function profileProps(seller: User, request: PresenterRequest, visitor: Params | null) {
   const tabsStored = await profileTabs(seller);
-  const defaultProducts = await defaultSection(seller, request);
-  const sections = defaultProducts ? [defaultProducts] : await sectionsProps(seller, request);
+  const defaultProducts = await defaultSection(seller, request, visitor);
+  const sections = defaultProducts ? [defaultProducts] : await sectionsProps(seller, request, visitor);
   const ratings = (await db.link.findMany({ where: { user_id: seller.id, purchase_disabled_at: null, banned_at: null, deleted_at: null }, select: { flags: true } })).some((link) =>
     LinkFlags.isSet(link.flags, "display_product_reviews"),
   );
@@ -269,7 +271,7 @@ export const PROFILE_PAGES: Record<string, PageSpec> = {
         action.meta.set({ property: "og:description", content: profile.get("seo_description") });
       }
       await setFaviconMetaTags(action.meta, seller);
-      return profileProps(seller, presenterRequest(action.url, action.headers));
+      return profileProps(seller, presenterRequest(action.url, action.headers), await visitorSearchParams(action.url.search.replace(/^\?/u, "")));
     },
   },
   "seller:/subscribe": {
