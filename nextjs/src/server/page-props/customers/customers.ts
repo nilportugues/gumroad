@@ -170,6 +170,8 @@ type Loaded = {
   tierPrices: Map<string, Row[]>;
   // What CustomerPresenter reads off `purchase.subscription`, by subscription id.
   subscriptions: Map<string, SubscriptionReading>;
+  // `purchase.price.recurrence` of a purchase with no subscription, by purchase id.
+  priceRecurrences: Map<string, string | null>;
   // CustomerPresenter's `utm_link` hash, by purchase id.
   utmLinks: Map<string, Record<string, unknown>>;
   // `upsell_purchase&.upsell&.name`, by purchase id.
@@ -529,7 +531,19 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
     "link_id",
   );
   const subscriptions = await subscriptionReadings(purchases);
-
+  const subscriptionless = purchases.filter(
+    (purchase) => purchase.price_id != null && !subscriptions.has(String(purchase.subscription_id)),
+  );
+  const priceRecurrences = new Map(
+    (await rowsBy("prices", "id", [...new Set(subscriptionless.map((purchase) => purchase.price_id))])).flatMap(
+      (price) =>
+        subscriptionless
+          .filter((purchase) => String(purchase.price_id) === String(price.id))
+          .map(
+            (purchase) => [String(purchase.id), price.recurrence == null ? null : String(price.recurrence)] as const,
+          ),
+    ),
+  );
   const upsellNames = await upsellNamesFor(purchaseIds);
   const utmLinks = await utmLinkReadings(purchaseIds, seller);
 
@@ -596,6 +610,7 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
     shippings,
     tierPrices,
     subscriptions,
+    priceRecurrences,
     upsellNames,
     utmLinks,
     affiliates,
@@ -893,6 +908,14 @@ export type SubscriptionReading = {
   currentPriceCents: number | null;
 };
 
+// `(purchase.subscription || purchase.price)&.recurrence`
+export function recurrenceOf(
+  subscription: Pick<SubscriptionReading, "recurrence"> | undefined,
+  priceRecurrence: string | null | undefined,
+): string | null {
+  return (subscription ? subscription.recurrence : priceRecurrence) ?? null;
+}
+
 // Subscription#status. `lastPurchaseState` is the state of the subscription's newest purchase; `paymentMethodUpdateRequired` is the
 // Indian card mandate branch (renewals disabled, reliability enabled and a charge still ahead), which only matters once the rest says alive.
 export function subscriptionStatus(
@@ -986,7 +1009,7 @@ async function mandateChargeAhead(record: SubscriptionRecord, currentPriceCents:
   return futureSubscriptionCharge(
     await record.chargesCompleted(),
     currentPriceCents,
-    discounts.some((discount) => discount.duration_in_billing_cycles != null),
+    discounts.some((discount) => discount.duration_in_months != null),
     () => subscriptionRenewalPreDiscountTotalCents(record),
   );
 }
@@ -1083,7 +1106,7 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
       cents_before_offer_code: completion ? beforeOfferCode + completion.beforeOfferCode : beforeOfferCode,
       cents_refundable: await refundableCents(purchase, loaded.refundedCents.get(id) ?? 0, currency),
       currency_type: currency,
-      recurrence: subscription?.recurrence ?? null,
+      recurrence: recurrenceOf(subscription, loaded.priceRecurrences.get(id)),
       // listed_tip_cents: the deposit's tip, plus the completion's when it has one.
       tip_cents:
         completion?.tipCents == null
@@ -1151,7 +1174,12 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
         }
       : null,
     commission: commission
-      ? { id: commission.id, files: [], status: commission.status, files_are_editable: commission.filesAreEditable }
+      ? {
+          id: commission.id,
+          files: commission.files,
+          status: commission.status,
+          files_are_editable: commission.filesAreEditable,
+        }
       : null,
     custom_fields: (loaded.customFields.get(id) ?? []).map((field) => {
       const attribute = present(loaded.fieldNames.get(String(field.custom_field_id))?.name)
