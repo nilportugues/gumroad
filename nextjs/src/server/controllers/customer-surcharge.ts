@@ -9,7 +9,7 @@
 // Everything else hands back to Rails before anything is written (nothing here writes): a commission line (deposit
 // split, completion surcharges, once-per-cart codes), a subscription renewal, a VAT id, a Payment Element or list-token request, a seller with
 // `buyer_currency_charging` on, a Singapore rate table whose `applicable_years` is not plain, a Spanish buyer the GeoIP database
-// places in the Canary Islands, a bundle bound for an EU-27 rate, a missing `products` (ParameterMissing is rendered by the exceptions
+// places in the Canary Islands, a bundle with a component whose product row is gone, a missing `products` (ParameterMissing is rendered by the exceptions
 // app) and a request whose format is neither html, json nor a registered `format` param (the content type of `head`). The 400 (malformed `products`) and
 // 503 (RateUnavailable) answers are served: an empty body typed by the request format.
 import { Prisma } from "@prisma/client";
@@ -45,6 +45,7 @@ import {
   COUNTRIES_THAT_COLLECT_TAX_ON_ALL_PRODUCTS,
   COUNTRIES_THAT_COLLECT_TAX_ON_DIGITAL_PRODUCTS,
   EU_VAT_APPLICABLE_COUNTRY_CODES,
+  EU_VAT_DESTINATION_COUNTRY_CODES,
 } from "../tax/sales-tax-countries.ts";
 
 import { HandBackToRails, type ActionResult, type Rendered } from "./application-controller.ts";
@@ -229,6 +230,18 @@ function esExemptByGeoIp(ip: string | null): boolean {
   return false;
 }
 
+// SalesTaxCalculator#entirely_physical_shipment? for a bundle: its live components decide, and a mixed or empty bundle keeps
+// collecting. A component whose product row is gone is Ruby's NoMethodError, so that case is Rails' to answer.
+async function bundleEntirelyPhysical(bundleId: unknown): Promise<boolean> {
+  const rows = await selectRows<Row>(
+    Prisma.sql`SELECT ${column("links", "id")} AS product_id, ${column("links", "flags")} AS flags FROM ${table("bundle_products")} LEFT JOIN ${table("links")} ON ${column("links", "id")} = ${column("bundle_products", "product_id")} WHERE ${column("bundle_products", "bundle_id")} = ${bundleId} AND ${column("bundle_products", "deleted_at")} IS NULL`,
+  );
+  if (rows.some((row) => row.product_id === null || row.product_id === undefined)) {
+    return handBack("for a bundle with a component whose product is gone");
+  }
+  return rows.length > 0 && rows.every((row) => flagSet({ flags: row.flags } as LinkRow, "is_physical"));
+}
+
 // SalesTaxCalculator#calculate for a buyer with no VAT id. A TaxJar buyer (US taxable state, Canadian province) hands back.
 export async function calculateSalesTax(
   link: LinkRow,
@@ -254,14 +267,19 @@ export async function calculateSalesTax(
       rate = { country, combinedRate: new Prisma.Decimal(row.combined_rate as never).toFixed(7) };
       const flag = `collect_tax_${country.toLowerCase()}`;
       const flagActive = await isFeatureEnabled(flag);
+      // Rails asks `entirely_physical_shipment?` last, and only for a destination rate that is not the seller's own.
+      const bundleBoundForEu =
+        flagSet(link, "is_bundle") &&
+        !(row.user_id !== null && row.user_id !== undefined) &&
+        EU_VAT_DESTINATION_COUNTRY_CODES.includes(country);
+      const entirelyPhysical = bundleBoundForEu ? await bundleEntirelyPhysical(link.id) : isPhysical;
       eligible = taxEligible({
         rateCountry: country,
         rateIsSellerOwn: row.user_id !== null && row.user_id !== undefined,
         isPhysical,
         region,
         featureActive: (name) => name === flag && flagActive,
-        entirelyPhysicalShipment: () =>
-          flagSet(link, "is_bundle") ? handBack("for a bundle bound for an EU rate") : isPhysical,
+        entirelyPhysicalShipment: () => entirelyPhysical,
       });
     }
   }
