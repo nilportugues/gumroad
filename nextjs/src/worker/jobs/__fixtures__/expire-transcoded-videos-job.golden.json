@@ -1,0 +1,3617 @@
+{
+  "now": 1796041845.1230001,
+  "cases": [
+    {
+      "name": "no videos and no limit",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`deleted_at` IS NULL AND `transcoded_videos`.`last_accessed_at` <= '1926-11-30 12:30:45.123000' LIMIT 100",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ExpireTranscodedVideosJob",
+      "args": [],
+      "replica_lag_watches": 1,
+      "hands_back": false
+    },
+    {
+      "name": "an ancient video under the default limit of 100 years",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`deleted_at` IS NULL AND `transcoded_videos`.`last_accessed_at` <= '1926-11-30 12:30:45.123000' LIMIT 100",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                "original/1.mp4",
+                "transcoded/1.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "1900-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ExpireTranscodedVideosJob",
+      "args": [],
+      "replica_lag_watches": 1,
+      "hands_back": true
+    },
+    {
+      "name": "an old video under the default limit",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`deleted_at` IS NULL AND `transcoded_videos`.`last_accessed_at` <= '1926-11-30 12:30:45.123000' LIMIT 100",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ExpireTranscodedVideosJob",
+      "args": [],
+      "replica_lag_watches": 1,
+      "hands_back": false
+    },
+    {
+      "name": "a limit of 12 months and no videos",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`deleted_at` IS NULL AND `transcoded_videos`.`last_accessed_at` <= '2025-11-30 12:30:45.123000' LIMIT 100",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "12",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "12",
+          "expires": false
+        }
+      },
+      "job": "ExpireTranscodedVideosJob",
+      "args": [],
+      "replica_lag_watches": 1,
+      "hands_back": false
+    },
+    {
+      "name": "a limit of 12 months and only recent videos",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`deleted_at` IS NULL AND `transcoded_videos`.`last_accessed_at` <= '2025-11-30 12:30:45.123000' LIMIT 100",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "12",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "12",
+          "expires": false
+        }
+      },
+      "job": "ExpireTranscodedVideosJob",
+      "args": [],
+      "replica_lag_watches": 1,
+      "hands_back": false
+    },
+    {
+      "name": "a limit of 12 months and an old video",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`deleted_at` IS NULL AND `transcoded_videos`.`last_accessed_at` <= '2025-11-30 12:30:45.123000' LIMIT 100",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                "original/1.mp4",
+                "transcoded/1.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "12",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "12",
+          "expires": false
+        }
+      },
+      "job": "ExpireTranscodedVideosJob",
+      "args": [],
+      "replica_lag_watches": 1,
+      "hands_back": true
+    },
+    {
+      "name": "a limit of 12 months and an old deleted video",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`deleted_at` IS NULL AND `transcoded_videos`.`last_accessed_at` <= '2025-11-30 12:30:45.123000' LIMIT 100",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "12",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "12",
+          "expires": false
+        }
+      },
+      "job": "ExpireTranscodedVideosJob",
+      "args": [],
+      "replica_lag_watches": 1,
+      "hands_back": false
+    },
+    {
+      "name": "a limit of 12 months and a video never accessed",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`deleted_at` IS NULL AND `transcoded_videos`.`last_accessed_at` <= '2025-11-30 12:30:45.123000' LIMIT 100",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "12",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "12",
+          "expires": false
+        }
+      },
+      "job": "ExpireTranscodedVideosJob",
+      "args": [],
+      "replica_lag_watches": 1,
+      "hands_back": false
+    },
+    {
+      "name": "a limit of 1 month and a video accessed exactly at the cutoff",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`deleted_at` IS NULL AND `transcoded_videos`.`last_accessed_at` <= '2026-10-30 12:30:45.123000' LIMIT 100",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                "original/1.mp4",
+                "transcoded/1.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-10-30T12:30:45.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "1",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "1",
+          "expires": false
+        }
+      },
+      "job": "ExpireTranscodedVideosJob",
+      "args": [],
+      "replica_lag_watches": 1,
+      "hands_back": true
+    },
+    {
+      "name": "a limit of 1 month and a video accessed a second after the cutoff",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`deleted_at` IS NULL AND `transcoded_videos`.`last_accessed_at` <= '2026-10-30 12:30:45.123000' LIMIT 100",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "1",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "1",
+          "expires": false
+        }
+      },
+      "job": "ExpireTranscodedVideosJob",
+      "args": [],
+      "replica_lag_watches": 1,
+      "hands_back": false
+    },
+    {
+      "name": "a limit of 1 month and a video accessed a second before the cutoff",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`deleted_at` IS NULL AND `transcoded_videos`.`last_accessed_at` <= '2026-10-30 12:30:45.123000' LIMIT 100",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                "original/1.mp4",
+                "transcoded/1.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-10-30T12:30:44.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "1",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "1",
+          "expires": false
+        }
+      },
+      "job": "ExpireTranscodedVideosJob",
+      "args": [],
+      "replica_lag_watches": 1,
+      "hands_back": true
+    },
+    {
+      "name": "a limit of 3 months counted back from the 30th clamps to a shorter month",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`deleted_at` IS NULL AND `transcoded_videos`.`last_accessed_at` <= '2026-08-30 12:30:45.123000' LIMIT 100",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                "original/1.mp4",
+                "transcoded/1.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-08-30T12:30:45.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "3",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "3",
+          "expires": false
+        }
+      },
+      "job": "ExpireTranscodedVideosJob",
+      "args": [],
+      "replica_lag_watches": 1,
+      "hands_back": true
+    },
+    {
+      "name": "a limit of 9 months counted back across a year end",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`deleted_at` IS NULL AND `transcoded_videos`.`last_accessed_at` <= '2026-02-28 12:30:45.123000' LIMIT 100",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                "original/1.mp4",
+                "transcoded/1.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-02-28T12:30:45.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "9",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "9",
+          "expires": false
+        }
+      },
+      "job": "ExpireTranscodedVideosJob",
+      "args": [],
+      "replica_lag_watches": 1,
+      "hands_back": true
+    },
+    {
+      "name": "a limit of 0 months",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`deleted_at` IS NULL AND `transcoded_videos`.`last_accessed_at` <= '2026-11-30 12:30:45.123000' LIMIT 100",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                "original/1.mp4",
+                "transcoded/1.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-11-30T12:30:45.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "job": "ExpireTranscodedVideosJob",
+      "args": [],
+      "replica_lag_watches": 1,
+      "hands_back": true
+    },
+    {
+      "name": "a limit of 0 months and a video accessed after now",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`deleted_at` IS NULL AND `transcoded_videos`.`last_accessed_at` <= '2026-11-30 12:30:45.123000' LIMIT 100",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "job": "ExpireTranscodedVideosJob",
+      "args": [],
+      "replica_lag_watches": 1,
+      "hands_back": false
+    },
+    {
+      "name": "a negative limit puts the cutoff in the future",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`deleted_at` IS NULL AND `transcoded_videos`.`last_accessed_at` <= '2026-12-30 12:30:45.123000' LIMIT 100",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                "original/1.mp4",
+                "transcoded/1.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-12-15T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "-1",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "-1",
+          "expires": false
+        }
+      },
+      "job": "ExpireTranscodedVideosJob",
+      "args": [],
+      "replica_lag_watches": 1,
+      "hands_back": true
+    },
+    {
+      "name": "a blank limit counts as 0 months",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`deleted_at` IS NULL AND `transcoded_videos`.`last_accessed_at` <= '2026-11-30 12:30:45.123000' LIMIT 100",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                "original/1.mp4",
+                "transcoded/1.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-11-30T12:30:45.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "",
+          "expires": false
+        }
+      },
+      "job": "ExpireTranscodedVideosJob",
+      "args": [],
+      "replica_lag_watches": 1,
+      "hands_back": true
+    },
+    {
+      "name": "a limit that is not a number counts as 0 months",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`deleted_at` IS NULL AND `transcoded_videos`.`last_accessed_at` <= '2026-11-30 12:30:45.123000' LIMIT 100",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                "original/1.mp4",
+                "transcoded/1.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-11-30T12:30:45.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "forever",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "forever",
+          "expires": false
+        }
+      },
+      "job": "ExpireTranscodedVideosJob",
+      "args": [],
+      "replica_lag_watches": 1,
+      "hands_back": true
+    },
+    {
+      "name": "a limit with trailing text",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`deleted_at` IS NULL AND `transcoded_videos`.`last_accessed_at` <= '2025-11-30 12:30:45.123000' LIMIT 100",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                "original/1.mp4",
+                "transcoded/1.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "12 months",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "12 months",
+          "expires": false
+        }
+      },
+      "job": "ExpireTranscodedVideosJob",
+      "args": [],
+      "replica_lag_watches": 1,
+      "hands_back": true
+    },
+    {
+      "name": "a limit with leading spaces",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`deleted_at` IS NULL AND `transcoded_videos`.`last_accessed_at` <= '2025-11-30 12:30:45.123000' LIMIT 100",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                "original/1.mp4",
+                "transcoded/1.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "  12",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "  12",
+          "expires": false
+        }
+      },
+      "job": "ExpireTranscodedVideosJob",
+      "args": [],
+      "replica_lag_watches": 1,
+      "hands_back": true
+    },
+    {
+      "name": "a limit with underscores",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`deleted_at` IS NULL AND `transcoded_videos`.`last_accessed_at` <= '2025-11-30 12:30:45.123000' LIMIT 100",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                "original/1.mp4",
+                "transcoded/1.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "1_2",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "1_2",
+          "expires": false
+        }
+      },
+      "job": "ExpireTranscodedVideosJob",
+      "args": [],
+      "replica_lag_watches": 1,
+      "hands_back": true
+    },
+    {
+      "name": "a limit with a leading plus",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`deleted_at` IS NULL AND `transcoded_videos`.`last_accessed_at` <= '2025-11-30 12:30:45.123000' LIMIT 100",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "+12",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "+12",
+          "expires": false
+        }
+      },
+      "job": "ExpireTranscodedVideosJob",
+      "args": [],
+      "replica_lag_watches": 1,
+      "hands_back": false
+    },
+    {
+      "name": "a decimal limit is cut at the point",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`deleted_at` IS NULL AND `transcoded_videos`.`last_accessed_at` <= '2025-11-30 12:30:45.123000' LIMIT 100",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                "original/1.mp4",
+                "transcoded/1.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "12.9",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "12.9",
+          "expires": false
+        }
+      },
+      "job": "ExpireTranscodedVideosJob",
+      "args": [],
+      "replica_lag_watches": 1,
+      "hands_back": true
+    },
+    {
+      "name": "101 old videos",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`deleted_at` IS NULL AND `transcoded_videos`.`last_accessed_at` <= '2025-11-30 12:30:45.123000' LIMIT 100",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                "original/1.mp4",
+                "transcoded/1.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                2,
+                null,
+                "original/2.mp4",
+                "transcoded/2.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                3,
+                null,
+                "original/3.mp4",
+                "transcoded/3.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                4,
+                null,
+                "original/4.mp4",
+                "transcoded/4.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                5,
+                null,
+                "original/5.mp4",
+                "transcoded/5.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                6,
+                null,
+                "original/6.mp4",
+                "transcoded/6.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                7,
+                null,
+                "original/7.mp4",
+                "transcoded/7.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                8,
+                null,
+                "original/8.mp4",
+                "transcoded/8.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                9,
+                null,
+                "original/9.mp4",
+                "transcoded/9.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                10,
+                null,
+                "original/10.mp4",
+                "transcoded/10.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                11,
+                null,
+                "original/11.mp4",
+                "transcoded/11.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                12,
+                null,
+                "original/12.mp4",
+                "transcoded/12.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                13,
+                null,
+                "original/13.mp4",
+                "transcoded/13.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                14,
+                null,
+                "original/14.mp4",
+                "transcoded/14.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                15,
+                null,
+                "original/15.mp4",
+                "transcoded/15.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                16,
+                null,
+                "original/16.mp4",
+                "transcoded/16.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                17,
+                null,
+                "original/17.mp4",
+                "transcoded/17.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                18,
+                null,
+                "original/18.mp4",
+                "transcoded/18.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                19,
+                null,
+                "original/19.mp4",
+                "transcoded/19.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                20,
+                null,
+                "original/20.mp4",
+                "transcoded/20.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                21,
+                null,
+                "original/21.mp4",
+                "transcoded/21.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                22,
+                null,
+                "original/22.mp4",
+                "transcoded/22.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                23,
+                null,
+                "original/23.mp4",
+                "transcoded/23.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                24,
+                null,
+                "original/24.mp4",
+                "transcoded/24.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                25,
+                null,
+                "original/25.mp4",
+                "transcoded/25.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                26,
+                null,
+                "original/26.mp4",
+                "transcoded/26.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                27,
+                null,
+                "original/27.mp4",
+                "transcoded/27.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                28,
+                null,
+                "original/28.mp4",
+                "transcoded/28.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                29,
+                null,
+                "original/29.mp4",
+                "transcoded/29.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                30,
+                null,
+                "original/30.mp4",
+                "transcoded/30.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                31,
+                null,
+                "original/31.mp4",
+                "transcoded/31.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                32,
+                null,
+                "original/32.mp4",
+                "transcoded/32.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                33,
+                null,
+                "original/33.mp4",
+                "transcoded/33.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                34,
+                null,
+                "original/34.mp4",
+                "transcoded/34.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                35,
+                null,
+                "original/35.mp4",
+                "transcoded/35.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                36,
+                null,
+                "original/36.mp4",
+                "transcoded/36.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                37,
+                null,
+                "original/37.mp4",
+                "transcoded/37.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                38,
+                null,
+                "original/38.mp4",
+                "transcoded/38.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                39,
+                null,
+                "original/39.mp4",
+                "transcoded/39.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                40,
+                null,
+                "original/40.mp4",
+                "transcoded/40.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                41,
+                null,
+                "original/41.mp4",
+                "transcoded/41.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                42,
+                null,
+                "original/42.mp4",
+                "transcoded/42.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                43,
+                null,
+                "original/43.mp4",
+                "transcoded/43.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                44,
+                null,
+                "original/44.mp4",
+                "transcoded/44.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                45,
+                null,
+                "original/45.mp4",
+                "transcoded/45.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                46,
+                null,
+                "original/46.mp4",
+                "transcoded/46.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                47,
+                null,
+                "original/47.mp4",
+                "transcoded/47.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                48,
+                null,
+                "original/48.mp4",
+                "transcoded/48.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                49,
+                null,
+                "original/49.mp4",
+                "transcoded/49.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                50,
+                null,
+                "original/50.mp4",
+                "transcoded/50.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                51,
+                null,
+                "original/51.mp4",
+                "transcoded/51.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                52,
+                null,
+                "original/52.mp4",
+                "transcoded/52.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                53,
+                null,
+                "original/53.mp4",
+                "transcoded/53.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                54,
+                null,
+                "original/54.mp4",
+                "transcoded/54.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                55,
+                null,
+                "original/55.mp4",
+                "transcoded/55.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                56,
+                null,
+                "original/56.mp4",
+                "transcoded/56.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                57,
+                null,
+                "original/57.mp4",
+                "transcoded/57.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                58,
+                null,
+                "original/58.mp4",
+                "transcoded/58.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                59,
+                null,
+                "original/59.mp4",
+                "transcoded/59.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                60,
+                null,
+                "original/60.mp4",
+                "transcoded/60.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                61,
+                null,
+                "original/61.mp4",
+                "transcoded/61.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                62,
+                null,
+                "original/62.mp4",
+                "transcoded/62.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                63,
+                null,
+                "original/63.mp4",
+                "transcoded/63.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                64,
+                null,
+                "original/64.mp4",
+                "transcoded/64.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                65,
+                null,
+                "original/65.mp4",
+                "transcoded/65.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                66,
+                null,
+                "original/66.mp4",
+                "transcoded/66.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                67,
+                null,
+                "original/67.mp4",
+                "transcoded/67.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                68,
+                null,
+                "original/68.mp4",
+                "transcoded/68.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                69,
+                null,
+                "original/69.mp4",
+                "transcoded/69.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                70,
+                null,
+                "original/70.mp4",
+                "transcoded/70.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                71,
+                null,
+                "original/71.mp4",
+                "transcoded/71.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                72,
+                null,
+                "original/72.mp4",
+                "transcoded/72.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                73,
+                null,
+                "original/73.mp4",
+                "transcoded/73.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                74,
+                null,
+                "original/74.mp4",
+                "transcoded/74.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                75,
+                null,
+                "original/75.mp4",
+                "transcoded/75.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                76,
+                null,
+                "original/76.mp4",
+                "transcoded/76.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                77,
+                null,
+                "original/77.mp4",
+                "transcoded/77.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                78,
+                null,
+                "original/78.mp4",
+                "transcoded/78.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                79,
+                null,
+                "original/79.mp4",
+                "transcoded/79.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                80,
+                null,
+                "original/80.mp4",
+                "transcoded/80.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                81,
+                null,
+                "original/81.mp4",
+                "transcoded/81.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                82,
+                null,
+                "original/82.mp4",
+                "transcoded/82.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                83,
+                null,
+                "original/83.mp4",
+                "transcoded/83.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                84,
+                null,
+                "original/84.mp4",
+                "transcoded/84.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                85,
+                null,
+                "original/85.mp4",
+                "transcoded/85.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                86,
+                null,
+                "original/86.mp4",
+                "transcoded/86.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                87,
+                null,
+                "original/87.mp4",
+                "transcoded/87.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                88,
+                null,
+                "original/88.mp4",
+                "transcoded/88.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                89,
+                null,
+                "original/89.mp4",
+                "transcoded/89.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                90,
+                null,
+                "original/90.mp4",
+                "transcoded/90.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                91,
+                null,
+                "original/91.mp4",
+                "transcoded/91.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                92,
+                null,
+                "original/92.mp4",
+                "transcoded/92.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                93,
+                null,
+                "original/93.mp4",
+                "transcoded/93.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                94,
+                null,
+                "original/94.mp4",
+                "transcoded/94.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                95,
+                null,
+                "original/95.mp4",
+                "transcoded/95.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                96,
+                null,
+                "original/96.mp4",
+                "transcoded/96.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                97,
+                null,
+                "original/97.mp4",
+                "transcoded/97.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                98,
+                null,
+                "original/98.mp4",
+                "transcoded/98.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                99,
+                null,
+                "original/99.mp4",
+                "transcoded/99.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                100,
+                null,
+                "original/100.mp4",
+                "transcoded/100.m3u8",
+                null,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2023-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "12",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "transcoded_videos_recentness_limit_in_months": {
+          "type": "string",
+          "value": "12",
+          "expires": false
+        }
+      },
+      "job": "ExpireTranscodedVideosJob",
+      "args": [],
+      "replica_lag_watches": 1,
+      "hands_back": true
+    }
+  ]
+}

@@ -32,6 +32,7 @@ export const PORTED_JOBS: readonly string[] = [
   "EnqueueMarketingXReconnectEmailJob",
   "EndSubscriptionWorker",
   "ExpireStampedPdfsJob",
+  "ExpireTranscodedVideosJob",
   "FightDisputesJob",
   "FindExpiredSubscriptionsToSetAsDeactivatedWorker",
   "FindSubscriptionsWithMissingChargeWorker",

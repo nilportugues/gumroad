@@ -28,6 +28,7 @@ import { dispatchPendingWorkflowInstallmentScheduleIntentsJob } from "./dispatch
 import { disputeEvidenceDueSoonReminderJob } from "./dispute-evidence-due-soon-reminder-job.ts";
 import { elasticsearchIndexerWorker } from "./elasticsearch-indexer-worker.ts";
 import { enqueueMarketingXReconnectEmailJob } from "./enqueue-marketing-x-reconnect-email-job.ts";
+import { expireTranscodedVideosJob } from "./expire-transcoded-videos-job.ts";
 import { flushDeliveredEmailInfosJob } from "./flush-delivered-email-infos-job.ts";
 import { handleSnsAwsConfigEventWorker } from "./handle-sns-aws-config-event-worker.ts";
 import { handleStripeAutodebitForNegativeBalance } from "./handle-stripe-autodebit-job.ts";
@@ -173,6 +174,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   ExpireRentalPurchasesWorker: expireRentalPurchasesWorker,
   EnqueueMarketingXReconnectEmailJob: enqueueMarketingXReconnectEmailJob,
   ExpireStampedPdfsJob: expireStampedPdfsJob,
+  ExpireTranscodedVideosJob: expireTranscodedVideosJob,
   EndSubscriptionWorker: endSubscriptionWorker,
   FightDisputesJob: fightDisputesJob,
   ExecuteScheduledPayoutsJob: executeScheduledPayoutsJob,
