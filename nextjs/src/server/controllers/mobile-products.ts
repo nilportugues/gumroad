@@ -1,8 +1,8 @@
 // Port of app/controllers/api/mobile/products_controller.rb#index.
 //
 // Served here: the seller's visible, unarchived products newest first (name filter, 20 a page) for the shapes the dashboard row
-// serializer reproduces (USD, buy-only, cached stats not needed). Everything else goes to Rails whole: a page past the last one
-// (Pagy::OverflowError renders a 400), a page or query Ruby casts differently, a product priced in another currency or with an uploaded
+// serializer reproduces (USD, buy-only, cached stats not needed), and the 400 Pagy::OverflowError renders for a page past the last
+// one. Everything else goes to Rails whole: a page or query Ruby casts differently, a product priced in another currency or with an uploaded
 // thumbnail. #destroy is not registered: it soft-deletes and records an Event, so Rails keeps it.
 import { Prisma } from "@prisma/client";
 
@@ -84,7 +84,9 @@ async function index(input: MobileInput, auth: MobileAuth | null) {
   );
   const count = Number(counted?.count ?? 0);
   const pages = Math.max(Math.ceil(count / PRODUCTS_PER_PAGE), 1);
-  if (page > pages) throw new HandBackToRails("a page beyond the last (Pagy::OverflowError)");
+  // Api::Mobile::BaseController rescues Pagy::VariableError (config/initializers/pagy.rb sets overflow to :exception)
+  if (page > pages)
+    return { ...renderJson({ error: { message: `expected :page in 1..${pages}; got ${page}` } }, 400), rescued: true };
 
   const ids = await selectRows<{ id: bigint }>(
     Prisma.sql`SELECT ${column("links", "id")} FROM ${table("links")} WHERE ${where} ORDER BY ${column("links", "created_at")} DESC, ${column("links", "id")} DESC LIMIT ${PRODUCTS_PER_PAGE} OFFSET ${(page - 1) * PRODUCTS_PER_PAGE}`,

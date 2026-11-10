@@ -119,9 +119,21 @@ describe("GET /mobile/products", () => {
     expect(sql.values).toContain("%50\\%\\_off%");
   });
 
-  it("hands back a page past the last one, a non-digit page and a non-string query", async () => {
+  it("answers Pagy's 400 for a page past the last one, without running the after actions", async () => {
     stub(1, [1n]);
-    await expect(run(input({ page: "2" }), auth)).rejects.toThrow(/Pagy/u);
+    const result = await run(input({ page: "2" }), auth);
+    expect(result).toMatchObject({ status: 400, rescued: true });
+    expect(body(result)).toEqual({ error: { message: "expected :page in 1..1; got 2" } });
+    expect(selectRows).toHaveBeenCalledTimes(1);
+  });
+
+  it("counts pages from the filtered total in the overflow message", async () => {
+    stub(41, [1n]);
+    expect(body(await run(input({ page: "4" }), auth)).error.message).toBe("expected :page in 1..3; got 4");
+  });
+
+  it("hands back a non-digit page and a non-string query", async () => {
+    stub(1, [1n]);
     await expect(run(input({ page: "abc" }), auth)).rejects.toThrow(/page/u);
     await expect(run(input({ query: ["a"] }), auth)).rejects.toThrow(/query/u);
   });
