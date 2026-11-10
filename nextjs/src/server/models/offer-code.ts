@@ -104,6 +104,8 @@ const NOT_RECURRING_CHARGE = Prisma.raw("(purchases.subscription_id IS NULL OR p
 const NOT_FULLY_REFUNDED = Prisma.raw("(purchases.stripe_refunded IS NULL OR purchases.stripe_refunded = 0)");
 const NOT_CHARGEDBACK_OR_REVERSED = Prisma.raw("(purchases.chargeback_date IS NULL OR (purchases.chargeback_date IS NOT NULL AND purchases.flags & '512' != 0))");
 const NOT_OWN_PURCHASE = Prisma.raw("(purchases.purchaser_id IS NULL OR purchases.purchaser_id != purchases.seller_id)");
+// OfferCode#qualifying_ownership_purchases
+const QUALIFYING_OWNERSHIP_PURCHASES = Prisma.sql`${states(ALL_SUCCESS_STATES)} AND ${purchaseFlag("is_additional_contribution", false)} AND ${NOT_RECURRING_CHARGE} AND ${purchaseFlag("is_gift_sender_purchase", false)} AND ${NOT_FULLY_REFUNDED} AND ${NOT_CHARGEDBACK_OR_REVERSED} AND ${purchaseFlag("is_access_revoked", false)}`;
 const poc = (name: string) => column("purchase_offer_code_discounts", name);
 const POC_JOIN = Prisma.sql`INNER JOIN ${table("purchase_offer_code_discounts")} ON ${poc("purchase_id")} = ${column("purchases", "id")}`;
 const PAYMENT_INTENT_JOIN = Prisma.sql`LEFT OUTER JOIN ${table("processor_payment_intents")} ON ${column("processor_payment_intents", "purchase_id")} = ${column("purchases", "id")}`;
@@ -273,9 +275,25 @@ export class OfferCodeRecord {
     const hasEmail = email != null && email.trim() !== "";
     const condition = hasEmail && buyer.confirmed_at != null ? Prisma.sql`(${byAccount} OR purchases.email = ${email})` : Prisma.sql`(${byAccount})`;
     const [row] = await selectRows<{ created_at: Date | null }>(
-      Prisma.sql`SELECT ${column("purchases", "created_at")} FROM ${table("purchases")} WHERE ${states(ALL_SUCCESS_STATES)} AND ${purchaseFlag("is_additional_contribution", false)} AND ${NOT_RECURRING_CHARGE} AND ${purchaseFlag("is_gift_sender_purchase", false)} AND ${NOT_FULLY_REFUNDED} AND ${NOT_CHARGEDBACK_OR_REVERSED} AND ${purchaseFlag("is_access_revoked", false)} AND ${columnIn("purchases", "link_id", products.map((product) => product.id))} AND ${condition} ORDER BY ${column("purchases", "created_at")} ASC LIMIT 1`,
+      Prisma.sql`SELECT ${column("purchases", "created_at")} FROM ${table("purchases")} WHERE ${QUALIFYING_OWNERSHIP_PURCHASES} AND ${columnIn("purchases", "link_id", products.map((product) => product.id))} AND ${condition} ORDER BY ${column("purchases", "created_at")} ASC LIMIT 1`,
     );
     return monthsSince(row?.created_at ?? null, now);
+  }
+
+  // OfferCode#returning_customer?: a qualifying purchase from this seller by account, or by the checkout email.
+  async returningCustomer(purchaserIds: Array<bigint | number | null>, emails: Array<string | null>): Promise<boolean> {
+    const ids = [...new Set(purchaserIds.filter((id): id is bigint | number => id !== null).map(String))];
+    const addresses = [...new Set(emails.filter((email): email is string => email != null && email.trim() !== ""))];
+    const exists = async (condition: Prisma.Sql) =>
+      (
+        await selectRows(
+          Prisma.sql`SELECT 1 AS one FROM ${table("purchases")} WHERE ${QUALIFYING_OWNERSHIP_PURCHASES} AND ${column("purchases", "seller_id")} = ${String(this.row.user_id)} AND ${condition} LIMIT 1`,
+        )
+      ).length > 0;
+    return (
+      (ids.length > 0 && (await exists(columnIn("purchases", "purchaser_id", ids)))) ||
+      (addresses.length > 0 && (await exists(columnIn("purchases", "email", addresses))))
+    );
   }
 
   // OfferCode#evaluate_for_buyer: the discount this code gives the buyer, or null.

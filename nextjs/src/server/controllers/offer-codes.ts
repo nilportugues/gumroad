@@ -1,11 +1,11 @@
 // Port of app/controllers/offer_codes_controller.rb#compute_discount and the read-only core of
 // app/services/offer_code_discount_computing_service.rb (cart of permalinks, `key_by_input: false`).
 //
-// A code or cart that needs more than that hands back to Rails (HandBackToRails): an existing-customers or tiered
-// code for a signed-in buyer (purchase history), a once-per-cart-fixed code, a new-customers code for a signed-in
-// buyer and a line whose product has cross-sells to apply optimistically. A signed-out visitor has no purchases, so
-// an existing-customers code gives them nothing and a tiered one its month-0 tier.
-import { Prisma, type Link } from "@prisma/client";
+// A code or cart that needs more than that hands back to Rails (HandBackToRails): a once-per-cart-fixed code and a
+// line whose product has cross-sells to apply optimistically. A signed-out visitor has no purchases, so an
+// existing-customers code gives them nothing and a tiered one its month-0 tier; a signed-in buyer is measured
+// against their purchase history (`ownershipMonthsFor`, `returningCustomer`).
+import { Prisma, type Link, type User } from "@prisma/client";
 
 import { encrypt } from "../../lib/obfuscate-ids.ts";
 import type { OfferCodeRecord } from "../models/offer-code.ts";
@@ -99,33 +99,34 @@ async function sellerHasAvailableCrossSells(userId: bigint | number): Promise<bo
   return rows.length > 0;
 }
 
-function assertSupported(code: OfferCodeRecord, signedIn: boolean): void {
-  const { row } = code;
-  if (row.amount_cents != null && code.oncePerCart)
+function assertSupported(code: OfferCodeRecord): void {
+  if (code.row.amount_cents != null && code.oncePerCart)
     throw new HandBackToRails("compute_discount for a once-per-cart code");
-  if ((row.existing_customers_only || code.tiered()) && signedIn)
-    throw new HandBackToRails("compute_discount existing-customers or tiered code for a signed-in buyer");
-  if (row.new_customers_only && signedIn)
-    throw new HandBackToRails("compute_discount new-customers code for a signed-in buyer");
 }
 
-// OfferCode#evaluate_for_buyer(nil, ...) merged over the full discount hash, as `discount.merge(...)` does.
-async function resolveForVisitor(
+// OfferCode#evaluate_for_buyer merged over the full discount hash, as `discount.merge(...)` does.
+async function resolveForBuyer(
   code: OfferCodeRecord,
+  buyer: User | null,
   link: Link,
   full: Record<string, unknown>,
   now: Date,
 ): Promise<Record<string, unknown> | null> {
-  const resolved = await code.evaluateForBuyer(null, link, null, now);
+  const resolved = await code.evaluateForBuyer(buyer, link, null, now);
   if (resolved === null) return null;
   return code.tiered() ? { ...full, ...resolved } : full;
+}
+
+// OfferCodeDiscountComputingService#returning_customer?: only the signed-in buyer is recognised, by account and email.
+function returningCustomer(code: OfferCodeRecord, buyer: User): Promise<boolean> {
+  return code.returningCustomer([buyer.id], [buyer.email]);
 }
 
 // OfferCodeDiscountComputingService#process
 export async function processDiscount(
   code: string,
   lines: Record<string, CartLine>,
-  signedIn: boolean,
+  buyer: User | null,
   now: Date,
 ): Promise<ComputeResult> {
   const entriesByPermalink = new Map<string, CartLine[]>();
@@ -168,7 +169,7 @@ export async function processDiscount(
     }
     if (offerCode === null) continue;
     applicableCodes.push(offerCode);
-    assertSupported(offerCode, signedIn);
+    assertSupported(offerCode);
     if (await sellerHasAvailableCrossSells(link.user_id as bigint))
       throw new HandBackToRails("compute_discount with cross-sells to apply optimistically");
 
@@ -195,13 +196,15 @@ export async function processDiscount(
     };
     const sufficient = max == null || (await left()) >= quantity;
 
-    // `offer_code.evaluate_for_buyer(buyer, product: link)`, with no buyer: nil for an existing-customers code or
-    // a tiered one that has no tier starting at month 0.
+    // `offer_code.evaluate_for_buyer(buyer, product: link) unless returning_customer?(offer_code)`. With no buyer
+    // that is nil for an existing-customers code or a tiered one that has no tier starting at month 0.
     const full = await fullDiscount(offerCode);
-    const resolved =
-      offerCode.row.existing_customers_only || offerCode.tiered()
-        ? await resolveForVisitor(offerCode, link, full, now)
-        : full;
+    let resolved: Record<string, unknown> | null;
+    if (offerCode.row.new_customers_only && buyer !== null && (await returningCustomer(offerCode, buyer)))
+      resolved = null;
+    else if (offerCode.row.existing_customers_only || offerCode.tiered())
+      resolved = await resolveForBuyer(offerCode, buyer, link, full, now);
+    else resolved = full;
 
     if (resolved !== null && !offerCode.inactive(now) && meetsMinimum && sufficient) {
       if (max != null) remaining.set(offerCode.id, (await left()) - quantity);
@@ -224,7 +227,7 @@ export async function processDiscount(
 }
 
 // OfferCodesController#compute_discount
-export async function computeDiscount(request: RailsRequest, signedIn: boolean, now = new Date()): Promise<Rendered> {
+export async function computeDiscount(request: RailsRequest, buyer: User | null, now = new Date()): Promise<Rendered> {
   let query: Query;
   try {
     query = parseQuery(request.queryString);
@@ -234,7 +237,7 @@ export async function computeDiscount(request: RailsRequest, signedIn: boolean, 
   // `normalize_code(params[:code])` calls `to_s`: an array or hash code is Ruby's to render.
   if (query.code !== undefined && typeof query.code !== "string")
     throw new HandBackToRails("compute_discount with a non-scalar code");
-  const result = await processDiscount(normalizeCode(query.code ?? ""), cartLines(query), signedIn, now);
+  const result = await processDiscount(normalizeCode(query.code ?? ""), cartLines(query), buyer, now);
 
   const response =
     result.error_code !== null

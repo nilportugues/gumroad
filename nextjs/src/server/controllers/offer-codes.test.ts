@@ -8,9 +8,12 @@ import { HandBackToRails } from "./application-controller.ts";
 process.env.OBFUSCATE_IDS_CIPHER_KEY = "offer-codes-test-key";
 process.env.OBFUSCATE_IDS_NUMERIC_CIPHER_KEY = "12345";
 
-const { selectRows, quantityLeft, restrictedVariants } = vi.hoisted(() => ({
+const { selectRows, quantityLeft, restrictedVariants, ownershipMonths, returningCustomer } = vi.hoisted(() => ({
   selectRows: vi.fn(),
   quantityLeft: vi.fn(),
+  // Months since the signed-in buyer's oldest qualifying purchase; null when they own nothing.
+  ownershipMonths: { value: null as number | null },
+  returningCustomer: vi.fn(),
   restrictedVariants: [] as { id: number; productId: number }[],
 }));
 
@@ -24,14 +27,20 @@ vi.mock("../presenters/best-offer-code.ts", () => ({
   asRecord: (row: Record<string, unknown>) => ({
     row,
     id: row.id,
-    oncePerCart: false,
+    oncePerCart: row.oncePerCart === true,
     tiered: () => ((row.tiers as unknown[] | undefined) ?? []).length > 0,
     // A visitor owns nothing: months is nil, so only a month-0 tier matches.
-    evaluateForBuyer: async () => {
-      if (row.existing_customers_only) return null;
-      const tier = ((row.tiers as { months: number; pct: number }[] | undefined) ?? []).find((t) => t.months <= 0);
-      return tier ? { type: "percent", percents: tier.pct } : null;
+    evaluateForBuyer: async (buyer: unknown) => {
+      const months = buyer === null ? null : ownershipMonths.value;
+      if (row.existing_customers_only && months === null) return null;
+      const tiers = (row.tiers as { months: number; pct: number }[] | undefined) ?? [];
+      if (tiers.length > 0) {
+        const tier = tiers.filter((t) => t.months <= (months ?? 0)).at(-1);
+        return tier ? { type: "percent", percents: tier.pct } : null;
+      }
+      return { type: "fixed", cents: 100 };
     },
+    returningCustomer,
     inactive: (now: Date) => row.expires_at != null && (row.expires_at as Date).getTime() < now.getTime(),
     restrictedVariantsFor: async (product: { id: number }) =>
       restrictedVariants
@@ -74,8 +83,8 @@ const code = (extra: Record<string, unknown> = {}) => ({
 const req = (queryString: string) => ({ queryString }) as never;
 const cartQuery = (permalinks: string[], quantity = 1) =>
   permalinks.map((p, i) => `products[${i}][permalink]=${p}&products[${i}][quantity]=${quantity}`).join("&");
-const body = async (query: string, signedIn = false) =>
-  JSON.parse(((await computeDiscount(req(query), signedIn, NOW)) as { body: string }).body);
+const body = async (query: string, buyer: object | null = null) =>
+  JSON.parse(((await computeDiscount(req(query), buyer as never, NOW)) as { body: string }).body);
 
 // Calls in order: visible links, the user's codes, then the cross-sell probe per applicable line.
 function stubDb({ links = [link(1)], codes = [code()], crossSells = false } = {}) {
@@ -91,6 +100,8 @@ beforeEach(() => {
   selectRows.mockReset();
   quantityLeft.mockReset();
   restrictedVariants.length = 0;
+  ownershipMonths.value = null;
+  returningCustomer.mockReset();
 });
 
 describe("cartLines (OfferCodesController#product_params)", () => {
@@ -250,15 +261,6 @@ describe("a code limited to options (entries_eligible_for_option_scope)", () => 
 });
 
 describe("compute_discount hand-backs", () => {
-  it.each([
-    ["an existing-customers code for a signed-in buyer", { existing_customers_only: true }],
-    ["a tiered code for a signed-in buyer", { tiers: [{ months: 0, pct: 10 }] }],
-    ["a new-customers code for a signed-in buyer", { new_customers_only: true }],
-  ])("hands back %s", async (_name, extra) => {
-    stubDb({ codes: [code(extra)] });
-    await expect(body(`code=off&${cartQuery(["perm1"])}`, true)).rejects.toBeInstanceOf(HandBackToRails);
-  });
-
   it("answers a new-customers code for a visitor, who has no purchase history", async () => {
     stubDb({ codes: [code({ new_customers_only: true })] });
     expect((await body(`code=off&${cartQuery(["perm1"])}`)).valid).toBe(true);
@@ -290,9 +292,65 @@ describe("compute_discount hand-backs", () => {
     });
   });
 
+  it("hands back a once-per-cart code", async () => {
+    stubDb({ codes: [code({ oncePerCart: true })] });
+    await expect(body(`code=off&${cartQuery(["perm1"])}`)).rejects.toBeInstanceOf(HandBackToRails);
+  });
+
   it("hands back a seller with cross-sells and a non-scalar code", async () => {
     stubDb({ crossSells: true });
     await expect(body(`code=off&${cartQuery(["perm1"])}`)).rejects.toBeInstanceOf(HandBackToRails);
     await expect(body("code[]=off")).rejects.toBeInstanceOf(HandBackToRails);
+  });
+});
+
+describe("compute_discount for a signed-in buyer", () => {
+  const buyer = { id: 5n, email: "buyer@example.com" };
+  const url = `code=off&${cartQuery(["perm1"])}`;
+  const tiers = [
+    { months: 0, pct: 10 },
+    { months: 12, pct: 50 },
+  ];
+
+  it("gives an existing-customers code to a buyer who owns the product", async () => {
+    stubDb({ codes: [code({ existing_customers_only: true })] });
+    ownershipMonths.value = 3;
+    expect((await body(url, buyer)).valid).toBe(true);
+  });
+
+  it("answers not_existing_customer when the buyer owns nothing", async () => {
+    stubDb({ codes: [code({ existing_customers_only: true })] });
+    expect((await body(url, buyer)).error_code).toBe("not_existing_customer");
+  });
+
+  it("gives a tiered code the tier the buyer's ownership has reached", async () => {
+    stubDb({ codes: [code({ tiers })] });
+    ownershipMonths.value = 14;
+    expect((await body(url, buyer)).products_data.perm1).toMatchObject({ type: "percent", percents: 50 });
+    ownershipMonths.value = 2;
+    expect((await body(url, buyer)).products_data.perm1).toMatchObject({ type: "percent", percents: 10 });
+  });
+
+  it("gives a new-customers code to a buyer with no earlier purchase from the seller", async () => {
+    stubDb({ codes: [code({ new_customers_only: true })] });
+    returningCustomer.mockResolvedValue(false);
+    expect((await body(url, buyer)).valid).toBe(true);
+    expect(returningCustomer).toHaveBeenCalledWith([5n], ["buyer@example.com"]);
+  });
+
+  it("answers not_new_customer for a buyer who has bought from the seller before", async () => {
+    stubDb({ codes: [code({ new_customers_only: true })] });
+    returningCustomer.mockResolvedValue(true);
+    expect(await body(url, buyer)).toEqual({
+      valid: false,
+      error_code: "not_new_customer",
+      error_message: "Sorry, this discount code is only for new customers.",
+    });
+  });
+
+  it("does not look up purchases for a visitor with a new-customers code", async () => {
+    stubDb({ codes: [code({ new_customers_only: true })] });
+    expect((await body(url)).valid).toBe(true);
+    expect(returningCustomer).not.toHaveBeenCalled();
   });
 });
