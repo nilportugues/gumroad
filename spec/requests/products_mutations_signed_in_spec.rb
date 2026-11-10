@@ -201,14 +201,39 @@ describe "Products mutations when signed in", type: :request do
     expect(product.reload).not_to be_deleted
   end
 
-  it "hands a deletion of a product shown in a profile section back to Rails", parity: true do
-    section = create(:seller_profile_products_section, seller:, shown_products: [product.id])
+  it "removes a deleted product from the products sections that show it", parity: true do
+    shown = create(:seller_profile_products_section, seller:, shown_products: [product.id, 987_654])
+    unrelated = create(:seller_profile_products_section, seller:, shown_products: [987_654])
     log_in(seller)
 
     send_json(:delete, link_path(product.unique_permalink))
 
     expect(response.parsed_body).to eq("success" => true)
-    expect(section.reload.shown_products).to eq([])
+    expect(product.reload).to be_deleted
+    expect(shown.reload.shown_products).to eq([987_654])
+    expect(unrelated.reload.shown_products).to eq([987_654])
+  end
+
+  it "clears a deleted product from the featured product section", parity: true do
+    featured = create(:seller_profile_featured_product_section, seller:, featured_product_id: product.id)
+    other = create(:seller_profile_featured_product_section, seller:, featured_product_id: 987_654)
+    log_in(seller)
+
+    send_json(:delete, link_path(product.unique_permalink))
+
+    expect(response.parsed_body).to eq("success" => true)
+    expect(featured.reload.json_data).to eq({})
+    expect(other.reload.featured_product_id).to eq(987_654)
+  end
+
+  it "deletes the custom domain of a deleted product", parity: true do
+    domain = create(:custom_domain, user: nil, product:, domain: "shop.example.com", created_at: Time.utc(2025, 1, 1), updated_at: Time.utc(2025, 1, 1))
+    log_in(seller)
+
+    send_json(:delete, link_path(product.unique_permalink))
+
+    expect(response.parsed_body).to eq("success" => true)
+    expect(domain.reload).to be_deleted
   end
 
   it "unpublishes a tiered membership", parity: true do
