@@ -368,9 +368,11 @@ describe "Buyer pages", type: :request do
       end
 
       it "renders member purchases instead of the bundle purchase and offers the bundle filter", parity: true do
-        bundle_purchase = create(:purchase, purchaser: buyer, email: buyer.email, link: create(:product, :bundle)).tap { _1.create_url_redirect! }
+        # The purchase factory charges a card through Stripe; the page only needs the rows.
+        bundle_purchase = build(:purchase, purchaser: buyer, email: buyer.email, link: create(:product, :bundle), is_bundle_purchase: true, purchase_state: "successful").tap { _1.save!(validate: false) }
         bundle_purchase.link.bundle_products.each do |bundle_product|
-          member = create(:purchase, purchaser: buyer, email: buyer.email, link: bundle_product.product, is_bundle_product_purchase: true).tap { _1.create_url_redirect! }
+          member = build(:purchase, purchaser: buyer, email: buyer.email, link: bundle_product.product, is_bundle_product_purchase: true, purchase_state: "successful").tap { _1.save!(validate: false) }
+          member.create_url_redirect!
           BundleProductPurchase.create!(bundle_purchase:, product_purchase: member)
         end
         log_in(buyer)
