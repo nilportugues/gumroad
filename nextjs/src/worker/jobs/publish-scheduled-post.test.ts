@@ -37,8 +37,8 @@ afterAll(async () => {
   redis.disconnect();
 });
 
-// What installment-writes.ts leaves to Rails: a filter that asks DynamoDB, a file, a call to action.
-const HANDED_BACK = new Set(["a post that emails and excludes people who clicked another post", "a post with a file", "a post with a call to action"]);
+// What installment-writes.ts leaves to Rails: a filter that asks DynamoDB, a file.
+const HANDED_BACK = new Set(["a post that emails and excludes people who clicked another post", "a post with a file"]);
 
 const withoutJobIds = (value: unknown) => JSON.stringify(value, (_key, v) => (v instanceof RubyFloat ? v.value : v)).replace(/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}/gu, "JOB_ID");
 const secondsOf = (value: unknown) => (typeof value === "number" ? value : (value as RubyFloat).value);

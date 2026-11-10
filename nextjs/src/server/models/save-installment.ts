@@ -4,7 +4,7 @@
 //
 // What Node cannot prove throws NotPortedError before the first write, and the controller hands the request to Rails:
 // a post with files (S3 and ProductFile), a message Nokogiri would rewrite or that holds an upsell card,
-// a preview email, a "has not clicked" filter, a call to action, and the date formats TimeZone#parse reads beyond ISO 8601.
+// a preview email, a "has not clicked" filter, and the date formats TimeZone#parse reads beyond ISO 8601.
 import { Prisma, type BaseVariant, type Installment, type InstallmentRule, type Link, type User } from "@prisma/client";
 
 import { randomBytes } from "node:crypto";

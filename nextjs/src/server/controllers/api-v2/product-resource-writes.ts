@@ -3,6 +3,7 @@
 import type { CustomField, Link } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
+import { HTTP_URI_REGEXP as URI_REGEXP } from "../../../lib/ruby-uri-regexp.ts";
 import { invalidateProductCache } from "../../models/link.ts";
 import { NotPortedError } from "../../page-props/not-ported.ts";
 import { type ApiV2Input, EDIT_PRODUCTS_SCOPES, errorWithCreatingObject, errorWithObject, loadProduct, registerApiV2, successWithObject } from "./base.ts";
@@ -17,11 +18,6 @@ const TYPE_TERMS = "terms";
 const TYPE_FILE = "file";
 const FILE_FIELD_NAME = "File upload";
 const COLLECT_PER_PRODUCT_FLAG = 2n;
-
-// CustomField::URI_REGEXP, /\A#{URI.regexp([%w[http https]])}\z/ with the extended-mode whitespace and comments dropped.
-const URI_REGEXP = new RegExp(
-  "^(?:(?=(?:http|https):)([a-zA-Z][\\-+.a-zA-Z\\d]*):(?:((?:[\\-_.!~*'()a-zA-Z\\d;?:@&=+$,]|%[a-fA-F\\d]{2})(?:[\\-_.!~*'()a-zA-Z\\d;/?:@&=+$,\\[\\]]|%[a-fA-F\\d]{2})*)|(?:(?://(?:(?:(?:((?:[\\-_.!~*'()a-zA-Z\\d;:&=+$,]|%[a-fA-F\\d]{2})*)@)?(?:((?:(?:[a-zA-Z0-9\\-.]|%[0-9a-fA-F][0-9a-fA-F])+|\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}|\\[(?:(?:[a-fA-F\\d]{1,4}:)*(?:[a-fA-F\\d]{1,4}|\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})|(?:(?:[a-fA-F\\d]{1,4}:)*[a-fA-F\\d]{1,4})?::(?:(?:[a-fA-F\\d]{1,4}:)*(?:[a-fA-F\\d]{1,4}|\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}))?)\\]))(?::(\\d*))?))?|((?:[\\-_.!~*'()a-zA-Z\\d$,;:@&=+]|%[a-fA-F\\d]{2})+))|(?!//))(/(?:[\\-_.!~*'()a-zA-Z\\d:@&=+$,]|%[a-fA-F\\d]{2})*(?:;(?:[\\-_.!~*'()a-zA-Z\\d:@&=+$,]|%[a-fA-F\\d]{2})*)*(?:/(?:[\\-_.!~*'()a-zA-Z\\d:@&=+$,]|%[a-fA-F\\d]{2})*(?:;(?:[\\-_.!~*'()a-zA-Z\\d:@&=+$,]|%[a-fA-F\\d]{2})*)*)*)?)(?:\\?((?:[\\-_.!~*'()a-zA-Z\\d;/?:@&=+$,\\[\\]]|%[a-fA-F\\d]{2})*))?)(?:\\#((?:[\\-_.!~*'()a-zA-Z\\d;/?:@&=+$,\\[\\]]|%[a-fA-F\\d]{2})*))?)$",
-);
 
 // String#blank?: empty or only whitespace (Unicode spaces included).
 const blank = (value: string) => /^[\s\u0085᠎]*$/u.test(value);

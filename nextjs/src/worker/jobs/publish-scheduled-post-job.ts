@@ -2,7 +2,7 @@
 // under is still the current one.
 // Golden: __fixtures__/publish-scheduled-post.golden.json (scripts/golden/publish-scheduled-post.rb).
 //
-// A post with files, a call to action, or one the sanitizer or content moderation would have to judge hands back to Rails
+// A post with files, or one the sanitizer or content moderation would have to judge hands back to Rails
 // from inside the lock, before the publish writes anything (installment-writes.ts lists what Node cannot prove). Rails then
 // reruns the job from the start; the rolled back transaction left nothing behind. A post that emails its audience gets its
 // PostEmailBlast and the SendPostBlastEmailsJob push here, which is Ruby's `can_be_blasted?` branch.
