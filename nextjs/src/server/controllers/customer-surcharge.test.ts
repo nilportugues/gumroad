@@ -33,7 +33,7 @@ vi.mock("../models/user.ts", () => ({
 }));
 vi.mock("./mutation.ts", () => ({ registerMutations: vi.fn(), remoteIp: () => "203.0.113.9" }));
 
-const { calculateAll } = await import("./customer-surcharge.ts");
+const { calculateAll, detectedBuyerCurrency } = await import("./customer-surcharge.ts");
 const { RateUnavailable } = await import("../models/concerns/currency-helper.ts");
 
 // Link flag bit positions (models/link.ts).
@@ -64,6 +64,9 @@ const zipTaxRate = (extra: Record<string, unknown> = {}) => ({
   ...extra,
 });
 
+const requestWith = (headers: Record<string, string> = {}, queryString = "") =>
+  ({ headers: new Headers(headers), queryString }) as never;
+
 let links: Record<string, unknown>[];
 let rates: Record<string, unknown>[];
 function stubDb() {
@@ -87,14 +90,14 @@ beforeEach(() => {
 });
 
 const call = async (params: Record<string, unknown>) => {
-  const result = (await calculateAll({ params, request: {} as never })) as { status: number; body: string };
+  const result = (await calculateAll({ params, request: requestWith() })) as { status: number; body: string };
   return { status: result.status, body: JSON.parse(result.body) as Record<string, unknown> };
 };
 const cart = (extra: Record<string, unknown> = {}, ...lines: Record<string, unknown>[]) => ({
   products: lines.length === 0 ? [{ permalink: "abc", price: 100, quantity: 1 }] : lines,
   ...extra,
 });
-const rejection = (params: Record<string, unknown>) => calculateAll({ params, request: {} as never });
+const rejection = (params: Record<string, unknown>) => calculateAll({ params, request: requestWith() });
 
 describe("POST /customer_surcharge", () => {
   it("answers a plain cart with the totals, USD alone and no quote", async () => {
@@ -233,16 +236,79 @@ describe("POST /customer_surcharge", () => {
   });
 });
 
+describe("detected buyer currency", () => {
+  it("is the GeoIP country's supported currency", async () => {
+    geoIpLookup.mockReturnValue({ countryCode: "GB" });
+    expect((await call(cart())).body).toMatchObject({ detected_buyer_currency: "gbp" });
+    geoIpLookup.mockReturnValue({ countryCode: "DE" });
+    expect((await call(cart())).body).toMatchObject({ detected_buyer_currency: "eur" });
+    geoIpLookup.mockReturnValue({ countryCode: "US" });
+    expect((await call(cart())).body).toMatchObject({ detected_buyer_currency: "usd" });
+  });
+
+  it("is the euro for Bulgaria, whose lev the gem still lists", () => {
+    expect(detectedBuyerCurrency("203.0.113.9", () => ({ countryCode: "BG" }))).toBe("eur");
+  });
+
+  it("is null for a country whose currency is unsupported or unknown", () => {
+    expect(detectedBuyerCurrency("203.0.113.9", () => ({ countryCode: "AR" }))).toBeNull();
+    expect(detectedBuyerCurrency("203.0.113.9", () => ({ countryCode: "ZZ" }))).toBeNull();
+  });
+
+  it("is null without a GeoIP result or country", () => {
+    expect(detectedBuyerCurrency(null, () => null)).toBeNull();
+    expect(detectedBuyerCurrency("203.0.113.9", () => ({ countryCode: null }))).toBeNull();
+    expect(detectedBuyerCurrency("203.0.113.9", () => ({ countryCode: "" }))).toBeNull();
+  });
+
+  it("keeps the menu to USD while the cart's seller is out of the rollout", async () => {
+    geoIpLookup.mockReturnValue({ countryCode: "GB" });
+    expect((await call(cart())).body).toMatchObject({
+      available_buyer_currencies: [{ code: "usd", label: "$ (US Dollars)" }],
+      buyer_currency_quote: null,
+    });
+  });
+});
+
+describe("error answers", () => {
+  const answer = async (params: Record<string, unknown>, headers: Record<string, string> = {}) =>
+    (await calculateAll({ params, request: requestWith(headers) })) as {
+      status: number;
+      body: string;
+      contentType: string;
+    };
+
+  it("answers malformed products with an empty 400 typed by the request format", async () => {
+    for (const products of ["not-an-array", ["abc"], { permalink: "abc" }]) {
+      expect(await answer({ products }, { accept: "application/json" })).toMatchObject({
+        status: 400,
+        body: "",
+        contentType: "application/json",
+      });
+    }
+    expect(await answer({ products: ["abc"] })).toMatchObject({ status: 400, body: "", contentType: "text/html" });
+  });
+
+  it("answers an untrustworthy exchange rate with an empty 503", async () => {
+    links = [link({ price_currency_type: "eur" })];
+    getRate.mockRejectedValue(new RateUnavailable("EUR"));
+
+    expect(await answer(cart(), { accept: "application/json" })).toMatchObject({
+      status: 503,
+      body: "",
+      contentType: "application/json",
+    });
+  });
+});
+
 describe("hand-backs", () => {
   const expectHandBack = async (params: Record<string, unknown>) => {
     await expect(rejection(params)).rejects.toBeInstanceOf(HandBackToRails);
   };
 
-  it("hands back a missing, empty or malformed products param", async () => {
+  it("hands back a missing or empty products param", async () => {
     await expectHandBack({});
     await expectHandBack({ products: [] });
-    await expectHandBack({ products: "not-an-array" });
-    await expectHandBack({ products: ["abc"] });
   });
 
   it("hands back a VAT id, a Payment Element request and a list token", async () => {
@@ -303,26 +369,24 @@ describe("hand-backs", () => {
     await expectHandBack(cart({ country: "DE" }));
   });
 
-  it("hands back a seller using buyer-currency charging and a buyer with a GeoIP country", async () => {
+  it("hands back a seller using buyer-currency charging", async () => {
     isFeatureEnabled.mockResolvedValue(true);
     await expectHandBack(cart());
+  });
 
-    isFeatureEnabled.mockResolvedValue(false);
-    geoIpLookup.mockReturnValue({ countryCode: "GB" });
-    await expectHandBack(cart());
+  it("hands back a request format whose content type is not modelled", async () => {
+    await expect(
+      calculateAll({
+        params: { products: "x" },
+        request: requestWith({ "x-requested-with": "XMLHttpRequest", "content-type": "application/json" }),
+      }),
+    ).rejects.toBeInstanceOf(HandBackToRails);
   });
 
   it("serves an unrecognized GeoIP address", async () => {
     geoIpLookup.mockReturnValue({ countryCode: null });
 
     expect((await call(cart())).body).toMatchObject({ detected_buyer_currency: null });
-  });
-
-  it("hands back when the exchange rate cannot be trusted", async () => {
-    links = [link({ price_currency_type: "eur" })];
-    getRate.mockRejectedValue(new RateUnavailable("EUR"));
-
-    await expectHandBack(cart());
   });
 
   it("hands back a Brazilian Connect seller's tax", async () => {

@@ -93,4 +93,22 @@ describe "Customer surcharge", type: :request do
       "direct_listed_amount_token" => nil
     )
   end
+
+  it "detects the buyer's currency from a GeoIP country", parity: true do
+    post "/customer_surcharge", params: { products: [line(product)] }.to_json,
+                                headers: json_headers.merge("X-CSRF-Token" => csrf_token, "X-Forwarded-For" => "81.2.169.160")
+
+    expect(response.parsed_body).to include(
+      "detected_buyer_currency" => "gbp",
+      "buyer_currency_quote" => nil,
+      "available_buyer_currencies" => [{ "code" => "usd", "label" => "$ (US Dollars)" }]
+    )
+  end
+
+  it "answers a malformed products param with an empty 400", parity: true do
+    post_surcharge(products: ["not-a-product"])
+
+    expect(response).to have_http_status(:bad_request)
+    expect(response.body).to eq("")
+  end
 end
