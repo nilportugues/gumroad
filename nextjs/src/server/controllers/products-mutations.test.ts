@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { execute, selectRows, registerMutations, calls, performAsync } = vi.hoisted(() => ({
+const { execute, selectRows, registerMutations, calls, performAsync, collaboratingProductIds, updateBang } = vi.hoisted(() => ({
+  collaboratingProductIds: vi.fn(),
+  updateBang: vi.fn(),
   execute: vi.fn(),
   selectRows: vi.fn(),
   registerMutations: vi.fn(),
@@ -16,11 +18,12 @@ vi.mock("../models/sql.ts", async (original) => ({
 vi.mock("./mutation.ts", () => ({ registerMutations }));
 vi.mock("../auth/resolve.ts", () => ({ railsLoggedInUser: () => ({ email: "seller@example.com" }) }));
 vi.mock("../policies/seller-context.ts", async (original) => ({ ...(await original<typeof import("../policies/seller-context.ts")>()), loadSellerContext: async () => ({}) }));
+vi.mock("../policies/link.ts", async (original) => ({ ...(await original<typeof import("../policies/link.ts")>()), collaboratingProductIds }));
 vi.mock("../policies/authorize.ts", () => ({ authorize: vi.fn() }));
 vi.mock("../models/concerns/job-runtime.ts", () => ({ performAsync }));
 vi.mock("../models/link.ts", async (original) => {
   const actual = await original<typeof import("../models/link.ts")>();
-  return { ...actual, LinkDeletable: { markDeletedBang: async () => void calls.push("mark link deleted") } };
+  return { ...actual, Links: { ...actual.Links, updateBang }, LinkDeletable: { markDeletedBang: async () => void calls.push("mark link deleted") } };
 });
 vi.mock("../models/seller-profile-products-sections.ts", () => ({
   assertProfileSectionsEditable: async (...args: unknown[]) => void calls.push(`assert sections ${args.join(",")}`),
@@ -38,6 +41,8 @@ beforeEach(() => {
   execute.mockReset();
   selectRows.mockReset();
   performAsync.mockReset();
+  collaboratingProductIds.mockReset();
+  updateBang.mockReset();
   calls.length = 0;
 });
 
@@ -73,5 +78,30 @@ describe("DELETE /links/:id", () => {
       "mark custom domain deleted shop.example.com",
     ]);
     expect(execute).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("POST /links/:id/unpublish", () => {
+  const OTHER_SELLERS_PRODUCT = { id: 42n, user_id: 99n, unique_permalink: "abc", flags: 0n, deleted_at: null, purchase_disabled_at: null };
+  const handler = () => registerMutations.mock.calls[0]!.find((spec: { method: string; pattern: string }) => spec.method === "POST" && spec.pattern === "/links/:id/unpublish") as { run: (input: unknown) => Promise<{ status: number; body: string }> };
+  const input = { params: {}, routeParams: { id: "abc" }, context: { currentSeller: { id: 7n }, impersonatedUser: null } };
+
+  it("takes a collaborator's product off sale although another seller owns it", async () => {
+    selectRows.mockResolvedValueOnce([OTHER_SELLERS_PRODUCT]);
+    collaboratingProductIds.mockResolvedValueOnce(new Set([42n]));
+    const result = await handler().run(input);
+
+    expect(result.status).toBe(200);
+    expect(JSON.parse(result.body)).toEqual({ success: true });
+    expect(updateBang).toHaveBeenCalledTimes(1);
+    expect(updateBang.mock.calls[0]![1]).toEqual({ purchase_disabled_at: expect.any(Date) });
+  });
+
+  it("answers 404 for another seller's product the user does not collaborate on", async () => {
+    selectRows.mockResolvedValueOnce([OTHER_SELLERS_PRODUCT]);
+    collaboratingProductIds.mockResolvedValueOnce(new Set());
+
+    await expect(handler().run(input)).rejects.toThrow("Not Found");
+    expect(updateBang).not.toHaveBeenCalled();
   });
 });
