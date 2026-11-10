@@ -380,6 +380,77 @@ describe "Payouts page when signed in", type: :request do
     end
   end
 
+  describe "instant payout eligibility" do
+    let(:account) { create(:merchant_account, user: seller, created_at: 90.days.ago) }
+    let(:bank) { create(:ach_account, user: seller) }
+
+    before do
+      seller.update_columns(user_risk_state: "compliant")
+      create(:user_compliance_info, user: seller)
+      account
+      bank
+      completed_payment(days_ago: 30, bank_account: bank)
+      balance(amount_cents: 12_000)
+    end
+
+    it "offers the instant payout notice to a seller with a seasoned account and a bank account Stripe has not matched", parity: true do
+      visit_payouts
+
+      expect(props).to include("show_instant_payouts_notice" => true, "instant_payout" => nil)
+      expect(props["next_payout_period_data"]).to include("status" => "payable", "payout_cents" => 12_000)
+    end
+
+    it "offers the notice to a seller paid through PayPal", parity: true do
+      bank.mark_deleted!
+      seller.update!(payment_address: "payouts-seller@example.com")
+
+      visit_payouts
+
+      expect(props).to include("show_instant_payouts_notice" => true, "instant_payout" => nil)
+    end
+
+    it "seasons a new account off an older retired one of the same kind", parity: true do
+      account.update_columns(created_at: 1.day.ago)
+      create(:merchant_account, user: seller, created_at: 90.days.ago, charge_processor_alive_at: 90.days.ago, charge_processor_deleted_at: 30.days.ago, deleted_at: 30.days.ago)
+
+      visit_payouts
+
+      expect(props["show_instant_payouts_notice"]).to eq(true)
+    end
+
+    it "withholds the notice from a seller that is not compliant", parity: true do
+      seller.update_columns(user_risk_state: "not_reviewed")
+
+      visit_payouts
+
+      expect(props["show_instant_payouts_notice"]).to eq(false)
+    end
+
+    it "withholds the notice while the account is too new", parity: true do
+      account.update_columns(created_at: 1.day.ago)
+
+      visit_payouts
+
+      expect(props["show_instant_payouts_notice"]).to eq(false)
+    end
+
+    it "withholds the notice from a seller with no payout account", parity: true do
+      account.update_columns(deleted_at: Time.current)
+
+      visit_payouts
+
+      expect(props["show_instant_payouts_notice"]).to eq(false)
+    end
+
+    it "withholds the notice while payouts are paused", parity: true do
+      seller.update!(payouts_paused_by_user: true)
+
+      visit_payouts
+
+      expect(props["show_instant_payouts_notice"]).to eq(false)
+    end
+  end
+
   describe "team members" do
     %w[accountant admin support].each do |role|
       it "lets #{role} see the payouts", parity: true do

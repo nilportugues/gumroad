@@ -7,7 +7,7 @@ vi.mock("../../models/sql.ts", async (importOriginal) => ({
 }));
 
 import {
-  emptyBalanceDestinationUnseasoned,
+  emptyBalanceDestinationSeasoned,
   seasonedForInstantPayouts,
   type SeasoningRow,
 } from "./instant-payout-eligibility.ts";
@@ -76,12 +76,12 @@ describe("seasonedForInstantPayouts", () => {
   });
 });
 
-describe("emptyBalanceDestinationUnseasoned", () => {
+describe("emptyBalanceDestinationSeasoned", () => {
   beforeEach(() => selectRows.mockReset());
 
-  it("is false without a destination, because the held balances may name one", async () => {
+  it("is false without a destination, because the seller is not eligible", async () => {
     expect(
-      await emptyBalanceDestinationUnseasoned(
+      await emptyBalanceDestinationSeasoned(
         7n,
         { connectRoutingActive: false, connect: account({ connect: true }), standard: null },
         NOW,
@@ -94,30 +94,30 @@ describe("emptyBalanceDestinationUnseasoned", () => {
     selectRows.mockResolvedValue([]);
     const connect = account({ id: 1, connect: true, created_at: OLD });
     const standard = account({ id: 2 });
-    expect(await emptyBalanceDestinationUnseasoned(7n, { connectRoutingActive: true, connect, standard }, NOW)).toBe(
-      false,
-    );
-    expect(await emptyBalanceDestinationUnseasoned(7n, { connectRoutingActive: false, connect, standard }, NOW)).toBe(
+    expect(await emptyBalanceDestinationSeasoned(7n, { connectRoutingActive: true, connect, standard }, NOW)).toBe(
       true,
+    );
+    expect(await emptyBalanceDestinationSeasoned(7n, { connectRoutingActive: false, connect, standard }, NOW)).toBe(
+      false,
     );
   });
 
-  it("is false when the destination is seasoned", async () => {
+  it("is true when the destination is seasoned", async () => {
     selectRows.mockResolvedValue([]);
     expect(
-      await emptyBalanceDestinationUnseasoned(
+      await emptyBalanceDestinationSeasoned(
         7n,
         { connectRoutingActive: false, connect: null, standard: account({ created_at: OLD }) },
         NOW,
       ),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("counts the seller's retired Stripe accounts as predecessors", async () => {
     const standard = account({ id: 2 });
     selectRows.mockResolvedValue([standard, account({ id: 1, created_at: OLD, charge_processor_deleted_at: RECENT })]);
     expect(
-      await emptyBalanceDestinationUnseasoned(7n, { connectRoutingActive: false, connect: null, standard }, NOW),
-    ).toBe(false);
+      await emptyBalanceDestinationSeasoned(7n, { connectRoutingActive: false, connect: null, standard }, NOW),
+    ).toBe(true);
   });
 });

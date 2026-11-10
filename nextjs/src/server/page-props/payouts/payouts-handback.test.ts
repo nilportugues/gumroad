@@ -50,10 +50,66 @@ describe.skipIf(!url)("planPayouts hands back what it cannot prove", () => {
     expect(plan.pastPayments).toHaveLength(1);
   });
 
-  it("hands back a US seller with a completed payout: Stripe is asked about instant payouts", async () => {
-    await expect(
-      planPayouts(await seller({ country: "United States", completedPayout: true }), null, NOW),
-    ).rejects.toBeInstanceOf(HandBackToRails);
+  describe("a US seller with a completed payout", () => {
+    const account = (created: string) =>
+      db.$executeRawUnsafe(
+        `INSERT INTO merchant_accounts (user_id, charge_processor_id, charge_processor_merchant_id, charge_processor_alive_at, created_at, updated_at) VALUES (${USER_ID}, 'stripe', 'acct_handback', '${created}', '${created}', '${created}')`,
+      );
+    const bank = (ids: { connect?: string; external?: string }) =>
+      db.$executeRawUnsafe(
+        `INSERT INTO bank_accounts (user_id, type, stripe_connect_account_id, stripe_bank_account_id, created_at, updated_at) VALUES (${USER_ID}, 'AchAccount', ${ids.connect ? `'${ids.connect}'` : "NULL"}, ${ids.external ? `'${ids.external}'` : "NULL"}, NOW(), NOW())`,
+      );
+    const balance = (merchantAccountId: string) =>
+      db.$executeRawUnsafe(
+        `INSERT INTO balances (user_id, merchant_account_id, date, amount_cents, state, created_at, updated_at) VALUES (${USER_ID}, ${merchantAccountId}, '2026-03-01', 500, 'unpaid', NOW(), NOW())`,
+      );
+    const user = () => seller({ country: "United States", completedPayout: true });
+    afterEach(async () => {
+      await db.$executeRawUnsafe(`DELETE FROM merchant_accounts WHERE user_id = ${USER_ID}`);
+      await db.$executeRawUnsafe(`DELETE FROM bank_accounts WHERE user_id = ${USER_ID}`);
+      await db.$executeRawUnsafe(`DELETE FROM balances WHERE user_id = ${USER_ID}`);
+    });
+
+    it("is not eligible without a payout account", async () => {
+      expect((await planPayouts(await user(), null, NOW)).showInstantPayoutsNotice).toBe(false);
+    });
+
+    it("is eligible with a seasoned account and no bank account", async () => {
+      const seller = await user();
+      await account("2026-01-01");
+      expect((await planPayouts(seller, null, NOW)).showInstantPayoutsNotice).toBe(true);
+    });
+
+    it("is eligible with a seasoned account and a bank account missing either Stripe id", async () => {
+      for (const ids of [{}, { connect: "acct_1" }, { external: "ba_1" }]) {
+        const seller = await user();
+        await account("2026-01-01");
+        await bank(ids);
+        expect((await planPayouts(seller, null, NOW)).showInstantPayoutsNotice, JSON.stringify(ids)).toBe(true);
+        await db.$executeRawUnsafe(`DELETE FROM bank_accounts WHERE user_id = ${USER_ID}`);
+      }
+    });
+
+    it("hands back a seasoned account whose bank account carries both Stripe ids: Stripe is asked", async () => {
+      const seller = await user();
+      await account("2026-01-01");
+      await bank({ connect: "acct_1", external: "ba_1" });
+      await expect(planPayouts(seller, null, NOW)).rejects.toBeInstanceOf(HandBackToRails);
+    });
+
+    it("serves an unseasoned account whose bank account carries both Stripe ids", async () => {
+      const seller = await user();
+      await account("2026-03-01");
+      await bank({ connect: "acct_1", external: "ba_1" });
+      expect((await planPayouts(seller, null, NOW)).showInstantPayoutsNotice).toBe(false);
+    });
+
+    it("hands back a seller whose unpaid balance Stripe holds: a second destination is possible", async () => {
+      const seller = await user();
+      await account("2026-01-01");
+      await balance(`(SELECT id FROM merchant_accounts WHERE user_id = ${USER_ID} LIMIT 1)`);
+      await expect(planPayouts(seller, null, NOW)).rejects.toBeInstanceOf(HandBackToRails);
+    });
   });
 
   it("serves a US seller that has not been paid yet", async () => {
