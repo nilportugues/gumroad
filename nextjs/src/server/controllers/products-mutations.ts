@@ -10,7 +10,6 @@ import { performAsync } from "../models/concerns/job-runtime.ts";
 import { assertProfileSectionsEditable, clearFeaturedProductSections, removeFromProfileSections } from "../models/seller-profile-products-sections.ts";
 import { SubscriptionFlags } from "../models/subscription.ts";
 import { castRow, column, execute, selectRows, table } from "../models/sql.ts";
-import { NotPortedError } from "../models/user.ts";
 import { notAllowedMessage } from "../page-props/settings/guard.ts";
 import { esJson, type JsonValue } from "../search/es-json.ts";
 import { authorize } from "../policies/authorize.ts";
@@ -66,8 +65,8 @@ export async function find(input: MutationInput, access: "ownership" | "access",
   if (product === null) throw new RoutingError("Not Found");
   const context = await loadSellerContext(input.context);
   if (access === "access" && product.get("user_id") !== seller.id) {
-    if ((await collaboratingProductIds(context, [product.get("id")])).has(BigInt(product.get("id")))) throw new NotPortedError("a collaborator acting on the product", "app/controllers/links_controller.rb");
-    throw new RoutingError("Not Found");
+    // `logged_in_user.collaborator_for?(product)`; `authorize` below then judges the collaborator by their own account's role.
+    if (!(await collaboratingProductIds(context, [product.get("id")])).has(BigInt(product.get("id")))) throw new RoutingError("Not Found");
   }
   try {
     authorization(context, product.attributes);

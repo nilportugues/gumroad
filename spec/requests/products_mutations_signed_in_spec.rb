@@ -236,6 +236,29 @@ describe "Products mutations when signed in", type: :request do
     expect(domain.reload).to be_deleted
   end
 
+  it "lets a collaborator unpublish the product they collaborate on", parity: true do
+    collaborator = create(:collaborator, seller:)
+    create(:product_affiliate, affiliate: collaborator, product:)
+    log_in(collaborator.affiliate_user)
+
+    send_json(:post, unpublish_link_path(product.unique_permalink))
+
+    expect(response.parsed_body).to eq("success" => true)
+    expect(product.reload.purchase_disabled_at).to be_present
+  end
+
+  it "answers 404 when a collaborator unpublishes another product of the seller", parity: true do
+    collaborator = create(:collaborator, seller:)
+    create(:product_affiliate, affiliate: collaborator, product: create(:product, user: seller, unique_permalink: "collabone"))
+    product
+    log_in(collaborator.affiliate_user)
+
+    send_json(:post, unpublish_link_path(product.unique_permalink))
+
+    expect(response).to have_http_status(:not_found)
+    expect(product.reload.purchase_disabled_at).to be_nil
+  end
+
   it "unpublishes a tiered membership", parity: true do
     membership = create(:membership_product, user: seller, unique_permalink: "tiermem")
     log_in(seller)
