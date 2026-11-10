@@ -15,6 +15,7 @@ import {
   forceFinishLongRunningCommunityChatRecapRunsJob,
   triggerCommunityChatRecapRunJob,
 } from "./community-chat-recap-jobs.ts";
+import { backfillTaggingsCountOnTagsJob } from "./backfill-taggings-count-on-tags-job.ts";
 import { deleteExpiredOauthDeviceAuthorizationsJob } from "./delete-expired-oauth-device-authorizations-job.ts";
 import {
   deleteOldPingDeliveriesJob,
@@ -239,6 +240,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   RemoveSuspendedAccountFollowsWorker: removeSuspendedAccountFollowsWorker,
   RefundPurchaseWorker: refundPurchaseWorker,
   UpdateUserBalanceStatsCacheWorker: updateUserBalanceStatsCacheWorker,
+  BackfillTaggingsCountOnTagsJob: backfillTaggingsCountOnTagsJob,
 };
 
 // `sidekiq_retry_in` and `sidekiq_retries_exhausted` blocks of ported jobs, keyed by Ruby class name.
