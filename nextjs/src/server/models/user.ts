@@ -173,6 +173,14 @@ export class NotPortedError extends Error {
   }
 }
 
+// Ruby's NoMethodError, which callers' rescue-all reports.
+export class NoMethodError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "NoMethodError";
+  }
+}
+
 const notPorted = (what: string, rubyRef: string) => async (): Promise<never> => {
   throw new NotPortedError(what, rubyRef);
 };
@@ -878,7 +886,11 @@ const BEFORE_VALIDATION: Callback<User>[] = [
     name: "before_validation { tiktok_pixel_id.strip }",
     run(record) {
       const value = tiktokPixelId(record);
-      if (!isBlank(value)) setJsonDataForAttr(record, "tiktok_pixel_id", rubyStrip(String(value)));
+      if (isBlank(value)) return;
+      // json_data keeps a JSON integer as an Integer, which has no #strip.
+      if (Number.isInteger(value)) throw new NoMethodError("undefined method 'strip' for an instance of Integer");
+      if (typeof value !== "string") throw new NotPortedError("strip on a non-string tiktok_pixel_id", "User before_validation");
+      setJsonDataForAttr(record, "tiktok_pixel_id", rubyStrip(value));
     },
   },
 ];

@@ -327,6 +327,20 @@ describe("Users.save on an existing seller", () => {
     expect(userWrites()[0]!.data!.json_data).toBe('{"payout_frequency":"weekly","gumroad_day_timezone":"UTC","payouts_paused_by":"admin"}');
   });
 
+  it("strips a string TikTok pixel id before validation", async () => {
+    const user = existingSeller({ json_data: '{"payout_frequency":"weekly"}' });
+    setJsonDataForAttr(user, "tiktok_pixel_id", " ABC123 ");
+    await Users.saveBang(user);
+    expect(JSON.parse(userWrites()[0]!.data!.json_data as string).tiktok_pixel_id).toBe("ABC123");
+  });
+
+  it("raises NoMethodError on an integer TikTok pixel id, which has no #strip, and writes nothing", async () => {
+    const user = existingSeller({ json_data: '{"payout_frequency":"weekly"}' });
+    setJsonDataForAttr(user, "tiktok_pixel_id", 1234567890);
+    await expect(Users.saveBang(user)).rejects.toMatchObject({ name: "NoMethodError", message: "undefined method 'strip' for an instance of Integer" });
+    expect(userWrites()).toEqual([]);
+  });
+
   it("schedules the Stripe and subscribe-preview jobs a username change needs, in Rails' order", async () => {
     const user = existingSeller();
     await Users.updateBang(user, { username: "newname" });
