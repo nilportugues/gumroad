@@ -23,7 +23,7 @@ const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
 const SPECS = ["affiliate_redirect_parity_spec", "seller_json_mutations_signed_in_spec", "product_review_responses_signed_in_spec", "shipments_signed_in_spec", "imported_customers_signed_in_spec"].filter((dir) => existsSync(path.join(FIXTURES, dir)));
-const ROUTE_FLAGS = ["nextjs_affiliate_redirect", "nextjs_customer_actions", "nextjs_review_responses", "nextjs_imported_customers"].join(",");
+const ROUTE_FLAGS = ["nextjs_affiliate_redirect", "nextjs_customer_actions", "nextjs_review_responses", "nextjs_imported_customers", "nextjs_purchase_access_writes"].join(",");
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
@@ -53,6 +53,8 @@ function redisJobs(redis: Redis): JobsChannel {
 
 const COMPARE = {
   ignore: [
+    // The seed is stamped with the replay's clock, so a purchase Rails touched seconds after the factory made it is not touched in the same second.
+    "db.purchases.updated.*.changes.updated_at",
     "response.headers.x-original-headers-class",
     "response.headers.cache-control",
     "response.headers.vary",

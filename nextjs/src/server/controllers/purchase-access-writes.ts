@@ -44,7 +44,8 @@ function accessAction(revoked: boolean, query: typeof audiencePurchasePolicy.rev
 
     const purchase = await setPurchase(input.routeParams.id!);
     // verify_current_seller_is_seller_for_purchase
-    if (purchase.seller_id !== seller.id) return notFoundJson();
+    // A before_action halts the chain, so the after_actions (the XSRF cookie) do not run.
+    if (purchase.seller_id !== seller.id) return { ...notFoundJson(), rescued: true };
     const record = await accessRecord(purchase);
     const denied = await authorizeJson(input, (context) => authorize(query, context, record));
     if (denied) return denied;

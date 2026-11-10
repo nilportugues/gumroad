@@ -203,9 +203,10 @@ describe "Customer actions when signed in", type: :request, elasticsearch_wait_f
   end
 
   describe "revoking access to a purchase" do
-    let(:product) { create(:product, user: seller) }
+    # A free sale with no processor columns passes the financial-transaction validation the revoke update re-runs.
+    let(:product) { create(:product, user: seller, price_cents: 0) }
     let(:purchase) do
-      build(:purchase, link: product, seller:, purchase_state: "successful").tap { |record| record.save!(validate: false) }
+      build(:purchase, link: product, seller:, purchase_state: "successful", price_cents: 0, stripe_transaction_id: nil, stripe_fingerprint: nil, charge_processor_id: nil, merchant_account: nil).tap { |record| record.save!(validate: false) }
     end
 
     it "revokes access", parity: true do
