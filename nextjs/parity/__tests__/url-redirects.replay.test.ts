@@ -5,7 +5,7 @@ import path from "node:path";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { deriveRailsCookieSecrets, readEncryptedCookie } from "@/server/auth/rails-cookies";
 import { closeAllRedis } from "@/server/infra/redis";
@@ -36,6 +36,9 @@ const SPEC_OBJECTS: Record<string, string> = {
     "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000,RESOLUTION=640x360\nindex_360.m3u8\n#EXT-X-ENDLIST\n",
 };
 const SPEC_BUCKET = "gumroad-specs";
+// The Rails spec froze its clock at 2026-11-09 22:00 UTC; a consumption event's `consumed_at` is a constant the request carries, so
+// it is recorded as an age that only holds when the replay's clock is pinned too.
+const PARITY_NOW = Date.parse("2026-11-09T22:00:00Z");
 const ROUTE_FLAGS =
   "nextjs_consumption_analytics,nextjs_media_locations,nextjs_mobile_consumption_analytics,nextjs_mobile_media_locations,nextjs_mobile_url_redirect_delivery,nextjs_mobile_url_redirects,nextjs_url_redirect_confirm,nextjs_url_redirect_delivery,nextjs_url_redirect_download_archive,nextjs_url_redirect_download_page,nextjs_url_redirect_download_product_files,nextjs_url_redirect_expired,nextjs_url_redirect_hls_playlist,nextjs_url_redirect_membership_inactive,nextjs_url_redirect_play,nextjs_url_redirect_read,nextjs_url_redirect_rental_expired,nextjs_url_redirect_show,nextjs_url_redirect_smil,nextjs_url_redirect_stream,nextjs_url_redirect_subtitle_files,nextjs_url_redirect_writes";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
@@ -194,8 +197,12 @@ describe.skipIf(!url)("url redirect delivery", () => {
     await new Promise<void>((resolve) => rails.listen(0, "127.0.0.1", resolve));
     const railsPort = (rails.address() as { port: number }).port;
     const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1];
+    // The server's clock reads PARITY_NOW at this instant and runs on from it; the test's must start from the same offset after the boot.
+    const bootedAt = Date.now();
     server = await startNextServer({
       RAILS_ENV: "test",
+      NODE_OPTIONS: `--require ${path.resolve(import.meta.dirname, "..", "src", "fixed-clock-preload.cjs")}`,
+      PARITY_CLOCK_OFFSET_MS: String(PARITY_NOW - bootedAt),
       OBFUSCATE_IDS_CIPHER_KEY: obfuscateKey ?? "",
       SECURE_ENCRYPT_KEY: testEnv("SECURE_ENCRYPT_KEY") ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
@@ -218,6 +225,7 @@ describe.skipIf(!url)("url redirect delivery", () => {
       ...(testEnv("AWS_ACCESS_KEY_ID") ? { AWS_ACCESS_KEY_ID: testEnv("AWS_ACCESS_KEY_ID")! } : {}),
       ...(testEnv("AWS_SECRET_ACCESS_KEY") ? { AWS_SECRET_ACCESS_KEY: testEnv("AWS_SECRET_ACCESS_KEY")! } : {}),
     });
+    vi.useFakeTimers({ now: PARITY_NOW + (Date.now() - bootedAt), toFake: ["Date"], shouldAdvanceTime: true });
   }, FIRST_COMPILE_TIMEOUT_MS);
 
   // The first request to a route compiles it, and the time a write is stamped with is the replay's clock plus the compile: replay one
@@ -229,6 +237,7 @@ describe.skipIf(!url)("url redirect delivery", () => {
     },
     transport: httpTransport(server.baseUrl),
     interceptHttp: false,
+    driftDates: false,
     jobs: redisJobs(redis),
     rewriteRequest: (
       request: Parameters<typeof reencryptCookies>[0],
@@ -240,6 +249,7 @@ describe.skipIf(!url)("url redirect delivery", () => {
   });
 
   afterAll(async () => {
+    vi.useRealTimers();
     await server?.stop();
     rails?.close();
     await closeAllRedis();

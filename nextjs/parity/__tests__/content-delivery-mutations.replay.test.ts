@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { closeAllRedis } from "@/server/infra/redis";
 
@@ -25,6 +25,9 @@ const FIXTURES = "parity/fixtures/requests";
 const SPECS = ["library_mutations_signed_in_spec", "communities_mutations_signed_in_spec", "secure_redirect_mutations_spec", "content_delivery_json_signed_in_spec"];
 const ROUTE_FLAGS = "nextjs_library_writes,nextjs_communities_writes,nextjs_auth_secure_redirect,nextjs_s3_utility,nextjs_dropbox_files,nextjs_media_locations";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
+// The Rails spec froze its clock at 2026-11-09 23:00 UTC. Seller-local dates (the regenerate-cache job argument) depend on the hour, so
+// the replay pins the clock rather than drifting the fixture's dates.
+const PARITY_NOW = Date.parse("2026-11-09T23:00:00Z");
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
 const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "m").exec(envTest)?.[1];
@@ -127,8 +130,12 @@ describe.skipIf(!url)("mutations of library and content delivery", () => {
     await new Promise<void>((resolve) => rails.listen(0, "127.0.0.1", resolve));
     const railsPort = (rails.address() as { port: number }).port;
     const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1];
+    // The server's clock reads PARITY_NOW at this instant and runs on from it; the test's must start from the same offset after the boot.
+    const bootedAt = Date.now();
     server = await startNextServer({
       RAILS_ENV: "test",
+      NODE_OPTIONS: `--require ${path.resolve(import.meta.dirname, "..", "src", "fixed-clock-preload.cjs")}`,
+      PARITY_CLOCK_OFFSET_MS: String(PARITY_NOW - bootedAt),
       OBFUSCATE_IDS_CIPHER_KEY: obfuscateKey ?? "",
       SECURE_ENCRYPT_KEY: testEnv("SECURE_ENCRYPT_KEY") ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
@@ -147,6 +154,7 @@ describe.skipIf(!url)("mutations of library and content delivery", () => {
       ...(testEnv("AWS_ACCESS_KEY_ID") ? { AWS_ACCESS_KEY_ID: testEnv("AWS_ACCESS_KEY_ID")! } : {}),
       ...(testEnv("AWS_SECRET_ACCESS_KEY") ? { AWS_SECRET_ACCESS_KEY: testEnv("AWS_SECRET_ACCESS_KEY")! } : {}),
     });
+    vi.useFakeTimers({ now: PARITY_NOW + (Date.now() - bootedAt), toFake: ["Date"], shouldAdvanceTime: true });
   }, FIRST_COMPILE_TIMEOUT_MS);
 
   // The first request to a route compiles it, and the time a write is stamped with is the replay's clock plus the compile: replay one
@@ -158,6 +166,7 @@ describe.skipIf(!url)("mutations of library and content delivery", () => {
     },
     transport: httpTransport(server.baseUrl),
     interceptHttp: false,
+    driftDates: false,
     jobs: redisJobs(redis),
     rewriteRequest: (request: Parameters<typeof reencryptCookies>[0], loaded: Parameters<typeof reencryptCookies>[1], now: Date) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
     compare: name.includes("current-time") ? { ignore: [...COMPARE.ignore, "response.body"] } : name.includes("404") ? { ignore: [...COMPARE.ignore, "response.body", "response.json", "response.headers.content-type"] } : name.includes("publishes-a-workflow")
@@ -168,6 +177,7 @@ describe.skipIf(!url)("mutations of library and content delivery", () => {
   });
 
   afterAll(async () => {
+    vi.useRealTimers();
     await server?.stop();
     rails?.close();
     await closeAllRedis();
