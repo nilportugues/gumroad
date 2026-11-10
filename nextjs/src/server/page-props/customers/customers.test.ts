@@ -29,6 +29,7 @@ import {
   upsellNamesFor,
   utmLinkReadings,
   pageOffset,
+  recurrenceOf,
   refundableCents,
   refundIsEffective,
   rubyToI,
@@ -52,6 +53,18 @@ describe("String#to_i", () => {
       rubyToI("abc"),
       rubyToI(undefined),
     ]).toEqual([3, 12, -4, 1000, 0, 0]);
+  });
+});
+
+describe("price recurrence", () => {
+  it("reads the subscription's, and the purchase's own price only when there is no subscription", () => {
+    expect([
+      recurrenceOf({ recurrence: "yearly" }, "monthly"),
+      recurrenceOf({ recurrence: null }, "monthly"),
+      recurrenceOf(undefined, "monthly"),
+      recurrenceOf(undefined, null),
+      recurrenceOf(undefined, undefined),
+    ]).toEqual(["yearly", null, "monthly", null, null]);
   });
 });
 

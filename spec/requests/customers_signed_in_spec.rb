@@ -576,4 +576,122 @@ describe "Customers page when signed in", type: :request, elasticsearch_wait_for
 
     expect(customers_of(response).first["custom_fields"]).to eq([{ "attribute" => "Brief", "type" => "file", "files" => [] }])
   end
+
+  it "lists the files attached to a commission in the order they were attached", parity: true do
+    commission_product = create(:commission_product, user: seller, name: "Portrait")
+    deposit = sell(commission_product, days_ago: 3, is_commission_deposit_purchase: true)
+    commission = Commission.find_or_create_by!(deposit_purchase: deposit) { _1.status = Commission::STATUS_IN_PROGRESS }
+    commission.files.attach(io: File.open(Rails.root.join("spec/support/fixtures/test.pdf")), filename: "sketch.pdf", content_type: "application/pdf")
+    commission.files.attach(io: File.open(Rails.root.join("spec/support/fixtures/smilie.png")), filename: "final.draft.png", content_type: "image/png")
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    expect(customers_of(response).first.dig("commission", "files").map { _1.slice("name", "extension") }).to eq([{ "name" => "sketch", "extension" => "PDF" }, { "name" => "final.draft", "extension" => "PNG" }])
+  end
+
+  it "shows the processed preview of a review video's thumbnail", parity: true do
+    purchase = sell(product, days_ago: 3)
+    review = create(:product_review, purchase:, link: product, rating: 5, message: "Great")
+    video = create(:product_review_video, :approved, product_review: review)
+    video.video_file.thumbnail.attach(io: File.open(Rails.root.join("spec/support/fixtures/test-small.png")), filename: "thumbnail.png", content_type: "image/png")
+    video.video_file.thumbnail.variant(:preview).processed
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    expect(customers_of(response).first.dig("review", "videos", 0, "thumbnail_url")).to be_present
+  end
+
+  it "shows the original thumbnail of a review video whose preview was never processed", parity: true do
+    purchase = sell(product, days_ago: 3)
+    review = create(:product_review, purchase:, link: product, rating: 5, message: "Great")
+    video = create(:product_review_video, :approved, product_review: review)
+    video.video_file.thumbnail.attach(io: File.open(Rails.root.join("spec/support/fixtures/test-small.png")), filename: "thumbnail.png", content_type: "image/png")
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    expect(customers_of(response).first.dig("review", "videos", 0, "thumbnail_url")).to be_present
+  end
+
+  it "adds the subscription's recurrence to the shipping of a member and says once for a single charge", parity: true do
+    membership = create(:membership_product, user: seller, name: "Club", require_shipping: true)
+    monthly = create(:membership_purchase, link: membership, seller:, email: "monthly@example.com", shipping_cents: 250, full_name: "Ship To", street_address: "1 Main St", country: "United States", state: "CA", zip_code: "94107", city: "San Francisco", created_at: at_midday(3))
+    once = create(:membership_purchase, link: membership, seller:, email: "once@example.com", shipping_cents: 250, full_name: "Ship To", street_address: "1 Main St", country: "United States", state: "CA", zip_code: "94107", city: "San Francisco", created_at: at_midday(4))
+    once.subscription.update_columns(charge_occurrence_count: 1)
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    expect(customers_of(response).map { _1.dig("shipping", "price") }).to eq(["$2.50 a month", "$2.50 once"])
+    expect(monthly.reload.subscription).to be_present
+  end
+
+  it "shows the recurrence of the price of a purchase that has no subscription", parity: true do
+    membership = create(:membership_product, user: seller, name: "Club", require_shipping: true)
+    sell(membership, days_ago: 3, price: membership.prices.alive.first, shipping_cents: 250)
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    customer = customers_of(response).first
+    expect(customer["price"]["recurrence"]).to eq("monthly")
+    expect(customer.dig("shipping", "price")).to eq("$2.50 a month")
+  end
+
+  it "asks a member whose next charge is free under a limited-cycle discount for a new payment method", parity: true do
+    Feature.activate_user(StripeChargeProcessor::INDIA_CARD_MANDATE_RELIABILITY_FEATURE, seller)
+    create(:merchant_account, user: nil, charge_processor_id: StripeChargeProcessor.charge_processor_id, charge_processor_merchant_id: nil)
+    membership = create(:membership_product, user: seller, name: "Club", price_cents: 500)
+    code = create(:percentage_offer_code, user: seller, products: [membership], amount_percentage: 50, duration_in_billing_cycles: 3)
+    # A fixed-duration code that makes a membership free fails validation now; rows saved before that rule still exist.
+    code.update_columns(amount_percentage: 100)
+    purchase = create(:membership_purchase, link: membership, seller:, price_cents: 0, offer_code: code, created_at: at_midday(3))
+    PurchaseOfferCodeDiscount.create!(purchase:, offer_code: code, offer_code_amount: 100, offer_code_is_percent: true, pre_discount_minimum_price_cents: 500, pre_discount_displayed_price_cents: 500, duration_in_months: 3)
+    purchase.subscription.update_flag!(:renewal_disabled_due_to_indian_card_mandate, true, true)
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    expect(customers_of(response).first.dig("subscription", "status")).to eq("payment_method_update_required")
+  end
+
+  it "keeps a member whose next charge is free alive when the discount has no cycle limit", parity: true do
+    Feature.activate_user(StripeChargeProcessor::INDIA_CARD_MANDATE_RELIABILITY_FEATURE, seller)
+    create(:merchant_account, user: nil, charge_processor_id: StripeChargeProcessor.charge_processor_id, charge_processor_merchant_id: nil)
+    membership = create(:membership_product, user: seller, name: "Club", price_cents: 500)
+    code = create(:percentage_offer_code, user: seller, products: [membership], amount_percentage: 100)
+    purchase = create(:membership_purchase, link: membership, seller:, price_cents: 0, offer_code: code, created_at: at_midday(3))
+    PurchaseOfferCodeDiscount.create!(purchase:, offer_code: code, offer_code_amount: 100, offer_code_is_percent: true, pre_discount_minimum_price_cents: 500, pre_discount_displayed_price_cents: 500)
+    purchase.subscription.update_flag!(:renewal_disabled_due_to_indian_card_mandate, true, true)
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    expect(customers_of(response).first.dig("subscription", "status")).to eq("alive")
+  end
+
+  it "shows the recipient's license on the sender's row only when the option's content permits a license key", parity: true do
+    license_node = { "type" => "licenseKey" }
+    paragraph = { "type" => "paragraph", "content" => [{ "type" => "text", "text" => "Welcome" }] }
+    offers = { "Without key" => [paragraph], "With key" => [paragraph, license_node], "No pages" => nil }
+    offers.each_with_index do |(name, nodes), index|
+      licensed = create(:product, user: seller, name:, is_licensed: true)
+      category = create(:variant_category, link: licensed, title: "Plan")
+      option = create(:variant, variant_category: category, name: "Basic")
+      create(:rich_content, entity: option, description: nodes) if nodes
+      sender = sell(licensed, days_ago: 3 + index, is_gift_sender_purchase: true, email: "gifter#{index}@example.com")
+      receiver = sell(licensed, days_ago: 3 + index, is_gift_receiver_purchase: true, purchase_state: "gift_receiver_purchase_successful", email: "giftee#{index}@example.com")
+      receiver.variant_attributes = [option]
+      create(:gift, link: licensed, gifter_purchase: sender, giftee_purchase: receiver, gifter_email: "gifter#{index}@example.com", giftee_email: "giftee#{index}@example.com")
+      create(:license, link: licensed, purchase: receiver, uses: 1)
+    end
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    senders = customers_of(response).select { _1["is_gift_sender_purchase"] }
+    expect(senders.to_h { [_1.dig("product", "name"), _1["license"].present?] }).to eq("Without key" => false, "With key" => true, "No pages" => true)
+  end
 end
