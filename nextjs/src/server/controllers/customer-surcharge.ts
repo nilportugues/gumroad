@@ -9,14 +9,14 @@
 // Everything else hands back to Rails before anything is written (nothing here writes): a commission line (deposit
 // split, completion surcharges, once-per-cart codes), a subscription renewal, a VAT id, a Payment Element or list-token request, a seller with
 // `buyer_currency_charging` on, a Singapore rate table whose `applicable_years` is not plain, a Spanish buyer the GeoIP database
-// places in the Canary Islands, a physical line whose product has a continent-wide shipping destination (needs the countries
-// gem's continents), a bundle bound for an EU-27 rate, a missing `products` (ParameterMissing is rendered by the exceptions
+// places in the Canary Islands, a bundle bound for an EU-27 rate, a missing `products` (ParameterMissing is rendered by the exceptions
 // app) and a request whose format is neither html nor json (the content type of `head`). The 400 (malformed `products`) and
 // 503 (RateUnavailable) answers are served: an empty body typed by the request format.
 import { Prisma } from "@prisma/client";
 import type { User } from "@prisma/client";
 
 import { BUYER_CURRENCY_BY_COUNTRY } from "../infra/buyer-currency-countries.ts";
+import { CONTINENT_SHIPPING_COUNTRIES } from "../infra/continent-shipping-countries.ts";
 import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
 import { geoIpLookup, type GeoIpResult } from "../infra/geo-ip.ts";
 import { getRate, getUsdCents, RateUnavailable, rubyStringToF } from "../models/concerns/currency-helper.ts";
@@ -65,8 +65,6 @@ const EPUBLICATION_RATE_FLAG = 2;
 
 const VIRTUAL_COUNTRY_FLAG = 1;
 const ELSEWHERE = "ELSEWHERE";
-// ShippingDestination::Destinations::VIRTUAL_COUNTRY_CODES
-const VIRTUAL_COUNTRY_CODES = ["EUROPE", "ASIA", "NORTH AMERICA"];
 // Subdivision iso codes of the Canary Islands autonomous community and its two provinces.
 const CANARY_REGION_CODES = ["CN", "TF", "GC"];
 
@@ -283,8 +281,14 @@ function shippingQuantity(value: unknown): bigint {
   return BigInt(match[1]);
 }
 
+// ShippingDestination::Destinations.virtual_countries_for_country_code
+export const virtualCountriesFor = (country: string): string[] =>
+  Object.entries(CONTINENT_SHIPPING_COUNTRIES)
+    .filter(([, countries]) => countries.includes(country))
+    .map(([continent]) => continent);
+
 // ShippingDestination.for_product_and_country_code for a physical product: the buyer's country, else ELSEWHERE.
-// A continent-wide destination would need the countries gem's continents, so it stays with Rails.
+// A continent destination (EUROPE, ASIA, NORTH AMERICA) serves the countries Destinations lists for it.
 async function shippingDestinationFor(link: LinkRow, country: string): Promise<Row | null> {
   const [excluded] = await selectRows<Row>(
     Prisma.sql`SELECT 1 AS excluded FROM ${table("shipping_exclusions")} WHERE ${column("shipping_exclusions", "product_id")} = ${link.id} AND ${column("shipping_exclusions", "country_code")} = ${country} LIMIT 1`,
@@ -301,10 +305,13 @@ async function shippingDestinationFor(link: LinkRow, country: string): Promise<R
 
   const exact = await first(Prisma.sql`${column("shipping_destinations", "country_code")} = ${country}`);
   if (exact !== null) return exact;
-  const virtual = await first(
-    Prisma.sql`(${column("shipping_destinations", "flags")} & ${VIRTUAL_COUNTRY_FLAG}) != 0 AND ${column("shipping_destinations", "country_code")} IN (${Prisma.join(VIRTUAL_COUNTRY_CODES)})`,
-  );
-  if (virtual !== null) return handBack("for a product shipping to a continent");
+  const continents = virtualCountriesFor(country);
+  if (continents.length > 0) {
+    const virtual = await first(
+      Prisma.sql`(${column("shipping_destinations", "flags")} & ${VIRTUAL_COUNTRY_FLAG}) != 0 AND ${column("shipping_destinations", "country_code")} IN (${Prisma.join(continents)})`,
+    );
+    if (virtual !== null) return virtual;
+  }
   return first(Prisma.sql`${column("shipping_destinations", "country_code")} = ${ELSEWHERE}`);
 }
 

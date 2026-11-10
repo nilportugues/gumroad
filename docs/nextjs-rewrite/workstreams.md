@@ -79,14 +79,13 @@ spec example has a fixture. What is left on the parity side is in [parity-tasks.
 - **`POST /customer_surcharge`** (WS-20a, `nextjs_checkout_surcharge`): served for one-time, non-physical lines when no seller has
   `buyer_currency_charging` on and the buyer is taxed from the lookup table (`controllers/customer-surcharge.ts`). Still hands back: a VAT id
   (vendor validation), a US taxable state or Canadian province (TaxJar), a Singapore table whose `applicable_years` is missing, empty or
-  tied, a Spanish buyer the GeoIP database puts in the Canary Islands (only the last subdivision's iso code is read), a physical line whose
-  product ships to a continent (`EUROPE`, `ASIA`, `NORTH AMERICA` need the countries gem's continents), a bundle bound for an EU rate,
+  tied, a Spanish buyer the GeoIP database puts in the Canary Islands (only the last subdivision's iso code is read), a bundle bound for an EU rate,
   commission and renewal (`subscription_id`) lines, Payment Element and `payment_method_list_token` requests (`DirectListedAmountToken`), a cart of sellers in
   the buyer-currency rollout (`BuyerCurrencyQuote`, Stripe FX), a missing `products` (ParameterMissing is rendered by the exceptions app) and a
   request format other than html/json. Served since F2: preorder (`charge_canonical_total_cents` 0), membership (charged like a one-time line) and installment lines
-(the first payment plus the tip, taxed on its own). Served since E5a: the GeoIP-detected buyer currency (`infra/buyer-currency-countries.ts`, generated
+(the first payment plus the tip, taxed on its own). Served since the continent table (`infra/continent-shipping-countries.ts`, generated from `ShippingDestination::Destinations`): a physical line whose product ships to `EUROPE`, `ASIA` or `NORTH AMERICA`. Served since E5a: the GeoIP-detected buyer currency (`infra/buyer-currency-countries.ts`, generated
   from the countries gem 6.0.1) and the empty 400 (malformed `products`) / 503 (`RateUnavailable`) answers. The examples of
-  `spec/requests/customer_surcharge_parity_spec.rb` are recorded in full (22 examples; the GeoIP example stubs `GeoIp.lookup` to 81.2.69.160 because the suite mocks it).
+  `spec/requests/customer_surcharge_parity_spec.rb` are recorded in full (24 examples; the GeoIP example stubs `GeoIp.lookup` to 81.2.69.160 because the suite mocks it).
 - **Customers page** (`page-props/customers/customers.ts`) still hands back: shipping sales whose tracking URL is non-ASCII (Ruby escapes it before parsing) or has an IP-literal host, a commission completion
   still `in_progress` (it may be pending presentment settlement), review videos whose thumbnail variant Rails has not processed. Physical products, Skus, shipping, commissions
   (with or without files), review videos with a processed or no thumbnail, sales of several options (the first join row), collaborator sales that credit a direct affiliate,

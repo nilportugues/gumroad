@@ -186,6 +186,26 @@ describe "Customer surcharge", type: :request do
       expect(response.parsed_body).to include("shipping_rate_cents" => 0)
     end
 
+    it "ships to a country through the continent destination that lists it", parity: true do
+      physical_product.shipping_destinations << create(:shipping_destination, country_code: "NORTH AMERICA", is_virtual_country: true, one_item_rate_cents: 650, multiple_items_rate_cents: 100)
+      expect(ShippingDestination.for_product_and_country_code(product: physical_product, country_code: "MX").country_code).to eq("NORTH AMERICA")
+
+      post_surcharge(products: [line(physical_product)], country: "MX", postal_code: "01000")
+
+      expect(response.parsed_body).to include("shipping_rate_cents" => 650)
+    end
+
+    it "prefers the continent destination to ELSEWHERE and skips a continent that does not list the country", parity: true do
+      set_elsewhere_rates(800, 300)
+      physical_product.shipping_destinations << create(:shipping_destination, country_code: "ASIA", is_virtual_country: true, one_item_rate_cents: 700, multiple_items_rate_cents: 100)
+
+      post_surcharge(products: [line(physical_product)], country: "JP", postal_code: "100-0001")
+      expect(response.parsed_body).to include("shipping_rate_cents" => 700)
+
+      post_surcharge(products: [line(physical_product)], country: "AU", postal_code: "2000")
+      expect(response.parsed_body).to include("shipping_rate_cents" => 800)
+    end
+
     it "drops VAT on a physical line bound for the EU", parity: true do
       create_de_vat_rate
       physical_product.shipping_destinations << create(:shipping_destination, country_code: "DE", one_item_rate_cents: 500, multiple_items_rate_cents: 0)

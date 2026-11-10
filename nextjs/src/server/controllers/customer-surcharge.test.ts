@@ -49,7 +49,7 @@ const flagsOf = (...names: (keyof typeof FLAG_BITS)[]) =>
   names.reduce((flags, name) => flags | (1n << BigInt(FLAG_BITS[name] - 1)), 0n);
 
 const link = (extra: Record<string, unknown> = {}) => ({
-  id: 1n,
+  id: 1,
   user_id: 5n,
   unique_permalink: "abc",
   price_currency_type: "usd",
@@ -561,7 +561,7 @@ describe("physical lines", () => {
         const code = virtual ? null : (query.values.find((value) => typeof value === "string") as string);
         return destinations.filter((row) =>
           virtual
-            ? (Number(row.flags) & 1) !== 0 && ["EUROPE", "ASIA", "NORTH AMERICA"].includes(String(row.country_code))
+            ? (Number(row.flags) & 1) !== 0 && query.values.includes(row.country_code)
             : row.country_code === code,
         );
       }
@@ -623,10 +623,42 @@ describe("physical lines", () => {
     expect(getRate).toHaveBeenCalledTimes(1);
   });
 
-  it("hands back a continent destination, a fractional or missing quantity and a zero rate", async () => {
-    destinations = [destination({ country_code: "NORTH AMERICA", flags: 1 })];
-    await expectHandBack(cartOf(1, { country: "CA", state: null }));
+  it("ships to a country through its continent destination", async () => {
+    destinations = [destination({ country_code: "NORTH AMERICA", flags: 1, one_item_rate_cents: 650 })];
+    expect((await call(cartOf(1, { country: "MX", postal_code: "01000" }))).body).toMatchObject({
+      shipping_rate_cents: 650,
+    });
+  });
 
+  it("prefers an exact country destination to a continent, and a continent to ELSEWHERE", async () => {
+    destinations = [
+      destination({ id: 1, country_code: "ELSEWHERE", one_item_rate_cents: 900 }),
+      destination({ id: 2, country_code: "ASIA", flags: 1, one_item_rate_cents: 700 }),
+    ];
+    expect((await call(cartOf(1, { country: "JP", postal_code: "100-0001" }))).body).toMatchObject({
+      shipping_rate_cents: 700,
+    });
+    destinations.push(destination({ id: 3, country_code: "JP", one_item_rate_cents: 400 }));
+    expect((await call(cartOf(1, { country: "JP", postal_code: "100-0001" }))).body).toMatchObject({
+      shipping_rate_cents: 400,
+    });
+  });
+
+  it("ignores a continent destination for a country outside it, and one without the virtual-country flag", async () => {
+    destinations = [
+      destination({ country_code: "EUROPE", flags: 1, one_item_rate_cents: 650 }),
+      destination({ country_code: "ELSEWHERE", one_item_rate_cents: 910 }),
+    ];
+    expect((await call(cartOf(1, { country: "AU", postal_code: "2000" }))).body).toMatchObject({
+      shipping_rate_cents: 910,
+    });
+    destinations = [destination({ country_code: "ASIA", flags: 0, one_item_rate_cents: 650 })];
+    expect((await call(cartOf(1, { country: "JP", postal_code: "100-0001" }))).body).toMatchObject({
+      shipping_rate_cents: 0,
+    });
+  });
+
+  it("hands back a fractional or missing quantity and a zero rate", async () => {
     destinations = [destination()];
     await expectHandBack(cartOf(1.5));
     await expectHandBack(cartOf(undefined));
