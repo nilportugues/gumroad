@@ -3728,7 +3728,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "UploadUsStatesSalesTaxToTaxjarJob": {
     "file": "app/sidekiq/upload_us_states_sales_tax_to_taxjar_job.rb",
