@@ -1,48 +1,22 @@
 # Parity debt
 
-Branches merged into `nextjs-rewrite` were written in a sandbox with no Ruby, MySQL, Redis or
-Elasticsearch. Their Ruby `parity: true` examples were never run, their fixtures were never recorded, and
-their replay tests skip without `PARITY_DATABASE_URL`. This file lists what a person with a full
-environment has to close, how, and in what order. It was built by reading the code, the specs and
-`git log` at `b8fbe3067`; where something could not be established it says "could not determine".
-
-Read [README.md](README.md) (the Parity section) and [`nextjs/parity/README.md`](../../nextjs/parity/README.md)
-first. In short:
-
-- `PARITY_RECORD=1 bin/rspec <spec>` runs the examples tagged `parity: true` against Rails and writes
-  `nextjs/parity/fixtures/<spec path minus spec/ and .rb>/<example slug>.json`. `PARITY_RECORD=all` records
-  every request/controller example. A failing example writes nothing.
-- `PARITY_GOLDEN=1 bin/rspec <spec>` makes the two golden specs write their JSON (see 2).
-- `PARITY_DATABASE_URL=mysql://...` turns the 54 replay test files in `nextjs/parity/__tests__` (and
-  `payouts-handback.test.ts`) from skipped to running. The database must be disposable: the replayer truncates it.
-  Most replays also read `PARITY_REDIS_HOST` (default `127.0.0.1:6379/14`), `ELASTICSEARCH_HOST`, a DynamoDB
-  endpoint, S3/minio credentials and `../.env.test`; the header of each replay file names what it needs.
+> **Status 2026-11-10.** The sections below were written when no environment could run Rails or the replays, and are kept as the
+> history of what was unproven. They have since been closed against a real stack (setup in [parity-local-stack.md](parity-local-stack.md)):
+> every tagged example has a fixture (`node scripts/parity-debt.ts` reports 0 without one) and all 59 replay files pass (2,653 tests).
+> What is open now is in [parity-tasks.md](parity-tasks.md) and the "Open items" of [workstreams.md](workstreams.md). The counts
+> table is current; sections 1 to 4 describe the state at `b8fbe3067` unless a line says otherwise.
 
 ## Counts
 
 | | Count |
 | --- | ---: |
-| Spec files containing `parity: true` | 100 |
-| Examples tagged `parity: true` | 1,878 |
-| Of those, with a fixture | 1,759 |
-| Of those, **without a fixture** | **119**, in 13 spec files (section 1) |
-| Untagged example the execution log says needs a fixture | 1 (section 1.2) |
-| Fixture files (incl. `PARITY_RECORD=all` controller specs) | 2,573 |
-| Replay test files that skip without `PARITY_DATABASE_URL` | 54 |
-| Golden JSON files / generators | 115 files; every output a generator writes exists (section 2) |
-| Goldens with a case the generator defines but the file lacks | 1 file, 2 cases (section 2) |
-| Flags in `routes.json` | 188 gated flags over 535 route entries (plus `/api/health`, ungated) |
-| Flags with no spec or replay that exercises them | 1 (`nextjs_mobile_url_redirects`) |
-
-Two consequences of the above that are easy to miss:
-
-1. **The existing 1,759 fixtures have never been replayed in this sandbox either.** Whether each replay was
-   green when its branch merged could not be determined from `git log`; commit messages say "proven by replay"
-   for some. Step 0 of the order below replays all of them.
-2. **A replay whose fixture directory is absent passes with zero cases.** Several replay files build their list
-   with `.filter((dir) => existsSync(...))` (for example `mobile-api.replay.test.ts`,
-   `auth-mutations.replay.test.ts`). `review_reminders_parity_spec`, `url_redirect_delivery_gate_spec` and
-   `url_redirect_download_page_spec` have no fixture directory at all, so their replays are green and prove nothing.
+| Spec files containing `parity: true` | 102 |
+| Examples tagged `parity: true` | 1,928 |
+| Of those, with a fixture | 1,928 |
+| Of those, without a fixture | 0 |
+| Fixture files (incl. `PARITY_RECORD=all` controller specs) | 2,742 |
+| Replay test files | 51 (59 test files in the parity run) |
+| Replay result | 59 files, 2,653 tests passed, 12 skipped, 0 failed |
 
 ## Tooling
 
