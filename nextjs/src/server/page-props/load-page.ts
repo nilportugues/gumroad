@@ -149,7 +149,9 @@ export async function loadPage(
 
   // config.deep_merge_shared_data: page props win, nested hashes merge.
   const props = filterPartialProps({ errors, ...deepMerge(shared, pageProps) }, component, requestHeaders, alwaysKeys);
-  props._inertia_meta = meta.toJSON();
+  // inertia_rails adds the prop only when a tag was set; a controller that clears the meta sends none.
+  const metaTags = meta.toJSON();
+  if (metaTags.length > 0) props._inertia_meta = metaTags;
   // No asset version is configured, so Rails sends null.
   return {
     component,

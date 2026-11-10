@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { closeAllRedis } from "@/server/infra/redis";
 
 import { prismaExecutor, type SqlExecutor } from "../src/db";
-import { ELASTICSEARCH_HOST, recreateIndex, reindexProducts, reindexPurchases, replayIndexName } from "../src/elasticsearch";
+import { bulkIndex, ELASTICSEARCH_HOST, recreateIndex, reindexProducts, reindexPurchases, replayIndexName, seededDocuments } from "../src/elasticsearch";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
@@ -19,14 +19,13 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 // Replays Discover (spec/requests/discover_parity_spec.rb), signed out and signed in. Only the last request of each
 // example is replayed, against `next dev` with the page flag on. The `products` index is rebuilt from the seeded
 // rows before every exchange, under the name the server derives from ES_INDEX_SUFFIX. What the port hands to Rails
-// (a signed-in visitor's wishlists, a buyer with purchases) is proven by the request reaching it. The fixtures that
-// read product_page_views (autocomplete history, recently_viewed) need that index seeded by the replayer, which only
-// rebuilds `products` and `purchases` today.
+// (a signed-in visitor's wishlists, a buyer with purchases) is proven by the request reaching it.
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests/discover_parity_spec";
-// A signed-in seller is the service's current_seller, and a buyer's cart or purchases make curated products.
-const HANDED_BACK = /signed-in-answers-the-deferred-recommended-wishlists|buyer-who-has-purchased/;
+// A signed-in seller is the service's current_seller, and a buyer's cart or purchases make curated products. The
+// category wishlists example seeds no taxonomy on its products, so Rails fails on the empty `FIELD(id, )` list.
+const HANDED_BACK = /signed-in-answers-the-deferred-recommended-wishlists|buyer-who-has-purchased|wishlists-for-a-category/;
 const RAILS_ANSWER = "rails answered";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
@@ -144,6 +143,10 @@ describe.skipIf(!url)("Discover parity", () => {
               const products = { model: "Link", name: replayIndexName("products", ES_INDEX_SUFFIX) } as const;
               await recreateIndex(es, products);
               await reindexProducts(es, products.name, sql);
+              // Autocomplete history and recently viewed read the visitor's page views.
+              const views = { model: "ProductPageView", name: replayIndexName("product_page_views", ES_INDEX_SUFFIX) } as const;
+              await recreateIndex(es, views);
+              await bulkIndex(es, views.name, seededDocuments(exchange, "ProductPageView", now).map((body) => ({ body })));
             },
           },
           transport: httpTransport(server.baseUrl),
