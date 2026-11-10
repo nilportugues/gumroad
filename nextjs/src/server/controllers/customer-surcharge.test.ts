@@ -514,8 +514,23 @@ describe("Singapore and Spanish rates", () => {
     expect((await call(cart({ country: "SG" }))).body).toMatchObject({ tax_cents: 0, has_vat_id_input: false });
   });
 
+  it("takes the later-created of two Singapore rates tied on their latest year", async () => {
+    rates = [sgRate([2001], { combined_rate: "0.0700000" }), sgRate([2001], { combined_rate: "0.0800000" })];
+
+    expect((await call(cart({ country: "SG" }))).body).toMatchObject({ tax_cents: 8 });
+  });
+
+  it("takes the later-created of two Singapore rates that both list no years", async () => {
+    rates = [sgRate([], { combined_rate: "0.0700000" }), sgRate([], { combined_rate: "0.0800000" })];
+
+    expect((await call(cart({ country: "SG" }))).body).toMatchObject({ tax_cents: 8 });
+  });
+
   it("hands back a Singapore rate table Ruby could not order", async () => {
-    rates = [sgRate([2001]), sgRate([2001])];
+    rates = [sgRate([2001]), sgRate([2001]), sgRate([2001])];
+    await expectHandBack(cart({ country: "SG" }));
+
+    rates = [sgRate([]), sgRate([]), sgRate([])];
     await expectHandBack(cart({ country: "SG" }));
 
     rates = [sgRate([]), sgRate([2001])];

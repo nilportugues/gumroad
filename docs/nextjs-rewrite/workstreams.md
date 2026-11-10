@@ -78,8 +78,8 @@ spec example has a fixture. What is left on the parity side is in [parity-tasks.
   on `/customers` a review video whose thumbnail variant is unprocessed (the commission files and review video thumbnails are served). `blob.signed_id` and the 1280x720 thumbnail digests are proven against the Rails golden (`active-storage.golden.json`, recorded 2026-11-10).
 - **`POST /customer_surcharge`** (WS-20a, `nextjs_checkout_surcharge`): served for one-time, non-physical lines when no seller has
   `buyer_currency_charging` on and the buyer is taxed from the lookup table (`controllers/customer-surcharge.ts`). Still hands back: a VAT id
-  (vendor validation), a US taxable state or Canadian province (TaxJar), a Singapore table whose `applicable_years` is missing, empty or
-  tied, a Spanish buyer the GeoIP database puts in the Canary Islands (only the last subdivision's iso code is read), a bundle bound for an EU rate,
+  (vendor validation), a US taxable state or Canadian province (TaxJar), a Singapore table whose `applicable_years` is missing, partly empty, or
+  tied across three or more rates (two tied rates take the later-created, as Ruby's `sort_by.last` does), a Spanish buyer the GeoIP database puts in the Canary Islands (only the last subdivision's iso code is read), a bundle bound for an EU rate,
   commission and renewal (`subscription_id`) lines, Payment Element and `payment_method_list_token` requests (`DirectListedAmountToken`), a cart of sellers in
   the buyer-currency rollout (`BuyerCurrencyQuote`, Stripe FX), a missing `products` (ParameterMissing is rendered by the exceptions app) and a
   request format other than html/json. Served since F2: preorder (`charge_canonical_total_cents` 0), membership (charged like a one-time line) and installment lines
