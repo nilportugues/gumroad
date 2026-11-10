@@ -217,13 +217,36 @@ describe "Workflows mutations when signed in", type: :request do
     expect(workflow.reload).not_to be_deleted
   end
 
-  it "hands a variant workflow back to Rails", parity: true do
+  it "creates a variant workflow that follows the buyers of one option", parity: true do
     variant = create(:variant, variant_category: create(:variant_category, link: product), name: "Gold")
     log_in(seller)
 
     send_form(:post, workflows_path, form(workflow_type: "variant", permalink: product.unique_permalink, variant_external_id: variant.external_id))
 
     expect(response).to have_http_status(:see_other)
-    expect(Workflow.last.base_variant).to eq(variant)
+    expect(Workflow.last).to have_attributes(workflow_type: "variant", base_variant: variant, link: product)
+  end
+
+  it "points an unpublished variant workflow at another option and moves its emails along", parity: true do
+    gold = create(:variant, variant_category: create(:variant_category, link: product), name: "Gold")
+    silver = create(:variant, variant_category: gold.variant_category, name: "Silver")
+    workflow = create(:variant_workflow, seller:, link: product, base_variant: gold, name: "Options")
+    add_email(workflow, name: "First", delay_seconds: 1.hour.to_i)
+    log_in(seller)
+
+    send_form(:put, workflow_path(workflow.external_id), form(name: "Options", workflow_type: "variant", permalink: product.unique_permalink, variant_external_id: silver.external_id))
+
+    expect(response).to have_http_status(:see_other)
+    expect(workflow.reload.base_variant).to eq(silver)
+    expect(workflow.installments.first.base_variant).to eq(silver)
+  end
+
+  it "leaves a variant workflow without an option when the option id is unknown", parity: true do
+    log_in(seller)
+
+    send_form(:post, workflows_path, form(workflow_type: "variant", permalink: product.unique_permalink, variant_external_id: "unknown"))
+
+    expect(response).to have_http_status(:see_other)
+    expect(Workflow.last).to have_attributes(workflow_type: "variant", base_variant: nil, link: product)
   end
 end
