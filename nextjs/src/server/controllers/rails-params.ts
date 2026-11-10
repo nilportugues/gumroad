@@ -39,8 +39,14 @@ export function cgiParse(query: string): Map<string, (string | null)[]> {
 
 // Rack's nested query parser turns "a[]=1" and "a[b]=1" into arrays and hashes, which the
 // controllers below would then call String methods on.
-export function assertFlatQuery(query: string): void {
-  if (/(?:^|[&;])[^=&;]*(?:\[|%5B)/i.test(query)) throw new HandBackToRails();
+// `arrayKeys` are the names whose `name[]` form the caller reads itself (see queryParamStrings).
+export function assertFlatQuery(query: string, arrayKeys: string[] = []): void {
+  if (arrayKeys.length > 0 && query.includes(";")) throw new HandBackToRails();
+  const rest = query
+    .split("&")
+    .filter((pair) => !arrayKeys.some((key) => new RegExp(`^${key}(?:\\[|%5B)(?:\\]|%5D)(?:=|$)`, "iu").test(pair)))
+    .join("&");
+  if (/(?:^|[&;])[^=&;]*(?:\[|%5B)/iu.test(rest)) throw new HandBackToRails();
 }
 
 // ActionDispatch::Request#referrer

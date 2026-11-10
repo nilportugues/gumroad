@@ -44,8 +44,8 @@ export type LibraryParams = {
   bundles: string;
   showArchivedOnly: boolean;
   subscriptionsOnly: boolean;
-  // LibraryController#tracked_purchase_external_ids: the checkout's `?purchase_id=`. A flat query makes it a string, the last one given.
-  purchaseId?: string;
+  // LibraryController#tracked_purchase_external_ids: the checkout's `?purchase_id=` (flat, the last one given) or `purchase_id[]=` list.
+  purchaseIds: string[] | null;
 };
 
 const flag = (name: Parameters<typeof PurchaseFlags.condition>[0], enabled: boolean) =>
@@ -81,10 +81,11 @@ const bundleLinkIds = (bundleIds: string[]) => bundleIds.flatMap((id) => decrypt
 // that is rendering cannot hand the request back.
 export async function assertLibrarySupported(
   userId: bigint,
-  params: Pick<LibraryParams, "bundles" | "subscriptionsOnly" | "purchaseId">,
+  params: Pick<LibraryParams, "bundles" | "subscriptionsOnly" | "purchaseIds">,
 ): Promise<void> {
-  if (params.subscriptionsOnly) throw new HandBackToRails();
-  await purchaseAnalyticsProps(userId, params.purchaseId);
+  // purchase_id shapes that are not a string or a list of strings (see queryParamStrings)
+  if (params.subscriptionsOnly || params.purchaseIds === null) throw new HandBackToRails();
+  await purchaseAnalyticsProps(userId, params.purchaseIds);
   const base = visibleInLibrary(userId);
   const linkIds = bundleLinkIds(rubySplitComma(params.bundles));
   if (linkIds.length === 0) return;
@@ -95,23 +96,34 @@ export async function assertLibrarySupported(
   if (downloads.length > 0) throw new HandBackToRails();
 }
 
-// `[external_id].select(&:is_a?(String))` and `logged_in_user.purchases.by_external_ids`: the id of the one tracked purchase, or null.
-const trackedPurchaseId = (externalId: string | undefined) => (externalId === undefined || externalId === "" ? null : decrypt(externalId));
+// `MAX_TRACKED_PURCHASE_ANALYTICS`
+const MAX_TRACKED_PURCHASE_ANALYTICS = 50;
+
+// `logged_in_user.purchases.by_external_ids(...)`: the ids that decode, deduplicated by the IN list.
+const trackedPurchaseIds = (externalIds: string[]) => [
+  ...new Set(
+    externalIds.slice(0, MAX_TRACKED_PURCHASE_ANALYTICS).flatMap((id) => (id === "" ? [] : (decrypt(id) ?? []))),
+  ),
+];
 
 const present = (value: unknown) => value !== null && value !== undefined;
 
-// `purchase_analytics_props` for the tracked purchase: `{}` unless the product's seller has a Google Analytics, Facebook or TikTok id
-// (any present value, as Ruby's truthiness), else PurchaseSellerAnalyticsPresenter#props keyed by the purchase's external id.
+// `purchase_analytics_props` for the tracked purchases, in id order: each is left out unless the product's seller has a Google Analytics,
+// Facebook or TikTok id (any present value, as Ruby's truthiness), else PurchaseSellerAnalyticsPresenter#props keyed by its external id.
 // A purchase priced or charged in another currency (money conversion, presentment rows) and a seller showing buyer-local prices
 // hand back: none of those is ported.
-export async function purchaseAnalyticsProps(userId: bigint, externalId: string | undefined): Promise<Record<string, unknown>> {
-  const id = trackedPurchaseId(externalId);
-  if (id === null) return {};
-  const [row] = await selectRows(
-    Prisma.sql`SELECT ${Prisma.raw("`purchases`.*")} FROM ${table(PURCHASES)} WHERE ${column(PURCHASES, "purchaser_id")} = ${userId} AND ${column(PURCHASES, "id")} = ${id} LIMIT 1`,
+export async function purchaseAnalyticsProps(userId: bigint, externalIds: string[]): Promise<Record<string, unknown>> {
+  const ids = trackedPurchaseIds(externalIds);
+  if (ids.length === 0) return {};
+  const rows = await selectRows(
+    Prisma.sql`SELECT ${Prisma.raw("`purchases`.*")} FROM ${table(PURCHASES)} WHERE ${column(PURCHASES, "purchaser_id")} = ${userId} AND ${column(PURCHASES, "id")} IN (${Prisma.join(ids)}) ORDER BY ${column(PURCHASES, "id")} ASC`,
   );
-  if (!row) return {};
-  const purchase = castRow<Purchase>("Purchase", row);
+  const props: Record<string, unknown> = {};
+  for (const row of rows) Object.assign(props, await purchaseEventProps(castRow<Purchase>("Purchase", row)));
+  return props;
+}
+
+async function purchaseEventProps(purchase: Purchase): Promise<Record<string, unknown>> {
   const product = purchase.link_id === null ? null : await findLink(purchase.link_id);
   const seller = product?.user_id == null ? null : await findUserById(product.user_id);
   if (!product || !seller) return {};
@@ -156,23 +168,31 @@ export async function purchaseAnalyticsProps(userId: bigint, externalId: string 
 }
 
 // `LibraryPresenter#receipt_purchases` for the tracked purchase: it must be in the library, and a membership that no longer grants access is dropped.
-export async function receiptPurchases(userId: bigint, externalId: string | undefined) {
-  const id = trackedPurchaseId(externalId);
-  if (id === null) return [];
-  const [row] = await selectRows(
-    Prisma.sql`SELECT ${Prisma.raw("`purchases`.*")} FROM ${table(PURCHASES)} WHERE ${visibleInLibrary(userId)} AND ${column(PURCHASES, "id")} = ${id} LIMIT 1`,
+export async function receiptPurchases(userId: bigint, externalIds: string[]) {
+  const ids = trackedPurchaseIds(externalIds);
+  if (ids.length === 0) return [];
+  const rows = await selectRows(
+    Prisma.sql`SELECT ${Prisma.raw("`purchases`.*")} FROM ${table(PURCHASES)} WHERE ${visibleInLibrary(userId)} AND ${column(PURCHASES, "id")} IN (${Prisma.join(ids)}) ORDER BY ${column(PURCHASES, "id")} ASC`,
   );
-  if (!row) return [];
-  const purchase = castRow<Purchase>("Purchase", row);
-  const product = await db.link.findUniqueOrThrow({ where: { id: purchase.link_id! } });
-  if (LinkFlags.isSet(product.flags, "is_recurring_billing") && purchase.subscription_id !== null) {
-    const subscription = await db.subscription.findUnique({ where: { id: purchase.subscription_id } });
-    if (subscription && !grantsAccess(subscription, product, new Date())) return [];
+  const receipts = [];
+  for (const row of rows) {
+    const purchase = castRow<Purchase>("Purchase", row);
+    const product = await db.link.findUniqueOrThrow({ where: { id: purchase.link_id! } });
+    if (LinkFlags.isSet(product.flags, "is_recurring_billing") && purchase.subscription_id !== null) {
+      const subscription = await db.subscription.findUnique({ where: { id: purchase.subscription_id } });
+      if (subscription && !grantsAccess(subscription, product, new Date())) continue;
+    }
+    const analytics = await selectRows(
+      Prisma.sql`SELECT 1 FROM ${table("third_party_analytics")} WHERE ${column("third_party_analytics", "deleted_at")} IS NULL AND ${column("third_party_analytics", "location")} IN ('receipt', 'all') AND (${column("third_party_analytics", "link_id")} = ${product.id} OR (${column("third_party_analytics", "user_id")} = ${product.user_id} AND ${column("third_party_analytics", "link_id")} IS NULL)) LIMIT 1`,
+    );
+    receipts.push({
+      id: encrypt(purchase.id),
+      email: purchase.email,
+      permalink: product.unique_permalink,
+      has_third_party_analytics: analytics.length > 0,
+    });
   }
-  const analytics = await selectRows(
-    Prisma.sql`SELECT 1 FROM ${table("third_party_analytics")} WHERE ${column("third_party_analytics", "deleted_at")} IS NULL AND ${column("third_party_analytics", "location")} IN ('receipt', 'all') AND (${column("third_party_analytics", "link_id")} = ${product.id} OR (${column("third_party_analytics", "user_id")} = ${product.user_id} AND ${column("third_party_analytics", "link_id")} IS NULL)) LIMIT 1`,
-  );
-  return [{ id: encrypt(purchase.id), email: purchase.email, permalink: product.unique_permalink, has_third_party_analytics: analytics.length > 0 }];
+  return receipts;
 }
 
 type RenewalCandidate = { subscription_id: bigint; link_id: bigint; purchase_state: string; token: string | null };
