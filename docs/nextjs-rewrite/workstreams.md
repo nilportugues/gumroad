@@ -80,12 +80,12 @@ spec example has a fixture. What is left on the parity side is in [parity-tasks.
   (vendor validation), a US taxable state or Canadian province (TaxJar), a Singapore table whose `applicable_years` is missing, empty or
   tied, a Spanish buyer the GeoIP database puts in the Canary Islands (only the last subdivision's iso code is read), a physical line whose
   product ships to a continent (`EUROPE`, `ASIA`, `NORTH AMERICA` need the countries gem's continents), a bundle bound for an EU rate,
-  preorder, commission, membership,
-  installment and renewal lines, Payment Element and `payment_method_list_token` requests (`DirectListedAmountToken`), a cart of sellers in
+  commission and renewal (`subscription_id`) lines, Payment Element and `payment_method_list_token` requests (`DirectListedAmountToken`), a cart of sellers in
   the buyer-currency rollout (`BuyerCurrencyQuote`, Stripe FX), a missing `products` (ParameterMissing is rendered by the exceptions app) and a
-  request format other than html/json. Served since E5a: the GeoIP-detected buyer currency (`infra/buyer-currency-countries.ts`, generated
+  request format other than html/json. Served since F2: preorder (`charge_canonical_total_cents` 0), membership (charged like a one-time line) and installment lines
+(the first payment plus the tip, taxed on its own). Served since E5a: the GeoIP-detected buyer currency (`infra/buyer-currency-countries.ts`, generated
   from the countries gem 6.0.1) and the empty 400 (malformed `products`) / 503 (`RateUnavailable`) answers. Not recorded yet: the examples of
-  `spec/requests/customer_surcharge_parity_spec.rb` (the GeoIP and 400 ones are new).
+  `spec/requests/customer_surcharge_parity_spec.rb` (the GeoIP, ELSEWHERE/exclusion and preorder/membership/installment ones; the GeoIP example is stubbed to 81.2.69.160 because the suite mocks `GeoIp.lookup`).
 - **Customers page** (`page-props/customers/customers.ts`) still hands back: shipping sales that are subscriptions, have a recurring price, several shipments, or a tracking URL
   `Shipment#calculated_tracking_url` cannot settle without Ruby's `URI.parse`, a commission completion
   still `in_progress` (it may be pending presentment settlement), review videos whose thumbnail variant Rails has not processed. Physical products, Skus, shipping, commissions

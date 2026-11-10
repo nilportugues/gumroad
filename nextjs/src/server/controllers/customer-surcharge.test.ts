@@ -323,17 +323,10 @@ describe("hand-backs", () => {
     expect((await call(cart({ vat_id: "  " }))).status).toBe(200);
   });
 
-  it("hands back lines that are not one-time digital purchases", async () => {
-    for (const extra of [
-      { flags: flagsOf("is_in_preorder_state") },
-      { flags: flagsOf("is_recurring_billing") },
-      { native_type: "commission" },
-    ]) {
-      links = [link(extra)];
-      await expectHandBack(cart());
-    }
+  it("hands back commission and renewal lines", async () => {
+    links = [link({ native_type: "commission" })];
+    await expectHandBack(cart());
     links = [link()];
-    await expectHandBack(cart({}, { permalink: "abc", price: 100, pay_in_installments: true }));
     await expectHandBack(cart({}, { permalink: "abc", price: 100, subscription_id: "sub" }));
   });
 
@@ -400,6 +393,100 @@ describe("hand-backs", () => {
 const expectHandBack = async (params: Record<string, unknown>) => {
   await expect(rejection(params)).rejects.toBeInstanceOf(HandBackToRails);
 };
+
+describe("preorder, membership and installment lines", () => {
+  let plans: Record<string, unknown>[];
+  beforeEach(() => {
+    plans = [];
+    rates = [zipTaxRate()];
+    selectRows.mockImplementation(async (query: { sql: string }) => {
+      if (query.sql.includes("FROM `links`")) return links;
+      if (query.sql.includes("FROM `zip_tax_rates`")) return rates;
+      if (query.sql.includes("FROM `product_installment_plans`")) return plans;
+      return [];
+    });
+  });
+  const german = { country: "DE", postal_code: "10115" };
+
+  it("totals a preorder in full but charges nothing now", async () => {
+    links = [link({ flags: flagsOf("is_in_preorder_state") })];
+
+    expect((await call(cart(german, { permalink: "abc", price: 1000, quantity: 1 }))).body).toMatchObject({
+      subtotal: 1000,
+      tax_cents: 190,
+      charge_canonical_total_cents: 0,
+      commission_completion_canonical_total_cents: 0,
+    });
+  });
+
+  it("serves a preorder whose product is a commission without the deposit split", async () => {
+    links = [link({ flags: flagsOf("is_in_preorder_state"), native_type: "commission" })];
+
+    expect((await call(cart())).body).toMatchObject({ charge_canonical_total_cents: 0 });
+  });
+
+  it("charges a membership like a one-time line", async () => {
+    links = [link({ flags: flagsOf("is_recurring_billing") })];
+
+    expect((await call(cart(german, { permalink: "abc", price: 1000, quantity: 1 }))).body).toMatchObject({
+      subtotal: 1000,
+      tax_cents: 190,
+      charge_canonical_total_cents: 1190,
+    });
+  });
+
+  it("charges the first installment, taxed on its own, and totals the full price", async () => {
+    plans = [{ number_of_installments: 3 }];
+    const line = { permalink: "abc", price: 1000, quantity: 1, pay_in_installments: true };
+
+    // 1000 / 3 = 333 remainder 1: the first payment is 334, taxed at 19% = 63.46 -> 63.
+    expect((await call(cart(german, line))).body).toMatchObject({
+      subtotal: 1000,
+      tax_cents: 190,
+      charge_canonical_total_cents: 397,
+    });
+  });
+
+  it("charges the whole tip with the first installment", async () => {
+    plans = [{ number_of_installments: 3 }];
+    const line = { permalink: "abc", price: 1000, quantity: 1, pay_in_installments: "true", tip_cents: "100" };
+
+    // Base 900 -> first 300, plus the 100 tip = 400, taxed at 19% = 76.
+    expect((await call(cart(german, line))).body).toMatchObject({ charge_canonical_total_cents: 476 });
+  });
+
+  it("clamps a tip to the price and reads a non-numeric tip as 0", async () => {
+    plans = [{ number_of_installments: 2 }];
+    const clamped = { permalink: "abc", price: 1000, quantity: 1, pay_in_installments: true };
+
+    expect((await call(cart({}, { ...clamped, tip_cents: 5000 }))).body).toMatchObject({
+      charge_canonical_total_cents: 1000,
+    });
+    expect((await call(cart({}, { ...clamped, tip_cents: { a: 1 } }))).body).toMatchObject({
+      charge_canonical_total_cents: 500,
+    });
+  });
+
+  it("charges the full price when the product has no installment plan", async () => {
+    const line = { permalink: "abc", price: 1000, quantity: 1, pay_in_installments: true };
+
+    expect((await call(cart({}, line))).body).toMatchObject({ charge_canonical_total_cents: 1000 });
+  });
+
+  it("charges no tax or shipping now for a preorder line", async () => {
+    plans = [{ number_of_installments: 2 }];
+    links = [link({ flags: flagsOf("is_in_preorder_state") })];
+
+    expect((await call(cart())).body).toMatchObject({ shipping_rate_cents: 0, charge_canonical_total_cents: 0 });
+  });
+
+  it("hands back a tip whose digits Ruby would join", async () => {
+    plans = [{ number_of_installments: 2 }];
+    const line = { permalink: "abc", price: 1000, quantity: 1, pay_in_installments: true, tip_cents: "1_0" };
+
+    await expect(rejection(cart({}, line))).rejects.toBeInstanceOf(HandBackToRails);
+  });
+});
 
 describe("Singapore and Spanish rates", () => {
   const year = new Date().getUTCFullYear();

@@ -4,7 +4,8 @@ require "spec_helper"
 
 # POST /customer_surcharge for the carts the Next.js port serves (nextjs/src/server/controllers/customer-surcharge.ts):
 # one-time digital lines, a buyer taxed from the lookup table, and no seller in the buyer-currency rollout. Written for
-# recording (PARITY_RECORD=1); not yet recorded, so no fixture exists under nextjs/parity/fixtures.
+# recording (PARITY_RECORD=1); the examples added after the first recordings (GeoIP, ELSEWHERE, exclusion, preorder,
+# membership, installment) have no fixture under nextjs/parity/fixtures yet.
 describe "Customer surcharge", type: :request do
   include Parity::AudienceSignedIn
 
@@ -94,6 +95,23 @@ describe "Customer surcharge", type: :request do
     )
   end
 
+  it "detects the buyer's currency from a GeoIP country", parity: true do
+    # The suite stubs GeoIp.lookup with a fixed table, so this IP is stubbed to what the GeoLite2 test database the
+    # Node port reads (81.2.69.160) says: Great Britain.
+    allow(GeoIp).to receive(:lookup).with("81.2.69.160").and_return(
+      GeoIp::Result.new(country_name: "United Kingdom", country_code: "GB", region_name: "ENG", city_name: "London", postal_code: nil, latitude: nil, longitude: nil)
+    )
+
+    post "/customer_surcharge", params: { products: [line(product)] }.to_json,
+                                headers: json_headers.merge("X-CSRF-Token" => csrf_token, "X-Forwarded-For" => "81.2.69.160")
+
+    expect(response.parsed_body).to include(
+      "detected_buyer_currency" => "gbp",
+      "buyer_currency_quote" => nil,
+      "available_buyer_currencies" => [{ "code" => "usd", "label" => "$ (US Dollars)" }]
+    )
+  end
+
   it "answers a malformed products param with an empty 400", parity: true do
     post_surcharge(products: ["not-a-product"])
 
@@ -144,6 +162,30 @@ describe "Customer surcharge", type: :request do
       expect(response.parsed_body).to include("shipping_rate_cents" => 900, "subtotal" => 1_000, "charge_canonical_total_cents" => 1_900)
     end
 
+    # The :is_physical trait already gives the product a zero-rate ELSEWHERE destination, and a second one fails the
+    # country uniqueness validation (`<<` returns false), so the rate is set on that one.
+    def set_elsewhere_rates(one_item, multiple_items)
+      physical_product.shipping_destinations.find_by!(country_code: "ELSEWHERE").update!(one_item_rate_cents: one_item, multiple_items_rate_cents: multiple_items)
+    end
+
+    it "falls back to the ELSEWHERE destination for a country with no destination of its own", parity: true do
+      set_elsewhere_rates(800, 300)
+      expect(ShippingDestination.for_product_and_country_code(product: physical_product, country_code: "IT")).to be_present
+
+      post_surcharge(products: [line(physical_product)], country: "IT")
+
+      expect(response.parsed_body).to include("shipping_rate_cents" => 800)
+    end
+
+    it "charges no shipping to a country the product excludes", parity: true do
+      set_elsewhere_rates(800, 300)
+      physical_product.shipping_exclusions.create!(country_code: "FR")
+
+      post_surcharge(products: [line(physical_product)], country: "FR")
+
+      expect(response.parsed_body).to include("shipping_rate_cents" => 0)
+    end
+
     it "drops VAT on a physical line bound for the EU", parity: true do
       create_de_vat_rate
       physical_product.shipping_destinations << create(:shipping_destination, country_code: "DE", one_item_rate_cents: 500, multiple_items_rate_cents: 0)
@@ -151,6 +193,44 @@ describe "Customer surcharge", type: :request do
       post_surcharge(products: [line(physical_product, price: 1_000)], country: "DE", postal_code: "10115")
 
       expect(response.parsed_body).to include("tax_cents" => 0, "shipping_rate_cents" => 500)
+    end
+  end
+
+  describe "preorder, membership and installment lines" do
+    before { create_de_vat_rate }
+
+    it "totals a preorder in full but charges nothing now", parity: true do
+      create(:preorder_link, link: product)
+      product.is_in_preorder_state = true
+      product.save!(validate: false)
+
+      post_surcharge(products: [line(product, price: 1_000)], postal_code: "10115", country: "DE")
+
+      expect(response.parsed_body).to include("subtotal" => 1_000, "tax_cents" => 190, "charge_canonical_total_cents" => 0, "commission_completion_canonical_total_cents" => 0)
+    end
+
+    it "charges a membership like a one-time line", parity: true do
+      membership = create(:membership_product, user: seller, unique_permalink: "surchargemember")
+
+      post_surcharge(products: [line(membership, price: 1_000)], postal_code: "10115", country: "DE")
+
+      expect(response.parsed_body).to include("subtotal" => 1_000, "tax_cents" => 190, "charge_canonical_total_cents" => 1_190)
+    end
+
+    it "charges the first installment, taxed on its own", parity: true do
+      installment_product = create(:product, :with_installment_plan, user: seller, unique_permalink: "surchargeinstall")
+
+      post_surcharge(products: [line(installment_product, price: 1_000, pay_in_installments: true)], postal_code: "10115", country: "DE")
+
+      expect(response.parsed_body).to include("subtotal" => 1_000, "tax_cents" => 190, "charge_canonical_total_cents" => 397)
+    end
+
+    it "charges the whole tip with the first installment", parity: true do
+      installment_product = create(:product, :with_installment_plan, user: seller, unique_permalink: "surchargeinstall")
+
+      post_surcharge(products: [line(installment_product, price: 1_000, pay_in_installments: true, tip_cents: "100")], postal_code: "10115", country: "DE")
+
+      expect(response.parsed_body).to include("charge_canonical_total_cents" => 476)
     end
   end
 end

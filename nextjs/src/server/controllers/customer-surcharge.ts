@@ -2,10 +2,12 @@
 // answer needs no vendor: one-time, non-physical lines with no VAT id, no TaxJar buyer (US taxable state, Canada with a
 // province) and no seller in the buyer-currency rollout, so the response carries no FX quote and no direct-listed token.
 //
-// Physical lines are served through their ShippingDestination (exact country, then ELSEWHERE).
+// Physical lines are served through their ShippingDestination (exact country, then ELSEWHERE). A preorder line
+// (nothing charged now), a membership line (charged like a one-time line) and an installment line (the first payment,
+// taxed on its own) are served too; only their `charge_canonical_total_cents` differs from the one-time arithmetic.
 //
-// Everything else hands back to Rails before anything is written (nothing here writes): a preorder, commission,
-// membership or installment line, a subscription renewal, a VAT id, a Payment Element or list-token request, a seller with
+// Everything else hands back to Rails before anything is written (nothing here writes): a commission line (deposit
+// split, completion surcharges, once-per-cart codes), a subscription renewal, a VAT id, a Payment Element or list-token request, a seller with
 // `buyer_currency_charging` on, a Singapore rate table whose `applicable_years` is not plain, a Spanish buyer the GeoIP database
 // places in the Canary Islands, a physical line whose product has a continent-wide shipping destination (needs the countries
 // gem's continents), a bundle bound for an EU-27 rate, a missing `products` (ParameterMissing is rendered by the exceptions
@@ -26,7 +28,7 @@ import { findUserById, type LinkRow } from "../presenters/product-reads.ts";
 import { castBoolean } from "../search/ruby-params.ts";
 import {
   calculateWithLookup,
-  oneTimeChargeTotalCents,
+  chargeCanonicalTotalCents,
   surchargeTotals,
   validProductsParam,
   type SurchargeLine,
@@ -98,8 +100,30 @@ function submittedPriceCents(value: unknown): number {
   return Number.isSafeInteger(cents) ? cents : handBack("with an oversized price");
 }
 
-// `ActiveModel::Type::Boolean.new.cast(item[:pay_in_installments])` is false for these; any other value may choose an installment plan.
-const NOT_INSTALLMENTS = new Set<unknown>([undefined, null, false, "", 0, "0", "false"]);
+// `item[:tip_cents].to_i` for a String or Numeric, 0 for anything else (from_surcharge and buyer_currency_charge_details).
+function tipCents(value: unknown): number {
+  if (typeof value === "number") {
+    const cents = Math.trunc(value);
+    return Number.isSafeInteger(cents) ? cents : handBack("with an oversized tip");
+  }
+  if (typeof value !== "string") return 0;
+  // String#to_i reads digit-separating underscores, which this scan would cut short.
+  if (/^\s*[+-]?\d+_/u.test(value)) return handBack("with an exotic tip");
+  const match = /^\s*([+-]?\d+)/u.exec(value);
+  if (match === null) return 0;
+  const cents = Number(match[1]);
+  return Number.isSafeInteger(cents) ? cents : handBack("with an oversized tip");
+}
+
+// `product.installment_plan` (has_one, alive): the number of installments.
+async function installmentCount(linkId: bigint): Promise<bigint | null> {
+  const [row] = await selectRows<Row>(
+    Prisma.sql`SELECT ${Prisma.raw("`product_installment_plans`.*")} FROM ${table("product_installment_plans")} WHERE ${column("product_installment_plans", "link_id")} = ${linkId} AND ${column("product_installment_plans", "deleted_at")} IS NULL LIMIT 1`,
+  );
+  if (row === undefined) return null;
+  const count = BigInt(String(row.number_of_installments));
+  return count > 1n ? count : handBack("for an installment plan with fewer than two installments");
+}
 
 // Link.find_by_unique_permalink
 async function findLinkByPermalink(permalink: string): Promise<LinkRow | null> {
@@ -337,6 +361,10 @@ function headResponse(status: number, request: MutationInput["request"]): Render
 
 type CartLine = Row;
 
+// Ruby's Integer#/ floors and Integer#% takes the divisor's sign, unlike BigInt.
+const floorDiv = (a: bigint, b: bigint): bigint => ((a / b) * b === a || a >= 0n ? a / b : a / b - 1n);
+const modulo = (a: bigint, b: bigint): bigint => a - floorDiv(a, b) * b;
+
 // CustomerSurchargeController#calculate_all
 export async function calculateAll(input: Pick<MutationInput, "params" | "request">): Promise<ActionResult> {
   try {
@@ -380,15 +408,10 @@ async function calculateAllLines({
       allLinesQuotable = false;
       continue;
     }
-    if (
-      flagSet(link, "is_in_preorder_state") ||
-      flagSet(link, "is_recurring_billing") ||
-      link.native_type === "commission" ||
-      !NOT_INSTALLMENTS.has(item.pay_in_installments) ||
-      !blank(item.subscription_id)
-    ) {
-      return handBack("for a preorder, commission, membership, installment or renewal line");
-    }
+    if (!blank(item.subscription_id)) return handBack("for a subscription renewal line");
+    // buyer_currency_charge_details picks the first of preorder, commission, installment, membership.
+    const preorder = flagSet(link, "is_in_preorder_state");
+    if (!preorder && link.native_type === "commission") return handBack("for a commission line");
 
     const submittedPrice = submittedPriceCents(item.price);
     const listedCurrency = String(link.price_currency_type ?? "").toLowerCase();
@@ -400,10 +423,25 @@ async function calculateAllLines({
     const shipping = flagSet(link, "is_physical")
       ? await shippingUsdCents(link, location.country ?? null, item.quantity, rates.get(listedCurrency))
       : 0;
-    lines.push({
-      taxResult: await calculateSalesTax(link, submittedPrice, location, remoteIp(request)),
-      shippingUsdCents: shipping,
-    });
+    const ip = remoteIp(request);
+    const taxResult = await calculateSalesTax(link, submittedPrice, location, ip);
+    const line: SurchargeLine = { taxResult, shippingUsdCents: shipping };
+    if (preorder) {
+      // Nothing is charged now: the whole price is the balance due at release.
+      line.chargeCanonicalTotalCents = 0;
+    } else if (castBoolean(item.pay_in_installments) === true) {
+      const installments = await installmentCount(link.id);
+      if (installments !== null) {
+        // The first installment (plus the whole tip) is what is charged now, taxed on its own.
+        const tip = Math.min(Math.max(tipCents(item.tip_cents), 0), Math.max(taxResult.priceCents, 0));
+        const baseCents = BigInt(taxResult.priceCents - tip);
+        const first = Number(floorDiv(baseCents, installments) + modulo(baseCents, installments));
+        const chargeTax = await calculateSalesTax(link, first + tip, location, ip);
+        line.chargeCanonicalTotalCents = chargeTax.priceCents + Math.max(chargeTax.taxCents, 0) + shipping;
+      }
+    }
+    // A membership without installments charges the same price, taxed and shipped the same way.
+    lines.push(line);
     if (link.user_id !== null) sellerIds.add(link.user_id);
   }
 
@@ -429,7 +467,7 @@ async function calculateAllLines({
       tax_cents: totals.tax_cents,
       tax_included_cents: totals.tax_included_cents,
       subtotal: totals.subtotal,
-      charge_canonical_total_cents: allLinesQuotable ? oneTimeChargeTotalCents(totals) : null,
+      charge_canonical_total_cents: allLinesQuotable ? chargeCanonicalTotalCents(lines) : null,
       commission_completion_canonical_total_cents: allLinesQuotable ? 0 : null,
       direct_listed_line_allocations: null,
       direct_listed_amount_token: null,

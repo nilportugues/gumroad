@@ -45,7 +45,12 @@ export function calculateWithLookup(input: LookupInput): SalesTaxCalculation {
   };
 }
 
-export type SurchargeLine = { taxResult: SalesTaxCalculation; shippingUsdCents: number };
+export type SurchargeLine = {
+  taxResult: SalesTaxCalculation;
+  shippingUsdCents: number;
+  /** What the line charges now when that is not its one-time total (a preorder or an installment's first payment). */
+  chargeCanonicalTotalCents?: number;
+};
 
 export type SurchargeTotals = {
   vat_id_valid: boolean;
@@ -81,6 +86,14 @@ export function surchargeTotals(lines: SurchargeLine[]): SurchargeTotals {
 // lines charge less than the agreement total now; they are not covered.
 export const oneTimeChargeTotalCents = (totals: SurchargeTotals): number =>
   totals.subtotal + totals.tax_cents + totals.shipping_rate_cents;
+
+// `quote_line_items.sum(&:charge_canonical_total_cents)`: per line the charge-now price, positive tax and shipping.
+export const chargeCanonicalTotalCents = (lines: SurchargeLine[]): number =>
+  lines.reduce(
+    (sum, { taxResult, shippingUsdCents, chargeCanonicalTotalCents: now }) =>
+      sum + (now ?? taxResult.priceCents + Math.max(taxResult.taxCents, 0) + shippingUsdCents),
+    0,
+  );
 
 // CustomerSurchargeController#calculate_all: `products` must be an array of hashes, otherwise 400.
 export const validProductsParam = (products: unknown): boolean =>

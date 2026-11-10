@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   calculateWithLookup,
+  chargeCanonicalTotalCents,
   oneTimeChargeTotalCents,
   surchargeTotals,
   validProductsParam,
@@ -90,6 +91,12 @@ describe("surchargeTotals (CustomerSurchargeController#calculate_all)", () => {
       subtotal: 2000,
     });
     expect(oneTimeChargeTotalCents(totals)).toBe(2240);
+  });
+
+  it("sums the charge-now total per line, taking a line's override over its one-time total", () => {
+    const line = { taxResult: calculateWithLookup({ ...de, priceCents: 1000 }), shippingUsdCents: 30 };
+
+    expect(chargeCanonicalTotalCents([line, { ...line, chargeCanonicalTotalCents: 0 }])).toBe(1220);
   });
 });
 
