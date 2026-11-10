@@ -73,5 +73,8 @@ export function canonicalJob(job: RawJob, now: Date): CapturedJob {
 }
 
 export function canonicalMail(mail: RawMail, now: Date): CapturedMail {
-  return json(Object.fromEntries(Object.entries(mail).filter(([, value]) => value !== undefined)), now) as Json as CapturedMail;
+  return json(
+    Object.fromEntries(Object.entries(mail).filter(([, value]) => value !== undefined)),
+    now,
+  ) as Json as CapturedMail;
 }

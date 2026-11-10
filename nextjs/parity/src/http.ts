@@ -1,4 +1,11 @@
-import { json as canonicalJson, cookieValue, type Json, parseJson, string as canonicalString, timeToken } from "./canonical";
+import {
+  json as canonicalJson,
+  cookieValue,
+  type Json,
+  parseJson,
+  string as canonicalString,
+  timeToken,
+} from "./canonical";
 import type { CapturedHttp, CapturedResponse, FixtureRequest } from "./fixture";
 
 // Keep in sync with VOLATILE_RESPONSE_HEADERS in spec/support/parity/recorder.rb.
@@ -45,7 +52,10 @@ export async function captureResponse(response: Response, now: Date): Promise<Ca
     if (name !== "location" && !VOLATILE_RESPONSE_HEADERS.has(name)) headers[name] = value;
   });
   const sorted = Object.fromEntries(Object.entries(headers).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
-  const captured: CapturedResponse = { status: response.status, headers: canonicalJson(sorted, now) as Record<string, Json> };
+  const captured: CapturedResponse = {
+    status: response.status,
+    headers: canonicalJson(sorted, now) as Record<string, Json>,
+  };
   const location = response.headers.get("location");
   if (location) captured.location = location;
   const cookies = setCookies(response.headers.getSetCookie(), now);
@@ -152,7 +162,8 @@ export function interceptFetch(recorded: CapturedHttp[], now: Date): FetchInterc
     calls.push(canonicalJson(call, now) as unknown as CapturedHttp);
 
     const index = unused.findIndex((candidate) => candidate.method === call.method && candidate.url === call.url);
-    if (index === -1) return new Response(`parity: no recorded response for ${call.method} ${call.url}`, { status: 599 });
+    if (index === -1)
+      return new Response(`parity: no recorded response for ${call.method} ${call.url}`, { status: 599 });
     const [match] = unused.splice(index, 1);
     const headers = match!.response.contentType ? { "content-type": match!.response.contentType } : undefined;
     return new Response(match!.response.body ?? "", { status: match!.response.status ?? 200, headers });

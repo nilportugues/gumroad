@@ -64,7 +64,11 @@ export type SeedTable = {
 };
 
 // A key of the main Redis database as the recorder saw it before the request.
-export type RedisEntry = { type: "string" | "hash" | "set"; value: string | Record<string, string> | string[]; ttl?: number };
+export type RedisEntry = {
+  type: "string" | "hash" | "set";
+  value: string | Record<string, string> | string[];
+  ttl?: number;
+};
 
 export type Seed = {
   tables: Record<string, SeedTable>;
@@ -82,7 +86,12 @@ export type CapturedExchange = {
 // The documents of an Elasticsearch index that has no table behind it, by model name (times as tokens).
 export type ElasticsearchSeed = Record<string, { source: Record<string, Json> }[]>;
 
-export type Exchange = CapturedExchange & { seed: Seed; request: FixtureRequest; redis?: Record<string, RedisEntry>; elasticsearch?: ElasticsearchSeed };
+export type Exchange = CapturedExchange & {
+  seed: Seed;
+  request: FixtureRequest;
+  redis?: Record<string, RedisEntry>;
+  elasticsearch?: ElasticsearchSeed;
+};
 
 export type Fixture = {
   version: number;
@@ -98,7 +107,9 @@ export type Fixture = {
 export function loadFixture(path: string): Fixture {
   const fixture = parseJson(readFileSync(path, "utf8")) as unknown as Fixture;
   if (fixture.version !== FORMAT_VERSION) {
-    throw new Error(`${path} is fixture format ${fixture.version}; this replayer reads ${FORMAT_VERSION}. Re-record it.`);
+    throw new Error(
+      `${path} is fixture format ${fixture.version}; this replayer reads ${FORMAT_VERSION}. Re-record it.`,
+    );
   }
   return fixture;
 }

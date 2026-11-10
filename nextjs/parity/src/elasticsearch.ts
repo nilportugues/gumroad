@@ -50,7 +50,17 @@ export async function recreateIndex(es: Client, { model, name }: ReplayIndex): P
   await es.indices.delete({ index: name }, { ignore: [404] });
   await es.indices.create({
     index: name,
-    body: { settings: { index: { number_of_shards: 1, number_of_replicas: 0, analysis: definition.settings.index.analysis, sort: definition.settings.index.sort } }, mappings: definition.mappings },
+    body: {
+      settings: {
+        index: {
+          number_of_shards: 1,
+          number_of_replicas: 0,
+          analysis: definition.settings.index.analysis,
+          sort: definition.settings.index.sort,
+        },
+      },
+      mappings: definition.mappings,
+    },
   });
   // A development machine low on disk makes Elasticsearch block writes to every index (flood stage).
   await es.indices.putSettings({ index: name, body: { "index.blocks.read_only_allow_delete": null } });
@@ -59,21 +69,37 @@ export async function recreateIndex(es: Client, { model, name }: ReplayIndex): P
 const resolveTokens = (value: unknown, now: Date): unknown => {
   if (typeof value === "string") return resolveTimeToken(value, now)?.toISOString() ?? value;
   if (Array.isArray(value)) return value.map((entry) => resolveTokens(entry, now));
-  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, resolveTokens(entry, now)]));
+  if (value && typeof value === "object")
+    return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, resolveTokens(entry, now)]));
   return value;
 };
 
 // The documents the recorder captured for `model`, with their time tokens resolved against the replay's clock.
 export function seededDocuments(exchange: Exchange, model: ReplayModel, now: Date): Record<string, unknown>[] {
-  return (exchange.elasticsearch?.[model] ?? []).map(({ source }) => resolveTokens(source, now) as Record<string, unknown>);
+  return (exchange.elasticsearch?.[model] ?? []).map(
+    ({ source }) => resolveTokens(source, now) as Record<string, unknown>,
+  );
 }
 
-export async function bulkIndex(es: Client, index: string, documents: { id?: string; body: Record<string, unknown> }[]): Promise<void> {
+export async function bulkIndex(
+  es: Client,
+  index: string,
+  documents: { id?: string; body: Record<string, unknown> }[],
+): Promise<void> {
   if (documents.length === 0) return;
   // Documents may hold bigints and Ruby floats, which only the port's own serializer writes.
-  const lines = documents.flatMap(({ id, body: document }) => [{ index: { _index: index, ...(id === undefined ? {} : { _id: id }) } }, document]);
-  const result = await es.bulk({ body: `${lines.map((line) => esJson(line as JsonValue)).join("\n")}\n`, refresh: true });
-  if (result.body.errors) throw new Error(`Bulk indexing into ${index} failed: ${JSON.stringify(result.body.items.find((item: Record<string, { error?: unknown }>) => item.index?.error))}`);
+  const lines = documents.flatMap(({ id, body: document }) => [
+    { index: { _index: index, ...(id === undefined ? {} : { _id: id }) } },
+    document,
+  ]);
+  const result = await es.bulk({
+    body: `${lines.map((line) => esJson(line as JsonValue)).join("\n")}\n`,
+    refresh: true,
+  });
+  if (result.body.errors)
+    throw new Error(
+      `Bulk indexing into ${index} failed: ${JSON.stringify(result.body.items.find((item: Record<string, { error?: unknown }>) => item.index?.error))}`,
+    );
 }
 
 // The purchases index from the seeded rows, with the documents the port's own indexer builds (as_indexed_json).

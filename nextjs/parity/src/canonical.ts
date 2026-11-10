@@ -135,7 +135,9 @@ export function json(value: unknown, now: Date): Json {
   if (value instanceof Date) return timeToken(value, now);
   if (Array.isArray(value)) return value.map((item) => json(item, now));
   if (typeof value === "object") {
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, key === "time_zone" ? timeZone(item, now) : json(item, now)]));
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, key === "time_zone" ? timeZone(item, now) : json(item, now)]),
+    );
   }
   return String(value);
 }
@@ -150,7 +152,9 @@ function timeZone(value: unknown, now: Date): Json {
 function utcOffset(name: string, now: Date): number | null {
   let part: string | undefined;
   try {
-    part = new Intl.DateTimeFormat("en-US", { timeZone: name, timeZoneName: "longOffset" }).formatToParts(now).find((p) => p.type === "timeZoneName")?.value;
+    part = new Intl.DateTimeFormat("en-US", { timeZone: name, timeZoneName: "longOffset" })
+      .formatToParts(now)
+      .find((p) => p.type === "timeZoneName")?.value;
   } catch {
     return null;
   }
@@ -163,8 +167,13 @@ function utcOffset(name: string, now: Date): number | null {
 
 // JSON.parse that keeps integers outside the safe range exact, as { $big }, the way Ruby writes them.
 export function parseJson(text: string): Json {
-  return JSON.parse(text, function (this: unknown, _key, value, context?: { source?: string }) {
-    if (typeof value === "number" && !Number.isSafeInteger(value) && context?.source && /^-?\d+$/.test(context.source)) {
+  return JSON.parse(text, (this: unknown, _key, value, context?: { source?: string }) => {
+    if (
+      typeof value === "number" &&
+      !Number.isSafeInteger(value) &&
+      context?.source &&
+      /^-?\d+$/.test(context.source)
+    ) {
       return { $big: context.source };
     }
     return value;
@@ -189,7 +198,9 @@ export type TableDiff = {
 };
 
 export function row(dump: TableDump, rawRow: (string | null)[], now: Date): Record<string, Json> {
-  return Object.fromEntries(dump.columns.map(([name, type], index) => [name, dbValue(rawRow[index] ?? null, type, now)]));
+  return Object.fromEntries(
+    dump.columns.map(([name, type], index) => [name, dbValue(rawRow[index] ?? null, type, now)]),
+  );
 }
 
 // Changes are detected on raw values, so an updated_at that moved within the "<now>" tolerance

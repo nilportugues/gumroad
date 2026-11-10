@@ -3,7 +3,13 @@
 // the Redis state the request depended on (Flipper, impersonation) is put back.
 import type { Redis } from "ioredis";
 
-import { deriveRailsCookieSecrets, readEncryptedCookie, readSignedCookie, writeEncryptedCookie, writeSignedCookie } from "@/server/auth/rails-cookies";
+import {
+  deriveRailsCookieSecrets,
+  readEncryptedCookie,
+  readSignedCookie,
+  writeEncryptedCookie,
+  writeSignedCookie,
+} from "@/server/auth/rails-cookies";
 
 import type { Fixture, FixtureRequest, RedisEntry } from "./fixture";
 import type { RedisSeeder } from "./replay";
@@ -16,8 +22,28 @@ const REMEMBER_MONTHS = 1;
 // Recorded expiries are far in the future; reading with the epoch as "now" never rejects an old fixture.
 const EPOCH = new Date(0);
 
-const inYears = (now: Date, years: number) => new Date(Date.UTC(now.getUTCFullYear() + years, now.getUTCMonth(), now.getUTCDate(), now.getUTCHours(), now.getUTCMinutes(), now.getUTCSeconds()));
-const inMonths = (now: Date, months: number) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + months, now.getUTCDate(), now.getUTCHours(), now.getUTCMinutes(), now.getUTCSeconds()));
+const inYears = (now: Date, years: number) =>
+  new Date(
+    Date.UTC(
+      now.getUTCFullYear() + years,
+      now.getUTCMonth(),
+      now.getUTCDate(),
+      now.getUTCHours(),
+      now.getUTCMinutes(),
+      now.getUTCSeconds(),
+    ),
+  );
+const inMonths = (now: Date, months: number) =>
+  new Date(
+    Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth() + months,
+      now.getUTCDate(),
+      now.getUTCHours(),
+      now.getUTCMinutes(),
+      now.getUTCSeconds(),
+    ),
+  );
 
 // Devise's remember cookie holds `[[id], token, Time.now.utc.to_f.to_s]`; the generation time has to
 // postdate users.remember_created_at, which the replay seeds relative to its own clock.
@@ -39,13 +65,20 @@ export function reencryptCookies(
   for (const [name, raw] of Object.entries(request.cookies)) {
     if (name === fixture.sessionCookie) {
       const value = readEncryptedCookie(from, name, raw, EPOCH);
-      if (value !== null) cookies[name] = writeEncryptedCookie(to, name, transformSession(value, now), { expiresAt: inYears(now, SESSION_YEARS) });
+      if (value !== null)
+        cookies[name] = writeEncryptedCookie(to, name, transformSession(value, now), {
+          expiresAt: inYears(now, SESSION_YEARS),
+        });
     } else if (name === CURRENT_SELLER_COOKIE) {
       const value = readEncryptedCookie(from, name, raw, EPOCH);
-      if (value !== null) cookies[name] = writeEncryptedCookie(to, name, value, { expiresAt: inYears(now, PERMANENT_YEARS) });
+      if (value !== null)
+        cookies[name] = writeEncryptedCookie(to, name, value, { expiresAt: inYears(now, PERMANENT_YEARS) });
     } else if (name === REMEMBER_COOKIE) {
       const value = readSignedCookie(from, name, raw, EPOCH);
-      if (Array.isArray(value)) cookies[name] = writeSignedCookie(to, name, [value[0], value[1], generatedAt(now)], { expiresAt: inMonths(now, REMEMBER_MONTHS) });
+      if (Array.isArray(value))
+        cookies[name] = writeSignedCookie(to, name, [value[0], value[1], generatedAt(now)], {
+          expiresAt: inMonths(now, REMEMBER_MONTHS),
+        });
     }
   }
   return { ...request, cookies };

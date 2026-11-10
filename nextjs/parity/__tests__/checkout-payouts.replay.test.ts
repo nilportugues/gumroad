@@ -8,7 +8,6 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { closeAllRedis } from "@/server/infra/redis";
 
-import { withDriftedDates } from "../src/date-drift";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
@@ -78,7 +77,11 @@ const cases = SPEC_DIRS.flatMap((dir) =>
     .filter((file) => file.endsWith(".json"))
     .map((file) => {
       const fixturePath = path.join(FIXTURES_ROOT, dir, file);
-      return [`${dir.replace(/_signed_in_spec$|_spec$/g, "")}: ${file.replace(/\.json$/, "")}`, fixturePath, loadFixture(fixturePath).exchanges.length - 1] as const;
+      return [
+        `${dir.replace(/_signed_in_spec$|_spec$/g, "")}: ${file.replace(/\.json$/, "")}`,
+        fixturePath,
+        loadFixture(fixturePath).exchanges.length - 1,
+      ] as const;
     }),
 );
 
@@ -95,7 +98,10 @@ describe.skipIf(!url)("Checkout, subscription and payouts parity", () => {
     await es.indices.delete({ index: REPLAY_PURCHASE_INDEX }, { ignore: [404] });
     await es.indices.create({
       index: REPLAY_PURCHASE_INDEX,
-      body: { settings: { index: { number_of_shards: 1, number_of_replicas: 0, analysis: source.settings.index.analysis } }, mappings: source.mappings },
+      body: {
+        settings: { index: { number_of_shards: 1, number_of_replicas: 0, analysis: source.settings.index.analysis } },
+        mappings: source.mappings,
+      },
     });
     await es.close();
     client = new PrismaClient({ datasourceUrl: url });
@@ -132,7 +138,7 @@ describe.skipIf(!url)("Checkout, subscription and payouts parity", () => {
   it.each(cases)(
     "%s",
     async (_name, fixturePath, index) => {
-      const result = await replayFixtureExchange(withDriftedDates(loadFixture(fixturePath), index), index, {
+      const result = await replayFixtureExchange(loadFixture(fixturePath), index, {
         sql,
         redis: redisSeeder(redis),
         transport: httpTransport(server.baseUrl),
@@ -143,7 +149,12 @@ describe.skipIf(!url)("Checkout, subscription and payouts parity", () => {
       try {
         assertParity(result);
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => /error|Error|at /.test(line)).slice(-25).join("\n");
+        const logs = server
+          .output()
+          .split("\n")
+          .filter((line) => /error|Error|at /.test(line))
+          .slice(-25)
+          .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
     },

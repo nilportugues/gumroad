@@ -89,7 +89,9 @@ export async function dump(sql: SqlExecutor, schema: Schema, tables: Iterable<st
     if (!meta) throw new Error(`Table ${table} is not in the replay database`);
     const columns = meta.columns.map(([name, type], i) => `${selectExpression(name, type)} AS c${i}`);
     const order = (meta.primaryKey.length ? meta.primaryKey : meta.columns.map(([name]) => name)).map(quoteIdentifier);
-    const rows = await sql.query(`SELECT ${columns.join(", ")} FROM ${quoteIdentifier(table)} ORDER BY ${order.join(", ")}`);
+    const rows = await sql.query(
+      `SELECT ${columns.join(", ")} FROM ${quoteIdentifier(table)} ORDER BY ${order.join(", ")}`,
+    );
     out[table] = { ...meta, rows: rows.map((row) => meta.columns.map((_, i) => rawString(row[`c${i}`]))) };
   }
   return out;
@@ -138,7 +140,8 @@ export async function seedDatabase(sql: SqlExecutor, seed: Seed, now: Date): Pro
       const types = new Map(schema[table]!.columns);
       const columns = Object.keys(seedTable.columns).filter((column) => !generatedColumns.has(`${table}.${column}`));
       const unknown = columns.filter((column) => !types.has(column));
-      if (unknown.length) throw new Error(`Replay database is missing ${table}.${unknown.join(", ")}; regenerate it from db/schema.rb`);
+      if (unknown.length)
+        throw new Error(`Replay database is missing ${table}.${unknown.join(", ")}; regenerate it from db/schema.rb`);
 
       for (let start = 0; start < seedTable.rows.length; start += INSERT_BATCH_ROWS) {
         const batch = seedTable.rows.slice(start, start + INSERT_BATCH_ROWS);

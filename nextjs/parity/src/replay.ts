@@ -3,13 +3,24 @@ import { NextRequest } from "next/server";
 import { diff, resolveDateToken, resolveTimeToken } from "./canonical";
 import { canonicalJob, canonicalMail, type JobsChannel, type MailChannel } from "./channels";
 import { type CompareOptions, compareExchange, type Difference, formatDifferences } from "./compare";
+import { withDriftedDates } from "./date-drift";
 import { dump, nonEmptyTables, readSchema, seedDatabase, type SqlExecutor } from "./db";
-import { type CapturedExchange, type Exchange, type Fixture, type FixtureRequest, loadFixture, type RedisEntry } from "./fixture";
+import {
+  type CapturedExchange,
+  type Exchange,
+  type Fixture,
+  type FixtureRequest,
+  loadFixture,
+  type RedisEntry,
+} from "./fixture";
 import { buildRequest, captureResponse, interceptFetch } from "./http";
 
 export type Transport = (request: Request) => Promise<Response>;
 
-type RouteHandler = (request: NextRequest, context: { params: Promise<Record<string, string | string[]>> }) => Response | Promise<Response>;
+type RouteHandler = (
+  request: NextRequest,
+  context: { params: Promise<Record<string, string | string[]>> },
+) => Response | Promise<Response>;
 type RouteModule = Partial<Record<"GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS", RouteHandler>>;
 
 // Calls an App Router route module in-process, the way Next.js would. Handlers that read
@@ -52,9 +63,15 @@ export type ReplayOptions = {
   jobs?: JobsChannel;
   mails?: MailChannel;
   interceptHttp?: boolean;
+  // False when the replay runs on the recording's own day (a pinned clock): the recorded strings need no moving.
+  driftDates?: boolean;
 };
 
-export async function replayExchange(exchange: Exchange, options: ReplayOptions, fixture?: Fixture): Promise<CapturedExchange> {
+export async function replayExchange(
+  exchange: Exchange,
+  options: ReplayOptions,
+  fixture?: Fixture,
+): Promise<CapturedExchange> {
   const { sql, transport, jobs, mails, redis, interceptHttp = true } = options;
   // Tokens like "<now-48h>" are resolved against this instant, and the port's writes are
   // normalised against it, as the recorder did with the moment its request started.
@@ -71,7 +88,8 @@ export async function replayExchange(exchange: Exchange, options: ReplayOptions,
   const interceptor = interceptHttp ? interceptFetch(exchange.http, now) : undefined;
   let response: Response;
   try {
-    const request = options.rewriteRequest && fixture ? options.rewriteRequest(exchange.request, fixture, now) : exchange.request;
+    const request =
+      options.rewriteRequest && fixture ? options.rewriteRequest(exchange.request, fixture, now) : exchange.request;
     response = await transport(buildRequest(withResolvedDates(request, now)));
   } finally {
     interceptor?.restore();
@@ -113,7 +131,10 @@ export async function replayFixture(
   const exchanges: ExchangeResult[] = [];
   for (const expected of loaded.exchanges) {
     const actual = await replayExchange(expected, options, loaded);
-    const compareOptions = { ...options.compare, ...(loaded.sessionCookie ? { sessionCookie: loaded.sessionCookie } : {}) };
+    const compareOptions = {
+      ...options.compare,
+      ...(loaded.sessionCookie ? { sessionCookie: loaded.sessionCookie } : {}),
+    };
     exchanges.push({ expected, actual, differences: compareExchange(expected, actual, compareOptions) });
   }
   return { fixture: loaded, exchanges };
@@ -130,8 +151,16 @@ export async function replayFixtureExchange(
   const expected = loaded.exchanges.at(index);
   if (!expected) throw new Error(`${loaded.spec}: ${loaded.example} has no exchange ${index}`);
   const actual = await replayExchange(expected, options, loaded);
-  const compareOptions = { ...options.compare, ...(loaded.sessionCookie ? { sessionCookie: loaded.sessionCookie } : {}) };
-  return { fixture: loaded, exchanges: [{ expected, actual, differences: compareExchange(expected, actual, compareOptions) }] };
+  const compareOptions = {
+    ...options.compare,
+    ...(loaded.sessionCookie ? { sessionCookie: loaded.sessionCookie } : {}),
+  };
+  // The seed is resolved against the replay's clock; the recorded strings are moved by the days since the recording.
+  const drifted = options.driftDates === false ? expected : withDriftedDates(loaded, index).exchanges[index]!;
+  return {
+    fixture: loaded,
+    exchanges: [{ expected: drifted, actual, differences: compareExchange(drifted, actual, compareOptions) }],
+  };
 }
 
 export function formatReplay(result: ReplayResult): string {

@@ -23,12 +23,16 @@ async function freePort(): Promise<number> {
 export async function startNextServer(env: Record<string, string>): Promise<NextServer> {
   const port = await freePort();
   const root = path.resolve(import.meta.dirname, "..", "..");
-  const child: ChildProcess = spawn(path.join(root, "node_modules/.bin/next"), ["dev", "--port", String(port), "--hostname", "127.0.0.1"], {
-    cwd: root,
-    env: { ...process.env, NEXT_TELEMETRY_DISABLED: "1", ...env },
-    stdio: ["ignore", "pipe", "pipe"],
-    detached: true,
-  });
+  const child: ChildProcess = spawn(
+    path.join(root, "node_modules/.bin/next"),
+    ["dev", "--port", String(port), "--hostname", "127.0.0.1"],
+    {
+      cwd: root,
+      env: { ...process.env, NEXT_TELEMETRY_DISABLED: "1", ...env },
+      stdio: ["ignore", "pipe", "pipe"],
+      detached: true,
+    },
+  );
 
   let output = "";
   const collect = (chunk: Buffer) => {

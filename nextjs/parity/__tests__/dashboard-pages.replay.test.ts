@@ -5,13 +5,20 @@ import path from "node:path";
 import { Client as ElasticsearchClient } from "@elastic/elasticsearch";
 import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { closeAllRedis } from "@/server/infra/redis";
 import { cumulativeFractions, fractionAt } from "@/server/page-props/analytics/hourly-sales-curve";
 
 import { prismaExecutor, type SqlExecutor } from "../src/db";
-import { bulkIndex, ELASTICSEARCH_HOST, recreateIndex, reindexPurchases, replayIndexName, seededDocuments } from "../src/elasticsearch";
+import {
+  bulkIndex,
+  ELASTICSEARCH_HOST,
+  recreateIndex,
+  reindexPurchases,
+  replayIndexName,
+  seededDocuments,
+} from "../src/elasticsearch";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
@@ -25,7 +32,15 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
-const SPECS = ["audience_dashboard_signed_in_spec", "seller_payment_details_signed_in_spec", "churn_signed_in_spec", "analytics_signed_in_spec"];
+// Day-by-day series and "Today" labels move with the request's day, so the replay and the server both run on the day the
+// fixtures were recorded, at the hour of the recording (late enough that the seeded "hours ago" sales fall on the same days).
+const PARITY_NOW = Date.parse("2026-11-09T23:00:00Z");
+const SPECS = [
+  "audience_dashboard_signed_in_spec",
+  "seller_payment_details_signed_in_spec",
+  "churn_signed_in_spec",
+  "analytics_signed_in_spec",
+];
 // The port makes no Stripe call: a flagged seller whose merchant account Stripe would be asked about, or who has a
 // requested compliance request, are handed to Rails whole. Those examples are proven by the request reaching Rails.
 const HANDED_BACK = /asks-stripe|sends-a-seller-stripe-has-asked/;
@@ -68,7 +83,10 @@ const COMPARE = {
 
 // The fraction of the day depends on the clock of the request, which the replay does not share with the recording:
 // the curve the port builds from the seeded sales must produce the recorded fraction for some time of day.
-async function expectRecordedFraction(sql: SqlExecutor, inertia: { props: { analytics_props: { expected_sales_fraction_of_day: number } } }) {
+async function expectRecordedFraction(
+  sql: SqlExecutor,
+  inertia: { props: { analytics_props: { expected_sales_fraction_of_day: number } } },
+) {
   const recorded = inertia.props.analytics_props.expected_sales_fraction_of_day;
   const [seller] = await sql.query("SELECT id FROM users WHERE timezone = 'Tokyo'");
   const curve = await cumulativeFractions({ id: BigInt(seller!.id as bigint | number), timezone: "Tokyo" }, new Date());
@@ -82,7 +100,14 @@ const cases = SPECS.flatMap((spec) => {
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
     .filter((file) => file.endsWith(".json"))
-    .map((file) => [`${spec}: ${file.replace(/\.json$/, "")}`, path.join(dir, file), loadFixture(path.join(dir, file)).exchanges.length - 1] as const);
+    .map(
+      (file) =>
+        [
+          `${spec}: ${file.replace(/\.json$/, "")}`,
+          path.join(dir, file),
+          loadFixture(path.join(dir, file)).exchanges.length - 1,
+        ] as const,
+    );
 });
 
 describe.skipIf(!url)("seller dashboards parity when signed in", () => {
@@ -98,7 +123,11 @@ describe.skipIf(!url)("seller dashboards parity when signed in", () => {
   beforeAll(async () => {
     // Stands in for the Rails app, to see what the port hands back.
     rails = createServer((request, response) => {
-      railsRequests.push({ method: request.method, url: request.url, host: request.headers["x-forwarded-host"] as string | undefined });
+      railsRequests.push({
+        method: request.method,
+        url: request.url,
+        host: request.headers["x-forwarded-host"] as string | undefined,
+      });
       response.writeHead(200, { "content-type": "text/plain" }).end(RAILS_ANSWER);
     });
     await new Promise<void>((resolve) => rails.listen(0, "127.0.0.1", resolve));
@@ -113,8 +142,11 @@ describe.skipIf(!url)("seller dashboards parity when signed in", () => {
     const [hostAndPort = "", db = "0"] = redisHost.split("/");
     const [host = "127.0.0.1", port = "6379"] = hostAndPort.split(":");
     redis = new Redis({ host, port: Number(port), db: Number(db) });
+    const offset = PARITY_NOW - Date.now();
     server = await startNextServer({
       RAILS_ENV: "test",
+      NODE_OPTIONS: `--require ${path.resolve(import.meta.dirname, "..", "src", "fixed-clock-preload.cjs")}`,
+      PARITY_CLOCK_OFFSET_MS: String(offset),
       OBFUSCATE_IDS_CIPHER_KEY: obfuscateKey ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
       ...(stripeKey ? { STRIPE_PUBLIC_KEY_TEST: stripeKey } : {}),
@@ -131,9 +163,11 @@ describe.skipIf(!url)("seller dashboards parity when signed in", () => {
       ...(awsAccessKeyId ? { AWS_ACCESS_KEY_ID: awsAccessKeyId } : {}),
       ...(awsSecretAccessKey ? { AWS_SECRET_ACCESS_KEY: awsSecretAccessKey } : {}),
     });
+    vi.useFakeTimers({ now: PARITY_NOW, toFake: ["Date"], shouldAdvanceTime: true });
   }, FIRST_COMPILE_TIMEOUT_MS);
 
   afterAll(async () => {
+    vi.useRealTimers();
     await server?.stop();
     await closeAllRedis();
     await redis?.quit();
@@ -158,28 +192,51 @@ describe.skipIf(!url)("seller dashboards parity when signed in", () => {
             async reset(entries, exchange, now) {
               await redisSeeder(redis).reset(entries);
               if (!exchange || !now) return;
-              const events = { model: "ConfirmedFollowerEvent", name: replayIndexName("confirmed_follower_events", ES_INDEX_SUFFIX) } as const;
+              const events = {
+                model: "ConfirmedFollowerEvent",
+                name: replayIndexName("confirmed_follower_events", ES_INDEX_SUFFIX),
+              } as const;
               await recreateIndex(es, events);
-              await bulkIndex(es, events.name, seededDocuments(exchange, "ConfirmedFollowerEvent", now).map((body) => ({ body })));
+              await bulkIndex(
+                es,
+                events.name,
+                seededDocuments(exchange, "ConfirmedFollowerEvent", now).map((body) => ({ body })),
+              );
               const purchases = { model: "Purchase", name: replayIndexName("purchases", ES_INDEX_SUFFIX) } as const;
               await recreateIndex(es, purchases);
               await reindexPurchases(es, purchases.name, sql);
             },
           },
+          driftDates: false,
           transport: httpTransport(server.baseUrl),
           interceptHttp: false,
           rewriteRequest: (request, fixture, now) => reencryptCookies(request, fixture, SECRET_KEY_BASE, now),
           compare: _name.includes("404") ? { ignore: [...COMPARE.ignore, "response.body"] } : COMPARE,
         });
         if (HANDED_BACK.test(_name)) {
-          expect(railsRequests.at(-1)).toMatchObject({ method: "GET", url: result.exchanges[0]!.expected.request.path, host: "app.test.gumroad.com:31337" });
+          expect(railsRequests.at(-1)).toMatchObject({
+            method: "GET",
+            url: result.exchanges[0]!.expected.request.path,
+            host: "app.test.gumroad.com:31337",
+          });
           expect(result.exchanges[0]!.actual.response.body).toBe(RAILS_ANSWER);
         } else {
           assertParity(result);
-          if (_name.includes("builds-the-sales-curve")) await expectRecordedFraction(sql, result.exchanges[0]!.expected.response.inertia as { props: { analytics_props: { expected_sales_fraction_of_day: number } } });
+          if (_name.includes("builds-the-sales-curve"))
+            await expectRecordedFraction(
+              sql,
+              result.exchanges[0]!.expected.response.inertia as {
+                props: { analytics_props: { expected_sales_fraction_of_day: number } };
+              },
+            );
         }
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => /error|Error|at /.test(line)).slice(-25).join("\n");
+        const logs = server
+          .output()
+          .split("\n")
+          .filter((line) => /error|Error|at /.test(line))
+          .slice(-25)
+          .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
     },
