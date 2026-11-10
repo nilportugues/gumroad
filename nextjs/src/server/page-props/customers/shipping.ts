@@ -34,7 +34,7 @@ const HTTP_URL = new RegExp(
   "iu",
 );
 
-// RFC 3986 IPv6address (the grammar URI::RFC3986_Parser's IP-literal embeds); a zone id or an IPvFuture is not modelled.
+// RFC 3986 IPv6address (the grammar URI::RFC3986_Parser's IP-literal embeds). A zone id is not part of it: the parser raises on one.
 const H16 = "[0-9A-Fa-f]{1,4}";
 const DEC_OCTET = "(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])";
 const LS32 = `(?:${H16}:${H16}|${DEC_OCTET}(?:\\.${DEC_OCTET}){3})`;
@@ -53,13 +53,19 @@ const IPV6_ADDRESS = new RegExp(
   "u",
 );
 
+// IPvFuture of the same grammar: a lowercase `v` only, as the parser's pattern spells it.
+const IPV_FUTURE = /^v[0-9A-Fa-f]+\.[!$&-.0-;=A-Z_a-z~]+$/u;
+
 // Whether Shipment.display_safe_tracking_link keeps a stripped, ASCII, control-free URL starting `http(s)://`: false when URI.parse
-// raises InvalidURIError, or the host is blank or a userinfo is present. null for an IP-literal host that is not a plain IPv6 address (invalid, zone id, IPvFuture).
-function classifyHttpUrl(url: string): boolean | null {
+// raises InvalidURIError (an IP literal that is neither IPv6 nor IPvFuture included), or the host is blank or a userinfo is present.
+function classifyHttpUrl(url: string): boolean {
   const match = HTTP_URL.exec(url);
   if (match === null) return false;
   const [, userinfo, host] = match as unknown as [string, string | undefined, string];
-  if (host.startsWith("[")) return IPV6_ADDRESS.test(host.slice(1, -1)) ? !userinfo : null;
+  if (host.startsWith("[")) {
+    const literal = host.slice(1, -1);
+    return (IPV6_ADDRESS.test(literal) || IPV_FUTURE.test(literal)) && !userinfo;
+  }
   return host !== "" && !userinfo;
 }
 
@@ -82,9 +88,7 @@ export function calculatedTrackingUrl(shipment: Row): string | null {
   const normalized = raw.replace(STRIP, "");
   // null: an http(s) URL outside the simple form, which only the RFC 3986 check below can judge.
   if (safe === null && !/^https?:\/\//iu.test(normalized)) throw new HandBackToRails();
-  const parsed = classifyHttpUrl(escapeNonAscii(normalized));
-  if (parsed === null) throw new HandBackToRails();
-  return parsed ? normalized : null;
+  return classifyHttpUrl(escapeNonAscii(normalized)) ? normalized : null;
 }
 
 export type ShippingReading = { price: string; shipment: Row | null };
