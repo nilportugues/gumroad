@@ -71,8 +71,9 @@ const config: NextConfig = {
   // router fetch of a Rails page apart from a browser visit (see decide.ts).
   skipProxyUrlNormalize: true,
   turbopack: {
-    // Files outside the root are not resolved, and the pages import ../app/javascript.
-    root: repoRoot,
+    // Files outside the root are not resolved, and the pages import ../app/javascript. A worktree whose node_modules is a
+    // symlink to another checkout sets TURBOPACK_ROOT to a directory containing both.
+    root: process.env.TURBOPACK_ROOT ?? repoRoot,
     resolveAlias: {
       "@inertiajs/react": navigationCompat,
       "@inertiajs/core": navigationCompat,
