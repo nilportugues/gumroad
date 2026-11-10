@@ -2527,7 +2527,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RenameProductFileWorker": {
     "file": "app/sidekiq/rename_product_file_worker.rb",

@@ -65,6 +65,7 @@ import {
   updatePurchaseHealthcheckThresholdJob,
 } from "./purchase-reads-jobs.ts";
 import { recoverAusBacktaxFromStripeAccountJob } from "./recover-aus-backtax-from-stripe-account-job.ts";
+import { removeSuspendedAccountFollowsWorker } from "./remove-suspended-account-follows-worker.ts";
 import {
   createMissingDisputeEvidenceJob,
   dispatchPendingFailedRefundExceptionsJob,
@@ -229,6 +230,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   PayoutUsersWorker: payoutUsersWorker,
   DeleteWishlistProductsJob: deleteWishlistProductsJob,
   DeleteProductFilesArchivesWorker: deleteProductFilesArchivesWorker,
+  RemoveSuspendedAccountFollowsWorker: removeSuspendedAccountFollowsWorker,
   RefundPurchaseWorker: refundPurchaseWorker,
   UpdateUserBalanceStatsCacheWorker: updateUserBalanceStatsCacheWorker,
 };
