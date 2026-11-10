@@ -1,8 +1,7 @@
 // CustomersController#index (`/customers`, `/customers/:link_id`): fetch_sales over PurchaseSearchService, CustomersPresenter
 // and CustomerPresenter#customer (app/presenters/customer{,s}_presenter.rb).
 //
-// Handed back to Rails (HandBackToRails) when a customer on the page needs a reading the port does not make: a member whose renewals an Indian card mandate disabled and whose next charge is free under a limited-cycle discount,
-// a sent gift whose recipient holds a license on a product with option content, a shipping sale that is a subscription or has a recurring price or a tracking URL the port cannot parse, a UTM link of another seller or with a post whose seller has no subdomain, a non-USD price without a
+// Handed back to Rails (HandBackToRails) when a customer on the page needs a reading the port does not make: a shipping sale that is a subscription or has a recurring price or a tracking URL the port cannot parse, a UTM link of another seller or with a post whose seller has no subdomain, a non-USD price without a
 // stored rate or in a currency the port has no table for, a refund whose json_data is not plain JSON, a commission
 // still in progress, and a review video whose thumbnail variant Rails has not processed.
 import { Prisma, type Purchase, type Subscription, type User } from "@prisma/client";
@@ -20,9 +19,13 @@ import { isStripeConnectAccount, type MerchantAccountRow } from "../../models/me
 import { originalPrice } from "../../models/offer-code.ts";
 import { canPingSales } from "../../models/ping-notification.ts";
 import { PurchaseRecord } from "../../models/purchase-pricing.ts";
+import { hasEditorContent, hasLicenseKey } from "../../models/rich-content.ts";
 import { secureExternalId } from "../../models/secure-external-id.ts";
 import { castRow, column, selectRows, table } from "../../models/sql.ts";
-import { currentSubscriptionPriceCents } from "../../models/subscription-pricing.ts";
+import {
+  currentSubscriptionPriceCents,
+  subscriptionRenewalPreDiscountTotalCents,
+} from "../../models/subscription-pricing.ts";
 import { defaultSubscriptionDeps, SubscriptionFlags, SubscriptionRecord } from "../../models/subscription.ts";
 import { NotPortedError, UserFlags } from "../../models/user.ts";
 import { requireUser, roleAdminFor, roleSupportFor, type SellerContext } from "../../policies/seller-context.ts";
@@ -656,8 +659,50 @@ export async function directCreditsOf(purchases: Row[], affiliates: Map<string, 
   );
 }
 
+// Purchase#variant_content_permits_license_key?: product-level content always permits; otherwise the purchase's options
+// (deleted ones included) permit unless they have alive pages and none embeds a license key.
+async function variantContentPermitsLicenseKey(purchase: Row, product: Row): Promise<boolean> {
+  const chosen = await rowsBy("base_variants_purchases", "purchase_id", [purchase.id]);
+  if (chosen.length === 0 || LinkFlags.isSet(product.flags, "is_physical")) return true;
+  if (!(await productsWithAliveVariants([String(product.id)])).has(String(product.id))) return true;
+  const pageSql = (entityIds: unknown[], type: string) =>
+    rowsBy(
+      "rich_contents",
+      "entity_id",
+      entityIds,
+      Prisma.sql` AND ${column("rich_contents", "entity_type")} = ${type} AND ${column("rich_contents", "deleted_at")} IS NULL`,
+    );
+  if (LinkFlags.isSet(product.flags, "has_same_rich_content_for_all_variants")) {
+    // !recoverable_hidden_variant_rich_content?
+    const productPages = await pageSql([product.id], "Link");
+    if (
+      productPages.some((page) =>
+        hasEditorContent({ title: page.title as string | null, description: page.description }),
+      )
+    )
+      return true;
+    const aliveVariantIds = (
+      await selectRows<Row>(
+        Prisma.sql`SELECT ${column("base_variants", "id")} AS id FROM ${table("base_variants")} INNER JOIN ${table("variant_categories")} ON ${column("variant_categories", "id")} = ${column("base_variants", "variant_category_id")}
+          WHERE ${column("variant_categories", "link_id")} = ${product.id} AND ${column("variant_categories", "deleted_at")} IS NULL AND ${column("base_variants", "deleted_at")} IS NULL AND ${column("base_variants", "type")} = 'Variant'`,
+      )
+    ).map((variant) => variant.id);
+    if (
+      !(await pageSql(aliveVariantIds, "BaseVariant")).some((page) =>
+        hasEditorContent({ title: page.title as string | null, description: page.description }),
+      )
+    )
+      return true;
+  }
+  const pages = await pageSql(
+    chosen.map((row) => row.base_variant_id),
+    "BaseVariant",
+  );
+  return pages.length === 0 || pages.some((page) => hasLicenseKey(page.description));
+}
+
 // Purchase#linked_license of a gift sender with no key of its own: the license of the giftee's purchase, when that purchase uses a
-// license key. A product whose chosen option may carry its own content (`variant_content_permits_license_key?`) is Rails' to answer.
+// license key (`uses_license_key?`).
 export async function gifteeLicensesOf(gifts: Map<string, Row>): Promise<Map<string, Row>> {
   const gifteeIds = [...gifts.values()].map((gift) => gift.giftee_purchase_id).filter((id) => id != null);
   if (gifteeIds.length === 0) return new Map();
@@ -677,7 +722,7 @@ export async function gifteeLicensesOf(gifts: Map<string, Row>): Promise<Map<str
     const giftee = gifteePurchases.get(String(gift.giftee_purchase_id));
     const product = giftee && products.get(String(giftee.link_id));
     if (!license || !product || !LinkFlags.isSet(product.flags, "is_licensed")) continue;
-    if ((await rowsBy("base_variants_purchases", "purchase_id", [giftee.id])).length > 0) throw new HandBackToRails();
+    if (!(await variantContentPermitsLicenseKey(giftee, product))) continue;
     if (license.serial != null && license.serial !== "") result.set(senderId, license);
   }
   return result;
@@ -832,17 +877,21 @@ export function subscriptionStatus(
   return paymentMethodUpdateRequired ? "payment_method_update_required" : "alive";
 }
 
-// Subscription#future_subscription_charge?. A free renewal under a limited-cycle discount depends on the pre-discount price, which
-// the port does not read, so it is Rails' to answer.
-export function futureSubscriptionCharge(
+// Subscription#future_subscription_charge?. `preDiscountCents` is `renewal_pre_discount_total_cents`, read only for a
+// free renewal under a limited-cycle discount.
+export async function futureSubscriptionCharge(
   chargesCompleted: boolean,
   currentPriceCents: number | null,
   limitedCycleDiscount: boolean,
-): boolean {
+  preDiscountCents: () => Promise<number | null>,
+): Promise<boolean> {
   if (chargesCompleted) return false;
   if (currentPriceCents !== null && currentPriceCents > 0) return true;
-  if (limitedCycleDiscount) throw new HandBackToRails();
-  return false;
+  if (!limitedCycleDiscount) return false;
+  const preDiscount = await preDiscountCents();
+  // nil.positive? raises in Rails
+  if (preDiscount === null) throw new HandBackToRails();
+  return preDiscount > 0;
 }
 
 async function subscriptionReadings(purchases: Row[]): Promise<Map<string, SubscriptionReading>> {
@@ -900,6 +949,7 @@ async function mandateChargeAhead(record: SubscriptionRecord, currentPriceCents:
     await record.chargesCompleted(),
     currentPriceCents,
     discounts.some((discount) => discount.duration_in_billing_cycles != null),
+    () => subscriptionRenewalPreDiscountTotalCents(record),
   );
 }
 

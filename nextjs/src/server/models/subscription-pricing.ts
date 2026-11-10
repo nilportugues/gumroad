@@ -207,6 +207,13 @@ async function computeAutoRenewalOfferCode(sub: SubscriptionRecord, original: Pu
   return best?.discount ?? null;
 }
 
+// Subscription#renewal_pre_discount_total_cents; a subscription with no original purchase raises in Rails (nil receiver).
+export async function subscriptionRenewalPreDiscountTotalCents(sub: SubscriptionRecord): Promise<number | null> {
+  const original = await originalPurchaseOf(sub);
+  if (original === null) throw nilReceiver("displayed_price_cents_before_offer_code");
+  return renewalPreDiscountTotalCents(original);
+}
+
 export async function currentSubscriptionPriceCents(sub: SubscriptionRecord): Promise<number | null> {
   const original = await originalPurchaseOf(sub);
   if (sub.flag("is_installment_plan")) {

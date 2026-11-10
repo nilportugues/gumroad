@@ -34,3 +34,23 @@ export function hasBodyContent(description: unknown): boolean {
 export function hasEditorContent(page: { title: string | null; description: unknown }): boolean {
   return present(page.title) || hasBodyContent(page.description);
 }
+
+const LICENSE_KEY_NODE_TYPE = "licenseKey";
+const COMMON_CONTAINER_NODE_TYPES = ["orderedList", "bulletList", "listItem", "blockquote"];
+
+// RichContent.has_license_key_in?: a license-key node, found through the list and quote containers only.
+export function hasLicenseKey(description: unknown): boolean {
+  const nodes = typeof description === "string" ? (JSON.parse(description) as unknown) : description;
+  const walk = (node: unknown): boolean => {
+    if (node === null || typeof node !== "object") return false;
+    const { type, content } = node as { type?: unknown; content?: unknown };
+    if (type === LICENSE_KEY_NODE_TYPE) return true;
+    return (
+      typeof type === "string" &&
+      COMMON_CONTAINER_NODE_TYPES.includes(type) &&
+      Array.isArray(content) &&
+      content.some(walk)
+    );
+  };
+  return Array.isArray(nodes) && nodes.some(walk);
+}

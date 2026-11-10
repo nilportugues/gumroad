@@ -467,26 +467,6 @@ describe("Subscription#status", () => {
   });
 });
 
-describe("Subscription#future_subscription_charge?", () => {
-  it("is false once the fixed number of charges is done, whatever the price", () => {
-    expect(futureSubscriptionCharge(true, 500, true)).toBe(false);
-  });
-
-  it("is true while the renewal price is positive", () => {
-    expect(futureSubscriptionCharge(false, 500, false)).toBe(true);
-    expect(futureSubscriptionCharge(false, 500, true)).toBe(true);
-  });
-
-  it("is false for a free renewal without a limited-cycle discount", () => {
-    expect(futureSubscriptionCharge(false, 0, false)).toBe(false);
-    expect(futureSubscriptionCharge(false, null, false)).toBe(false);
-  });
-
-  it("hands back a free renewal under a limited-cycle discount", () => {
-    expect(() => futureSubscriptionCharge(false, 0, true)).toThrow(HandBackToRails);
-  });
-});
-
 describe("CustomerPresenter upsell", () => {
   function answering(upsellPurchases: Record<string, unknown>[], upsells: Record<string, unknown>[]) {
     setSqlClient(() => ({
@@ -696,16 +676,6 @@ describe("Purchase#linked_license of a gift sender", () => {
       links: [{ id: 3, flags: 0n }],
     });
     expect((await gifteeLicensesOf(gifts)).size).toBe(0);
-  });
-
-  it("hands back when the giftee chose an option, whose content may leave out the license key", async () => {
-    answeringTables({
-      licenses: [{ id: 7, purchase_id: 2, serial: "KEY-1" }],
-      purchases: [{ id: 2, link_id: 3 }],
-      links: [{ id: 3, flags: LICENSED }],
-      base_variants_purchases: [{ id: 1, purchase_id: 2, base_variant_id: 4 }],
-    });
-    await expect(gifteeLicensesOf(gifts)).rejects.toThrow(HandBackToRails);
   });
 });
 
@@ -919,5 +889,101 @@ describe("commission files and review video thumbnails", () => {
     });
 
     await expect(shownReviewVideos([7])).rejects.toBeInstanceOf(HandBackToRails);
+  });
+});
+
+describe("Subscription#future_subscription_charge? with the pre-discount price", () => {
+  const preDiscount = (cents: number | null) => vi.fn(async () => cents);
+
+  it("is false once the fixed number of charges is done, and true while the renewal price is positive", async () => {
+    const read = preDiscount(900);
+    expect(await futureSubscriptionCharge(true, 500, true, read)).toBe(false);
+    expect(await futureSubscriptionCharge(false, 500, true, read)).toBe(true);
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it("is false for a free renewal without a limited-cycle discount", async () => {
+    const read = preDiscount(900);
+    expect(await futureSubscriptionCharge(false, 0, false, read)).toBe(false);
+    expect(await futureSubscriptionCharge(false, null, false, read)).toBe(false);
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it("is true for a free renewal under a limited-cycle discount when the pre-discount price is positive", async () => {
+    expect(await futureSubscriptionCharge(false, 0, true, preDiscount(900))).toBe(true);
+    expect(await futureSubscriptionCharge(false, 0, true, preDiscount(0))).toBe(false);
+  });
+
+  it("hands back when there is no pre-discount price to compare", async () => {
+    await expect(futureSubscriptionCharge(false, 0, true, preDiscount(null))).rejects.toThrow(HandBackToRails);
+  });
+});
+
+describe("Purchase#variant_content_permits_license_key? of a gift's recipient", () => {
+  const gifts = new Map([["1", { giftee_purchase_id: 2 }]]);
+  const LICENSED = 1n << 6n;
+  const PHYSICAL = 1n << 7n;
+  const SAME_CONTENT = 1n << 24n;
+  const base = {
+    licenses: [{ id: 7, purchase_id: 2, serial: "KEY-1" }],
+    purchases: [{ id: 2, link_id: 3 }],
+    base_variants_purchases: [{ id: 1, purchase_id: 2, base_variant_id: 4 }],
+  };
+  const keyNode = [{ type: "bulletList", content: [{ type: "listItem", content: [{ type: "licenseKey" }] }] }];
+  const textOnly = [{ type: "paragraph", content: [{ type: "text", text: "Welcome" }] }];
+
+  // `FROM base_variants INNER JOIN variant_categories` must win over the plain `base_variants_purchases` match
+  const withVariants = (extra: Record<string, Record<string, unknown>[]>) => ({
+    ...extra,
+    base_variants: [{ id: 4, link_id: 3 }],
+  });
+
+  it("keeps the key when the chosen option has no pages of its own", async () => {
+    answeringTables(withVariants({ ...base, links: [{ id: 3, flags: LICENSED }], rich_contents: [] }));
+    expect((await gifteeLicensesOf(gifts)).get("1")).toMatchObject({ serial: "KEY-1" });
+  });
+
+  it("keeps the key when the chosen option's page embeds a license key, even inside a list", async () => {
+    answeringTables(
+      withVariants({
+        ...base,
+        links: [{ id: 3, flags: LICENSED }],
+        rich_contents: [{ id: 1, entity_id: 4, title: null, description: JSON.stringify(keyNode) }],
+      }),
+    );
+    expect((await gifteeLicensesOf(gifts)).get("1")).toMatchObject({ serial: "KEY-1" });
+  });
+
+  it("gives no key when the chosen option's pages leave the license-key block out", async () => {
+    answeringTables(
+      withVariants({
+        ...base,
+        links: [{ id: 3, flags: LICENSED }],
+        rich_contents: [{ id: 1, entity_id: 4, title: null, description: textOnly }],
+      }),
+    );
+    expect((await gifteeLicensesOf(gifts)).size).toBe(0);
+  });
+
+  it("keeps the key for a physical product whatever the option's pages say", async () => {
+    answeringTables(
+      withVariants({
+        ...base,
+        links: [{ id: 3, flags: LICENSED | PHYSICAL }],
+        rich_contents: [{ id: 1, entity_id: 4, title: null, description: textOnly }],
+      }),
+    );
+    expect((await gifteeLicensesOf(gifts)).get("1")).toMatchObject({ serial: "KEY-1" });
+  });
+
+  it("reads product-level content when every option shares it", async () => {
+    answeringTables(
+      withVariants({
+        ...base,
+        links: [{ id: 3, flags: LICENSED | SAME_CONTENT }],
+        rich_contents: [{ id: 1, entity_id: 3, title: "Welcome", description: textOnly }],
+      }),
+    );
+    expect((await gifteeLicensesOf(gifts)).get("1")).toMatchObject({ serial: "KEY-1" });
   });
 });
