@@ -183,17 +183,15 @@ async function singaporeRate(): Promise<Row | null> {
     Prisma.sql`SELECT ${Prisma.raw("`zip_tax_rates`.*")} FROM ${table("zip_tax_rates")} WHERE ${column("zip_tax_rates", "deleted_at")} IS NULL AND ${column("zip_tax_rates", "country")} = ${"SG"} AND (${column("zip_tax_rates", "flags")} & ${SELLER_RESPONSIBLE_FLAG}) = 0 AND (${column("zip_tax_rates", "flags")} & ${EPUBLICATION_RATE_FLAG}) = 0 ORDER BY ${column("zip_tax_rates", "created_at")} ASC, ${column("zip_tax_rates", "id")} ASC`,
   );
   const year = new Date().getUTCFullYear();
-  const current = rates.find((rate) => applicableYears(rate).includes(year));
-  if (current !== undefined) return current;
-  if (rates.length <= 1) return rates[0] ?? null;
-  const latest = rates.map((rate) => {
+  // Rails calls `applicable_years.include?` on each rate until one matches and raises on a rate with no years (nil).
+  for (const rate of rates) {
     const years = applicableYears(rate);
-    return years.length === 0 ? null : Math.max(...years);
-  });
-  // `max` of an empty list is nil, and sort_by raises comparing nil with an Integer; only all-nil keys sort.
-  const missing = latest.filter((value) => value === null).length;
-  if (missing !== 0 && missing !== rates.length) return handBack("for a Singapore rate with no applicable years");
-  const best = missing === 0 ? Math.max(...(latest as number[])) : null;
+    if (years.length === 0) return handBack("for a Singapore rate with no applicable years");
+    if (years.includes(year)) return rate;
+  }
+  if (rates.length <= 1) return rates[0] ?? null;
+  const latest = rates.map((rate) => Math.max(...applicableYears(rate)));
+  const best = Math.max(...latest);
   const tied = latest.filter((value) => value === best).length > 1;
   // A tie is only decided for two rates: sort_by keeps a two-element input in order, so `.last` is the later-created.
   if (tied) return rates.length === 2 ? (rates[1] ?? null) : handBack("for Singapore rates tied on their latest year");

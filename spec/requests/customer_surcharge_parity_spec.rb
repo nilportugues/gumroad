@@ -144,6 +144,15 @@ describe "Customer surcharge", type: :request do
       expect(response.parsed_body).to include("tax_cents" => 80)
     end
 
+    it "takes the later Singapore rate when two rates tie on their latest year", parity: true do
+      create_sg_rate([2003], 0.08)
+      create_sg_rate([2003, 2001], 0.09)
+
+      post_surcharge(products: [line(product, price: 1_000)], country: "SG")
+
+      expect(response.parsed_body).to include("tax_cents" => 90)
+    end
+
     it "taxes a Spanish buyer outside the Canary Islands and exempts a Canary postal code", parity: true do
       create(:zip_tax_rate, combined_rate: 0.21, country: "ES", state: nil, zip_code: nil, is_seller_responsible: false)
 
