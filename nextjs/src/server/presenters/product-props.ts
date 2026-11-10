@@ -124,7 +124,7 @@ const sellerFlagBit = (seller: UserRow, position: number) =>
 // -------------------------------------------------------------------------------------------------
 // Reviews (Product::ReviewStat#rating_stats, ProductReviewStat#rating_percentages)
 
-async function ratingStats(productId: bigint) {
+export async function ratingStats(productId: bigint) {
   const stat = await reviewStat(productId);
   const counts = RATING_COLUMNS.map((name) => Number(stat?.[name] ?? 0));
   const count = Number(stat?.reviews_count ?? 0);
@@ -156,7 +156,7 @@ const ACTIVE_SALES_SEARCH_OPTIONS = {
   exclude_commission_completion_purchases: true,
 };
 
-async function successfulSalesCount(productId: bigint): Promise<number> {
+export async function successfulSalesCount(productId: bigint): Promise<number> {
   const result = await PurchaseSearchService.process({
     ...ACTIVE_SALES_SEARCH_OPTIONS,
     product: Number(productId),

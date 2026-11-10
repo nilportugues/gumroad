@@ -242,6 +242,30 @@ describe "Product editor when signed in", type: :request do
     expect(props["variants"].first["rich_content"]).to eq([])
   end
 
+  it "reads the sales count, the ratings and the inventory of a product with a purchase limit", parity: true do
+    product.update!(max_purchase_count: 10)
+    purchase = build(:purchase, link: product, seller:, purchase_state: "successful").tap { |row| row.save!(validate: false) }
+    create(:product_review, purchase:, link: product, rating: 4, message: "Solid")
+    log_in(seller)
+
+    get edit_link_path(product.unique_permalink)
+
+    props = inertia_props_of(response)
+    expect(props["product"]["max_purchase_count"]).to eq(10)
+    expect(props).to include("successful_sales_count" => 1, "sales_count_for_inventory" => 1)
+    expect(props["ratings"]).to include("count" => 1)
+  end
+
+  it "reads a purchase limit of zero as no limit", parity: true do
+    product.update!(max_purchase_count: 0)
+    build(:purchase, link: product, seller:, purchase_state: "successful").save!(validate: false)
+    log_in(seller)
+
+    get edit_link_path(product.unique_permalink)
+
+    expect(inertia_props_of(response)).to include("sales_count_for_inventory" => 0)
+  end
+
   it "sends a signed-out visitor to the login page", parity: true do
     get edit_link_path(product.unique_permalink)
 

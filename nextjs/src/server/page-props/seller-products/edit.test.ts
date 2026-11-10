@@ -5,7 +5,7 @@ import { instantInTimeZoneIso8601 } from "../../models/concerns/rails-time-zone.
 import { LinkFlags } from "../../models/link.ts";
 import type { LinkRow, UserRow } from "../../presenters/product-reads.ts";
 import { setSqlClient } from "../../models/sql.ts";
-import { assertEditSupported, editBlockers, editorRevision, otherProductRefundPolicies, productTagNames } from "./edit.ts";
+import { assertEditSupported, editBlockers, editorRevision, otherProductRefundPolicies, productTagNames, salesCountForInventory } from "./edit.ts";
 import { recoverableHiddenVariantRichContent, variantProps, versionStamps, type VersionRows } from "./edit-variants.ts";
 import golden from "./__fixtures__/editor-revision.golden.json" with { type: "json" };
 
@@ -165,7 +165,7 @@ describe("assertEditSupported", () => {
     await expect(assertEditSupported(product(), seller, 10n)).rejects.toBeInstanceOf(HandBackToRails);
   });
 
-  it.each(["product_files", "rich_contents", "variant_integrations", "sales", "asset_previews", "integrations", "existing_files"])("hands back a product with %s", async (blocker) => {
+  it.each(["product_files", "rich_contents", "variant_integrations", "asset_previews", "integrations", "existing_files"])("hands back a product with %s", async (blocker) => {
     blockedBy(blocker);
     await expect(assertEditSupported(product(), seller, 9n)).rejects.toBeInstanceOf(HandBackToRails);
   });
@@ -181,10 +181,31 @@ describe("assertEditSupported", () => {
     await expect(assertEditSupported(product({ flags }), seller, 9n)).rejects.toBeInstanceOf(HandBackToRails);
   });
 
-  it("hands back a product with a purchase limit or a default offer code", async () => {
+  it("hands back a product with a default offer code", async () => {
     blockedBy();
-    await expect(assertEditSupported(product({ max_purchase_count: 3 }), seller, 9n)).rejects.toBeInstanceOf(HandBackToRails);
     await expect(assertEditSupported(product({ default_offer_code_id: 1n }), seller, 9n)).rejects.toBeInstanceOf(HandBackToRails);
+  });
+
+  it("serves a product with sales, reviews and a purchase limit", async () => {
+    blockedBy("sales", "reviews");
+    await expect(editBlockers(product({ max_purchase_count: 3 }), seller)).resolves.toEqual([]);
+    await expect(assertEditSupported(product({ max_purchase_count: 3 }), seller, 9n)).resolves.toBeUndefined();
+  });
+
+  it("still hands back other row blockers next to sales and reviews", async () => {
+    blockedBy("sales", "product_files", "reviews");
+    await expect(editBlockers(product(), seller)).resolves.toEqual(["product_files"]);
+  });
+});
+
+describe("salesCountForInventory", () => {
+  it("reads the counter for a product with a purchase limit", () => {
+    expect(salesCountForInventory(product({ max_purchase_count: 10, sales_count_for_inventory_cache: 4 }))).toBe(4);
+  });
+
+  it("is zero without a purchase limit, as max_purchase_count? is false for nil and 0", () => {
+    expect(salesCountForInventory(product({ max_purchase_count: null, sales_count_for_inventory_cache: 4 }))).toBe(0);
+    expect(salesCountForInventory(product({ max_purchase_count: 0, sales_count_for_inventory_cache: 4 }))).toBe(0);
   });
 });
 

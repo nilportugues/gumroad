@@ -1,6 +1,7 @@
 // ProductPresenter#edit_props for LinksController#edit (Products/Edit), for the products whose editor state is
 // proven: a plain digital, course or ebook product. Everything the port does not read is a row that does not exist
-// (`editBlockers`), and a product with one goes to Rails whole (HandBackToRails) before anything renders.
+// (`editBlockers`), and a product with one goes to Rails whole (HandBackToRails) before anything renders. Sales
+// (`successful_sales_count`, Elasticsearch), reviews (`rating_stats`) and a product-level purchase limit are served.
 import { createHmac } from "node:crypto";
 
 import { Prisma } from "@prisma/client";
@@ -17,6 +18,7 @@ import { instantInTimeZoneIso8601 } from "../../models/concerns/rails-time-zone.
 import { LinkFlags } from "../../models/link.ts";
 import { column, selectRows, table, castRow } from "../../models/sql.ts";
 import { rubyStrip, subdomain as userSubdomain, UserFlags, Users } from "../../models/user.ts";
+import { ratingStats, successfulSalesCount } from "../../presenters/product-props.ts";
 import type { LinkRow, UserRow } from "../../presenters/product-reads.ts";
 import { jsonDataHash, authorBylineProps } from "../../presenters/product.ts";
 import { fromAddressWithName } from "../audience/mail-addresses.ts";
@@ -172,8 +174,12 @@ export async function rowBlockers(product: LinkRow, seller: UserRow): Promise<st
   return rows.map((row) => row.blocker);
 }
 
+// Probes the editor reads itself: `successful_sales_count` (Elasticsearch) and `rating_stats` (product_review_stats).
+// Bundle editors keep them as blockers, so they are dropped here and not in rowBlockers.
+const SERVED_ROW_BLOCKERS = ["sales", "reviews"];
+
 export async function editBlockers(product: LinkRow, seller: UserRow): Promise<string[]> {
-  const blockers = await rowBlockers(product, seller);
+  const blockers = (await rowBlockers(product, seller)).filter((name) => !SERVED_ROW_BLOCKERS.includes(name));
   const flags = product.flags;
   const set = (flag: Parameters<typeof LinkFlags.isSet>[1]) => LinkFlags.isSet(flags as bigint, flag);
   if (!(EDIT_NATIVE_TYPES as readonly (string | null)[]).includes(product.native_type)) blockers.push("native_type");
@@ -188,7 +194,6 @@ export async function editBlockers(product: LinkRow, seller: UserRow): Promise<s
   ] as const) {
     if (set(flag)) blockers.push(flag);
   }
-  if (product.max_purchase_count !== null) blockers.push("max_purchase_count");
   if (product.default_offer_code_id !== null) blockers.push("default_offer_code");
   if (product.subscription_duration !== null) blockers.push("subscription_duration");
   if (product.free_trial_duration_amount !== null || product.free_trial_duration_unit !== null)
@@ -431,6 +436,10 @@ export type EditPropsInput = {
   now?: Date;
 };
 
+// `product.max_purchase_count? ? product.sales_count_for_inventory : 0`; `max_purchase_count?` is false for nil and 0.
+export const salesCountForInventory = (product: LinkRow): number =>
+  product.max_purchase_count ? Number(product.sales_count_for_inventory_cache ?? 0) : 0;
+
 export async function editProps({ product, seller, sellerExternalId, aiGenerated, now = new Date() }: EditPropsInput) {
   const flag = (name: Parameters<typeof LinkFlags.isSet>[1]) => LinkFlags.isSet(product.flags as bigint, name);
   const { jsonValue, jsonText, jsonObject, customAttributes } = jsonSettings(product);
@@ -491,7 +500,7 @@ export async function editProps({ product, seller, sellerExternalId, aiGenerated
       taxonomy_attribute_values: jsonObject("taxonomy_attribute_values"),
       inferred_taxonomy_attribute_values: jsonObject("inferred_taxonomy_attribute_values"),
       file_attributes: [],
-      max_purchase_count: null,
+      max_purchase_count: product.max_purchase_count,
       quantity_enabled: flag("quantity_enabled"),
       can_enable_quantity: true,
       should_show_sales_count: flag("should_show_sales_count"),
@@ -574,9 +583,9 @@ export async function editProps({ product, seller, sellerExternalId, aiGenerated
       new Date(now.getTime() + MINIMUM_DAYS_TIL_EXISTING_MEMBERSHIP_PRICE_CHANGE * DAY_MS),
     ),
     custom_domain_verification_status: null,
-    sales_count_for_inventory: 0,
-    successful_sales_count: 0,
-    ratings: { count: 0, average: 0.0, percentages: [0, 0, 0, 0, 0] },
+    sales_count_for_inventory: salesCountForInventory(product),
+    successful_sales_count: await successfulSalesCount(product.id),
+    ratings: await ratingStats(product.id),
     seller: await authorBylineProps(seller),
     current_seller_external_id: sellerExternalId,
     existing_files: [],
