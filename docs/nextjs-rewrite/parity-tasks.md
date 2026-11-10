@@ -33,8 +33,8 @@ Record with `PARITY_RECORD=1` (`=all` for controller specs). Purchase factories 
 | A1 | `spec/requests/api/mobile/mobile_api_parity_spec.rb` :300 :309 :316 :326 :334 | stream/hls/download refusals | `mobile-api.replay` |
 | A2 | `spec/requests/buyer_pages_parity_spec.rb` :355 :370 | library memberships and bundle | buyer pages replay |
 | A3 | `spec/requests/customers_signed_in_spec.rb` :254 :266 :280 :292 | refunds, gift, non-USD | `customers.replay` |
-| A4 | `spec/requests/discover_parity_spec.rb` :271 :283 | autocomplete history, recently viewed (recording is very slow: one example took 135 s) | `discover.replay` |
-| A5 | `spec/requests/offer_codes_compute_discount_parity_spec.rb` :19-:75 (8) | everything | find with `grep -l offer_codes_compute __tests__` |
+| A4 | `spec/requests/discover_parity_spec.rb` :271 :283 | recorded 2026-11-10; replay failures are task B2 | `discover.replay` |
+| A5 | `spec/requests/offer_codes_compute_discount_parity_spec.rb` (8) | done: recorded, `offer-codes-compute-discount.replay` passes 9/9 | |
 
 ## B. Replays that still fail (full run 2026-11-10: 2,551 passed, 40 failed, 12 skipped)
 
