@@ -226,11 +226,15 @@ describe("tracking URLs against Ruby's URI::RFC3986_Parser", () => {
     expect(url("https://user@[::1]/x")).toBeNull();
   });
 
-  it("keeps a plain IPv6 literal host and hands back the rest of the IP literals", () => {
-    for (const host of ["::1", "2001:db8::8a2e:370:7334", "fe80::1", "1:2:3:4:5:6:7:8", "::ffff:192.0.2.1", "1::"])
+  it("keeps an IPv6 or IPvFuture literal host", () => {
+    for (const host of ["::1", "2001:db8::8a2e:370:7334", "fe80::1", "1:2:3:4:5:6:7:8", "::ffff:192.0.2.1", "1::", "v1.fe", "vF.a-b", "v1.a:b"])
       expect(url(`https://[${host}]:8080/x?y=1`)).toBe(`https://[${host}]:8080/x?y=1`);
-    for (const host of ["fe80::1%25eth0", "v1.fe", "1:2:3", "::g", "1:2:3:4:5:6:7:8:9", "1::2::3"])
-      expect(() => url(`https://[${host}]/x`)).toThrow(HandBackToRails);
+  });
+
+  it("is nil for an IP literal the parser raises on: a zone id, a malformed address, an uppercase V or an empty IPvFuture", () => {
+    for (const host of ["fe80::1%25eth0", "fe80::1%eth0", "1:2:3", "::g", "1:2:3:4:5:6:7:8:9", "1::2::3", "", "V1.fe", "v1.", "v.fe", "v1.f e"])
+      expect(url(`https://[${host}]/x`)).toBeNull();
+    expect(url("https://user@[v1.fe]/x")).toBeNull();
   });
 });
 

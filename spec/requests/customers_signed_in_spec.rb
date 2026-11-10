@@ -410,6 +410,20 @@ describe "Customers page when signed in", type: :request, elasticsearch_wait_for
     expect(customers_of(response).map { _1.dig("shipping", "tracking", "url") }).to eq(["https://[2001:db8::7]:8080/track?n=1", nil])
   end
 
+  it "shows a tracking URL with an IPvFuture literal host and drops a zone id or a malformed literal", parity: true do
+    physical = create(:physical_product, user: seller, name: "Poster")
+    urls = ["https://[v1.fe]:8080/track?n=1", "https://user@[v1.fe]/x", "https://[fe80::1%25eth0]/x", "https://[1:2:3]/x", "https://[V1.fe]/x", "https://[v1.]/x"]
+    urls.each_with_index do |url, index|
+      purchase = build(:physical_purchase, link: physical, seller:, email: "future#{index}@example.com", created_at: at_midday(3 + index), purchase_state: "successful").tap { _1.save!(validate: false) }
+      build(:shipment, purchase:, ship_state: :shipped, tracking_url: url).save!(validate: false)
+    end
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    expect(customers_of(response).map { _1.dig("shipping", "tracking", "url") }).to eq(["https://[v1.fe]:8080/track?n=1", nil, nil, nil, nil, nil])
+  end
+
   it "shows a non-ASCII tracking URL as typed when Ruby's parser accepts it once escaped", parity: true do
     physical = create(:physical_product, user: seller, name: "Poster")
     urls = ["https://exämple.com/pfad/日本語?n=ü", "https://example.com/😀", "https://example.com/é|1", "https://üser@example.com/é", "ftp://exämple.com/", "https://example.com/\u0085"]
