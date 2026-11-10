@@ -2,9 +2,8 @@
 //
 // Constant lists and per-country tables come from payments-data.generated.json
 // (scripts/dump-payments-data.rb). What this does not port throws NotPortedError instead of guessing:
-//   - a connected Stripe account's active subscriber and preorder check,
 //   - instant payouts for a seller who passes the first eligibility checks (account seasoning),
-//   - the payout date of a rejected account, a bank sync failure note, a verification error message,
+//   - the payout date of a rejected account, a bank sync failure note, a verification error on an address-mismatch code,
 
 import { Prisma, type BankAccount, type CreditCard, type Guardian, type MerchantAccount, type User } from "@prisma/client";
 
@@ -41,6 +40,8 @@ import { guardianHasCompletedInfo, nativePayoutsSupported, noPayoutRailInComplia
 import { NotPortedError } from "../not-ported.ts";
 import DATA from "./payments-data.generated.json" with { type: "json" };
 import { settingsPages } from "./presenter.ts";
+import { stripeDisconnectAllowed } from "./stripe-disconnect.ts";
+import { verificationErrorMessage } from "./verification-error-message.ts";
 
 
 const C = DATA.constants;
@@ -145,15 +146,11 @@ async function minimumPayoutThresholdCents(facts: Facts): Promise<number> {
 }
 
 // `seller.unpaid_balances.where.not(merchant_account_id: Gumroad's own accounts)`, summed.
-async function balanceToForfeitCents(seller: Seller): Promise<bigint> {
+export async function balanceToForfeitCents(seller: Seller): Promise<bigint> {
+  // MerchantAccount.gumroad(processor) is `where(user_id: nil, charge_processor_id:).first`: the lowest id per processor.
   const gumroadAccounts = await selectRows<{ id: number }>(
-    Prisma.sql`SELECT ${column("merchant_accounts", "id")} FROM ${table("merchant_accounts")} WHERE ${column("merchant_accounts", "user_id")} IS NULL AND ${column("merchant_accounts", "charge_processor_id")} IN ('stripe', 'paypal', 'braintree')`,
+    Prisma.sql`SELECT MIN(${column("merchant_accounts", "id")}) AS id FROM ${table("merchant_accounts")} WHERE ${column("merchant_accounts", "user_id")} IS NULL AND ${column("merchant_accounts", "charge_processor_id")} IN ('stripe', 'paypal', 'braintree') GROUP BY ${column("merchant_accounts", "charge_processor_id")}`,
   );
-  // Rails takes the first account per processor; a processor with several would change the set.
-  const processors = await selectRows<{ charge_processor_id: string; count: bigint }>(
-    Prisma.sql`SELECT ${column("merchant_accounts", "charge_processor_id")}, COUNT(*) AS count FROM ${table("merchant_accounts")} WHERE ${column("merchant_accounts", "user_id")} IS NULL AND ${column("merchant_accounts", "charge_processor_id")} IN ('stripe', 'paypal', 'braintree') GROUP BY ${column("merchant_accounts", "charge_processor_id")}`,
-  );
-  if (processors.some((row) => Number(row.count) > 1)) throw new NotPortedError("ForfeitBalanceService with several Gumroad merchant accounts for one processor");
   const ids = gumroadAccounts.map((row) => row.id);
   const exclusion = ids.length === 0 ? Prisma.empty : Prisma.sql`AND ${column("balances", "merchant_account_id")} NOT IN (${Prisma.join(ids)})`;
   const [row] = await selectRows<{ sum: bigint | number | Prisma.Decimal | null }>(
@@ -327,7 +324,11 @@ async function accountStatusDetails(facts: Facts, context: SellerContext, canUpd
   if (pendingCompliance && account === null) {
     const missing: string[] = [];
     for (const request of requested) {
-      if (jsonAttr({ json_data: request.json_data }, "verification_error") !== null) throw new NotPortedError("UserComplianceInfoRequest#verification_error_message");
+      const errorMessage = verificationErrorMessage(jsonAttr({ json_data: request.json_data }, "verification_error"));
+      if (present(errorMessage)) {
+        complianceActions.push({ message: `${errorMessage.trim().replace(/[.!?]+$/, "")}.`, href: null });
+        continue;
+      }
       missing.push(nameTagForField(request.field_needed ?? "", countryCodeForComplianceField(request.field_needed ?? "", facts.info.row)));
     }
     const unique = [...new Set(missing)];
@@ -402,15 +403,14 @@ async function ausBacktaxDetails(facts: Facts, now: Date) {
 async function stripeConnectProps(facts: Facts) {
   const connect = stripeConnectAccount(facts);
   const connected = await hasStripeAccountConnected(facts);
-  // User#stripe_disconnect_allowed? asks whether subscriptions or preorders still run on the account.
-  if (connected) throw new NotPortedError("User#stripe_disconnect_allowed? (active subscribers and preorders on a connected Stripe account)");
+  const disconnectAllowed = connected && connect ? await stripeDisconnectAllowed(facts.seller.id, connect.id) : true;
   return {
     has_connected_stripe: connect !== null,
     stripe_connect_account_id: connect ? String(connect.charge_processor_merchant_id) : null,
     stripe_connect_routing_active: connected,
     // connect.blank? => false; otherwise has_stripe_account_connected? || Feature.inactive?(...)
     blocks_managed_account: connect === null ? false : connected || !(await featureActive("managed_stripe_account_beside_inactive_connect", facts.seller)),
-    stripe_disconnect_allowed: true,
+    stripe_disconnect_allowed: disconnectAllowed,
     supported_countries_help_text:
       "This feature is available in <a href='https://stripe.com/en-in/global'>all countries where Stripe operates</a>, except India, Indonesia, Malaysia, Mexico, Philippines, and Thailand.",
   };
