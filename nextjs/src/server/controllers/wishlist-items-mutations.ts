@@ -3,7 +3,6 @@
 import { Prisma, type Wishlist, type WishlistFollower, type WishlistProduct } from "@prisma/client";
 
 import { decrypt } from "../../lib/obfuscate-ids.ts";
-import { railsLoggedInUser } from "../auth/resolve.ts";
 import { performAsync } from "../models/concerns/job-runtime.ts";
 import { WishlistFollowerDeletable, WishlistFollowers, WishlistProductDeletable, WishlistProducts } from "../models/wishlist-follower.ts";
 import { castRow, column, selectRows, table } from "../models/sql.ts";
@@ -15,6 +14,7 @@ import { HandBackToRails, RoutingError, type ActionResult } from "./application-
 import { jsonResponse } from "./json-seller.ts";
 import { requestFormat } from "./rails-params.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
+import { signedOutRefusal } from "./wishlists-mutations.ts";
 import * as Routes from "@/lib/navigation/routes";
 
 const WISHLIST_UPDATED_EMAIL_DELAY_SECONDS = 8 * 3600;
@@ -38,7 +38,7 @@ async function findWishlist(externalId: string): Promise<Wishlist> {
 
 // authenticate_user!, then Pundit's verdict; a JSON request the policy refuses is answered the way PunditAuthorization answers it.
 async function authorized(input: MutationInput, allowed: (context: SellerContext) => boolean | Promise<boolean>): Promise<ActionResult | null> {
-  if (railsLoggedInUser(input.context) === null || input.context.currentSeller === null) throw new HandBackToRails("a signed-out wishlist request");
+  if (input.context.currentSeller === null) throw new HandBackToRails("a signed-in request without a current seller");
   const sellerContext = await loadSellerContext(input.context);
   if (await allowed(sellerContext)) return null;
   const message = notAllowedMessage(sellerContext);
@@ -55,6 +55,8 @@ registerMutations(
     pattern: "/wishlists/:wishlist_id/followers",
     formats: ["html", "json", "any"],
     run: async (input) => {
+      const signedOut = signedOutRefusal(input);
+      if (signedOut) return signedOut;
       const wishlist = await findWishlist(input.routeParams.wishlist_id!);
       const denied = await authorized(input, ownerOnly);
       if (denied) return denied;
@@ -68,6 +70,8 @@ registerMutations(
     pattern: "/wishlists/:wishlist_id/followers",
     formats: ["html", "json", "any"],
     run: async (input) => {
+      const signedOut = signedOutRefusal(input);
+      if (signedOut) return signedOut;
       const wishlist = await findWishlist(input.routeParams.wishlist_id!);
       const [row] = await selectRows(
         Prisma.sql`SELECT ${Prisma.raw("`wishlist_followers`.*")} FROM ${table("wishlist_followers")} WHERE ${column("wishlist_followers", "wishlist_id")} = ${wishlist.id} AND ${column("wishlist_followers", "deleted_at")} IS NULL AND ${column("wishlist_followers", "follower_user_id")} = ${input.context.currentSeller?.id ?? 0} LIMIT 1`,
@@ -86,7 +90,9 @@ registerMutations(
     pattern: "/wishlists/:wishlist_id/products",
     formats: ["html", "json", "any"],
     run: async (input) => {
-      if (railsLoggedInUser(input.context) === null || input.context.currentSeller === null) throw new HandBackToRails("a signed-out wishlist request");
+      const signedOut = signedOutRefusal(input);
+      if (signedOut) return signedOut;
+      if (input.context.currentSeller === null) throw new HandBackToRails("a signed-in request without a current seller");
       const id = decrypt(input.routeParams.wishlist_id!);
       // `current_seller.wishlists.find_by_external_id!`
       const [wishlistRow] = id === null ? [] : await selectRows(Prisma.sql`SELECT ${Prisma.raw("`wishlists`.*")} FROM ${table("wishlists")} WHERE ${column("wishlists", "user_id")} = ${input.context.currentSeller.id} AND ${column("wishlists", "id")} = ${id} LIMIT 1`);
@@ -147,7 +153,9 @@ registerMutations(
     pattern: "/wishlists/:wishlist_id/products/:id",
     formats: ["html", "json", "any"],
     run: async (input) => {
-      if (railsLoggedInUser(input.context) === null || input.context.currentSeller === null) throw new HandBackToRails("a signed-out wishlist request");
+      const signedOut = signedOutRefusal(input);
+      if (signedOut) return signedOut;
+      if (input.context.currentSeller === null) throw new HandBackToRails("a signed-in request without a current seller");
       const id = decrypt(input.routeParams.id!);
       // `WishlistProduct.alive.find_by_external_id!`
       const [row] = id === null ? [] : await selectRows(Prisma.sql`SELECT ${Prisma.raw("`wishlist_products`.*")} FROM ${table("wishlist_products")} WHERE ${column("wishlist_products", "deleted_at")} IS NULL AND ${column("wishlist_products", "id")} = ${id} LIMIT 1`);

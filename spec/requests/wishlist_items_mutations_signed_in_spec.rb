@@ -170,4 +170,44 @@ describe "Wishlist followers and products when signed in", type: :request do
       expect(wishlist_product.reload.deleted_at).to be_nil
     end
   end
+
+  describe "when signed out" do
+    let(:wishlist_product) { create(:wishlist_product, wishlist:, product:) }
+
+    it "answers 404 JSON to a follow", parity: true do
+      send_json(:post, "/wishlists/#{wishlist.external_id}/followers")
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body).to eq("success" => false, "error" => "Not found")
+    end
+
+    it "answers 404 JSON to an unfollow of an unknown wishlist", parity: true do
+      send_json(:delete, "/wishlists/unknown/followers")
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body).to eq("success" => false, "error" => "Not found")
+    end
+
+    it "answers 404 JSON to adding a product", parity: true do
+      send_json(:post, "/wishlists/#{wishlist.external_id}/products", { wishlist_product: { product_id: product.external_id } })
+
+      expect(response).to have_http_status(:not_found)
+      expect(wishlist.reload.wishlist_products).to be_empty
+    end
+
+    it "answers 404 JSON to removing a product", parity: true do
+      send_json(:delete, "/wishlists/#{wishlist.external_id}/products/#{wishlist_product.external_id}", {}, host: owner.subdomain)
+
+      expect(response).to have_http_status(:not_found)
+      expect(wishlist_product.reload.deleted_at).to be_nil
+    end
+
+    it "redirects an HTML follow to the login page", parity: true do
+      token = csrf_token
+      post "/wishlists/#{wishlist.external_id}/followers", params: { authenticity_token: token }
+
+      expect(response).to have_http_status(:found)
+      expect(response.location).to eq("http://#{DOMAIN}/login?next=%2Fwishlists%2F#{CGI.escape(wishlist.external_id)}%2Ffollowers")
+    end
+  end
 end

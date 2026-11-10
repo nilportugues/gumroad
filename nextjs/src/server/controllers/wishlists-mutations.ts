@@ -14,7 +14,8 @@ import { wishlistPolicy } from "../policies/buyer.ts";
 import { loadSellerContext, type SellerContext } from "../policies/seller-context.ts";
 import { HandBackToRails, RoutingError, type ActionResult } from "./application-controller.ts";
 import { jsonResponse } from "./json-seller.ts";
-import { requestFormat } from "./rails-params.ts";
+import { cgiEscape, requestFormat } from "./rails-params.ts";
+import { fullpath } from "./rails-request.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 
 const SEE_OTHER = 303;
@@ -71,9 +72,22 @@ async function findWishlist(sellerId: bigint, externalId: string): Promise<Model
   return Wishlists.load(castRow<Wishlist>("Wishlist", row));
 }
 
+// ApplicationController#authenticate_user! for a visitor who is not signed in: e404_json for json and js, else a redirect to the login
+// page that remembers where the visitor was. Null when signed in.
+export function signedOutRefusal(input: MutationInput): ActionResult | null {
+  if (railsLoggedInUser(input.context) !== null) return null;
+  const format = requestFormat(input.request);
+  if (format === "other") throw new HandBackToRails("a signed-out wishlist request in another format");
+  return format === "json"
+    ? { ...jsonResponse({ success: false, error: "Not found" }, 404), rescued: true }
+    : { status: 302, location: `/login?next=${cgiEscape(fullpath(input.request))}`, rescued: true };
+}
+
 // authenticate_user!, then `authorize`, answered as PunditAuthorization#default_user_not_authorized does.
 async function guarded(input: MutationInput, authorize: (context: SellerContext) => boolean, find: boolean): Promise<{ denied: ActionResult | null; wishlist: ModelRecord<Wishlist> | null }> {
-  if (railsLoggedInUser(input.context) === null || input.context.currentSeller === null) throw new HandBackToRails("a signed-out wishlist request");
+  const signedOut = signedOutRefusal(input);
+  if (signedOut) return { denied: signedOut, wishlist: null };
+  if (input.context.currentSeller === null) throw new HandBackToRails("a signed-in request without a current seller");
   const sellerContext = await loadSellerContext(input.context);
   const wishlist = find ? await findWishlist(input.context.currentSeller.id, input.routeParams.id!) : null;
   if (!(find ? wishlistPolicy.update(sellerContext, { user_id: wishlist!.get("user_id") }) : authorize(sellerContext))) {
