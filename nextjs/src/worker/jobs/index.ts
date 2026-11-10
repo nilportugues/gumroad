@@ -15,6 +15,7 @@ import {
   forceFinishLongRunningCommunityChatRecapRunsJob,
   triggerCommunityChatRecapRunJob,
 } from "./community-chat-recap-jobs.ts";
+import { deleteExpiredOauthDeviceAuthorizationsJob } from "./delete-expired-oauth-device-authorizations-job.ts";
 import {
   deleteOldPingDeliveriesJob,
   deleteOldProcessedStripeEventsJob,
@@ -65,7 +66,6 @@ import {
   updatePurchaseHealthcheckThresholdJob,
 } from "./purchase-reads-jobs.ts";
 import { recoverAusBacktaxFromStripeAccountJob } from "./recover-aus-backtax-from-stripe-account-job.ts";
-import { removeSuspendedAccountFollowsWorker } from "./remove-suspended-account-follows-worker.ts";
 import {
   createMissingDisputeEvidenceJob,
   dispatchPendingFailedRefundExceptionsJob,
@@ -80,6 +80,7 @@ import {
   refundPurchaseWorker,
   updateUserBalanceStatsCacheWorker,
 } from "./refund-payout-guard-jobs.ts";
+import { removeSuspendedAccountFollowsWorker } from "./remove-suspended-account-follows-worker.ts";
 import { blockSuspendedAccountIpWorker, checkPaymentAddressWorker } from "./risk-jobs.ts";
 import { scheduleWorkflowInstallmentJob } from "./schedule-workflow-installment-job.ts";
 import {
@@ -118,10 +119,11 @@ import {
 } from "./subscription-write-jobs.ts";
 import { suspendAccountsWithPaymentAddressWorker, suspendUsersWorker } from "./suspend-jobs.ts";
 import { syncStripeBusinessProfileUrlWorker } from "./sync-stripe-business-profile-url-worker.ts";
-import { updateSellerRefundEligibilityJob } from "./update-seller-refund-eligibility-job.ts";
-import { updateUtmLinkStatsJob } from "./update-utm-link-stats-job.ts";
+import type { JobHandler } from "./types.ts";
 import { updateCurrenciesWorker } from "./update-currencies-worker.ts";
 import { updatePurchasingPowerParityFactorsWorker } from "./update-purchasing-power-parity-factors-worker.ts";
+import { updateSellerRefundEligibilityJob } from "./update-seller-refund-eligibility-job.ts";
+import { updateUtmLinkStatsJob } from "./update-utm-link-stats-job.ts";
 import { warmSellerReputationSummaryJob } from "./warm-seller-reputation-summary-job.ts";
 import { recalculateRecentWishlistFollowerCountJob } from "./wishlist-jobs.ts";
 import {
@@ -131,7 +133,6 @@ import {
   sendWorkflowInstallmentRescheduleJob,
   updateInstallmentEventsCountCacheWorker,
 } from "./workflow-jobs.ts";
-import type { JobHandler } from "./types.ts";
 
 export const JOB_HANDLERS: Record<string, JobHandler> = {
   AlertOnStalledAbandonedCartEmailsJob: alertOnStalledAbandonedCartEmailsJob,
@@ -231,6 +232,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   FightDisputeJob: fightDisputeJob,
   PayoutUsersWorker: payoutUsersWorker,
   DeleteWishlistProductsJob: deleteWishlistProductsJob,
+  DeleteExpiredOauthDeviceAuthorizationsJob: deleteExpiredOauthDeviceAuthorizationsJob,
   DeleteProductFilesArchivesWorker: deleteProductFilesArchivesWorker,
   RemoveSuspendedAccountFollowsWorker: removeSuspendedAccountFollowsWorker,
   RefundPurchaseWorker: refundPurchaseWorker,

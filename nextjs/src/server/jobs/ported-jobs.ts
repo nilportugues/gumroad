@@ -99,6 +99,7 @@ export const PORTED_JOBS: readonly string[] = [
   "FightDisputeJob",
   "PayoutUsersWorker",
   "DeleteWishlistProductsJob",
+  "DeleteExpiredOauthDeviceAuthorizationsJob",
   "DeleteProductFilesArchivesWorker",
   "RemoveSuspendedAccountFollowsWorker",
   "RefundPurchaseWorker",
