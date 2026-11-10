@@ -4,8 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { HandBackToRails } from "./application-controller.ts";
 
-const { selectRows, isFeatureEnabled, geoIpLookup, getRate, hasBrazilianStripeConnectAccount, findUserById } =
+const { selectRows, isFeatureEnabled, geoIpLookup, getRate, hasBrazilianStripeConnectAccount, findUserById, taxjar } =
   vi.hoisted(() => ({
+    taxjar: vi.fn(),
     selectRows: vi.fn(),
     isFeatureEnabled: vi.fn(),
     geoIpLookup: vi.fn(),
@@ -25,6 +26,10 @@ vi.mock("../models/concerns/currency-helper.ts", async (original) => ({
   ...(await original<typeof import("../models/concerns/currency-helper.ts")>()),
   getRate,
   RateUnavailable: class RateUnavailable extends Error {},
+}));
+vi.mock("../tax/taxjar.ts", async (original) => ({
+  ...(await original<typeof import("../tax/taxjar.ts")>()),
+  calculateTaxForOrder: taxjar,
 }));
 vi.mock("../page-props/dashboard/payout-info.ts", () => ({ hasBrazilianStripeConnectAccount }));
 vi.mock("../presenters/product-reads.ts", () => ({ findUserById }));
@@ -327,8 +332,13 @@ describe("hand-backs", () => {
     await expectHandBack({ products: [] });
   });
 
-  it("hands back a VAT id, a Payment Element request and a list token", async () => {
+  it("hands back a VAT id a vendor checks, a Payment Element request and a list token", async () => {
     await expectHandBack(cart({ vat_id: "IE6388047V" }));
+    await expectHandBack(cart({ vat_id: "IE6388047V", country: "DE" }));
+    await expectHandBack(cart({ vat_id: "123456789", country: "SG" }));
+    await expectHandBack(cart({ vat_id: "NO123456789MVA", country: "NO" }));
+    await expectHandBack(cart({ vat_id: "1234", country: "CA", state: "QC" }));
+    await expectHandBack(cart({ vat_id: 12 }));
     await expectHandBack(cart({ payment_details_source: "payment_element" }));
     await expectHandBack(cart({ payment_element_direct_listed_currency: "eur" }));
     await expectHandBack(cart({ payment_method_list_token: "token" }));
@@ -349,9 +359,110 @@ describe("hand-backs", () => {
     expect((await call(cart({}, { permalink: "abc", price: 100, pay_in_installments: false }))).status).toBe(200);
   });
 
-  it("hands back buyers taxed through TaxJar", async () => {
-    await expectHandBack(cart({ country: "US", postal_code: "10001" }));
-    await expectHandBack(cart({ country: "CA", state: "BC" }));
+  describe("TaxJar buyers", () => {
+    it("taxes a US taxable state from TaxJar's amount and sends the line to it", async () => {
+      taxjar.mockResolvedValue({ kind: "tax", amountToCollect: 1.025 });
+      const { body } = await call(
+        cart({ country: "US", postal_code: "10001" }, { permalink: "abc", price: 1000, quantity: 2 }),
+      );
+
+      expect(body).toMatchObject({ tax_cents: 102, has_vat_id_input: false, charge_canonical_total_cents: 1102 });
+      expect(taxjar.mock.calls[0]![0]).toMatchObject({
+        destinationCountry: "US",
+        destinationState: "NY",
+        destinationZip: "10001",
+        quantity: 2,
+        unitPriceDollars: 5,
+        shippingDollars: 0,
+        productTaxCode: "31000",
+      });
+    });
+
+    it("sends no zip for a Canadian province and offers a tax id input in Quebec only", async () => {
+      taxjar.mockResolvedValue({ kind: "tax", amountToCollect: 2 });
+      expect((await call(cart({ country: "CA", state: "BC" }))).body).toMatchObject({
+        tax_cents: 200,
+        has_vat_id_input: false,
+      });
+      expect(taxjar.mock.calls[0]![0]).toMatchObject({ destinationZip: null, destinationState: "BC" });
+      expect((await call(cart({ country: "CA", state: "QC" }))).body).toMatchObject({
+        tax_cents: 200,
+        has_vat_id_input: true,
+      });
+    });
+
+    it("falls back to the lookup table when TaxJar cannot answer", async () => {
+      taxjar.mockResolvedValue({ kind: "fallback" });
+      rates = [zipTaxRate({ country: "US", combined_rate: "0.0650000" })];
+      expect(
+        (await call(cart({ country: "US", postal_code: "10001" }, { permalink: "abc", price: 1000, quantity: 1 })))
+          .body,
+      ).toMatchObject({
+        tax_cents: 65,
+        has_vat_id_input: false,
+      });
+      rates = [zipTaxRate({ country: "CA", combined_rate: "0.1200000" })];
+      expect(
+        (await call(cart({ country: "CA", state: "BC" }, { permalink: "abc", price: 1000, quantity: 1 }))).body,
+      ).toMatchObject({
+        tax_cents: 120,
+      });
+    });
+
+    it("hands back what TaxJar answered that Rails alone can handle", async () => {
+      taxjar.mockResolvedValue({ kind: "unsupported", reason: "a TaxJar answer with status 429" });
+      await expectHandBack(cart({ country: "US", postal_code: "10001" }));
+    });
+
+    it.each([undefined, 0, -1, 1.5, "abc", null])("hands back a TaxJar buyer with quantity %s", async (quantity) => {
+      taxjar.mockResolvedValue({ kind: "tax", amountToCollect: 1 });
+      await expectHandBack(cart({ country: "US", postal_code: "10001" }, { permalink: "abc", price: 100, quantity }));
+    });
+
+    it("reads a string quantity", async () => {
+      taxjar.mockResolvedValue({ kind: "tax", amountToCollect: 1 });
+      await call(cart({ country: "US", postal_code: "10001" }, { permalink: "abc", price: 300, quantity: "3" }));
+      expect(taxjar.mock.calls[0]![0]).toMatchObject({ quantity: 3, unitPriceDollars: 1 });
+    });
+
+    it("asks the software subtree for a SaaS tax code", async () => {
+      links = [link({ taxonomy_id: 7n })];
+      selectRows.mockImplementation(async (query: { sql: string }) => {
+        if (query.sql.includes("FROM `links`")) return links;
+        if (query.sql.includes("FROM `taxonomies`")) return [{ found: 1 }];
+        return [];
+      });
+      taxjar.mockResolvedValue({ kind: "tax", amountToCollect: 0 });
+      await call(cart({ country: "US", postal_code: "10001" }));
+      expect(taxjar.mock.calls[0]![0]).toMatchObject({ productTaxCode: "30070" });
+    });
+
+    it("does not reach TaxJar for a buyer outside the TaxJar regions whose tax id is invalid", async () => {
+      taxjar.mockResolvedValue({ kind: "tax", amountToCollect: 1 });
+      expect((await call(cart({ country: "BH", vat_id: "x" }))).body).toMatchObject({ vat_id_valid: false });
+      expect(taxjar).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("tax ids with a local validator", () => {
+    it.each([
+      ["BH", "123456789012345"],
+      ["KE", "A123456789Z"],
+      ["NG", "12345678-1234"],
+      ["TZ", "12-345678-A"],
+      ["OM", "OM1234567890"],
+    ])("zeroes the tax and marks a valid %s id valid", async (country, vatId) => {
+      expect((await call(cart({ country, vat_id: vatId }))).body).toMatchObject({ vat_id_valid: true, tax_cents: 0 });
+      expect((await call(cart({ country, vat_id: "bad" }))).body).toMatchObject({ vat_id_valid: false });
+    });
+
+    it("does not validate the id of a free line", async () => {
+      expect(
+        (await call(cart({ country: "BH", vat_id: "123456789012345" }, { permalink: "abc", price: 0 }))).body,
+      ).toMatchObject({
+        vat_id_valid: false,
+      });
+    });
   });
 
   it("serves a US buyer outside the taxable states and a Canadian one without a province", async () => {
@@ -633,7 +744,7 @@ describe("physical lines", () => {
       if (query.sql.includes("FROM `shipping_exclusions`")) return exclusions;
       if (query.sql.includes("FROM `shipping_destinations`")) {
         const virtual = query.sql.includes("`flags`");
-        const code = virtual ? null : (query.values.find((value) => typeof value === "string") as string);
+        const code = virtual ? null : query.values.find((value) => typeof value === "string")!;
         return destinations.filter((row) =>
           virtual
             ? (Number(row.flags) & 1) !== 0 && query.values.includes(row.country_code)
@@ -731,6 +842,14 @@ describe("physical lines", () => {
     expect((await call(cartOf(1, { country: "JP", postal_code: "100-0001" }))).body).toMatchObject({
       shipping_rate_cents: 0,
     });
+  });
+
+  it("sends a TaxJar buyer's shipping in dollars", async () => {
+    links = [physical({ native_type: "physical" })];
+    destinations = [destination()];
+    taxjar.mockResolvedValue({ kind: "tax", amountToCollect: 0 });
+    await call(cart({ country: "US", postal_code: "10001" }, { permalink: "abc", price: 1000, quantity: 3 }));
+    expect(taxjar.mock.calls[0]![0]).toMatchObject({ shippingDollars: 9, productTaxCode: null });
   });
 
   it("hands back a fractional or missing quantity and a zero rate", async () => {
