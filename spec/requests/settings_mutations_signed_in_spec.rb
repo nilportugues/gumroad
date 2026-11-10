@@ -79,6 +79,27 @@ describe "Settings mutations when signed in", type: :request do
       expect(seller.third_party_analytics.alive.pluck(:name)).to match_array(["Everywhere", "One product"])
     end
 
+    it "casts integer snippet fields and looks an integer permalink up as a string", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, analytics(snippets: [
+                                                                      { id: nil, name: 7, location: "product", product: 4242, code: 1234 },
+                                                                    ]))
+
+      expect(response).to have_http_status(:see_other)
+      expect(seller.third_party_analytics.alive.sole).to have_attributes(name: "7", link_id: nil, analytics_code: "1234")
+    end
+
+    it "casts a boolean snippet name and code on update", parity: true do
+      kept = create(:third_party_analytic, user: seller, link: nil, name: "Kept", location: "all", analytics_code: "<script>old()</script>")
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, analytics(snippets: [{ id: kept.external_id, name: true, location: "all", product: "#all_products", code: false }]))
+
+      expect(response).to have_http_status(:see_other)
+      expect(kept.reload).to have_attributes(name: "1", analytics_code: "f")
+    end
+
     it "updates a snippet and deletes the ones left out", parity: true do
       kept = create(:third_party_analytic, user: seller, link: nil, name: "Kept", location: "all", analytics_code: "<script>old()</script>")
       create(:third_party_analytic, user: seller, link: nil, name: "Dropped", location: "receipt")

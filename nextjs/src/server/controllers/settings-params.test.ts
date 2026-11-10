@@ -2,7 +2,13 @@
 import { describe, expect, it } from "vitest";
 
 import { HandBackToRails } from "./application-controller.ts";
-import { blockedEmailLines, isPermittedScalar, stringValue, tiktokPixelIdValue } from "./settings-mutations.ts";
+import {
+  blockedEmailLines,
+  isPermittedScalar,
+  snippetValue,
+  stringValue,
+  tiktokPixelIdValue,
+} from "./settings-mutations.ts";
 import { permittedRole } from "./settings-team-mutations.ts";
 
 describe("isPermittedScalar", () => {
@@ -57,6 +63,20 @@ describe("blockedEmailLines", () => {
     expect(() => blockedEmailLines(5)).toThrow(/split/u);
     expect(() => blockedEmailLines(0)).toThrow(/split/u);
     expect(() => blockedEmailLines(true)).toThrow(/split/u);
+  });
+});
+
+describe("snippetValue", () => {
+  it("keeps strings, nil, integers and booleans as sent for the model to cast", () => {
+    expect(snippetValue("<script></script>")).toBe("<script></script>");
+    expect(snippetValue(null)).toBeNull();
+    expect(snippetValue(4242)).toBe(4242);
+    expect(snippetValue(true)).toBe(true);
+    expect(snippetValue(false)).toBe(false);
+  });
+
+  it("hands back a float", () => {
+    expect(() => snippetValue(1.5)).toThrow(HandBackToRails);
   });
 });
 

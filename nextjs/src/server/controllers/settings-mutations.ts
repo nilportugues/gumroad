@@ -2,8 +2,8 @@
 // (app/controllers/settings/third_party_analytics_controller.rb, advanced_controller.rb).
 //
 // A request Rails would answer differently from what the port can prove is handed back before its first write: a missing or
-// malformed `user` param (strong parameters raise inside the action's own rescue), a float or a non-scalar-cast value for a
-// JSON-data or snippet field, and a custom domain to verify, which resolves DNS. Integers and booleans for string columns are
+// malformed `user` param (strong parameters raise inside the action's own rescue), a float for a string attribute, a JSON-data
+// field that is neither a string nor an integer, and a custom domain to verify, which resolves DNS. Integers and booleans for string columns are
 // cast, arrays and hashes under scalar keys are dropped (as `permit` does), and a numeric or `true` blocked_customer_emails
 // gets the action's own rescue (the generic block failure).
 import type { BillingDetail } from "@prisma/client";
@@ -99,10 +99,17 @@ export function tiktokPixelIdValue(value: unknown): string | number | null {
   return plainStringValue(value);
 }
 
-// For a snippet field, which does not go through a string column's cast.
+// For a tiktok_pixel_id, which does not go through a string column's cast.
 function plainStringValue(value: unknown): string | null {
   if (value === null || typeof value === "string") return value;
   throw new HandBackToRails("a non-string value for a string attribute");
+}
+
+// A snippet field stays as sent: `save_third_party_analytics` compares and keys on the raw param and casts it only when it
+// assigns a string column or looks a permalink up. Floats hand back, as in `stringValue`.
+export function snippetValue(value: unknown): string | number | boolean | null {
+  stringValue(value);
+  return value as string | number | boolean | null;
 }
 
 const FLAG_PARAMS: Record<string, UserFlag> = {
@@ -122,7 +129,7 @@ function permittedSnippets(value: unknown): SnippetParams[] {
     if (!isHash(entry)) throw new HandBackToRails("a snippet that is not a hash");
     const snippet: Record<string, unknown> = {};
     for (const key of SNIPPET_KEYS)
-      if (key in entry && isPermittedScalar(entry[key])) snippet[key] = plainStringValue(entry[key]);
+      if (key in entry && isPermittedScalar(entry[key])) snippet[key] = snippetValue(entry[key]);
     return snippet;
   });
 }
