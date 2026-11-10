@@ -11,22 +11,28 @@
 import { Prisma, type BaseVariant, type Link, type OfferCode, type User, type VariantCategory } from "@prisma/client";
 
 import { defineFlags } from "../../lib/flags.ts";
-import { advance } from "./concerns/ruby-time.ts";
-import { rubyRound, rubyToI } from "./concerns/ruby-numeric.ts";
 import { PurchaseFlags } from "../search/flags.ts";
+
+import { rubyRound, rubyToI } from "./concerns/ruby-numeric.ts";
+import { advance } from "./concerns/ruby-time.ts";
 import { findById } from "./row-reads.ts";
 import { castRow, column, columnIn, quoteName, selectRows, table } from "./sql.ts";
 import { NotPortedError } from "./user.ts";
 
 export const OFFER_CODES = "offer_codes";
 
-export const OfferCodeFlags = defineFlags(OFFER_CODES, { 1: "is_cancellation_discount", 2: "created_via_cli", 3: "once_per_cart" }, { queryMode: "bit_operator" });
+export const OfferCodeFlags = defineFlags(
+  OFFER_CODES,
+  { 1: "is_cancellation_discount", 2: "created_via_cli", 3: "once_per_cart" },
+  { queryMode: "bit_operator" },
+);
 
 const nullOperand = (method: string): never => {
   throw nilReceiver(method);
 };
 
-export const nilReceiver = (method: string, receiver = "nil") => new TypeError(`undefined method '${method}' for ${receiver}`);
+export const nilReceiver = (method: string, receiver = "nil") =>
+  new TypeError(`undefined method '${method}' for ${receiver}`);
 
 // ---------------------------------------------------------------------------------------------
 // Arithmetic, on anything that carries the two amounts (a loaded code or the stub
@@ -57,7 +63,8 @@ export function originalPrice(code: Amounts, discountedPriceCents: number | null
 // OfferCode#months_since: whole calendar months from `timestamp` to `now`, never negative.
 export function monthsSince(timestamp: Date | null, now: Date): number | null {
   if (timestamp === null) return null;
-  let months = now.getUTCFullYear() * 12 + now.getUTCMonth() + 1 - (timestamp.getUTCFullYear() * 12 + timestamp.getUTCMonth() + 1);
+  let months =
+    now.getUTCFullYear() * 12 + now.getUTCMonth() + 1 - (timestamp.getUTCFullYear() * 12 + timestamp.getUTCMonth() + 1);
   if (advance(timestamp, { months }).getTime() > now.getTime()) months -= 1;
   return Math.max(months, 0);
 }
@@ -69,21 +76,29 @@ export type Tier = { months: number; amount_percentage: number };
 export function tiersOf(raw: unknown): Record<string, unknown>[] {
   const parsed = typeof raw === "string" ? (JSON.parse(raw) as unknown) : raw;
   if (parsed === null || parsed === undefined) return [];
-  if (!Array.isArray(parsed)) throw new NotPortedError("ownership_duration_tiers that is not an Array", "offer_code.rb:436");
-  for (const tier of parsed) if (tier === null || typeof tier !== "object" || Array.isArray(tier)) throw new NotPortedError("a tier that is not a Hash", "offer_code.rb:442");
+  if (!Array.isArray(parsed))
+    throw new NotPortedError("ownership_duration_tiers that is not an Array", "offer_code.rb:436");
+  for (const tier of parsed)
+    if (tier === null || typeof tier !== "object" || Array.isArray(tier))
+      throw new NotPortedError("a tier that is not a Hash", "offer_code.rb:442");
   return parsed as Record<string, unknown>[];
 }
 
 // OfferCode#normalized_ownership_duration_tiers
 export function normalizeTiers(raw: Record<string, unknown>[]): Tier[] {
-  const tiers = raw.map((tier) => ({ months: rubyToI(tier.months), amount_percentage: rubyToI(tier.amount_percentage) }));
+  const tiers = raw.map((tier) => ({
+    months: rubyToI(tier.months),
+    amount_percentage: rubyToI(tier.amount_percentage),
+  }));
   // Array#sort_by is not stable; the validations keep each starting month unique.
-  if (new Set(tiers.map((tier) => tier.months)).size !== tiers.length) throw new NotPortedError("tiers that start in the same month", "offer_code.rb:442");
+  if (new Set(tiers.map((tier) => tier.months)).size !== tiers.length)
+    throw new NotPortedError("tiers that start in the same month", "offer_code.rb:442");
   return tiers.sort((a, b) => a.months - b.months);
 }
 
 // OfferCode#matching_tier_for: the last tier that has started.
-export const matchingTierFor = (tiers: Tier[], ownershipMonths: number): Tier | undefined => [...tiers].reverse().find((tier) => tier.months <= ownershipMonths);
+export const matchingTierFor = (tiers: Tier[], ownershipMonths: number): Tier | undefined =>
+  [...tiers].reverse().find((tier) => tier.months <= ownershipMonths);
 
 // ---------------------------------------------------------------------------------------------
 // Statements
@@ -97,13 +112,21 @@ const ALL_SUCCESS_STATES = [...NON_GIFT_SUCCESS_STATES, "gift_receiver_purchase_
 // ChargeProcessor::TIME_TO_COMPLETE_SCA
 const TIME_TO_COMPLETE_SCA_MINUTES = 15;
 
-const states = (list: readonly string[]) => Prisma.sql`${column("purchases", "purchase_state")} IN (${Prisma.join(list, ", ")})`;
-const purchaseFlag = (name: Parameters<typeof PurchaseFlags.isSet>[1], enabled: boolean) => Prisma.sql`(${PurchaseFlags.condition(name, enabled)})`;
+const states = (list: readonly string[]) =>
+  Prisma.sql`${column("purchases", "purchase_state")} IN (${Prisma.join(list, ", ")})`;
+const purchaseFlag = (name: Parameters<typeof PurchaseFlags.isSet>[1], enabled: boolean) =>
+  Prisma.sql`(${PurchaseFlags.condition(name, enabled)})`;
 // Purchase.not_recurring_charge (not_subscription_or_original_purchase)
-const NOT_RECURRING_CHARGE = Prisma.raw("(purchases.subscription_id IS NULL OR purchases.flags & '4' = '4' OR purchases.flags & '32' = '32')");
+const NOT_RECURRING_CHARGE = Prisma.raw(
+  "(purchases.subscription_id IS NULL OR purchases.flags & '4' = '4' OR purchases.flags & '32' = '32')",
+);
 const NOT_FULLY_REFUNDED = Prisma.raw("(purchases.stripe_refunded IS NULL OR purchases.stripe_refunded = 0)");
-const NOT_CHARGEDBACK_OR_REVERSED = Prisma.raw("(purchases.chargeback_date IS NULL OR (purchases.chargeback_date IS NOT NULL AND purchases.flags & '512' != 0))");
-const NOT_OWN_PURCHASE = Prisma.raw("(purchases.purchaser_id IS NULL OR purchases.purchaser_id != purchases.seller_id)");
+const NOT_CHARGEDBACK_OR_REVERSED = Prisma.raw(
+  "(purchases.chargeback_date IS NULL OR (purchases.chargeback_date IS NOT NULL AND purchases.flags & '512' != 0))",
+);
+const NOT_OWN_PURCHASE = Prisma.raw(
+  "(purchases.purchaser_id IS NULL OR purchases.purchaser_id != purchases.seller_id)",
+);
 // OfferCode#qualifying_ownership_purchases
 const QUALIFYING_OWNERSHIP_PURCHASES = Prisma.sql`${states(ALL_SUCCESS_STATES)} AND ${purchaseFlag("is_additional_contribution", false)} AND ${NOT_RECURRING_CHARGE} AND ${purchaseFlag("is_gift_sender_purchase", false)} AND ${NOT_FULLY_REFUNDED} AND ${NOT_CHARGEDBACK_OR_REVERSED} AND ${purchaseFlag("is_access_revoked", false)}`;
 const poc = (name: string) => column("purchase_offer_code_discounts", name);
@@ -178,7 +201,10 @@ export class OfferCodeRecord {
   // OfferCode#inactive?: not started yet, or past its end.
   inactive(now: Date): boolean {
     const { valid_at: validAt, expires_at: expiresAt } = this.row;
-    return (validAt != null && validAt.getTime() > now.getTime()) || (expiresAt != null && expiresAt.getTime() < now.getTime());
+    return (
+      (validAt != null && validAt.getTime() > now.getTime()) ||
+      (expiresAt != null && expiresAt.getTime() < now.getTime())
+    );
   }
 
   // ----- associations
@@ -222,7 +248,11 @@ export class OfferCodeRecord {
 
   // `has_and_belongs_to_many :variants`
   variants(): Promise<VariantRecord[]> {
-    return this.loaded("variants", async () => (await selectRows(Prisma.sql`SELECT ${star("base_variants")} ${this.variantsJoin()}`)).map((row) => new VariantRecord(castRow<BaseVariant>("BaseVariant", row))));
+    return this.loaded("variants", async () =>
+      (await selectRows(Prisma.sql`SELECT ${star("base_variants")} ${this.variantsJoin()}`)).map(
+        (row) => new VariantRecord(castRow<BaseVariant>("BaseVariant", row)),
+      ),
+    );
   }
 
   // `variants.any?`: one existence query unless the association is already loaded.
@@ -236,7 +266,9 @@ export class OfferCodeRecord {
   // OfferCode#discount, down to the statements it sends: it lists the external ids of the products
   // (or the excluded ones) and the options, though only `type` and the amount are read afterwards.
   async discount(): Promise<Discount> {
-    const base: Discount = isCents(this.row) ? { type: "fixed", cents: this.row.amount_cents } : { type: "percent", percents: this.row.amount_percentage };
+    const base: Discount = isCents(this.row)
+      ? { type: "fixed", cents: this.row.amount_cents }
+      : { type: "percent", percents: this.row.amount_percentage };
     if (this.row.universal) await this.excludedProducts();
     else await this.products();
     if (await this.hasVariants()) await this.optionIdsByProduct();
@@ -252,7 +284,8 @@ export class OfferCodeRecord {
   // OfferCode#restricted_variants_for: the options the code is limited to on this product.
   async restrictedVariantsFor(product: Link): Promise<VariantRecord[]> {
     const restricted: VariantRecord[] = [];
-    for (const variant of await this.variants()) if (String(await variant.owningProductId()) === String(product.id)) restricted.push(variant);
+    for (const variant of await this.variants())
+      if (String(await variant.owningProductId()) === String(product.id)) restricted.push(variant);
     return restricted;
   }
 
@@ -273,15 +306,22 @@ export class OfferCodeRecord {
     const byAccount = Prisma.sql`purchases.purchaser_id = ${String(buyer.id)}`;
     const email = buyer.email;
     const hasEmail = email != null && email.trim() !== "";
-    const condition = hasEmail && buyer.confirmed_at != null ? Prisma.sql`(${byAccount} OR purchases.email = ${email})` : Prisma.sql`(${byAccount})`;
+    const condition =
+      hasEmail && buyer.confirmed_at != null
+        ? Prisma.sql`(${byAccount} OR purchases.email = ${email})`
+        : Prisma.sql`(${byAccount})`;
     const [row] = await selectRows<{ created_at: Date | null }>(
-      Prisma.sql`SELECT ${column("purchases", "created_at")} FROM ${table("purchases")} WHERE ${QUALIFYING_OWNERSHIP_PURCHASES} AND ${columnIn("purchases", "link_id", products.map((product) => product.id))} AND ${condition} ORDER BY ${column("purchases", "created_at")} ASC LIMIT 1`,
+      Prisma.sql`SELECT ${column("purchases", "created_at")} FROM ${table("purchases")} WHERE ${QUALIFYING_OWNERSHIP_PURCHASES} AND ${columnIn(
+        "purchases",
+        "link_id",
+        products.map((product) => product.id),
+      )} AND ${condition} ORDER BY ${column("purchases", "created_at")} ASC LIMIT 1`,
     );
     return monthsSince(row?.created_at ?? null, now);
   }
 
   // OfferCode#returning_customer?: a qualifying purchase from this seller by account, or by the checkout email.
-  async returningCustomer(purchaserIds: Array<bigint | number | null>, emails: Array<string | null>): Promise<boolean> {
+  async returningCustomer(purchaserIds: (bigint | number | null)[], emails: (string | null)[]): Promise<boolean> {
     const ids = [...new Set(purchaserIds.filter((id): id is bigint | number => id !== null).map(String))];
     const addresses = [...new Set(emails.filter((email): email is string => email != null && email.trim() !== ""))];
     const exists = async (condition: Prisma.Sql) =>
@@ -297,7 +337,12 @@ export class OfferCodeRecord {
   }
 
   // OfferCode#evaluate_for_buyer: the discount this code gives the buyer, or null.
-  async evaluateForBuyer(buyer: User | null, product: Link, fallbackCreatedAt: Date | null, now: Date): Promise<Discount | null> {
+  async evaluateForBuyer(
+    buyer: User | null,
+    product: Link,
+    fallbackCreatedAt: Date | null,
+    now: Date,
+  ): Promise<Discount | null> {
     const reference = await this.ownershipReferenceProducts(product);
     const tiered = this.tiered();
     let months: number | null = null;
@@ -383,12 +428,18 @@ export class VariantRecord {
 
 // OfferCode#applicable_to_variants?: every picked option in a category the code limits is one it
 // is limited to. `picked` are the purchase's options (BaseVariant rows).
-export async function applicableToVariants(code: OfferCodeRecord, product: Link, picked: () => Promise<VariantRecord[]>): Promise<boolean> {
+export async function applicableToVariants(
+  code: OfferCodeRecord,
+  product: Link,
+  picked: () => Promise<VariantRecord[]>,
+): Promise<boolean> {
   const restricted = await code.restrictedVariantsFor(product);
   if (restricted.length === 0) return true;
 
   const restrictedIds = restricted.map((variant) => String(variant.row.id));
   const restrictedCategoryIds = new Set(restricted.map((variant) => String(variant.row.variant_category_id)));
-  const scoped = (await picked()).filter((variant) => restrictedCategoryIds.has(String(variant.row.variant_category_id)));
+  const scoped = (await picked()).filter((variant) =>
+    restrictedCategoryIds.has(String(variant.row.variant_category_id)),
+  );
   return scoped.length > 0 && scoped.every((variant) => restrictedIds.includes(String(variant.row.id)));
 }
