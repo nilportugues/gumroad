@@ -119,6 +119,15 @@ describe "API v2 MCP and Notion", type: :request do
       call_tool("get_sales_totals", { start_date: "2024-01-01", end_date: "2026-03-31" })
     end
 
+    it "reports a sales totals product that does not exist as a tool error", parity: true do
+      call_tool("get_sales_totals", { start_date: "2026-03-01", end_date: "2026-03-31", product_id: "nope" })
+    end
+
+    it "reports a sales totals product that was deleted as a tool error", parity: true do
+      deleted = create(:product, user: seller, name: "Old pack", unique_permalink: "oldpack", deleted_at: Time.utc(2026, 3, 10))
+      call_tool("get_sales_totals", { start_date: "2026-03-01", end_date: "2026-03-31", product_id: deleted.unique_permalink })
+    end
+
     it "hands back a sales totals breakdown by country", parity: true do
       call_tool("get_sales_totals", { start_date: "2026-03-01", end_date: "2026-03-31", breakdown: "country" })
     end
