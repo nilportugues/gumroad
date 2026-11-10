@@ -13,6 +13,7 @@ import "@/server/controllers/events-mutations";
 import "@/server/controllers/customer-surcharge";
 import "@/server/controllers/wishlists-mutations";
 import "@/server/controllers/customer-actions";
+import "@/server/controllers/purchase-access-writes";
 import "@/server/controllers/product-review-responses";
 import "@/server/controllers/shipments";
 import "@/server/controllers/imported-customers";

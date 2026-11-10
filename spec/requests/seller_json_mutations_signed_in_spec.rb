@@ -201,4 +201,82 @@ describe "Customer actions when signed in", type: :request, elasticsearch_wait_f
       expect(other.reload.uses).to eq(2)
     end
   end
+
+  describe "revoking access to a purchase" do
+    let(:product) { create(:product, user: seller) }
+    let(:purchase) do
+      build(:purchase, link: product, seller:, purchase_state: "successful").tap { |record| record.save!(validate: false) }
+    end
+
+    it "revokes access", parity: true do
+      log_in(seller)
+
+      send_json(:put, revoke_access_purchase_path(purchase.external_id))
+
+      expect(response).to have_http_status(:no_content)
+      expect(purchase.reload.is_access_revoked).to eq(true)
+    end
+
+    it "restores access", parity: true do
+      purchase.update!(is_access_revoked: true)
+      log_in(seller)
+
+      send_json(:put, undo_revoke_access_purchase_path(purchase.external_id))
+
+      expect(response).to have_http_status(:no_content)
+      expect(purchase.reload.is_access_revoked).to eq(false)
+    end
+
+    it "does not revoke access that is already revoked", parity: true do
+      purchase.update!(is_access_revoked: true)
+      log_in(seller)
+
+      send_json(:put, revoke_access_purchase_path(purchase.external_id))
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "does not restore access that was never revoked", parity: true do
+      log_in(seller)
+
+      send_json(:put, undo_revoke_access_purchase_path(purchase.external_id))
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "does not revoke access to a refunded purchase", parity: true do
+      purchase.update!(stripe_refunded: true)
+      log_in(seller)
+
+      send_json(:put, revoke_access_purchase_path(purchase.external_id))
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "lets a support team member revoke access", parity: true do
+      as_team_member(:support)
+
+      send_json(:put, revoke_access_purchase_path(purchase.external_id))
+
+      expect(response).to have_http_status(:no_content)
+    end
+
+    it "does not let a marketing team member revoke access", parity: true do
+      as_team_member(:marketing)
+
+      send_json(:put, revoke_access_purchase_path(purchase.external_id))
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "answers 404 for another seller's purchase", parity: true do
+      other = build(:purchase, link: create(:product), purchase_state: "successful").tap { |record| record.save!(validate: false) }
+      log_in(seller)
+
+      send_json(:put, revoke_access_purchase_path(other.external_id))
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body).to eq("success" => false, "error" => "Not found")
+    end
+  end
 end
