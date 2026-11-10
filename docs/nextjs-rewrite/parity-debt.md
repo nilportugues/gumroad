@@ -115,6 +115,7 @@ hand-back of `RemoveSuspendedAccountFollowsWorker` is `Follower#mark_deleted!` (
 `delete-expired-oauth-device-authorizations-job.golden.json` was recorded on lane 20 (`gumroad_test_20`, Redis 36-39, `PARITY_ES_INDEX_SUFFIX=-c20`). `DeleteExpiredOauthDeviceAuthorizationsJob` has no hand-back; no debt line was open for it.
 
 `flush-delivered-email-infos-job.golden.json` was recorded on lane 20 (`gumroad_test_20`, Redis 37 for `REDIS_HOST` and `SIDEKIQ_REDIS_HOST`, `PARITY_ES_INDEX_SUFFIX=-c20`); its replay needs `JOBS_REDIS_URL` and is skipped without it. The one hand-back of `FlushDeliveredEmailInfosJob` is a buffer entry that is not `{i, p, t}` integers (never written by `EmailInfo.buffer_delivered`); no debt line was open for it.
+`DELETE /v2/products/:link_id/variant_categories/:id` (`nextjs_api_v2_products`) runs in Node, audit row included (see "Variant category destroy" in workstreams.md). Three examples in `products_api_resource_writes_parity_spec.rb`, recorded on lane 16 (`gumroad_test_16`, Redis 61-63, `PARITY_ES_INDEX_SUFFIX=-c16`) and replayed in `api-v2-products` (66 tests pass); with `routes.json` reverted three of them fail. No debt line was open for it.
 
 `PUT|PATCH /mobile/licenses/:id` no longer hands back an `enabled` that is an array or hash: Rails' boolean cast turns it into true (lane 16, Redis 60-64; example
 "enables a disabled license when enabled is an array" recorded and replayed in `mobile-api.replay.test.ts`). No debt line was open for it.

@@ -1,13 +1,14 @@
 // Api::V2::CustomFieldsController and VariantCategoriesController: the writes Node serves. Anything it cannot prove (a parameter that is
-// not a string) goes to Rails before the first write. DELETE of a variant category stays in Rails: it writes a ProductVariantDeletionAudit row.
+// not a string) goes to Rails before the first write.
 import type { CustomField, Link } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
 import { invalidateProductCache } from "../../models/link.ts";
+import { recordVariantCategoryDeletion, requestIdOf } from "../../models/product-variant-deletion-audit.ts";
 import { NotPortedError } from "../../page-props/not-ported.ts";
 import { type ApiV2Input, EDIT_PRODUCTS_SCOPES, errorWithCreatingObject, errorWithObject, loadProduct, registerApiV2, successWithObject } from "./base.ts";
 import { findVariantCategory, productCustomFields } from "./product-resources.ts";
-import { customFieldJson, variantCategoryJson } from "./records.ts";
+import { customFieldJson, externalId, variantCategoryJson } from "./records.ts";
 
 const productOf = (input: ApiV2Input): Link => input.state.product;
 
@@ -160,7 +161,35 @@ registerApiV2(
     run: updateVariantCategory,
   },
   { method: "PUT", pattern: "/v2/products/:link_id/variant_categories/:id", scopes: EDIT_PRODUCTS_SCOPES, before: loadVariantCategoryForWrite, run: updateVariantCategory },
+  { method: "DELETE", pattern: "/v2/products/:link_id/variant_categories/:id", scopes: EDIT_PRODUCTS_SCOPES, before: loadVariantCategoryForWrite, run: destroyVariantCategory },
 );
+
+// Soft-deletes the grouping only: its versions stay alive, as in Rails. The deleted_at is re-read under the row lock so a retry or a
+// concurrent DELETE that lost the race records no second audit row.
+async function destroyVariantCategory(input: ApiV2Input) {
+  const category = input.state.variantCategory;
+  const link = productOf(input);
+  const now = new Date();
+  const aliveChildVariantCount = await db.$transaction(async (tx) => {
+    const [locked] = await tx.$queryRaw<{ deleted_at: Date | null }[]>`SELECT deleted_at FROM variant_categories WHERE id = ${category.id} FOR UPDATE`;
+    if (locked === undefined || locked.deleted_at !== null) return null;
+    const count = await tx.baseVariant.count({ where: { type: "Variant", variant_category_id: category.id, deleted_at: null } });
+    await tx.variantCategory.update({ where: { id: category.id }, data: { deleted_at: now } });
+    await tx.link.update({ where: { id: link.id }, data: { updated_at: now } });
+    return count;
+  });
+  if (aliveChildVariantCount !== null) {
+    await invalidateProductCache(link.id);
+    await recordVariantCategoryDeletion(db, {
+      actorUserId: input.owner.id,
+      productId: link.id,
+      deletedCategoryExternalId: externalId(category.id),
+      aliveChildVariantCount,
+      requestId: requestIdOf(input.request.headers.get("x-request-id")),
+    });
+  }
+  return successWithObject("variant_category", null);
+}
 
 async function loadVariantCategoryForWrite(input: ApiV2Input) {
   const halted = await loadProduct("link_id")(input);
