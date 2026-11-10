@@ -77,4 +77,14 @@ describe("DeleteProductFilesArchivesWorker", () => {
       expect(sql.log).toEqual([]);
     });
   }
+
+  it("raises Ruby's NoMethodError and RecordNotFound for a variant with no category or a category with no product", () => {
+    const failures = golden.cases.filter((c) => c.name.includes("category") && c.error !== null);
+    expect(failures.map((c) => c.error?.class)).toEqual([
+      "NoMethodError",
+      "NoMethodError",
+      "ActiveRecord::RecordNotFound",
+      "NoMethodError",
+    ]);
+  });
 });
