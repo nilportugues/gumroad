@@ -161,6 +161,17 @@ describe "Product page", type: :request do
       expect(inertia_props_of(response)["product"]).to include("name" => "Digital thing", "price_cents" => 500)
     end
 
+    it "renders an ebook with its book files in the structured data", parity: true do
+      product = create(:product_with_pdf_file, user: seller, name: "Ebook thing", price_cents: 500, native_type: Link::NATIVE_TYPE_EBOOK)
+      product.alive_product_files.first.update!(isbn: "978-3-16-148410-0")
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["product"]["native_type"]).to eq("ebook")
+      expect(response.body).to include("workExample")
+    end
+
     it "renders a product by its custom permalink", parity: true do
       create(:product, user: seller, name: "Custom", custom_permalink: "custom-one")
 

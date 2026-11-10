@@ -61,6 +61,7 @@ type Case = { name: string; file: string; index: number; served: boolean; status
 const RENDERED = new Set(
   [
     "renders-a-digital-product",
+    "renders-an-ebook-with-its-book-files-in-the-structured-data",
     "renders-a-product-by-its-custom-permalink",
     "renders-a-tiered-membership-with-its-tiers",
     "renders-a-membership-with-a-free-trial",
