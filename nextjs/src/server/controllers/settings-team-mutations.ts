@@ -2,7 +2,7 @@
 // (app/controllers/settings/). All are Sellers::BaseController JSON actions, so a request that does not ask for JSON goes to Rails.
 //
 // Handed to Rails before the first write: a membership change that fails validation (Rails raises RecordInvalid, a 500), a missing
-// `team_membership` hash or a role that is not a string, and the removal of a member of the Gumroad account, whose user update
+// `team_membership` hash or a scalar role that is not a string (an array or hash role is dropped by `permit`), and the removal of a member of the Gumroad account, whose user update
 // runs the whole User save.
 import { decrypt } from "../../lib/obfuscate-ids.ts";
 
@@ -71,10 +71,13 @@ function memberAction(input: MutationInput, query: (context: SellerContext, memb
 }
 
 // `params.require(:team_membership).permit(:role)`
-function permittedRole(params: Record<string, unknown>): { role?: string } {
+export function permittedRole(params: Record<string, unknown>): { role?: string } {
   const value = params.team_membership;
   if (!isHash(value) || Object.keys(value).length === 0) throw new HandBackToRails("a request without a team_membership hash");
   if (!("role" in value)) return {};
+  // `permit` drops an array or hash under a scalar key, so `update!({})` changes nothing.
+  if (Array.isArray(value.role) || isHash(value.role)) return {};
+  // A number, boolean or nil casts to a string outside ROLES: the inclusion validation raises RecordInvalid, which hands back.
   if (typeof value.role !== "string") throw new HandBackToRails("a role that is not a string");
   return { role: value.role };
 }
