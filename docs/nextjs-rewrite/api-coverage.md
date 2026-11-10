@@ -16,7 +16,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | Namespace | Routes | Native | Hands back | Not registered | Unresolved |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 78 | 0 | 60 | 0 |
-| Mobile API (`/mobile` on the API host) | 64 | 33 | 0 | 31 | 0 |
+| Mobile API (`/mobile` on the API host) | 64 | 34 | 0 | 30 | 0 |
 | Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 17 | 0 | 65 | 3 |
 | Internal API, Gumroad domain (`/internal`, JSON for the React Router pages) | 23 | 11 | 0 | 12 | 0 |
 
@@ -195,7 +195,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `POST /mobile/sales/:id/resend_ping` | `Api::Mobile::SalesController#resend_ping` | not registered | - | n |
 | `GET /mobile/sales/:id/missed_posts` | `Api::Mobile::SalesController#missed_posts` | not registered | - | n |
 | `GET /mobile/sales/:id/product_purchases` | `Api::Mobile::SalesController#product_purchases` | not registered | - | n |
-| `GET /mobile/sales/:id/options` | `Api::Mobile::SalesController#options` | not registered | - | n |
+| `GET /mobile/sales/:id/options` | `Api::Mobile::SalesController#options` | native | `nextjs_mobile_sales` | y |
 | `PUT /mobile/sales/:id/variant` | `Api::Mobile::SalesController#variant` | not registered | - | n |
 | `POST /mobile/sales/:id/send_post` | `Api::Mobile::SalesController#send_post` | not registered | - | n |
 | `PUT /mobile/sales/:id/review_response` | `Api::Mobile::SalesController#update_review_response` | not registered | - | n |

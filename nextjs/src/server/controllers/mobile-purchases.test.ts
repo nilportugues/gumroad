@@ -2,11 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { MobileAction, MobileAuth, MobileInput } from "./mobile-api.ts";
 
-const { actions, selectRows, process, creatorAppPurchasesJson } = vi.hoisted(() => ({
+const { actions, selectRows, process, creatorAppPurchasesJson, findLink, linkOptions } = vi.hoisted(() => ({
   actions: [] as MobileAction[],
   selectRows: vi.fn(),
   process: vi.fn(),
   creatorAppPurchasesJson: vi.fn(),
+  findLink: vi.fn(),
+  linkOptions: vi.fn(),
 }));
 
 vi.mock("./mobile-api.ts", async (original) => ({
@@ -18,6 +20,8 @@ vi.mock("../models/sql.ts", async (original) => ({
   selectRows,
 }));
 vi.mock("../presenters/mobile-serializer-reads.ts", () => ({ creatorAppPurchasesJson }));
+vi.mock("../presenters/product-reads.ts", () => ({ findLink }));
+vi.mock("../presenters/product-props.ts", () => ({ linkOptions }));
 vi.mock("../search/purchase-search.ts", () => ({ PurchaseSearchService: { process } }));
 vi.mock("../../lib/obfuscate-ids.ts", () => ({
   decrypt: (value: string) => (/^\d+$/u.test(value) ? Number(value) : null),
@@ -38,6 +42,8 @@ beforeEach(() => {
   selectRows.mockReset();
   process.mockReset();
   creatorAppPurchasesJson.mockReset();
+  findLink.mockReset();
+  linkOptions.mockReset();
 });
 
 describe("registration", () => {
@@ -51,6 +57,7 @@ describe("registration", () => {
       ["DELETE", "/mobile/purchases/:id"],
       ["GET", "/mobile/sales"],
       ["GET", "/mobile/sales/:id"],
+      ["GET", "/mobile/sales/:id/options"],
     ] as const) {
       expect(find(method, pattern).scopes).toEqual(["mobile_api"]);
     }
@@ -209,5 +216,50 @@ describe("GET /mobile/sales/:id", () => {
   it("hands the blob_url collection route to Rails", async () => {
     await expect(run(input({ id: "blob_url" }), authFor())).rejects.toThrow();
     expect(selectRows).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /mobile/sales/:id/options", () => {
+  const run = find("GET", "/mobile/sales/:id/options").run;
+
+  it("answers 404 for a sale that is not the seller's, without reading the product", async () => {
+    selectRows.mockResolvedValue([]);
+    const result = await run(input({ id: "9" }), authFor());
+    expect(status(result)).toBe(404);
+    expect(body(result)).toEqual({ success: false, message: "Could not find purchase" });
+    expect(findLink).not.toHaveBeenCalled();
+  });
+
+  it("answers 404 for an id that does not decrypt, without querying", async () => {
+    const result = await run(input({ id: "not-an-id" }), authFor());
+    expect(status(result)).toBe(404);
+    expect(selectRows).not.toHaveBeenCalled();
+  });
+
+  it("answers 404 when the sale's product is gone", async () => {
+    selectRows.mockResolvedValue([{ link_id: 5n }]);
+    findLink.mockResolvedValue(null);
+    const result = await run(input({ id: "9" }), authFor());
+    expect(status(result)).toBe(404);
+    expect(body(result)).toEqual({ success: false, message: "Could not find product" });
+  });
+
+  it("answers 404 for a sale with no product id", async () => {
+    selectRows.mockResolvedValue([{ link_id: null }]);
+    const result = await run(input({ id: "9" }), authFor());
+    expect(body(result).message).toBe("Could not find product");
+    expect(findLink).not.toHaveBeenCalled();
+  });
+
+  it("answers the product's options", async () => {
+    const link = { id: 5n };
+    selectRows.mockResolvedValue([{ link_id: 5n }]);
+    findLink.mockResolvedValue(link);
+    linkOptions.mockResolvedValue([{ id: "o1", name: "Basic" }]);
+    const result = await run(input({ id: "9" }), authFor());
+    expect(status(result)).toBe(200);
+    expect(body(result)).toEqual({ success: true, options: [{ id: "o1", name: "Basic" }] });
+    expect(findLink).toHaveBeenCalledWith(5n);
+    expect(linkOptions).toHaveBeenCalledWith(link);
   });
 });
