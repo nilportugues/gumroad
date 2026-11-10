@@ -31,7 +31,7 @@ async function hasAliveWishlistProducts(wishlist: ModelRecord<Wishlist>, ctx: Ca
 }
 
 // update_recommendable(save: false); the && chain short-circuits before the products query.
-async function assignRecommendable(wishlist: ModelRecord<Wishlist>, ctx: CallbackContext): Promise<void> {
+export async function assignRecommendable(wishlist: ModelRecord<Wishlist>, ctx: CallbackContext): Promise<void> {
   const recommendable =
     !isDiscoverOptedOut(wishlist) &&
     !DEFAULT_NAME_MATCHER.test(wishlist.get("name")) &&

@@ -82,8 +82,7 @@ Goldens built on `scripts/golden/support/rails_cases.rb` (e.g. `payment-processo
 (a lane's `gumroad_test_<N>`); `payment-processor-jobs.golden.json` was regenerated that way on lane 16 with three new threshold cases.
 No debt line was open for the sales-threshold hand-back, so none was closed.
 
-`delete-wishlist-products-job.golden.json` was recorded on lane 15 (`gumroad_test_15`, Redis 56-59). The one remaining hand-back of
-`DeleteWishlistProductsJob` is `WishlistProduct#mark_deleted!` (its save re-runs `Wishlist#update_recommendable`); no debt line was open for it.
+`delete-wishlist-products-job.golden.json` was re-recorded on lane 17 (`gumroad_test_17`, Redis 47) with the real `WishlistProduct#mark_deleted!`; the job runs in Node. Left: a wishlist product with a variant, recurrence, quantity above one or rent, or of a rentable or recurring product (the unported `WishlistProduct` validations) hands back.
 
 `discover_parity_spec.rb` gained two affiliate-cookie examples (`?affiliate_id=` on the root page, `?a=` of a global affiliate on a search box visit), recorded on lane 16 (`gumroad_test_16`, Redis 61-63, replay Redis 60, `PARITY_ES_INDEX_SUFFIX=-c16`); `discover.replay.test.ts` checks the cookie value is the replay's own second, as `ws12b.replay` does. They close the discover affiliate-param hand-back; no debt line was open for it.
 
