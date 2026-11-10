@@ -22,8 +22,12 @@ const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/5";
 // Controller specs record no Rack middleware (no session or CSRF cookies); the request specs (spec/requests/api/internal/admin_*_parity_spec.rb) do.
 const CONTROLLER_ROOT = "parity/fixtures/controllers/api/internal/admin";
 const REQUEST_ROOT = "parity/fixtures/requests/api/internal";
-const CONTROLLER_DIRS = (process.env.WS17E_SPECS?.split(",") ?? readdirSync(CONTROLLER_ROOT)).filter((dir) => existsSync(path.join(CONTROLLER_ROOT, dir)));
-const REQUEST_DIRS = existsSync(REQUEST_ROOT) ? readdirSync(REQUEST_ROOT).filter((dir) => /^admin_.*_parity_spec$/.test(dir)) : [];
+const CONTROLLER_DIRS = (process.env.WS17E_SPECS?.split(",") ?? readdirSync(CONTROLLER_ROOT)).filter((dir) =>
+  existsSync(path.join(CONTROLLER_ROOT, dir)),
+);
+const REQUEST_DIRS = existsSync(REQUEST_ROOT)
+  ? readdirSync(REQUEST_ROOT).filter((dir) => /^admin_.*_parity_spec$/.test(dir))
+  : [];
 // The controller specs stub GUMROAD_ADMIN_ID to a fresh user's id, which a replayed server cannot reproduce: the request spec covers the legacy token.
 const LEGACY_TOKEN_CASE = /legacy|configured-bearer-token|rotation-point/;
 // Examples that change the world from inside the request (a stubbed lookup that approves the record after it was loaded): only Ruby can replay them.
@@ -61,7 +65,10 @@ const COMPARE = {
 };
 
 // A controller spec that sets the Authorization header to nil is recorded with an empty one.
-const withApiHost = (headers: Record<string, string>): Record<string, string> => Object.fromEntries(Object.entries({ ...headers, host: API_HOST }).filter(([name, value]) => name !== "authorization" || value !== ""));
+const withApiHost = (headers: Record<string, string>): Record<string, string> =>
+  Object.fromEntries(
+    Object.entries({ ...headers, host: API_HOST }).filter(([name, value]) => name !== "authorization" || value !== ""),
+  );
 
 type SidekiqItem = { class: string; args: unknown[]; queue: string };
 
@@ -75,7 +82,8 @@ function redisJobs(redis: Redis): JobsChannel {
         const data = await redis.hget(key, "data");
         if (data !== null) items.push(JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as SidekiqItem);
       }
-      for (const key of await redis.keys("queue:*")) for (const raw of await redis.lrange(key, 0, -1)) items.push(JSON.parse(raw) as SidekiqItem);
+      for (const key of await redis.keys("queue:*"))
+        for (const raw of await redis.lrange(key, 0, -1)) items.push(JSON.parse(raw) as SidekiqItem);
       return items.map((item) => ({ class: item.class, args: item.args, queue: item.queue }));
     },
   };
@@ -91,21 +99,37 @@ const CURSOR_PAGE_NOW = Date.parse("2026-11-02T02:21:09Z");
 const SERVED_ROUTES = Object.keys(JSON.parse(readFileSync("routes.json", "utf8")) as Record<string, unknown>)
   .filter((key) => /^((GET|POST|PUT|PATCH|DELETE) )?api:\/internal\/admin\//.test(key))
   .map((key) => {
-    const [method, route] = (/^[A-Z]+ /.test(key) ? [key.split(" ")[0]!, key.split(" ")[1]!] : ["GET", key]) as [string, string];
+    const [method, route] = (/^[A-Z]+ /.test(key) ? [key.split(" ")[0]!, key.split(" ")[1]!] : ["GET", key]) as [
+      string,
+      string,
+    ];
     return { method, regexp: new RegExp(`^${route.replace(/^api:/, "").replace(/:[a-z_]+/g, "[^/.?]+")}$`) };
   })
-  .map(({ method, regexp }) => {
-    return { method, regexp };
-  });
-const served = (method: string, requestPath: string) => SERVED_ROUTES.some((route) => route.method === method && route.regexp.test(requestPath));
+  .map(({ method, regexp }) => ({ method, regexp }));
+const served = (method: string, requestPath: string) =>
+  SERVED_ROUTES.some((route) => route.method === method && route.regexp.test(requestPath));
 const casesIn = (root: string, dirs: string[], fromRequestSpec: boolean) =>
   dirs.flatMap((dir) =>
     readdirSync(path.join(root, dir))
-      .filter((file) => file.endsWith(".json") && (fromRequestSpec || !LEGACY_TOKEN_CASE.test(file)) && !MID_REQUEST_RACE_CASE.test(file))
+      .filter(
+        (file) =>
+          file.endsWith(".json") &&
+          (fromRequestSpec || !LEGACY_TOKEN_CASE.test(file)) &&
+          !MID_REQUEST_RACE_CASE.test(file),
+      )
       .flatMap((file) => {
         const fixturePath = path.join(root, dir, file);
         return loadFixture(fixturePath).exchanges.flatMap((exchange, index) =>
-          !served(exchange.request.method, exchange.request.path) ? [] : [[`${dir.replace(/_spec$/, "")}: ${file.replace(/\.json$/, "")} #${index + 1}`, fixturePath, index, fromRequestSpec] as const],
+          !served(exchange.request.method, exchange.request.path)
+            ? []
+            : [
+                [
+                  `${dir.replace(/_spec$/, "")}: ${file.replace(/\.json$/, "")} #${index + 1}`,
+                  fixturePath,
+                  index,
+                  fromRequestSpec,
+                ] as const,
+              ],
         );
       }),
   );
@@ -118,7 +142,11 @@ const webCases = WEB_DIRS.flatMap((dir) =>
     .filter((file) => file.endsWith(".json"))
     .map((file) => {
       const fixturePath = path.join(WEB_ROOT, dir, file);
-      return [`${dir.replace(/_spec$/, "")}: ${file.replace(/\.json$/, "")}`, fixturePath, loadFixture(fixturePath).exchanges.length - 1] as const;
+      return [
+        `${dir.replace(/_spec$/, "")}: ${file.replace(/\.json$/, "")}`,
+        fixturePath,
+        loadFixture(fixturePath).exchanges.length - 1,
+      ] as const;
     })
     .filter(([, fixturePath, index]) => WEB_SERVED.test(loadFixture(fixturePath).exchanges[index]!.request.path)),
 );
@@ -206,7 +234,12 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
       try {
         assertParity(result);
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => !/built-in version of this loader|^\s*$/.test(line)).slice(-40).join("\n");
+        const logs = server
+          .output()
+          .split("\n")
+          .filter((line) => !/built-in version of this loader|^\s*$/.test(line))
+          .slice(-40)
+          .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
     },
@@ -222,29 +255,52 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
         transport: httpTransport(server.baseUrl),
         interceptHttp: false,
         rewriteRequest: (request, fixture, now) => reencryptCookies(request, fixture, SERVER_SECRET!, now),
-        compare: { ignore: [...COMPARE.ignore, "response.cookies._gumroad_app_session_test.value", "response.cookies.current_seller_id.value", "response.body", "db.users.updated.*.changes.updated_at"] },
+        compare: {
+          ignore: [
+            ...COMPARE.ignore,
+            "response.cookies._gumroad_app_session_test.value",
+            "response.cookies.current_seller_id.value",
+            "response.body",
+            "db.users.updated.*.changes.updated_at",
+          ],
+        },
       });
       try {
         assertParity(result);
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => !/built-in version of this loader|^\s*$/.test(line)).slice(-40).join("\n");
+        const logs = server
+          .output()
+          .split("\n")
+          .filter((line) => !/built-in version of this loader|^\s*$/.test(line))
+          .slice(-40)
+          .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
     },
     FIRST_COMPILE_TIMEOUT_MS,
   );
 
-  it("serves the /api prefix of the Gumroad host through the same handlers", async () => {
-    const fixturePath = cases.find(([name]) => name.includes("whoami") && name.includes("returns-the-authenticated"))?.[1];
-    if (fixturePath === undefined) return;
-    const result = await replayFixtureExchange(fixturePath, 0, {
-      sql,
-      redis: redisSeeder(redis),
-      transport: httpTransport(server.baseUrl),
-      interceptHttp: false,
-      rewriteRequest: (request) => ({ ...request, path: `/api${request.path}`, headers: { ...request.headers, host: "app.test.gumroad.com:31337" } }),
-      compare: { ignore: [...COMPARE.ignore, "response.cookies"] },
-    });
-    assertParity(result);
-  }, FIRST_COMPILE_TIMEOUT_MS);
+  it(
+    "serves the /api prefix of the Gumroad host through the same handlers",
+    async () => {
+      const fixturePath = cases.find(
+        ([name]) => name.includes("whoami") && name.includes("returns-the-authenticated"),
+      )?.[1];
+      if (fixturePath === undefined) return;
+      const result = await replayFixtureExchange(fixturePath, 0, {
+        sql,
+        redis: redisSeeder(redis),
+        transport: httpTransport(server.baseUrl),
+        interceptHttp: false,
+        rewriteRequest: (request) => ({
+          ...request,
+          path: `/api${request.path}`,
+          headers: { ...request.headers, host: "app.test.gumroad.com:31337" },
+        }),
+        compare: { ignore: [...COMPARE.ignore, "response.cookies"] },
+      });
+      assertParity(result);
+    },
+    FIRST_COMPILE_TIMEOUT_MS,
+  );
 });

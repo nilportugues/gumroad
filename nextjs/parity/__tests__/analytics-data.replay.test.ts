@@ -10,7 +10,14 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { closeAllRedis } from "@/server/infra/redis";
 
 import { prismaExecutor, type SqlExecutor } from "../src/db";
-import { bulkIndex, ELASTICSEARCH_HOST, recreateIndex, reindexPurchases, replayIndexName, seededDocuments } from "../src/elasticsearch";
+import {
+  bulkIndex,
+  ELASTICSEARCH_HOST,
+  recreateIndex,
+  reindexPurchases,
+  replayIndexName,
+  seededDocuments,
+} from "../src/elasticsearch";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
@@ -70,7 +77,14 @@ const cases = SPECS.flatMap((spec) => {
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
     .filter((file) => file.endsWith(".json"))
-    .map((file) => [`${spec}: ${file.replace(/\.json$/, "")}`, path.join(dir, file), loadFixture(path.join(dir, file)).exchanges.length - 1] as const);
+    .map(
+      (file) =>
+        [
+          `${spec}: ${file.replace(/\.json$/, "")}`,
+          path.join(dir, file),
+          loadFixture(path.join(dir, file)).exchanges.length - 1,
+        ] as const,
+    );
 });
 
 describe.skipIf(!url)("analytics data parity when signed in", () => {
@@ -84,7 +98,9 @@ describe.skipIf(!url)("analytics data parity when signed in", () => {
 
   beforeAll(async () => {
     // Stands in for the Rails app: a request the port hands back lands here and fails the comparison.
-    rails = createServer((_request, response) => void response.writeHead(200, { "content-type": "text/plain" }).end("rails answered"));
+    rails = createServer(
+      (_request, response) => void response.writeHead(200, { "content-type": "text/plain" }).end("rails answered"),
+    );
     await new Promise<void>((resolve) => rails.listen(0, "127.0.0.1", resolve));
     const railsOrigin = `http://127.0.0.1:${(rails.address() as { port: number }).port}`;
     process.env.DATABASE_URL = url;
@@ -143,9 +159,16 @@ describe.skipIf(!url)("analytics data parity when signed in", () => {
         async reset(entries, exchange, now) {
           await redisSeeder(redis).reset(entries);
           if (!exchange || !now) return;
-          const views = { model: "ProductPageView", name: replayIndexName("product_page_views", ES_INDEX_SUFFIX) } as const;
+          const views = {
+            model: "ProductPageView",
+            name: replayIndexName("product_page_views", ES_INDEX_SUFFIX),
+          } as const;
           await recreateIndex(es, views);
-          await bulkIndex(es, views.name, seededDocuments(exchange, "ProductPageView", now).map((body) => ({ body })));
+          await bulkIndex(
+            es,
+            views.name,
+            seededDocuments(exchange, "ProductPageView", now).map((body) => ({ body })),
+          );
           const purchases = { model: "Purchase", name: replayIndexName("purchases", ES_INDEX_SUFFIX) } as const;
           await recreateIndex(es, purchases);
           await reindexPurchases(es, purchases.name, sql);
@@ -160,15 +183,19 @@ describe.skipIf(!url)("analytics data parity when signed in", () => {
     });
 
   // The first request to a route compiles it, which would age the seeded timestamps past the replayer's tolerance.
-  it("warms up the routes", async () => {
-    const warmed = new Set<string>();
-    for (const [, file, index] of cases) {
-      const route = loadFixture(file).exchanges.at(index)!.request.path.replace(/[?].*/, "");
-      if (warmed.has(route)) continue;
-      warmed.add(route);
-      await replay(file, index).catch(() => undefined);
-    }
-  }, FIRST_COMPILE_TIMEOUT_MS * 3);
+  it(
+    "warms up the routes",
+    async () => {
+      const warmed = new Set<string>();
+      for (const [, file, index] of cases) {
+        const route = loadFixture(file).exchanges.at(index)!.request.path.replace(/[?].*/, "");
+        if (warmed.has(route)) continue;
+        warmed.add(route);
+        await replay(file, index).catch(() => undefined);
+      }
+    },
+    FIRST_COMPILE_TIMEOUT_MS * 3,
+  );
 
   it.each(cases)(
     "%s",
@@ -177,9 +204,15 @@ describe.skipIf(!url)("analytics data parity when signed in", () => {
         const result = await replay(file, index);
         assertParity(result);
         const { expected, actual } = result.exchanges[0]!;
-        if (_name.startsWith("analytics_data_signed_in_spec")) expect(withoutNextVary(actual.response.headers.vary)).toBe(expected.response.headers.vary);
+        if (_name.startsWith("analytics_data_signed_in_spec"))
+          expect(withoutNextVary(actual.response.headers.vary)).toBe(expected.response.headers.vary);
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => /error|Error|at /.test(line)).slice(-25).join("\n");
+        const logs = server
+          .output()
+          .split("\n")
+          .filter((line) => /error|Error|at /.test(line))
+          .slice(-25)
+          .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
     },

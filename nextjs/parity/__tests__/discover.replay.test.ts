@@ -10,7 +10,15 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { closeAllRedis } from "@/server/infra/redis";
 
 import { prismaExecutor, type SqlExecutor } from "../src/db";
-import { bulkIndex, ELASTICSEARCH_HOST, recreateIndex, reindexProducts, reindexPurchases, replayIndexName, seededDocuments } from "../src/elasticsearch";
+import {
+  bulkIndex,
+  ELASTICSEARCH_HOST,
+  recreateIndex,
+  reindexProducts,
+  reindexPurchases,
+  replayIndexName,
+  seededDocuments,
+} from "../src/elasticsearch";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
@@ -25,7 +33,8 @@ const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests/discover_parity_spec";
 // A signed-in seller is the service's current_seller, and a buyer's cart or purchases make curated products. The
 // category wishlists example seeds no taxonomy on its products, so Rails fails on the empty `FIELD(id, )` list.
-const HANDED_BACK = /signed-in-answers-the-deferred-recommended-wishlists|buyer-who-has-purchased|wishlists-for-a-category/;
+const HANDED_BACK =
+  /signed-in-answers-the-deferred-recommended-wishlists|buyer-who-has-purchased|wishlists-for-a-category/;
 const RAILS_ANSWER = "rails answered";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
@@ -65,7 +74,14 @@ const COMPARE = {
 const cases = existsSync(FIXTURES)
   ? readdirSync(FIXTURES)
       .filter((file) => file.endsWith(".json"))
-      .map((file) => [file.replace(/\.json$/, ""), path.join(FIXTURES, file), loadFixture(path.join(FIXTURES, file)).exchanges.length - 1] as const)
+      .map(
+        (file) =>
+          [
+            file.replace(/\.json$/, ""),
+            path.join(FIXTURES, file),
+            loadFixture(path.join(FIXTURES, file)).exchanges.length - 1,
+          ] as const,
+      )
   : [];
 
 describe.skipIf(!url)("Discover parity", () => {
@@ -144,9 +160,16 @@ describe.skipIf(!url)("Discover parity", () => {
               await recreateIndex(es, products);
               await reindexProducts(es, products.name, sql);
               // Autocomplete history and recently viewed read the visitor's page views.
-              const views = { model: "ProductPageView", name: replayIndexName("product_page_views", ES_INDEX_SUFFIX) } as const;
+              const views = {
+                model: "ProductPageView",
+                name: replayIndexName("product_page_views", ES_INDEX_SUFFIX),
+              } as const;
               await recreateIndex(es, views);
-              await bulkIndex(es, views.name, seededDocuments(exchange, "ProductPageView", now).map((body) => ({ body })));
+              await bulkIndex(
+                es,
+                views.name,
+                seededDocuments(exchange, "ProductPageView", now).map((body) => ({ body })),
+              );
             },
           },
           transport: httpTransport(server.baseUrl),
@@ -155,13 +178,21 @@ describe.skipIf(!url)("Discover parity", () => {
           compare: COMPARE,
         });
         if (HANDED_BACK.test(name)) {
-          expect(railsRequests.at(-1)).toMatchObject({ method: "GET", url: `${result.exchanges[0]!.expected.request.path}${result.exchanges[0]!.expected.request.query ? `?${result.exchanges[0]!.expected.request.query}` : ""}` });
+          expect(railsRequests.at(-1)).toMatchObject({
+            method: "GET",
+            url: `${result.exchanges[0]!.expected.request.path}${result.exchanges[0]!.expected.request.query ? `?${result.exchanges[0]!.expected.request.query}` : ""}`,
+          });
           expect(result.exchanges[0]!.actual.response.body).toBe(RAILS_ANSWER);
         } else {
           assertParity(result);
         }
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => /error|Error|at /.test(line)).slice(-25).join("\n");
+        const logs = server
+          .output()
+          .split("\n")
+          .filter((line) => /error|Error|at /.test(line))
+          .slice(-25)
+          .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
     },

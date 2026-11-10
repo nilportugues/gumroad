@@ -22,8 +22,14 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
-const SPECS = ["library_mutations_signed_in_spec", "communities_mutations_signed_in_spec", "secure_redirect_mutations_spec", "content_delivery_json_signed_in_spec"];
-const ROUTE_FLAGS = "nextjs_library_writes,nextjs_communities_writes,nextjs_auth_secure_redirect,nextjs_s3_utility,nextjs_dropbox_files,nextjs_media_locations";
+const SPECS = [
+  "library_mutations_signed_in_spec",
+  "communities_mutations_signed_in_spec",
+  "secure_redirect_mutations_spec",
+  "content_delivery_json_signed_in_spec",
+];
+const ROUTE_FLAGS =
+  "nextjs_library_writes,nextjs_communities_writes,nextjs_auth_secure_redirect,nextjs_s3_utility,nextjs_dropbox_files,nextjs_media_locations";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 // The Rails spec froze its clock at 2026-11-09 23:00 UTC. Seller-local dates (the regenerate-cache job argument) depend on the hour, so
 // the replay pins the clock rather than drifting the fixture's dates.
@@ -36,7 +42,8 @@ const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "m").ex
 // The product reindex of a post attached to a product asks Elasticsearch for a document the replay does not hold, and Node then
 // queues the fallback job Rails never needed.
 const IGNORED_JOBS = new Set(["SendToElasticsearchWorker"]);
-const jobKey = (job: { class: string; args: unknown; queue?: string }) => `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
+const jobKey = (job: { class: string; args: unknown; queue?: string }) =>
+  `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
 
 function redisJobs(redis: Redis): JobsChannel {
   return {
@@ -49,15 +56,33 @@ function redisJobs(redis: Redis): JobsChannel {
         if ((await redis.type(key)) !== "hash") continue;
         const data = await redis.hget(key, "data");
         if (data === null) continue;
-        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as { class: string; args: unknown[]; queue: string; at?: number };
+        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as {
+          class: string;
+          args: unknown[];
+          queue: string;
+          at?: number;
+        };
         if (IGNORED_JOBS.has(item.class)) continue;
-        jobs.push({ class: item.class, args: item.args, queue: item.queue, ...(item.at === undefined ? {} : { at: item.at }) });
+        jobs.push({
+          class: item.class,
+          args: item.args,
+          queue: item.queue,
+          ...(item.at === undefined ? {} : { at: item.at }),
+        });
       }
       // Jobs Node has not ported go to Sidekiq's own structures: the queue lists and the schedule set.
-      const sidekiqItems = [...(await redis.zrange("schedule", "0", "-1")), ...(await Promise.all((await redis.keys("queue:*")).map((key) => redis.lrange(key, "0", "-1")))).flat()];
+      const sidekiqItems = [
+        ...(await redis.zrange("schedule", "0", "-1")),
+        ...(await Promise.all((await redis.keys("queue:*")).map((key) => redis.lrange(key, "0", "-1")))).flat(),
+      ];
       for (const raw of sidekiqItems) {
         const item = JSON.parse(raw) as { class: string; args: unknown[]; queue: string; at?: number };
-        jobs.push({ class: item.class, args: item.args, queue: item.queue, ...(item.at === undefined ? {} : { at: item.at }) });
+        jobs.push({
+          class: item.class,
+          args: item.args,
+          queue: item.queue,
+          ...(item.at === undefined ? {} : { at: item.at }),
+        });
       }
       return jobs.sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
     },
@@ -100,7 +125,14 @@ const cases = SPECS.flatMap((spec) => {
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
     .filter((file) => file.endsWith(".json"))
-    .map((file) => [`${spec}: ${file.replace(/\.json$/, "")}`, path.join(dir, file), loadFixture(path.join(dir, file)).exchanges.length - 1] as const);
+    .map(
+      (file) =>
+        [
+          `${spec}: ${file.replace(/\.json$/, "")}`,
+          path.join(dir, file),
+          loadFixture(path.join(dir, file)).exchanges.length - 1,
+        ] as const,
+    );
 });
 
 describe.skipIf(!url)("mutations of library and content delivery", () => {
@@ -123,7 +155,11 @@ describe.skipIf(!url)("mutations of library and content delivery", () => {
       const chunks: Buffer[] = [];
       request.on("data", (chunk: Buffer) => chunks.push(chunk));
       request.on("end", () => {
-        handedBack.push({ method: request.method ?? "", url: request.url ?? "", body: Buffer.concat(chunks).toString("utf8") });
+        handedBack.push({
+          method: request.method ?? "",
+          url: request.url ?? "",
+          body: Buffer.concat(chunks).toString("utf8"),
+        });
         response.writeHead(204).end();
       });
     });
@@ -168,11 +204,28 @@ describe.skipIf(!url)("mutations of library and content delivery", () => {
     interceptHttp: false,
     driftDates: false,
     jobs: redisJobs(redis),
-    rewriteRequest: (request: Parameters<typeof reencryptCookies>[0], loaded: Parameters<typeof reencryptCookies>[1], now: Date) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
-    compare: name.includes("current-time") ? { ignore: [...COMPARE.ignore, "response.body"] } : name.includes("404") ? { ignore: [...COMPARE.ignore, "response.body", "response.json", "response.headers.content-type"] } : name.includes("publishes-a-workflow")
-        ? // SecureRandom.uuid tokens of the schedule intents and the jobs that carry them
-          { ignore: [...COMPARE.ignore, "db.workflow_installment_schedule_intents.inserted.*.token", "db.workflow_installment_schedule_intents.inserted.*.dispatch_token", "jobs.*.args.*"] }
-        : name.includes("numeric-suffix") ? { ignore: [...COMPARE.ignore, "db.installments.inserted.*.slug"] } : COMPARE,
+    rewriteRequest: (
+      request: Parameters<typeof reencryptCookies>[0],
+      loaded: Parameters<typeof reencryptCookies>[1],
+      now: Date,
+    ) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
+    compare: name.includes("current-time")
+      ? { ignore: [...COMPARE.ignore, "response.body"] }
+      : name.includes("404")
+        ? { ignore: [...COMPARE.ignore, "response.body", "response.json", "response.headers.content-type"] }
+        : name.includes("publishes-a-workflow")
+          ? // SecureRandom.uuid tokens of the schedule intents and the jobs that carry them
+            {
+              ignore: [
+                ...COMPARE.ignore,
+                "db.workflow_installment_schedule_intents.inserted.*.token",
+                "db.workflow_installment_schedule_intents.inserted.*.dispatch_token",
+                "jobs.*.args.*",
+              ],
+            }
+          : name.includes("numeric-suffix")
+            ? { ignore: [...COMPARE.ignore, "db.installments.inserted.*.slug"] }
+            : COMPARE,
     file,
   });
 
@@ -190,12 +243,16 @@ describe.skipIf(!url)("mutations of library and content delivery", () => {
     expect(cases.length).toBeGreaterThan(0);
   });
 
-  it("compiles the handler", async () => {
-    for (const [name, file, index] of [cases[0]!]) {
-      const { file: _file, ...options } = replayOptions(file, name);
-      await replayFixtureExchange(file, index, options).catch(() => undefined);
-    }
-  }, FIRST_COMPILE_TIMEOUT_MS);
+  it(
+    "compiles the handler",
+    async () => {
+      for (const [name, file, index] of [cases[0]!]) {
+        const { file: _file, ...options } = replayOptions(file, name);
+        await replayFixtureExchange(file, index, options).catch(() => undefined);
+      }
+    },
+    FIRST_COMPILE_TIMEOUT_MS,
+  );
 
   it.each(cases)(
     "%s",
@@ -220,7 +277,12 @@ describe.skipIf(!url)("mutations of library and content delivery", () => {
         const result = await replayFixtureExchange(fixture, index, options);
         assertParity(result);
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => !line.startsWith("Next.js includes")).slice(-40).join("\n");
+        const logs = server
+          .output()
+          .split("\n")
+          .filter((line) => !line.startsWith("Next.js includes"))
+          .slice(-40)
+          .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
     },

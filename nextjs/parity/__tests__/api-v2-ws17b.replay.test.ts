@@ -9,12 +9,12 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { decryptNumeric } from "@/lib/obfuscate-ids";
 import { closeAllRedis } from "@/server/infra/redis";
 
+import { resolveTimeToken } from "../src/canonical";
 import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { loadFixture, type Fixture, type FixtureRequest } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
-import { resolveTimeToken } from "../src/canonical";
 import { redisSeeder } from "../src/session";
 
 // Replays the controller specs of the Api::V2 endpoints WS-17b ports (spec/controllers/api/v2/*_controller_spec.rb, recorded with
@@ -31,7 +31,11 @@ const SPECS: Record<string, { flag: string; methods: string[]; exclude?: RegExp;
   offer_codes_controller_spec: { flag: "nextjs_api_v2_offer_codes", methods: ["GET"] },
   resource_subscriptions_controller_spec: { flag: "nextjs_api_v2_resource_subscriptions", methods: ["GET", "DELETE"] },
   // WS-17g: #index and #show render Purchase#as_json(version: 2); the writes, #summary and #export are not served yet.
-  sales_controller_spec: { flag: "nextjs_api_v2_sales", methods: ["POST", "GET"], include: /resend-receipt|get-index|get-show/ },
+  sales_controller_spec: {
+    flag: "nextjs_api_v2_sales",
+    methods: ["POST", "GET"],
+    include: /resend-receipt|get-index|get-show/,
+  },
   upsells_controller_spec: { flag: "nextjs_api_v2_upsells", methods: ["GET"] },
   subscribers_controller_spec: { flag: "nextjs_api_v2_subscribers", methods: ["GET"] },
   earnings_controller_spec: { flag: "nextjs_api_v2_tax", methods: ["GET"] },
@@ -51,7 +55,8 @@ const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
 const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "m").exec(envTest)?.[1];
 
-const jobKey = (job: { class: string; args: unknown; queue?: string }) => `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
+const jobKey = (job: { class: string; args: unknown; queue?: string }) =>
+  `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
 
 function redisJobs(redis: Redis): JobsChannel {
   const item = (raw: string) => JSON.parse(raw) as { class: string; args: unknown[]; queue: string; at?: number };
@@ -61,7 +66,13 @@ function redisJobs(redis: Redis): JobsChannel {
     },
     async drain(): Promise<RawJob[]> {
       const jobs: RawJob[] = [];
-      const push = (job: { class: string; args: unknown[]; queue: string; at?: number }) => jobs.push({ class: job.class, args: job.args, queue: job.queue, ...(job.at === undefined ? {} : { at: job.at }) });
+      const push = (job: { class: string; args: unknown[]; queue: string; at?: number }) =>
+        jobs.push({
+          class: job.class,
+          args: job.args,
+          queue: job.queue,
+          ...(job.at === undefined ? {} : { at: job.at }),
+        });
       for (const key of await redis.keys("bull:*")) {
         if ((await redis.type(key)) !== "hash") continue;
         const data = await redis.hget(key, "data");
@@ -99,45 +110,80 @@ const COMPARE = {
 
 // A page_key holds the created_at of the row that ended the previous page, recorded as an absolute time; the replay seeds that row
 // relative to its own clock, so the key is rebuilt from the row (found by the id the key holds).
-const PAGED_TABLES: Record<string, string> = { product_reviews_controller_spec: "product_reviews", offer_codes_controller_spec: "offer_codes", payouts_controller_spec: "payments", sales_controller_spec: "purchases", subscribers_controller_spec: "subscriptions" };
+const PAGED_TABLES: Record<string, string> = {
+  product_reviews_controller_spec: "product_reviews",
+  offer_codes_controller_spec: "offer_codes",
+  payouts_controller_spec: "payments",
+  sales_controller_spec: "purchases",
+  subscribers_controller_spec: "subscriptions",
+};
 function pageKeyAtReplayTime(query: string, fixture: Fixture, request: FixtureRequest, now: Date): string {
   const table = PAGED_TABLES[path.basename(fixture.spec).replace(/\.rb$/u, "")];
   const exchange = fixture.exchanges.find((candidate) => candidate.request === request) ?? fixture.exchanges.at(-1)!;
   return query.replace(/page_key=(\d{20})-(\d+)/u, (match, _stamp: string, encrypted: string) => {
-    const row = table === undefined ? undefined : (exchange.seed.tables[table]?.rows as Record<string, unknown>[] | undefined)?.find((candidate) => Number(candidate.id) === decryptNumeric(Number(encrypted)));
+    const row =
+      table === undefined
+        ? undefined
+        : (exchange.seed.tables[table]?.rows as Record<string, unknown>[] | undefined)?.find(
+            (candidate) => Number(candidate.id) === decryptNumeric(Number(encrypted)),
+          );
     const time = typeof row?.created_at === "string" ? resolveTimeToken(row.created_at, now) : null;
-    return time === null || time === undefined ? match : `page_key=${time.toISOString().slice(0, 19).replace(/[-:T]/gu, "")}000000-${encrypted}`;
+    return time === null || time === undefined
+      ? match
+      : `page_key=${time.toISOString().slice(0, 19).replace(/[-:T]/gu, "")}000000-${encrypted}`;
   });
 }
 
 // Examples whose recording cannot replay on another day or without the spec's stubs. The reason is in the test title.
 const SKIPPED: [RegExp, string][] = [
-  [/pagination-paginates-with-page-key #1|pagination-still-returns-a-review-whose-id-is-higher.* #1/u, "the spec stubs RESULTS_PER_PAGE to 1; its second page (the page_key request) is replayed"],
-  [/falls-back-to-the-default-timeout|page-key-query-times-out|query-timeout-guard|redis-configured-timeout/u, "the spec stubs WithMaxExecutionTime and the Redis read; the guard is a MySQL statement hint Node does not run"],
-  [/returns-the-sale-s-listed-currency-which-is-the-currency|returns-the-listed-currency-for-a-sale-priced-in-a-zero/u, "the spec stubs the JPY exchange rate in the Rails process"],
-  [/with-pagination-returns-a-link-to-the-next-page-i-3b7b3129 #1/u, "the spec stubs RESULTS_PER_PAGE to 1; the page_key request after it is replayed"],
-  [/returns-aggregated-earnings-in-cents/u, "sales dated 2025-03-15 and the like are seeded relative to the replay's clock, which moves them across the year the request names"],
+  [
+    /pagination-paginates-with-page-key #1|pagination-still-returns-a-review-whose-id-is-higher.* #1/u,
+    "the spec stubs RESULTS_PER_PAGE to 1; its second page (the page_key request) is replayed",
+  ],
+  [
+    /falls-back-to-the-default-timeout|page-key-query-times-out|query-timeout-guard|redis-configured-timeout/u,
+    "the spec stubs WithMaxExecutionTime and the Redis read; the guard is a MySQL statement hint Node does not run",
+  ],
+  [
+    /returns-the-sale-s-listed-currency-which-is-the-currency|returns-the-listed-currency-for-a-sale-priced-in-a-zero/u,
+    "the spec stubs the JPY exchange rate in the Rails process",
+  ],
+  [
+    /with-pagination-returns-a-link-to-the-next-page-i-3b7b3129 #1/u,
+    "the spec stubs RESULTS_PER_PAGE to 1; the page_key request after it is replayed",
+  ],
+  [
+    /returns-aggregated-earnings-in-cents/u,
+    "sales dated 2025-03-15 and the like are seeded relative to the replay's clock, which moves them across the year the request names",
+  ],
   [/returns-filed-at-as-iso-8601/u, "filed_at is an epoch number inside json_data, which the seed does not shift"],
 ];
 
 const cases = Object.keys(SPECS).flatMap((spec) => {
   const dir = path.join(FIXTURES, spec);
   if (!existsSync(dir)) return [];
-  return readdirSync(dir)
-    .filter((file) => file.endsWith(".json"))
-    .map((file) => [`${spec}: ${file.replace(/\.json$/, "")}`, path.join(dir, file), loadFixture(path.join(dir, file))] as const)
-    // A shared example of a write action (`authorized oauth v1 api method`) calls it with `get`, which no route allows.
-    .filter(([name]) => !SPECS[spec]!.exclude?.test(name) && (SPECS[spec]!.include?.test(name) ?? true))
-    .filter(([name, , fixture]) => {
-      const verb = /-(get|post|put|patch|delete)-/u.exec(name)?.[1]?.toUpperCase();
-      return SPECS[spec]!.methods.includes(verb ?? fixture.exchanges.at(-1)!.request.method);
-    })
-    // The exchanges before the last of an example are often its setup (`put :create`), which Node does not serve.
-    .flatMap(([name, file, fixture]) =>
-      fixture.exchanges.flatMap((exchange, index) =>
-        SPECS[spec]!.methods.includes(exchange.request.method) ? [[`${name}${fixture.exchanges.length > 1 ? ` #${index + 1}` : ""}`, file, index] as const] : [],
-      ),
-    );
+  return (
+    readdirSync(dir)
+      .filter((file) => file.endsWith(".json"))
+      .map(
+        (file) =>
+          [`${spec}: ${file.replace(/\.json$/, "")}`, path.join(dir, file), loadFixture(path.join(dir, file))] as const,
+      )
+      // A shared example of a write action (`authorized oauth v1 api method`) calls it with `get`, which no route allows.
+      .filter(([name]) => !SPECS[spec]!.exclude?.test(name) && (SPECS[spec]!.include?.test(name) ?? true))
+      .filter(([name, , fixture]) => {
+        const verb = /-(get|post|put|patch|delete)-/u.exec(name)?.[1]?.toUpperCase();
+        return SPECS[spec]!.methods.includes(verb ?? fixture.exchanges.at(-1)!.request.method);
+      })
+      // The exchanges before the last of an example are often its setup (`put :create`), which Node does not serve.
+      .flatMap(([name, file, fixture]) =>
+        fixture.exchanges.flatMap((exchange, index) =>
+          SPECS[spec]!.methods.includes(exchange.request.method)
+            ? [[`${name}${fixture.exchanges.length > 1 ? ` #${index + 1}` : ""}`, file, index] as const]
+            : [],
+        ),
+      )
+  );
 });
 
 describe.skipIf(!url)("Api::V2 endpoints of WS-17b", () => {
@@ -172,7 +218,9 @@ describe.skipIf(!url)("Api::V2 endpoints of WS-17b", () => {
       PARITY_CLOCK_OFFSET_MS: String(PARITY_NOW - Date.now()),
       OBFUSCATE_IDS_CIPHER_KEY: obfuscateKey ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: testEnv("OBFUSCATE_IDS_NUMERIC_CIPHER_KEY") ?? "0",
-      NEXTJS_ROUTE_FLAGS: Object.values(SPECS).map((spec) => spec.flag).join(","),
+      NEXTJS_ROUTE_FLAGS: Object.values(SPECS)
+        .map((spec) => spec.flag)
+        .join(","),
       ELASTICSEARCH_HOST: process.env.ELASTICSEARCH_HOST ?? "http://localhost:9200",
       RAILS_ORIGIN: `http://127.0.0.1:${railsPort}`,
       SECRET_KEY_BASE,
@@ -201,7 +249,9 @@ describe.skipIf(!url)("Api::V2 endpoints of WS-17b", () => {
 
   const options = () => ({
     sql,
-    redis: { reset: (entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0]) => redisSeeder(redis).reset(entries) },
+    redis: {
+      reset: (entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0]) => redisSeeder(redis).reset(entries),
+    },
     transport: httpTransport(server.baseUrl),
     interceptHttp: false,
     driftDates: false,
@@ -209,19 +259,35 @@ describe.skipIf(!url)("Api::V2 endpoints of WS-17b", () => {
     // `/v2/earnings.json` -> `/api/v2/earnings`: the main host serves the same routes under /api, without a format suffix.
     rewriteRequest: (request: FixtureRequest, fixture: Fixture, now: Date): FixtureRequest => ({
       ...request,
-      path: String(request.path).replace(/^\/v2\//u, "/api/v2/").replace(/\.json$/u, ""),
+      path: String(request.path)
+        .replace(/^\/v2\//u, "/api/v2/")
+        .replace(/\.json$/u, ""),
       ...(request.query === undefined ? {} : { query: pageKeyAtReplayTime(request.query, fixture, request, now) }),
     }),
     compare: COMPARE,
   });
-  const subscriptionEndCompare = { ignore: [...COMPARE.ignore, "response.json.sales.*.free_trial_ends_on", "response.json.sale.free_trial_ends_on", "response.json.sales.*.timestamp", "response.json.sale.timestamp"] };
+  const subscriptionEndCompare = {
+    ignore: [
+      ...COMPARE.ignore,
+      "response.json.sales.*.free_trial_ends_on",
+      "response.json.sale.free_trial_ends_on",
+      "response.json.sales.*.timestamp",
+      "response.json.sale.timestamp",
+    ],
+  };
 
   it("finds the fixtures", () => {
     expect(cases.length).toBeGreaterThan(0);
   });
 
-  const [skipped, replayed] = [cases.filter(([name]) => SKIPPED.some(([pattern]) => pattern.test(name))), cases.filter(([name]) => !SKIPPED.some(([pattern]) => pattern.test(name)))];
-  it.skip.each(skipped.map(([name]) => [`${name} (${SKIPPED.find(([pattern]) => pattern.test(name))![1]})`]))("%s", () => undefined);
+  const [skipped, replayed] = [
+    cases.filter(([name]) => SKIPPED.some(([pattern]) => pattern.test(name))),
+    cases.filter(([name]) => !SKIPPED.some(([pattern]) => pattern.test(name))),
+  ];
+  it.skip.each(skipped.map(([name]) => [`${name} (${SKIPPED.find(([pattern]) => pattern.test(name))![1]})`]))(
+    "%s",
+    () => undefined,
+  );
 
   it.each(replayed)(
     "%s",
@@ -230,10 +296,19 @@ describe.skipIf(!url)("Api::V2 endpoints of WS-17b", () => {
       const resumeAt = Date.now();
       if (subscriptionEnd) vi.setSystemTime(SUBSCRIPTION_END_NOW);
       try {
-        const result = await replayFixtureExchange(loadFixture(file), index, subscriptionEnd ? { ...options(), compare: subscriptionEndCompare } : options());
+        const result = await replayFixtureExchange(
+          loadFixture(file),
+          index,
+          subscriptionEnd ? { ...options(), compare: subscriptionEndCompare } : options(),
+        );
         assertParity(result);
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => !line.startsWith("Next.js includes")).slice(-30).join("\n");
+        const logs = server
+          .output()
+          .split("\n")
+          .filter((line) => !line.startsWith("Next.js includes"))
+          .slice(-30)
+          .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       } finally {
         if (subscriptionEnd) vi.setSystemTime(resumeAt + (Date.now() - SUBSCRIPTION_END_NOW));

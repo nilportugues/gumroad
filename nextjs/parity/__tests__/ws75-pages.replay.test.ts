@@ -20,9 +20,20 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES_ROOT = "parity/fixtures/requests";
-const SPEC_DIRS = ["agent_signed_in_spec", "piracy_reports_signed_in_spec", "generate_invoice_redirect_spec", "dispute_evidence_signed_in_spec"].filter((dir) => existsSync(path.join(FIXTURES_ROOT, dir)));
+const SPEC_DIRS = [
+  "agent_signed_in_spec",
+  "piracy_reports_signed_in_spec",
+  "generate_invoice_redirect_spec",
+  "dispute_evidence_signed_in_spec",
+].filter((dir) => existsSync(path.join(FIXTURES_ROOT, dir)));
 // Every flag in routes.json that a dashboard page sits behind.
-const ROUTE_FLAGS = ["nextjs_agent", "nextjs_piracy_reports", "nextjs_generate_invoice_redirect", "nextjs_dispute_evidence", "nextjs_dispute_evidence_success"];
+const ROUTE_FLAGS = [
+  "nextjs_agent",
+  "nextjs_piracy_reports",
+  "nextjs_generate_invoice_redirect",
+  "nextjs_dispute_evidence",
+  "nextjs_dispute_evidence_success",
+];
 const FIRST_COMPILE_TIMEOUT_MS = 240_000;
 // The recording's day and hour. The counter-notice window counts business days, so it does not move with the date
 // the way the drifted fixtures do; the clock is pinned instead (see dashboard-pages.replay.test.ts).
@@ -76,7 +87,11 @@ const cases = SPEC_DIRS.flatMap((dir) =>
     .filter((file) => file.endsWith(".json"))
     .map((file) => {
       const fixturePath = path.join(FIXTURES_ROOT, dir, file);
-      return [`${dir.replace(/_(signed_in_)?spec$/g, "")}: ${file.replace(/\.json$/, "")}`, fixturePath, loadFixture(fixturePath).exchanges.length - 1] as const;
+      return [
+        `${dir.replace(/_(signed_in_)?spec$/g, "")}: ${file.replace(/\.json$/, "")}`,
+        fixturePath,
+        loadFixture(fixturePath).exchanges.length - 1,
+      ] as const;
     }),
 );
 
@@ -99,7 +114,9 @@ describe.skipIf(!url)("WS-75 pages parity", () => {
       PARITY_CLOCK_OFFSET_MS: String(PARITY_NOW - Date.now()),
       OBFUSCATE_IDS_CIPHER_KEY: obfuscateKey ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
-      ...(secureIdVersion && secureIdKey ? { SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION: secureIdVersion, SECURE_EXTERNAL_ID__KEYS__1: secureIdKey } : {}),
+      ...(secureIdVersion && secureIdKey
+        ? { SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION: secureIdVersion, SECURE_EXTERNAL_ID__KEYS__1: secureIdKey }
+        : {}),
       ...(stripeKey ? { STRIPE_PUBLIC_KEY_TEST: stripeKey } : {}),
       NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS.join(","),
       RAILS_ORIGIN: "http://rails.invalid",
@@ -138,7 +155,12 @@ describe.skipIf(!url)("WS-75 pages parity", () => {
       try {
         assertParity(result);
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => /error|Error|at /.test(line)).slice(-25).join("\n");
+        const logs = server
+          .output()
+          .split("\n")
+          .filter((line) => /error|Error|at /.test(line))
+          .slice(-25)
+          .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
     },
