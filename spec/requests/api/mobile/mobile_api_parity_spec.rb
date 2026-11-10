@@ -293,7 +293,7 @@ describe "Mobile API parity", type: :request do
   describe "GET /mobile/url_redirects/(stream|hls_playlist|download)/:token/:product_file_id" do
     let(:buyer) { create(:user) }
     let(:product) { create(:product, user: seller) }
-    let(:product_file) { product.product_files.alive.first }
+    let!(:product_file) { create(:readable_document, link: product) }
     let!(:purchase) { create(:free_purchase, link: product, purchaser: buyer, email: buyer.email) }
     let!(:url_redirect) { purchase.create_url_redirect! }
 
@@ -314,7 +314,8 @@ describe "Mobile API parity", type: :request do
     end
 
     it "answers 401 for an expired rental", parity: true do
-      url_redirect.update!(is_rental: true, rental_first_viewed_at: 5.days.ago)
+      url_redirect.is_rental = true
+      url_redirect.update_attribute(:rental_first_viewed_at, 5.days.ago)
       purchase.update_columns(rental_expired: true)
 
       get "/mobile/url_redirects/stream/#{url_redirect.token}/#{product_file.external_id}", params: { mobile_token: }
@@ -324,7 +325,7 @@ describe "Mobile API parity", type: :request do
     end
 
     it "answers 404 for revoked access to a playlist", parity: true do
-      purchase.update!(is_access_revoked: true)
+      purchase.update_attribute(:is_access_revoked, true)
 
       get "/mobile/url_redirects/hls_playlist/#{url_redirect.token}/#{product_file.external_id}/index.m3u8", params: { mobile_token: }
 
@@ -332,7 +333,7 @@ describe "Mobile API parity", type: :request do
     end
 
     it "answers 404 for revoked access to a download", parity: true do
-      purchase.update!(is_access_revoked: true)
+      purchase.update_attribute(:is_access_revoked, true)
 
       get "/mobile/url_redirects/download/#{url_redirect.token}/#{product_file.external_id}", params: { mobile_token: }
 
