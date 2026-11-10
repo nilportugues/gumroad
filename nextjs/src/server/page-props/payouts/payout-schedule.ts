@@ -92,6 +92,9 @@ export type Ledger = {
   unpaidBalanceCentsUpToDate: (date: Date) => Promise<number>;
   // `payments.where("date(created_at) = ?", Date.today).first.present?`
   paidToday: () => Promise<boolean>;
+  // A daily-frequency seller that Payouts.is_user_payable(INSTANT) rejects: the schedule is the weekly one, but
+  // PayoutsHelper#current_payout_end_date still reads the period end as the day before the payout date.
+  dailyFallback?: boolean;
 };
 
 const payoutDateForCycle = (ledger: Ledger, cycle: Date) => addDays(cycle, -ledger.daysBeforeCycleDate);
@@ -138,6 +141,7 @@ export async function nextPayoutDate(ledger: Ledger): Promise<Date | null> {
 export async function currentPayoutEndDate(ledger: Ledger): Promise<Date> {
   const next = await nextPayoutDate(ledger);
   if (next === null) throw new TypeError("undefined method '-' for nil");
+  if (ledger.dailyFallback) return addDays(next, -1);
   assertNotDaily(ledger);
   return payoutPeriodEndDateForPayoutDate(ledger, next);
 }

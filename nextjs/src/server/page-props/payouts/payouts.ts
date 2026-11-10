@@ -2,9 +2,11 @@
 // (app/helpers/payouts_helper.rb) for the Payouts page.
 //
 // What the port cannot prove goes to Rails whole (`HandBackToRails`, decided before the page renders by
-// `planPayouts`): daily payouts, a seller that may be eligible for instant payouts
-// (Stripe is asked about the bank account), a cached balance-stats blob, a PayPal connected account, an
-// account in a currency other than USD and bank account classes whose routing number is not derivable.
+// `planPayouts`): daily payouts of a compliant seller (Payouts.is_user_payable), a seller whose payout account is
+// seasoned for instant payouts (Stripe is asked about the bank account), a cached balance-stats blob, a PayPal
+// connected account and bank account classes whose routing number is not derivable. A daily seller that is not
+// compliant is scheduled weekly, an unseasoned account rules instant payouts out, and payouts in a currency the
+// money gem knows are formatted here.
 // The chargeback-rate reserve is read from the ledger here (see `reserveBreakdown`).
 import { Prisma, type User } from "@prisma/client";
 
@@ -12,6 +14,7 @@ import { encrypt as externalId } from "../../../lib/obfuscate-ids.ts";
 import { getRedis } from "../../infra/redis.ts";
 import { HandBackToRails } from "../../controllers/application-controller.ts";
 import { formattedDollarAmount } from "../../models/concerns/currency-helper.ts";
+import { knownCurrency, moneyFormatWithGemSymbol } from "../../models/concerns/money-formatter.ts";
 import { type MerchantAccountRow, isStripeConnectAccount } from "../../models/merchant-account.ts";
 import { column, selectRows, table } from "../../models/sql.ts";
 import { jsonDataForAttr, RISK_STATES, UserFlags, Users } from "../../models/user.ts";
@@ -20,6 +23,7 @@ import { payoutFacts } from "../settings/payments.ts";
 import { taxCenterEnabled } from "../dashboard/tax-center.ts";
 import PAYMENTS_DATA from "../settings/payments-data.generated.json" with { type: "json" };
 import DATA from "./payouts-data.generated.json" with { type: "json" };
+import { emptyBalanceDestinationUnseasoned } from "./instant-payout-eligibility.ts";
 import { payoutSalesData, type SalesData } from "./payout-stats.ts";
 import {
   addDays,
@@ -233,9 +237,11 @@ async function latestSellerVisiblePayoutNote(userId: bigint): Promise<CommentRow
 // ---- money ----
 
 // Payment#displayed_amount(no_cents_if_whole: false), for the one currency the port formats.
-function displayedAmount(payment: PaymentRow): string {
-  if (payment.currency !== "usd") throw new NotPortedError(`Money formatting for the payout currency ${payment.currency}`);
-  return formattedDollarAmount(num(payment.amount_cents), { noCentsIfWhole: false });
+export function displayedAmount(payment: PaymentRow): string {
+  if (payment.currency === "usd") return formattedDollarAmount(num(payment.amount_cents), { noCentsIfWhole: false });
+  // Money.new(amount_cents, currency).format(symbol: true, with_currency: currency != "usd"); a missing or unknown currency is Rails' to raise.
+  if (payment.currency === null || !knownCurrency(payment.currency)) throw new NotPortedError(`Money formatting for the payout currency ${payment.currency}`);
+  return moneyFormatWithGemSymbol(num(payment.amount_cents), payment.currency, { noCentsIfWhole: false, withCurrency: true });
 }
 
 const epoch = (date: Date) => Math.floor(date.getTime() / 1000);
@@ -252,6 +258,8 @@ export type PayoutsPlan = {
   processingPayments: { payment: PaymentRow; bank: BankAccountRow | null }[];
   activeBank: BankAccountRow | null;
   frequency: PayoutFrequency;
+  // Stored as daily, scheduled as weekly (see planPayouts).
+  dailyFallback: boolean;
 };
 
 const completedDisplayable = (userId: bigint) => Prisma.sql`FROM payments WHERE payments.user_id = ${userId} AND payments.state = 'completed' AND payments.created_at >= ${OLDEST_DISPLAYABLE}`;
@@ -288,17 +296,21 @@ export async function balanceStatsCacheApplies(userId: bigint): Promise<boolean>
 
 export async function planPayouts(seller: Seller, pageParam: string | null, now = new Date()): Promise<PayoutsPlan> {
   const record = Users.load(seller);
-  const frequency = jsonDataForAttr(record, "payout_frequency", "weekly");
-  if (!PAYOUT_FREQUENCIES.includes(frequency as PayoutFrequency)) throw new HandBackToRails();
-  if (frequency === "daily") throw new HandBackToRails();
+  const storedFrequency = jsonDataForAttr(record, "payout_frequency", "weekly");
+  if (!PAYOUT_FREQUENCIES.includes(storedFrequency as PayoutFrequency)) throw new HandBackToRails();
+  // Payouts.is_user_payable(INSTANT) is false for a seller that is not compliant, before it reads anything else,
+  // so a daily schedule falls back to the weekly cycle (get_initial_payout_date). Any other daily seller hands back.
+  const compliant = seller.user_risk_state === "compliant";
+  if (storedFrequency === "daily" && compliant) throw new HandBackToRails();
+  const frequency = storedFrequency === "daily" ? "weekly" : storedFrequency;
   if (await balanceStatsCacheApplies(seller.id)) throw new HandBackToRails();
 
   const facts = await payoutFacts(seller, now);
   // User#eligible_for_instant_payouts? asks Stripe about the bank account once the account is seasoned.
-  const compliant = seller.user_risk_state === "compliant";
   const paused = UserFlags.isSet(seller.flags, "payouts_paused_internally") || UserFlags.isSet(seller.flags, "payouts_paused_by_user");
   if (compliant && !paused && facts.legalEntityCountry === "US" && (await one(Prisma.sql`SELECT payments.id FROM payments WHERE payments.user_id = ${seller.id} AND payments.state = 'completed' LIMIT 1`)) !== null) {
-    throw new HandBackToRails();
+    const unseasoned = await emptyBalanceDestinationUnseasoned(seller.id, { connectRoutingActive: facts.stripeConnectRoutingActive, connect: facts.connectAccount, standard: facts.stripeAccount }, now);
+    if (!unseasoned) throw new HandBackToRails();
   }
 
   const count = await sumOf(Prisma.sql`SELECT COUNT(*) AS value ${completedDisplayable(seller.id)}`);
@@ -320,6 +332,7 @@ export async function planPayouts(seller: Seller, pageParam: string | null, now 
     processingPayments: await withBank(processing),
     activeBank: await activeBankAccount(seller.id),
     frequency: frequency as PayoutFrequency,
+    dailyFallback: storedFrequency === "daily",
   };
 
   // Everything the props would throw NotPortedError for: Rails serves those requests.
@@ -359,6 +372,7 @@ async function context(plan: PayoutsPlan, now: Date): Promise<Context> {
   const ledger: Ledger = {
     today: plan.today,
     frequency: plan.frequency,
+    dailyFallback: plan.dailyFallback,
     minimumPayoutAmountCents: await minimumPayoutAmountCents(seller, facts),
     daysBeforeCycleDate: daysBeforeCycleDate(rail),
     unpaidBalanceCents: () => unpaidBalanceCents(seller.id),

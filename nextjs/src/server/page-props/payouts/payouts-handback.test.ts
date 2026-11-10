@@ -52,13 +52,38 @@ describe.skipIf(!url)("planPayouts hands back what it cannot prove", () => {
     expect(plan.pastPayments).toEqual([]);
   });
 
-  it("hands back daily payouts", async () => {
+  it("hands back daily payouts of a compliant seller", async () => {
     await expect(planPayouts(await seller({ json: '{"payout_frequency":"daily"}' }), null, NOW)).rejects.toBeInstanceOf(HandBackToRails);
   });
 
-  it("hands back a payout in another currency", async () => {
+  it("serves daily payouts of a seller that is not compliant on the weekly schedule", async () => {
+    const plan = await planPayouts(await seller({ risk: "not_reviewed", json: '{"payout_frequency":"daily"}' }), null, NOW);
+    expect(plan.dailyFallback).toBe(true);
+    expect(plan.frequency).toBe("weekly");
+  });
+
+  it("serves a US seller whose only payout account is not seasoned yet", async () => {
+    const user = await seller({ country: "United States", completedPayout: true });
+    await db.$executeRawUnsafe(
+      `INSERT INTO merchant_accounts (user_id, charge_processor_id, charge_processor_merchant_id, charge_processor_alive_at, created_at, updated_at) VALUES (${USER_ID}, 'stripe', 'acct_handback', '2026-03-01', '2026-03-01', '2026-03-01')`,
+    );
+    try {
+      const plan = await planPayouts(user, null, NOW);
+      expect(plan.pastPayments).toHaveLength(1);
+    } finally {
+      await db.$executeRawUnsafe(`DELETE FROM merchant_accounts WHERE user_id = ${USER_ID}`);
+    }
+  });
+
+  it("serves a payout in a currency the money gem knows", async () => {
     const user = await seller({ completedPayout: true });
     await db.$executeRawUnsafe(`UPDATE payments SET currency = 'eur' WHERE user_id = ${USER_ID}`);
+    expect((await planPayouts(user, null, NOW)).pastPayments).toHaveLength(1);
+  });
+
+  it("hands back a payout in a currency the money gem does not know", async () => {
+    const user = await seller({ completedPayout: true });
+    await db.$executeRawUnsafe(`UPDATE payments SET currency = 'xxq' WHERE user_id = ${USER_ID}`);
     await expect(planPayouts(user, null, NOW)).rejects.toBeInstanceOf(HandBackToRails);
   });
 
