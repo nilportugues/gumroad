@@ -110,7 +110,7 @@ describe "Storefront pages", type: :request do
       get "/", params: { affiliate_id: affiliate.external_id_numeric }
 
       expect(response).to be_successful
-      expect(response.headers["Set-Cookie"]).to include(affiliate.cookie_key)
+      expect(response.headers["Set-Cookie"].to_s).to include(affiliate.cookie_key)
     end
 
     it "sets a global affiliate's cookie for a visit carrying the short ?a= param", parity: true do
@@ -119,7 +119,7 @@ describe "Storefront pages", type: :request do
       get "/", params: { a: affiliate.external_id_numeric }
 
       expect(response).to be_successful
-      expect(response.headers["Set-Cookie"]).to include(affiliate.cookie_key)
+      expect(response.headers["Set-Cookie"].to_s).to include(affiliate.cookie_key)
     end
 
     it "sets no affiliate cookie for an unknown affiliate id", parity: true do

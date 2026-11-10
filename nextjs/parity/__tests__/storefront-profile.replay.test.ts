@@ -72,6 +72,17 @@ const cases = FIXTURE_DIRS.flatMap((dir) =>
     }),
 );
 
+// The affiliate cookie carries its own expiry (now + 30 or 7 days) as its value, which moves with the replay's clock.
+const AFFILIATE_COOKIE_FIXTURE = /affiliate-s-cookie/u;
+function compareFor(name: string) {
+  const ignore = [
+    ...COMPARE.ignore,
+    ...(hasDebugPageBody(name) ? ["response.body"] : []),
+    ...(AFFILIATE_COOKIE_FIXTURE.test(name) ? ["response.cookies.*.value"] : []),
+  ];
+  return { ...COMPARE, ignore };
+}
+
 describe.skipIf(!url)("WS-68 storefront profile pages parity", () => {
   let client: PrismaClient;
   let sql: SqlExecutor;
@@ -129,7 +140,7 @@ describe.skipIf(!url)("WS-68 storefront profile pages parity", () => {
         // The server is another process, out of the replayer's reach.
         interceptHttp: false,
         rewriteRequest: (request, fixture, now) => reencryptCookies(request, fixture, SECRET_KEY_BASE, now),
-        compare: hasDebugPageBody(path.basename(file, ".json")) ? { ...COMPARE, ignore: [...COMPARE.ignore, "response.body"] } : COMPARE,
+        compare: compareFor(path.basename(file, ".json")),
       });
       try {
         assertParity(result);
