@@ -6,6 +6,7 @@ require "spec_helper"
 # Next.js port (PARITY_RECORD=1). Upcoming payouts and include_transactions are handed back to Rails and have no examples here.
 describe "API v2 payouts and media", type: :request do
   let(:seller) { create(:user, username: "dude", name: "Dude", email: "dude@example.com") }
+  let(:merchant_account) { create(:merchant_account, user: seller) }
   let(:application) { create(:oauth_application, owner: create(:user)) }
   let(:bank) { create(:ach_account, user: seller) }
 
@@ -77,8 +78,8 @@ describe "API v2 payouts and media", type: :request do
   describe "GET /v2/payouts/:id" do
     it "returns a payout with its sold, refunded and disputed sales", parity: true do
       payment = payout(days_ago: 7)
-      sold = create(:balance, user: seller, amount_cents: 1000, date: Date.current - 11, state: "paid")
-      refunded = create(:balance, user: seller, amount_cents: -500, date: Date.current - 11, state: "paid")
+      sold = create(:balance, user: seller, merchant_account:, amount_cents: 1000, date: Date.current - 11, state: "paid")
+      refunded = create(:balance, user: seller, merchant_account:, amount_cents: -500, date: Date.current - 11, state: "paid")
       payment.balances << sold << refunded
       sale(purchase_success_balance_id: sold.id, created_at: 9.days.ago)
       sale(purchase_success_balance_id: sold.id, created_at: 10.days.ago)
@@ -88,7 +89,7 @@ describe "API v2 payouts and media", type: :request do
 
     it "leaves the sales out for a token without view_sales", parity: true do
       payment = payout(days_ago: 7)
-      payment.balances << create(:balance, user: seller, amount_cents: 1000, date: Date.current - 11, state: "paid")
+      payment.balances << create(:balance, user: seller, merchant_account:, amount_cents: 1000, date: Date.current - 11, state: "paid")
       get "/v2/payouts/#{payment.external_id}", headers: auth
     end
 

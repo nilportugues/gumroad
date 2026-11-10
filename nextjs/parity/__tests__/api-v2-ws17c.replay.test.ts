@@ -23,7 +23,7 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests/api/v2";
-const WS17C_SPEC_DIRS = ["users", "utm_links", "emails", "workflows", "pages", "help_articles", "mcp"].map(
+const WS17C_SPEC_DIRS = ["users", "utm_links", "emails", "workflows", "pages", "help_articles", "mcp", "payouts_media"].map(
   (name) => `${name}_parity_spec`,
 );
 const SPECS = existsSync(FIXTURES)
@@ -43,6 +43,8 @@ const ROUTE_FLAGS = [
   "mcp",
   "well_known",
   "notion_unfurl",
+  "media",
+  "payouts",
 ]
   .map((name) => `nextjs_api_v2_${name}`)
   .join(",");
@@ -115,6 +117,9 @@ function redisJobs(redis: Redis): JobsChannel {
 
 const COMPARE = {
   ignore: [
+    // The cursor holds the last payout's created_at, seeded from a "now minus N hours" token that moves with the replay's clock.
+    "response.json.next_page_key",
+    "response.json.next_page_url",
     "response.headers.x-original-headers-class",
     // Next.js owns Vary on what it serves (its RSC cache keys).
     "response.headers.vary",
