@@ -24,15 +24,31 @@ const SIMPLE_TRACKING_LINK = /^https?:\/\/[A-Za-z0-9.-]+(?::\d+)?(?:[/?#][\x21-\
 // Ruby's String#strip: ASCII whitespace and NUL at either end.
 const STRIP = /^[\t\n\v\f\r \0]+|[\t\n\v\f\r \0]+$/gu;
 
+// ActiveSupport's `blank?`: Unicode White_Space only (NUL is not blank).
+const UNICODE_BLANK = /^\p{White_Space}*$/u;
+// Ruby's [[:cntrl:]] on a UTF-8 string is the Cc category, which includes U+0080-U+009F.
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHARACTER = /[\x00-\x1F\x7F-\x9F]/u;
+
+// Shipment.parsed_tracking_uri's escaping: each non-ASCII character becomes its UTF-8 bytes as uppercase %XX
+// (URI::DEFAULT_PARSER.escape), so the parser only ever sees ASCII. The stored and rendered value stays as typed.
+export function escapeNonAscii(value: string): string {
+  return value.replace(/[^\x00-\x7F]/gu, (character) =>
+    Array.from(Buffer.from(character, "utf8"), (byte) => `%${byte.toString(16).toUpperCase().padStart(2, "0")}`).join(""),
+  );
+}
+
+export const isBlank = (value: string): boolean => UNICODE_BLANK.test(value);
+
 // Shipment.display_safe_tracking_link: true or false when the port can tell, null for a URL whose parse it does not model.
 export function displaySafeTrackingLink(value: string): boolean | null {
   const normalized = value.replace(STRIP, "");
-  if (normalized === "") return false;
-  if (normalized.length > TRACKING_LINK_MAX_LENGTH) return false;
-  if (/[\x00-\x1F\x7F]/u.test(normalized)) return false;
-  if (SIMPLE_TRACKING_LINK.test(normalized)) return true;
-  // Without an http(s) scheme the URI either fails to parse or has the wrong scheme: not a display-safe link either way.
-  if (!/^https?:\/\//iu.test(normalized)) return /^[\x20-\x7E]*$/u.test(normalized) ? false : null;
+  if (isBlank(normalized)) return false;
+  if (Array.from(normalized).length > TRACKING_LINK_MAX_LENGTH) return false;
+  if (CONTROL_CHARACTER.test(normalized)) return false;
+  if (SIMPLE_TRACKING_LINK.test(escapeNonAscii(normalized))) return true;
+  // Without an http(s) scheme the URI either fails to parse or has the wrong scheme or no host: not a display-safe link.
+  if (!/^https?:\/\//iu.test(normalized)) return false;
   return null;
 }
 

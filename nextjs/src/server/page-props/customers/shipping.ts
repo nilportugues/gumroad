@@ -5,7 +5,7 @@ import { HandBackToRails } from "../../controllers/application-controller.ts";
 import { usdCentsToCurrency } from "../../models/concerns/currency-helper.ts";
 import { formatJustPriceInCents } from "../../models/concerns/money-formatter.ts";
 import { RECURRENCE_LONG_INDICATOR } from "../../models/purchase-json.ts";
-import { displaySafeTrackingLink } from "../../models/shipment.ts";
+import { displaySafeTrackingLink, escapeNonAscii, isBlank } from "../../models/shipment.ts";
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -20,8 +20,7 @@ const CARRIER_TRACKING_URL_MAPPING: Record<string, string> = {
   "Canada Post": "https://www.canadapost.ca/cpotools/apps/track/personal/findByTrackNumber?LOCALE=en&trackingNumber=",
 };
 // eslint-disable-next-line no-control-regex
-const OUTSIDE_PLAIN_ASCII = /[^\x01-\x7F]/u;
-const BLANK = /^[\t\n\v\f\r ]*$/u;
+const NUL = /\0/u;
 const STRIP = /^[\t\n\v\f\r ]+|[\t\n\v\f\r ]+$/gu;
 // URI::RFC3986_Parser's URI pattern (uri 1.1.1) for an http(s) URL: scheme, authority (userinfo, reg-name or IPv4 host, port),
 // path-abempty, a query of anything but `#`, and a fragment.
@@ -69,12 +68,12 @@ export function calculatedTrackingUrl(shipment: Row): string | null {
   const fields = [shipment.tracking_url, shipment.tracking_number, shipment.carrier].map((value) =>
     value == null ? "" : String(value),
   );
-  if (fields.some((value) => OUTSIDE_PLAIN_ASCII.test(value))) throw new HandBackToRails();
+  if (fields.some((value) => NUL.test(value))) throw new HandBackToRails();
   const [trackingUrl, trackingNumber, carrier] = fields as [string, string, string];
 
   let raw: string;
-  if (!BLANK.test(trackingUrl)) raw = trackingUrl;
-  else if (BLANK.test(trackingNumber) || BLANK.test(carrier) || !Object.hasOwn(CARRIER_TRACKING_URL_MAPPING, carrier))
+  if (!isBlank(trackingUrl)) raw = trackingUrl;
+  else if (isBlank(trackingNumber) || isBlank(carrier) || !Object.hasOwn(CARRIER_TRACKING_URL_MAPPING, carrier))
     return null;
   else raw = CARRIER_TRACKING_URL_MAPPING[carrier]! + trackingNumber;
 
@@ -83,7 +82,7 @@ export function calculatedTrackingUrl(shipment: Row): string | null {
   const normalized = raw.replace(STRIP, "");
   // null: an http(s) URL outside the simple form, which only the RFC 3986 check below can judge.
   if (safe === null && !/^https?:\/\//iu.test(normalized)) throw new HandBackToRails();
-  const parsed = classifyHttpUrl(normalized);
+  const parsed = classifyHttpUrl(escapeNonAscii(normalized));
   if (parsed === null) throw new HandBackToRails();
   return parsed ? normalized : null;
 }
