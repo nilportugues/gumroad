@@ -260,7 +260,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "BackfillPdfStampsJob": {
     "file": "app/sidekiq/backfill_pdf_stamps_job.rb",

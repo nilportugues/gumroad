@@ -4,6 +4,8 @@ import { Prisma, type SellerProfileSection } from "@prisma/client";
 
 import { belongsToRequired, type BelongsTo } from "./concerns/rails-validations.ts";
 import { defineModel } from "./runtime/define-model.ts";
+import { RecordNotFound } from "./runtime/errors.ts";
+import { clearQueryCache } from "./runtime/query-cache.ts";
 import type { Row } from "./runtime/record.ts";
 import { transaction } from "./runtime/transaction.ts";
 import { castRow, column, selectRows, table } from "./sql.ts";
@@ -39,7 +41,10 @@ export function productsSectionValid(hash: Hash): boolean {
 
 // lib/json_schemas/seller_profile_featured_product_section.json: an optional integer `featured_product_id` and no other keys.
 export function featuredSectionValid(hash: Hash): boolean {
-  return Object.keys(hash).every((key) => key === "featured_product_id") && (!("featured_product_id" in hash) || isInteger(hash.featured_product_id));
+  return (
+    Object.keys(hash).every((key) => key === "featured_product_id") &&
+    (!("featured_product_id" in hash) || isInteger(hash.featured_product_id))
+  );
 }
 
 function sectionModel(rubyClass: string, valid: (hash: Hash) => boolean) {
@@ -53,7 +58,11 @@ function sectionModel(rubyClass: string, valid: (hash: Hash) => boolean) {
         name: "validate_json_data",
         run(record) {
           // JSON::Validator's messages are not reproduced.
-          if (!valid(hashOf(record.get("json_data")))) throw new NotPortedError(`a ${rubyClass} whose json_data breaks its schema`, "app/models/seller_profile_section.rb");
+          if (!valid(hashOf(record.get("json_data"))))
+            throw new NotPortedError(
+              `a ${rubyClass} whose json_data breaks its schema`,
+              "app/models/seller_profile_section.rb",
+            );
         },
       },
     ],
@@ -70,12 +79,17 @@ const sectionRows = (sellerId: unknown, type: string, extra: Prisma.Sql = Prisma
   );
 
 const featuredSectionsOf = (sellerId: unknown, productId: unknown) =>
-  sectionRows(sellerId, FEATURED_PRODUCT_SECTION, Prisma.sql` AND CAST(JSON_EXTRACT(${column(sections, "json_data")}, "$.featured_product_id") AS UNSIGNED) = ${productId}`);
+  sectionRows(
+    sellerId,
+    FEATURED_PRODUCT_SECTION,
+    Prisma.sql` AND CAST(JSON_EXTRACT(${column(sections, "json_data")}, "$.featured_product_id") AS UNSIGNED) = ${productId}`,
+  );
 
 // `section.shown_products`, which `include?` and `-` read.
 function shownProductsOf(row: Row): number[] {
   const shown = hashOf(row.json_data).shown_products;
-  if (!Array.isArray(shown)) throw new NotPortedError("a products section without a shown_products list", "app/models/link.rb");
+  if (!Array.isArray(shown))
+    throw new NotPortedError("a products section without a shown_products list", "app/models/link.rb");
   return shown.map(Number);
 }
 
@@ -88,19 +102,35 @@ const withoutFeaturedProduct = (value: unknown): Hash => {
 // rather than half way through it.
 export async function assertProfileSectionsEditable(sellerId: unknown, productId: unknown): Promise<void> {
   for (const row of await featuredSectionsOf(sellerId, productId)) {
-    if (!featuredSectionValid(withoutFeaturedProduct(row.json_data))) throw new NotPortedError(`a ${FEATURED_PRODUCT_SECTION} whose json_data breaks its schema`, "app/models/seller_profile_section.rb");
+    if (!featuredSectionValid(withoutFeaturedProduct(row.json_data)))
+      throw new NotPortedError(
+        `a ${FEATURED_PRODUCT_SECTION} whose json_data breaks its schema`,
+        "app/models/seller_profile_section.rb",
+      );
   }
   for (const row of await sectionRows(sellerId, PRODUCTS_SECTION)) {
     const shown = shownProductsOf(row);
     if (!shown.includes(Number(productId))) continue;
-    if (!productsSectionValid({ ...hashOf(row.json_data), shown_products: shown.filter((id) => id !== Number(productId)) })) {
-      throw new NotPortedError(`a ${PRODUCTS_SECTION} whose json_data breaks its schema`, "app/models/seller_profile_section.rb");
+    if (
+      !productsSectionValid({
+        ...hashOf(row.json_data),
+        shown_products: shown.filter((id) => id !== Number(productId)),
+      })
+    ) {
+      throw new NotPortedError(
+        `a ${PRODUCTS_SECTION} whose json_data breaks its schema`,
+        "app/models/seller_profile_section.rb",
+      );
     }
   }
 }
 
 // Link#clear_featured_product_sections!: drop `featured_product_id` from each featured-product section naming the product.
-export async function clearFeaturedProductSections(sellerId: unknown, productId: unknown, now?: () => Date): Promise<void> {
+export async function clearFeaturedProductSections(
+  sellerId: unknown,
+  productId: unknown,
+  now?: () => Date,
+): Promise<void> {
   for (const row of await featuredSectionsOf(sellerId, productId)) {
     const section = FeaturedProductSections.load(castRow<SellerProfileSection>("SellerProfileSection", row));
     section.set("json_data", withoutFeaturedProduct(section.get("json_data")));
@@ -110,22 +140,47 @@ export async function clearFeaturedProductSections(sellerId: unknown, productId:
 
 // Link#remove_from_profile_sections!: strip the id from the `shown_products` of every products section of the seller (the per-product
 // ones too), under `User#with_profile_sections_lock`.
-export async function removeFromProfileSections(sellerId: unknown, productId: unknown, now?: () => Date): Promise<void> {
-  const profiles = "seller_profiles";
-  const profileLookup = Prisma.sql`SELECT ${Prisma.raw("`seller_profiles`.*")} FROM ${table(profiles)} WHERE ${column(profiles, "seller_id")} = ${sellerId} LIMIT 1`;
-  const run = async () => {
+export async function removeFromProfileSections(
+  sellerId: unknown,
+  productId: unknown,
+  now?: () => Date,
+): Promise<void> {
+  await withProfileSectionsLock(sellerId, async () => {
     for (const row of await sectionRows(sellerId, PRODUCTS_SECTION)) {
       const shown = shownProductsOf(row);
       if (!shown.includes(Number(productId))) continue;
       const section = ProductsSections.load(castRow<SellerProfileSection>("SellerProfileSection", row));
-      section.set("json_data", { ...hashOf(section.get("json_data")), shown_products: shown.filter((id) => id !== Number(productId)) });
+      section.set("json_data", {
+        ...hashOf(section.get("json_data")),
+        shown_products: shown.filter((id) => id !== Number(productId)),
+      });
       await ProductsSections.saveBang(section, { now });
     }
-  };
-  const [profile] = await selectRows(profileLookup);
-  if (!profile) return run();
-  await transaction(async () => {
-    await selectRows(Prisma.sql`${profileLookup} FOR UPDATE`);
-    await run();
   });
 }
+
+// User#with_profile_sections_lock without a wait bound: the block runs alone when the seller has no profile row, else inside a
+// transaction holding the profile's row lock.
+export async function withProfileSectionsLock(sellerId: unknown, block: () => Promise<void>): Promise<void> {
+  const profiles = "seller_profiles";
+  const profileLookup = Prisma.sql`SELECT ${Prisma.raw("`seller_profiles`.*")} FROM ${table(profiles)} WHERE ${column(profiles, "seller_id")} = ${sellerId} LIMIT 1`;
+  const [profile] = await selectRows(profileLookup);
+  if (!profile) return block();
+  await transaction(async () => {
+    await selectRows(Prisma.sql`${profileLookup} FOR UPDATE`);
+    await block();
+  });
+}
+
+// SellerProfileProductsSection.find(id) after a `reload`: a section deleted since raises RecordNotFound.
+export async function reloadProductsSection(row: Row): Promise<Row> {
+  // `reload` clears the connection's query cache before it reads.
+  clearQueryCache();
+  const [fresh] = await selectRows(
+    Prisma.sql`SELECT ${Prisma.raw("`seller_profile_sections`.*")} FROM ${table(sections)} WHERE ${column(sections, "type")} = ${PRODUCTS_SECTION} AND ${column(sections, "id")} = ${row.id} LIMIT 1`,
+  );
+  if (!fresh) throw new RecordNotFound(`Couldn't find ${PRODUCTS_SECTION} with 'id'=${String(row.id)}`);
+  return fresh;
+}
+
+export { hashOf, ProductsSections };
