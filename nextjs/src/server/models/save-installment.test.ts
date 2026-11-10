@@ -75,7 +75,6 @@ const REFUSED = new Set([
   "message: a tab and a carriage return",
   "message: attributes without values or quotes",
   "workflow create: an abandoned cart workflow",
-  "workflow create: a variant workflow",
 ]);
 
 const sequentialUuid = () => {
