@@ -1,6 +1,6 @@
 // Port of app/services/mcp/server.rb: the JSON-RPC layer of the MCP endpoint (revision negotiation, header checks, batches,
 // envelopes, initialize, ping, server/discover, tools/list and the argument checks of tools/call).
-// Running a tool reads and writes the seller's store, so a valid tools/call hands back to Rails with HandBackToRails.
+// A valid tools/call runs here only for the tools in ./tool-bodies.ts; the rest read and write the seller's store and hand back to Rails.
 import { HandBackToRails } from "../controllers/application-controller.ts";
 import {
   HEADER_MISMATCH,
@@ -15,6 +15,7 @@ import {
   VERSION_META_KEY,
 } from "./constants.ts";
 import { protocolBucket } from "./protocol-telemetry.ts";
+import { toolBody, ToolRpcError, type ToolContext } from "./tool-bodies.ts";
 import { findTool, TOOLS, toolArgumentError } from "./tools.ts";
 
 const TRANSPORT_ERROR_CODES = [HEADER_MISMATCH, UNSUPPORTED_PROTOCOL_VERSION];
@@ -89,6 +90,7 @@ export class RpcSession {
   constructor(
     private readonly headers: RpcHeaders,
     private readonly modernServed: () => Promise<boolean>,
+    private readonly tools?: ToolContext,
   ) {}
 
   get protocolEra(): "legacy" | "modern" {
@@ -192,7 +194,7 @@ export class RpcSession {
         case "tools/list":
           return { tools: TOOLS, ...TOOLS_LIST_CACHE };
         case "tools/call":
-          return this.callTool(params);
+          return await this.callTool(params);
         default:
           throw new McpError(`Method not found: ${method}`, METHOD_NOT_FOUND);
       }
@@ -208,7 +210,7 @@ export class RpcSession {
       case "tools/list":
         return { tools: TOOLS };
       case "tools/call":
-        return this.callTool(params);
+        return await this.callTool(params);
       default:
         throw new McpError(`Method not found: ${method}`, METHOD_NOT_FOUND);
     }
@@ -238,8 +240,8 @@ export class RpcSession {
     };
   }
 
-  // The argument checks run here so a bad call is answered without Rails; a valid call runs the tool in Rails.
-  private callTool(params: Hash): never {
+  // The argument checks run here so a bad call is answered without Rails; a valid call runs the tool here when it is ported.
+  private async callTool(params: Hash): Promise<Hash> {
     const name = params.name;
     if (typeof name !== "string") throw new HandBackToRails("a tool name that is not a string");
     const definition = findTool(name);
@@ -248,7 +250,16 @@ export class RpcSession {
     if (!isHash(args)) throw new McpError("arguments must be an object", INVALID_PARAMS);
     const failure = toolArgumentError(definition.inputSchema, args);
     if (failure !== null) throw new McpError(failure, INVALID_PARAMS);
-    throw new HandBackToRails("an MCP tool call");
+    if (this.tools === undefined) throw new HandBackToRails("an MCP tool call");
+    let payload: Hash | undefined;
+    try {
+      payload = await toolBody(name, args, this.tools);
+    } catch (error) {
+      if (error instanceof ToolRpcError) throw new McpError(error.message, error.code);
+      throw error;
+    }
+    if (payload === undefined) throw new HandBackToRails("an MCP tool call");
+    return { content: [{ type: "text", text: JSON.stringify(payload, null, 2) }], structuredContent: payload };
   }
 }
 
