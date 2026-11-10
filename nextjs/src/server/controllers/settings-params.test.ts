@@ -94,10 +94,14 @@ describe("permittedRole", () => {
     expect(permittedRole({ team_membership: { role: { a: "admin" } } })).toEqual({});
   });
 
-  it("hands back a missing hash and a scalar role that is not a string", () => {
+  it("hands back a missing hash", () => {
     expect(() => permittedRole({})).toThrow(HandBackToRails);
     expect(() => permittedRole({ team_membership: {} })).toThrow(HandBackToRails);
-    expect(() => permittedRole({ team_membership: { role: 5 } })).toThrow(HandBackToRails);
-    expect(() => permittedRole({ team_membership: { role: null } })).toThrow(HandBackToRails);
+  });
+
+  it("casts a scalar role that is not a string, which the inclusion validation then refuses", () => {
+    expect(permittedRole({ team_membership: { role: 5 } })).toEqual({ role: "5" });
+    expect(permittedRole({ team_membership: { role: true } })).toEqual({ role: "true" });
+    expect(permittedRole({ team_membership: { role: null } })).toEqual({ role: null });
   });
 });

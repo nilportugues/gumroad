@@ -24,6 +24,7 @@ import {
 } from "../auth/rails-session-config.ts";
 import { getConfig, getRequiredConfig } from "../infra/config.ts";
 import { notifyError } from "../infra/error-reporting.ts";
+import { RecordInvalid } from "../models/runtime/errors.ts";
 import { railsEnv, railsRoot } from "../infra/rails-env.ts";
 import { secureHeaders } from "../infra/secure-headers.ts";
 import { formAuthenticityToken, globalCsrfToken } from "../page-props/csrf.ts";
@@ -67,6 +68,11 @@ export type ActionResult = Rendered | Redirected | ForceRefresh;
 
 // `raise ActionController::RoutingError, "Not Found"` (ApplicationController#e404).
 export class RoutingError extends Error {}
+
+// ActionDispatch::ExceptionWrapper.rescue_responses: the exceptions Rails answers with a public error page rather than a 500.
+// `save!`/`update!` raising RecordInvalid in an action is a 422.
+export const exceptionStatus = (error: unknown): number =>
+  error instanceof RoutingError ? 404 : error instanceof RecordInvalid ? 422 : 500;
 
 export type BeforeAction = "redirect_to_custom_subdomain" | "check_suspended";
 
@@ -613,8 +619,9 @@ function applyCorsVary(headers: Headers): void {
 
 // ActionDispatch::PublicExceptions for the formats an Accept header names on its own; anything
 // else (including q-value lists) gets the HTML page.
+const PUBLIC_EXCEPTION_MESSAGES: Record<number, string> = { 404: "Not Found", 422: "Unprocessable Content" };
 function publicException(request: RailsRequest, status: number): { headers: Headers; body: string } {
-  const message = status === 404 ? "Not Found" : "Internal Server Error";
+  const message = PUBLIC_EXCEPTION_MESSAGES[status] ?? "Internal Server Error";
   const accept = request.headers.get("accept");
   const single = accept !== null && !accept.includes(",") && !BROWSER_LIKE_ACCEPTS.test(accept) ? accept.split(/\s*;\s*/)[0]!.trim() : "";
   const formats: Record<string, [string, () => string]> = {
@@ -629,7 +636,8 @@ function publicException(request: RailsRequest, status: number): { headers: Head
     ({ "application/json": "json", "text/x-json": "json", "application/jsonrequest": "json", "application/problem+json": "json" } as Record<string, string>)[single] ??
     ({ "application/xml": "xml", "text/xml": "xml", "application/x-xml": "xml" } as Record<string, string>)[single] ??
     ({ "application/x-yaml": "yaml", "text/yaml": "yaml" } as Record<string, string>)[single];
-  if (symbol) {
+  // The test environment's DebugExceptions answers a 422 with an HTML page whatever the Accept header says.
+  if (symbol && !(status === 422 && railsEnv() === "test")) {
     const [type, body] = formats[symbol]!;
     const headers = new Headers({ "content-type": `${type}; charset=utf-8` });
     return { headers, body: request.method === "HEAD" ? "" : body() };
@@ -689,7 +697,7 @@ export async function processAction(
     applyEtag(request, response);
   } catch (error) {
     if (error instanceof HandBackToRails) return forwardToRails(incoming);
-    const status = error instanceof RoutingError ? 404 : 500;
+    const status = exceptionStatus(error);
     if (status === 500) notifyError(error);
     const page = publicException(request, status);
     response = { status, headers: page.headers, body: page.body };
@@ -731,7 +739,7 @@ export async function pageEnvelope(incoming: Request, options: ActionOptions = {
     return { headers, renderState };
   } catch (error) {
     if (error instanceof HandBackToRails) return { response: await forwardToRails(incoming) };
-    const status = error instanceof RoutingError ? 404 : 500;
+    const status = exceptionStatus(error);
     if (status === 500) { console.error("DBG processAction", error); notifyError(error); }
     const page = publicException(request, status);
     return wrap(page.headers, status, page.body === "" ? null : page.body);
