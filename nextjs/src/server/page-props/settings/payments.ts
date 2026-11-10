@@ -3,7 +3,7 @@
 // Constant lists and per-country tables come from payments-data.generated.json
 // (scripts/dump-payments-data.rb). What this does not port throws NotPortedError instead of guessing:
 //   - instant payouts for a seller who passes the first eligibility checks (account seasoning),
-//   - the payout date of a rejected account, a bank sync failure note, a verification error on an address-mismatch code,
+//   - the payout date of a rejected account, a bank sync failure note,
 
 import {
   Prisma,
@@ -468,7 +468,10 @@ async function accountStatusDetails(
   if (pendingCompliance && account === null) {
     const missing: string[] = [];
     for (const request of requested) {
-      const errorMessage = verificationErrorMessage(jsonAttr({ json_data: request.json_data }, "verification_error"));
+      const errorMessage = await verificationErrorMessage(
+        jsonAttr({ json_data: request.json_data }, "verification_error"),
+        seller.id,
+      );
       if (present(errorMessage)) {
         complianceActions.push({ message: `${errorMessage.trim().replace(/[.!?]+$/, "")}.`, href: null });
         continue;

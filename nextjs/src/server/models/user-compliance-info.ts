@@ -2,17 +2,29 @@
 // (or the blank one `fetch_or_build_user_compliance_info` builds), the country codes derived from the
 // stored country names, the attributes kept in json_data, and the Strongbox tax ids. No writes: a
 // UserComplianceInfo is immutable and every edit goes through Rails.
-import type { UserComplianceInfo } from "@prisma/client";
+import { Prisma, type UserComplianceInfo } from "@prisma/client";
 
 import { db } from "../../lib/db.ts";
 import { isBlank as rubyBlank } from "./compliance-countries.ts";
 import { alpha2ByName } from "./compliance-countries.ts";
+import { isPossiblePoBoxMatch, POSSIBLE_MATCH_SQL_HINT } from "./po-box-address.ts";
+import { selectRows } from "./sql.ts";
 import { isStrongboxBlank, strongboxDecrypt } from "./strongbox.ts";
 import { getConfig } from "../infra/config.ts";
 
 // `user.alive_user_compliance_info`: user_compliance_infos.alive.last
 export function aliveUserComplianceInfoRow(userId: bigint): Promise<UserComplianceInfo | null> {
   return db.userComplianceInfo.findFirst({ where: { user_id: Number(userId), deleted_at: null }, orderBy: { id: "desc" } });
+}
+
+// `user.po_box_in_address_history?`: every revision, deleted ones included, as the association has no scope.
+export async function poBoxInAddressHistory(userId: bigint): Promise<boolean> {
+  const rows = await selectRows<{ street_address: string | null; business_street_address: string | null }>(
+    Prisma.sql`SELECT DISTINCT street_address, business_street_address FROM user_compliance_info WHERE user_id = ${userId} AND (street_address LIKE ${POSSIBLE_MATCH_SQL_HINT} OR business_street_address LIKE ${POSSIBLE_MATCH_SQL_HINT})`,
+  );
+  return rows.some(
+    (row) => isPossiblePoBoxMatch(row.street_address) || isPossiblePoBoxMatch(row.business_street_address),
+  );
 }
 
 // `build_user_compliance_info`: nothing set, json_data = {}.

@@ -541,6 +541,31 @@ describe "Payments, profile and application settings when signed in", type: :req
       expect(messages).to eq(["The document might have been altered so it could not be verified.", "Stripe could not verify this number."])
     end
 
+    it "explains the P.O. Box deadlock when an older address revision was a P.O. Box", parity: true do
+      create(:user_compliance_info, user: seller, street_address: "Box 65, RR 2")
+      create(:user_compliance_info, user: seller, street_address: "NW-22-34-19-W2")
+      create(:user_compliance_info_request, user: seller, field_needed: UserComplianceInfoFields::Individual::STRIPE_IDENTITY_DOCUMENT_ID, state: "requested", verification_error: { "code" => "verification_document_address_mismatch", "message" => "Stripe says no" })
+      log_in(seller)
+
+      get settings_payments_path
+
+      expect(response).to be_successful
+      messages = inertia_props_of(response)["account_status"]["compliance_actions"].map { |action| action["message"] }
+      expect(messages).to eq([UserComplianceInfoRequest::PO_BOX_ADDRESS_DEADLOCK_MESSAGE.delete_suffix(".") + "."])
+    end
+
+    it "keeps the address mismatch copy when no address revision looks like a P.O. Box", parity: true do
+      create(:user_compliance_info, user: seller, street_address: "1 Boxwood Lane")
+      create(:user_compliance_info_request, user: seller, field_needed: UserComplianceInfoFields::Individual::STRIPE_IDENTITY_DOCUMENT_ID, state: "requested", verification_error: { "code" => "verification_failed_address_match" })
+      log_in(seller)
+
+      get settings_payments_path
+
+      expect(response).to be_successful
+      messages = inertia_props_of(response)["account_status"]["compliance_actions"].map { |action| action["message"] }
+      expect(messages).to eq(["The address on the document doesn’t match the address on the account. Please verify and correct the provided address on the account, or upload a document with address that matches the account."])
+    end
+
     it "shows an Australian seller who owes backtaxes and has opted in", parity: true do
       create(:user_compliance_info, user: seller, country: "Australia", state: "NSW", zip_code: "2000")
       seller.update!(au_backtax_owed_cents: 150_00, au_backtax_sales_cents: 2_500_50)

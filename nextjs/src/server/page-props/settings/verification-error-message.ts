@@ -1,8 +1,12 @@
 // UserComplianceInfoRequest#verification_error_message (app/models/user_compliance_info_request.rb) for the
-// payments page. The address-mismatch codes can be replaced by a P.O. Box deadlock message that reads the seller's
-// address history (PoBoxAddress), which is not ported: those codes throw NotPortedError, even when the error
-// carries its own message, because Rails runs the P.O. Box check first.
+// payments page. An address-mismatch code reads the seller's address history first: a P.O. Box in it replaces
+// whatever Stripe said, even a message of its own.
+import { poBoxInAddressHistory } from "../../models/user-compliance-info.ts";
 import { NotPortedError } from "../not-ported.ts";
+
+// UserComplianceInfoRequest::PO_BOX_ADDRESS_DEADLOCK_MESSAGE
+const PO_BOX_ADDRESS_DEADLOCK_MESSAGE =
+  "The address on your document doesn't match the address on your account. Your registered address appears to be a P.O. Box, which our payment partner can't accept on the account itself, so a document showing that P.O. Box will never match and uploading it again won't help. Please contact support and we'll sort out together which address and document will work for you.";
 
 // UserComplianceInfoRequest::ADDRESS_MISMATCH_ERROR_CODES
 const ADDRESS_MISMATCH_ERROR_CODES = ["verification_document_address_mismatch", "verification_failed_address_match"];
@@ -97,16 +101,18 @@ const MESSAGES_BY_CODE: Record<string, string> = {
 const isHash = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-export function verificationErrorMessage(verificationError: unknown): string | null {
+export async function verificationErrorMessage(verificationError: unknown, userId: bigint): Promise<string | null> {
   // `verification_error.blank?`
   if (verificationError == null || verificationError === false || verificationError === "") return null;
   if (!isHash(verificationError)) throw new NotPortedError("a verification_error that is not a hash");
   if (Object.keys(verificationError).length === 0) return null;
   const { code, message } = verificationError;
-  if (typeof code === "string" && ADDRESS_MISMATCH_ERROR_CODES.includes(code)) {
-    throw new NotPortedError(
-      "UserComplianceInfoRequest.po_box_address_deadlock? (PoBoxAddress over the seller's address history)",
-    );
+  if (
+    typeof code === "string" &&
+    ADDRESS_MISMATCH_ERROR_CODES.includes(code) &&
+    (await poBoxInAddressHistory(userId))
+  ) {
+    return PO_BOX_ADDRESS_DEADLOCK_MESSAGE;
   }
   if (message !== undefined && message !== null && message !== false) {
     if (typeof message !== "string") throw new NotPortedError("a verification_error message that is not a string");
