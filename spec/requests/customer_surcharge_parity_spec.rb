@@ -235,6 +235,45 @@ describe "Customer surcharge", type: :request do
     end
   end
 
+  describe "a bundle bound for the EU" do
+    let(:bundle) { create(:product, :bundle, user: seller, unique_permalink: "surchargebundle") }
+
+    before { create_de_vat_rate }
+
+    def make_components(bundle, *physical_flags)
+      bundle.bundle_products.each(&:mark_deleted!)
+      physical_flags.each_with_index do |physical, index|
+        component = create(physical ? :physical_product : :product, user: seller, unique_permalink: "surchargecomp#{%w[a b c][index]}")
+        create(:bundle_product, bundle:, product: component)
+      end
+    end
+
+    it "drops VAT when every live component is physical", parity: true do
+      make_components(bundle, true, true)
+
+      post_surcharge(products: [line(bundle, price: 1_000)], country: "DE", postal_code: "10115")
+
+      expect(response.parsed_body).to include("subtotal" => 1_000, "tax_cents" => 0)
+    end
+
+    it "keeps collecting VAT on a bundle that mixes physical and digital components", parity: true do
+      make_components(bundle, true, false)
+
+      post_surcharge(products: [line(bundle, price: 1_000)], country: "DE", postal_code: "10115")
+
+      expect(response.parsed_body).to include("subtotal" => 1_000, "tax_cents" => 190)
+    end
+
+    it "decides by the components when the bundle row itself is flagged physical", parity: true do
+      make_components(bundle, false)
+      bundle.update_attribute(:is_physical, true)
+
+      post_surcharge(products: [line(bundle, price: 1_000)], country: "DE", postal_code: "10115")
+
+      expect(response.parsed_body).to include("tax_cents" => 190)
+    end
+  end
+
   describe "preorder, membership and installment lines" do
     before { create_de_vat_rate }
 

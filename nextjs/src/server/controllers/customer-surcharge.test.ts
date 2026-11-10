@@ -70,8 +70,10 @@ const requestWith = (headers: Record<string, string> = {}, queryString = "") =>
 
 let links: Record<string, unknown>[];
 let rates: Record<string, unknown>[];
+let bundleComponents: Record<string, unknown>[];
 function stubDb() {
   selectRows.mockImplementation(async (query: { sql: string }) => {
+    if (query.sql.includes("FROM `bundle_products`")) return bundleComponents;
     if (query.sql.includes("FROM `links`")) return links;
     if (query.sql.includes("FROM `zip_tax_rates`")) return rates;
     return [];
@@ -82,6 +84,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   links = [link()];
   rates = [];
+  bundleComponents = [];
   stubDb();
   isFeatureEnabled.mockResolvedValue(false);
   geoIpLookup.mockReturnValue(null);
@@ -362,17 +365,62 @@ describe("hand-backs", () => {
     );
   });
 
-  it("hands back a Spanish buyer placed in the Canary Islands and a bundle bound for the EU", async () => {
+  it("hands back a Spanish buyer placed in the Canary Islands", async () => {
     rates = [zipTaxRate({ country: "ES" })];
     geoIpLookup.mockReturnValue({ countryCode: "ES", regionName: "TF" });
     await expectHandBack(cart({ country: "ES", postal_code: "08001" }));
 
     geoIpLookup.mockReturnValue(null);
     expect((await call(cart({ country: "ES", postal_code: "35001" }))).body).toMatchObject({ tax_cents: 0 });
+  });
 
-    rates = [zipTaxRate()];
-    links = [link({ flags: flagsOf("is_bundle") })];
-    await expectHandBack(cart({ country: "DE" }));
+  describe("a bundle bound for an EU rate", () => {
+    const component = (...names: (keyof typeof FLAG_BITS)[]) => ({ product_id: 9n, flags: flagsOf(...names) });
+    const taxFor = async () => (await call(cart({ country: "DE" }))).body.tax_cents;
+
+    beforeEach(() => {
+      rates = [zipTaxRate()];
+      links = [link({ flags: flagsOf("is_bundle") })];
+    });
+
+    it("drops the VAT when every live component is physical", async () => {
+      bundleComponents = [component("is_physical"), component("is_physical")];
+
+      expect(await taxFor()).toBe(0);
+    });
+
+    it("keeps collecting for a mixed bundle and for one with no live component", async () => {
+      bundleComponents = [component("is_physical"), component()];
+      expect(await taxFor()).toBe(19);
+
+      bundleComponents = [];
+      expect(await taxFor()).toBe(19);
+    });
+
+    it("ignores the bundle row's own is_physical flag", async () => {
+      links = [link({ flags: flagsOf("is_bundle", "is_physical") })];
+      bundleComponents = [component()];
+
+      expect(await taxFor()).toBe(19);
+    });
+
+    it("does not read the components for a seller's own rate or a destination outside the EU-27", async () => {
+      rates = [zipTaxRate({ user_id: 5n })];
+      bundleComponents = [component("is_physical")];
+      expect(await taxFor()).toBe(19);
+
+      rates = [zipTaxRate({ country: "AU", combined_rate: "0.1000000" })];
+      expect((await call(cart({ country: "AU" }))).body.tax_cents).toBe(10);
+      expect(selectRows.mock.calls.some(([query]) => (query as { sql: string }).sql.includes("bundle_products"))).toBe(
+        false,
+      );
+    });
+
+    it("hands back a bundle with a component whose product row is gone", async () => {
+      bundleComponents = [{ product_id: null, flags: null }];
+
+      await expectHandBack(cart({ country: "DE" }));
+    });
   });
 
   it("hands back a seller using buyer-currency charging", async () => {
