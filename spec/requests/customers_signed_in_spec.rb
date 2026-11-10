@@ -530,7 +530,7 @@ describe "Customers page when signed in", type: :request, elasticsearch_wait_for
     expect(customers_of(response).first["option"]).to include("name" => "Small")
   end
 
-  # Own_affiliate_credit_cents takes the direct affiliate's part off a collaborator sale.
+  # own_affiliate_credit_cents takes the direct affiliate's part off a collaborator sale.
   it "shows the collaborator's own credit on a sale that also credits a direct affiliate", parity: true do
     collaborator = create(:collaborator, seller:, affiliate_user: create(:user), affiliate_basis_points: 5000)
     direct_affiliate = create(:direct_affiliate, seller:, affiliate_user: create(:user), affiliate_basis_points: 1000, products: [product])
