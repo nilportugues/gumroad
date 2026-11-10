@@ -1,5 +1,5 @@
 // Api::V2::McpController (the /muse, /claude and /chatgpt connector paths and the `.well-known` documents) and
-// Api::V2::NotionUnfurlUrlsController. The JSON-RPC envelope and tools/list are ported (../../mcp/server.ts); a tool call that runs,
+// Api::V2::NotionUnfurlUrlsController. The JSON-RPC envelope and tools/list are ported (../../mcp/server.ts); a tool call runs here only for the bodies in mcp/tool-bodies.ts,
 // dynamic client registration and the product preview of the Notion unfurl stay in Rails.
 import { domainConfig } from "../../page-props/domain.ts";
 import { HandBackToRails, type ActionResult } from "../application-controller.ts";
@@ -113,9 +113,10 @@ export async function mcp(call: ApiCall): Promise<ActionResult> {
       name: call.request.headers.get(NAME_HEADER),
     },
     () => isFeatureEnabled(MCP_PROTOCOL_FLAG),
+    { user: call.owner, token: call.token },
   );
   const reply = await session.handle(JSON.parse(text));
-  // A tool call hands back before this point, so Rails records its own requests.
+  // A tool call that hands back leaves before this point, so Rails records its own requests.
   await recordProtocolTelemetry(connector, session.counts);
   if (reply === null) return head(202, {}, false);
   return renderJson(reply, rpcHttpStatus(reply, session.protocolEra));
