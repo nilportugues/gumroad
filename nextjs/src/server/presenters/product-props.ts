@@ -584,12 +584,27 @@ async function hasRows(tableName: string, where: Prisma.Sql): Promise<boolean> {
   return (await selectRows(Prisma.sql`SELECT 1 FROM ${table(tableName)} WHERE ${where} LIMIT 1`)).length > 0;
 }
 
-// Link#collaborator_for_display: any collaboration on the product goes to Rails.
-async function assertNoCollaborator(row: LinkRow): Promise<void> {
-  const rows = await selectRows(
-    Prisma.sql`SELECT 1 FROM ${table("affiliates_links")} INNER JOIN ${table("affiliates")} ON ${column("affiliates", "id")} = ${column("affiliates_links", "affiliate_id")} WHERE ${column("affiliates_links", "link_id")} = ${row.id} AND ${column("affiliates", "type")} = 'Collaborator' AND ${column("affiliates", "deleted_at")} IS NULL LIMIT 1`,
+const AFFILIATE_APPLY_TO_ALL_PRODUCTS = 1n << 0n;
+const AFFILIATE_DONT_SHOW_AS_CO_CREATOR = 1n << 2n;
+const PRODUCT_AFFILIATE_DONT_SHOW_AS_CO_CREATOR = 1n << 0n;
+
+// Link#collaborator_for_display: the accepted, undeleted collaborator's user, unless the collaboration hides the
+// co-creator credit. A pending invitation (a collaborator_invitations row) does not count.
+export async function collaboratorForDisplay(row: LinkRow): Promise<UserRow | null> {
+  const [collaboration] = await selectRows<{
+    affiliate_user_id: bigint | number | null;
+    affiliate_flags: bigint | number | null;
+    product_affiliate_flags: bigint | number | null;
+  }>(
+    Prisma.sql`SELECT ${column("affiliates", "affiliate_user_id")}, ${column("affiliates", "flags")} AS affiliate_flags, ${column("affiliates_links", "flags")} AS product_affiliate_flags FROM ${table("affiliates_links")} INNER JOIN ${table("affiliates")} ON ${column("affiliates", "id")} = ${column("affiliates_links", "affiliate_id")} LEFT OUTER JOIN ${table("collaborator_invitations")} ON ${column("collaborator_invitations", "collaborator_id")} = ${column("affiliates", "id")} WHERE ${column("affiliates_links", "link_id")} = ${row.id} AND ${column("affiliates", "type")} = 'Collaborator' AND ${column("affiliates", "deleted_at")} IS NULL AND ${column("collaborator_invitations", "id")} IS NULL LIMIT 1`,
   );
-  if (rows.length > 0) throw new NotPortedError("Link#collaborator_for_display");
+  if (!collaboration || collaboration.affiliate_user_id === null) return null;
+  // Collaborator#show_as_co_creator_for_product?
+  const shown =
+    (BigInt(collaboration.affiliate_flags ?? 0) & AFFILIATE_APPLY_TO_ALL_PRODUCTS) !== 0n
+      ? (BigInt(collaboration.affiliate_flags ?? 0) & AFFILIATE_DONT_SHOW_AS_CO_CREATOR) === 0n
+      : (BigInt(collaboration.product_affiliate_flags ?? 0) & PRODUCT_AFFILIATE_DONT_SHOW_AS_CO_CREATOR) === 0n;
+  return shown ? findUserById(collaboration.affiliate_user_id) : null;
 }
 
 // BestOfferCodeService#default_offer_codes is empty: no default offer code and no shop-wide sale.
@@ -759,7 +774,7 @@ export async function productProps(row: LinkRow, seller: UserRow, viewer: Produc
   ) {
     throw new NotPortedError("Link#purchase_info_for_product_page");
   }
-  await assertNoCollaborator(row);
+  const collaborator = await collaboratorForDisplay(row);
   // The page head preloads the call calendar through the Vite manifest, which Node does not have.
   if (row.native_type === "call") throw new NotPortedError("PageMeta::Product vite_asset_path for the call calendar");
   const published = row.deleted_at === null && row.purchase_disabled_at === null && !row.draft;
@@ -817,7 +832,7 @@ export async function productProps(row: LinkRow, seller: UserRow, viewer: Produc
       recommendedBy: viewer.recommendedBy,
       customDomainUrl: viewer.sellerCustomDomainUrl,
     }),
-    collaborating_user: null,
+    collaborating_user: collaborator ? await authorBylineProps(collaborator) : null,
     covers: [],
     main_cover_id: null,
     thumbnail_url: await thumbnailUrl(row.id),
