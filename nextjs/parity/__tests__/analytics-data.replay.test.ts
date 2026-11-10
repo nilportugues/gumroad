@@ -151,6 +151,8 @@ describe.skipIf(!url)("analytics data parity when signed in", () => {
           await reindexPurchases(es, purchases.name, sql);
         },
       },
+      // The clocks already sit on the recorded day; drifting the fixture's dates too would shift them twice.
+      driftDates: false,
       transport: httpTransport(server.baseUrl),
       interceptHttp: false,
       rewriteRequest: (request, fixture, now) => reencryptCookies(request, fixture, SECRET_KEY_BASE, now),
