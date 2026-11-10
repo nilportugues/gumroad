@@ -10,5 +10,7 @@ import "./upsells.ts";
 import "./resource-subscriptions.ts";
 import "./tax.ts";
 import "./sales.ts";
+import "./payouts.ts";
+import "./media.ts";
 import "./subscribers.ts";
 import "./ws17c.ts";

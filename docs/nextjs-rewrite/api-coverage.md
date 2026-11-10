@@ -15,7 +15,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 
 | Namespace | Routes | Native | Hands back | Not registered | Unresolved |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 73 | 0 | 65 | 0 |
+| API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 77 | 0 | 61 | 0 |
 | Mobile API (`/mobile` on the API host) | 64 | 33 | 0 | 31 | 0 |
 | Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 17 | 0 | 65 | 3 |
 | Internal API, Gumroad domain (`/internal`, JSON for the React Router pages) | 23 | 11 | 0 | 12 | 0 |
@@ -49,7 +49,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `PATCH /v2/pages/:id` | `Api::V2::PagesController#update` | native | `nextjs_api_v2_pages` | y |
 | `PUT /v2/pages/:id` | `Api::V2::PagesController#update` | native | `nextjs_api_v2_pages` | n |
 | `DELETE /v2/pages/:id` | `Api::V2::PagesController#destroy` | native | `nextjs_api_v2_pages` | y |
-| `GET /v2/media` | `Api::V2::MediaController#index` | not registered | - | n |
+| `GET /v2/media` | `Api::V2::MediaController#index` | native | `nextjs_api_v2_media` | n |
 | `POST /v2/media` | `Api::V2::MediaController#create` | not registered | - | n |
 | `DELETE /v2/media/:id` | `Api::V2::MediaController#destroy` | not registered | - | n |
 | `GET /v2/categories` | `Api::V2::CategoriesController#index` | native | `nextjs_api_v2_products` | y |
@@ -151,9 +151,9 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `POST /v2/sales/:id/resend_receipt` | `Api::V2::SalesController#resend_receipt` | native | `nextjs_api_v2_sales` | n |
 | `PUT /v2/sales/:id/revoke_access` | `Api::V2::SalesController#revoke_access` | not registered | - | n |
 | `PUT /v2/sales/:id/undo_revoke_access` | `Api::V2::SalesController#undo_revoke_access` | not registered | - | n |
-| `GET /v2/payouts` | `Api::V2::PayoutsController#index` | not registered | - | n |
-| `GET /v2/payouts/:id` | `Api::V2::PayoutsController#show` | not registered | - | n |
-| `GET /v2/payouts/upcoming` | `Api::V2::PayoutsController#upcoming` | not registered | - | n |
+| `GET /v2/payouts` | `Api::V2::PayoutsController#index` | native | `nextjs_api_v2_payouts` | n |
+| `GET /v2/payouts/:id` | `Api::V2::PayoutsController#show` | native | `nextjs_api_v2_payouts` | n |
+| `GET /v2/payouts/upcoming` | `Api::V2::PayoutsController#upcoming` | native | `nextjs_api_v2_payouts` | n |
 | `GET /v2/subscribers/:id` | `Api::V2::SubscribersController#show` | native | `nextjs_api_v2_subscribers` | y |
 | `PUT /v2/resource_subscriptions` | `Api::V2::ResourceSubscriptionsController#create` | not registered | - | y |
 | `DELETE /v2/resource_subscriptions/:id` | `Api::V2::ResourceSubscriptionsController#destroy` | native | `nextjs_api_v2_resource_subscriptions` | y |
