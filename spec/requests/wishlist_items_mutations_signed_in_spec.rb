@@ -141,11 +141,126 @@ describe "Wishlist followers and products when signed in", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "hands a product with a version through to Rails", parity: true do
-      versioned = create(:subscription_product_with_versions)
+    it "adds the chosen version of a product", parity: true do
+      versioned = create(:product_with_digital_versions)
       log_in(owner)
 
-      send_json(:post, "/wishlists/#{wishlist.external_id}/products", { wishlist_product: { product_id: versioned.external_id, recurrence: BasePrice::Recurrence::MONTHLY, option_id: versioned.options.first[:id] } })
+      send_json(:post, "/wishlists/#{wishlist.external_id}/products", { wishlist_product: { product_id: versioned.external_id, option_id: versioned.options.second[:id] } })
+
+      expect(response).to have_http_status(:created)
+      expect(wishlist.wishlist_products.sole.variant).to eq(versioned.alive_variants.second)
+    end
+
+    it "adds a second version of a product as its own row", parity: true do
+      versioned = create(:product_with_digital_versions)
+      create(:wishlist_product, wishlist:, product: versioned, variant: versioned.alive_variants.first)
+      log_in(owner)
+
+      send_json(:post, "/wishlists/#{wishlist.external_id}/products", { wishlist_product: { product_id: versioned.external_id, option_id: versioned.options.second[:id] } })
+
+      expect(response).to have_http_status(:created)
+      expect(wishlist.wishlist_products.count).to eq(2)
+    end
+
+    it "adds the same version twice without a second row", parity: true do
+      versioned = create(:product_with_digital_versions)
+      create(:wishlist_product, wishlist:, product: versioned, variant: versioned.alive_variants.first)
+      log_in(owner)
+
+      send_json(:post, "/wishlists/#{wishlist.external_id}/products", { wishlist_product: { product_id: versioned.external_id, option_id: versioned.options.first[:id] } })
+
+      expect(response).to have_http_status(:created)
+      expect(wishlist.wishlist_products.count).to eq(1)
+    end
+
+    it "refuses a product with versions when no version is chosen", parity: true do
+      versioned = create(:product_with_digital_versions)
+      log_in(owner)
+
+      send_json(:post, "/wishlists/#{wishlist.external_id}/products", { wishlist_product: { product_id: versioned.external_id } })
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["error"]).to eq("Wishlist product must have variant specified for versioned product")
+      expect(wishlist.wishlist_products).to be_empty
+    end
+
+    it "answers 404 for a version that belongs to another product", parity: true do
+      versioned = create(:product_with_digital_versions)
+      other = create(:product_with_digital_versions)
+      log_in(owner)
+
+      send_json(:post, "/wishlists/#{wishlist.external_id}/products", { wishlist_product: { product_id: versioned.external_id, option_id: other.options.first[:id] } })
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "answers 404 for a version that is not a valid id", parity: true do
+      versioned = create(:product_with_digital_versions)
+      log_in(owner)
+
+      send_json(:post, "/wishlists/#{wishlist.external_id}/products", { wishlist_product: { product_id: versioned.external_id, option_id: "unknown" } })
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "adds a membership tier with its recurrence", parity: true do
+      membership = create(:subscription_product_with_versions)
+      log_in(owner)
+
+      send_json(:post, "/wishlists/#{wishlist.external_id}/products", { wishlist_product: { product_id: membership.external_id, recurrence: BasePrice::Recurrence::MONTHLY, option_id: membership.options.first[:id] } })
+
+      expect(response).to have_http_status(:created)
+      expect(wishlist.wishlist_products.sole.recurrence).to eq(BasePrice::Recurrence::MONTHLY)
+    end
+
+    it "adds a recurring product with another recurrence as its own row", parity: true do
+      membership = create(:subscription_product_with_versions)
+      variant = membership.alive_variants.first
+      create(:wishlist_product, wishlist:, product: membership, variant:, recurrence: BasePrice::Recurrence::MONTHLY)
+      log_in(owner)
+
+      send_json(:post, "/wishlists/#{wishlist.external_id}/products", { wishlist_product: { product_id: membership.external_id, recurrence: BasePrice::Recurrence::YEARLY, option_id: membership.options.first[:id] } })
+
+      expect(response).to have_http_status(:created)
+      expect(wishlist.wishlist_products.count).to eq(2)
+    end
+
+    it "refuses a recurring product when no recurrence is chosen", parity: true do
+      membership = create(:subscription_product_with_versions)
+      log_in(owner)
+
+      send_json(:post, "/wishlists/#{wishlist.external_id}/products", { wishlist_product: { product_id: membership.external_id, option_id: membership.options.first[:id] } })
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["error"]).to eq("Recurrence is not included in the list")
+    end
+
+    it "refuses a recurrence that is not allowed", parity: true do
+      membership = create(:subscription_product_with_versions)
+      log_in(owner)
+
+      send_json(:post, "/wishlists/#{wishlist.external_id}/products", { wishlist_product: { product_id: membership.external_id, recurrence: "weekly", option_id: membership.options.first[:id] } })
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["error"]).to eq("Recurrence is not included in the list")
+    end
+
+    it "refuses a recurrence for a product that is not recurring", parity: true do
+      log_in(owner)
+
+      send_json(:post, "/wishlists/#{wishlist.external_id}/products", { wishlist_product: { product_id: product.external_id, recurrence: BasePrice::Recurrence::MONTHLY } })
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["error"]).to eq("Recurrence must be blank")
+    end
+
+    it "hands a product with skus through to Rails", parity: true do
+      physical = create(:physical_product, skus_enabled: true)
+      create(:sku, link: physical, name: "Large")
+      create(:sku, link: physical, name: "Small")
+      log_in(owner)
+
+      send_json(:post, "/wishlists/#{wishlist.external_id}/products", { wishlist_product: { product_id: physical.external_id, option_id: physical.skus.not_is_default_sku.first.external_id } })
 
       expect(response).to have_http_status(:created)
     end

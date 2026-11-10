@@ -1,14 +1,17 @@
 // Port of app/models/wishlist_follower.rb and the part of wishlist_product.rb the wishlist controllers write through.
-import { Prisma, type WishlistFollower, type WishlistProduct } from "@prisma/client";
+import { Prisma, type Wishlist, type WishlistFollower, type WishlistProduct } from "@prisma/client";
 
 import { deletable } from "./concerns/deletable.ts";
 import { belongsToRequired } from "./concerns/rails-validations.ts";
+import { LinkFlags } from "./link.ts";
 import { Wishlists } from "./wishlist.ts";
 import { defineModel, type CallbackContext } from "./runtime/define-model.ts";
 import type { ModelRecord } from "./runtime/record.ts";
-import { column, table } from "./sql.ts";
+import { castRow, column, table } from "./sql.ts";
 
 const WISHLIST_PRODUCT_LIMIT = 100;
+// BasePrice::Recurrence::ALLOWED_RECURRENCES
+const ALLOWED_RECURRENCES = ["monthly", "quarterly", "biannually", "yearly", "every_two_years"];
 
 // `wishlist.increment!(:follower_count)`: update_counters, which does not touch updated_at.
 async function adjustFollowerCount(wishlistId: unknown, delta: 1 | -1, ctx: CallbackContext): Promise<void> {
@@ -59,7 +62,8 @@ export const WishlistFollowerDeletable = deletable(WishlistFollowers);
 async function updateWishlistRecommendable(record: ModelRecord<WishlistProduct>, ctx: CallbackContext): Promise<void> {
   const [row] = await ctx.tx.$queryRaw<Record<string, unknown>[]>(Prisma.sql`SELECT ${Prisma.raw("`wishlists`.*")} FROM ${table("wishlists")} WHERE ${column("wishlists", "id")} = ${record.get("wishlist_id")} LIMIT 1`);
   if (!row) return;
-  const wishlist = Wishlists.load(row as never);
+  // castRow turns the tinyint `recommendable` into a boolean, or an unchanged value would count as a change and touch updated_at.
+  const wishlist = Wishlists.load(castRow<Wishlist>("Wishlist", row));
   await Wishlists.save(wishlist, { now: ctx.now });
 }
 
@@ -70,6 +74,38 @@ export const WishlistProducts = defineModel<WishlistProduct>({
   validations: [
     belongsToRequired<WishlistProduct>({ name: "wishlist", foreignKey: "wishlist_id", targetTable: "wishlists", targetModel: "Wishlist" }),
     belongsToRequired<WishlistProduct>({ name: "product", foreignKey: "product_id", targetTable: "links", targetModel: "Link" }),
+    {
+      name: "recurrence matches the product",
+      async run(record, { tx }) {
+        const [product] = await tx.$queryRaw<{ flags: bigint }[]>(Prisma.sql`SELECT ${column("links", "flags")} FROM ${table("links")} WHERE ${column("links", "id")} = ${record.get("product_id")} LIMIT 1`);
+        const recurrence = record.get("recurrence");
+        if (product && LinkFlags.isSet(product.flags as never, "is_recurring_billing")) {
+          if (!ALLOWED_RECURRENCES.includes(recurrence ?? "")) record.errors.add("recurrence", "inclusion");
+        } else if (recurrence != null && recurrence !== "") record.errors.add("recurrence", "present");
+      },
+    },
+    {
+      name: "versioned_product_has_variant",
+      unless: (record) => record.attributeChanged("deleted_at", { from: null }),
+      async run(record, { tx }) {
+        if (record.get("variant_id") != null) return;
+        const [product] = await tx.$queryRaw<{ flags: bigint }[]>(Prisma.sql`SELECT ${column("links", "flags")} FROM ${table("links")} WHERE ${column("links", "id")} = ${record.get("product_id")} LIMIT 1`);
+        if (!product) return;
+        // `skus.alive.not_is_default_sku.count > 1 || alive_variants.present?`
+        const [skus] = LinkFlags.isSet(product.flags as never, "skus_enabled")
+          ? await tx.$queryRaw<{ count: bigint }[]>(
+              Prisma.sql`SELECT COUNT(*) AS ${Prisma.raw("`count`")} FROM ${table("base_variants")} WHERE ${column("base_variants", "link_id")} = ${record.get("product_id")} AND ${column("base_variants", "type")} = 'Sku' AND ${column("base_variants", "deleted_at")} IS NULL AND (${column("base_variants", "flags")} & 1) = 0`,
+            )
+          : [];
+        const [variant] =
+          Number(skus?.count ?? 0) > 1
+            ? [{}]
+            : await tx.$queryRaw<unknown[]>(
+                Prisma.sql`SELECT 1 AS one FROM ${table("base_variants")} JOIN ${table("variant_categories")} ON ${column("variant_categories", "id")} = ${column("base_variants", "variant_category_id")} WHERE ${column("variant_categories", "link_id")} = ${record.get("product_id")} AND ${column("variant_categories", "deleted_at")} IS NULL AND ${column("base_variants", "type")} = 'Variant' AND ${column("base_variants", "deleted_at")} IS NULL LIMIT 1`,
+              );
+        if (variant) record.errors.add("base", "Wishlist product must have variant specified for versioned product");
+      },
+    },
     {
       name: "wishlist_product_limit",
       on: "create",
