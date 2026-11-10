@@ -444,6 +444,33 @@ describe "Buyer pages", type: :request do
         expect(inertia_props_of(response)["receipt_purchases"].map { _1["has_third_party_analytics"] }).to eq([true])
       end
 
+      it "builds the analytics event for a tracked purchase whose seller has Google Analytics and Facebook ids", parity: true do
+        product = create(:product, name: "Pixel product", unique_permalink: "pixelproduct")
+        product.user.update!(google_analytics_id: "G-12345678", facebook_pixel_id: "1234567890")
+        purchase = library_purchase(link: product)
+        log_in(buyer)
+
+        get library_path(purchase_id: purchase.external_id)
+
+        expect(response).to be_successful
+        props = inertia_props_of(response)
+        expect(props["purchase_analytics"].keys).to eq([purchase.external_id])
+        expect(props["purchase_analytics"][purchase.external_id]).to include("seller_id" => product.user.external_id)
+      end
+
+      it "formats the tax and quantity of a tracked purchase whose seller has a TikTok id", parity: true do
+        product = create(:product, name: "Taxed product", unique_permalink: "taxedproduct")
+        product.user.update!(tiktok_pixel_id: "TIKTOK123", skip_free_sale_analytics: true)
+        purchase = library_purchase(link: product, quantity: 2, tax_cents: 150)
+        log_in(buyer)
+
+        get library_path(purchase_id: purchase.external_id)
+
+        expect(response).to be_successful
+        event = inertia_props_of(response)["purchase_analytics"][purchase.external_id]["purchase_event"]
+        expect(event).to include("quantity" => 2, "tax" => "1.50", "currency" => "usd")
+      end
+
       it "leaves out a tracked purchase that is not in the buyer's library", parity: true do
         revoked = library_purchase(link: create(:product, name: "Revoked tracked"), is_access_revoked: true)
         library_purchase(link: create(:product, name: "Kept"))

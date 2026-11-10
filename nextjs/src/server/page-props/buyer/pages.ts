@@ -15,7 +15,7 @@ import {
   WISHLISTS_OPTIONS,
 } from "../../controllers/buyer-pages.ts";
 import { railsLoggedInUser } from "../../auth/resolve.ts";
-import { libraryProps, receiptPurchases } from "./library.ts";
+import { libraryProps, purchaseAnalyticsProps, receiptPurchases } from "./library.ts";
 import { reviewsProps } from "./reviews.ts";
 import { aliveFollowingWishlistsOf, aliveWishlistsOf, wishlistsLibraryProps } from "./wishlists.ts";
 import { queryParam, type RailsRequest } from "../../controllers/rails-request.ts";
@@ -56,8 +56,7 @@ async function libraryPage(action: ActionContext) {
   const user = railsLoggedInUser(action.context);
   if (!user) throw new TypeError("undefined method for nil: logged_in_user");
   const params = libraryParams({ queryString: action.url.search.replace(/^\?/, "") } as RailsRequest);
-  // trackedPurchaseHasPixels handed back a purchase whose seller has pixel ids, so no analytics props remain.
-  return { ...(await libraryProps(user, params)), purchase_analytics: {}, receipt_purchases: await receiptPurchases(user.id, params.purchaseId) };
+  return { ...(await libraryProps(user, params)), purchase_analytics: await purchaseAnalyticsProps(user.id, params.purchaseId), receipt_purchases: await receiptPurchases(user.id, params.purchaseId) };
 }
 
 export const BUYER_PAGES: Record<string, PageSpec> = {
@@ -106,7 +105,7 @@ export const BUYER_PAGES: Record<string, PageSpec> = {
       return { wishlists: await wishlistsLibraryProps(await aliveFollowingWishlistsOf(currentSeller(action).id), { isWishlistCreator: false }) };
     },
   },
-  // LibraryController#index. `purchase_id` (post-checkout analytics) goes to Rails in the filters.
+  // LibraryController#index. `purchase_id` (post-checkout analytics) in a non-USD or buyer-local currency goes to Rails in the filters.
   "/library": { component: "Library/Index", options: LIBRARY_OPTIONS, props: (_, action) => libraryPage(action) },
   "/library/purchase/:id": { component: "Library/Index", options: LIBRARY_OPTIONS, props: (_, action) => libraryPage(action) },
   // ReviewsController#index: ReviewsPresenter.new(current_seller)

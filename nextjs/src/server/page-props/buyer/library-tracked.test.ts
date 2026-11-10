@@ -8,26 +8,32 @@ const { link, subscription } = vi.hoisted(() => ({
   subscription: { findUnique: vi.fn() },
 }));
 vi.mock("../../../lib/db.ts", () => ({ db: { link, subscription } }));
+vi.mock("../../presenters/product.ts", async (original) => ({
+  ...(await original<typeof import("../../presenters/product.ts")>()),
+  buyerCurrencyDisplayProps: async () => ({ display_mode: "default" }),
+}));
 
 import { encrypt } from "../../../lib/obfuscate-ids.ts";
 import { HandBackToRails } from "../../controllers/application-controller.ts";
 import { LinkFlags } from "../../models/link.ts";
 import { setSqlClient } from "../../models/sql.ts";
 
-import { assertLibrarySupported, receiptPurchases } from "./library.ts";
+import { purchaseAnalyticsProps, receiptPurchases } from "./library.ts";
 
 const EXTERNAL_ID = encrypt(5);
 const RECURRING = LinkFlags.set(0n, "is_recurring_billing", true);
 const BLOCKS_ACCESS = LinkFlags.set(RECURRING, "block_access_after_membership_cancellation", true);
 
-type Answers = { users?: Record<string, unknown>[]; purchases?: Record<string, unknown>[]; analytics?: unknown[] };
+type Answers = { users?: Record<string, unknown>[]; purchases?: Record<string, unknown>[]; analytics?: unknown[]; links?: Record<string, unknown>[] };
 
-function answering({ users = [], purchases = [], analytics = [] }: Answers) {
+function answering({ users = [], purchases = [], analytics = [], links = [] }: Answers) {
   const statements: string[] = [];
   setSqlClient(() => ({
     $queryRaw: (async (query: { sql: string }) => {
       statements.push(query.sql);
       if (query.sql.includes("FROM `third_party_analytics`")) return analytics;
+      if (query.sql.includes("FROM `purchase_presentments`")) return [];
+      if (query.sql.includes("`links`.*")) return links;
       if (query.sql.includes("`users`.*")) return users;
       if (query.sql.includes("`purchases`.*")) return purchases;
       throw new Error(`unexpected statement: ${query.sql}`);
@@ -43,44 +49,56 @@ const purchaseRow = (overrides: Record<string, unknown> = {}) => ({
   link_id: 9n,
   subscription_id: null,
   flags: 0n,
+  displayed_price_currency_type: "usd",
+  displayed_price_cents: 1500,
+  quantity: 1,
+  tax_cents: 0,
   ...overrides,
 });
-const productRow = (overrides: Record<string, unknown> = {}) => ({ id: 9n, user_id: 3n, unique_permalink: "abc", flags: 0n, ...overrides });
-const sellerRow = (overrides: Record<string, unknown> = {}) => ({ id: 3n, google_analytics_id: null, facebook_pixel_id: null, json_data: null, ...overrides });
-const params = { bundles: "", subscriptionsOnly: false, purchaseId: EXTERNAL_ID };
+const productRow = (overrides: Record<string, unknown> = {}) => ({ id: 9n, user_id: 3n, name: "Course", unique_permalink: "abc", price_currency_type: "usd", flags: 0n, ...overrides });
+const sellerRow = (overrides: Record<string, unknown> = {}) => ({ id: 3n, external_id: "seller-ext", flags: 0n, google_analytics_id: null, facebook_pixel_id: null, json_data: null, ...overrides });
 
 beforeEach(() => {
   link.findUniqueOrThrow.mockReset();
   subscription.findUnique.mockReset();
 });
 
-describe("assertLibrarySupported with a tracked purchase", () => {
-  it("serves a purchase whose seller has no pixel ids", async () => {
-    const statements = answering({ users: [sellerRow()] });
-    await expect(assertLibrarySupported(1n, params)).resolves.toBeUndefined();
-    expect(statements[0]).toContain("`purchases`.`purchaser_id` = ?");
-  });
-
-  it("serves an id that is not one of the buyer's purchases", async () => {
-    answering({ users: [] });
-    await expect(assertLibrarySupported(1n, params)).resolves.toBeUndefined();
+describe("purchaseAnalyticsProps", () => {
+  it("is empty for an id that is not one of the buyer's purchases", async () => {
+    answering({ purchases: [] });
+    expect(await purchaseAnalyticsProps(1n, EXTERNAL_ID)).toEqual({});
   });
 
   it("makes no query for a missing, blank or undecodable id", async () => {
     const statements = answering({});
-    await assertLibrarySupported(1n, { ...params, purchaseId: undefined });
-    await assertLibrarySupported(1n, { ...params, purchaseId: "" });
-    await assertLibrarySupported(1n, { ...params, purchaseId: "not an id!" });
+    await purchaseAnalyticsProps(1n, undefined);
+    await purchaseAnalyticsProps(1n, "");
+    await purchaseAnalyticsProps(1n, "not an id!");
     expect(statements).toEqual([]);
+  });
+
+  it("is empty when the seller has no pixel ids", async () => {
+    answering({ purchases: [purchaseRow()], links: [productRow()], users: [sellerRow()] });
+    expect(await purchaseAnalyticsProps(1n, EXTERNAL_ID)).toEqual({});
   });
 
   it.each([
     ["Google Analytics", { google_analytics_id: "UA-1" }],
     ["Facebook", { facebook_pixel_id: "123" }],
     ["an empty but present Google Analytics id", { google_analytics_id: "" }],
-  ])("hands back when the seller has %s", async (_, columns) => {
-    answering({ users: [sellerRow(columns)] });
-    await expect(assertLibrarySupported(1n, params)).rejects.toBeInstanceOf(HandBackToRails);
+  ])("builds the event when the seller has %s", async (_, columns) => {
+    answering({ purchases: [purchaseRow()], links: [productRow()], users: [sellerRow(columns)] });
+    expect(Object.keys(await purchaseAnalyticsProps(1n, EXTERNAL_ID))).toEqual([EXTERNAL_ID]);
+  });
+
+  it("hands back a purchase displayed in another currency", async () => {
+    answering({ purchases: [purchaseRow({ displayed_price_currency_type: "gbp" })], links: [productRow()], users: [sellerRow({ google_analytics_id: "UA-1" })] });
+    await expect(purchaseAnalyticsProps(1n, EXTERNAL_ID)).rejects.toBeInstanceOf(HandBackToRails);
+  });
+
+  it("hands back a product priced in another currency", async () => {
+    answering({ purchases: [purchaseRow()], links: [productRow({ price_currency_type: "gbp" })], users: [sellerRow({ google_analytics_id: "UA-1" })] });
+    await expect(purchaseAnalyticsProps(1n, EXTERNAL_ID)).rejects.toBeInstanceOf(HandBackToRails);
   });
 });
 

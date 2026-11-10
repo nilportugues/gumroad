@@ -2,8 +2,8 @@
 // Memberships that still grant access, installment plans and bundles (member rows replace the bundle row)
 // are served here, a refunded subscription row linking to the buyer's latest paid renewal (library_download_location).
 // A request for the subscriptions tab (status labels, billing-only cards), a bundle filter that resolves
-// to a bundle purchase with a download page (ZIP archives) or a `purchase_id` whose seller has pixel ids
-// (PurchaseSellerAnalyticsPresenter) goes to Rails whole (HandBackToRails).
+// to a bundle purchase with a download page (ZIP archives) or a `purchase_id` whose analytics event needs a
+// currency conversion or buyer-local price (PurchaseSellerAnalyticsPresenter) goes to Rails whole (HandBackToRails).
 import { Prisma, type Link, type Purchase, type User } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
@@ -11,7 +11,11 @@ import { decrypt, encrypt } from "../../../lib/obfuscate-ids.ts";
 import { HandBackToRails } from "../../controllers/application-controller.ts";
 import { grantsAccess } from "../../controllers/url-redirects/access.ts";
 import { LinkFlags } from "../../models/link.ts";
-import { tiktokPixelId, Users } from "../../models/user.ts";
+import { isFlagSet, tiktokPixelId, Users } from "../../models/user.ts";
+import { moneyFormatterFormat } from "../../models/concerns/money-formatter.ts";
+import { buyerCurrencyDisplayProps, linkFields } from "../../presenters/product.ts";
+import { findLink, findUserById } from "../../presenters/product-reads.ts";
+import { NotPortedError } from "../not-ported.ts";
 import { castRow, column, selectRows, table } from "../../models/sql.ts";
 import { SubscriptionFlags } from "../../models/subscription.ts";
 import { PurchaseFlags } from "../../search/flags.ts";
@@ -80,7 +84,7 @@ export async function assertLibrarySupported(
   params: Pick<LibraryParams, "bundles" | "subscriptionsOnly" | "purchaseId">,
 ): Promise<void> {
   if (params.subscriptionsOnly) throw new HandBackToRails();
-  if (await trackedPurchaseHasPixels(userId, params.purchaseId)) throw new HandBackToRails();
+  await purchaseAnalyticsProps(userId, params.purchaseId);
   const base = visibleInLibrary(userId);
   const linkIds = bundleLinkIds(rubySplitComma(params.bundles));
   if (linkIds.length === 0) return;
@@ -94,18 +98,61 @@ export async function assertLibrarySupported(
 // `[external_id].select(&:is_a?(String))` and `logged_in_user.purchases.by_external_ids`: the id of the one tracked purchase, or null.
 const trackedPurchaseId = (externalId: string | undefined) => (externalId === undefined || externalId === "" ? null : decrypt(externalId));
 
-// `purchase_analytics_props` is `{}` unless the product's seller has a Google Analytics, Facebook or TikTok id (any present value, as Ruby's
-// truthiness); the props it would build for one are not ported.
-async function trackedPurchaseHasPixels(userId: bigint, externalId: string | undefined): Promise<boolean> {
+const present = (value: unknown) => value !== null && value !== undefined;
+
+// `purchase_analytics_props` for the tracked purchase: `{}` unless the product's seller has a Google Analytics, Facebook or TikTok id
+// (any present value, as Ruby's truthiness), else PurchaseSellerAnalyticsPresenter#props keyed by the purchase's external id.
+// A purchase priced or charged in another currency (money conversion, presentment rows) and a seller showing buyer-local prices
+// hand back: none of those is ported.
+export async function purchaseAnalyticsProps(userId: bigint, externalId: string | undefined): Promise<Record<string, unknown>> {
   const id = trackedPurchaseId(externalId);
-  if (id === null) return false;
+  if (id === null) return {};
   const [row] = await selectRows(
-    Prisma.sql`SELECT ${Prisma.raw("`users`.*")} FROM ${table(PURCHASES)} INNER JOIN ${table(LINKS)} ON ${column(LINKS, "id")} = ${column(PURCHASES, "link_id")} INNER JOIN ${table("users")} ON ${column("users", "id")} = ${column(LINKS, "user_id")} WHERE ${column(PURCHASES, "purchaser_id")} = ${userId} AND ${column(PURCHASES, "id")} = ${id} LIMIT 1`,
+    Prisma.sql`SELECT ${Prisma.raw("`purchases`.*")} FROM ${table(PURCHASES)} WHERE ${column(PURCHASES, "purchaser_id")} = ${userId} AND ${column(PURCHASES, "id")} = ${id} LIMIT 1`,
   );
-  if (!row) return false;
-  const seller = castRow<User>("User", row);
-  const present = (value: unknown) => value !== null && value !== undefined;
-  return present(seller.google_analytics_id) || present(seller.facebook_pixel_id) || present(tiktokPixelId(Users.load(seller)));
+  if (!row) return {};
+  const purchase = castRow<Purchase>("Purchase", row);
+  const product = purchase.link_id === null ? null : await findLink(purchase.link_id);
+  const seller = product?.user_id == null ? null : await findUserById(product.user_id);
+  if (!product || !seller) return {};
+  const record = Users.load(castRow<User>("User", seller as never));
+  const analytics = {
+    google_analytics_id: seller.google_analytics_id ?? null,
+    facebook_pixel_id: seller.facebook_pixel_id ?? null,
+    tiktok_pixel_id: tiktokPixelId(record) ?? null,
+    free_sales: !isFlagSet(record, "skip_free_sale_analytics"),
+  };
+  if (!present(analytics.google_analytics_id) && !present(analytics.facebook_pixel_id) && !present(analytics.tiktok_pixel_id)) return {};
+
+  const currency = purchase.displayed_price_currency_type ?? "";
+  if (currency !== "usd" || linkFields.currency(product) !== "usd") throw new HandBackToRails();
+  const presentments = await selectRows(
+    Prisma.sql`SELECT 1 FROM ${table("purchase_presentments")} WHERE ${column("purchase_presentments", "purchase_id")} = ${purchase.id} LIMIT 1`,
+  );
+  if (presentments.length > 0) throw new HandBackToRails();
+  let buyerCurrencyDisplay;
+  try {
+    buyerCurrencyDisplay = await buyerCurrencyDisplayProps(product, seller);
+  } catch (error) {
+    if (error instanceof NotPortedError) throw new HandBackToRails();
+    throw error;
+  }
+  return {
+    [encrypt(purchase.id)]: {
+      seller_id: seller.external_id,
+      analytics,
+      purchase_event: {
+        permalink: product.unique_permalink,
+        purchase_external_id: encrypt(purchase.id),
+        product_name: product.name,
+        value: purchase.displayed_price_cents,
+        currency,
+        quantity: purchase.quantity,
+        tax: moneyFormatterFormat(purchase.tax_cents ?? 0, currency, { noCentsIfWhole: true, symbol: false }),
+        buyer_currency_display: buyerCurrencyDisplay,
+      },
+    },
+  };
 }
 
 // `LibraryPresenter#receipt_purchases` for the tracked purchase: it must be in the library, and a membership that no longer grants access is dropped.
