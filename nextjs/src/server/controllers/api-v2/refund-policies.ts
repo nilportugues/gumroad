@@ -3,8 +3,20 @@ import type { User } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
 import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
+import { RefundPolicies } from "../../models/refund-policy.ts";
+import { isBlank } from "../../models/runtime/validators.ts";
 import { UserFlags } from "../../models/user.ts";
-import { PUBLIC_READ_SCOPES, registerApiV2, successWithObject } from "./base.ts";
+import { NotPortedError } from "../../page-props/not-ported.ts";
+
+import {
+  type ApiV2Input,
+  EDIT_PRODUCTS_SCOPES,
+  PUBLIC_READ_SCOPES,
+  registerApiV2,
+  renderResponse,
+  successWithObject,
+  toSentence,
+} from "./base.ts";
 
 // RefundPolicy::ALLOWED_REFUND_PERIODS_IN_DAYS
 export const REFUND_POLICY_TITLES: Record<number, string> = {
@@ -41,3 +53,40 @@ export async function serializedRefundPolicy(seller: User) {
 }
 
 registerApiV2({ method: "GET", pattern: "/v2/refund_policy", scopes: PUBLIC_READ_SCOPES, run: async (input) => successWithObject("refund_policy", await serializedRefundPolicy(input.owner)) });
+
+// Api::V2::RefundPoliciesController::REFUND_PERIOD_VALUES
+const REFUND_PERIOD_VALUES: Record<string, number> = { none: 0, "7": 7, "14": 14, "30": 30, "183": 183 };
+const REFUND_PERIOD_ALLOWED_VALUES = ["none", "7", "14", "30", "183"];
+const NOT_IN_EFFECT_MESSAGE = "The account-level refund policy is not in effect for this seller.";
+
+// A parameter Rails would cast (a number, a list, a hash) is the one thing the port does not follow.
+function stringOrNull(value: unknown, what: string): string | null {
+  if (value === undefined || value === null || typeof value === "string") return value ?? null;
+  throw new NotPortedError(`a ${what} that is not a string`);
+}
+
+export async function updateRefundPolicy({ owner, params }: ApiV2Input) {
+  if (!(await accountLevelRefundPolicyEnabled(owner))) return renderResponse(false, { message: NOT_IN_EFFECT_MESSAGE });
+  const period = stringOrNull(params.refund_period, "refund period");
+  if (period === null || isBlank(period)) return renderResponse(false, { message: "Refund period is required." });
+  const finePrint = "fine_print" in params ? stringOrNull(params.fine_print, "fine print") : undefined;
+
+  const row = await sellerRefundPolicy(owner);
+  if (!row) throw new TypeError("undefined method 'update' for nil");
+  const policy = RefundPolicies.load(row);
+  const saved = await RefundPolicies.update(policy, {
+    max_refund_period_in_days: Object.hasOwn(REFUND_PERIOD_VALUES, period) ? REFUND_PERIOD_VALUES[period]! : null,
+    ...(finePrint === undefined ? {} : { fine_print: finePrint }),
+  });
+  if (saved) return successWithObject("refund_policy", await serializedRefundPolicy(owner));
+
+  const message = policy.errors.added("max_refund_period_in_days", "inclusion")
+    ? `Refund period must be one of: ${REFUND_PERIOD_ALLOWED_VALUES.join(", ")}.`
+    : toSentence(policy.errors.fullMessages());
+  return renderResponse(false, { message });
+}
+
+registerApiV2(
+  { method: "PUT", pattern: "/v2/refund_policy", scopes: EDIT_PRODUCTS_SCOPES, run: updateRefundPolicy },
+  { method: "PATCH", pattern: "/v2/refund_policy", scopes: EDIT_PRODUCTS_SCOPES, run: updateRefundPolicy },
+);

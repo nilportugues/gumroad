@@ -15,7 +15,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 
 | Namespace | Routes | Native | Hands back | Not registered | Unresolved |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 78 | 0 | 60 | 0 |
+| API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 80 | 0 | 58 | 0 |
 | Mobile API (`/mobile` on the API host) | 64 | 35 | 0 | 29 | 0 |
 | Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 17 | 0 | 65 | 3 |
 | Internal API, Gumroad domain (`/internal`, JSON for the React Router pages) | 23 | 11 | 0 | 12 | 0 |
@@ -56,8 +56,8 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `GET /v2/help/articles` | `Api::V2::HelpArticlesController#index` | native | `nextjs_api_v2_help_articles` | y |
 | `GET /v2/help/articles/:slug` | `Api::V2::HelpArticlesController#show` | native | `nextjs_api_v2_help_articles` | y |
 | `GET /v2/refund_policy` | `Api::V2::RefundPoliciesController#show` | native | `nextjs_api_v2_products` | y |
-| `PATCH /v2/refund_policy` | `Api::V2::RefundPoliciesController#update` | not registered | - | n |
-| `PUT /v2/refund_policy` | `Api::V2::RefundPoliciesController#update` | not registered | - | n |
+| `PATCH /v2/refund_policy` | `Api::V2::RefundPoliciesController#update` | native | `nextjs_api_v2_products` | y |
+| `PUT /v2/refund_policy` | `Api::V2::RefundPoliciesController#update` | native | `nextjs_api_v2_products` | y |
 | `GET /v2/offer_codes` | `Api::V2::OfferCodesController#index` | native | `nextjs_api_v2_offer_codes` | y |
 | `GET /v2/offer_codes/:id` | `Api::V2::OfferCodesController#show` | native | `nextjs_api_v2_offer_codes` | y |
 | `PATCH /v2/offer_codes/:id` | `Api::V2::OfferCodesController#update` | not registered | - | n |
