@@ -65,8 +65,9 @@ Known gaps a branch left on purpose. Each still hands back to Rails (or throws `
 Parity replays (setup in [parity-local-stack.md](parity-local-stack.md)): all 59 replay files pass (2,653 tests, 2026-11-10) and every tagged
 spec example has a fixture. What is left on the parity side is in [parity-tasks.md](parity-tasks.md):
 
-- `discover_parity_spec.rb:215` "answers the deferred recommended wishlists for a category": the recorded answer is Rails' 404, the replay hands the
-  case back, and re-recording it pins Rails at 100% CPU. `RecommendedWishlistsService.fetch` builds `FIELD(id, )` when no wishlist matches.
+- `discover_parity_spec.rb:215` "answers the deferred recommended wishlists for a category": the recorded answer is Rails' routing 404 for
+  `/3d/3d-modeling`, which its sibling `recommended products` example does not get; the replay hands the case back. The 4-minute stall on re-recording
+  is the per-process `DiscoverTaxonomyConstraint` path list, not a loop (see E6 in parity-tasks.md).
 - The two `subscription_end_date` examples of `api-v2-ws17b.replay` ignore `free_trial_ends_on` and `timestamp` (one clock instant cannot keep both).
 - Parity examples not recorded because Rails disagreed with their expectation: the surcharge GeoIP and ELSEWHERE shipping ones.
 
