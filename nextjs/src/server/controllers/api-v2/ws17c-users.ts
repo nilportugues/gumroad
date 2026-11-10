@@ -1,16 +1,20 @@
 // Api::V2::UsersController: the seller's own profile for a token (GET/PUT /v2/user, theme, profile layout, the custom HTML page)
 // and the IFTTT routes that share its actions.
-import type { OauthAccessToken, User } from "@prisma/client";
+import type { Link, OauthAccessToken, Purchase, User } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
 import { encrypt } from "../../../lib/obfuscate-ids.ts";
 import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
 import { LinkFlags } from "../../models/link.ts";
 import { formEmail, isConfirmed, Users, sellerProfile as loadSellerProfile } from "../../models/user.ts";
-import { avatarUrl, displayName } from "../../page-props/signed-in/presenters.ts";
 import { profileUrl } from "../../page-props/buyer/users.ts";
+import { NotPortedError } from "../../page-props/not-ported.ts";
+import { avatarUrl, displayName } from "../../page-props/signed-in/presenters.ts";
+import { plaintextDescription } from "../../presenters/description.ts";
+import { formattedTotalPrice } from "../../presenters/mobile-serializers.ts";
+import { longUrl } from "../../presenters/product.ts";
 import { HandBackToRails, type ActionResult } from "../application-controller.ts";
-import { authorize, errorWithObject, halted, permittedScalar, PUBLIC_READ_SCOPES, renderJson, renderResponse, successWithObject, type ApiCall } from "./ws17c-base.ts";
+import { authorize, errorWithObject, halted, permittedScalar, PUBLIC_READ_SCOPES, renderJson, renderResponse, successWithObject, type ApiCall, type Params } from "./ws17c-base.ts";
 
 // Api::V2::UsersController::THEME_SURFACES
 const THEME_SURFACES = [
@@ -221,9 +225,93 @@ export async function previewCustomHtml(call: ApiCall): Promise<ActionResult> {
   throw new HandBackToRails("a custom HTML preview");
 }
 
+const IFTTT_DEFAULT_LIMIT = 50;
+// Beyond this a LIMIT is no longer a page of sales; Rails takes it.
+const IFTTT_MAX_LIMIT = 10_000;
+// Purchase::CHARGED_SUCCESS_STATES
+const CHARGED_SUCCESS_STATES = ["preorder_authorization_successful", "successful"];
+const DECIMAL_INTEGER = /^-?(0|[1-9]\d*)$/u;
+
+// `params[:limit] || 50`, which ActiveRecord casts with Integer(): "010" is octal and "" raises, so only canonical integers are proven.
+function iftttLimit(value: unknown): number {
+  if (value === undefined || value === null || value === false) return IFTTT_DEFAULT_LIMIT;
+  const limit =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && /^(0|[1-9]\d*)$/u.test(value)
+        ? Number(value)
+        : NaN;
+  if (!Number.isInteger(limit) || limit < 0 || limit > IFTTT_MAX_LIMIT)
+    throw new NotPortedError("an IFTTT trigger limit that is not a plain integer");
+  return limit;
+}
+
+// `params[:after].present?` and `.to_i`: null when absent, a whole number of seconds when proven.
+function iftttTime(value: unknown): number | null {
+  if (value === undefined || value === null || value === false || (typeof value === "string" && value.trim() === ""))
+    return null;
+  const seconds =
+    typeof value === "number" ? value : typeof value === "string" && DECIMAL_INTEGER.test(value) ? Number(value) : NaN;
+  if (!Number.isSafeInteger(seconds) || Math.abs(seconds) > 10 ** 11)
+    throw new NotPortedError("an IFTTT trigger time that is not a plain integer");
+  return seconds;
+}
+
+export type IftttSaleQuery = { where: { gte?: Date; lte?: Date }; direction: "asc" | "desc"; limit: number };
+
+// The `after` branch wins over `before`; both order by created_at.
+export function iftttSaleQuery(params: Params): IftttSaleQuery {
+  const limit = iftttLimit(params.limit);
+  const after = iftttTime(params.after);
+  if (after !== null) return { where: { gte: new Date(after * 1000) }, direction: "asc", limit };
+  const before = iftttTime(params.before);
+  if (before !== null) return { where: { lte: new Date(before * 1000) }, direction: "desc", limit };
+  return { where: {}, direction: "desc", limit };
+}
+
+// Purchase#as_json_for_ifttt for a product without a cover (ProductImageURL needs an attached preview file).
+export function purchaseAsJsonForIfttt(
+  purchase: Purchase,
+  link: Link | null,
+  seller: User,
+  purchaserEmail: string | null,
+): Record<string, unknown> {
+  if (!link) throw new NotPortedError("a purchase without a product");
+  if (purchase.created_at === null) throw new NotPortedError("a purchase without created_at");
+  return {
+    meta: { id: encrypt(purchase.id), timestamp: Math.floor(purchase.created_at.getTime() / 1000) },
+    Price: formattedTotalPrice(purchase),
+    ProductName: link.name,
+    PurchaseEmail: purchaserEmail ?? purchase.email,
+    ProductDescription: plaintextDescription(link.description),
+    ProductURL: longUrl(link as never, seller as never),
+  };
+}
+
 export async function iftttSaleTrigger(call: ApiCall): Promise<ActionResult> {
   const auth = await authorize(call, PUBLIC_READ_SCOPES);
   if (halted(auth)) return auth.halt;
-  // Purchase#as_json_for_ifttt needs formatted_total_price, the product's plaintext description, long_url and preview_url.
-  throw new HandBackToRails("the IFTTT sale trigger");
+  const query = iftttSaleQuery(call.params);
+  const sales = await db.purchase.findMany({
+    where: {
+      seller_id: auth.owner.id,
+      purchase_state: { in: CHARGED_SUCCESS_STATES },
+      ...(Object.keys(query.where).length > 0 ? { created_at: query.where } : {}),
+    },
+    include: { link: true, purchaser: { select: { email: true } } },
+    orderBy: [{ created_at: query.direction }, { id: query.direction }],
+    take: query.limit,
+  });
+  const productIds = [...new Set(sales.flatMap((sale) => (sale.link_id === null ? [] : [sale.link_id])))];
+  // Link#preview_image_path? and the cover URL are not ported: a product with a preview goes to Rails whole.
+  if (
+    productIds.length > 0 &&
+    (await db.assetPreview.count({ where: { link_id: { in: productIds }, deleted_at: null } })) > 0
+  ) {
+    throw new NotPortedError("Purchase#as_json_for_ifttt for a product with a cover");
+  }
+  return successWithObject(
+    "data",
+    sales.map((sale) => purchaseAsJsonForIfttt(sale, sale.link, auth.owner, sale.purchaser?.email ?? null)),
+  );
 }
