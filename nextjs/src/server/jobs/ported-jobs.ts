@@ -84,6 +84,7 @@ export const PORTED_JOBS: readonly string[] = [
   "UpdatePurchaseHealthcheckThresholdJob",
   "UpdatePurchasingPowerParityFactorsWorker",
   "UpdateSellerRefundEligibilityJob",
+  "UpdateUtmLinkStatsJob",
   "WarmSellerReputationSummaryJob",
   "SendLastPostJob",
   "PublishScheduledPostJob",
