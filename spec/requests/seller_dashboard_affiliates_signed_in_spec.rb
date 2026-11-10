@@ -23,6 +23,30 @@ describe "Affiliates pages when signed in", type: :request do
     affiliate
   end
 
+  describe "Brazilian Stripe Connect accounts" do
+    # An affiliate is needed or the index redirects to onboarding; it is added first, as a Brazilian account cannot gain one.
+    before { add_affiliate(name: "Alice Affiliate", products: [product_one]) }
+
+    it "turns affiliates off for a seller whose linked Stripe Connect account is Brazilian", parity: true do
+      create(:merchant_account_stripe_connect, user: seller, country: "BR")
+      seller.update_attribute(:check_merchant_account_is_linked, true)
+      log_in(seller)
+
+      get affiliates_path
+
+      expect(inertia_props_of(response)["affiliates_disabled_reason"]).to eq("Affiliates with Brazilian Stripe accounts are not supported.")
+    end
+
+    it "keeps affiliates on for a Brazilian Stripe Connect account that is not linked", parity: true do
+      create(:merchant_account_stripe_connect, user: seller, country: "BR")
+      log_in(seller)
+
+      get affiliates_path
+
+      expect(inertia_props_of(response)["affiliates_disabled_reason"]).to be_nil
+    end
+  end
+
   describe "index" do
     before do
       add_affiliate(name: "Alice Affiliate", products: [product_one, product_two])

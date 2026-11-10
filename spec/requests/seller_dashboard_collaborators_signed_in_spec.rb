@@ -35,6 +35,25 @@ describe "Collaborators page when signed in", type: :request do
     expect(inertia_props_of(response)).to include("collaborators" => [], "has_incoming_collaborators" => false)
   end
 
+  it "turns collaborators off for a seller whose linked Stripe Connect account is Brazilian", parity: true do
+    create(:merchant_account_stripe_connect, user: seller, country: "BR")
+    seller.update_attribute(:check_merchant_account_is_linked, true)
+    log_in(seller)
+
+    get collaborators_path
+
+    expect(inertia_props_of(response)["collaborators_disabled_reason"]).to eq("Collaborators with Brazilian Stripe accounts are not supported.")
+  end
+
+  it "keeps collaborators on for a Brazilian Stripe Connect account that is not linked", parity: true do
+    create(:merchant_account_stripe_connect, user: seller, country: "BR")
+    log_in(seller)
+
+    get collaborators_path
+
+    expect(inertia_props_of(response)["collaborators_disabled_reason"]).to be_nil
+  end
+
   it "flags a seller who is someone's collaborator", parity: true do
     create(:collaborator, seller: create(:user), affiliate_user: seller)
     log_in(seller)
