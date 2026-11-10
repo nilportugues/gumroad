@@ -1,13 +1,17 @@
 // Port of app/controllers/customer_surcharge_controller.rb#calculate_all (POST /customer_surcharge) for the carts whose
-// answer needs no vendor: one-time, non-physical lines with no VAT id, no TaxJar buyer (US taxable state, Canada with a
-// province) and no seller in the buyer-currency rollout, so the response carries no FX quote and no direct-listed token.
+// answer needs no Rails-only state: no seller in the buyer-currency rollout, so the response carries no FX quote and no
+// direct-listed token. A US taxable state or a Canadian province is taxed through TaxJar (`tax/taxjar.ts`, cached in the
+// same Redis namespace as Rails); a VAT id is checked here only when its validator is local (Bahrain, Kenya, Nigeria,
+// Tanzania, Oman).
 //
 // Physical lines are served through their ShippingDestination (exact country, then ELSEWHERE). A preorder line
 // (nothing charged now), a membership line (charged like a one-time line) and an installment line (the first payment,
 // taxed on its own) are served too; only their `charge_canonical_total_cents` differs from the one-time arithmetic.
 //
 // Everything else hands back to Rails before anything is written (nothing here writes): a commission line (deposit
-// split, completion surcharges, once-per-cart codes), a subscription renewal, a VAT id, a Payment Element or list-token request, a seller with
+// split, completion surcharges, once-per-cart codes), a subscription renewal, a VAT id checked by a vendor (VIES, Vatstack,
+// IRAS, Revenu Quebec, taxid.pro: Rails memoises them in memcached, which Node cannot read), a TaxJar answer outside the
+// 200/400/404/500/503 cases, a Payment Element or list-token request, a seller with
 // `buyer_currency_charging` on, a Singapore rate table whose `applicable_years` is not plain, a Spanish buyer the GeoIP database
 // places in the Canary Islands, a bundle with a component whose product row is gone, a missing `products` (ParameterMissing is rendered by the exceptions
 // app) and a request whose format is neither html, json nor a registered `format` param (the content type of `head`). The 400 (malformed `products`) and
@@ -16,9 +20,11 @@ import { Prisma } from "@prisma/client";
 import type { User } from "@prisma/client";
 
 import { BUYER_CURRENCY_BY_COUNTRY } from "../infra/buyer-currency-countries.ts";
+import { getConfig } from "../infra/config.ts";
 import { CONTINENT_SHIPPING_COUNTRIES } from "../infra/continent-shipping-countries.ts";
 import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
 import { geoIpLookup, type GeoIpResult } from "../infra/geo-ip.ts";
+import { getNamespacedRedis } from "../infra/redis.ts";
 import { getRate, getUsdCents, RateUnavailable, rubyStringToF } from "../models/concerns/currency-helper.ts";
 import { LinkFlags } from "../models/link.ts";
 import { castRow, column, selectRows, table } from "../models/sql.ts";
@@ -33,11 +39,13 @@ import {
   validProductsParam,
   type SurchargeLine,
 } from "../tax/customer-surcharge.ts";
+import { regionalVatIdValidator } from "../tax/regional-vat-id-shape.ts";
 import {
   buyerTaxRegion,
   esVatExemptWithoutGeoIp,
   taxEligible,
   type BuyerLocation,
+  zeroBusinessVat,
   zeroTax,
   type SalesTaxCalculation,
 } from "../tax/sales-tax-calculation.ts";
@@ -47,6 +55,7 @@ import {
   EU_VAT_APPLICABLE_COUNTRY_CODES,
   EU_VAT_DESTINATION_COUNTRY_CODES,
 } from "../tax/sales-tax-countries.ts";
+import { calculateTaxForOrder, taxjarProductTaxCode, taxjarTaxCents } from "../tax/taxjar.ts";
 
 import { HandBackToRails, type ActionResult, type Rendered } from "./application-controller.ts";
 import { jsonResponse } from "./json-seller.ts";
@@ -69,6 +78,7 @@ const VIRTUAL_COUNTRY_FLAG = 1;
 const ELSEWHERE = "ELSEWHERE";
 // Subdivision iso codes of the Canary Islands autonomous community and its two provinces.
 const CANARY_REGION_CODES = ["CN", "TF", "GC"];
+const SOFTWARE_AND_PLUGINS_SLUG = "software-and-plugins";
 
 const handBack = (reason: string): never => {
   throw new HandBackToRails(`customer_surcharge ${reason}`);
@@ -134,7 +144,7 @@ async function findLinkByPermalink(permalink: string): Promise<LinkRow | null> {
 }
 
 const flagSet = (row: LinkRow, name: Parameters<typeof LinkFlags.isSet>[1]): boolean =>
-  LinkFlags.isSet(row.flags as bigint | number, name);
+  LinkFlags.isSet(row.flags, name);
 
 // ZipTaxRate.alive.not_is_seller_responsible, narrowed by country, state and the e-publication flag; `.first` orders by id.
 async function firstZipTaxRate(
@@ -200,12 +210,19 @@ async function singaporeRate(): Promise<Row | null> {
   return rates[latest.indexOf(best)] ?? null;
 }
 
-// SalesTaxCalculator#calculate_with_lookup_table for a buyer who is neither a US taxable state nor a Canadian province.
-async function lookupRate(link: LinkRow, location: BuyerLocation, state: string | null): Promise<Row | null> {
+// SalesTaxCalculator#calculate_with_lookup_table (the rows a TaxJar buyer falls back to when TaxJar cannot answer).
+async function lookupRate(
+  link: LinkRow,
+  location: BuyerLocation,
+  state: string | null,
+  isUsTaxableState: boolean,
+): Promise<Row | null> {
   const country = location.country;
   if (blank(country)) return null;
   const code = country!;
   const epublication = flagSet(link, "is_epublication");
+
+  if (isUsTaxableState) return firstZipTaxRate("US", { state, epublication: false });
 
   if (EU_VAT_APPLICABLE_COUNTRY_CODES.includes(code) || code === "NO") return firstZipTaxRate(code, { epublication });
   if (code === "AU") return firstZipTaxRate(code, { epublication: false });
@@ -242,21 +259,99 @@ async function bundleEntirelyPhysical(bundleId: unknown): Promise<boolean> {
   return rows.length > 0 && rows.every((row) => flagSet({ flags: row.flags } as LinkRow, "is_physical"));
 }
 
-// SalesTaxCalculator#calculate for a buyer with no VAT id. A TaxJar buyer (US taxable state, Canadian province) hands back.
+// Taxonomy.software_and_plugins_subtree_ids.include?(link.taxonomy_id)
+async function inSoftwareSubtree(link: LinkRow): Promise<boolean> {
+  if (link.taxonomy_id === null || link.taxonomy_id === undefined) return false;
+  const [row] = await selectRows<Row>(
+    Prisma.sql`SELECT 1 AS found FROM ${table("taxonomies")} INNER JOIN ${table("taxonomy_hierarchies")} ON ${column("taxonomy_hierarchies", "ancestor_id")} = ${column("taxonomies", "id")} WHERE ${column("taxonomies", "slug")} = ${SOFTWARE_AND_PLUGINS_SLUG} AND ${column("taxonomy_hierarchies", "descendant_id")} = ${link.taxonomy_id} LIMIT 1`,
+  );
+  return row !== undefined;
+}
+
+// The quantity in `unit_price_dollars = price_cents / 100.0 / quantity`: a nil, zero or fractional one is a Ruby error or
+// an Infinity in the request body, so only a positive integer is served.
+function taxjarQuantity(value: unknown): number {
+  if (typeof value === "number" && Number.isSafeInteger(value) && value > 0) return value;
+  const match = typeof value === "string" ? /^\s*\+?(\d+)\s*$/u.exec(value) : null;
+  const quantity = match?.[1] === undefined ? 0 : Number(match[1]);
+  return Number.isSafeInteger(quantity) && quantity > 0
+    ? quantity
+    : handBack("for a TaxJar buyer with a quantity that is not a positive integer");
+}
+
+export type TaxContext = {
+  /** The line's shipping in USD cents, as `calculate_surcharges` passes it to the calculator. */
+  shippingCents?: number;
+  /** `item[:quantity]` as submitted. */
+  quantity?: unknown;
+  /** `params[:vat_id].presence` */
+  vatId?: string | null;
+};
+
+// SalesTaxCalculator#is_vat_id_valid?: the validators that need no vendor; a vendor's answer is Rails'.
+function vatIdValid(vatId: string, location: BuyerLocation, state: string | null): boolean {
+  const validator = regionalVatIdValidator(location.country, state);
+  if (validator.kind === "remote") return handBack(`for a VAT id checked by ${validator.service}`);
+  return validator.validate(vatId);
+}
+
+// SalesTaxCalculator#calculate_with_taxjar. Null is Rails' `return` after a TaxJar client or server error.
+async function calculateWithTaxjar(
+  link: LinkRow,
+  priceCents: number,
+  location: BuyerLocation,
+  state: string | null,
+  context: TaxContext,
+): Promise<number | null> {
+  const quantity = taxjarQuantity(context.quantity);
+  const outcome = await calculateTaxForOrder(
+    {
+      originCountry: getConfig("ADDRESS_COUNTRY", "US").toUpperCase(),
+      originState: getConfig("ADDRESS_STATE", "CA"),
+      originZip: getConfig("ADDRESS_ZIP", "94104"),
+      destinationCountry: location.country!,
+      destinationState: state,
+      destinationZip: location.country === "US" ? (location.postal_code ?? null) : null,
+      quantity,
+      productTaxCode: taxjarProductTaxCode(link.native_type, await inSoftwareSubtree(link)),
+      unitPriceDollars: priceCents / 100 / quantity,
+      shippingDollars: (context.shippingCents ?? 0) / 100,
+    },
+    { redis: () => getNamespacedRedis("taxjar_calculations") },
+  );
+  if (outcome.kind === "unsupported") return handBack(`for ${outcome.reason}`);
+  return outcome.kind === "tax" ? taxjarTaxCents(outcome.amountToCollect) : null;
+}
+
+// SalesTaxCalculator#calculate: a valid tax id, TaxJar for a US taxable state or a Canadian province, else the lookup table.
 export async function calculateSalesTax(
   link: LinkRow,
   priceCents: number,
   location: BuyerLocation,
   ip: string | null = null,
+  context: TaxContext = {},
 ): Promise<SalesTaxCalculation> {
   const region = buyerTaxRegion(location);
   const sellerId = link.user_id;
   if (priceCents === 0) return zeroTax(priceCents);
   if (sellerId !== null && (await hasBrazilianStripeConnectAccount(sellerId))) return zeroTax(priceCents);
-  if (region.isUsTaxableState || region.isCaTaxable) return handBack("for a buyer taxed through TaxJar");
+  const vatId = blank(context.vatId) ? null : context.vatId!;
+  if (vatId !== null && vatIdValid(vatId, location, region.state)) return zeroBusinessVat(priceCents);
+  if (region.isUsTaxableState || region.isCaTaxable) {
+    const taxCents = await calculateWithTaxjar(link, priceCents, location, region.state, context);
+    if (taxCents !== null) {
+      return {
+        priceCents,
+        taxCents,
+        zipTaxRateCountry: null,
+        businessVatStatus: vatId === null ? null : "invalid",
+        isQuebec: region.isQuebec,
+      };
+    }
+  }
 
   const isPhysical = flagSet(link, "is_physical");
-  const row = await lookupRate(link, location, region.state);
+  const row = await lookupRate(link, location, region.state, region.isUsTaxableState);
   let rate: { country: string; combinedRate: string } | null = null;
   let eligible = false;
   if (row !== null) {
@@ -285,7 +380,7 @@ export async function calculateSalesTax(
   }
   return calculateWithLookup({
     priceCents,
-    buyerVatIdPresent: false,
+    buyerVatIdPresent: vatId !== null,
     vatIdValid: false,
     sellerHasBrazilianConnectAccount: false,
     rate,
@@ -436,14 +531,13 @@ async function calculateAllLines({
     return handBack("for a Payment Element request");
   }
   if (!blank(params.payment_method_list_token)) return handBack("with a payment method list token");
-  if (!blank(params.vat_id)) return handBack("with a VAT id");
-
   const location: BuyerLocation = {
     postal_code: textParam(params.postal_code, "postal_code"),
     country: textParam(params.country, "country"),
     state: textParam(params.state, "state"),
   };
 
+  const vatId = textParam(params.vat_id, "vat_id");
   const lines: SurchargeLine[] = [];
   const sellerIds = new Set<bigint>();
   const rates = new Map<string, number>();
@@ -472,7 +566,8 @@ async function calculateAllLines({
       ? await shippingUsdCents(link, location.country ?? null, item.quantity, rates.get(listedCurrency))
       : 0;
     const ip = remoteIp(request);
-    const taxResult = await calculateSalesTax(link, submittedPrice, location, ip);
+    const context = { shippingCents: shipping, quantity: item.quantity, vatId };
+    const taxResult = await calculateSalesTax(link, submittedPrice, location, ip, context);
     const line: SurchargeLine = { taxResult, shippingUsdCents: shipping };
     if (preorder) {
       // Nothing is charged now: the whole price is the balance due at release.
@@ -484,7 +579,7 @@ async function calculateAllLines({
         const tip = Math.min(Math.max(tipCents(item.tip_cents), 0), Math.max(taxResult.priceCents, 0));
         const baseCents = BigInt(taxResult.priceCents - tip);
         const first = Number(floorDiv(baseCents, installments) + modulo(baseCents, installments));
-        const chargeTax = await calculateSalesTax(link, first + tip, location, ip);
+        const chargeTax = await calculateSalesTax(link, first + tip, location, ip, context);
         line.chargeCanonicalTotalCents = chargeTax.priceCents + Math.max(chargeTax.taxCents, 0) + shipping;
       }
     }

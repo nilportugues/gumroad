@@ -235,6 +235,151 @@ describe "Customer surcharge", type: :request do
     end
   end
 
+  describe "TaxJar buyers and tax ids" do
+    let(:taxjar_url) { "https://api.sandbox.taxjar.com/v2/taxes" }
+    let(:physical_product) { create(:physical_product, user: seller, unique_permalink: "surchargephysical") }
+
+    def taxjar_response(amount_to_collect:, rate:, state:, breakdown: {})
+      {
+        tax: {
+          order_total_amount: 10.0, shipping: 0.0, taxable_amount: 10.0, amount_to_collect:, rate:, has_nexus: true,
+          freight_taxable: false, tax_source: "destination",
+          jurisdictions: { country: "US", state:, county: "KING", city: "SEATTLE" },
+          breakdown: { taxable_amount: 10.0, tax_collectable: amount_to_collect, combined_tax_rate: rate, state_tax_rate: 0.065, county_tax_rate: 0.0,
+                       city_tax_rate: 0.0, special_district_tax_rate: 0.0 }.merge(breakdown)
+        }
+      }.to_json
+    end
+
+    def stub_taxjar(body, status: 200)
+      stub_request(:post, taxjar_url).to_return(status:, body:, headers: { "Content-Type" => "application/json" })
+    end
+
+    it "taxes a buyer in a US taxable state through TaxJar and rounds the float amount", parity: true do
+      stub_taxjar(taxjar_response(amount_to_collect: 1.025, rate: 0.1025, state: "WA"))
+
+      post_surcharge(products: [line(product, price: 1_000)], country: "US", postal_code: "98101")
+
+      expect(response.parsed_body).to include("tax_cents" => 102, "subtotal" => 1_000, "has_vat_id_input" => false, "charge_canonical_total_cents" => 1_102)
+    end
+
+    it "sends the unit price, quantity and shipping of a physical line to TaxJar", parity: true do
+      stub_taxjar(taxjar_response(amount_to_collect: 3.4, rate: 0.1, state: "WA"))
+      physical_product.shipping_destinations << create(:shipping_destination, country_code: "US", one_item_rate_cents: 500, multiple_items_rate_cents: 250)
+
+      post_surcharge(products: [line(physical_product, price: 1_000, quantity: 3)], country: "US", postal_code: "98101")
+
+      expect(response.parsed_body).to include("tax_cents" => 340, "shipping_rate_cents" => 1_000, "charge_canonical_total_cents" => 2_340)
+    end
+
+    it "sends the SaaS tax code for a product in the software and plugins taxonomy", parity: true do
+      software = Taxonomy.find_or_create_by!(slug: "software-and-plugins", parent: Taxonomy.find_or_create_by!(slug: "software-development"))
+      wordpress = Taxonomy.find_or_create_by!(slug: "wordpress", parent: software)
+      product.update_columns(taxonomy_id: wordpress.id)
+      stub_taxjar(taxjar_response(amount_to_collect: 0.5, rate: 0.05, state: "WA"))
+
+      post_surcharge(products: [line(product, price: 1_000, quantity: "2")], country: "US", postal_code: "98101")
+
+      expect(response.parsed_body).to include("tax_cents" => 50)
+    end
+
+    it "taxes the first installment through TaxJar on its own", parity: true do
+      installment_product = create(:product, :with_installment_plan, user: seller, unique_permalink: "surchargeinstall")
+      stub_taxjar(taxjar_response(amount_to_collect: 0.65, rate: 0.065, state: "WA"))
+
+      post_surcharge(products: [line(installment_product, price: 1_000, pay_in_installments: true)], country: "US", postal_code: "98101")
+
+      expect(response.parsed_body).to include("subtotal" => 1_000, "tax_cents" => 65)
+      expect(a_request(:post, taxjar_url)).to have_been_made.twice
+    end
+
+    it "taxes a Canadian buyer through TaxJar", parity: true do
+      stub_taxjar(taxjar_response(amount_to_collect: 1.4, rate: 0.12, state: "BC", breakdown: { gst_tax_rate: 0.05, pst_tax_rate: 0.07 }))
+
+      post_surcharge(products: [line(product, price: 2_000)], country: "CA", state: "BC", postal_code: "V6B 1A1")
+
+      expect(response.parsed_body).to include("tax_cents" => 140, "has_vat_id_input" => false)
+    end
+
+    it "offers a tax id input to a Quebec buyer", parity: true do
+      stub_taxjar(taxjar_response(amount_to_collect: 2.99, rate: 0.14975, state: "QC", breakdown: { gst_tax_rate: 0.05, qst_tax_rate: 0.09975 }))
+
+      post_surcharge(products: [line(product, price: 2_000)], country: "CA", state: "QC", postal_code: "H2Y 1C6")
+
+      expect(response.parsed_body).to include("tax_cents" => 299, "has_vat_id_input" => true)
+    end
+
+    it "falls back to the US state rate in the lookup table when TaxJar is down", parity: true do
+      create(:zip_tax_rate, combined_rate: 0.065, country: "US", state: "WA", zip_code: nil, is_seller_responsible: false)
+      stub_taxjar({ error: "Service Unavailable" }.to_json, status: 503)
+
+      post_surcharge(products: [line(product, price: 1_000)], country: "US", postal_code: "98101")
+
+      expect(response.parsed_body).to include("tax_cents" => 65, "has_vat_id_input" => false)
+    end
+
+    it "falls back to the Canadian province rate in the lookup table when TaxJar rejects the request", parity: true do
+      create(:zip_tax_rate, combined_rate: 0.12, country: "CA", state: "BC", zip_code: nil, is_seller_responsible: false)
+      stub_taxjar({ status: 400, error: "Bad Request", detail: "to_zip" }.to_json, status: 400)
+
+      post_surcharge(products: [line(product, price: 1_000)], country: "CA", state: "BC")
+
+      expect(response.parsed_body).to include("tax_cents" => 120, "has_vat_id_input" => false)
+    end
+
+    it "calls TaxJar once for two identical lines", parity: true do
+      stub_taxjar(taxjar_response(amount_to_collect: 0.65, rate: 0.065, state: "WA"))
+
+      post_surcharge(products: [line(product, price: 1_000), line(other_product, price: 1_000)], country: "US", postal_code: "98101")
+
+      expect(response.parsed_body).to include("tax_cents" => 130, "subtotal" => 2_000)
+      expect(a_request(:post, taxjar_url)).to have_been_made.once
+    end
+
+    it "charges no tax on a free line to a TaxJar buyer", parity: true do
+      post_surcharge(products: [line(product, price: 0)], country: "US", postal_code: "98101")
+
+      expect(response.parsed_body).to include("tax_cents" => 0, "subtotal" => 0)
+    end
+
+    it "accepts a valid Bahraini tax registration number", parity: true do
+      post_surcharge(products: [line(product, price: 1_000)], country: "BH", vat_id: "123456789012345")
+
+      expect(response.parsed_body).to include("vat_id_valid" => true, "tax_cents" => 0)
+    end
+
+    it "rejects a Bahraini tax registration number of the wrong length", parity: true do
+      post_surcharge(products: [line(product, price: 1_000)], country: "BH", vat_id: "12345")
+
+      expect(response.parsed_body).to include("vat_id_valid" => false, "tax_cents" => 0)
+    end
+
+    it "validates Kenyan, Nigerian, Tanzanian and Omani tax ids locally", parity: true do
+      { "KE" => "A123456789Z", "NG" => "12345678-1234", "TZ" => "12-345678-A", "OM" => "OM1234567890" }.each do |country, vat_id|
+        post_surcharge(products: [line(product, price: 1_000)], country:, vat_id:)
+        expect(response.parsed_body).to include("vat_id_valid" => true)
+
+        post_surcharge(products: [line(product, price: 1_000)], country:, vat_id: "bad")
+        expect(response.parsed_body).to include("vat_id_valid" => false)
+      end
+    end
+
+    it "does not validate a tax id for a free line", parity: true do
+      post_surcharge(products: [line(product, price: 0)], country: "BH", vat_id: "123456789012345")
+
+      expect(response.parsed_body).to include("vat_id_valid" => false)
+    end
+
+    it "hands a tax id that needs a vendor lookup back to Rails", parity: true do
+      create_de_vat_rate
+      allow_any_instance_of(VatValidationService).to receive(:process).and_return(false)
+
+      post_surcharge(products: [line(product, price: 1_000)], country: "DE", postal_code: "10115", vat_id: "DE000")
+
+      expect(response.parsed_body).to include("vat_id_valid" => false, "tax_cents" => 190, "has_vat_id_input" => true)
+    end
+  end
+
   describe "a bundle bound for the EU" do
     let(:bundle) { create(:product, :bundle, user: seller, unique_permalink: "surchargebundle") }
 
