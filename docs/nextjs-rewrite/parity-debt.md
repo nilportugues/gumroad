@@ -2,7 +2,7 @@
 
 > **Status 2026-11-10.** The sections below were written when no environment could run Rails or the replays, and are kept as the
 > history of what was unproven. They have since been closed against a real stack (setup in [parity-local-stack.md](parity-local-stack.md)):
-> every tagged example has a fixture (`node scripts/parity-debt.ts` reports 0 without one) and all 59 replay files pass (2,669 tests).
+> every tagged example has a fixture (`node scripts/parity-debt.ts` reports 0 without one) and all 59 replay files pass (2,701 tests).
 > What is open now is in [parity-tasks.md](parity-tasks.md) and the "Open items" of [workstreams.md](workstreams.md). The counts
 > table is current; sections 1 to 4 describe the state at `b8fbe3067` unless a line says otherwise.
 
@@ -16,7 +16,7 @@
 | Of those, without a fixture | 0 |
 | Fixture files (incl. `PARITY_RECORD=all` controller specs) | 2,742 |
 | Replay test files | 51 (59 test files in the parity run) |
-| Replay result | 59 files, 2,669 tests passed, 12 skipped, 0 failed |
+| Replay result | 59 files, 2,701 tests passed, 12 skipped, 0 failed |
 
 ## Tooling
 
