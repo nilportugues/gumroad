@@ -51,12 +51,28 @@ export type UpdatePurchasingPowerParityFactorsDeps = {
 
 const defaultDeps: UpdatePurchasingPowerParityFactorsDeps = { now: () => new Date(), read: () => openUriRead(API_URL) };
 
-// `Integer(string, exception: false)` for a plain decimal; the other things Integer() reads (0x, 0b, leading
-// zero octal, underscores) are not ported, and anything else is nil.
-function integerOrNil(header: string | null): number | null {
+const ASCII_SPACE = /^[ \t\n\v\f\r]+|[ \t\n\v\f\r]+$/gu;
+// The digit runs Integer() takes per prefix, with single underscores between digits.
+const INTEGER_FORMS: [RegExp, number][] = [
+  [/^0[xX]([0-9a-fA-F]+(?:_[0-9a-fA-F]+)*)$/u, 16],
+  [/^0[bB]([01]+(?:_[01]+)*)$/u, 2],
+  [/^0[oO]([0-7]+(?:_[0-7]+)*)$/u, 8],
+  [/^0[dD](\d+(?:_\d+)*)$/u, 10],
+  [/^0((?:_?[0-7])+)$/u, 8],
+  [/^((?:0|[1-9]\d*)(?:_\d+)*)$/u, 10],
+];
+
+// `Integer(string, exception: false)`: surrounding ASCII whitespace, a sign, a 0x/0b/0o/0d prefix or a
+// leading zero for octal, and underscores between digits; anything else is nil.
+export function integerOrNil(header: string | null): number | null {
   if (header === null) return null;
-  if (/^[ \t\n\v\f\r]*[+-]?(?:0|[1-9]\d*)[ \t\n\v\f\r]*$/u.test(header)) return Number(header.trim());
-  if (/\d/u.test(header)) throw new NotPortedError(`Integer(${JSON.stringify(header)})`, "app/sidekiq/update_purchasing_power_parity_factors_worker.rb:30");
+  const match = /^([+-]?)(.*)$/su.exec(header.replace(ASCII_SPACE, ""))!;
+  for (const [form, radix] of INTEGER_FORMS) {
+    const digits = form.exec(match[2]!)?.[1];
+    if (digits === undefined) continue;
+    const value = parseInt(digits.replaceAll("_", ""), radix);
+    return match[1] === "-" ? -value : value;
+  }
   return null;
 }
 

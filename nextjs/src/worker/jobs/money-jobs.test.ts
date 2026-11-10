@@ -173,13 +173,41 @@ describe("money jobs", () => {
       expect(log.filter((sql) => /^(BEGIN|INSERT|UPDATE)/u.test(sql))).toEqual([]);
     });
 
-    it("a seller on probation whose balance has recovered, before the refunds flag is written", async () => {
+    // The recovery precheck's reads, answered with the seller's comments: `comments` are
+    // [id, comment_type, author_name, deleted_at] rows.
+    const recovered = (comments: unknown[][]) => {
       const c = golden.cases.find((candidate) => candidate.name === "a seller on probation below the recovery threshold")!;
       const statements = structuredClone(c.statements);
-      statements.find((statement) => statement.sql.startsWith("SELECT SUM"))!.result!.rows![0]![0] = { $decimal: "10000.0" } as never;
-      const { error, log } = await run({ ...c, statements });
+      const sum = statements.findIndex((statement) => statement.sql.startsWith("SELECT SUM"));
+      statements[sum]!.result!.rows![0]![0] = { $decimal: "10000.0" } as never;
+      statements.splice(
+        sum + 1,
+        0,
+        { sql: "SELECT `balances`.`id`", result: { fields: ["id", "currency", "amount_cents"], rows: [] } },
+        {
+          sql: "SELECT `comments`.`id`",
+          result: { fields: ["id", "comment_type", "author_id", "author_name", "idempotency_key", "created_at", "deleted_at"], rows: comments.map(([id, type, author, deletedAt]) => [id, type, null, author, null, null, deletedAt]) as never },
+        },
+      );
+      return { ...c, statements };
+    };
+    const WRITES = /^(BEGIN|INSERT|UPDATE)/u;
+
+    it("a seller on probation whose balance has recovered and whose probation needs its version history, before the refunds flag is written", async () => {
+      const { error, log } = await run(recovered([[7, "on", "LowBalanceFraudCheck", null]]));
       expect(error?.name).toBe("HandBackToRuby");
-      expect(log.filter((sql) => /^(BEGIN|INSERT|UPDATE)/u.test(sql))).toEqual([]);
+      expect(log.filter((sql) => WRITES.test(sql))).toEqual([]);
+    });
+
+    it("a seller on probation whose balance has recovered but who has no LowBalanceFraudCheck probation is left alone", async () => {
+      const { error, log } = await run(recovered([[7, "on", "an admin", null]]));      expect(error).toBeNull();
+      expect(log.filter((sql) => WRITES.test(sql))).toEqual([]);
+    });
+
+    it("a seller on probation whose balance has recovered and who was decided about since is left alone", async () => {
+      const { error, log } = await run(recovered([[7, "on", "LowBalanceFraudCheck", null], [8, "flag_note", "an admin", null]]));
+      expect(error).toBeNull();
+      expect(log.filter((sql) => WRITES.test(sql))).toEqual([]);
     });
 
     it("a backtax on a merchant account of another processor, before any Stripe write", async () => {

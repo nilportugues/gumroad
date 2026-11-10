@@ -36,8 +36,6 @@ const now = () => new Date(Math.round(golden.now * 1000));
 
 // The jobs that give up to Rails on the first row their read finds.
 const HANDED_BACK = new Set(["ExpireRentalPurchasesWorker", "SyncStuckPurchasesJob"]);
-// CreateMissingPurchaseEventsWorker runs in Node, except that an explicit date (a JSON string Ruby cannot call #tomorrow on) goes to Rails.
-const handsBackOnArguments = (job: string) => job === "CreateMissingPurchaseEventsWorker";
 
 // $redis.set(key, value, ex:) as the generator's snapshot sees it.
 function recordingMainRedis() {
@@ -82,7 +80,7 @@ describe("purchase and subscription read jobs", () => {
   for (const c of golden.cases) {
     // A hand-back leaves before the case's writes; the golden still lists everything Ruby did.
     const firstRead = c.statements[0];
-    const handsBack = handsBackOnArguments(c.job) ? c.args.length > 0 : HANDED_BACK.has(c.job) && (c.args.length > 0 || (firstRead?.result?.rows?.length ?? 0) > 0);
+    const handsBack = HANDED_BACK.has(c.job) && (c.args.length > 0 || (firstRead?.result?.rows?.length ?? 0) > 0);
 
     it.skipIf(takesLocks(c.redis) && !url)(`${c.job}: ${c.name}`, async () => {
       const sql = sqlReplay(c.statements);
