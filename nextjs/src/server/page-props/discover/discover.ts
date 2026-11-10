@@ -13,7 +13,7 @@ import { column, selectRows, table } from "../../models/sql.ts";
 import { bit, findLink } from "../../presenters/product-reads.ts";
 import { cardForWeb, type PresenterRequest } from "../../presenters/product.ts";
 import { autocompleteProps } from "../../presenters/discover/autocomplete.ts";
-import { recentlyViewedProps } from "../../presenters/discover/recently-viewed.ts";
+import { anonymousKey, recentlyViewedProps } from "../../presenters/discover/recently-viewed.ts";
 import { botUserAgents, type CardForSeo, canonicalUrl, categoryPage, DISCOVER_INDEX_PATH, tagPageMetaDescription, tagPageTitle, taxonomyLabel } from "../../presenters/discover/seo.ts";
 import { normalizeSearchParamValues, searchProductsWithFacets, validFilterTokens } from "../../search/search-products.ts";
 import { type Params, present } from "../../search/ruby-params.ts";
@@ -110,17 +110,20 @@ async function findTaxonomy(taxonomyParam: unknown): Promise<TaxonomyRow | null>
 
 export const showsNsfwProducts = (visitor: DiscoverVisitor) => (visitor ? bit(visitor.flags, SHOW_NSFW_PRODUCTS_FLAG) : null);
 
-// Cart.fetch_by(...)&.cart_products&.alive plus User#purchased_products: curated products come from
-// RecommendedProducts::DiscoverService, which the port does not run, so a visitor it would apply to goes to Rails.
+// Curated products come from RecommendedProducts::DiscoverService, which the port does not run. It seeds on the
+// visitor's `Cart.fetch_by(...)` alive cart_products plus `User#purchased_products`; with neither seed
+// SalesRelatedProductsInfo.related_products returns Link.none and the list is empty, which the port answers itself.
+// `fetch_by` is `user.carts.alive.first` (lowest id) or the guest cart for the guid, so only that one cart seeds.
 export async function hasCuratedProductSources(visitor: DiscoverVisitor, guid: string | null): Promise<boolean> {
-  const carts = visitor
-    ? await selectRows(Prisma.sql`SELECT 1 FROM ${table("carts")} WHERE ${column("carts", "user_id")} = ${visitor.id} AND ${column("carts", "deleted_at")} IS NULL LIMIT 1`)
+  const cartId = visitor
+    ? (await selectRows<{ id: bigint }>(Prisma.sql`SELECT ${column("carts", "id")} FROM ${table("carts")} WHERE ${column("carts", "user_id")} = ${visitor.id} AND ${column("carts", "deleted_at")} IS NULL ORDER BY ${column("carts", "id")} ASC LIMIT 1`))[0]?.id
     : guid
-      ? await selectRows(Prisma.sql`SELECT 1 FROM ${table("carts")} WHERE ${column("carts", "browser_guid")} = ${guid} AND ${column("carts", "user_id")} IS NULL AND ${column("carts", "deleted_at")} IS NULL LIMIT 1`)
-      : [];
-  if (carts.length > 0) return true;
+      ? (await selectRows<{ id: bigint }>(Prisma.sql`SELECT ${column("carts", "id")} FROM ${table("carts")} WHERE ${column("carts", "browser_guid")} = ${guid} AND ${column("carts", "user_id")} IS NULL AND ${column("carts", "deleted_at")} IS NULL LIMIT 1`))[0]?.id
+      : undefined;
+  if (cartId !== undefined && (await selectRows(Prisma.sql`SELECT 1 FROM ${table("cart_products")} WHERE ${column("cart_products", "cart_id")} = ${cartId} AND ${column("cart_products", "deleted_at")} IS NULL LIMIT 1`)).length > 0) return true;
   if (!visitor) return false;
-  return (await selectRows(Prisma.sql`SELECT 1 FROM ${table("purchases")} WHERE ${column("purchases", "purchaser_id")} = ${visitor.id} LIMIT 1`)).length > 0;
+  // purchased_products joins links, so a purchase whose product row is gone seeds nothing.
+  return (await selectRows(Prisma.sql`SELECT 1 FROM ${table("purchases")} INNER JOIN ${table("links")} ON ${column("links", "id")} = ${column("purchases", "link_id")} WHERE ${column("purchases", "purchaser_id")} = ${visitor.id} LIMIT 1`)).length > 0;
 }
 
 // DiscoverController#index up to the search: format_search_params!, the `from` skip past the recommendations
@@ -283,15 +286,15 @@ export const isAutocompleteOnlyRequest = (headers: Headers) => headers.get("x-in
 
 // What a deferred-only request asks for, when the port can answer all of it: the other props are Rails'.
 // recommended_wishlists is answered for any visitor that reached here (curated sources are handed back earlier);
-// recently_viewed is handed back mid-ramp, where Rails logs the exposure.
+// recently_viewed is answered at any ramp stage.
 export async function deferredPropsPortable(requested: string[], prepared: PreparedSearch, visitor: DiscoverVisitor, guid: string | null, request: DiscoverRequest): Promise<boolean> {
   for (const name of requested) {
     if (name === "recommended_products") {
       // The root page's strip is a random sample of a cached list (`discover_all_top_products`).
       if (!rubyPresent(prepared.params.offer_code) && !prepared.taxonomy) return false;
     } else if (name === "recently_viewed") {
-      if (await recentlyViewedMidRamp(prepared, visitor, guid)) return false;
-      if (await notPorted(() => recentlyViewedData(prepared, visitor, request))) return false;
+      // A dry run: the exposure line is written once, when the prop resolves.
+      if (await notPorted(() => recentlyViewedData(prepared, visitor, request, { logExposure: false }))) return false;
     } else if (name === "recommended_wishlists") {
       if (await notPorted(() => recommendedWishlistsProps(prepared.taxonomy?.id ?? null, request.currentSellerId))) return false;
     } else {
@@ -323,17 +326,25 @@ async function recentlyViewedState(visitor: DiscoverVisitor, guid: string | null
 
 const hasRecentlyViewedIdentity = (prepared: PreparedSearch, visitor: DiscoverVisitor, guid: string | null): boolean => !rubyPresent(prepared.params.offer_code) && (visitor !== null || rubyPresent(guid));
 
-async function recentlyViewedMidRamp(prepared: PreparedSearch, visitor: DiscoverVisitor, guid: string | null): Promise<boolean> {
-  return hasRecentlyViewedIdentity(prepared, visitor, guid) ? (await recentlyViewedState(visitor, guid)).midRamp : false;
+// DiscoverController#log_recently_viewed_exposure, one JSON line per mid-ramp request.
+export function exposureLogLine(options: { treatment: boolean; hasHistory: boolean; userId: bigint | null; guid: string | null }): string {
+  return JSON.stringify({
+    event: "discover_recently_viewed_exposure",
+    arm: options.treatment ? "treatment" : "control",
+    has_history: options.hasHistory,
+    user_id: options.userId === null ? null : Number(options.userId),
+    browser_guid_hash: options.userId === null ? anonymousKey(options.guid ?? "") : null,
+  });
 }
 
-// DiscoverController#recently_viewed_data. Mid-ramp both arms log an exposure line, which the port does not write.
-async function recentlyViewedData(prepared: PreparedSearch, visitor: DiscoverVisitor, request: DiscoverRequest) {
+// DiscoverController#recently_viewed_data. Mid-ramp both arms run the view lookup so the exposure line has a fair denominator.
+async function recentlyViewedData(prepared: PreparedSearch, visitor: DiscoverVisitor, request: DiscoverRequest, { logExposure = true } = {}) {
   if (!hasRecentlyViewedIdentity(prepared, visitor, request.guid)) return null;
   const { treatment, midRamp } = await recentlyViewedState(visitor, request.guid);
-  if (midRamp) throw new NotPortedError("Discover recently_viewed exposure logging");
-  if (!treatment) return null;
-  return recentlyViewedProps({ user: visitor, browserGuid: request.guid, request: presenterRequest(request), includeRatedAsAdult: showsNsfwProducts(visitor) === true });
+  if (!treatment && !midRamp) return null;
+  const props = await recentlyViewedProps({ user: visitor, browserGuid: request.guid, request: presenterRequest(request), includeRatedAsAdult: showsNsfwProducts(visitor) === true });
+  if (midRamp && logExposure) console.info(exposureLogLine({ treatment, hasHistory: props !== null, userId: visitor?.id ?? null, guid: request.guid }));
+  return treatment ? props : null;
 }
 
 // DiscoverController#recommendations for what deferredPropsPortable lets through.

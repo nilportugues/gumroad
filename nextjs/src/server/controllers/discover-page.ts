@@ -1,6 +1,6 @@
 // DiscoverController#index's filters: everything the port cannot answer exactly goes to Rails whole, before the
 // page renders. The deferred props and the autocomplete request the port cannot answer are Rails'; curated products
-// (a visitor with a cart or purchases), the Black Friday page, the affiliate cookie and a card the product presenter
+// (a visitor whose cart has alive products or who has purchases), the Black Friday page, the affiliate cookie and a card the product presenter
 // cannot build are too.
 import { railsLoggedInUser } from "../auth/resolve.ts";
 import { remoteIp } from "../page-props/audience/events.ts";
