@@ -42,7 +42,7 @@ const DATE_WORD = /sun|mon|tue|wed|thu|fri|sat|jan|feb|mar|apr|may|jun|jul|aug|s
 
 // ChurnController#parse_date: `Date.parse(date.to_s)`, nil when Ruby raises Date::Error.
 export function parseRailsDate(value: string | string[] | undefined): string | null {
-  if (Array.isArray(value)) throw new HandBackToRails();
+  if (Array.isArray(value)) return parseRailsArrayDate(value);
   const text = value ?? "";
   if (!/\d/u.test(text) && !DATE_WORD.test(text)) return null;
   const match = ISO_DATE.exec(text);
@@ -54,6 +54,13 @@ export function parseRailsDate(value: string | string[] | undefined): string | n
     throw new HandBackToRails();
   }
   return `${match[1]}-${match[2]}-${match[3]}`;
+}
+
+// `Date.parse(array.to_s)` reads the array's inspect string. Plain printable elements with no digit and no day or
+// month name leave Date._parse nothing to find (a Date::Error, so nil); anything else is Rails' to answer.
+function parseRailsArrayDate(values: string[]): null {
+  if (values.every((item) => /^[ -~]*$/u.test(item) && !item.includes("\\") && !/\d/u.test(item) && !DATE_WORD.test(item))) return null;
+  throw new HandBackToRails();
 }
 
 export function churnParams(query: QuerySource): { startDate: string | null; endDate: string | null } {

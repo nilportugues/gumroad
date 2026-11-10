@@ -22,20 +22,24 @@ const JSON_TYPE = "application/json; charset=utf-8";
 // `render json:` answers Vary: Accept (params_read is not set by `params[...]` reads on this request).
 const json = (value: unknown, status = 200, paramsRead = false): Rendered => ({ status, body: esJson(value as JsonValue), contentType: JSON_TYPE, paramsRead });
 
-// ApplicationController#strip_timestamp_location: `timestamp.gsub(/([^(]+).*/, '\1').strip`, nil for nil.
-// A shape whose gsub the port does not model (a leading "(" or a line break) goes to Rails.
-function stripTimestampLocation(value: string | string[] | undefined): string | undefined {
+// ApplicationController#strip_timestamp_location: `timestamp.gsub(/([^(]+).*/, '\1').strip`, nil for nil. An array
+// param has no gsub (NoMethodError), which set_time_range rescues like a parse failure: null. gsub keeps any
+// leading "(" characters and replaces the first run after them with its capture, so only that run survives.
+// A line break (`.` stops there) is not modeled and goes to Rails.
+export function stripTimestampLocation(value: string | string[] | undefined): string | null | undefined {
   if (value === undefined) return undefined;
-  if (Array.isArray(value) || value.startsWith("(") || /[\r\n]/u.test(value)) throw new HandBackToRails();
-  const open = value.indexOf("(");
-  return (open === -1 ? value : value.slice(0, open)).trim();
+  if (Array.isArray(value)) return null;
+  if (/[\r\n]/u.test(value)) throw new HandBackToRails();
+  return /^\(*[^(]*/u.exec(value)![0].trim();
 }
 
 // AnalyticsController#set_time_range: any parse failure (a missing param too) falls back to the trailing 30 days.
-function timeRange(queryString: string, now: Date): { startDate: string; endDate: string } {
+export function timeRange(queryString: string, now: Date): { startDate: string; endDate: string } {
   const query = { queryString };
-  const end = parseRailsDate(stripTimestampLocation(rackParam(query, "end_time")));
-  const start = parseRailsDate(stripTimestampLocation(rackParam(query, "start_time")));
+  const endText = stripTimestampLocation(rackParam(query, "end_time"));
+  const end = endText === null ? null : parseRailsDate(endText);
+  const startText = endText === null ? null : stripTimestampLocation(rackParam(query, "start_time"));
+  const start = startText === null ? null : parseRailsDate(startText);
   if (end !== null && start !== null) return { startDate: start, endDate: end };
   const today = civilDateInZone(now.getTime(), "Etc/UTC");
   return { startDate: addDays(today, -DEFAULT_RANGE_DAYS), endDate: today };
