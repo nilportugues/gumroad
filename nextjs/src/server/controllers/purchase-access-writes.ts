@@ -1,15 +1,14 @@
 // PurchasesController#revoke_access and #undo_revoke_access (app/controllers/purchases_controller.rb): the customers page's
 // "Revoke access" toggle. Each flips `is_access_revoked` on the seller's own purchase and answers 204; no processor is called.
-import { Prisma, type Link, type Purchase } from "@prisma/client";
+import { Prisma, type Purchase } from "@prisma/client";
 
 import { decrypt } from "../../lib/obfuscate-ids.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
-import { LinkFlags } from "../models/link.ts";
+import { accessRecord } from "../models/purchase-access-record.ts";
 import { loadLibraryPurchase, setLibraryFlag } from "../models/purchase-library-writes.ts";
 import { castRow, column, selectRows, table } from "../models/sql.ts";
-import { type AccessRecord, audiencePurchasePolicy } from "../policies/audience-purchase.ts";
+import { audiencePurchasePolicy } from "../policies/audience-purchase.ts";
 import { authorize } from "../policies/authorize.ts";
-import { PurchaseFlags } from "../search/flags.ts";
 
 import { type ActionResult, HandBackToRails, RoutingError } from "./application-controller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
@@ -26,27 +25,6 @@ async function setPurchase(externalId: string): Promise<Purchase> {
         );
   if (!row) throw new RoutingError("Not Found");
   return castRow<Purchase>("Purchase", row);
-}
-
-async function accessRecord(purchase: Purchase): Promise<AccessRecord> {
-  const [link] = await selectRows<Link>(
-    Prisma.sql`SELECT ${Prisma.raw("`links`.*")} FROM ${table("links")} WHERE ${column("links", "id")} = ${purchase.link_id} LIMIT 1`,
-  );
-  const [subscription] =
-    purchase.subscription_id == null
-      ? []
-      : await selectRows(
-          Prisma.sql`SELECT ${column("subscriptions", "id")} FROM ${table("subscriptions")} WHERE ${column("subscriptions", "id")} = ${purchase.subscription_id} LIMIT 1`,
-        );
-  return {
-    accessRevoked: PurchaseFlags.isSet(purchase.flags, "is_access_revoked"),
-    refunded: purchase.stripe_refunded === true || (purchase.stripe_refunded as unknown) === 1,
-    hasSubscription: subscription !== undefined,
-    linkIsPhysical() {
-      if (!link) throw new TypeError("undefined method 'is_physical' for nil");
-      return LinkFlags.isSet(link.flags, "is_physical");
-    },
-  };
 }
 
 function accessAction(revoked: boolean, query: typeof audiencePurchasePolicy.revokeAccess) {

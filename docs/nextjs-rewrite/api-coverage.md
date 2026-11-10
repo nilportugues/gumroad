@@ -16,7 +16,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | Namespace | Routes | Native | Hands back | Not registered | Unresolved |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 78 | 0 | 60 | 0 |
-| Mobile API (`/mobile` on the API host) | 64 | 34 | 0 | 30 | 0 |
+| Mobile API (`/mobile` on the API host) | 64 | 36 | 0 | 28 | 0 |
 | Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 17 | 0 | 65 | 3 |
 | Internal API, Gumroad domain (`/internal`, JSON for the React Router pages) | 23 | 11 | 0 | 12 | 0 |
 
@@ -189,8 +189,8 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `PATCH /mobile/sales/:id/refund` | `Api::Mobile::SalesController#refund` | not registered | - | n |
 | `POST /mobile/sales/:id/resend_receipt` | `Api::Mobile::SalesController#resend_receipt` | not registered | - | n |
 | `POST /mobile/sales/:id/change_can_contact` | `Api::Mobile::SalesController#change_can_contact` | not registered | - | n |
-| `PUT /mobile/sales/:id/revoke_access` | `Api::Mobile::SalesController#revoke_access` | not registered | - | n |
-| `PUT /mobile/sales/:id/undo_revoke_access` | `Api::Mobile::SalesController#undo_revoke_access` | not registered | - | n |
+| `PUT /mobile/sales/:id/revoke_access` | `Api::Mobile::SalesController#revoke_access` | native | `nextjs_mobile_sales` | y |
+| `PUT /mobile/sales/:id/undo_revoke_access` | `Api::Mobile::SalesController#undo_revoke_access` | native | `nextjs_mobile_sales` | y |
 | `POST /mobile/sales/:id/mark_as_shipped` | `Api::Mobile::SalesController#mark_as_shipped` | not registered | - | n |
 | `POST /mobile/sales/:id/resend_ping` | `Api::Mobile::SalesController#resend_ping` | not registered | - | n |
 | `GET /mobile/sales/:id/missed_posts` | `Api::Mobile::SalesController#missed_posts` | not registered | - | n |
