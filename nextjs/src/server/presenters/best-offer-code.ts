@@ -80,6 +80,12 @@ export async function fullDiscount(code: OfferCodeRecord): Promise<Record<string
   }
   if (await code.hasVariants()) json.option_ids_by_product = await optionIdsByProduct(code);
   if (row.new_customers_only) json.new_customers_only = true;
+  if (row.amount_cents != null && code.oncePerCart) {
+    json.once_per_cart = true;
+    json.once_per_cart_id = encrypt(row.id);
+    json.once_per_cart_amount_cents = row.amount_cents;
+    json.once_per_cart_has_usage_limit = row.max_purchase_count != null;
+  }
   return json;
 }
 
@@ -122,8 +128,8 @@ async function evaluateCode(product: LinkRow, code: string | null, quantity: num
   const meetsMinimum = offerCode.row.minimum_quantity == null || purchaseQuantity >= offerCode.row.minimum_quantity;
   let remaining: number | null = null;
   const sufficient = async () => {
-    if (offerCode!.row.max_purchase_count == null) return true;
-    remaining ??= await offerCode!.quantityLeft(now);
+    if (offerCode.row.max_purchase_count == null) return true;
+    remaining ??= await offerCode.quantityLeft(now);
     return remaining >= purchaseQuantity;
   };
   if (!inactive && meetsMinimum && (await sufficient())) {
