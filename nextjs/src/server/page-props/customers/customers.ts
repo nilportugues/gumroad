@@ -1,9 +1,9 @@
 // CustomersController#index (`/customers`, `/customers/:link_id`): fetch_sales over PurchaseSearchService, CustomersPresenter
 // and CustomerPresenter#customer (app/presenters/customer{,s}_presenter.rb).
 //
-// Handed back to Rails (HandBackToRails) when a customer on the page needs a reading the port does not make: a non-ASCII or IP-literal tracking URL, a UTM link of another seller or with a post whose seller has no subdomain, a non-USD price without a
+// Handed back to Rails (HandBackToRails) when a customer on the page needs a reading the port does not make: a non-ASCII or non-IPv6 IP-literal tracking URL, a UTM link of another seller or with a post whose seller has no subdomain, a non-USD price without a
 // stored rate or in a currency the port has no table for, a refund whose json_data is not plain JSON, a commission
-// still in progress, and a review video whose thumbnail variant Rails has not processed.
+// completion in progress that holds a processor reference, and a review video whose thumbnail variant Rails has not processed.
 import { Prisma, type Purchase, type Subscription, type User } from "@prisma/client";
 
 import { encrypt } from "../../../lib/obfuscate-ids.ts";
@@ -359,10 +359,26 @@ export async function commissionReadings(purchases: Row[]): Promise<Map<string, 
       ...new Set(asDeposit.map((row) => row.completion_purchase_id).filter((id) => id != null)),
     ]),
   );
-  // An in_progress completion may be waiting on the buyer's presentment settlement (pending_buyer_presentment_settlement?),
-  // which also counts as charged and reads Charge and flow of funds.
-  if ([...completions.values()].some((completion) => completion.purchase_state === "in_progress"))
-    throw new HandBackToRails();
+  // An in_progress completion counts as charged only while it waits on processor settlement (pending_processor_settlement?),
+  // which needs a processor reference. With none and no Charge it is unsettled for sure and folds nowhere; any
+  // reference hands back (the rest reads Charge and flow of funds).
+  const inProgress = [...completions.values()].filter((completion) => completion.purchase_state === "in_progress");
+  if (inProgress.length > 0) {
+    const withCharge = new Set(
+      (
+        await rowsBy(
+          "charge_purchases",
+          "purchase_id",
+          inProgress.map((completion) => completion.id),
+        )
+      ).map((link) => String(link.purchase_id)),
+    );
+    const hasReference = (completion: Row) =>
+      Boolean(completion.stripe_transaction_id) ||
+      Boolean(completion.processor_payment_intent_id) ||
+      withCharge.has(String(completion.id));
+    if (inProgress.some(hasReference)) throw new HandBackToRails();
+  }
   const charged = [...completions.values()].filter((completion) => completion.purchase_state === "successful");
   const chargedIds = charged.map((completion) => completion.id);
   const tips = new Map((await rowsBy("tips", "purchase_id", chargedIds)).map((tip) => [String(tip.purchase_id), tip]));

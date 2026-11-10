@@ -742,10 +742,41 @@ describe("commissions and review videos", () => {
     expect(readings.get("11")).toMatchObject({ status: "completed", completion: null });
   });
 
-  it("hands back a completion that is still in progress", async () => {
+  const inProgressCompletion = (overrides: Record<string, unknown> = {}) => ({
+    id: 11,
+    purchase_state: "in_progress",
+    stripe_transaction_id: null,
+    processor_payment_intent_id: null,
+    ...overrides,
+  });
+
+  it("leaves an unsettled in-progress completion unfolded when it has no processor reference", async () => {
     answering({
       [asDeposit]: [{ ...commission, completion_purchase_id: 11 }],
-      purchases: [{ id: 11, purchase_state: "in_progress" }],
+      purchases: [inProgressCompletion()],
+    });
+
+    const readings = await commissionReadings([deposit]);
+
+    expect(readings.get("10")).toMatchObject({ completion: null });
+  });
+
+  it.each([
+    ["a Stripe transaction id", { stripe_transaction_id: "ch_1" }],
+    ["a payment intent id", { processor_payment_intent_id: "pi_1" }],
+  ])("hands back an in-progress completion with %s", async (_label, overrides) => {
+    answering({
+      [asDeposit]: [{ ...commission, completion_purchase_id: 11 }],
+      purchases: [inProgressCompletion(overrides)],
+    });
+    await expect(commissionReadings([deposit])).rejects.toBeInstanceOf(HandBackToRails);
+  });
+
+  it("hands back an in-progress completion that belongs to a charge", async () => {
+    answering({
+      [asDeposit]: [{ ...commission, completion_purchase_id: 11 }],
+      purchases: [inProgressCompletion()],
+      charge_purchases: [{ purchase_id: 11, charge_id: 4 }],
     });
     await expect(commissionReadings([deposit])).rejects.toBeInstanceOf(HandBackToRails);
   });

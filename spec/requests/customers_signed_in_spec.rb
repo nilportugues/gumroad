@@ -339,6 +339,22 @@ describe "Customers page when signed in", type: :request, elasticsearch_wait_for
     expect(customer["price"]["cents"]).to eq(deposit.displayed_price_cents + completion.displayed_price_cents)
   end
 
+  # Needs recording.
+  it "leaves an in-progress commission completion with no processor reference out of the deposit row", parity: true do
+    commission_product = create(:commission_product, user: seller, name: "Portrait")
+    deposit = sell(commission_product, days_ago: 3, is_commission_deposit_purchase: true)
+    completion = sell(commission_product, days_ago: 1, is_commission_completion_purchase: true, purchase_state: "in_progress", stripe_transaction_id: nil, processor_payment_intent_id: nil)
+    commission = Commission.find_or_create_by!(deposit_purchase: deposit) { _1.status = Commission::STATUS_IN_PROGRESS }
+    commission.update_columns(completion_purchase_id: completion.id)
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    customer = customers_of(response).first
+    expect(customer["commission"]).to include("status" => "in_progress", "files_are_editable" => false)
+    expect(customer["price"]["cents"]).to eq(deposit.displayed_price_cents)
+  end
+
   it "lists a review's pending and approved videos", parity: true do
     purchase = sell(product, days_ago: 3)
     review = create(:product_review, purchase:, link: product, rating: 5, message: "Great")
@@ -379,6 +395,21 @@ describe "Customers page when signed in", type: :request, elasticsearch_wait_for
   end
 
   # Needs recording: has_one :shipment with two rows takes the lowest id.
+  # Needs recording: IPv6 literal hosts, which URI::RFC3986_Parser takes.
+  it "shows a tracking URL with an IPv6 literal host", parity: true do
+    physical = create(:physical_product, user: seller, name: "Poster")
+    urls = ["https://[2001:db8::7]:8080/track?n=1", "https://user@[::1]/x"]
+    urls.each_with_index do |url, index|
+      purchase = build(:physical_purchase, link: physical, seller:, email: "literal#{index}@example.com", created_at: at_midday(3 + index), purchase_state: "successful").tap { _1.save!(validate: false) }
+      build(:shipment, purchase:, ship_state: :shipped, tracking_url: url).save!(validate: false)
+    end
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    expect(customers_of(response).map { _1.dig("shipping", "tracking", "url") }).to eq(["https://[2001:db8::7]:8080/track?n=1", nil])
+  end
+
   it "shows the first of several shipments of a purchase", parity: true do
     physical = create(:physical_product, user: seller, name: "Poster")
     purchase = build(:physical_purchase, link: physical, seller:, created_at: at_midday(3), purchase_state: "successful").tap { _1.save!(validate: false) }
