@@ -34,5 +34,6 @@ export async function findByIdBang<R extends Record<string, unknown>>(model: Pri
 export function recordIdFrom(value: unknown, call: string): bigint {
   if (typeof value === "number" && Number.isSafeInteger(value)) return BigInt(value);
   if (typeof value === "string" && /^[0-9]{1,15}$/u.test(value)) return BigInt(value);
-  throw new NotPortedError(`${call}(${JSON.stringify(value)})`, "the id is not an Integer");
+  // JSON.stringify throws on a bigint, an id past 2**53 that Sidekiq's JSON parsed.
+  throw new NotPortedError(`${call}(${typeof value === "bigint" ? String(value) : JSON.stringify(value)})`, "the id is not an Integer");
 }

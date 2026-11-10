@@ -2,7 +2,7 @@
 
 # Produces nextjs/src/worker/jobs/__fixtures__/delete-wishlist-products-job.golden.json: DeleteWishlistProductsJob run by the
 # real app against a scratch database as a Sidekiq job (support/sidekiq_executor.rb). A wishlist product whose validations depend
-# on more than Node reads (a variant, a recurrence, a quantity or rent, a recurring or rentable product) is what Node hands back to
+# on more than Node reads (a variant, a quantity or rent, a rentable product) is what Node hands back to
 # Rails; those cases are recorded up to the mark_deleted! call a marker exception stands in for. Run it like refund-payout-guard-jobs.rb:
 #
 #   bundle exec rails runner nextjs/scripts/golden/delete-wishlist-products-job.rb   (env as in publish-scheduled-post.rb)
@@ -25,7 +25,7 @@ WishlistProduct.prepend(Module.new do
     RailsRecorder.log = nil
     owner = ActiveRecord::Base.uncached { Link.find(product_id) }
     RailsRecorder.log = logged
-    hands_back = variant_id || recurrence || quantity != 1 || rent || !owner.buy_only? || owner.is_recurring_billing
+    hands_back = variant_id || quantity != 1 || rent || !owner.buy_only?
     hands_back ? raise(HandBackMarker) : super
   end
 end)
@@ -82,6 +82,14 @@ cases << run("a wishlist whose owner is gone", [1], seed: deleted_product(users:
 cases << run("a wishlist product whose wishlist row is gone", [1], seed: deleted_product(wishlists: [], wishlist_products: [wishlist_product_row(1, 1)]))
 cases << run("a wishlist product with a variant", [1], seed: deleted_product(wishlists: [wishlist_row(1)], wishlist_products: [wishlist_product_row(1, 1, variant_id: 5)]))
 cases << run("a wishlist product with a recurrence", [1], seed: deleted_product(wishlists: [wishlist_row(1)], wishlist_products: [wishlist_product_row(1, 1, recurrence: "monthly")]))
+cases << run("a wishlist product with a blank recurrence", [1], seed: deleted_product(wishlists: [wishlist_row(1)], wishlist_products: [wishlist_product_row(1, 1, recurrence: "")]))
+BasePrice::Recurrence::ALLOWED_RECURRENCES.each do |recurrence|
+  cases << run("a recurring product with the #{recurrence} recurrence", [1], seed: deleted_product(wishlists: [wishlist_row(1)], wishlist_products: [wishlist_product_row(1, 1, recurrence:)], flags: 2))
+end
+cases << run("a recurring product with a recurrence that is not allowed", [1], seed: deleted_product(wishlists: [wishlist_row(1)], wishlist_products: [wishlist_product_row(1, 1, recurrence: "weekly")], flags: 2))
+cases << run("a recurring product with a blank recurrence", [1], seed: deleted_product(wishlists: [wishlist_row(1)], wishlist_products: [wishlist_product_row(1, 1, recurrence: "")], flags: 2))
+cases << run("a recurring product on a wishlist that keeps another product", [1], seed: deleted_product(wishlists: [wishlist_row(1)], wishlist_products: [wishlist_product_row(1, 1, recurrence: "yearly"), wishlist_product_row(2, 2)], flags: 2))
+cases << run("a recurring product after a wishlist product that cannot be deleted", [1], seed: deleted_product(wishlists: [wishlist_row(1)], wishlist_products: [wishlist_product_row(1, 1, recurrence: "monthly"), wishlist_product_row(2, 1, recurrence: "weekly")], flags: 2))
 cases << run("a wishlist product with a quantity above one", [1], seed: deleted_product(wishlists: [wishlist_row(1)], wishlist_products: [wishlist_product_row(1, 1, quantity: 3)]))
 cases << run("a wishlist product to rent", [1], seed: deleted_product(wishlists: [wishlist_row(1)], wishlist_products: [wishlist_product_row(1, 1, rent: true)]))
 cases << run("a deleted product that can only be rented", [1], seed: deleted_product(wishlists: [wishlist_row(1)], wishlist_products: [wishlist_product_row(1, 1)], purchase_type: 1))

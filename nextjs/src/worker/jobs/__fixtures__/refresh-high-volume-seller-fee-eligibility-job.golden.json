@@ -1,0 +1,2070 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "no purchases and no flagged sellers",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchases`.`seller_id` FROM `purchases` WHERE `purchases`.`purchase_state` = 'successful' AND (purchases.price_cents > 0) AND (stripe_refunded is null OR stripe_refunded = 0) AND (purchases.created_at >= '2026-11-01 00:00:00') GROUP BY `purchases`.`seller_id` HAVING (SUM(purchases.price_cents) >= '2000000')",
+          "result": {
+            "fields": [
+              "seller_id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `users`.`id` FROM `users` WHERE (json_data LIKE '%high_volume_fee_month%')",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "es": [],
+      "job": "RefreshHighVolumeSellerFeeEligibilityJob",
+      "args": []
+    },
+    {
+      "name": "a seller over the threshold",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchases`.`seller_id` FROM `purchases` WHERE `purchases`.`purchase_state` = 'successful' AND (purchases.price_cents > 0) AND (stripe_refunded is null OR stripe_refunded = 0) AND (purchases.created_at >= '2026-11-01 00:00:00') GROUP BY `purchases`.`seller_id` HAVING (SUM(purchases.price_cents) >= '2000000')",
+          "result": {
+            "fields": [
+              "seller_id"
+            ],
+            "rows": [
+              [
+                7
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `users`.`id` FROM `users` WHERE (json_data LIKE '%high_volume_fee_month%')",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"args\":[7],\"class\":\"RefreshHighVolumeSellerFeeEligibilityJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [],
+      "job": "RefreshHighVolumeSellerFeeEligibilityJob",
+      "args": []
+    },
+    {
+      "name": "a seller exactly at the threshold",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchases`.`seller_id` FROM `purchases` WHERE `purchases`.`purchase_state` = 'successful' AND (purchases.price_cents > 0) AND (stripe_refunded is null OR stripe_refunded = 0) AND (purchases.created_at >= '2026-11-01 00:00:00') GROUP BY `purchases`.`seller_id` HAVING (SUM(purchases.price_cents) >= '2000000')",
+          "result": {
+            "fields": [
+              "seller_id"
+            ],
+            "rows": [
+              [
+                7
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `users`.`id` FROM `users` WHERE (json_data LIKE '%high_volume_fee_month%')",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"args\":[7],\"class\":\"RefreshHighVolumeSellerFeeEligibilityJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [],
+      "job": "RefreshHighVolumeSellerFeeEligibilityJob",
+      "args": []
+    },
+    {
+      "name": "a seller one cent under the threshold",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchases`.`seller_id` FROM `purchases` WHERE `purchases`.`purchase_state` = 'successful' AND (purchases.price_cents > 0) AND (stripe_refunded is null OR stripe_refunded = 0) AND (purchases.created_at >= '2026-11-01 00:00:00') GROUP BY `purchases`.`seller_id` HAVING (SUM(purchases.price_cents) >= '2000000')",
+          "result": {
+            "fields": [
+              "seller_id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `users`.`id` FROM `users` WHERE (json_data LIKE '%high_volume_fee_month%')",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "es": [],
+      "job": "RefreshHighVolumeSellerFeeEligibilityJob",
+      "args": []
+    },
+    {
+      "name": "sales that add up to the threshold",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchases`.`seller_id` FROM `purchases` WHERE `purchases`.`purchase_state` = 'successful' AND (purchases.price_cents > 0) AND (stripe_refunded is null OR stripe_refunded = 0) AND (purchases.created_at >= '2026-11-01 00:00:00') GROUP BY `purchases`.`seller_id` HAVING (SUM(purchases.price_cents) >= '2000000')",
+          "result": {
+            "fields": [
+              "seller_id"
+            ],
+            "rows": [
+              [
+                7
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `users`.`id` FROM `users` WHERE (json_data LIKE '%high_volume_fee_month%')",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"args\":[7],\"class\":\"RefreshHighVolumeSellerFeeEligibilityJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [],
+      "job": "RefreshHighVolumeSellerFeeEligibilityJob",
+      "args": []
+    },
+    {
+      "name": "sales of last month do not count",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchases`.`seller_id` FROM `purchases` WHERE `purchases`.`purchase_state` = 'successful' AND (purchases.price_cents > 0) AND (stripe_refunded is null OR stripe_refunded = 0) AND (purchases.created_at >= '2026-11-01 00:00:00') GROUP BY `purchases`.`seller_id` HAVING (SUM(purchases.price_cents) >= '2000000')",
+          "result": {
+            "fields": [
+              "seller_id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `users`.`id` FROM `users` WHERE (json_data LIKE '%high_volume_fee_month%')",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "es": [],
+      "job": "RefreshHighVolumeSellerFeeEligibilityJob",
+      "args": []
+    },
+    {
+      "name": "a sale at the start of the month counts",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchases`.`seller_id` FROM `purchases` WHERE `purchases`.`purchase_state` = 'successful' AND (purchases.price_cents > 0) AND (stripe_refunded is null OR stripe_refunded = 0) AND (purchases.created_at >= '2026-11-01 00:00:00') GROUP BY `purchases`.`seller_id` HAVING (SUM(purchases.price_cents) >= '2000000')",
+          "result": {
+            "fields": [
+              "seller_id"
+            ],
+            "rows": [
+              [
+                7
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `users`.`id` FROM `users` WHERE (json_data LIKE '%high_volume_fee_month%')",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"args\":[7],\"class\":\"RefreshHighVolumeSellerFeeEligibilityJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [],
+      "job": "RefreshHighVolumeSellerFeeEligibilityJob",
+      "args": []
+    },
+    {
+      "name": "purchases that are not paid sales",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchases`.`seller_id` FROM `purchases` WHERE `purchases`.`purchase_state` = 'successful' AND (purchases.price_cents > 0) AND (stripe_refunded is null OR stripe_refunded = 0) AND (purchases.created_at >= '2026-11-01 00:00:00') GROUP BY `purchases`.`seller_id` HAVING (SUM(purchases.price_cents) >= '2000000')",
+          "result": {
+            "fields": [
+              "seller_id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `users`.`id` FROM `users` WHERE (json_data LIKE '%high_volume_fee_month%')",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "es": [],
+      "job": "RefreshHighVolumeSellerFeeEligibilityJob",
+      "args": []
+    },
+    {
+      "name": "a partially refunded sale still counts",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchases`.`seller_id` FROM `purchases` WHERE `purchases`.`purchase_state` = 'successful' AND (purchases.price_cents > 0) AND (stripe_refunded is null OR stripe_refunded = 0) AND (purchases.created_at >= '2026-11-01 00:00:00') GROUP BY `purchases`.`seller_id` HAVING (SUM(purchases.price_cents) >= '2000000')",
+          "result": {
+            "fields": [
+              "seller_id"
+            ],
+            "rows": [
+              [
+                7
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `users`.`id` FROM `users` WHERE (json_data LIKE '%high_volume_fee_month%')",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"args\":[7],\"class\":\"RefreshHighVolumeSellerFeeEligibilityJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [],
+      "job": "RefreshHighVolumeSellerFeeEligibilityJob",
+      "args": []
+    },
+    {
+      "name": "a flagged seller with no sales",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchases`.`seller_id` FROM `purchases` WHERE `purchases`.`purchase_state` = 'successful' AND (purchases.price_cents > 0) AND (stripe_refunded is null OR stripe_refunded = 0) AND (purchases.created_at >= '2026-11-01 00:00:00') GROUP BY `purchases`.`seller_id` HAVING (SUM(purchases.price_cents) >= '2000000')",
+          "result": {
+            "fields": [
+              "seller_id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `users`.`id` FROM `users` WHERE (json_data LIKE '%high_volume_fee_month%')",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                5
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"args\":[5],\"class\":\"RefreshHighVolumeSellerFeeEligibilityJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [],
+      "job": "RefreshHighVolumeSellerFeeEligibilityJob",
+      "args": []
+    },
+    {
+      "name": "a flagged seller that also qualifies",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchases`.`seller_id` FROM `purchases` WHERE `purchases`.`purchase_state` = 'successful' AND (purchases.price_cents > 0) AND (stripe_refunded is null OR stripe_refunded = 0) AND (purchases.created_at >= '2026-11-01 00:00:00') GROUP BY `purchases`.`seller_id` HAVING (SUM(purchases.price_cents) >= '2000000')",
+          "result": {
+            "fields": [
+              "seller_id"
+            ],
+            "rows": [
+              [
+                5
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `users`.`id` FROM `users` WHERE (json_data LIKE '%high_volume_fee_month%')",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                5
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"args\":[5],\"class\":\"RefreshHighVolumeSellerFeeEligibilityJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [],
+      "job": "RefreshHighVolumeSellerFeeEligibilityJob",
+      "args": []
+    },
+    {
+      "name": "a user whose json_data names another key",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchases`.`seller_id` FROM `purchases` WHERE `purchases`.`purchase_state` = 'successful' AND (purchases.price_cents > 0) AND (stripe_refunded is null OR stripe_refunded = 0) AND (purchases.created_at >= '2026-11-01 00:00:00') GROUP BY `purchases`.`seller_id` HAVING (SUM(purchases.price_cents) >= '2000000')",
+          "result": {
+            "fields": [
+              "seller_id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `users`.`id` FROM `users` WHERE (json_data LIKE '%high_volume_fee_month%')",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                5
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"args\":[5],\"class\":\"RefreshHighVolumeSellerFeeEligibilityJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [],
+      "job": "RefreshHighVolumeSellerFeeEligibilityJob",
+      "args": []
+    },
+    {
+      "name": "qualifying sellers come before flagged ones",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchases`.`seller_id` FROM `purchases` WHERE `purchases`.`purchase_state` = 'successful' AND (purchases.price_cents > 0) AND (stripe_refunded is null OR stripe_refunded = 0) AND (purchases.created_at >= '2026-11-01 00:00:00') GROUP BY `purchases`.`seller_id` HAVING (SUM(purchases.price_cents) >= '2000000')",
+          "result": {
+            "fields": [
+              "seller_id"
+            ],
+            "rows": [
+              [
+                30
+              ],
+              [
+                10
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `users`.`id` FROM `users` WHERE (json_data LIKE '%high_volume_fee_month%')",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                3
+              ],
+              [
+                10
+              ],
+              [
+                20
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"args\":[20],\"class\":\"RefreshHighVolumeSellerFeeEligibilityJob\",\"jid\":\"000000000000000000000004\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}",
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"args\":[3],\"class\":\"RefreshHighVolumeSellerFeeEligibilityJob\",\"jid\":\"000000000000000000000003\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}",
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"args\":[10],\"class\":\"RefreshHighVolumeSellerFeeEligibilityJob\",\"jid\":\"000000000000000000000002\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}",
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"args\":[30],\"class\":\"RefreshHighVolumeSellerFeeEligibilityJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [],
+      "job": "RefreshHighVolumeSellerFeeEligibilityJob",
+      "args": []
+    },
+    {
+      "name": "one seller below and one above",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchases`.`seller_id` FROM `purchases` WHERE `purchases`.`purchase_state` = 'successful' AND (purchases.price_cents > 0) AND (stripe_refunded is null OR stripe_refunded = 0) AND (purchases.created_at >= '2026-11-01 00:00:00') GROUP BY `purchases`.`seller_id` HAVING (SUM(purchases.price_cents) >= '2000000')",
+          "result": {
+            "fields": [
+              "seller_id"
+            ],
+            "rows": [
+              [
+                7
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `users`.`id` FROM `users` WHERE (json_data LIKE '%high_volume_fee_month%')",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"args\":[7],\"class\":\"RefreshHighVolumeSellerFeeEligibilityJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [],
+      "job": "RefreshHighVolumeSellerFeeEligibilityJob",
+      "args": []
+    },
+    {
+      "name": "a blank argument nil runs the nightly sweep",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchases`.`seller_id` FROM `purchases` WHERE `purchases`.`purchase_state` = 'successful' AND (purchases.price_cents > 0) AND (stripe_refunded is null OR stripe_refunded = 0) AND (purchases.created_at >= '2026-11-01 00:00:00') GROUP BY `purchases`.`seller_id` HAVING (SUM(purchases.price_cents) >= '2000000')",
+          "result": {
+            "fields": [
+              "seller_id"
+            ],
+            "rows": [
+              [
+                7
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `users`.`id` FROM `users` WHERE (json_data LIKE '%high_volume_fee_month%')",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"args\":[7],\"class\":\"RefreshHighVolumeSellerFeeEligibilityJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [],
+      "job": "RefreshHighVolumeSellerFeeEligibilityJob",
+      "args": [
+        null
+      ]
+    },
+    {
+      "name": "a blank argument \"\" runs the nightly sweep",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchases`.`seller_id` FROM `purchases` WHERE `purchases`.`purchase_state` = 'successful' AND (purchases.price_cents > 0) AND (stripe_refunded is null OR stripe_refunded = 0) AND (purchases.created_at >= '2026-11-01 00:00:00') GROUP BY `purchases`.`seller_id` HAVING (SUM(purchases.price_cents) >= '2000000')",
+          "result": {
+            "fields": [
+              "seller_id"
+            ],
+            "rows": [
+              [
+                7
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `users`.`id` FROM `users` WHERE (json_data LIKE '%high_volume_fee_month%')",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"args\":[7],\"class\":\"RefreshHighVolumeSellerFeeEligibilityJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [],
+      "job": "RefreshHighVolumeSellerFeeEligibilityJob",
+      "args": [
+        ""
+      ]
+    },
+    {
+      "name": "a blank argument \"  \" runs the nightly sweep",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchases`.`seller_id` FROM `purchases` WHERE `purchases`.`purchase_state` = 'successful' AND (purchases.price_cents > 0) AND (stripe_refunded is null OR stripe_refunded = 0) AND (purchases.created_at >= '2026-11-01 00:00:00') GROUP BY `purchases`.`seller_id` HAVING (SUM(purchases.price_cents) >= '2000000')",
+          "result": {
+            "fields": [
+              "seller_id"
+            ],
+            "rows": [
+              [
+                7
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `users`.`id` FROM `users` WHERE (json_data LIKE '%high_volume_fee_month%')",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"args\":[7],\"class\":\"RefreshHighVolumeSellerFeeEligibilityJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [],
+      "job": "RefreshHighVolumeSellerFeeEligibilityJob",
+      "args": [
+        "  "
+      ]
+    },
+    {
+      "name": "a blank argument false runs the nightly sweep",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchases`.`seller_id` FROM `purchases` WHERE `purchases`.`purchase_state` = 'successful' AND (purchases.price_cents > 0) AND (stripe_refunded is null OR stripe_refunded = 0) AND (purchases.created_at >= '2026-11-01 00:00:00') GROUP BY `purchases`.`seller_id` HAVING (SUM(purchases.price_cents) >= '2000000')",
+          "result": {
+            "fields": [
+              "seller_id"
+            ],
+            "rows": [
+              [
+                7
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `users`.`id` FROM `users` WHERE (json_data LIKE '%high_volume_fee_month%')",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"args\":[7],\"class\":\"RefreshHighVolumeSellerFeeEligibilityJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [],
+      "job": "RefreshHighVolumeSellerFeeEligibilityJob",
+      "args": [
+        false
+      ]
+    },
+    {
+      "name": "a blank argument [] runs the nightly sweep",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchases`.`seller_id` FROM `purchases` WHERE `purchases`.`purchase_state` = 'successful' AND (purchases.price_cents > 0) AND (stripe_refunded is null OR stripe_refunded = 0) AND (purchases.created_at >= '2026-11-01 00:00:00') GROUP BY `purchases`.`seller_id` HAVING (SUM(purchases.price_cents) >= '2000000')",
+          "result": {
+            "fields": [
+              "seller_id"
+            ],
+            "rows": [
+              [
+                7
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `users`.`id` FROM `users` WHERE (json_data LIKE '%high_volume_fee_month%')",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"args\":[7],\"class\":\"RefreshHighVolumeSellerFeeEligibilityJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [],
+      "job": "RefreshHighVolumeSellerFeeEligibilityJob",
+      "args": [
+        []
+      ]
+    },
+    {
+      "name": "a blank argument {} runs the nightly sweep",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchases`.`seller_id` FROM `purchases` WHERE `purchases`.`purchase_state` = 'successful' AND (purchases.price_cents > 0) AND (stripe_refunded is null OR stripe_refunded = 0) AND (purchases.created_at >= '2026-11-01 00:00:00') GROUP BY `purchases`.`seller_id` HAVING (SUM(purchases.price_cents) >= '2000000')",
+          "result": {
+            "fields": [
+              "seller_id"
+            ],
+            "rows": [
+              [
+                7
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `users`.`id` FROM `users` WHERE (json_data LIKE '%high_volume_fee_month%')",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"args\":[7],\"class\":\"RefreshHighVolumeSellerFeeEligibilityJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [],
+      "job": "RefreshHighVolumeSellerFeeEligibilityJob",
+      "args": [
+        {}
+      ]
+    },
+    {
+      "name": "a seller id refreshes that seller",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 7 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                7,
+                "user7@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "user7",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1007",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                0,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 7 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                7,
+                "user7@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "user7",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1007",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                0,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 7 LIMIT 1 FOR UPDATE",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                7,
+                "user7@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "user7",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1007",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                0,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT SUM(`purchases`.`price_cents`) FROM `purchases` WHERE `purchases`.`seller_id` = 7 AND `purchases`.`purchase_state` = 'successful' AND (purchases.price_cents > 0) AND (stripe_refunded is null OR stripe_refunded = 0) AND (purchases.created_at >= '2026-11-01 00:00:00')",
+          "result": {
+            "fields": [
+              "SUM(`purchases`.`price_cents`)"
+            ],
+            "rows": [
+              [
+                2000000
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `users`.`json_data` FROM `users` WHERE `users`.`id` = 7 LIMIT 1 FOR UPDATE",
+          "result": {
+            "fields": [
+              "json_data"
+            ],
+            "rows": [
+              [
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `users` SET `users`.`updated_at` = '2026-11-04 12:30:45', `users`.`json_data` = '{\\\"high_volume_fee_month\\\":\\\"2026-11\\\"}' WHERE `users`.`id` = 7",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "INSERT INTO `versions` (`item_type`, `item_id`, `event`, `whodunnit`, `object`, `created_at`, `remote_ip`, `request_path`, `request_uuid`, `object_changes`) VALUES ('User', 7, 'update', NULL, '{\\\"json_data\\\":null,\\\"id\\\":7,\\\"email\\\":\\\"user7@example.com\\\",\\\"reset_password_sent_at\\\":null,\\\"remember_created_at\\\":null,\\\"sign_in_count\\\":0,\\\"current_sign_in_at\\\":null,\\\"last_sign_in_at\\\":null,\\\"current_sign_in_ip\\\":null,\\\"last_sign_in_ip\\\":null,\\\"created_at\\\":\\\"2026-01-01T00:00:00Z\\\",\\\"updated_at\\\":\\\"2026-01-01T00:00:00Z\\\",\\\"name\\\":null,\\\"payment_address\\\":null,\\\"confirmed_at\\\":\\\"2026-01-01T00:00:00Z\\\",\\\"confirmation_sent_at\\\":null,\\\"unconfirmed_email\\\":null,\\\"provider\\\":null,\\\"twitter_user_id\\\":null,\\\"facebook_uid\\\":null,\\\"deleted_at\\\":null,\\\"payment_notification\\\":true,\\\"currency_type\\\":\\\"usd\\\",\\\"bio\\\":null,\\\"username\\\":\\\"user7\\\",\\\"credit_card_id\\\":null,\\\"profile_picture_url\\\":null,\\\"country\\\":null,\\\"state\\\":null,\\\"city\\\":null,\\\"zip_code\\\":null,\\\"street_address\\\":null,\\\"verified\\\":null,\\\"manage_pages\\\":false,\\\"banned_at\\\":null,\\\"weekly_notification\\\":true,\\\"external_id\\\":\\\"1007\\\",\\\"account_created_ip\\\":null,\\\"notification_endpoint\\\":null,\\\"locale\\\":\\\"en\\\",\\\"flags\\\":0,\\\"google_analytics_id\\\":null,\\\"timezone\\\":\\\"Pacific Time (US \\\\u0026 Canada)\\\",\\\"user_risk_state\\\":\\\"compliant\\\",\\\"tos_violation_reason\\\":null,\\\"kindle_email\\\":null,\\\"support_email\\\":null,\\\"google_analytics_domains\\\":null,\\\"recommendation_type\\\":\\\"\\\",\\\"facebook_pixel_id\\\":null,\\\"split_payment_by_cents\\\":null,\\\"last_active_sessions_invalidated_at\\\":null,\\\"facebook_meta_tag\\\":null,\\\"tier_state\\\":0,\\\"orientation_priority_tag\\\":null,\\\"notification_content_type\\\":\\\"application/x-www-form-urlencoded\\\",\\\"google_uid\\\":null,\\\"purchasing_power_parity_limit\\\":null,\\\"twitter_handle\\\":null}', '2026-11-04 12:30:45', NULL, NULL, NULL, '{\\\"updated_at\\\":[\\\"2026-01-01T00:00:00Z\\\",\\\"2026-11-04T12:30:45Z\\\"],\\\"json_data\\\":[null,\\\"{\\\\\\\"high_volume_fee_month\\\\\\\":\\\\\\\"2026-11\\\\\\\"}\\\"]}')",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "SELECT `seller_profiles`.* FROM `seller_profiles` WHERE `seller_profiles`.`seller_id` = 7 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "seller_id",
+              "highlight_color",
+              "background_color",
+              "font",
+              "created_at",
+              "updated_at",
+              "json_data",
+              "border_radius",
+              "button_hover",
+              "seo_title",
+              "seo_description"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "es": [],
+      "job": "RefreshHighVolumeSellerFeeEligibilityJob",
+      "args": [
+        7
+      ]
+    },
+    {
+      "name": "a seller id that does not exist",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 99 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "es": [],
+      "job": "RefreshHighVolumeSellerFeeEligibilityJob",
+      "args": [
+        99
+      ]
+    },
+    {
+      "name": "a seller id given as a digit string",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 7 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                7,
+                "user7@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "user7",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1007",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                0,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 7 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                7,
+                "user7@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "user7",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1007",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                0,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 7 LIMIT 1 FOR UPDATE",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                7,
+                "user7@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "user7",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1007",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                0,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT SUM(`purchases`.`price_cents`) FROM `purchases` WHERE `purchases`.`seller_id` = 7 AND `purchases`.`purchase_state` = 'successful' AND (purchases.price_cents > 0) AND (stripe_refunded is null OR stripe_refunded = 0) AND (purchases.created_at >= '2026-11-01 00:00:00')",
+          "result": {
+            "fields": [
+              "SUM(`purchases`.`price_cents`)"
+            ],
+            "rows": [
+              [
+                2000000
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `users`.`json_data` FROM `users` WHERE `users`.`id` = 7 LIMIT 1 FOR UPDATE",
+          "result": {
+            "fields": [
+              "json_data"
+            ],
+            "rows": [
+              [
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `users` SET `users`.`updated_at` = '2026-11-04 12:30:45', `users`.`json_data` = '{\\\"high_volume_fee_month\\\":\\\"2026-11\\\"}' WHERE `users`.`id` = 7",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "INSERT INTO `versions` (`item_type`, `item_id`, `event`, `whodunnit`, `object`, `created_at`, `remote_ip`, `request_path`, `request_uuid`, `object_changes`) VALUES ('User', 7, 'update', NULL, '{\\\"json_data\\\":null,\\\"id\\\":7,\\\"email\\\":\\\"user7@example.com\\\",\\\"reset_password_sent_at\\\":null,\\\"remember_created_at\\\":null,\\\"sign_in_count\\\":0,\\\"current_sign_in_at\\\":null,\\\"last_sign_in_at\\\":null,\\\"current_sign_in_ip\\\":null,\\\"last_sign_in_ip\\\":null,\\\"created_at\\\":\\\"2026-01-01T00:00:00Z\\\",\\\"updated_at\\\":\\\"2026-01-01T00:00:00Z\\\",\\\"name\\\":null,\\\"payment_address\\\":null,\\\"confirmed_at\\\":\\\"2026-01-01T00:00:00Z\\\",\\\"confirmation_sent_at\\\":null,\\\"unconfirmed_email\\\":null,\\\"provider\\\":null,\\\"twitter_user_id\\\":null,\\\"facebook_uid\\\":null,\\\"deleted_at\\\":null,\\\"payment_notification\\\":true,\\\"currency_type\\\":\\\"usd\\\",\\\"bio\\\":null,\\\"username\\\":\\\"user7\\\",\\\"credit_card_id\\\":null,\\\"profile_picture_url\\\":null,\\\"country\\\":null,\\\"state\\\":null,\\\"city\\\":null,\\\"zip_code\\\":null,\\\"street_address\\\":null,\\\"verified\\\":null,\\\"manage_pages\\\":false,\\\"banned_at\\\":null,\\\"weekly_notification\\\":true,\\\"external_id\\\":\\\"1007\\\",\\\"account_created_ip\\\":null,\\\"notification_endpoint\\\":null,\\\"locale\\\":\\\"en\\\",\\\"flags\\\":0,\\\"google_analytics_id\\\":null,\\\"timezone\\\":\\\"Pacific Time (US \\\\u0026 Canada)\\\",\\\"user_risk_state\\\":\\\"compliant\\\",\\\"tos_violation_reason\\\":null,\\\"kindle_email\\\":null,\\\"support_email\\\":null,\\\"google_analytics_domains\\\":null,\\\"recommendation_type\\\":\\\"\\\",\\\"facebook_pixel_id\\\":null,\\\"split_payment_by_cents\\\":null,\\\"last_active_sessions_invalidated_at\\\":null,\\\"facebook_meta_tag\\\":null,\\\"tier_state\\\":0,\\\"orientation_priority_tag\\\":null,\\\"notification_content_type\\\":\\\"application/x-www-form-urlencoded\\\",\\\"google_uid\\\":null,\\\"purchasing_power_parity_limit\\\":null,\\\"twitter_handle\\\":null}', '2026-11-04 12:30:45', NULL, NULL, NULL, '{\\\"updated_at\\\":[\\\"2026-01-01T00:00:00Z\\\",\\\"2026-11-04T12:30:45Z\\\"],\\\"json_data\\\":[null,\\\"{\\\\\\\"high_volume_fee_month\\\\\\\":\\\\\\\"2026-11\\\\\\\"}\\\"]}')",
+          "result": {
+            "affected": 1,
+            "last_id": 2
+          }
+        },
+        {
+          "sql": "SELECT `seller_profiles`.* FROM `seller_profiles` WHERE `seller_profiles`.`seller_id` = 7 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "seller_id",
+              "highlight_color",
+              "background_color",
+              "font",
+              "created_at",
+              "updated_at",
+              "json_data",
+              "border_radius",
+              "button_hover",
+              "seo_title",
+              "seo_description"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "es": [],
+      "job": "RefreshHighVolumeSellerFeeEligibilityJob",
+      "args": [
+        "7"
+      ]
+    }
+  ]
+}

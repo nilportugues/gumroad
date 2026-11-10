@@ -260,7 +260,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "BackfillPdfStampsJob": {
     "file": "app/sidekiq/backfill_pdf_stamps_job.rb",
@@ -1644,7 +1644,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "LargeSellersUpdateUserBalanceStatsCacheWorker": {
     "file": "app/sidekiq/large_sellers_update_user_balance_stats_cache_worker.rb",
@@ -2016,7 +2016,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RecalculateRecentWishlistFollowerCountJob": {
     "file": "app/sidekiq/recalculate_recent_wishlist_follower_count_job.rb",
@@ -2241,7 +2241,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RefreshMerchantAccountPaymentMethodAvailabilityWorker": {
     "file": "app/sidekiq/refresh_merchant_account_payment_method_availability_worker.rb",
