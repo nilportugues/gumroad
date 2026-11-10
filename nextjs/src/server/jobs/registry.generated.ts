@@ -1259,7 +1259,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "recurringLockMaxAttempt": 600,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "FlushInstallmentDeliveredDeltasJob": {
     "file": "app/sidekiq/flush_installment_delivered_deltas_job.rb",

@@ -112,6 +112,8 @@ Mysql2 unknown-column error) and non-Integer ids hand back too. A variant withou
 `remove-suspended-account-follows-worker.golden.json` was recorded on lane 15 (`gumroad_test_15`, Redis 56-58, `PARITY_ES_INDEX_SUFFIX=-c15`). The one remaining
 hand-back of `RemoveSuspendedAccountFollowsWorker` is `Follower#mark_deleted!` (confirmed_at reset and Follower callbacks) for a live follow; a non-Integer user id hands back too. No debt line was open for it.
 
+`flush-delivered-email-infos-job.golden.json` was recorded on lane 20 (`gumroad_test_20`, Redis 37 for `REDIS_HOST` and `SIDEKIQ_REDIS_HOST`, `PARITY_ES_INDEX_SUFFIX=-c20`); its replay needs `JOBS_REDIS_URL` and is skipped without it. The one hand-back of `FlushDeliveredEmailInfosJob` is a buffer entry that is not `{i, p, t}` integers (never written by `EmailInfo.buffer_delivered`); no debt line was open for it.
+
 `PUT|PATCH /mobile/licenses/:id` no longer hands back an `enabled` that is an array or hash: Rails' boolean cast turns it into true (lane 16, Redis 60-64; example
 "enables a disabled license when enabled is an array" recorded and replayed in `mobile-api.replay.test.ts`). No debt line was open for it.
 
