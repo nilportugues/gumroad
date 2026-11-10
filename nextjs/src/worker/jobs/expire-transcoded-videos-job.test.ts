@@ -1,6 +1,7 @@
 // Replays expire-transcoded-videos-job.golden.json (scripts/golden/expire-transcoded-videos-job.rb): ExpireTranscodedVideosJob run
-// by the real app as a Sidekiq job. Node reads the same Redis limit, checks replica lag once, sends the statement Rails sent,
-// finishes when no video is due and hands the job back, before it writes, when one is.
+// by the real app as a Sidekiq job. Node reads the same Redis limit, checks replica lag before each batch, sends the statements
+// Rails sent (the batch query, then each video's validated update with its PaperTrail version) and hands the job back, before
+// it writes that video, at the first one with a streamable file.
 import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
@@ -104,7 +105,6 @@ describe("ExpireTranscodedVideosJob", () => {
 
       if (c.hands_back) {
         expect((error as Error | null)?.name).toBe("HandBackToRuby");
-        expect(sql.log.some((statement) => /^(UPDATE|INSERT|DELETE)/u.test(statement))).toBe(false);
       } else {
         expect(error === null ? null : (error as Error).message).toEqual(c.error?.message ?? null);
       }

@@ -1,8 +1,9 @@
 # frozen_string_literal: true
 
 # Produces nextjs/src/worker/jobs/__fixtures__/expire-transcoded-videos-job.golden.json: ExpireTranscodedVideosJob run by the real
-# app against a scratch database and Redis as a Sidekiq job (support/sidekiq_executor.rb). The first TranscodedVideo#mark_deleted!
-# is what Node hands back to Rails; those cases are recorded up to the call a marker exception stands in for. Run it like
+# app against a scratch database and Redis as a Sidekiq job (support/sidekiq_executor.rb). Node expires a video itself unless it
+# has a streamable ProductFile (the flag update on the file is not ported); the first such video is where Node hands back to Rails,
+# so those cases are recorded up to a marker exception raised in its place, after the videos before it were expired. Run it like
 # flush-delivered-email-infos-job.rb, with USE_DB_WORKER_REPLICAS=true and one Redis database for REDIS_HOST and SIDEKIQ_REDIS_HOST:
 #
 #   bundle exec rails runner nextjs/scripts/golden/expire-transcoded-videos-job.rb
@@ -12,7 +13,7 @@ include RailsCases
 OUT = Rails.root.join("nextjs/src/worker/jobs/__fixtures__/expire-transcoded-videos-job.golden.json")
 NOW = Time.utc(2026, 11, 30, 12, 30, 45, 123_000)
 SEEDED_AT = "2026-01-01 00:00:00"
-TABLES = %w[transcoded_videos].freeze
+TABLES = %w[transcoded_videos versions].freeze
 LIMIT_KEY = RedisKey.transcoded_videos_recentness_limit_in_months
 
 Rails.logger = ActiveSupport::Logger.new(nil)
@@ -20,7 +21,11 @@ Rails.logger = ActiveSupport::Logger.new(nil)
 class HandBackMarker < Exception; end # rubocop:disable Lint/InheritException
 
 TranscodedVideo.prepend(Module.new do
-  def mark_deleted!(*) = raise(HandBackMarker)
+  def mark_deleted!(*)
+    raise HandBackMarker if streamable_type && streamable_id
+
+    super
+  end
 end)
 
 $replica_lag_watches = 0
@@ -77,6 +82,23 @@ cases << run("a limit with underscores", [video(1, last_accessed_at: OLD)], limi
 cases << run("a limit with a leading plus", [video(1, last_accessed_at: RECENT)], limit: "+12")
 cases << run("a decimal limit is cut at the point", [video(1, last_accessed_at: OLD)], limit: "12.9")
 cases << run("101 old videos", (1..101).map { video(_1, last_accessed_at: OLD) }, limit: "12")
+cases << run("an old video that is expired with a version", [video(1, last_accessed_at: OLD, link_id: 7, job_id: "job-1")], limit: "12")
+cases << run("old videos next to a recent one and a deleted one", [video(1, last_accessed_at: OLD), video(2, last_accessed_at: RECENT), video(3, last_accessed_at: OLD, **DELETED), video(4, last_accessed_at: OLD, state: "error")], limit: "12")
+cases << run("two old videos sharing a transcoded key", [video(1, last_accessed_at: OLD, transcoded_video_key: "shared.m3u8"), video(2, last_accessed_at: OLD, transcoded_video_key: "shared.m3u8")], limit: "12")
+cases << run("a video with the hls and grmc flags", [video(1, last_accessed_at: OLD, flags: 3)], limit: "12")
+cases << run("a video already deleted from the cdn", [video(1, last_accessed_at: OLD, deleted_from_cdn_at: "2026-03-01 00:00:00")], limit: "12")
+cases << run("a video with no state", [video(1, last_accessed_at: OLD, state: nil)], limit: "12")
+cases << run("a video with an unknown state", [video(1, last_accessed_at: OLD, state: "bogus")], limit: "12")
+cases << run("a video with a blank key and an unknown state", [video(1, last_accessed_at: OLD, original_video_key: " ", state: "bogus")], limit: "12")
+cases << run("a video with a blank original key", [video(1, last_accessed_at: OLD, original_video_key: "")], limit: "12")
+cases << run("a video with no transcoded key", [video(1, last_accessed_at: OLD, transcoded_video_key: nil)], limit: "12")
+cases << run("an invalid video after a valid one", [video(1, last_accessed_at: OLD), video(2, last_accessed_at: OLD, original_video_key: nil), video(3, last_accessed_at: OLD)], limit: "12")
+cases << run("a video with a streamable type and no id", [video(1, last_accessed_at: OLD, streamable_type: "ProductFile")], limit: "12")
+cases << run("a video with a streamable id and no type", [video(1, last_accessed_at: OLD, streamable_id: 5)], limit: "12")
+cases << run("a video with a streamable file", [video(1, last_accessed_at: OLD, streamable_type: "ProductFile", streamable_id: 5)], limit: "12")
+cases << run("a streamable video after videos without one", [video(1, last_accessed_at: OLD), video(2, last_accessed_at: OLD, streamable_type: "ProductFile", streamable_id: 5), video(3, last_accessed_at: OLD)], limit: "12")
+cases << run("a streamable video first", [video(1, last_accessed_at: OLD, streamable_type: "ProductFile", streamable_id: 5), video(2, last_accessed_at: OLD)], limit: "12")
+cases << run("a limit of 12 months and a video accessed with microseconds", [video(1, last_accessed_at: "2025-11-30 12:30:45.123456")], limit: "12")
 
 File.write(OUT, JSON.pretty_generate({ "now" => NOW.to_f, "cases" => cases }) + "\n")
 puts "wrote #{OUT.relative_path_from(Rails.root)} (#{cases.size} cases)"
