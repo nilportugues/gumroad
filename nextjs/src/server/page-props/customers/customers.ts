@@ -1,8 +1,8 @@
 // CustomersController#index (`/customers`, `/customers/:link_id`): fetch_sales over PurchaseSearchService, CustomersPresenter
 // and CustomerPresenter#customer (app/presenters/customer{,s}_presenter.rb).
 //
-// Handed back to Rails (HandBackToRails) when a customer on the page needs a reading the port does not make: a member whose renewals an Indian card mandate disabled, a sent gift whose
-// recipient holds a license, a physical product, a Sku, several options on one sale, a collaborator sale that also credits a direct affiliate, a UTM link (`utm_url` is built by Addressable), a non-USD price without a
+// Handed back to Rails (HandBackToRails) when a customer on the page needs a reading the port does not make: a member whose renewals an Indian card mandate disabled and whose next charge is free under a limited-cycle discount,
+// a sent gift whose recipient holds a license on a product with option content, a physical product, a Sku, a UTM link (`utm_url` is built by Addressable), a non-USD price without a
 // stored rate or in a currency the port has no table for, a refund whose json_data is not plain JSON, a commission
 // with files, a review video, and a custom field answer that carries a file (its signed id).
 import { Prisma, type Purchase, type Subscription, type User } from "@prisma/client";
@@ -177,6 +177,10 @@ type Loaded = {
   // Purchase#amount_refunded_cents: the sum of the effective refunds.
   refundedCents: Map<string, number>;
   gifts: Map<string, Row>;
+  // The license a gift sender's giftee holds, by the sender's purchase id (the fallback of Purchase#linked_license).
+  gifteeLicenses: Map<string, Row>;
+  // The direct affiliate's part of `affiliate_credit_cents` (credits_direct_affiliate?), by purchase id.
+  directAffiliateCredits: Map<string, number>;
   // The gift a receiver's purchase was delivered through (`gift_received`), by the receiver's purchase id.
   receivedGifts: Map<string, Row>;
   // The ids of the preorders the page's purchases belong to (`purchase.preorder.present?`).
@@ -222,13 +226,6 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
   const links = byId(await rowsBy("links", "id", [...new Set(purchases.map((purchase) => purchase.link_id))]));
   for (const link of links.values()) if (link.require_shipping) throw new HandBackToRails();
   for (const purchase of purchases) {
-    // credits_direct_affiliate?: a collaborator sale that also credits a direct affiliate splits the credit in two (json_data).
-    if (
-      purchase.affiliate_id != null &&
-      typeof purchase.json_data === "string" &&
-      purchase.json_data.includes("direct_affiliate_id")
-    )
-      throw new HandBackToRails();
     // usd_cents_to_currency converts the refundable amount at the rate stored on the sale; without one it would ask Redis.
     if (
       purchase.displayed_price_currency_type !== "usd" &&
@@ -270,9 +267,14 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
   if ([...affiliates.values()].some((affiliate) => !affiliateUsers.has(String(affiliate.affiliate_user_id))))
     throw new HandBackToRails();
 
-  // A Sku (shipping) is Rails' to answer, and so is a purchase of several options, since `variant_attributes.first` has no order.
-  const picks = groupBy(await rowsBy("base_variants_purchases", "purchase_id", purchaseIds), "purchase_id");
-  if ([...picks.values()].some((rows) => rows.length > 1)) throw new HandBackToRails();
+  const directAffiliateCredits = await directCreditsOf(purchases, affiliates);
+
+  // A Sku (shipping) is Rails' to answer. A sale of several options shows the first of `variant_attributes`, which the preload
+  // assembles in the order of the join rows.
+  const picks = groupBy(
+    (await rowsBy("base_variants_purchases", "purchase_id", purchaseIds)).sort((a, b) => num(a.id) - num(b.id)),
+    "purchase_id",
+  );
   const variantRows = byId(
     await rowsBy("base_variants", "id", [...new Set([...picks.values()].flat().map((pick) => pick.base_variant_id))]),
   );
@@ -301,7 +303,6 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
     refundedCents.set(key, (refundedCents.get(key) ?? 0) + num(refund.amount_cents ?? 0));
   }
 
-  // Purchase#giftee_email reads the gift of a sender; its linked_license may be the recipient's, which is Rails' to answer.
   const senderIds = purchases
     .filter((purchase) => PurchaseFlags.isSet(purchase.flags, "is_gift_sender_purchase"))
     .map((purchase) => purchase.id);
@@ -314,14 +315,7 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
   const receivedGifts = new Map(
     (await rowsBy("gifts", "giftee_purchase_id", receiverIds)).map((gift) => [String(gift.giftee_purchase_id), gift]),
   );
-  const gifteeIds = [...gifts.values()].map((gift) => gift.giftee_purchase_id).filter((id) => id != null);
-  if (
-    gifteeIds.length > 0 &&
-    (await exists(
-      Prisma.sql`SELECT 1 FROM ${table("licenses")} WHERE ${column("licenses", "purchase_id")} IN (${inList(gifteeIds)}) LIMIT 1`,
-    ))
-  )
-    throw new HandBackToRails();
+  const gifteeLicenses = await gifteeLicensesOf(gifts);
 
   const reviews = byId(await rowsBy("product_reviews", "purchase_id", purchaseIds));
   const reviewsByPurchase = new Map([...reviews.values()].map((review) => [String(review.purchase_id), review]));
@@ -366,6 +360,8 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
     links,
     hasAliveVariants: await productsWithAliveVariants([...links.keys()]),
     receivedGifts,
+    gifteeLicenses,
+    directAffiliateCredits,
     preorderIds: new Set(
       (
         await rowsBy("preorders", "id", [
@@ -430,6 +426,76 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
       ]),
     ),
   };
+}
+
+// Ruby's `Integer#to_i` on a json_data cell: nil is 0, and a value the port cannot read as a number is Rails' to answer.
+function jsonInteger(value: unknown): number {
+  if (value == null) return 0;
+  if (typeof value === "number" && Number.isFinite(value)) return Math.trunc(value);
+  throw new HandBackToRails();
+}
+
+// credits_direct_affiliate?: a collaborator sale that also credits a DirectAffiliate holds both credits in `affiliate_credit_cents`,
+// and `own_affiliate_credit_cents` takes the direct affiliate's part (json_data `direct_affiliate_credit_cents`) off.
+export async function directCreditsOf(purchases: Row[], affiliates: Map<string, Row>): Promise<Map<string, number>> {
+  const candidates = new Map<string, { directId: unknown; credit: number }>();
+  for (const purchase of purchases) {
+    if (purchase.affiliate_id == null || affiliates.get(String(purchase.affiliate_id))?.type !== "Collaborator")
+      continue;
+    if (typeof purchase.json_data !== "string" || !purchase.json_data.includes("direct_affiliate_id")) continue;
+    let data: unknown;
+    try {
+      data = JSON.parse(purchase.json_data);
+    } catch {
+      throw new HandBackToRails();
+    }
+    if (data === null || typeof data !== "object" || Array.isArray(data)) throw new HandBackToRails();
+    const fields = data as Record<string, unknown>;
+    // `direct_affiliate_id.present?`
+    if (fields.direct_affiliate_id == null || fields.direct_affiliate_id === "") continue;
+    candidates.set(String(purchase.id), {
+      directId: fields.direct_affiliate_id,
+      credit: jsonInteger(fields.direct_affiliate_credit_cents),
+    });
+  }
+  if (candidates.size === 0) return new Map();
+  const direct = new Set(
+    (await rowsBy("affiliates", "id", [...new Set([...candidates.values()].map((candidate) => candidate.directId))]))
+      .filter((affiliate) => affiliate.type === "DirectAffiliate")
+      .map((affiliate) => String(affiliate.id)),
+  );
+  return new Map(
+    [...candidates]
+      .filter(([, candidate]) => direct.has(String(candidate.directId)))
+      .map(([id, { credit }]) => [id, credit]),
+  );
+}
+
+// Purchase#linked_license of a gift sender with no key of its own: the license of the giftee's purchase, when that purchase uses a
+// license key. A product whose chosen option may carry its own content (`variant_content_permits_license_key?`) is Rails' to answer.
+export async function gifteeLicensesOf(gifts: Map<string, Row>): Promise<Map<string, Row>> {
+  const gifteeIds = [...gifts.values()].map((gift) => gift.giftee_purchase_id).filter((id) => id != null);
+  if (gifteeIds.length === 0) return new Map();
+  const licenses = new Map(
+    (
+      await rowsBy("licenses", "purchase_id", gifteeIds, Prisma.sql` AND ${column("licenses", "deleted_at")} IS NULL`)
+    ).map((license) => [String(license.purchase_id), license]),
+  );
+  if (licenses.size === 0) return new Map();
+  const gifteePurchases = byId(await rowsBy("purchases", "id", [...licenses.keys()]));
+  const products = byId(
+    await rowsBy("links", "id", [...new Set([...gifteePurchases.values()].map((purchase) => purchase.link_id))]),
+  );
+  const result = new Map<string, Row>();
+  for (const [senderId, gift] of gifts) {
+    const license = licenses.get(String(gift.giftee_purchase_id));
+    const giftee = gifteePurchases.get(String(gift.giftee_purchase_id));
+    const product = giftee && products.get(String(giftee.link_id));
+    if (!license || !product || !LinkFlags.isSet(product.flags, "is_licensed")) continue;
+    if ((await rowsBy("base_variants_purchases", "purchase_id", [giftee.id])).length > 0) throw new HandBackToRails();
+    if (license.serial != null && license.serial !== "") result.set(senderId, license);
+  }
+  return result;
 }
 
 // `link.alive_variants.any?`: alive Variants of alive variant categories.
@@ -559,9 +625,14 @@ export type SubscriptionReading = {
   currentPriceCents: number | null;
 };
 
-// Subscription#status for a subscription whose renewals are not disabled by an Indian card mandate (Rails' to answer).
-// `lastPurchaseState` is the state of the subscription's newest purchase.
-export function subscriptionStatus(subscription: Row, lastPurchaseState: string | null, now: Date): string | null {
+// Subscription#status. `lastPurchaseState` is the state of the subscription's newest purchase; `paymentMethodUpdateRequired` is the
+// Indian card mandate branch (renewals disabled, reliability enabled and a charge still ahead), which only matters once the rest says alive.
+export function subscriptionStatus(
+  subscription: Row,
+  lastPurchaseState: string | null,
+  now: Date,
+  paymentMethodUpdateRequired = false,
+): string | null {
   if (subscription.deactivated_at != null) {
     if (subscription.failed_at != null) return "failed_payment";
     if (subscription.ended_at != null) return "fixed_subscription_period_ended";
@@ -573,7 +644,20 @@ export function subscriptionStatus(subscription: Row, lastPurchaseState: string 
     (subscription.cancelled_at == null || subscription.cancelled_at.getTime() > now.getTime());
   if (alive && lastPurchaseState === "failed") return "pending_failure";
   if (alive && subscription.cancelled_at != null) return "pending_cancellation";
-  return "alive";
+  return paymentMethodUpdateRequired ? "payment_method_update_required" : "alive";
+}
+
+// Subscription#future_subscription_charge?. A free renewal under a limited-cycle discount depends on the pre-discount price, which
+// the port does not read, so it is Rails' to answer.
+export function futureSubscriptionCharge(
+  chargesCompleted: boolean,
+  currentPriceCents: number | null,
+  limitedCycleDiscount: boolean,
+): boolean {
+  if (chargesCompleted) return false;
+  if (currentPriceCents !== null && currentPriceCents > 0) return true;
+  if (limitedCycleDiscount) throw new HandBackToRails();
+  return false;
 }
 
 async function subscriptionReadings(purchases: Row[]): Promise<Map<string, SubscriptionReading>> {
@@ -590,21 +674,28 @@ async function subscriptionReadings(purchases: Row[]): Promise<Map<string, Subsc
   }
   const readings = new Map<string, SubscriptionReading>();
   for (const row of rows) {
-    if (SubscriptionFlags.isSet(row.flags, "renewal_disabled_due_to_indian_card_mandate")) throw new HandBackToRails();
     const record = new SubscriptionRecord(castRow<Subscription>("Subscription", row), {
       now: () => now,
       featureActive: defaultSubscriptionDeps.featureActive,
     });
     try {
+      const currentPriceCents = await currentSubscriptionPriceCents(record);
+      const status = subscriptionStatus(row, newest.get(String(row.id)) ?? null, now);
       readings.set(String(row.id), {
         id: encrypt(row.id),
-        status: subscriptionStatus(row, newest.get(String(row.id)) ?? null, now),
+        status:
+          status === "alive" &&
+          SubscriptionFlags.isSet(row.flags, "renewal_disabled_due_to_indian_card_mandate") &&
+          (await record.indiaCardMandateReliabilityEnabled()) &&
+          (await mandateChargeAhead(record, currentPriceCents))
+            ? "payment_method_update_required"
+            : status,
         isInstallmentPlan: record.flag("is_installment_plan"),
         remainingCharges: record.hasFixedLength()
           ? num(row.charge_occurrence_count) - (await record.successfulPurchasesCount())
           : null,
         recurrence: await record.recurrence(),
-        currentPriceCents: await currentSubscriptionPriceCents(record),
+        currentPriceCents,
       });
     } catch (error) {
       // A reading the port does not make (an auto-renewal code it cannot price, a subscription with no original purchase).
@@ -613,6 +704,18 @@ async function subscriptionReadings(purchases: Row[]): Promise<Map<string, Subsc
     }
   }
   return readings;
+}
+
+// `original_purchase.nil? || future_subscription_charge?`
+async function mandateChargeAhead(record: SubscriptionRecord, currentPriceCents: number | null): Promise<boolean> {
+  const original = await record.originalPurchase();
+  if (original === null) return true;
+  const discounts = await rowsBy("purchase_offer_code_discounts", "purchase_id", [original.id]);
+  return futureSubscriptionCharge(
+    await record.chargesCompleted(),
+    currentPriceCents,
+    discounts.some((discount) => discount.duration_in_billing_cycles != null),
+  );
 }
 
 // CustomerPresenter's `is_preorder`: the authorization of a preorder that still exists, not the purchase it was later charged as.
@@ -632,12 +735,11 @@ export function giftOf(purchase: Row, loaded: Pick<Loaded, "gifts" | "receivedGi
   return undefined;
 }
 
-// CustomerPresenter's `affiliate`: the affiliate's form_email, the credit this sale paid them (own_affiliate_credit_cents, with no
-// direct affiliate to subtract) and the STI type.
-export function affiliateJson(purchase: Row, affiliate: Row, user: Row) {
+// CustomerPresenter's `affiliate`: the affiliate's form_email, the credit this sale paid them (own_affiliate_credit_cents) and the STI type.
+export function affiliateJson(purchase: Row, affiliate: Row, user: Row, directCreditCents = 0) {
   return {
     email: present(user.unconfirmed_email) ? user.unconfirmed_email : present(user.email) ? user.email : null,
-    amount: formattedDollarAmount(num(purchase.affiliate_credit_cents ?? 0)),
+    amount: formattedDollarAmount(num(purchase.affiliate_credit_cents ?? 0) - directCreditCents),
     type: affiliate.type,
   };
 }
@@ -667,7 +769,8 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
   const subscription =
     purchase.subscription_id == null ? undefined : loaded.subscriptions.get(String(purchase.subscription_id));
   const tip = loaded.tips.get(id);
-  const license = loaded.licenses.get(id);
+  const ownLicense = loaded.licenses.get(id);
+  const license = ownLicense && present(ownLicense.serial) ? ownLicense : (loaded.gifteeLicenses.get(id) ?? ownLicense);
   const review = loaded.reviews.get(id);
   const call = loaded.calls.get(id);
   const purchaser =
@@ -726,7 +829,10 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
     is_additional_contribution: flags("is_additional_contribution"),
     ppp: ppp ? { country: purchase.ip_country, discount: `${Math.round((1 - num(ppp.factor)) * 100)}%` } : null,
     is_preorder: isPreorder(purchase, loaded.preorderIds),
-    affiliate: affiliate && affiliateUser ? affiliateJson(purchase, affiliate, affiliateUser) : null,
+    affiliate:
+      affiliate && affiliateUser
+        ? affiliateJson(purchase, affiliate, affiliateUser, loaded.directAffiliateCredits.get(id))
+        : null,
     license: license
       ? {
           id: secureExternalId("License", license.id, LICENSE_SCOPE, {
