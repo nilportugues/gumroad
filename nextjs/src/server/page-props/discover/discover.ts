@@ -49,6 +49,8 @@ export type DiscoverRequest = {
   remoteIp: string;
   cookies: Map<string, string | null>;
   guid: string | null;
+  // Rails' current_seller (the pundit user's seller), not necessarily the signed-in user.
+  currentSellerId: bigint | null;
 };
 
 export type PreparedSearch = {
@@ -280,8 +282,8 @@ export const autocompleteResults = (params: Params, visitor: DiscoverVisitor, gu
 export const isAutocompleteOnlyRequest = (headers: Headers) => headers.get("x-inertia-partial-data") === "autocomplete_results";
 
 // What a deferred-only request asks for, when the port can answer all of it: the other props are Rails'.
-// recommended_wishlists is answered for a visitor who is not signed in (the signed-in seller is current_seller, which
-// the service excludes and the cards follow); recently_viewed is handed back mid-ramp, where Rails logs the exposure.
+// recommended_wishlists is answered for any visitor that reached here (curated sources are handed back earlier);
+// recently_viewed is handed back mid-ramp, where Rails logs the exposure.
 export async function deferredPropsPortable(requested: string[], prepared: PreparedSearch, visitor: DiscoverVisitor, guid: string | null, request: DiscoverRequest): Promise<boolean> {
   for (const name of requested) {
     if (name === "recommended_products") {
@@ -291,8 +293,7 @@ export async function deferredPropsPortable(requested: string[], prepared: Prepa
       if (await recentlyViewedMidRamp(prepared, visitor, guid)) return false;
       if (await notPorted(() => recentlyViewedData(prepared, visitor, request))) return false;
     } else if (name === "recommended_wishlists") {
-      if (visitor) return false;
-      if (await notPorted(() => recommendedWishlistsProps(prepared.taxonomy?.id ?? null))) return false;
+      if (await notPorted(() => recommendedWishlistsProps(prepared.taxonomy?.id ?? null, request.currentSellerId))) return false;
     } else {
       return false;
     }
@@ -362,10 +363,7 @@ async function recommendedProducts(prepared: PreparedSearch, request: DiscoverRe
 export function deferredProps(prepared: PreparedSearch, request: DiscoverRequest, visitor: DiscoverVisitor): Record<string, unknown> {
   return {
     recommended_products: defer(() => recommendedProducts(prepared, request)),
-    recommended_wishlists: defer(async () => {
-      if (visitor) throw new NotPortedError("Discover recommended_wishlists for a signed-in visitor");
-      return recommendedWishlistsProps(prepared.taxonomy?.id ?? null);
-    }),
+    recommended_wishlists: defer(() => recommendedWishlistsProps(prepared.taxonomy?.id ?? null, request.currentSellerId)),
     recently_viewed: defer(() => recentlyViewedData(prepared, visitor, request)),
   };
 }

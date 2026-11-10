@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   thumbnail: vi.fn(),
   wishlistCard: vi.fn(),
   wishlists: [] as { id: bigint }[],
+  followers: [] as { wishlist_id: bigint }[],
+  followerQueries: [] as unknown[],
 }));
 
 vi.mock("../product-reads.ts", () => ({ findLink: mocks.findLink, findUserById: mocks.findUser }));
@@ -20,7 +22,7 @@ vi.mock("../../page-props/buyer/products.ts", () => ({ anyThumbnailUrl: mocks.th
 vi.mock("../../page-props/storefront/featured-and-wishlist-sections.ts", () => ({
   wishlistCardProps: mocks.wishlistCard,
 }));
-vi.mock("../../../lib/db.ts", () => ({ db: { wishlist: { findMany: async () => mocks.wishlists } } }));
+vi.mock("../../../lib/db.ts", () => ({ db: { wishlist: { findMany: async () => mocks.wishlists }, wishlistFollower: { findMany: async (args: unknown) => (mocks.followerQueries.push(args), mocks.followers) } } }));
 
 import { renderSql } from "../../models/runtime/quoting.ts";
 import { setSqlClient } from "../../models/sql.ts";
@@ -233,6 +235,27 @@ describe("RecommendedWishlistsService", () => {
     );
   });
 
+  it("leaves out the current seller's own wishlists, before and inside the taxonomy cut", async () => {
+    sqlRows = [[{ id: 3n }], [{ id: 4n }]];
+    await recommendedWishlistIds(null, 8n);
+    expect(sentSql[0]).toBe(
+      "SELECT `wishlists`.* FROM `wishlists` WHERE `wishlists`.`recommendable` = TRUE AND `wishlists`.`user_id` != 8 ORDER BY `wishlists`.`recent_follower_count` DESC LIMIT 4",
+    );
+    await recommendedWishlistIds(5n, 8n);
+    expect(sentSql[1]).toContain("WHERE `wishlists`.`recommendable` = TRUE AND `wishlists`.`user_id` != 8 ORDER BY `wishlists`.`recent_follower_count` DESC LIMIT 10000) `wishlists` INNER JOIN");
+  });
+
+  it("marks the wishlists the current seller follows on their cards", async () => {
+    sqlRows = [[{ id: 3n }, { id: 1n }]];
+    mocks.wishlists = [{ id: 1n }, { id: 3n }];
+    mocks.followers = [{ wishlist_id: 1n }];
+    mocks.wishlistCard.mockImplementation(async (wishlist: { id: bigint }, options: Record<string, unknown>) => ({ id: wishlist.id, ...options }));
+    const cards = await recommendedWishlistsProps(null, 8n);
+    expect(cards.map((card) => (card as { following: boolean }).following)).toEqual([false, true]);
+    expect(cards[0]).toMatchObject({ currentSellerId: 8n, layout: "discover", recommendedBy: "discover_wishlist" });
+    expect(mocks.followerQueries[0]).toEqual({ where: { follower_user_id: 8n, wishlist_id: { in: [3n, 1n] }, deleted_at: null }, select: { wishlist_id: true } });
+  });
+
   it("takes distinct wishlists holding a product of the taxonomy from the top ten thousand", async () => {
     sqlRows = [[{ id: 3n }]];
     expect(await recommendedWishlistIds(5n)).toEqual([3n]);
@@ -250,6 +273,6 @@ describe("RecommendedWishlistsService", () => {
     mocks.wishlists = [{ id: 1n }, { id: 3n }];
     mocks.wishlistCard.mockImplementation(async (wishlist: { id: bigint }) => ({ id: wishlist.id }));
     expect(await recommendedWishlistsProps(null)).toEqual([{ id: 3n }, { id: 1n }]);
-    expect(mocks.wishlistCard.mock.calls[0]![1]).toEqual({ layout: "discover", recommendedBy: "discover_wishlist" });
+    expect(mocks.wishlistCard.mock.calls[0]![1]).toEqual({ layout: "discover", recommendedBy: "discover_wishlist", following: false, currentSellerId: null });
   });
 });

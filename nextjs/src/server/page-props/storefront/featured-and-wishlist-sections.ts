@@ -67,9 +67,12 @@ export async function wishlistsSectionProps(base: SectionBase, data: Record<stri
   return { ...base, shown_wishlists: shown.map((id) => externalId(BigInt(id))), wishlists: cards };
 }
 
-// WishlistPresenter#card_props for a visitor who is not signed in (`following` false, `can_follow` true); the url
+// WishlistPresenter#card_props: `following` and `can_follow` follow the pundit user's seller (none when signed out); the url
 // carries `layout` and `recommended_by` the way url_for sorts them.
-export async function wishlistCardProps(wishlist: Wishlist, { layout, recommendedBy = null }: { layout: string; recommendedBy?: string | null }) {
+export async function wishlistCardProps(
+  wishlist: Wishlist,
+  { layout, recommendedBy = null, following = false, currentSellerId = null }: { layout: string; recommendedBy?: string | null; following?: boolean; currentSellerId?: bigint | null },
+) {
   const owner = await findUserById(wishlist.user_id!);
   // Rails raises on a wishlist without an owner, or an owner without a subdomain to build its URL on.
   const host = owner ? subdomainWithProtocol(owner) : null;
@@ -91,7 +94,7 @@ export async function wishlistCardProps(wishlist: Wishlist, { layout, recommende
     thumbnails: thumbnails.length < WISHLIST_CARD_THUMBNAILS ? thumbnails.slice(-1) : thumbnails,
     product_count: await db.wishlistProduct.count({ where: { wishlist_id: wishlist.id, deleted_at: null } }),
     follower_count: wishlist.follower_count,
-    following: false,
-    can_follow: true,
+    following,
+    can_follow: currentSellerId !== wishlist.user_id,
   };
 }

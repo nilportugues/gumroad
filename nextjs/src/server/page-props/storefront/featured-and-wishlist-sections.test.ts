@@ -33,7 +33,7 @@ vi.mock("../buyer/products.ts", () => ({ thumbnailOrCoverUrl: async (id: bigint)
 vi.mock("../buyer/wishlists.ts", () => ({ urlSlug: (wishlist: { name: string }) => `${wishlist.name.toLowerCase()}-1` }));
 vi.mock("../../../lib/obfuscate-ids.ts", () => ({ encrypt: (id: bigint | number) => `enc-${id}` }));
 
-import { wishlistsSectionProps } from "./featured-and-wishlist-sections.ts";
+import { wishlistCardProps, wishlistsSectionProps } from "./featured-and-wishlist-sections.ts";
 
 const BASE = { id: "section", header: null, type: "SellerProfileWishlistsSection" };
 const wishlist = (id: number, name: string) => ({ id: BigInt(id), user_id: 1n, name, description: null, follower_count: 2 });
@@ -72,6 +72,13 @@ describe("wishlistsSectionProps", () => {
     mocks.wishlists = [wishlist(1, "A")];
     const [card] = (await wishlistsSectionProps(BASE, { shown_wishlists: [1] })).wishlists;
     expect(card).toMatchObject({ url: "https://seller.example.com/wishlists/a-1?layout=profile", thumbnails: [], following: false, can_follow: true, follower_count: 2 });
+  });
+
+  it("follows the current seller: following as given and no follow button on their own wishlist", async () => {
+    const own = await wishlistCardProps(wishlist(1, "A") as never, { layout: "discover", recommendedBy: "discover_wishlist", currentSellerId: 1n });
+    expect(own).toMatchObject({ following: false, can_follow: false, url: "https://seller.example.com/wishlists/a-1?layout=discover&recommended_by=discover_wishlist" });
+    const other = await wishlistCardProps(wishlist(1, "A") as never, { layout: "discover", currentSellerId: 9n, following: true });
+    expect(other).toMatchObject({ following: true, can_follow: true });
   });
 
   it("hands a wishlist whose owner has no subdomain back to Rails", async () => {
