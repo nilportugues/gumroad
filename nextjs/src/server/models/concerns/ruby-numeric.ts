@@ -30,7 +30,9 @@ export function rubyToI(value: unknown): number {
     const match = /^[ \t\n\v\f\r]*([+-]?\d+(?:_\d+)*)/u.exec(value);
     return match ? Number(match[1]!.replaceAll("_", "")) : 0;
   }
-  throw new TypeError(`undefined method 'to_i' for ${typeof value === "boolean" ? String(value) : "an instance of " + (Array.isArray(value) ? "Array" : "Hash")}`);
+  throw new TypeError(
+    `undefined method 'to_i' for ${typeof value === "boolean" ? String(value) : `an instance of ${Array.isArray(value) ? "Array" : "Hash"}`}`,
+  );
 }
 
 // `String#to_i` without the 2**53 ceiling: Ruby's Integer is unbounded, and the digits go into SQL.

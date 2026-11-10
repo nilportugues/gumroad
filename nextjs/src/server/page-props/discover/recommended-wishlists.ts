@@ -17,9 +17,14 @@ const recommendable = (currentSellerId: bigint | null) =>
   Prisma.sql`SELECT ${table("wishlists")}.* FROM ${table("wishlists")} WHERE ${column("wishlists", "recommendable")} = TRUE${currentSellerId === null ? Prisma.empty : Prisma.sql` AND ${column("wishlists", "user_id")} != ${currentSellerId}`} ORDER BY ${column("wishlists", "recent_follower_count")} DESC`;
 
 // The ids RecommendedWishlistsService.fetch returns, in order.
-export async function recommendedWishlistIds(taxonomyId: bigint | null, currentSellerId: bigint | null = null): Promise<bigint[]> {
+export async function recommendedWishlistIds(
+  taxonomyId: bigint | null,
+  currentSellerId: bigint | null = null,
+): Promise<bigint[]> {
   if (taxonomyId === null) {
-    const rows = await selectRows<{ id: bigint }>(Prisma.sql`${recommendable(currentSellerId)} LIMIT ${Prisma.raw(String(RECOMMENDED_WISHLISTS_LIMIT))}`);
+    const rows = await selectRows<{ id: bigint }>(
+      Prisma.sql`${recommendable(currentSellerId)} LIMIT ${Prisma.raw(String(RECOMMENDED_WISHLISTS_LIMIT))}`,
+    );
     return rows.map((row) => row.id);
   }
   const rows = await selectRows<{ id: bigint }>(
@@ -36,12 +41,27 @@ export async function recommendedWishlistsProps(taxonomyId: bigint | null, curre
   const byId = new Map(wishlists.map((wishlist) => [wishlist.id, wishlist]));
   // cards_props: the wishlists the current seller already follows.
   const following = new Set(
-    currentSellerId === null ? [] : (await db.wishlistFollower.findMany({ where: { follower_user_id: currentSellerId, wishlist_id: { in: ids }, deleted_at: null }, select: { wishlist_id: true } })).map((row) => row.wishlist_id),
+    currentSellerId === null
+      ? []
+      : (
+          await db.wishlistFollower.findMany({
+            where: { follower_user_id: currentSellerId, wishlist_id: { in: ids }, deleted_at: null },
+            select: { wishlist_id: true },
+          })
+        ).map((row) => row.wishlist_id),
   );
   const cards = [];
   for (const id of ids) {
     const wishlist = byId.get(id);
-    if (wishlist) cards.push(await wishlistCardProps(wishlist, { layout: DISCOVER_LAYOUT, recommendedBy: GUMROAD_DISCOVER_WISHLIST_RECOMMENDATION, following: following.has(id), currentSellerId }));
+    if (wishlist)
+      cards.push(
+        await wishlistCardProps(wishlist, {
+          layout: DISCOVER_LAYOUT,
+          recommendedBy: GUMROAD_DISCOVER_WISHLIST_RECOMMENDATION,
+          following: following.has(id),
+          currentSellerId,
+        }),
+      );
   }
   return cards;
 }

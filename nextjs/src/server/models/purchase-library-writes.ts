@@ -8,9 +8,10 @@
 import type { Purchase } from "@prisma/client";
 
 import { PurchaseFlags } from "../search/flags.ts";
-import { instantInTimeZoneIso8601 } from "./concerns/rails-time-zone.ts";
+
 import { performAsync } from "./concerns/job-runtime.ts";
 import { hasPaperTrail } from "./concerns/paper-trail.ts";
+import { instantInTimeZoneIso8601 } from "./concerns/rails-time-zone.ts";
 import { defineModel } from "./runtime/define-model.ts";
 import type { ModelRecord } from "./runtime/record.ts";
 
@@ -18,7 +19,12 @@ import type { ModelRecord } from "./runtime/record.ts";
 const ELASTICSEARCH_UPDATE_DELAY_SECONDS = 4;
 const CREATOR_ANALYTICS_DELAY_SECONDS = 2;
 // Purchase::ATTRIBUTE_TO_SEARCH_FIELDS["flags"]
-const FLAGS_SEARCH_FIELDS = ["selected_flags", "not_chargedback_or_chargedback_reversed", "not_subscription_or_original_subscription_purchase", "referrer_domain"];
+const FLAGS_SEARCH_FIELDS = [
+  "selected_flags",
+  "not_chargedback_or_chargedback_reversed",
+  "not_subscription_or_original_subscription_purchase",
+  "referrer_domain",
+];
 // Purchase::CreatorAnalyticsCallbacks: the attributes whose change regenerates the day's cache
 const ANALYTICS_ATTRIBUTES = ["chargeback_date", "flags", "purchase_state", "stripe_refunded"];
 
@@ -63,7 +69,11 @@ export const LibraryPurchases = defineModel<Purchase>({
       on: "update",
       async run(record) {
         if (!committedAttributes(record).includes("flags")) return;
-        await performAsync("ElasticsearchIndexerWorker", ["update", { record_id: record.get("id"), class_name: "Purchase", fields: FLAGS_SEARCH_FIELDS }], { delaySeconds: ELASTICSEARCH_UPDATE_DELAY_SECONDS });
+        await performAsync(
+          "ElasticsearchIndexerWorker",
+          ["update", { record_id: record.get("id"), class_name: "Purchase", fields: FLAGS_SEARCH_FIELDS }],
+          { delaySeconds: ELASTICSEARCH_UPDATE_DELAY_SECONDS },
+        );
       },
     },
     {
@@ -75,7 +85,9 @@ export const LibraryPurchases = defineModel<Purchase>({
         const purchaseDate = localDate(timezone, record.get("created_at") as Date);
         // The cache does not cover the seller's today.
         if (purchaseDate === localDate(timezone, (now ?? (() => new Date()))())) return;
-        await performAsync("RegenerateCreatorAnalyticsCacheWorker", [Number(record.get("seller_id")), purchaseDate], { delaySeconds: CREATOR_ANALYTICS_DELAY_SECONDS });
+        await performAsync("RegenerateCreatorAnalyticsCacheWorker", [Number(record.get("seller_id")), purchaseDate], {
+          delaySeconds: CREATOR_ANALYTICS_DELAY_SECONDS,
+        });
       },
     },
   ],
@@ -92,6 +104,15 @@ export function loadLibraryPurchase(row: Purchase, sellerTimezone: string): Libr
 export type LibraryFlag = "is_archived" | "is_deleted_by_buyer" | "is_access_revoked";
 
 // `purchase.update!(flag => value)`
-export async function setLibraryFlag(record: LibraryPurchase, flag: LibraryFlag, value: boolean, options: { now?: () => Date } = {}): Promise<void> {
-  await LibraryPurchases.updateBang(record, { flags: PurchaseFlags.set(record.get("flags"), flag, value) as never }, { validate: false, ...options });
+export async function setLibraryFlag(
+  record: LibraryPurchase,
+  flag: LibraryFlag,
+  value: boolean,
+  options: { now?: () => Date } = {},
+): Promise<void> {
+  await LibraryPurchases.updateBang(
+    record,
+    { flags: PurchaseFlags.set(record.get("flags"), flag, value) as never },
+    { validate: false, ...options },
+  );
 }

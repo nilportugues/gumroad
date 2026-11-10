@@ -62,7 +62,9 @@ describe("Shipment#calculated_tracking_url", () => {
     expect(calculatedTrackingUrl(shipment({ tracking_url: "https://example.com/é|1" }))).toBeNull();
     expect(calculatedTrackingUrl(shipment({ tracking_url: "https://example.com/é#a#b" }))).toBeNull();
     expect(calculatedTrackingUrl(shipment({ tracking_url: "https://üser@example.com/é" }))).toBeNull();
-    expect(calculatedTrackingUrl(shipment({ tracking_url: "https://[2001:db8::7]/é" }))).toBe("https://[2001:db8::7]/é");
+    expect(calculatedTrackingUrl(shipment({ tracking_url: "https://[2001:db8::7]/é" }))).toBe(
+      "https://[2001:db8::7]/é",
+    );
   });
 
   it("is nil for a non-ASCII value that is not an http(s) URL", () => {
@@ -71,16 +73,18 @@ describe("Shipment#calculated_tracking_url", () => {
   });
 
   it("treats Unicode whitespace as blank and C1 controls as unsafe, as Ruby's blank? and [[:cntrl:]] do", () => {
-    expect(
-      calculatedTrackingUrl(shipment({ tracking_url: " 　", carrier: "UPS", tracking_number: "1Z999" })),
-    ).toBe("http://wwwapps.ups.com/WebTracking/processInputRequest?TypeOfInquiryNumber=T&InquiryNumber1=1Z999");
+    expect(calculatedTrackingUrl(shipment({ tracking_url: " 　", carrier: "UPS", tracking_number: "1Z999" }))).toBe(
+      "http://wwwapps.ups.com/WebTracking/processInputRequest?TypeOfInquiryNumber=T&InquiryNumber1=1Z999",
+    );
     expect(calculatedTrackingUrl(shipment({ carrier: "UPS", tracking_number: " " }))).toBeNull();
     expect(calculatedTrackingUrl(shipment({ tracking_url: "https://example.com/\u0085" }))).toBeNull();
   });
 
   it("measures the length in characters, not UTF-16 units", () => {
     const prefix = "https://example.com/";
-    expect(calculatedTrackingUrl(shipment({ tracking_url: prefix + "😀".repeat(2083 - prefix.length) }))).not.toBeNull();
+    expect(
+      calculatedTrackingUrl(shipment({ tracking_url: prefix + "😀".repeat(2083 - prefix.length) })),
+    ).not.toBeNull();
     expect(calculatedTrackingUrl(shipment({ tracking_url: prefix + "😀".repeat(2084 - prefix.length) }))).toBeNull();
   });
 
@@ -227,12 +231,34 @@ describe("tracking URLs against Ruby's URI::RFC3986_Parser", () => {
   });
 
   it("keeps an IPv6 or IPvFuture literal host", () => {
-    for (const host of ["::1", "2001:db8::8a2e:370:7334", "fe80::1", "1:2:3:4:5:6:7:8", "::ffff:192.0.2.1", "1::", "v1.fe", "vF.a-b", "v1.a:b"])
+    for (const host of [
+      "::1",
+      "2001:db8::8a2e:370:7334",
+      "fe80::1",
+      "1:2:3:4:5:6:7:8",
+      "::ffff:192.0.2.1",
+      "1::",
+      "v1.fe",
+      "vF.a-b",
+      "v1.a:b",
+    ])
       expect(url(`https://[${host}]:8080/x?y=1`)).toBe(`https://[${host}]:8080/x?y=1`);
   });
 
   it("is nil for an IP literal the parser raises on: a zone id, a malformed address, an uppercase V or an empty IPvFuture", () => {
-    for (const host of ["fe80::1%25eth0", "fe80::1%eth0", "1:2:3", "::g", "1:2:3:4:5:6:7:8:9", "1::2::3", "", "V1.fe", "v1.", "v.fe", "v1.f e"])
+    for (const host of [
+      "fe80::1%25eth0",
+      "fe80::1%eth0",
+      "1:2:3",
+      "::g",
+      "1:2:3:4:5:6:7:8:9",
+      "1::2::3",
+      "",
+      "V1.fe",
+      "v1.",
+      "v.fe",
+      "v1.f e",
+    ])
       expect(url(`https://[${host}]/x`)).toBeNull();
     expect(url("https://user@[v1.fe]/x")).toBeNull();
   });

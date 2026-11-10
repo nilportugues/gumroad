@@ -13,11 +13,18 @@ function markAsShipped(context: SellerContext, productIsPhysical: boolean): bool
 
 // What revoke_access? reads off the record; `linkIsPhysical` is lazy because `record.link` is only touched once the earlier
 // conditions hold (a purchase whose product is gone raises only then).
-export type AccessRecord = { accessRevoked: boolean; refunded: boolean; hasSubscription: boolean; linkIsPhysical(): boolean };
+export type AccessRecord = {
+  accessRevoked: boolean;
+  refunded: boolean;
+  hasSubscription: boolean;
+  linkIsPhysical(): boolean;
+};
 
 // `update? && record.not_is_access_revoked && !record.refunded? && !record.link.is_physical && record.subscription.blank?`
 function revokeAccess(context: SellerContext, record: AccessRecord): boolean {
-  return update(context) && !record.accessRevoked && !record.refunded && !record.linkIsPhysical() && !record.hasSubscription;
+  return (
+    update(context) && !record.accessRevoked && !record.refunded && !record.linkIsPhysical() && !record.hasSubscription
+  );
 }
 
 // `update? && record.is_access_revoked`

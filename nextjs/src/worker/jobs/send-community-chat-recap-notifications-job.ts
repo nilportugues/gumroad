@@ -8,9 +8,14 @@ import { beforeSideEffects, HandBackToRuby } from "../../server/jobs/hand-back.t
 import { deliverLater } from "../../server/mail/active-job.ts";
 import { RecordNotFoundError } from "../../server/mail/application-mailer.ts";
 import { mailRoute } from "../../server/mail/delivery.ts";
+import {
+  COMMUNITY_CHAT_RECAP_RUNS,
+  COMMUNITY_CHAT_RECAPS,
+  RECAP_STATUSES,
+} from "../../server/models/community-chat-recap-run.ts";
 import { accessibleCommunitiesIds, COMMUNITIES, NilResourceError } from "../../server/models/community.ts";
-import { COMMUNITY_CHAT_RECAP_RUNS, COMMUNITY_CHAT_RECAPS, RECAP_STATUSES } from "../../server/models/community-chat-recap-run.ts";
 import { column, columnIn, selectRows, table } from "../../server/models/sql.ts";
+
 import { checkArity } from "./arity.ts";
 import type { JobHandler } from "./types.ts";
 
@@ -52,7 +57,12 @@ async function collectMails(runId: Id | null, runIdLabel: string, mails: Mail[])
   const recaps = await selectRows<{ id: Id; community_id: Id | null }>(
     Prisma.sql`SELECT ${column(R, "id")}, ${column(R, "community_id")} FROM ${table(R)} WHERE ${column(R, "community_chat_recap_run_id")} = ${runId} AND ${column(R, "status")} = ${RECAP_STATUSES.finished}`,
   );
-  const recapIdsByCommunity = new Map([...groupBy(recaps, (recap) => key(recap.community_id))].map(([communityId, group]) => [communityId, group.map((recap) => recap.id)]));
+  const recapIdsByCommunity = new Map(
+    [...groupBy(recaps, (recap) => key(recap.community_id))].map(([communityId, group]) => [
+      communityId,
+      group.map((recap) => recap.id),
+    ]),
+  );
   if (recapIdsByCommunity.size === 0) return;
 
   const settings = await selectRows<{ user_id: Id; seller_id: Id }>(
@@ -73,7 +83,12 @@ async function collectMails(runId: Id | null, runIdLabel: string, mails: Mail[])
   const communities = await selectRows<{ id: Id; seller_id: Id }>(
     Prisma.sql`SELECT ${column(COMMUNITIES, "id")}, ${column(COMMUNITIES, "seller_id")} FROM ${table(COMMUNITIES)} WHERE ${column(COMMUNITIES, "deleted_at")} IS NULL AND ${columnIn(COMMUNITIES, "seller_id", sellerIds)}`,
   );
-  const communityIdsBySeller = new Map([...groupBy(communities, (community) => key(community.seller_id))].map(([sellerId, group]) => [sellerId, group.map((community) => community.id)]));
+  const communityIdsBySeller = new Map(
+    [...groupBy(communities, (community) => key(community.seller_id))].map(([sellerId, group]) => [
+      sellerId,
+      group.map((community) => community.id),
+    ]),
+  );
   if (communityIdsBySeller.size === 0) return;
 
   for (const [userId, userSettings] of settingsByUser) {
@@ -83,7 +98,9 @@ async function collectMails(runId: Id | null, runIdLabel: string, mails: Mail[])
 
     for (const setting of userSettings) {
       // Array#&: the seller's communities, in their order, that the user can open.
-      const communityIds = (communityIdsBySeller.get(key(setting.seller_id)) ?? []).filter((id) => accessible.has(key(id)));
+      const communityIds = (communityIdsBySeller.get(key(setting.seller_id)) ?? []).filter((id) =>
+        accessible.has(key(id)),
+      );
       if (communityIds.length === 0) continue;
       const recapIds = communityIds.flatMap((id) => recapIdsByCommunity.get(key(id)) ?? []);
       if (recapIds.length === 0) continue;
@@ -103,7 +120,8 @@ export function sendCommunityChatRecapNotificationsJobWith(overrides: Partial<De
     const [runId] = args;
     // `find("42")` casts the digits; a not-found message prints the argument as it came.
     const isDigits = typeof runId === "string" && /^[0-9]{1,15}$/u.test(runId);
-    if (runId !== null && typeof runId !== "number" && typeof runId !== "bigint" && !isDigits) throw new HandBackToRuby(`a non-Integer community_chat_recap_run_id: ${JSON.stringify(runId)}`);
+    if (runId !== null && typeof runId !== "number" && typeof runId !== "bigint" && !isDigits)
+      throw new HandBackToRuby(`a non-Integer community_chat_recap_run_id: ${JSON.stringify(runId)}`);
     const numericRunId = typeof runId === "string" ? BigInt(runId) : runId;
 
     const mails: Mail[] = [];
@@ -118,7 +136,15 @@ export function sendCommunityChatRecapNotificationsJobWith(overrides: Partial<De
     // `rescue => e` covers the pushes too: the first one that fails ends the loop.
     try {
       for (const mail of mails) {
-        await deliverLater(runtime, { mailer: MAILER, method: METHOD, args: [integer(mail.userId), integer(mail.sellerId), mail.recapIds.map(integer)] }, mailRoute(MAILER, METHOD));
+        await deliverLater(
+          runtime,
+          {
+            mailer: MAILER,
+            method: METHOD,
+            args: [integer(mail.userId), integer(mail.sellerId), mail.recapIds.map(integer)],
+          },
+          mailRoute(MAILER, METHOD),
+        );
       }
     } catch (error) {
       failure = error;

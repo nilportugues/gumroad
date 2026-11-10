@@ -14,7 +14,8 @@ export const PAYOUT_DELAY_DAYS = DATA.constants.payoutDelayDays;
 export const PAYOUT_FREQUENCIES = ["daily", "weekly", "monthly", "quarterly"] as const;
 export type PayoutFrequency = (typeof PAYOUT_FREQUENCIES)[number];
 
-export const dateOnly = (date: Date): Date => new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+export const dateOnly = (date: Date): Date =>
+  new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 export const addDays = (date: Date, days: number): Date => new Date(date.getTime() + days * DAY_MS);
 export const sameDay = (a: Date, b: Date) => a.getTime() === b.getTime();
 // Date#to_s
@@ -27,7 +28,8 @@ function addMonths(date: Date, months: number): Date {
   return new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth(), Math.min(date.getUTCDate(), lastDay)));
 }
 const endOfMonth = (date: Date) => new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0));
-const endOfQuarter = (date: Date) => new Date(Date.UTC(date.getUTCFullYear(), Math.floor(date.getUTCMonth() / 3) * 3 + 3, 0));
+const endOfQuarter = (date: Date) =>
+  new Date(Date.UTC(date.getUTCFullYear(), Math.floor(date.getUTCMonth() / 3) * 3 + 3, 0));
 const isFriday = (date: Date) => date.getUTCDay() === FRIDAY;
 // Date#next_occurring(:friday) / #prev_occurring(:friday): always a different day.
 const nextFriday = (date: Date) => addDays(date, ((FRIDAY - date.getUTCDay() + 6) % 7) + 1);
@@ -81,7 +83,8 @@ export function payoutWeekday({ bankAccountType, payoutsViaPaypal }: RailInput):
 }
 
 // How many days before the cycle's Friday the rail runs.
-export const daysBeforeCycleDate = (weekday: (typeof WEEKDAYS)[number]) => (FRIDAY - WEEKDAYS.indexOf(weekday) + WEEKDAYS.length) % WEEKDAYS.length;
+export const daysBeforeCycleDate = (weekday: (typeof WEEKDAYS)[number]) =>
+  (FRIDAY - WEEKDAYS.indexOf(weekday) + WEEKDAYS.length) % WEEKDAYS.length;
 
 export type Ledger = {
   today: Date;
@@ -101,7 +104,8 @@ const payoutDateForCycle = (ledger: Ledger, cycle: Date) => addDays(cycle, -ledg
 const cycleForPayoutDate = (ledger: Ledger, payoutDate: Date) => addDays(payoutDate, ledger.daysBeforeCycleDate);
 
 function assertNotDaily(ledger: Ledger) {
-  if (ledger.frequency === "daily") throw new DailyPayoutNotPorted("User::PayoutSchedule for a daily payout frequency (Payouts.is_user_payable)");
+  if (ledger.frequency === "daily")
+    throw new DailyPayoutNotPorted("User::PayoutSchedule for a daily payout frequency (Payouts.is_user_payable)");
 }
 
 // payout_period_end_date_for_payout_date, for a frequency other than daily.
@@ -111,7 +115,8 @@ export function payoutPeriodEndDateForPayoutDate(ledger: Ledger, payoutDate: Dat
 }
 
 // payout_amount_for_payout_date, for a frequency other than daily.
-const payoutAmountForPayoutDate = (ledger: Ledger, payoutDate: Date) => ledger.unpaidBalanceCentsUpToDate(payoutPeriodEndDateForPayoutDate(ledger, payoutDate));
+const payoutAmountForPayoutDate = (ledger: Ledger, payoutDate: Date) =>
+  ledger.unpaidBalanceCentsUpToDate(payoutPeriodEndDateForPayoutDate(ledger, payoutDate));
 
 export async function nextPayoutCycleDate(ledger: Ledger): Promise<Date | null> {
   if ((await ledger.unpaidBalanceCents()) < ledger.minimumPayoutAmountCents) return null;
@@ -121,7 +126,8 @@ export async function nextPayoutCycleDate(ledger: Ledger): Promise<Date | null> 
   let cycle = initialPayoutDate(frequency, today);
   while (cycle.getTime() < today.getTime()) cycle = advancePayoutDate(frequency, cycle);
 
-  if ((await payoutAmountForPayoutDate(ledger, payoutDateForCycle(ledger, cycle))) < ledger.minimumPayoutAmountCents) cycle = advancePayoutDate(frequency, cycle);
+  if ((await payoutAmountForPayoutDate(ledger, payoutDateForCycle(ledger, cycle))) < ledger.minimumPayoutAmountCents)
+    cycle = advancePayoutDate(frequency, cycle);
 
   if (sameDay(cycle, today) && (await ledger.paidToday())) cycle = advancePayoutDate(frequency, cycle);
   return cycle;
@@ -133,7 +139,8 @@ export async function nextPayoutDate(ledger: Ledger): Promise<Date | null> {
 
   let upcoming = payoutDateForCycle(ledger, cycle);
   const alreadyPaidToday = sameDay(upcoming, ledger.today) && (await ledger.paidToday());
-  if (upcoming.getTime() < ledger.today.getTime() || alreadyPaidToday) upcoming = payoutDateForCycle(ledger, advancePayoutDate(ledger.frequency, cycle));
+  if (upcoming.getTime() < ledger.today.getTime() || alreadyPaidToday)
+    upcoming = payoutDateForCycle(ledger, advancePayoutDate(ledger.frequency, cycle));
   return upcoming;
 }
 
@@ -146,7 +153,20 @@ export async function currentPayoutEndDate(ledger: Ledger): Promise<Date> {
   return payoutPeriodEndDateForPayoutDate(ledger, next);
 }
 
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
 
 // Integer#ordinalize
 export function ordinalize(day: number): string {
@@ -162,7 +182,11 @@ export function formattedPayoutDate(date: Date | null): string {
 }
 
 // PayoutsHelper#displayable_payout_period_range
-export function displayablePayoutPeriodRange(previousPeriodEnd: Date | null, payoutPeriodEndDate: Date, today: Date): string {
+export function displayablePayoutPeriodRange(
+  previousPeriodEnd: Date | null,
+  payoutPeriodEndDate: Date,
+  today: Date,
+): string {
   if (previousPeriodEnd !== null) {
     const next = addDays(previousPeriodEnd, 1);
     const activityStart = next.getTime() < today.getTime() ? next : today;
@@ -170,5 +194,7 @@ export function displayablePayoutPeriodRange(previousPeriodEnd: Date | null, pay
     if (sameDay(payoutPeriodEndDate, activityStart)) return `Activity on ${formattedPayoutDate(payoutPeriodEndDate)}`;
     return `Activity from ${formattedPayoutDate(activityStart)} to ${formattedPayoutDate(payoutPeriodEndDate)}`;
   }
-  return payoutPeriodEndDate.getTime() > today.getTime() ? "Activity up to now" : `Activity up to ${formattedPayoutDate(payoutPeriodEndDate)}`;
+  return payoutPeriodEndDate.getTime() > today.getTime()
+    ? "Activity up to now"
+    : `Activity up to ${formattedPayoutDate(payoutPeriodEndDate)}`;
 }

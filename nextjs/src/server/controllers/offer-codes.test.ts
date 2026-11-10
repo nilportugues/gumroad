@@ -3,6 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { encrypt } from "../../lib/obfuscate-ids.ts";
+
 import { HandBackToRails } from "./application-controller.ts";
 
 process.env.OBFUSCATE_IDS_CIPHER_KEY = "offer-codes-test-key";
@@ -191,8 +192,9 @@ describe("GET /offer_codes/compute_discount", () => {
 
 describe("a code limited to options (entries_eligible_for_option_scope)", () => {
   const optionLine = (index: number, permalink: string, option: string | null, quantity = 1) =>
-    `products[${index}][permalink]=${permalink}&products[${index}][quantity]=${quantity}` +
-    (option === null ? "" : `&products[${index}][variant_external_id]=${option}`);
+    `products[${index}][permalink]=${permalink}&products[${index}][quantity]=${quantity}${
+      option === null ? "" : `&products[${index}][variant_external_id]=${option}`
+    }`;
   const inScope = encrypt(31);
 
   beforeEach(() => restrictedVariants.push({ id: 31, productId: 1 }));

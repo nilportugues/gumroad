@@ -4,7 +4,21 @@ import { railsLoggedInUser } from "../../auth/resolve.ts";
 import { DISCOVER_OPTIONS } from "../../controllers/discover-page.ts";
 import { remoteIp } from "../audience/events.ts";
 import type { PageSpec } from "../pages.ts";
-import { autocompleteResults, createDiscoverSearch, type DiscoverRequest, deferredProps, discoverProps, isAutocompleteOnlyRequest, isDeferredOnlyRequest, isSearching, prepareSearch, requestParams, searchResults, setMetaTags } from "./discover.ts";
+
+import {
+  autocompleteResults,
+  createDiscoverSearch,
+  type DiscoverRequest,
+  deferredProps,
+  discoverProps,
+  isAutocompleteOnlyRequest,
+  isDeferredOnlyRequest,
+  isSearching,
+  prepareSearch,
+  requestParams,
+  searchResults,
+  setMetaTags,
+} from "./discover.ts";
 
 const discoverPage: PageSpec = {
   component: "Discover/Index",
@@ -31,7 +45,13 @@ const discoverPage: PageSpec = {
     if (isAutocompleteOnlyRequest(headers)) {
       // create_discover_search! comes first, and only for a present query.
       const params = requestParams(request.path, queryString);
-      if (typeof params.query === "string" && params.query.trim() !== "") await createDiscoverSearch({ query: params.query, taxonomyId: null, autocomplete: true }, request, visitor, params);
+      if (typeof params.query === "string" && params.query.trim() !== "")
+        await createDiscoverSearch(
+          { query: params.query, taxonomyId: null, autocomplete: true },
+          request,
+          visitor,
+          params,
+        );
       return { autocomplete_results: state.autocomplete ?? (await autocompleteResults(params, visitor, guid)) };
     }
     const prepared = await prepareSearch(request, visitor);
@@ -42,7 +62,15 @@ const discoverPage: PageSpec = {
     const results = await searchResults(prepared, request);
     if (isSearching(prepared.params)) {
       const query = prepared.params.query;
-      await createDiscoverSearch({ query: query === undefined || query === null ? null : String(query), taxonomyId: prepared.taxonomy?.id ?? null }, request, visitor, prepared.params);
+      await createDiscoverSearch(
+        {
+          query: query === undefined || query === null ? null : String(query),
+          taxonomyId: prepared.taxonomy?.id ?? null,
+        },
+        request,
+        visitor,
+        prepared.params,
+      );
     }
     setMetaTags(meta, prepared, results, visitor !== null, queryString);
     return discoverProps(prepared, results, visitor, request);

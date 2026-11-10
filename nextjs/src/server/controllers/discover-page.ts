@@ -18,12 +18,17 @@ import {
   searchResults,
 } from "../page-props/discover/discover.ts";
 import { NotPortedError } from "../page-props/not-ported.ts";
+
 import { type ActionOptions, type Chain, type FilterOutcome, HandBackToRails } from "./application-controller.ts";
 
 const GUID_COOKIE = "_gumroad_guid";
 const AFFILIATE_PARAMS = ["affiliate_id", "a"];
 
-export function discoverRequestOf(request: Chain["request"], guid: string | null, currentSellerId: bigint | null): DiscoverRequest {
+export function discoverRequestOf(
+  request: Chain["request"],
+  guid: string | null,
+  currentSellerId: bigint | null,
+): DiscoverRequest {
   return {
     path: request.path,
     queryString: request.queryString,
@@ -70,7 +75,16 @@ export async function discoverFilters(chain: Chain): Promise<FilterOutcome> {
 
   const prepared = await prepareSearch(request, visitor);
   if (deferredOnly) {
-    if (!(await deferredPropsPortable(requestedDeferredProps(request.headers), prepared, visitor, guid, discoverRequestOf(request, guid, currentSellerId)))) throw new HandBackToRails();
+    if (
+      !(await deferredPropsPortable(
+        requestedDeferredProps(request.headers),
+        prepared,
+        visitor,
+        guid,
+        discoverRequestOf(request, guid, currentSellerId),
+      ))
+    )
+      throw new HandBackToRails();
     return { state: {} };
   }
   try {

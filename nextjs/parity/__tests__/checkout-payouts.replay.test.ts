@@ -87,7 +87,11 @@ function redisJobs(redis: Redis): JobsChannel {
         if ((await redis.type(key)) !== "hash") continue;
         const data = await redis.hget(key, "data");
         if (data === null) continue;
-        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as { class: string; args: unknown[]; queue: string };
+        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as {
+          class: string;
+          args: unknown[];
+          queue: string;
+        };
         jobs.push({ class: item.class, args: item.args, queue: item.queue });
       }
       return jobs;

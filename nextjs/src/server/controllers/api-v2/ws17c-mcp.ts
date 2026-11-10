@@ -1,18 +1,32 @@
 // Api::V2::McpController (the /muse, /claude and /chatgpt connector paths and the `.well-known` documents) and
 // Api::V2::NotionUnfurlUrlsController. The JSON-RPC envelope and tools/list are ported (../../mcp/server.ts); a tool call runs here only for the bodies in mcp/tool-bodies.ts,
 // dynamic client registration and the product preview of the Notion unfurl stay in Rails.
-import { domainConfig } from "../../page-props/domain.ts";
-import { HandBackToRails, type ActionResult } from "../application-controller.ts";
 import { isFeatureEnabled } from "../../infra/flipper.ts";
 import { METHOD_HEADER, MCP_PROTOCOL_FLAG, NAME_HEADER, VERSION_HEADER } from "../../mcp/constants.ts";
 import { recordProtocolTelemetry } from "../../mcp/protocol-telemetry.ts";
 import { RpcSession, rpcHttpStatus } from "../../mcp/server.ts";
+import { domainConfig } from "../../page-props/domain.ts";
+import { HandBackToRails, type ActionResult } from "../application-controller.ts";
+
 import { head, renderJson, type ApiCall } from "./ws17c-base.ts";
 
 // Mcp::OauthClientRegistration::MCP_SCOPES
 const MCP_SCOPES = ["view_public", "view_profile", "view_sales", "edit_products", "view_payouts", "account"];
 // Doorkeeper.configuration.public_scopes
-const PUBLIC_SCOPES = ["edit_products", "edit_emails", "view_sales", "mark_sales_as_shipped", "edit_sales", "revenue_share", "ifttt", "view_profile", "edit_profile", "view_payouts", "view_tax_data", "account"];
+const PUBLIC_SCOPES = [
+  "edit_products",
+  "edit_emails",
+  "view_sales",
+  "mark_sales_as_shipped",
+  "edit_sales",
+  "revenue_share",
+  "ifttt",
+  "view_profile",
+  "edit_profile",
+  "view_payouts",
+  "view_tax_data",
+  "account",
+];
 
 const baseUrl = () => {
   const { protocol, domain } = domainConfig(process.env);
@@ -73,15 +87,24 @@ export async function protectedResourceMetadata(call: ApiCall): Promise<ActionRe
   if (path !== "" && !path.startsWith("/")) path = `/${path}`;
   if (path.trim() === "") path = "/muse/v1/mcp";
   const base = baseUrl();
-  return renderJson({ resource: `${base}${path}`, authorization_servers: [base], bearer_methods_supported: ["header"], scopes_supported: MCP_SCOPES });
+  return renderJson({
+    resource: `${base}${path}`,
+    authorization_servers: [base],
+    bearer_methods_supported: ["header"],
+    scopes_supported: MCP_SCOPES,
+  });
 }
 
 // RFC 6750 challenge: `Bearer realm="Gumroad", scope="...", resource_metadata="..."`.
-export const bearerChallenge = (path: string) => `Bearer realm="Gumroad", scope="${MCP_SCOPES.join(" ")}", resource_metadata="${baseUrl()}/.well-known/oauth-protected-resource${path}"`;
+export const bearerChallenge = (path: string) =>
+  `Bearer realm="Gumroad", scope="${MCP_SCOPES.join(" ")}", resource_metadata="${baseUrl()}/.well-known/oauth-protected-resource${path}"`;
 
 // The 401 of McpController: Doorkeeper's headers with its own WWW-Authenticate.
 export const mcpUnauthorized = (path: string, headers: Record<string, string>) =>
-  head(401, { ...Object.fromEntries(Object.entries(headers).filter(([name]) => name !== "WWW-Authenticate")), "WWW-Authenticate": bearerChallenge(path) });
+  head(401, {
+    ...Object.fromEntries(Object.entries(headers).filter(([name]) => name !== "WWW-Authenticate")),
+    "WWW-Authenticate": bearerChallenge(path),
+  });
 
 // validate_mcp_origin and parse_rpc_body are prepended filters: they answer ahead of the rest of the chain, which Node leaves to Rails.
 export function mcpPreAuth({ request, rawBody }: Pick<ApiCall, "request" | "rawBody">): void {
@@ -106,7 +129,8 @@ export async function mcp(call: ApiCall): Promise<ActionResult> {
   // A fraction, an exponent or an integer past 2^53 would not survive JSON.parse as Ruby reads it; Rails answers those.
   // Only numbers matter: the "2.0" of `"jsonrpc":"2.0"` and any other string literal is blanked first.
   const withoutStrings = text.replace(/"(?:[^"\\]|\\.)*"/gu, '""');
-  if (/\d\.\d|\d[eE][+-]?\d|\d{16}/u.test(withoutStrings)) throw new HandBackToRails("an MCP body with a number JavaScript cannot read exactly");
+  if (/\d\.\d|\d[eE][+-]?\d|\d{16}/u.test(withoutStrings))
+    throw new HandBackToRails("an MCP body with a number JavaScript cannot read exactly");
   const connector = call.url.pathname.split("/")[1] ?? null;
   const session = new RpcSession(
     {
@@ -124,11 +148,17 @@ export async function mcp(call: ApiCall): Promise<ActionResult> {
   return renderJson(reply, rpcHttpStatus(reply, session.protocolEra));
 }
 
-export const NOTION_UNAUTHORIZED = { error: { status: 401, message: "Request need to be authorized. Required parameter for authorizing request is missing or invalid." } };
+export const NOTION_UNAUTHORIZED = {
+  error: {
+    status: 401,
+    message: "Request need to be authorized. Required parameter for authorizing request is missing or invalid.",
+  },
+};
 
 export async function notionUnfurl(call: ApiCall): Promise<ActionResult> {
   const uri = call.params.uri;
-  if (uri === undefined || uri === null || (typeof uri === "string" && uri.trim() === "")) return { ...renderJson({ error: { status: 404, message: "Product not found" } }, 404), rescued: true };
+  if (uri === undefined || uri === null || (typeof uri === "string" && uri.trim() === ""))
+    return { ...renderJson({ error: { status: 404, message: "Product not found" } }, 404), rescued: true };
   // The product preview (rating counts, formatted price, cover image) is built by Rails.
   throw new HandBackToRails("a Notion link preview");
 }

@@ -7,14 +7,15 @@
 // before the first `set_factor`), so a file Node cannot read the way Ruby does is handed back to Rails.
 import { csvField, CsvNotSupported, parseCsvWithHeaders, type CsvTable } from "../../lib/ruby-csv.ts";
 import { openUriRead } from "../../lib/ruby-open-uri.ts";
-import { readZipEntry, ZipNotSupported, zipEntries } from "../../lib/ruby-zip.ts";
 import { rubyFloatToS } from "../../lib/ruby-to-s.ts";
+import { readZipEntry, ZipNotSupported, zipEntries } from "../../lib/ruby-zip.ts";
 import { beforeSideEffects } from "../../server/jobs/hand-back.ts";
 import { findCountryByAlpha3 } from "../../server/models/compliance-countries.ts";
 import { getRate, rubyStringToF } from "../../server/models/concerns/currency-helper.ts";
 import { rubyFloatRoundDigits } from "../../server/models/concerns/ruby-numeric.ts";
 import { setFactor } from "../../server/models/purchasing-power-parity.ts";
 import { NotPortedError } from "../../server/models/user.ts";
+
 import { checkArity } from "./arity.ts";
 import type { JobHandler } from "./types.ts";
 
@@ -85,17 +86,23 @@ function prepare(zip: Uint8Array, now: Date): Prepared {
     const entry = zipEntries(zip).find((candidate) => candidate.name.startsWith(API_FILE_PREFIX));
     if (entry === undefined) throw new TypeError("undefined method 'get_input_stream' for nil");
     // io.readlines[4..].join: the bytes are read as binary, so each byte is a character
-    const lines = readZipEntry(zip, entry).toString("latin1").split(/(?<=\n)/u).filter((line) => line !== "");
+    const lines = readZipEntry(zip, entry)
+      .toString("latin1")
+      .split(/(?<=\n)/u)
+      .filter((line) => line !== "");
     if (lines.length < METADATA_LINES) throw new TypeError("undefined method 'join' for nil");
     const table = parseCsvWithHeaders(lines.slice(METADATA_LINES).join(""));
 
     // Array#second_to_last
     const year = integerOrNil(table.headers.at(-2) ?? null);
-    if (year === null || Math.abs(year - now.getUTCFullYear()) > MAX_YEAR_DISTANCE) throw new Error("Couldn't determine correct year");
+    if (year === null || Math.abs(year - now.getUTCFullYear()) > MAX_YEAR_DISTANCE)
+      throw new Error("Couldn't determine correct year");
     return { table, year };
   } catch (error) {
-    if (error instanceof ZipNotSupported) throw new NotPortedError(`a zip Node cannot read: ${error.message}`, "rubyzip");
-    if (error instanceof CsvNotSupported) throw new NotPortedError(`a CSV Node cannot read: ${error.message}`, "csv 3.3");
+    if (error instanceof ZipNotSupported)
+      throw new NotPortedError(`a zip Node cannot read: ${error.message}`, "rubyzip");
+    if (error instanceof CsvNotSupported)
+      throw new NotPortedError(`a CSV Node cannot read: ${error.message}`, "csv 3.3");
     throw error;
   }
 }

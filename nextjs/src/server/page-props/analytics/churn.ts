@@ -4,19 +4,25 @@
 import type { User } from "@prisma/client";
 
 import { HandBackToRails } from "../../controllers/application-controller.ts";
+import { indexName } from "../../infra/elasticsearch.ts";
 import { readDataFromKeys, upsertDataFromKey } from "../../models/computed-sales-analytics-day.ts";
+import { rubyFloatRoundDigits } from "../../models/concerns/ruby-numeric.ts";
 import { isLargeSeller } from "../../models/large-seller.ts";
 import { LinkFlags } from "../../models/link.ts";
-import { rubyFloatRoundDigits } from "../../models/concerns/ruby-numeric.ts";
-import { indexName } from "../../infra/elasticsearch.ts";
 import { search } from "../../search/api.ts";
 import { addDays, civilDateInZone, dayStartIso, timezoneId } from "../../search/civil-time.ts";
-import { RubyFloat, type JsonValue } from "../../search/es-json.ts";
 import { CHARGED_SALES_SEARCH_OPTIONS, ES_MAX_BUCKET_SIZE } from "../../search/creator-analytics-sales.ts";
+import { RubyFloat, type JsonValue } from "../../search/es-json.ts";
 import { PurchaseSearchService } from "../../search/purchase-search.ts";
 import { externalId, rackParam, type QuerySource } from "../audience/support.ts";
+
 import { sellerAnalyticsCacheVersion } from "./caching-proxy.ts";
-import { firstSaleCreatedAtForAnalytics, productsForCreatorAnalytics, sellerDate, sellerToday } from "./seller-analytics.ts";
+import {
+  firstSaleCreatedAtForAnalytics,
+  productsForCreatorAnalytics,
+  sellerDate,
+  sellerToday,
+} from "./seller-analytics.ts";
 
 const DEFAULT_RANGE_DAYS = 30;
 type Seller = Pick<User, "id" | "timezone" | "created_at">;
@@ -27,8 +33,17 @@ export type DateWindow = { startDate: string; endDate: string };
 async function subscriptionProducts(seller: Seller): Promise<ProductInfo[]> {
   const products = await productsForCreatorAnalytics(BigInt(seller.id));
   return products
-    .filter((product) => LinkFlags.isSet(product.flags, "is_recurring_billing") || LinkFlags.isSet(product.flags, "is_tiered_membership"))
-    .map((product) => ({ id: Number(product.id), external_id: externalId(product.id), permalink: product.unique_permalink!, name: product.name! }));
+    .filter(
+      (product) =>
+        LinkFlags.isSet(product.flags, "is_recurring_billing") ||
+        LinkFlags.isSet(product.flags, "is_tiered_membership"),
+    )
+    .map((product) => ({
+      id: Number(product.id),
+      external_id: externalId(product.id),
+      permalink: product.unique_permalink!,
+      name: product.name!,
+    }));
 }
 
 async function earliestAnalyticsDate(seller: Seller): Promise<string> {
@@ -59,7 +74,10 @@ export function parseRailsDate(value: string | string[] | undefined): string | n
 // `Date.parse(array.to_s)` reads the array's inspect string. Plain printable elements with no digit and no day or
 // month name leave Date._parse nothing to find (a Date::Error, so nil); anything else is Rails' to answer.
 function parseRailsArrayDate(values: string[]): null {
-  if (values.every((item) => /^[ -~]*$/u.test(item) && !item.includes("\\") && !/\d/u.test(item) && !DATE_WORD.test(item))) return null;
+  if (
+    values.every((item) => /^[ -~]*$/u.test(item) && !item.includes("\\") && !/\d/u.test(item) && !DATE_WORD.test(item))
+  )
+    return null;
   throw new HandBackToRails();
 }
 
@@ -70,7 +88,13 @@ export function churnParams(query: QuerySource): { startDate: string | null; end
 const clamp = (value: string, min: string, max: string) => (value < min ? min : value > max ? max : value);
 
 // DateWindow: ranges are clamped between the seller's first day of analytics and today.
-function dateWindow(seller: Seller, earliest: string, startDate: string | null, endDate: string | null, now: Date): DateWindow {
+function dateWindow(
+  seller: Seller,
+  earliest: string,
+  startDate: string | null,
+  endDate: string | null,
+  now: Date,
+): DateWindow {
   const latest = sellerToday(seller, now);
   const start = clamp(startDate ?? addDays(latest, -DEFAULT_RANGE_DAYS), earliest, latest);
   // `end_value.clamp(clamped_start, latest)`
@@ -105,7 +129,9 @@ export class Fetcher {
   }
 
   private baseQuery(): { bool: Record<string, JsonValue[]> } {
-    const query = structuredClone(new PurchaseSearchService(CHARGED_SALES_SEARCH_OPTIONS).body.query) as unknown as { bool: Record<string, JsonValue[]> };
+    const query = structuredClone(new PurchaseSearchService(CHARGED_SALES_SEARCH_OPTIONS).body.query) as unknown as {
+      bool: Record<string, JsonValue[]>;
+    };
     query.bool.filter ??= [];
     query.bool.must ??= [];
     query.bool.filter.push({ term: { seller_id: this.seller.id } }, { terms: { product_id: this.productIds } });
@@ -114,7 +140,14 @@ export class Fetcher {
   }
 
   private dayRange(field: string): JsonValue {
-    return { range: { [field]: { gte: dayStartIso(this.window.startDate, this.iana), lt: dayStartIso(addDays(this.window.endDate, 1), this.iana) } } };
+    return {
+      range: {
+        [field]: {
+          gte: dayStartIso(this.window.startDate, this.iana),
+          lt: dayStartIso(addDays(this.window.endDate, 1), this.iana),
+        },
+      },
+    };
   }
 
   private sources(field: string): JsonValue[] {
@@ -130,46 +163,75 @@ export class Fetcher {
     const buckets: Bucket[] = [];
     for (;;) {
       const { body: response } = await search({ index: indexName("Purchase"), body: body as unknown as JsonValue });
-      const aggregation = (response as { aggregations: { composite_agg: { buckets: Bucket[]; after_key?: JsonValue } } }).aggregations.composite_agg;
+      const aggregation = (
+        response as { aggregations: { composite_agg: { buckets: Bucket[]; after_key?: JsonValue } } }
+      ).aggregations.composite_agg;
       buckets.push(...aggregation.buckets);
       if (aggregation.buckets.length < ES_MAX_BUCKET_SIZE) return buckets;
       composite.after = aggregation.after_key as JsonValue;
     }
   }
 
-  private value = (bucket: Bucket, name: string): number => Math.trunc(((bucket[name] as { value?: number } | undefined)?.value ?? 0) as number);
+  private value = (bucket: Bucket, name: string): number =>
+    Math.trunc(((bucket[name] as { value?: number } | undefined)?.value ?? 0) as number);
 
   async churnEvents(): Promise<Map<string, { churned_count: number; revenue_lost_cents: number }>> {
     const query = this.baseQuery();
     query.bool.must!.push({ exists: { field: "subscription_cancelled_at" } });
     query.bool.filter!.push(this.dayRange("subscription_cancelled_at"));
-    const aggs = { churned_customers: { cardinality: { field: "subscription_id" } }, revenue_lost_cents: { sum: { field: "monthly_recurring_revenue" } } };
+    const aggs = {
+      churned_customers: { cardinality: { field: "subscription_id" } },
+      revenue_lost_cents: { sum: { field: "monthly_recurring_revenue" } },
+    };
     const buckets = await this.paginate(query, this.sources("subscription_cancelled_at"), aggs);
-    return new Map(buckets.map((bucket) => [`${bucket.key.product_id}|${bucket.key.date}`, { churned_count: this.value(bucket, "churned_customers"), revenue_lost_cents: this.value(bucket, "revenue_lost_cents") }]));
+    return new Map(
+      buckets.map((bucket) => [
+        `${bucket.key.product_id}|${bucket.key.date}`,
+        {
+          churned_count: this.value(bucket, "churned_customers"),
+          revenue_lost_cents: this.value(bucket, "revenue_lost_cents"),
+        },
+      ]),
+    );
   }
 
   async newSubscriptions(): Promise<Map<string, number>> {
     const query = this.baseQuery();
     query.bool.filter!.push(this.dayRange("created_at"));
-    const buckets = await this.paginate(query, this.sources("created_at"), { new_customers: { cardinality: { field: "subscription_id" } } });
-    return new Map(buckets.map((bucket) => [`${bucket.key.product_id}|${bucket.key.date}`, this.value(bucket, "new_customers")]));
+    const buckets = await this.paginate(query, this.sources("created_at"), {
+      new_customers: { cardinality: { field: "subscription_id" } },
+    });
+    return new Map(
+      buckets.map((bucket) => [`${bucket.key.product_id}|${bucket.key.date}`, this.value(bucket, "new_customers")]),
+    );
   }
 
   async initialActiveCounts(): Promise<Map<number, number>> {
     const query = this.baseQuery();
     const boundary = dayStartIso(this.window.startDate, this.iana);
     query.bool.filter!.push({ range: { created_at: { lt: boundary } } });
-    query.bool.should = [{ bool: { must_not: { exists: { field: "subscription_deactivated_at" } } } }, { range: { subscription_deactivated_at: { gt: boundary } } }];
+    query.bool.should = [
+      { bool: { must_not: { exists: { field: "subscription_deactivated_at" } } } },
+      { range: { subscription_deactivated_at: { gt: boundary } } },
+    ];
     (query.bool as Record<string, unknown>).minimum_should_match = 1;
-    const buckets = await this.paginate(query, [{ product_id: { terms: { field: "product_id" } } }], { active_subscribers: { cardinality: { field: "subscription_id" } } });
+    const buckets = await this.paginate(query, [{ product_id: { terms: { field: "product_id" } } }], {
+      active_subscribers: { cardinality: { field: "subscription_id" } },
+    });
     return new Map(buckets.map((bucket) => [bucket.key.product_id, this.value(bucket, "active_subscribers")]));
   }
 }
 
-type Stat = { churn_rate: number; churned_customers_count: number; revenue_lost_cents: number; subscriber_base: number };
+type Stat = {
+  churn_rate: number;
+  churned_customers_count: number;
+  revenue_lost_cents: number;
+  subscriber_base: number;
+};
 
 // `((numerator.to_f / denominator) * 100).round(2)`, 0.0 without a denominator.
-const computeRate = (numerator: number, denominator: number): number => (denominator > 0 ? rubyFloatRoundDigits((numerator / denominator) * 100, 2) : 0);
+const computeRate = (numerator: number, denominator: number): number =>
+  denominator > 0 ? rubyFloatRoundDigits((numerator / denominator) * 100, 2) : 0;
 
 type Series = {
   window: DateWindow;
@@ -184,9 +246,19 @@ function buildDataset({ window, products, churnEvents, newSubscriptions, initial
   const dates = daysOf(window);
   const running = new Map(initialActive);
   type ProductMonth = { churned: number; revenue: number; active_start: number | null; new_subscriptions: number };
-  const months = new Map<string, { by_product: Map<string, ProductMonth>; total: { churned: number; revenue: number; active_start: number; new_subscriptions: number } }>();
+  const months = new Map<
+    string,
+    {
+      by_product: Map<string, ProductMonth>;
+      total: { churned: number; revenue: number; active_start: number; new_subscriptions: number };
+    }
+  >();
   const month = (key: string) => {
-    if (!months.has(key)) months.set(key, { by_product: new Map(), total: { churned: 0, revenue: 0, active_start: 0, new_subscriptions: 0 } });
+    if (!months.has(key))
+      months.set(key, {
+        by_product: new Map(),
+        total: { churned: 0, revenue: 0, active_start: 0, new_subscriptions: 0 },
+      });
     return months.get(key)!;
   };
   const daily: Record<string, { by_product: Record<string, Stat>; total: Stat }> = {};
@@ -209,7 +281,8 @@ function buildDataset({ window, products, churnEvents, newSubscriptions, initial
         subscriber_base: denominator,
       };
 
-      if (!entry.by_product.has(product.permalink)) entry.by_product.set(product.permalink, { churned: 0, revenue: 0, active_start: null, new_subscriptions: 0 });
+      if (!entry.by_product.has(product.permalink))
+        entry.by_product.set(product.permalink, { churned: 0, revenue: 0, active_start: null, new_subscriptions: 0 });
       const monthProduct = entry.by_product.get(product.permalink)!;
       if (monthProduct.active_start === null) {
         monthProduct.active_start = activeBase;
@@ -229,7 +302,12 @@ function buildDataset({ window, products, churnEvents, newSubscriptions, initial
 
     daily[date] = {
       by_product: byProduct,
-      total: { churn_rate: computeRate(totals.churned, totals.denominator), churned_customers_count: totals.churned, revenue_lost_cents: totals.revenue, subscriber_base: totals.denominator },
+      total: {
+        churn_rate: computeRate(totals.churned, totals.denominator),
+        churned_customers_count: totals.churned,
+        revenue_lost_cents: totals.revenue,
+        subscriber_base: totals.denominator,
+      },
     };
     entry.total.churned += totals.churned;
     entry.total.revenue += totals.revenue;
@@ -241,14 +319,29 @@ function buildDataset({ window, products, churnEvents, newSubscriptions, initial
     const byProduct: Record<string, Stat> = {};
     for (const product of products) {
       // `monthly_product_data[permalink]` creates the entry when the month never saw the product.
-      const perProduct = entry.by_product.get(product.permalink) ?? { churned: 0, revenue: 0, active_start: null, new_subscriptions: 0 };
+      const perProduct = entry.by_product.get(product.permalink) ?? {
+        churned: 0,
+        revenue: 0,
+        active_start: null,
+        new_subscriptions: 0,
+      };
       const denominator = (perProduct.active_start ?? 0) + perProduct.new_subscriptions;
-      byProduct[product.permalink] = { churn_rate: computeRate(perProduct.churned, denominator), churned_customers_count: perProduct.churned, revenue_lost_cents: perProduct.revenue, subscriber_base: denominator };
+      byProduct[product.permalink] = {
+        churn_rate: computeRate(perProduct.churned, denominator),
+        churned_customers_count: perProduct.churned,
+        revenue_lost_cents: perProduct.revenue,
+        subscriber_base: denominator,
+      };
     }
     const denominator = entry.total.active_start + entry.total.new_subscriptions;
     monthly[monthKey] = {
       by_product: byProduct,
-      total: { churn_rate: computeRate(entry.total.churned, denominator), churned_customers_count: entry.total.churned, revenue_lost_cents: entry.total.revenue, subscriber_base: denominator },
+      total: {
+        churn_rate: computeRate(entry.total.churned, denominator),
+        churned_customers_count: entry.total.churned,
+        revenue_lost_cents: entry.total.revenue,
+        subscriber_base: denominator,
+      },
     };
   }
 
@@ -271,7 +364,12 @@ function buildDataset({ window, products, churnEvents, newSubscriptions, initial
     const productChurned = churned.get(product.id) ?? 0;
     const productRevenue = revenue.get(product.id) ?? 0;
     const denominator = (initialActive.get(product.id) ?? 0) + (added.get(product.id) ?? 0);
-    summaryByProduct[product.permalink] = { churn_rate: computeRate(productChurned, denominator), churned_customers_count: productChurned, revenue_lost_cents: productRevenue, subscriber_base: denominator };
+    summaryByProduct[product.permalink] = {
+      churn_rate: computeRate(productChurned, denominator),
+      churned_customers_count: productChurned,
+      revenue_lost_cents: productRevenue,
+      subscriber_base: denominator,
+    };
     summaryTotals.churned += productChurned;
     summaryTotals.revenue += productRevenue;
     summaryTotals.subscriber_base += denominator;
@@ -287,7 +385,12 @@ function buildDataset({ window, products, churnEvents, newSubscriptions, initial
       daily,
       monthly,
       summary: {
-        total: { churn_rate: computeRate(summaryTotals.churned, summaryTotals.subscriber_base), churned_customers_count: summaryTotals.churned, revenue_lost_cents: summaryTotals.revenue, subscriber_base: summaryTotals.subscriber_base },
+        total: {
+          churn_rate: computeRate(summaryTotals.churned, summaryTotals.subscriber_base),
+          churned_customers_count: summaryTotals.churned,
+          revenue_lost_cents: summaryTotals.revenue,
+          subscriber_base: summaryTotals.subscriber_base,
+        },
         by_product: summaryByProduct,
       },
     },
@@ -296,39 +399,63 @@ function buildDataset({ window, products, churnEvents, newSubscriptions, initial
 
 async function series(seller: Seller, products: ProductInfo[], window: DateWindow): Promise<Series> {
   const ids = products.map((product) => product.id);
-  if (ids.length === 0) return { window, products, churnEvents: new Map(), newSubscriptions: new Map(), initialActive: new Map() };
+  if (ids.length === 0)
+    return { window, products, churnEvents: new Map(), newSubscriptions: new Map(), initialActive: new Map() };
   const fetcher = new Fetcher(seller, ids, window);
-  return { window, products, churnEvents: await fetcher.churnEvents(), newSubscriptions: await fetcher.newSubscriptions(), initialActive: await fetcher.initialActiveCounts() };
+  return {
+    window,
+    products,
+    churnEvents: await fetcher.churnEvents(),
+    newSubscriptions: await fetcher.newSubscriptions(),
+    initialActive: await fetcher.initialActiveCounts(),
+  };
 }
 
 const CACHE_CUTOFF_DAYS = 2;
 
 // `cache_key_for(date_window)`
 async function cacheKeyFor(seller: Seller, window: DateWindow): Promise<string> {
-  return ["creator_analytics_churn", "payload", `v${await sellerAnalyticsCacheVersion()}`, `seller_${seller.id}`, seller.timezone, window.startDate, window.endDate].join(":");
+  return [
+    "creator_analytics_churn",
+    "payload",
+    `v${await sellerAnalyticsCacheVersion()}`,
+    `seller_${seller.id}`,
+    seller.timezone,
+    window.startDate,
+    window.endDate,
+  ].join(":");
 }
 
 // churn_rate is a Float in Rails, and the stored document keeps it so (`1.0`, not `1`).
 const FLOAT_KEYS = new Set(["churn_rate"]);
 function withRubyFloats(value: unknown, key?: string): JsonValue {
   if (Array.isArray(value)) return value.map((item) => withRubyFloats(item));
-  if (value !== null && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([name, item]) => [name, withRubyFloats(item, name)]));
-  return key !== undefined && FLOAT_KEYS.has(key) && typeof value === "number" ? new RubyFloat(value) : (value as JsonValue);
+  if (value !== null && typeof value === "object")
+    return Object.fromEntries(Object.entries(value).map(([name, item]) => [name, withRubyFloats(item, name)]));
+  return key !== undefined && FLOAT_KEYS.has(key) && typeof value === "number"
+    ? new RubyFloat(value)
+    : (value as JsonValue);
 }
 function withoutRubyFloats(value: JsonValue): unknown {
   if (value instanceof RubyFloat) return value.value;
   if (Array.isArray(value)) return value.map(withoutRubyFloats);
-  if (value !== null && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([name, item]) => [name, withoutRubyFloats(item)]));
+  if (value !== null && typeof value === "object")
+    return Object.fromEntries(Object.entries(value).map(([name, item]) => [name, withoutRubyFloats(item)]));
   return value;
 }
 
 // CreatorAnalytics::Churn#generate_data. A large seller's ranges that ended at least two days ago are read from
 // and written to ComputedSalesAnalyticsDay.
-export async function churnData(seller: Seller, params: { startDate: string | null; endDate: string | null }, now: Date = new Date()) {
+export async function churnData(
+  seller: Seller,
+  params: { startDate: string | null; endDate: string | null },
+  now: Date = new Date(),
+) {
   const products = await subscriptionProducts(seller);
   const earliest = await earliestAnalyticsDate(seller);
   const current = dateWindow(seller, earliest, params.startDate, params.endDate, now);
-  const cacheable = (await isLargeSeller(seller.id)) && current.endDate <= addDays(sellerToday(seller, now), -CACHE_CUTOFF_DAYS);
+  const cacheable =
+    (await isLargeSeller(seller.id)) && current.endDate <= addDays(sellerToday(seller, now), -CACHE_CUTOFF_DAYS);
   const cacheKey = cacheable ? await cacheKeyFor(seller, current) : null;
   if (cacheKey !== null) {
     const [stored] = (await readDataFromKeys([cacheKey])).values();

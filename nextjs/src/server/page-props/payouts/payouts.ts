@@ -12,22 +12,21 @@
 import { Prisma, type User } from "@prisma/client";
 
 import { encrypt as externalId } from "../../../lib/obfuscate-ids.ts";
-import { getRedis } from "../../infra/redis.ts";
 import { HandBackToRails } from "../../controllers/application-controller.ts";
+import { getRedis } from "../../infra/redis.ts";
 import { enqueue } from "../../jobs/enqueue.ts";
 import { formattedDollarAmount } from "../../models/concerns/currency-helper.ts";
 import { knownCurrency, moneyFormatWithGemSymbol } from "../../models/concerns/money-formatter.ts";
 import { type MerchantAccountRow, isStripeConnectAccount } from "../../models/merchant-account.ts";
-import { balanceStatsCacheKey } from "../../models/user-balance-stats.ts";
 import { column, selectRows, table } from "../../models/sql.ts";
+import { balanceStatsCacheKey } from "../../models/user-balance-stats.ts";
 import { jsonDataForAttr, RISK_STATES, UserFlags, Users } from "../../models/user.ts";
-import { NotPortedError } from "../not-ported.ts";
-import { payoutFacts } from "../settings/payments.ts";
 import { taxCenterEnabled } from "../dashboard/tax-center.ts";
+import { NotPortedError } from "../not-ported.ts";
 import PAYMENTS_DATA from "../settings/payments-data.generated.json" with { type: "json" };
-import DATA from "./payouts-data.generated.json" with { type: "json" };
+import { payoutFacts } from "../settings/payments.ts";
+
 import { emptyBalanceDestinationUnseasoned } from "./instant-payout-eligibility.ts";
-import { payoutSalesData, type SalesData } from "./payout-stats.ts";
 import {
   addDays,
   currentPayoutEndDate,
@@ -43,6 +42,8 @@ import {
   type Ledger,
   type PayoutFrequency,
 } from "./payout-schedule.ts";
+import { payoutSalesData, type SalesData } from "./payout-stats.ts";
+import DATA from "./payouts-data.generated.json" with { type: "json" };
 
 const C = DATA.constants;
 const ROUTING = PAYMENTS_DATA.bankAccountRouting;
@@ -56,7 +57,6 @@ const STANDARD_TYPE = "standard";
 const PAYMENT_STATES_PAID_FOR_DATE = ["processing", "unclaimed", "completed"];
 
 type Seller = User;
-type Row = Record<string, unknown>;
 
 export type PaymentRow = {
   id: bigint;
@@ -72,10 +72,46 @@ export type PaymentRow = {
   json_data: string | null;
 };
 
-export type BankAccountRow = { id: bigint; type: string | null; bank_number: string | null; branch_code: string | null; account_number_last_four: string | null; stripe_bank_account_id: string | null; stripe_connect_account_id: string | null };
+export type BankAccountRow = {
+  id: bigint;
+  type: string | null;
+  bank_number: string | null;
+  branch_code: string | null;
+  account_number_last_four: string | null;
+  stripe_bank_account_id: string | null;
+  stripe_connect_account_id: string | null;
+};
 
-const PAYMENT_COLUMNS = Prisma.raw(["id", "user_id", "state", "created_at", "amount_cents", "payment_address", "payout_period_end_date", "bank_account_id", "stripe_connect_account_id", "currency", "json_data"].map((name) => `payments.\`${name}\``).join(", "));
-const BANK_COLUMNS = Prisma.raw(["id", "type", "bank_number", "branch_code", "account_number_last_four", "stripe_bank_account_id", "stripe_connect_account_id"].map((name) => `bank_accounts.\`${name}\``).join(", "));
+const PAYMENT_COLUMNS = Prisma.raw(
+  [
+    "id",
+    "user_id",
+    "state",
+    "created_at",
+    "amount_cents",
+    "payment_address",
+    "payout_period_end_date",
+    "bank_account_id",
+    "stripe_connect_account_id",
+    "currency",
+    "json_data",
+  ]
+    .map((name) => `payments.\`${name}\``)
+    .join(", "),
+);
+const BANK_COLUMNS = Prisma.raw(
+  [
+    "id",
+    "type",
+    "bank_number",
+    "branch_code",
+    "account_number_last_four",
+    "stripe_bank_account_id",
+    "stripe_connect_account_id",
+  ]
+    .map((name) => `bank_accounts.\`${name}\``)
+    .join(", "),
+);
 
 const num = (value: bigint | number | null | undefined) => (value == null ? 0 : Number(value));
 const present = (value: string | null | undefined): value is string => value != null && value.trim() !== "";
@@ -93,27 +129,43 @@ async function sumOf(sql: Prisma.Sql): Promise<number> {
 // ---- the seller's ledger ----
 
 const unpaidBalanceCents = (userId: bigint) =>
-  sumOf(Prisma.sql`SELECT CAST(COALESCE(SUM(balances.amount_cents), 0) AS SIGNED) AS value FROM balances WHERE balances.user_id = ${userId} AND balances.state = 'unpaid'`);
+  sumOf(
+    Prisma.sql`SELECT CAST(COALESCE(SUM(balances.amount_cents), 0) AS SIGNED) AS value FROM balances WHERE balances.user_id = ${userId} AND balances.state = 'unpaid'`,
+  );
 const unpaidBalanceCentsUpToDate = (userId: bigint, date: Date) =>
-  sumOf(Prisma.sql`SELECT CAST(COALESCE(SUM(balances.amount_cents), 0) AS SIGNED) AS value FROM balances WHERE balances.user_id = ${userId} AND balances.state = 'unpaid' AND balances.date <= ${ymd(date)}`);
+  sumOf(
+    Prisma.sql`SELECT CAST(COALESCE(SUM(balances.amount_cents), 0) AS SIGNED) AS value FROM balances WHERE balances.user_id = ${userId} AND balances.state = 'unpaid' AND balances.date <= ${ymd(date)}`,
+  );
 const paidPaymentsCentsForDate = (userId: bigint, date: Date) =>
   sumOf(
     Prisma.sql`SELECT CAST(COALESCE(SUM(payments.amount_cents), 0) AS SIGNED) AS value FROM payments WHERE payments.user_id = ${userId} AND payments.payout_period_end_date = ${ymd(date)} AND payments.state IN (${Prisma.join(PAYMENT_STATES_PAID_FOR_DATE)})`,
   );
 
-type UnpaidBalance = { id: number; merchant_account_id: number | null; date: Date; amount_cents: bigint | number | null };
+type UnpaidBalance = {
+  id: number;
+  merchant_account_id: number | null;
+  date: Date;
+  amount_cents: bigint | number | null;
+};
 const unpaidBalancesUpToDate = (userId: bigint, date: Date) =>
-  selectRows<UnpaidBalance>(Prisma.sql`SELECT balances.id, balances.merchant_account_id, balances.date, balances.amount_cents FROM balances WHERE balances.user_id = ${userId} AND balances.state = 'unpaid' AND balances.date <= ${ymd(date)} ORDER BY balances.id ASC`);
+  selectRows<UnpaidBalance>(
+    Prisma.sql`SELECT balances.id, balances.merchant_account_id, balances.date, balances.amount_cents FROM balances WHERE balances.user_id = ${userId} AND balances.state = 'unpaid' AND balances.date <= ${ymd(date)} ORDER BY balances.id ASC`,
+  );
 
 // `user.payments.where("date(created_at) = ?", Date.today).first.present?`
 const paidOn = async (userId: bigint, date: Date) =>
-  (await one(Prisma.sql`SELECT payments.id FROM payments WHERE payments.user_id = ${userId} AND date(payments.created_at) = ${ymd(date)} LIMIT 1`)) !== null;
+  (await one(
+    Prisma.sql`SELECT payments.id FROM payments WHERE payments.user_id = ${userId} AND date(payments.created_at) = ${ymd(date)} LIMIT 1`,
+  )) !== null;
 
 async function activeBankAccount(userId: bigint): Promise<BankAccountRow | null> {
-  return one<BankAccountRow>(Prisma.sql`SELECT ${BANK_COLUMNS} FROM bank_accounts WHERE bank_accounts.user_id = ${userId} AND bank_accounts.deleted_at IS NULL ORDER BY bank_accounts.id ASC LIMIT 1`);
+  return one<BankAccountRow>(
+    Prisma.sql`SELECT ${BANK_COLUMNS} FROM bank_accounts WHERE bank_accounts.user_id = ${userId} AND bank_accounts.deleted_at IS NULL ORDER BY bank_accounts.id ASC LIMIT 1`,
+  );
 }
 
-const bankAccountById = (id: bigint) => one<BankAccountRow>(Prisma.sql`SELECT ${BANK_COLUMNS} FROM bank_accounts WHERE bank_accounts.id = ${id} LIMIT 1`);
+const bankAccountById = (id: bigint) =>
+  one<BankAccountRow>(Prisma.sql`SELECT ${BANK_COLUMNS} FROM bank_accounts WHERE bank_accounts.id = ${id} LIMIT 1`);
 
 // ---- chargeback-rate payout reserve ----
 
@@ -151,12 +203,19 @@ async function paidCentsUnderChargebackRateHold(userId: bigint): Promise<number>
 // Port of app/business/payments/payouts/payouts.rb Payouts.chargeback_rate_reserve_cents_for_run: 25% of (unpaid + paid under the hold), clamped to what is left.
 async function chargebackRateReserveCentsForRun(userId: bigint, unpaidCents: number): Promise<number> {
   if (unpaidCents <= 0) return 0;
-  return Math.min(chargebackRateReserveCents(unpaidCents + (await paidCentsUnderChargebackRateHold(userId))), unpaidCents);
+  return Math.min(
+    chargebackRateReserveCents(unpaidCents + (await paidCentsUnderChargebackRateHold(userId))),
+    unpaidCents,
+  );
 }
 
 // Port of app/business/payments/payouts/payouts.rb Payouts.payable_cents_after_chargeback_rate_reserve (apply_chargeback_rate_reserve with the reserve active):
 // the oldest whole rows that fit under the cap, nothing when that prefix misses the minimum.
-export function payableCentsUnderReserve(balances: { date: Date; id: number; amount_cents: bigint | number | null }[], reserveCents: number, minimumCents: number): number {
+export function payableCentsUnderReserve(
+  balances: { date: Date; id: number; amount_cents: bigint | number | null }[],
+  reserveCents: number,
+  minimumCents: number,
+): number {
   const cap = balances.reduce((sum, balance) => sum + num(balance.amount_cents), 0) - reserveCents;
   if (cap <= 0) return 0;
   let running = 0;
@@ -175,19 +234,29 @@ async function reserveBreakdown(userId: bigint, balances: UnpaidBalance[], minim
   const unpaidCents = balances.reduce((sum, balance) => sum + num(balance.amount_cents), 0);
   const reserve = await chargebackRateReserveCentsForRun(userId, unpaidCents);
   const payoutCents = payableCentsUnderReserve(balances, reserve, minimumCents);
-  return { payout_cents: payoutCents, payout_reserve_cents: reserve, payout_waiting_cents: unpaidCents - reserve - payoutCents, payout_reserve_percent: RESERVE_PERCENT };
+  return {
+    payout_cents: payoutCents,
+    payout_reserve_cents: reserve,
+    payout_waiting_cents: unpaidCents - reserve - payoutCents,
+    payout_reserve_percent: RESERVE_PERCENT,
+  };
 }
 
 // ---- bank accounts ----
 
 // BankAccount#routing_number for the class in the `type` column (the subclass templates over the bank and branch codes).
 function routingNumber(bank: BankAccountRow): string | null {
-  const templates = (ROUTING as Record<string, Record<string, string | null | { unsupported: unknown }>>)[bank.type ?? "AchAccount"];
+  const templates = (ROUTING as Record<string, Record<string, string | null | { unsupported: unknown }>>)[
+    bank.type ?? "AchAccount"
+  ];
   if (!templates) throw new NotPortedError(`BankAccount#routing_number for ${bank.type}`);
   const key = `${bank.bank_number === null ? "-" : "bn"}${bank.branch_code === null ? "-" : "br"}`;
   const template = templates[key];
-  if (template === undefined || (template !== null && typeof template === "object")) throw new NotPortedError(`BankAccount#routing_number for ${bank.type}`);
-  return template === null ? null : template.replace("{bank_number}", bank.bank_number ?? "").replace("{branch_code}", bank.branch_code ?? "");
+  if (template === undefined || (template !== null && typeof template === "object"))
+    throw new NotPortedError(`BankAccount#routing_number for ${bank.type}`);
+  return template === null
+    ? null
+    : template.replace("{bank_number}", bank.bank_number ?? "").replace("{branch_code}", bank.branch_code ?? "");
 }
 
 // BankAccount#to_hash. No class defines bank_name, so it is never part of the hash.
@@ -195,7 +264,12 @@ function bankAccountHash(bank: BankAccountRow) {
   const type = bank.type ?? "AchAccount";
   const accountType = (DATA.bankAccountType as Record<string, string>)[type];
   if (accountType === undefined) throw new NotPortedError(`BankAccount#bank_account_type for ${type}`);
-  return { bank_number: bank.bank_number, routing_number: routingNumber(bank), account_number: `******${bank.account_number_last_four}`, bank_account_type: accountType };
+  return {
+    bank_number: bank.bank_number,
+    routing_number: routingNumber(bank),
+    account_number: `******${bank.account_number_last_four}`,
+    bank_account_type: accountType,
+  };
 }
 const bankAccountCurrency = (bank: BankAccountRow) => {
   const currency = (DATA.bankAccountCurrency as Record<string, string>)[bank.type ?? "AchAccount"];
@@ -213,8 +287,14 @@ function holderOfFunds(account: MerchantAccountRow): "gumroad" | "stripe" | "cre
   }
   return "gumroad";
 }
-const merchantAccountById = (id: number) => one<MerchantAccountRow & { currency: string | null }>(Prisma.sql`SELECT merchant_accounts.* FROM merchant_accounts WHERE merchant_accounts.id = ${id} LIMIT 1`);
-const merchantAccountsOf = (userId: bigint) => selectRows<MerchantAccountRow>(Prisma.sql`SELECT merchant_accounts.* FROM merchant_accounts WHERE merchant_accounts.user_id = ${userId}`);
+const merchantAccountById = (id: number) =>
+  one<MerchantAccountRow & { currency: string | null }>(
+    Prisma.sql`SELECT merchant_accounts.* FROM merchant_accounts WHERE merchant_accounts.id = ${id} LIMIT 1`,
+  );
+const merchantAccountsOf = (userId: bigint) =>
+  selectRows<MerchantAccountRow>(
+    Prisma.sql`SELECT merchant_accounts.* FROM merchant_accounts WHERE merchant_accounts.user_id = ${userId}`,
+  );
 
 // ---- notes ----
 
@@ -243,8 +323,12 @@ async function latestSellerVisiblePayoutNote(userId: bigint): Promise<CommentRow
 export function displayedAmount(payment: PaymentRow): string {
   if (payment.currency === "usd") return formattedDollarAmount(num(payment.amount_cents), { noCentsIfWhole: false });
   // Money.new(amount_cents, currency).format(symbol: true, with_currency: currency != "usd"); a missing or unknown currency is Rails' to raise.
-  if (payment.currency === null || !knownCurrency(payment.currency)) throw new NotPortedError(`Money formatting for the payout currency ${payment.currency}`);
-  return moneyFormatWithGemSymbol(num(payment.amount_cents), payment.currency, { noCentsIfWhole: false, withCurrency: true });
+  if (payment.currency === null || !knownCurrency(payment.currency))
+    throw new NotPortedError(`Money formatting for the payout currency ${payment.currency}`);
+  return moneyFormatWithGemSymbol(num(payment.amount_cents), payment.currency, {
+    noCentsIfWhole: false,
+    withCurrency: true,
+  });
 }
 
 const epoch = (date: Date) => Math.floor(date.getTime() / 1000);
@@ -267,7 +351,8 @@ export type PayoutsPlan = {
   refreshBalanceStatsCache: boolean;
 };
 
-const completedDisplayable = (userId: bigint) => Prisma.sql`FROM payments WHERE payments.user_id = ${userId} AND payments.state = 'completed' AND payments.created_at >= ${OLDEST_DISPLAYABLE}`;
+const completedDisplayable = (userId: bigint) =>
+  Prisma.sql`FROM payments WHERE payments.user_id = ${userId} AND payments.state = 'completed' AND payments.created_at >= ${OLDEST_DISPLAYABLE}`;
 
 // PayoutsPresenter#validated_page_num
 function validatedPageNumber(requested: number, count: number): number {
@@ -279,13 +364,15 @@ function validatedPageNumber(requested: number, count: number): number {
 
 // String#to_i
 export function rubyToI(value: string | null | undefined): number {
-  const match = /^\s*[-+]?\d[\d_]*/.exec(value ?? "");
+  const match = /^\s*[-+]?\d[\d_]*/u.exec(value ?? "");
   return match ? Number(match[0].replaceAll("_", "")) : 0;
 }
 
 // UserBalanceStatsService#should_use_cache?: a large seller's payout periods come from a cached blob that a job refreshes.
 export async function balanceStatsCacheApplies(userId: bigint): Promise<boolean> {
-  const row = await one<{ sales_count: number | null }>(Prisma.sql`SELECT large_sellers.sales_count FROM large_sellers WHERE large_sellers.user_id = ${userId} LIMIT 1`);
+  const row = await one<{ sales_count: number | null }>(
+    Prisma.sql`SELECT large_sellers.sales_count FROM large_sellers WHERE large_sellers.user_id = ${userId} LIMIT 1`,
+  );
   if (row === null) return false;
   try {
     const redis = getRedis("main");
@@ -326,9 +413,26 @@ export async function planPayouts(seller: Seller, pageParam: string | null, now 
 
   const facts = await payoutFacts(seller, now);
   // User#eligible_for_instant_payouts? asks Stripe about the bank account once the account is seasoned.
-  const paused = UserFlags.isSet(seller.flags, "payouts_paused_internally") || UserFlags.isSet(seller.flags, "payouts_paused_by_user");
-  if (compliant && !paused && facts.legalEntityCountry === "US" && (await one(Prisma.sql`SELECT payments.id FROM payments WHERE payments.user_id = ${seller.id} AND payments.state = 'completed' LIMIT 1`)) !== null) {
-    const unseasoned = await emptyBalanceDestinationUnseasoned(seller.id, { connectRoutingActive: facts.stripeConnectRoutingActive, connect: facts.connectAccount, standard: facts.stripeAccount }, now);
+  const paused =
+    UserFlags.isSet(seller.flags, "payouts_paused_internally") ||
+    UserFlags.isSet(seller.flags, "payouts_paused_by_user");
+  if (
+    compliant &&
+    !paused &&
+    facts.legalEntityCountry === "US" &&
+    (await one(
+      Prisma.sql`SELECT payments.id FROM payments WHERE payments.user_id = ${seller.id} AND payments.state = 'completed' LIMIT 1`,
+    )) !== null
+  ) {
+    const unseasoned = await emptyBalanceDestinationUnseasoned(
+      seller.id,
+      {
+        connectRoutingActive: facts.stripeConnectRoutingActive,
+        connect: facts.connectAccount,
+        standard: facts.stripeAccount,
+      },
+      now,
+    );
     if (!unseasoned) throw new HandBackToRails();
   }
 
@@ -339,9 +443,19 @@ export async function planPayouts(seller: Seller, pageParam: string | null, now 
   if (pageNumber > pages) throw new RangeError(`expected :page in 1..${pages}; got ${pageNumber}`);
   const offset = (pageNumber - 1) * C.pastPaymentsPerPage;
 
-  const withBank = async (payments: PaymentRow[]) => Promise.all(payments.map(async (payment) => ({ payment, bank: payment.bank_account_id === null ? null : await bankAccountById(payment.bank_account_id) })));
-  const past = await selectRows<PaymentRow>(Prisma.sql`SELECT ${PAYMENT_COLUMNS} ${completedDisplayable(seller.id)} ORDER BY payments.created_at DESC LIMIT ${C.pastPaymentsPerPage} OFFSET ${offset}`);
-  const processing = await selectRows<PaymentRow>(Prisma.sql`SELECT ${PAYMENT_COLUMNS} FROM payments WHERE payments.user_id = ${seller.id} AND payments.state = 'processing' ORDER BY payments.created_at DESC`);
+  const withBank = async (payments: PaymentRow[]) =>
+    Promise.all(
+      payments.map(async (payment) => ({
+        payment,
+        bank: payment.bank_account_id === null ? null : await bankAccountById(payment.bank_account_id),
+      })),
+    );
+  const past = await selectRows<PaymentRow>(
+    Prisma.sql`SELECT ${PAYMENT_COLUMNS} ${completedDisplayable(seller.id)} ORDER BY payments.created_at DESC LIMIT ${C.pastPaymentsPerPage} OFFSET ${offset}`,
+  );
+  const processing = await selectRows<PaymentRow>(
+    Prisma.sql`SELECT ${PAYMENT_COLUMNS} FROM payments WHERE payments.user_id = ${seller.id} AND payments.state = 'processing' ORDER BY payments.created_at DESC`,
+  );
   const plan: PayoutsPlan = {
     seller,
     today: dateOnly(now),
@@ -363,7 +477,8 @@ export async function planPayouts(seller: Seller, pageParam: string | null, now 
       if (bank) bankAccountHash(bank);
     }
     if (plan.activeBank) bankAccountHash(plan.activeBank);
-    if (!present(seller.payment_address) && plan.activeBank === null && (await paypalConnectAccountExists(seller.id))) throw new NotPortedError("PayPal Connect payout email");
+    if (!present(seller.payment_address) && plan.activeBank === null && (await paypalConnectAccountExists(seller.id)))
+      throw new NotPortedError("PayPal Connect payout email");
   } catch (error) {
     if (error instanceof NotPortedError) throw new HandBackToRails();
     throw error;
@@ -405,12 +520,21 @@ async function context(plan: PayoutsPlan, now: Date): Promise<Context> {
 // User#minimum_payout_amount_cents
 async function minimumPayoutAmountCents(seller: Seller, facts: Facts): Promise<number> {
   if (facts.stripeAccountRejected) {
-    const requested = await one(Prisma.sql`SELECT user_compliance_info_requests.id FROM user_compliance_info_requests WHERE user_compliance_info_requests.user_id = ${seller.id} AND user_compliance_info_requests.state = 'requested' LIMIT 1`);
+    const requested = await one(
+      Prisma.sql`SELECT user_compliance_info_requests.id FROM user_compliance_info_requests WHERE user_compliance_info_requests.user_id = ${seller.id} AND user_compliance_info_requests.state = 'requested' LIMIT 1`,
+    );
     if (requested === null) return C.rejectedAccountMinAmountCents;
   }
   // json_data stores the writer's value uncast: `.to_i` of whatever is there.
   const stored = jsonDataForAttr(Users.load(seller), "payout_threshold_cents", facts.minimumPayoutThresholdCents);
-  const threshold = typeof stored === "number" ? Math.trunc(stored) : typeof stored === "string" ? rubyToI(stored) : stored === null || stored === undefined ? 0 : rubyToI(String(stored));
+  const threshold =
+    typeof stored === "number"
+      ? Math.trunc(stored)
+      : typeof stored === "string"
+        ? rubyToI(stored)
+        : stored === null || stored === undefined
+          ? 0
+          : rubyToI(String(stored));
   return Math.max(threshold, facts.minimumPayoutThresholdCents);
 }
 
@@ -428,7 +552,8 @@ async function currentPayoutPeriodData(ctx: Context): Promise<Period> {
   let payable: boolean;
   if (unpaid >= minimum && nextDate) {
     const end = await currentPayoutEndDate(ledger);
-    const payableCents = (await unpaidBalanceCentsUpToDate(seller.id, end)) + (await paidPaymentsCentsForDate(seller.id, end));
+    const payableCents =
+      (await unpaidBalanceCentsUpToDate(seller.id, end)) + (await paidPaymentsCentsForDate(seller.id, end));
     payable = payableCents >= minimum;
   } else {
     payable = unpaid >= minimum;
@@ -441,10 +566,15 @@ async function currentPayoutPeriodData(ctx: Context): Promise<Period> {
       Prisma.sql`SELECT ${PAYMENT_COLUMNS} FROM payments WHERE payments.user_id = ${seller.id} AND (payments.state = 'completed' OR payments.state = 'processing') AND payments.created_at >= ${OLDEST_DISPLAYABLE} ORDER BY payments.created_at DESC LIMIT 1`,
     );
     const end = await currentPayoutEndDate(ledger);
-    data.displayable_payout_period_range = displayablePayoutPeriodRange(previous?.payout_period_end_date ?? null, end, plan.today);
+    data.displayable_payout_period_range = displayablePayoutPeriodRange(
+      previous?.payout_period_end_date ?? null,
+      end,
+      plan.today,
+    );
     const balances = await unpaidBalancesUpToDate(seller.id, end);
     // Under the chargeback-rate hold the reserve decides what pays; its fields keep the Ruby key order.
-    if (ctx.facts.chargebackRateReserveActive) Object.assign(data, await reserveBreakdown(seller.id, balances, minimum));
+    if (ctx.facts.chargebackRateReserveActive)
+      Object.assign(data, await reserveBreakdown(seller.id, balances, minimum));
     else data.payout_cents = await unpaidBalanceCentsUpToDate(seller.id, end);
     data.payout_displayed_amount = formattedDollarAmount(data.payout_cents as number, { noCentsIfWhole: false });
     data.payout_date_formatted = formattedPayoutDate(await nextPayoutDate(ledger));
@@ -465,7 +595,8 @@ async function currentPayoutPeriodData(ctx: Context): Promise<Period> {
     data.balance_cents = unpaid;
     if (nextDate) {
       const end = await currentPayoutEndDate(ledger);
-      const settled = (await unpaidBalanceCentsUpToDate(seller.id, end)) + (await paidPaymentsCentsForDate(seller.id, end));
+      const settled =
+        (await unpaidBalanceCentsUpToDate(seller.id, end)) + (await paidPaymentsCentsForDate(seller.id, end));
       if (settled < minimum && unpaid >= minimum) data.settled_balance_cents = settled;
     }
   }
@@ -476,13 +607,19 @@ async function currentPayoutPeriodData(ctx: Context): Promise<Period> {
     const last = await one<{ created_at: Date }>(
       Prisma.sql`SELECT payments.created_at FROM payments WHERE payments.user_id = ${seller.id} AND (payments.state = 'completed' OR payments.state = 'processing') ORDER BY payments.id DESC LIMIT 1`,
     );
-    if (epoch(note.created_at) > (last ? epoch(last.created_at) : 0)) payoutNote = note.content.replaceAll("via Stripe ", "");
+    if (epoch(note.created_at) > (last ? epoch(last.created_at) : 0))
+      payoutNote = note.content.replaceAll("via Stripe ", "");
   }
   const belowMinimum = payoutNote === null ? null : BELOW_MINIMUM_NOTE.exec(payoutNote);
   if (data.status === "not_payable" && belowMinimum && data.settled_balance_cents === undefined) {
     data.skipped_payout_date = belowMinimum.groups!.date;
     payoutNote = null;
-  } else if (data.status === "not_payable" && seller.user_risk_state === "not_reviewed" && payoutNote !== null && UNDER_REVIEW_NOTE.test(payoutNote)) {
+  } else if (
+    data.status === "not_payable" &&
+    seller.user_risk_state === "not_reviewed" &&
+    payoutNote !== null &&
+    UNDER_REVIEW_NOTE.test(payoutNote)
+  ) {
     payoutNote = null;
   }
   data.payout_note = payoutNote;
@@ -490,22 +627,34 @@ async function currentPayoutPeriodData(ctx: Context): Promise<Period> {
 }
 
 // User#payouts_status
-const payoutsStatus = (seller: Seller) => (UserFlags.isSet(seller.flags, "payouts_paused_internally") || UserFlags.isSet(seller.flags, "payouts_paused_by_user") ? "paused" : "payable");
+const payoutsStatus = (seller: Seller) =>
+  UserFlags.isSet(seller.flags, "payouts_paused_internally") || UserFlags.isSet(seller.flags, "payouts_paused_by_user")
+    ? "paused"
+    : "payable";
 
 // payout_method_details(user:)
 async function payoutMethodDetailsForUser(ctx: Context, balances: UnpaidBalance[]) {
   const { plan, facts } = ctx;
   const { seller } = plan;
   // StripePayoutProcessor.get_payout_details(user, balances): the first Stripe-held balance's account.
-  const held = await Promise.all(balances.map(async (balance) => (balance.merchant_account_id === null ? null : await merchantAccountById(balance.merchant_account_id))));
+  const held = await Promise.all(
+    balances.map(async (balance) =>
+      balance.merchant_account_id === null ? null : await merchantAccountById(balance.merchant_account_id),
+    ),
+  );
   const heldByStripe: (MerchantAccountRow & { currency: string | null })[] = [];
   for (const account of held) {
     if (account === null) throw new TypeError("undefined method 'holder_of_funds' for nil");
     if (holderOfFunds(account) === "stripe") heldByStripe.push(account);
   }
   const merchantAccount: (MerchantAccountRow & { currency?: string | null }) | null =
-    facts.stripeConnectRoutingActive && heldByStripe.length === 0 ? facts.connectAccount : (facts.stripeAccount ?? heldByStripe[0] ?? null);
-  const connectAccountId = merchantAccount && isStripeConnectAccount(merchantAccount) ? String(merchantAccount.charge_processor_merchant_id) : null;
+    facts.stripeConnectRoutingActive && heldByStripe.length === 0
+      ? facts.connectAccount
+      : (facts.stripeAccount ?? heldByStripe[0] ?? null);
+  const connectAccountId =
+    merchantAccount && isStripeConnectAccount(merchantAccount)
+      ? String(merchantAccount.charge_processor_merchant_id)
+      : null;
 
   let details: Record<string, unknown>;
   let method: string;
@@ -523,7 +672,12 @@ async function payoutMethodDetailsForUser(ctx: Context, balances: UnpaidBalance[
     details = { payout_method_type: method };
   }
   // The destination decides the currency: a bank pays in its own, Stripe Connect in the account's, PayPal in USD.
-  const currency = method === "bank" ? bankAccountCurrency(plan.activeBank!) : method === "stripe_connect" ? ((merchantAccount as { currency?: string | null }).currency ?? "usd") : "usd";
+  const currency =
+    method === "bank"
+      ? bankAccountCurrency(plan.activeBank!)
+      : method === "stripe_connect"
+        ? ((merchantAccount as { currency?: string | null }).currency ?? "usd")
+        : "usd";
   details.payout_currency = currency;
   return details;
 }
@@ -539,7 +693,10 @@ async function oldPayoutPeriodData(ctx: Context, payment: PaymentRow, bank: Bank
   const data: Period = {};
   if (previous) {
     const previousEnd = previous.payout_period_end_date!;
-    data.displayable_payout_period_range = previousEnd.getTime() === endDate.getTime() ? `Activity on ${formattedEnd}` : `Activity from ${formattedPayoutDate(addDays(previousEnd, 1))} to ${formattedEnd}`;
+    data.displayable_payout_period_range =
+      previousEnd.getTime() === endDate.getTime()
+        ? `Activity on ${formattedEnd}`
+        : `Activity from ${formattedPayoutDate(addDays(previousEnd, 1))} to ${formattedEnd}`;
   } else {
     data.displayable_payout_period_range = `Activity up to ${formattedEnd}`;
   }
@@ -555,11 +712,16 @@ async function oldPayoutPeriodData(ctx: Context, payment: PaymentRow, bank: Bank
   data.status = payment.state;
   data.payment_external_id = externalId(payment.id);
   const payoutType = json?.payout_type;
-  data.type = payoutType === null || payoutType === undefined || payoutType === false || payoutType === "" ? STANDARD_TYPE : payoutType;
+  data.type =
+    payoutType === null || payoutType === undefined || payoutType === false || payoutType === ""
+      ? STANDARD_TYPE
+      : payoutType;
   data.payout_note = null;
 
   const balanceIds = (
-    await selectRows<{ id: number }>(Prisma.sql`SELECT balances.id FROM balances INNER JOIN payments_balances ON balances.id = payments_balances.balance_id WHERE payments_balances.payment_id = ${payment.id}`)
+    await selectRows<{ id: number }>(
+      Prisma.sql`SELECT balances.id FROM balances INNER JOIN payments_balances ON balances.id = payments_balances.balance_id WHERE payments_balances.payment_id = ${payment.id}`,
+    )
   ).map((balance) => balance.id);
   const sales: SalesData = await payoutSalesData({
     userId: seller.id,
@@ -583,32 +745,46 @@ async function oldPayoutPeriodData(ctx: Context, payment: PaymentRow, bank: Bank
       ? Prisma.sql`SELECT merchant_accounts.* FROM merchant_accounts WHERE merchant_accounts.user_id = ${seller.id} AND merchant_accounts.charge_processor_merchant_id IS NULL LIMIT 1`
       : Prisma.sql`SELECT merchant_accounts.* FROM merchant_accounts WHERE merchant_accounts.user_id = ${seller.id} AND merchant_accounts.charge_processor_merchant_id = ${payment.stripe_connect_account_id} LIMIT 1`,
   );
-  const connectId = merchantAccount && isStripeConnectAccount(merchantAccount) ? payment.stripe_connect_account_id : null;
+  const connectId =
+    merchantAccount && isStripeConnectAccount(merchantAccount) ? payment.stripe_connect_account_id : null;
   if (connectId) return { ...data, payout_method_type: "stripe_connect", stripe_connect_account_id: connectId };
   if (bank) return { ...data, ...bankAccountHash(bank), payout_method_type: "bank" };
-  if (present(payment.payment_address)) return { ...data, payout_method_type: "paypal", paypal_address: payment.payment_address };
+  if (present(payment.payment_address))
+    return { ...data, payout_method_type: "paypal", paypal_address: payment.payment_address };
   return { ...data, payout_method_type: "legacy-na" };
 }
 
 // PayoutsHelper#payout_period_data(user, payment)
 const withCurrencyDisplay = async (ctx: Context, period: Period, isCurrent: boolean): Promise<Period> => {
   const { seller } = ctx.plan;
-  const last = await one<{ currency: string | null }>(Prisma.sql`SELECT payments.currency FROM payments WHERE payments.user_id = ${seller.id} ORDER BY payments.id DESC LIMIT 1`);
+  const last = await one<{ currency: string | null }>(
+    Prisma.sql`SELECT payments.currency FROM payments WHERE payments.user_id = ${seller.id} ORDER BY payments.id DESC LIMIT 1`,
+  );
   const shown = seller.currency_type !== "usd" || ![null, "usd"].includes(last?.currency ?? null);
   return { should_be_shown_currencies_always: shown, is_current_period: isCurrent, ...period };
 };
 
 // ---- props ----
 
-const iso = (date: Date) => date.toISOString().replace(/\.\d{3}Z$/, ".000Z");
+const iso = (date: Date) => date.toISOString().replace(/\.\d{3}Z$/u, ".000Z");
 
 async function scheduledPayoutProps(seller: Seller) {
   if (!(RISK_STATES.SUSPENDED as readonly (string | null)[]).includes(seller.user_risk_state)) return null;
-  const row = await one<{ action: string | null; status: string | null; scheduled_at: Date | null; payout_amount_cents: bigint | number | null }>(
+  const row = await one<{
+    action: string | null;
+    status: string | null;
+    scheduled_at: Date | null;
+    payout_amount_cents: bigint | number | null;
+  }>(
     Prisma.sql`SELECT ${column("scheduled_payouts", "action")}, ${column("scheduled_payouts", "status")}, ${column("scheduled_payouts", "scheduled_at")}, ${column("scheduled_payouts", "payout_amount_cents")} FROM ${table("scheduled_payouts")} WHERE ${column("scheduled_payouts", "user_id")} = ${seller.id} AND ${column("scheduled_payouts", "status")} IN ('pending', 'flagged', 'held', 'executed') ORDER BY ${column("scheduled_payouts", "id")} DESC LIMIT 1`,
   );
   if (!row) return null;
-  return { action: row.action, status: row.status, scheduled_at: row.scheduled_at === null ? null : iso(row.scheduled_at), payout_amount_cents: num(row.payout_amount_cents) };
+  return {
+    action: row.action,
+    status: row.status,
+    scheduled_at: row.scheduled_at === null ? null : iso(row.scheduled_at),
+    payout_amount_cents: num(row.payout_amount_cents),
+  };
 }
 
 export type PayoutsProps = {
@@ -654,7 +830,8 @@ export function payoutsProps(plan: PayoutsPlan, now = new Date()): PayoutsProps 
     },
     past: async () => {
       const result: Period[] = [];
-      for (const { payment, bank } of plan.pastPayments) result.push(await period(await oldPayoutPeriodData(await ctx(), payment, bank), false));
+      for (const { payment, bank } of plan.pastPayments)
+        result.push(await period(await oldPayoutPeriodData(await ctx(), payment, bank), false));
       return result;
     },
     rest: async () => ({

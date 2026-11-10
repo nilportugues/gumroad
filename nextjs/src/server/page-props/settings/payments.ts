@@ -5,19 +5,33 @@
 //   - instant payouts for a seller who passes the first eligibility checks (account seasoning),
 //   - the payout date of a rejected account, a bank sync failure note, a verification error on an address-mismatch code,
 
-import { Prisma, type BankAccount, type CreditCard, type Guardian, type MerchantAccount, type User } from "@prisma/client";
+import {
+  Prisma,
+  type BankAccount,
+  type CreditCard,
+  type Guardian,
+  type MerchantAccount,
+  type User,
+} from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
 import { encrypt as externalId } from "../../../lib/obfuscate-ids.ts";
-import { getConfig } from "../../infra/config.ts";
 import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
 import { geoIpLookup } from "../../infra/geo-ip.ts";
+import { mapping } from "../../models/compliance-countries.ts";
 import { formattedDollarAmount, getRate } from "../../models/concerns/currency-helper.ts";
-import { alpha2ByName, mapping } from "../../models/compliance-countries.ts";
-import { aliveStripeAccountsOf, isStripeConnectAccount, type MerchantAccountRow } from "../../models/merchant-account.ts";
+import {
+  aliveStripeAccountsOf,
+  isStripeConnectAccount,
+  type MerchantAccountRow,
+} from "../../models/merchant-account.ts";
 import { column, selectRows, table } from "../../models/sql.ts";
+import {
+  isSupportedByStripeConnect,
+  stripeConnectRoutingCountryCode,
+  LEGAL_ENTITY_COUNTRY_ROUTING_FEATURE,
+} from "../../models/stripe-connect-routing.ts";
 import { isStrongboxBlank } from "../../models/strongbox.ts";
-import { isSupportedByStripeConnect, stripeConnectRoutingCountryCode, LEGAL_ENTITY_COUNTRY_ROUTING_FEATURE } from "../../models/stripe-connect-routing.ts";
 import {
   businessCountryCode,
   countryCode,
@@ -32,17 +46,30 @@ import {
   underLegalGuardianAge,
   type ComplianceInfo,
 } from "../../models/user-compliance-info.ts";
-import { isFlagged, isOnProbation, isSuspended, jsonDataForAttr, payoutsPausedBy, UserFlags, Users, unpaidBalanceCents } from "../../models/user.ts";
+import {
+  isFlagged,
+  isOnProbation,
+  isSuspended,
+  jsonDataForAttr,
+  payoutsPausedBy,
+  UserFlags,
+  Users,
+  unpaidBalanceCents,
+} from "../../models/user.ts";
+import type { SellerContext } from "../../policies/seller-context.ts";
 import { settingsPaymentsUserPolicy } from "../../policies/settings/payments-user.ts";
 import { settingsProfilePolicy } from "../../policies/settings/profile.ts";
-import type { SellerContext } from "../../policies/seller-context.ts";
-import { guardianHasCompletedInfo, nativePayoutsSupported, noPayoutRailInComplianceCountry } from "../signed-in/data.ts";
 import { NotPortedError } from "../not-ported.ts";
+import {
+  guardianHasCompletedInfo,
+  nativePayoutsSupported,
+  noPayoutRailInComplianceCountry,
+} from "../signed-in/data.ts";
+
 import DATA from "./payments-data.generated.json" with { type: "json" };
 import { settingsPages } from "./presenter.ts";
 import { stripeDisconnectAllowed } from "./stripe-disconnect.ts";
 import { verificationErrorMessage } from "./verification-error-message.ts";
-
 
 const C = DATA.constants;
 const CARD_BANK_ACCOUNT_TYPE = "CardBankAccount";
@@ -50,17 +77,43 @@ const ID_DOCUMENT_FIELDS = ["stripe_identity_document_id", "passport", "visa", "
 const TAX_ID_FIELD = "individual_tax_id";
 const NATIONALITY_FIELDS = ["nationality", "individual.nationality"];
 const PAYOUT_PAUSE_SOURCE = { STRIPE: "stripe", SYSTEM: "system", ADMIN: "admin", USER: "user" } as const;
-const SYSTEM_PAUSE_AUTHORS_THAT_PAUSE = ["pause_payouts_after_repeated_failures", "pause_payouts_for_seller_based_on_chargeback_rate"];
+const SYSTEM_PAUSE_AUTHORS_THAT_PAUSE = [
+  "pause_payouts_after_repeated_failures",
+  "pause_payouts_for_seller_based_on_chargeback_rate",
+];
 const SOCIAL_CONNECT_SURFACE = "account_review";
 // Settings::PaymentsController: the individual tax id is asked for in these countries.
-const INDIVIDUAL_TAX_ID_NEEDED_COUNTRIES = ["US", "CA", "HK", "SG", "AE", "MX", "BD", "MZ", "UY", "AR", "PE", "CR", "CL", "CO", "GT", "DO", "BO", "KZ", "PY", "PK"];
+const INDIVIDUAL_TAX_ID_NEEDED_COUNTRIES = [
+  "US",
+  "CA",
+  "HK",
+  "SG",
+  "AE",
+  "MX",
+  "BD",
+  "MZ",
+  "UY",
+  "AR",
+  "PE",
+  "CR",
+  "CL",
+  "CO",
+  "GT",
+  "DO",
+  "BO",
+  "KZ",
+  "PY",
+  "PK",
+];
 
 const present = (value: string | null | undefined): value is string => value != null && value.trim() !== "";
-const pairsToObject = (pairs: readonly (readonly string[])[]): Record<string, string> => Object.fromEntries(pairs.map(([code, name]) => [code!, name!]));
+const pairsToObject = (pairs: readonly (readonly string[])[]): Record<string, string> =>
+  Object.fromEntries(pairs.map(([code, name]) => [code!, name!]));
 const codeAndName = (pairs: readonly (readonly string[])[]) => pairs.map(([code, name]) => ({ code, name }));
 // ActiveModel::Type::Boolean#cast
 const FALSE_VALUES = new Set([false, 0, "0", "f", "F", "false", "FALSE", "off", "OFF"]);
-const castBoolean = (value: unknown): boolean | null => (value === null || value === undefined || value === "" ? null : !FALSE_VALUES.has(value as never));
+const castBoolean = (value: unknown): boolean | null =>
+  value === null || value === undefined || value === "" ? null : !FALSE_VALUES.has(value as never);
 // Array#to_sentence
 function toSentence(items: string[]): string {
   if (items.length <= 1) return items.join("");
@@ -73,8 +126,22 @@ const humanize = (value: string) => {
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 };
 // Time#strftime("%B %-d, %Y") and ("%B %e, %Y")
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-const strftimeLongDate = (date: Date, padDay: boolean) => `${MONTHS[date.getUTCMonth()]} ${padDay ? String(date.getUTCDate()).padStart(2, " ") : date.getUTCDate()}, ${date.getUTCFullYear()}`;
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+const strftimeLongDate = (date: Date, padDay: boolean) =>
+  `${MONTHS[date.getUTCMonth()]} ${padDay ? String(date.getUTCDate()).padStart(2, " ") : date.getUTCDate()}, ${date.getUTCFullYear()}`;
 
 type Seller = User;
 
@@ -95,20 +162,24 @@ const featureActive = (name: string, seller: Seller) => isFeatureEnabled(name, u
 const complianceCountryCode = (facts: Facts) => (facts.aliveInfo ? legalEntityCountryCode(facts.aliveInfo) : null);
 
 // User#payouts_paused? and #payouts_paused_by_source
-const payoutsPaused = (seller: Seller) => flag(seller, "payouts_paused_internally") || flag(seller, "payouts_paused_by_user");
+const payoutsPaused = (seller: Seller) =>
+  flag(seller, "payouts_paused_internally") || flag(seller, "payouts_paused_by_user");
 function payoutsPausedBySource(facts: Facts): string | null {
   const { seller, record } = facts;
   if (!payoutsPaused(seller)) return null;
   if (flag(seller, "payouts_paused_internally")) {
     const by = payoutsPausedBy(record);
-    return by === PAYOUT_PAUSE_SOURCE.STRIPE || by === PAYOUT_PAUSE_SOURCE.SYSTEM ? (by as string) : PAYOUT_PAUSE_SOURCE.ADMIN;
+    return by === PAYOUT_PAUSE_SOURCE.STRIPE || by === PAYOUT_PAUSE_SOURCE.SYSTEM
+      ? (by as string)
+      : PAYOUT_PAUSE_SOURCE.ADMIN;
   }
   return PAYOUT_PAUSE_SOURCE.USER;
 }
 
 // User#stripe_connect_account and #stripe_account
 const stripeConnectAccount = (facts: Facts) => facts.stripeAccounts.find(isStripeConnectAccount) ?? null;
-const stripeAccount = (facts: Facts) => facts.stripeAccounts.find((account) => !isStripeConnectAccount(account)) ?? null;
+const stripeAccount = (facts: Facts) =>
+  facts.stripeAccounts.find((account) => !isStripeConnectAccount(account)) ?? null;
 
 // User#merchant_migration_enabled? and #has_stripe_account_connected?
 async function hasStripeAccountConnected(facts: Facts): Promise<boolean> {
@@ -116,7 +187,9 @@ async function hasStripeAccountConnected(facts: Facts): Promise<boolean> {
   let enabled = flag(seller, "check_merchant_account_is_linked");
   if (!enabled && (await featureActive("merchant_migration", seller))) {
     const legalEntityRouting = await featureActive(LEGAL_ENTITY_COUNTRY_ROUTING_FEATURE, seller);
-    const routingCountry = facts.aliveInfo ? stripeConnectRoutingCountryCode(facts.aliveInfo, legalEntityRouting) : null;
+    const routingCountry = facts.aliveInfo
+      ? stripeConnectRoutingCountryCode(facts.aliveInfo, legalEntityRouting)
+      : null;
     enabled = isSupportedByStripeConnect(routingCountry);
   }
   return enabled && stripeConnectAccount(facts) !== null;
@@ -124,13 +197,23 @@ async function hasStripeAccountConnected(facts: Facts): Promise<boolean> {
 
 // Signed up from: the legal entity country of the alive compliance info.
 const signedUpFrom = (facts: Facts, code: string) => complianceCountryCode(facts) === code;
-const countryPredicates = (code: string | null) => (code === null ? null : ((DATA.countryPredicates as Record<string, { europe: boolean; iban: boolean }>)[code] ?? null));
+const countryPredicates = (code: string | null) =>
+  code === null ? null : ((DATA.countryPredicates as Record<string, { europe: boolean; iban: boolean }>)[code] ?? null);
 
 // User#can_create_bank_payout_rail?
-const canCreateBankPayoutRail = (facts: Facts) => (nativePayoutsSupported(facts.aliveInfo) && !signedUpFrom(facts, "IN")) || signedUpFrom(facts, "AE");
+const canCreateBankPayoutRail = (facts: Facts) =>
+  (nativePayoutsSupported(facts.aliveInfo) && !signedUpFrom(facts, "IN")) || signedUpFrom(facts, "AE");
 
 // Country#payout_currency and #min_cross_border_payout_amount_usd_cents
-const perCountry = (code: string | null) => (code === null ? null : ((DATA.perCountry as Record<string, { payout_currency: string | null; min_cross_border_local_cents: number | null }>)[code] ?? null));
+const perCountry = (code: string | null) =>
+  code === null
+    ? null
+    : ((
+        DATA.perCountry as Record<
+          string,
+          { payout_currency: string | null; min_cross_border_local_cents: number | null }
+        >
+      )[code] ?? null);
 async function minimumPayoutThresholdCents(facts: Facts): Promise<number> {
   const code = facts.aliveInfo ? legalEntityCountryCode(facts.aliveInfo) : null;
   const country = code !== null && code !== "" ? perCountry(code) : null;
@@ -152,7 +235,10 @@ export async function balanceToForfeitCents(seller: Seller): Promise<bigint> {
     Prisma.sql`SELECT MIN(${column("merchant_accounts", "id")}) AS id FROM ${table("merchant_accounts")} WHERE ${column("merchant_accounts", "user_id")} IS NULL AND ${column("merchant_accounts", "charge_processor_id")} IN ('stripe', 'paypal', 'braintree') GROUP BY ${column("merchant_accounts", "charge_processor_id")}`,
   );
   const ids = gumroadAccounts.map((row) => row.id);
-  const exclusion = ids.length === 0 ? Prisma.empty : Prisma.sql`AND ${column("balances", "merchant_account_id")} NOT IN (${Prisma.join(ids)})`;
+  const exclusion =
+    ids.length === 0
+      ? Prisma.empty
+      : Prisma.sql`AND ${column("balances", "merchant_account_id")} NOT IN (${Prisma.join(ids)})`;
   const [row] = await selectRows<{ sum: bigint | number | Prisma.Decimal | null }>(
     Prisma.sql`SELECT SUM(${column("balances", "amount_cents")}) AS sum FROM ${table("balances")} WHERE ${column("balances", "user_id")} = ${seller.id} AND ${column("balances", "state")} = 'unpaid' AND ${column("balances", "merchant_account_id")} IS NOT NULL ${exclusion}`,
   );
@@ -166,10 +252,12 @@ async function formattedBalanceToForfeit(seller: Seller): Promise<string | null>
 }
 
 const requestsScope = (userId: bigint) => ({ user_id: Number(userId), state: "requested" });
-const requestedRequests = (seller: Seller) => db.userComplianceInfoRequest.findMany({ where: requestsScope(seller.id), orderBy: { id: "asc" } });
+const requestedRequests = (seller: Seller) =>
+  db.userComplianceInfoRequest.findMany({ where: requestsScope(seller.id), orderBy: { id: "asc" } });
 
 // SettingsPresenter#stripe_rejected? : MerchantAccount#stripe_rejected?
-const accountRejected = (account: MerchantAccountRow | null) => String(account ? (jsonAttrOfAccount(account, "stripe_disabled_reason") ?? "") : "").startsWith("rejected.");
+const accountRejected = (account: MerchantAccountRow | null) =>
+  String(account ? (jsonAttrOfAccount(account, "stripe_disabled_reason") ?? "") : "").startsWith("rejected.");
 function jsonAttrOfAccount(account: MerchantAccountRow, key: string): string | null {
   return jsonAttr({ json_data: account.json_data as string | null }, key);
 }
@@ -206,7 +294,10 @@ async function assertNoBankSyncFailureNote(facts: Facts): Promise<void> {
       content: { startsWith: C.bankSyncFailureNotePrefix },
     },
   });
-  if (note) throw new NotPortedError("The bank sync failure banner (StripeMerchantAccountManager's rejection note classification)");
+  if (note)
+    throw new NotPortedError(
+      "The bank sync failure banner (StripeMerchantAccountManager's rejection note classification)",
+    );
 }
 
 // UserComplianceInfoFieldProperty.name_tag_for_field
@@ -249,7 +340,8 @@ const FIELD_NAMES: Record<string, string> = {
 function nameTagForField(field: string, country: string | null): string {
   if (field === "business_tax_id") return BUSINESS_TAX_ID_NAMES[country ?? ""] ?? "Business tax ID";
   if (field === "individual_tax_id") return INDIVIDUAL_TAX_ID_NAMES[country ?? ""] ?? "Individual tax ID";
-  if (field === "stripe_company_document_id") return country === "AE" ? "Trade License issued within the UAE" : "Company registration document";
+  if (field === "stripe_company_document_id")
+    return country === "AE" ? "Trade License issued within the UAE" : "Company registration document";
   if (field === "stripe_identity_document_id") return country === "AE" ? "Emirates ID" : "Government-issued photo ID";
   return FIELD_NAMES[field] ?? humanize(field.split(".").at(-1)!);
 }
@@ -264,30 +356,70 @@ function countryCodeForComplianceField(field: string, info: ComplianceInfo["row"
 type ComplianceAction = { message: string; href: string | null };
 
 // SettingsPresenter#social_connections_for_review
-async function socialConnectionsForReview(facts: Facts, context: SellerContext): Promise<{ provider: string; connected: boolean }[] | null> {
+async function socialConnectionsForReview(
+  facts: Facts,
+  context: SellerContext,
+): Promise<{ provider: string; connected: boolean }[] | null> {
   if (!settingsProfilePolicy.manageSocialConnections(context)) return null;
   const { seller } = facts;
   const connections = [{ provider: "twitter", connected: present(seller.twitter_user_id ?? undefined) }];
-  if (await featureActive("youtube_connect", seller)) connections.push({ provider: "youtube", connected: (await db.userYoutubeIdentity.findFirst({ where: { user_id: seller.id } })) !== null });
-  if (await featureActive("instagram_connect", seller)) connections.push({ provider: "instagram", connected: (await db.userInstagramIdentity.findFirst({ where: { user_id: seller.id } })) !== null });
-  if (await featureActive("tiktok_connect", seller)) connections.push({ provider: "tiktok", connected: (await db.userTiktokIdentity.findFirst({ where: { user_id: seller.id } })) !== null });
+  if (await featureActive("youtube_connect", seller))
+    connections.push({
+      provider: "youtube",
+      connected: (await db.userYoutubeIdentity.findFirst({ where: { user_id: seller.id } })) !== null,
+    });
+  if (await featureActive("instagram_connect", seller))
+    connections.push({
+      provider: "instagram",
+      connected: (await db.userInstagramIdentity.findFirst({ where: { user_id: seller.id } })) !== null,
+    });
+  if (await featureActive("tiktok_connect", seller))
+    connections.push({
+      provider: "tiktok",
+      connected: (await db.userTiktokIdentity.findFirst({ where: { user_id: seller.id } })) !== null,
+    });
   return connections;
 }
 
 // SocialConnectFunnel.record_offers!(surface: "account_review", skip: impersonating?): one "offered"
 // event per provider that is not connected yet (`once: true`).
-async function recordSocialConnectOffers(seller: Seller, connections: { provider: string; connected: boolean }[], now: Date): Promise<void> {
+async function recordSocialConnectOffers(
+  seller: Seller,
+  connections: { provider: string; connected: boolean }[],
+  now: Date,
+): Promise<void> {
   for (const { provider, connected } of connections) {
     if (connected) continue;
     const eventName = "social_connect_offered";
-    const existing = await db.event.findFirst({ where: { user_id: Number(seller.id), event_name: eventName, parent_referrer: provider, view_url: SOCIAL_CONNECT_SURFACE }, select: { id: true } });
+    const existing = await db.event.findFirst({
+      where: {
+        user_id: Number(seller.id),
+        event_name: eventName,
+        parent_referrer: provider,
+        view_url: SOCIAL_CONNECT_SURFACE,
+      },
+      select: { id: true },
+    });
     if (existing) continue;
-    await db.event.create({ data: { event_name: eventName, user_id: Number(seller.id), parent_referrer: provider, view_url: SOCIAL_CONNECT_SURFACE, created_at: now, updated_at: now } });
+    await db.event.create({
+      data: {
+        event_name: eventName,
+        user_id: Number(seller.id),
+        parent_referrer: provider,
+        view_url: SOCIAL_CONNECT_SURFACE,
+        created_at: now,
+        updated_at: now,
+      },
+    });
   }
 }
 
 // SettingsPresenter#account_status_details
-async function accountStatusDetails(facts: Facts, context: SellerContext, canUpdate: boolean): Promise<Record<string, unknown>> {
+async function accountStatusDetails(
+  facts: Facts,
+  context: SellerContext,
+  canUpdate: boolean,
+): Promise<Record<string, unknown>> {
   const { seller } = facts;
   const requested = await requestedRequests(seller);
   const pendingCompliance = requested.length > 0;
@@ -296,9 +428,16 @@ async function accountStatusDetails(facts: Facts, context: SellerContext, canUpd
   const pausedInternally = flag(seller, "payouts_paused_internally");
   const pausedByUser = flag(seller, "payouts_paused_by_user");
   const state = seller.user_risk_state;
-  const suspensionReason = state === "suspended_for_fraud" ? "Your account has been suspended due to fraudulent activity." : state === "suspended_for_tos_violation" ? "Your account has been suspended for a policy violation." : null;
+  const suspensionReason =
+    state === "suspended_for_fraud"
+      ? "Your account has been suspended due to fraudulent activity."
+      : state === "suspended_for_tos_violation"
+        ? "Your account has been suspended for a policy violation."
+        : null;
 
-  const needsIdUpload = requested.some((request) => request.field_needed !== null && ID_DOCUMENT_FIELDS.includes(request.field_needed));
+  const needsIdUpload = requested.some(
+    (request) => request.field_needed !== null && ID_DOCUMENT_FIELDS.includes(request.field_needed),
+  );
   const account = stripeAccount(facts);
   const stripeRejected = accountRejected(account) && !pendingCompliance;
 
@@ -310,16 +449,21 @@ async function accountStatusDetails(facts: Facts, context: SellerContext, canUpd
     if (balanceCents > 0n) rejectedFormattedBalance = formattedDollarAmount(balanceCents);
     if (balanceCents <= 0n) rejectedBalanceStatus = null;
     else if (balanceCents < BigInt(C.rejectedAccountMinAmountCents)) rejectedBalanceStatus = "too_small";
-    else if (pausedInternally && payoutsPausedBySource(facts) === PAYOUT_PAUSE_SOURCE.STRIPE) rejectedBalanceStatus = "stripe_hold";
+    else if (pausedInternally && payoutsPausedBySource(facts) === PAYOUT_PAUSE_SOURCE.STRIPE)
+      rejectedBalanceStatus = "stripe_hold";
     else if (payoutsPaused(seller)) rejectedBalanceStatus = "held";
     else rejectedBalanceStatus = "auto_payout";
-    if (rejectedBalanceStatus === "auto_payout") throw new NotPortedError("User#next_payout_date (the payout date shown for a rejected account)");
+    if (rejectedBalanceStatus === "auto_payout")
+      throw new NotPortedError("User#next_payout_date (the payout date shown for a rejected account)");
   }
 
   const pausedByStripe = pausedInternally && payoutsPausedBySource(facts) === PAYOUT_PAUSE_SOURCE.STRIPE;
   const complianceActions: ComplianceAction[] = [];
   if ((pendingCompliance || pausedByStripe) && account !== null && !stripeRejected && canUpdate) {
-    complianceActions.push({ message: "Complete pending verification requirements via Stripe", href: "/settings/payments/remediation" });
+    complianceActions.push({
+      message: "Complete pending verification requirements via Stripe",
+      href: "/settings/payments/remediation",
+    });
   }
   if (pendingCompliance && account === null) {
     const missing: string[] = [];
@@ -329,14 +473,23 @@ async function accountStatusDetails(facts: Facts, context: SellerContext, canUpd
         complianceActions.push({ message: `${errorMessage.trim().replace(/[.!?]+$/, "")}.`, href: null });
         continue;
       }
-      missing.push(nameTagForField(request.field_needed ?? "", countryCodeForComplianceField(request.field_needed ?? "", facts.info.row)));
+      missing.push(
+        nameTagForField(
+          request.field_needed ?? "",
+          countryCodeForComplianceField(request.field_needed ?? "", facts.info.row),
+        ),
+      );
     }
     const unique = [...new Set(missing)];
     if (unique.length > 0) complianceActions.push({ message: `Please provide: ${toSentence(unique)}.`, href: null });
   }
 
   if (account === null && (await postalCodeRejectedByStripe(facts))) {
-    const country = facts.aliveInfo ? (isBusiness(facts.aliveInfo) ? (facts.aliveInfo.business_country ?? facts.aliveInfo.country) : facts.aliveInfo.country) : undefined;
+    const country = facts.aliveInfo
+      ? isBusiness(facts.aliveInfo)
+        ? (facts.aliveInfo.business_country ?? facts.aliveInfo.country)
+        : facts.aliveInfo.country
+      : undefined;
     complianceActions.push({
       message: `Our payment partner couldn't verify the postal code you entered${present(country ?? undefined) ? ` for ${country}` : ""}. Please double-check it and re-save your address. If you're sure it's correct (for example, a newly built address), you don't need to do anything — we'll automatically re-check it once a week for up to ${C.retryWindowWeeks} weeks.`,
       href: null,
@@ -345,8 +498,10 @@ async function accountStatusDetails(facts: Facts, context: SellerContext, canUpd
 
   if (!stripeRejected) await assertNoBankSyncFailureNote(facts);
 
-  const gumroadStatus = underReview && !suspended ? "Your account is under review and payouts are on hold until it's resolved." : null;
-  const showSection = suspended || underReview || pausedInternally || pausedByUser || complianceActions.length > 0 || stripeRejected;
+  const gumroadStatus =
+    underReview && !suspended ? "Your account is under review and payouts are on hold until it's resolved." : null;
+  const showSection =
+    suspended || underReview || pausedInternally || pausedByUser || complianceActions.length > 0 || stripeRejected;
 
   let socialConnections: unknown[] | null = null;
   if (underReview && !suspended) {
@@ -383,9 +538,17 @@ async function ausBacktaxDetails(facts: Facts, now: Date) {
   const { record, seller } = facts;
   const owed = Number(jsonDataForAttr(record, "au_backtax_owed_cents", 0));
   const sales = Number(jsonDataForAttr(record, "au_backtax_sales_cents", 0));
-  const agreement = await db.backtaxAgreement.findFirst({ where: { user_id: seller.id, jurisdiction: "AUSTRALIA" }, orderBy: { id: "asc" } });
-  const credit = agreement ? await db.credit.findFirst({ where: { backtax_agreement_id: agreement.id }, orderBy: { id: "asc" } }) : null;
-  const emailInfo = owed >= C.minAuBacktaxOwedCentsForContact ? await db.australiaBacktaxEmailInfo.findFirst({ where: { user_id: seller.id } }) : null;
+  const agreement = await db.backtaxAgreement.findFirst({
+    where: { user_id: seller.id, jurisdiction: "AUSTRALIA" },
+    orderBy: { id: "asc" },
+  });
+  const credit = agreement
+    ? await db.credit.findFirst({ where: { backtax_agreement_id: agreement.id }, orderBy: { id: "asc" } })
+    : null;
+  const emailInfo =
+    owed >= C.minAuBacktaxOwedCentsForContact
+      ? await db.australiaBacktaxEmailInfo.findFirst({ where: { user_id: seller.id } })
+      : null;
   return {
     show_au_backtax_prompt: owed >= C.minAuBacktaxOwedCentsForContact && emailInfo !== null,
     total_amount_to_au: formattedDollarAmount(sales, { noCentsIfWhole: false }),
@@ -409,7 +572,10 @@ async function stripeConnectProps(facts: Facts) {
     stripe_connect_account_id: connect ? String(connect.charge_processor_merchant_id) : null,
     stripe_connect_routing_active: connected,
     // connect.blank? => false; otherwise has_stripe_account_connected? || Feature.inactive?(...)
-    blocks_managed_account: connect === null ? false : connected || !(await featureActive("managed_stripe_account_beside_inactive_connect", facts.seller)),
+    blocks_managed_account:
+      connect === null
+        ? false
+        : connected || !(await featureActive("managed_stripe_account_beside_inactive_connect", facts.seller)),
     stripe_disconnect_allowed: disconnectAllowed,
     supported_countries_help_text:
       "This feature is available in <a href='https://stripe.com/en-in/global'>all countries where Stripe operates</a>, except India, Indonesia, Malaysia, Mexico, Philippines, and Thailand.",
@@ -418,17 +584,24 @@ async function stripeConnectProps(facts: Facts) {
 
 // BankAccount#routing_number for the class in the `type` column.
 function routingNumber(bank: BankAccount): string | null {
-  const templates = (DATA.bankAccountRouting as Record<string, Record<string, string | null | { unsupported: unknown }>>)[bank.type ?? "AchAccount"];
+  const templates = (
+    DATA.bankAccountRouting as Record<string, Record<string, string | null | { unsupported: unknown }>>
+  )[bank.type ?? "AchAccount"];
   if (!templates) throw new NotPortedError(`BankAccount#routing_number for ${bank.type}`);
   const key = `${bank.bank_number === null ? "-" : "bn"}${bank.branch_code === null ? "-" : "br"}`;
   const template = templates[key];
-  if (template === undefined || (template !== null && typeof template === "object")) throw new NotPortedError(`BankAccount#routing_number for ${bank.type}`);
-  return template === null ? null : template.replace("{bank_number}", bank.bank_number ?? "").replace("{branch_code}", bank.branch_code ?? "");
+  if (template === undefined || (template !== null && typeof template === "object"))
+    throw new NotPortedError(`BankAccount#routing_number for ${bank.type}`);
+  return template === null
+    ? null
+    : template.replace("{bank_number}", bank.bank_number ?? "").replace("{branch_code}", bank.branch_code ?? "");
 }
 
 // CreditCard#expiry_visual
 const expiryVisual = (card: CreditCard) =>
-  card.expiry_month === null || card.expiry_year === null ? null : `${String(card.expiry_month).padStart(2, "0")}/${String(card.expiry_year).slice(-2)}`;
+  card.expiry_month === null || card.expiry_year === null
+    ? null
+    : `${String(card.expiry_month).padStart(2, "0")}/${String(card.expiry_year).slice(-2)}`;
 
 // CreditCard#requires_mandate?
 function requiresMandate(card: CreditCard): boolean {
@@ -438,7 +611,14 @@ function requiresMandate(card: CreditCard): boolean {
 
 // CheckoutPresenter.saved_card
 const savedCard = (card: CreditCard | null) =>
-  card && card.card_type !== "paypal" ? { type: card.card_type, number: card.visual, expiration_date: expiryVisual(card), requires_mandate: requiresMandate(card) } : null;
+  card && card.card_type !== "paypal"
+    ? {
+        type: card.card_type,
+        number: card.visual,
+        expiration_date: expiryVisual(card),
+        requires_mandate: requiresMandate(card),
+      }
+    : null;
 
 // SettingsPresenter#bank_account_details
 async function bankAccountDetails(facts: Facts) {
@@ -456,9 +636,15 @@ async function bankAccountDetails(facts: Facts) {
     code === "IN";
   let card: unknown = null;
   if (isCard) {
-    const creditCard = bank!.credit_card_id === null ? null : await db.creditCard.findUnique({ where: { id: bank!.credit_card_id } });
+    const creditCard =
+      bank!.credit_card_id === null ? null : await db.creditCard.findUnique({ where: { id: bank!.credit_card_id } });
     if (!creditCard) throw new TypeError("undefined method 'card_type' for nil");
-    card = { type: (creditCard.card_type ?? "").charAt(0).toUpperCase() + (creditCard.card_type ?? "").slice(1).toLowerCase(), number: creditCard.visual, expiration_date: expiryVisual(creditCard), requires_mandate: false };
+    card = {
+      type: (creditCard.card_type ?? "").charAt(0).toUpperCase() + (creditCard.card_type ?? "").slice(1).toLowerCase(),
+      number: creditCard.visual,
+      expiration_date: expiryVisual(creditCard),
+      requires_mandate: false,
+    };
     // CardBankAccount#routing_number is the capitalized card type, but the page shows the card.
     card = { ...(card as object), type: creditCard.card_type };
   }
@@ -485,12 +671,23 @@ async function feeInfo(facts: Facts) {
   const gumroadFee = `${percent(await gumroadFeePerThousand(facts))}% + ${C.gumroadFixedFeeCents}¢`;
   const discoverFee = `${percent(C.gumroadDiscoverFeePerThousand)}%`;
   const summary = "Your fees depend on how buyers find your product:";
-  const breakdown = (direct: string, discover: string) => ({ summary, items: [{ label: "Direct sales", value: direct }, { label: "Discover sales", value: discover }] });
+  const breakdown = (direct: string, discover: string) => ({
+    summary,
+    items: [
+      { label: "Direct sales", value: direct },
+      { label: "Discover sales", value: discover },
+    ],
+  });
   const processorFee = `${percent(C.processorFeePerThousand)}% + ${C.processorFixedFeeCents}¢ processing fee`;
   return {
-    merchant_account_fee_info: breakdown(`${gumroadFee} Gumroad fee + ${processorFee}`, `${discoverFee}, processing fee included`),
+    merchant_account_fee_info: breakdown(
+      `${gumroadFee} Gumroad fee + ${processorFee}`,
+      `${discoverFee}, processing fee included`,
+    ),
     connect_account_fee_info:
-      countryCodeOfInfo === "BR" ? { summary: "You pay a 0% Gumroad fee on all sales.", items: [] } : breakdown(`${gumroadFee} Gumroad fee`, `${discoverFee} Gumroad fee`),
+      countryCodeOfInfo === "BR"
+        ? { summary: "You pay a 0% Gumroad fee on all sales.", items: [] }
+        : breakdown(`${gumroadFee} Gumroad fee`, `${discoverFee} Gumroad fee`),
   };
 }
 
@@ -501,7 +698,8 @@ async function gumroadFeePerThousand(facts: Facts): Promise<number> {
   if (await featureActive("high_volume_seller_fee", facts.seller)) {
     const month = jsonDataForAttr(facts.record, "high_volume_fee_month");
     const now = facts.now;
-    if (month === `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`) return C.highVolumeFeePerThousand;
+    if (month === `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`)
+      return C.highVolumeFeePerThousand;
   }
   return C.gumroadFlatFeePerThousand;
 }
@@ -521,7 +719,11 @@ async function requiresCreditCard(seller: Seller, now: Date): Promise<boolean> {
 // User#charge_paypal_payout_fee?
 async function chargePaypalPayoutFee(facts: Facts): Promise<boolean> {
   const code = facts.aliveInfo ? legalEntityCountryCode(facts.aliveInfo) : null;
-  return (await featureActive("paypal_payout_fee", facts.seller)) && !flag(facts.seller, "paypal_payout_fee_waived") && !(C.paypalPayoutFeeExempt as string[]).includes(code ?? "");
+  return (
+    (await featureActive("paypal_payout_fee", facts.seller)) &&
+    !flag(facts.seller, "paypal_payout_fee_waived") &&
+    !(C.paypalPayoutFeeExempt as string[]).includes(code ?? "")
+  );
 }
 
 // SettingsPresenter#user_details
@@ -532,8 +734,12 @@ async function userDetails(facts: Facts) {
   const predicates = countryPredicates(code);
   const requested = await requestedRequests(seller);
   // has_outstanding_full_ssn_requirement?: requested individual tax id requests not marked partial.
-  const outstandingFullSsn = requested.some((request) => request.field_needed === TAX_ID_FIELD && (request.flags & 1) === 0);
-  const outstandingNationality = requested.some((request) => request.field_needed !== null && NATIONALITY_FIELDS.includes(request.field_needed));
+  const outstandingFullSsn = requested.some(
+    (request) => request.field_needed === TAX_ID_FIELD && (request.flags & 1) === 0,
+  );
+  const outstandingNationality = requested.some(
+    (request) => request.field_needed !== null && NATIONALITY_FIELDS.includes(request.field_needed),
+  );
   const hasBank = facts.bankAccount !== null;
   return {
     country_supports_native_payouts: nativePayoutsSupported(aliveInfo),
@@ -618,7 +824,10 @@ const guardianProps = (guardian: Guardian) => ({
   country: guardian.country,
   nationality: guardian.nationality,
   has_individual_tax_id: !isStrongboxBlank(guardian.individual_tax_id),
-  accepted_terms: guardian.stripe_tos_accepted && guardian.stripe_tos_accepted_at !== null && present(guardian.stripe_tos_ip ?? undefined),
+  accepted_terms:
+    guardian.stripe_tos_accepted &&
+    guardian.stripe_tos_accepted_at !== null &&
+    present(guardian.stripe_tos_ip ?? undefined),
   has_completed_info: guardianHasCompletedInfo(guardian),
 });
 
@@ -636,7 +845,11 @@ async function legalGuardianDetails(facts: Facts) {
   const code = countryCode(row);
   const required = underAge && supported.includes(code ?? "");
   const unsupported = underAge && present(code ?? undefined) && !supported.includes(code ?? "");
-  const requirementMet = unsupported ? false : required ? guardian !== null && guardianHasCompletedInfo(guardian) : true;
+  const requirementMet = unsupported
+    ? false
+    : required
+      ? guardian !== null && guardianHasCompletedInfo(guardian)
+      : true;
   return {
     required,
     unsupported,
@@ -645,26 +858,45 @@ async function legalGuardianDetails(facts: Facts) {
   };
 }
 
-
 // User#instant_payouts_supported?: false unless the first eligibility checks hold.
 async function instantPayoutsSupported(facts: Facts): Promise<boolean> {
   const { seller } = facts;
   const compliant = seller.user_risk_state === "compliant";
   if (!compliant || payoutsPaused(seller) || legalEntityCountryCodeOf(facts) !== "US") return false;
-  const completed = await db.payment.findFirst({ where: { user_id: Number(seller.id), state: "completed" }, select: { id: true } });
+  const completed = await db.payment.findFirst({
+    where: { user_id: Number(seller.id), state: "completed" },
+    select: { id: true },
+  });
   if (!completed) return false;
   throw new NotPortedError("User#instant_payouts_supported? (stripe_accounts_seasoned_for_instant_payouts?)");
 }
 const legalEntityCountryCodeOf = (facts: Facts) => facts.aliveInfo && legalEntityCountryCode(facts.aliveInfo);
 
-export async function paymentsProps(context: SellerContext, { impersonating, remoteIp, now = new Date() }: { impersonating: boolean; remoteIp: string | null; now?: Date }) {
+export async function paymentsProps(
+  context: SellerContext,
+  { impersonating, remoteIp, now = new Date() }: { impersonating: boolean; remoteIp: string | null; now?: Date },
+) {
   const seller = context.seller!;
   const info = await fetchOrBuildComplianceInfo(seller.id);
-  const bankAccount = await db.bankAccount.findFirst({ where: { user_id: Number(seller.id), deleted_at: null }, orderBy: { id: "asc" } });
+  const bankAccount = await db.bankAccount.findFirst({
+    where: { user_id: Number(seller.id), deleted_at: null },
+    orderBy: { id: "asc" },
+  });
   const stripeAccounts = await aliveStripeAccountsOf(seller.id);
-  const facts: Facts = { seller, record: Users.load(seller), info, aliveInfo: info.persisted ? info.row : null, now, bankAccount, stripeAccounts };
+  const facts: Facts = {
+    seller,
+    record: Users.load(seller),
+    info,
+    aliveInfo: info.persisted ? info.row : null,
+    now,
+    bankAccount,
+    stripeAccounts,
+  };
   const canUpdate = settingsPaymentsUserPolicy.update(context, seller);
-  const creditCard = seller.credit_card_id === null ? null : await db.creditCard.findUnique({ where: { id: Number(seller.credit_card_id) } });
+  const creditCard =
+    seller.credit_card_id === null
+      ? null
+      : await db.creditCard.findUnique({ where: { id: Number(seller.credit_card_id) } });
   const minimumThreshold = await minimumPayoutThresholdCents(facts);
   const legalEntityCode = facts.aliveInfo ? legalEntityCountryCode(facts.aliveInfo) : null;
   const storedThreshold = jsonDataForAttr(facts.record, "payout_threshold_cents", minimumThreshold);
@@ -672,7 +904,8 @@ export async function paymentsProps(context: SellerContext, { impersonating, rem
   const props = {
     settings_pages: await settingsPages(context),
     is_form_disabled: !canUpdate,
-    should_show_country_modal: !present(info.row.country ?? undefined) && settingsPaymentsUserPolicy.setCountry(context, seller),
+    should_show_country_modal:
+      !present(info.row.country ?? undefined) && settingsPaymentsUserPolicy.setCountry(context, seller),
     aus_backtax_details: await ausBacktaxDetails(facts, now),
     stripe_connect: await stripeConnectProps(facts),
     countries: pairsToObject(DATA.countries),
@@ -703,28 +936,37 @@ export async function paymentsProps(context: SellerContext, { impersonating, rem
     saved_card: savedCard(creditCard),
     formatted_balance_to_forfeit_on_country_change: await formattedBalanceToForfeit(seller),
     formatted_balance_to_forfeit_on_payout_method_change: await formattedBalanceToForfeit(seller),
-    paypal_switch_loses_bank_rail: bankAccount !== null && bankAccount.type !== CARD_BANK_ACCOUNT_TYPE && !canCreateBankPayoutRail(facts),
+    paypal_switch_loses_bank_rail:
+      bankAccount !== null && bankAccount.type !== CARD_BANK_ACCOUNT_TYPE && !canCreateBankPayoutRail(facts),
     payouts_paused_internally: flag(seller, "payouts_paused_internally"),
     payout_reserve_available: await chargebackRatePayoutReserveAvailable(facts),
     payouts_paused_by: payoutsPausedBySource(facts),
-    payout_reserve_percent: !flag(seller, "payouts_paused_by_user") && (await chargebackRatePayoutReserveAvailable(facts)) ? C.chargebackRatePayoutReservePercent : null,
+    payout_reserve_percent:
+      !flag(seller, "payouts_paused_by_user") && (await chargebackRatePayoutReserveAvailable(facts))
+        ? C.chargebackRatePayoutReservePercent
+        : null,
     account_status: await accountStatusDetails(facts, context, canUpdate),
     payouts_paused_by_user: flag(seller, "payouts_paused_by_user"),
     payout_threshold_cents: storedThreshold,
     minimum_payout_threshold_cents: minimumThreshold,
-    payout_country_name: legalEntityCode === null ? null : (mapping().find(([alpha2]) => alpha2 === legalEntityCode)?.[1] ?? null),
+    payout_country_name:
+      legalEntityCode === null ? null : (mapping().find(([alpha2]) => alpha2 === legalEntityCode)?.[1] ?? null),
     payout_frequency: jsonDataForAttr(facts.record, "payout_frequency", "weekly"),
     payout_frequency_daily_supported: await instantPayoutsSupported(facts),
     instant_payout_fee_percent: C.instantPayoutFeePercent,
     buyer_local_currency_enabled: await featureActive("buyer_local_currency", seller),
     disable_buyer_local_currency: castBoolean(jsonDataForAttr(facts.record, "disable_buyer_local_currency", false)),
     buyer_currency_charging_enabled: await featureActive("buyer_currency_charging", seller),
-    disable_buyer_currency_rounding: castBoolean(jsonDataForAttr(facts.record, "disable_buyer_currency_rounding", false)),
+    disable_buyer_currency_rounding: castBoolean(
+      jsonDataForAttr(facts.record, "disable_buyer_currency_rounding", false),
+    ),
     can_manage_beneficial_owners: canUpdate && stripeAccountEligibleForBeneficialOwners(facts),
     legal_guardian: await legalGuardianDetails(facts),
   };
   // Settings::PaymentsController#show: record the offers the account review section shows.
-  const offers = props.account_status.social_connections_for_review as { provider: string; connected: boolean }[] | null;
+  const offers = props.account_status.social_connections_for_review as
+    | { provider: string; connected: boolean }[]
+    | null;
   if (offers && !impersonating) await recordSocialConnectOffers(seller, offers, now);
   return props;
 }
@@ -741,9 +983,15 @@ async function chargebackRatePayoutReserveAvailable(facts: Facts): Promise<boole
   const { seller } = facts;
   if (await isFeatureEnabled("disable_chargeback_rate_payout_reserve")) return false;
   if (seller.deleted_at !== null) return false;
-  if (!flag(seller, "payouts_paused_internally") || payoutsPausedBySource(facts) !== PAYOUT_PAUSE_SOURCE.SYSTEM) return false;
+  if (!flag(seller, "payouts_paused_internally") || payoutsPausedBySource(facts) !== PAYOUT_PAUSE_SOURCE.SYSTEM)
+    return false;
   const latest = await db.comment.findFirst({
-    where: { commentable_id: seller.id, commentable_type: "User", comment_type: "on", author_name: { in: SYSTEM_PAUSE_AUTHORS_THAT_PAUSE } },
+    where: {
+      commentable_id: seller.id,
+      commentable_type: "User",
+      comment_type: "on",
+      author_name: { in: SYSTEM_PAUSE_AUTHORS_THAT_PAUSE },
+    },
     orderBy: [{ created_at: "desc" }, { id: "desc" }],
   });
   return latest?.author_name === "pause_payouts_for_seller_based_on_chargeback_rate";
@@ -756,7 +1004,15 @@ export type { Seller, MerchantAccount };
 export async function payoutFacts(seller: User, now = new Date()) {
   const info = await fetchOrBuildComplianceInfo(seller.id);
   const stripeAccounts = await aliveStripeAccountsOf(seller.id);
-  const facts: Facts = { seller, record: Users.load(seller), info, aliveInfo: info.persisted ? info.row : null, now, bankAccount: null, stripeAccounts };
+  const facts: Facts = {
+    seller,
+    record: Users.load(seller),
+    info,
+    aliveInfo: info.persisted ? info.row : null,
+    now,
+    bankAccount: null,
+    stripeAccounts,
+  };
   const stripe = stripeAccount(facts);
   return {
     legalEntityCountry: legalEntityCountryCodeOf(facts),
@@ -766,6 +1022,7 @@ export async function payoutFacts(seller: User, now = new Date()) {
     stripeConnectRoutingActive: await hasStripeAccountConnected(facts),
     minimumPayoutThresholdCents: await minimumPayoutThresholdCents(facts),
     payoutsPausedBySource: payoutsPausedBySource(facts),
-    chargebackRateReserveActive: !flag(seller, "payouts_paused_by_user") && (await chargebackRatePayoutReserveAvailable(facts)),
+    chargebackRateReserveActive:
+      !flag(seller, "payouts_paused_by_user") && (await chargebackRatePayoutReserveAvailable(facts)),
   };
 }

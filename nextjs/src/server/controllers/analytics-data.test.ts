@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { HandBackToRails } from "./application-controller.ts";
 import { stripTimestampLocation, timeRange } from "./analytics-data.ts";
+import { HandBackToRails } from "./application-controller.ts";
 
 const NOW = new Date("2024-03-31T12:00:00Z");
 const TRAILING_30_DAYS = { startDate: "2024-03-02", endDate: "2024-03-31" };
@@ -39,7 +39,10 @@ describe("timeRange", () => {
   });
 
   it("parses a range with locations", () => {
-    expect(timeRange("start_time=2024-01-01%20(PST)&end_time=2024-01-31%20(PST)", NOW)).toEqual({ startDate: "2024-01-01", endDate: "2024-01-31" });
+    expect(timeRange("start_time=2024-01-01%20(PST)&end_time=2024-01-31%20(PST)", NOW)).toEqual({
+      startDate: "2024-01-01",
+      endDate: "2024-01-31",
+    });
   });
 
   it("hands back a leading parenthesis that still holds a date", () => {

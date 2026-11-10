@@ -61,13 +61,20 @@ function fractionalOf(amount: MoneyAmount): Prisma.Decimal {
 export type MoneyFormatOptions = { noCentsIfWhole?: boolean; withCurrency?: boolean };
 
 // Money#format with `symbol:` already resolved: a string, or null/"" for no symbol.
-function formatMoney(amount: MoneyAmount, currency: CurrencyData, code: string, symbol: string | null, options: MoneyFormatOptions): string {
+function formatMoney(
+  amount: MoneyAmount,
+  currency: CurrencyData,
+  code: string,
+  symbol: string | null,
+  options: MoneyFormatOptions,
+): string {
   const fractional = fractionalOf(amount);
   const negative = fractional.isNegative() && !fractional.isZero();
   const [whole = "0", decimal = "0"] = fractional.abs().div(currency.subunit_to_unit).toFixed().split(".");
 
   let decimalPart: string | null = decimal;
-  if (currency.decimal_places === 0 || (options.noCentsIfWhole && Number.parseInt(decimal, 10) === 0)) decimalPart = null;
+  if (currency.decimal_places === 0 || (options.noCentsIfWhole && Number.parseInt(decimal, 10) === 0))
+    decimalPart = null;
   else decimalPart = decimal.padEnd(currency.decimal_places, "0") || null;
 
   const wholePart = whole.replace(/(\d)(?=(?:\d{3})+(?:\D|$))/gu, `$1${DELIMITER}`);
@@ -86,7 +93,11 @@ function formatMoney(amount: MoneyAmount, currency: CurrencyData, code: string, 
 }
 
 // MoneyFormatter.format(amount, currency_type, opts), which soft-fails an unknown code to its ISO code.
-export function moneyFormatterFormat(amount: MoneyAmount, currencyType: string, options: MoneyFormatOptions & { symbol?: boolean } = {}): string {
+export function moneyFormatterFormat(
+  amount: MoneyAmount,
+  currencyType: string,
+  options: MoneyFormatOptions & { symbol?: boolean } = {},
+): string {
   const withSymbol = options.symbol !== false;
   const code = currencyType.toLowerCase();
   const known = code !== "" && Object.hasOwn(CURRENCIES, code);
@@ -96,12 +107,22 @@ export function moneyFormatterFormat(amount: MoneyAmount, currencyType: string, 
     return withSymbol && iso !== "" ? `${number} ${iso}` : number;
   }
   const currency = CURRENCIES[code]!;
-  return formatMoney(amount, currency, code, withSymbol ? (Object.hasOwn(CHOICES_SYMBOLS, code) ? CHOICES_SYMBOLS[code]! : currency.symbol) : null, options);
+  return formatMoney(
+    amount,
+    currency,
+    code,
+    withSymbol ? (Object.hasOwn(CHOICES_SYMBOLS, code) ? CHOICES_SYMBOLS[code]! : currency.symbol) : null,
+    options,
+  );
 }
 
 // `Money.new(cents, currency).format(symbol: true, ...)`: the gem's own symbol, not the pricing registry's that
 // MoneyFormatter prefers. Raises UnknownCurrency like the gem.
-export function moneyFormatWithGemSymbol(amount: MoneyAmount, currencyType: string, options: MoneyFormatOptions = {}): string {
+export function moneyFormatWithGemSymbol(
+  amount: MoneyAmount,
+  currencyType: string,
+  options: MoneyFormatOptions = {},
+): string {
   const currency = findCurrency(currencyType);
   return formatMoney(amount, currency, currencyType.toLowerCase(), currency.symbol, options);
 }
@@ -117,7 +138,8 @@ export function symbolFor(currencyType: string): string {
 }
 
 // CurrencyHelper#formatted_price
-export const formattedPrice = (currencyType: string, price: MoneyAmount): string => moneyFormatterFormat(price, currencyType, { noCentsIfWhole: true });
+export const formattedPrice = (currencyType: string, price: MoneyAmount): string =>
+  moneyFormatterFormat(price, currencyType, { noCentsIfWhole: true });
 
 // CurrencyHelper#format_just_price_in_cents
 export function formatJustPriceInCents(amountCents: MoneyAmount, currencyType: string): string {
@@ -126,12 +148,20 @@ export function formatJustPriceInCents(amountCents: MoneyAmount, currencyType: s
 }
 
 // CurrencyHelper#formatted_amount_in_currency (raises for a code the gem does not know)
-export function formattedAmountInCurrency(amountCents: MoneyAmount, currencyType: string, noCentsIfWhole = true): string {
-  return formatMoney(amountCents, findCurrency(currencyType), currencyType.toLowerCase(), null, { noCentsIfWhole, withCurrency: true });
+export function formattedAmountInCurrency(
+  amountCents: MoneyAmount,
+  currencyType: string,
+  noCentsIfWhole = true,
+): string {
+  return formatMoney(amountCents, findCurrency(currencyType), currencyType.toLowerCase(), null, {
+    noCentsIfWhole,
+    withCurrency: true,
+  });
 }
 
 // StripeChargeProcessor.charge_subunit_to_unit
-const chargeSubunitToUnit = (currency: string): number => (ZERO_DECIMAL_CHARGE_CURRENCIES.has(currency.toLowerCase()) ? 1 : subunitToUnit(currency));
+const chargeSubunitToUnit = (currency: string): number =>
+  ZERO_DECIMAL_CHARGE_CURRENCIES.has(currency.toLowerCase()) ? 1 : subunitToUnit(currency);
 
 // StripeChargeProcessor.money_subunits_from_charge_amount: Stripe's charge units to Gumroad's storage scale.
 export function moneySubunitsFromChargeAmount(amountCents: number | bigint | null, currency: string): number {

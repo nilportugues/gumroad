@@ -6,7 +6,9 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../../search/search-products.ts", async () => {
-  const actual = await vi.importActual<typeof import("../../search/search-products.ts")>("../../search/search-products.ts");
+  const actual = await vi.importActual<typeof import("../../search/search-products.ts")>(
+    "../../search/search-products.ts",
+  );
   return {
     ...actual,
     validFilterTokens: async () => new Set<string>(),
@@ -28,6 +30,7 @@ vi.mock("../../../lib/obfuscate-ids.ts", () => ({ encrypt: (id: bigint | number)
 
 import { HandBackToRails } from "../../controllers/application-controller.ts";
 import type { PresenterRequest } from "../../presenters/product.ts";
+
 import { productsSectionProps, visitorSearchParams } from "./product-sections.ts";
 
 const REQUEST = {} as PresenterRequest;
@@ -41,7 +44,9 @@ describe("visitorSearchParams", () => {
   });
 
   it("normalizes tags and filetypes into lists and coerces from and size", async () => {
-    expect(await visitorSearchParams("tags=Hello-World,%20Foo&filetypes=PDF,%20Mp3&from=3&size=99999&query=a+b")).toEqual({
+    expect(
+      await visitorSearchParams("tags=Hello-World,%20Foo&filetypes=PDF,%20Mp3&from=3&size=99999&query=a+b"),
+    ).toEqual({
       tags: ["hello world", "foo"],
       filetypes: ["pdf", "mp3"],
       from: 3,
@@ -67,7 +72,11 @@ describe("productsSectionProps with visitor params", () => {
   });
 
   it("merges the visitor's filters into the section search and keeps the section's own scope", async () => {
-    await productsSectionProps(SELLER, null, HEADER, REQUEST, { query: "x", sort: "price_asc", recommended_by: "discover" });
+    await productsSectionProps(SELLER, null, HEADER, REQUEST, {
+      query: "x",
+      sort: "price_asc",
+      recommended_by: "discover",
+    });
     expect(mocks.searches[0]).toMatchObject({ query: "x", sort: "price_asc", is_alive_on_profile: true, user_id: 1 });
     expect(mocks.cards[0]).toMatchObject({ recommendedBy: "discover" });
   });

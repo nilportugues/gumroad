@@ -4,15 +4,19 @@
 // anything is rendered, because a page cannot hand back once it is rendering.
 import type { User } from "@prisma/client";
 
+import { encrypt as externalId } from "../../../lib/obfuscate-ids.ts";
 import { HandBackToRails, RoutingError } from "../../controllers/application-controller.ts";
 import { queryParam, type RailsRequest } from "../../controllers/rails-request.ts";
-import { encrypt as externalId } from "../../../lib/obfuscate-ids.ts";
 import { LinkFlags } from "../../models/link.ts";
-import { cardForWeb, remainingForSaleCount, type PresenterRequest } from "../../presenters/product.ts";
 import { findLink } from "../../presenters/product-reads.ts";
+import { cardForWeb, remainingForSaleCount, type PresenterRequest } from "../../presenters/product.ts";
 import { ProductSortKey, SellerProfileSectionParam } from "../../search/product-search.ts";
 import type { Params } from "../../search/ruby-params.ts";
-import { normalizeSearchParamValues, searchProductsWithFacets, validFilterTokens } from "../../search/search-products.ts";
+import {
+  normalizeSearchParamValues,
+  searchProductsWithFacets,
+  validFilterTokens,
+} from "../../search/search-products.ts";
 import { NotPortedError } from "../not-ported.ts";
 
 // ProfileSectionsPresenter::DEFAULT_PRODUCTS_SECTION_ID / _TYPE
@@ -22,7 +26,18 @@ export const PRODUCTS_SECTION_TYPE = "SellerProfileProductsSection";
 const PROFILE_LAYOUT = "profile";
 
 // ProfileSectionsPresenter::VISITOR_SEARCH_PARAMS: a visitor's filters re-run the section searches.
-const VISITOR_SEARCH_PARAMS = ["query", "tags", "filetypes", "min_price", "max_price", "rating", "sort", "from", "size", "recommended_by"];
+const VISITOR_SEARCH_PARAMS = [
+  "query",
+  "tags",
+  "filetypes",
+  "min_price",
+  "max_price",
+  "rating",
+  "sort",
+  "from",
+  "size",
+  "recommended_by",
+];
 
 const decode = (value: string) => {
   try {
@@ -39,7 +54,8 @@ export async function visitorSearchParams(queryString: string): Promise<Params |
     .split("&")
     .filter((pair) => pair !== "")
     .map((pair) => decode(pair.split("=", 1)[0]!));
-  if (keys.some((key) => VISITOR_SEARCH_PARAMS.some((name) => key.startsWith(`${name}[`)))) throw new HandBackToRails("a nested visitor search param");
+  if (keys.some((key) => VISITOR_SEARCH_PARAMS.some((name) => key.startsWith(`${name}[`))))
+    throw new HandBackToRails("a nested visitor search param");
   const request = { queryString } as RailsRequest;
   const params: Params = {};
   for (const name of VISITOR_SEARCH_PARAMS) {
@@ -55,8 +71,18 @@ type Header = { id: string; header: string | null };
 
 // `section_search_results(section)`, then the cards of the products found (section_props for a visitor, who is
 // not the profile's owner: sold-out products that hide their sold-out state are left out and the total follows).
-export async function productsSectionProps(seller: User, section: ProductsSectionRow | null, header: Header, request: PresenterRequest, visitor: Params | null = null): Promise<Record<string, unknown>> {
-  const data = (section?.json_data ?? {}) as { show_filters?: boolean | null; default_product_sort?: string | null; shown_products?: number[] | null };
+export async function productsSectionProps(
+  seller: User,
+  section: ProductsSectionRow | null,
+  header: Header,
+  request: PresenterRequest,
+  visitor: Params | null = null,
+): Promise<Record<string, unknown>> {
+  const data = (section?.json_data ?? {}) as {
+    show_filters?: boolean | null;
+    default_product_sort?: string | null;
+    shown_products?: number[] | null;
+  };
   const sort = data.default_product_sort || ProductSortKey.PAGE_LAYOUT;
   // `params[:sort] || section&.default_product_sort`: an empty ?sort= is truthy in Ruby and wins.
   const found = await searchProductsWithFacets({
@@ -87,8 +113,18 @@ export async function productsSectionProps(seller: User, section: ProductsSectio
   for (const row of shown) {
     // cardForWeb proves the tier price, but the profile's card for it crashes the server render and no profile
     // fixture has recorded Rails' page for one.
-    if (LinkFlags.isSet(row.flags, "is_tiered_membership")) throw new NotPortedError("tiered membership card on a profile");
-    products.push(await cardForWeb(row.id, { request, target: PROFILE_LAYOUT, showSeller: false, recommendedBy: (visitor?.recommended_by as string | null | undefined) ?? null, computeDescription: false, computeInventory: false }));
+    if (LinkFlags.isSet(row.flags, "is_tiered_membership"))
+      throw new NotPortedError("tiered membership card on a profile");
+    products.push(
+      await cardForWeb(row.id, {
+        request,
+        target: PROFILE_LAYOUT,
+        showSeller: false,
+        recommendedBy: (visitor?.recommended_by as string | null | undefined) ?? null,
+        computeDescription: false,
+        computeInventory: false,
+      }),
+    );
   }
 
   return {
@@ -97,12 +133,21 @@ export async function productsSectionProps(seller: User, section: ProductsSectio
     type: PRODUCTS_SECTION_TYPE,
     show_filters: section ? (data.show_filters ?? null) : false,
     default_product_sort: section ? (data.default_product_sort ?? null) : ProductSortKey.PAGE_LAYOUT,
-    search_results: { total, tags_data: found.tags_data, filetypes_data: found.filetypes_data, taxonomy_attributes_data: found.taxonomy_attributes_data, products },
+    search_results: {
+      total,
+      tags_data: found.tags_data,
+      filetypes_data: found.filetypes_data,
+      taxonomy_attributes_data: found.taxonomy_attributes_data,
+      products,
+    },
   };
 }
 
 // NotPortedError -> the caller hands the request back.
-export async function assertProductSectionsRender(render: () => Promise<unknown>, handBack: () => never): Promise<void> {
+export async function assertProductSectionsRender(
+  render: () => Promise<unknown>,
+  handBack: () => never,
+): Promise<void> {
   try {
     await render();
   } catch (error) {
@@ -111,4 +156,7 @@ export async function assertProductSectionsRender(render: () => Promise<unknown>
   }
 }
 
-export const sectionHeader = (section: ProductsSectionRow, hideHeader: boolean): Header => ({ id: externalId(section.id), header: hideHeader ? null : section.header });
+export const sectionHeader = (section: ProductsSectionRow, hideHeader: boolean): Header => ({
+  id: externalId(section.id),
+  header: hideHeader ? null : section.header,
+});

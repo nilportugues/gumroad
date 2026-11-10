@@ -38,8 +38,6 @@ import { defineModel, type Callback, type CallbackContext, type SaveOptions } fr
 import { RecordNotFound } from "./runtime/errors.ts";
 import { connectedTo, uncached } from "./runtime/query-cache.ts";
 import { ASSOCIATION_CACHE, type ModelRecord } from "./runtime/record.ts";
-import { buildSellerProfile, findSellerProfile, SellerProfiles, type SellerProfileRecord } from "./seller-profile.ts";
-import { castRow, column, connection, findInBatches, selectRows, table } from "./sql.ts";
 import { currentTransaction, participate, type Tx } from "./runtime/transaction.ts";
 import {
   isBlank,
@@ -50,6 +48,8 @@ import {
   validatesNumericalityOf,
   validatesUniquenessOf,
 } from "./runtime/validators.ts";
+import { buildSellerProfile, findSellerProfile, SellerProfiles, type SellerProfileRecord } from "./seller-profile.ts";
+import { castRow, column, connection, findInBatches, selectRows, table } from "./sql.ts";
 import USER_DATA from "./user-data.generated.json" with { type: "json" };
 
 export type UserRecord = ModelRecord<User>;
@@ -60,7 +60,12 @@ export const MAX_PRICE_USD_CENTS_UNLESS_VERIFIED = 500_000;
 export const INVALID_NAME_FOR_EMAIL_DELIVERY_REGEX = /:/u;
 export const DELETED_ACCOUNT_HOLDS_EMAIL_ERROR =
   "This email address belonged to a Gumroad account that was deleted, so it can't be used for a new account yet. Email support@gumroad.com and we'll free it up for you.";
-export const PAYOUT_FREQUENCIES = { DAILY: "daily", WEEKLY: "weekly", MONTHLY: "monthly", QUARTERLY: "quarterly" } as const;
+export const PAYOUT_FREQUENCIES = {
+  DAILY: "daily",
+  WEEKLY: "weekly",
+  MONTHLY: "monthly",
+  QUARTERLY: "quarterly",
+} as const;
 export const RECOMMENDATION_TYPES = USER_DATA.recommendation_types;
 export const RISK_STATES = {
   SUSPENDED: ["suspended_for_tos_violation", "suspended_for_fraud"],
@@ -205,7 +210,11 @@ export type UserCollaborators = {
   // Not ported yet.
   createGlobalAffiliate(user: UserRecord, ctx: CallbackContext): Promise<void>;
   createRefundPolicy(user: UserRecord, ctx: CallbackContext): Promise<void>;
-  sendDeviseNotification(user: UserRecord, notification: DeviseNotification, args: Record<string, unknown>): Promise<void>;
+  sendDeviseNotification(
+    user: UserRecord,
+    notification: DeviseNotification,
+    args: Record<string, unknown>,
+  ): Promise<void>;
   enqueueProductIndexUpdates(user: UserRecord, productIds: bigint[], changeList: string[]): Promise<void>;
   updateAudienceMembersAffiliates(user: UserRecord, sellerIds: bigint[], ctx: CallbackContext): Promise<void>;
   updateAliveCartEmail(user: UserRecord, cartId: bigint, ctx: CallbackContext): Promise<void>;
@@ -223,10 +232,13 @@ const DEFAULT_COLLABORATORS: UserCollaborators = {
   async pwnedCount(password) {
     // Pwned::Password: k-anonymity range lookup on the SHA1 prefix.
     const sha1 = createHash("sha1").update(password).digest("hex").toUpperCase();
-    const response = await fetch(`${getConfig("PWNED_PASSWORDS_ORIGIN") ?? "https://api.pwnedpasswords.com"}/range/${sha1.slice(0, 5)}`, {
-      headers: { "User-Agent": "devise_pwned_password" },
-      signal: AbortSignal.timeout(5_000),
-    });
+    const response = await fetch(
+      `${getConfig("PWNED_PASSWORDS_ORIGIN") ?? "https://api.pwnedpasswords.com"}/range/${sha1.slice(0, 5)}`,
+      {
+        headers: { "User-Agent": "devise_pwned_password" },
+        signal: AbortSignal.timeout(5_000),
+      },
+    );
     if (!response.ok) throw new Error(`pwnedpasswords responded ${response.status}`);
     for (const line of (await response.text()).split("\n")) {
       const [suffix, count] = line.trim().split(":");
@@ -239,7 +251,10 @@ const DEFAULT_COLLABORATORS: UserCollaborators = {
   // rand(9_999_999_999_999).to_s
   randomExternalId: () => String(randomInt(0, 9_999_999_999_999)),
   // Devise.friendly_token: SecureRandom.urlsafe_base64(15).tr("lIO0", "sxyz")
-  friendlyToken: () => randomBytes(15).toString("base64url").replace(/[lIO0]/gu, (c) => ({ l: "s", I: "x", O: "y", "0": "z" })[c]!),
+  friendlyToken: () =>
+    randomBytes(15)
+      .toString("base64url")
+      .replace(/[lIO0]/gu, (c) => ({ l: "s", I: "x", O: "y", "0": "z" })[c]!),
   // ROTP::Base32.random(20): 20 random bytes as unpadded RFC 4648 base32.
   otpSecret() {
     const bytes = randomBytes(20);
@@ -256,19 +271,39 @@ const DEFAULT_COLLABORATORS: UserCollaborators = {
     }
     return out;
   },
-  createGlobalAffiliate: notPorted("GlobalAffiliate creation (has_one :global_affiliate)", "app/models/user.rb:409 after_create :create_global_affiliate!"),
-  createRefundPolicy: notPorted("SellerRefundPolicy creation (has_one :refund_policy)", "app/models/user.rb:410 after_create :create_refund_policy!"),
+  createGlobalAffiliate: notPorted(
+    "GlobalAffiliate creation (has_one :global_affiliate)",
+    "app/models/user.rb:409 after_create :create_global_affiliate!",
+  ),
+  createRefundPolicy: notPorted(
+    "SellerRefundPolicy creation (has_one :refund_policy)",
+    "app/models/user.rb:410 after_create :create_refund_policy!",
+  ),
   // User::AsyncDeviseNotification: every caller runs after the save, where Ruby sends at once.
   sendDeviseNotification: async (user, notification, args) =>
-    void (await deliverDeviseNotification(currentJobsRuntime(), { id: user.get("id"), unconfirmedEmail: user.get("unconfirmed_email") }, notification, args)),
+    void (await deliverDeviseNotification(
+      currentJobsRuntime(),
+      { id: user.get("id"), unconfirmedEmail: user.get("unconfirmed_email") },
+      notification,
+      args,
+    )),
   // Imported on use: the product document pulls in the search stack, which plain User saves never need.
   enqueueProductIndexUpdates: async (_user, productIds, changeList) => {
     const { enqueueIndexUpdatesFor } = await import("../search/product-indexing.ts");
-    await enqueueIndexUpdatesFor(productIds, changeList, { now: () => collaborators.now(), featureActive: (name, actor) => collaborators.isFeatureEnabled(name, actor) });
+    await enqueueIndexUpdatesFor(productIds, changeList, {
+      now: () => collaborators.now(),
+      featureActive: (name, actor) => collaborators.isFeatureEnabled(name, actor),
+    });
   },
-  updateAudienceMembersAffiliates: notPorted("AudienceMember affiliate details", "app/models/user.rb:1994 update_audience_members_affiliates"),
+  updateAudienceMembersAffiliates: notPorted(
+    "AudienceMember affiliate details",
+    "app/models/user.rb:1994 update_audience_members_affiliates",
+  ),
   updateAliveCartEmail: notPorted("Cart#update!", "app/models/user.rb:1888 update_alive_cart_email"),
-  makeRequestersAffiliates: notPorted("AffiliateRequest#make_requester_an_affiliate!", "app/models/user.rb:1918 make_affiliate_of_the_matching_approved_affiliate_requests"),
+  makeRequestersAffiliates: notPorted(
+    "AffiliateRequest#make_requester_an_affiliate!",
+    "app/models/user.rb:1918 make_affiliate_of_the_matching_approved_affiliate_requests",
+  ),
 };
 
 let collaborators: UserCollaborators = { ...DEFAULT_COLLABORATORS };
@@ -310,7 +345,10 @@ const UNICODE_SPACES = /[   -   　]/gu;
 
 export function strippedField(value: unknown): string | null {
   const text = value == null ? "" : String(value);
-  const stripped = rubyStrip(text.replace(INVISIBLE_FORMAT_CHARS, "").replace(UNICODE_SPACES, " ")).replace(/ {2,}/gu, " ");
+  const stripped = rubyStrip(text.replace(INVISIBLE_FORMAT_CHARS, "").replace(UNICODE_SPACES, " ")).replace(
+    / {2,}/gu,
+    " ",
+  );
   return isBlank(stripped) ? null : stripped;
 }
 
@@ -322,7 +360,10 @@ export const EMAIL_REGEX = new RegExp(
   "u",
 );
 // KINDLE_EMAIL_REGEX (config/initializers/aws.rb)
-export const KINDLE_EMAIL_REGEX = new RegExp(String.raw`^(?=[^\n]{3,255}(?:\n|$))((${NOT_LOCAL}+(\.${NOT_LOCAL}+)*))@kindle\.com$`, "iu");
+export const KINDLE_EMAIL_REGEX = new RegExp(
+  String.raw`^(?=[^\n]{3,255}(?:\n|$))((${NOT_LOCAL}+(\.${NOT_LOCAL}+)*))@kindle\.com$`,
+  "iu",
+);
 
 // EmailFormatValidator.valid?
 export function isValidEmailFormat(email: unknown): boolean {
@@ -341,7 +382,18 @@ export function mailAddressDomain(value: string): string | null | "parse_error" 
   const at = value.lastIndexOf("@");
   const local = value.slice(0, at);
   const domain = value.slice(at + 1);
-  if (local === "" || domain === "" || domain.endsWith(".") || /[\s@]/u.test(value.replace(/"[^"]*"/gu, "").slice(0, at).concat(domain))) return "parse_error";
+  if (
+    local === "" ||
+    domain === "" ||
+    domain.endsWith(".") ||
+    /[\s@]/u.test(
+      value
+        .replace(/"[^"]*"/gu, "")
+        .slice(0, at)
+        .concat(domain),
+    )
+  )
+    return "parse_error";
   return domain;
 }
 
@@ -349,7 +401,9 @@ export function mailAddressDomain(value: string): string | null | "parse_error" 
 export function isReservedEmailDomain(email: unknown): boolean {
   if (isBlank(email)) return false;
   const domain = mailAddressDomain(String(email));
-  return typeof domain === "string" && domain !== "parse_error" && RESERVED_EMAIL_DOMAINS.includes(domain.toLowerCase());
+  return (
+    typeof domain === "string" && domain !== "parse_error" && RESERVED_EMAIL_DOMAINS.includes(domain.toLowerCase())
+  );
 }
 
 // DisposableEmailValidator.disposable?
@@ -404,26 +458,121 @@ const GAMBLING_PATTERN = new RegExp(
 );
 
 const BRANDS: Record<string, string[]> = {
-  apple: ["apple.com"], google: ["google.com"], microsoft: ["microsoft.com"], amazon: ["amazon.com"], facebook: ["facebook.com", "meta.com"],
-  instagram: ["instagram.com", "meta.com"], whatsapp: ["whatsapp.com", "meta.com"], netflix: ["netflix.com"], tesla: ["tesla.com"], walmart: ["walmart.com"],
-  paypal: ["paypal.com"], stripe: ["stripe.com"], visa: ["visa.com"], mastercard: ["mastercard.com"], americanexpress: ["aexp.com", "americanexpress.com"],
-  chase: ["chase.com", "jpmorgan.com", "jpmchase.com"], jpmorgan: ["jpmorgan.com", "jpmchase.com"], wellsfargo: ["wellsfargo.com"], bankofamerica: ["bankofamerica.com", "bofa.com"],
-  citibank: ["citi.com", "citibank.com"], hsbc: ["hsbc.com"], barclays: ["barclays.com"], lloyds: ["lloydsbanking.com", "lloydsbank.co.uk"], natwest: ["natwest.com"],
-  santander: ["santander.com", "santander.co.uk"], binance: ["binance.com"], coinbase: ["coinbase.com"], bt: ["bt.com", "bt.co.uk"], btinternet: ["bt.com", "bt.co.uk"],
-  btbroadband: ["bt.com", "bt.co.uk"], ee: ["ee.co.uk", "bt.com"], eebroadband: ["ee.co.uk", "bt.com"], vodafone: ["vodafone.com", "vodafone.co.uk"], virginmedia: [],
-  talktalk: ["talktalk.co.uk", "talktalkgroup.com"], att: ["att.com"], verizon: ["verizon.com"], tmobile: ["t-mobile.com"], comcast: ["comcast.com"], xfinity: ["comcast.com", "xfinity.com"],
-  dhl: ["dhl.com"], fedex: ["fedex.com"], ups: ["ups.com"], usps: ["usps.gov", "usps.com"], royalmail: ["royalmail.com"], dpd: ["dpd.com", "dpd.co.uk"],
-  nike: ["nike.com"], adidas: ["adidas.com"], puma: ["puma.com"], gucci: ["gucci.com"], louisvuitton: ["louisvuitton.com", "lvmh.com"], chanel: ["chanel.com"], rolex: ["rolex.com"],
-  cocacola: ["coca-cola.com", "coke.com"], pepsi: ["pepsico.com", "pepsi.com"], mcdonalds: ["mcdonalds.com", "us.mcd.com"], starbucks: ["starbucks.com"],
-  disney: ["disney.com", "thewaltdisneycompany.com"], samsung: ["samsung.com"], sony: ["sony.com"], intel: ["intel.com"], nvidia: ["nvidia.com"], oracle: ["oracle.com"], ibm: ["ibm.com"],
-  adobe: ["adobe.com"], salesforce: ["salesforce.com"], spotify: ["spotify.com"], uber: ["uber.com"], airbnb: ["airbnb.com"], dropbox: ["dropbox.com"], shopify: ["shopify.com"],
-  ebay: ["ebay.com"], alibaba: ["alibaba-inc.com", "alibaba.com"], tiktok: ["tiktok.com", "bytedance.com"], twitter: ["x.com", "twitter.com"], linkedin: ["linkedin.com", "microsoft.com"],
-  youtube: ["youtube.com", "google.com"], openai: ["openai.com"], anthropic: ["anthropic.com"], toyota: ["toyota.com"], bmw: ["bmw.com"], mercedes: ["mercedes-benz.com"],
-  boeing: ["boeing.com"], pfizer: ["pfizer.com"], costco: ["costco.com"], homedepot: ["homedepot.com"], ikea: ["ikea.com"], unilever: ["unilever.com"],
-  nestle: ["nestle.com"], bp: ["bp.com"], exxonmobil: ["exxonmobil.com"], gumroad: ["gumroad.com"], gumroadsupport: ["gumroad.com"],
+  apple: ["apple.com"],
+  google: ["google.com"],
+  microsoft: ["microsoft.com"],
+  amazon: ["amazon.com"],
+  facebook: ["facebook.com", "meta.com"],
+  instagram: ["instagram.com", "meta.com"],
+  whatsapp: ["whatsapp.com", "meta.com"],
+  netflix: ["netflix.com"],
+  tesla: ["tesla.com"],
+  walmart: ["walmart.com"],
+  paypal: ["paypal.com"],
+  stripe: ["stripe.com"],
+  visa: ["visa.com"],
+  mastercard: ["mastercard.com"],
+  americanexpress: ["aexp.com", "americanexpress.com"],
+  chase: ["chase.com", "jpmorgan.com", "jpmchase.com"],
+  jpmorgan: ["jpmorgan.com", "jpmchase.com"],
+  wellsfargo: ["wellsfargo.com"],
+  bankofamerica: ["bankofamerica.com", "bofa.com"],
+  citibank: ["citi.com", "citibank.com"],
+  hsbc: ["hsbc.com"],
+  barclays: ["barclays.com"],
+  lloyds: ["lloydsbanking.com", "lloydsbank.co.uk"],
+  natwest: ["natwest.com"],
+  santander: ["santander.com", "santander.co.uk"],
+  binance: ["binance.com"],
+  coinbase: ["coinbase.com"],
+  bt: ["bt.com", "bt.co.uk"],
+  btinternet: ["bt.com", "bt.co.uk"],
+  btbroadband: ["bt.com", "bt.co.uk"],
+  ee: ["ee.co.uk", "bt.com"],
+  eebroadband: ["ee.co.uk", "bt.com"],
+  vodafone: ["vodafone.com", "vodafone.co.uk"],
+  virginmedia: [],
+  talktalk: ["talktalk.co.uk", "talktalkgroup.com"],
+  att: ["att.com"],
+  verizon: ["verizon.com"],
+  tmobile: ["t-mobile.com"],
+  comcast: ["comcast.com"],
+  xfinity: ["comcast.com", "xfinity.com"],
+  dhl: ["dhl.com"],
+  fedex: ["fedex.com"],
+  ups: ["ups.com"],
+  usps: ["usps.gov", "usps.com"],
+  royalmail: ["royalmail.com"],
+  dpd: ["dpd.com", "dpd.co.uk"],
+  nike: ["nike.com"],
+  adidas: ["adidas.com"],
+  puma: ["puma.com"],
+  gucci: ["gucci.com"],
+  louisvuitton: ["louisvuitton.com", "lvmh.com"],
+  chanel: ["chanel.com"],
+  rolex: ["rolex.com"],
+  cocacola: ["coca-cola.com", "coke.com"],
+  pepsi: ["pepsico.com", "pepsi.com"],
+  mcdonalds: ["mcdonalds.com", "us.mcd.com"],
+  starbucks: ["starbucks.com"],
+  disney: ["disney.com", "thewaltdisneycompany.com"],
+  samsung: ["samsung.com"],
+  sony: ["sony.com"],
+  intel: ["intel.com"],
+  nvidia: ["nvidia.com"],
+  oracle: ["oracle.com"],
+  ibm: ["ibm.com"],
+  adobe: ["adobe.com"],
+  salesforce: ["salesforce.com"],
+  spotify: ["spotify.com"],
+  uber: ["uber.com"],
+  airbnb: ["airbnb.com"],
+  dropbox: ["dropbox.com"],
+  shopify: ["shopify.com"],
+  ebay: ["ebay.com"],
+  alibaba: ["alibaba-inc.com", "alibaba.com"],
+  tiktok: ["tiktok.com", "bytedance.com"],
+  twitter: ["x.com", "twitter.com"],
+  linkedin: ["linkedin.com", "microsoft.com"],
+  youtube: ["youtube.com", "google.com"],
+  openai: ["openai.com"],
+  anthropic: ["anthropic.com"],
+  toyota: ["toyota.com"],
+  bmw: ["bmw.com"],
+  mercedes: ["mercedes-benz.com"],
+  boeing: ["boeing.com"],
+  pfizer: ["pfizer.com"],
+  costco: ["costco.com"],
+  homedepot: ["homedepot.com"],
+  ikea: ["ikea.com"],
+  unilever: ["unilever.com"],
+  nestle: ["nestle.com"],
+  bp: ["bp.com"],
+  exxonmobil: ["exxonmobil.com"],
+  gumroad: ["gumroad.com"],
+  gumroadsupport: ["gumroad.com"],
 };
-const BRAND_AFFIXES = ["official", "support", "help", "care", "store", "shop", "inc", "corp", "hq", "usa", "uk", "us", "global", "team", "login", "secure", "service"];
-export const BLOCKED_USERNAME_MESSAGE = "isn't available. If you represent this company, email support@gumroad.com and we'll set up your account.";
+const BRAND_AFFIXES = [
+  "official",
+  "support",
+  "help",
+  "care",
+  "store",
+  "shop",
+  "inc",
+  "corp",
+  "hq",
+  "usa",
+  "uk",
+  "us",
+  "global",
+  "team",
+  "login",
+  "secure",
+  "service",
+];
+export const BLOCKED_USERNAME_MESSAGE =
+  "isn't available. If you represent this company, email support@gumroad.com and we'll set up your account.";
 
 function brandDomains(name: string): string[] | null {
   for (const [brand, domains] of Object.entries(BRANDS)) {
@@ -444,7 +593,9 @@ export function isBlockedUsername(username: unknown, email: string | null | unde
   if (GAMBLING_PATTERN.test(name)) return true;
   const domains = brandDomains(name);
   if (domains === null) return false;
-  const domain = String(email ?? "").toLowerCase().split("@")[1];
+  const domain = String(email ?? "")
+    .toLowerCase()
+    .split("@")[1];
   if (isBlank(domain)) return true;
   return !domains.some((allowed) => domain === allowed || domain!.endsWith(`.${allowed}`));
 }
@@ -485,21 +636,35 @@ export function username(record: UserRecord): string | null {
   return isBlank(raw) ? record.get("external_id") : raw;
 }
 
-export const nameOrUsername = (record: UserRecord) => (isBlank(record.get("name")) ? username(record) : record.get("name"));
-export const formEmail = (record: UserRecord) => (isBlank(record.get("unconfirmed_email")) ? (isBlank(record.get("email")) ? null : record.get("email")) : record.get("unconfirmed_email"));
+export const nameOrUsername = (record: UserRecord) =>
+  isBlank(record.get("name")) ? username(record) : record.get("name");
+export const formEmail = (record: UserRecord) =>
+  isBlank(record.get("unconfirmed_email"))
+    ? isBlank(record.get("email"))
+      ? null
+      : record.get("email")
+    : record.get("unconfirmed_email");
 export const isConfirmed = (record: UserRecord) => record.get("confirmed_at") != null;
 export const isDeleted = (record: UserRecord) => record.get("deleted_at") != null;
-export const isSuspended = (record: UserRecord) => (RISK_STATES.SUSPENDED as readonly (string | null)[]).includes(record.get("user_risk_state"));
-export const isFlagged = (record: UserRecord) => (RISK_STATES.FLAGGED as readonly (string | null)[]).includes(record.get("user_risk_state"));
+export const isSuspended = (record: UserRecord) =>
+  (RISK_STATES.SUSPENDED as readonly (string | null)[]).includes(record.get("user_risk_state"));
+export const isFlagged = (record: UserRecord) =>
+  (RISK_STATES.FLAGGED as readonly (string | null)[]).includes(record.get("user_risk_state"));
 export const isCompliant = (record: UserRecord) => record.get("user_risk_state") === "compliant";
 export const isOnProbation = (record: UserRecord) => record.get("user_risk_state") === "on_probation";
 export const isAccountActive = (record: UserRecord) => !isDeleted(record) && !isSuspended(record);
-export const isPayoutsPaused = (record: UserRecord) => isFlagSet(record, "payouts_paused_internally") || isFlagSet(record, "payouts_paused_by_user");
-export const maxProductPrice = (record: UserRecord) => (record.get("verified") ? null : MAX_PRICE_USD_CENTS_UNLESS_VERIFIED);
-export const isNameInvalidForEmailDelivery = (record: UserRecord) => !isBlank(record.get("name")) && INVALID_NAME_FOR_EMAIL_DELIVERY_REGEX.test(record.get("name")!);
+export const isPayoutsPaused = (record: UserRecord) =>
+  isFlagSet(record, "payouts_paused_internally") || isFlagSet(record, "payouts_paused_by_user");
+export const maxProductPrice = (record: UserRecord) =>
+  record.get("verified") ? null : MAX_PRICE_USD_CENTS_UNLESS_VERIFIED;
+export const isNameInvalidForEmailDelivery = (record: UserRecord) =>
+  !isBlank(record.get("name")) && INVALID_NAME_FOR_EMAIL_DELIVERY_REGEX.test(record.get("name")!);
 
 // Subdomain.from_username(username)
-export function subdomainFromUsername(name: string | null | undefined, rootDomain = domainConfig().rootDomain): string | null {
+export function subdomainFromUsername(
+  name: string | null | undefined,
+  rootDomain = domainConfig().rootDomain,
+): string | null {
   if (isBlank(name)) return null;
   return `${name!.replaceAll("_", "-")}.${rootDomain}`;
 }
@@ -548,7 +713,8 @@ export async function sellerProfile(record: UserRecord): Promise<SellerProfileRe
   const cache = associations(record);
   const cached = cache.get("seller_profile");
   if (cached?.row) return cached.row as SellerProfileRecord;
-  const profile = (record.newRecord ? null : await findSellerProfile(record.get("id"))) ?? buildSellerProfile(record.get("id"));
+  const profile =
+    (record.newRecord ? null : await findSellerProfile(record.get("id"))) ?? buildSellerProfile(record.get("id"));
   cache.set("seller_profile", { foreignKey: record.get("id"), row: profile });
   return profile;
 }
@@ -590,22 +756,29 @@ const AUTOSAVE_SELLER_PROFILE: Callback<User> = {
 
 // User::DeviseInternal#confirmation_required? overrides Devise's.
 const emailRequired = (record: UserRecord) => isBlank(record.get("provider"));
-const confirmationRequired = (record: UserRecord) => emailRequired(record) && !isConfirmed(record) && !isBlank(record.get("email"));
+const confirmationRequired = (record: UserRecord) =>
+  emailRequired(record) && !isConfirmed(record) && !isBlank(record.get("email"));
 // Devise::Models::Confirmable#send_confirmation_notification?
 const sendConfirmationNotification = (record: UserRecord) =>
   confirmationRequired(record) && !record.ivars.skip_confirmation_notification && !isBlank(record.get("email"));
 const reconfirmationRequired = (record: UserRecord) =>
-  Boolean(record.ivars.reconfirmation_required) && (!isBlank(record.get("email")) || !isBlank(record.get("unconfirmed_email")));
+  Boolean(record.ivars.reconfirmation_required) &&
+  (!isBlank(record.get("email")) || !isBlank(record.get("unconfirmed_email")));
 
 // Devise's `password=`: the plaintext lives on the instance only.
-export async function setPassword(record: UserRecord, password: string | null, confirmation?: string | null): Promise<void> {
+export async function setPassword(
+  record: UserRecord,
+  password: string | null,
+  confirmation?: string | null,
+): Promise<void> {
   const { digestPassword } = await import("../auth/devise-password.ts");
   record.ivars.password = password;
   if (confirmation !== undefined) record.ivars.password_confirmation = confirmation;
   if (!isBlank(password)) record.set("encrypted_password", await digestPassword(password!));
 }
 
-const passwordRequired = (record: UserRecord) => !record.persisted || record.ivars.password != null || record.ivars.password_confirmation != null;
+const passwordRequired = (record: UserRecord) =>
+  !record.persisted || record.ivars.password != null || record.ivars.password_confirmation != null;
 
 // Datetime(0) columns: Rails truncates the assigned Time to whole seconds.
 const toSeconds = (date: Date) => new Date(Math.floor(date.getTime() / 1000) * 1000);
@@ -634,7 +807,8 @@ async function pwnedPassword(record: UserRecord): Promise<void> {
     return;
   }
   // min_password_matches is 1 and min_password_matches_warn is unset.
-  if (count >= 1) record.errors.add("password", "has previously appeared in a data breach as per haveibeenpwned.com", { count });
+  if (count >= 1)
+    record.errors.add("password", "has previously appeared in a data breach as per haveibeenpwned.com", { count });
 }
 
 async function activePlatformBlockExists(tx: Tx, objectType: string, value: string | null): Promise<boolean> {
@@ -647,7 +821,12 @@ async function activePlatformBlockExists(tx: Tx, objectType: string, value: stri
 }
 
 // EachValidator with `allow_nil`/`allow_blank`/`if`, for the custom validators below.
-function each(name: string, attribute: keyof User & string, opts: { allowBlank?: boolean; if?: (r: UserRecord) => boolean; unless?: (r: UserRecord) => boolean; on?: "create" }, check: (record: UserRecord, value: unknown, ctx: CallbackContext) => unknown): Callback<User> {
+function each(
+  name: string,
+  attribute: keyof User & string,
+  opts: { allowBlank?: boolean; if?: (r: UserRecord) => boolean; unless?: (r: UserRecord) => boolean; on?: "create" },
+  check: (record: UserRecord, value: unknown, ctx: CallbackContext) => unknown,
+): Callback<User> {
   return {
     name,
     on: opts.on,
@@ -666,7 +845,8 @@ const usernameChanged = (r: UserRecord) => r.attributeChanged("username");
 // validates :custom_fee_per_thousand, numericality: { only_integer: true, 0..1000 }, allow_nil: true.
 // The value is a json_data entry, so it can be a String or Float, which ActiveModel parses itself
 // (INTEGER_REGEX, HEXADECIMAL_REGEX, then Kernel.Float).
-const KERNEL_FLOAT = /^[\t\n\v\f\r ]*[+-]?(?=\.?\d)(\d+(_\d+)*)?(\.(\d+(_\d+)*)?)?([eE][+-]?\d+(_\d+)*)?[\t\n\v\f\r ]*$/u;
+const KERNEL_FLOAT =
+  /^[\t\n\v\f\r ]*[+-]?(?=\.?\d)(\d+(_\d+)*)?(\.(\d+(_\d+)*)?)?([eE][+-]?\d+(_\d+)*)?[\t\n\v\f\r ]*$/u;
 
 function customFeeValidation(): Callback<User> {
   return {
@@ -674,8 +854,14 @@ function customFeeValidation(): Callback<User> {
     run(record) {
       const value = customFeePerThousand(record);
       if (value == null) return;
-      const isInteger = typeof value === "bigint" || (typeof value === "number" && Number.isInteger(value)) || (typeof value === "string" && /^[+-]?\d+$/u.test(value));
-      const isNumber = isInteger || isRubyFloat(value) || (typeof value === "string" && !/^[+-]?0[xX]/u.test(value) && KERNEL_FLOAT.test(value));
+      const isInteger =
+        typeof value === "bigint" ||
+        (typeof value === "number" && Number.isInteger(value)) ||
+        (typeof value === "string" && /^[+-]?\d+$/u.test(value));
+      const isNumber =
+        isInteger ||
+        isRubyFloat(value) ||
+        (typeof value === "string" && !/^[+-]?0[xX]/u.test(value) && KERNEL_FLOAT.test(value));
       if (!isNumber) return record.errors.add("custom_fee_per_thousand", "not_a_number", { value });
       if (!isInteger) return record.errors.add("custom_fee_per_thousand", "not_an_integer", { value });
       const n = Number(value);
@@ -685,12 +871,20 @@ function customFeeValidation(): Callback<User> {
   };
 }
 
-function inclusionWithValueMessage(attribute: "timezone" | "currency_type", values: readonly (string | null)[], template: string): Callback<User> {
+function inclusionWithValueMessage(
+  attribute: "timezone" | "currency_type",
+  values: readonly (string | null)[],
+  template: string,
+): Callback<User> {
   return {
     name: `validates :${attribute}, inclusion`,
     run(record) {
       const value = record.get(attribute);
-      if (!values.includes(value)) record.errors.add(attribute, "inclusion", { value, message: template.replace("%{value}", value == null ? "" : String(value)) });
+      if (!values.includes(value))
+        record.errors.add(attribute, "inclusion", {
+          value,
+          message: template.replace("%{value}", value == null ? "" : String(value)),
+        });
     },
   };
 }
@@ -702,25 +896,42 @@ const VALIDATIONS: Callback<User>[] = [
   validatesUniquenessOf<User>("users", ["username"], { case_sensitive: true, allow_nil: true, if: usernameChanged }),
   validatesLengthOf<User>(["username"], { minimum: 3, maximum: 20, allow_nil: true, if: usernameChanged }),
   validatesExclusionOf<User>(["username"], { in: DENYLIST, allow_nil: true, if: usernameChanged }),
-  each("validates :username, blocked_username", "username", { if: (r) => usernameChanged(r) && r.get("username") != null }, (record, value) => {
-    // BlockedUsernameValidator.proven_email: only an address the account has confirmed counts.
-    const email = !isConfirmed(record) ? null : record.persisted && record.attributeChanged("email") ? record.attributeInDatabase("email") : record.get("email");
-    if (isBlockedUsername(value, email)) record.errors.add("username", BLOCKED_USERNAME_MESSAGE);
-  }),
+  each(
+    "validates :username, blocked_username",
+    "username",
+    { if: (r) => usernameChanged(r) && r.get("username") != null },
+    (record, value) => {
+      // BlockedUsernameValidator.proven_email: only an address the account has confirmed counts.
+      const email = !isConfirmed(record)
+        ? null
+        : record.persisted && record.attributeChanged("email")
+          ? record.attributeInDatabase("email")
+          : record.get("email");
+      if (isBlockedUsername(value, email)) record.errors.add("username", BLOCKED_USERNAME_MESSAGE);
+    },
+  ),
   validatesFormatOf<User>(["username"], {
     with: /^[a-z0-9]*[a-z][a-z0-9]*$/u,
     message: "has to contain at least one letter and may only contain lower case letters and numbers.",
     allow_nil: true,
     if: usernameChanged,
   }),
-  validatesLengthOf<User>(["name"], { maximum: MAX_LENGTH_NAME, too_long: "Your name is too long. Please try again with a shorter one." }),
+  validatesLengthOf<User>(["name"], {
+    maximum: MAX_LENGTH_NAME,
+    too_long: "Your name is too long. Please try again with a shorter one.",
+  }),
   validatesFormatOf<User>(["name"], {
     without: INVALID_NAME_FOR_EMAIL_DELIVERY_REGEX,
-    message: "cannot contain colons (:) as it causes email delivery problems. Please remove any colons from your name and try again.",
+    message:
+      "cannot contain colons (:) as it causes email delivery problems. Please remove any colons from your name and try again.",
     if: (r) => r.attributeChanged("name"),
   }),
   validatesLengthOf<User>(["facebook_meta_tag"], { maximum: MAX_LENGTH_FACEBOOK_META_TAG }),
-  validatesNumericalityOf<User>(["purchasing_power_parity_limit"], { allow_nil: true, greater_than_or_equal_to: 1, less_than_or_equal_to: 100 }),
+  validatesNumericalityOf<User>(["purchasing_power_parity_limit"], {
+    allow_nil: true,
+    greater_than_or_equal_to: 1,
+    less_than_or_equal_to: 100,
+  }),
   each("validates_presence_of :email", "email", { if: emailRequired }, (record, value) => {
     if (isBlank(value)) record.errors.add("email", "blank");
   }),
@@ -729,21 +940,42 @@ const VALIDATIONS: Callback<User>[] = [
     async run(record, { tx }) {
       const email = record.get("email");
       if (!record.attributeChanged("email") || isBlank(email)) return;
-      const holders = await tx.$queryRaw<{ deleted_at: Date | null }[]>(Prisma.sql`SELECT \`users\`.* FROM \`users\` WHERE \`users\`.\`email\` = ${email}`);
+      const holders = await tx.$queryRaw<{ deleted_at: Date | null }[]>(
+        Prisma.sql`SELECT \`users\`.* FROM \`users\` WHERE \`users\`.\`email\` = ${email}`,
+      );
       if (holders.length === 0) return;
-      record.errors.add("base", holders.every((h) => h.deleted_at != null) ? DELETED_ACCOUNT_HOLDS_EMAIL_ERROR : "An account already exists with this email.");
+      record.errors.add(
+        "base",
+        holders.every((h) => h.deleted_at != null)
+          ? DELETED_ACCOUNT_HOLDS_EMAIL_ERROR
+          : "An account already exists with this email.",
+      );
     },
   },
-  each("validates :email, email_format", "email", { allowBlank: true, if: (r) => r.attributeChanged("email") }, (record, value) => {
-    if (!isValidEmailFormat(value)) record.errors.add("email", "invalid");
-  }),
+  each(
+    "validates :email, email_format",
+    "email",
+    { allowBlank: true, if: (r) => r.attributeChanged("email") },
+    (record, value) => {
+      if (!isValidEmailFormat(value)) record.errors.add("email", "invalid");
+    },
+  ),
   each("validates :email, disposable_email", "email", { on: "create" }, (record, value) => {
     if (isDisposableEmail(value)) record.errors.add("email", "is from a disposable email provider and cannot be used");
   }),
-  validatesFormatOf<User>(["kindle_email"], { with: KINDLE_EMAIL_REGEX, allow_blank: true, if: (r) => r.attributeChanged("kindle_email") }),
-  each("validates :support_email, email_format", "support_email", { allowBlank: true, if: (r) => r.attributeChanged("support_email") }, (record, value) => {
-    if (!isValidEmailFormat(value)) record.errors.add("support_email", "invalid");
+  validatesFormatOf<User>(["kindle_email"], {
+    with: KINDLE_EMAIL_REGEX,
+    allow_blank: true,
+    if: (r) => r.attributeChanged("kindle_email"),
   }),
+  each(
+    "validates :support_email, email_format",
+    "support_email",
+    { allowBlank: true, if: (r) => r.attributeChanged("support_email") },
+    (record, value) => {
+      if (!isValidEmailFormat(value)) record.errors.add("support_email", "invalid");
+    },
+  ),
   each(
     "validates :support_email, not_reserved_email_domain",
     "support_email",
@@ -799,7 +1031,8 @@ const VALIDATIONS: Callback<User>[] = [
     if: passwordRequired,
     run(record) {
       const confirmation = record.ivars.password_confirmation;
-      if (confirmation != null && confirmation !== record.ivars.password) record.errors.add("password_confirmation", "doesn't match Password", { attribute: "Password" });
+      if (confirmation != null && confirmation !== record.ivars.password)
+        record.errors.add("password_confirmation", "doesn't match Password", { attribute: "Password" });
     },
   },
   {
@@ -818,7 +1051,8 @@ const VALIDATIONS: Callback<User>[] = [
     name: "validates :recommendation_type, inclusion",
     run(record) {
       const value = record.get("recommendation_type");
-      if (!(RECOMMENDATION_TYPES as (string | null)[]).includes(value)) record.errors.add("recommendation_type", "inclusion", { value });
+      if (!(RECOMMENDATION_TYPES as (string | null)[]).includes(value))
+        record.errors.add("recommendation_type", "inclusion", { value });
     },
   },
   inclusionWithValueMessage("currency_type", CURRENCIES, "%{value} is not a supported currency."),
@@ -831,14 +1065,16 @@ const VALIDATIONS: Callback<User>[] = [
     on: "create",
     async run(record, { tx }) {
       if (record.errors.on("email").length > 0) return;
-      if (await activePlatformBlockExists(tx, "email_domain", emailDomain(record))) record.errors.add("base", "blocked_signup", { message: "Something went wrong." });
+      if (await activePlatformBlockExists(tx, "email_domain", emailDomain(record)))
+        record.errors.add("base", "blocked_signup", { message: "Something went wrong." });
     },
   },
   {
     name: "validate :account_created_ip_is_not_blocked",
     on: "create",
     async run(record, { tx }) {
-      if (await activePlatformBlockExists(tx, "ip_address", record.get("account_created_ip"))) record.errors.add("base", "blocked_signup", { message: "Something went wrong." });
+      if (await activePlatformBlockExists(tx, "ip_address", record.get("account_created_ip")))
+        record.errors.add("base", "blocked_signup", { message: "Something went wrong." });
     },
   },
   {
@@ -847,14 +1083,21 @@ const VALIDATIONS: Callback<User>[] = [
     async run(record) {
       const normalized = normalizeGmailAddress(record.get("email"));
       if (normalized === null || !GMAIL_DOMAINS.includes(normalized.split("@", 2)[1] ?? "")) return;
-      if (await collaborators.sismember(GMAIL_ABUSE_REDIS_KEY, normalized)) record.errors.add("base", "blocked_signup", { message: "Something went wrong." });
+      if (await collaborators.sismember(GMAIL_ABUSE_REDIS_KEY, normalized))
+        record.errors.add("base", "blocked_signup", { message: "Something went wrong." });
     },
   },
   {
     name: "validate :facebook_meta_tag_is_valid",
     run(record) {
       const value = record.get("facebook_meta_tag");
-      if (isBlank(value) || /^<meta[\t\n\v\f\r ]+name=(["'])facebook-domain-verification(?:\1)[\t\n\v\f\r ]+content=(["'])\w+(?:\2)[\t\n\v\f\r ]*\/>$/u.test(value!)) return;
+      if (
+        isBlank(value) ||
+        /^<meta[\t\n\v\f\r ]+name=(["'])facebook-domain-verification(?:\1)[\t\n\v\f\r ]+content=(["'])\w+(?:\2)[\t\n\v\f\r ]*\/>$/u.test(
+          value!,
+        )
+      )
+        return;
       record.errors.add("base", "Please enter a valid meta tag");
     },
   },
@@ -866,7 +1109,14 @@ const VALIDATIONS: Callback<User>[] = [
 // ---------------------------------------------------------------------------------------------
 // Callbacks
 
-const STRIPPED_FIELDS = ["name", "facebook_meta_tag", "google_analytics_id", "username", "email", "support_email"] as const;
+const STRIPPED_FIELDS = [
+  "name",
+  "facebook_meta_tag",
+  "google_analytics_id",
+  "username",
+  "email",
+  "support_email",
+] as const;
 
 const BEFORE_VALIDATION: Callback<User>[] = [
   {
@@ -879,7 +1129,8 @@ const BEFORE_VALIDATION: Callback<User>[] = [
     name: "before_validation { facebook_pixel_id.strip }",
     run(record) {
       const value = record.get("facebook_pixel_id");
-      if (record.attributeChanged("facebook_pixel_id") && !isBlank(value)) record.set("facebook_pixel_id", rubyStrip(value!));
+      if (record.attributeChanged("facebook_pixel_id") && !isBlank(value))
+        record.set("facebook_pixel_id", rubyStrip(value!));
     },
   },
   {
@@ -889,7 +1140,8 @@ const BEFORE_VALIDATION: Callback<User>[] = [
       if (isBlank(value)) return;
       // json_data keeps a JSON integer as an Integer, which has no #strip.
       if (Number.isInteger(value)) throw new NoMethodError("undefined method 'strip' for an instance of Integer");
-      if (typeof value !== "string") throw new NotPortedError("strip on a non-string tiktok_pixel_id", "User before_validation");
+      if (typeof value !== "string")
+        throw new NotPortedError("strip on a non-string tiktok_pixel_id", "User before_validation");
       setJsonDataForAttr(record, "tiktok_pixel_id", rubyStrip(value));
     },
   },
@@ -909,18 +1161,29 @@ const savedChangeToFlag = (record: UserRecord, flag: UserFlag) => {
   return UserFlags.isSet(change[0] as bigint, flag) !== UserFlags.isSet(change[1] as bigint, flag);
 };
 
-function productSearchChangeList(record: UserRecord, changed: (attribute: keyof User & string) => boolean, flagChanged: (flag: UserFlag) => boolean): string[] {
-  const riskChange = record.savedChanges.user_risk_state ?? (record.attributeChanged("user_risk_state") ? [record.attributeInDatabase("user_risk_state"), record.get("user_risk_state")] : null);
+function productSearchChangeList(
+  record: UserRecord,
+  changed: (attribute: keyof User & string) => boolean,
+  flagChanged: (flag: UserFlag) => boolean,
+): string[] {
+  const riskChange =
+    record.savedChanges.user_risk_state ??
+    (record.attributeChanged("user_risk_state")
+      ? [record.attributeInDatabase("user_risk_state"), record.get("user_risk_state")]
+      : null);
   const list: string[] = [];
   if ((riskChange && riskChange.includes("compliant")) || changed("payment_address")) list.push("is_recommendable");
-  if (changed("username") || changed("name") || changed("bio") || flagChanged("all_adult_products")) list.push("rated_as_adult");
+  if (changed("username") || changed("name") || changed("bio") || flagChanged("all_adult_products"))
+    list.push("rated_as_adult");
   if (changed("username") || changed("name")) list.push("creator_name");
   return list;
 }
 
 // `links.ids`
 async function productIds(tx: Pick<Tx, "$queryRaw">, userId: unknown): Promise<bigint[]> {
-  const rows = await tx.$queryRaw<{ id: bigint }[]>(Prisma.sql`SELECT \`links\`.\`id\` FROM \`links\` WHERE \`links\`.\`user_id\` = ${userId}`);
+  const rows = await tx.$queryRaw<{ id: bigint }[]>(
+    Prisma.sql`SELECT \`links\`.\`id\` FROM \`links\` WHERE \`links\`.\`user_id\` = ${userId}`,
+  );
   return rows.map((r) => BigInt(r.id));
 }
 
@@ -928,7 +1191,10 @@ async function productIds(tx: Pick<Tx, "$queryRaw">, userId: unknown): Promise<b
 export async function clearProductsCache(userId: unknown): Promise<void> {
   const ids = await productIds(await connection(), userId);
   try {
-    await collaborators.enqueueBulk("InvalidateProductCacheWorker", ids.map((id) => [id]));
+    await collaborators.enqueueBulk(
+      "InvalidateProductCacheWorker",
+      ids.map((id) => [id]),
+    );
   } catch (error) {
     if (!isRedisTransportError(error)) throw error;
     notifyError(error, { user_id: userId });
@@ -943,16 +1209,25 @@ async function approvedAffiliateRequestIds(tx: Pick<Tx, "$queryRaw">, email: str
 }
 
 const makeAffiliateApplies = (record: UserRecord, confirmedAtChanged: boolean) =>
-  confirmedAtChanged && isConfirmed(record) && !isFlagSet(record, "pre_signup_affiliate_request_processed") && !isBlank(record.get("email"));
+  confirmedAtChanged &&
+  isConfirmed(record) &&
+  !isFlagSet(record, "pre_signup_affiliate_request_processed") &&
+  !isBlank(record.get("email"));
 
 // Fails a save whose after-commit work would reach a collaborator Node does not have yet, before
 // anything is written. Not a Ruby callback.
 const REFUSE_UNPORTED_SIDE_EFFECTS: Callback<User> = {
   name: "refuse_unported_side_effects",
   async run(record, { tx }) {
-    if (record.untracked(() => makeAffiliateApplies(record, record.attributeChanged("confirmed_at"))) && isDefault("makeRequestersAffiliates")) {
+    if (
+      record.untracked(() => makeAffiliateApplies(record, record.attributeChanged("confirmed_at"))) &&
+      isDefault("makeRequestersAffiliates")
+    ) {
       if ((await approvedAffiliateRequestIds(tx, record.get("email")!)).length > 0) {
-        throw new NotPortedError("AffiliateRequest#make_requester_an_affiliate!", "app/models/user.rb:1918 make_affiliate_of_the_matching_approved_affiliate_requests");
+        throw new NotPortedError(
+          "AffiliateRequest#make_requester_an_affiliate!",
+          "app/models/user.rb:1918 make_affiliate_of_the_matching_approved_affiliate_requests",
+        );
       }
     }
   },
@@ -983,16 +1258,33 @@ const isRedisTransportError = (error: unknown) => {
 function afterCommitEverywhere(fn: () => Promise<unknown>): Promise<unknown> | void {
   if (!currentTransaction()) return fn();
   const key = {};
-  const participant = participate(key, "update", () => ({ commit: async () => void (await fn()), rollback: async () => undefined, restore: () => undefined }));
+  const participant = participate(key, "update", () => ({
+    commit: async () => void (await fn()),
+    rollback: async () => undefined,
+    restore: () => undefined,
+  }));
   participant.triggered = true;
 }
 
 const paperTrail = hasPaperTrail<User>("User", {
   itemType: "User",
-  skip: ["encrypted_password", "reset_password_token", "confirmation_token", "otp_secret_key", "twitter_oauth_token", "twitter_oauth_secret", "facebook_access_token"],
+  skip: [
+    "encrypted_password",
+    "reset_password_token",
+    "confirmation_token",
+    "otp_secret_key",
+    "twitter_oauth_token",
+    "twitter_oauth_secret",
+    "facebook_access_token",
+  ],
 });
 
-const FLAGS_TO_ENABLE_BY_DEFAULT: UserFlag[] = ["enable_payment_email", "enable_payment_push_notification", "enable_free_downloads_email", "enable_free_downloads_push_notification"];
+const FLAGS_TO_ENABLE_BY_DEFAULT: UserFlag[] = [
+  "enable_payment_email",
+  "enable_payment_push_notification",
+  "enable_free_downloads_email",
+  "enable_free_downloads_push_notification",
+];
 
 const base = defineModel<User>({
   rubyClass: "User",
@@ -1008,7 +1300,8 @@ const base = defineModel<User>({
       name: "append_http",
       run: (record) => {
         const endpoint = record.get("notification_endpoint");
-        if (!isBlank(endpoint) && !endpoint!.includes("http")) record.set("notification_endpoint", `http://${endpoint}`);
+        if (!isBlank(endpoint) && !endpoint!.includes("http"))
+          record.set("notification_endpoint", `http://${endpoint}`);
       },
     },
     {
@@ -1017,7 +1310,9 @@ const base = defineModel<User>({
         if (!isBlank(record.get("external_id"))) return;
         for (;;) {
           const candidate = collaborators.randomExternalId();
-          const rows = await tx.$queryRaw<unknown[]>(Prisma.sql`SELECT \`users\`.* FROM \`users\` WHERE \`users\`.\`external_id\` = ${candidate} LIMIT 1`);
+          const rows = await tx.$queryRaw<unknown[]>(
+            Prisma.sql`SELECT \`users\`.* FROM \`users\` WHERE \`users\`.\`external_id\` = ${candidate} LIMIT 1`,
+          );
           if (rows.length === 0) {
             record.set("external_id", candidate);
             return;
@@ -1028,9 +1323,15 @@ const base = defineModel<User>({
   ],
   beforeCreate: [
     { name: "devise generate_confirmation_token", if: confirmationRequired, run: generateConfirmationToken },
-    { name: "has_one_time_password otp_regenerate_secret", if: (r) => !r.get("otp_secret_key"), run: (r) => r.set("otp_secret_key", collaborators.otpSecret()) },
+    {
+      name: "has_one_time_password otp_regenerate_secret",
+      if: (r) => !r.get("otp_secret_key"),
+      run: (r) => r.set("otp_secret_key", collaborators.otpSecret()),
+    },
     enableFlags("init_default_notification_settings", FLAGS_TO_ENABLE_BY_DEFAULT),
-    enableFlags("enable_two_factor_authentication", ["two_factor_authentication_enabled"], (r) => Boolean(r.ivars.skip_enabling_two_factor_authentication)),
+    enableFlags("enable_two_factor_authentication", ["two_factor_authentication_enabled"], (r) =>
+      Boolean(r.ivars.skip_enabling_two_factor_authentication),
+    ),
     enableFlags("enable_tipping", ["tipping_enabled"]),
     enableFlags("enable_discover_boost", ["discover_boost_enabled"]),
     // New accounts only: existing creators keep the standalone product page until lift is measured.
@@ -1038,7 +1339,12 @@ const base = defineModel<User>({
     enableFlags("set_refund_fee_notice_shown", ["refund_fee_notice_shown"]),
     {
       name: "set_refund_policy_enabled",
-      run: async (record) => setFlag(record, "refund_policy_enabled", await collaborators.isFeatureEnabled("seller_refund_policy_new_users_enabled")),
+      run: async (record) =>
+        setFlag(
+          record,
+          "refund_policy_enabled",
+          await collaborators.isFeatureEnabled("seller_refund_policy_new_users_enabled"),
+        ),
     },
   ],
   beforeUpdate: [
@@ -1069,7 +1375,11 @@ const base = defineModel<User>({
   ],
   afterCreate: [
     { name: "previously_new_record", run: (r) => void (r.ivars.previously_new_record = true) },
-    { name: "devise skip_reconfirmation_in_callback!", if: sendConfirmationNotification, run: (r) => void (r.ivars.skip_reconfirmation_in_callback = true) },
+    {
+      name: "devise skip_reconfirmation_in_callback!",
+      if: sendConfirmationNotification,
+      run: (r) => void (r.ivars.skip_reconfirmation_in_callback = true),
+    },
     ...paperTrail.afterCreate,
     AUTOSAVE_SELLER_PROFILE,
     { name: "create_global_affiliate!", run: (r, ctx) => collaborators.createGlobalAffiliate(r, ctx) },
@@ -1087,10 +1397,20 @@ const base = defineModel<User>({
     {
       name: "clear_products_cache",
       async run(record, { tx }) {
-        if (!(LINK_PROPERTIES.some((p) => p in record.savedChanges) || tiktokPixelIdChangedInJsonData(record) || (await sellerProfileStyleSaved(record)))) return;
+        if (
+          !(
+            LINK_PROPERTIES.some((p) => p in record.savedChanges) ||
+            tiktokPixelIdChangedInJsonData(record) ||
+            (await sellerProfileStyleSaved(record))
+          )
+        )
+          return;
         const ids = await productIds(tx, record.get("id"));
         try {
-          await collaborators.enqueueBulk("InvalidateProductCacheWorker", ids.map((id) => [id]));
+          await collaborators.enqueueBulk(
+            "InvalidateProductCacheWorker",
+            ids.map((id) => [id]),
+          );
         } catch (error) {
           if (!isRedisTransportError(error)) throw error;
           notifyError(error, { user_id: record.get("id") });
@@ -1104,18 +1424,36 @@ const base = defineModel<User>({
         const rows = await ctx.tx.$queryRaw<{ seller_id: bigint }[]>(
           Prisma.sql`SELECT DISTINCT \`affiliates\`.\`seller_id\` FROM \`affiliates\` WHERE \`affiliates\`.\`type\` = 'DirectAffiliate' AND \`affiliates\`.\`deleted_at\` IS NULL AND \`affiliates\`.\`affiliate_user_id\` = ${record.get("id")}`,
         );
-        if (rows.length > 0) await collaborators.updateAudienceMembersAffiliates(record, rows.map((r) => BigInt(r.seller_id)), ctx);
+        if (rows.length > 0)
+          await collaborators.updateAudienceMembersAffiliates(
+            record,
+            rows.map((r) => BigInt(r.seller_id)),
+            ctx,
+          );
       },
     },
     {
       name: "update_product_search_index!",
       async run(record) {
-        const changeList = productSearchChangeList(record, (a) => record.savedChangeTo(a), (f) => savedChangeToFlag(record, f));
+        const changeList = productSearchChangeList(
+          record,
+          (a) => record.savedChangeTo(a),
+          (f) => savedChangeToFlag(record, f),
+        );
         if (changeList.length === 0) return;
         // products.find_each; a throw here rolls the save back.
-        await findInBatches<{ id: bigint }>("links", Prisma.sql`${column("links", "user_id")} = ${record.get("id")}`, 1000, async (rows) => {
-          await collaborators.enqueueProductIndexUpdates(record, rows.map((r) => BigInt(r.id)), changeList);
-        });
+        await findInBatches<{ id: bigint }>(
+          "links",
+          Prisma.sql`${column("links", "user_id")} = ${record.get("id")}`,
+          1000,
+          async (rows) => {
+            await collaborators.enqueueProductIndexUpdates(
+              record,
+              rows.map((r) => BigInt(r.id)),
+              changeList,
+            );
+          },
+        );
       },
     },
     {
@@ -1159,7 +1497,8 @@ const base = defineModel<User>({
     {
       name: "fence_newsletter_cutover",
       if: newsletterEligibilityChanged,
-      run: (record, { tx }) => fenceNewsletterCutover(tx, [record.attributeBeforeLastSave("email"), record.get("email")]),
+      run: (record, { tx }) =>
+        fenceNewsletterCutover(tx, [record.attributeBeforeLastSave("email"), record.get("email")]),
     },
   ],
   // Declaration order; the runtime runs after_commit callbacks in reverse.
@@ -1168,13 +1507,18 @@ const base = defineModel<User>({
       name: "devise send_on_create_confirmation_instructions",
       on: "create",
       if: sendConfirmationNotification,
-      run: (r) => collaborators.sendDeviseNotification(r, "confirmation_instructions", { token: r.ivars.raw_confirmation_token }),
+      run: (r) =>
+        collaborators.sendDeviseNotification(r, "confirmation_instructions", { token: r.ivars.raw_confirmation_token }),
     },
     {
       name: "devise send_reconfirmation_instructions",
       on: "update",
       if: reconfirmationRequired,
-      run: (r) => collaborators.sendDeviseNotification(r, "confirmation_instructions", { token: r.ivars.raw_confirmation_token, to: r.get("unconfirmed_email") }),
+      run: (r) =>
+        collaborators.sendDeviseNotification(r, "confirmation_instructions", {
+          token: r.ivars.raw_confirmation_token,
+          to: r.get("unconfirmed_email"),
+        }),
     },
     // send_pending_devise_notifications: Devise only queues a notification while the record is new or
     // dirty, and every Node caller runs after the save, so nothing is ever pending.
@@ -1201,8 +1545,13 @@ const base = defineModel<User>({
       async run(record) {
         if (!isBlank(record.get("unconfirmed_email"))) return;
         const db = await collaborators.readDb();
-        const rows = await db.$queryRaw<unknown[]>(Prisma.sql`SELECT 1 AS one FROM \`purchases\` WHERE \`purchases\`.\`purchaser_id\` = ${record.get("id")} LIMIT 1`);
-        if (rows.length > 0) await collaborators.enqueue("UpdatePurchaseEmailToMatchAccountWorker", [record.get("id")], { delaySeconds: 10 });
+        const rows = await db.$queryRaw<unknown[]>(
+          Prisma.sql`SELECT 1 AS one FROM \`purchases\` WHERE \`purchases\`.\`purchaser_id\` = ${record.get("id")} LIMIT 1`,
+        );
+        if (rows.length > 0)
+          await collaborators.enqueue("UpdatePurchaseEmailToMatchAccountWorker", [record.get("id")], {
+            delaySeconds: 10,
+          });
       },
     },
     {
@@ -1329,7 +1678,9 @@ export const UserDeletable = deletable(base);
 
 // User.find_by(id:)
 export async function findUser(id: unknown): Promise<UserRecord | null> {
-  const [row] = await selectRows(Prisma.sql`SELECT ${Prisma.raw("`users`.*")} FROM ${table("users")} WHERE ${column("users", "id")} = ${id} LIMIT 1`);
+  const [row] = await selectRows(
+    Prisma.sql`SELECT ${Prisma.raw("`users`.*")} FROM ${table("users")} WHERE ${column("users", "id")} = ${id} LIMIT 1`,
+  );
   return row ? Users.load(castRow<User>("User", row)) : null;
 }
 

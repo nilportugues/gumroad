@@ -8,7 +8,6 @@ import type { User } from "@prisma/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { domainConfig } from "../infra/domain.ts";
-
 import type { JobsRuntime } from "../jobs/runtime.ts";
 
 import { withJobsRuntime } from "./concerns/job-runtime.ts";
@@ -51,21 +50,45 @@ type GoldenCase = {
 };
 
 type Golden = {
-  existing: { id: number; email: string; username: string; deleted_at: string | null; is_team_member: number; confirmed_at: string | null; json_data: string | null }[];
+  existing: {
+    id: number;
+    email: string;
+    username: string;
+    deleted_at: string | null;
+    is_team_member: number;
+    confirmed_at: string | null;
+    json_data: string | null;
+  }[];
   platform_blocks: { object_type: string; object_value: string; active: boolean }[];
   gmail_abuse: string[];
   cases: GoldenCase[];
   stripped_fields: { input: string; stripped: string | null; ruby_strip: string }[];
   custom_fee_per_thousand: { value: YamlValue; messages: string[] }[];
-  emails: { email: string; email_format: boolean; kindle: boolean; reserved_domain: boolean | null; mail_domain: string | null; disposable: boolean; gmail_normalized: string | null }[];
+  emails: {
+    email: string;
+    email_format: boolean;
+    kindle: boolean;
+    reserved_domain: boolean | null;
+    mail_domain: string | null;
+    disposable: boolean;
+    gmail_normalized: string | null;
+  }[];
   usernames: { username: string; email: string | null; blocked: boolean }[];
 };
 
 // Parsed the way Ruby's JSON does, so 5.0 stays a Float.
 const plain = (value: YamlValue): unknown =>
-  value instanceof RubyHash ? Object.fromEntries(value.entries.map(([k, v]) => [k, plain(v)])) : Array.isArray(value) ? value.map(plain) : value;
-const golden = plain(rubyJsonParse(readFileSync(new URL("./__fixtures__/user.golden.json", import.meta.url), "utf8"))) as Golden;
-const goldenRaw = rubyJsonParse(readFileSync(new URL("./__fixtures__/user.golden.json", import.meta.url), "utf8")) as { [k: string]: YamlValue };
+  value instanceof RubyHash
+    ? Object.fromEntries(value.entries.map(([k, v]) => [k, plain(v)]))
+    : Array.isArray(value)
+      ? value.map(plain)
+      : value;
+const golden = plain(
+  rubyJsonParse(readFileSync(new URL("./__fixtures__/user.golden.json", import.meta.url), "utf8")),
+) as Golden;
+const goldenRaw = rubyJsonParse(
+  readFileSync(new URL("./__fixtures__/user.golden.json", import.meta.url), "utf8"),
+) as Record<string, YamlValue>;
 
 // ---------------------------------------------------------------------------------------------
 // Fake database
@@ -167,7 +190,13 @@ afterEach(() => resetUserCollaborators());
 // A users row as Prisma returns it, with the columns' defaults.
 function userRow(attributes: Partial<User>): User {
   const defaults = Users.build().attributes as User;
-  return { ...defaults, recommendation_type: "own_products", user_risk_state: "compliant", external_id: "1001", ...attributes } as User;
+  return {
+    ...defaults,
+    recommendation_type: "own_products",
+    user_risk_state: "compliant",
+    external_id: "1001",
+    ...attributes,
+  } as User;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -176,11 +205,17 @@ function userRow(attributes: Partial<User>): User {
 function seedGoldenDatabase(overrides: Record<number, Row> = {}) {
   const rows = golden.existing.map((r) => ({ ...r, ...overrides[r.id] }));
   db.on(/FROM `users` WHERE `users`.`username` = BINARY/u, ([value, exceptId]) =>
-    rows.filter((r) => r.username === value && (exceptId === undefined || BigInt(r.id) !== exceptId)).map(() => ({ one: 1 })),
+    rows
+      .filter((r) => r.username === value && (exceptId === undefined || BigInt(r.id) !== exceptId))
+      .map(() => ({ one: 1 })),
   );
-  db.on(/FROM `users` WHERE `users`.`email` = /u, ([value]) => rows.filter((r) => r.email === value).map((r) => ({ deleted_at: r.deleted_at })));
+  db.on(/FROM `users` WHERE `users`.`email` = /u, ([value]) =>
+    rows.filter((r) => r.email === value).map((r) => ({ deleted_at: r.deleted_at })),
+  );
   db.on(/FROM `platform_blocks`/u, ([, value, type]) =>
-    golden.platform_blocks.filter((b) => b.active && b.object_value === value && b.object_type === type).map(() => ({ id: 1 })),
+    golden.platform_blocks
+      .filter((b) => b.active && b.object_value === value && b.object_type === type)
+      .map(() => ({ id: 1 })),
   );
   return rows;
 }
@@ -215,10 +250,21 @@ describe("User validations and normalisations (golden)", () => {
   const NOT_IN_GOLDEN_MODEL = ["user_risk_state"];
 
   it.each(golden.cases.map((c) => [c.name, c] as const))("%s", async (_, testCase) => {
-    const rows = seedGoldenDatabase(testCase.persist_first && testCase.existing_id ? { [testCase.existing_id]: testCase.persist_first } : {});
-    const record = testCase.existing_id === null ? Users.build() : loadGoldenUser(rows.find((r) => r.id === testCase.existing_id)!);
-    const caseRaw = (goldenRaw.cases as YamlValue[]).find((c) => (c as { name: string }).name === testCase.name) as { assign: YamlValue };
-    assign(record, Object.fromEntries((caseRaw.assign as RubyHash).entries ?? Object.entries(caseRaw.assign as object)) as Record<string, YamlValue>);
+    const rows = seedGoldenDatabase(
+      testCase.persist_first && testCase.existing_id ? { [testCase.existing_id]: testCase.persist_first } : {},
+    );
+    const record =
+      testCase.existing_id === null ? Users.build() : loadGoldenUser(rows.find((r) => r.id === testCase.existing_id)!);
+    const caseRaw = (goldenRaw.cases as YamlValue[]).find((c) => (c as { name: string }).name === testCase.name) as {
+      assign: YamlValue;
+    };
+    assign(
+      record,
+      Object.fromEntries((caseRaw.assign as RubyHash).entries ?? Object.entries(caseRaw.assign as object)) as Record<
+        string,
+        YamlValue
+      >,
+    );
 
     await Users.valid(record);
     const appendHttp = Users.definition.beforeSave!.find((cb) => cb.name === "append_http")!;
@@ -232,37 +278,56 @@ describe("User validations and normalisations (golden)", () => {
       expect([attribute, record.get(attribute as keyof User & string)]).toEqual([attribute, value]);
     }
     expect(record.get("json_data")).toBe(testCase.result.json_data);
-    expect(record.changedAttributeNames().filter((a) => !NOT_IN_GOLDEN_MODEL.includes(a)).sort()).toEqual(testCase.result.changed);
+    expect(
+      record
+        .changedAttributeNames()
+        .filter((a) => !NOT_IN_GOLDEN_MODEL.includes(a))
+        .sort(),
+    ).toEqual(testCase.result.changed);
   });
 
-  it.each(golden.custom_fee_per_thousand.map((c, i) => [String(i), c] as const))("custom_fee_per_thousand vector %s", async (index, vector) => {
-    seedGoldenDatabase();
-    const record = Users.build({ email: "new@example.com" });
-    assign(record, { password: "secret-password" });
-    const raw = ((goldenRaw.custom_fee_per_thousand as YamlValue[])[Number(index)] as RubyHash | { value: YamlValue });
-    const value = raw instanceof RubyHash ? raw.entries.find(([k]) => k === "value")![1] : raw.value;
-    setJsonDataForAttr(record, "custom_fee_per_thousand", value);
-    await Users.valid(record);
-    expect(record.errors.on("custom_fee_per_thousand")).toEqual(vector.messages);
-  });
+  it.each(golden.custom_fee_per_thousand.map((c, i) => [String(i), c] as const))(
+    "custom_fee_per_thousand vector %s",
+    async (index, vector) => {
+      seedGoldenDatabase();
+      const record = Users.build({ email: "new@example.com" });
+      assign(record, { password: "secret-password" });
+      const raw = (goldenRaw.custom_fee_per_thousand as YamlValue[])[Number(index)] as RubyHash | { value: YamlValue };
+      const value = raw instanceof RubyHash ? raw.entries.find(([k]) => k === "value")![1] : raw.value;
+      setJsonDataForAttr(record, "custom_fee_per_thousand", value);
+      await Users.valid(record);
+      expect(record.errors.on("custom_fee_per_thousand")).toEqual(vector.messages);
+    },
+  );
 
-  it.each(golden.stripped_fields.map((v) => [JSON.stringify(v.input), v] as const))("strips %s as StrippedFields and String#strip do", (_, vector) => {
-    expect(strippedField(vector.input)).toBe(vector.stripped);
-    expect(rubyStrip(vector.input)).toBe(vector.ruby_strip);
-  });
+  it.each(golden.stripped_fields.map((v) => [JSON.stringify(v.input), v] as const))(
+    "strips %s as StrippedFields and String#strip do",
+    (_, vector) => {
+      expect(strippedField(vector.input)).toBe(vector.stripped);
+      expect(rubyStrip(vector.input)).toBe(vector.ruby_strip);
+    },
+  );
 
-  it.each(golden.emails.map((v) => [JSON.stringify(v.email), v] as const))("classifies the email %s as the Ruby validators do", (_, vector) => {
-    expect(isValidEmailFormat(vector.email)).toBe(vector.email_format);
-    expect(KINDLE_EMAIL_REGEX.test(vector.email)).toBe(vector.kindle);
-    expect(isReservedEmailDomain(vector.email)).toBe(Boolean(vector.reserved_domain));
-    expect(mailAddressDomain(vector.email)).toBe(vector.mail_domain === "ParseError" ? "parse_error" : vector.mail_domain);
-    expect(isDisposableEmail(vector.email)).toBe(vector.disposable);
-    expect(normalizeGmailAddress(vector.email)).toBe(vector.gmail_normalized);
-  });
+  it.each(golden.emails.map((v) => [JSON.stringify(v.email), v] as const))(
+    "classifies the email %s as the Ruby validators do",
+    (_, vector) => {
+      expect(isValidEmailFormat(vector.email)).toBe(vector.email_format);
+      expect(KINDLE_EMAIL_REGEX.test(vector.email)).toBe(vector.kindle);
+      expect(isReservedEmailDomain(vector.email)).toBe(Boolean(vector.reserved_domain));
+      expect(mailAddressDomain(vector.email)).toBe(
+        vector.mail_domain === "ParseError" ? "parse_error" : vector.mail_domain,
+      );
+      expect(isDisposableEmail(vector.email)).toBe(vector.disposable);
+      expect(normalizeGmailAddress(vector.email)).toBe(vector.gmail_normalized);
+    },
+  );
 
-  it.each(golden.usernames.map((v) => [`${v.username} / ${v.email}`, v] as const))("blocks the username %s as BlockedUsernameValidator does", (_, vector) => {
-    expect(isBlockedUsername(vector.username, vector.email)).toBe(vector.blocked);
-  });
+  it.each(golden.usernames.map((v) => [`${v.username} / ${v.email}`, v] as const))(
+    "blocks the username %s as BlockedUsernameValidator does",
+    (_, vector) => {
+      expect(isBlockedUsername(vector.username, vector.email)).toBe(vector.blocked);
+    },
+  );
 
   it("ships the disposable domain list from lib/data", () => {
     const source = readFileSync(new URL("../../../../lib/data/disposable_email_domains.txt", import.meta.url), "utf8")
@@ -316,15 +381,21 @@ describe("Users.save on an existing seller", () => {
     await Users.updateBang(user, { name: "New name" });
     expect(userWrites()[0]!.data).toMatchObject({ name: "New name", json_data: "{}" });
     // merge_json_data_with_current_row read the row under a lock and found it NULL.
-    expect(db.sql(/SELECT `users`.`json_data` FROM `users` WHERE `users`.`id` = \? LIMIT 1 FOR UPDATE/u)).toHaveLength(1);
+    expect(db.sql(/SELECT `users`.`json_data` FROM `users` WHERE `users`.`id` = \? LIMIT 1 FOR UPDATE/u)).toHaveLength(
+      1,
+    );
   });
 
   it("rebases its json_data delta onto keys another request wrote meanwhile", async () => {
-    db.on(/SELECT `users`.`json_data` FROM `users`/u, () => [{ json_data: '{"payout_frequency":"weekly","gumroad_day_timezone":"UTC"}' }]);
+    db.on(/SELECT `users`.`json_data` FROM `users`/u, () => [
+      { json_data: '{"payout_frequency":"weekly","gumroad_day_timezone":"UTC"}' },
+    ]);
     const user = existingSeller();
     setJsonDataForAttr(user, "payouts_paused_by", "admin");
     await Users.saveBang(user);
-    expect(userWrites()[0]!.data!.json_data).toBe('{"payout_frequency":"weekly","gumroad_day_timezone":"UTC","payouts_paused_by":"admin"}');
+    expect(userWrites()[0]!.data!.json_data).toBe(
+      '{"payout_frequency":"weekly","gumroad_day_timezone":"UTC","payouts_paused_by":"admin"}',
+    );
   });
 
   it("strips a string TikTok pixel id before validation", async () => {
@@ -337,7 +408,10 @@ describe("Users.save on an existing seller", () => {
   it("raises NoMethodError on an integer TikTok pixel id, which has no #strip, and writes nothing", async () => {
     const user = existingSeller({ json_data: '{"payout_frequency":"weekly"}' });
     setJsonDataForAttr(user, "tiktok_pixel_id", 1234567890);
-    await expect(Users.saveBang(user)).rejects.toMatchObject({ name: "NoMethodError", message: "undefined method 'strip' for an instance of Integer" });
+    await expect(Users.saveBang(user)).rejects.toMatchObject({
+      name: "NoMethodError",
+      message: "undefined method 'strip' for an instance of Integer",
+    });
     expect(userWrites()).toEqual([]);
   });
 
@@ -358,12 +432,20 @@ describe("Users.save on an existing seller", () => {
     const pushes: { score: string; payload: Record<string, unknown>; inTransaction: boolean }[] = [];
     const pipeline = {
       zadd(_key: string, score: string, payload: string) {
-        pushes.push({ score, payload: JSON.parse(payload) as Record<string, unknown>, inTransaction: currentTransaction() !== null });
+        pushes.push({
+          score,
+          payload: JSON.parse(payload) as Record<string, unknown>,
+          inTransaction: currentTransaction() !== null,
+        });
         return pipeline;
       },
       exec: async () => [],
     };
-    const runtime = { now: () => 1793448000.5, newJid: () => "jid", sidekiqRedis: { pipeline: () => pipeline } } as unknown as JobsRuntime;
+    const runtime = {
+      now: () => 1793448000.5,
+      newJid: () => "jid",
+      sidekiqRedis: { pipeline: () => pipeline },
+    } as unknown as JobsRuntime;
     const user = existingSeller({ confirmation_token: "old" });
 
     await withJobsRuntime(runtime, () => Users.updateBang(user, { email: "other@example.com" }));
@@ -376,7 +458,15 @@ describe("Users.save on an existing seller", () => {
       {
         queue: "critical",
         score: "1793448003.5",
-        arguments: ["UserSignupMailer", "email_changed", "deliver_now", { args: [{ _aj_globalid: "gid://gumroad/User/7" }, { to: "seller@example.com", _aj_symbol_keys: ["to"] }], _aj_ruby2_keywords: ["args"] }],
+        arguments: [
+          "UserSignupMailer",
+          "email_changed",
+          "deliver_now",
+          {
+            args: [{ _aj_globalid: "gid://gumroad/User/7" }, { to: "seller@example.com", _aj_symbol_keys: ["to"] }],
+            _aj_ruby2_keywords: ["args"],
+          },
+        ],
         // Devise's after_update callback: Ruby enqueues it inside the transaction.
         inTransaction: true,
       },
@@ -387,7 +477,14 @@ describe("Users.save on an existing seller", () => {
           "UserSignupMailer",
           "confirmation_instructions",
           "deliver_now",
-          { args: [{ _aj_globalid: "gid://gumroad/User/7" }, "friendly-token", { to: "other@example.com", _aj_symbol_keys: ["to"] }], _aj_ruby2_keywords: ["args"] },
+          {
+            args: [
+              { _aj_globalid: "gid://gumroad/User/7" },
+              "friendly-token",
+              { to: "other@example.com", _aj_symbol_keys: ["to"] },
+            ],
+            _aj_ruby2_keywords: ["args"],
+          },
         ],
         inTransaction: false,
       },
@@ -396,17 +493,25 @@ describe("Users.save on an existing seller", () => {
 
   it("postpones an email change into unconfirmed_email with a fresh confirmation token", async () => {
     const mails: unknown[] = [];
-    setUserCollaborators({ sendDeviseNotification: async (_, notification, args) => void mails.push([notification, args]) });
+    setUserCollaborators({
+      sendDeviseNotification: async (_, notification, args) => void mails.push([notification, args]),
+    });
     const user = existingSeller({ confirmation_token: "old" });
     await Users.updateBang(user, { email: "other@example.com" });
 
-    expect(userWrites()[0]!.data).toMatchObject({ unconfirmed_email: "other@example.com", confirmation_token: "friendly-token", confirmation_sent_at: new Date("2026-10-31T12:00:00Z") });
+    expect(userWrites()[0]!.data).toMatchObject({
+      unconfirmed_email: "other@example.com",
+      confirmation_token: "friendly-token",
+      confirmation_sent_at: new Date("2026-10-31T12:00:00Z"),
+    });
     expect(userWrites()[0]!.data).not.toHaveProperty("email");
     expect(mails).toEqual([
       ["email_changed", { to: "seller@example.com" }],
       ["confirmation_instructions", { token: "friendly-token", to: "other@example.com" }],
     ]);
-    expect(enqueued.map((e) => [e.jobClass, e.options])).toEqual([["ReindexSubscriptionCurrentEmailWorker", { delaySeconds: 10 }]]);
+    expect(enqueued.map((e) => [e.jobClass, e.options])).toEqual([
+      ["ReindexSubscriptionCurrentEmailWorker", { delaySeconds: 10 }],
+    ]);
   });
 
   it("moves purchases to an email changed without reconfirmation, after commit", async () => {
@@ -432,19 +537,28 @@ describe("Users.save on an existing seller", () => {
     // products.find_each
     db.on(/SELECT `links`.\* FROM `links`/u, () => [{ id: 11n }]);
     const updates: [bigint[], string[]][] = [];
-    setUserCollaborators({ enqueueProductIndexUpdates: async (_user, ids, changeList) => void updates.push([ids, changeList]) });
+    setUserCollaborators({
+      enqueueProductIndexUpdates: async (_user, ids, changeList) => void updates.push([ids, changeList]),
+    });
     const user = existingSeller();
     await Users.updateBang(user, { name: "Renamed" });
     expect(updates).toEqual([[[11n], ["rated_as_adult", "creator_name"]]]);
   });
 
   it("clears the reset password token when the password changes", async () => {
-    const user = existingSeller({ reset_password_token: "digest", reset_password_sent_at: new Date("2026-10-30T00:00:00Z") });
+    const user = existingSeller({
+      reset_password_token: "digest",
+      reset_password_sent_at: new Date("2026-10-30T00:00:00Z"),
+    });
     user.ivars.password = "new-password-123";
     user.ivars.password_confirmation = "new-password-123";
     user.set("encrypted_password", "$2a$new");
     await Users.saveBang(user);
-    expect(userWrites()[0]!.data).toMatchObject({ reset_password_token: null, reset_password_sent_at: null, encrypted_password: "$2a$new" });
+    expect(userWrites()[0]!.data).toMatchObject({
+      reset_password_token: null,
+      reset_password_sent_at: null,
+      encrypted_password: "$2a$new",
+    });
   });
 });
 
@@ -481,7 +595,14 @@ describe("Users.create", () => {
       user_risk_state: "not_reviewed",
       json_data: "{}",
     });
-    for (const flag of ["enable_payment_email", "two_factor_authentication_enabled", "tipping_enabled", "discover_boost_enabled", "product_page_storefront_enabled", "refund_fee_notice_shown"] as const) {
+    for (const flag of [
+      "enable_payment_email",
+      "two_factor_authentication_enabled",
+      "tipping_enabled",
+      "discover_boost_enabled",
+      "product_page_storefront_enabled",
+      "refund_fee_notice_shown",
+    ] as const) {
       expect(UserFlags.isSet(insert.data!.flags as bigint, flag)).toBe(true);
     }
     expect(UserFlags.isSet(insert.data!.flags as bigint, "refund_policy_enabled")).toBe(false);
@@ -496,7 +617,11 @@ describe("Users.create", () => {
   });
 
   it("draws another external id when the first is taken", async () => {
-    setUserCollaborators({ createGlobalAffiliate: async () => undefined, createRefundPolicy: async () => undefined, sendDeviseNotification: async () => undefined });
+    setUserCollaborators({
+      createGlobalAffiliate: async () => undefined,
+      createRefundPolicy: async () => undefined,
+      sendDeviseNotification: async () => undefined,
+    });
     const ids = ["1", "2"];
     setUserCollaborators({ randomExternalId: () => ids.shift()! });
     db.on(/FROM `users` WHERE `users`.`external_id` = /u, ([candidate]) => (candidate === "1" ? [{ id: 1n }] : []));
@@ -507,7 +632,11 @@ describe("Users.create", () => {
   });
 
   it("leaves two-factor off when the caller skips it", async () => {
-    setUserCollaborators({ createGlobalAffiliate: async () => undefined, createRefundPolicy: async () => undefined, sendDeviseNotification: async () => undefined });
+    setUserCollaborators({
+      createGlobalAffiliate: async () => undefined,
+      createRefundPolicy: async () => undefined,
+      sendDeviseNotification: async () => undefined,
+    });
     const user = Users.build(signup);
     user.ivars.password = "secret-password";
     user.ivars.skip_enabling_two_factor_authentication = true;

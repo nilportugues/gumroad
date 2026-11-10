@@ -10,6 +10,7 @@ import { castRow, column, selectRows, table } from "../models/sql.ts";
 import { type AccessRecord, audiencePurchasePolicy } from "../policies/audience-purchase.ts";
 import { authorize } from "../policies/authorize.ts";
 import { PurchaseFlags } from "../search/flags.ts";
+
 import { type ActionResult, HandBackToRails, RoutingError } from "./application-controller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { authorizeJson, noContent, notFoundJson } from "./seller-json.ts";
@@ -17,15 +18,26 @@ import { authorizeJson, noContent, notFoundJson } from "./seller-json.ts";
 // `Purchase.find_by_external_id(params[:id]) || e404`
 async function setPurchase(externalId: string): Promise<Purchase> {
   const id = decrypt(externalId);
-  const [row] = id === null ? [] : await selectRows(Prisma.sql`SELECT ${Prisma.raw("`purchases`.*")} FROM ${table("purchases")} WHERE ${column("purchases", "id")} = ${id} LIMIT 1`);
+  const [row] =
+    id === null
+      ? []
+      : await selectRows(
+          Prisma.sql`SELECT ${Prisma.raw("`purchases`.*")} FROM ${table("purchases")} WHERE ${column("purchases", "id")} = ${id} LIMIT 1`,
+        );
   if (!row) throw new RoutingError("Not Found");
   return castRow<Purchase>("Purchase", row);
 }
 
 async function accessRecord(purchase: Purchase): Promise<AccessRecord> {
-  const [link] = await selectRows<Link>(Prisma.sql`SELECT ${Prisma.raw("`links`.*")} FROM ${table("links")} WHERE ${column("links", "id")} = ${purchase.link_id} LIMIT 1`);
+  const [link] = await selectRows<Link>(
+    Prisma.sql`SELECT ${Prisma.raw("`links`.*")} FROM ${table("links")} WHERE ${column("links", "id")} = ${purchase.link_id} LIMIT 1`,
+  );
   const [subscription] =
-    purchase.subscription_id == null ? [] : await selectRows(Prisma.sql`SELECT ${column("subscriptions", "id")} FROM ${table("subscriptions")} WHERE ${column("subscriptions", "id")} = ${purchase.subscription_id} LIMIT 1`);
+    purchase.subscription_id == null
+      ? []
+      : await selectRows(
+          Prisma.sql`SELECT ${column("subscriptions", "id")} FROM ${table("subscriptions")} WHERE ${column("subscriptions", "id")} = ${purchase.subscription_id} LIMIT 1`,
+        );
   return {
     accessRevoked: PurchaseFlags.isSet(purchase.flags, "is_access_revoked"),
     refunded: purchase.stripe_refunded === true || (purchase.stripe_refunded as unknown) === 1,
@@ -56,6 +68,16 @@ function accessAction(revoked: boolean, query: typeof audiencePurchasePolicy.rev
 }
 
 registerMutations(
-  { method: "PUT", pattern: "/purchases/:id/revoke_access", json: true, run: accessAction(true, audiencePurchasePolicy.revokeAccess) },
-  { method: "PUT", pattern: "/purchases/:id/undo_revoke_access", json: true, run: accessAction(false, audiencePurchasePolicy.undoRevokeAccess) },
+  {
+    method: "PUT",
+    pattern: "/purchases/:id/revoke_access",
+    json: true,
+    run: accessAction(true, audiencePurchasePolicy.revokeAccess),
+  },
+  {
+    method: "PUT",
+    pattern: "/purchases/:id/undo_revoke_access",
+    json: true,
+    run: accessAction(false, audiencePurchasePolicy.undoRevokeAccess),
+  },
 );

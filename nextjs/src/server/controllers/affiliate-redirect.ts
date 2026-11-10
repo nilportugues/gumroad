@@ -6,9 +6,16 @@ import { decryptNumeric, encrypt, encryptNumeric } from "../../lib/obfuscate-ids
 import { PRODUCT_AFFILIATES } from "../models/product-affiliate.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { domainConfig } from "../page-props/domain.ts";
-import { longUrl, subdomainWithProtocol } from "../presenters/product.ts";
 import { type LinkRow, type Row, type UserRow, findUserById } from "../presenters/product-reads.ts";
-import { HandBackToRails, RoutingError, allDomain, processAction, type ActionResult } from "./application-controller.ts";
+import { longUrl, subdomainWithProtocol } from "../presenters/product.ts";
+
+import {
+  HandBackToRails,
+  RoutingError,
+  allDomain,
+  processAction,
+  type ActionResult,
+} from "./application-controller.ts";
 import { setCookieHeader } from "./rack-cookies.ts";
 import { isPresent, queryParam, type RailsRequest } from "./rails-request.ts";
 
@@ -22,7 +29,15 @@ const FOUND = 302;
 const SHORT_QUERY_PARAM = "a";
 const AFFILIATE_QUERY_PARAM = "affiliate_id";
 
-type AffiliateRow = { id: bigint; seller_id: bigint | null; affiliate_user_id: bigint | null; deleted_at: Date | null; flags: number | bigint | null; destination_url: string | null; type: string };
+type AffiliateRow = {
+  id: bigint;
+  seller_id: bigint | null;
+  affiliate_user_id: bigint | null;
+  deleted_at: Date | null;
+  flags: number | bigint | null;
+  destination_url: string | null;
+  type: string;
+};
 
 // Ruby's String#to_i for the digits of a path segment; anything it would read as a bignum is Rails'.
 function rubyToI(value: string): number {
@@ -34,7 +49,9 @@ function rubyToI(value: string): number {
 }
 
 async function findAffiliate(id: number): Promise<AffiliateRow | null> {
-  const [row] = await selectRows<AffiliateRow>(Prisma.sql`SELECT ${Prisma.raw("`affiliates`.*")} FROM ${table("affiliates")} WHERE ${column("affiliates", "id")} = ${id} LIMIT 1`);
+  const [row] = await selectRows<AffiliateRow>(
+    Prisma.sql`SELECT ${Prisma.raw("`affiliates`.*")} FROM ${table("affiliates")} WHERE ${column("affiliates", "id")} = ${id} LIMIT 1`,
+  );
   return row ?? null;
 }
 
@@ -57,7 +74,8 @@ function cookieLifetimeDays(affiliate: AffiliateRow): CookieLifetime {
 // AffiliateCookie#create_affiliate_id_cookie: the cookie line, or null when the affiliate does not earn one.
 async function affiliateCookie(request: RailsRequest, affiliate: AffiliateRow, now: Date): Promise<string | null> {
   let credited: AffiliateRow | null = affiliate;
-  if (affiliate.type !== "GlobalAffiliate" && affiliate.deleted_at !== null) credited = await lastAliveDirectAccount(affiliate);
+  if (affiliate.type !== "GlobalAffiliate" && affiliate.deleted_at !== null)
+    credited = await lastAliveDirectAccount(affiliate);
   if (credited === null || credited.deleted_at !== null) return null;
   const days = cookieLifetimeDays(credited);
   return setCookieHeader(`${AFFILIATE_COOKIE_NAME_PREFIX}${encrypt(credited.id, { padding: false })}`, {
@@ -74,7 +92,8 @@ async function affiliateCookie(request: RailsRequest, affiliate: AffiliateRow, n
 // there is none to set. A nested shape (`a[]=1`) and an id beyond the obfuscated range are Rails'.
 export async function affiliateCookieForParams(request: RailsRequest, now: Date): Promise<string | null> {
   const pairs = request.queryString.split("&").filter((pair) => pair !== "");
-  if (pairs.some((pair) => /^(?:affiliate_id|a)(?:\[|%5B)/iu.test(pair))) throw new HandBackToRails("a nested affiliate param");
+  if (pairs.some((pair) => /^(?:affiliate_id|a)(?:\[|%5B)/iu.test(pair)))
+    throw new HandBackToRails("a nested affiliate param");
   // AffiliateQueryParams#fetch_affiliate_id: `params[:affiliate_id].presence || params[:a].presence`, then `.to_i`.
   const raw = [queryParam(request, AFFILIATE_QUERY_PARAM), queryParam(request, SHORT_QUERY_PARAM)].find(isPresent);
   if (raw === undefined) return null;
@@ -88,7 +107,11 @@ export async function affiliateCookieForParams(request: RailsRequest, now: Date)
 // Addressable::URI.encode_component(value, CharacterClasses::UNRESERVED)
 const encodeComponent = (value: Buffer): string =>
   Array.from(value)
-    .map((byte) => (/[A-Za-z0-9\-._~]/u.test(String.fromCharCode(byte)) ? String.fromCharCode(byte) : `%${byte.toString(16).toUpperCase().padStart(2, "0")}`))
+    .map((byte) =>
+      /[A-Za-z0-9\-._~]/u.test(String.fromCharCode(byte))
+        ? String.fromCharCode(byte)
+        : `%${byte.toString(16).toUpperCase().padStart(2, "0")}`,
+    )
     .join("");
 
 // Addressable::URI.unencode_component of a query component ("+" is a space; "%zz" stays as typed).
@@ -127,25 +150,42 @@ function queryValues(query: string | undefined): Map<string, { key: Buffer; valu
 }
 
 // The URLs sellers store as a destination, which Addressable parses without raising. Anything else is Rails'.
-const DESTINATION = /^(?<before>(?:[A-Za-z][A-Za-z\d+.-]*:\/\/[^\s/?#]*)?[^\s?#]*)(?:\?(?<query>[^\s#]*))?(?<fragment>#\S*)?$/u;
+const DESTINATION =
+  /^(?<before>(?:[A-Za-z][A-Za-z\d+.-]*:\/\/[^\s/?#]*)?[^\s?#]*)(?:\?(?<query>[^\s#]*))?(?<fragment>#\S*)?$/u;
 
 // host_relative: a path-relative destination is read as a path on this host.
 function hostRelative(destination: string): string {
-  if (destination === "" || /^([a-z][a-z\d\-+.]*:|\/\/)/iu.test(destination) || destination.startsWith("/") || destination.startsWith("?")) return destination;
+  if (
+    destination === "" ||
+    /^([a-z][a-z\d\-+.]*:|\/\/)/iu.test(destination) ||
+    destination.startsWith("/") ||
+    destination.startsWith("?")
+  )
+    return destination;
   return `/${destination}`;
 }
 
 // redirect_url: the destination with the query of the destination and of this request merged (and sorted), as Addressable writes it.
-export function mergeQueries(finalDestinationUrl: string, request: RailsRequest, affiliateId: string, destinationUrlPresent: boolean): string {
+export function mergeQueries(
+  finalDestinationUrl: string,
+  request: RailsRequest,
+  affiliateId: string,
+  destinationUrlPresent: boolean,
+): string {
   const groups = DESTINATION.exec(hostRelative(finalDestinationUrl.trim()))?.groups;
   if (groups === undefined) throw new HandBackToRails("a destination url Addressable may reject");
   const merged = queryValues(groups.query);
-  for (const [name, entry] of queryValues(request.queryString === "" ? undefined : request.queryString)) merged.set(name, entry);
-  if (destinationUrlPresent) merged.set(AFFILIATE_QUERY_PARAM, { key: Buffer.from(AFFILIATE_QUERY_PARAM), value: Buffer.from(affiliateId) });
-  if (merged.size === 0) return `${groups.before}${groups.query === undefined ? "" : `?${groups.query}`}${groups.fragment ?? ""}`;
+  for (const [name, entry] of queryValues(request.queryString === "" ? undefined : request.queryString))
+    merged.set(name, entry);
+  if (destinationUrlPresent)
+    merged.set(AFFILIATE_QUERY_PARAM, { key: Buffer.from(AFFILIATE_QUERY_PARAM), value: Buffer.from(affiliateId) });
+  if (merged.size === 0)
+    return `${groups.before}${groups.query === undefined ? "" : `?${groups.query}`}${groups.fragment ?? ""}`;
   const query = [...merged.values()]
     .sort((a, b) => Buffer.compare(a.key, b.key))
-    .map(({ key, value }) => (value === null ? encodeComponent(key) : `${encodeComponent(key)}=${encodeComponent(value)}`))
+    .map(({ key, value }) =>
+      value === null ? encodeComponent(key) : `${encodeComponent(key)}=${encodeComponent(value)}`,
+    )
     .join("&");
   return `${groups.before}?${query}${groups.fragment ?? ""}`;
 }
@@ -181,7 +221,8 @@ async function finalDestinationUrl(affiliate: AffiliateRow, product: LinkRow | n
   const appliesToAll = (Number(affiliate.flags ?? 0) & APPLY_TO_ALL_PRODUCTS_FLAG) !== 0;
   let chosen = product;
   if (!appliesToAll && assignments.length === 1) chosen = links[0] ?? null;
-  const assignment = chosen === null ? undefined : assignments.find((row) => Number(row.link_id) === Number(chosen!.id));
+  const assignment =
+    chosen === null ? undefined : assignments.find((row) => Number(row.link_id) === Number(chosen!.id));
   const productDestinationUrl = assignment?.destination_url as string | null | undefined;
 
   if (present(productDestinationUrl)) return productDestinationUrl;
@@ -204,7 +245,10 @@ async function affiliateOf(segment: string): Promise<AffiliateRow> {
   return affiliate;
 }
 
-export function affiliateRedirectResponse(incoming: Request, params: { affiliate_id: string; unique_permalink?: string }): Promise<Response> {
+export function affiliateRedirectResponse(
+  incoming: Request,
+  params: { affiliate_id: string; unique_permalink?: string },
+): Promise<Response> {
   // A format suffix ("/a/1.json") is Rails' route format, and Next.js's segment keeps it.
   if (Object.values(params).some((segment) => segment.includes("."))) return handBack(incoming);
   return processAction(incoming, {}, async ({ request }): Promise<ActionResult> => {
@@ -228,6 +272,8 @@ function handBack(incoming: Request): Promise<Response> {
 // `Link.find_by(unique_permalink: params[:unique_permalink]) if params[:unique_permalink].present?`
 async function productByPermalink(permalink: string): Promise<LinkRow | null> {
   if (!present(permalink)) return null;
-  const [row] = await selectRows<LinkRow>(Prisma.sql`SELECT ${Prisma.raw("`links`.*")} FROM ${table("links")} WHERE ${column("links", "unique_permalink")} = ${permalink} LIMIT 1`);
+  const [row] = await selectRows<LinkRow>(
+    Prisma.sql`SELECT ${Prisma.raw("`links`.*")} FROM ${table("links")} WHERE ${column("links", "unique_permalink")} = ${permalink} LIMIT 1`,
+  );
   return row ?? null;
 }

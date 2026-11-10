@@ -6,13 +6,19 @@
 // Anything outside that shape throws MailViewNotPortedError in `assertSupported`, before a statement is sent
 // for it, and the delivery goes back to Rails.
 import { isBlank } from "../../html/text-helper.ts";
-import type { TaxLine } from "./receipt-tax.ts";
 import { rubyStringToF } from "../../models/concerns/currency-helper.ts";
-import { formatChargePresentmentAmount, formatJustPriceInCents, formattedPrice, knownCurrency } from "../../models/concerns/money-formatter.ts";
+import {
+  formatChargePresentmentAmount,
+  formatJustPriceInCents,
+  formattedPrice,
+  knownCurrency,
+} from "../../models/concerns/money-formatter.ts";
 import { LinkFlags } from "../../models/link.ts";
 import { PurchaseFlags } from "../../search/flags.ts";
 import { localizeTime, pluralize, truncate } from "../view-helpers.ts";
 import { h, MailViewNotPortedError } from "../views.ts";
+
+import type { TaxLine } from "./receipt-tax.ts";
 
 type Id = number | bigint;
 
@@ -75,7 +81,15 @@ export type ReceiptSellerRow = {
 };
 
 // The purchase's buyer-currency amounts (PurchasePresentment), in the currency the buyer was charged in.
-export type Presentment = { currency: string; priceCents: number; tipCents: number; sellerTaxCents: number; gumroadTaxCents: number; shippingCents: number; totalCents: number };
+export type Presentment = {
+  currency: string;
+  priceCents: number;
+  tipCents: number;
+  sellerTaxCents: number;
+  gumroadTaxCents: number;
+  shippingCents: number;
+  totalCents: number;
+};
 
 export type ReceiptCustomField = { name: string; value: string | boolean; type: string };
 export type ReceiptRefundPolicy = { title: string; fine_print: string | null };
@@ -110,8 +124,10 @@ export type ReceiptGift = { giftee_email: string | null; gift_note: string | nul
 export const unproven = { giftSender: true };
 const GIFT_IS_RECIPIENT_HIDDEN = 1;
 
-const purchaseFlag = (purchase: ReceiptPurchaseRow, name: Parameters<typeof PurchaseFlags.isSet>[1]) => PurchaseFlags.isSet(purchase.flags ?? 0, name);
-const linkFlag = (link: ReceiptLinkRow, name: Parameters<typeof LinkFlags.isSet>[1]) => LinkFlags.isSet(link.flags ?? 0, name);
+const purchaseFlag = (purchase: ReceiptPurchaseRow, name: Parameters<typeof PurchaseFlags.isSet>[1]) =>
+  PurchaseFlags.isSet(purchase.flags ?? 0, name);
+const linkFlag = (link: ReceiptLinkRow, name: Parameters<typeof LinkFlags.isSet>[1]) =>
+  LinkFlags.isSet(link.flags ?? 0, name);
 
 const NOT_PORTED_PURCHASE_FLAGS = [
   "is_gift_receiver_purchase",
@@ -128,9 +144,25 @@ const NOT_PORTED_PURCHASE_FLAGS = [
   "is_multiseat_license",
 ] as const;
 
-const NOT_PORTED_LINK_FLAGS = ["is_recurring_billing", "is_in_preorder_state", "is_bundle", "free_trial_enabled", "is_tiered_membership", "is_multiseat_license"] as const;
+const NOT_PORTED_LINK_FLAGS = [
+  "is_recurring_billing",
+  "is_in_preorder_state",
+  "is_bundle",
+  "free_trial_enabled",
+  "is_tiered_membership",
+  "is_multiseat_license",
+] as const;
 // Link::NATIVE_TYPES whose thumbnail, wording and attributes are the plain product ones; a physical product is a digital one with is_physical.
-const SUPPORTED_NATIVE_TYPES = ["digital", "course", "ebook", "newsletter", "podcast", "audiobook", "physical", "coffee"];
+const SUPPORTED_NATIVE_TYPES = [
+  "digital",
+  "course",
+  "ebook",
+  "newsletter",
+  "podcast",
+  "audiobook",
+  "physical",
+  "coffee",
+];
 
 // The receipts below render exactly as Rails does; the rest go back to Rails.
 export function assertSupported(data: ReceiptData): void {
@@ -145,20 +177,27 @@ export function assertSupported(data: ReceiptData): void {
     if (unproven.giftSender) refuse("a gift the buyer sent");
     // A hidden recipient is named from their account; a physical gift adds shipping wording; a licensed one its key rules.
     const { gift } = data;
-    if (gift === null || (Number(gift.flags ?? 0) & GIFT_IS_RECIPIENT_HIDDEN) !== 0) refuse("a gift the buyer sent to a hidden recipient");
+    if (gift === null || (Number(gift.flags ?? 0) & GIFT_IS_RECIPIENT_HIDDEN) !== 0)
+      refuse("a gift the buyer sent to a hidden recipient");
     if (gift?.giftee_email === null || gift?.gift_note === null) refuse("a gift without a recipient or note");
     if (linkFlag(link, "is_physical") || linkFlag(link, "is_licensed")) refuse("a physical or licensed gift");
   }
   if (purchase.subscription_id !== null || purchase.price_id !== null) refuse("a subscription purchase");
   if (purchase.preorder_id !== null) refuse("a preorder");
   // Footer: the "test purchase" warning for a seller buying their own product.
-  if (purchase.purchaser_id !== null && BigInt(purchase.purchaser_id) === BigInt(link.user_id)) refuse("a test purchase");
+  if (purchase.purchaser_id !== null && BigInt(purchase.purchaser_id) === BigInt(link.user_id))
+    refuse("a test purchase");
   const currency = purchase.displayed_price_currency_type;
   // A purchase without a stored rate looks the rate up in Redis; a currency the money gem does not know fails in Rails.
   if (isBlank(currency) || !knownCurrency(currency!)) refuse(`a purchase priced in ${String(currency)}`);
-  if (currency !== "usd" && (isBlank(purchase.rate_converted_to_usd) || rubyStringToF(purchase.rate_converted_to_usd!) === 0)) refuse(`a ${currency} purchase without a usable exchange rate`);
+  if (
+    currency !== "usd" &&
+    (isBlank(purchase.rate_converted_to_usd) || rubyStringToF(purchase.rate_converted_to_usd!) === 0)
+  )
+    refuse(`a ${currency} purchase without a usable exchange rate`);
   if (!SUPPORTED_NATIVE_TYPES.includes(link.native_type ?? "")) refuse(`a ${String(link.native_type)} product`);
-  if (!["no_recommendations", "own_products"].includes(seller.recommendation_type ?? "")) refuse(`a seller with recommendation type ${String(seller.recommendation_type)}`);
+  if (!["no_recommendations", "own_products"].includes(seller.recommendation_type ?? ""))
+    refuse(`a seller with recommendation type ${String(seller.recommendation_type)}`);
   if (isBlank(displayName(seller))) refuse("a seller without a display name");
 }
 
@@ -168,14 +207,19 @@ export function assertSupported(data: ReceiptData): void {
 // no markup, links, addresses or entities. Everything else (rails_autolink and the HTML sanitizer) is not ported.
 const AUTO_LINK_SAFE = /^[\x20-\x7e¢€£¥₩]*$/u;
 export function autoLinkText(text: string): string {
-  if (!AUTO_LINK_SAFE.test(text) || /[<>\\@]|:\/\/|www\.|&[#A-Za-z0-9]+;/iu.test(text)) throw new MailViewNotPortedError(`auto_link of ${JSON.stringify(text)}`);
+  if (!AUTO_LINK_SAFE.test(text) || /[<>\\@]|:\/\/|www\.|&[#A-Za-z0-9]+;/iu.test(text))
+    throw new MailViewNotPortedError(`auto_link of ${JSON.stringify(text)}`);
   return h(text);
 }
 
 // `simple_format` for the same plain text: paragraphs split on blank lines, single newlines followed by <br />.
 export function simpleFormat(text: string): string {
-  if (!/^[\x20-\x7e\n\r]*$/u.test(text) || /[<>\\@]|:\/\/|www\.|&/iu.test(text)) throw new MailViewNotPortedError(`simple_format of ${JSON.stringify(text)}`);
-  const paragraphs = text.replace(/\r\n?/gu, "\n").split(/\n\n+/u).map((paragraph) => paragraph.replace(/([^\n]\n)(?=[^\n])/gu, "$1<br />"));
+  if (!/^[\x20-\x7e\n\r]*$/u.test(text) || /[<>\\@]|:\/\/|www\.|&/iu.test(text))
+    throw new MailViewNotPortedError(`simple_format of ${JSON.stringify(text)}`);
+  const paragraphs = text
+    .replace(/\r\n?/gu, "\n")
+    .split(/\n\n+/u)
+    .map((paragraph) => paragraph.replace(/([^\n]\n)(?=[^\n])/gu, "$1<br />"));
   if (paragraphs.length === 0 || (paragraphs.length === 1 && paragraphs[0] === "")) return "<p></p>";
   return paragraphs.map((paragraph) => `<p>${paragraph}</p>`).join("\n\n");
 }
@@ -183,7 +227,8 @@ export function simpleFormat(text: string): string {
 // --- user ---------------------------------------------------------------------------------------------
 
 const sellerUsername = (seller: ReceiptSellerRow) => (isBlank(seller.username) ? seller.external_id : seller.username);
-const formEmail = (seller: ReceiptSellerRow) => (!isBlank(seller.unconfirmed_email) ? seller.unconfirmed_email : !isBlank(seller.email) ? seller.email : null);
+const formEmail = (seller: ReceiptSellerRow) =>
+  !isBlank(seller.unconfirmed_email) ? seller.unconfirmed_email : !isBlank(seller.email) ? seller.email : null;
 
 // User#display_name
 export function displayName(seller: ReceiptSellerRow): string | null {
@@ -206,18 +251,24 @@ export function mailSubject(data: ReceiptData): string {
 // Purchase#buyer_presentment_price_cents: tips are part of the price, seller tax too unless it was excluded from it.
 export function presentmentPriceCents(data: ReceiptData): number {
   const presentment = data.presentment!;
-  return presentment.priceCents + presentment.tipCents + (purchaseFlag(data.purchase, "was_tax_excluded_from_price") ? 0 : presentment.sellerTaxCents);
+  return (
+    presentment.priceCents +
+    presentment.tipCents +
+    (purchaseFlag(data.purchase, "was_tax_excluded_from_price") ? 0 : presentment.sellerTaxCents)
+  );
 }
 
 // format_today_amount
-const todayAmount = (data: ReceiptData, cents: number) => (data.presentment ? formatChargePresentmentAmount(cents, data.presentment.currency) : formattedDollarAmount(cents));
+const todayAmount = (data: ReceiptData, cents: number) =>
+  data.presentment ? formatChargePresentmentAmount(cents, data.presentment.currency) : formattedDollarAmount(cents);
 
 // --- ChargeInfo ----------------------------------------------------------------------------------------
 
 // Time#to_fs(:formatted_date_abbrev_month), in UTC like the app's time zone.
 export const formattedDateAbbrevMonth = (time: Date) => localizeTime(time, "%b %-d, %Y");
 
-export const formattedDollarAmount = (cents: number | bigint | null) => formattedPrice("usd", cents === null ? 0 : Number(cents));
+export const formattedDollarAmount = (cents: number | bigint | null) =>
+  formattedPrice("usd", cents === null ? 0 : Number(cents));
 
 export function chargeInfo(data: ReceiptData, orderId: string) {
   const { purchase, seller } = data;
@@ -226,9 +277,13 @@ export function chargeInfo(data: ReceiptData, orderId: string) {
     formattedCreatedAt: formattedDateAbbrevMonth(purchase.created_at),
     // A free trial still counts as paid, but trials are not ported.
     free: purchase.price_cents === 0 && purchase.shipping_cents === 0,
-    formattedTotalTransactionAmount: data.presentment ? formatChargePresentmentAmount(data.presentment.totalCents, data.presentment.currency) : formattedDollarAmount(purchase.total_transaction_cents),
+    formattedTotalTransactionAmount: data.presentment
+      ? formatChargePresentmentAmount(data.presentment.totalCents, data.presentment.currency)
+      : formattedDollarAmount(purchase.total_transaction_cents),
     // for_email: true; none for the gift sender
-    productQuestionsNote: purchaseFlag(purchase, "is_gift_sender_purchase") ? null : `Questions about your ${pluralize(1, "product", "products").slice(2)}? Contact ${h(displayName(seller))} by replying to this email.`,
+    productQuestionsNote: purchaseFlag(purchase, "is_gift_sender_purchase")
+      ? null
+      : `Questions about your ${pluralize(1, "product", "products").slice(2)}? Contact ${h(displayName(seller))} by replying to this email.`,
   };
 }
 
@@ -243,7 +298,11 @@ export function shippingInfo(data: ReceiptData): { title: string; attributes: At
   const { purchase, link } = data;
   const requiresShipping = link.require_shipping === true || link.require_shipping === 1;
   if (!requiresShipping) return { title: "Shipping info", attributes: [] };
-  const parts = [purchase.street_address ?? "", `${purchase.city ?? ""}, ${purchase.state ?? ""} ${purchase.zip_code ?? ""}`, purchase.country ?? ""];
+  const parts = [
+    purchase.street_address ?? "",
+    `${purchase.city ?? ""}, ${purchase.state ?? ""} ${purchase.zip_code ?? ""}`,
+    purchase.country ?? "",
+  ];
   return {
     title: "Shipping info",
     attributes: [
@@ -264,16 +323,34 @@ export function paymentInfo(data: ReceiptData, invoiceLink: string) {
   const productLabel = purchase.quantity <= 1 ? link.name : `${link.name} × ${purchase.quantity}`;
 
   const today: Attribute[] = [];
-  if (!free) today.push({ label: productLabel, text: todayAmount(data, data.presentment ? presentmentPriceCents(data) : data.displayedPriceUsdCents) });
+  if (!free)
+    today.push({
+      label: productLabel,
+      text: todayAmount(data, data.presentment ? presentmentPriceCents(data) : data.displayedPriceUsdCents),
+    });
   const moved = (purchase.total_transaction_cents ?? 0) !== 0;
-  if (purchase.shipping_cents > 0) today.push({ label: "Shipping", text: todayAmount(data, !moved ? 0 : data.presentment ? data.presentment.shippingCents : purchase.shipping_cents) });
+  if (purchase.shipping_cents > 0)
+    today.push({
+      label: "Shipping",
+      text: todayAmount(data, !moved ? 0 : data.presentment ? data.presentment.shippingCents : purchase.shipping_cents),
+    });
   for (const line of data.taxLines ?? []) today.push({ label: line.label, text: todayAmount(data, line.cents) });
   // A single item with no shipping or tax shows no total.
-  if (purchase.shipping_cents > 0 || data.taxLines !== null) today.push({ label: "Amount paid", text: todayAmount(data, !moved ? 0 : data.presentment ? data.presentment.totalCents : purchase.total_transaction_cents!) });
+  if (purchase.shipping_cents > 0 || data.taxLines !== null)
+    today.push({
+      label: "Amount paid",
+      text: todayAmount(
+        data,
+        !moved ? 0 : data.presentment ? data.presentment.totalCents : purchase.total_transaction_cents!,
+      ),
+    });
   if (!free) today.push({ label: null, html: invoiceLink });
 
   const notes: string[] = [];
-  if (!data.presentment) notes.push("All charges are processed in United States Dollars. Your bank or financial institution may apply their own fees for currency conversion.");
+  if (!data.presentment)
+    notes.push(
+      "All charges are processed in United States Dollars. Your bank or financial institution may apply their own fees for currency conversion.",
+    );
   if (!isBlank(purchase.card_type) && !NO_CARD_STATEMENT_TYPES.includes(purchase.card_type!)) {
     notes.push("The charge will be listed as GUMRD.COM* on your credit card statement.");
   }
@@ -281,10 +358,20 @@ export function paymentInfo(data: ReceiptData, invoiceLink: string) {
   let paymentMethod: Attribute | null = null;
   if (!(isBlank(purchase.card_type) && isBlank(purchase.card_visual))) {
     const visual = isBlank(purchase.card_visual) ? null : purchase.card_visual!.replaceAll("*", "").replaceAll(" ", "");
-    paymentMethod = { label: "Payment method", text: visual === null ? purchase.card_type!.toUpperCase() : `${purchase.card_type!.toUpperCase()} *${visual}` };
+    paymentMethod = {
+      label: "Payment method",
+      text: visual === null ? purchase.card_type!.toUpperCase() : `${purchase.card_type!.toUpperCase()} *${visual}`,
+    };
   }
 
-  return { present: today.length > 0, title: "Payment info", notes, todayPaymentAttributes: today, upcomingPaymentAttributes: [] as Attribute[], paymentMethodAttribute: paymentMethod };
+  return {
+    present: today.length > 0,
+    title: "Payment info",
+    notes,
+    todayPaymentAttributes: today,
+    upcomingPaymentAttributes: [] as Attribute[],
+    paymentMethodAttribute: paymentMethod,
+  };
 }
 
 // --- ItemInfo ------------------------------------------------------------------------------------------
@@ -293,8 +380,10 @@ export function itemInfo(data: ReceiptData, customReceiptText: string | null) {
   const { purchase, link } = data;
   const coffee = link.native_type === "coffee";
   const notes: string[] = [];
-  if (linkFlag(link, "is_physical")) notes.push("Your order will ship shortly. The creator will notify you when your package is on its way.");
-  if (purchaseFlag(purchase, "is_rental")) notes.push(`Your rental of ${link.name} will expire in 30 days or 72 hours after you begin viewing it.`);
+  if (linkFlag(link, "is_physical"))
+    notes.push("Your order will ship shortly. The creator will notify you when your package is on its way.");
+  if (purchaseFlag(purchase, "is_rental"))
+    notes.push(`Your rental of ${link.name} will expire in 30 days or 72 hours after you begin viewing it.`);
 
   const general: Attribute[] = [];
   if (data.variantNames !== null && data.variantNames.length > 0 && !coffee) {
@@ -304,14 +393,26 @@ export function itemInfo(data: ReceiptData, customReceiptText: string | null) {
   }
   if (purchase.price_cents !== 0 || purchase.shipping_cents !== 0) {
     const perUnit = data.presentment
-      ? formatChargePresentmentAmount(Math.trunc((presentmentPriceCents(data) - data.presentment.tipCents) / purchase.quantity), data.presentment.currency)
-      : formatJustPriceInCents(Math.trunc(purchase.displayed_price_cents / purchase.quantity) - (data.tipValueCents ?? 0), purchase.displayed_price_currency_type!);
+      ? formatChargePresentmentAmount(
+          Math.trunc((presentmentPriceCents(data) - data.presentment.tipCents) / purchase.quantity),
+          data.presentment.currency,
+        )
+      : formatJustPriceInCents(
+          Math.trunc(purchase.displayed_price_cents / purchase.quantity) - (data.tipValueCents ?? 0),
+          purchase.displayed_price_currency_type!,
+        );
     general.push({ label: coffee ? "Donation" : "Product price", text: perUnit });
   }
   if (data.tipValueCents !== null) {
-    general.push({ label: "Tip", text: data.presentment ? formatChargePresentmentAmount(data.presentment.tipCents, data.presentment.currency) : formatJustPriceInCents(data.tipValueCents, purchase.displayed_price_currency_type!) });
+    general.push({
+      label: "Tip",
+      text: data.presentment
+        ? formatChargePresentmentAmount(data.presentment.tipCents, data.presentment.currency)
+        : formatJustPriceInCents(data.tipValueCents, purchase.displayed_price_currency_type!),
+    });
   }
-  if (purchase.quantity > 1 && !coffee && !purchaseFlag(purchase, "is_gift_sender_purchase")) general.push({ label: "Quantity", text: String(purchase.quantity) });
+  if (purchase.quantity > 1 && !coffee && !purchaseFlag(purchase, "is_gift_sender_purchase"))
+    general.push({ label: "Quantity", text: String(purchase.quantity) });
   for (const field of data.customFields) {
     if (field.type === "checkbox") general.push({ label: field.name, text: field.value ? "Yes" : "No" });
     else if (field.type === "text") general.push({ label: field.name, text: String(field.value) });

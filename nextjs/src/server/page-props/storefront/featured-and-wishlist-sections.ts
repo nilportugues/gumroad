@@ -4,12 +4,12 @@
 // `assertProductSectionsRender` turns into a hand-back before the page starts rendering.
 import type { User, Wishlist } from "@prisma/client";
 
-import { classifyHost } from "../../../lib/navigation/proxy/hosts.ts";
 import { db } from "../../../lib/db.ts";
+import { classifyHost } from "../../../lib/navigation/proxy/hosts.ts";
 import { encrypt as externalId } from "../../../lib/obfuscate-ids.ts";
 import { sellerCustomDomainUrl } from "../../presenters/product-page.ts";
-import { customDomainByHost, findLink, findUserById } from "../../presenters/product-reads.ts";
 import { productProps } from "../../presenters/product-props.ts";
+import { customDomainByHost, findLink, findUserById } from "../../presenters/product-reads.ts";
 import { authorBylineProps, subdomainWithProtocol, type PresenterRequest } from "../../presenters/product.ts";
 import { thumbnailOrCoverUrl } from "../buyer/products.ts";
 import { urlSlug } from "../buyer/wishlists.ts";
@@ -29,16 +29,29 @@ type SectionBase = { id: string; header: string | null; type: string };
 async function customDomainUrlOf(request: PresenterRequest): Promise<string | null> {
   const config = domainConfig(process.env);
   const custom = await customDomainByHost(request.host);
-  const isUserCustomDomain = !classifyHost(request.host, config).gumroad && request.host !== config.validDiscoverRequestHost && custom?.product_id == null;
+  const isUserCustomDomain =
+    !classifyHost(request.host, config).gumroad &&
+    request.host !== config.validDiscoverRequestHost &&
+    custom?.product_id == null;
   return sellerCustomDomainUrl(isUserCustomDomain, request.hostWithPort);
 }
 
 // SellerProfileFeaturedProductSection: `seller.products.alive.find_by_external_id(featured_product_id)` and its
 // ProductPresenter#product_props. An orphaned reference is "no featured product" (props: nil).
-export async function featuredProductSectionProps(seller: User, base: SectionBase, data: Record<string, unknown>, request: PresenterRequest) {
+export async function featuredProductSectionProps(
+  seller: User,
+  base: SectionBase,
+  data: Record<string, unknown>,
+  request: PresenterRequest,
+) {
   const featuredId = data.featured_product_id;
   const row = typeof featuredId === "number" ? await findLink(BigInt(featuredId)) : null;
-  const alive = row !== null && row.user_id === seller.id && row.purchase_disabled_at === null && row.banned_at === null && row.deleted_at === null;
+  const alive =
+    row !== null &&
+    row.user_id === seller.id &&
+    row.purchase_disabled_at === null &&
+    row.banned_at === null &&
+    row.deleted_at === null;
   if (!alive) return { ...base, props: null };
   const sellerRow = await findUserById(seller.id);
   const props = await productProps(row, sellerRow!, {
@@ -60,7 +73,10 @@ export async function featuredProductSectionProps(seller: User, base: SectionBas
 // WishlistPresenter#card_props for a visitor, `Wishlist.alive.where(id: shown_wishlists)` sorted by the seller's order.
 export async function wishlistsSectionProps(base: SectionBase, data: Record<string, unknown>) {
   const shown = ((data.shown_wishlists ?? []) as number[]).map(Number);
-  const wishlists = await db.wishlist.findMany({ where: { id: { in: shown.map(BigInt) }, deleted_at: null }, orderBy: { id: "asc" } });
+  const wishlists = await db.wishlist.findMany({
+    where: { id: { in: shown.map(BigInt) }, deleted_at: null },
+    orderBy: { id: "asc" },
+  });
   wishlists.sort((a, b) => shown.indexOf(Number(a.id)) - shown.indexOf(Number(b.id)));
   const cards = [];
   for (const wishlist of wishlists) cards.push(await wishlistCardProps(wishlist, { layout: PROFILE_LAYOUT }));
@@ -71,13 +87,23 @@ export async function wishlistsSectionProps(base: SectionBase, data: Record<stri
 // carries `layout` and `recommended_by` the way url_for sorts them.
 export async function wishlistCardProps(
   wishlist: Wishlist,
-  { layout, recommendedBy = null, following = false, currentSellerId = null }: { layout: string; recommendedBy?: string | null; following?: boolean; currentSellerId?: bigint | null },
+  {
+    layout,
+    recommendedBy = null,
+    following = false,
+    currentSellerId = null,
+  }: { layout: string; recommendedBy?: string | null; following?: boolean; currentSellerId?: bigint | null },
 ) {
   const owner = await findUserById(wishlist.user_id!);
   // Rails raises on a wishlist without an owner, or an owner without a subdomain to build its URL on.
   const host = owner ? subdomainWithProtocol(owner) : null;
-  if (!owner || host === null) throw new NotPortedError("WishlistPresenter#card_props for a wishlist whose owner has no subdomain");
-  const items = await db.wishlistProduct.findMany({ where: { wishlist_id: wishlist.id, deleted_at: null }, orderBy: { id: "desc" }, take: WISHLIST_CARD_THUMBNAILS });
+  if (!owner || host === null)
+    throw new NotPortedError("WishlistPresenter#card_props for a wishlist whose owner has no subdomain");
+  const items = await db.wishlistProduct.findMany({
+    where: { wishlist_id: wishlist.id, deleted_at: null },
+    orderBy: { id: "desc" },
+    take: WISHLIST_CARD_THUMBNAILS,
+  });
   const thumbnails = [];
   for (const item of items.reverse()) {
     const product = await findLink(item.product_id);

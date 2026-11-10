@@ -10,25 +10,31 @@ import { db } from "../../../lib/db.ts";
 import { readEncryptedCookie, writeEncryptedCookie } from "../../auth/rails-cookies.ts";
 import { railsCookieSecrets } from "../../auth/rails-session-config.ts";
 import { railsLoggedInUser } from "../../auth/resolve.ts";
-import { HandBackToRails, RoutingError, type Chain, type FilterOutcome } from "../../controllers/application-controller.ts";
-import { assertFlatQuery, cgiEscape } from "../../controllers/rails-params.ts";
-import { queryParam } from "../../controllers/rails-request.ts";
+import {
+  HandBackToRails,
+  RoutingError,
+  type Chain,
+  type FilterOutcome,
+} from "../../controllers/application-controller.ts";
 import { requireHtml } from "../../controllers/buyer-pages.ts";
 import { setCookieHeader } from "../../controllers/rack-cookies.ts";
+import { assertFlatQuery, cgiEscape } from "../../controllers/rails-params.ts";
+import { queryParam } from "../../controllers/rails-request.ts";
 import { getConfig } from "../../infra/config.ts";
 import { truncateToSeconds } from "../../models/concerns/ruby-time.ts";
+import { createEventBang } from "../../models/consumption-event.ts";
 import { LinkFlags } from "../../models/link.ts";
-import { parseJsonData } from "../../models/with-filtering.ts";
-import { subdomainWithProtocol } from "../../presenters/product.ts";
 import { SubscriptionFlags } from "../../models/subscription.ts";
 import { UrlRedirectFlags } from "../../models/url-redirect.ts";
-import { createEventBang } from "../../models/consumption-event.ts";
 import { UserFlags } from "../../models/user.ts";
+import { parseJsonData } from "../../models/with-filtering.ts";
+import { subdomainWithProtocol } from "../../presenters/product.ts";
 import { PurchaseFlags } from "../../search/flags.ts";
 import { remoteIp } from "../audience/events.ts";
 import { domainConfig, type DomainConfig } from "../domain.ts";
 import type { MetaTagBuilder } from "../meta-tags.ts";
 import { setFaviconMetaTags } from "../storefront/post.ts";
+
 import { decideAccess, type GateInput } from "./download-gate.ts";
 import { claimBySeller, hasRichContent, layoutProps, load, present, type Loaded } from "./unavailable.ts";
 
@@ -65,16 +71,40 @@ async function assertRenderable(loaded: Loaded): Promise<Download> {
   const seller = await db.user.findUnique({ where: { id: product.user_id! } });
   if (!seller) throw new HandBackToRails("a product without a seller");
 
-  if (LinkFlags.isSet(product.flags, "is_licensed") || LinkFlags.isSet(product.flags, "community_chat_enabled")) throw new HandBackToRails("a license key or community chat");
-  if (present(seller.google_analytics_id) || present(seller.facebook_pixel_id) || (seller.json_data ?? "").includes("tiktok_pixel_id")) throw new HandBackToRails("seller analytics");
+  if (LinkFlags.isSet(product.flags, "is_licensed") || LinkFlags.isSet(product.flags, "community_chat_enabled"))
+    throw new HandBackToRails("a license key or community chat");
+  if (
+    present(seller.google_analytics_id) ||
+    present(seller.facebook_pixel_id) ||
+    (seller.json_data ?? "").includes("tiktok_pixel_id")
+  )
+    throw new HandBackToRails("seller analytics");
 
-  if (purchase && (await purchasedVariantHasFiles(purchase.id, product.id))) throw new HandBackToRails("a purchased variant with files");
-  if ((await db.productFile.count({ where: { link_id: product.id, deleted_at: null } })) > 0) throw new HandBackToRails("product files");
+  if (purchase && (await purchasedVariantHasFiles(purchase.id, product.id)))
+    throw new HandBackToRails("a purchased variant with files");
+  if ((await db.productFile.count({ where: { link_id: product.id, deleted_at: null } })) > 0)
+    throw new HandBackToRails("product files");
   if (await hasRichContent(loaded)) throw new HandBackToRails("rich content");
-  if ((await db.productIntegration.count({ where: { product_id: product.id, deleted_at: null } })) > 0) throw new HandBackToRails("integrations");
-  if ((await db.thirdPartyAnalytic.count({ where: { deleted_at: null, OR: [{ link_id: Number(product.id) }, { user_id: Number(seller.id) }] } })) > 0) throw new HandBackToRails("third-party analytics");
+  if ((await db.productIntegration.count({ where: { product_id: product.id, deleted_at: null } })) > 0)
+    throw new HandBackToRails("integrations");
+  if (
+    (await db.thirdPartyAnalytic.count({
+      where: { deleted_at: null, OR: [{ link_id: Number(product.id) }, { user_id: Number(seller.id) }] },
+    })) > 0
+  )
+    throw new HandBackToRails("third-party analytics");
   // The posts list, which Purchase.product_installments filters per buyer.
-  if (purchase && (await db.installment.count({ where: { deleted_at: null, published_at: { not: null }, OR: [{ seller_id: Number(seller.id) }, { link_id: Number(product.id) }] } })) > 0) throw new HandBackToRails("posts");
+  if (
+    purchase &&
+    (await db.installment.count({
+      where: {
+        deleted_at: null,
+        published_at: { not: null },
+        OR: [{ seller_id: Number(seller.id) }, { link_id: Number(product.id) }],
+      },
+    })) > 0
+  )
+    throw new HandBackToRails("posts");
   return { loaded, product, seller };
 }
 
@@ -91,33 +121,66 @@ export function lastContentPageId(jsonData: string | null): string | null {
 // render like the product (rich content on them is refused by hasRichContent); a deleted purchased variant
 // picks its content provider differently, so it hands back.
 async function purchasedVariantHasFiles(purchaseId: bigint, productId: bigint): Promise<boolean> {
-  const links = await db.baseVariantsPurchase.findMany({ where: { purchase_id: Number(purchaseId) }, select: { base_variant_id: true } });
+  const links = await db.baseVariantsPurchase.findMany({
+    where: { purchase_id: Number(purchaseId) },
+    select: { base_variant_id: true },
+  });
   if (links.length === 0) return false;
-  const purchased = await db.baseVariant.findMany({ where: { id: { in: links.flatMap((link) => link.base_variant_id ?? []) }, type: "Variant" } });
+  const purchased = await db.baseVariant.findMany({
+    where: { id: { in: links.flatMap((link) => link.base_variant_id ?? []) }, type: "Variant" },
+  });
   if (purchased.length === 0) return false;
   if (purchased.some((variant) => variant.deleted_at !== null)) return true;
   const categories = await db.variantCategory.findMany({ where: { link_id: Number(productId) }, select: { id: true } });
-  const siblings = await db.baseVariant.findMany({ where: { variant_category_id: { in: categories.map((category) => category.id) }, deleted_at: null }, select: { id: true } });
-  const joins = await db.baseVariantsProductFile.findMany({ where: { base_variant_id: { in: [...siblings.map((variant) => variant.id), ...purchased.map((variant) => variant.id)] } }, select: { product_file_id: true } });
+  const siblings = await db.baseVariant.findMany({
+    where: { variant_category_id: { in: categories.map((category) => category.id) }, deleted_at: null },
+    select: { id: true },
+  });
+  const joins = await db.baseVariantsProductFile.findMany({
+    where: {
+      base_variant_id: { in: [...siblings.map((variant) => variant.id), ...purchased.map((variant) => variant.id)] },
+    },
+    select: { product_file_id: true },
+  });
   if (joins.length === 0) return false;
-  return (await db.productFile.count({ where: { id: { in: joins.flatMap((join) => join.product_file_id ?? []) }, deleted_at: null } })) > 0;
+  return (
+    (await db.productFile.count({
+      where: { id: { in: joins.flatMap((join) => join.product_file_id ?? []) }, deleted_at: null },
+    })) > 0
+  );
 }
 
 // !Subscription#grant_access_to_product?
-export async function membershipInactive({ subscription, product }: Pick<Loaded, "subscription" | "product">, now: Date): Promise<boolean> {
+export async function membershipInactive(
+  { subscription, product }: Pick<Loaded, "subscription" | "product">,
+  now: Date,
+): Promise<boolean> {
   if (!subscription) return false;
   const { cancelled_at: cancelledAt, failed_at: failedAt, ended_at: endedAt } = subscription;
-  if (SubscriptionFlags.isSet(subscription.flags, "is_installment_plan")) return cancelledAt !== null || failedAt !== null;
-  if (failedAt === null && endedAt === null && (cancelledAt === null || cancelledAt.getTime() > now.getTime())) return false;
-  const link = subscription.link_id === null || subscription.link_id === product?.id ? product : await db.link.findUnique({ where: { id: subscription.link_id } });
+  if (SubscriptionFlags.isSet(subscription.flags, "is_installment_plan"))
+    return cancelledAt !== null || failedAt !== null;
+  if (failedAt === null && endedAt === null && (cancelledAt === null || cancelledAt.getTime() > now.getTime()))
+    return false;
+  const link =
+    subscription.link_id === null || subscription.link_id === product?.id
+      ? product
+      : await db.link.findUnique({ where: { id: subscription.link_id } });
   return !link || LinkFlags.isSet(link.flags, "block_access_after_membership_cancellation");
 }
 
 // viewer_owns_subscription?: gift-origin subscriptions get no bypass, and the gift lookup runs last.
-export async function viewerOwnsSubscription({ purchase, subscription }: Loaded, viewer: User | null): Promise<boolean> {
-  if (!purchase || !subscription || !viewer || PurchaseFlags.isSet(purchase.flags, "is_gift_receiver_purchase")) return false;
+export async function viewerOwnsSubscription(
+  { purchase, subscription }: Loaded,
+  viewer: User | null,
+): Promise<boolean> {
+  if (!purchase || !subscription || !viewer || PurchaseFlags.isSet(purchase.flags, "is_gift_receiver_purchase"))
+    return false;
   if (subscription.user_id === null || subscription.user_id !== viewer.id) return false;
-  const originals = await db.purchase.findMany({ where: { subscription_id: subscription.id }, orderBy: { id: "asc" }, select: { id: true, flags: true } });
+  const originals = await db.purchase.findMany({
+    where: { subscription_id: subscription.id },
+    orderBy: { id: "asc" },
+    select: { id: true, flags: true },
+  });
   const original = originals.find((row) => PurchaseFlags.isSet(row.flags, "is_original_subscription_purchase"));
   return original ? (await db.gift.count({ where: { gifter_purchase_id: original.id } })) === 0 : true;
 }
@@ -126,13 +189,17 @@ const downloadUrl = (config: DomainConfig, token: string) => `${config.protocol}
 
 // UrlRedirectsController#download_page's props, in the order Rails merges them. The optional
 // audio_durations and latest_media_locations are left out, as in a first load.
-export async function downloadPageProps(token: string, { loggedInUser, display, now }: { loggedInUser: User | null; display: string | null; now: Date }) {
+export async function downloadPageProps(
+  token: string,
+  { loggedInUser, display, now }: { loggedInUser: User | null; display: string | null; now: Date },
+) {
   const loaded = await load(token);
   const { purchase } = loaded;
   await assertRenderable(loaded);
 
   let addToLibraryOption = "none";
-  if (purchase && !loaded.purchaser && !claimBySeller(loaded, loggedInUser)) addToLibraryOption = loggedInUser ? "add_to_library_button" : "signup_form";
+  if (purchase && !loaded.purchaser && !claimBySeller(loaded, loggedInUser))
+    addToLibraryOption = loggedInUser ? "add_to_library_button" : "signup_form";
 
   return {
     content: {
@@ -166,7 +233,10 @@ export async function setDownloadPageMeta(meta: MetaTagBuilder, token: string, c
   const seller = await db.user.findUnique({ where: { id: product!.user_id! } });
   await setFaviconMetaTags(meta, seller!);
   meta.set({ title: product!.name });
-  meta.set({ name: "apple-itunes-app", content: `app-id=${getConfig("IOS_APP_ID", DEFAULT_IOS_APP_ID)}, app-argument=${downloadUrl(config, token)}` });
+  meta.set({
+    name: "apple-itunes-app",
+    content: `app-id=${getConfig("IOS_APP_ID", DEFAULT_IOS_APP_ID)}, app-argument=${downloadUrl(config, token)}`,
+  });
 }
 
 // The after_actions, in the order Rails runs them: the view event, then the use count and seen flag.
@@ -184,7 +254,9 @@ async function recordVisit(loaded: Loaded, chain: Chain): Promise<void> {
   });
   // increment! leaves updated_at alone; mark_as_seen ORs the bit in so it keeps a concurrent flag write.
   await db.$executeRaw(Prisma.sql`UPDATE url_redirects SET uses = COALESCE(uses, 0) + 1 WHERE id = ${redirect.id}`);
-  await db.$executeRaw(Prisma.sql`UPDATE url_redirects SET flags = COALESCE(flags, 0) | ${HAS_BEEN_SEEN_BIT}, updated_at = ${chain.now} WHERE id = ${redirect.id}`);
+  await db.$executeRaw(
+    Prisma.sql`UPDATE url_redirects SET flags = COALESCE(flags, 0) | ${HAS_BEEN_SEEN_BIT}, updated_at = ${chain.now} WHERE id = ${redirect.id}`,
+  );
   // Appended to this request's list: the options object is shared across requests.
   chain.afterCookies.push(
     setCookieHeader(COOKIE_NAME, {
@@ -206,7 +278,11 @@ async function coffeePageUrl(sellerId: bigint | null, purchaseEmail: string | nu
 }
 
 // The facts check_permissions reads, for any action that runs it. `destination` is params[:action].
-export async function buildGateInput(chain: Chain, loaded: Loaded, { destination, isPoll }: { destination: string; isPoll: boolean }): Promise<{ gate: GateInput; viewer: User | null }> {
+export async function buildGateInput(
+  chain: Chain,
+  loaded: Loaded,
+  { destination, isPoll }: { destination: string; isPoll: boolean },
+): Promise<{ gate: GateInput; viewer: User | null }> {
   const { redirect, purchase, product } = loaded;
   const config = domainConfig(process.env);
   const viewer = railsLoggedInUser(chain.auth.context);
@@ -216,14 +292,17 @@ export async function buildGateInput(chain: Chain, loaded: Loaded, { destination
   const gate: GateInput = {
     token: redirect.token,
     path: chain.request.path,
-    fullpath: chain.request.queryString === "" ? chain.request.path : `${chain.request.path}?${chain.request.queryString}`,
+    fullpath:
+      chain.request.queryString === "" ? chain.request.path : `${chain.request.path}?${chain.request.queryString}`,
     display: present(display) ? display : null,
     destination,
     isPoll,
     hasBeenSeen: UrlRedirectFlags.isSet(redirect.flags, "has_been_seen"),
     purchase: purchase
       ? {
-          withdrawn: purchase.stripe_refunded === true || (purchase.chargeback_date !== null && !PurchaseFlags.isSet(purchase.flags, "chargeback_reversed")),
+          withdrawn:
+            purchase.stripe_refunded === true ||
+            (purchase.chargeback_date !== null && !PurchaseFlags.isSet(purchase.flags, "chargeback_reversed")),
           purchaserId: purchase.purchaser_id,
           rentalExpired: purchase.rental_expired === true,
           accessRevoked: PurchaseFlags.isSet(purchase.flags, "is_access_revoked"),
@@ -234,7 +313,9 @@ export async function buildGateInput(chain: Chain, loaded: Loaded, { destination
       : null,
     viewer: viewer ? { id: viewer.id, isTeamMember: UserFlags.isSet(viewer.flags, "is_team_member") } : null,
     viewerOwnsSubscription: ownsSubscription,
-    confirmedCookie: readEncryptedCookie(railsCookieSecrets(), COOKIE_NAME, chain.request.cookies.get(COOKIE_NAME) ?? undefined) === redirect.token,
+    confirmedCookie:
+      readEncryptedCookie(railsCookieSecrets(), COOKIE_NAME, chain.request.cookies.get(COOKIE_NAME) ?? undefined) ===
+      redirect.token,
     remoteIp: remoteIp(chain.request.headers),
     loginUrl: (next) => `${config.protocol}://${config.domain}/login?next=${cgiEscape(next)}`,
   };
@@ -251,8 +332,16 @@ export async function downloadPageFilters(chain: Chain): Promise<FilterOutcome> 
   const { redirect, purchase, product } = loaded;
 
   // redirect_bundle_purchase_to_library_if_needed and redirect_to_coffee_page_if_needed.
-  if (purchase && PurchaseFlags.isSet(purchase.flags, "is_bundle_purchase")) throw new HandBackToRails("a bundle purchase");
-  if (product?.native_type === "coffee") return { halt: { status: 302, location: await coffeePageUrl(product.user_id, queryParam(chain.request, "purchase_email")), rescued: true } };
+  if (purchase && PurchaseFlags.isSet(purchase.flags, "is_bundle_purchase"))
+    throw new HandBackToRails("a bundle purchase");
+  if (product?.native_type === "coffee")
+    return {
+      halt: {
+        status: 302,
+        location: await coffeePageUrl(product.user_id, queryParam(chain.request, "purchase_email")),
+        rescued: true,
+      },
+    };
   // sign_in_mobile_app_viewer needs doorkeeper.
   if (present(queryParam(chain.request, "access_token"))) throw new HandBackToRails("a mobile app token");
 
