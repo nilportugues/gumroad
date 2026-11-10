@@ -128,6 +128,13 @@ describe "API v2 product resource writes", type: :request do
       expect(product.variant_categories.reload.map(&:title)).to eq(["Size"])
     end
 
+    it "creates a category from a JSON boolean title", parity: true do
+      api_call(:post, categories_path, token:, params: { title: true }, as: :json)
+
+      expect(response.parsed_body["variant_category"]["title"]).to be_a(String)
+      expect(product.variant_categories.reload.map(&:title)).to eq([response.parsed_body["variant_category"]["title"]])
+    end
+
     it "creates a category without a title and expires the product's cached values", parity: true do
       create(:product_cached_value, product:)
 
@@ -145,6 +152,12 @@ describe "API v2 product resource writes", type: :request do
         api_call(:put, categories_path("/#{category.external_id}"), token:, params: { title: "Colour" })
 
         expect(response.parsed_body["variant_category"]["title"]).to eq("Colour")
+      end
+
+      it "renames the category to a JSON boolean title", parity: true do
+        api_call(:put, categories_path("/#{category.external_id}"), token:, params: { title: false }, as: :json)
+
+        expect(response.parsed_body["variant_category"]["title"]).to eq(category.reload.title)
       end
 
       it "leaves an unchanged title alone", parity: true do
