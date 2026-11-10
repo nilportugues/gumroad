@@ -46,7 +46,7 @@ describe "Mobile API products, subscriptions, preorders and installments", type:
       expect(response).to have_http_status(:forbidden)
     end
 
-    it "hands a page past the last one to Rails", parity: true do
+    it "answers a 400 for a page past the last one", parity: true do
       create(:product, user: seller)
 
       get "/mobile/products", params: auth(seller).merge(page: "9")
