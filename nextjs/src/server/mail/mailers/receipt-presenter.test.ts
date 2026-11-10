@@ -1,10 +1,10 @@
 // The shapes `assertSupported` refuses that the golden cannot record: Rails raises while rendering a gift or a
 // preorder without the rows that go with it, so there is no message to compare. The refusal itself is a pure
 // function of the rows, checked here; receipt-mailer.test.ts replays everything Rails renders.
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { MailViewNotPortedError } from "../views.ts";
-import { assertSupported, autoLinkText, itemInfo, mailSubject, type ReceiptData, simpleFormat } from "./receipt-presenter.ts";
+import { assertSupported, autoLinkText, chargeInfo, itemInfo, mailSubject, type ReceiptData, simpleFormat, unproven } from "./receipt-presenter.ts";
 
 const data = (purchase: Partial<ReceiptData["purchase"]> = {}, link: Partial<ReceiptData["link"]> = {}, seller: Partial<ReceiptData["seller"]> = {}): ReceiptData => ({
   purchase: {
@@ -15,7 +15,7 @@ const data = (purchase: Partial<ReceiptData["purchase"]> = {}, link: Partial<Rec
   },
   link: { id: 301, user_id: 201, name: "Guide", unique_permalink: "guide", custom_permalink: null, support_email: null, json_data: null, flags: 0, native_type: "digital", price_currency_type: "usd", require_shipping: false, ...link },
   seller: { id: 201, name: "Seller", username: "seller", email: "seller@example.com", unconfirmed_email: null, support_email: null, external_id: "8000000000201", recommendation_type: "no_recommendations", ...seller },
-  displayedPriceUsdCents: 500, presentment: null, taxLines: null, urlRedirectToken: null, urlRedirectIsRental: false, linkStreamable: null, licenseKey: null, variantNames: null, tipValueCents: null, customFields: [], refundPolicy: null,
+  displayedPriceUsdCents: 500, presentment: null, taxLines: null, urlRedirectToken: null, urlRedirectIsRental: false, linkStreamable: null, licenseKey: null, variantNames: null, tipValueCents: null, customFields: [], refundPolicy: null, gift: null,
 });
 
 describe("assertSupported", () => {
@@ -90,5 +90,53 @@ describe("text that goes through rails_autolink and the sanitizer", () => {
 
   it("splits paragraphs on blank lines and breaks single newlines", () => {
     expect(simpleFormat("one\ntwo\n\nthree")).toBe("<p>one\n<br />two</p>\n\n<p>three</p>");
+  });
+});
+
+describe("gift the buyer sent", () => {
+  const sent = (gift: Partial<NonNullable<ReceiptData["gift"]>> = {}, extra: Partial<ReceiptData> = {}): ReceiptData => ({
+    ...data({ flags: 1 << 6, quantity: 2 }),
+    urlRedirectToken: "tok",
+    gift: { giftee_email: "friend@example.com", gift_note: "  Enjoy!\n", flags: 0, ...gift },
+    ...extra,
+  });
+  afterEach(() => {
+    unproven.giftSender = true;
+  });
+
+  it("goes back to Rails while unproven", () => {
+    expect(() => assertSupported(sent())).toThrow(MailViewNotPortedError);
+  });
+
+  describe("once proven", () => {
+    beforeEach(() => {
+      unproven.giftSender = false;
+    });
+
+    it("accepts a plain gift and names the giftee in the subject", () => {
+      expect(() => assertSupported(sent())).not.toThrow();
+      expect(mailSubject(sent())).toBe("You bought friend@example.com Guide!");
+    });
+
+    it("lists the giftee and the stripped message, hides the download button and the quantity, and drops the questions note", () => {
+      const item = itemInfo(sent(), null);
+      expect(item.giftAttributes).toEqual([
+        { label: "Gift sent to", text: "friend@example.com" },
+        { label: "Message", text: "Enjoy!" },
+      ]);
+      expect(item.showDownloadButton).toBe(false);
+      expect(item.generalAttributes.map((attribute) => attribute.label)).not.toContain("Quantity");
+      expect(chargeInfo(sent(), "abc").productQuestionsNote).toBeNull();
+    });
+
+    it("omits the message when the note is blank", () => {
+      expect(itemInfo(sent({ gift_note: " \n" }), null).giftAttributes).toEqual([{ label: "Gift sent to", text: "friend@example.com" }]);
+    });
+
+    it("refuses a hidden recipient, a missing gift row, and a physical or licensed gift", () => {
+      expect(() => assertSupported(sent({ flags: 1 }))).toThrow(MailViewNotPortedError);
+      expect(() => assertSupported(sent({}, { gift: null }))).toThrow(MailViewNotPortedError);
+      expect(() => assertSupported({ ...sent(), link: { ...sent().link, flags: 1 << 7 } })).toThrow(MailViewNotPortedError);
+    });
   });
 });

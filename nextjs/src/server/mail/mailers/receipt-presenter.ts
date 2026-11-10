@@ -101,14 +101,20 @@ export type ReceiptData = {
   tipValueCents: number | null;
   customFields: ReceiptCustomField[];
   refundPolicy: ReceiptRefundPolicy | null;
+  // Purchase#gift_given, read only for a gift the buyer sent
+  gift: ReceiptGift | null;
 };
+
+export type ReceiptGift = { giftee_email: string | null; gift_note: string | null; flags: number | bigint | null };
+// Set giftSender false once `receipt_gift_sender` is recorded from Ruby and the replay passes; until then a gift sender's receipt goes back to Rails.
+export const unproven = { giftSender: true };
+const GIFT_IS_RECIPIENT_HIDDEN = 1;
 
 const purchaseFlag = (purchase: ReceiptPurchaseRow, name: Parameters<typeof PurchaseFlags.isSet>[1]) => PurchaseFlags.isSet(purchase.flags ?? 0, name);
 const linkFlag = (link: ReceiptLinkRow, name: Parameters<typeof LinkFlags.isSet>[1]) => LinkFlags.isSet(link.flags ?? 0, name);
 
 const NOT_PORTED_PURCHASE_FLAGS = [
   "is_gift_receiver_purchase",
-  "is_gift_sender_purchase",
   "is_preorder_authorization",
   "is_free_trial_purchase",
   "is_upgrade_purchase",
@@ -135,6 +141,14 @@ export function assertSupported(data: ReceiptData): void {
   if (purchase.purchase_state !== "successful") refuse(`a purchase in state ${String(purchase.purchase_state)}`);
   for (const flag of NOT_PORTED_PURCHASE_FLAGS) if (purchaseFlag(purchase, flag)) refuse(`a purchase with ${flag}`);
   for (const flag of NOT_PORTED_LINK_FLAGS) if (linkFlag(link, flag)) refuse(`a product with ${flag}`);
+  if (purchaseFlag(purchase, "is_gift_sender_purchase")) {
+    if (unproven.giftSender) refuse("a gift the buyer sent");
+    // A hidden recipient is named from their account; a physical gift adds shipping wording; a licensed one its key rules.
+    const { gift } = data;
+    if (gift === null || (Number(gift.flags ?? 0) & GIFT_IS_RECIPIENT_HIDDEN) !== 0) refuse("a gift the buyer sent to a hidden recipient");
+    if (gift?.giftee_email === null || gift?.gift_note === null) refuse("a gift without a recipient or note");
+    if (linkFlag(link, "is_physical") || linkFlag(link, "is_licensed")) refuse("a physical or licensed gift");
+  }
   if (purchase.subscription_id !== null || purchase.price_id !== null) refuse("a subscription purchase");
   if (purchase.preorder_id !== null) refuse("a preorder");
   // Footer: the "test purchase" warning for a seller buying their own product.
@@ -183,6 +197,7 @@ export function displayName(seller: ReceiptSellerRow): string | null {
 // ReceiptPresenter::MailSubject for one purchase, which is all `assertSupported` lets through.
 export function mailSubject(data: ReceiptData): string {
   const { purchase, link } = data;
+  if (purchaseFlag(purchase, "is_gift_sender_purchase")) return `You bought ${data.gift!.giftee_email} ${link.name}!`;
   if (purchaseFlag(purchase, "is_rental")) return `You rented ${link.name}!`;
   if (purchase.price_cents === 0) return `You got ${link.name}!`;
   return `You bought ${link.name}!`;
@@ -212,8 +227,8 @@ export function chargeInfo(data: ReceiptData, orderId: string) {
     // A free trial still counts as paid, but trials are not ported.
     free: purchase.price_cents === 0 && purchase.shipping_cents === 0,
     formattedTotalTransactionAmount: data.presentment ? formatChargePresentmentAmount(data.presentment.totalCents, data.presentment.currency) : formattedDollarAmount(purchase.total_transaction_cents),
-    // for_email: true
-    productQuestionsNote: `Questions about your ${pluralize(1, "product", "products").slice(2)}? Contact ${h(displayName(seller))} by replying to this email.`,
+    // for_email: true; none for the gift sender
+    productQuestionsNote: purchaseFlag(purchase, "is_gift_sender_purchase") ? null : `Questions about your ${pluralize(1, "product", "products").slice(2)}? Contact ${h(displayName(seller))} by replying to this email.`,
   };
 }
 
@@ -296,7 +311,7 @@ export function itemInfo(data: ReceiptData, customReceiptText: string | null) {
   if (data.tipValueCents !== null) {
     general.push({ label: "Tip", text: data.presentment ? formatChargePresentmentAmount(data.presentment.tipCents, data.presentment.currency) : formatJustPriceInCents(data.tipValueCents, purchase.displayed_price_currency_type!) });
   }
-  if (purchase.quantity > 1 && !coffee) general.push({ label: "Quantity", text: String(purchase.quantity) });
+  if (purchase.quantity > 1 && !coffee && !purchaseFlag(purchase, "is_gift_sender_purchase")) general.push({ label: "Quantity", text: String(purchase.quantity) });
   for (const field of data.customFields) {
     if (field.type === "checkbox") general.push({ label: field.name, text: field.value ? "Yes" : "No" });
     else if (field.type === "text") general.push({ label: field.name, text: String(field.value) });
@@ -304,11 +319,20 @@ export function itemInfo(data: ReceiptData, customReceiptText: string | null) {
   }
   if (data.refundPolicy) general.push({ label: data.refundPolicy.title, text: data.refundPolicy.fine_print ?? "" });
 
+  const giftAttributes: Attribute[] = [];
+  const giftSent = purchaseFlag(purchase, "is_gift_sender_purchase");
+  if (giftSent) {
+    giftAttributes.push({ label: "Gift sent to", text: data.gift!.giftee_email! });
+    const note = data.gift!.gift_note!.trim();
+    if (note !== "") giftAttributes.push({ label: "Message", text: note });
+  }
+
   return {
     notes,
     customReceiptNote: customReceiptText,
     licenseKey: data.licenseKey,
-    showDownloadButton: data.urlRedirectToken !== null && !coffee,
+    giftAttributes,
+    showDownloadButton: data.urlRedirectToken !== null && !coffee && !giftSent,
     downloadCta: downloadCta(data),
     generalAttributes: general,
   };

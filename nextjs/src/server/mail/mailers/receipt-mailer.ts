@@ -6,6 +6,7 @@
 // statement lands in the same place (repeats are query-cache hits in both).
 import { Prisma } from "@prisma/client";
 import { LinkFlags } from "../../models/link.ts";
+import { PurchaseFlags } from "../../search/flags.ts";
 import { UrlRedirectFlags } from "../../models/url-redirect.ts";
 import { getUsdCents, rubyStringToF } from "../../models/concerns/currency-helper.ts";
 import type { Charge, Purchase } from "@prisma/client";
@@ -38,6 +39,7 @@ import {
 import {
   type Attribute,
   assertSupported,
+  unproven,
   autoLinkText,
   chargeInfo,
   displayName,
@@ -83,7 +85,12 @@ async function loadReceiptData(purchase: ReceiptPurchaseRow & Record<string, unk
   const link = await findRow<ReceiptLinkRow>("links", purchase.link_id);
   if (!link) throw new TypeError("undefined method 'name' for nil");
 
-  const data: ReceiptData = { purchase, link, seller, displayedPriceUsdCents: 0, presentment: null, taxLines: null, urlRedirectToken: null, urlRedirectIsRental: false, linkStreamable: null, licenseKey: null, variantNames: null, tipValueCents: null, customFields: [], refundPolicy: null };
+  const data: ReceiptData = { purchase, link, seller, displayedPriceUsdCents: 0, presentment: null, taxLines: null, urlRedirectToken: null, urlRedirectIsRental: false, linkStreamable: null, licenseKey: null, variantNames: null, tipValueCents: null, customFields: [], refundPolicy: null, gift: null };
+  // MailSubject: `purchase.giftee_name_or_email` reads `gift_given` for a gift the buyer sent. UNPROVEN position (unproven.giftSender).
+  if (!unproven.giftSender && PurchaseFlags.isSet(purchase.flags ?? 0, "is_gift_sender_purchase")) {
+    const [gift] = await selectRows<Record<string, unknown>>(Prisma.sql`SELECT ${star("gifts")} FROM ${table("gifts")} WHERE ${column("gifts", "gifter_purchase_id")} = ${purchase.id} LIMIT 1`);
+    if (gift) data.gift = { giftee_email: (gift.giftee_email as string | null) ?? null, gift_note: (gift.gift_note as string | null) ?? null, flags: (gift.flags as number | bigint | null) ?? 0 };
+  }
   return { data, supportEmails: supportEmails.map((row) => row.support_email) };
 }
 
@@ -100,7 +107,8 @@ const rows = (statements: Prisma.Sql) => selectRows<Record<string, unknown>>(sta
 async function loadItemData(data: ReceiptData): Promise<void> {
   const { purchase } = data;
   // ChargeInfo's presentment decision reads the buyer-currency row of every purchase that moved money.
-  const [redirect] = await byPurchase("url_redirects", purchase.id, true);
+  // show_download_button short-circuits on `!is_gift_sender_purchase`, so a gift the buyer sent never reads the redirect.
+  const [redirect] = PurchaseFlags.isSet(purchase.flags ?? 0, "is_gift_sender_purchase") ? [] : await byPurchase("url_redirects", purchase.id, true);
   // show_download_button
   if (redirect) {
     data.urlRedirectToken = String(redirect.token);
@@ -220,7 +228,7 @@ ${notes}
 ${customNote}
 ${item.licenseKey === null ? "" : `    <h4>License key</h4>\n    <pre style="text-align: center; white-space: pre-wrap;">\n      <code>${h(item.licenseKey)}</code>\n    </pre>\n`}
 ${download}
-  ${attributesPartial([])}
+  ${attributesPartial(item.giftAttributes)}
   ${attributesPartial(item.generalAttributes)}
 </div>
 `;
@@ -434,10 +442,7 @@ ${payment.notes.map((note) => `      <div>\n        ${h(note)}\n      </div>\n`)
       ${itemSection(item, card, data)}
     </div>
 
-    <div>
-      ${info.productQuestionsNote}
-    </div>
-</div>
+${info.productQuestionsNote === null ? "" : `    <div>\n      ${info.productQuestionsNote}\n    </div>\n`}</div>
 `;
   const receiptPartial = `  ${headerSection(info)}
   ${itemsSection}

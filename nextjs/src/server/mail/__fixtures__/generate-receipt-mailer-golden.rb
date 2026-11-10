@@ -420,7 +420,12 @@ setup(purchase: RENTAL, redirect: false)
 insert_url_redirect(id: 601, purchase_id: 401, link_id: 301, flags: 4)
 ProductFile.insert!({ link_id: 301, url: "https://example.com/a.mp4", filetype: "mp4", filegroup: "video", created_at: FIXED_NOW, updated_at: FIXED_NOW })
 messages << record_message("receipt_rental_watch", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
-refuse(refused, "bundle", purchase: PRICE.merge(flags: 33_554_432), link: { flags: 33_554_432 })
+# A gift the buyer sent (Purchase flag 7, is_gift_sender_purchase). Not yet recorded from Ruby: the Node port is
+# unproven (`unproven.giftSender` in receipt-presenter.ts) until this script is run and the golden regenerated.
+setup(purchase: PRICE.merge(flags: 64, quantity: 2), redirect: false)
+Gift.insert!({ gifter_purchase_id: 401, link_id: 301, state: "successful", giftee_email: "friend@example.com", gifter_email: "buyer@example.com", gift_note: "  Enjoy!\n", created_at: FIXED_NOW, updated_at: FIXED_NOW })
+messages << record_message("receipt_gift_sender", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
+refuse(refused, "bundle",purchase: PRICE.merge(flags: 33_554_432), link: { flags: 33_554_432 })
 refuse(refused, "membership", link: { flags: 2, native_type: "membership" }, purchase: PRICE)
 refuse(refused, "unknown_currency", purchase: PRICE.merge(displayed_price_currency_type: "xxx", rate_converted_to_usd: "1.0"))
 refuse(refused, "call", link: { native_type: "call" }, purchase: PRICE)
