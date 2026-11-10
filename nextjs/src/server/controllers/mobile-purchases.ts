@@ -1,14 +1,22 @@
 // Port of app/controllers/api/mobile/purchases_controller.rb and app/controllers/api/mobile/sales_controller.rb (index, show, options).
 //
-// Served here: the unconfirmed-account 403, the 404 for a purchase that is not the caller's, the empty lists, and sales#index rows
-// whose Purchase#as_json(creator_app_api: true) is ported (presenters/mobile-serializers.ts: USD, no recurrence). Everything else (a
-// purchase that exists, a non-empty library page, sales#show, every write: archive, unarchive, destroy, sales#update) goes to Rails
-// whole, because UrlRedirect#product_json_data, Preorder#mobile_json_data and the product-updates preloader are not ported.
+// Served here: the unconfirmed-account 403, the 404 for a purchase that is not the caller's, the empty lists, sales#index rows
+// whose Purchase#as_json(creator_app_api: true) is ported (presenters/mobile-serializers.ts: USD, no recurrence), and
+// purchase_attributes of a plain purchase (no url redirect, preorder, subscription, refund or review) whose seller and product have no
+// post. Everything else (the rest of purchase_attributes, a non-empty library page, sales#show, every write: archive, unarchive,
+// destroy, sales#update) goes to Rails whole, because UrlRedirect#product_json_data, Preorder#mobile_json_data and the posts of
+// the product-updates preloader are not ported.
 import { Prisma } from "@prisma/client";
 
+import { db } from "../../lib/db.ts";
 import { decrypt } from "../../lib/obfuscate-ids.ts";
+import { preloadProductUpdatesData } from "../models/purchase-product-updates.ts";
 import { column, selectRows, table } from "../models/sql.ts";
-import { creatorAppPurchasesJson } from "../presenters/mobile-serializer-reads.ts";
+import { profileUrl } from "../page-props/buyer/users.ts";
+import { NotPortedError } from "../page-props/not-ported.ts";
+import { avatarUrl } from "../page-props/signed-in/presenters.ts";
+import { creatorAppPurchasesJson, thumbnailUrlsByProduct } from "../presenters/mobile-serializer-reads.ts";
+import { purchaseJsonDataForMobile } from "../presenters/mobile-serializers.ts";
 import { linkOptions } from "../presenters/product-props.ts";
 import { findLink } from "../presenters/product-reads.ts";
 import { PurchaseSearchService } from "../search/purchase-search.ts";
@@ -120,6 +128,72 @@ const purchaseAction = (verb: string) => async (input: MobileInput, auth: Mobile
   throw new HandBackToRails(`${verb} of a purchase that exists`);
 };
 
+const hasRows = async (tableName: string, columnName: string, id: bigint): Promise<boolean> =>
+  (
+    await selectRows(
+      Prisma.sql`SELECT 1 FROM ${table(tableName)} WHERE ${column(tableName, columnName)} = ${id} LIMIT 1`,
+    )
+  ).length > 0;
+
+// PurchasesController#purchase_attributes: fetch_purchase, then Purchase#json_data_for_mobile
+async function purchaseAttributes(input: MobileInput, auth: MobileAuth | null) {
+  const refused = requireConfirmedUser(auth);
+  if (refused) return refused;
+  const id = typeof input.params.id === "string" ? decrypt(input.params.id) : null;
+  const purchase =
+    id === null
+      ? null
+      : await db.purchase.findFirst({ where: { id: BigInt(id), purchaser_id: libraryOwner(auth).id } });
+  // successful_and_not_reversed? || subscription
+  if (
+    purchase === null ||
+    (purchase.subscription_id === null &&
+      (purchase.stripe_refunded === true ||
+        purchase.chargeback_date !== null ||
+        !NON_GIFT_SUCCESS_STATES.includes(purchase.purchase_state ?? "")))
+  )
+    return fetchError("Could not find purchase");
+  if (purchase.subscription_id !== null) throw new HandBackToRails("the subscription_data of a membership purchase");
+  if (purchase.preorder_id !== null) throw new HandBackToRails("Preorder#mobile_json_data");
+  if (await hasRows("url_redirects", "purchase_id", purchase.id))
+    throw new HandBackToRails("UrlRedirect#product_json_data");
+  if (await hasRows("refunds", "purchase_id", purchase.id)) throw new NotPortedError("Purchase#amount_refunded_cents");
+  if (await hasRows("product_reviews", "purchase_id", purchase.id))
+    throw new NotPortedError("Purchase#original_product_review");
+
+  const link = purchase.link_id === null ? null : await db.link.findUnique({ where: { id: purchase.link_id } });
+  const creator = link?.user_id == null ? null : await db.user.findUnique({ where: { id: link.user_id } });
+  const seller = purchase.seller_id === null ? null : await db.user.findUnique({ where: { id: purchase.seller_id } });
+  if (!link || !creator || !seller) throw new NotPortedError("a purchase whose product or seller row is missing");
+  if (creator.username === null || creator.username.trim() === "")
+    throw new NotPortedError("User#profile_url for a creator without a username");
+  const productUpdates = (await preloadProductUpdatesData([purchase])).get(purchase.id)!;
+
+  const [previews] = await selectRows(
+    Prisma.sql`SELECT 1 FROM ${table("asset_previews")} WHERE ${column("asset_previews", "link_id")} = ${link.id} AND ${column("asset_previews", "deleted_at")} IS NULL LIMIT 1`,
+  );
+  const thumbnails = await thumbnailUrlsByProduct([link.id]);
+  return renderJson({
+    success: true,
+    product: purchaseJsonDataForMobile({
+      purchase,
+      link: {
+        link,
+        creator,
+        creatorAvatarUrl: await avatarUrl(creator),
+        creatorProfileUrl: profileUrl(creator),
+        thumbnailOrCoverUrl: thumbnails.get(link.id) ?? null,
+        hasAlivePreviews: previews !== undefined,
+      },
+      seller,
+      purchaser: libraryOwner(auth),
+      productRating: null,
+      amountRefundedCents: 0,
+      productUpdatesData: productUpdates,
+    }),
+  });
+}
+
 // SalesController#index. A row the creator-app serializer does not reproduce throws NotPortedError, which hands the request to Rails.
 async function salesIndex(input: MobileInput, auth: MobileAuth | null) {
   const query = input.params.query;
@@ -185,7 +259,7 @@ registerMobile(
     method: "GET",
     pattern: "/mobile/purchases/purchase_attributes/:id",
     scopes: MOBILE_API_SCOPES,
-    run: purchaseAction("a read"),
+    run: purchaseAttributes,
   },
   {
     method: "POST",
