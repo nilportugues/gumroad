@@ -12,6 +12,7 @@ import { Prisma, type Subscription } from "@prisma/client";
 import type { Redis } from "ioredis";
 
 import { getRedis } from "../../server/infra/redis.ts";
+import { RubyFloat, type JsonValue } from "../../server/jobs/sidekiq/ruby-json.ts";
 import { beforeSideEffects } from "../../server/jobs/hand-back.ts";
 import { addDays, ago, dateToS, toCalendarDate } from "../../server/models/concerns/ruby-time.ts";
 import { performAsync } from "../../server/models/concerns/job-runtime.ts";
@@ -119,14 +120,23 @@ export const syncStuckPurchasesJobWith = modelJob({ min: 0 }, async (_args, deps
   await beforeSideEffects(() => handBackIfAny(rows, "Purchase#sync_status_with_charge_processor"));
 });
 
+// How NoMethodError names its receiver.
+function rubyReceiver(value: JsonValue): string {
+  if (value === null) return "nil";
+  if (typeof value === "boolean") return String(value);
+  if (typeof value === "string") return "an instance of String";
+  if (typeof value === "number" || typeof value === "bigint") return `an instance of ${typeof value === "bigint" || Number.isInteger(value) ? "Integer" : "Float"}`;
+  if (Array.isArray(value)) return "an instance of Array";
+  return value instanceof RubyFloat ? "an instance of Float" : "an instance of Hash";
+}
+
 const REGENERATE_CREATOR_ANALYTICS_CACHE_WORKER = "RegenerateCreatorAnalyticsCacheWorker";
 
 // Port of app/sidekiq/create_missing_purchase_events_worker.rb
 export const createMissingPurchaseEventsWorkerWith = modelJob({ min: 0, max: 1 }, async (args, deps) => {
-  // An explicit date arrives as a JSON string, which Ruby cannot call #tomorrow on; run it in Ruby.
-  await beforeSideEffects(() => {
-    if (args.length > 0) throw new NotPortedError("CreateMissingPurchaseEventsWorker#perform(date)", "create_missing_purchase_events_worker.rb:7");
-  });
+  // Sidekiq hands the date over as parsed JSON, never a Date, so `date.tomorrow` raises for any explicit
+  // argument, before the first query.
+  if (args.length > 0) throw new Error(`undefined method 'tomorrow' for ${rubyReceiver(args[0]!)}`);
   // Date.yesterday, in UTC.
   const today = toCalendarDate(deps.now());
   const yesterday = addDays(today, -1);

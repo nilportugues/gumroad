@@ -15,7 +15,7 @@ import { rubyFloatRoundDigits } from "../../server/models/concerns/ruby-numeric.
 import { setPurchasingPowerParityDepsForTesting } from "../../server/models/purchasing-power-parity.ts";
 import { parseRubyJson, RubyFloat } from "../../server/jobs/sidekiq/ruby-json.ts";
 import { asSidekiqJob, contextFor, goldenRuntime, recordingSidekiqRedis, type RedisSnapshot } from "./__fixtures__/golden.ts";
-import { updatePurchasingPowerParityFactorsWorkerWith } from "./update-purchasing-power-parity-factors-worker.ts";
+import { integerOrNil, updatePurchasingPowerParityFactorsWorkerWith } from "./update-purchasing-power-parity-factors-worker.ts";
 
 type Case = {
   name: string;
@@ -107,7 +107,8 @@ describe("UpdatePurchasingPowerParityFactorsWorker", () => {
       }
 
       expect(requests).toEqual(c.requests);
-      if (c.hand_back === true) {
+      // Integer() is ported; the zip and CSV cases the golden marks are still handed back.
+      if (c.hand_back === true && !c.name.startsWith("the last year column is")) {
         expect(error?.name).toBe("HandBackToRuby");
         expect(fake.commands).toEqual([]);
         return;
@@ -128,6 +129,33 @@ describe("Float#round(2)", () => {
   it(`rounds ${golden.round2.length} inputs as Ruby does`, () => {
     const wrong = golden.round2.filter(([input, expected]) => !Object.is(rubyFloatRoundDigits(decode(input), 2), decode(expected)));
     expect(wrong.slice(0, 10)).toEqual([]);
+  });
+});
+
+describe("Integer(header, exception: false)", () => {
+  it.each([
+    ["2024", 2024],
+    [" \t-12\n", -12],
+    ["+7", 7],
+    ["0x7E8", 2024],
+    ["-0X1f", -31],
+    ["0b11", 3],
+    ["0o17", 15],
+    ["017", 15],
+    ["0_7", 7],
+    ["0d12", 12],
+    ["2_024", 2024],
+    ["0", 0],
+  ])("reads %j as %i", (header, expected) => {
+    expect(integerOrNil(header)).toBe(expected);
+  });
+
+  it.each(["", "08", "0x", "0x_1", "1__0", "1_", "_1", "- 1", "1.0", "12abc", " 1", "1 ", "٣"])("reads %j as nil", (header) => {
+    expect(integerOrNil(header)).toBeNull();
+  });
+
+  it("reads a missing header as nil", () => {
+    expect(integerOrNil(null)).toBeNull();
   });
 });
 
