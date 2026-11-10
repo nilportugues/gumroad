@@ -52,7 +52,10 @@ async function originalRenewalOfferCode(original: PurchaseRecord): Promise<Offer
 }
 
 // Subscription#reuse_original_discount_on_next_charge?
-async function reuseOriginalDiscountOnNextCharge(sub: SubscriptionRecord, original: PurchaseRecord | null): Promise<boolean> {
+async function reuseOriginalDiscountOnNextCharge(
+  sub: SubscriptionRecord,
+  original: PurchaseRecord | null,
+): Promise<boolean> {
   if (!(await discountAppliesToNextCharge(sub, original)) || original === null) return false;
   if ((await originalRenewalOfferCode(original))?.tiered()) return false;
   const code = await original.offerCode();
@@ -63,7 +66,12 @@ async function reuseOriginalDiscountOnNextCharge(sub: SubscriptionRecord, origin
 
 // Subscription#cached_tiered_pwyw_renewal_pre_discount_total_cents: a pay-what-you-want buyer of a
 // tiered code paid above the discounted minimum; undo the percentage their tier took off.
-export function cachedTieredPwywPreDiscountTotal(input: { percent: number; preDiscountMinimumPriceCents: number; quantity: number; displayedPriceCents: number }): number | null {
+export function cachedTieredPwywPreDiscountTotal(input: {
+  percent: number;
+  preDiscountMinimumPriceCents: number;
+  quantity: number;
+  displayedPriceCents: number;
+}): number | null {
   const { percent, quantity, displayedPriceCents: displayed } = input;
   const discountedBaseTotal = rubyRound(input.preDiscountMinimumPriceCents * quantity * (1 - percent / 100.0));
   if (!(displayed > discountedBaseTotal)) return null;
@@ -104,16 +112,29 @@ export function autoRenewalDiscountedTotal(input: {
   minPrice: () => number;
 }): number {
   const { preDiscountTotalCents: pre, amount } = input;
-  const amounts: Amounts = input.isPercent ? { amount_percentage: amount, amount_cents: null } : { amount_cents: amount, amount_percentage: null };
-  const amountOffCents = input.isPercent ? amountOff(amounts, pre) : input.oncePerCart ? amount : amountOff(amounts, input.unitPriceCents) * input.quantity;
+  const amounts: Amounts = input.isPercent
+    ? { amount_percentage: amount, amount_cents: null }
+    : { amount_cents: amount, amount_percentage: null };
+  const amountOffCents = input.isPercent
+    ? amountOff(amounts, pre)
+    : input.oncePerCart
+      ? amount
+      : amountOff(amounts, input.unitPriceCents) * input.quantity;
   let discountedTotal = Math.max((pre ?? nullOperand("-")) - amountOffCents, 0);
-  if (input.codeIsCents && input.oncePerCart && discountedTotal > 0) discountedTotal = Math.max(discountedTotal, input.minPrice());
+  if (input.codeIsCents && input.oncePerCart && discountedTotal > 0)
+    discountedTotal = Math.max(discountedTotal, input.minPrice());
   return discountedTotal;
 }
 
-async function autoRenewalDiscountedTotalCents(original: PurchaseRecord, link: Link, auto: AutoRenewalDiscount, preDiscountTotalCents: number | null): Promise<number> {
+async function autoRenewalDiscountedTotalCents(
+  original: PurchaseRecord,
+  link: Link,
+  auto: AutoRenewalDiscount,
+  preDiscountTotalCents: number | null,
+): Promise<number> {
   // `renewal_pre_discount_price_cents`: read for a fixed code, though the code's amount is what comes off.
-  const unitPriceCents = !auto.isPercent && !auto.offerCode.oncePerCart ? await original.minimumPaidPriceCentsPerUnitBeforeDiscount() : null;
+  const unitPriceCents =
+    !auto.isPercent && !auto.offerCode.oncePerCart ? await original.minimumPaidPriceCentsPerUnitBeforeDiscount() : null;
   return autoRenewalDiscountedTotal({
     preDiscountTotalCents,
     isPercent: auto.isPercent,
@@ -130,21 +151,41 @@ async function autoRenewalDiscountedTotalCents(original: PurchaseRecord, link: L
 async function preloadOwnershipProducts(codes: OfferCodeRecord[]): Promise<void> {
   if (codes.length === 0) return;
   const joins = await selectRows<{ offer_code_id: bigint | number; product_id: bigint | number }>(
-    Prisma.sql`SELECT ${star("offer_codes_ownership_products")} FROM ${table("offer_codes_ownership_products")} WHERE ${columnIn("offer_codes_ownership_products", "offer_code_id", codes.map((code) => code.id))}`,
+    Prisma.sql`SELECT ${star("offer_codes_ownership_products")} FROM ${table("offer_codes_ownership_products")} WHERE ${columnIn(
+      "offer_codes_ownership_products",
+      "offer_code_id",
+      codes.map((code) => code.id),
+    )}`,
   );
   const productIds = [...new Map(joins.map((join) => [String(join.product_id), join.product_id])).values()];
-  const links = productIds.length === 0 ? [] : (await selectRows(Prisma.sql`SELECT ${star("links")} FROM ${table("links")} WHERE ${columnIn("links", "id", productIds)}`)).map((row) => castRow<Link>("Link", row));
+  const links =
+    productIds.length === 0
+      ? []
+      : (
+          await selectRows(
+            Prisma.sql`SELECT ${star("links")} FROM ${table("links")} WHERE ${columnIn("links", "id", productIds)}`,
+          )
+        ).map((row) => castRow<Link>("Link", row));
   const byId = new Map(links.map((link) => [String(link.id), link]));
   for (const code of codes) {
-    const owned = joins.filter((join) => String(join.offer_code_id) === String(code.id)).map((join) => byId.get(String(join.product_id)));
-    code.preload("ownership_products", owned.filter((link): link is Link => link !== undefined));
+    const owned = joins
+      .filter((join) => String(join.offer_code_id) === String(code.id))
+      .map((join) => byId.get(String(join.product_id)));
+    code.preload(
+      "ownership_products",
+      owned.filter((link): link is Link => link !== undefined),
+    );
   }
 }
 
-const toCodes = (rows: Record<string, unknown>[]) => rows.map((row) => new OfferCodeRecord(castRow<OfferCode>("OfferCode", row)));
+const toCodes = (rows: Record<string, unknown>[]) =>
+  rows.map((row) => new OfferCodeRecord(castRow<OfferCode>("OfferCode", row)));
 
 // Subscription#compute_auto_renewal_offer_code
-async function computeAutoRenewalOfferCode(sub: SubscriptionRecord, original: PurchaseRecord | null): Promise<AutoRenewalDiscount | null> {
+async function computeAutoRenewalOfferCode(
+  sub: SubscriptionRecord,
+  original: PurchaseRecord | null,
+): Promise<AutoRenewalDiscount | null> {
   const buyer = await sub.user();
   const link = await sub.link();
   if (link === null || original === null) return null;
@@ -170,7 +211,9 @@ async function computeAutoRenewalOfferCode(sub: SubscriptionRecord, original: Pu
   await preloadOwnershipProducts(universalCodes);
 
   // `.uniq`: the first of each id.
-  const candidates = [...productCodes, ...universalCodes, ...(originalTiered === null ? [] : [originalTiered])].filter((code, i, all) => all.findIndex((other) => other.id === code.id) === i);
+  const candidates = [...productCodes, ...universalCodes, ...(originalTiered === null ? [] : [originalTiered])].filter(
+    (code, i, all) => all.findIndex((other) => other.id === code.id) === i,
+  );
   if (candidates.length === 0) return null;
 
   const now = sub.now();
@@ -183,7 +226,12 @@ async function computeAutoRenewalOfferCode(sub: SubscriptionRecord, original: Pu
     if (code.row.duration_in_months != null) continue;
     if (!(isOriginal || (await code.isValidForPurchase(quantity, now)))) continue;
     if (!isOriginal && code.row.minimum_quantity != null && code.row.minimum_quantity > quantity) continue;
-    if (!isOriginal && code.row.minimum_amount_cents != null && code.row.minimum_amount_cents > ((await renewalPreDiscountTotalCents(original)) ?? incomparable())) continue;
+    if (
+      !isOriginal &&
+      code.row.minimum_amount_cents != null &&
+      code.row.minimum_amount_cents > ((await renewalPreDiscountTotalCents(original)) ?? incomparable())
+    )
+      continue;
 
     const resolved = await code.evaluateForBuyer(buyer, link, original.row.created_at, now);
     // auto_renewal_discount_for
@@ -199,7 +247,12 @@ async function computeAutoRenewalOfferCode(sub: SubscriptionRecord, original: Pu
       discount = { offerCode: code, amount, isPercent: false };
     }
 
-    const discountedTotal = await autoRenewalDiscountedTotalCents(original, link, discount, await renewalPreDiscountTotalCents(original));
+    const discountedTotal = await autoRenewalDiscountedTotalCents(
+      original,
+      link,
+      discount,
+      await renewalPreDiscountTotalCents(original),
+    );
     const saved = ((await renewalPreDiscountTotalCents(original)) ?? nullOperand("-")) - discountedTotal;
     // max_by: the first of equal savings stays.
     if (best === null || saved > best.saved) best = { discount, saved };
@@ -227,4 +280,3 @@ export async function currentSubscriptionPriceCents(sub: SubscriptionRecord): Pr
   if (auto === null) return preDiscount;
   return autoRenewalDiscountedTotalCents(original!, (await sub.link())!, auto, preDiscount);
 }
-

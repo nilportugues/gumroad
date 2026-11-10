@@ -20,14 +20,27 @@ const CF_WORKER_CACHE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".epub", ".brushset
 const CF_CACHE_OVERRIDES_REDIS_KEY = "cf_cache_invalidated_extensions_and_cache_keys"; // RedisKey.cf_cache_invalidated_extensions_and_cache_keys
 
 /** A plain number of seconds, or an ActiveSupport::Duration by its parts (`10.years` is `{ years: 10 }`). */
-export type ExpiresIn = number | Partial<Record<"years" | "months" | "weeks" | "days" | "hours" | "minutes" | "seconds", number>>;
+export type ExpiresIn =
+  | number
+  | Partial<Record<"years" | "months" | "weeks" | "days" | "hours" | "minutes" | "seconds", number>>;
 
-const SECONDS_PER = { years: 31_556_952, months: 2_629_746, weeks: 604_800, days: 86_400, hours: 3_600, minutes: 60, seconds: 1 };
+const SECONDS_PER = {
+  years: 31_556_952,
+  months: 2_629_746,
+  weeks: 604_800,
+  days: 86_400,
+  hours: 3_600,
+  minutes: 60,
+  seconds: 1,
+};
 
 // Duration#to_i, which uses Gregorian-average years and months.
 export function durationSeconds(value: ExpiresIn): number {
   if (typeof value === "number") return value;
-  return Object.entries(value).reduce((sum, [part, n]) => sum + SECONDS_PER[part as keyof typeof SECONDS_PER] * (n ?? 0), 0);
+  return Object.entries(value).reduce(
+    (sum, [part, n]) => sum + SECONDS_PER[part as keyof typeof SECONDS_PER] * (n ?? 0),
+    0,
+  );
 }
 
 // (Time.current + expires_in).to_i. Rails advances years, months and days on the calendar (in UTC,
@@ -93,7 +106,11 @@ export function signedCloudfrontUrl(
   return `${url}${separator}Expires=${expiresAt}&Signature=${signature}&Key-Pair-Id=${config.cloudfrontKeyPairId ?? ""}`;
 }
 
-export function signedCloudflareUrl(url: string, expiresIn: ExpiresIn, options: { now?: Date; hmacKey?: string } = {}): string {
+export function signedCloudflareUrl(
+  url: string,
+  expiresIn: ExpiresIn,
+  options: { now?: Date; hmacKey?: string } = {},
+): string {
   const expiresAt = String(expiresAtSeconds(options.now ?? new Date(), expiresIn));
   const tokenData = `${uriPath(url)}/${expiresAt}`;
   const hmacKey = options.hmacKey ?? getConfig("CLOUDFLARE_HMAC_KEY") ?? "";
@@ -138,9 +155,15 @@ export function contentDispositionParam(s3Key: string, s3Filename: string | null
 }
 
 /** Default per-extension Cloudflare worker cache keys merged with the overrides kept in Redis. */
-export async function cfWorkerCacheKeys(readOverrides?: () => Promise<Record<string, string>>): Promise<Record<string, string>> {
-  const keys: Record<string, string> = Object.fromEntries(CF_WORKER_CACHE_EXTENSIONS.map((ext) => [ext, CF_WORKER_CACHE_KEY]));
-  const overrides = readOverrides ? await readOverrides() : await getRedis("main").hgetall(CF_CACHE_OVERRIDES_REDIS_KEY);
+export async function cfWorkerCacheKeys(
+  readOverrides?: () => Promise<Record<string, string>>,
+): Promise<Record<string, string>> {
+  const keys: Record<string, string> = Object.fromEntries(
+    CF_WORKER_CACHE_EXTENSIONS.map((ext) => [ext, CF_WORKER_CACHE_KEY]),
+  );
+  const overrides = readOverrides
+    ? await readOverrides()
+    : await getRedis("main").hgetall(CF_CACHE_OVERRIDES_REDIS_KEY);
   return { ...keys, ...overrides };
 }
 
@@ -165,7 +188,9 @@ export function s3PublicUrl(bucket: string, key: string, config: StorageConfig =
   const escapedKey = awsUriPathEscape(key);
   if (config.usingMinio) return `${config.s3Endpoint}/${bucket}/${escapedKey}`;
   const host = config.region === "us-east-1" ? "s3.amazonaws.com" : `s3.${config.region}.amazonaws.com`;
-  return isDnsCompatibleBucket(bucket) ? `https://${bucket}.${host}/${escapedKey}` : `https://${host}/${bucket}/${escapedKey}`;
+  return isDnsCompatibleBucket(bucket)
+    ? `https://${bucket}.${host}/${escapedKey}`
+    : `https://${host}/${bucket}/${escapedKey}`;
 }
 
 /**
@@ -180,7 +205,10 @@ export function presignS3GetUrl(
   const config = options.config ?? storageConfig();
   const url = new URL(s3PublicUrl(bucket, key, config));
   const now = options.now ?? new Date();
-  const amzDate = now.toISOString().replace(/[-:]/gu, "").replace(/\.\d{3}/u, "");
+  const amzDate = now
+    .toISOString()
+    .replace(/[-:]/gu, "")
+    .replace(/\.\d{3}/u, "");
   const date = amzDate.slice(0, 8);
   const scope = `${date}/${config.region}/s3/aws4_request`;
 
@@ -201,11 +229,21 @@ export function presignS3GetUrl(
     .map(([k, v]) => `${k}=${v}`)
     .join("&");
   const pathname = uriPath(url.href);
-  const canonicalRequest = ["GET", pathname, canonicalQuery, `host:${url.host}`, "", "host", "UNSIGNED-PAYLOAD"].join("\n");
-  const stringToSign = ["AWS4-HMAC-SHA256", amzDate, scope, createHash("sha256").update(canonicalRequest).digest("hex")].join("\n");
+  const canonicalRequest = ["GET", pathname, canonicalQuery, `host:${url.host}`, "", "host", "UNSIGNED-PAYLOAD"].join(
+    "\n",
+  );
+  const stringToSign = [
+    "AWS4-HMAC-SHA256",
+    amzDate,
+    scope,
+    createHash("sha256").update(canonicalRequest).digest("hex"),
+  ].join("\n");
 
   const hmac = (k: Buffer | string, data: string) => createHmac("sha256", k).update(data).digest();
-  const signingKey = hmac(hmac(hmac(hmac(`AWS4${config.secretAccessKey ?? ""}`, date), config.region), "s3"), "aws4_request");
+  const signingKey = hmac(
+    hmac(hmac(hmac(`AWS4${config.secretAccessKey ?? ""}`, date), config.region), "s3"),
+    "aws4_request",
+  );
   const signature = createHmac("sha256", signingKey).update(stringToSign).digest("hex");
 
   const query = encoded.map(([k, v]) => `${k}=${v}`).join("&");
@@ -237,7 +275,8 @@ const headWithSdk: HeadS3Object = async (bucket, key) => {
 };
 
 const isNotFound = (error: unknown) =>
-  (error as { name?: string }).name === "NotFound" || (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 404;
+  (error as { name?: string }).name === "NotFound" ||
+  (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 404;
 
 // S3KeyUnicodeNormalization.variants: the NFD and NFC forms of a key other than the key itself.
 export function s3KeyVariants(s3Key: string): string[] {
@@ -280,7 +319,9 @@ export async function signedDownloadUrlForS3KeyAndFilename(
 
   if (config.usingMinio) {
     const { contentLength } = await head(config.s3Bucket, s3Key);
-    const expiresIn = options.expiresIn ?? (options.isVideo ? SIGNED_VIDEO_URL_VALID_FOR : signedUrlValidityTimeForFileSize(contentLength));
+    const expiresIn =
+      options.expiresIn ??
+      (options.isVideo ? SIGNED_VIDEO_URL_VALID_FOR : signedUrlValidityTimeForFileSize(contentLength));
     return presignS3GetUrl(config.s3Bucket, s3Key, {
       expiresIn,
       responseContentDisposition: `attachment; filename="${s3Filename ?? ""}"`,
@@ -296,7 +337,13 @@ export async function signedDownloadUrlForS3KeyAndFilename(
     ({ contentLength } = await head(config.s3Bucket, s3Key));
   } catch (error) {
     if (!isNotFound(error)) throw error;
-    const exists = options.keyExists ?? (async (key: string) => head(config.s3Bucket, key).then(() => true, (e: unknown) => (isNotFound(e) ? false : Promise.reject(e))));
+    const exists =
+      options.keyExists ??
+      (async (key: string) =>
+        head(config.s3Bucket, key).then(
+          () => true,
+          (e: unknown) => (isNotFound(e) ? false : Promise.reject(e)),
+        ));
     const variant = await existingS3KeyVariant(s3Key, exists);
     if (variant === null) throw error;
     objectKey = variant;
@@ -304,7 +351,9 @@ export async function signedDownloadUrlForS3KeyAndFilename(
   }
   const publicUrlPath = uriPath(s3PublicUrl(config.s3Bucket, objectKey, config));
   // Ruby strips "/<bucket>" without a trailing slash; keep that exact behaviour.
-  const s3Path = publicUrlPath.replace(new RegExp(`^/${config.s3Bucket.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}`, "u"), "").replace(/^\//u, "");
+  const s3Path = publicUrlPath
+    .replace(new RegExp(`^/${config.s3Bucket.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}`, "u"), "")
+    .replace(/^\//u, "");
   const cacheable = Math.trunc(contentLength ?? 0) < config.cloudflareCacheLimit;
 
   let downloadUrl = `${cacheable ? config.fileDownloadDistributionUrl : config.cloudfrontDownloadDistributionUrl}${s3Path}?`;
@@ -314,7 +363,9 @@ export async function signedDownloadUrlForS3KeyAndFilename(
     const cacheKey = cfCacheKey(s3Filename!, options.cacheKeys ?? (await cfWorkerCacheKeys()));
     if (!isBlank(cacheKey)) downloadUrl += `&cache_key=${cacheKey}`;
   }
-  const expiresIn = options.expiresIn ?? (options.isVideo ? SIGNED_VIDEO_URL_VALID_FOR : signedUrlValidityTimeForFileSize(contentLength));
+  const expiresIn =
+    options.expiresIn ??
+    (options.isVideo ? SIGNED_VIDEO_URL_VALID_FOR : signedUrlValidityTimeForFileSize(contentLength));
 
   return cacheable
     ? signedCloudflareUrl(downloadUrl, expiresIn, { now: options.now })

@@ -6,6 +6,7 @@ import { getRequestContext, type RequestContext } from "@/server/auth/context";
 
 import type { RenderState } from "../controllers/application-controller.ts";
 import { promoteVisitedNavItem } from "../controllers/signed-in-filters.ts";
+
 import { domainConfig, type DomainConfig } from "./domain.ts";
 import { type PartialRequest, resolveLazyProps, type ScrollMetadata } from "./lazy-props.ts";
 import { MetaTagBuilder } from "./meta-tags.ts";
@@ -14,7 +15,10 @@ import { decodeRenderState, PAGE_URL_HEADER, RENDER_STATE_HEADER, renderStatePor
 import { applicationMetaTags, authenticityToken, sharedProps } from "./shared.ts";
 
 const isHash = (value: unknown): value is Record<string, unknown> =>
-  value !== null && typeof value === "object" && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
+  value !== null &&
+  typeof value === "object" &&
+  !Array.isArray(value) &&
+  Object.getPrototypeOf(value) === Object.prototype;
 
 // ActiveSupport's Hash#deep_merge: nested hashes merge, everything else (arrays, nil) is replaced.
 export function deepMerge(base: Record<string, unknown>, other: Record<string, unknown>): Record<string, unknown> {
@@ -80,7 +84,12 @@ export type LoadPageOptions = {
 
 // inertia_rails' partial reloads: X-Inertia-Partial-Data / -Except name dotted prop paths, and apply
 // only when X-Inertia-Partial-Component is the component being rendered. `errors` is always kept.
-export function filterPartialProps(props: Record<string, unknown>, component: string, requestHeaders: Headers, alwaysKeys: readonly string[] = []): Record<string, unknown> {
+export function filterPartialProps(
+  props: Record<string, unknown>,
+  component: string,
+  requestHeaders: Headers,
+  alwaysKeys: readonly string[] = [],
+): Record<string, unknown> {
   if (requestHeaders.get("x-inertia-partial-component") !== component) return props;
   const keys = (name: string) => (requestHeaders.get(name) ?? "").split(",").filter((key) => key !== "");
   const only = keys("x-inertia-partial-data");
@@ -115,11 +124,16 @@ export function filterPartialProps(props: Record<string, unknown>, component: st
 export function partialRequest(component: string, requestHeaders: Headers): PartialRequest {
   if (requestHeaders.get("x-inertia-partial-component") !== component) return null;
   const keys = (name: string) => (requestHeaders.get(name) ?? "").split(",").filter((key) => key !== "");
-  return { only: keys("x-inertia-partial-data"), except: keys("x-inertia-partial-except"), reset: keys("x-inertia-reset") };
+  return {
+    only: keys("x-inertia-partial-data"),
+    except: keys("x-inertia-partial-except"),
+    reset: keys("x-inertia-reset"),
+  };
 }
 
 async function requestUrl(path: string, requestHeaders: Headers, config: DomainConfig): Promise<URL> {
-  const host = requestHeaders.get("x-forwarded-host")?.split(/,\s?/).at(-1) ?? requestHeaders.get("host") ?? config.domain;
+  const host =
+    requestHeaders.get("x-forwarded-host")?.split(/,\s?/).at(-1) ?? requestHeaders.get("host") ?? config.domain;
   const protocol = requestHeaders.get("x-forwarded-proto") ?? config.protocol;
   return new URL(path, `${protocol}://${host}`);
 }
@@ -140,12 +154,34 @@ export async function loadPage(
   const request = { headers: requestHeaders, url: await requestUrl(fullpath, requestHeaders, config) };
 
   await applicationMetaTags(meta, { context, config, csrfToken, ports, analyticsEnabled });
-  const actionProps = await action({ context, config, meta, url: request.url, headers: requestHeaders, urlOptions: defaultUrlOptions(request.url, config), state: state?.pageState ?? {}, renderState: state });
-  const { props: pageProps, mergeProps, prependProps, scrollProps, alwaysKeys, deferredProps, deferredLoaders } = await resolveLazyProps(actionProps, partialRequest(component, requestHeaders), requestHeaders.get("x-inertia-infinite-scroll-merge-intent"));
+  const actionProps = await action({
+    context,
+    config,
+    meta,
+    url: request.url,
+    headers: requestHeaders,
+    urlOptions: defaultUrlOptions(request.url, config),
+    state: state?.pageState ?? {},
+    renderState: state,
+  });
+  const {
+    props: pageProps,
+    mergeProps,
+    prependProps,
+    scrollProps,
+    alwaysKeys,
+    deferredProps,
+    deferredLoaders,
+  } = await resolveLazyProps(
+    actionProps,
+    partialRequest(component, requestHeaders),
+    requestHeaders.get("x-inertia-infinite-scroll-merge-intent"),
+  );
   const shared = await sharedProps({ context, config, request, meta, csrfToken, ports, mobileAppWebView });
   const errors = await ports.session.consumeInertiaErrors();
   // promote_visited_nav_item runs after Rails renders, so the props above do not list the visit.
-  if (state?.promoteNavItemPath && context.loggedInUser) await promoteVisitedNavItem(context.loggedInUser, state.promoteNavItemPath);
+  if (state?.promoteNavItemPath && context.loggedInUser)
+    await promoteVisitedNavItem(context.loggedInUser, state.promoteNavItemPath);
 
   // config.deep_merge_shared_data: page props win, nested hashes merge.
   const props = filterPartialProps({ errors, ...deepMerge(shared, pageProps) }, component, requestHeaders, alwaysKeys);

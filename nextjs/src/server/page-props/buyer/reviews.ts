@@ -6,12 +6,13 @@ import { Prisma, type Link, type Purchase, type User } from "@prisma/client";
 import { db } from "../../../lib/db.ts";
 import { encrypt } from "../../../lib/obfuscate-ids.ts";
 import { getRequiredConfig } from "../../infra/config.ts";
-import { PurchaseFlags } from "../../search/flags.ts";
 import { LinkFlags } from "../../models/link.ts";
-import { UserFlags } from "../../models/user.ts";
 import { castRow, column, selectRows, table } from "../../models/sql.ts";
+import { UserFlags } from "../../models/user.ts";
+import { PurchaseFlags } from "../../search/flags.ts";
 import { NotPortedError } from "../not-ported.ts";
 import { videoFileThumbnailUrl } from "../signed-in/thumbnails.ts";
+
 import { thumbnailUrl } from "./products.ts";
 import { productLongUrl, profileUrl } from "./users.ts";
 
@@ -25,12 +26,16 @@ const present = (value: string | null | undefined): value is string => value != 
 // Purchase#email_digest: an HMAC of "id:email" under OBFUSCATE_IDS_CIPHER_KEY, urlsafe base64 with padding.
 export function emailDigest(purchase: Pick<Purchase, "id" | "email">): string | null {
   if (!present(purchase.email)) return null;
-  return createHmac("sha256", getRequiredConfig("OBFUSCATE_IDS_CIPHER_KEY")).update(`${purchase.id}:${purchase.email}`).digest("base64url").padEnd(44, "=");
+  return createHmac("sha256", getRequiredConfig("OBFUSCATE_IDS_CIPHER_KEY"))
+    .update(`${purchase.id}:${purchase.email}`)
+    .digest("base64url")
+    .padEnd(44, "=");
 }
 
 // Purchase#rater_account_name
 export function raterAccountName(purchase: Purchase, purchaser: User | null): string | null {
-  const giftReceiverWithShippingAddress = PurchaseFlags.isSet(purchase.flags, "is_gift_receiver_purchase") && present(purchase.street_address);
+  const giftReceiverWithShippingAddress =
+    PurchaseFlags.isSet(purchase.flags, "is_gift_receiver_purchase") && present(purchase.street_address);
   if (!purchaser || giftReceiverWithShippingAddress) return null;
   return present(purchaser.name) ? purchaser.name : present(purchaser.username) ? purchaser.username : null;
 }
@@ -79,7 +84,10 @@ async function editableVideo(reviewId: bigint): Promise<{ id: string; thumbnail_
   });
   if (video === null) return null;
   // has_one :video_file is not alive-scoped, so a soft-deleted file still answers.
-  const file = await db.videoFile.findFirst({ where: { record_type: "ProductReviewVideo", record_id: video.id }, orderBy: { id: "asc" } });
+  const file = await db.videoFile.findFirst({
+    where: { record_type: "ProductReviewVideo", record_id: video.id },
+    orderBy: { id: "asc" },
+  });
   if (file === null) throw new NotPortedError("ProductReviewPresenter#video_props for a video without a video_file");
   return { id: encrypt(video.id), thumbnail_url: await videoFileThumbnailUrl(file.id) };
 }
@@ -116,8 +124,15 @@ export async function reviewsProps(user: User, now = new Date()) {
   const purchases = [];
   for (const row of purchaseRows) {
     const purchase = castRow<Purchase>("Purchase", row);
-    const [product, seller] = await Promise.all([db.link.findUniqueOrThrow({ where: { id: purchase.link_id! } }), db.user.findUniqueOrThrow({ where: { id: purchase.seller_id! } })]);
-    if (UserFlags.isSet(seller.flags, "disable_reviews_after_year") && !((purchase.created_at?.getTime() ?? 0) > now.getTime() - ONE_YEAR_MS)) continue;
+    const [product, seller] = await Promise.all([
+      db.link.findUniqueOrThrow({ where: { id: purchase.link_id! } }),
+      db.user.findUniqueOrThrow({ where: { id: purchase.seller_id! } }),
+    ]);
+    if (
+      UserFlags.isSet(seller.flags, "disable_reviews_after_year") &&
+      !((purchase.created_at?.getTime() ?? 0) > now.getTime() - ONE_YEAR_MS)
+    )
+      continue;
     const productSeller = await db.user.findUniqueOrThrow({ where: { id: product.user_id! } });
     purchases.push({
       id: encrypt(purchase.id),

@@ -8,7 +8,9 @@ import { storageConfig } from "./storage.ts";
 
 // active-storage.golden.json is written by nextjs/scripts/golden/active-storage.rb from the real
 // Active Storage, CdnUrlHelper and Aws::S3::Object#public_url.
-const golden = JSON.parse(readFileSync(new URL("./__fixtures__/active-storage.golden.json", import.meta.url), "utf8")) as {
+const golden = JSON.parse(
+  readFileSync(new URL("./__fixtures__/active-storage.golden.json", import.meta.url), "utf8"),
+) as {
   digests: { filename: string; content_type: string; digest: string }[];
   // Written by the script's newer revision: absent until the golden is re-recorded from Rails.
   thumbnail_digests?: { filename: string; content_type: string; digest: string }[];
@@ -31,12 +33,16 @@ describe("variation digest", () => {
     expect(resizeToLimitDigest(recorded.content_type, recorded.filename, 400)).toBe(recorded.digest);
   });
 
-  it.each((golden.thumbnail_digests ?? []).map((c) => [`${c.filename} (${c.content_type})`, c] as const))("1280x720 %s", (_name, recorded) => {
-    expect(resizeToLimitDigest(recorded.content_type, recorded.filename, 1280, 720)).toBe(recorded.digest);
-  });
+  it.each((golden.thumbnail_digests ?? []).map((c) => [`${c.filename} (${c.content_type})`, c] as const))(
+    "1280x720 %s",
+    (_name, recorded) => {
+      expect(resizeToLimitDigest(recorded.content_type, recorded.filename, 1280, 720)).toBe(recorded.digest);
+    },
+  );
 
   it("knows which content types Active Storage can make variants of", () => {
-    for (const [type, expected] of Object.entries(golden.variable)) expect([type, isVariable(type)]).toEqual([type, expected]);
+    for (const [type, expected] of Object.entries(golden.variable))
+      expect([type, isVariable(type)]).toEqual([type, expected]);
     expect(isVariable(null)).toBe(false);
   });
 });
@@ -53,12 +59,14 @@ describe("the public storage URL", () => {
   it("is path style against MinIO in test", () => {
     process.env.RAILS_ENV = "test";
     process.env.AWS_S3_ENDPOINT = golden.urls.test.endpoint;
-    for (const [key, expected] of golden.urls.test.results) expect([key, publicStorageUrl(key)]).toEqual([key, expected]);
+    for (const [key, expected] of golden.urls.test.results)
+      expect([key, publicStorageUrl(key)]).toEqual([key, expected]);
   });
 
   it("names the bucket in the host of the global S3 endpoint in production", () => {
     process.env.RAILS_ENV = "production";
-    for (const [key, expected] of golden.urls.production.results) expect([key, publicStorageUrl(key)]).toEqual([key, expected]);
+    for (const [key, expected] of golden.urls.production.results)
+      expect([key, publicStorageUrl(key)]).toEqual([key, expected]);
   });
 });
 

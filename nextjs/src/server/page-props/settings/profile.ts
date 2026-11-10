@@ -7,18 +7,18 @@ import { createHash } from "node:crypto";
 import { db } from "../../../lib/db.ts";
 import { encrypt as externalId } from "../../../lib/obfuscate-ids.ts";
 import { blobSignedId } from "../../infra/active-storage.ts";
+import { getConfig } from "../../infra/config.ts";
 import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
 import { LinkFlags } from "../../models/link.ts";
-import { reputationProps } from "../../models/user-reputation-summary.ts";
 import { FONT_CHOICES, normalizeHexColor } from "../../models/seller-profile.ts";
+import { reputationProps } from "../../models/user-reputation-summary.ts";
 import { sellerProfile, subdomain, UserFlags, Users, username } from "../../models/user.ts";
+import type { SellerContext } from "../../policies/seller-context.ts";
 import { settingsMainUserPolicy } from "../../policies/settings/main-user.ts";
 import { settingsProfilePolicy } from "../../policies/settings/profile.ts";
-import type { SellerContext } from "../../policies/seller-context.ts";
 import { NotPortedError } from "../not-ported.ts";
 import { avatarUrl } from "../signed-in/presenters.ts";
 import { avatarAttachmentOf } from "../signed-in/reads.ts";
-import { getConfig } from "../../infra/config.ts";
 
 type Seller = NonNullable<SellerContext["seller"]>;
 
@@ -30,7 +30,6 @@ const MAX_VISIBLE_POSTS = 999;
 const AUDIENCE_INSTALLMENT_TYPE = "audience";
 const DEFAULT_CURRENCY = "usd";
 const present = (value: string | null | undefined): value is string => value != null && value.trim() !== "";
-
 
 // SellerProfile.seller_fonts_css_source: Addressable::URI.encode of Google Fonts' css2 URL.
 export function sellerFontsCssSource(): string {
@@ -45,7 +44,8 @@ export function sellerFontsCssSource(): string {
 const iso8601Micros = (date: Date) => date.toISOString().replace(/\.(\d{3})Z$/u, ".$1000Z");
 
 // JSON text as ActiveSupport's encoder writes it for these values (U+2028 and U+2029 escaped).
-const toJson = (value: unknown) => JSON.stringify(value).replaceAll("\u2028", "\\u2028").replaceAll("\u2029", "\\u2029");
+const toJson = (value: unknown) =>
+  JSON.stringify(value).replaceAll("\u2028", "\\u2028").replaceAll("\u2029", "\\u2029");
 
 type Tab = { name: string; sections: unknown[] };
 
@@ -95,22 +95,39 @@ function followRecaptchaSiteKey(seller: Seller): string | null {
 // ProfileSectionsPresenter#visible_posts
 async function visiblePosts(seller: Seller) {
   const posts = await db.installment.findMany({
-    where: { seller_id: Number(seller.id), deleted_at: null, published_at: { not: null }, installment_type: AUDIENCE_INSTALLMENT_TYPE, workflow_id: null },
+    where: {
+      seller_id: Number(seller.id),
+      deleted_at: null,
+      published_at: { not: null },
+      installment_type: AUDIENCE_INSTALLMENT_TYPE,
+      workflow_id: null,
+    },
     orderBy: [{ published_at: "desc" }, { id: "asc" }],
   });
   const shown = posts.filter((post) => (post.flags & SHOWN_ON_PROFILE) !== 0).slice(0, MAX_VISIBLE_POSTS);
-  return shown.map((post) => ({ id: externalId(post.id), name: post.name, slug: post.slug, published_at: post.published_at!.toISOString() }));
+  return shown.map((post) => ({
+    id: externalId(post.id),
+    name: post.name,
+    slug: post.slug,
+    published_at: post.published_at!.toISOString(),
+  }));
 }
 // Installment flag 8, :shown_on_profile
 const SHOWN_ON_PROFILE = 2 ** 7;
 
 // ProfilePresenter#shared_profile_props
-async function sharedProfileProps(seller: Seller, options: { editing: boolean; canEdit: boolean; currencyCode: string; tabs: Tab[] }) {
+async function sharedProfileProps(
+  seller: Seller,
+  options: { editing: boolean; canEdit: boolean; currencyCode: string; tabs: Tab[] },
+) {
   const sections = await db.sellerProfileSection.count({ where: { seller_id: seller.id, product_id: null } });
   if (sections > 0) throw new NotPortedError("ProfileSectionsPresenter#props for a profile with sections");
-  const ratings = (await db.link.findMany({ where: { user_id: seller.id, purchase_disabled_at: null, banned_at: null, deleted_at: null }, select: { flags: true } })).some((link) =>
-    LinkFlags.isSet(link.flags, "display_product_reviews"),
-  );
+  const ratings = (
+    await db.link.findMany({
+      where: { user_id: seller.id, purchase_disabled_at: null, banned_at: null, deleted_at: null },
+      select: { flags: true },
+    })
+  ).some((link) => LinkFlags.isSet(link.flags, "display_product_reviews"));
   const props: Record<string, unknown> = {
     currency_code: options.currencyCode,
     show_ratings_filter: ratings,
@@ -123,15 +140,22 @@ async function sharedProfileProps(seller: Seller, options: { editing: boolean; c
       select: { id: true, name: true, flags: true },
       orderBy: { id: "asc" },
     });
-    props.products = products.filter((product) => !LinkFlags.isSet(product.flags, "archived")).map((product) => ({ id: externalId(product.id), name: product.name }));
+    props.products = products
+      .filter((product) => !LinkFlags.isSet(product.flags, "archived"))
+      .map((product) => ({ id: externalId(product.id), name: product.name }));
     props.posts = await visiblePosts(seller);
-    props.wishlist_options = (await db.wishlist.findMany({ where: { user_id: seller.id, deleted_at: null }, orderBy: { id: "asc" } })).map((wishlist) => ({
+    props.wishlist_options = (
+      await db.wishlist.findMany({ where: { user_id: seller.id, deleted_at: null }, orderBy: { id: "asc" } })
+    ).map((wishlist) => ({
       id: externalId(wishlist.id),
       name: wishlist.name,
     }));
   }
   props.bio = seller.bio;
-  props.tabs = options.tabs.map((tab) => ({ name: tab.name, sections: tab.sections.map((id) => externalId(id as number)) }));
+  props.tabs = options.tabs.map((tab) => ({
+    name: tab.name,
+    sections: tab.sections.map((id) => externalId(id as number)),
+  }));
   return props;
 }
 
@@ -140,30 +164,59 @@ export async function profileProps(context: SellerContext) {
   const user = context.user!;
   const record = Users.load(seller);
 
-  const memberships = (await db.link.findMany({ where: { user_id: seller.id, purchase_disabled_at: null, banned_at: null, deleted_at: null }, select: { flags: true } })).filter(
-    (link) => LinkFlags.isSet(link.flags, "is_recurring_billing") && !LinkFlags.isSet(link.flags, "archived"),
-  );
-  if (memberships.length > 0) throw new NotPortedError("ProductPresenter.card_for_web for the membership products of the profile editor");
+  const memberships = (
+    await db.link.findMany({
+      where: { user_id: seller.id, purchase_disabled_at: null, banned_at: null, deleted_at: null },
+      select: { flags: true },
+    })
+  ).filter((link) => LinkFlags.isSet(link.flags, "is_recurring_billing") && !LinkFlags.isSet(link.flags, "archived"));
+  if (memberships.length > 0)
+    throw new NotPortedError("ProductPresenter.card_for_web for the membership products of the profile editor");
 
   const profile = await sellerProfile(record);
   const stored = await db.sellerProfile.findFirst({ where: { seller_id: seller.id }, select: { json_data: true } });
   const tabs = storedTabs(stored?.json_data ?? null);
-  const sectionUpdatedAt = (await db.sellerProfileSection.aggregate({ where: { seller_id: seller.id, product_id: null }, _max: { updated_at: true } }))._max.updated_at;
+  const sectionUpdatedAt = (
+    await db.sellerProfileSection.aggregate({
+      where: { seller_id: seller.id, product_id: null },
+      _max: { updated_at: true },
+    })
+  )._max.updated_at;
   const profileVersion = layoutVersion(tabs, sectionUpdatedAt);
 
   const confirmed = seller.confirmed_at !== null;
   let emailConfirmation: { email: string | null; can_resend: boolean } | null = null;
   if (!confirmed) {
-    const email = present(seller.unconfirmed_email) ? seller.unconfirmed_email : present(seller.email) ? seller.email : null;
-    emailConfirmation = { email, can_resend: email !== null && settingsMainUserPolicy.resendConfirmationEmail(context) };
+    const email = present(seller.unconfirmed_email)
+      ? seller.unconfirmed_email
+      : present(seller.email)
+        ? seller.email
+        : null;
+    emailConfirmation = {
+      email,
+      can_resend: email !== null && settingsMainUserPolicy.resendConfirmationEmail(context),
+    };
   }
 
   const canEdit = settingsProfilePolicy.update(context);
   const avatarAttachment = await avatarAttachmentOf(seller.id);
 
-  const logoutShared = await sharedProfileProps(seller, { editing: false, canEdit: false, currencyCode: DEFAULT_CURRENCY, tabs });
-  const editable = await sharedProfileProps(seller, { editing: true, canEdit, currencyCode: user.currency_type ?? DEFAULT_CURRENCY, tabs });
-  const page = await db.page.findFirst({ where: { pageable_type: "User", pageable_id: seller.id, slug: null }, orderBy: { id: "asc" } });
+  const logoutShared = await sharedProfileProps(seller, {
+    editing: false,
+    canEdit: false,
+    currencyCode: DEFAULT_CURRENCY,
+    tabs,
+  });
+  const editable = await sharedProfileProps(seller, {
+    editing: true,
+    canEdit,
+    currencyCode: user.currency_type ?? DEFAULT_CURRENCY,
+    tabs,
+  });
+  const page = await db.page.findFirst({
+    where: { pageable_type: "User", pageable_id: seller.id, slug: null },
+    orderBy: { id: "asc" },
+  });
   const featureActive = (name: string) => isFeatureEnabled(name, userActor(seller.id));
 
   return {

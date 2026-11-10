@@ -6,9 +6,21 @@ import { Prisma, type ProductFile } from "@prisma/client";
 import { db } from "../../../lib/db.ts";
 import { encrypt } from "../../../lib/obfuscate-ids.ts";
 import { signedDownloadUrlForS3KeyAndFilename } from "../../infra/signed-urls.ts";
-import { filenameWithExtension, isExternalLink, isListenable, isStreamable, isStreamOnly, mustBePdfStamped, ProductFileFlags, rubyExtname, s3Fields, type S3Fields } from "../../models/product-file.ts";
+import {
+  filenameWithExtension,
+  isExternalLink,
+  isListenable,
+  isStreamable,
+  isStreamOnly,
+  mustBePdfStamped,
+  ProductFileFlags,
+  rubyExtname,
+  s3Fields,
+  type S3Fields,
+} from "../../models/product-file.ts";
 import { UrlRedirectFlags } from "../../models/url-redirect.ts";
 import { HandBackToRails } from "../application-controller.ts";
+
 import type { Loaded } from "./access.ts";
 
 export type DeliveryFile = { file: ProductFile; s3: S3Fields | null };
@@ -26,9 +38,14 @@ export async function aliveProductFiles(loaded: Loaded): Promise<DeliveryFile[]>
     const purchased = await db.baseVariantsPurchase.count({ where: { purchase_id: Number(purchase.id) } });
     if (purchased > 0) throw new HandBackToRails("a purchase of a variant");
   }
-  if ((await db.variantCategory.count({ where: { link_id: Number(product.id) } })) > 0) throw new HandBackToRails("a product with variants");
-  if ((await db.richContent.count({ where: { entity_type: "Link", entity_id: product.id, deleted_at: null } })) > 0) throw new HandBackToRails("a product with rich content");
-  const files = await db.productFile.findMany({ where: { link_id: product.id, deleted_at: null }, orderBy: [{ position: "asc" }, { id: "asc" }] });
+  if ((await db.variantCategory.count({ where: { link_id: Number(product.id) } })) > 0)
+    throw new HandBackToRails("a product with variants");
+  if ((await db.richContent.count({ where: { entity_type: "Link", entity_id: product.id, deleted_at: null } })) > 0)
+    throw new HandBackToRails("a product with rich content");
+  const files = await db.productFile.findMany({
+    where: { link_id: product.id, deleted_at: null },
+    orderBy: [{ position: "asc" }, { id: "asc" }],
+  });
   if (files.some(mustBePdfStamped)) throw new HandBackToRails("a stamped PDF");
   return files.map((file) => ({ file, s3: fieldsOf(file, loaded) }));
 }
@@ -38,17 +55,26 @@ export async function isFileDownloadable(loaded: Loaded, { file }: DeliveryFile)
   if (isExternalLink(file)) return false;
   if (isStreamable(file) && UrlRedirectFlags.isSet(loaded.redirect.flags, "is_rental")) return false;
   if (!isStreamOnly(file)) return true;
-  return (await db.productFileDownloadGrant.count({ where: { url_redirect_id: loaded.redirect.id, product_file_id: file.id } })) > 0;
+  return (
+    (await db.productFileDownloadGrant.count({
+      where: { url_redirect_id: loaded.redirect.id, product_file_id: file.id },
+    })) > 0
+  );
 }
 
 export class StorageObjectMissing extends Error {}
 
 // A HEAD miss (after the signer's Unicode-normalization retry) is the NotFound the controllers rescue.
-export async function signedUrl(s3: S3Fields, options: { isVideo?: boolean; cacheGroup?: string } = {}): Promise<string> {
+export async function signedUrl(
+  s3: S3Fields,
+  options: { isVideo?: boolean; cacheGroup?: string } = {},
+): Promise<string> {
   try {
     return await signedDownloadUrlForS3KeyAndFilename(s3.key, s3.filename, options);
   } catch (error) {
-    const notFound = (error as { name?: string }).name === "NotFound" || (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 404;
+    const notFound =
+      (error as { name?: string }).name === "NotFound" ||
+      (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 404;
     if (!notFound) throw error;
     throw new StorageObjectMissing(s3.key);
   }
@@ -58,7 +84,8 @@ export async function signedUrl(s3: S3Fields, options: { isVideo?: boolean; cach
 export async function signedLocationForFile({ file, s3 }: DeliveryFile): Promise<string | null> {
   if (isExternalLink(file)) return file.url;
   if (s3 === null) throw new HandBackToRails("a file that is not in S3");
-  const filename = s3.extension === "" ? `${s3.filename}${rubyExtname(filenameWithExtension(file, s3) ?? "")}` : s3.filename;
+  const filename =
+    s3.extension === "" ? `${s3.filename}${rubyExtname(filenameWithExtension(file, s3) ?? "")}` : s3.filename;
   return signedUrl({ ...s3, filename }, { isVideo: isStreamable(file) });
 }
 
@@ -69,7 +96,16 @@ async function hlsRenditionAvailable({ file, s3 }: DeliveryFile): Promise<boolea
   if (ProductFileFlags.isSet(file.flags, "is_transcoded_for_hls")) return true;
   if (s3 === null) return false;
   const HLS = 1;
-  const rows = await db.transcodedVideo.findMany({ where: { streamable_type: "ProductFile", streamable_id: file.id, deleted_at: null, state: "completed", original_video_key: s3.key }, select: { flags: true } });
+  const rows = await db.transcodedVideo.findMany({
+    where: {
+      streamable_type: "ProductFile",
+      streamable_id: file.id,
+      deleted_at: null,
+      state: "completed",
+      original_video_key: s3.key,
+    },
+    select: { flags: true },
+  });
   return rows.some((row) => (row.flags & HLS) !== 0);
 }
 
@@ -86,13 +122,23 @@ export const isMedia = ({ file }: DeliveryFile) => isStreamable(file) || isListe
 export async function triggerFilesLifecycleEvents(files: DeliveryFile[], now: Date): Promise<void> {
   const videoIds = files.filter(({ file }) => file.filegroup === "video").map(({ file }) => file.id);
   if (videoIds.length === 0) return;
-  const alive = await db.transcodedVideo.findMany({ where: { streamable_type: "ProductFile", streamable_id: { in: videoIds }, deleted_at: null }, select: { streamable_id: true } });
+  const alive = await db.transcodedVideo.findMany({
+    where: { streamable_type: "ProductFile", streamable_id: { in: videoIds }, deleted_at: null },
+    select: { streamable_id: true },
+  });
   const aliveIds = new Set(alive.map((row) => row.streamable_id));
   const missing = videoIds.filter((id) => !aliveIds.has(id));
   if (missing.length > 0) {
-    const deletedCompleted = await db.transcodedVideo.count({ where: { streamable_type: "ProductFile", streamable_id: { in: missing }, deleted_at: { not: null }, state: "completed" } });
+    const deletedCompleted = await db.transcodedVideo.count({
+      where: {
+        streamable_type: "ProductFile",
+        streamable_id: { in: missing },
+        deleted_at: { not: null },
+        state: "completed",
+      },
+    });
     if (deletedCompleted > 0) throw new HandBackToRails("a video whose transcodes were deleted");
   }
-  if (alive.length > 0) await db.$executeRaw`UPDATE transcoded_videos SET last_accessed_at = ${now} WHERE deleted_at IS NULL AND streamable_type = 'ProductFile' AND streamable_id IN (${Prisma.join(videoIds)})`;
+  if (alive.length > 0)
+    await db.$executeRaw`UPDATE transcoded_videos SET last_accessed_at = ${now} WHERE deleted_at IS NULL AND streamable_type = 'ProductFile' AND streamable_id IN (${Prisma.join(videoIds)})`;
 }
-

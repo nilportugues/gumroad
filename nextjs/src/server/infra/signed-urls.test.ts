@@ -56,7 +56,12 @@ const cacheKeys = { ...(await cfWorkerCacheKeys(async () => golden.redis_cache_k
 describe("SignedUrlHelper parity with Ruby", () => {
   it.each(golden.cloudfront)("signs CloudFront URL $url (video: $is_video, expires_in: $expires_in)", (c) => {
     expect(
-      signedCloudfrontUrl(c.url, { isVideo: c.is_video, expiresIn: c.expires_in ?? undefined, now, config: production }),
+      signedCloudfrontUrl(c.url, {
+        isVideo: c.is_video,
+        expiresIn: c.expires_in ?? undefined,
+        now,
+        config: production,
+      }),
     ).toBe(c.result);
   });
 
@@ -73,7 +78,7 @@ describe("SignedUrlHelper parity with Ruby", () => {
   });
 
   it.each(golden.cache_keys)("picks the worker cache key for $s3_filename", (c) => {
-    expect(c.s3_filename ? cfCacheKey(c.s3_filename, cacheKeys) ?? null : null).toBe(c.result);
+    expect(c.s3_filename ? (cfCacheKey(c.s3_filename, cacheKeys) ?? null) : null).toBe(c.result);
   });
 
   it.each(golden.download)("signs the download of $s3_key ($content_length bytes)", async (c) => {

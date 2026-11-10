@@ -6,8 +6,9 @@ import { createHash } from "node:crypto";
 import { HeadObjectCommand } from "@aws-sdk/client-s3";
 
 import { railsMessageVerifierGenerate } from "../auth/message-verifier.ts";
-import { cgiEscape } from "../search/api.ts";
 import { marshalDump, RubySymbol, type MarshalValue } from "../cache/marshal.ts";
+import { cgiEscape } from "../search/api.ts";
+
 import { getS3Client } from "./signed-urls.ts";
 import { storageConfig } from "./storage.ts";
 
@@ -35,7 +36,8 @@ const MARCEL_EXTENSIONS: Record<string, string[]> = {
   "image/gif": ["gif"],
 };
 
-export const isVariable = (contentType: string | null) => contentType !== null && VARIABLE_CONTENT_TYPES.includes(contentType);
+export const isVariable = (contentType: string | null) =>
+  contentType !== null && VARIABLE_CONTENT_TYPES.includes(contentType);
 
 // ActiveStorage::Filename#extension: File.extname without its dot. A leading dot names a hidden
 // file, not an extension.
@@ -56,7 +58,12 @@ function defaultVariantFormat(contentType: string, filename: string): string | R
 
 // Variation#digest of `blob.variant(resize_to_limit: [limit, limit])`: SHA1 of the Marshal dump of
 // the transformations, `format` first because default_to is a reverse_merge.
-export function resizeToLimitDigest(contentType: string, filename: string, limit: number, height: number = limit): string {
+export function resizeToLimitDigest(
+  contentType: string,
+  filename: string,
+  limit: number,
+  height: number = limit,
+): string {
   const transformations = new Map<MarshalValue, MarshalValue>([
     [new RubySymbol("format"), defaultVariantFormat(contentType, filename)],
     [new RubySymbol("resize_to_limit"), [limit, height]],
@@ -72,7 +79,8 @@ const uriEscape = (segment: string) => cgiEscape(segment).replaceAll("+", "%20")
 export function publicStorageUrl(key: string): string {
   const config = storageConfig();
   const path = key.replace(/[^/]+/g, uriEscape);
-  if (config.env === "development" || config.env === "test") return `${config.s3Endpoint}/${config.publicStorageS3Bucket}/${path}`;
+  if (config.env === "development" || config.env === "test")
+    return `${config.s3Endpoint}/${config.publicStorageS3Bucket}/${path}`;
   return `https://${config.publicStorageS3Bucket}.s3.amazonaws.com/${path}`;
 }
 
@@ -95,4 +103,5 @@ export async function publicStorageExists(key: string): Promise<boolean> {
 
 // ActiveStorage::Blob#signed_id: ActiveStorage.verifier (`message_verifier("ActiveStorage")`) with the purpose Blob pins to
 // "blob_id" instead of the class-prefixed one other models get, and no expiry.
-export const blobSignedId = (blobId: bigint | number): string => railsMessageVerifierGenerate("ActiveStorage", Number(blobId), "blob_id");
+export const blobSignedId = (blobId: bigint | number): string =>
+  railsMessageVerifierGenerate("ActiveStorage", Number(blobId), "blob_id");

@@ -1,15 +1,15 @@
 // Discover::AutocompletePresenter#props: the suggestions behind the Discover search box.
 import { Prisma } from "@prisma/client";
 
+import { indexName } from "../../infra/elasticsearch.ts";
+import { column, selectRows, table } from "../../models/sql.ts";
 import { anyThumbnailUrl } from "../../page-props/buyer/products.ts";
 import { NotPortedError } from "../../page-props/not-ported.ts";
-import { indexName } from "../../infra/elasticsearch.ts";
 import { search } from "../../search/api.ts";
 import type { JsonValue } from "../../search/es-json.ts";
 import { partialSearchOptions, searchOptions, searchProducts } from "../../search/product-search.ts";
-import { defaultSearchProductsDeps } from "../../search/search-products.ts";
 import { present } from "../../search/ruby-params.ts";
-import { column, selectRows, table } from "../../models/sql.ts";
+import { defaultSearchProductsDeps } from "../../search/search-products.ts";
 import { findLink, findUserById } from "../product-reads.ts";
 import { longUrl } from "../product.ts";
 
@@ -22,17 +22,27 @@ const DISCOVER_LAYOUT = "discover";
 
 export type AutocompleteViewer = { user: { id: bigint } | null; browserGuid: string | null };
 
-export type AutocompleteProduct = { name: string; url: string; seller_name: string | null; thumbnail_url: string | null };
+export type AutocompleteProduct = {
+  name: string;
+  url: string;
+  seller_name: string | null;
+  thumbnail_url: string | null;
+};
 
 // `@query = query.to_s.downcase`
-const normalizedQuery = (query: unknown): string => (query === null || query === undefined ? "" : String(query).toLowerCase());
+const normalizedQuery = (query: unknown): string =>
+  query === null || query === undefined ? "" : String(query).toLowerCase();
 
 // Ruby's String#split with no argument: runs of ASCII whitespace, no empty leading field.
 const words = (value: string): string[] => value.split(/[\t\n\v\f\r ]+/u).filter((word) => word !== "");
 
 // DiscoverSearchSuggestion.by_user_or_browser(...).order(created_at: :desc), selecting discover_searches.query.
 // created_at has second precision, so rows made together tie; MySQL then returned the newest id first.
-function recentSearchRows(viewer: AutocompleteViewer, distinct: boolean, limit: number): Promise<{ query: string | null }[]> {
+function recentSearchRows(
+  viewer: AutocompleteViewer,
+  distinct: boolean,
+  limit: number,
+): Promise<{ query: string | null }[]> {
   const owner = viewer.user
     ? Prisma.sql`${column("discover_searches", "user_id")} = ${viewer.user.id}`
     : viewer.browserGuid === null
@@ -56,16 +66,25 @@ function filterRecentSearches(searches: string[], query: string): string[] {
   return searches.filter((candidate) => {
     const lowered = candidate.toLowerCase();
     const searchWords = words(lowered);
-    return searchWords.some((word) => queryWords.includes(word)) || searchWords.some((word) => word.startsWith(query)) || query.startsWith(lowered);
+    return (
+      searchWords.some((word) => queryWords.includes(word)) ||
+      searchWords.some((word) => word.startsWith(query)) ||
+      query.startsWith(lowered)
+    );
   });
 }
 
 async function recentSearches(viewer: AutocompleteViewer, query: string): Promise<string[]> {
-  if (!present(query)) return (await recentSearchRows(viewer, true, RECENT_SEARCH_PREVIEW_COUNT)).map((row) => row.query as string);
+  if (!present(query))
+    return (await recentSearchRows(viewer, true, RECENT_SEARCH_PREVIEW_COUNT)).map((row) => row.query as string);
   const rows = await recentSearchRows(viewer, false, RECENT_SEARCH_LIMIT);
   // A suggestion exists only for a present query; a null here would raise in Ruby's downcase.
-  if (rows.some((row) => row.query === null)) throw new NotPortedError("Discover::AutocompletePresenter with a suggestion that has no query");
-  return filterRecentSearches([...new Set(rows.map((row) => row.query as string))], query).slice(0, FILTERED_RECENT_SEARCH_COUNT);
+  if (rows.some((row) => row.query === null))
+    throw new NotPortedError("Discover::AutocompletePresenter with a suggestion that has no query");
+  return filterRecentSearches([...new Set(rows.map((row) => row.query as string))], query).slice(
+    0,
+    FILTERED_RECENT_SEARCH_COUNT,
+  );
 }
 
 // `Link.search(search_options).records.map { ... }`
@@ -78,7 +97,12 @@ async function searchResults(body: JsonValue, query: string): Promise<Autocomple
     if (!seller) throw new NotPortedError("Discover::AutocompletePresenter for a product without a seller");
     products.push({
       name: row.name as string,
-      url: longUrl(row, seller, { recommendedBy: GUMROAD_SEARCH_RECOMMENDATION, layout: DISCOVER_LAYOUT, query, autocomplete: true }),
+      url: longUrl(row, seller, {
+        recommendedBy: GUMROAD_SEARCH_RECOMMENDATION,
+        layout: DISCOVER_LAYOUT,
+        query,
+        autocomplete: true,
+      }),
       seller_name: present(seller.name) ? (seller.name as string) : null,
       thumbnail_url: await anyThumbnailUrl(row.id),
     });
@@ -86,28 +110,42 @@ async function searchResults(body: JsonValue, query: string): Promise<Autocomple
   return products;
 }
 
-const defaultProducts = async (query: string) => searchResults(await searchOptions({ size: PRODUCT_RESULT_COUNT }, defaultSearchProductsDeps()), query);
+const defaultProducts = async (query: string) =>
+  searchResults(await searchOptions({ size: PRODUCT_RESULT_COUNT }, defaultSearchProductsDeps()), query);
 
 // ProductPageView.search(...).map { _1["_source"]["product_id"] }, newest first.
 async function recentlyViewedIds(viewer: AutocompleteViewer): Promise<number[]> {
   const identity: JsonValue = viewer.user
     ? { must: { term: { user_id: Number(viewer.user.id) } } }
     : { must: { term: { browser_guid: viewer.browserGuid } }, must_not: { exists: { field: "user_id" } } };
-  const response = await search({ index: indexName("ProductPageView"), body: { query: { bool: identity }, sort: { timestamp: "desc" }, size: PRODUCT_RESULT_COUNT } });
-  const hits = (response.body as { hits?: { hits?: Array<{ _source: { product_id: number } }> } }).hits?.hits ?? [];
+  const response = await search({
+    index: indexName("ProductPageView"),
+    body: { query: { bool: identity }, sort: { timestamp: "desc" }, size: PRODUCT_RESULT_COUNT },
+  });
+  const hits = (response.body as { hits?: { hits?: { _source: { product_id: number } }[] } }).hits?.hits ?? [];
   return hits.map((hit) => hit._source.product_id);
 }
 
-async function productResults(viewer: AutocompleteViewer, query: string): Promise<{ products: AutocompleteProduct[]; viewed?: boolean }> {
+async function productResults(
+  viewer: AutocompleteViewer,
+  query: string,
+): Promise<{ products: AutocompleteProduct[]; viewed?: boolean }> {
   if (present(query)) return { products: await searchResults(partialSearchOptions({ query }), query) };
   if (!viewer.user && !present(viewer.browserGuid)) return { products: await defaultProducts(query), viewed: false };
 
   const ids = await recentlyViewedIds(viewer);
-  if (ids.length > 0) return { products: await searchResults(await searchOptions({ ids }, defaultSearchProductsDeps()), query), viewed: true };
+  if (ids.length > 0)
+    return {
+      products: await searchResults(await searchOptions({ ids }, defaultSearchProductsDeps()), query),
+      viewed: true,
+    };
   return { products: await defaultProducts(query), viewed: false };
 }
 
-export async function autocompleteProps(rawQuery: unknown, viewer: AutocompleteViewer): Promise<{ recent_searches: string[]; products: AutocompleteProduct[]; viewed?: boolean }> {
+export async function autocompleteProps(
+  rawQuery: unknown,
+  viewer: AutocompleteViewer,
+): Promise<{ recent_searches: string[]; products: AutocompleteProduct[]; viewed?: boolean }> {
   const query = normalizedQuery(rawQuery);
   const recent = await recentSearches(viewer, query);
   return { recent_searches: recent, ...(await productResults(viewer, query)) };
