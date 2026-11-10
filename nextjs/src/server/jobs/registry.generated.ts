@@ -2016,7 +2016,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RecalculateRecentWishlistFollowerCountJob": {
     "file": "app/sidekiq/recalculate_recent_wishlist_follower_count_job.rb",
