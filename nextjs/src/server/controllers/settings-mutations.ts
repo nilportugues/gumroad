@@ -2,8 +2,10 @@
 // (app/controllers/settings/third_party_analytics_controller.rb, advanced_controller.rb).
 //
 // A request Rails would answer differently from what the port can prove is handed back before its first write: a missing or
-// malformed `user` param (strong parameters raise inside the action's own rescue), a value of a type the column would cast, and
-// a custom domain to verify, which resolves DNS.
+// malformed `user` param (strong parameters raise inside the action's own rescue), a float or a non-scalar-cast value for a
+// JSON-data or snippet field, and a custom domain to verify, which resolves DNS. Integers and booleans for string columns are
+// cast, arrays and hashes under scalar keys are dropped (as `permit` does), and a numeric or `true` blocked_customer_emails
+// gets the action's own rescue (the generic block failure).
 import type { BillingDetail } from "@prisma/client";
 
 import { notifyError } from "../infra/error-reporting.ts";
@@ -58,8 +60,20 @@ function requireUser(params: Record<string, unknown>): Record<string, unknown> {
   return user;
 }
 
-// A permitted scalar: strings and nil. Numbers and booleans are cast by the column, which the port does not follow.
-function stringValue(value: unknown): string | null {
+// Strong parameters' PERMITTED_SCALAR_TYPES; an array or hash under a scalar key is dropped, not an error.
+export const isPermittedScalar = (value: unknown) => value === null || ["string", "number", "boolean"].includes(typeof value);
+
+// A permitted scalar for a string column: ActiveModel::Type::String casts true/false to "t"/"f" and an integer to its digits.
+// Floats are handed back: a JSON `1.0` is a Ruby Float, which JS cannot tell from `1`.
+export function stringValue(value: unknown): string | null {
+  if (value === null || typeof value === "string") return value;
+  if (typeof value === "boolean") return value ? "t" : "f";
+  if (typeof value === "number" && Number.isSafeInteger(value)) return String(value);
+  throw new HandBackToRails("a non-string value for a string attribute");
+}
+
+// For a snippet field or the JSON-data tiktok_pixel_id, which do not go through a string column's cast.
+function plainStringValue(value: unknown): string | null {
   if (value === null || typeof value === "string") return value;
   throw new HandBackToRails("a non-string value for a string attribute");
 }
@@ -80,7 +94,7 @@ function permittedSnippets(value: unknown): SnippetParams[] {
   return value.map((entry) => {
     if (!isHash(entry)) throw new HandBackToRails("a snippet that is not a hash");
     const snippet: Record<string, unknown> = {};
-    for (const key of SNIPPET_KEYS) if (key in entry) snippet[key] = stringValue(entry[key]);
+    for (const key of SNIPPET_KEYS) if (key in entry && isPermittedScalar(entry[key])) snippet[key] = plainStringValue(entry[key]);
     return snippet;
   });
 }
@@ -88,9 +102,9 @@ function permittedSnippets(value: unknown): SnippetParams[] {
 // `current_seller.assign_attributes(third_party_analytics_params.except(:snippets))`, in the order the params arrive.
 function assignAnalyticsAttributes(seller: UserRecord, user: Record<string, unknown>): void {
   for (const [key, value] of Object.entries(user)) {
-    if (!PERMITTED_USER_KEYS.includes(key) || key === "snippets") continue;
+    if (!PERMITTED_USER_KEYS.includes(key) || key === "snippets" || !isPermittedScalar(value)) continue;
     if (key in FLAG_PARAMS) setFlag(seller, FLAG_PARAMS[key]!, TRUE_VALUES.includes(value));
-    else if (key === "tiktok_pixel_id") setJsonDataForAttr(seller, key, stringValue(value));
+    else if (key === "tiktok_pixel_id") setJsonDataForAttr(seller, key, plainStringValue(value));
     else seller.set(key as (typeof COLUMN_PARAMS)[number], stringValue(value));
   }
 }
@@ -121,6 +135,14 @@ async function updateThirdPartyAnalytics(input: MutationInput): Promise<ActionRe
   }
 }
 
+// `(params[:blocked_customer_emails].presence || "").split(/[\r\n]+/)`. A number or `true` is present and has no `split`: the
+// NoMethodError is rescued by the action, which answers with the generic block failure. `false` is blank.
+export function blockedEmailLines(value: unknown): string[] {
+  if (value === undefined || value === null || value === false) return [];
+  if (typeof value === "string") return splitLines(value.trim() === "" ? "" : value);
+  throw new Error("undefined method 'split' for a non-string blocked_customer_emails");
+}
+
 // block_customer_emails: returns the first invalid email, which stops the transaction before it writes.
 async function blockCustomerEmails(sellerId: unknown, emails: string[]): Promise<string | null> {
   const invalid = emails.find((email) => !isValidEmailFormat(email));
@@ -143,13 +165,12 @@ async function updateAdvanced(input: MutationInput): Promise<ActionResult> {
   const { domain, blocked_customer_emails: emails } = input.params;
   if (!(domain === undefined || domain === null || typeof domain === "string")) throw new HandBackToRails("a domain that is not a string");
   if (typeof domain === "string" && domain.trim() !== "") throw new HandBackToRails("a custom domain, which Rails verifies over DNS");
-  if (!(emails === undefined || emails === null || typeof emails === "string")) throw new HandBackToRails("blocked emails that are not a string");
-  const endpoint = "notification_endpoint" in user ? stringValue(user.notification_endpoint) : undefined;
+  if (isHash(emails) || Array.isArray(emails)) throw new HandBackToRails("blocked emails that are a hash or a list");
+  const endpoint = "notification_endpoint" in user && isPermittedScalar(user.notification_endpoint) ? stringValue(user.notification_endpoint) : undefined;
 
   const seller = await findUserBang(input.context.currentSeller!.id);
-  // `(params[:blocked_customer_emails].presence || "").split(/[\r\n]+/)`
-  const list = splitLines((emails ?? "").trim() === "" ? "" : (emails as string));
   try {
+    const list = blockedEmailLines(emails);
     const invalid = await transaction(() => blockCustomerEmails(seller.get("id"), list));
     if (invalid !== null) return redirect(ADVANCED_PATH, `The email ${invalid} cannot be blocked as it is invalid.`);
   } catch (error) {
