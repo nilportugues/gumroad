@@ -72,7 +72,14 @@ export function stringValue(value: unknown): string | null {
   throw new HandBackToRails("a non-string value for a string attribute");
 }
 
-// For a snippet field or the JSON-data tiktok_pixel_id, which do not go through a string column's cast.
+// The JSON-data tiktok_pixel_id keeps what the request sent (no string column cast). An integer reaches the model's
+// `tiktok_pixel_id.strip` callback, which raises and lands in the action's rescue-all.
+export function tiktokPixelIdValue(value: unknown): string | number | null {
+  if (typeof value === "number" && Number.isSafeInteger(value)) return value;
+  return plainStringValue(value);
+}
+
+// For a snippet field, which does not go through a string column's cast.
 function plainStringValue(value: unknown): string | null {
   if (value === null || typeof value === "string") return value;
   throw new HandBackToRails("a non-string value for a string attribute");
@@ -104,7 +111,7 @@ function assignAnalyticsAttributes(seller: UserRecord, user: Record<string, unkn
   for (const [key, value] of Object.entries(user)) {
     if (!PERMITTED_USER_KEYS.includes(key) || key === "snippets" || !isPermittedScalar(value)) continue;
     if (key in FLAG_PARAMS) setFlag(seller, FLAG_PARAMS[key]!, TRUE_VALUES.includes(value));
-    else if (key === "tiktok_pixel_id") setJsonDataForAttr(seller, key, plainStringValue(value));
+    else if (key === "tiktok_pixel_id") setJsonDataForAttr(seller, key, tiktokPixelIdValue(value));
     else seller.set(key as (typeof COLUMN_PARAMS)[number], stringValue(value));
   }
 }

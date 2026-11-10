@@ -46,6 +46,17 @@ describe "Settings mutations when signed in", type: :request do
       expect(seller.reload).to have_attributes(google_analytics_id: "G-ABC123", facebook_pixel_id: "12345", tiktok_pixel_id: "ABC123", skip_free_sale_analytics: true)
     end
 
+    it "answers a numeric TikTok pixel id with the generic failure and saves nothing", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, analytics(tiktok_pixel_id: 1234567890, google_analytics_id: "G-NOTSAVED"))
+
+      expect(response).to redirect_to(settings_third_party_analytics_path)
+      expect(response).to have_http_status(:see_other)
+      expect(flash[:alert]).to eq("Something broke. We're looking into what happened. Sorry about this!")
+      expect(seller.reload).to have_attributes(google_analytics_id: nil, tiktok_pixel_id: nil)
+    end
+
     it "accepts PATCH", parity: true do
       log_in(seller)
 

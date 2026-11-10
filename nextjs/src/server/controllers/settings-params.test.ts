@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 
 import { HandBackToRails } from "./application-controller.ts";
-import { blockedEmailLines, isPermittedScalar, stringValue } from "./settings-mutations.ts";
+import { blockedEmailLines, isPermittedScalar, stringValue, tiktokPixelIdValue } from "./settings-mutations.ts";
 import { permittedRole } from "./settings-team-mutations.ts";
 
 describe("isPermittedScalar", () => {
@@ -24,6 +24,20 @@ describe("stringValue", () => {
 
   it("hands back a float, which Rails would keep as a Float", () => {
     expect(() => stringValue(1.5)).toThrow(HandBackToRails);
+  });
+});
+
+describe("tiktokPixelIdValue", () => {
+  it("keeps a JSON integer as an integer, since json_data takes the value uncast", () => {
+    expect(tiktokPixelIdValue(12345)).toBe(12345);
+    expect(tiktokPixelIdValue(-7)).toBe(-7);
+  });
+
+  it("keeps a string or nil and hands back a float or a boolean", () => {
+    expect(tiktokPixelIdValue("CFH83AJC77UUUGLE2TJG")).toBe("CFH83AJC77UUUGLE2TJG");
+    expect(tiktokPixelIdValue(null)).toBeNull();
+    expect(() => tiktokPixelIdValue(1.5)).toThrow(HandBackToRails);
+    expect(() => tiktokPixelIdValue(true)).toThrow(HandBackToRails);
   });
 });
 
