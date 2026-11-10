@@ -62,7 +62,7 @@ criteria; "state" above is what is ported and proven by replay or golden.
 
 Known gaps a branch left on purpose. Each still hands back to Rails (or throws `NotPortedError`) until closed.
 
-Parity replays (setup in [parity-local-stack.md](parity-local-stack.md)): all 59 replay files pass (2,659 tests, 2026-11-10) and every tagged
+Parity replays (setup in [parity-local-stack.md](parity-local-stack.md)): all 59 replay files pass (2,669 tests, 2026-11-10) and every tagged
 spec example has a fixture. What is left on the parity side is in [parity-tasks.md](parity-tasks.md):
 
 - `discover_parity_spec.rb:215` "answers the deferred recommended wishlists for a category": the recorded answer is Rails' routing 404 for
