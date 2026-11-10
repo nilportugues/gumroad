@@ -133,6 +133,19 @@ export async function getRate(currencyType: string): Promise<string> {
   }
 }
 
+// cached_rate: the stored rate only, never a live fetch; a missing, non-positive or unreadable rate is null.
+export async function cachedRate(currencyType: string): Promise<string | null> {
+  if (currencyType === "usd") return "1.0";
+  const formatted = currencyType.toUpperCase();
+  try {
+    const rate = await namespaceGet(formatted);
+    return rate !== null && rubyStringToF(rate) > 0 ? rubyFloatToS(rubyStringToF(rememberRate(formatted, rate))) : null;
+  } catch (error) {
+    if (error instanceof RedisTransportError) return null;
+    throw error;
+  }
+}
+
 // BigDecimal / 0.0
 export class FloatDomainError extends Error {
   readonly rubyClass = "FloatDomainError";
@@ -147,6 +160,9 @@ export const isCurrencyTypeSingleUnit = (currencyType: string): boolean => (CURR
 
 // `.round` on a BigDecimal: half away from zero, to an Integer.
 const roundToInteger = (value: Prisma.Decimal): number => value.toDecimalPlaces(0, Prisma.Decimal.ROUND_HALF_UP).toNumber();
+
+// unit_scaling_factor
+export const unitScalingFactor = (currencyType: string): number => (isCurrencyTypeSingleUnit(currencyType) ? 1 : 100);
 
 // get_usd_cents(currency_type, quantity, rate: nil). `rate` is the Float the rate string parses to.
 export async function getUsdCents(currencyType: string, quantity: number | bigint, rate?: number): Promise<number> {
