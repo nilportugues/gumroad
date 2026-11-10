@@ -2241,7 +2241,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RefreshMerchantAccountPaymentMethodAvailabilityWorker": {
     "file": "app/sidekiq/refresh_merchant_account_payment_method_availability_worker.rb",
