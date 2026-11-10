@@ -85,6 +85,9 @@ Goldens built on `scripts/golden/support/rails_cases.rb` (e.g. `payment-processo
 (a lane's `gumroad_test_<N>`); `payment-processor-jobs.golden.json` was regenerated that way on lane 16 with three new threshold cases.
 No debt line was open for the sales-threshold hand-back, so none was closed.
 
+`delete-wishlist-products-job.golden.json` was recorded on lane 15 (`gumroad_test_15`, Redis 56-59). The one remaining hand-back of
+`DeleteWishlistProductsJob` is `WishlistProduct#mark_deleted!` (its save re-runs `Wishlist#update_recommendable`); no debt line was open for it.
+
 Regenerate (the generator's own header has the DB setup: scratch database `gumroad_ws76` loaded from `db/schema.rb`,
 Redis db 10):
 
