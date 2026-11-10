@@ -465,9 +465,9 @@ export async function planPayouts(seller: Seller, pageParam: string | null, now 
   const storedFrequency = jsonDataForAttr(record, "payout_frequency", "weekly");
   if (!PAYOUT_FREQUENCIES.includes(storedFrequency as PayoutFrequency)) throw new HandBackToRails();
   const compliant = seller.user_risk_state === "compliant";
-  // Payouts.is_user_payable(INSTANT) is false for a seller that is not compliant, before it reads anything else,
-  // so a daily schedule falls back to the weekly cycle (get_initial_payout_date). Any other daily seller hands back.
-  if (storedFrequency === "daily" && compliant) throw new HandBackToRails();
+  // A daily schedule pays only while Payouts.is_user_payable(INSTANT) holds, which needs instant_payouts_supported?. A
+  // seller who could be supported hands back below (Stripe is asked), so any daily seller that gets that far is not
+  // payable instantly and falls back to the weekly cycle (get_initial_payout_date).
   const frequency = storedFrequency === "daily" ? "weekly" : storedFrequency;
   const refreshBalanceStatsCache = await balanceStatsCacheApplies(seller.id);
   const blob = refreshBalanceStatsCache ? await readBalanceStatsBlob(seller.id) : null;

@@ -451,6 +451,59 @@ describe "Payouts page when signed in", type: :request do
     end
   end
 
+  describe "daily payout frequency" do
+    before do
+      seller.update_columns(user_risk_state: "compliant")
+      seller.payout_frequency = User::PayoutSchedule::DAILY
+      seller.save!(validate: false)
+      balance(amount_cents: 12_000)
+    end
+
+    it "falls back to the weekly cycle for a seller that is not compliant", parity: true do
+      seller.update_columns(user_risk_state: "not_reviewed")
+
+      visit_payouts
+
+      expect(props["next_payout_period_data"]).to include("is_current_period" => true)
+    end
+
+    it "falls back to the weekly cycle for a compliant seller outside the United States", parity: true do
+      create(:user_compliance_info, user: seller, country: "Singapore")
+
+      visit_payouts
+
+      expect(props["next_payout_period_data"]).to include("status" => "payable", "payout_cents" => 12_000)
+    end
+
+    it "falls back to the weekly cycle for a compliant seller whose payouts are paused", parity: true do
+      seller.update!(payouts_paused_by_user: true)
+
+      visit_payouts
+
+      expect(props["payouts_status"]).to eq("paused")
+    end
+
+    it "falls back to the weekly cycle for a seller whose balance is below the instant minimum", parity: true do
+      Balance.where(user: seller).update_all(amount_cents: 99)
+
+      visit_payouts
+
+      expect(props["next_payout_period_data"]).to include("status" => "not_payable")
+    end
+
+    it "falls back to the weekly cycle for a seasoned US seller whose bank account Stripe has not matched", parity: true do
+      create(:user_compliance_info, user: seller)
+      create(:merchant_account, user: seller, created_at: 90.days.ago)
+      bank = create(:ach_account, user: seller)
+      completed_payment(days_ago: 30, bank_account: bank)
+
+      visit_payouts
+
+      expect(props["next_payout_period_data"]).to include("status" => "payable", "payout_cents" => 12_000)
+      expect(props["show_instant_payouts_notice"]).to eq(true)
+    end
+  end
+
   describe "team members" do
     %w[accountant admin support].each do |role|
       it "lets #{role} see the payouts", parity: true do

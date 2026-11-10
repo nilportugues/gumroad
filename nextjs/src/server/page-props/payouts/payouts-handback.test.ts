@@ -117,10 +117,30 @@ describe.skipIf(!url)("planPayouts hands back what it cannot prove", () => {
     expect(plan.pastPayments).toEqual([]);
   });
 
-  it("hands back daily payouts of a compliant seller", async () => {
-    await expect(planPayouts(await seller({ json: '{"payout_frequency":"daily"}' }), null, NOW)).rejects.toBeInstanceOf(
-      HandBackToRails,
+  it("serves daily payouts of a compliant seller who cannot be paid instantly on the weekly schedule", async () => {
+    const plan = await planPayouts(await seller({ json: '{"payout_frequency":"daily"}' }), null, NOW);
+    expect(plan.dailyFallback).toBe(true);
+    expect(plan.frequency).toBe("weekly");
+  });
+
+  it("hands back daily payouts of a compliant seller whose bank account Stripe may support instantly", async () => {
+    const user = await seller({
+      country: "United States",
+      completedPayout: true,
+      json: '{"payout_frequency":"daily"}',
+    });
+    await db.$executeRawUnsafe(
+      `INSERT INTO merchant_accounts (user_id, charge_processor_id, charge_processor_merchant_id, charge_processor_alive_at, created_at, updated_at) VALUES (${USER_ID}, 'stripe', 'acct_handback', '2026-01-01', '2026-01-01', '2026-01-01')`,
     );
+    await db.$executeRawUnsafe(
+      `INSERT INTO bank_accounts (user_id, type, stripe_connect_account_id, stripe_bank_account_id, created_at, updated_at) VALUES (${USER_ID}, 'AchAccount', 'acct_1', 'ba_1', NOW(), NOW())`,
+    );
+    try {
+      await expect(planPayouts(user, null, NOW)).rejects.toBeInstanceOf(HandBackToRails);
+    } finally {
+      await db.$executeRawUnsafe(`DELETE FROM merchant_accounts WHERE user_id = ${USER_ID}`);
+      await db.$executeRawUnsafe(`DELETE FROM bank_accounts WHERE user_id = ${USER_ID}`);
+    }
   });
 
   it("serves daily payouts of a seller that is not compliant on the weekly schedule", async () => {
