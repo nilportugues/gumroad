@@ -130,10 +130,12 @@ describe.skipIf(!url)("mutations of library and content delivery", () => {
     await new Promise<void>((resolve) => rails.listen(0, "127.0.0.1", resolve));
     const railsPort = (rails.address() as { port: number }).port;
     const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1];
+    // The server's clock reads PARITY_NOW at this instant and runs on from it; the test's must start from the same offset after the boot.
+    const bootedAt = Date.now();
     server = await startNextServer({
       RAILS_ENV: "test",
       NODE_OPTIONS: `--require ${path.resolve(import.meta.dirname, "..", "src", "fixed-clock-preload.cjs")}`,
-      PARITY_CLOCK_OFFSET_MS: String(PARITY_NOW - Date.now()),
+      PARITY_CLOCK_OFFSET_MS: String(PARITY_NOW - bootedAt),
       OBFUSCATE_IDS_CIPHER_KEY: obfuscateKey ?? "",
       SECURE_ENCRYPT_KEY: testEnv("SECURE_ENCRYPT_KEY") ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
@@ -152,7 +154,7 @@ describe.skipIf(!url)("mutations of library and content delivery", () => {
       ...(testEnv("AWS_ACCESS_KEY_ID") ? { AWS_ACCESS_KEY_ID: testEnv("AWS_ACCESS_KEY_ID")! } : {}),
       ...(testEnv("AWS_SECRET_ACCESS_KEY") ? { AWS_SECRET_ACCESS_KEY: testEnv("AWS_SECRET_ACCESS_KEY")! } : {}),
     });
-    vi.useFakeTimers({ now: PARITY_NOW, toFake: ["Date"], shouldAdvanceTime: true });
+    vi.useFakeTimers({ now: PARITY_NOW + (Date.now() - bootedAt), toFake: ["Date"], shouldAdvanceTime: true });
   }, FIRST_COMPILE_TIMEOUT_MS);
 
   // The first request to a route compiles it, and the time a write is stamped with is the replay's clock plus the compile: replay one
