@@ -4,17 +4,22 @@
 import { Prisma, type Link, type User } from "@prisma/client";
 
 import { railsLoggedInUser } from "../auth/resolve.ts";
+import { performAsync } from "../models/concerns/job-runtime.ts";
 import { aliveCustomDomainOfProduct, CustomDomainDeletable } from "../models/custom-domain.ts";
 import { LinkDeletable, LinkFlags, Links, type LinkRecord } from "../models/link.ts";
-import { performAsync } from "../models/concerns/job-runtime.ts";
-import { assertProfileSectionsEditable, clearFeaturedProductSections, removeFromProfileSections } from "../models/seller-profile-products-sections.ts";
-import { SubscriptionFlags } from "../models/subscription.ts";
+import {
+  assertProfileSectionsEditable,
+  clearFeaturedProductSections,
+  removeFromProfileSections,
+} from "../models/seller-profile-products-sections.ts";
 import { castRow, column, execute, selectRows, table } from "../models/sql.ts";
+import { SubscriptionFlags } from "../models/subscription.ts";
 import { notAllowedMessage } from "../page-props/settings/guard.ts";
-import { esJson, type JsonValue } from "../search/es-json.ts";
 import { authorize } from "../policies/authorize.ts";
 import { collaboratingProductIds, linkPolicy, productsArchivedLinkPolicy } from "../policies/link.ts";
 import { loadSellerContext, NotAuthorizedError, type SellerContext } from "../policies/seller-context.ts";
+import { esJson, type JsonValue } from "../search/es-json.ts";
+
 import { HandBackToRails, RoutingError, type ActionResult, type Rendered } from "./application-controller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 
@@ -22,7 +27,11 @@ const ACCOUNT_EMAIL_REQUIRED = "Please add an email address to your account befo
 const JSON_TYPE = "application/json; charset=utf-8";
 const UNPROCESSABLE = 422;
 
-const json = (value: unknown, status = 200): Rendered => ({ status, body: esJson(value as JsonValue), contentType: JSON_TYPE });
+const json = (value: unknown, status = 200): Rendered => ({
+  status,
+  body: esJson(value as JsonValue),
+  contentType: JSON_TYPE,
+});
 
 // RequireAccountEmail and `authenticate_user!`: the route is `signedInOnly`, so a visitor who is not signed in never gets here.
 function accountEmailRequired(input: MutationInput): ActionResult | null {
@@ -50,13 +59,20 @@ async function fetchVisibleProduct(permalink: string | null, sellerId: bigint | 
 }
 
 // PunditAuthorization#default_user_not_authorized for a JSON request.
-const notAuthorized = (context: SellerContext): ActionResult => ({ ...json({ success: false, error: notAllowedMessage(context) }, 401), rescued: true });
+const notAuthorized = (context: SellerContext): ActionResult => ({
+  ...json({ success: false, error: notAllowedMessage(context) }, 401),
+  rescued: true,
+});
 
 export type Found = { halt: ActionResult } | { halt: null; seller: User; product: LinkRecord; context: SellerContext };
 
 // `fetch_product_and_enforce_ownership` (`Link.fetch(permalink, user: current_seller) || e404`), or `fetch_product_and_enforce_access`
 // (the product of any seller, then 404 unless it is current_seller's or the user collaborates on it), then `authorize`.
-export async function find(input: MutationInput, access: "ownership" | "access", authorization: (context: SellerContext, product: Link) => void): Promise<Found> {
+export async function find(
+  input: MutationInput,
+  access: "ownership" | "access",
+  authorization: (context: SellerContext, product: Link) => void,
+): Promise<Found> {
   const halted = accountEmailRequired(input);
   if (halted) return { halt: halted };
   const seller = input.context.currentSeller!;
@@ -66,7 +82,8 @@ export async function find(input: MutationInput, access: "ownership" | "access",
   const context = await loadSellerContext(input.context);
   if (access === "access" && product.get("user_id") !== seller.id) {
     // `logged_in_user.collaborator_for?(product)`; `authorize` below then judges the collaborator by their own account's role.
-    if (!(await collaboratingProductIds(context, [product.get("id")])).has(BigInt(product.get("id")))) throw new RoutingError("Not Found");
+    if (!(await collaboratingProductIds(context, [product.get("id")])).has(BigInt(product.get("id"))))
+      throw new RoutingError("Not Found");
   }
   try {
     authorization(context, product.attributes);
@@ -77,7 +94,6 @@ export async function find(input: MutationInput, access: "ownership" | "access",
   return { halt: null, seller, product, context };
 }
 
-
 // `Time.current` is the first moment the action ran.
 const startedAt = (): (() => Date) => {
   const at = new Date();
@@ -87,7 +103,10 @@ const startedAt = (): (() => Date) => {
 const DELETE_JOBS_DELAY_SECONDS = 10 * 60;
 
 // `alive_public_files.update_all(scheduled_for_deletion_at: 10.minutes.from_now)`: update_all leaves updated_at alone.
-export async function schedulePublicFilesForDeletion(productId: bigint | number, now: Date = new Date()): Promise<void> {
+export async function schedulePublicFilesForDeletion(
+  productId: bigint | number,
+  now: Date = new Date(),
+): Promise<void> {
   const files = "public_files";
   const at = new Date(now.getTime() + DELETE_JOBS_DELAY_SECONDS * 1000);
   await execute(
@@ -131,11 +150,20 @@ registerMutations(
     pattern: "/products/archived",
     json: true,
     async run(input) {
-      const found = await find(input, "ownership", (context, product) => authorize(productsArchivedLinkPolicy.create, context, product));
+      const found = await find(input, "ownership", (context, product) =>
+        authorize(productsArchivedLinkPolicy.create, context, product),
+      );
       if (found.halt) return found.halt;
       const now = startedAt();
       const link = found.product;
-      await Links.updateBang(link, { flags: LinkFlags.set(link.get("flags"), "archived", true), purchase_disabled_at: link.get("purchase_disabled_at") ?? now() }, { now });
+      await Links.updateBang(
+        link,
+        {
+          flags: LinkFlags.set(link.get("flags"), "archived", true),
+          purchase_disabled_at: link.get("purchase_disabled_at") ?? now(),
+        },
+        { now },
+      );
       return json({ success: true });
     },
   },
@@ -144,10 +172,13 @@ registerMutations(
     pattern: "/products/archived/:id",
     json: true,
     async run(input) {
-      const found = await find(input, "ownership", (context, product) => authorize(productsArchivedLinkPolicy.destroy, context, product));
+      const found = await find(input, "ownership", (context, product) =>
+        authorize(productsArchivedLinkPolicy.destroy, context, product),
+      );
       if (found.halt) return found.halt;
       const link = found.product;
-      if (!(await Links.update(link, { flags: LinkFlags.set(link.get("flags"), "archived", false) }))) return json({ success: false, errors: link.errors.fullMessages() }, UNPROCESSABLE);
+      if (!(await Links.update(link, { flags: LinkFlags.set(link.get("flags"), "archived", false) })))
+        return json({ success: false, errors: link.errors.fullMessages() }, UNPROCESSABLE);
       // User#archived_products_count: `links.visible.archived.count`
       const [row] = await selectRows<Record<string, unknown>>(
         Prisma.sql`SELECT COUNT(*) FROM ${table("links")} WHERE ${column("links", "user_id")} = ${found.seller.id} AND ${column("links", "deleted_at")} IS NULL AND ${LinkFlags.condition("archived")}`,
