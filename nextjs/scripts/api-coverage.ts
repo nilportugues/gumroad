@@ -27,7 +27,7 @@ const SERVER_DIR = join(repoRoot, "nextjs/src/server");
 const OUTPUT = join(repoRoot, "docs/nextjs-rewrite/api-coverage.md");
 
 type Namespace = "v2" | "mobile" | "internal-api-host" | "internal-gumroad";
-type Route = { method: string; path: string; controller: string; action: string; unresolved: string | null };
+export type Route = { method: string; path: string; controller: string; action: string; unresolved: string | null };
 type Entry = { flag: string | null; handler?: string; hosts?: string; mutation?: boolean };
 
 // ---- config/routes.rb ----
@@ -101,7 +101,7 @@ function onlyList(value: string | undefined): string[] | undefined {
   return value.startsWith("[") ? listOf(value) : [stringOf(value)!];
 }
 
-function parseBlock(lines: string[], start: number, end: number, initialModule: string, initialPath: string): Route[] {
+export function parseBlock(lines: string[], start: number, end: number, initialModule: string, initialPath: string): Route[] {
   const routes: Route[] = [];
   const stack: Frame[] = [{ kind: "scope", path: initialPath, module: initialModule, unresolved: null }];
   const top = () => stack[stack.length - 1]!;
@@ -300,7 +300,7 @@ function parseBlock(lines: string[], start: number, end: number, initialModule: 
   return routes;
 }
 
-function blockEnd(lines: string[], start: number): number {
+export function blockEnd(lines: string[], start: number): number {
   const indent = /^\s*/u.exec(lines[start]!)![0].length;
   for (let i = start + 1; i < lines.length; i++)
     if (lines[i]!.trim() === "end" && /^\s*/u.exec(lines[i]!)![0].length === indent) return i;
@@ -520,14 +520,16 @@ function build(): string {
   return out.join("\n");
 }
 
-const document = build();
-if (process.argv.includes("--stdout")) process.stdout.write(document);
-else if (process.argv.includes("--check")) {
-  if (!existsSync(OUTPUT) || readFileSync(OUTPUT, "utf8") !== document) {
-    console.error("docs/nextjs-rewrite/api-coverage.md is stale; run `node scripts/api-coverage.ts` from nextjs/");
-    process.exit(1);
+if (import.meta.main) {
+  const document = build();
+  if (process.argv.includes("--stdout")) process.stdout.write(document);
+  else if (process.argv.includes("--check")) {
+    if (!existsSync(OUTPUT) || readFileSync(OUTPUT, "utf8") !== document) {
+      console.error("docs/nextjs-rewrite/api-coverage.md is stale; run `node scripts/api-coverage.ts` from nextjs/");
+      process.exit(1);
+    }
+  } else {
+    writeFileSync(OUTPUT, document);
+    console.log(`wrote ${OUTPUT}`);
   }
-} else {
-  writeFileSync(OUTPUT, document);
-  console.log(`wrote ${OUTPUT}`);
 }
