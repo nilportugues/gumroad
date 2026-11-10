@@ -6,6 +6,7 @@ import "@/server/controllers/mobile-analytics";
 import "@/server/controllers/mobile-simple";
 import "@/server/controllers/mobile-url-redirects";
 import "@/server/controllers/mobile-purchases";
+import "@/server/controllers/mobile-review-responses";
 import "@/server/controllers/mobile-products";
 import "@/server/controllers/mobile-subscriptions";
 import "@/server/controllers/mobile-preorders";

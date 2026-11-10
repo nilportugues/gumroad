@@ -147,6 +147,57 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
       expect(response.parsed_body["purchases"].size).to eq(1)
     end
 
+    describe "removing a review response" do
+      let(:sale) { library_purchase }
+
+      it "removes the seller's reply to the review", parity: true do
+        review = create(:product_review, purchase: sale, link: product, rating: 4, message: "Great")
+        reply = create(:product_review_response, product_review: review, user: seller, message: "Thank you")
+
+        delete "/mobile/sales/#{sale.external_id}/review_response", params: auth(seller)
+
+        expect(response.parsed_body).to eq("success" => true)
+        expect(ProductReviewResponse.exists?(reply.id)).to eq(false)
+        expect(review.reload).to be_present
+      end
+
+      it "does not find a sale that belongs to another seller", parity: true do
+        other = purchase_row(link: create(:product), seller: create(:user), purchase_state: "successful")
+
+        delete "/mobile/sales/#{other.external_id}/review_response", params: auth(seller)
+
+        expect(response).to have_http_status(:not_found)
+        expect(response.parsed_body["message"]).to eq("Could not find purchase")
+      end
+
+      it "does not find a response for a sale without a review", parity: true do
+        delete "/mobile/sales/#{sale.external_id}/review_response", params: auth(seller)
+
+        expect(response).to have_http_status(:not_found)
+        expect(response.parsed_body).to eq("success" => false, "message" => "Could not find review response")
+      end
+
+      it "does not find a response for a review that has no reply", parity: true do
+        create(:product_review, purchase: sale, link: product, rating: 4, message: "Great")
+
+        delete "/mobile/sales/#{sale.external_id}/review_response", params: auth(seller)
+
+        expect(response).to have_http_status(:not_found)
+        expect(response.parsed_body["message"]).to eq("Could not find review response")
+      end
+
+      it "hands a review response removal of a subscription sale to Rails", parity: true do
+        membership = create(:membership_product, user: seller)
+        recurring = purchase_row(link: membership, seller:, purchase_state: "successful", is_original_subscription_purchase: true, subscription: create(:subscription, link: membership, user: buyer))
+        review = create(:product_review, purchase: recurring, link: membership, rating: 5, message: "Fine")
+        create(:product_review_response, product_review: review, user: seller, message: "Thanks")
+
+        delete "/mobile/sales/#{recurring.external_id}/review_response", params: auth(seller)
+
+        expect(response).to have_http_status(:ok)
+      end
+    end
+
     it "hands a sales page with a sale in another currency to Rails", parity: true do
       purchase_row(link: product, seller:, purchase_state: "successful", displayed_price_currency_type: "eur")
       index_model_records(Purchase)
