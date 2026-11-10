@@ -5,6 +5,8 @@
 #
 #   digests  ActiveStorage::Variation#digest of `blob.variant(resize_to_limit: [400, 400])`, which keys the
 #            variant record (filename and content type decide the default format)
+#   thumbnail_digests  the same for the 1280x720 thumbnail variants of ProductFile and VideoFile
+#   signed_ids  ActiveStorage::Blob#signed_id (verifier "ActiveStorage", purpose "blob_id") under this run's secret_key_base
 #   cdn      CdnUrlHelper#cdn_url_for under each environment's CDN_URL_MAP (config/initializers/cdn_url_map.rb
 #            re-evaluated with that environment's constants)
 #   urls     the public S3 service's URL for a key: the test service for real, and Aws::S3::Object#public_url
@@ -40,6 +42,16 @@ digests = DIGEST_CASES.map do |filename, content_type|
   blob = ActiveStorage::Blob.new(filename:, content_type:)
   { "filename" => filename, "content_type" => content_type, "digest" => blob.variant(resize_to_limit: [400, 400]).variation.digest }
 end
+
+thumbnail_digests = DIGEST_CASES.map do |filename, content_type|
+  blob = ActiveStorage::Blob.new(filename:, content_type:)
+  { "filename" => filename, "content_type" => content_type, "digest" => blob.variant(resize_to_limit: [1280, 720]).variation.digest }
+end
+
+signed_ids = {
+  "secret_key_base" => Rails.application.secret_key_base,
+  "results" => [1, 42, 123456].map { |id| [id, ActiveStorage::Blob.signed_id_verifier.generate(id, purpose: "blob_id")] },
+}
 
 variable = %w[image/png image/jpeg image/gif image/webp image/tiff image/heic application/pdf video/mp4 text/plain].to_h do |type|
   [type, ActiveStorage::Blob.new(filename: "x", content_type: type).variable?]
@@ -99,7 +111,7 @@ production_client = Aws::S3::Client.new(region: "us-east-1", credentials:)
 production_urls = keys.map { |key| [key, Aws::S3::Object.new("gumroad-public-storage", key, client: production_client).public_url] }
 
 File.write(OUT, JSON.pretty_generate(
-  "digests" => digests, "variable" => variable, "cdn" => cdn,
+  "digests" => digests, "thumbnail_digests" => thumbnail_digests, "signed_ids" => signed_ids, "variable" => variable, "cdn" => cdn,
   "urls" => { "test" => { "endpoint" => AWS_S3_ENDPOINT, "bucket" => PUBLIC_STORAGE_S3_BUCKET, "results" => test_urls },
               "production" => { "bucket" => "gumroad-public-storage", "results" => production_urls } },
 ) + "\n")

@@ -10,6 +10,8 @@ const playerEnabled = vi.hoisted(() => vi.fn());
 vi.mock("../../infra/flipper.ts", () => ({ isFeatureEnabled: playerEnabled, userActor: (id: string) => `User;${id}` }));
 vi.mock("../../infra/signed-urls.ts", () => ({ signedDownloadUrlForS3KeyAndFilename: signDownload }));
 
+const thumbnailJson = vi.hoisted(() => vi.fn());
+vi.mock("../signed-in/thumbnails.ts", () => ({ productFileThumbnailJson: thumbnailJson }));
 vi.mock("../../infra/storage.ts", () => ({ storageConfig: () => ({ s3BaseUrl: "https://s3.example.com/bucket/" }) }));
 
 process.env.OBFUSCATE_IDS_CIPHER_KEY ??= "ws13e-test-obfuscate-key";
@@ -303,16 +305,23 @@ describe("installmentFiles", () => {
     expect((await installmentFiles(5, SELLER_ID)).files.map((json) => json.display_name)).toEqual(["First", "Second"]);
   });
 
-  it.each([
-    [
-      "a thumbnail on a video",
-      {
-        product_files: [file({ filetype: "mp4", filegroup: "video" })],
-        active_storage_attachments: [{ record_id: 1 }],
-      },
-    ],
-  ])("hands back a file with %s", async (_name, tables) => {
-    answering(tables);
+  it("serializes the thumbnail of a video that has one", async () => {
+    const thumbnail = { url: "https://cdn.example.com/thumb.png", signed_id: "token", status: { type: "saved" } };
+    thumbnailJson.mockResolvedValue(thumbnail);
+    answering({
+      product_files: [file({ filetype: "mp4", filegroup: "video" })],
+      active_storage_attachments: [{ record_id: 1 }],
+    });
+
+    expect((await installmentFiles(5, SELLER_ID)).files[0]).toMatchObject({ thumbnail });
+  });
+
+  it("hands back a thumbnail whose variant Rails has not processed", async () => {
+    thumbnailJson.mockRejectedValue(new NotPortedError("Generating a thumbnail variant"));
+    answering({
+      product_files: [file({ filetype: "mp4", filegroup: "video" })],
+      active_storage_attachments: [{ record_id: 1 }],
+    });
 
     await expect(installmentFiles(5, SELLER_ID)).rejects.toBeInstanceOf(NotPortedError);
   });
@@ -427,6 +436,7 @@ describe("installmentFiles", () => {
   });
 
   it("serializes a PDF that has a thumbnail attachment, which as_json does not read", async () => {
+    thumbnailJson.mockResolvedValue(null);
     answering({ product_files: [file({})], active_storage_attachments: [{ record_id: 1 }] });
 
     expect((await installmentFiles(5, SELLER_ID)).files[0]).toMatchObject({ thumbnail: null });

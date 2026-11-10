@@ -145,6 +145,14 @@ export async function avatarAttachmentOf(userId: bigint): Promise<{ id: bigint; 
   return row ?? null;
 }
 
+// `record.<name>` of a has_one_attached, or (ordered by attachment id) the has_many_attached `record.<name>`.
+export async function attachmentsOf(recordType: string, recordId: bigint, name: string): Promise<{ id: bigint; blob_id: bigint }[]> {
+  const attachments = (column_: string) => column("active_storage_attachments", column_);
+  return selectRows<{ id: bigint; blob_id: bigint }>(
+    Prisma.sql`SELECT ${attachments("id")}, ${attachments("blob_id")} FROM ${table("active_storage_attachments")} WHERE ${attachments("record_type")} = ${recordType} AND ${attachments("record_id")} = ${recordId} AND ${attachments("name")} = ${name} ORDER BY ${attachments("id")} ASC`,
+  );
+}
+
 export type BlobRow = { id: bigint; key: string; filename: string; content_type: string | null; service_name: string };
 
 export async function blobById(id: bigint): Promise<BlobRow | null> {

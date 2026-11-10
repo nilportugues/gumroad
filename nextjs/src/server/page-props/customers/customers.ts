@@ -4,7 +4,7 @@
 // Handed back to Rails (HandBackToRails) when a customer on the page needs a reading the port does not make: a member whose renewals an Indian card mandate disabled and whose next charge is free under a limited-cycle discount,
 // a sent gift whose recipient holds a license on a product with option content, a shipping sale that is a subscription or has a recurring price or a tracking URL the port cannot parse, a UTM link (`utm_url` is built by Addressable), a non-USD price without a
 // stored rate or in a currency the port has no table for, a refund whose json_data is not plain JSON, a commission
-// with files, a review video, and a custom field answer that carries a file (its signed id).
+// with files, and a review video.
 import { Prisma, type Purchase, type Subscription, type User } from "@prisma/client";
 
 import { encrypt } from "../../../lib/obfuscate-ids.ts";
@@ -32,6 +32,7 @@ import { PurchaseFlags } from "../../search/flags.ts";
 import { PurchaseSearchService } from "../../search/purchase-search.ts";
 import { extractDomain } from "../../search/referrer.ts";
 
+import { customFieldFileDetails, type FileDetails } from "./file-details.ts";
 import { physicalJson, shippingJson, shippingReading, skuOption, type ShippingReading } from "./shipping.ts";
 
 export const CUSTOMERS_PER_PAGE = 20;
@@ -172,6 +173,7 @@ type Loaded = {
   responses: Map<string, Row>;
   customFields: Map<string, Row[]>;
   fieldNames: Map<string, Row>;
+  customFieldFiles: Map<string, FileDetails[]>;
   tips: Map<string, Row>;
   urlRedirects: Map<string, Row>;
   purchasers: Map<string, Row>;
@@ -371,19 +373,9 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
 
   const customFields = groupBy(await rowsBy("purchase_custom_fields", "purchase_id", purchaseIds), "purchase_id");
   const fieldRows = [...customFields.values()].flat();
-  // The files' signed ids are not derivable here, so an answer that carries a file stays with Rails.
-  const fileFieldIds = fieldRows.filter((field) => field.field_type === "file").map((field) => field.id);
-  if (
-    (
-      await rowsBy(
-        "active_storage_attachments",
-        "record_id",
-        fileFieldIds,
-        Prisma.sql` AND ${column("active_storage_attachments", "record_type")} = ${"PurchaseCustomField"} AND ${column("active_storage_attachments", "name")} = ${"files"}`,
-      )
-    ).length > 0
-  )
-    throw new HandBackToRails();
+  const customFieldFiles = await customFieldFileDetails(
+    fieldRows.filter((field) => field.field_type === "file").map((field) => field.id),
+  );
   const fieldNames = byId(
     await rowsBy("custom_fields", "id", [
       ...new Set(fieldRows.map((field) => field.custom_field_id).filter((id) => id != null)),
@@ -435,6 +427,7 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
     responses,
     customFields,
     fieldNames,
+    customFieldFiles,
     tips: new Map((await rowsBy("tips", "purchase_id", purchaseIds)).map((tip) => [String(tip.purchase_id), tip])),
     urlRedirects: new Map(
       (await rowsBy("url_redirects", "purchase_id", purchaseIds)).map((redirect) => [
@@ -904,8 +897,7 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
       const attribute = present(loaded.fieldNames.get(String(field.custom_field_id))?.name)
         ? loaded.fieldNames.get(String(field.custom_field_id))!.name
         : field.name;
-      // Any file answer reaching here has no attachments (see the hand-back in the loader).
-      if (field.field_type === "file") return { attribute, type: "file", files: [] };
+      if (field.field_type === "file") return { attribute, type: "file", files: loaded.customFieldFiles.get(String(field.id)) ?? [] };
       return { attribute, type: "text", value: field.value == null ? "" : String(field.value) };
     }),
     transaction_url_for_seller: transactionUrl,
