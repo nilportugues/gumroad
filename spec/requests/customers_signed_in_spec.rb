@@ -501,7 +501,7 @@ describe "Customers page when signed in", type: :request, elasticsearch_wait_for
     expect(customers_of(response).map { _1["utm_link"]&.fetch("utm_url") }).to all(be_present)
   end
 
-  # Needs recording: the sender's row shows the license of the recipient's purchase (Purchase#linked_license).
+  # The sender's row shows the license of the recipient's purchase (Purchase#linked_license).
   it "shows the recipient's license on the sender's row of a gift of a licensed product", parity: true do
     licensed = create(:product, user: seller, name: "Licensed", is_licensed: true)
     sender = sell(licensed, days_ago: 3, is_gift_sender_purchase: true, email: "gifter@example.com")
@@ -516,7 +516,7 @@ describe "Customers page when signed in", type: :request, elasticsearch_wait_for
     expect(sender_row["license"]).to include("uses" => 2, "enabled" => true)
   end
 
-  # Needs recording: Purchase#variant_attributes.first picks the option of a sale of several.
+  # Purchase#variant_attributes.first picks the option of a sale of several.
   it "shows the first option of a sale of several options", parity: true do
     category = create(:variant_category, link: product, title: "Size")
     small = create(:variant, variant_category: category, name: "Small")
@@ -530,7 +530,7 @@ describe "Customers page when signed in", type: :request, elasticsearch_wait_for
     expect(customers_of(response).first["option"]).to include("name" => "Small")
   end
 
-  # Needs recording: own_affiliate_credit_cents takes the direct affiliate's part off a collaborator sale.
+  # Own_affiliate_credit_cents takes the direct affiliate's part off a collaborator sale.
   it "shows the collaborator's own credit on a sale that also credits a direct affiliate", parity: true do
     collaborator = create(:collaborator, seller:, affiliate_user: create(:user), affiliate_basis_points: 5000)
     direct_affiliate = create(:direct_affiliate, seller:, affiliate_user: create(:user), affiliate_basis_points: 1000, products: [product])
@@ -555,7 +555,7 @@ describe "Customers page when signed in", type: :request, elasticsearch_wait_for
     expect(customers_of(response).first.dig("subscription", "status")).to eq("payment_method_update_required")
   end
 
-  # Needs recording: Purchase#transaction_url_for_seller for a charge Gumroad did not make through Stripe.
+  # Purchase#transaction_url_for_seller for a charge Gumroad did not make through Stripe.
   it "links a Braintree sale to the seller's transaction page", parity: true do
     sell(product, days_ago: 3, charge_processor_id: BraintreeChargeProcessor.charge_processor_id, stripe_transaction_id: "bt_txn_123")
     sign_in_with_indexed_sales
@@ -565,7 +565,7 @@ describe "Customers page when signed in", type: :request, elasticsearch_wait_for
     expect(customers_of(response).first["transaction_url_for_seller"]).to include("bt_txn_123")
   end
 
-  # Needs recording: a file field answered with no attachment lists no files.
+  # A file field answered with no attachment lists no files.
   it "shows a file custom field answered without an attachment", parity: true do
     field = create(:custom_field, seller:, products: [product], name: "Brief", type: CustomField::TYPE_FILE, required: false)
     purchase = sell(product, days_ago: 3)
