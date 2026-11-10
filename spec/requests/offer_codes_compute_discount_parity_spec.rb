@@ -227,6 +227,80 @@ describe "Offer codes compute_discount", type: :request do
     end
   end
 
+  it "reads an array code as an unknown code", parity: true do
+    create(:offer_code, user: seller, products: [product])
+
+    get "/offer_codes/compute_discount", params: { code: ["off"], products: cart(product) }
+
+    expect(response.parsed_body["error_code"]).to eq("invalid_offer")
+  end
+
+  it "reads a hash code as an unknown code", parity: true do
+    create(:offer_code, user: seller, products: [product])
+
+    get "/offer_codes/compute_discount", params: { code: { name: "off" }, products: cart(product) }
+
+    expect(response.parsed_body["error_code"]).to eq("invalid_offer")
+  end
+
+  describe "a seller with cross-sells" do
+    let(:offered) { create(:product, user: seller, price_cents: 300) }
+    let(:code) { create(:universal_offer_code, user: seller, amount_cents: 100) }
+
+    def compute(code, *lines)
+      get "/offer_codes/compute_discount", params: { code: code.code, products: cart(*lines) }
+      response.parsed_body
+    end
+
+    it "discounts the product a cross-sell offers alongside the carted one", parity: true do
+      create(:upsell, seller:, product: offered, cross_sell: true, selected_products: [product])
+
+      expect(compute(code, product)["products_data"].keys).to contain_exactly(product.unique_permalink, offered.unique_permalink)
+    end
+
+    it "discounts the product of a universal cross-sell", parity: true do
+      create(:upsell, seller:, product: offered, cross_sell: true, universal: true)
+
+      expect(compute(code, product)["products_data"]).to have_key(offered.unique_permalink)
+    end
+
+    it "ignores a cross-sell that is paused or lists another product", parity: true do
+      other = create(:product, user: seller)
+      create(:upsell, seller:, product: offered, cross_sell: true, selected_products: [product], paused: true)
+      create(:upsell, seller:, product: create(:product, user: seller), cross_sell: true, selected_products: [other])
+
+      expect(compute(code, product)["products_data"].keys).to eq([product.unique_permalink])
+    end
+
+    it "leaves out an offered product the code does not cover", parity: true do
+      create(:upsell, seller:, product: offered, cross_sell: true, selected_products: [product])
+      limited = create(:offer_code, user: seller, products: [product], amount_cents: 100)
+
+      expect(compute(limited, product)["products_data"].keys).to eq([product.unique_permalink])
+    end
+
+    it "keeps the discount of a cross-sell that is itself a cart line", parity: true do
+      create(:upsell, seller:, product: offered, cross_sell: true, selected_products: [product])
+      capped = create(:universal_offer_code, user: seller, amount_cents: 100, max_purchase_count: 1)
+
+      expect(compute(capped, product, offered)["products_data"].keys).to contain_exactly(product.unique_permalink, offered.unique_permalink)
+    end
+
+    it "covers the offered product at zero once a once-per-cart code is spent", parity: true do
+      create(:upsell, seller:, product: offered, cross_sell: true, selected_products: [product])
+      once = create(:universal_offer_code, user: seller, amount_cents: 300, once_per_cart: true)
+
+      expect(compute(once, product)["products_data"].transform_values { _1["cents"] }).to eq(product.unique_permalink => 300, offered.unique_permalink => 0)
+    end
+
+    it "gives no discount to the offered product when the cart line misses the code's minimum", parity: true do
+      create(:upsell, seller:, product: offered, cross_sell: true, selected_products: [product])
+      minimum = create(:universal_offer_code, user: seller, amount_cents: 100, minimum_quantity: 3)
+
+      expect(compute(minimum, product)["error_code"]).to eq("unmet_minimum_purchase_quantity")
+    end
+  end
+
   describe "a code limited to options" do
     let(:category) { create(:variant_category, link: product) }
     let!(:covered) { create(:variant, variant_category: category, name: "Covered") }

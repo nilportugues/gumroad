@@ -76,16 +76,16 @@ describe.skipIf(!url)("Offer codes compute_discount parity", () => {
   }, FIRST_COMPILE_TIMEOUT_MS);
 
   afterAll(async () => {
-    await server?.stop();
+    await server.stop();
     await new Promise<void>((resolve) => (rails ? rails.close(() => resolve()) : resolve()));
     await closeAllRedis();
-    await redis?.quit();
-    await client?.$disconnect();
+    await redis.quit();
+    await client.$disconnect();
     process.env = saved;
   });
 
   it("finds the fixtures", () => {
-    expect(cases).toHaveLength(26);
+    expect(cases).toHaveLength(35);
   });
 
   it.each(cases)(

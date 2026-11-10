@@ -1,10 +1,9 @@
 // Port of app/controllers/offer_codes_controller.rb#compute_discount and the read-only core of
 // app/services/offer_code_discount_computing_service.rb (cart of permalinks, `key_by_input: false`).
 //
-// A code or cart that needs more than that hands back to Rails (HandBackToRails): a line whose product has cross-sells
-// to apply optimistically. A signed-out visitor has no purchases, so an
-// existing-customers code gives them nothing and a tiered one its month-0 tier; a signed-in buyer is measured
-// against their purchase history (`ownershipMonthsFor`, `returningCustomer`).
+// A signed-out visitor has no purchases, so an existing-customers code gives them nothing and a tiered one its month-0
+// tier; a signed-in buyer is measured against their purchase history (`ownershipMonthsFor`, `returningCustomer`).
+// A malformed query is the one shape left to Rails (HandBackToRails).
 import { Prisma, type Link, type User } from "@prisma/client";
 
 import { encrypt } from "../../lib/obfuscate-ids.ts";
@@ -114,12 +113,23 @@ async function visibleLinks(permalinks: string[]): Promise<Link[]> {
   return permalinks.flatMap((permalink) => byPermalink.get(permalink) ?? []);
 }
 
-// Link#available_cross_sells reaches the seller's alive, unpaused cross-sells; applying a code to them is out of scope.
-async function sellerHasAvailableCrossSells(userId: bigint | number): Promise<boolean> {
-  const rows = await selectRows(
-    Prisma.sql`SELECT 1 AS one FROM ${table("upsells")} WHERE ${column("upsells", "seller_id")} = ${userId} AND ${column("upsells", "cross_sell")} = TRUE AND ${column("upsells", "deleted_at")} IS NULL AND ${column("upsells", "paused")} = FALSE LIMIT 1`,
+// Link#available_cross_sells: the seller's alive, unpaused cross-sells that list this product or are universal, and
+// the products they offer (any state, as `cross_sell.product` is a plain belongs_to), in upsell order.
+async function availableCrossSellProducts(link: Link): Promise<Link[]> {
+  const rows = await selectRows<Record<string, unknown>>(
+    Prisma.sql`SELECT ${column("upsells", "id")} AS upsell_id, ${column("upsells", "product_id")} AS product_id FROM ${table("upsells")} LEFT OUTER JOIN ${table("upsells_selected_products")} ON ${column("upsells_selected_products", "upsell_id")} = ${column("upsells", "id")} WHERE ${column("upsells", "seller_id")} = ${link.user_id} AND ${column("upsells", "cross_sell")} = TRUE AND ${column("upsells", "deleted_at")} IS NULL AND ${column("upsells", "paused")} = FALSE AND (${column("upsells_selected_products", "selected_product_id")} = ${link.id} OR ${column("upsells", "universal")} = TRUE) ORDER BY ${column("upsells", "id")} ASC`,
   );
-  return rows.length > 0;
+  const productIds = [
+    ...new Map(rows.map((row) => [String(row.upsell_id), row.product_id as number | bigint])).values(),
+  ];
+  if (productIds.length === 0) return [];
+  const products = (
+    await selectRows<Record<string, unknown>>(
+      Prisma.sql`SELECT ${star("links")} FROM ${table("links")} WHERE ${column("links", "id")} IN (${Prisma.join(productIds)})`,
+    )
+  ).map((row) => castRow<Link>("Link", row));
+  const byId = new Map(products.map((product) => [String(product.id), product]));
+  return productIds.flatMap((id) => byId.get(String(id)) ?? []);
 }
 
 // OfferCode#evaluate_for_buyer merged over the full discount hash, as `discount.merge(...)` does.
@@ -199,18 +209,43 @@ export async function processDiscount(
   const allocations = new Map<number, number>();
   const ineligibilities = new Set<string>();
 
-  for (const link of links) {
-    let offerCode: OfferCodeRecord | null = null;
+  // find_applicable_offer_code_for
+  const applicableCodeFor = async (link: Link): Promise<OfferCodeRecord | null> => {
     for (const candidate of codes.filter((candidate) => String(candidate.row.user_id) === String(link.user_id))) {
-      if ((await applicable(candidate, link)) && currencyValid(candidate, link)) {
-        offerCode = candidate;
-        break;
-      }
+      if ((await applicable(candidate, link)) && currencyValid(candidate, link)) return candidate;
     }
+    return null;
+  };
+  const isOncePerCart = (candidate: OfferCodeRecord) => candidate.row.amount_cents != null && candidate.oncePerCart;
+  // `evaluate_for_buyer(buyer, product: link) unless returning_customer?(offer_code)`. With no buyer that is nil for an
+  // existing-customers code or a tiered one that has no tier starting at month 0.
+  const discountFor = async (candidate: OfferCodeRecord, link: Link): Promise<Record<string, unknown> | null> => {
+    const full = await fullDiscount(candidate);
+    if (candidate.row.new_customers_only && buyer !== null && (await returningCustomer(candidate, buyer))) return null;
+    if (candidate.row.existing_customers_only || candidate.tiered())
+      return resolveForBuyer(candidate, buyer, link, full, now);
+    return full;
+  };
+
+  // optimistically_apply_to_applicable_cross_sells: the cart may not meet a cross-sell's minimum or the code may run
+  // out; checkout re-validates, so the buyer sees the discount early.
+  const applyToCrossSells = async (link: Link) => {
+    for (const product of await availableCrossSellProducts(link)) {
+      if (productsData[product.unique_permalink!] !== undefined) continue;
+      const crossSellCode = await applicableCodeFor(product);
+      if (crossSellCode === null) continue;
+      const resolved = await discountFor(crossSellCode, product);
+      if (resolved === null) continue;
+      // A spent once-per-cart code covers the cross-sell at zero, or the fixed amount would come off twice.
+      productsData[product.unique_permalink!] =
+        isOncePerCart(crossSellCode) && applied.has(crossSellCode.id) ? { ...resolved, cents: 0 } : resolved;
+    }
+  };
+
+  for (const link of links) {
+    const offerCode = await applicableCodeFor(link);
     if (offerCode === null) continue;
     applicableCodes.push(offerCode);
-    if (await sellerHasAvailableCrossSells(link.user_id!))
-      throw new HandBackToRails("compute_discount with cross-sells to apply optimistically");
 
     // entries_eligible_for_option_scope: a line that omits the option stays (the product page previews that way);
     // a blank or unknown one is out of scope. The cart's quantity counts only the lines that stay.
@@ -235,21 +270,15 @@ export async function processDiscount(
       return remaining.get(offerCode.id)!;
     };
 
-    // `offer_code.evaluate_for_buyer(buyer, product: link) unless returning_customer?(offer_code)`. With no buyer
-    // that is nil for an existing-customers code or a tiered one that has no tier starting at month 0.
-    const full = await fullDiscount(offerCode);
-    let resolved: Record<string, unknown> | null;
-    if (offerCode.row.new_customers_only && buyer !== null && (await returningCustomer(offerCode, buyer)))
-      resolved = null;
-    else if (offerCode.row.existing_customers_only || offerCode.tiered())
-      resolved = await resolveForBuyer(offerCode, buyer, link, full, now);
-    else resolved = full;
+    const resolved = await discountFor(offerCode, link);
 
-    const once = offerCode.row.amount_cents != null && offerCode.oncePerCart;
+    const once = isOncePerCart(offerCode);
     // Later covered lines of a spent once-per-cart code stay in the response, without spending a use.
     if (once && applied.has(offerCode.id) && meetsMinimum) {
-      if (resolved !== null)
+      if (resolved !== null) {
         productsData[link.unique_permalink!] = allocateOncePerCart(resolved, offerCode, aggregate, link, allocations);
+        await applyToCrossSells(link);
+      }
       continue;
     }
 
@@ -262,6 +291,7 @@ export async function processDiscount(
       productsData[link.unique_permalink!] = once
         ? allocateOncePerCart(resolved, offerCode, aggregate, link, allocations)
         : resolved;
+      await applyToCrossSells(link);
     } else {
       if (resolved === null && offerCode.row.existing_customers_only) ineligibilities.add("not_existing_customer");
       if (resolved === null && offerCode.row.new_customers_only) ineligibilities.add("not_new_customer");
@@ -287,10 +317,10 @@ export async function computeDiscount(request: RailsRequest, buyer: User | null,
   } catch {
     throw new HandBackToRails("compute_discount with a malformed query");
   }
-  // `normalize_code(params[:code])` calls `to_s`: an array or hash code is Ruby's to render.
-  if (query.code !== undefined && typeof query.code !== "string")
-    throw new HandBackToRails("compute_discount with a non-scalar code");
-  const result = await processDiscount(normalizeCode(query.code ?? ""), cartLines(query), buyer, now);
+  // `normalize_code(params[:code])` calls `to_s`, so an array or hash code becomes its inspect text. That text starts
+  // with `[` or `{`, which no stored code can contain, so it matches nothing and the cart answers invalid_offer.
+  const code = typeof query.code === "string" || query.code === undefined ? normalizeCode(query.code ?? "") : "[]";
+  const result = await processDiscount(code, cartLines(query), buyer, now);
 
   const response =
     result.error_code !== null

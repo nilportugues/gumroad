@@ -9,14 +9,18 @@ import { HandBackToRails } from "./application-controller.ts";
 process.env.OBFUSCATE_IDS_CIPHER_KEY = "offer-codes-test-key";
 process.env.OBFUSCATE_IDS_NUMERIC_CIPHER_KEY = "12345";
 
-const { selectRows, quantityLeft, restrictedVariants, ownershipMonths, returningCustomer } = vi.hoisted(() => ({
-  selectRows: vi.fn(),
-  quantityLeft: vi.fn(),
-  // Months since the signed-in buyer's oldest qualifying purchase; null when they own nothing.
-  ownershipMonths: { value: null as number | null },
-  returningCustomer: vi.fn(),
-  restrictedVariants: [] as { id: number; productId: number }[],
-}));
+const { applicableFor, selectRows, quantityLeft, restrictedVariants, ownershipMonths, returningCustomer } = vi.hoisted(
+  () => ({
+    // Product ids the code applies to; null means every product.
+    applicableFor: { ids: null as number[] | null },
+    selectRows: vi.fn(),
+    quantityLeft: vi.fn(),
+    // Months since the signed-in buyer's oldest qualifying purchase; null when they own nothing.
+    ownershipMonths: { value: null as number | null },
+    returningCustomer: vi.fn(),
+    restrictedVariants: [] as { id: number; productId: number }[],
+  }),
+);
 
 vi.mock("../models/sql.ts", async (original) => ({
   ...(await original<typeof import("../models/sql.ts")>()),
@@ -49,7 +53,8 @@ vi.mock("../presenters/best-offer-code.ts", () => ({
         .map((variant) => ({ row: { id: variant.id } })),
     quantityLeft,
   }),
-  applicable: async () => true,
+  applicable: async (_code: unknown, product: { id: number }) =>
+    applicableFor.ids === null || applicableFor.ids.includes(Number(product.id)),
   currencyValid: () => true,
   fullDiscount: async (code: { row: { id: number; amount_cents: number; oncePerCart?: boolean } }) => ({
     type: "fixed",
@@ -89,12 +94,19 @@ const cartQuery = (permalinks: string[], quantity = 1) =>
 const body = async (query: string, buyer: object | null = null) =>
   JSON.parse(((await computeDiscount(req(query), buyer as never, NOW)) as { body: string }).body);
 
-// Calls in order: visible links, the user's codes, then the cross-sell probe per applicable line.
-function stubDb({ links = [link(1)], codes = [code()], crossSells = false } = {}) {
-  selectRows.mockImplementation(async (query: { sql: string }) => {
-    if (query.sql.includes("FROM `links`")) return links;
-    if (query.sql.includes("FROM `offer_codes`")) return codes;
-    if (query.sql.includes("FROM `upsells`")) return crossSells ? [{ one: 1 }] : [];
+// Calls in order: visible links, the user's codes, then per applied line the cross-sells it lists and their products.
+function stubDb({
+  links = [link(1)],
+  codes = [code()],
+  crossSells = [],
+}: { links?: object[]; codes?: object[]; crossSells?: { id: number; product: object }[] } = {}) {
+  selectRows.mockImplementation(async (query: { sql: string; values: unknown[] }) => {
+    if (query.sql.includes("`unique_permalink` IN")) return links;
+    if (query.sql.includes("FROM `links`")) return crossSells.map((upsell) => upsell.product);
+    if (query.sql.includes("FROM `offer_codes`"))
+      return codes.filter((row) => query.values.includes((row as { code: string }).code));
+    if (query.sql.includes("FROM `upsells`"))
+      return crossSells.map((upsell) => ({ upsell_id: upsell.id, product_id: (upsell.product as { id: number }).id }));
     return [];
   });
 }
@@ -103,6 +115,7 @@ beforeEach(() => {
   selectRows.mockReset();
   quantityLeft.mockReset();
   restrictedVariants.length = 0;
+  applicableFor.ids = null;
   ownershipMonths.value = null;
   returningCustomer.mockReset();
 });
@@ -296,10 +309,77 @@ describe("compute_discount hand-backs", () => {
     });
   });
 
-  it("hands back a seller with cross-sells and a non-scalar code", async () => {
-    stubDb({ crossSells: true });
-    await expect(body(`code=off&${cartQuery(["perm1"])}`)).rejects.toBeInstanceOf(HandBackToRails);
-    await expect(body("code[]=off")).rejects.toBeInstanceOf(HandBackToRails);
+  it("hands back a query Rails rejects as malformed", async () => {
+    stubDb();
+    await expect(body("code=%E0%A4%A")).rejects.toBeInstanceOf(HandBackToRails);
+  });
+
+  it("answers invalid_offer for an array or hash code", async () => {
+    stubDb();
+    expect(await body("code[]=off&products[0][permalink]=perm1&products[0][quantity]=1")).toMatchObject({
+      valid: false,
+      error_code: "invalid_offer",
+    });
+    expect(await body("code[a]=off&products[0][permalink]=perm1&products[0][quantity]=1")).toMatchObject({
+      error_code: "invalid_offer",
+    });
+    const codeQueries = selectRows.mock.calls
+      .map(([query]) => query as { sql: string; values: unknown[] })
+      .filter((query) => query.sql.includes("offer_codes"));
+    expect(codeQueries.every((query) => query.values.includes("[]"))).toBe(true);
+  });
+});
+
+describe("cross-sells (optimistically_apply_to_applicable_cross_sells)", () => {
+  const crossSell = { id: 90, product: link(2) };
+
+  it("adds a discount for the cross-sell products of an applied line", async () => {
+    stubDb({ links: [link(1)], crossSells: [crossSell] });
+    const result = await body(`code=off&${cartQuery(["perm1"])}`);
+    expect(Object.keys(result.products_data)).toEqual(["perm1", "perm2"]);
+    expect(result.products_data.perm2).toMatchObject({ type: "fixed", cents: 100 });
+  });
+
+  it("keeps the discount of a cross-sell that is itself a cart line", async () => {
+    stubDb({ links: [link(1), link(2)], crossSells: [crossSell] });
+    const result = await body(`code=off&${cartQuery(["perm1", "perm2"], 3)}`);
+    expect(Object.keys(result.products_data)).toEqual(["perm1", "perm2"]);
+  });
+
+  it("does not look for cross-sells when the line gets no discount", async () => {
+    stubDb({ codes: [code({ minimum_quantity: 5 })], crossSells: [crossSell] });
+    const result = await body(`code=off&${cartQuery(["perm1"])}`);
+    expect(result).toMatchObject({ valid: false, error_code: "unmet_minimum_purchase_quantity" });
+    const sqls = selectRows.mock.calls.map(([query]) => (query as { sql: string }).sql);
+    expect(sqls.some((sql) => sql.includes("FROM `upsells`"))).toBe(false);
+  });
+
+  it("skips a cross-sell product the code does not apply to", async () => {
+    stubDb({ crossSells: [crossSell] });
+    applicableFor.ids = [1];
+    expect(Object.keys((await body(`code=off&${cartQuery(["perm1"])}`)).products_data)).toEqual(["perm1"]);
+  });
+
+  it("skips the cross-sell for a buyer who is not a new customer", async () => {
+    stubDb({ codes: [code({ new_customers_only: true })], crossSells: [crossSell] });
+    returningCustomer.mockResolvedValue(false);
+    const result = await body(`code=off&${cartQuery(["perm1"])}`, { id: 5, email: "buyer@example.com" });
+    expect(Object.keys(result.products_data)).toEqual(["perm1", "perm2"]);
+    returningCustomer.mockResolvedValue(true);
+    const returning = await body(`code=off&${cartQuery(["perm1"])}`, { id: 5, email: "buyer@example.com" });
+    expect(returning).toMatchObject({ valid: false, error_code: "not_new_customer" });
+  });
+
+  it("gives the cross-sell a tiered code's month-0 tier", async () => {
+    stubDb({ codes: [code({ tiers: [{ months: 0, pct: 15 }] })], crossSells: [crossSell] });
+    expect((await body(`code=off&${cartQuery(["perm1"])}`)).products_data.perm2).toMatchObject({ percents: 15 });
+  });
+
+  it("covers a cross-sell at zero once a once-per-cart code is spent", async () => {
+    stubDb({ codes: [code({ oncePerCart: true, amount_cents: 300 })], crossSells: [crossSell] });
+    const result = await body(`code=off&${cartQuery(["perm1"])}`);
+    expect(result.products_data.perm1.cents).toBe(300);
+    expect(result.products_data.perm2).toMatchObject({ cents: 0, once_per_cart: true });
   });
 });
 
