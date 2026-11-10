@@ -1,6 +1,6 @@
 // Replays delete-wishlist-products-job.golden.json (scripts/golden/delete-wishlist-products-job.rb): DeleteWishlistProductsJob run by
-// the real app as a Sidekiq job. Node sends the statements Rails sent up to the point it decides on, fails with the same error, and
-// for a wishlist product to delete hands the job back before it writes anything.
+// the real app as a Sidekiq job. Node sends the statements Rails sent, fails with the same error, and
+// hands a wishlist product its validations could reject (variant, recurrence, quantity, rent, rentable or recurring product) back.
 import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";

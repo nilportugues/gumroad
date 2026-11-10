@@ -2,8 +2,8 @@
 import { Prisma, type WishlistFollower, type WishlistProduct } from "@prisma/client";
 
 import { deletable } from "./concerns/deletable.ts";
-import { belongsToRequired } from "./concerns/rails-validations.ts";
-import { Wishlists } from "./wishlist.ts";
+import { belongsToRequired, loadBelongsTo, validatesUniqueness } from "./concerns/rails-validations.ts";
+import { Wishlists, assignRecommendable } from "./wishlist.ts";
 import { defineModel, type CallbackContext } from "./runtime/define-model.ts";
 import type { ModelRecord } from "./runtime/record.ts";
 import { column, table } from "./sql.ts";
@@ -55,11 +55,15 @@ export const WishlistFollowers = defineModel<WishlistFollower>({
 
 export const WishlistFollowerDeletable = deletable(WishlistFollowers);
 
-// `wishlist.update_recommendable` after a product is added or removed: assign through the Wishlist's own before_save and save.
+const WISHLIST_ASSOCIATION = { name: "wishlist", foreignKey: "wishlist_id", targetTable: "wishlists", targetModel: "Wishlist" } as const;
+
+// `wishlist.update_recommendable` after a product is added or removed: the wishlist the belongs_to validation already loaded, saved through its own before_save.
 async function updateWishlistRecommendable(record: ModelRecord<WishlistProduct>, ctx: CallbackContext): Promise<void> {
-  const [row] = await ctx.tx.$queryRaw<Record<string, unknown>[]>(Prisma.sql`SELECT ${Prisma.raw("`wishlists`.*")} FROM ${table("wishlists")} WHERE ${column("wishlists", "id")} = ${record.get("wishlist_id")} LIMIT 1`);
+  const row = await loadBelongsTo(record, WISHLIST_ASSOCIATION, ctx);
   if (!row) return;
   const wishlist = Wishlists.load(row as never);
+  // Wishlist#update_recommendable assigns, then saves, whose before_save assigns again (a cached read).
+  await assignRecommendable(wishlist, ctx);
   await Wishlists.save(wishlist, { now: ctx.now });
 }
 
@@ -68,8 +72,12 @@ export const WishlistProducts = defineModel<WishlistProduct>({
   prismaModel: "WishlistProduct",
   delegate: (tx) => tx.wishlistProduct as never,
   validations: [
-    belongsToRequired<WishlistProduct>({ name: "wishlist", foreignKey: "wishlist_id", targetTable: "wishlists", targetModel: "Wishlist" }),
+    belongsToRequired<WishlistProduct>(WISHLIST_ASSOCIATION),
     belongsToRequired<WishlistProduct>({ name: "product", foreignKey: "product_id", targetTable: "links", targetModel: "Link" }),
+    // The recurrence, quantity, rent and variant validations are not ported: callers hand back the rows they would reject.
+    validatesUniqueness<WishlistProduct>("WishlistProduct", "wishlist_products", "product_id", {
+      scope: ["wishlist_id", "variant_id", "recurrence", "deleted_at"],
+    }),
     {
       name: "wishlist_product_limit",
       on: "create",
