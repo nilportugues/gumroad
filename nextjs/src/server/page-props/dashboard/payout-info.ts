@@ -1,12 +1,20 @@
 // User#has_valid_payout_info? and the merchant account reads behind it, for the branches that need
-// nothing beyond SQL. A Stripe Connect or PayPal Connect account sends them through
+// nothing beyond SQL. A Stripe Connect or PayPal Connect account sends has_valid_payout_info? through
 // merchant_migration_enabled? and PayPal's account details, which are not ported.
 import { Prisma } from "@prisma/client";
 
+import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
+import { aliveStripeAccountsOf, isStripeConnectAccount } from "../../models/merchant-account.ts";
 import { column, selectRows, table } from "../../models/sql.ts";
-import { isValidEmailFormat } from "../../models/user.ts";
+import {
+  isSupportedByStripeConnect,
+  LEGAL_ENTITY_COUNTRY_ROUTING_FEATURE,
+  stripeConnectRoutingCountryCode,
+} from "../../models/stripe-connect-routing.ts";
+import { isValidEmailFormat, UserFlags } from "../../models/user.ts";
+import { findUserById } from "../../presenters/product-reads.ts";
 import { NotPortedError } from "../not-ported.ts";
-import { activeBankAccount } from "../signed-in/reads.ts";
+import { activeBankAccount, aliveComplianceInfo } from "../signed-in/reads.ts";
 
 type MerchantAccount = { charge_processor_id: string | null; country: string | null; connect: boolean };
 
@@ -18,12 +26,24 @@ async function liveMerchantAccounts(userId: bigint): Promise<MerchantAccount[]> 
   );
 }
 
-// User#has_brazilian_stripe_connect_account?: only a Brazilian Connect account can make it true,
-// whether or not merchant_migration_enabled? lets it count.
+// User#merchant_migration_enabled?, which decides whether `merchant_account(stripe)` is the Connect account at all.
+async function merchantMigrationEnabled(userId: bigint): Promise<boolean> {
+  const user = await findUserById(userId);
+  if (user && UserFlags.isSet(user.flags as bigint, "check_merchant_account_is_linked")) return true;
+  const actor = userActor(userId);
+  if (!(await isFeatureEnabled("merchant_migration", actor))) return false;
+  const info = await aliveComplianceInfo(userId);
+  if (info === null) return false;
+  const legalEntityRouting = await isFeatureEnabled(LEGAL_ENTITY_COUNTRY_ROUTING_FEATURE, actor);
+  return isSupportedByStripeConnect(stripeConnectRoutingCountryCode(info, legalEntityRouting));
+}
+
+// User#has_brazilian_stripe_connect_account?: `merchant_account(stripe)` is the first live Connect account when
+// migration is enabled and a Gumroad-managed account otherwise, so only a Connect account behind it can be Brazilian.
 export async function hasBrazilianStripeConnectAccount(userId: bigint): Promise<boolean> {
-  const accounts = (await liveMerchantAccounts(userId)).filter((account) => Number(account.connect) === 1);
-  if (accounts.some((account) => account.country === "BR")) throw new NotPortedError("User#has_brazilian_stripe_connect_account? for a Brazilian Connect account");
-  return false;
+  const connect = (await aliveStripeAccountsOf(userId)).find(isStripeConnectAccount);
+  if (!connect || connect.country !== "BR") return false;
+  return merchantMigrationEnabled(userId);
 }
 
 export async function hasValidPayoutInfo(user: { id: bigint; payment_address: string | null }): Promise<boolean> {
