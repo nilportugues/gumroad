@@ -1,4 +1,4 @@
-// Port of app/controllers/api/mobile/purchases_controller.rb and app/controllers/api/mobile/sales_controller.rb (index, show).
+// Port of app/controllers/api/mobile/purchases_controller.rb and app/controllers/api/mobile/sales_controller.rb (index, show, options).
 //
 // Served here: the unconfirmed-account 403, the 404 for a purchase that is not the caller's, the empty lists, and sales#index rows
 // whose Purchase#as_json(creator_app_api: true) is ported (presenters/mobile-serializers.ts: USD, no recurrence). Everything else (a
@@ -9,6 +9,8 @@ import { Prisma } from "@prisma/client";
 import { decrypt } from "../../lib/obfuscate-ids.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { creatorAppPurchasesJson } from "../presenters/mobile-serializer-reads.ts";
+import { linkOptions } from "../presenters/product-props.ts";
+import { findLink } from "../presenters/product-reads.ts";
 import { PurchaseSearchService } from "../search/purchase-search.ts";
 
 import { HandBackToRails } from "./application-controller.ts";
@@ -161,6 +163,21 @@ async function salesShow(input: MobileInput, auth: MobileAuth | null) {
   throw new HandBackToRails("a sale that exists");
 }
 
+// SalesController#options: before_action :fetch_purchase, then the product's options.
+async function salesOptions(input: MobileInput, auth: MobileAuth | null) {
+  const id = typeof input.params.id === "string" ? decrypt(input.params.id) : null;
+  const [sale] =
+    id === null
+      ? []
+      : await selectRows<{ link_id: bigint | null }>(
+          Prisma.sql`SELECT ${column("purchases", "link_id")} FROM ${table("purchases")} WHERE ${column("purchases", "id")} = ${BigInt(id)} AND ${column("purchases", "seller_id")} = ${auth!.owner.id} LIMIT 1`,
+        );
+  if (sale === undefined) return fetchError("Could not find purchase");
+  const link = sale.link_id === null ? null : await findLink(sale.link_id);
+  if (link === null) return fetchError("Could not find product");
+  return renderJson({ success: true, options: await linkOptions(link) });
+}
+
 registerMobile(
   { method: "GET", pattern: "/mobile/purchases/index", scopes: MOBILE_API_SCOPES, run: index },
   { method: "GET", pattern: "/mobile/purchases/search", scopes: MOBILE_API_SCOPES, run: search },
@@ -185,4 +202,5 @@ registerMobile(
   { method: "DELETE", pattern: "/mobile/purchases/:id", scopes: MOBILE_API_SCOPES, run: purchaseAction("a delete") },
   { method: "GET", pattern: "/mobile/sales", scopes: MOBILE_API_SCOPES, run: salesIndex },
   { method: "GET", pattern: "/mobile/sales/:id", scopes: MOBILE_API_SCOPES, run: salesShow },
+  { method: "GET", pattern: "/mobile/sales/:id/options", scopes: MOBILE_API_SCOPES, run: salesOptions },
 );

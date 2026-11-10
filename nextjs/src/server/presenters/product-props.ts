@@ -320,6 +320,13 @@ async function optionsProps(row: LinkRow, records: VariantRow[], productPrices: 
   );
 }
 
+// Link#options
+export async function linkOptions(row: LinkRow) {
+  if (row.user_id === null) throw new NotPortedError("Link#options of a product without a seller");
+  const [records, prices] = await Promise.all([optionRecords(row), alivePricesOf(row.id)]);
+  return optionsProps(row, records, prices, row.user_id);
+}
+
 // -------------------------------------------------------------------------------------------------
 // Prices (Product::Prices)
 

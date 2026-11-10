@@ -55,7 +55,7 @@ from `nextjs/`, with `PARITY_DATABASE_URL` set. Replay file shorthand: `R = npx 
 | WS-16b | `url_redirect_download_page_spec.rb` (whole file, :24-:106) | 10 of 10 | `nextjs_url_redirect_download_page` | `R url-redirect-pages.replay.test.ts` |
 | WS-16b | `url_redirects_parity_spec.rb` :666-:716 (`send_to_kindle`) | 8 of 75 | `nextjs_url_redirect_writes` | `R url-redirects.replay.test.ts` |
 | WS-17f | `api/mobile/mobile_api_parity_spec.rb` :300-:334 (stream/hls_playlist/download refusals) | 5 of 37 | `nextjs_mobile_url_redirect_delivery` | `R mobile-api.replay.test.ts` |
-| WS-17h | `api/mobile/mobile_purchases_sales_parity_spec.rb` (whole file) | 16 of 16 | `nextjs_mobile_purchases`, `nextjs_mobile_sales` | `R mobile-api.replay.test.ts` |
+| WS-17h | `api/mobile/mobile_purchases_sales_parity_spec.rb` (whole file) | 21 of 21 | `nextjs_mobile_purchases`, `nextjs_mobile_sales` | `R mobile-api.replay.test.ts` |
 | WS-17k | `api/mobile/mobile_products_subscriptions_parity_spec.rb` (whole file) | 16 of 16 | `nextjs_mobile_products`, `_subscriptions`, `_preorders`, `_installments` | `R mobile-api.replay.test.ts` |
 | WS-23b | `payouts_signed_in_spec.rb` :251-:283 (chargeback-rate reserve) | 4 of 28 | `nextjs_payouts` | `R checkout-payouts.replay.test.ts` |
 

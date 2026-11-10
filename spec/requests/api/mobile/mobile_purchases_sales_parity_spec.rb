@@ -156,4 +156,55 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
       expect(response.parsed_body["purchases"].size).to eq(1)
     end
   end
+
+  describe "sale options" do
+    def sale_of(link) = purchase_row(link:, seller:, purchase_state: "successful")
+
+    it "does not find a sale that belongs to another seller", parity: true do
+      other = purchase_row(link: create(:product), seller: create(:user), purchase_state: "successful")
+
+      get "/mobile/sales/#{other.external_id}/options", params: auth(seller)
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body).to eq("success" => false, "message" => "Could not find purchase")
+    end
+
+    it "lists no options for a product without versions", parity: true do
+      get "/mobile/sales/#{sale_of(product).external_id}/options", params: auth(seller)
+
+      expect(response.parsed_body).to eq("success" => true, "options" => [])
+    end
+
+    it "lists the alive versions of the first version category in position order", parity: true do
+      category = create(:variant_category, link: product, title: "Edition")
+      create(:variant, variant_category: category, name: "Deluxe", price_difference_cents: 500, description: "Everything", position_in_category: 1)
+      create(:variant, variant_category: category, name: "Basic", price_difference_cents: 0, max_purchase_count: 10, position_in_category: 0)
+      create(:variant, variant_category: category, name: "Untitled", price_difference_cents: 100, customizable_price: true, position_in_category: 2)
+      create(:variant, variant_category: category, name: "Retired", position_in_category: 3).mark_deleted!
+      other_category = create(:variant_category, link: product, title: "Color")
+      create(:variant, variant_category: other_category, name: "Red")
+
+      get "/mobile/sales/#{sale_of(product).external_id}/options", params: auth(seller)
+
+      expect(response.parsed_body["options"].map { _1["name"] }).to eq(["Basic", "Deluxe", product.name])
+    end
+
+    it "lists the tiers of a membership with their recurrence prices", parity: true do
+      membership = create(:membership_product, user: seller)
+
+      get "/mobile/sales/#{sale_of(membership).external_id}/options", params: auth(seller)
+
+      expect(response.parsed_body["options"].first["recurrence_price_values"]).to include("monthly")
+    end
+
+    it "lists the alive SKUs of a product that sells by SKU", parity: true do
+      physical = create(:physical_product, user: seller, skus_enabled: true)
+      create(:sku, link: physical, name: "Standard - Large")
+      create(:sku, link: physical, name: "Standard - Small").mark_deleted!
+
+      get "/mobile/sales/#{sale_of(physical).external_id}/options", params: auth(seller)
+
+      expect(response.parsed_body["options"].map { _1["name"] }).to eq(["Standard - Large"])
+    end
+  end
 end
