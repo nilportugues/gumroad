@@ -4,14 +4,16 @@
 //
 // Everything else hands back to Rails before anything is written (nothing here writes): a physical, preorder, commission,
 // membership or installment line, a subscription renewal, a VAT id, a Payment Element or list-token request, a seller with
-// `buyer_currency_charging` on, a buyer whose GeoIP country has a supported currency (needs the countries gem's table),
-// Singapore (`applicable_years`), a Spanish rate (the GeoIP subdivision names), a bundle bound for an EU-27 rate, and the
-// 400 / 503 answers (their content type depends on the request format).
+// `buyer_currency_charging` on, Singapore (`applicable_years`), a Spanish rate (the GeoIP subdivision names), a bundle bound
+// for an EU-27 rate, a missing `products` (ParameterMissing is rendered by the exceptions app) and a request whose format
+// is neither html nor json (the content type of `head`). The 400 (malformed `products`) and 503 (RateUnavailable) answers
+// are served: an empty body typed by the request format.
 import { Prisma } from "@prisma/client";
 import type { User } from "@prisma/client";
 
+import { BUYER_CURRENCY_BY_COUNTRY } from "../infra/buyer-currency-countries.ts";
 import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
-import { geoIpLookup } from "../infra/geo-ip.ts";
+import { geoIpLookup, type GeoIpResult } from "../infra/geo-ip.ts";
 import { getRate, RateUnavailable } from "../models/concerns/currency-helper.ts";
 import { LinkFlags } from "../models/link.ts";
 import { castRow, column, selectRows, table } from "../models/sql.ts";
@@ -40,9 +42,10 @@ import {
   EU_VAT_APPLICABLE_COUNTRY_CODES,
 } from "../tax/sales-tax-countries.ts";
 
-import { HandBackToRails, type ActionResult } from "./application-controller.ts";
+import { HandBackToRails, type ActionResult, type Rendered } from "./application-controller.ts";
 import { jsonResponse } from "./json-seller.ts";
 import { registerMutations, remoteIp, type MutationInput } from "./mutation.ts";
+import { requestFormat } from "./signed-in-filters.ts";
 
 type Row = Record<string, unknown>;
 
@@ -203,23 +206,42 @@ async function sellerEnabled(sellerId: bigint): Promise<boolean> {
   return castBoolean(jsonDataForAttr(record, "disable_buyer_local_currency", false)) !== true;
 }
 
-// CurrencyHelper#buyer_currency_for_ip is nil without a GeoIP country; a country needs the countries gem's currency table.
-function detectedBuyerCurrency(ip: string | null): null {
-  const countryCode = geoIpLookup(ip)?.countryCode;
-  if (!blank(countryCode)) return handBack("for a buyer whose GeoIP country may have a supported currency");
-  return null;
+// CurrencyHelper#buyer_currency_for_ip: the GeoIP country's currency when config/currencies.json supports it.
+export function detectedBuyerCurrency(
+  ip: string | null,
+  lookup: (ip: string | null) => Pick<GeoIpResult, "countryCode"> | null = geoIpLookup,
+): string | null {
+  const countryCode = lookup(ip)?.countryCode;
+  if (countryCode === undefined || countryCode === null || blank(countryCode)) return null;
+  return BUYER_CURRENCY_BY_COUNTRY[countryCode.toUpperCase()] ?? null;
+}
+
+// `head :bad_request` / `head :service_unavailable`: no body, typed by the request format without a charset.
+function headResponse(status: number, request: MutationInput["request"]): Rendered {
+  const format = requestFormat(request);
+  if (format === "other") return handBack("with a request format whose content type is not modelled");
+  return { status, body: "", contentType: format === "json" ? "application/json" : "text/html", paramsRead: true };
 }
 
 type CartLine = Row;
 
 // CustomerSurchargeController#calculate_all
-export async function calculateAll({
+export async function calculateAll(input: Pick<MutationInput, "params" | "request">): Promise<ActionResult> {
+  try {
+    return await calculateAllLines(input);
+  } catch (error) {
+    if (error instanceof RateUnavailable) return headResponse(503, input.request);
+    throw error;
+  }
+}
+
+async function calculateAllLines({
   params,
   request,
 }: Pick<MutationInput, "params" | "request">): Promise<ActionResult> {
   const products = params.products;
   if (blank(products) || (Array.isArray(products) && products.length === 0)) return handBack("without products");
-  if (!validProductsParam(products)) return handBack("with malformed products");
+  if (!validProductsParam(products)) return headResponse(400, request);
 
   // Direct-listed amounts (Payment Element) and page-issued list tokens change the rate and the response.
   if (params.payment_details_source === "payment_element" || !blank(params.payment_element_direct_listed_currency)) {
@@ -259,14 +281,9 @@ export async function calculateAll({
 
     const submittedPrice = submittedPriceCents(item.price);
     const listedCurrency = String(link.price_currency_type ?? "").toLowerCase();
-    // The listed rate only prices shipping, but `get_rate` is the call that can fail the whole request.
+    // The listed rate only prices shipping, but `get_rate` is the call that can fail the whole request (503 in calculateAll).
     if (listedCurrency !== "usd" && !rates.has(listedCurrency)) {
-      try {
-        await getRate(String(link.price_currency_type));
-      } catch (error) {
-        if (error instanceof RateUnavailable) return handBack("without a trustworthy exchange rate");
-        throw error;
-      }
+      await getRate(String(link.price_currency_type));
       rates.add(listedCurrency);
     }
 

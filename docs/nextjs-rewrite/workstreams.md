@@ -85,8 +85,10 @@ Parity replays still failing after the first full run against real Rails (setup 
   (vendor validation), a US taxable state or Canadian province (TaxJar), Singapore (`applicable_years`), a Spanish rate (GeoIP subdivision
   names), a bundle bound for an EU rate, physical lines (`ShippingDestination` is not ported), preorder, commission, membership,
   installment and renewal lines, Payment Element and `payment_method_list_token` requests (`DirectListedAmountToken`), a cart of sellers in
-  the buyer-currency rollout (`BuyerCurrencyQuote`, Stripe FX), a buyer whose GeoIP country is known (needs the countries gem's currency table),
-  and the 400/503 answers. Not recorded yet: the examples of `spec/requests/customer_surcharge_parity_spec.rb`.
+  the buyer-currency rollout (`BuyerCurrencyQuote`, Stripe FX), a missing `products` (ParameterMissing is rendered by the exceptions app) and a
+  request format other than html/json. Served since E5a: the GeoIP-detected buyer currency (`infra/buyer-currency-countries.ts`, generated
+  from the countries gem 6.0.1) and the empty 400 (malformed `products`) / 503 (`RateUnavailable`) answers. Not recorded yet: the examples of
+  `spec/requests/customer_surcharge_parity_spec.rb` (the GeoIP and 400 ones are new).
 - **Customers page** (`page-props/customers/customers.ts`) still hands back: shipping sales that are subscriptions, have a recurring price, several shipments, or a tracking URL
   `Shipment#calculated_tracking_url` cannot settle without Ruby's `URI.parse`, commissions with files and a completion
   still `in_progress` (files need `signed_id`; the in-progress completion may be pending presentment settlement), review videos whose file has
