@@ -55,6 +55,6 @@ npx vitest run --config parity/vitest.config.ts parity/__tests__/<file>
 
 ## State at the last full run
 
-All 59 replay files pass (2,644 tests); see [parity-tasks.md](parity-tasks.md) for what is left. Run replays one at a time per checkout:
+All 59 replay files pass (2,653 tests); see [parity-tasks.md](parity-tasks.md) for what is left. Run replays one at a time per checkout:
 two `next dev` servers in the same directory fight over `.next/dev`. For parallel lanes use a git worktree with its own copy of
 `node_modules` (a symlink works for vitest but breaks Turbopack in `next dev`), its own `gumroad_replay_<N>` database and Redis db.
