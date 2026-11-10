@@ -514,6 +514,33 @@ describe "Payments, profile and application settings when signed in", type: :req
       expect(inertia_props_of(response)["formatted_balance_to_forfeit_on_country_change"]).to eq("$1,234.56")
     end
 
+    it "counts a balance on a second Gumroad account of the same processor as the seller's to forfeit", parity: true do
+      create(:user_compliance_info, user: seller)
+      managed = create(:merchant_account, user: seller, country: "US")
+      create(:balance, user: seller, amount_cents: 1_234_56, merchant_account: managed)
+      create(:balance, user: seller, amount_cents: 20_00, merchant_account: create(:merchant_account, user: nil))
+      create(:balance, user: seller, amount_cents: 7_00, merchant_account: create(:merchant_account, user: nil))
+      log_in(seller)
+
+      get settings_payments_path
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["formatted_balance_to_forfeit_on_country_change"]).to eq("$1,241.56")
+    end
+
+    it "shows the verification error Stripe returned instead of asking for the field", parity: true do
+      create(:user_compliance_info, user: seller)
+      create(:user_compliance_info_request, user: seller, field_needed: UserComplianceInfoFields::Individual::STRIPE_IDENTITY_DOCUMENT_ID, state: "requested", verification_error: { "code" => "verification_document_fraudulent" })
+      create(:user_compliance_info_request, user: seller, field_needed: UserComplianceInfoFields::Individual::TAX_ID, state: "requested", verification_error: { "code" => "verification_failed_other", "message" => "Stripe could not verify this number!" })
+      log_in(seller)
+
+      get settings_payments_path
+
+      expect(response).to be_successful
+      messages = inertia_props_of(response)["account_status"]["compliance_actions"].map { |action| action["message"] }
+      expect(messages).to eq(["The document might have been altered so it could not be verified.", "Stripe could not verify this number."])
+    end
+
     it "shows an Australian seller who owes backtaxes and has opted in", parity: true do
       create(:user_compliance_info, user: seller, country: "Australia", state: "NSW", zip_code: "2000")
       seller.update!(au_backtax_owed_cents: 150_00, au_backtax_sales_cents: 2_500_50)
