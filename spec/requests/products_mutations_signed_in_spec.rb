@@ -259,6 +259,64 @@ describe "Products mutations when signed in", type: :request do
     expect(product.reload.purchase_disabled_at).to be_nil
   end
 
+  # The route is drawn for the discover host and seller domains, not the app host the dashboard lives on.
+  describe "updating a product's profile sections" do
+    let(:kept) { create(:seller_profile_products_section, seller:, product:) }
+    let(:dropped) { create(:seller_profile_products_section, seller:, product:) }
+
+    before { product.update!(sections: [dropped.id, kept.id], main_section_index: 1) }
+
+    it "lets a collaborator reorder the sections of the product they collaborate on and deletes the ones left out", parity: true do
+      collaborator = create(:collaborator, seller:)
+      create(:product_affiliate, affiliate: collaborator, product:)
+      log_in(collaborator.affiliate_user)
+      host! VALID_DISCOVER_REQUEST_HOST
+
+      send_json(:put, sections_link_path(product.unique_permalink), { sections: [kept.external_id], main_section_index: "0" })
+
+      expect(response).to have_http_status(:no_content)
+      expect(product.reload.sections).to eq([kept.id])
+      expect(product.main_section_index).to eq(0)
+      expect(SellerProfileSection.exists?(dropped.id)).to eq(false)
+    end
+
+    it "keeps the sections of the seller's other products when the list is emptied", parity: true do
+      other_section = create(:seller_profile_products_section, seller:, product: create(:product, user: seller, unique_permalink: "othersec"))
+      log_in(seller)
+      host! VALID_DISCOVER_REQUEST_HOST
+
+      send_json(:put, sections_link_path(product.unique_permalink), { sections: [], main_section_index: 3 })
+
+      expect(response).to have_http_status(:no_content)
+      expect(product.reload.sections).to eq([])
+      expect(product.main_section_index).to eq(3)
+      expect(SellerProfileSection.exists?(kept.id)).to eq(false)
+      expect(SellerProfileSection.exists?(other_section.id)).to eq(true)
+    end
+
+    it "answers 404 when a collaborator updates the sections of another product of the seller", parity: true do
+      collaborator = create(:collaborator, seller:)
+      create(:product_affiliate, affiliate: collaborator, product: create(:product, user: seller, unique_permalink: "collabsec"))
+      log_in(collaborator.affiliate_user)
+      host! VALID_DISCOVER_REQUEST_HOST
+
+      send_json(:put, sections_link_path(product.unique_permalink), { sections: [] })
+
+      expect(response).to have_http_status(:not_found)
+      expect(product.reload.sections).to eq([dropped.id, kept.id])
+    end
+
+    it "answers 401 when a team member without product access updates them", parity: true do
+      team_member(:accountant)
+      host! VALID_DISCOVER_REQUEST_HOST
+
+      send_json(:put, sections_link_path(product.unique_permalink), { sections: [] })
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(product.reload.sections).to eq([dropped.id, kept.id])
+    end
+  end
+
   it "unpublishes a tiered membership", parity: true do
     membership = create(:membership_product, user: seller, unique_permalink: "tiermem")
     log_in(seller)
