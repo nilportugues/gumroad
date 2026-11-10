@@ -1,0 +1,5024 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "no arguments",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "DeleteProductFilesArchivesWorker",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "both arguments nil",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "DeleteProductFilesArchivesWorker",
+      "args": [
+        null,
+        null
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "the product does not exist",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find Link with 'id'=99"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 99 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "DeleteProductFilesArchivesWorker",
+      "args": [
+        99
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a product whose deletion was undone",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "DeleteProductFilesArchivesWorker",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a deleted product without archives or variants",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-11-01T00:00:00.000000Z"
+                },
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `product_files_archives`.* FROM `product_files_archives` WHERE `product_files_archives`.`link_id` = 1 AND `product_files_archives`.`deleted_at` IS NULL",
+          "result": {
+            "fields": [
+              "id",
+              "deleted_at",
+              "link_id",
+              "installment_id",
+              "product_files_archive_state",
+              "created_at",
+              "updated_at",
+              "url",
+              "deleted_from_cdn_at",
+              "variant_id",
+              "digest",
+              "folder_id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `base_variants`.* FROM `base_variants` INNER JOIN `variant_categories` ON `base_variants`.`variant_category_id` = `variant_categories`.`id` WHERE `base_variants`.`type` = 'Variant' AND `variant_categories`.`link_id` = 1 AND `variant_categories`.`deleted_at` IS NULL AND `base_variants`.`deleted_at` IS NULL",
+          "result": {
+            "fields": [
+              "id",
+              "variant_category_id",
+              "price_difference_cents",
+              "name",
+              "max_purchase_count",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "type",
+              "link_id",
+              "custom_sku",
+              "flags",
+              "description",
+              "position_in_category",
+              "customizable_price",
+              "subscription_price_change_effective_date",
+              "subscription_price_change_message",
+              "duration_in_minutes",
+              "sales_count_for_inventory_cache"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "DeleteProductFilesArchivesWorker",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a deleted product with only deleted archives",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-11-01T00:00:00.000000Z"
+                },
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `product_files_archives`.* FROM `product_files_archives` WHERE `product_files_archives`.`link_id` = 1 AND `product_files_archives`.`deleted_at` IS NULL",
+          "result": {
+            "fields": [
+              "id",
+              "deleted_at",
+              "link_id",
+              "installment_id",
+              "product_files_archive_state",
+              "created_at",
+              "updated_at",
+              "url",
+              "deleted_from_cdn_at",
+              "variant_id",
+              "digest",
+              "folder_id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `base_variants`.* FROM `base_variants` INNER JOIN `variant_categories` ON `base_variants`.`variant_category_id` = `variant_categories`.`id` WHERE `base_variants`.`type` = 'Variant' AND `variant_categories`.`link_id` = 1 AND `variant_categories`.`deleted_at` IS NULL AND `base_variants`.`deleted_at` IS NULL",
+          "result": {
+            "fields": [
+              "id",
+              "variant_category_id",
+              "price_difference_cents",
+              "name",
+              "max_purchase_count",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "type",
+              "link_id",
+              "custom_sku",
+              "flags",
+              "description",
+              "position_in_category",
+              "customizable_price",
+              "subscription_price_change_effective_date",
+              "subscription_price_change_message",
+              "duration_in_minutes",
+              "sales_count_for_inventory_cache"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "DeleteProductFilesArchivesWorker",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a deleted product whose only archive belongs to another product",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-11-01T00:00:00.000000Z"
+                },
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `product_files_archives`.* FROM `product_files_archives` WHERE `product_files_archives`.`link_id` = 1 AND `product_files_archives`.`deleted_at` IS NULL",
+          "result": {
+            "fields": [
+              "id",
+              "deleted_at",
+              "link_id",
+              "installment_id",
+              "product_files_archive_state",
+              "created_at",
+              "updated_at",
+              "url",
+              "deleted_from_cdn_at",
+              "variant_id",
+              "digest",
+              "folder_id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `base_variants`.* FROM `base_variants` INNER JOIN `variant_categories` ON `base_variants`.`variant_category_id` = `variant_categories`.`id` WHERE `base_variants`.`type` = 'Variant' AND `variant_categories`.`link_id` = 1 AND `variant_categories`.`deleted_at` IS NULL AND `base_variants`.`deleted_at` IS NULL",
+          "result": {
+            "fields": [
+              "id",
+              "variant_category_id",
+              "price_difference_cents",
+              "name",
+              "max_purchase_count",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "type",
+              "link_id",
+              "custom_sku",
+              "flags",
+              "description",
+              "position_in_category",
+              "customizable_price",
+              "subscription_price_change_effective_date",
+              "subscription_price_change_message",
+              "duration_in_minutes",
+              "sales_count_for_inventory_cache"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "DeleteProductFilesArchivesWorker",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a deleted product with a live archive",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-11-01T00:00:00.000000Z"
+                },
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `product_files_archives`.* FROM `product_files_archives` WHERE `product_files_archives`.`link_id` = 1 AND `product_files_archives`.`deleted_at` IS NULL",
+          "result": {
+            "fields": [
+              "id",
+              "deleted_at",
+              "link_id",
+              "installment_id",
+              "product_files_archive_state",
+              "created_at",
+              "updated_at",
+              "url",
+              "deleted_from_cdn_at",
+              "variant_id",
+              "digest",
+              "folder_id"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                1,
+                null,
+                "ready",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "DeleteProductFilesArchivesWorker",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "the id as digits",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-11-01T00:00:00.000000Z"
+                },
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `product_files_archives`.* FROM `product_files_archives` WHERE `product_files_archives`.`link_id` = 1 AND `product_files_archives`.`deleted_at` IS NULL",
+          "result": {
+            "fields": [
+              "id",
+              "deleted_at",
+              "link_id",
+              "installment_id",
+              "product_files_archive_state",
+              "created_at",
+              "updated_at",
+              "url",
+              "deleted_from_cdn_at",
+              "variant_id",
+              "digest",
+              "folder_id"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                1,
+                null,
+                "ready",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "DeleteProductFilesArchivesWorker",
+      "args": [
+        "1"
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a deleted product whose variants have no archives",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-11-01T00:00:00.000000Z"
+                },
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `product_files_archives`.* FROM `product_files_archives` WHERE `product_files_archives`.`link_id` = 1 AND `product_files_archives`.`deleted_at` IS NULL",
+          "result": {
+            "fields": [
+              "id",
+              "deleted_at",
+              "link_id",
+              "installment_id",
+              "product_files_archive_state",
+              "created_at",
+              "updated_at",
+              "url",
+              "deleted_from_cdn_at",
+              "variant_id",
+              "digest",
+              "folder_id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `base_variants`.* FROM `base_variants` INNER JOIN `variant_categories` ON `base_variants`.`variant_category_id` = `variant_categories`.`id` WHERE `base_variants`.`type` = 'Variant' AND `variant_categories`.`link_id` = 1 AND `variant_categories`.`deleted_at` IS NULL AND `base_variants`.`deleted_at` IS NULL",
+          "result": {
+            "fields": [
+              "id",
+              "variant_category_id",
+              "price_difference_cents",
+              "name",
+              "max_purchase_count",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "type",
+              "link_id",
+              "custom_sku",
+              "flags",
+              "description",
+              "position_in_category",
+              "customizable_price",
+              "subscription_price_change_effective_date",
+              "subscription_price_change_message",
+              "duration_in_minutes",
+              "sales_count_for_inventory_cache"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "Variant 1",
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "Variant",
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0
+              ],
+              [
+                2,
+                1,
+                null,
+                "Variant 2",
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "Variant",
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `product_files_archives`.* FROM `product_files_archives` WHERE `product_files_archives`.`variant_id` = 1 AND `product_files_archives`.`deleted_at` IS NULL",
+          "result": {
+            "fields": [
+              "id",
+              "deleted_at",
+              "link_id",
+              "installment_id",
+              "product_files_archive_state",
+              "created_at",
+              "updated_at",
+              "url",
+              "deleted_from_cdn_at",
+              "variant_id",
+              "digest",
+              "folder_id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `product_files_archives`.* FROM `product_files_archives` WHERE `product_files_archives`.`variant_id` = 2 AND `product_files_archives`.`deleted_at` IS NULL",
+          "result": {
+            "fields": [
+              "id",
+              "deleted_at",
+              "link_id",
+              "installment_id",
+              "product_files_archive_state",
+              "created_at",
+              "updated_at",
+              "url",
+              "deleted_from_cdn_at",
+              "variant_id",
+              "digest",
+              "folder_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "DeleteProductFilesArchivesWorker",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a deleted product whose second variant has a live archive",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-11-01T00:00:00.000000Z"
+                },
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `product_files_archives`.* FROM `product_files_archives` WHERE `product_files_archives`.`link_id` = 1 AND `product_files_archives`.`deleted_at` IS NULL",
+          "result": {
+            "fields": [
+              "id",
+              "deleted_at",
+              "link_id",
+              "installment_id",
+              "product_files_archive_state",
+              "created_at",
+              "updated_at",
+              "url",
+              "deleted_from_cdn_at",
+              "variant_id",
+              "digest",
+              "folder_id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `base_variants`.* FROM `base_variants` INNER JOIN `variant_categories` ON `base_variants`.`variant_category_id` = `variant_categories`.`id` WHERE `base_variants`.`type` = 'Variant' AND `variant_categories`.`link_id` = 1 AND `variant_categories`.`deleted_at` IS NULL AND `base_variants`.`deleted_at` IS NULL",
+          "result": {
+            "fields": [
+              "id",
+              "variant_category_id",
+              "price_difference_cents",
+              "name",
+              "max_purchase_count",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "type",
+              "link_id",
+              "custom_sku",
+              "flags",
+              "description",
+              "position_in_category",
+              "customizable_price",
+              "subscription_price_change_effective_date",
+              "subscription_price_change_message",
+              "duration_in_minutes",
+              "sales_count_for_inventory_cache"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "Variant 1",
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "Variant",
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0
+              ],
+              [
+                2,
+                1,
+                null,
+                "Variant 2",
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "Variant",
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `product_files_archives`.* FROM `product_files_archives` WHERE `product_files_archives`.`variant_id` = 1 AND `product_files_archives`.`deleted_at` IS NULL",
+          "result": {
+            "fields": [
+              "id",
+              "deleted_at",
+              "link_id",
+              "installment_id",
+              "product_files_archive_state",
+              "created_at",
+              "updated_at",
+              "url",
+              "deleted_from_cdn_at",
+              "variant_id",
+              "digest",
+              "folder_id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `product_files_archives`.* FROM `product_files_archives` WHERE `product_files_archives`.`variant_id` = 2 AND `product_files_archives`.`deleted_at` IS NULL",
+          "result": {
+            "fields": [
+              "id",
+              "deleted_at",
+              "link_id",
+              "installment_id",
+              "product_files_archive_state",
+              "created_at",
+              "updated_at",
+              "url",
+              "deleted_from_cdn_at",
+              "variant_id",
+              "digest",
+              "folder_id"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                null,
+                null,
+                "ready",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                2,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "DeleteProductFilesArchivesWorker",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a deleted product whose variants have only deleted archives",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-11-01T00:00:00.000000Z"
+                },
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `product_files_archives`.* FROM `product_files_archives` WHERE `product_files_archives`.`link_id` = 1 AND `product_files_archives`.`deleted_at` IS NULL",
+          "result": {
+            "fields": [
+              "id",
+              "deleted_at",
+              "link_id",
+              "installment_id",
+              "product_files_archive_state",
+              "created_at",
+              "updated_at",
+              "url",
+              "deleted_from_cdn_at",
+              "variant_id",
+              "digest",
+              "folder_id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `base_variants`.* FROM `base_variants` INNER JOIN `variant_categories` ON `base_variants`.`variant_category_id` = `variant_categories`.`id` WHERE `base_variants`.`type` = 'Variant' AND `variant_categories`.`link_id` = 1 AND `variant_categories`.`deleted_at` IS NULL AND `base_variants`.`deleted_at` IS NULL",
+          "result": {
+            "fields": [
+              "id",
+              "variant_category_id",
+              "price_difference_cents",
+              "name",
+              "max_purchase_count",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "type",
+              "link_id",
+              "custom_sku",
+              "flags",
+              "description",
+              "position_in_category",
+              "customizable_price",
+              "subscription_price_change_effective_date",
+              "subscription_price_change_message",
+              "duration_in_minutes",
+              "sales_count_for_inventory_cache"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "Variant 1",
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "Variant",
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0
+              ],
+              [
+                2,
+                1,
+                null,
+                "Variant 2",
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "Variant",
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `product_files_archives`.* FROM `product_files_archives` WHERE `product_files_archives`.`variant_id` = 1 AND `product_files_archives`.`deleted_at` IS NULL",
+          "result": {
+            "fields": [
+              "id",
+              "deleted_at",
+              "link_id",
+              "installment_id",
+              "product_files_archive_state",
+              "created_at",
+              "updated_at",
+              "url",
+              "deleted_from_cdn_at",
+              "variant_id",
+              "digest",
+              "folder_id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `product_files_archives`.* FROM `product_files_archives` WHERE `product_files_archives`.`variant_id` = 2 AND `product_files_archives`.`deleted_at` IS NULL",
+          "result": {
+            "fields": [
+              "id",
+              "deleted_at",
+              "link_id",
+              "installment_id",
+              "product_files_archive_state",
+              "created_at",
+              "updated_at",
+              "url",
+              "deleted_from_cdn_at",
+              "variant_id",
+              "digest",
+              "folder_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "DeleteProductFilesArchivesWorker",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a deleted product with a deleted variant carrying a live archive",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-11-01T00:00:00.000000Z"
+                },
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `product_files_archives`.* FROM `product_files_archives` WHERE `product_files_archives`.`link_id` = 1 AND `product_files_archives`.`deleted_at` IS NULL",
+          "result": {
+            "fields": [
+              "id",
+              "deleted_at",
+              "link_id",
+              "installment_id",
+              "product_files_archive_state",
+              "created_at",
+              "updated_at",
+              "url",
+              "deleted_from_cdn_at",
+              "variant_id",
+              "digest",
+              "folder_id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `base_variants`.* FROM `base_variants` INNER JOIN `variant_categories` ON `base_variants`.`variant_category_id` = `variant_categories`.`id` WHERE `base_variants`.`type` = 'Variant' AND `variant_categories`.`link_id` = 1 AND `variant_categories`.`deleted_at` IS NULL AND `base_variants`.`deleted_at` IS NULL",
+          "result": {
+            "fields": [
+              "id",
+              "variant_category_id",
+              "price_difference_cents",
+              "name",
+              "max_purchase_count",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "type",
+              "link_id",
+              "custom_sku",
+              "flags",
+              "description",
+              "position_in_category",
+              "customizable_price",
+              "subscription_price_change_effective_date",
+              "subscription_price_change_message",
+              "duration_in_minutes",
+              "sales_count_for_inventory_cache"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "DeleteProductFilesArchivesWorker",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a deleted product with a variant in a deleted category",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-11-01T00:00:00.000000Z"
+                },
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `product_files_archives`.* FROM `product_files_archives` WHERE `product_files_archives`.`link_id` = 1 AND `product_files_archives`.`deleted_at` IS NULL",
+          "result": {
+            "fields": [
+              "id",
+              "deleted_at",
+              "link_id",
+              "installment_id",
+              "product_files_archive_state",
+              "created_at",
+              "updated_at",
+              "url",
+              "deleted_from_cdn_at",
+              "variant_id",
+              "digest",
+              "folder_id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `base_variants`.* FROM `base_variants` INNER JOIN `variant_categories` ON `base_variants`.`variant_category_id` = `variant_categories`.`id` WHERE `base_variants`.`type` = 'Variant' AND `variant_categories`.`link_id` = 1 AND `variant_categories`.`deleted_at` IS NULL AND `base_variants`.`deleted_at` IS NULL",
+          "result": {
+            "fields": [
+              "id",
+              "variant_category_id",
+              "price_difference_cents",
+              "name",
+              "max_purchase_count",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "type",
+              "link_id",
+              "custom_sku",
+              "flags",
+              "description",
+              "position_in_category",
+              "customizable_price",
+              "subscription_price_change_effective_date",
+              "subscription_price_change_message",
+              "duration_in_minutes",
+              "sales_count_for_inventory_cache"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "DeleteProductFilesArchivesWorker",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a deleted product with a SKU carrying a live archive",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-11-01T00:00:00.000000Z"
+                },
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `product_files_archives`.* FROM `product_files_archives` WHERE `product_files_archives`.`link_id` = 1 AND `product_files_archives`.`deleted_at` IS NULL",
+          "result": {
+            "fields": [
+              "id",
+              "deleted_at",
+              "link_id",
+              "installment_id",
+              "product_files_archive_state",
+              "created_at",
+              "updated_at",
+              "url",
+              "deleted_from_cdn_at",
+              "variant_id",
+              "digest",
+              "folder_id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `base_variants`.* FROM `base_variants` INNER JOIN `variant_categories` ON `base_variants`.`variant_category_id` = `variant_categories`.`id` WHERE `base_variants`.`type` = 'Variant' AND `variant_categories`.`link_id` = 1 AND `variant_categories`.`deleted_at` IS NULL AND `base_variants`.`deleted_at` IS NULL",
+          "result": {
+            "fields": [
+              "id",
+              "variant_category_id",
+              "price_difference_cents",
+              "name",
+              "max_purchase_count",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "type",
+              "link_id",
+              "custom_sku",
+              "flags",
+              "description",
+              "position_in_category",
+              "customizable_price",
+              "subscription_price_change_effective_date",
+              "subscription_price_change_message",
+              "duration_in_minutes",
+              "sales_count_for_inventory_cache"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "DeleteProductFilesArchivesWorker",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "the variant does not exist",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find BaseVariant with 'id'=99"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `base_variants`.* FROM `base_variants` WHERE `base_variants`.`id` = 99 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "variant_category_id",
+              "price_difference_cents",
+              "name",
+              "max_purchase_count",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "type",
+              "link_id",
+              "custom_sku",
+              "flags",
+              "description",
+              "position_in_category",
+              "customizable_price",
+              "subscription_price_change_effective_date",
+              "subscription_price_change_message",
+              "duration_in_minutes",
+              "sales_count_for_inventory_cache"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "DeleteProductFilesArchivesWorker",
+      "args": [
+        null,
+        99
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "the variant does not exist, with a product",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find BaseVariant with 'id'=99"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `base_variants`.* FROM `base_variants` WHERE `base_variants`.`id` = 99 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "variant_category_id",
+              "price_difference_cents",
+              "name",
+              "max_purchase_count",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "type",
+              "link_id",
+              "custom_sku",
+              "flags",
+              "description",
+              "position_in_category",
+              "customizable_price",
+              "subscription_price_change_effective_date",
+              "subscription_price_change_message",
+              "duration_in_minutes",
+              "sales_count_for_inventory_cache"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "DeleteProductFilesArchivesWorker",
+      "args": [
+        1,
+        99
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a variant whose deletion was undone",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `base_variants`.* FROM `base_variants` WHERE `base_variants`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "variant_category_id",
+              "price_difference_cents",
+              "name",
+              "max_purchase_count",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "type",
+              "link_id",
+              "custom_sku",
+              "flags",
+              "description",
+              "position_in_category",
+              "customizable_price",
+              "subscription_price_change_effective_date",
+              "subscription_price_change_message",
+              "duration_in_minutes",
+              "sales_count_for_inventory_cache"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "Variant 1",
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "Variant",
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `variant_categories`.* FROM `variant_categories` WHERE `variant_categories`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "deleted_at",
+              "title",
+              "flags"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "Versions",
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "DeleteProductFilesArchivesWorker",
+      "args": [
+        null,
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a variant whose deletion was undone, with a product",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `base_variants`.* FROM `base_variants` WHERE `base_variants`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "variant_category_id",
+              "price_difference_cents",
+              "name",
+              "max_purchase_count",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "type",
+              "link_id",
+              "custom_sku",
+              "flags",
+              "description",
+              "position_in_category",
+              "customizable_price",
+              "subscription_price_change_effective_date",
+              "subscription_price_change_message",
+              "duration_in_minutes",
+              "sales_count_for_inventory_cache"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "Variant 1",
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "Variant",
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "DeleteProductFilesArchivesWorker",
+      "args": [
+        1,
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a variant with a product that does not exist",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find Link with 'id'=99"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `base_variants`.* FROM `base_variants` WHERE `base_variants`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "variant_category_id",
+              "price_difference_cents",
+              "name",
+              "max_purchase_count",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "type",
+              "link_id",
+              "custom_sku",
+              "flags",
+              "description",
+              "position_in_category",
+              "customizable_price",
+              "subscription_price_change_effective_date",
+              "subscription_price_change_message",
+              "duration_in_minutes",
+              "sales_count_for_inventory_cache"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "Variant 1",
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "Variant",
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 99 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "DeleteProductFilesArchivesWorker",
+      "args": [
+        99,
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a deleted variant without archives",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `base_variants`.* FROM `base_variants` WHERE `base_variants`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "variant_category_id",
+              "price_difference_cents",
+              "name",
+              "max_purchase_count",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "type",
+              "link_id",
+              "custom_sku",
+              "flags",
+              "description",
+              "position_in_category",
+              "customizable_price",
+              "subscription_price_change_effective_date",
+              "subscription_price_change_message",
+              "duration_in_minutes",
+              "sales_count_for_inventory_cache"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "Variant 1",
+                null,
+                {
+                  "$time": "2026-11-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "Variant",
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `variant_categories`.* FROM `variant_categories` WHERE `variant_categories`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "deleted_at",
+              "title",
+              "flags"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "Versions",
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `product_files_archives`.* FROM `product_files_archives` WHERE `product_files_archives`.`variant_id` = 1 AND `product_files_archives`.`deleted_at` IS NULL",
+          "result": {
+            "fields": [
+              "id",
+              "deleted_at",
+              "link_id",
+              "installment_id",
+              "product_files_archive_state",
+              "created_at",
+              "updated_at",
+              "url",
+              "deleted_from_cdn_at",
+              "variant_id",
+              "digest",
+              "folder_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "DeleteProductFilesArchivesWorker",
+      "args": [
+        null,
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a deleted variant without archives, with a product",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `base_variants`.* FROM `base_variants` WHERE `base_variants`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "variant_category_id",
+              "price_difference_cents",
+              "name",
+              "max_purchase_count",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "type",
+              "link_id",
+              "custom_sku",
+              "flags",
+              "description",
+              "position_in_category",
+              "customizable_price",
+              "subscription_price_change_effective_date",
+              "subscription_price_change_message",
+              "duration_in_minutes",
+              "sales_count_for_inventory_cache"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "Variant 1",
+                null,
+                {
+                  "$time": "2026-11-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "Variant",
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `product_files_archives`.* FROM `product_files_archives` WHERE `product_files_archives`.`variant_id` = 1 AND `product_files_archives`.`deleted_at` IS NULL",
+          "result": {
+            "fields": [
+              "id",
+              "deleted_at",
+              "link_id",
+              "installment_id",
+              "product_files_archive_state",
+              "created_at",
+              "updated_at",
+              "url",
+              "deleted_from_cdn_at",
+              "variant_id",
+              "digest",
+              "folder_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "DeleteProductFilesArchivesWorker",
+      "args": [
+        1,
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a deleted variant with a live archive",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `base_variants`.* FROM `base_variants` WHERE `base_variants`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "variant_category_id",
+              "price_difference_cents",
+              "name",
+              "max_purchase_count",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "type",
+              "link_id",
+              "custom_sku",
+              "flags",
+              "description",
+              "position_in_category",
+              "customizable_price",
+              "subscription_price_change_effective_date",
+              "subscription_price_change_message",
+              "duration_in_minutes",
+              "sales_count_for_inventory_cache"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "Variant 1",
+                null,
+                {
+                  "$time": "2026-11-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "Variant",
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `variant_categories`.* FROM `variant_categories` WHERE `variant_categories`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "deleted_at",
+              "title",
+              "flags"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "Versions",
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `product_files_archives`.* FROM `product_files_archives` WHERE `product_files_archives`.`variant_id` = 1 AND `product_files_archives`.`deleted_at` IS NULL",
+          "result": {
+            "fields": [
+              "id",
+              "deleted_at",
+              "link_id",
+              "installment_id",
+              "product_files_archive_state",
+              "created_at",
+              "updated_at",
+              "url",
+              "deleted_from_cdn_at",
+              "variant_id",
+              "digest",
+              "folder_id"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                null,
+                null,
+                "ready",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                1,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "DeleteProductFilesArchivesWorker",
+      "args": [
+        null,
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a deleted variant with a live archive, product alive",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `base_variants`.* FROM `base_variants` WHERE `base_variants`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "variant_category_id",
+              "price_difference_cents",
+              "name",
+              "max_purchase_count",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "type",
+              "link_id",
+              "custom_sku",
+              "flags",
+              "description",
+              "position_in_category",
+              "customizable_price",
+              "subscription_price_change_effective_date",
+              "subscription_price_change_message",
+              "duration_in_minutes",
+              "sales_count_for_inventory_cache"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "Variant 1",
+                null,
+                {
+                  "$time": "2026-11-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "Variant",
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `product_files_archives`.* FROM `product_files_archives` WHERE `product_files_archives`.`variant_id` = 1 AND `product_files_archives`.`deleted_at` IS NULL",
+          "result": {
+            "fields": [
+              "id",
+              "deleted_at",
+              "link_id",
+              "installment_id",
+              "product_files_archive_state",
+              "created_at",
+              "updated_at",
+              "url",
+              "deleted_from_cdn_at",
+              "variant_id",
+              "digest",
+              "folder_id"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                null,
+                null,
+                "ready",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                1,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "DeleteProductFilesArchivesWorker",
+      "args": [
+        1,
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a deleted variant with only deleted archives",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `base_variants`.* FROM `base_variants` WHERE `base_variants`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "variant_category_id",
+              "price_difference_cents",
+              "name",
+              "max_purchase_count",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "type",
+              "link_id",
+              "custom_sku",
+              "flags",
+              "description",
+              "position_in_category",
+              "customizable_price",
+              "subscription_price_change_effective_date",
+              "subscription_price_change_message",
+              "duration_in_minutes",
+              "sales_count_for_inventory_cache"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "Variant 1",
+                null,
+                {
+                  "$time": "2026-11-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "Variant",
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `variant_categories`.* FROM `variant_categories` WHERE `variant_categories`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "deleted_at",
+              "title",
+              "flags"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "Versions",
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `product_files_archives`.* FROM `product_files_archives` WHERE `product_files_archives`.`variant_id` = 1 AND `product_files_archives`.`deleted_at` IS NULL",
+          "result": {
+            "fields": [
+              "id",
+              "deleted_at",
+              "link_id",
+              "installment_id",
+              "product_files_archive_state",
+              "created_at",
+              "updated_at",
+              "url",
+              "deleted_from_cdn_at",
+              "variant_id",
+              "digest",
+              "folder_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "DeleteProductFilesArchivesWorker",
+      "args": [
+        null,
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a deleted variant whose product link is missing",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find Link with 'id'=99"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `base_variants`.* FROM `base_variants` WHERE `base_variants`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "variant_category_id",
+              "price_difference_cents",
+              "name",
+              "max_purchase_count",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "type",
+              "link_id",
+              "custom_sku",
+              "flags",
+              "description",
+              "position_in_category",
+              "customizable_price",
+              "subscription_price_change_effective_date",
+              "subscription_price_change_message",
+              "duration_in_minutes",
+              "sales_count_for_inventory_cache"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "Variant 1",
+                null,
+                {
+                  "$time": "2026-11-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "Variant",
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `variant_categories`.* FROM `variant_categories` WHERE `variant_categories`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "deleted_at",
+              "title",
+              "flags"
+            ],
+            "rows": [
+              [
+                1,
+                99,
+                null,
+                "Versions",
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 99 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "DeleteProductFilesArchivesWorker",
+      "args": [
+        null,
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "the variant id as digits",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `base_variants`.* FROM `base_variants` WHERE `base_variants`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "variant_category_id",
+              "price_difference_cents",
+              "name",
+              "max_purchase_count",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "type",
+              "link_id",
+              "custom_sku",
+              "flags",
+              "description",
+              "position_in_category",
+              "customizable_price",
+              "subscription_price_change_effective_date",
+              "subscription_price_change_message",
+              "duration_in_minutes",
+              "sales_count_for_inventory_cache"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "Variant 1",
+                null,
+                {
+                  "$time": "2026-11-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "Variant",
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `variant_categories`.* FROM `variant_categories` WHERE `variant_categories`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "deleted_at",
+              "title",
+              "flags"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "Versions",
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `product_files_archives`.* FROM `product_files_archives` WHERE `product_files_archives`.`variant_id` = 1 AND `product_files_archives`.`deleted_at` IS NULL",
+          "result": {
+            "fields": [
+              "id",
+              "deleted_at",
+              "link_id",
+              "installment_id",
+              "product_files_archive_state",
+              "created_at",
+              "updated_at",
+              "url",
+              "deleted_from_cdn_at",
+              "variant_id",
+              "digest",
+              "folder_id"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                null,
+                null,
+                "ready",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                1,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "DeleteProductFilesArchivesWorker",
+      "args": [
+        null,
+        "1"
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "the variant of a deleted product, ignoring the product's own archives",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `base_variants`.* FROM `base_variants` WHERE `base_variants`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "variant_category_id",
+              "price_difference_cents",
+              "name",
+              "max_purchase_count",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "type",
+              "link_id",
+              "custom_sku",
+              "flags",
+              "description",
+              "position_in_category",
+              "customizable_price",
+              "subscription_price_change_effective_date",
+              "subscription_price_change_message",
+              "duration_in_minutes",
+              "sales_count_for_inventory_cache"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "Variant 1",
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "Variant",
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-11-01T00:00:00.000000Z"
+                },
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "DeleteProductFilesArchivesWorker",
+      "args": [
+        1,
+        1
+      ],
+      "hands_back": false
+    }
+  ]
+}

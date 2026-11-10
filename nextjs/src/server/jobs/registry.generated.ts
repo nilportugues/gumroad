@@ -808,7 +808,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "DeleteProductFilesWorker": {
     "file": "app/sidekiq/delete_product_files_worker.rb",
