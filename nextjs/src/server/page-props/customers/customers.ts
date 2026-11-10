@@ -4,10 +4,10 @@
 // Handed back to Rails (HandBackToRails) when a customer on the page needs a reading the port does not make: a member whose renewals an Indian card mandate disabled, a sent gift whose
 // recipient holds a license, a physical product, a Sku, several options on one sale, a collaborator sale that also credits a direct affiliate, a UTM link (`utm_url` is built by Addressable), a non-USD price without a
 // stored rate or in a currency the port has no table for, a refund whose json_data is not plain JSON, a commission
-// with files, a review video, a custom field file, and a
-// sale charged through Braintree (its transaction URL embeds the merchant id).
+// with files, a review video, and a custom field answer that carries a file (its signed id).
 import { Prisma, type Purchase, type Subscription, type User } from "@prisma/client";
 
+import { getConfig } from "../../infra/config.ts";
 import { encrypt } from "../../../lib/obfuscate-ids.ts";
 import { HandBackToRails } from "../../controllers/application-controller.ts";
 import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
@@ -342,7 +342,18 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
 
   const customFields = groupBy(await rowsBy("purchase_custom_fields", "purchase_id", purchaseIds), "purchase_id");
   const fieldRows = [...customFields.values()].flat();
-  if (fieldRows.some((field) => field.field_type === "fileUpload" || field.field_type === "file"))
+  // The files' signed ids are not derivable here, so an answer that carries a file stays with Rails.
+  const fileFieldIds = fieldRows.filter((field) => field.field_type === "file").map((field) => field.id);
+  if (
+    (
+      await rowsBy(
+        "active_storage_attachments",
+        "record_id",
+        fileFieldIds,
+        Prisma.sql` AND ${column("active_storage_attachments", "record_type")} = ${"PurchaseCustomField"} AND ${column("active_storage_attachments", "name")} = ${"files"}`,
+      )
+    ).length > 0
+  )
     throw new HandBackToRails();
   const fieldNames = byId(
     await rowsBy("custom_fields", "id", [
@@ -462,7 +473,7 @@ export function displayReferrer(purchase: Row, sellerUsername: string): string |
 }
 
 // Purchase#transaction_url_for_seller: nil unless the sale was charged outside Gumroad's own Stripe account, else the processor's
-// dashboard page for the charge. Braintree's embeds the merchant id from Rails' configuration, which Node does not read.
+// dashboard page for the charge. Braintree's embeds the merchant id from GlobalConfig.
 export function transactionUrlForSeller(
   purchase: Row,
   merchantAccount: Row | null,
@@ -482,6 +493,9 @@ export function transactionUrlForSeller(
     return `https://manage.stripe.com/${production ? "" : "test/"}payments/${chargeId}`;
   if (purchase.charge_processor_id === "paypal") {
     return `https://${production ? "history" : "sandbox"}.paypal.com/us/cgi-bin/webscr?cmd=_history-details-from-hub&id=${chargeId}`;
+  }
+  if (purchase.charge_processor_id === "braintree") {
+    return `https://${production ? "www" : "sandbox"}.braintreegateway.com/merchants/${getConfig("BRAINTREE_MERCHANT_ID") ?? ""}/transactions/${chargeId}`;
   }
   throw new HandBackToRails();
 }
@@ -742,13 +756,14 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
         }
       : null,
     commission: null,
-    custom_fields: (loaded.customFields.get(id) ?? []).map((field) => ({
-      attribute: present(loaded.fieldNames.get(String(field.custom_field_id))?.name)
+    custom_fields: (loaded.customFields.get(id) ?? []).map((field) => {
+      const attribute = present(loaded.fieldNames.get(String(field.custom_field_id))?.name)
         ? loaded.fieldNames.get(String(field.custom_field_id))!.name
-        : field.name,
-      type: "text",
-      value: field.value == null ? "" : String(field.value),
-    })),
+        : field.name;
+      // Any file answer reaching here has no attachments (see the hand-back in the loader).
+      if (field.field_type === "file") return { attribute, type: "file", files: [] };
+      return { attribute, type: "text", value: field.value == null ? "" : String(field.value) };
+    }),
     transaction_url_for_seller: transactionUrl,
     is_access_revoked: isAccessRevoked,
     paypal_refund_expired:

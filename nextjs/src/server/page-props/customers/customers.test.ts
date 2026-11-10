@@ -581,9 +581,15 @@ describe("Purchase#transaction_url_for_seller", () => {
     expect(transactionUrlForSeller(sale({ stripe_transaction_id: " " }), connectAccount, "production")).toBeNull();
   });
 
-  it("hands back a Braintree sale, whose URL needs the merchant id", () => {
-    expect(() => transactionUrlForSeller(sale({ charge_processor_id: "braintree" }), null, "production")).toThrow(
-      HandBackToRails,
+  it("links a Braintree sale to the merchant's transaction page", () => {
+    vi.stubEnv("BRAINTREE_MERCHANT_ID", "merch123");
+    const braintree = sale({ charge_processor_id: "braintree" });
+    expect(transactionUrlForSeller(braintree, null, "production")).toBe(
+      "https://www.braintreegateway.com/merchants/merch123/transactions/ch_123",
     );
+    expect(transactionUrlForSeller(braintree, null, "test")).toBe(
+      "https://sandbox.braintreegateway.com/merchants/merch123/transactions/ch_123",
+    );
+    vi.unstubAllEnvs();
   });
 });

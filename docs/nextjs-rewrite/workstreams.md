@@ -91,7 +91,7 @@ Parity replays still failing after the first full run against real Rails (setup 
 - **Customers page** (`page-props/customers/customers.ts`) still hands back: physical products and Skus (`shipping_information`,
   `formatted_shipping_amount` in the purchase currency, `Shipment#calculated_tracking_url` with its display-safe URL rules), UTM links
   (`UtmLink#utm_url` goes through Addressable, whose `query_values=` sorts and re-encodes the query), commissions (deposit/completion split and
-  files), review videos, custom field files, Braintree sales (`transaction_url_for_seller` embeds the merchant id), sent gifts whose recipient holds a license, a sale of
+  files), review videos, custom field answers that carry a file (signed id), sent gifts whose recipient holds a license, a sale of
   several options, collaborator sales that credit a direct affiliate, and a member whose renewals an Indian card mandate disabled
   (`Subscription#status` then needs `india_card_mandate_reliability_enabled?`).
 
