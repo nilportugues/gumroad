@@ -1,11 +1,9 @@
-// Port of app/sidekiq/delete_wishlist_products_job.rb. A wishlist product that WishlistProduct's recurrence, quantity, rent and
-// variant validations could reject (a variant, a recurrence, a quantity above one, rent, or a recurring or rentable product) is
-// handed back to Rails when reached; the job is idempotent (it only reads alive rows), so Rails re-running it after earlier rows
-// were deleted here is safe. Golden: __fixtures__/delete-wishlist-products-job.golden.json (scripts/golden/delete-wishlist-products-job.rb).
+// Port of app/sidekiq/delete_wishlist_products_job.rb. A wishlist product that WishlistProduct's quantity, rent and variant
+// validations could reject (a variant, a quantity above one, rent, or a rentable product) is handed back to Rails when
+// reached; the job is idempotent (it only reads alive rows), so Rails re-running it after earlier rows were deleted here is safe. Golden: __fixtures__/delete-wishlist-products-job.golden.json (scripts/golden/delete-wishlist-products-job.rb).
 import { Prisma, type Link, type WishlistProduct } from "@prisma/client";
 
 import { HandBackToRuby, beforeSideEffects } from "../../server/jobs/hand-back.ts";
-import { LinkFlags } from "../../server/models/link.ts";
 import { findByIdBang, recordIdFrom } from "../../server/models/row-reads.ts";
 import { castRow, column, findInBatches } from "../../server/models/sql.ts";
 import { WishlistProductDeletable, WishlistProducts } from "../../server/models/wishlist-follower.ts";
@@ -16,14 +14,9 @@ const FIND_EACH_BATCH_SIZE = 1_000;
 const BUY_ONLY = 0;
 
 function unvalidatedReason(product: Link, row: WishlistProduct): string | null {
-  if (row.variant_id !== null || row.recurrence !== null) return "a wishlist product with a variant or recurrence";
+  if (row.variant_id !== null) return "a wishlist product with a variant";
   if (row.quantity !== 1 || row.rent) return "a wishlist product with a quantity above one or rent";
-  if (
-    (product.purchase_type ?? BUY_ONLY) !== BUY_ONLY ||
-    LinkFlags.isSet(product.flags as never, "is_recurring_billing")
-  ) {
-    return "a wishlist product of a rentable or recurring product";
-  }
+  if ((product.purchase_type ?? BUY_ONLY) !== BUY_ONLY) return "a wishlist product of a rentable product";
   return null;
 }
 
