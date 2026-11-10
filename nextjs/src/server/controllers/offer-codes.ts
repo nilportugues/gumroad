@@ -1,9 +1,10 @@
 // Port of app/controllers/offer_codes_controller.rb#compute_discount and the read-only core of
 // app/services/offer_code_discount_computing_service.rb (cart of permalinks, `key_by_input: false`).
 //
-// A code or cart that needs more than that hands back to Rails (HandBackToRails): an existing-customers, tiered
-// or once-per-cart-fixed code, a new-customers code for a signed-in buyer (purchase history) and a line whose
-// product has cross-sells to apply optimistically.
+// A code or cart that needs more than that hands back to Rails (HandBackToRails): an existing-customers or tiered
+// code for a signed-in buyer (purchase history), a once-per-cart-fixed code, a new-customers code for a signed-in
+// buyer and a line whose product has cross-sells to apply optimistically. A signed-out visitor has no purchases, so
+// an existing-customers code gives them nothing and a tiered one its month-0 tier.
 import { Prisma, type Link } from "@prisma/client";
 
 import { encrypt } from "../../lib/obfuscate-ids.ts";
@@ -47,9 +48,10 @@ export const PARTIAL_APPLICATION_MESSAGES: Record<string, string> = {
   option_not_eligible: "The code applies to some items. The selected options for the other items are not eligible.",
 };
 
-// OfferCodeDiscountComputingService::PRODUCT_LEVEL_INELIGIBILITIES_BY_DISPLAY_PRIORITY. Only the entries a ported code
-// can reach: the customer-scoped ones need the hand-backs above.
+// OfferCodeDiscountComputingService::PRODUCT_LEVEL_INELIGIBILITIES_BY_DISPLAY_PRIORITY
 const DISPLAY_PRIORITY = [
+  "not_existing_customer",
+  "not_new_customer",
   "unmet_minimum_purchase_quantity",
   "insufficient_times_of_use",
   "sold_out",
@@ -99,10 +101,24 @@ async function sellerHasAvailableCrossSells(userId: bigint | number): Promise<bo
 
 function assertSupported(code: OfferCodeRecord, signedIn: boolean): void {
   const { row } = code;
-  if (row.existing_customers_only || code.tiered() || (row.amount_cents != null && code.oncePerCart))
-    throw new HandBackToRails("compute_discount for an existing-customers, tiered or once-per-cart code");
+  if (row.amount_cents != null && code.oncePerCart)
+    throw new HandBackToRails("compute_discount for a once-per-cart code");
+  if ((row.existing_customers_only || code.tiered()) && signedIn)
+    throw new HandBackToRails("compute_discount existing-customers or tiered code for a signed-in buyer");
   if (row.new_customers_only && signedIn)
     throw new HandBackToRails("compute_discount new-customers code for a signed-in buyer");
+}
+
+// OfferCode#evaluate_for_buyer(nil, ...) merged over the full discount hash, as `discount.merge(...)` does.
+async function resolveForVisitor(
+  code: OfferCodeRecord,
+  link: Link,
+  full: Record<string, unknown>,
+  now: Date,
+): Promise<Record<string, unknown> | null> {
+  const resolved = await code.evaluateForBuyer(null, link, null, now);
+  if (resolved === null) return null;
+  return code.tiered() ? { ...full, ...resolved } : full;
 }
 
 // OfferCodeDiscountComputingService#process
@@ -179,10 +195,20 @@ export async function processDiscount(
     };
     const sufficient = max == null || (await left()) >= quantity;
 
-    if (!offerCode.inactive(now) && meetsMinimum && sufficient) {
+    // `offer_code.evaluate_for_buyer(buyer, product: link)`, with no buyer: nil for an existing-customers code or
+    // a tiered one that has no tier starting at month 0.
+    const full = await fullDiscount(offerCode);
+    const resolved =
+      offerCode.row.existing_customers_only || offerCode.tiered()
+        ? await resolveForVisitor(offerCode, link, full, now)
+        : full;
+
+    if (resolved !== null && !offerCode.inactive(now) && meetsMinimum && sufficient) {
       if (max != null) remaining.set(offerCode.id, (await left()) - quantity);
-      productsData[link.unique_permalink!] = await fullDiscount(offerCode);
+      productsData[link.unique_permalink!] = resolved;
     } else {
+      if (resolved === null && offerCode.row.existing_customers_only) ineligibilities.add("not_existing_customer");
+      if (resolved === null && offerCode.row.new_customers_only) ineligibilities.add("not_new_customer");
       if (!meetsMinimum) ineligibilities.add("unmet_minimum_purchase_quantity");
       if (!sufficient) ineligibilities.add((await left()) > 0 ? "insufficient_times_of_use" : "sold_out");
     }

@@ -25,7 +25,13 @@ vi.mock("../presenters/best-offer-code.ts", () => ({
     row,
     id: row.id,
     oncePerCart: false,
-    tiered: () => false,
+    tiered: () => ((row.tiers as unknown[] | undefined) ?? []).length > 0,
+    // A visitor owns nothing: months is nil, so only a month-0 tier matches.
+    evaluateForBuyer: async () => {
+      if (row.existing_customers_only) return null;
+      const tier = ((row.tiers as { months: number; pct: number }[] | undefined) ?? []).find((t) => t.months <= 0);
+      return tier ? { type: "percent", percents: tier.pct } : null;
+    },
     inactive: (now: Date) => row.expires_at != null && (row.expires_at as Date).getTime() < now.getTime(),
     restrictedVariantsFor: async (product: { id: number }) =>
       restrictedVariants
@@ -245,7 +251,8 @@ describe("a code limited to options (entries_eligible_for_option_scope)", () => 
 
 describe("compute_discount hand-backs", () => {
   it.each([
-    ["an existing-customers code", { existing_customers_only: true }],
+    ["an existing-customers code for a signed-in buyer", { existing_customers_only: true }],
+    ["a tiered code for a signed-in buyer", { tiers: [{ months: 0, pct: 10 }] }],
     ["a new-customers code for a signed-in buyer", { new_customers_only: true }],
   ])("hands back %s", async (_name, extra) => {
     stubDb({ codes: [code(extra)] });
@@ -255,6 +262,32 @@ describe("compute_discount hand-backs", () => {
   it("answers a new-customers code for a visitor, who has no purchase history", async () => {
     stubDb({ codes: [code({ new_customers_only: true })] });
     expect((await body(`code=off&${cartQuery(["perm1"])}`)).valid).toBe(true);
+  });
+
+  it("answers an existing-customers code for a visitor with not_existing_customer", async () => {
+    stubDb({ codes: [code({ existing_customers_only: true })] });
+    expect(await body(`code=off&${cartQuery(["perm1"])}`)).toEqual({
+      valid: false,
+      error_code: "not_existing_customer",
+      error_message: "Sorry, this discount code is only for existing customers.",
+    });
+  });
+
+  it("gives a visitor the month-0 tier of a tiered code over the configured discount", async () => {
+    stubDb({
+      codes: [
+        code({
+          tiers: [
+            { months: 0, pct: 15 },
+            { months: 6, pct: 30 },
+          ],
+        }),
+      ],
+    });
+    expect((await body(`code=off&${cartQuery(["perm1"])}`)).products_data.perm1).toMatchObject({
+      type: "percent",
+      percents: 15,
+    });
   });
 
   it("hands back a seller with cross-sells and a non-scalar code", async () => {

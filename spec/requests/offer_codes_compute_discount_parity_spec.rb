@@ -3,7 +3,7 @@
 require "spec_helper"
 
 # GET /offer_codes/compute_discount, written for recording (PARITY_RECORD=1) and replay by the Next.js port
-# (nextjs/src/server/controllers/offer-codes.ts). Not yet recorded: no fixture exists under nextjs/parity/fixtures.
+# (nextjs/src/server/controllers/offer-codes.ts). Fixtures live under nextjs/parity/fixtures/requests.
 describe "Offer codes compute_discount", type: :request do
   include Parity::SignedInRequests
 
@@ -78,6 +78,35 @@ describe "Offer codes compute_discount", type: :request do
     get "/offer_codes/compute_discount", params: { code: code.code }
 
     expect(response.parsed_body["error_code"]).to eq("invalid_offer")
+  end
+
+  describe "a visitor who is not signed in has no purchase history" do
+    it "reports not_existing_customer for an existing-customers code", parity: true do
+      code = create(:offer_code, user: seller, products: [product], existing_customers_only: true, ownership_products: [product])
+
+      get "/offer_codes/compute_discount", params: { code: code.code, products: cart(product) }
+
+      expect(response.parsed_body["error_code"]).to eq("not_existing_customer")
+    end
+
+    it "ranks not_existing_customer above an unmet minimum quantity", parity: true do
+      code = create(:offer_code, user: seller, products: [product], existing_customers_only: true, ownership_products: [product], minimum_quantity: 3)
+
+      get "/offer_codes/compute_discount", params: { code: code.code, products: cart(product) }
+
+      expect(response.parsed_body["error_code"]).to eq("not_existing_customer")
+    end
+
+    it "gives a tiered code its month-0 tier instead of the configured amount", parity: true do
+      code = create(:tiered_offer_code, user: seller, products: [product], ownership_duration_tiers: [
+                      { "months" => 0, "amount_percentage" => 10 },
+                      { "months" => 12, "amount_percentage" => 50 },
+                    ])
+
+      get "/offer_codes/compute_discount", params: { code: code.code, products: cart(product) }
+
+      expect(response.parsed_body.dig("products_data", product.unique_permalink, "percents")).to eq(10)
+    end
   end
 
   describe "a code limited to options" do
