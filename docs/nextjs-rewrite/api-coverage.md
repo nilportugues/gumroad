@@ -15,7 +15,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 
 | Namespace | Routes | Native | Hands back | Not registered | Unresolved |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 77 | 0 | 61 | 0 |
+| API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 78 | 0 | 60 | 0 |
 | Mobile API (`/mobile` on the API host) | 64 | 33 | 0 | 31 | 0 |
 | Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 17 | 0 | 65 | 3 |
 | Internal API, Gumroad domain (`/internal`, JSON for the React Router pages) | 23 | 11 | 0 | 12 | 0 |
@@ -85,7 +85,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `GET /v2/products/:link_id/variant_categories/:id` | `Api::V2::VariantCategoriesController#show` | native | `nextjs_api_v2_products` | y |
 | `PATCH /v2/products/:link_id/variant_categories/:id` | `Api::V2::VariantCategoriesController#update` | native | `nextjs_api_v2_products` | y |
 | `PUT /v2/products/:link_id/variant_categories/:id` | `Api::V2::VariantCategoriesController#update` | native | `nextjs_api_v2_products` | y |
-| `DELETE /v2/products/:link_id/variant_categories/:id` | `Api::V2::VariantCategoriesController#destroy` | not registered | - | n |
+| `DELETE /v2/products/:link_id/variant_categories/:id` | `Api::V2::VariantCategoriesController#destroy` | native | `nextjs_api_v2_products` | y |
 | `GET /v2/products/:link_id/variant_categories/:variant_category_id/variants` | `Api::V2::VariantsController#index` | native | `nextjs_api_v2_products` | y |
 | `POST /v2/products/:link_id/variant_categories/:variant_category_id/variants` | `Api::V2::VariantsController#create` | not registered | - | n |
 | `GET /v2/products/:link_id/variant_categories/:variant_category_id/variants/:id` | `Api::V2::VariantsController#show` | native | `nextjs_api_v2_products` | y |

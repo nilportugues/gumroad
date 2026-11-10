@@ -160,6 +160,36 @@ describe "API v2 product resource writes", type: :request do
 
         expect(response.parsed_body["message"]).to eq("The variant_category was not found.")
       end
+
+      it "deletes the category, leaves its versions alive and records the deletion", parity: true do
+        create(:variant, variant_category: category, name: "Small")
+        create(:product_cached_value, product:)
+
+        api_call(:delete, categories_path("/#{category.external_id}"), token:, headers: { "X-Request-Id" => "parity-variant-category-destroy" })
+
+        expect(response.parsed_body["message"]).to eq("The variant_category was deleted successfully.")
+        expect(category.reload).to be_deleted
+        expect(category.variants.alive.count).to eq(1)
+        audit = ProductVariantDeletionAudit.sole
+        expect(audit).to have_attributes(route: "api_v2_variant_category_destroy", intent_source: "api_explicit_destroy", alive_child_variant_count: 1)
+        expect(audit.correlation_id).to eq(AuditCorrelationId.for("parity-variant-category-destroy"))
+      end
+
+      it "answers success without a second audit row for a category that is already deleted", parity: true do
+        category.mark_deleted!
+
+        api_call(:delete, categories_path("/#{category.external_id}"), token:, api_host: false)
+
+        expect(response.parsed_body["message"]).to eq("The variant_category was deleted successfully.")
+        expect(ProductVariantDeletionAudit.count).to eq(0)
+      end
+
+      it "says the category was not found when deleting an unknown one", parity: true do
+        api_call(:delete, categories_path("/nonexistent"), token:)
+
+        expect(response.parsed_body["message"]).to eq("The variant_category was not found.")
+        expect(ProductVariantDeletionAudit.count).to eq(0)
+      end
     end
   end
 end
