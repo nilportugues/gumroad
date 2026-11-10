@@ -31,6 +31,7 @@ const ROUTE_FLAGS = [
   "nextjs_collabs",
   "nextjs_products_new",
   "nextjs_products_edit",
+  "nextjs_bundle_editor",
 ];
 const FIRST_COMPILE_TIMEOUT_MS = 240_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";

@@ -317,9 +317,42 @@ describe("assertEditSupported", () => {
     await expect(assertEditSupported(product(), seller, 9n)).resolves.toBeUndefined();
   });
 
-  it("hands back a product edited by someone other than its seller", async () => {
+  it("hands back a product whose owner is not its seller", async () => {
     blockedBy();
+    await expect(assertEditSupported(product({ user_id: 10n }), seller, 9n)).rejects.toBeInstanceOf(HandBackToRails);
+  });
+
+  it("serves a product edited by a collaborator, who never gets the owner's file library or waitlist", async () => {
+    blockedBy("existing_files", "waitlist");
+    await expect(assertEditSupported(product(), seller, 10n)).resolves.toBeUndefined();
+    await expect(editBlockers(product(), seller, true)).resolves.toEqual([]);
+  });
+
+  it("still hands back a collaborator's edit of a product with files of its own", async () => {
+    blockedBy("existing_files", "product_files");
     await expect(assertEditSupported(product(), seller, 10n)).rejects.toBeInstanceOf(HandBackToRails);
+  });
+
+  it("keeps the owner's file library and waitlist as blockers", async () => {
+    blockedBy("existing_files", "waitlist");
+    await expect(editBlockers(product(), seller)).resolves.toEqual(["existing_files", "waitlist"]);
+  });
+
+  it("serves a product with a collaborator", async () => {
+    blockedBy();
+    const flags = LinkFlags.set(0n, "is_collab", true);
+    await expect(editBlockers(product({ flags }), seller)).resolves.toEqual([]);
+    await expect(assertEditSupported(product({ flags }), seller, 9n)).resolves.toBeUndefined();
+  });
+
+  it("does not probe for collaborator rows", async () => {
+    let sql = "";
+    setSqlClient(
+      () =>
+        ({ $queryRaw: async (query: { sql: string }) => ((sql = query.sql), []), $executeRaw: async () => 0 }) as never,
+    );
+    await editBlockers(product(), seller);
+    expect(sql).not.toContain("Collaborator");
   });
 
   it.each([
@@ -344,7 +377,7 @@ describe("assertEditSupported", () => {
     },
   );
 
-  it.each(["is_recurring_billing", "is_tiered_membership", "is_physical", "is_collab"] as const)(
+  it.each(["is_recurring_billing", "is_tiered_membership", "is_physical"] as const)(
     "hands back a product with %s set",
     async (flag) => {
       blockedBy();

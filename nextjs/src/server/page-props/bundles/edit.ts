@@ -1,6 +1,6 @@
 // BundlePresenter#edit_product_props and #edit_share_props (Bundles/Product/Edit, Bundles/Share/Edit), for a bundle whose
 // editor state is proven: a bundle of plain products (no versions, no SKUs) with none of the rows the port does not read
-// (covers, thumbnail, files, public files, an offer code, an installment plan, a collaborator, sales or reviews). A
+// (covers, thumbnail, files, public files, an offer code, an installment plan, sales or reviews). A
 // bundle with one goes to Rails whole (HandBackToRails) before anything renders.
 // Bundles/Content/Edit is not ported: its `search_data` is a deferred Elasticsearch result (BundleSearchProductsService).
 import { Prisma } from "@prisma/client";
@@ -17,6 +17,7 @@ import {
   accountLevelRefundPolicyEnabled,
   ALLOWED_REFUND_PERIODS_IN_DAYS,
   DEFAULT_REFUND_PERIOD_IN_DAYS,
+  collaboratingUserProps,
   jsonSettings,
   otherProductRefundPolicies,
   present,
@@ -56,22 +57,16 @@ export async function bundleBlockers(bundle: LinkRow, seller: UserRow, tab: Bund
   // A product being converted to a bundle renders a flash alert ("Select products and save your changes ...").
   if (!set("is_bundle") || bundle.native_type !== NATIVE_TYPE_BUNDLE) blockers.push("not_a_bundle");
   // ProductInstallmentPlan.eligible_for_product?
-  for (const flag of ["is_recurring_billing", "is_tiered_membership", "is_in_preorder_state", "is_collab"] as const) {
+  for (const flag of ["is_recurring_billing", "is_tiered_membership", "is_in_preorder_state"] as const) {
     if (set(flag)) blockers.push(flag);
   }
   if (bundle.default_offer_code_id !== null) blockers.push("default_offer_code");
   return blockers;
 }
 
-export async function assertBundleEditSupported(
-  bundle: LinkRow,
-  seller: UserRow,
-  currentSellerId: bigint,
-  tab: BundleTab,
-): Promise<void> {
-  // A collaborator edits the owner's bundle: `collaborator_for_display` and the file picker differ.
-  if (bundle.user_id === null || bundle.user_id !== seller.id || currentSellerId !== seller.id)
-    throw new HandBackToRails();
+export async function assertBundleEditSupported(bundle: LinkRow, seller: UserRow, tab: BundleTab): Promise<void> {
+  // A collaborator edits the owner's bundle through the same props: the presenter never reads `pundit_user`.
+  if (bundle.user_id === null || bundle.user_id !== seller.id) throw new HandBackToRails();
   if ((await bundleBlockers(bundle, seller, tab)).length > 0) throw new HandBackToRails();
   // Bundles::ShareController#ensure_published redirects with a flash alert; `Link#published?`.
   if (tab === "share" && (bundle.draft || bundle.purchase_disabled_at !== null || bundle.deleted_at !== null))
@@ -184,7 +179,7 @@ async function sharedProps(
         bundle.banned_at === null &&
         bundle.deleted_at === null,
       products: await bundleProducts(bundle.id),
-      collaborating_user: null,
+      collaborating_user: await collaboratingUserProps(bundle),
       public_files: [],
       retained_files: [],
       default_offer_code: null,

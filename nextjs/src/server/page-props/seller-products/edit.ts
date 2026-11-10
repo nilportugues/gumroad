@@ -19,7 +19,7 @@ import { instantInTimeZoneIso8601 } from "../../models/concerns/rails-time-zone.
 import { LinkFlags } from "../../models/link.ts";
 import { column, selectRows, table, castRow } from "../../models/sql.ts";
 import { rubyStrip, subdomain as userSubdomain, UserFlags, Users } from "../../models/user.ts";
-import { ratingStats, successfulSalesCount } from "../../presenters/product-props.ts";
+import { collaboratorForDisplay, ratingStats, successfulSalesCount } from "../../presenters/product-props.ts";
 import type { LinkRow, UserRow } from "../../presenters/product-reads.ts";
 import { jsonDataHash, authorBylineProps } from "../../presenters/product.ts";
 import { fromAddressWithName } from "../audience/mail-addresses.ts";
@@ -124,10 +124,6 @@ export async function rowBlockers(product: LinkRow, seller: UserRow): Promise<st
       Prisma.sql`${table("shipping_exclusions")} WHERE ${column("shipping_exclusions", "product_id")} = ${id}`,
     ),
     exists(
-      "collaborator",
-      Prisma.sql`${table("affiliates_links")} INNER JOIN ${table("affiliates")} ON ${column("affiliates", "id")} = ${column("affiliates_links", "affiliate_id")} WHERE ${column("affiliates_links", "link_id")} = ${id} AND ${column("affiliates", "type")} = 'Collaborator'`,
-    ),
-    exists(
       "custom_html",
       Prisma.sql`${table("pages")} WHERE ${column("pages", "pageable_type")} = 'Link' AND ${column("pages", "pageable_id")} = ${id}`,
     ),
@@ -183,18 +179,17 @@ export async function rowBlockers(product: LinkRow, seller: UserRow): Promise<st
 // Bundle editors keep them as blockers, so they are dropped here and not in rowBlockers.
 const SERVED_ROW_BLOCKERS = ["sales", "reviews", "installment_plan"];
 
-export async function editBlockers(product: LinkRow, seller: UserRow): Promise<string[]> {
-  const blockers = (await rowBlockers(product, seller)).filter((name) => !SERVED_ROW_BLOCKERS.includes(name));
+// What a collaborator never receives from the owner's account (`collaborator_editing?`): the file picker stops at the
+// product's own files (a `product_files` blocker already) and `waitlist` is nil.
+const UNREAD_BY_COLLABORATOR = ["existing_files", "waitlist"];
+
+export async function editBlockers(product: LinkRow, seller: UserRow, collaboratorEditing = false): Promise<string[]> {
+  const served = collaboratorEditing ? [...SERVED_ROW_BLOCKERS, ...UNREAD_BY_COLLABORATOR] : SERVED_ROW_BLOCKERS;
+  const blockers = (await rowBlockers(product, seller)).filter((name) => !served.includes(name));
   const flags = product.flags;
   const set = (flag: Parameters<typeof LinkFlags.isSet>[1]) => LinkFlags.isSet(flags as bigint, flag);
   if (!(EDIT_NATIVE_TYPES as readonly (string | null)[]).includes(product.native_type)) blockers.push("native_type");
-  for (const flag of [
-    "is_recurring_billing",
-    "is_tiered_membership",
-    "is_physical",
-    "is_bundle",
-    "is_collab",
-  ] as const) {
+  for (const flag of ["is_recurring_billing", "is_tiered_membership", "is_physical", "is_bundle"] as const) {
     if (set(flag)) blockers.push(flag);
   }
   if (product.default_offer_code_id !== null) blockers.push("default_offer_code");
@@ -203,10 +198,8 @@ export async function editBlockers(product: LinkRow, seller: UserRow): Promise<s
 }
 
 export async function assertEditSupported(product: LinkRow, seller: UserRow, currentSellerId: bigint): Promise<void> {
-  // A collaborator edits the owner's product: `collaborator_editing?` narrows the file picker and `waitlist` goes blank.
-  if (product.user_id === null || product.user_id !== seller.id || currentSellerId !== seller.id)
-    throw new HandBackToRails();
-  if ((await editBlockers(product, seller)).length > 0) throw new HandBackToRails();
+  if (product.user_id === null || product.user_id !== seller.id) throw new HandBackToRails();
+  if ((await editBlockers(product, seller, currentSellerId !== seller.id)).length > 0) throw new HandBackToRails();
 }
 
 // Port of app/services/product/editor_revision.rb `fingerprint`/`digest`, for a product whose rich content, files, public
@@ -447,6 +440,12 @@ export async function installmentPlanProps(productId: bigint) {
   return plan ? { number_of_installments: plan.number_of_installments, recurrence: plan.recurrence } : null;
 }
 
+// `product.collaborator_for_display` as `UserPresenter#author_byline_props`: nil without a credited collaborator.
+export async function collaboratingUserProps(product: LinkRow) {
+  const collaborator = await collaboratorForDisplay(product);
+  return collaborator ? authorBylineProps(collaborator) : null;
+}
+
 export type EditPropsInput = {
   product: LinkRow;
   seller: UserRow;
@@ -568,7 +567,7 @@ export async function editProps({ product, seller, sellerExternalId, aiGenerated
       block_access_after_membership_cancellation: flag("block_access_after_membership_cancellation"),
       duration_in_months: product.duration_in_months,
       subscription_duration: subscriptionDuration(product),
-      collaborating_user: null,
+      collaborating_user: await collaboratingUserProps(product),
       rich_content: [],
       files: [],
       has_same_rich_content_for_all_variants: sharesRichContent,
