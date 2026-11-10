@@ -4,7 +4,7 @@
 // Handed back to Rails (HandBackToRails) when a customer on the page needs a reading the port does not make: a member whose renewals an Indian card mandate disabled and whose next charge is free under a limited-cycle discount,
 // a sent gift whose recipient holds a license on a product with option content, a shipping sale that is a subscription or has a recurring price or a tracking URL the port cannot parse, a UTM link of another seller or with a post whose seller has no subdomain, a non-USD price without a
 // stored rate or in a currency the port has no table for, a refund whose json_data is not plain JSON, a commission
-// with files or a completion still in progress, and a review video whose file has a thumbnail.
+// still in progress, and a review video whose thumbnail variant Rails has not processed.
 import { Prisma, type Purchase, type Subscription, type User } from "@prisma/client";
 
 import { encrypt } from "../../../lib/obfuscate-ids.ts";
@@ -32,8 +32,10 @@ import { PurchaseFlags } from "../../search/flags.ts";
 import { PurchaseSearchService } from "../../search/purchase-search.ts";
 import { extractDomain } from "../../search/referrer.ts";
 import { targets as utmTargets, utmUrl, type UtmLinkRow } from "../audience/utm-links.ts";
+import { NotPortedError as PageNotPortedError } from "../not-ported.ts";
+import { videoFileThumbnailUrl } from "../signed-in/thumbnails.ts";
 
-import { customFieldFileDetails, type FileDetails } from "./file-details.ts";
+import { commissionFileDetails, customFieldFileDetails, type FileDetails } from "./file-details.ts";
 import { physicalJson, shippingJson, shippingReading, skuOption, type ShippingReading } from "./shipping.ts";
 
 export const CUSTOMERS_PER_PAGE = 20;
@@ -205,6 +207,7 @@ export type CommissionReading = {
   id: string;
   status: string;
   filesAreEditable: boolean;
+  files: FileDetails[];
   completion: { displayedCents: number; beforeOfferCode: number; tipCents: number | null } | null;
 };
 
@@ -267,13 +270,8 @@ async function shippingReadings(purchases: Row[], links: Map<string, Row>): Prom
   return readings;
 }
 
-const attachmentExists = (recordType: string, name: string, recordIds: unknown[]) =>
-  exists(
-    Prisma.sql`SELECT 1 FROM ${table("active_storage_attachments")} WHERE ${column("active_storage_attachments", "record_type")} = ${recordType} AND ${column("active_storage_attachments", "name")} = ${name} AND ${column("active_storage_attachments", "record_id")} IN (${inList(recordIds)}) LIMIT 1`,
-  );
-
-// CustomerPresenter#review_videos_props: the pending video, then the approved one. Their thumbnail (and the file's signed_id) is
-// Rails' to answer, so a video whose file has a thumbnail attached hands back.
+// CustomerPresenter#review_videos_props: the pending video, then the approved one, each with its file's `thumbnail_url`.
+// A thumbnail whose variant Rails has not processed hands back.
 export async function shownReviewVideos(reviewIds: unknown[]): Promise<Map<string, Row[]>> {
   const shown = new Map<string, Row[]>();
   const videos = await rowsBy(
@@ -294,14 +292,16 @@ export async function shownReviewVideos(reviewIds: unknown[]): Promise<Map<strin
   );
   // `video.video_file` is a has_one with no order, and a video without one would raise in `thumbnail_url`.
   if (videos.some((video) => files.get(String(video.id))?.length !== 1)) throw new HandBackToRails();
-  if (
-    await attachmentExists(
-      "VideoFile",
-      "thumbnail",
-      [...files.values()].flat().map((file) => file.id),
-    )
-  )
-    throw new HandBackToRails();
+  const thumbnails = new Map<string, string | null>();
+  for (const file of [...files.values()].flat()) {
+    try {
+      thumbnails.set(String(file.record_id), await videoFileThumbnailUrl(file.id));
+    } catch (error) {
+      if (error instanceof PageNotPortedError) throw new HandBackToRails();
+      throw error;
+    }
+  }
+  for (const video of videos) video.thumbnail_url = thumbnails.get(String(video.id)) ?? null;
   const byReview = groupBy(videos, "product_review_id");
   for (const [reviewId, list] of byReview) {
     const pending = list.filter((video) => video.approval_status === "pending_review");
@@ -327,15 +327,7 @@ export async function commissionReadings(purchases: Row[]): Promise<Map<string, 
   const rows = [...asDeposit, ...asCompletion];
   const readings = new Map<string, CommissionReading>();
   if (rows.length === 0) return readings;
-  // The files' signed_id is Rails' to answer.
-  if (
-    await attachmentExists(
-      "Commission",
-      "files",
-      rows.map((row) => row.id),
-    )
-  )
-    throw new HandBackToRails();
+  const files = await commissionFileDetails(rows.map((row) => row.id));
 
   const completions = byId(
     await rowsBy("purchases", "id", [
@@ -364,6 +356,7 @@ export async function commissionReadings(purchases: Row[]): Promise<Map<string, 
     id: encrypt(row.id),
     status: row.status as string,
     filesAreEditable: row.status !== "completed" && row.completion_purchase_id == null,
+    files: files.get(String(row.id)) ?? [],
   });
   // The completion row shows the commission but is not folded into anything.
   for (const row of asCompletion)
@@ -1055,7 +1048,7 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
           videos: (loaded.reviewVideos.get(String(review.id)) ?? []).map((video) => ({
             id: encrypt(video.id),
             approval_status: video.approval_status,
-            thumbnail_url: null,
+            thumbnail_url: video.thumbnail_url ?? null,
             can_approve: update,
             can_reject: update,
           })),
@@ -1076,7 +1069,8 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
       const attribute = present(loaded.fieldNames.get(String(field.custom_field_id))?.name)
         ? loaded.fieldNames.get(String(field.custom_field_id))!.name
         : field.name;
-      if (field.field_type === "file") return { attribute, type: "file", files: loaded.customFieldFiles.get(String(field.id)) ?? [] };
+      if (field.field_type === "file")
+        return { attribute, type: "file", files: loaded.customFieldFiles.get(String(field.id)) ?? [] };
       return { attribute, type: "text", value: field.value == null ? "" : String(field.value) };
     }),
     transaction_url_for_seller: transactionUrl,

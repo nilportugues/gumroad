@@ -31,14 +31,14 @@ export function fileDetails(blob: Pick<AttachedBlobRow, "blob_id" | "key" | "fil
   };
 }
 
-// `has_many_attached :files` of the given PurchaseCustomFields, in attachment order, by record id.
-export async function customFieldFileDetails(fieldIds: bigint[]): Promise<Map<string, FileDetails[]>> {
+// `has_many_attached :files` of the given records, in attachment order, by record id.
+async function attachedFileDetails(recordType: string, fieldIds: bigint[]): Promise<Map<string, FileDetails[]>> {
   const byField = new Map<string, FileDetails[]>();
   if (fieldIds.length === 0) return byField;
   const attachments = (name: string) => column("active_storage_attachments", name);
   const blobs = (name: string) => column("active_storage_blobs", name);
   const rows = await selectRows<AttachedBlobRow>(
-    Prisma.sql`SELECT ${attachments("record_id")}, ${attachments("blob_id")}, ${blobs("key")}, ${blobs("filename")}, ${blobs("byte_size")} FROM ${table("active_storage_attachments")} INNER JOIN ${table("active_storage_blobs")} ON ${blobs("id")} = ${attachments("blob_id")} WHERE ${attachments("record_type")} = 'PurchaseCustomField' AND ${attachments("name")} = 'files' AND ${attachments("record_id")} IN (${Prisma.join(fieldIds)}) ORDER BY ${attachments("id")} ASC`,
+    Prisma.sql`SELECT ${attachments("record_id")}, ${attachments("blob_id")}, ${blobs("key")}, ${blobs("filename")}, ${blobs("byte_size")} FROM ${table("active_storage_attachments")} INNER JOIN ${table("active_storage_blobs")} ON ${blobs("id")} = ${attachments("blob_id")} WHERE ${attachments("record_type")} = ${recordType} AND ${attachments("name")} = 'files' AND ${attachments("record_id")} IN (${Prisma.join(fieldIds)}) ORDER BY ${attachments("id")} ASC`,
   );
   for (const row of rows) {
     const key = String(row.record_id);
@@ -46,3 +46,7 @@ export async function customFieldFileDetails(fieldIds: bigint[]): Promise<Map<st
   }
   return byField;
 }
+
+export const customFieldFileDetails = (fieldIds: bigint[]) => attachedFileDetails("PurchaseCustomField", fieldIds);
+
+export const commissionFileDetails = (commissionIds: bigint[]) => attachedFileDetails("Commission", commissionIds);
