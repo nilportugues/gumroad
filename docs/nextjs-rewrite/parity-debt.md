@@ -56,7 +56,7 @@ from `nextjs/`, with `PARITY_DATABASE_URL` set. Replay file shorthand: `R = npx 
 | WS-16b | `url_redirects_parity_spec.rb` :666-:716 (`send_to_kindle`) | 8 of 75 | `nextjs_url_redirect_writes` | `R url-redirects.replay.test.ts` |
 | WS-17f | `api/mobile/mobile_api_parity_spec.rb` :300-:334 (stream/hls_playlist/download refusals) | 5 of 37 | `nextjs_mobile_url_redirect_delivery` | `R mobile-api.replay.test.ts` |
 | WS-17h | `api/mobile/mobile_purchases_sales_parity_spec.rb` (whole file) | 16 of 16 | `nextjs_mobile_purchases`, `nextjs_mobile_sales` | `R mobile-api.replay.test.ts` |
-| WS-17k | `api/mobile/mobile_products_subscriptions_parity_spec.rb` (whole file) | 16 of 16 | `nextjs_mobile_products`, `_subscriptions`, `_preorders`, `_installments` | `R mobile-api.replay.test.ts` |
+| WS-17k | `api/mobile/mobile_products_subscriptions_parity_spec.rb` (whole file) | 19 of 19 | `nextjs_mobile_products`, `_subscriptions`, `_preorders`, `_installments` | `R mobile-api.replay.test.ts` |
 | WS-23b | `payouts_signed_in_spec.rb` :251-:283 (chargeback-rate reserve) | 4 of 28 | `nextjs_payouts` | `R checkout-payouts.replay.test.ts` |
 
 Total: 119. Exact example names: `node scripts/parity-debt.ts`.
@@ -111,6 +111,8 @@ Mysql2 unknown-column error) and non-Integer ids hand back too. A variant withou
 
 `remove-suspended-account-follows-worker.golden.json` was recorded on lane 15 (`gumroad_test_15`, Redis 56-58, `PARITY_ES_INDEX_SUFFIX=-c15`). The one remaining
 hand-back of `RemoveSuspendedAccountFollowsWorker` is `Follower#mark_deleted!` (confirmed_at reset and Follower callbacks) for a live follow; a non-Integer user id hands back too. No debt line was open for it.
+
+`GET /mobile/preorders/preorder_attributes/:id` serves an `authorization_successful` preorder in Node (`mobile-preorders.ts`): the link's mobile JSON plus the authorization purchase's `purchase_id`, `purchased_at`, `user_id`, `is_archived`, `product_updates_data: []` and `preorder_data` (`external_id`, `release_at`). It hands back a charged preorder (`UrlRedirect#product_json_data`), one whose last purchase is `successful`, and, through `NotPortedError`, a product with asset previews or a seller or product with any post (the product-updates preloader). Three examples in `mobile_products_subscriptions_parity_spec.rb` (authorized preorder, archived authorization purchase, seller with posts) recorded on lane 18 (`gumroad_test_18`, Redis 52, 53, 57, 58, `PARITY_ES_INDEX_SUFFIX=-c18`) and replayed in `mobile-api.replay`. No debt line was open for it.
 
 `PUT|PATCH /mobile/licenses/:id` no longer hands back an `enabled` that is an array or hash: Rails' boolean cast turns it into true (lane 16, Redis 60-64; example
 "enables a disabled license when enabled is an array" recorded and replayed in `mobile-api.replay.test.ts`). No debt line was open for it.
