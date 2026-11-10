@@ -20,7 +20,7 @@ import { cachedRate, getUsdCents, rubyStringToF, unitScalingFactor } from "../mo
 import { encrypt } from "../../lib/obfuscate-ids.ts";
 import { longUrl } from "./product.ts";
 import { closedMembershipForNewBuyers, jsonData, minimumOfferPriceCents, productProps, remainingForSaleCount, reviewSummary, type ProductPageViewerInput } from "./product-props.ts";
-import { creatorProfile } from "../page-props/settings/profile.ts";
+import { creatorProfile, visiblePosts } from "../page-props/settings/profile.ts";
 import { setFaviconMetaTags } from "../page-props/storefront/post.ts";
 import { setHostMeta } from "../page-props/storefront/post-pages.ts";
 import type { MetaTagBuilder } from "../page-props/meta-tags.ts";
@@ -264,17 +264,13 @@ function guidOf(cookieHeader: string | null): string | null {
 }
 
 // The editor's extras: the seller's live, unarchived products, the posts a section could show and the wishlists.
-// Posts and wishlists are handed back when there are any (a wishlist already is, in productProps).
+// A seller's wishlists are handed back in productProps, so none reach here.
 async function editingProps(seller: UserRow) {
   const archived = 1 << 4;
   const products = await selectRows<{ id: bigint; name: string | null }>(
     Prisma.sql`SELECT ${column("links", "id")}, ${column("links", "name")} FROM ${table("links")} WHERE ${column("links", "user_id")} = ${seller.id} AND ${column("links", "purchase_disabled_at")} IS NULL AND ${column("links", "banned_at")} IS NULL AND ${column("links", "deleted_at")} IS NULL AND (${column("links", "flags")} & ${archived}) = 0 ORDER BY ${column("links", "id")} ASC`,
   );
-  const posts = await selectRows(
-    Prisma.sql`SELECT 1 FROM ${table("installments")} WHERE ${column("installments", "seller_id")} = ${seller.id} AND ${column("installments", "deleted_at")} IS NULL AND ${column("installments", "published_at")} IS NOT NULL AND ${column("installments", "installment_type")} = 'audience' AND ${column("installments", "workflow_id")} IS NULL LIMIT 1`,
-  );
-  if (posts.length > 0) throw new NotPortedError("ProfileSectionsPresenter#visible_posts");
-  return { products: products.map((product) => ({ id: encrypt(product.id), name: product.name })), posts: [], wishlist_options: [] };
+  return { products: products.map((product) => ({ id: encrypt(product.id), name: product.name })), posts: await visiblePosts(seller), wishlist_options: [] };
 }
 
 async function build(row: LinkRow, seller: UserRow, viewer: ProductPageViewerInput, meta: MetaTagBuilder, host: string) {
