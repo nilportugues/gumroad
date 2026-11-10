@@ -1,6 +1,6 @@
 // User#has_valid_payout_info? and the merchant account reads behind it, for the branches that need
-// nothing beyond SQL. A Stripe Connect or PayPal Connect account sends has_valid_payout_info? through
-// merchant_migration_enabled? and PayPal's account details, which are not ported.
+// nothing beyond SQL. A PayPal Connect seller without a payment address would need PayPal's account
+// details over HTTP, which are not ported.
 import { Prisma } from "@prisma/client";
 
 import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
@@ -48,17 +48,22 @@ export async function hasBrazilianStripeConnectAccount(userId: bigint): Promise<
 
 export async function hasValidPayoutInfo(user: { id: bigint; payment_address: string | null }): Promise<boolean> {
   const accounts = await liveMerchantAccounts(user.id);
-  if (accounts.some((account) => Number(account.connect) === 1 || account.charge_processor_id === "paypal")) {
-    throw new NotPortedError("User#has_valid_payout_info? for a Stripe Connect or PayPal Connect seller");
-  }
-  // StripePayoutProcessor.has_valid_payout_info?
+  const paypalConnected = accounts.some((account) => account.charge_processor_id === "paypal");
+  const connect = accounts.find((account) => Number(account.connect) === 1);
+  // StripePayoutProcessor.has_valid_payout_info?: a connected account is paid by Stripe directly, except a
+  // Brazilian one, which falls through to the bank checks.
+  if (connect && connect.country !== "BR" && (await merchantMigrationEnabled(user.id))) return true;
   if (await stripeInfoValid(user.id, accounts)) return true;
 
-  // PaypalPayoutProcessor.has_valid_payout_info?: without a PayPal Connect account the payout email
-  // is the payment address.
+  // PaypalPayoutProcessor.has_valid_payout_info?: the payout email is the payment address, else the one PayPal
+  // reports for the connected account, which only an API call can read.
   const email = user.payment_address;
-  if (email === null || email.trim() === "" || !isValidEmailFormat(email) || !/^[\x00-\x7f]*$/.test(email)) return false;
-  return (await legalEntityName(user.id)) !== "";
+  if (email === null || email.trim() === "") {
+    if (paypalConnected) throw new NotPortedError("User#paypal_payout_email from a PayPal Connect account's details");
+    return false;
+  }
+  if (!isValidEmailFormat(email) || !/^[\x00-\x7f]*$/.test(email)) return false;
+  return paypalConnected || (await legalEntityName(user.id)) !== "";
 }
 async function stripeInfoValid(userId: bigint, accounts: MerchantAccount[]): Promise<boolean> {
   const bank = await activeBankAccount(userId);
@@ -67,7 +72,7 @@ async function stripeInfoValid(userId: bigint, accounts: MerchantAccount[]): Pro
     Prisma.sql`SELECT ${column("bank_accounts", "stripe_bank_account_id")} FROM ${table("bank_accounts")} WHERE ${column("bank_accounts", "user_id")} = ${userId} AND ${column("bank_accounts", "deleted_at")} IS NULL ORDER BY ${column("bank_accounts", "id")} ASC LIMIT 1`,
   );
   if ((row?.stripe_bank_account_id ?? "").trim() === "") return false;
-  return accounts.some((account) => account.charge_processor_id === "stripe");
+  return accounts.some((account) => account.charge_processor_id === "stripe" && Number(account.connect) !== 1);
 }
 
 // `alive_user_compliance_info.try(:legal_entity_name)`, blank-normalised: "" when there is no info.

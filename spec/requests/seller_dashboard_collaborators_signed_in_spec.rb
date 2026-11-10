@@ -54,6 +54,54 @@ describe "Collaborators page when signed in", type: :request do
     expect(inertia_props_of(response)["collaborators_disabled_reason"]).to be_nil
   end
 
+  describe "setup_incomplete of a collaborator with a connected payout account" do
+    let(:affiliate_user) { create(:user, payment_address: nil) }
+
+    # The collaborator is created first: Collaborator refuses a user who already has a Brazilian Stripe account.
+    def setup_incomplete_after_visit
+      create(:collaborator, seller:, affiliate_user:)
+      yield if block_given?
+      log_in(seller)
+      get collaborators_path
+      inertia_props_of(response)["collaborators"].first["setup_incomplete"]
+    end
+
+    it "is false for a linked Stripe Connect account", parity: true do
+      create(:merchant_account_stripe_connect, user: affiliate_user, country: "US")
+      affiliate_user.update_attribute(:check_merchant_account_is_linked, true)
+
+      expect(setup_incomplete_after_visit).to eq(false)
+    end
+
+    it "is true for a Stripe Connect account that is not linked", parity: true do
+      create(:merchant_account_stripe_connect, user: affiliate_user, country: "US")
+
+      expect(setup_incomplete_after_visit).to eq(true)
+    end
+
+    it "is true for a linked Brazilian Stripe Connect account without a bank account", parity: true do
+      result = setup_incomplete_after_visit do
+        create(:merchant_account_stripe_connect, user: affiliate_user, country: "BR")
+        affiliate_user.update_attribute(:check_merchant_account_is_linked, true)
+      end
+
+      expect(result).to eq(true)
+    end
+
+    it "is false for a PayPal Connect account and a payout email, without compliance info", parity: true do
+      affiliate_user.update_attribute(:payment_address, "paypal-payee@example.com")
+      create(:merchant_account_paypal, user: affiliate_user)
+
+      expect(setup_incomplete_after_visit).to eq(false)
+    end
+
+    it "is true for a payout email without a PayPal account or compliance info", parity: true do
+      affiliate_user.update_attribute(:payment_address, "paypal-payee@example.com")
+
+      expect(setup_incomplete_after_visit).to eq(true)
+    end
+  end
+
   it "flags a seller who is someone's collaborator", parity: true do
     create(:collaborator, seller: create(:user), affiliate_user: seller)
     log_in(seller)
