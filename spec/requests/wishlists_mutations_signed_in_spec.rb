@@ -157,4 +157,32 @@ describe "Wishlists mutations when signed in", type: :request do
 
     expect(response).to have_http_status(:see_other)
   end
+
+  describe "when signed out" do
+    it "answers 404 JSON to a create", parity: true do
+      expect { send_form(:post, wishlists_path, { wishlist: { name: "Nope" } }, json_headers) }.not_to change(Wishlist, :count)
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body).to eq("success" => false, "error" => "Not found")
+    end
+
+    it "redirects a create from the library page to the login page", parity: true do
+      send_form(:post, wishlists_path, { wishlist: { name: "Nope" } }, inertia_headers)
+
+      expect(response).to have_http_status(:found)
+      expect(response.location).to eq("http://#{DOMAIN}/login?next=%2Fwishlists")
+    end
+
+    it "answers 404 JSON to an update of an unknown wishlist", parity: true do
+      send_form(:put, "/wishlists/unknown", { wishlist: { name: "Nope" } }, json_headers)
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "redirects a delete to the login page", parity: true do
+      send_form(:delete, "/wishlists/unknown", {}, inertia_headers)
+
+      expect(response.location).to eq("http://#{DOMAIN}/login?next=%2Fwishlists%2Funknown")
+    end
+  end
 end
