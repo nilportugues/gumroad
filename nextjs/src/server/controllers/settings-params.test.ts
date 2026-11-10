@@ -19,9 +19,12 @@ describe("isPermittedScalar", () => {
 });
 
 describe("stringValue", () => {
-  it("casts booleans to t/f and integers to their digits like a string column", () => {
-    expect(stringValue(true)).toBe("t");
-    expect(stringValue(false)).toBe("f");
+  it("casts booleans to 1/0 for a varchar column and t/f for a text one, and integers to their digits", () => {
+    expect(stringValue(true)).toBe("1");
+    expect(stringValue(false)).toBe("0");
+    expect(stringValue(true, "varchar")).toBe("1");
+    expect(stringValue(true, "text")).toBe("t");
+    expect(stringValue(false, "text")).toBe("f");
     expect(stringValue(12345)).toBe("12345");
     expect(stringValue(-7)).toBe("-7");
     expect(stringValue(null)).toBeNull();

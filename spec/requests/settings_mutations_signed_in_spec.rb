@@ -57,6 +57,15 @@ describe "Settings mutations when signed in", type: :request do
       expect(seller.reload).to have_attributes(google_analytics_id: nil, tiktok_pixel_id: nil)
     end
 
+    it "casts a boolean Facebook pixel id to 1 like a varchar column", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, analytics(facebook_pixel_id: true))
+
+      expect(response).to have_http_status(:see_other)
+      expect(seller.reload.facebook_pixel_id).to eq("1")
+    end
+
     it "accepts PATCH", parity: true do
       log_in(seller)
 
@@ -191,6 +200,15 @@ describe "Settings mutations when signed in", type: :request do
       expect(seller.reload.notification_endpoint).to eq("http://example.com/ping")
     end
 
+    it "casts a boolean ping endpoint like a text column", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_advanced_path, advanced(endpoint: true))
+
+      expect(response).to have_http_status(:see_other)
+      expect(seller.reload.notification_endpoint).to eq("http://t")
+    end
+
     it "accepts PATCH", parity: true do
       log_in(seller)
 
@@ -304,6 +322,15 @@ describe "Settings mutations when signed in", type: :request do
       expect(response).to have_http_status(:see_other)
       expect(BillingDetail.where(purchaser_id: seller.id).count).to eq(1)
       expect(seller.reload.billing_detail).to have_attributes(full_name: "New Name", auto_email_invoice_enabled: false)
+    end
+
+    it "casts boolean values like a varchar column and a text column", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_billing_path, billing(business_name: true, business_id: false, additional_notes: true))
+
+      expect(response).to have_http_status(:see_other)
+      expect(seller.reload.billing_detail).to have_attributes(business_name: "1", business_id: "0", additional_notes: "t")
     end
 
     it "refuses a US address without a state and keeps the errors for the form", parity: true do
