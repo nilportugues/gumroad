@@ -3541,7 +3541,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "UpdateCurrenciesWorker": {
     "file": "app/sidekiq/update_currencies_worker.rb",

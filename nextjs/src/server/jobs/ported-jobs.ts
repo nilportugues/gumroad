@@ -78,6 +78,7 @@ export const PORTED_JOBS: readonly string[] = [
   "TriggerCommunityChatRecapRunJob",
   "UnblockObjectWorker",
   "UnsubscribeAndFailWorker",
+  "UpdateCachedSalesRelatedProductsInfosJob",
   "UpdateCurrenciesWorker",
   "UpdateInstallmentEventsCountCacheWorker",
   "UpdateLargeSellersSalesCountJob",

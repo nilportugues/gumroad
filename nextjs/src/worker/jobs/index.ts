@@ -118,6 +118,7 @@ import {
 } from "./subscription-write-jobs.ts";
 import { suspendAccountsWithPaymentAddressWorker, suspendUsersWorker } from "./suspend-jobs.ts";
 import { syncStripeBusinessProfileUrlWorker } from "./sync-stripe-business-profile-url-worker.ts";
+import { updateCachedSalesRelatedProductsInfosJob } from "./update-cached-sales-related-products-infos-job.ts";
 import { updateSellerRefundEligibilityJob } from "./update-seller-refund-eligibility-job.ts";
 import { updateCurrenciesWorker } from "./update-currencies-worker.ts";
 import { updatePurchasingPowerParityFactorsWorker } from "./update-purchasing-power-parity-factors-worker.ts";
@@ -223,6 +224,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   UpdateCurrenciesWorker: updateCurrenciesWorker,
   UpdateLargeSellersSalesCountJob: updateLargeSellersSalesCountJob,
   UpdatePurchaseHealthcheckThresholdJob: updatePurchaseHealthcheckThresholdJob,
+  UpdateCachedSalesRelatedProductsInfosJob: updateCachedSalesRelatedProductsInfosJob,
   UpdatePurchasingPowerParityFactorsWorker: updatePurchasingPowerParityFactorsWorker,
   UpdateSellerRefundEligibilityJob: updateSellerRefundEligibilityJob,
   WarmSellerReputationSummaryJob: warmSellerReputationSummaryJob,
