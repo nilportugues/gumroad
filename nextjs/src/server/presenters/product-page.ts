@@ -16,6 +16,7 @@ import { sellerProfile as loadSellerProfile, Users } from "../models/user.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { plaintextDescription, htmlSafeDescription, squish } from "./description.ts";
 import { customDomainByHost, type LinkRow, type UserRow } from "./product-reads.ts";
+import { cachedRate, getUsdCents, rubyStringToF, unitScalingFactor } from "../models/concerns/currency-helper.ts";
 import { encrypt } from "../../lib/obfuscate-ids.ts";
 import { longUrl } from "./product.ts";
 import { closedMembershipForNewBuyers, jsonData, minimumOfferPriceCents, productProps, remainingForSaleCount, reviewSummary, type ProductPageViewerInput } from "./product-props.ts";
@@ -93,16 +94,11 @@ async function setMeta(meta: MetaTagBuilder, row: LinkRow, seller: UserRow, host
   meta.set({ property: "product:retailer_item_id", content: row.unique_permalink });
   const priceCents = await minimumOfferPriceCents(row);
   const currency = row.price_currency_type;
-  const singleUnit = ["jpy", "krw", "vnd", "clp", "pyg", "ugx", "rwf", "xaf", "xof", "xpf", "kmf", "djf", "gnf", "bif", "vuv"].includes((currency ?? "").toLowerCase());
-  if (priceCents !== null && present(currency)) {
-    if ((currency ?? "").toLowerCase() !== "usd") throw new NotPortedError("Product::StructuredData#usd_offer_price_cents");
-    if (singleUnit) throw new NotPortedError("unit_scaling_factor of a single-unit currency");
-  }
   // The price meta tags come from `product.price_cents`, which is nil for a product without a live price.
   const pagePrice = await pagePriceCents(row);
-  void pagePrice;
   if (pagePrice !== null && present(currency)) {
-    meta.set({ property: "product:price:amount", content: Math.round((pagePrice / 100) * 100) / 100 });
+    // (price_cents / unit_scaling_factor(currency).to_f).round(2)
+    meta.set({ property: "product:price:amount", content: Math.round((pagePrice / unitScalingFactor(currency)) * 100) / 100 });
     meta.set({ property: "product:price:currency", content: currency.toUpperCase() });
   }
   meta.set({ property: "og:title", content: row.name });
@@ -129,8 +125,9 @@ async function setMeta(meta: MetaTagBuilder, row: LinkRow, seller: UserRow, host
       : quantityLeft === 0
         ? "https://schema.org/SoldOut"
         : "https://schema.org/LimitedAvailability";
-  const offer: Record<string, unknown> = { "@type": "Offer", priceCurrency: present(currency) ? currency.toUpperCase() : undefined, availability, url: canonicalUrl };
-  if (priceCents !== null && present(currency)) offer.price = priceCents / 100;
+  const { priceCurrency, price } = offerPrice(currency, priceCents, await usdOfferPriceCents(currency, priceCents));
+  const offer: Record<string, unknown> = { "@type": "Offer", priceCurrency, availability, url: canonicalUrl };
+  if (price !== undefined) offer.price = price;
   const offers = Object.fromEntries(Object.entries(offer).filter(([, value]) => value !== undefined));
   const data: Record<string, unknown> =
     row.native_type === "ebook"
@@ -173,6 +170,28 @@ async function setMeta(meta: MetaTagBuilder, row: LinkRow, seller: UserRow, host
     meta.set({ tag_name: "link", rel: "preload", href: `${assetHost(domainConfig(process.env)) ?? ""}/fonts/ABCFavorit-Regular.woff2`, as: "font", type: "font/woff2", crossorigin: "anonymous", head_key: "default_font_preload" });
   }
   await setFaviconMetaTags(meta, seller as unknown as User);
+}
+
+// Product::StructuredData#usd_offer_price_cents: the price in USD from the cached rate, null when there is no price or rate.
+export async function usdOfferPriceCents(currency: string | null, cents: number | null): Promise<number | null> {
+  if (cents === null) return null;
+  if ((currency ?? "") === "usd") return cents;
+  try {
+    const rate = await cachedRate(currency ?? "");
+    if (rate === null || rubyStringToF(rate) <= 0) return null;
+    return await getUsdCents(currency ?? "", cents, rubyStringToF(rate));
+  } catch {
+    return null;
+  }
+}
+
+// Product::StructuredData#build_offer_data: a USD amount when the conversion worked, else the product's own currency
+// and amount; a blank currency drops both.
+export function offerPrice(currency: string | null, priceCents: number | null, usdCents: number | null): { priceCurrency: string | undefined; price: number | undefined } {
+  const displayCents = usdCents ?? priceCents;
+  const code = usdCents === null ? (currency ?? "").toUpperCase() : "USD";
+  if (!present(code)) return { priceCurrency: undefined, price: undefined };
+  return { priceCurrency: code, price: displayCents === null ? undefined : displayCents / unitScalingFactor(code) };
 }
 
 export type BookFile = { filetype: string | null; isbn: string | null };

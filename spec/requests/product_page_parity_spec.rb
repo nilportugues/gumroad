@@ -172,6 +172,17 @@ describe "Product page", type: :request do
       expect(response.body).to include("workExample")
     end
 
+    it "renders a euro product with its price converted to dollars in the structured data", parity: true do
+      product = create(:product, user: seller, name: "Euro thing", price_cents: 1250, price_currency_type: "eur")
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["product"]).to include("name" => "Euro thing", "currency_code" => "eur", "price_cents" => 1250)
+      expect(response.body).to include("\"priceCurrency\":\"USD\"")
+      expect(response.body).to include("product:price:currency")
+    end
+
     it "renders a product by its custom permalink", parity: true do
       create(:product, user: seller, name: "Custom", custom_permalink: "custom-one")
 
