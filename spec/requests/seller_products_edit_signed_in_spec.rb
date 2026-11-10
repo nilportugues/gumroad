@@ -4,7 +4,7 @@ require "spec_helper"
 
 # Signed-in visits to the product editor (Products/Edit, LinksController#edit), recorded for the Next.js port
 # (PARITY_RECORD=1) and replayed by nextjs/parity/__tests__/seller-products.replay.test.ts. The port renders plain
-# digital, course and ebook products, and the same products in their pre-order state.
+# digital, course and ebook products, the same products in their pre-order state, and products with a collaborator.
 describe "Product editor when signed in", type: :request do
   include Parity::SignedInDashboard
 
@@ -314,6 +314,97 @@ describe "Product editor when signed in", type: :request do
     get edit_link_path(product.unique_permalink)
 
     expect(inertia_props_of(response)["product"]).to include("eligible_for_installment_plans" => false, "allow_installment_plan" => true, "installment_plan" => { "number_of_installments" => 2, "recurrence" => "monthly" })
+  end
+
+  describe "collaborations" do
+    let(:collab_product) { create(:product, user: seller, name: "Shared product", price_cents: 500, unique_permalink: "shared", is_collab: true) }
+
+    it "credits the owner's collaborator as the co-creator", parity: true do
+      affiliate_user = create(:affiliate_user, name: "Edit Collaborator")
+      create(:collaborator, seller:, affiliate_user:, products: [collab_product])
+      log_in(seller)
+
+      get edit_link_path(collab_product.unique_permalink)
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["product"]["collaborating_user"]).to include("name" => "Edit Collaborator")
+    end
+
+    it "does not credit a collaborator who opted out of the co-creator credit on every product", parity: true do
+      create(:collaborator, seller:, products: [collab_product], dont_show_as_co_creator: true)
+      log_in(seller)
+
+      get edit_link_path(collab_product.unique_permalink)
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["product"]["collaborating_user"]).to be_nil
+    end
+
+    it "does not credit a collaborator who opted out of the co-creator credit on this product", parity: true do
+      collaborator = create(:collaborator, seller:, apply_to_all_products: false)
+      create(:product_affiliate, product: collab_product, affiliate: collaborator, affiliate_basis_points: 30_00, dont_show_as_co_creator: true)
+      log_in(seller)
+
+      get edit_link_path(collab_product.unique_permalink)
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["product"]["collaborating_user"]).to be_nil
+    end
+
+    it "does not credit a collaborator whose invitation is still pending", parity: true do
+      create(:collaborator, :with_pending_invitation, seller:, products: [collab_product])
+      log_in(seller)
+
+      get edit_link_path(collab_product.unique_permalink)
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["product"]["collaborating_user"]).to be_nil
+    end
+
+    it "lets the collaborator edit the owner's product, with the owner in the byline and their own account as the uploader", parity: true do
+      affiliate_user = create(:affiliate_user, name: "Edit Collaborator")
+      create(:collaborator, seller:, affiliate_user:, products: [collab_product])
+      create(:product_file, link: create(:product, user: seller, name: "Other product"))
+      log_in(affiliate_user)
+
+      get edit_link_path(collab_product.unique_permalink)
+
+      props = inertia_props_of(response)
+      expect(response).to be_successful
+      expect(props["seller"]["id"]).to eq(seller.external_id)
+      expect(props["current_seller_external_id"]).to eq(affiliate_user.external_id)
+      expect(props["existing_files"]).to eq([])
+      expect(props["waitlist"]).to be_nil
+      expect(props["product"]["collaborating_user"]).to include("name" => "Edit Collaborator")
+    end
+
+    it "serves the bundle editor with the bundle's collaborator", parity: true do
+      bundle = create(:product, :bundle, user: seller, price_cents: 200, native_type: Link::NATIVE_TYPE_BUNDLE, is_collab: true)
+      # The editor lists each bundled product's created_at; a fixed date keeps the fixture clear of the recording's slow clock.
+      bundle.bundle_products.each { _1.product.update_column(:created_at, Time.utc(2026, 1, 2, 3, 4, 5)) }
+      affiliate_user = create(:affiliate_user, name: "Bundle Collaborator")
+      create(:collaborator, seller:, affiliate_user:, products: [bundle])
+      log_in(seller)
+
+      get edit_bundle_product_path(bundle.external_id)
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["bundle"]["collaborating_user"]).to include("name" => "Bundle Collaborator")
+    end
+
+    it "lets the collaborator edit the owner's bundle", parity: true do
+      bundle = create(:product, :bundle, user: seller, price_cents: 200, native_type: Link::NATIVE_TYPE_BUNDLE, is_collab: true)
+      # The editor lists each bundled product's created_at; a fixed date keeps the fixture clear of the recording's slow clock.
+      bundle.bundle_products.each { _1.product.update_column(:created_at, Time.utc(2026, 1, 2, 3, 4, 5)) }
+      affiliate_user = create(:affiliate_user, name: "Bundle Collaborator")
+      create(:collaborator, seller:, affiliate_user:, products: [bundle])
+      log_in(affiliate_user)
+
+      get edit_bundle_product_path(bundle.external_id)
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["bundle"]["collaborating_user"]).to include("name" => "Bundle Collaborator")
+    end
   end
 
   it "sends a signed-out visitor to the login page", parity: true do

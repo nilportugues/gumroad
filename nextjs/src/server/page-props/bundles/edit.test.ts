@@ -9,6 +9,8 @@ import { assertBundleEditSupported, bundleBlockers } from "./edit.ts";
 // flag_shih_tzu positions are 1-based (app/models/link.rb): is_recurring_billing 2, is_bundle 26.
 const IS_RECURRING_BILLING = 1n << 1n;
 const IS_BUNDLE = 1n << 25n;
+// is_collab is flag 28 in the same list.
+const IS_COLLAB = 1n << 27n;
 
 const bundle = (overrides: Partial<LinkRow> = {}): LinkRow =>
   ({
@@ -67,21 +69,31 @@ describe("bundleBlockers", () => {
 });
 
 describe("assertBundleEditSupported", () => {
-  it("hands a collaborator's session back to Rails", async () => {
+  it("hands back a bundle whose owner is not its seller", async () => {
     probeRows();
-    await expect(assertBundleEditSupported(bundle(), seller, 10n, "product")).rejects.toBeInstanceOf(HandBackToRails);
+    await expect(assertBundleEditSupported(bundle({ user_id: 10n }), seller, "product")).rejects.toBeInstanceOf(
+      HandBackToRails,
+    );
+  });
+
+  it("serves a bundle with a collaborator on both tabs", async () => {
+    probeRows();
+    const collab = bundle({ flags: IS_BUNDLE | IS_COLLAB });
+    await expect(bundleBlockers(collab, seller)).resolves.toEqual([]);
+    await expect(assertBundleEditSupported(collab, seller, "product")).resolves.toBeUndefined();
+    await expect(assertBundleEditSupported(collab, seller, "share")).resolves.toBeUndefined();
   });
 
   it("hands an unpublished bundle's share tab back to Rails (ensure_published)", async () => {
     probeRows();
-    await expect(assertBundleEditSupported(bundle({ draft: true }), seller, 9n, "share")).rejects.toBeInstanceOf(
+    await expect(assertBundleEditSupported(bundle({ draft: true }), seller, "share")).rejects.toBeInstanceOf(
       HandBackToRails,
     );
-    await expect(assertBundleEditSupported(bundle({ draft: true }), seller, 9n, "product")).resolves.toBeUndefined();
+    await expect(assertBundleEditSupported(bundle({ draft: true }), seller, "product")).resolves.toBeUndefined();
   });
 
   it("hands back a bundle with blocking rows", async () => {
     probeRows("offer_codes");
-    await expect(assertBundleEditSupported(bundle(), seller, 9n, "product")).rejects.toBeInstanceOf(HandBackToRails);
+    await expect(assertBundleEditSupported(bundle(), seller, "product")).rejects.toBeInstanceOf(HandBackToRails);
   });
 });

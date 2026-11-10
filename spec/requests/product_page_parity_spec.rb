@@ -359,6 +359,49 @@ describe "Product page", type: :request do
       expect(response).to be_successful
     end
 
+    it "credits the product's collaborator as a co-creator", parity: true do
+      product = create(:product, user: seller, name: "Shared", is_collab: true)
+      affiliate_user = create(:affiliate_user, name: "Parity Collaborator")
+      create(:collaborator, seller:, affiliate_user:, products: [product])
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["product"]["collaborating_user"]).to include("name" => "Parity Collaborator")
+    end
+
+    it "does not credit a collaborator who opted out of the co-creator credit on every product", parity: true do
+      product = create(:product, user: seller, name: "Shared", is_collab: true)
+      collaborator = create(:collaborator, seller:, products: [product])
+      collaborator.update!(dont_show_as_co_creator: true)
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["product"]["collaborating_user"]).to be_nil
+    end
+
+    it "does not credit a collaborator who opted out of the co-creator credit on this product", parity: true do
+      product = create(:product, user: seller, name: "Shared", is_collab: true)
+      collaborator = create(:collaborator, seller:, apply_to_all_products: false)
+      create(:product_affiliate, product:, affiliate: collaborator, affiliate_basis_points: 30_00, dont_show_as_co_creator: true)
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["product"]["collaborating_user"]).to be_nil
+    end
+
+    it "does not credit a collaborator whose invitation is still pending", parity: true do
+      product = create(:product, user: seller, name: "Shared", is_collab: true)
+      create(:collaborator, :with_pending_invitation, seller:, products: [product])
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["product"]["collaborating_user"]).to be_nil
+    end
+
     it "applies the offer code of the path", parity: true do
       product = create(:product, user: seller, name: "Discounted", price_cents: 1000)
       create(:offer_code, user: seller, products: [product], code: "half", amount_cents: nil, amount_percentage: 50)

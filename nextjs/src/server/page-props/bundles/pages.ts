@@ -87,13 +87,14 @@ function bundleEditor(
           flags: bundle.flags ?? 0,
         });
         const owner = (await findUserById(bundle.user_id!))!;
-        await assertBundleEditSupported(bundle, owner, context.seller!.id, tab);
+        await assertBundleEditSupported(bundle, owner, tab);
       });
       return redirected ?? null;
     },
     props: async (params, { meta }) => {
       const bundle = await findBundle(params.bundle_id!);
-      meta.set({ title: bundle.name ?? "" });
+      // Bundles::BaseController redeclares set_default_page_title, which Rails moves after the other before_actions.
+      meta.moveToEnd(["title"]).set({ title: bundle.name ?? "" });
       return props({ bundle, seller: (await findUserById(bundle.user_id!))! });
     },
   };

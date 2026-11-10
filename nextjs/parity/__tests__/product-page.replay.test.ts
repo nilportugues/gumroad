@@ -86,6 +86,10 @@ const RENDERED = new Set(
     "ignores-an-unknown-affiliate",
     "sets-the-affiliate-cookie-of-an-affiliate-id",
     "answers-an-inertia-visit-with-the-page-as-json",
+    "credits-the-product-s-collaborator-as-a-co-creator",
+    "does-not-credit-a-collaborator-who-opted-out-of-the-co-creator-credit-on-every-produc-f4bbdea1",
+    "does-not-credit-a-collaborator-who-opted-out-of-the-co-creator-credit-on-this-product",
+    "does-not-credit-a-collaborator-whose-invitation-is-still-pending",
   ]
     .map((name) => `on-a-seller-subdomain-${name}`)
     .concat(["on-a-product-s-custom-domain-renders-the-product-at-the-root", "signed-in-shows-the-seller-their-own-product-with-the-edit-controls", "signed-in-lists-the-posts-a-profile-section-could-show-in-the-seller-s-edit-controls"]),
