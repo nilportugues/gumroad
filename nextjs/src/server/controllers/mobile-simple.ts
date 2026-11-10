@@ -33,7 +33,8 @@ function castBoolean(value: unknown): boolean | null {
   if (typeof value === "boolean") return value;
   if (typeof value === "number") return value !== 0;
   if (typeof value === "string") return !FALSE_VALUES.has(value);
-  throw new HandBackToRails("a boolean parameter that is not a scalar");
+  // An array or hash (`enabled[]=false`) equals none of FALSE_VALUES, so Rails casts it to true.
+  return true;
 }
 
 // Api::Mobile::FeatureFlagsController#show

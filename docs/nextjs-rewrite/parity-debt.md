@@ -88,6 +88,9 @@ No debt line was open for the sales-threshold hand-back, so none was closed.
 `delete-wishlist-products-job.golden.json` was recorded on lane 15 (`gumroad_test_15`, Redis 56-59). The one remaining hand-back of
 `DeleteWishlistProductsJob` is `WishlistProduct#mark_deleted!` (its save re-runs `Wishlist#update_recommendable`); no debt line was open for it.
 
+`PUT|PATCH /mobile/licenses/:id` no longer hands back an `enabled` that is an array or hash: Rails' boolean cast turns it into true (lane 16, Redis 60-64; example
+"enables a disabled license when enabled is an array" recorded and replayed in `mobile-api.replay.test.ts`). No debt line was open for it.
+
 Regenerate (the generator's own header has the DB setup: scratch database `gumroad_ws76` loaded from `db/schema.rb`,
 Redis db 10):
 

@@ -227,6 +227,15 @@ describe "Mobile API parity", type: :request do
       expect(response.parsed_body).to eq("success" => true)
     end
 
+    it "enables a disabled license when enabled is an array", parity: true do
+      license.disable!
+
+      put "/mobile/licenses/#{license.external_id}", params: auth.merge(enabled: ["false"])
+
+      expect(response.parsed_body).to eq("success" => true)
+      expect(license.reload).not_to be_disabled
+    end
+
     it "disables a license when enabled is missing", parity: true do
       patch "/mobile/licenses/#{license.external_id}", params: auth
 
