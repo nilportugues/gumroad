@@ -45,8 +45,47 @@ describe("Shipment#calculated_tracking_url", () => {
       expect(calculatedTrackingUrl(shipment({ tracking_url }))).toBeNull();
   });
 
-  it("hands back non-ASCII URLs, which Ruby escapes before parsing", () => {
-    expect(() => calculatedTrackingUrl(shipment({ tracking_url: "https://exämple.com/" }))).toThrow(HandBackToRails);
+  it("keeps a non-ASCII URL as typed, since Ruby escapes it for parsing only", () => {
+    for (const tracking_url of [
+      "https://exämple.com/",
+      "https://track.example.com/pfad/日本語?n=ü",
+      "https://track.example.com/😀",
+      " https://track.example.com/é ",
+    ])
+      expect(calculatedTrackingUrl(shipment({ tracking_url }))).toBe(tracking_url.trim());
+  });
+
+  it("applies the escaped parse to non-ASCII URLs the simple form does not cover", () => {
+    expect(calculatedTrackingUrl(shipment({ tracking_url: "HTTPS://EXAMPLE.COM/é?n=1|2" }))).toBe(
+      "HTTPS://EXAMPLE.COM/é?n=1|2",
+    );
+    expect(calculatedTrackingUrl(shipment({ tracking_url: "https://example.com/é|1" }))).toBeNull();
+    expect(calculatedTrackingUrl(shipment({ tracking_url: "https://example.com/é#a#b" }))).toBeNull();
+    expect(calculatedTrackingUrl(shipment({ tracking_url: "https://üser@example.com/é" }))).toBeNull();
+    expect(calculatedTrackingUrl(shipment({ tracking_url: "https://[2001:db8::7]/é" }))).toBe("https://[2001:db8::7]/é");
+  });
+
+  it("is nil for a non-ASCII value that is not an http(s) URL", () => {
+    expect(calculatedTrackingUrl(shipment({ tracking_url: "Sendung läuft" }))).toBeNull();
+    expect(calculatedTrackingUrl(shipment({ tracking_url: "ftp://exämple.com/" }))).toBeNull();
+  });
+
+  it("treats Unicode whitespace as blank and C1 controls as unsafe, as Ruby's blank? and [[:cntrl:]] do", () => {
+    expect(
+      calculatedTrackingUrl(shipment({ tracking_url: " 　", carrier: "UPS", tracking_number: "1Z999" })),
+    ).toBe("http://wwwapps.ups.com/WebTracking/processInputRequest?TypeOfInquiryNumber=T&InquiryNumber1=1Z999");
+    expect(calculatedTrackingUrl(shipment({ carrier: "UPS", tracking_number: " " }))).toBeNull();
+    expect(calculatedTrackingUrl(shipment({ tracking_url: "https://example.com/\u0085" }))).toBeNull();
+  });
+
+  it("measures the length in characters, not UTF-16 units", () => {
+    const prefix = "https://example.com/";
+    expect(calculatedTrackingUrl(shipment({ tracking_url: prefix + "😀".repeat(2083 - prefix.length) }))).not.toBeNull();
+    expect(calculatedTrackingUrl(shipment({ tracking_url: prefix + "😀".repeat(2084 - prefix.length) }))).toBeNull();
+  });
+
+  it("still hands back a field with a NUL byte", () => {
+    expect(() => calculatedTrackingUrl(shipment({ tracking_url: "https://example.com/\0" }))).toThrow(HandBackToRails);
   });
 });
 

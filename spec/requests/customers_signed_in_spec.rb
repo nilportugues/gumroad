@@ -410,6 +410,20 @@ describe "Customers page when signed in", type: :request, elasticsearch_wait_for
     expect(customers_of(response).map { _1.dig("shipping", "tracking", "url") }).to eq(["https://[2001:db8::7]:8080/track?n=1", nil])
   end
 
+  it "shows a non-ASCII tracking URL as typed when Ruby's parser accepts it once escaped", parity: true do
+    physical = create(:physical_product, user: seller, name: "Poster")
+    urls = ["https://exämple.com/pfad/日本語?n=ü", "https://example.com/😀", "https://example.com/é|1", "https://üser@example.com/é", "ftp://exämple.com/", "https://example.com/\u0085"]
+    urls.each_with_index do |url, index|
+      purchase = build(:physical_purchase, link: physical, seller:, email: "unicode#{index}@example.com", created_at: at_midday(3 + index), purchase_state: "successful").tap { _1.save!(validate: false) }
+      build(:shipment, purchase:, ship_state: :shipped, tracking_url: url).save!(validate: false)
+    end
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    expect(customers_of(response).map { _1.dig("shipping", "tracking", "url") }).to eq(["https://exämple.com/pfad/日本語?n=ü", "https://example.com/😀", nil, nil, nil, nil])
+  end
+
   it "shows the first of several shipments of a purchase", parity: true do
     physical = create(:physical_product, user: seller, name: "Poster")
     purchase = build(:physical_purchase, link: physical, seller:, created_at: at_midday(3), purchase_state: "successful").tap { _1.save!(validate: false) }
