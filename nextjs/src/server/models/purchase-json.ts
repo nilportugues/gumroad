@@ -34,7 +34,7 @@ const inList = (ids: readonly unknown[]) => Prisma.join(ids as (bigint | number)
 // ActiveSupport::JSON::Encoding.time_precision = 0, in UTC.
 export const timeJson = (time: Date | null | undefined): string | null => (time == null ? null : time.toISOString().replace(/\.\d{3}Z$/u, "Z"));
 // BasePrice::Recurrence#recurrence_long_indicator
-const RECURRENCE_LONG_INDICATOR: Record<string, string> = { monthly: "a month", quarterly: "every 3 months", biannually: "every 6 months", yearly: "a year", every_two_years: "every 2 years" };
+export const RECURRENCE_LONG_INDICATOR: Record<string, string> = { monthly: "a month", quarterly: "every 3 months", biannually: "every 6 months", yearly: "a year", every_two_years: "every 2 years" };
 // Time#to_fs(:formatted_date_abbrev_month): "%b %-d, %Y"
 const formattedDateAbbrevMonth = (time: Date): string => `${MONTHS[time.getUTCMonth()]} ${time.getUTCDate()}, ${time.getUTCFullYear()}`;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

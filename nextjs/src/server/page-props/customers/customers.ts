@@ -1,7 +1,7 @@
 // CustomersController#index (`/customers`, `/customers/:link_id`): fetch_sales over PurchaseSearchService, CustomersPresenter
 // and CustomerPresenter#customer (app/presenters/customer{,s}_presenter.rb).
 //
-// Handed back to Rails (HandBackToRails) when a customer on the page needs a reading the port does not make: a shipping sale that is a subscription or has a recurring price or a tracking URL the port cannot parse, a UTM link of another seller or with a post whose seller has no subdomain, a non-USD price without a
+// Handed back to Rails (HandBackToRails) when a customer on the page needs a reading the port does not make: a non-ASCII or IP-literal tracking URL, a UTM link of another seller or with a post whose seller has no subdomain, a non-USD price without a
 // stored rate or in a currency the port has no table for, a refund whose json_data is not plain JSON, a commission
 // still in progress, and a review video whose thumbnail variant Rails has not processed.
 import { Prisma, type Purchase, type Subscription, type User } from "@prisma/client";
@@ -251,22 +251,44 @@ async function shippingReadings(purchases: Row[], links: Map<string, Row>): Prom
     await rowsBy("prices", "id", [...new Set(shipped.map((purchase) => purchase.price_id).filter((id) => id != null))]),
   );
   const shipments = groupBy(await rowsBy("shipments", "purchase_id", ids), "purchase_id");
+  const subscriptionRows = byId(
+    await rowsBy("subscriptions", "id", [
+      ...new Set(shipped.map((purchase) => purchase.subscription_id).filter((id) => id != null)),
+    ]),
+  );
+  const now = new Date();
   const knownRate = (currency: string) => currency in KNOWN_CURRENCIES;
   const readings = new Map<string, ShippingReading>();
   for (const purchase of shipped) {
     const own = shipments.get(String(purchase.id)) ?? [];
-    // `has_one :shipment` takes an arbitrary row of several.
-    if (own.length > 1) throw new HandBackToRails();
     const link = links.get(String(purchase.link_id))!;
     const plainRate = PLAIN_RATE.test(String(purchase.rate_converted_to_usd ?? "").trim());
+    // Purchase#price_for_recurrence: the purchase's own price, else its subscription's last payment option's.
+    let price = prices.get(String(purchase.price_id));
+    const subscription =
+      purchase.subscription_id == null ? undefined : subscriptionRows.get(String(purchase.subscription_id));
+    if (price === undefined && subscription !== undefined) {
+      const record = new SubscriptionRecord(castRow<Subscription>("Subscription", subscription), {
+        now: () => now,
+        featureActive: defaultSubscriptionDeps.featureActive,
+      });
+      try {
+        price = ((await record.price()) as Row | null) ?? undefined;
+      } catch (error) {
+        if (error instanceof NotPortedError) throw new HandBackToRails();
+        throw error;
+      }
+    }
     readings.set(
       String(purchase.id),
       await shippingReading(
         purchase,
         link,
-        prices.get(String(purchase.price_id)),
+        price,
+        // `has_one :shipment` is `LIMIT 1` over index_shipments_on_purchase_id, so InnoDB yields the lowest id (rows come id ASC).
         own[0] ?? null,
         (currency) => knownRate(currency) && plainRate,
+        subscription !== undefined && subscription.charge_occurrence_count === 1,
       ),
     );
   }

@@ -45,14 +45,8 @@ describe("Shipment#calculated_tracking_url", () => {
       expect(calculatedTrackingUrl(shipment({ tracking_url }))).toBeNull();
   });
 
-  it("hands back what the port cannot parse like Ruby's URI", () => {
-    for (const tracking_url of [
-      "https://example.com/a|b",
-      "https://example.com/#a#b",
-      "HTTPS://EXAMPLE.COM/",
-      "https://exämple.com/",
-    ])
-      expect(() => calculatedTrackingUrl(shipment({ tracking_url }))).toThrow(HandBackToRails);
+  it("hands back non-ASCII URLs, which Ruby escapes before parsing", () => {
+    expect(() => calculatedTrackingUrl(shipment({ tracking_url: "https://exämple.com/" }))).toThrow(HandBackToRails);
   });
 });
 
@@ -90,13 +84,7 @@ describe("shipping reading", () => {
     ).toBe("€2");
   });
 
-  it("hands back a subscription, a recurring price and a currency without a stored rate", async () => {
-    await expect(shippingReading(purchase({ subscription_id: 1 }), link, undefined, null, known)).rejects.toThrow(
-      HandBackToRails,
-    );
-    await expect(shippingReading(purchase(), link, { recurrence: "monthly" }, null, known)).rejects.toThrow(
-      HandBackToRails,
-    );
+  it("hands back a currency without a stored rate", async () => {
     await expect(
       shippingReading(purchase(), { price_currency_type: "eur" }, undefined, null, () => false),
     ).rejects.toThrow(HandBackToRails);
@@ -160,5 +148,72 @@ describe("Sku on a customer", () => {
       is_pwyw: false,
     });
     expect(skuOption(sku({ max_purchase_count: null })).quantity_left).toBeNull();
+  });
+});
+
+describe("tracking URLs against Ruby's URI::RFC3986_Parser", () => {
+  const url = (tracking_url: string) => calculatedTrackingUrl(shipment({ tracking_url }));
+
+  it("is nil for a URL URI.parse raises InvalidURIError on", () => {
+    for (const bad of [
+      "https://example.com/a|b",
+      'https://example.com/a"b',
+      "https://example.com/#a#b",
+      "https://example.com/a b",
+      "https://example.com/%zz",
+      "https://example.com/[x]",
+      "https://example.com:80x/",
+    ])
+      expect(url(bad)).toBeNull();
+  });
+
+  it("keeps a query of any character but #, where the path and fragment are stricter", () => {
+    expect(url("https://example.com/p?a=b|c[d]")).toBe("https://example.com/p?a=b|c[d]");
+    expect(url("https://example.com/p#a?b")).toBe("https://example.com/p#a?b");
+    expect(url("https://example.com/p#a|b")).toBeNull();
+  });
+
+  it("accepts the forms outside the simple one that URI.parse takes", () => {
+    expect(url("HTTPS://EXAMPLE.COM/")).toBe("HTTPS://EXAMPLE.COM/");
+    expect(url("https://example.com:8080")).toBe("https://example.com:8080");
+    expect(url("https://example.com:/x")).toBe("https://example.com:/x");
+    expect(url("https://track_1.example.com/x")).toBe("https://track_1.example.com/x");
+    expect(url("https://example.com?a=1")).toBe("https://example.com?a=1");
+  });
+
+  it("is nil for a blank host or a userinfo, hands back an IP literal", () => {
+    expect(url("https:///x")).toBeNull();
+    expect(url("https://user:pw@example.com/x")).toBeNull();
+    expect(() => url("https://[::1]/x")).toThrow(HandBackToRails);
+  });
+});
+
+describe("shipping price with a recurrence", () => {
+  const purchase = {
+    id: 5,
+    shipping_cents: 250,
+    displayed_price_currency_type: "usd",
+    rate_converted_to_usd: "1.0",
+  };
+  const link = { price_currency_type: "usd" };
+  const price = async (row: Record<string, unknown> | undefined, singleCharge = false) =>
+    (await shippingReading(purchase, link, row, null, () => true, singleCharge)).price;
+
+  it("appends the recurrence of price_for_recurrence", async () => {
+    expect(await price({ recurrence: "monthly" })).toBe("$2.50 a month");
+    expect(await price({ recurrence: "quarterly" })).toBe("$2.50 every 3 months");
+    expect(await price({ recurrence: "biannually" })).toBe("$2.50 every 6 months");
+    expect(await price({ recurrence: "yearly" })).toBe("$2.50 a year");
+    expect(await price({ recurrence: "every_two_years" })).toBe("$2.50 every 2 years");
+  });
+
+  it("says once for a subscription that charges once, and x 1 when its price has no recurrence", async () => {
+    expect(await price({ recurrence: "yearly" }, true)).toBe("$2.50 once");
+    expect(await price({ recurrence: null }, true)).toBe("$2.50 x 1");
+    expect(await price(undefined, true)).toBe("$2.50");
+  });
+
+  it("hands back a recurrence it has no label for", async () => {
+    await expect(price({ recurrence: "weekly" })).rejects.toThrow(HandBackToRails);
   });
 });
