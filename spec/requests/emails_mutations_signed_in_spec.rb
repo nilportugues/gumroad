@@ -83,6 +83,37 @@ describe "Emails mutations when signed in", type: :request, elasticsearch_wait_f
     expect(Installment.last.paid_more_than_cents).to eq(500)
   end
 
+  it "creates a variant email that follows the buyers of one option", parity: true do
+    variant = create(:variant, variant_category: create(:variant_category, link: product), name: "Gold")
+    log_in(seller)
+
+    send_form(:post, emails_path, form(installment_type: "variant", link_id: product.unique_permalink).merge(variant_external_id: variant.external_id))
+
+    expect(response).to have_http_status(:see_other)
+    expect(Installment.last).to have_attributes(installment_type: "variant", base_variant: variant, link: product)
+  end
+
+  it "leaves a variant email without an option when the option id is unknown", parity: true do
+    log_in(seller)
+
+    send_form(:post, emails_path, form(installment_type: "variant", link_id: product.unique_permalink).merge(variant_external_id: "unknown"))
+
+    expect(response).to have_http_status(:see_other)
+    expect(Installment.last).to have_attributes(installment_type: "variant", base_variant: nil, link: product)
+  end
+
+  it "points a draft at another option", parity: true do
+    gold = create(:variant, variant_category: create(:variant_category, link: product), name: "Gold")
+    silver = create(:variant, variant_category: gold.variant_category, name: "Silver")
+    installment = create(:variant_post, seller:, link: product, base_variant: gold, name: "Launch notes", message: "<p>Launch notes body</p>", send_emails: false, shown_on_profile: true)
+    log_in(seller)
+
+    send_form(:put, email_path(installment.external_id), form(installment_type: "variant", link_id: product.unique_permalink).merge(variant_external_id: silver.external_id))
+
+    expect(response).to have_http_status(:see_other)
+    expect(installment.reload.base_variant).to eq(silver)
+  end
+
   it "schedules an email", parity: true do
     log_in(seller)
 

@@ -2,15 +2,13 @@
 // emails following the audience until the workflow has been published once. Golden: __fixtures__/save-installment.golden.json
 // ("workflow" cases). Throws NotPortedError before the first write for the default abandoned cart email
 // (DefaultAbandonedCartWorkflowGeneratorService), which the controller hands to Rails.
-import { Prisma, type BaseVariant, type Installment, type Link, type User, type Workflow } from "@prisma/client";
+import { Prisma, type Installment, type Link, type User, type Workflow } from "@prisma/client";
 
-import { decrypt } from "../../lib/obfuscate-ids.ts";
 import { InstallmentFlags } from "./installment-post.ts";
 import { setAssociation } from "./concerns/rails-validations.ts";
 import { jsonData } from "./concerns/json-data.ts";
 import { Installments, InstallmentInvalid, markDeletedBang as markInstallmentDeletedBang } from "./installment-writes.ts";
-import { addAndValidateFilters, permit, present } from "./save-installment.ts";
-import { findOneBy } from "./row-reads.ts";
+import { addAndValidateFilters, findBaseVariantId, permit, present } from "./save-installment.ts";
 import { RecordInvalid } from "./runtime/errors.ts";
 import type { ModelRecord } from "./runtime/record.ts";
 import { transaction } from "./runtime/transaction.ts";
@@ -57,12 +55,7 @@ const aliveInstallments = (workflow: WorkflowRecord, extra: Prisma.Sql | null = 
   return extra === null ? base : Prisma.sql`${base} AND ${extra}`;
 };
 
-// `BaseVariant.find_by_external_id(id)&.id`: an id that does not decrypt looks up `id IS NULL` (no row), and `nil.to_s` decodes like "".
-export async function findBaseVariantId(externalId: unknown): Promise<number | null> {
-  if (externalId !== undefined && externalId !== null && typeof externalId !== "string") return refuse("a variant_external_id that is not text");
-  const variant = await findOneBy<BaseVariant>("BaseVariant", "id", decrypt(externalId ?? ""), true);
-  return variant === null ? null : Number(variant.id);
-}
+export { findBaseVariantId };
 
 export type ManageWorkflowResult = { ok: boolean; error: string | null; workflow: WorkflowRecord };
 

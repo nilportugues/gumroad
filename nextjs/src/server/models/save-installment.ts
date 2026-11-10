@@ -3,12 +3,13 @@
 // Elasticsearch request of the real service.
 //
 // What Node cannot prove throws NotPortedError before the first write, and the controller hands the request to Rails:
-// a variant post, a post with files (S3 and ProductFile), a message Nokogiri would rewrite or that holds an upsell card,
+// a post with files (S3 and ProductFile), a message Nokogiri would rewrite or that holds an upsell card,
 // a preview email, a "has not clicked" filter, a call to action, and the date formats TimeZone#parse reads beyond ISO 8601.
-import { Prisma, type Installment, type InstallmentRule, type Link, type User } from "@prisma/client";
+import { Prisma, type BaseVariant, type Installment, type InstallmentRule, type Link, type User } from "@prisma/client";
 
 import { randomBytes } from "node:crypto";
 
+import { decrypt } from "../../lib/obfuscate-ids.ts";
 import { notifyError } from "../infra/error-reporting.ts";
 import { dateInTimeZoneIso8601, endOfDayIso8601, startOfDayIso8601 } from "./concerns/rails-time-zone.ts";
 import { rubyToI } from "./concerns/ruby-numeric.ts";
@@ -21,6 +22,7 @@ import { InstallmentFlags } from "./installment-post.ts";
 import { InstallmentRules, markDeletedBang as markRuleDeletedBang } from "./installment-rule-writes.ts";
 import { InstallmentInvalid, Installments, post, publishBang } from "./installment-writes.ts";
 import { enqueueLinkIndexUpdate } from "./link.ts";
+import { findOneBy } from "./row-reads.ts";
 import { createBlastAndEnqueue, hasBeenBlasted } from "./post-email-blast.ts";
 import { RecordInvalid } from "./runtime/errors.ts";
 import { transaction } from "./runtime/transaction.ts";
@@ -42,6 +44,13 @@ const SOURCE = "save_installment_service.rb";
 const refuse = (what: string): never => {
   throw new NotPortedError(what, SOURCE);
 };
+
+// `BaseVariant.find_by_external_id(id)&.id`: an id that does not decrypt looks up `id IS NULL` (no row), and `nil.to_s` decodes like "".
+export async function findBaseVariantId(externalId: unknown): Promise<number | null> {
+  if (externalId !== undefined && externalId !== null && typeof externalId !== "string") return refuse("a variant_external_id that is not text");
+  const variant = await findOneBy<BaseVariant>("BaseVariant", "id", decrypt(externalId ?? ""), true);
+  return variant === null ? null : Number(variant.id);
+}
 
 // installment_params: `params.require(:installment).permit(...)`, in the order of the permit list.
 const SCALAR_KEYS = [
@@ -261,7 +270,6 @@ export async function saveInstallment(
   const ip = permitInstallment(params.installment);
   const attrs: readonly string[] = Object.keys(ip).filter((key) => key !== "shown_in_profile_sections");
   const productOrVariant = ip.installment_type === PRODUCT_TYPE || ip.installment_type === VARIANT_TYPE;
-  if (ip.installment_type === VARIANT_TYPE) refuse("a variant post (BaseVariant lookup)");
 
   // set_product_and_enforce_ownership
   let product: Link | null = null;
@@ -353,7 +361,7 @@ async function saveInstallmentRecord(
   const wasPublished = record.get("published_at") !== null;
   if (!wasPublished) {
     record.set("installment_type", asString(ip.installment_type));
-    record.set("base_variant_id", null);
+    record.set("base_variant_id", ip.installment_type === VARIANT_TYPE ? await findBaseVariantId(params.variant_external_id) : null);
     record.set("link_id", productOrVariant ? Number(product!.id) : null);
     record.set("seller_id", Number(seller.id));
     setAssociation(record, "seller", seller.id, seller);

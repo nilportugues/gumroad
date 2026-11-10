@@ -112,6 +112,17 @@ installment_call.call("create: a seller email with filters", installment_params:
                                                                                           bought_products: %w[p1], not_bought_products: %w[p2]))
 installment_call.call("create: a follower email", installment_params: draft.merge(installment_type: "follower"))
 installment_call.call("create: an affiliate email", installment_params: draft.merge(installment_type: "affiliate", affiliate_products: %w[p1]))
+variant_rows = { variant_categories: [{ id: 1, link_id: 1, title: "Tier" }],
+                 base_variants: [{ id: 5, variant_category_id: 1, type: "Variant", name: "Gold", created_at: SEEDED_AT, updated_at: SEEDED_AT }] }
+variant_draft = draft.merge(installment_type: "variant", link_id: "p1")
+installment_call.call("create: a variant post", installment_params: variant_draft, top: { variant_external_id: ObfuscateIds.encrypt(5) }, **variant_rows)
+installment_call.call("create: a variant post with an unknown option", installment_params: variant_draft, top: { variant_external_id: "unknown" }, **variant_rows)
+installment_call.call("create: a variant post without an option id", installment_params: variant_draft, **variant_rows)
+installment_call.call("create: a variant post without a product", installment_params: variant_draft.merge(link_id: ""), top: { variant_external_id: ObfuscateIds.encrypt(5) }, **variant_rows)
+installment_call.call("update: a draft to a variant post", installment_id: 10, installment_params: variant_draft, top: { variant_external_id: ObfuscateIds.encrypt(5) }, es_body: es_answer(3),
+                      installments: [installment_row(10)], **variant_rows)
+installment_call.call("update: a variant draft to an audience email", installment_id: 10, installment_params: draft, es_body: es_answer(3),
+                      installments: [installment_row(10, installment_type: "variant", link_id: 1, base_variant_id: 5)], **variant_rows)
 installment_call.call("create: a product that is not the seller's", installment_params: product_draft.merge(link_id: "p9"))
 installment_call.call("create: a product email without a product", installment_params: product_draft.merge(link_id: ""))
 installment_call.call("create: paid more than paid less", installment_params: draft.merge(installment_type: "seller", paid_more_than_cents: 9000, paid_less_than_cents: 500))
