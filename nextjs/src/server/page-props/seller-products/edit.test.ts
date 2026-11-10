@@ -5,7 +5,7 @@ import { instantInTimeZoneIso8601 } from "../../models/concerns/rails-time-zone.
 import { LinkFlags } from "../../models/link.ts";
 import type { LinkRow, UserRow } from "../../presenters/product-reads.ts";
 import { setSqlClient } from "../../models/sql.ts";
-import { assertEditSupported, editBlockers, editorRevision, freeTrialDurationUnit, installmentPlanProps, subscriptionDuration, otherProductRefundPolicies, productTagNames, salesCountForInventory } from "./edit.ts";
+import { assertEditSupported, editBlockers, eligibleForInstallmentPlans, editorRevision, freeTrialDurationUnit, installmentPlanProps, subscriptionDuration, otherProductRefundPolicies, productTagNames, salesCountForInventory } from "./edit.ts";
 import { recoverableHiddenVariantRichContent, variantProps, versionStamps, type VersionRows } from "./edit-variants.ts";
 import golden from "./__fixtures__/editor-revision.golden.json" with { type: "json" };
 
@@ -175,7 +175,7 @@ describe("assertEditSupported", () => {
     await expect(assertEditSupported(product({ native_type: nativeType }), seller, 9n)).rejects.toBeInstanceOf(HandBackToRails);
   });
 
-  it.each(["is_recurring_billing", "is_tiered_membership", "is_physical", "is_in_preorder_state", "is_collab"] as const)("hands back a product with %s set", async (flag) => {
+  it.each(["is_recurring_billing", "is_tiered_membership", "is_physical", "is_collab"] as const)("hands back a product with %s set", async (flag) => {
     blockedBy();
     const flags = LinkFlags.set(0n, flag, true);
     await expect(assertEditSupported(product({ flags }), seller, 9n)).rejects.toBeInstanceOf(HandBackToRails);
@@ -197,6 +197,13 @@ describe("assertEditSupported", () => {
     blockedBy("installment_plan");
     await expect(editBlockers(product(), seller)).resolves.toEqual([]);
     await expect(editBlockers(product({ flags: LinkFlags.set(0n, "is_recurring_billing", true) }), seller)).resolves.toEqual(["is_recurring_billing"]);
+  });
+
+  it("serves a product in its pre-order state, which the editor reads only through installment plan eligibility", async () => {
+    blockedBy();
+    const preorder = product({ flags: LinkFlags.set(0n, "is_in_preorder_state", true) });
+    await expect(editBlockers(preorder, seller)).resolves.toEqual([]);
+    await expect(assertEditSupported(preorder, seller, 9n)).resolves.toBeUndefined();
   });
 
   it("serves a product with sales, reviews and a purchase limit", async () => {
@@ -246,6 +253,13 @@ describe("subscriptionDuration and freeTrialDurationUnit", () => {
   it("name the enum value, or nil outside the enum", () => {
     expect([0, 1, 2, 3, 4, 5, null].map((value) => subscriptionDuration(product({ subscription_duration: value })))).toEqual(["monthly", "yearly", "quarterly", "biannually", "every_two_years", null, null]);
     expect([0, 1, 2, null].map((value) => freeTrialDurationUnit(product({ free_trial_duration_unit: value })))).toEqual(["week", "month", null, null]);
+  });
+});
+
+describe("eligibleForInstallmentPlans", () => {
+  it("is true for a plain product and false for one in its pre-order state", () => {
+    expect(eligibleForInstallmentPlans(product())).toBe(true);
+    expect(eligibleForInstallmentPlans(product({ flags: LinkFlags.set(0n, "is_in_preorder_state", true) }))).toBe(false);
   });
 });
 

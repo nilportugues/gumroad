@@ -4,7 +4,7 @@ require "spec_helper"
 
 # Signed-in visits to the product editor (Products/Edit, LinksController#edit), recorded for the Next.js port
 # (PARITY_RECORD=1) and replayed by nextjs/parity/__tests__/seller-products.replay.test.ts. The port renders plain
-# digital, course and ebook products.
+# digital, course and ebook products, and the same products in their pre-order state.
 describe "Product editor when signed in", type: :request do
   include Parity::SignedInDashboard
 
@@ -292,6 +292,28 @@ describe "Product editor when signed in", type: :request do
     get edit_link_path(product.unique_permalink)
 
     expect(inertia_props_of(response)["product"]).to include("allow_installment_plan" => true, "installment_plan" => { "number_of_installments" => 4, "recurrence" => "monthly" })
+  end
+
+  it "serves the editor for a product in its pre-order state, which is not eligible for installment plans", parity: true do
+    product.is_in_preorder_state = true
+    product.save!(validate: false)
+    log_in(seller)
+
+    get edit_link_path(product.unique_permalink)
+
+    expect(response).to be_successful
+    expect(inertia_props_of(response)["product"]).to include("eligible_for_installment_plans" => false, "allow_installment_plan" => false, "installment_plan" => nil)
+  end
+
+  it "reads the live installment plan of a pre-order product that is ineligible for plans", parity: true do
+    product.is_in_preorder_state = true
+    product.save!(validate: false)
+    build(:product_installment_plan, link: product, number_of_installments: 2, recurrence: "monthly").save!(validate: false)
+    log_in(seller)
+
+    get edit_link_path(product.unique_permalink)
+
+    expect(inertia_props_of(response)["product"]).to include("eligible_for_installment_plans" => false, "allow_installment_plan" => true, "installment_plan" => { "number_of_installments" => 2, "recurrence" => "monthly" })
   end
 
   it "sends a signed-out visitor to the login page", parity: true do

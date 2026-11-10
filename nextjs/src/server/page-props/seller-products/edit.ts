@@ -2,7 +2,7 @@
 // proven: a plain digital, course or ebook product. Everything the port does not read is a row that does not exist
 // (`editBlockers`), and a product with one goes to Rails whole (HandBackToRails) before anything renders. Sales
 // (`successful_sales_count`, Elasticsearch), reviews (`rating_stats`), a product-level purchase limit, the free trial
-// and subscription duration settings and a live installment plan are served.
+// and subscription duration settings, a live installment plan and a product in its pre-order state are served.
 import { createHmac } from "node:crypto";
 
 import { Prisma } from "@prisma/client";
@@ -193,7 +193,6 @@ export async function editBlockers(product: LinkRow, seller: UserRow): Promise<s
     "is_tiered_membership",
     "is_physical",
     "is_bundle",
-    "is_in_preorder_state",
     "is_collab",
   ] as const) {
     if (set(flag)) blockers.push(flag);
@@ -435,6 +434,11 @@ export const subscriptionDuration = (product: LinkRow): string | null =>
 export const freeTrialDurationUnit = (product: LinkRow): string | null =>
   FREE_TRIAL_DURATION_UNITS[product.free_trial_duration_unit ?? -1] ?? null;
 
+// ProductInstallmentPlan.eligible_for_product?: memberships and the other native types that fail it are editBlockers,
+// so a pre-order is the one served product that is ineligible.
+export const eligibleForInstallmentPlans = (product: LinkRow): boolean =>
+  !LinkFlags.isSet(product.flags as bigint, "is_in_preorder_state");
+
 // ProductPresenter::InstallmentPlanProps#installment_plan_props: `has_one :installment_plan, -> { alive }`.
 export async function installmentPlanProps(productId: bigint) {
   const [plan] = await selectRows<{ number_of_installments: number; recurrence: string }>(
@@ -500,9 +504,7 @@ export async function editProps({ product, seller, sellerExternalId, aiGenerated
       price_cents: product.price_cents as number,
       customizable_price: !!product.customizable_price,
       suggested_price_cents: product.suggested_price_cents,
-      // ProductInstallmentPlan.eligible_for_product? holds: the memberships, pre-orders and other native types that
-      // fail it are editBlockers.
-      eligible_for_installment_plans: true,
+      eligible_for_installment_plans: eligibleForInstallmentPlans(product),
       allow_installment_plan: installmentPlan !== null,
       installment_plan: installmentPlan,
       custom_button_text_option: jsonText("custom_button_text_option"),
