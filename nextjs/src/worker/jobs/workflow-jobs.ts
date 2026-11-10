@@ -170,6 +170,15 @@ export const sendWorkflowInstallmentRescheduleJobWith = (overrides: Partial<JobD
 
 // ----- ScheduleAffiliateWorkflowJobsJob
 
+// What `where(workflow_schedule_token: token)` compares the string column to: ActiveModel's String type serialises an
+// Integer as its digits and the MySQL adapter quotes true/false as '1'/'0'. A Float, Array or Hash is not cast that way and goes back to Rails.
+function stringTokenOf(token: JsonValue): string {
+  if (typeof token === "string") return token;
+  if (typeof token === "bigint" || (typeof token === "number" && Number.isSafeInteger(token))) return String(token);
+  if (typeof token === "boolean") return token ? "1" : "0";
+  throw new NotPortedError("a workflow_schedule_token that is not a String, Integer or boolean", "schedule_affiliate_workflow_jobs_job.rb");
+}
+
 // `ApplicationRecord.connected_to(role: :writing)` wraps the whole job. Without a token it re-enqueues the
 // tokens whose first push was lost. With one it schedules the workflows of each affiliate's assignments
 // (`DirectAffiliate#schedule_workflow_jobs`) and clears the token per affiliate.
@@ -187,8 +196,8 @@ export const scheduleAffiliateWorkflowJobsJobWith = (overrides: Partial<JobDeps 
         }
         return;
       }
-      if (typeof token !== "string") await beforeSideEffects(() => Promise.reject(new NotPortedError("a workflow_schedule_token that is not a String", "schedule_affiliate_workflow_jobs_job.rb")));
-      const assignments = await assignmentRowsOfToken(token as string);
+      const scheduleToken = await beforeSideEffects(async () => stringTokenOf(token));
+      const assignments = await assignmentRowsOfToken(scheduleToken);
       if (assignments.length === 0) return;
       const affiliates = await preloadAffiliates(assignments);
       await withProducts(assignments);
@@ -204,7 +213,7 @@ export const scheduleAffiliateWorkflowJobsJobWith = (overrides: Partial<JobDeps 
           }
         }
         // Clear per affiliate so a retry after a mid-batch failure does not re-send completed affiliates' emails.
-        await clearWorkflowSchedule(group.map((assignment) => assignment.id), token as string);
+        await clearWorkflowSchedule(group.map((assignment) => assignment.id), scheduleToken);
       }
     });
   })(overrides);

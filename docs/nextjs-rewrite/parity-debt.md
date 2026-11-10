@@ -88,6 +88,8 @@ No debt line was open for the sales-threshold hand-back, so none was closed.
 `delete-wishlist-products-job.golden.json` was recorded on lane 15 (`gumroad_test_15`, Redis 56-59). The one remaining hand-back of
 `DeleteWishlistProductsJob` is `WishlistProduct#mark_deleted!` (its save re-runs `Wishlist#update_recommendable`); no debt line was open for it.
 
+`schedule-affiliate-workflows.golden.json` was regenerated on lane 15 (`gumroad_test_15`, Redis 56-58, `PARITY_ES_INDEX_SUFFIX=-c15`) with seven token cases (Integer, 2**70, negative, true, false); the 40 existing cases are unchanged. `ScheduleAffiliateWorkflowJobsJob` still hands back a Float, Array or Hash token (Rails casts an Array to an IN list). No debt line was open for it.
+
 `delete-product-files-archives-worker.golden.json` was recorded on lane 15 (`gumroad_test_15`, Redis 56-59, `PARITY_ES_INDEX_SUFFIX=-c15`). The one remaining
 hand-back of `DeleteProductFilesArchivesWorker` is `ProductFilesArchive#mark_deleted!` (PaperTrail, CdnDeletable); a variant without a category
 or a category without a product (Ruby NoMethodError) and non-Integer ids hand back too. No debt line was open for it.
