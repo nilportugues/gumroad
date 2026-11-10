@@ -1,6 +1,7 @@
 // Handlers for every class in src/server/jobs/ported-jobs.ts, keyed by Ruby class name.
 import type { RetriesExhausted, RetryIn } from "../retry.ts";
 
+import { backfillTaggingsCountOnTagsJob } from "./backfill-taggings-count-on-tags-job.ts";
 import {
   deleteExpiredProductCachedValuesWorker,
   deleteOldUnusedEventsWorker,
@@ -243,6 +244,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   RemoveSuspendedAccountFollowsWorker: removeSuspendedAccountFollowsWorker,
   RefundPurchaseWorker: refundPurchaseWorker,
   UpdateUserBalanceStatsCacheWorker: updateUserBalanceStatsCacheWorker,
+  BackfillTaggingsCountOnTagsJob: backfillTaggingsCountOnTagsJob,
 };
 
 // `sidekiq_retry_in` and `sidekiq_retries_exhausted` blocks of ported jobs, keyed by Ruby class name.
