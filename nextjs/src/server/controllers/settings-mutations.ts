@@ -83,11 +83,12 @@ function requireUser(params: Record<string, unknown>): Record<string, unknown> {
 export const isPermittedScalar = (value: unknown) =>
   value === null || ["string", "number", "boolean"].includes(typeof value);
 
-// A permitted scalar for a string column: ActiveModel::Type::String casts true/false to "t"/"f" and an integer to its digits.
-// Floats are handed back: a JSON `1.0` is a Ruby Float, which JS cannot tell from `1`.
-export function stringValue(value: unknown): string | null {
+// A permitted scalar for a string column: an integer casts to its digits, true/false to "1"/"0" for a varchar column (the MySQL
+// adapter's string type) and to "t"/"f" for a text one. Floats are handed back: a JSON `1.0` is a Ruby Float, which JS cannot
+// tell from `1`.
+export function stringValue(value: unknown, column: "varchar" | "text" = "varchar"): string | null {
   if (value === null || typeof value === "string") return value;
-  if (typeof value === "boolean") return value ? "t" : "f";
+  if (typeof value === "boolean") return column === "text" ? (value ? "t" : "f") : value ? "1" : "0";
   if (typeof value === "number" && Number.isSafeInteger(value)) return String(value);
   throw new HandBackToRails("a non-string value for a string attribute");
 }
@@ -212,7 +213,7 @@ async function updateAdvanced(input: MutationInput): Promise<ActionResult> {
   if (isHash(emails) || Array.isArray(emails)) throw new HandBackToRails("blocked emails that are a hash or a list");
   const endpoint =
     "notification_endpoint" in user && isPermittedScalar(user.notification_endpoint)
-      ? stringValue(user.notification_endpoint)
+      ? stringValue(user.notification_endpoint, "text")
       : undefined;
 
   const seller = await findUserBang(input.context.currentSeller!.id);
@@ -271,7 +272,8 @@ function billingDetailAttributes(params: Record<string, unknown>): Partial<Billi
   if (!isHash(detail) || Object.keys(detail).length === 0)
     throw new HandBackToRails("a request without a billing_detail hash");
   const attributes: Record<string, unknown> = {};
-  for (const key of BILLING_TEXT_ATTRIBUTES) if (key in detail) attributes[key] = stringValue(detail[key]);
+  for (const key of BILLING_TEXT_ATTRIBUTES)
+    if (key in detail) attributes[key] = stringValue(detail[key], key === "additional_notes" ? "text" : "varchar");
   if ("auto_email_invoice_enabled" in detail) {
     const value = detail.auto_email_invoice_enabled;
     if (typeof value === "boolean") attributes.auto_email_invoice_enabled = value;
