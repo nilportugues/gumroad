@@ -1,5 +1,6 @@
 // Port of app/sidekiq/send_community_chat_recap_notifications_job.rb. The mails it queues are
-// CommunityChatRecapMailer's, delivered by whichever side owns that mailer.
+// CommunityChatRecapMailer's, delivered by whichever side owns that mailer. A run id that is a string of
+// digits is cast like `find` does; any other non-Integer id hands back.
 import { Prisma } from "@prisma/client";
 
 import { notifyError } from "../../server/infra/error-reporting.ts";
@@ -39,12 +40,12 @@ function groupBy<T>(items: T[], keyOf: (item: T) => string): Map<string, T[]> {
 // Everything the job does before its first mail is a read, so the mails are collected first: a case
 // the port cannot run (NotPortedError, from any user's lookup) then hands the whole job to Rails
 // with nothing written, and a failure part-way still queues the mails Ruby had queued by then.
-async function collectMails(runId: Id | null, mails: Mail[]): Promise<void> {
+async function collectMails(runId: Id | null, runIdLabel: string, mails: Mail[]): Promise<void> {
   if (runId === null) throw new RecordNotFoundError("Couldn't find CommunityChatRecapRun without an ID");
   const [run] = await selectRows<{ recap_frequency: string; finished_at: Date | null }>(
     Prisma.sql`SELECT ${allColumns(COMMUNITY_CHAT_RECAP_RUNS)} FROM ${table(COMMUNITY_CHAT_RECAP_RUNS)} WHERE ${column(COMMUNITY_CHAT_RECAP_RUNS, "id")} = ${runId} LIMIT 1`,
   );
-  if (!run) throw new RecordNotFoundError(`Couldn't find CommunityChatRecapRun with 'id'=${runId}`);
+  if (!run) throw new RecordNotFoundError(`Couldn't find CommunityChatRecapRun with 'id'=${runIdLabel}`);
   if (run.finished_at == null) return;
 
   const R = COMMUNITY_CHAT_RECAPS;
@@ -100,12 +101,15 @@ export function sendCommunityChatRecapNotificationsJobWith(overrides: Partial<De
   return async (args, { runtime }) => {
     checkArity(args, 1);
     const [runId] = args;
-    if (runId !== null && typeof runId !== "number" && typeof runId !== "bigint") throw new HandBackToRuby(`a non-Integer community_chat_recap_run_id: ${JSON.stringify(runId)}`);
+    // `find("42")` casts the digits; a not-found message prints the argument as it came.
+    const isDigits = typeof runId === "string" && /^[0-9]{1,15}$/u.test(runId);
+    if (runId !== null && typeof runId !== "number" && typeof runId !== "bigint" && !isDigits) throw new HandBackToRuby(`a non-Integer community_chat_recap_run_id: ${JSON.stringify(runId)}`);
+    const numericRunId = typeof runId === "string" ? BigInt(runId) : runId;
 
     const mails: Mail[] = [];
     let failure: unknown = null;
     try {
-      await beforeSideEffects(() => collectMails(runId, mails));
+      await beforeSideEffects(() => collectMails(numericRunId, String(runId), mails));
     } catch (error) {
       if (error instanceof HandBackToRuby) throw error;
       failure = error;

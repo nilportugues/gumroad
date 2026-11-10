@@ -1,7 +1,7 @@
 // Ports of the payout, abandoned-purchase, balance and Stripe event jobs that can be decided in Node
 // without reaching a payment processor:
 //   app/sidekiq/large_sellers_update_user_balance_stats_cache_worker.rb  (in full)
-//   app/sidekiq/handle_stripe_event_worker.rb      (event types StripeEventHandler ignores)
+//   app/sidekiq/handle_stripe_event_worker.rb      (event types StripeEventHandler ignores, and platform-account events it routes nowhere)
 //   app/sidekiq/execute_scheduled_payouts_job.rb   (nothing due)
 //   app/sidekiq/sync_stuck_payouts_job.rb          (nothing stuck)
 //   app/sidekiq/update_payout_status_worker.rb     (a payment that is not processing)
@@ -23,7 +23,9 @@ import { ago, rubyTimeToF } from "../../server/models/concerns/ruby-time.ts";
 import { findPurchaseBang, purchaseIdFrom } from "../../server/models/purchase.ts";
 import { findByIdBang, findOneBy, recordIdFrom } from "../../server/models/row-reads.ts";
 import { column, columnIn, findInBatches, selectRows, table } from "../../server/models/sql.ts";
+import { isBlank } from "../../server/models/runtime/validators.ts";
 import { NotPortedError } from "../../server/models/user.ts";
+import { stripePlatformAccountId } from "../../server/stripe/config.ts";
 import { Payout } from "../../server/stripe/resources.ts";
 import { type JobDeps, modelJob } from "./support/job-deps.ts";
 
@@ -110,17 +112,29 @@ const HANDLED_EVENT_PREFIXES = [
   "refund.failed",
 ];
 
-// Every handled event ends in a charge processor call, a Stripe API read or a ledger write, so only the
-// ones the handler logs and drops run here. `params[:type].to_s`: a type that is not a String
-// (a Number, an Array, null) never starts with a prefix; a payload that is not an object fails in
-// `to_hash`, which Node leaves to Ruby.
+// Handled prefixes that `handle_event_for_gumroad` (no connected account, or the platform's own id)
+// routes to no handler: it only dispatches charge., capital., radar., refund and payment_intent.
+// events to the charge processor and checkout.session / customer.subscription. to SellerPlan.
+const PLATFORM_ACCOUNT_NOOP_PREFIXES = ["account.application.deauthorized", "account.updated", "capability.updated", "payout."];
+
+// `stripe_connect_account_id.present? && != STRIPE_PLATFORM_ACCOUNT_ID`
+function isConnectedAccountEvent(params: Record<string, unknown>): boolean {
+  const accountId = isBlank(params.user_id) ? params.account : params.user_id;
+  return !isBlank(accountId) && accountId !== stripePlatformAccountId();
+}
+
+// Every handled event ends in a charge processor call, a Stripe API read or a ledger write, except the
+// ones the handler logs and drops and the platform-account events nothing routes. `params[:type].to_s`: a
+// type that is not a String (a Number, an Array, null) never starts with a prefix; a payload that is not
+// an object fails in `to_hash`, which Node leaves to Ruby.
 export const handleStripeEventWorker = modelJob({ min: 1 }, async ([params]) => {
   await beforeSideEffects(() => {
     if (params === null || typeof params !== "object" || Array.isArray(params)) throw new NotPortedError("StripeEventHandler#initialize", "params is not a Hash");
-    const type = (params as Record<string, unknown>).type;
-    if (typeof type === "string" && HANDLED_EVENT_PREFIXES.some((prefix) => type.startsWith(prefix))) {
-      throw new NotPortedError("StripeEventHandler#handle_stripe_event", "stripe_event_handler.rb:handle_stripe_event (charge processor, Stripe API reads and ledger writes)");
-    }
+    const event = params as Record<string, unknown>;
+    const type = event.type;
+    if (typeof type !== "string" || !HANDLED_EVENT_PREFIXES.some((prefix) => type.startsWith(prefix))) return;
+    if (!isConnectedAccountEvent(event) && PLATFORM_ACCOUNT_NOOP_PREFIXES.some((prefix) => type.startsWith(prefix))) return;
+    throw new NotPortedError("StripeEventHandler#handle_stripe_event", "stripe_event_handler.rb:handle_stripe_event (charge processor, Stripe API reads and ledger writes)");
   });
 })();
 

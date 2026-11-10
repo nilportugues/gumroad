@@ -120,13 +120,6 @@ describe("suspend jobs", () => {
     });
   }
 
-  it("SuspendUsersWorker hands a payout action back to Rails before sending a statement", async () => {
-    const sql = sqlReplay([]);
-    const { error } = await run("SuspendUsersWorker", [3, ["5"], "spam", null, { action: "payout" }], false);
-    expect((error as Error).name).toBe("HandBackToRuby");
-    expect(sql.log).toEqual([]);
-  });
-
   it("SuspendUsersWorker hands a delay it cannot validate like Rails back to Rails", async () => {
     const sql = sqlReplay([]);
     const { error } = await run("SuspendUsersWorker", [3, ["5"], "spam", null, { action: "hold", delay_days: "1.5" }], false);

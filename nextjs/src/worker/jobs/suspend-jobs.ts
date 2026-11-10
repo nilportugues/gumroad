@@ -1,6 +1,7 @@
 // Ports of the jobs that suspend sellers in bulk:
 //   app/sidekiq/suspend_accounts_with_payment_address_worker.rb
-//   app/sidekiq/suspend_users_worker.rb
+//   app/sidekiq/suspend_users_worker.rb  (a payout action reads User#current_payout_processor; a seller whose
+//     PayPal email needs PayPal's API, or a delay_days Rails would reject, hands back before any suspension)
 import { Prisma, type Comment, type ScheduledPayout } from "@prisma/client";
 
 import type { JsonValue } from "../../server/jobs/sidekiq/ruby-json.ts";
@@ -10,6 +11,7 @@ import { ScheduledPayouts } from "../../server/models/scheduled-payout.ts";
 import { castRow, column, columnIn, columnNotIn, findInBatches, selectRows, table } from "../../server/models/sql.ts";
 import { fireRiskEvent, formattedDateFullMonth } from "../../server/models/user-risk.ts";
 import { beforeSideEffects } from "../../server/jobs/hand-back.ts";
+import { currentPayoutProcessor, paypalPayoutEmailNeedsApi, paypalPayoutEmailNotPorted } from "../../server/models/current-payout-processor.ts";
 import { findUserBang, nameOrUsername, NotPortedError, RISK_STATES, Users, type UserRecord } from "../../server/models/user.ts";
 import { modelJob, type JobDeps } from "./support/job-deps.ts";
 
@@ -142,10 +144,6 @@ function scheduledPayoutArg(scheduledPayout: JsonValue | undefined): ScheduledPa
   }
   const params = scheduledPayout as Record<string, JsonValue>;
   if (isBlank(params.action)) return null;
-  if (params.action === "payout") {
-    // processor: user.current_payout_processor, which can call the PayPal API.
-    throw new NotPortedError("User#current_payout_processor", "app/modules/user/payout_schedule.rb:94");
-  }
   const delayDays = params.delay_days;
   const plainInteger = (typeof delayDays === "number" && Number.isInteger(delayDays) && delayDays >= 0) || (typeof delayDays === "string" && /^\d+$/u.test(delayDays));
   if (!isBlank(delayDays) && !plainInteger) {
@@ -168,7 +166,7 @@ async function createScheduledPayout(user: UserRecord, author: UserRecord, sched
       user_id: BigInt(user.get("id") as bigint),
       action: scheduledPayout.action,
       delay_days: scheduledPayout.delayDays as number,
-      processor: null,
+      processor: scheduledPayout.action === "payout" ? await currentPayoutProcessor(user) : null,
       payout_amount_cents: await unpaidBalanceCents(user),
       created_by_id: BigInt(author.get("id") as bigint),
     } as Partial<ScheduledPayout>,
@@ -192,6 +190,19 @@ export const suspendUsersWorkerWith = modelJob({ min: 4, max: 5 }, async ([autho
   const author = await findUserBang(authorId);
   const authorName = nameOrUsername(author);
   const where = Prisma.sql`(${Prisma.join([...columnPredicates("id", ids, "id"), ...columnPredicates("external_id", ids, "string")], " OR ")})`;
+  // A retry skips users already suspended, so a seller whose processor Rails reads from PayPal
+  // must be found before the first suspension.
+  if (scheduledPayout?.action === "payout") {
+    await beforeSideEffects(() =>
+      findInBatches("users", where, 100, async (rows) => {
+        for (const row of rows) {
+          const user = loadUser(row);
+          if (SUSPENDED_STATES.includes(String(user.get("user_risk_state")))) continue;
+          if (await paypalPayoutEmailNeedsApi(user)) throw paypalPayoutEmailNotPorted();
+        }
+      }),
+    );
+  }
   await findInBatches("users", where, 100, async (rows) => {
     for (const row of rows) {
       const user = loadUser(row);

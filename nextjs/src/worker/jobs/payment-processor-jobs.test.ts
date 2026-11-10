@@ -188,6 +188,62 @@ describe("arguments Node does not reproduce", () => {
   });
 });
 
+describe("HandleStripeEventWorker events for the platform account", () => {
+  const PLATFORM = "acct_platform_example";
+  let previous: string | undefined;
+  beforeAll(() => {
+    previous = process.env.STRIPE_PLATFORM_ACCOUNT_ID;
+    process.env.STRIPE_PLATFORM_ACCOUNT_ID = PLATFORM;
+  });
+  afterAll(() => {
+    if (previous === undefined) delete process.env.STRIPE_PLATFORM_ACCOUNT_ID;
+    else process.env.STRIPE_PLATFORM_ACCOUNT_ID = previous;
+  });
+
+  const run = (params: JsonValue) => {
+    const recording = recordingSidekiqRedis();
+    const runtime = createJobsRuntime({ sidekiqRedis: recording.redis, bullmqRedis: recording.redis, registry: rubyRuntimeRegistry(), now: () => golden.now, newJid: sequentialJids() });
+    return asSidekiqJob(() => handleStripeEventWorker([params], contextFor(runtime)), golden.now);
+  };
+
+  const finishes: [string, JsonValue][] = [
+    ["account.updated without an account", { type: "account.updated" }],
+    ["capability.updated with a blank account", { type: "capability.updated", account: "" }],
+    ["payout.paid with a blank user_id and no account", { type: "payout.paid", user_id: "  " }],
+    ["payout.paid for the platform account", { type: "payout.paid", account: PLATFORM }],
+    ["account.application.deauthorized for the platform user_id", { type: "account.application.deauthorized", user_id: PLATFORM, account: "acct_other_example" }],
+  ];
+  for (const [name, params] of finishes) {
+    it(`finishes ${name} without a statement`, async () => {
+      const sql = sqlReplay([]);
+      await expect(run(params)).resolves.toBeUndefined();
+      expect(sql.log).toEqual([]);
+    });
+  }
+
+  const handsBack: [string, JsonValue][] = [
+    ["payout.paid for a connected account", { type: "payout.paid", account: "acct_connected_example" }],
+    ["account.updated whose user_id is a connected account", { type: "account.updated", user_id: "acct_connected_example", account: PLATFORM }],
+    ["account.application.deauthorized for a connected account", { type: "account.application.deauthorized", account: "acct_connected_example" }],
+    ["a charge event for the platform account", { type: "charge.succeeded", account: PLATFORM }],
+    ["a refund event for the platform account", { type: "refund.updated" }],
+    ["a payment_intent event for the platform account", { type: "payment_intent.succeeded" }],
+    ["a customer.subscription event for the platform account", { type: "customer.subscription.updated" }],
+    ["a checkout.session.completed event for the platform account", { type: "checkout.session.completed" }],
+  ];
+  for (const [name, params] of handsBack) {
+    it(`hands ${name} back to Rails`, async () => {
+      const sql = sqlReplay([]);
+      await expect(run(params)).rejects.toMatchObject({ name: "HandBackToRuby" });
+      expect(sql.log).toEqual([]);
+    });
+  }
+
+  it("finishes an unhandled type as before", async () => {
+    await expect(run({ type: "invoice.paid", account: "acct_connected_example" })).resolves.toBeUndefined();
+  });
+});
+
 describe("a Redis that fails", () => {
   it("queues nobody when the exclusion set cannot be read", async () => {
     const sql = sqlReplay([]);

@@ -48,6 +48,40 @@ describe("SendCommunityChatRecapNotificationsJob", () => {
     });
   }
 
+  describe("a run id that arrives as a string", () => {
+    const notFound = () => golden.cases.find((candidate) => candidate.name === "a run that does not exist")!;
+    const runWith = async (runId: string) => {
+      const c = notFound();
+      const sql = sqlReplay(c.statements);
+      const recording = recordingSidekiqRedis();
+      const runtime = createJobsRuntime({ sidekiqRedis: recording.redis, bullmqRedis: recording.redis, registry: rubyRuntimeRegistry(), now: () => golden.now, newJid: sequentialJids() });
+      const notified: Error[] = [];
+      const handler = sendCommunityChatRecapNotificationsJobWith({ notify: (error) => notified.push(error as Error) });
+      await asSidekiqJob(() => handler([runId], contextFor(runtime)), golden.now);
+      return { sql, notified, recording };
+    };
+
+    it("reads the run by its cast digits and names the argument as given in the not-found error", async () => {
+      const { sql, notified } = await runWith("404");
+      expect(sql.log).toEqual(sql.expected);
+      expect(notified.map((error) => error.message)).toEqual(["Couldn't find CommunityChatRecapRun with 'id'=404"]);
+    });
+
+    it("keeps leading zeros in the not-found error as Rails interpolates the argument", async () => {
+      const { sql, notified } = await runWith("0404");
+      expect(sql.log).toEqual(sql.expected);
+      expect(notified.map((error) => error.message)).toEqual(["Couldn't find CommunityChatRecapRun with 'id'=0404"]);
+    });
+
+    it("hands a string that is not digits back to Rails with nothing queued", async () => {
+      const recording = recordingSidekiqRedis();
+      const runtime = createJobsRuntime({ sidekiqRedis: recording.redis, bullmqRedis: recording.redis, registry: rubyRuntimeRegistry(), now: () => golden.now, newJid: sequentialJids() });
+      const handler = sendCommunityChatRecapNotificationsJobWith({ notify: () => {} });
+      await expect(asSidekiqJob(() => handler(["4x"], contextFor(runtime)), golden.now)).rejects.toBeInstanceOf(HandBackToRuby);
+      expect(recording.snapshot()).toEqual({});
+    });
+  });
+
   it("hands the job to Rails, with nothing queued, when a community's resource is not a product", async () => {
     const recording = recordingSidekiqRedis();
     const runtime = createJobsRuntime({ sidekiqRedis: recording.redis, bullmqRedis: recording.redis, registry: rubyRuntimeRegistry(), now: () => golden.now, newJid: sequentialJids() });
