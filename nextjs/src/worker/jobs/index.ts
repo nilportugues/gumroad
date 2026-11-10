@@ -2,6 +2,7 @@
 import type { RetriesExhausted, RetryIn } from "../retry.ts";
 
 import { backfillTaggingsCountOnTagsJob } from "./backfill-taggings-count-on-tags-job.ts";
+import { invalidateProductCacheWorker } from "./invalidate-product-cache-worker.ts";
 import { rebuildGmailAbuseFilterJob } from "./rebuild-gmail-abuse-filter-job.ts";
 import {
   deleteExpiredProductCachedValuesWorker,
@@ -247,6 +248,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   UpdateUserBalanceStatsCacheWorker: updateUserBalanceStatsCacheWorker,
   BackfillTaggingsCountOnTagsJob: backfillTaggingsCountOnTagsJob,
   RebuildGmailAbuseFilterJob: rebuildGmailAbuseFilterJob,
+  InvalidateProductCacheWorker: invalidateProductCacheWorker,
 };
 
 // `sidekiq_retry_in` and `sidekiq_retries_exhausted` blocks of ported jobs, keyed by Ruby class name.

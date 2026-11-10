@@ -1644,7 +1644,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "LargeSellersUpdateUserBalanceStatsCacheWorker": {
     "file": "app/sidekiq/large_sellers_update_user_balance_stats_cache_worker.rb",
