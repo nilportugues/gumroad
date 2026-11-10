@@ -25,7 +25,8 @@ describe "Customers page when signed in", type: :request, elasticsearch_wait_for
   def at_midday(days_ago) = days_ago.days.ago.in_time_zone(seller.timezone).change(hour: 12).utc
 
   def sell(link, days_ago:, **attributes)
-    create(:purchase, link:, seller:, created_at: at_midday(days_ago), **attributes)
+    # The purchase factory charges a card through Stripe; the page only needs the row.
+    build(:purchase, link:, seller:, created_at: at_midday(days_ago), purchase_state: "successful", **attributes).tap { _1.save!(validate: false) }
   end
 
   def customers_of(response) = inertia_props_of(response).dig("customers_presenter", "customers")
@@ -314,7 +315,7 @@ describe "Customers page when signed in", type: :request, elasticsearch_wait_for
 
   it "leaves a physical product sale to Rails", parity: true do
     physical = create(:physical_product, user: seller, name: "Poster")
-    create(:physical_purchase, link: physical, seller:, created_at: at_midday(3))
+    build(:physical_purchase, link: physical, seller:, created_at: at_midday(3), purchase_state: "successful").tap { _1.save!(validate: false) }
     sign_in_with_indexed_sales
 
     get customers_path
