@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { closeAllRedis } from "@/server/infra/redis";
 
 import { prismaExecutor, type SqlExecutor } from "../src/db";
+import { recreateIndex, reindexPurchases } from "../src/elasticsearch";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
@@ -142,7 +143,20 @@ describe.skipIf(!url)("Seller products pages parity when signed in", () => {
     async (_name, fixturePath, index) => {
       const result = await replayFixtureExchange(fixturePath, index, {
         sql,
-        redis: redisSeeder(redis),
+        redis: {
+          // The editor counts a product's sales in Elasticsearch: rebuild the index from the seeded purchases.
+          async reset(entries, exchange) {
+            await redisSeeder(redis).reset(entries);
+            if (!exchange) return;
+            const es = new ElasticsearchClient({ node: ELASTICSEARCH_HOST });
+            try {
+              await recreateIndex(es, { model: "Purchase", name: REPLAY_PURCHASE_INDEX });
+              await reindexPurchases(es, REPLAY_PURCHASE_INDEX, sql);
+            } finally {
+              await es.close();
+            }
+          },
+        },
         transport: httpTransport(server.baseUrl),
         interceptHttp: false,
         rewriteRequest: (request, fixture, now) => reencryptCookies(request, fixture, SECRET_KEY_BASE, now),
