@@ -1,6 +1,6 @@
 // Port of the arithmetic of app/controllers/customer_surcharge_controller.rb#calculate_all and of
-// SalesTaxCalculator#calculate's lookup-table branch. The endpoint itself stays in Rails: its response also carries
-// GeoIP-detected currency, the signed FX quote and direct-listed amount tokens, which are not provable here.
+// SalesTaxCalculator#calculate's lookup-table branch. The route is controllers/customer-surcharge.ts, which serves the carts
+// with no FX quote and no direct-listed token and hands the rest back to Rails.
 // Callers pass in what needs a database or a vendor: the ZipTaxRate row and the Feature flags.
 import {
   lookupTaxCents,

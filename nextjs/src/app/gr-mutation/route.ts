@@ -10,6 +10,7 @@ import "@/server/controllers/connections-mutations";
 import "@/server/controllers/oauth-applications-mutations";
 import "@/server/controllers/dashboard-json";
 import "@/server/controllers/events-mutations";
+import "@/server/controllers/customer-surcharge";
 import "@/server/controllers/wishlists-mutations";
 import "@/server/controllers/customer-actions";
 import "@/server/controllers/product-review-responses";
