@@ -61,7 +61,7 @@ describe "API v2 MCP and Notion", type: :request do
       get "/muse/v1/mcp", headers: auth("mobile_api")
     end
 
-    it "hands back a JSON-RPC call", parity: true do
+    it "answers a tools/list call", parity: true do
       post "/muse/v1/mcp", params: { jsonrpc: "2.0", id: 1, method: "tools/list" }.to_json, headers: rpc.merge(auth)
     end
 

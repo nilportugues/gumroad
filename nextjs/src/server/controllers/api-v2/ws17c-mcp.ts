@@ -104,7 +104,9 @@ export async function mcp(call: ApiCall): Promise<ActionResult> {
   if (call.request.method !== "POST") throw new HandBackToRails("an MCP request with a method other than GET or POST");
   const text = new TextDecoder().decode(call.rawBody);
   // A fraction, an exponent or an integer past 2^53 would not survive JSON.parse as Ruby reads it; Rails answers those.
-  if (/\d\.\d|\d[eE][+-]?\d|\d{16}/u.test(text)) throw new HandBackToRails("an MCP body with a number JavaScript cannot read exactly");
+  // Only numbers matter: the "2.0" of `"jsonrpc":"2.0"` and any other string literal is blanked first.
+  const withoutStrings = text.replace(/"(?:[^"\\]|\\.)*"/gu, '""');
+  if (/\d\.\d|\d[eE][+-]?\d|\d{16}/u.test(withoutStrings)) throw new HandBackToRails("an MCP body with a number JavaScript cannot read exactly");
   const connector = call.url.pathname.split("/")[1] ?? null;
   const session = new RpcSession(
     {

@@ -218,7 +218,10 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
     process.env = saved;
   });
 
+  // The tool descriptions of tools/list carry fixed example dates, which must not move with the days since the recording.
+  let driftDates = true;
   const replayOptions = (random: string[] = []) => ({
+    driftDates,
     sql,
     redis: redisSeeder(redis),
     transport: httpTransport(server.baseUrl),
@@ -253,6 +256,7 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
           expect(Object.keys(handed.exchanges[0]!.actual.db ?? {})).toEqual([]);
           return;
         }
+        driftDates = !name.includes("answers-a-tools-list-call");
         const paginates = name.includes("paginates-with-a-page-key");
         const createsUtmLink =
           (Object.keys(expected.db ?? {}).includes("utm_links") && name.includes("-creates-")) ||
