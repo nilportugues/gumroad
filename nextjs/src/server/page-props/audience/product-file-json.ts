@@ -1,9 +1,8 @@
 // ProductFile#as_json (the files of a post as InstallmentPresenter#props lists them) and the two post-level
 // summaries derived from the same rows.
 //
-// Not ported, refused with NotPortedError: a streamable or image file with a thumbnail attachment
-// (ActiveStorage URL and signed id). A subtitle whose S3 object is missing under every Unicode normalization of
-// its key is dropped, as in Ruby.
+// Not ported, refused with NotPortedError: a thumbnail whose variant Rails has not processed yet. A subtitle whose S3 object is missing
+// under every Unicode normalization of its key is dropped, as in Ruby.
 import { Prisma, type ProductFile } from "@prisma/client";
 
 import { encrypt } from "../../../lib/obfuscate-ids.ts";
@@ -23,11 +22,9 @@ import {
 import { castRow, column, selectRows, table } from "../../models/sql.ts";
 import { numberToHumanSize } from "../../presenters/human-size.ts";
 import { NotPortedError } from "../not-ported.ts";
+import { productFileThumbnailJson } from "../signed-in/thumbnails.ts";
 
 import { externalId, present } from "./support.ts";
-
-// ProductFile::BROWSER_RENDERABLE_IMAGE_FILETYPES
-const BROWSER_RENDERABLE_IMAGE_FILETYPES = ["png", "jpg", "jpeg", "gif", "webp"];
 
 type SubtitleRow = {
   id: bigint | number;
@@ -166,6 +163,7 @@ function fileJson(
   productName: string | null,
   subtitles: Record<string, unknown>[],
   webBuild: Record<string, unknown> | null,
+  thumbnail: Record<string, unknown> | null,
 ): Record<string, unknown> {
   const streamable = isStreamable(file);
   const name = nameDisplayable(file, fields);
@@ -192,7 +190,7 @@ function fileJson(
     subtitle_files: subtitles,
     url: file.url,
     isbn: file.isbn,
-    thumbnail: null,
+    thumbnail,
     status: { type: "saved" },
   };
 }
@@ -222,12 +220,6 @@ export async function installmentFiles(installmentId: number, sellerId: bigint |
 
   const json = await Promise.all(
     files.map(async (file) => {
-      if (
-        thumbnails.has(file.id) &&
-        (isStreamable(file) || BROWSER_RENDERABLE_IMAGE_FILETYPES.includes(file.filetype ?? ""))
-      ) {
-        throw new NotPortedError("ProductFile#as_json for a file with a thumbnail");
-      }
       // ProductFile#user is the link's owner when the file belongs to a product, else the post's seller.
       const link = file.link_id === null ? undefined : linkById.get(file.link_id);
       const ownerExternalId = encrypt(link?.user_id ?? sellerId);
@@ -241,6 +233,7 @@ export async function installmentFiles(installmentId: number, sellerId: bigint |
         link?.name ?? null,
         await subtitleJson(subtitles.get(file.id) ?? [], ownerExternalId),
         await webBuildSummary(builds.get(file.id)),
+        thumbnails.has(file.id) ? await productFileThumbnailJson(file) : null,
       );
     }),
   );

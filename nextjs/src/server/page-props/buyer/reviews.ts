@@ -1,5 +1,4 @@
-// ReviewsPresenter#reviews_props for ReviewsController#index. A review with a video is not ported
-// (ProductReviewVideo#video_file.thumbnail_url goes through Active Storage).
+// ReviewsPresenter#reviews_props for ReviewsController#index. A video whose thumbnail variant Rails has yet to process throws NotPortedError.
 import { createHmac } from "node:crypto";
 
 import { Prisma, type Link, type Purchase, type User } from "@prisma/client";
@@ -12,6 +11,7 @@ import { LinkFlags } from "../../models/link.ts";
 import { UserFlags } from "../../models/user.ts";
 import { castRow, column, selectRows, table } from "../../models/sql.ts";
 import { NotPortedError } from "../not-ported.ts";
+import { videoFileThumbnailUrl } from "../signed-in/thumbnails.ts";
 import { thumbnailUrl } from "./products.ts";
 import { productLongUrl, profileUrl } from "./users.ts";
 
@@ -71,6 +71,19 @@ function sellerDisplayName(user: User): string | null {
   return present(user.unconfirmed_email) ? user.unconfirmed_email : present(user.email) ? user.email : null;
 }
 
+// ProductReviewPresenter#video_props(product_review.editable_video): `alive.editable.latest`.
+async function editableVideo(reviewId: bigint): Promise<{ id: string; thumbnail_url: string | null } | null> {
+  const video = await db.productReviewVideo.findFirst({
+    where: { product_review_id: reviewId, deleted_at: null, approval_status: { in: ["pending_review", "approved"] } },
+    orderBy: [{ created_at: "desc" }, { id: "desc" }],
+  });
+  if (video === null) return null;
+  // has_one :video_file is not alive-scoped, so a soft-deleted file still answers.
+  const file = await db.videoFile.findFirst({ where: { record_type: "ProductReviewVideo", record_id: video.id }, orderBy: { id: "asc" } });
+  if (file === null) throw new NotPortedError("ProductReviewPresenter#video_props for a video without a video_file");
+  return { id: encrypt(video.id), thumbnail_url: await videoFileThumbnailUrl(file.id) };
+}
+
 export async function reviewsProps(user: User, now = new Date()) {
   const reviewRows = await selectRows(
     Prisma.sql`SELECT ${Prisma.raw("`product_reviews`.*")} FROM ${table("product_reviews")} INNER JOIN ${table(PURCHASES)} ON ${column("product_reviews", "purchase_id")} = ${column(PURCHASES, "id")} WHERE ${column(PURCHASES, "purchaser_id")} = ${user.id} AND ${column("product_reviews", "deleted_at")} IS NULL ORDER BY ${column(PURCHASES, "id")} ASC, ${column("product_reviews", "id")} ASC`,
@@ -81,15 +94,14 @@ export async function reviewsProps(user: User, now = new Date()) {
     const [purchase, product, video] = await Promise.all([
       db.purchase.findUniqueOrThrow({ where: { id: review.purchase_id! } }),
       db.link.findUniqueOrThrow({ where: { id: review.link_id! } }),
-      db.productReviewVideo.findFirst({ where: { product_review_id: review.id, deleted_at: null } }),
+      editableVideo(review.id),
     ]);
-    if (video) throw new NotPortedError("ProductReviewPresenter#video_props (Active Storage)");
     const seller = await db.user.findUniqueOrThrow({ where: { id: product.user_id! } });
     reviews.push({
       anonymous: review.anonymous === true,
       rating: review.rating,
       message: review.message,
-      video: null,
+      video,
       id: encrypt(review.id),
       purchase_id: encrypt(review.purchase_id!),
       purchase_email_digest: emailDigest(purchase),

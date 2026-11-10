@@ -1,11 +1,12 @@
 // ProfilePresenter#profile_settings_props (app/presenters/profile_presenter.rb) for
-// Settings::ProfileController#show. A profile with saved sections, a membership product or
-// an uploaded avatar throws NotPortedError: those need ProfileSectionsPresenter's
-// Elasticsearch product search, ProductPresenter.card_for_web and Active Storage.
+// Settings::ProfileController#show. A profile with saved sections, a membership product
+// throws NotPortedError: those need ProfileSectionsPresenter's Elasticsearch product search and
+// ProductPresenter.card_for_web. An uploaded avatar is served unless Rails has yet to process its variant.
 import { createHash } from "node:crypto";
 
 import { db } from "../../../lib/db.ts";
 import { encrypt as externalId } from "../../../lib/obfuscate-ids.ts";
+import { blobSignedId } from "../../infra/active-storage.ts";
 import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
 import { LinkFlags } from "../../models/link.ts";
 import { reputationProps } from "../../models/user-reputation-summary.ts";
@@ -158,8 +159,7 @@ export async function profileProps(context: SellerContext) {
   }
 
   const canEdit = settingsProfilePolicy.update(context);
-  const avatarAttached = (await avatarAttachmentOf(seller.id)) !== null;
-  if (avatarAttached) throw new NotPortedError("ActiveStorage::Attachment#signed_id for an uploaded avatar");
+  const avatarAttachment = await avatarAttachmentOf(seller.id);
 
   const logoutShared = await sharedProfileProps(seller, { editing: false, canEdit: false, currencyCode: DEFAULT_CURRENCY, tabs });
   const editable = await sharedProfileProps(seller, { editing: true, canEdit, currencyCode: user.currency_type ?? DEFAULT_CURRENCY, tabs });
@@ -176,7 +176,7 @@ export async function profileProps(context: SellerContext) {
       highlight_color: normalizeHexColor(profile.get("highlight_color")),
       border_radius: profile.get("border_radius"),
       button_hover: profile.get("button_hover"),
-      profile_picture_blob_id: null,
+      profile_picture_blob_id: avatarAttachment === null ? null : blobSignedId(avatarAttachment.blob_id),
       product_page_storefront_enabled: UserFlags.isSet(seller.flags, "product_page_storefront_enabled"),
       hide_follow_form: UserFlags.isSet(seller.flags, "hide_follow_form"),
     },

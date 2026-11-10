@@ -73,16 +73,13 @@ Parity replays still failing after the first full run against real Rails (setup 
 - `discover_parity_spec.rb` autocomplete examples (:170-:283): Rails spins at 100% CPU recording them, so the 8 missing fixtures are still missing.
 - `churn`/`analytics` and the rest of section 1 of [parity-debt.md](parity-debt.md) not yet recorded: `mobile_api_parity_spec.rb` stream refusals, `settings_mutations` billing/AI promo replays above, `discover`.
 
-- **Product file thumbnails** (`ProductFile#as_json`, `thumbnail`, and the same gap for review videos, custom field files, commission files and
-  the avatar's `signed_id` in `page-props/settings/profile.ts`): everything but one piece is in Node already. `infra/active-storage.ts` has
-  `publicStorageUrl` and the variant digest, `signed-in/avatar.ts` shows the variant lookup and the `Rails.cache` read, `cdnUrlFor` the CDN
-  rewrite. A browser-renderable image is `cdnUrlFor(publicStorageUrl(blob.key))`; a streamable file is the processed 1280x720 variant's URL
-  (`attachment_product_file_thumbnail_<attachment id>_variant_url` in the cache), and hands back when no variant record exists, as the
-  avatar does. The missing piece is `blob.signed_id`: it should be
-  `railsMessageVerifierGenerate("ActiveStorage", blob.id, "blob_id")` (no expiry), but it has no Rails golden and the editor posts it
-  back to resolve the attachment, so a wrong token would only show on save. Record one from Rails
-  (`Rails.application.message_verifier("ActiveStorage")`, `blob.signed_id`) with a known `SECRET_KEY_BASE`, add it to
-  `auth/message-verifier.test.ts`, then wire the four readers.
+- **Product file thumbnails**: ported as `signed-in/thumbnails.ts` (`ProductFile#thumbnail_url`/`as_json` thumbnail, `VideoFile#thumbnail_url` for
+  the buyer reviews page's review videos) plus `blobSignedId` (`infra/active-storage.ts`: `railsMessageVerifierGenerate("ActiveStorage", blob.id,
+  "blob_id")`, wired into the settings profile's `profile_picture_blob_id` and the customers panel's custom field files, `customers/file-details.ts`).
+  Still handing back: a 1280x720 thumbnail variant Rails has not processed yet (no `active_storage_variant_records` row, as the avatar does), and
+  on `/customers` a review video and a commission with files. Record `nextjs/scripts/golden/active-storage.rb` to add the Rails goldens for
+  `blob.signed_id` and the 1280x720 digests; `active-storage.test.ts` asserts them once present, and until then only checks tokens derived with
+  the verifier port (proven against Rails for another verifier name), so the `ActiveStorage` salt and `blob_id` purpose are unrecorded.
 - **`POST /customer_surcharge`** (WS-20a, `nextjs_checkout_surcharge`): served for one-time, non-physical lines when no seller has
   `buyer_currency_charging` on and the buyer is taxed from the lookup table (`controllers/customer-surcharge.ts`). Still hands back: a VAT id
   (vendor validation), a US taxable state or Canadian province (TaxJar), Singapore (`applicable_years`), a Spanish rate (GeoIP subdivision
@@ -93,7 +90,7 @@ Parity replays still failing after the first full run against real Rails (setup 
 - **Customers page** (`page-props/customers/customers.ts`) still hands back: shipping sales that are subscriptions, have a recurring price, several shipments, or a tracking URL
   `Shipment#calculated_tracking_url` cannot settle without Ruby's `URI.parse`, commissions with files and a completion
   still `in_progress` (files need `signed_id`; the in-progress completion may be pending presentment settlement), review videos whose file has
-  a thumbnail (`thumbnail_url`), custom field answers that carry a file (signed id), sent gifts whose recipient holds a license on a product with per-option
+  a thumbnail (`thumbnail_url`), sent gifts whose recipient holds a license on a product with per-option
   content (`variant_content_permits_license_key?`), and a member whose renewals an Indian card mandate disabled and whose next charge is free under a
   limited-cycle discount (`future_subscription_charge?` then needs `renewal_pre_discount_total_cents`). Physical products, Skus, shipping, commissions
   without files, review videos without thumbnails, sales of several options (the first join row), collaborator sales that credit a direct affiliate,

@@ -168,21 +168,21 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | Route | Ruby controller#action | Status | Flag | Fixture |
 | --- | --- | --- | --- | --- |
 | `POST /mobile/forgot_password` | `User::PasswordsController#create` | not registered | - | n |
-| `GET /mobile/purchases/index` | `Api::Mobile::PurchasesController#index` | native | `nextjs_mobile_purchases` | n |
-| `GET /mobile/purchases/search` | `Api::Mobile::PurchasesController#search` | native | `nextjs_mobile_purchases` | n |
-| `GET /mobile/purchases/purchase_attributes/:id` | `Api::Mobile::PurchasesController#purchase_attributes` | native | `nextjs_mobile_purchases` | n |
-| `POST /mobile/purchases/:id/archive` | `Api::Mobile::PurchasesController#archive` | native | `nextjs_mobile_purchases` | n |
+| `GET /mobile/purchases/index` | `Api::Mobile::PurchasesController#index` | native | `nextjs_mobile_purchases` | y |
+| `GET /mobile/purchases/search` | `Api::Mobile::PurchasesController#search` | native | `nextjs_mobile_purchases` | y |
+| `GET /mobile/purchases/purchase_attributes/:id` | `Api::Mobile::PurchasesController#purchase_attributes` | native | `nextjs_mobile_purchases` | y |
+| `POST /mobile/purchases/:id/archive` | `Api::Mobile::PurchasesController#archive` | native | `nextjs_mobile_purchases` | y |
 | `POST /mobile/purchases/:id/unarchive` | `Api::Mobile::PurchasesController#unarchive` | native | `nextjs_mobile_purchases` | n |
-| `DELETE /mobile/purchases/:id` | `Api::Mobile::PurchasesController#destroy` | native | `nextjs_mobile_purchases` | n |
+| `DELETE /mobile/purchases/:id` | `Api::Mobile::PurchasesController#destroy` | native | `nextjs_mobile_purchases` | y |
 | `GET /mobile/url_redirects/get_url_redirect_attributes/:id` | `Api::Mobile::UrlRedirectsController#url_redirect_attributes` | not registered | - | n |
 | `GET /mobile/url_redirects/fetch_placeholder_products` | `Api::Mobile::UrlRedirectsController#fetch_placeholder_products` | native | `nextjs_mobile_url_redirects` | n |
-| `GET /mobile/url_redirects/stream/:token/:product_file_id` | `Api::Mobile::UrlRedirectsController#stream` | native | `nextjs_mobile_url_redirect_delivery` | n |
-| `GET /mobile/url_redirects/hls_playlist/:token/:product_file_id/index.m3u8` | `Api::Mobile::UrlRedirectsController#hls_playlist` | native | `nextjs_mobile_url_redirect_delivery` | n |
-| `GET /mobile/url_redirects/download/:token/:product_file_id` | `Api::Mobile::UrlRedirectsController#download` | native | `nextjs_mobile_url_redirect_delivery` | n |
-| `GET /mobile/subscriptions/subscription_attributes/:id` | `Api::Mobile::SubscriptionsController#subscription_attributes` | native | `nextjs_mobile_subscriptions` | n |
-| `GET /mobile/preorders/preorder_attributes/:id` | `Api::Mobile::PreordersController#preorder_attributes` | native | `nextjs_mobile_preorders` | n |
-| `GET /mobile/sales` | `Api::Mobile::SalesController#index` | native | `nextjs_mobile_sales` | n |
-| `GET /mobile/sales/:id` | `Api::Mobile::SalesController#show` | native | `nextjs_mobile_sales` | n |
+| `GET /mobile/url_redirects/stream/:token/:product_file_id` | `Api::Mobile::UrlRedirectsController#stream` | native | `nextjs_mobile_url_redirect_delivery` | y |
+| `GET /mobile/url_redirects/hls_playlist/:token/:product_file_id/index.m3u8` | `Api::Mobile::UrlRedirectsController#hls_playlist` | native | `nextjs_mobile_url_redirect_delivery` | y |
+| `GET /mobile/url_redirects/download/:token/:product_file_id` | `Api::Mobile::UrlRedirectsController#download` | native | `nextjs_mobile_url_redirect_delivery` | y |
+| `GET /mobile/subscriptions/subscription_attributes/:id` | `Api::Mobile::SubscriptionsController#subscription_attributes` | native | `nextjs_mobile_subscriptions` | y |
+| `GET /mobile/preorders/preorder_attributes/:id` | `Api::Mobile::PreordersController#preorder_attributes` | native | `nextjs_mobile_preorders` | y |
+| `GET /mobile/sales` | `Api::Mobile::SalesController#index` | native | `nextjs_mobile_sales` | y |
+| `GET /mobile/sales/:id` | `Api::Mobile::SalesController#show` | native | `nextjs_mobile_sales` | y |
 | `PATCH /mobile/sales/:id` | `Api::Mobile::SalesController#update` | not registered | - | n |
 | `PUT /mobile/sales/:id` | `Api::Mobile::SalesController#update` | not registered | - | n |
 | `GET /mobile/sales/blob_url` | `Api::Mobile::SalesController#blob_url` | not registered | - | n |
@@ -209,15 +209,15 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `POST /mobile/commissions/:id/complete` | `Api::Mobile::CommissionsController#complete` | not registered | - | n |
 | `POST /mobile/review_videos/:id/approve` | `Api::Mobile::ReviewVideosController#approve` | native | `nextjs_mobile_review_videos` | n |
 | `POST /mobile/review_videos/:id/reject` | `Api::Mobile::ReviewVideosController#reject` | native | `nextjs_mobile_review_videos` | n |
-| `POST /mobile/subscriptions/:id/cancel` | `Api::Mobile::SubscriptionsController#cancel` | not registered | - | n |
+| `POST /mobile/subscriptions/:id/cancel` | `Api::Mobile::SubscriptionsController#cancel` | not registered | - | y |
 | `GET /mobile/analytics/data_by_date` | `Api::Mobile::AnalyticsController#data_by_date` | not registered | - | n |
 | `GET /mobile/analytics/revenue_totals` | `Api::Mobile::AnalyticsController#revenue_totals` | native | `nextjs_mobile_analytics` | y |
 | `GET /mobile/analytics/by_date` | `Api::Mobile::AnalyticsController#by_date` | native | `nextjs_mobile_analytics` | y |
 | `GET /mobile/analytics/by_state` | `Api::Mobile::AnalyticsController#by_state` | native | `nextjs_mobile_analytics` | y |
 | `GET /mobile/analytics/by_referral` | `Api::Mobile::AnalyticsController#by_referral` | native | `nextjs_mobile_analytics` | y |
 | `GET /mobile/analytics/products` | `Api::Mobile::AnalyticsController#products` | not registered | - | n |
-| `GET /mobile/products` | `Api::Mobile::ProductsController#index` | native | `nextjs_mobile_products` | n |
-| `DELETE /mobile/products/:id` | `Api::Mobile::ProductsController#destroy` | not registered | - | n |
+| `GET /mobile/products` | `Api::Mobile::ProductsController#index` | native | `nextjs_mobile_products` | y |
+| `DELETE /mobile/products/:id` | `Api::Mobile::ProductsController#destroy` | not registered | - | y |
 | `GET /mobile/agent/meta` | `Api::Mobile::AgentController#meta` | native | `nextjs_mobile_agent_meta` | n |
 | `GET /mobile/agent/conversations/latest` | `Api::Mobile::AgentController#latest_conversation` | not registered | - | n |
 | `GET /mobile/agent/turns/:client_turn_id` | `Api::Mobile::AgentController#turn_status` | not registered | - | n |
@@ -225,7 +225,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `POST /mobile/agent/messages/stream` | `Api::Mobile::AgentStreamsController#create` | not registered | - | n |
 | `POST /mobile/agent/actions` | `Api::Mobile::AgentController#execute` | not registered | - | n |
 | `POST /mobile/devices` | `Api::Mobile::DevicesController#create` | native | `nextjs_mobile_devices` | y |
-| `GET /mobile/installments/:id` | `Api::Mobile::InstallmentsController#show` | native | `nextjs_mobile_installments` | n |
+| `GET /mobile/installments/:id` | `Api::Mobile::InstallmentsController#show` | native | `nextjs_mobile_installments` | y |
 | `POST /mobile/consumption_analytics` | `Api::Mobile::ConsumptionAnalyticsController#create` | native | `nextjs_mobile_consumption_analytics` | y |
 | `POST /mobile/media_locations` | `Api::Mobile::MediaLocationsController#create` | native | `nextjs_mobile_media_locations` | y |
 | `POST /mobile/sessions` | `Api::Mobile::SessionsController#create` | not registered | - | n |

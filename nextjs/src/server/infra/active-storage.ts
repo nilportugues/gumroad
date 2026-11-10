@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 
 import { HeadObjectCommand } from "@aws-sdk/client-s3";
 
+import { railsMessageVerifierGenerate } from "../auth/message-verifier.ts";
 import { cgiEscape } from "../search/api.ts";
 import { marshalDump, RubySymbol, type MarshalValue } from "../cache/marshal.ts";
 import { getS3Client } from "./signed-urls.ts";
@@ -55,10 +56,10 @@ function defaultVariantFormat(contentType: string, filename: string): string | R
 
 // Variation#digest of `blob.variant(resize_to_limit: [limit, limit])`: SHA1 of the Marshal dump of
 // the transformations, `format` first because default_to is a reverse_merge.
-export function resizeToLimitDigest(contentType: string, filename: string, limit: number): string {
+export function resizeToLimitDigest(contentType: string, filename: string, limit: number, height: number = limit): string {
   const transformations = new Map<MarshalValue, MarshalValue>([
     [new RubySymbol("format"), defaultVariantFormat(contentType, filename)],
-    [new RubySymbol("resize_to_limit"), [limit, limit]],
+    [new RubySymbol("resize_to_limit"), [limit, height]],
   ]);
   return createHash("sha1").update(marshalDump(transformations)).digest("base64");
 }
@@ -91,3 +92,7 @@ export async function publicStorageExists(key: string): Promise<boolean> {
     throw error;
   }
 }
+
+// ActiveStorage::Blob#signed_id: ActiveStorage.verifier (`message_verifier("ActiveStorage")`) with the purpose Blob pins to
+// "blob_id" instead of the class-prefixed one other models get, and no expiry.
+export const blobSignedId = (blobId: bigint | number): string => railsMessageVerifierGenerate("ActiveStorage", Number(blobId), "blob_id");
