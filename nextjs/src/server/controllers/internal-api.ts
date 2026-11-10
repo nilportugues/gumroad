@@ -25,7 +25,9 @@ import { NotPortedError } from "../models/user.ts";
 import { NotPortedError as PageNotPortedError } from "../page-props/not-ported.ts";
 import { authorize } from "../policies/authorize.ts";
 import { installmentPolicy } from "../policies/installment.ts";
+import { collaboratingProductIds } from "../policies/link.ts";
 import { productReviewVideoPolicy } from "../policies/product-review-video.ts";
+import { loadSellerContext } from "../policies/seller-context.ts";
 import type { JsonValue } from "../search/es-json.ts";
 import { filterCount } from "../search/audience-member-search.ts";
 import { forwardToRails, HandBackToRails, processAction, RoutingError, type ActionResult, type Rendered } from "./application-controller.ts";
@@ -291,8 +293,12 @@ export const existingProductFiles = (request: Request, routeParams: Record<strin
       const refused = requireSignedIn(input);
       if (refused) return refused;
       const product = await fetchProductByUniquePermalink(input);
-      // `product_accessible_by_current_user?`: the owner, or a collaborator (not read here).
-      if (product.user_id === null || BigInt(product.user_id) !== BigInt(input.context.currentSeller!.id)) throw new HandBackToRails("a product of another seller");
+      // `product_accessible_by_current_user?`: the owner, else 404 unless the logged-in user collaborates on the product. A collaborator's
+      // list stops at the product's own files (`collaborator_editing?`), a subset of the owner's library, so an empty library is empty for both.
+      if (product.user_id === null || BigInt(product.user_id) !== BigInt(input.context.currentSeller!.id)) {
+        const collaborating = await collaboratingProductIds(await loadSellerContext(input.context), [product.id]);
+        if (!collaborating.has(BigInt(product.id))) throw new RoutingError("Not Found");
+      }
       const [file] = await selectRows(
         Prisma.sql`SELECT 1 AS present FROM ${table("product_files")} INNER JOIN ${table("links")} ON ${column("links", "id")} = ${column("product_files", "link_id")} WHERE ${column("links", "user_id")} = ${product.user_id} AND ${column("product_files", "deleted_at")} IS NULL AND ${column("links", "deleted_at")} IS NULL LIMIT 1`,
       );
