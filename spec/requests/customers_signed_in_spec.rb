@@ -313,6 +313,45 @@ describe "Customers page when signed in", type: :request, elasticsearch_wait_for
     expect(customers_of(response).first["subscription"]).to be_present
   end
 
+  it "shows a commission whose deposit is paid and the work is not done", parity: true do
+    commission_product = create(:commission_product, user: seller, name: "Portrait")
+    deposit = sell(commission_product, days_ago: 3, is_commission_deposit_purchase: true)
+    Commission.find_or_create_by!(deposit_purchase: deposit) { _1.status = Commission::STATUS_IN_PROGRESS }
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    expect(customers_of(response).first["commission"]).to include("status" => "in_progress", "files" => [], "files_are_editable" => true)
+  end
+
+  it "folds a charged commission completion into the deposit row", parity: true do
+    commission_product = create(:commission_product, user: seller, name: "Portrait")
+    deposit = sell(commission_product, days_ago: 3, is_commission_deposit_purchase: true)
+    completion = sell(commission_product, days_ago: 1, is_commission_completion_purchase: true)
+    commission = Commission.find_or_create_by!(deposit_purchase: deposit)
+    commission.update_columns(completion_purchase_id: completion.id, status: Commission::STATUS_COMPLETED)
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    customer = customers_of(response).first
+    expect(customer["commission"]).to include("status" => "completed", "files_are_editable" => false)
+    expect(customer["price"]["cents"]).to eq(deposit.displayed_price_cents + completion.displayed_price_cents)
+  end
+
+  it "lists a review's pending and approved videos", parity: true do
+    purchase = sell(product, days_ago: 3)
+    review = create(:product_review, purchase:, link: product, rating: 5, message: "Great")
+    create(:product_review_video, :approved, product_review: review)
+    create(:product_review_video, :pending_review, product_review: review)
+    create(:product_review_video, :rejected, product_review: review)
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    expect(customers_of(response).first.dig("review", "videos").map { _1["approval_status"] }).to eq(%w[pending_review approved])
+  end
+
   it "leaves a physical product sale to Rails", parity: true do
     physical = create(:physical_product, user: seller, name: "Poster")
     build(:physical_purchase, link: physical, seller:, created_at: at_midday(3), purchase_state: "successful").tap { _1.save!(validate: false) }
