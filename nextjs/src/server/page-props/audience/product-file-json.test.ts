@@ -411,11 +411,11 @@ describe("installmentFiles", () => {
       );
     });
 
-    it("hands back when the subtitle's S3 object is missing", async () => {
+    it("drops a subtitle whose S3 object is missing", async () => {
       signDownload.mockRejectedValue(Object.assign(new Error("missing"), { name: "NotFound" }));
       answering({ product_files: [file({})], subtitle_files: [subtitle] });
 
-      await expect(installmentFiles(5, SELLER_ID)).rejects.toBeInstanceOf(NotPortedError);
+      expect((await installmentFiles(5, SELLER_ID)).files[0]).toMatchObject({ subtitle_files: [] });
     });
 
     it("lets other signing errors through", async () => {

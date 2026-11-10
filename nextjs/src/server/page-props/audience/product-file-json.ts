@@ -1,9 +1,9 @@
 // ProductFile#as_json (the files of a post as InstallmentPresenter#props lists them) and the two post-level
 // summaries derived from the same rows.
 //
-// Not ported, each refused with NotPortedError: a streamable or image file with a thumbnail attachment
-// (ActiveStorage URL and signed id), and a subtitle whose S3 object is missing (Ruby retries
-// the key under another Unicode normalization before giving up, which the signing helper does not do yet).
+// Not ported, refused with NotPortedError: a streamable or image file with a thumbnail attachment
+// (ActiveStorage URL and signed id). A subtitle whose S3 object is missing under every Unicode normalization of
+// its key is dropped, as in Ruby.
 import { Prisma, type ProductFile } from "@prisma/client";
 
 import { encrypt } from "../../../lib/obfuscate-ids.ts";
@@ -132,7 +132,7 @@ async function aliveSubtitles(fileIds: bigint[]): Promise<Map<bigint, SubtitleRo
 
 // The `subtitle_files` entries of ProductFile#as_json. `fields` of a subtitle are namespaced by the same owner as its file.
 async function subtitleJson(rows: SubtitleRow[], ownerExternalId: string): Promise<Record<string, unknown>[]> {
-  return Promise.all(
+  const entries = await Promise.all(
     rows.map(async (row) => {
       const fields = s3Fields(row.url, ownerExternalId);
       if (fields === null) throw new NotPortedError("ProductFile#as_json for a subtitle file outside S3");
@@ -140,8 +140,8 @@ async function subtitleJson(rows: SubtitleRow[], ownerExternalId: string): Promi
       try {
         signed = await signedDownloadUrlForS3KeyAndFilename(fields.key, fields.filename, { isVideo: true });
       } catch (error) {
-        if (error instanceof Error && error.name === "NotFound")
-          throw new NotPortedError("ProductFile#as_json for a subtitle file missing from S3");
+        // safe_signed_download_url: a subtitle missing under every normalization of its key is dropped.
+        if (error instanceof Error && error.name === "NotFound") return null;
         throw error;
       }
       return {
@@ -156,6 +156,7 @@ async function subtitleJson(rows: SubtitleRow[], ownerExternalId: string): Promi
       };
     }),
   );
+  return entries.filter((entry) => entry !== null);
 }
 
 function fileJson(

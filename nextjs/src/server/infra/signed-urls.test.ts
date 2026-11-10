@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import golden from "./__fixtures__/signed-urls.golden.json" with { type: "json" };
 import {
+  awsUriEscape,
   cfCacheKey,
   cfWorkerCacheKeys,
   expiresAtSeconds,
   contentDispositionParam,
+  s3KeyVariants,
   s3PublicUrl,
   signedCloudflareUrl,
   signedCloudfrontUrl,
@@ -104,5 +106,73 @@ describe("SignedUrlHelper parity with Ruby", () => {
     expect(expiresAtSeconds(jan31, { months: 1 })).toBe(1709208000);
     expect(expiresAtSeconds(jan31, { years: 1, days: 2, hours: 3 })).toBe(1738508400);
     expect(expiresAtSeconds(new Date(Date.UTC(2024, 1, 29)), { years: 1 })).toBe(Date.UTC(2025, 1, 28) / 1000);
+  });
+
+  describe("Unicode normalization retry", () => {
+    const nfc = "attachments/abc/original/caf\u00e9.vtt";
+    const nfd = nfc.normalize("NFD");
+    const notFound = () => Object.assign(new Error("missing"), { name: "NotFound" });
+    const sign = (stored: string, present: string[]) => {
+      const heads: string[] = [];
+      const result = signedDownloadUrlForS3KeyAndFilename(stored, "cafe.vtt", {
+        now,
+        config: { ...production },
+        cacheKeys,
+        headObject: async (_bucket, key) => {
+          heads.push(key);
+          if (!present.includes(key)) throw notFound();
+          return { contentLength: 1000 };
+        },
+      });
+      return { result, heads };
+    };
+
+    it("lists the other forms of an accented key and none for ASCII", () => {
+      expect(s3KeyVariants(nfc)).toEqual([nfd]);
+      expect(s3KeyVariants(nfd)).toEqual([nfc]);
+      expect(s3KeyVariants("attachments/abc/original/cafe.vtt")).toEqual([]);
+    });
+
+    it.each([
+      ["an NFC key stored while S3 holds NFD", nfc, nfd],
+      ["an NFD key stored while S3 holds NFC", nfd, nfc],
+    ])("signs the variant when %s", async (_name, stored, present) => {
+      const { result, heads } = sign(stored, [present]);
+      const url = await result;
+      expect(heads).toEqual([stored, present, present]);
+      expect(url).toContain(awsUriEscape(present.split("/").pop()!));
+      expect(url).not.toContain(awsUriEscape(stored.split("/").pop()!));
+    });
+
+    it("rethrows the NotFound when no normalization exists", async () => {
+      const { result, heads } = sign(nfc, []);
+      await expect(result).rejects.toMatchObject({ name: "NotFound" });
+      expect(heads).toEqual([nfc, nfd]);
+    });
+
+    it("probes nothing for an ASCII key", async () => {
+      const { result, heads } = sign("attachments/abc/original/cafe.vtt", []);
+      await expect(result).rejects.toMatchObject({ name: "NotFound" });
+      expect(heads).toHaveLength(1);
+    });
+
+    it("takes the existence check from keyExists when given", async () => {
+      const probed: string[] = [];
+      const url = await signedDownloadUrlForS3KeyAndFilename(nfc, "cafe.vtt", {
+        now,
+        config: { ...production },
+        cacheKeys,
+        headObject: async (_bucket, key) => {
+          if (key === nfc) throw notFound();
+          return { contentLength: 1000 };
+        },
+        keyExists: async (key) => {
+          probed.push(key);
+          return true;
+        },
+      });
+      expect(probed).toEqual([nfd]);
+      expect(url).toContain(awsUriEscape(nfd.split("/").pop()!));
+    });
   });
 });

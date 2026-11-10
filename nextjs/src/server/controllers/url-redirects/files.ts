@@ -43,16 +43,13 @@ export async function isFileDownloadable(loaded: Loaded, { file }: DeliveryFile)
 
 export class StorageObjectMissing extends Error {}
 
-// A HEAD miss is the NotFound the controllers rescue. A key with non-ASCII characters is retried by Rails under the other Unicode
-// normalization forms, which the port does not do.
+// A HEAD miss (after the signer's Unicode-normalization retry) is the NotFound the controllers rescue.
 export async function signedUrl(s3: S3Fields, options: { isVideo?: boolean; cacheGroup?: string } = {}): Promise<string> {
   try {
     return await signedDownloadUrlForS3KeyAndFilename(s3.key, s3.filename, options);
   } catch (error) {
     const notFound = (error as { name?: string }).name === "NotFound" || (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 404;
     if (!notFound) throw error;
-    // eslint-disable-next-line no-control-regex
-    if (/[^\u0000-\u007f]/u.test(s3.key)) throw new HandBackToRails("a missing key with non-ASCII characters");
     throw new StorageObjectMissing(s3.key);
   }
 }

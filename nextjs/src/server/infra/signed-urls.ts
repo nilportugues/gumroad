@@ -236,6 +236,23 @@ const headWithSdk: HeadS3Object = async (bucket, key) => {
   return { contentLength: response.ContentLength };
 };
 
+const isNotFound = (error: unknown) =>
+  (error as { name?: string }).name === "NotFound" || (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 404;
+
+// S3KeyUnicodeNormalization.variants: the NFD and NFC forms of a key other than the key itself.
+export function s3KeyVariants(s3Key: string): string[] {
+  return (["NFD", "NFC"] as const).map((form) => s3Key.normalize(form)).filter((variant) => variant !== s3Key);
+}
+
+// S3KeyUnicodeNormalization.existing_variant: ASCII keys have no variants, so they make no S3 calls.
+export async function existingS3KeyVariant(
+  s3Key: string,
+  exists: (key: string) => Promise<boolean>,
+): Promise<string | null> {
+  for (const variant of s3KeyVariants(s3Key)) if (await exists(variant)) return variant;
+  return null;
+}
+
 export type SignedDownloadOptions = {
   isVideo?: boolean;
   expiresIn?: ExpiresIn;
@@ -243,12 +260,15 @@ export type SignedDownloadOptions = {
   now?: Date;
   config?: StorageConfig;
   headObject?: HeadS3Object;
+  /** Whether the object exists under a key; the Unicode-normalization retry probes variants with it. */
+  keyExists?: (key: string) => Promise<boolean>;
   cacheKeys?: Record<string, string>;
 };
 
 /**
- * signed_download_url_for_s3_key_and_filename. Not ported yet: the Rails.cache (memcached) memo of
- * the HEAD response, and the retry under another Unicode normalization of the key on NotFound.
+ * signed_download_url_for_s3_key_and_filename. Not ported: the Rails.cache (memcached) memo of the HEAD response.
+ * A NotFound is retried under the other Unicode normalizations of the key (not on MinIO, where Ruby has no retry)
+ * and rethrown when none exists.
  */
 export async function signedDownloadUrlForS3KeyAndFilename(
   s3Key: string,
@@ -269,8 +289,20 @@ export async function signedDownloadUrlForS3KeyAndFilename(
     });
   }
 
-  const { contentLength } = await head(config.s3Bucket, s3Key);
-  const publicUrlPath = uriPath(s3PublicUrl(config.s3Bucket, s3Key, config));
+  // Only the served object moves to the variant key; the disposition and cache key keep the stored key and filename.
+  let objectKey = s3Key;
+  let contentLength: number | undefined;
+  try {
+    ({ contentLength } = await head(config.s3Bucket, s3Key));
+  } catch (error) {
+    if (!isNotFound(error)) throw error;
+    const exists = options.keyExists ?? (async (key: string) => head(config.s3Bucket, key).then(() => true, (e: unknown) => (isNotFound(e) ? false : Promise.reject(e))));
+    const variant = await existingS3KeyVariant(s3Key, exists);
+    if (variant === null) throw error;
+    objectKey = variant;
+    ({ contentLength } = await head(config.s3Bucket, variant));
+  }
+  const publicUrlPath = uriPath(s3PublicUrl(config.s3Bucket, objectKey, config));
   // Ruby strips "/<bucket>" without a trailing slash; keep that exact behaviour.
   const s3Path = publicUrlPath.replace(new RegExp(`^/${config.s3Bucket.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}`, "u"), "").replace(/^\//u, "");
   const cacheable = Math.trunc(contentLength ?? 0) < config.cloudflareCacheLimit;

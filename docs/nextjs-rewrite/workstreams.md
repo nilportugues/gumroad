@@ -83,8 +83,6 @@ Parity replays still failing after the first full run against real Rails (setup 
   back to resolve the attachment, so a wrong token would only show on save. Record one from Rails
   (`Rails.application.message_verifier("ActiveStorage")`, `blob.signed_id`) with a known `SECRET_KEY_BASE`, add it to
   `auth/message-verifier.test.ts`, then wire the four readers.
-- **Subtitle whose S3 object is missing**: Ruby retries the key under another Unicode normalization (`S3KeyUnicodeNormalization`) before it
-  gives up and drops the subtitle. `signedDownloadUrlForS3KeyAndFilename` has no retry, so the case hands back.
 - **`POST /customer_surcharge`** (WS-20a): only the arithmetic is in `tax/customer-surcharge.ts`. The endpoint also needs `BuyerCurrencyQuote`
   (Stripe FX quotes), `DirectListedAmountToken`, `PaymentMethodListToken` and GeoIP currency detection. A first cut could serve the cart with no
   buyer-local-currency seller and hand back the rest.
