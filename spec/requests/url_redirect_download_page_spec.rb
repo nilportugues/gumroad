@@ -33,7 +33,7 @@ describe "Url redirect download page", type: :request do
     end
 
     it "echoes the saved content page id", parity: true do
-      purchase.update!(last_content_page_id: "saved-page-id")
+      purchase.update_columns(json_data: { last_content_page_id: "saved-page-id" })
       log_in(buyer)
 
       get url_redirect_download_page_path(url_redirect.token)
