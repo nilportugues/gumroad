@@ -1,8 +1,10 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { db } from "../../../lib/db.ts";
+import { getRedis } from "../../infra/redis.ts";
+import { balanceStatsCacheKey } from "../../models/user-balance-stats.ts";
 import { HandBackToRails } from "../../controllers/application-controller.ts";
-import { planPayouts } from "./payouts.ts";
+import { planPayouts, payoutsProps } from "./payouts.ts";
 
 // What the Payouts page cannot answer goes to Rails whole. These rows are written with ids far above anything a
 // replay seeds and removed afterwards; the test needs the database of the parity runs.
@@ -85,6 +87,55 @@ describe.skipIf(!url)("planPayouts hands back what it cannot prove", () => {
     const user = await seller({ completedPayout: true });
     await db.$executeRawUnsafe(`UPDATE payments SET currency = 'xxq' WHERE user_id = ${USER_ID}`);
     await expect(planPayouts(user, null, NOW)).rejects.toBeInstanceOf(HandBackToRails);
+  });
+
+  describe("a seller whose balance stats are cached", () => {
+    const redis = () => getRedis("main");
+    const cacheable = async (attributes: Parameters<typeof seller>[0] = {}) => {
+      const user = await seller(attributes);
+      await redis().set("balance_stats:sales_caching_threshold", "10");
+      await db.$executeRawUnsafe(`INSERT INTO large_sellers (user_id, sales_count, created_at, updated_at) VALUES (${USER_ID}, 10, NOW(), NOW())`);
+      return user;
+    };
+    const cleanUp = async () => {
+      await redis().del(balanceStatsCacheKey(USER_ID), "balance_stats:sales_caching_threshold", "balance_stats:users_excluded_from_caching");
+      await db.$executeRawUnsafe(`DELETE FROM large_sellers WHERE user_id = ${USER_ID}`);
+    };
+    afterEach(cleanUp);
+
+    it("hands back a seller whose blob is cached", async () => {
+      const user = await cacheable();
+      await redis().set(balanceStatsCacheKey(USER_ID), JSON.stringify({ next_payout_period_data: null, processing_payout_periods_data: [] }));
+      await expect(planPayouts(user, null, NOW)).rejects.toBeInstanceOf(HandBackToRails);
+    });
+
+    it("computes live and plans the refresh job when the blob is missing", async () => {
+      const plan = await planPayouts(await cacheable(), null, NOW);
+      expect(plan.refreshBalanceStatsCache).toBe(true);
+    });
+
+    it("reads an unparseable or null blob as a miss", async () => {
+      const user = await cacheable();
+      for (const blob of ["{not json", "null", ""]) {
+        await redis().set(balanceStatsCacheKey(USER_ID), blob);
+        expect((await planPayouts(user, null, NOW)).refreshBalanceStatsCache, blob).toBe(true);
+      }
+    });
+
+    it("plans no refresh for a seller below the threshold or excluded from caching", async () => {
+      const user = await cacheable();
+      await redis().sadd("balance_stats:users_excluded_from_caching", String(USER_ID));
+      expect((await planPayouts(user, null, NOW)).refreshBalanceStatsCache).toBe(false);
+      await redis().del("balance_stats:users_excluded_from_caching");
+      await redis().set("balance_stats:sales_caching_threshold", "11");
+      expect((await planPayouts(user, null, NOW)).refreshBalanceStatsCache).toBe(false);
+    });
+
+    it("builds no props that enqueue the refresh for a seller that is not cacheable", async () => {
+      const plan = await planPayouts(await seller(), null, NOW);
+      expect(plan.refreshBalanceStatsCache).toBe(false);
+      expect(payoutsProps(plan, NOW).past).toBeTypeOf("function");
+    });
   });
 
   it("raises Pagy's overflow for a page past the last one when there are no payouts", async () => {

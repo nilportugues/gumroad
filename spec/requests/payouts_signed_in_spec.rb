@@ -315,6 +315,32 @@ describe "Payouts page when signed in", type: :request do
     end
   end
 
+  describe "a seller whose balance stats are cached" do
+    before do
+      $redis.set(RedisKey.balance_stats_sales_caching_threshold, 1)
+      LargeSeller.create!(user: seller, sales_count: 1)
+      create(:ach_account, user: seller)
+      balance(amount_cents: 12_000)
+    end
+
+    it "computes the periods live and queues the cache refresh while no blob exists", parity: true do
+      visit_payouts
+
+      expect(response).to be_successful
+      expect(props["next_payout_period_data"]).to include("status" => "payable", "payout_cents" => 12_000)
+      expect(UpdateUserBalanceStatsCacheWorker.jobs.map { _1["args"] }).to eq([[seller.id]])
+    end
+
+    it "computes the periods live and queues nothing for a seller excluded from caching", parity: true do
+      $redis.sadd(RedisKey.balance_stats_users_excluded_from_caching, seller.id)
+
+      visit_payouts
+
+      expect(props["next_payout_period_data"]).to include("status" => "payable", "payout_cents" => 12_000)
+      expect(UpdateUserBalanceStatsCacheWorker.jobs).to be_empty
+    end
+  end
+
   describe "team members" do
     %w[accountant admin support].each do |role|
       it "lets #{role} see the payouts", parity: true do

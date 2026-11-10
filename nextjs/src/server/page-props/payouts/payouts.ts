@@ -3,19 +3,22 @@
 //
 // What the port cannot prove goes to Rails whole (`HandBackToRails`, decided before the page renders by
 // `planPayouts`): daily payouts of a compliant seller (Payouts.is_user_payable), a seller whose payout account is
-// seasoned for instant payouts (Stripe is asked about the bank account), a cached balance-stats blob, a PayPal
+// seasoned for instant payouts (Stripe is asked about the bank account), a cached balance-stats blob that exists, a PayPal
 // connected account and bank account classes whose routing number is not derivable. A daily seller that is not
 // compliant is scheduled weekly, an unseasoned account rules instant payouts out, and payouts in a currency the
 // money gem knows are formatted here.
+// A cacheable seller whose blob is missing is computed live and the refresh job is enqueued, as in Rails.
 // The chargeback-rate reserve is read from the ledger here (see `reserveBreakdown`).
 import { Prisma, type User } from "@prisma/client";
 
 import { encrypt as externalId } from "../../../lib/obfuscate-ids.ts";
 import { getRedis } from "../../infra/redis.ts";
 import { HandBackToRails } from "../../controllers/application-controller.ts";
+import { enqueue } from "../../jobs/enqueue.ts";
 import { formattedDollarAmount } from "../../models/concerns/currency-helper.ts";
 import { knownCurrency, moneyFormatWithGemSymbol } from "../../models/concerns/money-formatter.ts";
 import { type MerchantAccountRow, isStripeConnectAccount } from "../../models/merchant-account.ts";
+import { balanceStatsCacheKey } from "../../models/user-balance-stats.ts";
 import { column, selectRows, table } from "../../models/sql.ts";
 import { jsonDataForAttr, RISK_STATES, UserFlags, Users } from "../../models/user.ts";
 import { NotPortedError } from "../not-ported.ts";
@@ -260,6 +263,8 @@ export type PayoutsPlan = {
   frequency: PayoutFrequency;
   // Stored as daily, scheduled as weekly (see planPayouts).
   dailyFallback: boolean;
+  // A cacheable seller whose blob is missing: the page computes live and enqueues UpdateUserBalanceStatsCacheWorker.
+  refreshBalanceStatsCache: boolean;
 };
 
 const completedDisplayable = (userId: bigint) => Prisma.sql`FROM payments WHERE payments.user_id = ${userId} AND payments.state = 'completed' AND payments.created_at >= ${OLDEST_DISPLAYABLE}`;
@@ -294,6 +299,18 @@ export async function balanceStatsCacheApplies(userId: bigint): Promise<boolean>
   }
 }
 
+// UserBalanceStatsService#read_cache: a blob that is absent, unparseable or JSON null is a miss, and so is an unreadable Redis.
+export async function balanceStatsCacheHit(userId: bigint): Promise<boolean> {
+  try {
+    const data = await getRedis("main").get(balanceStatsCacheKey(userId));
+    if (data === null) return false;
+    const parsed: unknown = JSON.parse(data);
+    return parsed !== null && parsed !== false;
+  } catch {
+    return false;
+  }
+}
+
 export async function planPayouts(seller: Seller, pageParam: string | null, now = new Date()): Promise<PayoutsPlan> {
   const record = Users.load(seller);
   const storedFrequency = jsonDataForAttr(record, "payout_frequency", "weekly");
@@ -303,7 +320,9 @@ export async function planPayouts(seller: Seller, pageParam: string | null, now 
   const compliant = seller.user_risk_state === "compliant";
   if (storedFrequency === "daily" && compliant) throw new HandBackToRails();
   const frequency = storedFrequency === "daily" ? "weekly" : storedFrequency;
-  if (await balanceStatsCacheApplies(seller.id)) throw new HandBackToRails();
+  // A cached blob is served as is by Rails and a job refreshes it; only a miss (computed live, job enqueued) is ported.
+  const refreshBalanceStatsCache = await balanceStatsCacheApplies(seller.id);
+  if (refreshBalanceStatsCache && (await balanceStatsCacheHit(seller.id))) throw new HandBackToRails();
 
   const facts = await payoutFacts(seller, now);
   // User#eligible_for_instant_payouts? asks Stripe about the bank account once the account is seasoned.
@@ -333,6 +352,7 @@ export async function planPayouts(seller: Seller, pageParam: string | null, now 
     activeBank: await activeBankAccount(seller.id),
     frequency: frequency as PayoutFrequency,
     dailyFallback: storedFrequency === "daily",
+    refreshBalanceStatsCache,
   };
 
   // Everything the props would throw NotPortedError for: Rails serves those requests.
@@ -602,12 +622,19 @@ export function payoutsProps(plan: PayoutsPlan, now = new Date()): PayoutsProps 
   let cached: Promise<Context> | undefined;
   const ctx = () => (cached ??= context(plan, now));
   const { seller } = plan;
+  // PayoutsPresenter#payout_periods is memoised: one enqueue per request, when the first of the two readers runs.
+  let refreshed: Promise<unknown> | undefined;
+  const refreshCache = () => {
+    if (!plan.refreshBalanceStatsCache) return undefined;
+    return (refreshed ??= enqueue("UpdateUserBalanceStatsCacheWorker", [Number(seller.id)]));
+  };
 
   const period = async (data: Period, isCurrent: boolean) => withCurrencyDisplay(await ctx(), data, isCurrent);
   const connectRouting = async () => (await ctx()).facts.stripeConnectRoutingActive;
 
   return {
     next: async () => {
+      await refreshCache();
       // UserBalanceStatsService#next_payout_period_data: none while a standard payout is still processing.
       const pending = await one(
         Prisma.sql`SELECT payments.id FROM payments WHERE payments.user_id = ${seller.id} AND payments.state = 'processing' AND (JSON_UNQUOTE(JSON_EXTRACT(payments.json_data, '$.type')) != ${INSTANT_TYPE} OR JSON_EXTRACT(payments.json_data, '$.type') IS NULL) LIMIT 1`,
@@ -617,6 +644,7 @@ export function payoutsProps(plan: PayoutsPlan, now = new Date()): PayoutsProps 
       return { ...data, stripe_connect_routing_active: await connectRouting() };
     },
     processing: async () => {
+      await refreshCache();
       const result: Period[] = [];
       for (const { payment, bank } of plan.processingPayments) {
         const data = await period(await oldPayoutPeriodData(await ctx(), payment, bank), false);

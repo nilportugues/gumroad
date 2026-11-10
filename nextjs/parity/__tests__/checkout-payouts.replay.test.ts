@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { closeAllRedis } from "@/server/infra/redis";
 
+import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
@@ -32,7 +33,9 @@ const ELASTICSEARCH_HOST = process.env.ELASTICSEARCH_HOST ?? "http://localhost:9
 // The sales totals behind a signed-in page read the purchases index, which the replayer does not seed: it is created
 // empty, with the settings and mappings of the index Rails writes to.
 const RAILS_PURCHASE_INDEX = "purchase-test";
-const REPLAY_PURCHASE_INDEX = "purchases";
+// A lane sets PARITY_ES_INDEX_SUFFIX so its replay does not recreate the index another lane is reading.
+const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "";
+const REPLAY_PURCHASE_INDEX = `purchases${ES_INDEX_SUFFIX}`;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
 const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1];
@@ -71,6 +74,26 @@ const COMPARE = {
     "response.json.props.next_payout_period_data.displayable_payout_period_range",
   ],
 };
+
+// Jobs Node enqueues are BullMQ jobs wrapping the Sidekiq item (the cache refresh of a large seller's Payouts page).
+function redisJobs(redis: Redis): JobsChannel {
+  return {
+    async reset() {
+      /* the seeder flushes the database */
+    },
+    async drain(): Promise<RawJob[]> {
+      const jobs: RawJob[] = [];
+      for (const key of await redis.keys("bull:*")) {
+        if ((await redis.type(key)) !== "hash") continue;
+        const data = await redis.hget(key, "data");
+        if (data === null) continue;
+        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as { class: string; args: unknown[]; queue: string };
+        jobs.push({ class: item.class, args: item.args, queue: item.queue });
+      }
+      return jobs;
+    },
+  };
+}
 
 const cases = SPEC_DIRS.flatMap((dir) =>
   readdirSync(path.join(FIXTURES_ROOT, dir))
@@ -115,11 +138,14 @@ describe.skipIf(!url)("Checkout, subscription and payouts parity", () => {
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
       ...(stripeKey ? { STRIPE_PUBLIC_KEY_TEST: stripeKey } : {}),
       ELASTICSEARCH_HOST,
+      ES_INDEX_SUFFIX,
       NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS.join(","),
       RAILS_ORIGIN: "http://rails.invalid",
       SECRET_KEY_BASE,
       DATABASE_URL: url!,
       REDIS_HOST: redisHost,
+      SIDEKIQ_REDIS_HOST: redisHost,
+      JOBS_REDIS_URL: `redis://${redisHost}`,
     });
   }, FIRST_COMPILE_TIMEOUT_MS);
 
@@ -141,6 +167,7 @@ describe.skipIf(!url)("Checkout, subscription and payouts parity", () => {
       const result = await replayFixtureExchange(loadFixture(fixturePath), index, {
         sql,
         redis: redisSeeder(redis),
+        jobs: redisJobs(redis),
         transport: httpTransport(server.baseUrl),
         interceptHttp: false,
         rewriteRequest: (request, fixture, now) => reencryptCookies(request, fixture, SECRET_KEY_BASE, now),
