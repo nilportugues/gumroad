@@ -118,13 +118,27 @@ describe("Api::V2::PayoutsController#index", () => {
     await expect(index({ owner, params: { before: ["2024-01-01"] }, request })).rejects.toThrow(/non-text/u);
   });
 
-  it("hands back a destination whose account_number_visual is its own", async () => {
+  it.each([
+    ["PolandBankAccount", "PL******6789"],
+    ["BosniaAndHerzegovinaBankAccount", "BA******6789"],
+    ["CoteDIvoireBankAccount", "CI******6789"],
+    ["SwissBankAccount", "CH******6789"],
+    ["UaeBankAccount", "AE******6789"],
+    ["AchAccount", "******6789"],
+  ])("prefixes the visual of a %s destination as Rails does", async (type, visual) => {
     mocks.selectRows
       .mockResolvedValueOnce([payment({ bank_account_id: 3 })])
-      .mockResolvedValueOnce([{ id: 3, type: "PolandBankAccount", account_number_last_four: "6789" }]);
-    await expect(index({ owner, params: { include_upcoming: "false" }, request })).rejects.toThrow(
-      /PolandBankAccount/u,
-    );
+      .mockResolvedValueOnce([{ id: 3, type, account_number_last_four: "6789" }]);
+    expect(
+      body(await index({ owner, params: { include_upcoming: "false" }, request })).payouts[0].bank_account_visual,
+    ).toBe(visual);
+  });
+
+  it.each(["CardBankAccount", "EuropeanBankAccount"])("hands back a %s destination", async (type) => {
+    mocks.selectRows
+      .mockResolvedValueOnce([payment({ bank_account_id: 3 })])
+      .mockResolvedValueOnce([{ id: 3, type, account_number_last_four: "6789" }]);
+    await expect(index({ owner, params: { include_upcoming: "false" }, request })).rejects.toThrow(type);
   });
 });
 

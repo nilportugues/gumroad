@@ -24,41 +24,45 @@ const PAYMENTS = "payments";
 const OLDEST_DISPLAYABLE_PAYOUT_DATE = "2013-01-04";
 const COMPLETED = "completed";
 
-// Bank account classes whose #account_number_visual is not "******" + the last four digits (country prefixed, "BA" prefixed or the card's).
-const OWN_ACCOUNT_NUMBER_VISUAL = new Set([
-  "AlbaniaBankAccount",
-  "AngolaBankAccount",
-  "AzerbaijanBankAccount",
-  "BahrainBankAccount",
-  "BeninBankAccount",
-  "BosniaAndHerzegovinaBankAccount",
-  "BulgariaBankAccount",
-  "CardBankAccount",
-  "CostaRicaBankAccount",
-  "CoteDIvoireBankAccount",
-  "CzechRepublicBankAccount",
-  "DenmarkBankAccount",
-  "EuropeanBankAccount",
-  "HungaryBankAccount",
-  "IcelandBankAccount",
-  "IsraelBankAccount",
-  "JordanBankAccount",
-  "KazakhstanBankAccount",
-  "MauritiusBankAccount",
-  "MonacoBankAccount",
-  "MoroccoBankAccount",
-  "NigerBankAccount",
-  "NigeriaBankAccount",
-  "NorthMacedoniaBankAccount",
-  "PolandBankAccount",
-  "RomaniaBankAccount",
-  "SanMarinoBankAccount",
-  "SerbiaBankAccount",
-  "SwedenBankAccount",
-  "SwissBankAccount",
-  "TunisiaBankAccount",
-  "UaeBankAccount",
-]);
+// BankAccount#account_number_visual is "******" + the last four digits unless the class prefixes it: with its fixed `country` alpha-2
+// (IBAN countries) or a literal "BA". CardBankAccount (the card's visual) and EuropeanBankAccount (country read from the encrypted
+// account number) are the two that still hand back.
+const ACCOUNT_NUMBER_VISUAL_PREFIX: Record<string, string> = {
+  AlbaniaBankAccount: "AL",
+  AngolaBankAccount: "AO",
+  AzerbaijanBankAccount: "AZ",
+  BahrainBankAccount: "BH",
+  BeninBankAccount: "BJ",
+  BosniaAndHerzegovinaBankAccount: "BA",
+  BulgariaBankAccount: "BG",
+  CostaRicaBankAccount: "CR",
+  CoteDIvoireBankAccount: "CI",
+  CzechRepublicBankAccount: "CZ",
+  DenmarkBankAccount: "DK",
+  HungaryBankAccount: "HU",
+  IcelandBankAccount: "IS",
+  IsraelBankAccount: "IL",
+  JordanBankAccount: "JO",
+  KazakhstanBankAccount: "KZ",
+  MauritiusBankAccount: "MU",
+  MonacoBankAccount: "MC",
+  MoroccoBankAccount: "MA",
+  NigerBankAccount: "NE",
+  NigeriaBankAccount: "NG",
+  NorthMacedoniaBankAccount: "MK",
+  PolandBankAccount: "PL",
+  RomaniaBankAccount: "RO",
+  SanMarinoBankAccount: "SM",
+  SerbiaBankAccount: "RS",
+  SwedenBankAccount: "SE",
+  SwissBankAccount: "CH",
+  TunisiaBankAccount: "TN",
+  UaeBankAccount: "AE",
+};
+const OWN_ACCOUNT_NUMBER_VISUAL = new Set(["CardBankAccount", "EuropeanBankAccount"]);
+
+const accountNumberVisual = (bank: Row) =>
+  `${ACCOUNT_NUMBER_VISUAL_PREFIX[bank.type] ?? ""}******${bank.account_number_last_four ?? ""}`;
 
 const iso8601 = (time: Date | null) => (time === null ? null : `${time.toISOString().slice(0, 19)}Z`);
 
@@ -125,7 +129,7 @@ export async function payoutsAsJson(payments: Row[], includeSales: boolean): Pro
       created_at: iso8601(payment.created_at),
       processed_at: payment.state === COMPLETED ? iso8601(payment.updated_at) : null,
       payment_processor: payment.processor,
-      bank_account_visual: bank ? `******${bank.account_number_last_four ?? ""}` : null,
+      bank_account_visual: bank ? accountNumberVisual(bank) : null,
       paypal_email: payment.payment_address,
       ...sales.get(String(payment.id)),
     };

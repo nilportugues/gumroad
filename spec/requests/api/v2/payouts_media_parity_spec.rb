@@ -52,6 +52,16 @@ describe "API v2 payouts and media", type: :request do
       get "/v2/payouts", params: { include_upcoming: "false" }, headers: auth
     end
 
+    it "prefixes the bank account visual of a payout to a Polish IBAN", parity: true do
+      payout(days_ago: 7, bank_account: create(:poland_bank_account, user: seller))
+      get "/v2/payouts", params: { include_upcoming: "false" }, headers: auth
+    end
+
+    it "prefixes the bank account visual of a payout to a Bosnian account with BA", parity: true do
+      payout(days_ago: 7, bank_account: create(:bosnia_and_herzegovina_bank_account, user: seller))
+      get "/v2/payouts", params: { include_upcoming: "false" }, headers: auth
+    end
+
     it "refuses an invalid before date", parity: true do
       get "/v2/payouts", params: { before: "2024-02-30" }, headers: auth
     end
