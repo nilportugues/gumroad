@@ -45,6 +45,7 @@ const request: DiscoverRequest = {
   remoteIp: "127.0.0.1",
   cookies: new Map(),
   guid: null,
+  currentSellerId: null,
 };
 const prepared = (params: Record<string, unknown>, taxonomy: { id: bigint } | null = null) => ({ params, taxonomy, searchParams: {} }) as unknown as PreparedSearch;
 const resolve = (props: Record<string, unknown>, name: string) => (props[name] as { resolve: () => unknown }).resolve();
@@ -77,15 +78,22 @@ describe("deferred Discover props", () => {
     mocks.wishlists.mockResolvedValue([{ id: "w" }]);
     expect(await deferredPropsPortable(["recommended_wishlists"], prepared({}), null, null, request)).toBe(true);
     expect(await deferredPropsPortable(["recommended_products", "recommended_wishlists"], prepared({}, { id: 5n }), null, null, request)).toBe(true);
-    expect(mocks.wishlists).toHaveBeenLastCalledWith(5n);
+    expect(mocks.wishlists).toHaveBeenLastCalledWith(5n, null);
     expect(await resolve(deferredProps(prepared({}), request, null), "recommended_wishlists")).toEqual([{ id: "w" }]);
-    expect(mocks.wishlists).toHaveBeenLastCalledWith(null);
+    expect(mocks.wishlists).toHaveBeenLastCalledWith(null, null);
   });
 
-  it("hands back recommended_wishlists for a signed-in visitor and a wishlist the port cannot build", async () => {
+  it("answers recommended_wishlists for a signed-in visitor on behalf of their current seller", async () => {
     const visitor = { id: 7n, flags: 0n, currency_type: "usd" };
-    expect(await deferredPropsPortable(["recommended_wishlists"], prepared({}), visitor, null, request)).toBe(false);
-    expect(mocks.wishlists).not.toHaveBeenCalled();
+    const signedIn = { ...request, currentSellerId: 3n };
+    mocks.wishlists.mockResolvedValue([{ id: "w" }]);
+    expect(await deferredPropsPortable(["recommended_wishlists"], prepared({}, { id: 5n }), visitor, null, signedIn)).toBe(true);
+    expect(mocks.wishlists).toHaveBeenLastCalledWith(5n, 3n);
+    expect(await resolve(deferredProps(prepared({}), signedIn, visitor), "recommended_wishlists")).toEqual([{ id: "w" }]);
+    expect(mocks.wishlists).toHaveBeenLastCalledWith(null, 3n);
+  });
+
+  it("hands back recommended_wishlists when a wishlist is one the port cannot build", async () => {
     mocks.wishlists.mockRejectedValue(new NotPortedError("card"));
     expect(await deferredPropsPortable(["recommended_wishlists"], prepared({}), null, null, request)).toBe(false);
   });

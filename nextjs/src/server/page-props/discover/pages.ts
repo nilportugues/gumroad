@@ -26,6 +26,7 @@ const discoverPage: PageSpec = {
       remoteIp: remoteIp(headers) ?? "127.0.0.1",
       cookies: new Map<string, string | null>(),
       guid,
+      currentSellerId: context.currentSeller?.id ?? null,
     };
     if (isAutocompleteOnlyRequest(headers)) {
       // create_discover_search! comes first, and only for a present query.

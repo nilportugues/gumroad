@@ -23,7 +23,7 @@ import { type ActionOptions, type Chain, type FilterOutcome, HandBackToRails } f
 const GUID_COOKIE = "_gumroad_guid";
 const AFFILIATE_PARAMS = ["affiliate_id", "a"];
 
-export function discoverRequestOf(request: Chain["request"], guid: string | null): DiscoverRequest {
+export function discoverRequestOf(request: Chain["request"], guid: string | null, currentSellerId: bigint | null): DiscoverRequest {
   return {
     path: request.path,
     queryString: request.queryString,
@@ -35,6 +35,7 @@ export function discoverRequestOf(request: Chain["request"], guid: string | null
     remoteIp: remoteIp(request.headers) ?? "127.0.0.1",
     cookies: request.cookies,
     guid,
+    currentSellerId,
   };
 }
 
@@ -54,6 +55,7 @@ export async function discoverFilters(chain: Chain): Promise<FilterOutcome> {
 
   const visitor = railsLoggedInUser(chain.auth.context);
   const guid = guidOf(request, chain.guid);
+  const currentSellerId = chain.auth.context.currentSeller?.id ?? null;
   if (isAutocompleteOnlyRequest(request.headers)) {
     // The search box answers before format_search_params!, the curated products and the Black Friday check.
     try {
@@ -68,11 +70,11 @@ export async function discoverFilters(chain: Chain): Promise<FilterOutcome> {
 
   const prepared = await prepareSearch(request, visitor);
   if (deferredOnly) {
-    if (!(await deferredPropsPortable(requestedDeferredProps(request.headers), prepared, visitor, guid, discoverRequestOf(request, guid)))) throw new HandBackToRails();
+    if (!(await deferredPropsPortable(requestedDeferredProps(request.headers), prepared, visitor, guid, discoverRequestOf(request, guid, currentSellerId)))) throw new HandBackToRails();
     return { state: {} };
   }
   try {
-    await searchResults(prepared, discoverRequestOf(request, guid));
+    await searchResults(prepared, discoverRequestOf(request, guid, currentSellerId));
   } catch (error) {
     if (error instanceof NotPortedError) throw new HandBackToRails();
     throw error;
