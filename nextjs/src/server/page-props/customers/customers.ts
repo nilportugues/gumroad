@@ -7,9 +7,9 @@
 // with files, a review video, and a custom field answer that carries a file (its signed id).
 import { Prisma, type Purchase, type Subscription, type User } from "@prisma/client";
 
-import { getConfig } from "../../infra/config.ts";
 import { encrypt } from "../../../lib/obfuscate-ids.ts";
 import { HandBackToRails } from "../../controllers/application-controller.ts";
+import { getConfig } from "../../infra/config.ts";
 import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
 import { railsEnv, type RailsEnv } from "../../infra/rails-env.ts";
 import { COUNTRIES, historicalNames, isBlockedCountry } from "../../models/compliance-countries.ts";
