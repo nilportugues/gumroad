@@ -855,7 +855,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "DeliverFilesReadyNotificationJob": {
     "file": "app/sidekiq/deliver_files_ready_notification_job.rb",
