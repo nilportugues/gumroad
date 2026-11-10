@@ -14,6 +14,9 @@ import { variantToOption } from "../../presenters/product-props.ts";
 import {
   affiliateJson,
   displayReferrer,
+  directCreditsOf,
+  futureSubscriptionCharge,
+  gifteeLicensesOf,
   giftOf,
   isPreorder,
   offerCodeReading,
@@ -450,6 +453,33 @@ describe("Subscription#status", () => {
   it("is not alive once its cancellation date passed, so a failed charge no longer makes it pending", () => {
     expect(subscriptionStatus(row({ cancelled_at: past }), "failed", NOW)).toBe("alive");
   });
+
+  it("asks for a new payment method only where the member would otherwise be alive", () => {
+    expect(subscriptionStatus(row(), "successful", NOW, true)).toBe("payment_method_update_required");
+    expect(subscriptionStatus(row({ cancelled_at: future }), "successful", NOW, true)).toBe("pending_cancellation");
+    expect(subscriptionStatus(row(), "failed", NOW, true)).toBe("pending_failure");
+    expect(subscriptionStatus(row({ deactivated_at: past, cancelled_at: past }), null, NOW, true)).toBe("cancelled");
+  });
+});
+
+describe("Subscription#future_subscription_charge?", () => {
+  it("is false once the fixed number of charges is done, whatever the price", () => {
+    expect(futureSubscriptionCharge(true, 500, true)).toBe(false);
+  });
+
+  it("is true while the renewal price is positive", () => {
+    expect(futureSubscriptionCharge(false, 500, false)).toBe(true);
+    expect(futureSubscriptionCharge(false, 500, true)).toBe(true);
+  });
+
+  it("is false for a free renewal without a limited-cycle discount", () => {
+    expect(futureSubscriptionCharge(false, 0, false)).toBe(false);
+    expect(futureSubscriptionCharge(false, null, false)).toBe(false);
+  });
+
+  it("hands back a free renewal under a limited-cycle discount", () => {
+    expect(() => futureSubscriptionCharge(false, 0, true)).toThrow(HandBackToRails);
+  });
 });
 
 describe("CustomerPresenter upsell", () => {
@@ -591,5 +621,85 @@ describe("Purchase#transaction_url_for_seller", () => {
       "https://sandbox.braintreegateway.com/merchants/merch123/transactions/ch_123",
     );
     vi.unstubAllEnvs();
+  });
+});
+
+function answeringTables(tables: Record<string, Record<string, unknown>[]>) {
+  setSqlClient(() => ({
+    $queryRaw: (async (query: { sql: string }) => {
+      for (const [name, rows] of Object.entries(tables)) if (query.sql.includes(`FROM \`${name}\``)) return rows;
+      throw new Error(`unexpected statement: ${query.sql}`);
+    }) as never,
+    $executeRaw: (async () => 0) as never,
+  }));
+}
+
+describe("Purchase#own_affiliate_credit_cents", () => {
+  const collaborators = new Map([["9", { id: 9, type: "Collaborator" }]]);
+  const sale = (json_data: string, affiliate_id: unknown = 9) => ({ id: 1, affiliate_id, json_data });
+
+  it("takes the direct affiliate's part off a collaborator sale that credits a DirectAffiliate", async () => {
+    answeringTables({ affiliates: [{ id: 5, type: "DirectAffiliate" }] });
+    const credits = await directCreditsOf(
+      [sale('{"direct_affiliate_id":5,"direct_affiliate_credit_cents":120}')],
+      collaborators,
+    );
+    expect(credits).toEqual(new Map([["1", 120]]));
+    expect(
+      affiliateJson({ affiliate_credit_cents: 500 }, { type: "Collaborator" }, { email: "a@example.com" }, 120).amount,
+    ).toBe("$3.80");
+  });
+
+  it("leaves the credit whole when the direct affiliate is gone, is not a DirectAffiliate or the affiliate is not a collaborator", async () => {
+    answeringTables({ affiliates: [{ id: 5, type: "GlobalAffiliate" }] });
+    const json = '{"direct_affiliate_id":5,"direct_affiliate_credit_cents":120}';
+    expect((await directCreditsOf([sale(json)], collaborators)).size).toBe(0);
+    answeringTables({ affiliates: [] });
+    expect((await directCreditsOf([sale(json)], collaborators)).size).toBe(0);
+    expect((await directCreditsOf([sale(json)], new Map([["9", { id: 9, type: "DirectAffiliate" }]]))).size).toBe(0);
+  });
+
+  it("hands back json_data it cannot read", async () => {
+    await expect(directCreditsOf([sale("direct_affiliate_id: 5")], collaborators)).rejects.toThrow(HandBackToRails);
+    answeringTables({ affiliates: [{ id: 5, type: "DirectAffiliate" }] });
+    await expect(
+      directCreditsOf([sale('{"direct_affiliate_id":5,"direct_affiliate_credit_cents":"12"}')], collaborators),
+    ).rejects.toThrow(HandBackToRails);
+  });
+});
+
+describe("Purchase#linked_license of a gift sender", () => {
+  const gifts = new Map([["1", { giftee_purchase_id: 2 }]]);
+  const LICENSED = 1n << 6n;
+
+  it("is the license of the giftee's purchase of a licensed product", async () => {
+    answeringTables({
+      licenses: [{ id: 7, purchase_id: 2, serial: "KEY-1" }],
+      purchases: [{ id: 2, link_id: 3 }],
+      links: [{ id: 3, flags: LICENSED }],
+      base_variants_purchases: [],
+    });
+    expect((await gifteeLicensesOf(gifts)).get("1")).toMatchObject({ id: 7, serial: "KEY-1" });
+  });
+
+  it("is nothing when the giftee holds no license or the product is not licensed", async () => {
+    answeringTables({ licenses: [] });
+    expect((await gifteeLicensesOf(gifts)).size).toBe(0);
+    answeringTables({
+      licenses: [{ id: 7, purchase_id: 2, serial: "KEY-1" }],
+      purchases: [{ id: 2, link_id: 3 }],
+      links: [{ id: 3, flags: 0n }],
+    });
+    expect((await gifteeLicensesOf(gifts)).size).toBe(0);
+  });
+
+  it("hands back when the giftee chose an option, whose content may leave out the license key", async () => {
+    answeringTables({
+      licenses: [{ id: 7, purchase_id: 2, serial: "KEY-1" }],
+      purchases: [{ id: 2, link_id: 3 }],
+      links: [{ id: 3, flags: LICENSED }],
+      base_variants_purchases: [{ id: 1, purchase_id: 2, base_variant_id: 4 }],
+    });
+    await expect(gifteeLicensesOf(gifts)).rejects.toThrow(HandBackToRails);
   });
 });
