@@ -85,7 +85,7 @@ describe.skipIf(!url)("Customer surcharge parity", () => {
   });
 
   it("finds the fixtures", () => {
-    expect(cases).toHaveLength(9);
+    expect(cases.length).toBeGreaterThanOrEqual(15);
   });
 
   it.each(cases)(

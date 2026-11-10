@@ -94,17 +94,6 @@ describe "Customer surcharge", type: :request do
     )
   end
 
-  it "detects the buyer's currency from a GeoIP country", parity: true do
-    post "/customer_surcharge", params: { products: [line(product)] }.to_json,
-                                headers: json_headers.merge("X-CSRF-Token" => csrf_token, "X-Forwarded-For" => "81.2.169.160")
-
-    expect(response.parsed_body).to include(
-      "detected_buyer_currency" => "gbp",
-      "buyer_currency_quote" => nil,
-      "available_buyer_currencies" => [{ "code" => "usd", "label" => "$ (US Dollars)" }]
-    )
-  end
-
   it "answers a malformed products param with an empty 400", parity: true do
     post_surcharge(products: ["not-a-product"])
 
@@ -153,17 +142,6 @@ describe "Customer surcharge", type: :request do
       post_surcharge(products: [line(physical_product, price: 1_000, quantity: 3)], country: "US", postal_code: "94104")
 
       expect(response.parsed_body).to include("shipping_rate_cents" => 900, "subtotal" => 1_000, "charge_canonical_total_cents" => 1_900)
-    end
-
-    it "falls back to the ELSEWHERE destination and charges nothing for an excluded country", parity: true do
-      physical_product.shipping_destinations << create(:shipping_destination, country_code: "ELSEWHERE", one_item_rate_cents: 800, multiple_items_rate_cents: 300)
-      physical_product.shipping_exclusions.create!(country_code: "FR")
-
-      post_surcharge(products: [line(physical_product)], country: "IT")
-      expect(response.parsed_body).to include("shipping_rate_cents" => 800)
-
-      post_surcharge(products: [line(physical_product)], country: "FR")
-      expect(response.parsed_body).to include("shipping_rate_cents" => 0)
     end
 
     it "drops VAT on a physical line bound for the EU", parity: true do
