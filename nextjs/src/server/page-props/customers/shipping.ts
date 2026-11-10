@@ -4,6 +4,7 @@ import { encrypt, encryptNumeric } from "../../../lib/obfuscate-ids.ts";
 import { HandBackToRails } from "../../controllers/application-controller.ts";
 import { usdCentsToCurrency } from "../../models/concerns/currency-helper.ts";
 import { formatJustPriceInCents } from "../../models/concerns/money-formatter.ts";
+import { RECURRENCE_LONG_INDICATOR } from "../../models/purchase-json.ts";
 import { displaySafeTrackingLink } from "../../models/shipment.ts";
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -22,12 +23,27 @@ const CARRIER_TRACKING_URL_MAPPING: Record<string, string> = {
 const OUTSIDE_PLAIN_ASCII = /[^\x01-\x7F]/u;
 const BLANK = /^[\t\n\v\f\r ]*$/u;
 const STRIP = /^[\t\n\v\f\r ]+|[\t\n\v\f\r ]+$/gu;
-// What URI.parse accepts of an http(s) URL: displaySafeTrackingLink also admits characters (`|`, `"`, a second `#`) it raises on.
-const PCHARS = String.raw`(?:[A-Za-z0-9\-._~!$&'()*+,;=:@/]|%[0-9A-Fa-f]{2})`;
-const PARSEABLE_LINK = new RegExp(
-  String.raw`^https?://[A-Za-z0-9.-]+(?::\d+)?(?:/${PCHARS}*)?(?:\?(?:${PCHARS}|\?)*)?(?:#(?:${PCHARS}|\?)*)?$`,
-  "u",
+// URI::RFC3986_Parser's URI pattern (uri 1.1.1) for an http(s) URL: scheme, authority (userinfo, reg-name or IPv4 host, port),
+// path-abempty, a query of anything but `#`, and a fragment. An IP-literal host is not modelled (see classifyHttpUrl).
+const HEX = "[0-9A-Fa-f]";
+const SEG = String.raw`(?:%${HEX}{2}|[!$&-.0-9:;=@A-Z_a-z~/])`;
+const FRAGMENT = String.raw`(?:%${HEX}{2}|[!$&-.0-9:;=@A-Z_a-z~/?])*`;
+const REG_NAME = String.raw`(?:%${HEX}{2}|[!$&-.0-9;=A-Z_a-z~])*`;
+const USERINFO = String.raw`(?:%${HEX}{2}|[!$&-.0-9:;=A-Z_a-z~])*`;
+const HTTP_URL = new RegExp(
+  String.raw`^https?://(?:(${USERINFO})@)?(${REG_NAME}|\[[^\]]*\])(?::\d*)?(?:/${SEG}*)?(?:\?[^#]*)?(?:#${FRAGMENT})?$`,
+  "iu",
 );
+
+// Whether Shipment.display_safe_tracking_link keeps a stripped, ASCII, control-free URL starting `http(s)://`: false when URI.parse
+// raises InvalidURIError, or the host is blank or a userinfo is present. null for an IP-literal host.
+function classifyHttpUrl(url: string): boolean | null {
+  const match = HTTP_URL.exec(url);
+  if (match === null) return false;
+  const [, userinfo, host] = match as unknown as [string, string | undefined, string];
+  if (host.startsWith("[")) return null;
+  return host !== "" && !userinfo;
+}
 
 // Shipment#calculated_tracking_url: the seller's URL, else the carrier's form for the tracking number, kept only when display-safe.
 export function calculatedTrackingUrl(shipment: Row): string | null {
@@ -44,26 +60,29 @@ export function calculatedTrackingUrl(shipment: Row): string | null {
   else raw = CARRIER_TRACKING_URL_MAPPING[carrier]! + trackingNumber;
 
   const safe = displaySafeTrackingLink(raw);
-  if (safe === null) throw new HandBackToRails();
-  if (!safe) return null;
+  if (safe === false) return null;
   const normalized = raw.replace(STRIP, "");
-  if (!PARSEABLE_LINK.test(normalized)) throw new HandBackToRails();
-  return normalized;
+  // null: an http(s) URL outside the simple form, which only the RFC 3986 check below can judge.
+  if (safe === null && !/^https?:\/\//iu.test(normalized)) throw new HandBackToRails();
+  const parsed = classifyHttpUrl(normalized);
+  if (parsed === null) throw new HandBackToRails();
+  return parsed ? normalized : null;
 }
 
 export type ShippingReading = { price: string; shipment: Row | null };
 
-// Purchase#formatted_shipping_amount: the shipping converted at the sale's rate from the product's currency, shown in the displayed one.
-// A price with a recurrence, or a subscription's, would append it (format_price_in_cents).
+// Purchase#formatted_shipping_amount: the shipping converted at the sale's rate from the product's currency, shown in the displayed one,
+// with format_price_in_cents' recurrence suffix. `price` is price_for_recurrence; `singleCharge` is `subscription.single_charge?`.
 export async function shippingReading(
   purchase: Row,
   link: Row,
   price: Row | undefined,
   shipment: Row | null,
   knownRate: (currency: string) => boolean,
+  singleCharge = false,
 ): Promise<ShippingReading> {
-  if (purchase.subscription_id != null || (price !== undefined && price.recurrence != null))
-    throw new HandBackToRails();
+  const recurrence = price?.recurrence == null ? null : String(price.recurrence);
+  if (recurrence !== null && !Object.hasOwn(RECURRENCE_LONG_INDICATOR, recurrence)) throw new HandBackToRails();
   const currency = String(link.price_currency_type);
   if (currency !== "usd" && !knownRate(currency)) throw new HandBackToRails();
   const converted = await usdCentsToCurrency(
@@ -71,7 +90,13 @@ export async function shippingReading(
     Number(purchase.shipping_cents),
     currency === "usd" ? undefined : Number(String(purchase.rate_converted_to_usd).trim()),
   );
-  return { price: formatJustPriceInCents(converted, String(purchase.displayed_price_currency_type)), shipment };
+  const formatted = formatJustPriceInCents(converted, String(purchase.displayed_price_currency_type));
+  // formatted_price_with_recurrence: no price at all leaves the plain amount; no recurrence still gets " x 1".
+  let text = formatted;
+  if (price !== undefined && recurrence !== null)
+    text = singleCharge ? `${formatted} once` : `${formatted} ${RECURRENCE_LONG_INDICATOR[recurrence]}`;
+  else if (price !== undefined && singleCharge) text = `${formatted} x 1`;
+  return { price: text, shipment };
 }
 
 export function shippingJson(purchase: Row, reading: ShippingReading, physical: boolean) {

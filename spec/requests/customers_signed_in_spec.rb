@@ -362,6 +362,34 @@ describe "Customers page when signed in", type: :request, elasticsearch_wait_for
     expect(customers_of(response).first["shipping"]).to be_present
   end
 
+  # Needs recording: tracking URLs that URI.parse accepts outside the simple form or raises on.
+  it "shows a tracking URL only when Ruby's URI parser accepts it", parity: true do
+    physical = create(:physical_product, user: seller, name: "Poster")
+    urls = ["HTTPS://EXAMPLE.COM/track?n=1|2", "https://example.com/a|b", "https://example.com/#a#b", "https://user@example.com/x"]
+    urls.each_with_index do |url, index|
+      purchase = build(:physical_purchase, link: physical, seller:, email: "tracked#{index}@example.com", created_at: at_midday(3 + index), purchase_state: "successful").tap { _1.save!(validate: false) }
+      create(:shipment, purchase:, ship_state: :shipped, tracking_url: url)
+    end
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    expect(customers_of(response).map { _1.dig("shipping", "tracking", "url") }).to eq(["HTTPS://EXAMPLE.COM/track?n=1|2", nil, nil, nil])
+  end
+
+  # Needs recording: has_one :shipment with two rows takes the lowest id.
+  it "shows the first of several shipments of a purchase", parity: true do
+    physical = create(:physical_product, user: seller, name: "Poster")
+    purchase = build(:physical_purchase, link: physical, seller:, created_at: at_midday(3), purchase_state: "successful").tap { _1.save!(validate: false) }
+    create(:shipment, purchase:, ship_state: :shipped, tracking_url: "https://example.com/first")
+    create(:shipment, purchase:, ship_state: :shipped, tracking_url: "https://example.com/second")
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    expect(customers_of(response).first.dig("shipping", "tracking", "url")).to eq("https://example.com/first")
+  end
+
   it "lets a support team member see the seller's customers", parity: true do
     member = create(:user)
     membership = create(:team_membership, user: member, seller:, role: TeamMembership::ROLE_SUPPORT)
