@@ -368,7 +368,8 @@ describe "Customers page when signed in", type: :request, elasticsearch_wait_for
     urls = ["HTTPS://EXAMPLE.COM/track?n=1|2", "https://example.com/a|b", "https://example.com/#a#b", "https://user@example.com/x"]
     urls.each_with_index do |url, index|
       purchase = build(:physical_purchase, link: physical, seller:, email: "tracked#{index}@example.com", created_at: at_midday(3 + index), purchase_state: "successful").tap { _1.save!(validate: false) }
-      create(:shipment, purchase:, ship_state: :shipped, tracking_url: url)
+      # The model validates a lowercase http(s) prefix; the page must still cope with what a carrier integration stored.
+      build(:shipment, purchase:, ship_state: :shipped, tracking_url: url).save!(validate: false)
     end
     sign_in_with_indexed_sales
 
