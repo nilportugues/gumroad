@@ -1,8 +1,9 @@
-// Port of app/sidekiq/expire_transcoded_videos_job.rb up to the first TranscodedVideo#mark_deleted!: the Redis limit, the
-// replica lag check and the batch query run here, and a batch with a video to expire is handed back to Rails before it
-// writes (mark_deleted! saves with a PaperTrail version and may clear the file's is_transcoded_for_hls).
+// Port of app/sidekiq/expire_transcoded_videos_job.rb: the Redis limit, the replica lag check, the batch query and
+// TranscodedVideo#mark_deleted! (a validated save with a PaperTrail version). A video with a streamable file is handed back to
+// Rails before it is written, because mark_deleted! then reads the file and may clear its is_transcoded_for_hls flag through
+// ProductFile#update!, which is not ported; the videos before it in the batch are already expired and Rails resumes with the rest.
 // Golden: __fixtures__/expire-transcoded-videos-job.golden.json (scripts/golden/expire-transcoded-videos-job.rb).
-import { Prisma } from "@prisma/client";
+import { Prisma, type TranscodedVideo } from "@prisma/client";
 import type { Redis } from "ioredis";
 
 import { getRedis } from "../../server/infra/redis.ts";
@@ -10,6 +11,7 @@ import { beforeSideEffects } from "../../server/jobs/hand-back.ts";
 import { rubyStringToBigInt } from "../../server/models/concerns/ruby-numeric.ts";
 import { ago } from "../../server/models/concerns/ruby-time.ts";
 import { column, selectRows, table } from "../../server/models/sql.ts";
+import { TranscodedVideoDeletable, TranscodedVideos } from "../../server/models/transcoded-video.ts";
 import { NotPortedError } from "../../server/models/user.ts";
 
 import { type JobDeps, modelJob } from "./support/job-deps.ts";
@@ -59,23 +61,28 @@ export const expireTranscodedVideosJobWith = (
     const redis = (expire.redis ?? (() => getRedis("main")))();
     const months = await beforeSideEffects(() => recentnessLimitInMonths(redis));
 
-    await jobDeps.watchReplicaLag();
-    const cutoff = ago({ months }, jobDeps.now());
     const columns = Prisma.join(
       COLUMNS.map((name) => column(TRANSCODED_VIDEOS, name)),
       ", ",
     );
-    const videos = await selectRows(
-      Prisma.sql`SELECT ${columns} FROM ${table(TRANSCODED_VIDEOS)} WHERE ${column(TRANSCODED_VIDEOS, "deleted_at")} IS NULL AND ${column(TRANSCODED_VIDEOS, "last_accessed_at")} <= ${cutoff} LIMIT ${Prisma.raw(String(BATCH_SIZE))}`,
-    );
-    if (videos.length === 0) return;
-
-    await beforeSideEffects(() => {
-      throw new NotPortedError(
-        "TranscodedVideo#mark_deleted!",
-        "transcoded_video.rb (PaperTrail, is_transcoded_for_hls)",
+    for (;;) {
+      await jobDeps.watchReplicaLag();
+      const cutoff = ago({ months }, jobDeps.now());
+      const videos = await selectRows<TranscodedVideo>(
+        Prisma.sql`SELECT ${columns} FROM ${table(TRANSCODED_VIDEOS)} WHERE ${column(TRANSCODED_VIDEOS, "deleted_at")} IS NULL AND ${column(TRANSCODED_VIDEOS, "last_accessed_at")} <= ${cutoff} LIMIT ${Prisma.raw(String(BATCH_SIZE))}`,
       );
-    });
+      if (videos.length === 0) return;
+
+      for (const video of videos) {
+        // `streamable` queries the file only with both columns set.
+        if (video.streamable_type !== null && video.streamable_id !== null) {
+          await beforeSideEffects(() => {
+            throw new NotPortedError("TranscodedVideo#mark_deleted!", "transcoded_video.rb (is_transcoded_for_hls)");
+          });
+        }
+        await TranscodedVideoDeletable.markDeletedBang(TranscodedVideos.load(video), { now: jobDeps.now });
+      }
+    }
   })(deps);
 
 export const expireTranscodedVideosJob = expireTranscodedVideosJobWith();
