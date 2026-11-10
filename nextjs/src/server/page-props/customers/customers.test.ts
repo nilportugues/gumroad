@@ -2,6 +2,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const flipper = vi.hoisted(() => vi.fn());
+const videoThumbnail = vi.hoisted(() => vi.fn(async (): Promise<string | null> => null));
+vi.mock("../signed-in/thumbnails.ts", () => ({ videoFileThumbnailUrl: videoThumbnail }));
 vi.mock("../../infra/flipper.ts", () => ({ isFeatureEnabled: flipper, userActor: (id: string) => `User;${id}` }));
 
 process.env.OBFUSCATE_IDS_CIPHER_KEY ??= "customers-test-obfuscate-key";
@@ -770,10 +772,7 @@ describe("commissions and review videos", () => {
     expect(readings.get("11")).toMatchObject({ status: "completed", completion: null });
   });
 
-  it("hands back a commission with files and a completion that is still in progress", async () => {
-    answering({ [asDeposit]: [commission], active_storage_attachments: [{ 1: 1 }] });
-    await expect(commissionReadings([deposit])).rejects.toBeInstanceOf(HandBackToRails);
-
+  it("hands back a completion that is still in progress", async () => {
     answering({
       [asDeposit]: [{ ...commission, completion_purchase_id: 11 }],
       purchases: [{ id: 11, purchase_state: "in_progress" }],
@@ -796,16 +795,6 @@ describe("commissions and review videos", () => {
     const shown = await shownReviewVideos([7]);
 
     expect(shown.get("7")!.map((video) => video.id)).toEqual([2, 1]);
-  });
-
-  it("hands back a video whose file has a thumbnail", async () => {
-    answering({
-      product_review_videos: [{ id: 1, product_review_id: 7, approval_status: "approved" }],
-      video_files: [{ id: 20, record_id: 1 }],
-      active_storage_attachments: [{ 1: 1 }],
-    });
-
-    await expect(shownReviewVideos([7])).rejects.toBeInstanceOf(HandBackToRails);
   });
 });
 
@@ -868,5 +857,67 @@ describe("Purchase#utm_link", () => {
 
     answering([{ purchase_id: 5, utm_link_id: 3 }], [utmLink({ seller_id: 8 })]);
     await expect(utmLinkReadings([5], seller)).rejects.toThrow(HandBackToRails);
+  });
+});
+
+describe("commission files and review video thumbnails", () => {
+  function answering(tables: Record<string, Record<string, unknown>[]>) {
+    setSqlClient(() => ({
+      $queryRaw: (async (query: { sql: string }) => {
+        for (const [name, rows] of Object.entries(tables)) if (query.sql.includes(`FROM \`${name}\``)) return rows;
+        return [];
+      }) as never,
+      $executeRaw: (async () => 0) as never,
+    }));
+  }
+
+  it("lists a commission's files with their signed ids, in attachment order", async () => {
+    process.env.SECRET_KEY_BASE = "customers-test-secret";
+    answering({
+      commissions: [{ id: 3, deposit_purchase_id: 10, completion_purchase_id: null, status: "in_progress" }],
+      active_storage_attachments: [
+        { record_id: 3, blob_id: 5, key: "k1", filename: "Mockup v2.PNG", byte_size: 2048 },
+        { record_id: 3, blob_id: 6, key: "k2", filename: "notes.txt", byte_size: 10 },
+      ],
+    });
+
+    const reading = (await commissionReadings([{ id: 10, flags: 1n << 28n }])).get("10")!;
+
+    expect(reading.files.map(({ name, size, extension, key }) => ({ name, size, extension, key }))).toEqual([
+      { name: "Mockup v2", size: 2048, extension: "PNG", key: "k1" },
+      { name: "notes", size: 10, extension: "TXT", key: "k2" },
+    ]);
+    expect(reading.files[0]!.id).toMatch(/^[^-]+--[0-9a-f]{40}$/u);
+    expect(reading.files[0]!.id).not.toBe(reading.files[1]!.id);
+  });
+
+  it("reads a commission without files as an empty list", async () => {
+    answering({ commissions: [{ id: 3, deposit_purchase_id: 10, completion_purchase_id: null, status: "completed" }] });
+
+    expect((await commissionReadings([{ id: 10, flags: 1n << 28n }])).get("10")!.files).toEqual([]);
+  });
+
+  it("puts the video file's thumbnail url on the video", async () => {
+    videoThumbnail.mockResolvedValueOnce("https://cdn.example.com/thumb.png");
+    answering({
+      product_review_videos: [{ id: 1, product_review_id: 7, approval_status: "approved" }],
+      video_files: [{ id: 20, record_id: 1 }],
+    });
+
+    const shown = await shownReviewVideos([7]);
+
+    expect(videoThumbnail).toHaveBeenCalledWith(20);
+    expect(shown.get("7")![0]!.thumbnail_url).toBe("https://cdn.example.com/thumb.png");
+  });
+
+  it("hands back a video whose thumbnail variant Rails has not processed", async () => {
+    const { NotPortedError } = await import("../not-ported.ts");
+    videoThumbnail.mockRejectedValueOnce(new NotPortedError("Generating a thumbnail variant"));
+    answering({
+      product_review_videos: [{ id: 1, product_review_id: 7, approval_status: "approved" }],
+      video_files: [{ id: 20, record_id: 1 }],
+    });
+
+    await expect(shownReviewVideos([7])).rejects.toBeInstanceOf(HandBackToRails);
   });
 });
