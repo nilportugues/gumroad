@@ -82,8 +82,10 @@ Parity replays still failing after the first full run against real Rails (setup 
   the verifier port (proven against Rails for another verifier name), so the `ActiveStorage` salt and `blob_id` purpose are unrecorded.
 - **`POST /customer_surcharge`** (WS-20a, `nextjs_checkout_surcharge`): served for one-time, non-physical lines when no seller has
   `buyer_currency_charging` on and the buyer is taxed from the lookup table (`controllers/customer-surcharge.ts`). Still hands back: a VAT id
-  (vendor validation), a US taxable state or Canadian province (TaxJar), Singapore (`applicable_years`), a Spanish rate (GeoIP subdivision
-  names), a bundle bound for an EU rate, physical lines (`ShippingDestination` is not ported), preorder, commission, membership,
+  (vendor validation), a US taxable state or Canadian province (TaxJar), a Singapore table whose `applicable_years` is missing, empty or
+  tied, a Spanish buyer the GeoIP database puts in the Canary Islands (only the last subdivision's iso code is read), a physical line whose
+  product ships to a continent (`EUROPE`, `ASIA`, `NORTH AMERICA` need the countries gem's continents), a bundle bound for an EU rate,
+  preorder, commission, membership,
   installment and renewal lines, Payment Element and `payment_method_list_token` requests (`DirectListedAmountToken`), a cart of sellers in
   the buyer-currency rollout (`BuyerCurrencyQuote`, Stripe FX), a buyer whose GeoIP country is known (needs the countries gem's currency table),
   and the 400/503 answers. Not recorded yet: the examples of `spec/requests/customer_surcharge_parity_spec.rb`.

@@ -21,7 +21,8 @@ vi.mock("../models/sql.ts", async (original) => ({
 }));
 vi.mock("../infra/flipper.ts", () => ({ isFeatureEnabled, userActor: (id: unknown) => `User;${id}` }));
 vi.mock("../infra/geo-ip.ts", () => ({ geoIpLookup }));
-vi.mock("../models/concerns/currency-helper.ts", () => ({
+vi.mock("../models/concerns/currency-helper.ts", async (original) => ({
+  ...(await original<typeof import("../models/concerns/currency-helper.ts")>()),
   getRate,
   RateUnavailable: class RateUnavailable extends Error {},
 }));
@@ -258,7 +259,6 @@ describe("hand-backs", () => {
 
   it("hands back lines that are not one-time digital purchases", async () => {
     for (const extra of [
-      { flags: flagsOf("is_physical") },
       { flags: flagsOf("is_in_preorder_state") },
       { flags: flagsOf("is_recurring_billing") },
       { native_type: "commission" },
@@ -291,11 +291,12 @@ describe("hand-backs", () => {
     );
   });
 
-  it("hands back Singapore, a Spanish rate and a bundle bound for the EU", async () => {
-    await expectHandBack(cart({ country: "SG" }));
-
+  it("hands back a Spanish buyer placed in the Canary Islands and a bundle bound for the EU", async () => {
     rates = [zipTaxRate({ country: "ES" })];
+    geoIpLookup.mockReturnValue({ countryCode: "ES", regionName: "TF" });
     await expectHandBack(cart({ country: "ES", postal_code: "08001" }));
+
+    geoIpLookup.mockReturnValue(null);
     expect((await call(cart({ country: "ES", postal_code: "35001" }))).body).toMatchObject({ tax_cents: 0 });
 
     rates = [zipTaxRate()];
@@ -329,5 +330,176 @@ describe("hand-backs", () => {
     hasBrazilianStripeConnectAccount.mockRejectedValue(new HandBackToRails("brazil"));
 
     await expectHandBack(cart());
+  });
+});
+
+const expectHandBack = async (params: Record<string, unknown>) => {
+  await expect(rejection(params)).rejects.toBeInstanceOf(HandBackToRails);
+};
+
+describe("Singapore and Spanish rates", () => {
+  const year = new Date().getUTCFullYear();
+  const sgRate = (years: unknown, extra: Record<string, unknown> = {}) =>
+    zipTaxRate({
+      country: "SG",
+      combined_rate: "0.0900000",
+      json_data: JSON.stringify({ applicable_years: years }),
+      ...extra,
+    });
+
+  it("taxes a Singapore buyer with the rate listing the current year", async () => {
+    rates = [sgRate([year - 1], { id: 1, combined_rate: "0.0800000" }), sgRate([year], { id: 2 })];
+
+    expect((await call(cart({ country: "SG" }))).body).toMatchObject({ tax_cents: 9, has_vat_id_input: true });
+  });
+
+  it("falls back to the rate with the latest year when none lists the current year", async () => {
+    rates = [sgRate([2001], { combined_rate: "0.0700000" }), sgRate([2003, 2002], { combined_rate: "0.0800000" })];
+
+    expect((await call(cart({ country: "SG" }))).body).toMatchObject({ tax_cents: 8 });
+  });
+
+  it("charges no Singapore tax without a rate", async () => {
+    expect((await call(cart({ country: "SG" }))).body).toMatchObject({ tax_cents: 0, has_vat_id_input: false });
+  });
+
+  it("hands back a Singapore rate table Ruby could not order", async () => {
+    rates = [sgRate([2001]), sgRate([2001])];
+    await expectHandBack(cart({ country: "SG" }));
+
+    rates = [sgRate([]), sgRate([2001])];
+    await expectHandBack(cart({ country: "SG" }));
+
+    rates = [sgRate(null)];
+    await expectHandBack(cart({ country: "SG" }));
+
+    rates = [sgRate([2001], { json_data: null })];
+    await expectHandBack(cart({ country: "SG" }));
+  });
+
+  it("taxes a Spanish buyer without a GeoIP record", async () => {
+    rates = [zipTaxRate({ country: "ES", combined_rate: "0.2100000" })];
+
+    expect((await call(cart({ country: "ES", postal_code: "08001" }))).body).toMatchObject({ tax_cents: 21 });
+  });
+});
+
+describe("physical lines", () => {
+  let destinations: Record<string, unknown>[];
+  let exclusions: Record<string, unknown>[];
+  const destination = (extra: Record<string, unknown> = {}) => ({
+    id: 1,
+    country_code: "US",
+    one_item_rate_cents: 500,
+    multiple_items_rate_cents: 200,
+    flags: 0,
+    ...extra,
+  });
+  const physical = (extra: Record<string, unknown> = {}) => link({ flags: flagsOf("is_physical"), ...extra });
+
+  beforeEach(() => {
+    links = [physical()];
+    destinations = [];
+    exclusions = [];
+    selectRows.mockImplementation(async (query: { sql: string; values: unknown[] }) => {
+      if (query.sql.includes("FROM `links`")) return links;
+      if (query.sql.includes("FROM `zip_tax_rates`")) return rates;
+      if (query.sql.includes("FROM `shipping_exclusions`")) return exclusions;
+      if (query.sql.includes("FROM `shipping_destinations`")) {
+        const virtual = query.sql.includes("`flags`");
+        const code = virtual ? null : (query.values.find((value) => typeof value === "string") as string);
+        return destinations.filter((row) =>
+          virtual
+            ? (Number(row.flags) & 1) !== 0 && ["EUROPE", "ASIA", "NORTH AMERICA"].includes(String(row.country_code))
+            : row.country_code === code,
+        );
+      }
+      return [];
+    });
+  });
+
+  const cartOf = (quantity: unknown, extra: Record<string, unknown> = {}) =>
+    cart({ country: "US", postal_code: "94104", ...extra }, { permalink: "abc", price: 1000, quantity });
+
+  it("adds the one item rate and the multiple items rate for the rest", async () => {
+    destinations = [destination()];
+
+    expect((await call(cartOf(3))).body).toMatchObject({
+      shipping_rate_cents: 900,
+      subtotal: 1000,
+      charge_canonical_total_cents: 1900,
+    });
+  });
+
+  it("reads a string quantity like to_i", async () => {
+    destinations = [destination()];
+
+    expect((await call(cartOf("2"))).body).toMatchObject({ shipping_rate_cents: 700 });
+  });
+
+  it("charges no shipping for a quantity below one", async () => {
+    destinations = [destination()];
+
+    expect((await call(cartOf(0))).body).toMatchObject({ shipping_rate_cents: 0 });
+  });
+
+  it("falls back to the ELSEWHERE destination", async () => {
+    destinations = [destination({ country_code: "ELSEWHERE", one_item_rate_cents: 800 })];
+
+    expect((await call(cartOf(1))).body).toMatchObject({ shipping_rate_cents: 800 });
+  });
+
+  it("charges no shipping to an excluded or unserved country, or without a country", async () => {
+    destinations = [destination()];
+    exclusions = [{ excluded: 1 }];
+    expect((await call(cartOf(1))).body).toMatchObject({ shipping_rate_cents: 0 });
+
+    exclusions = [];
+    destinations = [destination({ country_code: "CA" })];
+    expect((await call(cartOf(1))).body).toMatchObject({ shipping_rate_cents: 0 });
+
+    expect((await call(cart({}, { permalink: "abc", price: 1000, quantity: 1 }))).body).toMatchObject({
+      shipping_rate_cents: 0,
+    });
+  });
+
+  it("converts each rate term from the listed currency with one rate", async () => {
+    links = [physical({ price_currency_type: "eur" })];
+    destinations = [destination({ one_item_rate_cents: 300, multiple_items_rate_cents: 100 })];
+
+    // 300 / 1.5 = 200 and 200 / 1.5 = 133.33 -> 133
+    expect((await call(cartOf(3))).body).toMatchObject({ shipping_rate_cents: 333 });
+    expect(getRate).toHaveBeenCalledTimes(1);
+  });
+
+  it("hands back a continent destination, a fractional or missing quantity and a zero rate", async () => {
+    destinations = [destination({ country_code: "NORTH AMERICA", flags: 1 })];
+    await expectHandBack(cartOf(1, { country: "CA", state: null }));
+
+    destinations = [destination()];
+    await expectHandBack(cartOf(1.5));
+    await expectHandBack(cartOf(undefined));
+    await expectHandBack(cartOf("two"));
+
+    links = [physical({ price_currency_type: "eur" })];
+    getRate.mockResolvedValue("0");
+    await expectHandBack(cartOf(1));
+  });
+
+  it("treats the product as physical for the EU import carve-out", async () => {
+    rates = [zipTaxRate()];
+    destinations = [destination({ country_code: "DE" })];
+
+    expect((await call(cartOf(1, { country: "DE", postal_code: "10115" }))).body).toMatchObject({
+      tax_cents: 0,
+      shipping_rate_cents: 500,
+    });
+  });
+
+  it("still taxes a physical line bound for a non-EU rate", async () => {
+    rates = [zipTaxRate({ country: "AU", combined_rate: "0.1000000" })];
+    destinations = [destination({ country_code: "AU" })];
+
+    expect((await call(cartOf(1, { country: "AU" }))).body).toMatchObject({ tax_cents: 100, shipping_rate_cents: 500 });
   });
 });
