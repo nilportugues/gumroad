@@ -51,6 +51,23 @@ describe("payout schedule", () => {
     expect(checked).toBeGreaterThan(1000);
   });
 
+  it("ends the period of a daily seller that falls back to the weekly cycle the day before the payout date", async () => {
+    const today = utc("2026-03-04");
+    const ledger: Ledger = {
+      today,
+      frequency: "weekly",
+      minimumPayoutAmountCents: 1000,
+      daysBeforeCycleDate: 1,
+      unpaidBalanceCents: async () => 5000,
+      unpaidBalanceCentsUpToDate: async () => 5000,
+      paidToday: async () => false,
+      dailyFallback: true,
+    };
+    expect(isoDate((await nextPayoutDate(ledger))!)).toBe("2026-03-05");
+    expect(isoDate(await currentPayoutEndDate(ledger))).toBe("2026-03-04");
+    expect(isoDate(await currentPayoutEndDate({ ...ledger, dailyFallback: false }))).toBe("2026-02-27");
+  });
+
   it("ordinalizes like ActiveSupport", () => {
     for (const [day, text] of Object.entries(GOLDEN.ordinals as Record<string, string>)) expect(ordinalize(Number(day))).toBe(text);
     expect(formattedPayoutDate(utc("2026-03-22"))).toBe("March 22nd, 2026");

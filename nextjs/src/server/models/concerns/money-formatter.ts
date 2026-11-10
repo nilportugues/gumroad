@@ -99,6 +99,13 @@ export function moneyFormatterFormat(amount: MoneyAmount, currencyType: string, 
   return formatMoney(amount, currency, code, withSymbol ? (Object.hasOwn(CHOICES_SYMBOLS, code) ? CHOICES_SYMBOLS[code]! : currency.symbol) : null, options);
 }
 
+// `Money.new(cents, currency).format(symbol: true, ...)`: the gem's own symbol, not the pricing registry's that
+// MoneyFormatter prefers. Raises UnknownCurrency like the gem.
+export function moneyFormatWithGemSymbol(amount: MoneyAmount, currencyType: string, options: MoneyFormatOptions = {}): string {
+  const currency = findCurrency(currencyType);
+  return formatMoney(amount, currency, currencyType.toLowerCase(), currency.symbol, options);
+}
+
 // Whether the money gem knows the currency code.
 export const knownCurrency = (currencyType: string): boolean => Object.hasOwn(CURRENCIES, currencyType.toLowerCase());
 
