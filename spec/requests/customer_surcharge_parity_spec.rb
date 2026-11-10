@@ -10,7 +10,7 @@ describe "Customer surcharge", type: :request do
 
   let(:seller) { create(:user) }
   let(:product) { create(:product, user: seller, unique_permalink: "surcharge") }
-  let(:other_product) { create(:product, user: seller, unique_permalink: "surcharge2") }
+  let(:other_product) { create(:product, user: seller, unique_permalink: "surchargetwo") }
   let(:json_headers) do
     { "Accept" => "application/json", "X-Requested-With" => "XMLHttpRequest", "Content-Type" => "application/json", "Referer" => "http://#{DOMAIN}/checkout" }
   end
