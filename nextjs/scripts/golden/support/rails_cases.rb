@@ -57,7 +57,7 @@ module RailsCases
 
   REDIS_URL = ENV.fetch("SIDEKIQ_REDIS_HOST").then { "redis://#{_1}" }
   abort "Refusing to run against Redis db 0" if REDIS_URL.end_with?("/0") || !REDIS_URL.match?(%r{/\d+\z})
-  abort "Refusing to run against #{ActiveRecord::Base.connection_db_config.database}" unless ActiveRecord::Base.connection_db_config.database.match?(/_ws\d+\z/)
+  abort "Refusing to run against #{ActiveRecord::Base.connection_db_config.database}" unless ActiveRecord::Base.connection_db_config.database.match?(/_(ws)?\d+\z/)
 
   def self.included(_)
     Sidekiq::Testing.disable! if defined?(Sidekiq::Testing)

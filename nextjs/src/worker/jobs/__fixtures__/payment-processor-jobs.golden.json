@@ -6082,6 +6082,200 @@
       }
     },
     {
+      "name": "balance stats: a threshold beyond 2**53 matches nobody",
+      "seed": [
+        "INSERT INTO `users` (`id`, `email`, `username`, `external_id`, `recommendation_type`, `user_risk_state`, `flags`, `json_data`, `confirmed_at`, `created_at`, `updated_at`) VALUES (1, 'seller1@example.com', 'seller1', '1001', 'own_products', 'compliant', 0, NULL, '2026-01-01 00:00:00', '2026-01-01 00:00:00', '2026-01-01 00:00:00')",
+        "INSERT INTO `users` (`id`, `email`, `username`, `external_id`, `recommendation_type`, `user_risk_state`, `flags`, `json_data`, `confirmed_at`, `created_at`, `updated_at`) VALUES (2, 'seller2@example.com', 'seller2', '1002', 'own_products', 'compliant', 0, NULL, '2026-01-01 00:00:00', '2026-01-01 00:00:00', '2026-01-01 00:00:00')",
+        "INSERT INTO `large_sellers` (`id`, `user_id`, `sales_count`, `created_at`, `updated_at`) VALUES (1, 1, 60000, '2026-01-01 00:00:00', '2026-01-01 00:00:00')",
+        "INSERT INTO `large_sellers` (`id`, `user_id`, `sales_count`, `created_at`, `updated_at`) VALUES (2, 2, 70000, '2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+      ],
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `users`.`id` FROM `users` INNER JOIN `large_sellers` ON `large_sellers`.`user_id` = `users`.`id` WHERE (large_sellers.sales_count >= '9007199254740993')",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "balance_stats:sales_caching_threshold": {
+          "type": "string",
+          "value": "9007199254740993",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "balance_stats:sales_caching_threshold": {
+          "type": "string",
+          "value": "9007199254740993",
+          "expires": false
+        }
+      },
+      "job": "LargeSellersUpdateUserBalanceStatsCacheWorker",
+      "args": [],
+      "batch_size": 1000,
+      "hands_back": false,
+      "stripe": {
+        "responses": [],
+        "requests": []
+      }
+    },
+    {
+      "name": "balance stats: a threshold of 20 digits keeps every digit",
+      "seed": [
+        "INSERT INTO `users` (`id`, `email`, `username`, `external_id`, `recommendation_type`, `user_risk_state`, `flags`, `json_data`, `confirmed_at`, `created_at`, `updated_at`) VALUES (1, 'seller1@example.com', 'seller1', '1001', 'own_products', 'compliant', 0, NULL, '2026-01-01 00:00:00', '2026-01-01 00:00:00', '2026-01-01 00:00:00')",
+        "INSERT INTO `large_sellers` (`id`, `user_id`, `sales_count`, `created_at`, `updated_at`) VALUES (1, 1, 60000, '2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+      ],
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `users`.`id` FROM `users` INNER JOIN `large_sellers` ON `large_sellers`.`user_id` = `users`.`id` WHERE (large_sellers.sales_count >= '123456789012345678901')",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "balance_stats:sales_caching_threshold": {
+          "type": "string",
+          "value": "  123_456789012345678901 sales",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "balance_stats:sales_caching_threshold": {
+          "type": "string",
+          "value": "  123_456789012345678901 sales",
+          "expires": false
+        }
+      },
+      "job": "LargeSellersUpdateUserBalanceStatsCacheWorker",
+      "args": [],
+      "batch_size": 1000,
+      "hands_back": false,
+      "stripe": {
+        "responses": [],
+        "requests": []
+      }
+    },
+    {
+      "name": "balance stats: a negative threshold beyond 2**53 matches everybody",
+      "seed": [
+        "INSERT INTO `users` (`id`, `email`, `username`, `external_id`, `recommendation_type`, `user_risk_state`, `flags`, `json_data`, `confirmed_at`, `created_at`, `updated_at`) VALUES (1, 'seller1@example.com', 'seller1', '1001', 'own_products', 'compliant', 0, NULL, '2026-01-01 00:00:00', '2026-01-01 00:00:00', '2026-01-01 00:00:00')",
+        "INSERT INTO `users` (`id`, `email`, `username`, `external_id`, `recommendation_type`, `user_risk_state`, `flags`, `json_data`, `confirmed_at`, `created_at`, `updated_at`) VALUES (2, 'seller2@example.com', 'seller2', '1002', 'own_products', 'compliant', 0, NULL, '2026-01-01 00:00:00', '2026-01-01 00:00:00', '2026-01-01 00:00:00')",
+        "INSERT INTO `large_sellers` (`id`, `user_id`, `sales_count`, `created_at`, `updated_at`) VALUES (1, 1, 0, '2026-01-01 00:00:00', '2026-01-01 00:00:00')",
+        "INSERT INTO `large_sellers` (`id`, `user_id`, `sales_count`, `created_at`, `updated_at`) VALUES (2, 2, 5, '2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+      ],
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `users`.`id` FROM `users` INNER JOIN `large_sellers` ON `large_sellers`.`user_id` = `users`.`id` WHERE (large_sellers.sales_count >= '-9007199254740993')",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                1
+              ],
+              [
+                2
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "balance_stats:sales_caching_threshold": {
+          "type": "string",
+          "value": "-9007199254740993",
+          "expires": false
+        },
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":1,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"class\":\"UpdateUserBalanceStatsCacheWorker\",\"args\":[1],\"jid\":\"000000000000000000000002\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1],\"lock_digest\":\"uniquejobs:63c591adbd8f224e02c8c3ebadf27dfa\"}",
+              1793795445.1230001
+            ],
+            [
+              "{\"retry\":1,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"class\":\"UpdateUserBalanceStatsCacheWorker\",\"args\":[2],\"jid\":\"000000000000000000000003\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[2],\"lock_digest\":\"uniquejobs:0d374f1dca1731f32aa03345aeda0872\"}",
+              1793797245.1230001
+            ]
+          ],
+          "expires": false
+        },
+        "uniquejobs:0d374f1dca1731f32aa03345aeda0872": {
+          "type": "string",
+          "value": "000000000000000000000003",
+          "expires": false
+        },
+        "uniquejobs:0d374f1dca1731f32aa03345aeda0872:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000003": "1.7937954451230001e+9"
+          },
+          "expires": false
+        },
+        "uniquejobs:63c591adbd8f224e02c8c3ebadf27dfa": {
+          "type": "string",
+          "value": "000000000000000000000002",
+          "expires": false
+        },
+        "uniquejobs:63c591adbd8f224e02c8c3ebadf27dfa:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000002": "1.7937954451230001e+9"
+          },
+          "expires": false
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "count": 4,
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:63c591adbd8f224e02c8c3ebadf27dfa",
+              1793795445.1230001
+            ],
+            [
+              "uniquejobs:0d374f1dca1731f32aa03345aeda0872",
+              1793797245.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "balance_stats:sales_caching_threshold": {
+          "type": "string",
+          "value": "-9007199254740993",
+          "expires": false
+        }
+      },
+      "job": "LargeSellersUpdateUserBalanceStatsCacheWorker",
+      "args": [],
+      "batch_size": 1000,
+      "hands_back": false,
+      "stripe": {
+        "responses": [],
+        "requests": []
+      }
+    },
+    {
       "name": "balance stats: users excluded from caching",
       "seed": [
         "INSERT INTO `users` (`id`, `email`, `username`, `external_id`, `recommendation_type`, `user_risk_state`, `flags`, `json_data`, `confirmed_at`, `created_at`, `updated_at`) VALUES (1, 'seller1@example.com', 'seller1', '1001', 'own_products', 'compliant', 0, NULL, '2026-01-01 00:00:00', '2026-01-01 00:00:00', '2026-01-01 00:00:00')",

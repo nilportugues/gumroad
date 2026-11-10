@@ -33,6 +33,12 @@ export function rubyToI(value: unknown): number {
   throw new TypeError(`undefined method 'to_i' for ${typeof value === "boolean" ? String(value) : "an instance of " + (Array.isArray(value) ? "Array" : "Hash")}`);
 }
 
+// `String#to_i` without the 2**53 ceiling: Ruby's Integer is unbounded, and the digits go into SQL.
+export function rubyStringToBigInt(value: string): bigint {
+  const match = /^[ \t\n\v\f\r]*([+-]?\d+(?:_\d+)*)/u.exec(value);
+  return match ? BigInt(match[1]!.replaceAll("_", "")) : 0n;
+}
+
 // C's frexp exponent: x = m * 2**binexp with 0.5 <= |m| < 1 (0 for zero and non-finite values).
 function frexpExponent(value: number): number {
   if (value === 0 || !Number.isFinite(value)) return 0;
