@@ -271,6 +271,29 @@ describe "Product editor when signed in", type: :request do
     expect(inertia_props_of(response)).to include("sales_count_for_inventory" => 0)
   end
 
+  it "reads the free trial and subscription duration settings", parity: true do
+    product.free_trial_enabled = true
+    product.free_trial_duration_amount = 2
+    product.free_trial_duration_unit = :month
+    product.subscription_duration = :yearly
+    product.save!(validate: false)
+    log_in(seller)
+
+    get edit_link_path(product.unique_permalink)
+
+    expect(inertia_props_of(response)["product"]).to include("free_trial_enabled" => true, "free_trial_duration_amount" => 2, "free_trial_duration_unit" => "month", "subscription_duration" => "yearly")
+  end
+
+  it "reads the product's live installment plan and ignores a deleted one", parity: true do
+    create(:product_installment_plan, link: product, number_of_installments: 3, recurrence: "monthly", deleted_at: 1.day.ago)
+    create(:product_installment_plan, link: product, number_of_installments: 4, recurrence: "monthly")
+    log_in(seller)
+
+    get edit_link_path(product.unique_permalink)
+
+    expect(inertia_props_of(response)["product"]).to include("allow_installment_plan" => true, "installment_plan" => { "number_of_installments" => 4, "recurrence" => "monthly" })
+  end
+
   it "sends a signed-out visitor to the login page", parity: true do
     get edit_link_path(product.unique_permalink)
 
