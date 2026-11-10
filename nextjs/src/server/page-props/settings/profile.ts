@@ -92,8 +92,22 @@ function followRecaptchaSiteKey(seller: Seller): string | null {
   return present(siteKey) ? siteKey : null;
 }
 
+type PostRow = { id: number | bigint; name: string | null; slug: string | null; flags: number | bigint; published_at: Date | null };
+
+// The `shown_on_profile` filter and the 999-post page of ProfileSectionsPresenter#visible_posts, over rows already in
+// `published_at DESC, id ASC` order.
+export function shownProfilePosts(posts: PostRow[]) {
+  const shown = posts.filter((post) => (Number(post.flags) & SHOWN_ON_PROFILE) !== 0).slice(0, MAX_VISIBLE_POSTS);
+  return shown.map((post) => ({
+    id: externalId(post.id),
+    name: post.name,
+    slug: post.slug,
+    published_at: post.published_at!.toISOString(),
+  }));
+}
+
 // ProfileSectionsPresenter#visible_posts
-async function visiblePosts(seller: Seller) {
+export async function visiblePosts(seller: { id: number | bigint }) {
   const posts = await db.installment.findMany({
     where: {
       seller_id: Number(seller.id),
@@ -104,13 +118,7 @@ async function visiblePosts(seller: Seller) {
     },
     orderBy: [{ published_at: "desc" }, { id: "asc" }],
   });
-  const shown = posts.filter((post) => (post.flags & SHOWN_ON_PROFILE) !== 0).slice(0, MAX_VISIBLE_POSTS);
-  return shown.map((post) => ({
-    id: externalId(post.id),
-    name: post.name,
-    slug: post.slug,
-    published_at: post.published_at!.toISOString(),
-  }));
+  return shownProfilePosts(posts);
 }
 // Installment flag 8, :shown_on_profile
 const SHOWN_ON_PROFILE = 2 ** 7;

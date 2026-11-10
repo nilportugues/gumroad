@@ -88,7 +88,7 @@ const RENDERED = new Set(
     "answers-an-inertia-visit-with-the-page-as-json",
   ]
     .map((name) => `on-a-seller-subdomain-${name}`)
-    .concat(["on-a-product-s-custom-domain-renders-the-product-at-the-root", "signed-in-shows-the-seller-their-own-product-with-the-edit-controls"]),
+    .concat(["on-a-product-s-custom-domain-renders-the-product-at-the-root", "signed-in-shows-the-seller-their-own-product-with-the-edit-controls", "signed-in-lists-the-posts-a-profile-section-could-show-in-the-seller-s-edit-controls"]),
 );
 
 // The route gate (hostKindOf) sends a host that no alive seller owns to Rails whole: its catch-all is the 404.

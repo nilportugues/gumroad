@@ -515,5 +515,20 @@ describe "Product page", type: :request do
       expect(response).to be_successful
       expect(inertia_props_of(response)["product"]["can_edit"]).to eq(true)
     end
+
+    it "lists the posts a profile section could show in the seller's edit controls", parity: true do
+      product = create(:product, user: seller, name: "Mine")
+      create(:audience_post, :published, seller:, shown_on_profile: true, name: "Newer post", published_at: 1.day.ago)
+      create(:audience_post, :published, seller:, shown_on_profile: true, name: "Older post", published_at: 3.days.ago)
+      create(:audience_post, :published, seller:, shown_on_profile: false, name: "Hidden post")
+      host! DOMAIN
+      log_in(seller, token_path: "/help")
+      seller_host!
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["posts"].map { _1["name"] }).to eq(["Newer post", "Older post"])
+    end
   end
 end
