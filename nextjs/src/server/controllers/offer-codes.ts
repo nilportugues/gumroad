@@ -1,14 +1,16 @@
 // Port of app/controllers/offer_codes_controller.rb#compute_discount and the read-only core of
 // app/services/offer_code_discount_computing_service.rb (cart of permalinks, `key_by_input: false`).
 //
-// A code or cart that needs more than that hands back to Rails (HandBackToRails): a once-per-cart-fixed code and a
-// line whose product has cross-sells to apply optimistically. A signed-out visitor has no purchases, so an
+// A code or cart that needs more than that hands back to Rails (HandBackToRails): a line whose product has cross-sells
+// to apply optimistically. A signed-out visitor has no purchases, so an
 // existing-customers code gives them nothing and a tiered one its month-0 tier; a signed-in buyer is measured
 // against their purchase history (`ownershipMonthsFor`, `returningCustomer`).
 import { Prisma, type Link, type User } from "@prisma/client";
 
 import { encrypt } from "../../lib/obfuscate-ids.ts";
 import type { OfferCodeRecord } from "../models/offer-code.ts";
+import { rubyInteger } from "../models/product-affiliate.ts";
+import { currencyMinPrice } from "../models/purchase-pricing.ts";
 import { selectRows, castRow, column, table } from "../models/sql.ts";
 import { paramToI } from "../page-props/audience/support.ts";
 import {
@@ -58,7 +60,28 @@ const DISPLAY_PRIORITY = [
   "option_not_eligible",
 ] as const;
 
-export type CartLine = { permalink?: string; quantity?: string; variant_external_id?: string };
+export type CartLine = {
+  permalink?: string;
+  quantity?: string;
+  variant_external_id?: string;
+  price_cents?: string;
+  tip_cents?: string;
+};
+
+// aggregate_products: the lines of one permalink collapse into one whose quantity is the sum; the submitted prices
+// (and tips) add up only when every line carries an integer price.
+type Aggregate = { quantity: number; price_cents?: number; tip_cents: number };
+
+function aggregateLines(lines: CartLine[]): Aggregate {
+  const quantity = lines.reduce((sum, line) => sum + paramToI(line.quantity ?? ""), 0);
+  const prices = lines.map((line) => (line.price_cents === undefined ? null : rubyInteger(line.price_cents)));
+  if (prices.some((price) => price === null)) return { quantity, tip_cents: 0 };
+  const tips = lines.reduce(
+    (sum, line) => sum + (line.tip_cents === undefined ? 0 : (rubyInteger(line.tip_cents) ?? 0)),
+    0,
+  );
+  return { quantity, price_cents: prices.reduce<number>((sum, price) => sum + price!, 0), tip_cents: tips };
+}
 export type ComputeResult = {
   products_data: Record<string, Record<string, unknown>>;
   error_code: string | null;
@@ -99,11 +122,6 @@ async function sellerHasAvailableCrossSells(userId: bigint | number): Promise<bo
   return rows.length > 0;
 }
 
-function assertSupported(code: OfferCodeRecord): void {
-  if (code.row.amount_cents != null && code.oncePerCart)
-    throw new HandBackToRails("compute_discount for a once-per-cart code");
-}
-
 // OfferCode#evaluate_for_buyer merged over the full discount hash, as `discount.merge(...)` does.
 async function resolveForBuyer(
   code: OfferCodeRecord,
@@ -122,6 +140,29 @@ function returningCustomer(code: OfferCodeRecord, buyer: User): Promise<boolean>
   return code.returningCustomer([buyer.id], [buyer.email]);
 }
 
+// OfferCodeDiscountComputingService#allocate_once_per_cart_discount: the code's fixed amount is shared across the cart's
+// lines in order, each taking what its price can absorb without leaving a remainder under the currency's minimum.
+function allocateOncePerCart(
+  discount: Record<string, unknown>,
+  code: OfferCodeRecord,
+  line: Aggregate,
+  link: Link,
+  allocations: Map<number, number>,
+): Record<string, unknown> {
+  const left = allocations.get(code.id) ?? (discount.once_per_cart_amount_cents as number);
+  // once_per_cart_allocation_capacity
+  const fullPrice =
+    line.price_cents === undefined ? link.price_cents! * line.quantity : Math.max(line.price_cents - line.tip_cents, 0);
+  let allocated = Math.min(left, fullPrice);
+  const priceAfterDiscount = fullPrice - allocated;
+  if (priceAfterDiscount > 0) {
+    const minPrice = currencyMinPrice(link);
+    if (priceAfterDiscount < minPrice) allocated = Math.max(fullPrice - minPrice, 0);
+  }
+  allocations.set(code.id, left - allocated);
+  return { ...discount, cents: allocated };
+}
+
 // OfferCodeDiscountComputingService#process
 export async function processDiscount(
   code: string,
@@ -131,10 +172,7 @@ export async function processDiscount(
 ): Promise<ComputeResult> {
   const entriesByPermalink = new Map<string, CartLine[]>();
   for (const line of Object.values(lines))
-    entriesByPermalink.set(line.permalink as string, [
-      ...(entriesByPermalink.get(line.permalink as string) ?? []),
-      line,
-    ]);
+    entriesByPermalink.set(line.permalink!, [...(entriesByPermalink.get(line.permalink!) ?? []), line]);
   const permalinks = [
     ...new Set(
       Object.values(lines)
@@ -157,6 +195,8 @@ export async function processDiscount(
   const productsData: ComputeResult["products_data"] = {};
   const applicableCodes: OfferCodeRecord[] = [];
   const remaining = new Map<number, number>();
+  const applied = new Set<number>();
+  const allocations = new Map<number, number>();
   const ineligibilities = new Set<string>();
 
   for (const link of links) {
@@ -169,8 +209,7 @@ export async function processDiscount(
     }
     if (offerCode === null) continue;
     applicableCodes.push(offerCode);
-    assertSupported(offerCode);
-    if (await sellerHasAvailableCrossSells(link.user_id as bigint))
+    if (await sellerHasAvailableCrossSells(link.user_id!))
       throw new HandBackToRails("compute_discount with cross-sells to apply optimistically");
 
     // entries_eligible_for_option_scope: a line that omits the option stays (the product page previews that way);
@@ -187,14 +226,14 @@ export async function processDiscount(
     if (eligible.length < entries.length) ineligibilities.add("option_not_eligible");
     if (eligible.length === 0) continue;
 
-    const quantity = eligible.reduce((sum, line) => sum + paramToI(line.quantity ?? ""), 0);
+    const aggregate = aggregateLines(eligible);
+    const quantity = aggregate.quantity;
     const { minimum_quantity: minimum, max_purchase_count: max } = offerCode.row;
     const meetsMinimum = minimum == null || quantity >= minimum;
     const left = async () => {
-      if (!remaining.has(offerCode!.id)) remaining.set(offerCode!.id, await offerCode!.quantityLeft(now));
-      return remaining.get(offerCode!.id)!;
+      if (!remaining.has(offerCode.id)) remaining.set(offerCode.id, await offerCode.quantityLeft(now));
+      return remaining.get(offerCode.id)!;
     };
-    const sufficient = max == null || (await left()) >= quantity;
 
     // `offer_code.evaluate_for_buyer(buyer, product: link) unless returning_customer?(offer_code)`. With no buyer
     // that is nil for an existing-customers code or a tiered one that has no tier starting at month 0.
@@ -206,9 +245,23 @@ export async function processDiscount(
       resolved = await resolveForBuyer(offerCode, buyer, link, full, now);
     else resolved = full;
 
+    const once = offerCode.row.amount_cents != null && offerCode.oncePerCart;
+    // Later covered lines of a spent once-per-cart code stay in the response, without spending a use.
+    if (once && applied.has(offerCode.id) && meetsMinimum) {
+      if (resolved !== null)
+        productsData[link.unique_permalink!] = allocateOncePerCart(resolved, offerCode, aggregate, link, allocations);
+      continue;
+    }
+
+    // A fixed-amount code is applied once per cart, so a line spends one use however many units it holds.
+    const units = once ? 1 : quantity;
+    const sufficient = max == null || (await left()) >= units;
     if (resolved !== null && !offerCode.inactive(now) && meetsMinimum && sufficient) {
-      if (max != null) remaining.set(offerCode.id, (await left()) - quantity);
-      productsData[link.unique_permalink!] = resolved;
+      if (max != null) remaining.set(offerCode.id, (await left()) - units);
+      applied.add(offerCode.id);
+      productsData[link.unique_permalink!] = once
+        ? allocateOncePerCart(resolved, offerCode, aggregate, link, allocations)
+        : resolved;
     } else {
       if (resolved === null && offerCode.row.existing_customers_only) ineligibilities.add("not_existing_customer");
       if (resolved === null && offerCode.row.new_customers_only) ineligibilities.add("not_new_customer");

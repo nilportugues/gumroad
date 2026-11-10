@@ -109,6 +109,59 @@ describe "Offer codes compute_discount", type: :request do
     end
   end
 
+  describe "a fixed code applied once per cart" do
+    let(:lines) { create_list(:product, 2, user: seller, price_cents: 500) }
+
+    def cents_by_line(code, params_products)
+      get "/offer_codes/compute_discount", params: { code: code.code, products: params_products }
+      response.parsed_body["products_data"].transform_values { _1["cents"] }
+    end
+
+    it "discounts one line and lists the cart-wide amount in the discount", parity: true do
+      code = create(:universal_offer_code, user: seller, amount_cents: 300, once_per_cart: true)
+
+      get "/offer_codes/compute_discount", params: { code: code.code, products: cart(product) }
+
+      expect(response.parsed_body.dig("products_data", product.unique_permalink)).to include("cents" => 300, "once_per_cart" => true, "once_per_cart_amount_cents" => 300)
+    end
+
+    it "carries the amount a line cannot absorb to the next one", parity: true do
+      code = create(:universal_offer_code, user: seller, amount_cents: 700, once_per_cart: true)
+
+      expect(cents_by_line(code, cart(*lines))).to eq(lines[0].unique_permalink => 500, lines[1].unique_permalink => 200)
+    end
+
+    it "leaves the currency minimum on the line", parity: true do
+      code = create(:universal_offer_code, user: seller, amount_cents: 450, once_per_cart: true)
+
+      expect(cents_by_line(code, cart(product))).to eq(product.unique_permalink => 401)
+    end
+
+    it "allocates against the submitted price less the tip", parity: true do
+      code = create(:universal_offer_code, user: seller, amount_cents: 1000, once_per_cart: true)
+      products = { "0" => { permalink: product.unique_permalink, quantity: 1, price_cents: "900", tip_cents: "100" } }
+
+      expect(cents_by_line(code, products)).to eq(product.unique_permalink => 800)
+    end
+
+    it "covers every line of a code with one use left without spending another", parity: true do
+      code = create(:universal_offer_code, user: seller, amount_cents: 300, once_per_cart: true, max_purchase_count: 1)
+
+      get "/offer_codes/compute_discount", params: { code: code.code, products: cart(*lines, quantity: 3) }
+
+      expect(response.parsed_body["products_data"].transform_values { _1["cents"] }).to eq(lines[0].unique_permalink => 300, lines[1].unique_permalink => 0)
+      expect(response.parsed_body).not_to have_key("notice")
+    end
+
+    it "reports sold_out when the code has no uses left", parity: true do
+      code = create(:universal_offer_code, user: seller, amount_cents: 300, once_per_cart: true, max_purchase_count: 0)
+
+      get "/offer_codes/compute_discount", params: { code: code.code, products: cart(product) }
+
+      expect(response.parsed_body["error_code"]).to eq("sold_out")
+    end
+  end
+
   describe "a signed-in buyer is measured against their purchase history" do
     let(:buyer) { create(:user) }
 

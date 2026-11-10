@@ -51,10 +51,11 @@ vi.mock("../presenters/best-offer-code.ts", () => ({
   }),
   applicable: async () => true,
   currencyValid: () => true,
-  fullDiscount: async (code: { row: { id: number } }) => ({
+  fullDiscount: async (code: { row: { id: number; amount_cents: number; oncePerCart?: boolean } }) => ({
     type: "fixed",
-    cents: 100,
+    cents: code.row.amount_cents,
     product_ids: [`p${code.row.id}`],
+    ...(code.row.oncePerCart ? { once_per_cart: true, once_per_cart_amount_cents: code.row.amount_cents } : {}),
   }),
 }));
 
@@ -68,6 +69,7 @@ const link = (id: number) => ({
   unique_permalink: `perm${id}`,
   deleted_at: null,
   price_currency_type: "usd",
+  price_cents: 500,
 });
 const code = (extra: Record<string, unknown> = {}) => ({
   id: 7,
@@ -294,15 +296,87 @@ describe("compute_discount hand-backs", () => {
     });
   });
 
-  it("hands back a once-per-cart code", async () => {
-    stubDb({ codes: [code({ oncePerCart: true })] });
-    await expect(body(`code=off&${cartQuery(["perm1"])}`)).rejects.toBeInstanceOf(HandBackToRails);
-  });
-
   it("hands back a seller with cross-sells and a non-scalar code", async () => {
     stubDb({ crossSells: true });
     await expect(body(`code=off&${cartQuery(["perm1"])}`)).rejects.toBeInstanceOf(HandBackToRails);
     await expect(body("code[]=off")).rejects.toBeInstanceOf(HandBackToRails);
+  });
+});
+
+describe("a once-per-cart fixed code (allocate_once_per_cart_discount)", () => {
+  const perCart = (extra: Record<string, unknown> = {}) => code({ oncePerCart: true, amount_cents: 300, ...extra });
+  const centsOf = (result: { products_data: Record<string, { cents: number }> }) =>
+    Object.values(result.products_data).map((discount) => discount.cents);
+
+  it("shares the fixed amount across the lines in cart order", async () => {
+    stubDb({ links: [link(1), link(2)], codes: [perCart()] });
+    const result = await body(`code=off&${cartQuery(["perm1", "perm2"])}`);
+    expect(centsOf(result)).toEqual([300, 0]);
+    expect(result.products_data.perm1).toMatchObject({ once_per_cart: true, once_per_cart_amount_cents: 300 });
+  });
+
+  it("carries the remainder of a line that cannot absorb the whole amount", async () => {
+    stubDb({ links: [link(1), link(2)], codes: [perCart({ amount_cents: 700 })] });
+    expect(centsOf(await body(`code=off&${cartQuery(["perm1", "perm2"])}`))).toEqual([500, 200]);
+  });
+
+  it("keeps the price after the discount at the currency minimum", async () => {
+    stubDb({ codes: [perCart({ amount_cents: 450 })] });
+    expect(centsOf(await body(`code=off&${cartQuery(["perm1"])}`))).toEqual([401]);
+  });
+
+  it("allocates against the submitted price less the tip", async () => {
+    stubDb({ codes: [perCart({ amount_cents: 1000 })] });
+    const query =
+      "code=off&products[0][permalink]=perm1&products[0][quantity]=1&products[0][price_cents]=900&products[0][tip_cents]=100";
+    expect(centsOf(await body(query))).toEqual([800]);
+  });
+
+  it("falls back to the product price times quantity when a submitted price is not an integer", async () => {
+    stubDb({ codes: [perCart({ amount_cents: 5000 })] });
+    const query = "code=off&products[0][permalink]=perm1&products[0][quantity]=2&products[0][price_cents]=abc";
+    expect(centsOf(await body(query))).toEqual([1000]);
+  });
+
+  it("sums the lines of one permalink before allocating", async () => {
+    stubDb({ codes: [perCart({ amount_cents: 5000 })] });
+    const query =
+      "code=off&products[0][permalink]=perm1&products[0][quantity]=1&products[0][price_cents]=0x10&products[1][permalink]=perm1&products[1][quantity]=2&products[1][price_cents]=1_000";
+    expect(centsOf(await body(query))).toEqual([1016]);
+  });
+
+  it("spends one use however many units the line holds", async () => {
+    stubDb({ codes: [perCart({ max_purchase_count: 1 })] });
+    quantityLeft.mockResolvedValue(1);
+    expect(centsOf(await body(`code=off&${cartQuery(["perm1"], 5)}`))).toEqual([300]);
+  });
+
+  it("covers a later line of a spent capped code without spending another use", async () => {
+    stubDb({ links: [link(1), link(2)], codes: [perCart({ max_purchase_count: 1 })] });
+    quantityLeft.mockResolvedValue(1);
+    const result = await body(`code=off&${cartQuery(["perm1", "perm2"])}`);
+    expect(Object.keys(result.products_data)).toEqual(["perm1", "perm2"]);
+    expect(result).not.toHaveProperty("notice");
+  });
+
+  it("answers sold_out when the code has no uses left", async () => {
+    stubDb({ codes: [perCart({ max_purchase_count: 0 })] });
+    quantityLeft.mockResolvedValue(0);
+    expect((await body(`code=off&${cartQuery(["perm1"])}`)).error_code).toBe("sold_out");
+  });
+
+  it("drops a later line that misses the minimum quantity and explains it", async () => {
+    stubDb({ links: [link(1), link(2)], codes: [perCart({ minimum_quantity: 2 })] });
+    const query =
+      "code=off&products[0][permalink]=perm1&products[0][quantity]=2&products[1][permalink]=perm2&products[1][quantity]=1";
+    const result = await body(query);
+    expect(Object.keys(result.products_data)).toEqual(["perm1"]);
+    expect(result.notice).toContain("minimum quantity");
+  });
+
+  it("leaves a percent code alone", async () => {
+    stubDb({ codes: [perCart({ amount_cents: null, amount_percentage: 10 })] });
+    expect(Object.values((await body(`code=off&${cartQuery(["perm1"])}`)).products_data)).toHaveLength(1);
   });
 });
 
