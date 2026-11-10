@@ -31,14 +31,22 @@ const normalizedQuery = (query: unknown): string => (query === null || query ===
 const words = (value: string): string[] => value.split(/[\t\n\v\f\r ]+/u).filter((word) => word !== "");
 
 // DiscoverSearchSuggestion.by_user_or_browser(...).order(created_at: :desc), selecting discover_searches.query.
+// created_at has second precision, so rows made together tie; MySQL then returned the newest id first.
 function recentSearchRows(viewer: AutocompleteViewer, distinct: boolean, limit: number): Promise<{ query: string | null }[]> {
   const owner = viewer.user
     ? Prisma.sql`${column("discover_searches", "user_id")} = ${viewer.user.id}`
     : viewer.browserGuid === null
       ? Prisma.sql`${column("discover_searches", "browser_guid")} IS NULL AND ${column("discover_searches", "user_id")} IS NULL`
       : Prisma.sql`${column("discover_searches", "browser_guid")} = ${viewer.browserGuid} AND ${column("discover_searches", "user_id")} IS NULL`;
+  const suggestionCreatedAt = column("discover_search_suggestions", "created_at");
+  const suggestionId = column("discover_search_suggestions", "id");
+  // Rails' `.distinct` plus the scope's ORDER BY only runs because its connection drops ONLY_FULL_GROUP_BY; grouping
+  // by the query keeps the newest-first order on a connection that has it.
+  const ordering = distinct
+    ? Prisma.sql`GROUP BY ${column("discover_searches", "query")} ORDER BY MAX(${suggestionCreatedAt}) DESC, MAX(${suggestionId}) DESC`
+    : Prisma.sql`ORDER BY ${suggestionCreatedAt} DESC, ${suggestionId} DESC`;
   return selectRows<{ query: string | null }>(
-    Prisma.sql`SELECT ${distinct ? Prisma.raw("DISTINCT ") : Prisma.empty}${column("discover_searches", "query")} FROM ${table("discover_search_suggestions")} INNER JOIN ${table("discover_searches")} ON ${column("discover_searches", "id")} = ${column("discover_search_suggestions", "discover_search_id")} WHERE ${column("discover_search_suggestions", "deleted_at")} IS NULL AND ${owner} ORDER BY ${column("discover_search_suggestions", "created_at")} DESC LIMIT ${limit}`,
+    Prisma.sql`SELECT ${column("discover_searches", "query")} FROM ${table("discover_search_suggestions")} INNER JOIN ${table("discover_searches")} ON ${column("discover_searches", "id")} = ${column("discover_search_suggestions", "discover_search_id")} WHERE ${column("discover_search_suggestions", "deleted_at")} IS NULL AND ${owner} ${ordering} LIMIT ${limit}`,
   );
 }
 

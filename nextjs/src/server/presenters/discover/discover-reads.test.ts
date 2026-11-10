@@ -63,7 +63,7 @@ describe("Discover::AutocompletePresenter", () => {
     esResponses = [hits(), idHits()];
     const props = await autocompleteProps(undefined, { user: { id: 7n }, browserGuid: "guid" });
     expect(sentSql[0]).toBe(
-      "SELECT DISTINCT `discover_searches`.`query` FROM `discover_search_suggestions` INNER JOIN `discover_searches` ON `discover_searches`.`id` = `discover_search_suggestions`.`discover_search_id` WHERE `discover_search_suggestions`.`deleted_at` IS NULL AND `discover_searches`.`user_id` = 7 ORDER BY `discover_search_suggestions`.`created_at` DESC LIMIT 5",
+      "SELECT `discover_searches`.`query` FROM `discover_search_suggestions` INNER JOIN `discover_searches` ON `discover_searches`.`id` = `discover_search_suggestions`.`discover_search_id` WHERE `discover_search_suggestions`.`deleted_at` IS NULL AND `discover_searches`.`user_id` = 7 GROUP BY `discover_searches`.`query` ORDER BY MAX(`discover_search_suggestions`.`created_at`) DESC, MAX(`discover_search_suggestions`.`id`) DESC LIMIT 5",
     );
     expect(props.recent_searches).toEqual(["rig", "film"]);
   });
