@@ -81,7 +81,6 @@ export function sellerCustomDomainUrl(isUserCustomDomain: boolean, hostWithPort:
 
 // The meta tags of PageMeta::Product#set_product_page_meta, prepare_product_page and the action's favicon.
 async function setMeta(meta: MetaTagBuilder, row: LinkRow, seller: UserRow, host: string, customDomainUrl: string | null) {
-  if (row.native_type === "ebook") throw new NotPortedError("Product::StructuredData#build_ebook_structured_data");
   await setHostMeta(meta, seller as unknown as User);
   meta.set({ title: row.name });
   const html = htmlSafeDescription(row.description);
@@ -132,16 +131,28 @@ async function setMeta(meta: MetaTagBuilder, row: LinkRow, seller: UserRow, host
         : "https://schema.org/LimitedAvailability";
   const offer: Record<string, unknown> = { "@type": "Offer", priceCurrency: present(currency) ? currency.toUpperCase() : undefined, availability, url: canonicalUrl };
   if (priceCents !== null && present(currency)) offer.price = priceCents / 100;
-  const data: Record<string, unknown> = {
-    "@context": "https://schema.org",
-    "@type": "Product",
-    name: row.name,
-    description: structuredDescription,
-    url: canonicalUrl,
-    sku: row.unique_permalink,
-    brand: present(seller.name) ? { "@type": "Brand", name: seller.name } : null,
-    offers: Object.fromEntries(Object.entries(offer).filter(([, value]) => value !== undefined)),
-  };
+  const offers = Object.fromEntries(Object.entries(offer).filter(([, value]) => value !== undefined));
+  const data: Record<string, unknown> =
+    row.native_type === "ebook"
+      ? ebookStructuredData({
+          name: row.name,
+          authorName: seller.name,
+          description: structuredDescription,
+          url: canonicalUrl,
+          sku: row.unique_permalink,
+          workExamples: bookWorkExamples(row.name, await bookFiles(row)),
+          offers,
+        })
+      : {
+          "@context": "https://schema.org",
+          "@type": "Product",
+          name: row.name,
+          description: structuredDescription,
+          url: canonicalUrl,
+          sku: row.unique_permalink,
+          brand: present(seller.name) ? { "@type": "Brand", name: seller.name } : null,
+          offers,
+        };
   if (displaysReviews && stats.count > 0) {
     data.aggregateRating = { "@type": "AggregateRating", ratingValue: Math.round(stats.average * 10) / 10, reviewCount: stats.count, bestRating: 5, worstRating: 1 };
   }
@@ -162,6 +173,48 @@ async function setMeta(meta: MetaTagBuilder, row: LinkRow, seller: UserRow, host
     meta.set({ tag_name: "link", rel: "preload", href: `${assetHost(domainConfig(process.env)) ?? ""}/fonts/ABCFavorit-Regular.woff2`, as: "font", type: "font/woff2", crossorigin: "anonymous", head_key: "default_font_preload" });
   }
   await setFaviconMetaTags(meta, seller as unknown as User);
+}
+
+export type BookFile = { filetype: string | null; isbn: string | null };
+
+// The alive files that `supports_isbn?` (epub, pdf, mobi), in `position` order; MySQL sorts a NULL position first.
+async function bookFiles(row: LinkRow): Promise<BookFile[]> {
+  return selectRows<BookFile>(
+    Prisma.sql`SELECT ${column("product_files", "filetype")}, ${column("product_files", "isbn")} FROM ${table("product_files")} WHERE ${column("product_files", "link_id")} = ${row.id} AND ${column("product_files", "deleted_at")} IS NULL AND ${column("product_files", "filetype")} IN ('epub', 'pdf', 'mobi') ORDER BY ${column("product_files", "position")} ASC, ${column("product_files", "id")} ASC`,
+  );
+}
+
+// Product::StructuredData#build_book_work_examples
+export function bookWorkExamples(name: string | null, files: BookFile[]): Record<string, unknown>[] {
+  return files.map((file) => {
+    const example: Record<string, unknown> = { "@type": "Book", bookFormat: "EBook", name: `${name} (${(file.filetype ?? "").toUpperCase()})` };
+    if (present(file.isbn)) example.isbn = file.isbn;
+    return example;
+  });
+}
+
+// Product::StructuredData#build_ebook_structured_data. An unnamed seller leaves `author.name` as null, which Rails' compact keeps.
+export function ebookStructuredData(input: {
+  name: string | null;
+  authorName: string | null;
+  description: string | null;
+  url: string;
+  sku: string | null;
+  workExamples: Record<string, unknown>[];
+  offers: Record<string, unknown>;
+}): Record<string, unknown> {
+  const data: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "Book",
+    name: input.name,
+    author: { "@type": "Person", name: input.authorName },
+    description: input.description,
+    url: input.url,
+    sku: input.sku,
+  };
+  if (input.workExamples.length > 0) data.workExample = input.workExamples;
+  data.offers = input.offers;
+  return data;
 }
 
 async function customSummary(row: LinkRow): Promise<string | null> {
