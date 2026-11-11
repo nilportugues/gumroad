@@ -12,7 +12,7 @@ import { closeAllRedis } from "@/server/infra/redis";
 import { resolveTimeToken } from "../src/canonical";
 import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
-import { loadFixture, type Fixture, type FixtureRequest } from "../src/fixture";
+import { loadFixture, type Fixture, type FixtureRequest, type RedisEntry } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { redisSeeder } from "../src/session";
@@ -37,6 +37,7 @@ const SPECS: Record<string, { flag: string; methods: string[]; exclude?: RegExp;
     include: /resend-receipt|get-index|get-show/,
   },
   upsells_controller_spec: { flag: "nextjs_api_v2_upsells", methods: ["GET"] },
+  licenses_controller_spec: { flag: "nextjs_api_v2_licenses", methods: ["POST", "PUT"] },
   subscribers_controller_spec: { flag: "nextjs_api_v2_subscribers", methods: ["GET"] },
   earnings_controller_spec: { flag: "nextjs_api_v2_tax", methods: ["GET"] },
   // #download builds the PDF from Stripe or S3.
@@ -95,6 +96,7 @@ const COMPARE = {
     "db.versions",
     // The seed is stamped with the replay's clock, so a row Rails touched seconds after the factory made it is not touched in the same second.
     "db.resource_subscriptions.updated.*.changes.updated_at",
+    "db.licenses.updated.*.changes.updated_at",
     "jobs.*.at",
     // The cursor holds the created_at of a row the replay seeds relative to its own clock.
     // daystamp is the created_at minute in the seller's zone, and the replay seeds the row relative to its own clock.
@@ -158,6 +160,26 @@ const SKIPPED: [RegExp, string][] = [
   ],
   [/returns-filed-at-as-iso-8601/u, "filed_at is an epoch number inside json_data, which the seed does not shift"],
 ];
+
+// License#generate_serial is random: both sides mint a key of the same shape, and the response carries the one saved.
+const ROTATE_EXAMPLE = /-put-rotate-.*(returns-the-cor|rotates-the-lic)/u;
+const ROTATE_COMPARE = {
+  ignore: [...COMPARE.ignore, "response.json.purchase.license_key", "db.licenses.updated.*.changes.serial"],
+};
+const SERIAL_SHAPE = /^[0-9A-F]{8}(-[0-9A-F]{8}){3}$/u;
+
+// The spec sets the cutoff to the product's created_at plus or minus a day, but the recording holds an absolute time while the replay
+// seeds the product at its own clock.
+const FORCE_PRODUCT_ID_KEY = "force_product_id_timestamp";
+const ONE_DAY_MS = 86_400_000;
+function cutoffAtReplayTime(entries: Record<string, RedisEntry>, recordedOn: string, now: Date) {
+  const entry = entries[FORCE_PRODUCT_ID_KEY];
+  if (entry?.type !== "string") return entries;
+  const recordedCutoff = Date.parse(String(entry.value).replace(" UTC", "Z").replace(" ", "T"));
+  const offset = recordedCutoff > Date.parse(`${recordedOn}T12:00:00Z`) ? ONE_DAY_MS : -ONE_DAY_MS;
+  const value = `${new Date(now.getTime() + offset).toISOString().slice(0, 19).replace("T", " ")} UTC`;
+  return { ...entries, [FORCE_PRODUCT_ID_KEY]: { ...entry, value } };
+}
 
 const cases = Object.keys(SPECS).flatMap((spec) => {
   const dir = path.join(FIXTURES, spec);
@@ -247,10 +269,11 @@ describe.skipIf(!url)("Api::V2 endpoints of WS-17b", () => {
     process.env = saved;
   });
 
-  const options = () => ({
+  const options = (recordedOn = "") => ({
     sql,
     redis: {
-      reset: (entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0]) => redisSeeder(redis).reset(entries),
+      reset: (entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0], _exchange?: unknown, now?: Date) =>
+        redisSeeder(redis).reset(now === undefined ? entries : cutoffAtReplayTime(entries, recordedOn, now)),
     },
     transport: httpTransport(server.baseUrl),
     interceptHttp: false,
@@ -296,12 +319,27 @@ describe.skipIf(!url)("Api::V2 endpoints of WS-17b", () => {
       const resumeAt = Date.now();
       if (subscriptionEnd) vi.setSystemTime(SUBSCRIPTION_END_NOW);
       try {
+        const fixture = loadFixture(file);
+        const base = options(fixture.recordedOn);
+        const rotates = ROTATE_EXAMPLE.test(_name);
         const result = await replayFixtureExchange(
-          loadFixture(file),
+          fixture,
           index,
-          subscriptionEnd ? { ...options(), compare: subscriptionEndCompare } : options(),
+          subscriptionEnd
+            ? { ...base, compare: subscriptionEndCompare }
+            : rotates
+              ? { ...base, compare: ROTATE_COMPARE }
+              : base,
         );
         assertParity(result);
+        if (rotates) {
+          const actual = result.exchanges[0]!.actual;
+          const serial = (actual.db as { licenses: { updated: { changes: { serial: [string, string] } }[] } }).licenses
+            .updated[0]!.changes.serial[1];
+          expect(serial).toMatch(SERIAL_SHAPE);
+          const purchase = (actual.response.json as { purchase?: { license_key: string } }).purchase;
+          if (purchase) expect(purchase.license_key).toBe(serial);
+        }
       } catch (error) {
         const logs = server
           .output()
