@@ -24,9 +24,13 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
-const SPECS = ["settings_mutations_signed_in_spec", "settings_payments_backtax_opt_in_spec"];
+const SPECS = [
+  "settings_mutations_signed_in_spec",
+  "settings_payments_backtax_opt_in_spec",
+  "settings_team_invitations_signed_in_spec",
+];
 const ROUTE_FLAGS =
-  "nextjs_settings_third_party_analytics_writes,nextjs_settings_advanced_writes,nextjs_settings_billing_writes,nextjs_settings_dismiss_ai_promo_writes,nextjs_settings_team_members_writes,nextjs_settings_payments_backtax_writes";
+  "nextjs_settings_third_party_analytics_writes,nextjs_settings_advanced_writes,nextjs_settings_billing_writes,nextjs_settings_dismiss_ai_promo_writes,nextjs_settings_team_members_writes,nextjs_settings_payments_backtax_writes,nextjs_settings_team_invitations_writes";
 const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "-settings";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
@@ -214,7 +218,7 @@ describe.skipIf(!url)("mutations of the settings pages", () => {
       now: Date,
     ) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
     // The test environment answers a 422 with its exception debug page, which the fixture does not keep.
-    compare: name.includes("422") ? { ignore: [...COMPARE.ignore, "response.body"] } : COMPARE,
+    compare: /422|unknown-invitation/u.test(name) ? { ignore: [...COMPARE.ignore, "response.body"] } : COMPARE,
     file,
   });
 
@@ -264,8 +268,13 @@ describe.skipIf(!url)("mutations of the settings pages", () => {
           const request = fixture.exchanges[index]!.request;
           expect(handedBack).toHaveLength(1);
           expect(handedBack[0]).toMatchObject({ method: request.method, url: request.path });
-          expect(JSON.parse(handedBack[0]!.body)).toEqual(JSON.parse(request.body ?? "{}"));
-          expect(Object.keys(handed.exchanges[0]!.actual.db ?? {})).toEqual([]);
+          // A PUT or GET without a body reaches Rails with none.
+          const parsed = (body: string) => (body === "" ? {} : (JSON.parse(body) as unknown));
+          expect(parsed(handedBack[0]!.body)).toEqual(parsed(request.body ?? ""));
+          // A GET navigation seeds the seller's nav promotions before the action runs, as Rails' own request would.
+          expect(
+            Object.keys(handed.exchanges[0]!.actual.db ?? {}).filter((name) => name !== "dashboard_nav_promotions"),
+          ).toEqual([]);
           return;
         }
         const result = await replayFixtureExchange(fixture, index, options);
