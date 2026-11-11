@@ -11,6 +11,8 @@ import {
   deleteProcessedWorkflowInstallmentScheduleIntentsJob,
 } from "./batched-cleanup-jobs.ts";
 import { cacheProductDataWorker } from "./cache-product-data-worker.ts";
+import { calculatePayoutNumbersWorker } from "./calculate-payout-numbers-worker.ts";
+import { calculateSaleNumbersWorker } from "./calculate-sale-numbers-worker.ts";
 import {
   contentModerationAdminCommentJob,
   detectLegalEntityCountryDriftJob,
@@ -110,6 +112,7 @@ import {
   backfillMerchantAccountRecommendationEligibilityJob,
   reindexSubscriptionCurrentEmailWorker,
 } from "./search-reindex-jobs.ts";
+import { sellerUpdateWorker } from "./seller-update-worker.ts";
 import { sellerUpdatesWorker } from "./seller-updates-worker.ts";
 import { sendCommunityChatRecapNotificationsJob } from "./send-community-chat-recap-notifications-job.ts";
 import { sendFeatureAnnouncementCampaignJob } from "./send-feature-announcement-campaign-job.ts";
@@ -140,6 +143,7 @@ import {
   setSubscriptionAsDeactivatedWorker,
   unsubscribeAndFailWorker,
 } from "./subscription-write-jobs.ts";
+import { subtitleFileSizeWorker } from "./subtitle-file-size-worker.ts";
 import { suspendAccountsWithPaymentAddressWorker, suspendUsersWorker } from "./suspend-jobs.ts";
 import { syncStripeBusinessProfileUrlWorker } from "./sync-stripe-business-profile-url-worker.ts";
 import type { JobHandler } from "./types.ts";
@@ -272,6 +276,10 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   RegenerateSalesRelatedProductsInfosJob: regenerateSalesRelatedProductsInfosJob,
   UpdateSalesRelatedProductsInfosJob: updateSalesRelatedProductsInfosJob,
   UpdateTaxonomyStatsJob: updateTaxonomyStatsJob,
+  CalculateSaleNumbersWorker: calculateSaleNumbersWorker,
+  SellerUpdateWorker: sellerUpdateWorker,
+  SubtitleFileSizeWorker: subtitleFileSizeWorker,
+  CalculatePayoutNumbersWorker: calculatePayoutNumbersWorker,
   "Radar::AddValueListItemJob": radarAddValueListItemJob,
   "Radar::RemoveValueListItemJob": radarRemoveValueListItemJob,
   ExpiringCreditCardMessageWorker: expiringCreditCardMessageWorker,

@@ -371,7 +371,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "CalculateSaleNumbersWorker": {
     "file": "app/sidekiq/calculate_sale_numbers_worker.rb",
@@ -383,7 +383,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "CancelPreorderWorker": {
     "file": "app/sidekiq/cancel_preorder_worker.rb",
@@ -2795,7 +2795,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SellerUpdatesWorker": {
     "file": "app/sidekiq/seller_updates_worker.rb",
@@ -3317,7 +3317,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SuspendAccountsWithPaymentAddressWorker": {
     "file": "app/sidekiq/suspend_accounts_with_payment_address_worker.rb",
