@@ -2669,7 +2669,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "recurringLockMaxAttempt": 3600,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RetryStripeRejectedPayoutSetupForSellerJob": {
     "file": "app/sidekiq/retry_stripe_rejected_payout_setup_for_seller_job.rb",

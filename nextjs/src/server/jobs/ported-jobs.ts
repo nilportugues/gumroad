@@ -3,6 +3,7 @@
 // Ruby too. Run `npm run jobs:generate` after editing; the worker refuses to start if a class in
 // this list has no handler in src/worker/jobs.
 export const PORTED_JOBS: readonly string[] = [
+  "RetryStripeJpAddressResyncsJob",
   "SyncWatchedUsersJob",
   "RecordOrderChargeOutcomeJob",
   "OrderReviewReminderJob",
