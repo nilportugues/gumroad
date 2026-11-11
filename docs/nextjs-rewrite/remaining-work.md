@@ -7,10 +7,10 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 | Measure | Done | Total | Share |
 | --- | ---: | ---: | ---: |
-| Routes served natively (counted, static check) | 804 | 978 | 82.2% |
-| Routes registered in routes.json (counted; upper bound, adds the 7 listed under "hands back") | 811 | 978 | 82.9% |
-| Routes weighted by difficulty (counted routes, estimated weights) | 1531 | 1857 | 82.4% |
-| Same, registered in routes.json (upper bound) | 1538 | 1857 | 82.8% |
+| Routes served natively (counted, static check) | 812 | 978 | 83.0% |
+| Routes registered in routes.json (counted; upper bound, adds the 7 listed under "hands back") | 819 | 978 | 83.7% |
+| Routes weighted by difficulty (counted routes, estimated weights) | 1563 | 1857 | 84.2% |
+| Same, registered in routes.json (upper bound) | 1570 | 1857 | 84.5% |
 | Rails Inertia pages with Node props (counted, string match) | 101 | 114 | 88.6% |
 | Sidekiq job classes running in Node (counted) | 118 | 296 | 39.9% |
 
@@ -28,8 +28,8 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 - The route share counts endpoints, and an endpoint is one row whether it is a health check or a purchase. The weighted share corrects that only as far as my weights are right.
 - Neither number measures the code under the routes. A route is counted native as soon as Node serves its common path, while its hard branches (see "Known partial hand-backs") still go to Rails. The shares therefore overstate how much of the work is finished, most for checkout, payouts, and the mobile and MCP APIs.
-- Code volume cross-check (counted, not a completion measure): Node has 121,685 non-test lines under `src/server` and `src/worker`; Rails has 197,057 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
-- 285 distinct rollout flags gate the routes in routes.json; none is enabled in production.
+- Code volume cross-check (counted, not a completion measure): Node has 122,555 non-test lines under `src/server` and `src/worker`; Rails has 197,057 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
+- 286 distinct rollout flags gate the routes in routes.json; none is enabled in production.
 
 ## By workstream
 
@@ -47,9 +47,9 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 | WS-18 Admin | 86 | 83 | 0 | 3 | 96.5% | 254 | 249 | 98.0% |
 | WS-19 AI, MCP and moderation | 36 | 33 | 0 | 3 | 91.7% | 108 | 99 | 91.7% |
 | WS-20 Checkout and orders | 71 | 51 | 0 | 20 | 71.8% | 222 | 157 | 70.7% |
-| WS-21 Payment processors | 8 | 0 | 0 | 8 | 0.0% | 32 | 0 | 0.0% |
+| WS-21 Payment processors | 8 | 8 | 0 | 0 | 100.0% | 32 | 32 | 100.0% |
 | WS-23 Balances and payouts | 25 | 25 | 0 | 0 | 100.0% | 74 | 74 | 100.0% |
-| **All** | 978 | 804 | 7 | 167 | 82.2% | 1857 | 1531 | 82.4% |
+| **All** | 978 | 812 | 7 | 159 | 83.0% | 1857 | 1563 | 84.2% |
 
 ## Sensitivity to the weights
 
@@ -57,10 +57,10 @@ The weights are the soft part of this inventory, so here is the headline under o
 
 | Scheme | Native weight | Total weight | Share |
 | --- | ---: | ---: | ---: |
-| Every route counts 1 (the plain route share) | 804 | 978 | 82.2% |
-| Verb only: GET 1, other verbs 2 | 1167 | 1427 | 81.8% |
-| Rubric weights 1 to 4 (the headline) | 1531 | 1857 | 82.4% |
-| Rubric weights doubled per step: 1, 2, 4, 8 | 1790 | 2194 | 81.6% |
+| Every route counts 1 (the plain route share) | 812 | 978 | 83.0% |
+| Verb only: GET 1, other verbs 2 | 1183 | 1427 | 82.9% |
+| Rubric weights 1 to 4 (the headline) | 1563 | 1857 | 84.2% |
+| Rubric weights doubled per step: 1, 2, 4, 8 | 1854 | 2194 | 84.5% |
 
 ## By weight
 
@@ -69,7 +69,7 @@ The weights are the soft part of this inventory, so here is the headline under o
 | 1 | 386 | 312 | 80.8% |
 | 2 | 330 | 269 | 81.5% |
 | 3 | 237 | 211 | 89.0% |
-| 4 | 25 | 12 | 48.0% |
+| 4 | 25 | 20 | 80.0% |
 
 ## By controller
 
@@ -77,7 +77,6 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 
 | Controller | Workstream | Routes | Native | Hands back | Not registered | Weight | Remaining weight |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `ForeignWebhooksController` | WS-21 Payment processors | 8 | 0 | 0 | 8 | 4 (32) | 32 |
 | `User::OmniauthCallbacksController` | WS-10 Settings and account | 30 | 11 | 2 | 17 | 1/2 (45) | 31 |
 | `OrdersController` | WS-20 Checkout and orders | 5 | 0 | 0 | 5 | 4 (20) | 20 |
 | `PaypalController` | WS-20 Checkout and orders | 4 | 0 | 0 | 4 | 3 (12) | 12 |
@@ -267,6 +266,7 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `EmailsController` | WS-13 Audience, emails, workflows | 9 | 9 | 0 | 0 | 2 (18) | 0 |
 | `EventsController` | WS-20 Checkout and orders | 1 | 1 | 0 | 0 | 3 (3) | 0 |
 | `FaviconsController` | WS-11 Help, pages, blog, profiles | 1 | 1 | 0 | 0 | 1 (1) | 0 |
+| `ForeignWebhooksController` | WS-21 Payment processors | 8 | 8 | 0 | 0 | 4 (32) | 0 |
 | `GithubStarsController` | WS-11 Help, pages, blog, profiles | 1 | 1 | 0 | 0 | 1 (1) | 0 |
 | `GumroadBlog::PostsController` | WS-11 Help, pages, blog, profiles | 3 | 3 | 0 | 0 | 1 (3) | 0 |
 | `HelpCenter::ArticlesController` | WS-11 Help, pages, blog, profiles | 3 | 3 | 0 | 0 | 1 (3) | 0 |
@@ -391,7 +391,7 @@ Copied by hand from workstreams.md, parity-debt.md and parity-tasks.md as of 202
 - WS-20 `GET /offer_codes/compute_discount`: a malformed query hands back. `PurchasesController` actions other than `revoke_access`/`undo_revoke_access` (`change_can_contact`, `refund`, `update`, `resend_receipt`, `confirm`, preorder and subscription charges) hand back. Checkout is the empty-cart page only: there is no purchase path in Node.
 - WS-23 payout guards (`nextjs_payouts_guards`): `POST /settings/stripe/disconnect`, `POST /instant_payouts`, `GET /payouts/taxes/:year/:form_type/download`, `POST /payouts/taxes/:year/transaction_report` and `GET /oauth_completions/stripe` answer sign-in, the tax center switch, Pundit refusals, a missing tax form or Stripe account and a missing OAuth session; a disconnect, an instant payout, a tax form that exists, a report that is available and an OAuth session with Stripe data hand back whole (the last has no recorded example: a request spec cannot seed `session[:stripe_connect_data]`).
 - WS-20 write guards (`nextjs_checkout_write_guards`): discounts create/update/destroy, upsells create/update, `POST /purchases/:purchase_id/pings` and `PATCH /purchases/:purchase_id/variants/:variant_id` answer the 404 and Pundit refusal; every request that passes hands back whole.
-- WS-21 processor calls (Stripe, Braintree, PayPal) hand back everywhere; only job guards and refund/dispute reads are ported.
+- WS-21 processor calls (Stripe, Braintree, PayPal) hand back everywhere except the webhook receivers (`nextjs_foreign_webhooks`: Stripe, Stripe Connect, PayPal, SendGrid, Resend and the two SNS endpoints, recorded in `foreign_webhooks_parity_spec`; a delivery with a fractional or unsafe number, a JSON body Rails would munge or reject, a Stripe timestamp written as hex and an SNS notification Ruby would raise on hand back whole); job guards and refund/dispute reads are ported besides.
 - WS-22 tax: TaxJar, `ZipTaxRate` selection, GeoIP and the VAT validators (VIES, Vatstack, IRAS, Revenu Quebec) hand back.
 - WS-23 payouts page: compliant daily-frequency sellers, US sellers with a seasoned account (Stripe instant eligibility), large sellers with a cached balance blob and PayPal Connect hand back; there is no payout execution in Node.
 - WS-12 product page: products with asset previews, profile sections, and the `layout`, `embed` and `overlay` params hand back. The editor serves plain digital products only; `LinksController#create/update/publish/index/search/card/price_check/release_preorder`, thumbnails, asset previews, variants, builds, marketing actions, waitlist and call availabilities are not ported.

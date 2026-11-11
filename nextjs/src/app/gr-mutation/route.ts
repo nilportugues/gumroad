@@ -57,6 +57,7 @@ import "@/server/controllers/dashboard-tax-form";
 import "@/server/controllers/profile-sections-mutations";
 import "@/server/controllers/settings-profile-mutations";
 import "@/server/controllers/followers-mutations";
+import "@/server/controllers/foreign-webhooks";
 import "@/server/controllers/comments-mutations";
 import "@/server/controllers/product-editor-json";
 import "@/server/controllers/product-editor-mutations";

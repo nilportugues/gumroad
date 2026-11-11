@@ -8,7 +8,7 @@ export type Params = Record<string, unknown>;
 const isHash = (value: unknown): value is Params => value !== null && typeof value === "object" && !Array.isArray(value);
 
 // ActionDispatch::Request::Utils.perform_deep_munge removes nils from lists.
-function assertMunged(value: unknown): void {
+export function assertMunged(value: unknown): void {
   if (Array.isArray(value)) {
     if (value.some((item) => item === null)) throw new HandBackToRails("a nil inside a list parameter");
     for (const item of value) assertMunged(item);
