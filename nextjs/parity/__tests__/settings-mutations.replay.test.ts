@@ -29,9 +29,10 @@ const SPECS = [
   "settings_payments_backtax_opt_in_spec",
   "settings_team_invitations_signed_in_spec",
   "settings_totp_signed_in_spec",
+  "settings_passkeys_signed_in_spec",
 ];
 const ROUTE_FLAGS =
-  "nextjs_settings_third_party_analytics_writes,nextjs_settings_advanced_writes,nextjs_settings_billing_writes,nextjs_settings_dismiss_ai_promo_writes,nextjs_settings_team_members_writes,nextjs_settings_payments_backtax_writes,nextjs_settings_team_invitations_writes,nextjs_settings_totp_writes";
+  "nextjs_settings_third_party_analytics_writes,nextjs_settings_advanced_writes,nextjs_settings_billing_writes,nextjs_settings_dismiss_ai_promo_writes,nextjs_settings_team_members_writes,nextjs_settings_payments_backtax_writes,nextjs_settings_team_invitations_writes,nextjs_settings_totp_writes,nextjs_settings_passkeys_writes";
 const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "-settings";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 // Example name fragment, sends in the throttle's set and how long ago they were made (spec/requests/settings_team_invitations_signed_in_spec.rb).
@@ -140,6 +141,7 @@ const COMPARE = {
     "db.blocked_customer_objects.updated.*.changes.updated_at",
     "db.billing_details.updated.*.changes.updated_at",
     "db.team_memberships.updated.*.changes.updated_at",
+    "db.webauthn_credentials.updated.*.changes.updated_at",
     // An invitation expires at the end of the day a week out: the recorded offset from the request depends on the hour it was
     // recorded at. assertSend checks the day and the microseconds.
     "db.team_invitations.inserted.*.expires_at",
@@ -246,7 +248,12 @@ describe.skipIf(!url)("mutations of the settings pages", () => {
       now: Date,
     ) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
     // The test environment answers a 422 with its exception debug page, which the fixture does not keep.
-    compare: /422|unknown-invitation/u.test(name) ? { ignore: [...COMPARE.ignore, "response.body"] } : COMPARE,
+    compare: /422|unknown-invitation/u.test(name)
+      ? { ignore: [...COMPARE.ignore, "response.body"] }
+      : // The test environment answers a 404 with its debug page whatever the Accept header says.
+        name.includes("404")
+        ? { ignore: [...COMPARE.ignore, "response.body", "response.json", "response.headers.content-type"] }
+        : COMPARE,
     file,
   });
 
