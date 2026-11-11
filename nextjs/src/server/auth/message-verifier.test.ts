@@ -6,9 +6,21 @@ import { railsMessageVerifierGenerate, railsMessageVerifierVerified } from "./me
 // { product_id: id }, purpose: Link::ANALYTICS_SCRIPT_TOKEN_PURPOSE)` with this SECRET_KEY_BASE.
 const SECRET_KEY_BASE = "ws55-message-verifier-golden-secret";
 const GOLDEN = [
-  { product_id: 1, token: "eyJfcmFpbHMiOnsiZGF0YSI6eyJwcm9kdWN0X2lkIjoxfSwicHVyIjoiZXh0ZXJuYWxfbGFuZGluZ19wYWdlX3NjcmlwdCJ9fQ==--25fb4228e03f67a9f3b1cda0545384a97ee99ddf" },
-  { product_id: 12, token: "eyJfcmFpbHMiOnsiZGF0YSI6eyJwcm9kdWN0X2lkIjoxMn0sInB1ciI6ImV4dGVybmFsX2xhbmRpbmdfcGFnZV9zY3JpcHQifX0=--6e5d38e6df03694b7716bc61daee522cf88da44b" },
-  { product_id: 98765, token: "eyJfcmFpbHMiOnsiZGF0YSI6eyJwcm9kdWN0X2lkIjo5ODc2NX0sInB1ciI6ImV4dGVybmFsX2xhbmRpbmdfcGFnZV9zY3JpcHQifX0=--c23f2a6165e6a8db5c717710d79b193d5f511eb6" },
+  {
+    product_id: 1,
+    token:
+      "eyJfcmFpbHMiOnsiZGF0YSI6eyJwcm9kdWN0X2lkIjoxfSwicHVyIjoiZXh0ZXJuYWxfbGFuZGluZ19wYWdlX3NjcmlwdCJ9fQ==--25fb4228e03f67a9f3b1cda0545384a97ee99ddf",
+  },
+  {
+    product_id: 12,
+    token:
+      "eyJfcmFpbHMiOnsiZGF0YSI6eyJwcm9kdWN0X2lkIjoxMn0sInB1ciI6ImV4dGVybmFsX2xhbmRpbmdfcGFnZV9zY3JpcHQifX0=--6e5d38e6df03694b7716bc61daee522cf88da44b",
+  },
+  {
+    product_id: 98765,
+    token:
+      "eyJfcmFpbHMiOnsiZGF0YSI6eyJwcm9kdWN0X2lkIjo5ODc2NX0sInB1ciI6ImV4dGVybmFsX2xhbmRpbmdfcGFnZV9zY3JpcHQifX0=--c23f2a6165e6a8db5c717710d79b193d5f511eb6",
+  },
 ];
 
 describe("railsMessageVerifierGenerate", () => {
@@ -22,7 +34,9 @@ describe("railsMessageVerifierGenerate", () => {
   });
 
   it.each(GOLDEN)("matches Rails for product $product_id", ({ product_id, token }) => {
-    expect(railsMessageVerifierGenerate("product_analytics_view", { product_id }, "external_landing_page_script")).toBe(token);
+    expect(railsMessageVerifierGenerate("product_analytics_view", { product_id }, "external_landing_page_script")).toBe(
+      token,
+    );
   });
 });
 
@@ -42,22 +56,49 @@ describe("message verifier with expiry and verification", () => {
   });
 
   it("writes the expiry the way Rails does", () => {
-    const token = railsMessageVerifierGenerate("product_analytics_view", { product_id: 7, source_url: "https://landing.example/post", event_id: "evt" }, "external_landing_page_view", {
-      expiresAt: new Date("2030-01-02T03:04:05.678Z"),
-    });
+    const token = railsMessageVerifierGenerate(
+      "product_analytics_view",
+      { product_id: 7, source_url: "https://landing.example/post", event_id: "evt" },
+      "external_landing_page_view",
+      {
+        expiresAt: new Date("2030-01-02T03:04:05.678Z"),
+      },
+    );
     expect(token).toBe(EXPIRING_TOKEN);
   });
 
   it("verifies a token Rails generated", () => {
-    expect(railsMessageVerifierVerified("product_analytics_view", GOLDEN[0]!.token, "external_landing_page_script")).toEqual({ product_id: 1 });
-    expect(railsMessageVerifierVerified("product_analytics_view", EXPIRING_TOKEN, "external_landing_page_view", new Date("2030-01-01T00:00:00Z"))).toMatchObject({ product_id: 7, event_id: "evt" });
+    expect(
+      railsMessageVerifierVerified("product_analytics_view", GOLDEN[0]!.token, "external_landing_page_script"),
+    ).toEqual({ product_id: 1 });
+    expect(
+      railsMessageVerifierVerified(
+        "product_analytics_view",
+        EXPIRING_TOKEN,
+        "external_landing_page_view",
+        new Date("2030-01-01T00:00:00Z"),
+      ),
+    ).toMatchObject({ product_id: 7, event_id: "evt" });
   });
 
   it("refuses another purpose, another verifier, a tampered token and an expired one", () => {
-    expect(railsMessageVerifierVerified("product_analytics_view", GOLDEN[0]!.token, "external_landing_page_view")).toBeNull();
+    expect(
+      railsMessageVerifierVerified("product_analytics_view", GOLDEN[0]!.token, "external_landing_page_view"),
+    ).toBeNull();
     expect(railsMessageVerifierVerified("other", GOLDEN[0]!.token, "external_landing_page_script")).toBeNull();
-    expect(railsMessageVerifierVerified("product_analytics_view", `${GOLDEN[0]!.token}0`, "external_landing_page_script")).toBeNull();
-    expect(railsMessageVerifierVerified("product_analytics_view", "not a token", "external_landing_page_script")).toBeNull();
-    expect(railsMessageVerifierVerified("product_analytics_view", EXPIRING_TOKEN, "external_landing_page_view", new Date("2030-01-03T00:00:00Z"))).toBeNull();
+    expect(
+      railsMessageVerifierVerified("product_analytics_view", `${GOLDEN[0]!.token}0`, "external_landing_page_script"),
+    ).toBeNull();
+    expect(
+      railsMessageVerifierVerified("product_analytics_view", "not a token", "external_landing_page_script"),
+    ).toBeNull();
+    expect(
+      railsMessageVerifierVerified(
+        "product_analytics_view",
+        EXPIRING_TOKEN,
+        "external_landing_page_view",
+        new Date("2030-01-03T00:00:00Z"),
+      ),
+    ).toBeNull();
   });
 });

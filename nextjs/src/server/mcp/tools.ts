@@ -21,9 +21,20 @@ const DISCOUNT_PERCENT_MIN = 1;
 const DISCOUNT_PERCENT_MAX = 100;
 
 const DISCOUNT_CODE_FIELDS = {
-  percent_off: { type: "integer", description: `Percent off, ${DISCOUNT_PERCENT_MIN}-${DISCOUNT_PERCENT_MAX}. Not with amount_cents.` },
-  amount_cents: { type: "integer", description: "Fixed amount off in minor units of the product's currency (the creator's currency for an all-products code). Not with percent_off." },
-  valid_at: { type: "string", description: "ISO 8601 time the code starts working. If only expires_at is given, the start is now for a new code and unchanged for an existing one." },
+  percent_off: {
+    type: "integer",
+    description: `Percent off, ${DISCOUNT_PERCENT_MIN}-${DISCOUNT_PERCENT_MAX}. Not with amount_cents.`,
+  },
+  amount_cents: {
+    type: "integer",
+    description:
+      "Fixed amount off in minor units of the product's currency (the creator's currency for an all-products code). Not with percent_off.",
+  },
+  valid_at: {
+    type: "string",
+    description:
+      "ISO 8601 time the code starts working. If only expires_at is given, the start is now for a new code and unchanged for an existing one.",
+  },
   expires_at: { type: "string", description: "ISO 8601 time the code stops working." },
   max_purchase_count: { type: "integer", description: "How many times the code can be used in total. 0 or more." },
 };
@@ -33,7 +44,12 @@ export type ToolDefinition = {
   name: string;
   title: string;
   description: string;
-  inputSchema: { type: "object"; properties: Record<string, JsonSchemaProperty>; additionalProperties: false; required?: string[] };
+  inputSchema: {
+    type: "object";
+    properties: Record<string, JsonSchemaProperty>;
+    additionalProperties: false;
+    required?: string[];
+  };
   annotations: { readOnlyHint: boolean; openWorldHint: boolean; destructiveHint: boolean };
 };
 
@@ -46,7 +62,12 @@ function humanize(name: string): string {
 type ToolOptions = { required?: string[]; readOnly?: boolean; destructive?: boolean; openWorld?: boolean };
 
 // Every tool reaches a creator's storefront, so openWorld is true unless a tool says otherwise.
-function tool(name: string, description: string, properties: Record<string, JsonSchemaProperty>, options: ToolOptions = {}): ToolDefinition {
+function tool(
+  name: string,
+  description: string,
+  properties: Record<string, JsonSchemaProperty>,
+  options: ToolOptions = {},
+): ToolDefinition {
   const { required = [], readOnly = false, destructive = false, openWorld = true } = options;
   const inputSchema: ToolDefinition["inputSchema"] = { type: "object", properties, additionalProperties: false };
   if (required.length > 0) inputSchema.required = required;
@@ -62,7 +83,12 @@ function tool(name: string, description: string, properties: Record<string, Json
 const PRODUCT_ID = { type: "string", description: "Product id or permalink." };
 
 export const TOOLS: readonly ToolDefinition[] = [
-  tool("get_account", "The connected creator's public profile: name, username, storefront URL, currency.", {}, { readOnly: true }),
+  tool(
+    "get_account",
+    "The connected creator's public profile: name, username, storefront URL, currency.",
+    {},
+    { readOnly: true },
+  ),
   tool(
     "list_products",
     "List the creator's products (newest first). Returns id, name, price, published state, whether it is a bundle, and URL.",
@@ -93,14 +119,16 @@ export const TOOLS: readonly ToolDefinition[] = [
       tiers: {
         type: "array",
         minItems: 1,
-        description: "Membership tiers, in display order. Required for a membership, not accepted otherwise. Every tier must use the same recurrence.",
+        description:
+          "Membership tiers, in display order. Required for a membership, not accepted otherwise. Every tier must use the same recurrence.",
         items: {
           type: "object",
           properties: {
             name: { type: "string", description: "Tier name." },
             price_cents: {
               type: "integer",
-              description: "Price per billing period in minor units of the creator's currency. 0 makes the tier pay what you want.",
+              description:
+                "Price per billing period in minor units of the creator's currency. 0 makes the tier pay what you want.",
             },
             recurrence: { type: "string", enum: RECURRENCES, description: "Billing period." },
           },
@@ -155,8 +183,18 @@ export const TOOLS: readonly ToolDefinition[] = [
     },
     { required: ["id", "url"] },
   ),
-  tool("publish_product", "Make a draft product purchasable. Confirm with the creator first.", { id: PRODUCT_ID }, { required: ["id"], destructive: true }),
-  tool("unpublish_product", "Take a product off sale without deleting it.", { id: PRODUCT_ID }, { required: ["id"], destructive: true }),
+  tool(
+    "publish_product",
+    "Make a draft product purchasable. Confirm with the creator first.",
+    { id: PRODUCT_ID },
+    { required: ["id"], destructive: true },
+  ),
+  tool(
+    "unpublish_product",
+    "Take a product off sale without deleting it.",
+    { id: PRODUCT_ID },
+    { required: ["id"], destructive: true },
+  ),
   tool(
     "list_sales",
     "Successful sales, newest first, with net amount, fees, country, discount code, affiliate commission, referrer and UTM fields. Free downloads count as sales; use payment=paid to skip them. When next_cursor is returned, pass it as cursor for the next page.",
@@ -165,10 +203,21 @@ export const TOOLS: readonly ToolDefinition[] = [
       cursor: { type: "string", description: "next_cursor from the previous page." },
       email: { type: "string", description: "Filter by buyer email." },
       product_id: { type: "string", description: "Only sales of this product (id from list_products)." },
-      after: { type: "string", description: "Only sales on or after this date or ISO 8601 time (UTC), e.g. 2026-10-01." },
+      after: {
+        type: "string",
+        description: "Only sales on or after this date or ISO 8601 time (UTC), e.g. 2026-10-01.",
+      },
       before: { type: "string", description: "Only sales before this date or ISO 8601 time (UTC), e.g. 2026-11-01." },
-      payment: { type: "string", enum: ["paid", "free"], description: "paid = price above zero, free = zero-price sales." },
-      kind: { type: "string", enum: ["subscription", "one_time"], description: "subscription = membership charges, one_time = everything else." },
+      payment: {
+        type: "string",
+        enum: ["paid", "free"],
+        description: "paid = price above zero, free = zero-price sales.",
+      },
+      kind: {
+        type: "string",
+        enum: ["subscription", "one_time"],
+        description: "subscription = membership charges, one_time = everything else.",
+      },
     },
     { readOnly: true },
   ),
@@ -189,7 +238,10 @@ export const TOOLS: readonly ToolDefinition[] = [
     {
       breakdown: { type: "string", enum: CUSTOMER_BREAKDOWNS, description: "spend (default) or conversion." },
       email: { type: "string", description: "Only this buyer's email." },
-      start_date: { type: "string", description: "First day, YYYY-MM-DD, in the creator's time zone. Omit for all time." },
+      start_date: {
+        type: "string",
+        description: "First day, YYYY-MM-DD, in the creator's time zone. Omit for all time.",
+      },
       end_date: { type: "string", description: "Last day, YYYY-MM-DD, inclusive. Omit for all time." },
       limit: { type: "integer", description: `Max buyers to return (1-50, default ${CUSTOMERS_DEFAULT_ROWS}).` },
     },
@@ -216,7 +268,10 @@ export const TOOLS: readonly ToolDefinition[] = [
     "The creator's memberships and their state. breakdown=subscriptions (default) gives one row per subscription, newest first, with status, start date, cancel date and failed payments; breakdown=churn gives one row per month with the subscriber base, the subscribers who left and the churn rate, from the same source as the dashboard. Test subscriptions are excluded. Subscription timestamps are in UTC; churn dates are in the creator's time zone.",
     {
       breakdown: { type: "string", enum: SUBSCRIPTION_BREAKDOWNS, description: "subscriptions (default) or churn." },
-      limit: { type: "integer", description: "Max subscriptions to return (1-50, default 25). breakdown=subscriptions only." },
+      limit: {
+        type: "integer",
+        description: "Max subscriptions to return (1-50, default 25). breakdown=subscriptions only.",
+      },
       cursor: { type: "string", description: "next_cursor from the previous page. breakdown=subscriptions only." },
       status: {
         type: "string",
@@ -227,7 +282,8 @@ export const TOOLS: readonly ToolDefinition[] = [
       product_id: { type: "string", description: "Only this product (id from list_products)." },
       start_date: {
         type: "string",
-        description: "First day, YYYY-MM-DD. Defaults to the start of the month 11 months before end_date. breakdown=churn only.",
+        description:
+          "First day, YYYY-MM-DD. Defaults to the start of the month 11 months before end_date. breakdown=churn only.",
       },
       end_date: { type: "string", description: "Last day, YYYY-MM-DD. Defaults to today. breakdown=churn only." },
     },
@@ -282,7 +338,10 @@ export const TOOLS: readonly ToolDefinition[] = [
     "Create a discount code for all of the creator's products, or for one product. Pass exactly one of percent_off or amount_cents. Confirm the code, the amount, and which products it covers with the creator first, and call this once per confirmation: an existing code is refused, not duplicated.",
     {
       code: { type: "string", description: "The code buyers enter. Letters, numbers, dashes, and underscores." },
-      product_id: { type: "string", description: "Product id or permalink. Omit for a code that covers all of the creator's products." },
+      product_id: {
+        type: "string",
+        description: "Product id or permalink. Omit for a code that covers all of the creator's products.",
+      },
       ...DISCOUNT_CODE_FIELDS,
     },
     { required: ["code"] },
@@ -294,7 +353,8 @@ export const TOOLS: readonly ToolDefinition[] = [
       code: { type: "string", description: "The existing code." },
       product_id: {
         type: "string",
-        description: "Product id or permalink, for a code made for specific products. Omit for a code that covers all products.",
+        description:
+          "Product id or permalink, for a code made for specific products. Omit for a code that covers all products.",
       },
       ...DISCOUNT_CODE_FIELDS,
     },
@@ -307,14 +367,16 @@ export const TOOLS: readonly ToolDefinition[] = [
       code: { type: "string", description: "The existing code." },
       product_id: {
         type: "string",
-        description: "Product id or permalink, for a code made for specific products. Omit for a code that covers all products.",
+        description:
+          "Product id or permalink, for a code made for specific products. Omit for a code that covers all products.",
       },
     },
     { required: ["code"], destructive: true },
   ),
 ];
 
-export const findTool = (name: string): ToolDefinition | undefined => TOOLS.find((definition) => definition.name === name);
+export const findTool = (name: string): ToolDefinition | undefined =>
+  TOOLS.find((definition) => definition.name === name);
 
 // The argument checks of validate_tool_arguments!, in its order. Returns the first failure as a JSON-RPC message.
 export function toolArgumentError(schema: ToolDefinition["inputSchema"], args: Record<string, unknown>): string | null {
@@ -326,9 +388,15 @@ export function toolArgumentError(schema: ToolDefinition["inputSchema"], args: R
     const property = schema.properties[key]!;
     const type = property.type ?? "string";
     // { "integer" => Integer, "array" => Array }.fetch(type, String)
-    const matches = type === "integer" ? Number.isInteger(value) : type === "array" ? Array.isArray(value) : typeof value === "string";
+    const matches =
+      type === "integer"
+        ? Number.isInteger(value)
+        : type === "array"
+          ? Array.isArray(value)
+          : typeof value === "string";
     if (!matches) return `${key} must be ${type === "array" ? "an" : "a"} ${type}`;
-    if (property.enum && !property.enum.includes(value as string)) return `${key} must be one of: ${property.enum.join(", ")}`;
+    if (property.enum && !property.enum.includes(value as string))
+      return `${key} must be one of: ${property.enum.join(", ")}`;
   }
   return null;
 }

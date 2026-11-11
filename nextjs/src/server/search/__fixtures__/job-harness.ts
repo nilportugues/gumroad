@@ -3,21 +3,23 @@
 import type { Redis } from "ioredis";
 import { expect } from "vitest";
 
-import { createJobsRuntime, type JobsRuntime } from "../../jobs/runtime.ts";
-import { JOB_REGISTRY } from "../../jobs/registry.generated.ts";
-import type { JobDefinition } from "../../jobs/registry-types.ts";
-import { type JsonValue, RubyFloat } from "../../jobs/sidekiq/ruby-json.ts";
 import { asSidekiqJob, sequentialJids } from "../../../worker/jobs/__fixtures__/golden.ts";
 import { sqlReplay } from "../../../worker/jobs/__fixtures__/sql-replay.ts";
 import type { JobHandler } from "../../../worker/jobs/types.ts";
+import type { JobDefinition } from "../../jobs/registry-types.ts";
+import { JOB_REGISTRY } from "../../jobs/registry.generated.ts";
+import { createJobsRuntime, type JobsRuntime } from "../../jobs/runtime.ts";
 import type { SidekiqItem } from "../../jobs/sidekiq/item.ts";
+import { type JsonValue, RubyFloat } from "../../jobs/sidekiq/ruby-json.ts";
 import { type EsRequest, setEsSender } from "../transport.ts";
+
 import type { EsRequestRecord, SearchCase } from "./search-golden.ts";
 import { searchGolden } from "./search-golden.ts";
 
 // The Ruby side records the request line Faraday sent: path, then the query in key order.
 function record(request: EsRequest): EsRequestRecord {
-  const query = request.query && Object.keys(request.query).length > 0 ? new URLSearchParams(request.query).toString() : null;
+  const query =
+    request.query && Object.keys(request.query).length > 0 ? new URLSearchParams(request.query).toString() : null;
   return { method: request.method, path: request.path, query, body: request.body ?? null };
 }
 
@@ -75,7 +77,8 @@ export function fakeSidekiqRedis() {
     const result: Record<string, unknown> = {};
     for (const [key, value] of lists) result[key] = { type: "list", value, expires: false };
     for (const [key, value] of sets) result[key] = { type: "set", value: [...value].sort(), expires: false };
-    for (const [key, value] of zsets) result[key] = { type: "zset", value: [...value].sort((a, b) => a[1] - b[1]), expires: false };
+    for (const [key, value] of zsets)
+      result[key] = { type: "zset", value: [...value].sort((a, b) => a[1] - b[1]), expires: false };
     return Object.fromEntries(Object.entries(result).sort(([a], [b]) => (a < b ? -1 : 1)));
   };
   return { redis, snapshot };
@@ -85,7 +88,8 @@ export function fakeSidekiqRedis() {
 export function plain(value: unknown): unknown {
   if (value instanceof RubyFloat) return value.value;
   if (Array.isArray(value)) return value.map(plain);
-  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, plain(v)]));
+  if (value && typeof value === "object")
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, plain(v)]));
   return value;
 }
 
@@ -97,17 +101,30 @@ export function rubyRegistry(...classes: string[]): Record<string, JobDefinition
 }
 
 export function goldenSearchRuntime(sidekiqRedis: Redis, registry: Record<string, JobDefinition>): JobsRuntime {
-  return createJobsRuntime({ sidekiqRedis, bullmqRedis: sidekiqRedis, now: () => searchGolden.now, newJid: sequentialJids(), registry });
+  return createJobsRuntime({
+    sidekiqRedis,
+    bullmqRedis: sidekiqRedis,
+    now: () => searchGolden.now,
+    newJid: sequentialJids(),
+    registry,
+  });
 }
 
-export async function replayJobCase(golden: SearchCase, handler: JobHandler, options: { registry?: Record<string, JobDefinition>; redis?: { redis: Redis; snapshot: () => unknown } } = {}) {
+export async function replayJobCase(
+  golden: SearchCase,
+  handler: JobHandler,
+  options: { registry?: Record<string, JobDefinition>; redis?: { redis: Redis; snapshot: () => unknown } } = {},
+) {
   const sql = sqlReplay(golden.statements);
   const es = esRecorder(golden.es_responses ?? []);
   const sidekiq = options.redis ?? fakeSidekiqRedis();
   const runtime = goldenSearchRuntime(sidekiq.redis, options.registry ?? JOB_REGISTRY);
   let error: { class: string; message: string } | null = null;
   try {
-    await asSidekiqJob(() => handler(golden.args ?? [], { jid: "f".repeat(24), item: {} as SidekiqItem, attemptsMade: 0, runtime }), searchGolden.now);
+    await asSidekiqJob(
+      () => handler(golden.args ?? [], { jid: "f".repeat(24), item: {} as SidekiqItem, attemptsMade: 0, runtime }),
+      searchGolden.now,
+    );
   } catch (e) {
     error = { class: (e as Error).name, message: (e as Error).message };
     if (process.env.DEBUG_SEARCH) console.log(e);

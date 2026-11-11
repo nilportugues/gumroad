@@ -32,25 +32,113 @@ const START_CLOSE = new Set(HTML_START_CLOSE.map(([oldTag, newTag]) => `${oldTag
 const ENTITIES = new Map<string, number>();
 for (const [name, value] of HTML40_ENTITIES) if (!ENTITIES.has(name)) ENTITIES.set(name, value);
 
-const END_PRIORITY: Record<string, number> = { div: 150, td: 160, th: 160, tr: 170, thead: 180, tbody: 180, tfoot: 180, table: 190, head: 200, body: 200, html: 220 };
+const END_PRIORITY: Record<string, number> = {
+  div: 150,
+  td: 160,
+  th: 160,
+  tr: 170,
+  thead: 180,
+  tbody: 180,
+  tfoot: 180,
+  table: 190,
+  head: 200,
+  body: 200,
+  html: 220,
+};
 const NO_CONTENT_ELEMENTS = ["html", "head"];
 const ALLOW_PCDATA = new Set([
-  "a", "abbr", "acronym", "address", "applet", "b", "bdo", "big", "blockquote", "body", "button", "caption", "center", "cite", "code",
-  "dd", "del", "dfn", "div", "dt", "em", "font", "form", "h1", "h2", "h3", "h4", "h5", "h6", "i", "iframe", "ins", "kbd", "label", "legend",
-  "li", "noframes", "noscript", "object", "p", "pre", "q", "s", "samp", "small", "span", "strike", "strong", "td", "th", "tt", "u", "var",
+  "a",
+  "abbr",
+  "acronym",
+  "address",
+  "applet",
+  "b",
+  "bdo",
+  "big",
+  "blockquote",
+  "body",
+  "button",
+  "caption",
+  "center",
+  "cite",
+  "code",
+  "dd",
+  "del",
+  "dfn",
+  "div",
+  "dt",
+  "em",
+  "font",
+  "form",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "i",
+  "iframe",
+  "ins",
+  "kbd",
+  "label",
+  "legend",
+  "li",
+  "noframes",
+  "noscript",
+  "object",
+  "p",
+  "pre",
+  "q",
+  "s",
+  "samp",
+  "small",
+  "span",
+  "strike",
+  "strong",
+  "td",
+  "th",
+  "tt",
+  "u",
+  "var",
 ]);
-const BOOLEAN_ATTRIBUTES = new Set(["checked", "compact", "declare", "defer", "disabled", "ismap", "multiple", "nohref", "noresize", "noshade", "nowrap", "readonly", "selected"]);
+const BOOLEAN_ATTRIBUTES = new Set([
+  "checked",
+  "compact",
+  "declare",
+  "defer",
+  "disabled",
+  "ismap",
+  "multiple",
+  "nohref",
+  "noresize",
+  "noshade",
+  "nowrap",
+  "readonly",
+  "selected",
+]);
 
 // htmlTagLookup compares case-insensitively.
-export const tagLookup = (name: string | null): ElementDesc | undefined => (name === null ? undefined : ELEMENTS.get(name.toLowerCase()));
+export const tagLookup = (name: string | null): ElementDesc | undefined =>
+  name === null ? undefined : ELEMENTS.get(name.toLowerCase());
 
 const isBlankCh = (c: number) => c === 0x20 || c === 0x09 || c === 0x0a || c === 0x0d;
 const isAsciiLetter = (c: number) => (c >= 0x41 && c <= 0x5a) || (c >= 0x61 && c <= 0x7a);
 const isAsciiDigit = (c: number) => c >= 0x30 && c <= 0x39;
-const isChar = (c: number) => c === 0x9 || c === 0xa || c === 0xd || (c >= 0x20 && c <= 0xd7ff) || (c >= 0xe000 && c <= 0xfffd) || (c >= 0x10000 && c <= 0x10ffff);
+const isChar = (c: number) =>
+  c === 0x9 ||
+  c === 0xa ||
+  c === 0xd ||
+  (c >= 0x20 && c <= 0xd7ff) ||
+  (c >= 0xe000 && c <= 0xfffd) ||
+  (c >= 0x10000 && c <= 0x10ffff);
 const isCharCh = (c: number) => c === 0x9 || c === 0xa || c === 0xd || c >= 0x20;
 const isPubidCh = (c: number) =>
-  c === 0x20 || c === 0x0d || c === 0x0a || isAsciiLetter(c) || isAsciiDigit(c) || "-'()+,./:=?;!*#@$_%".includes(String.fromCharCode(c));
+  c === 0x20 ||
+  c === 0x0d ||
+  c === 0x0a ||
+  isAsciiLetter(c) ||
+  isAsciiDigit(c) ||
+  "-'()+,./:=?;!*#@$_%".includes(String.fromCharCode(c));
 const inRanges = (c: number, ranges: readonly (readonly [number, number])[]) => {
   let lo = 0;
   let hi = ranges.length - 1;
@@ -71,7 +159,7 @@ const isLetter = (c: number) =>
 const isDigit = (c: number) => (c < 0x100 ? isAsciiDigit(c) : inRanges(c, DIGIT_RANGES));
 const isCombining = (c: number) => c >= 0x100 && inRanges(c, COMBINING_RANGES);
 const isExtender = (c: number) => (c < 0x100 ? c === 0xb7 : inRanges(c, EXTENDER_RANGES));
-const toUpper =(c: number) => (c >= 0x61 && c <= 0x7a ? c - 0x20 : c);
+const toUpper = (c: number) => (c >= 0x61 && c <= 0x7a ? c - 0x20 : c);
 
 function utf8(c: number): number[] {
   if (c < 0x80) return [c];
@@ -81,7 +169,8 @@ function utf8(c: number): number[] {
 }
 
 const decoder = new TextDecoder("utf-8", { ignoreBOM: true });
-const text = (bytes: number[] | Uint8Array) => decoder.decode(bytes instanceof Uint8Array ? bytes : Uint8Array.from(bytes));
+const text = (bytes: number[] | Uint8Array) =>
+  decoder.decode(bytes instanceof Uint8Array ? bytes : Uint8Array.from(bytes));
 // A C string stops at its first NUL.
 const cString = (bytes: number[]) => {
   const nul = bytes.indexOf(0);
@@ -153,8 +242,15 @@ class HtmlParser {
     const c = this.input[this.cur]!;
     if (c < 0x80) return c === 0 ? [0x20, 1] : [c, 1];
     if (c < 0xe0) return [((c & 0x1f) << 6) | (this.at(this.cur + 1) & 0x3f), 2];
-    if (c < 0xf0) return [((c & 0x0f) << 12) | ((this.at(this.cur + 1) & 0x3f) << 6) | (this.at(this.cur + 2) & 0x3f), 3];
-    return [((c & 0x07) << 18) | ((this.at(this.cur + 1) & 0x3f) << 12) | ((this.at(this.cur + 2) & 0x3f) << 6) | (this.at(this.cur + 3) & 0x3f), 4];
+    if (c < 0xf0)
+      return [((c & 0x0f) << 12) | ((this.at(this.cur + 1) & 0x3f) << 6) | (this.at(this.cur + 2) & 0x3f), 3];
+    return [
+      ((c & 0x07) << 18) |
+        ((this.at(this.cur + 1) & 0x3f) << 12) |
+        ((this.at(this.cur + 2) & 0x3f) << 6) |
+        (this.at(this.cur + 3) & 0x3f),
+      4,
+    ];
   }
 
   private skipBlanks(): void {
@@ -171,7 +267,10 @@ class HtmlParser {
     this.nodeTab.push(element);
     for (const [attName, value] of atts ?? []) {
       // xmlSAX2AttributeInternal: a valueless boolean attribute takes its own name as value.
-      const attribute: Attribute = { name: attName, value: value === null && BOOLEAN_ATTRIBUTES.has(attName) ? attName : value };
+      const attribute: Attribute = {
+        name: attName,
+        value: value === null && BOOLEAN_ATTRIBUTES.has(attName) ? attName : value,
+      };
       element.attributes.push(attribute);
     }
   }
@@ -372,7 +471,14 @@ class HtmlParser {
       c !== 0x20 &&
       c !== 0x3e &&
       c !== 0x2f &&
-      (isLetter(c) || isDigit(c) || c === 0x2e || c === 0x2d || c === 0x5f || c === 0x3a || isCombining(c) || isExtender(c))
+      (isLetter(c) ||
+        isDigit(c) ||
+        c === 0x2e ||
+        c === 0x2d ||
+        c === 0x5f ||
+        c === 0x3a ||
+        isCombining(c) ||
+        isExtender(c))
     ) {
       len += l;
       if (len > MAX_NAME_LENGTH) return null;
@@ -730,7 +836,13 @@ class HtmlParser {
       if (attName !== null) {
         if (!atts.some(([n]) => n === attName)) atts.push([attName, attValue]);
       } else {
-        while (this.c() !== 0 && !isBlankCh(this.c()) && this.c() !== 0x3e && (this.c() !== 0x2f || this.NXT(1) !== 0x3e)) this.NEXT();
+        while (
+          this.c() !== 0 &&
+          !isBlankCh(this.c()) &&
+          this.c() !== 0x3e &&
+          (this.c() !== 0x2f || this.NXT(1) !== 0x3e)
+        )
+          this.NEXT();
       }
       this.skipBlanks();
     }
@@ -858,7 +970,10 @@ class HtmlParser {
   }
 
   private atCommentOrPI(): boolean {
-    return (this.c() === 0x3c && this.NXT(1) === 0x21 && this.NXT(2) === 0x2d && this.NXT(3) === 0x2d) || (this.c() === 0x3c && this.NXT(1) === 0x3f);
+    return (
+      (this.c() === 0x3c && this.NXT(1) === 0x21 && this.NXT(2) === 0x2d && this.NXT(3) === 0x2d) ||
+      (this.c() === 0x3c && this.NXT(1) === 0x3f)
+    );
   }
 
   // htmlParseDocument
@@ -871,7 +986,11 @@ class HtmlParser {
       this.parsePI();
       this.skipBlanks();
     }
-    if (this.c() === 0x3c && this.NXT(1) === 0x21 && [..."DOCTYPE"].every((ch, i) => this.UPP(2 + i) === ch.charCodeAt(0))) {
+    if (
+      this.c() === 0x3c &&
+      this.NXT(1) === 0x21 &&
+      [..."DOCTYPE"].every((ch, i) => this.UPP(2 + i) === ch.charCodeAt(0))
+    ) {
       this.parseDocTypeDecl();
     }
     this.skipBlanks();
@@ -883,7 +1002,11 @@ class HtmlParser {
     this.parseContentInternal();
     if (this.c() === 0) this.autoCloseOnEnd();
     if (this.doc.dtd === null) {
-      this.doc.dtd = { name: "html", externalId: "-//W3C//DTD HTML 4.0 Transitional//EN", systemId: "http://www.w3.org/TR/REC-html40/loose.dtd" };
+      this.doc.dtd = {
+        name: "html",
+        externalId: "-//W3C//DTD HTML 4.0 Transitional//EN",
+        systemId: "http://www.w3.org/TR/REC-html40/loose.dtd",
+      };
     }
     return this.doc;
   }

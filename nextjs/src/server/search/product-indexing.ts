@@ -6,12 +6,13 @@ import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 
 import { indexName } from "../infra/elasticsearch.ts";
+import { pushBulkWith } from "../jobs/push-bulk.ts";
 import { afterCommitEverywhere, currentJobsRuntime, performAsync } from "../models/concerns/job-runtime.ts";
 import { ago } from "../models/concerns/ruby-time.ts";
-import { findInBatches, selectRows } from "../models/sql.ts";
 import { withExecutor } from "../models/runtime/query-cache.ts";
 import type { Row } from "../models/runtime/record.ts";
-import { pushBulkWith } from "../jobs/push-bulk.ts";
+import { findInBatches, selectRows } from "../models/sql.ts";
+
 import { clearScroll, indexDocument, scroll, search, updateDocument } from "./api.ts";
 import { type ProductDocumentDeps, ProductRecord } from "./documents/product.ts";
 import { esJson, type JsonValue } from "./es-json.ts";
@@ -70,11 +71,17 @@ export async function performProductIndexing(
     } else if (action === "update") {
       const attributes = attributesToUpdate as JsonValue[];
       if (attributes.length === 0) return;
-      await updateDocument({ index: indexName("Link"), id: product.id, body: { doc: await product.buildSearchUpdate(attributes) } });
+      await updateDocument({
+        index: indexName("Link"),
+        id: product.id,
+        body: { doc: await product.buildSearchUpdate(attributes) },
+      });
     }
   } catch (error) {
     if (onFailure !== "async") throw error;
-    await performAsync(SEND_TO_ELASTICSEARCH_WORKER, [product.id, action ?? null, attributesToUpdate], { delaySeconds: ASYNC_RETRY_DELAY_SECONDS });
+    await performAsync(SEND_TO_ELASTICSEARCH_WORKER, [product.id, action ?? null, attributesToUpdate], {
+      delaySeconds: ASYNC_RETRY_DELAY_SECONDS,
+    });
     const list = Array.isArray(attributesToUpdate) ? attributesToUpdate.join(", ") : String(attributesToUpdate);
     console.error(`Failed to ${String(action ?? "")} product ${product.id} (${list}), queued job instead`);
   }
@@ -83,7 +90,11 @@ export async function performProductIndexing(
 // Link#enqueue_index_update_for, for several products: after commit, each is found again and
 // updated, a failed update falling back to a SendToElasticsearchWorker job. One callback runs
 // them in order, as Ruby's per-product callbacks run back to back at commit, under one query cache.
-export function enqueueIndexUpdatesFor(productIds: readonly (bigint | number)[], changedSearchFields: string[], deps: ProductIndexingDeps): Promise<void> {
+export function enqueueIndexUpdatesFor(
+  productIds: readonly (bigint | number)[],
+  changedSearchFields: string[],
+  deps: ProductIndexingDeps,
+): Promise<void> {
   return afterCommitEverywhere(() =>
     withExecutor(async () => {
       for (const id of productIds) await updateFoundProduct(id, changedSearchFields, deps);
@@ -91,13 +102,18 @@ export function enqueueIndexUpdatesFor(productIds: readonly (bigint | number)[],
   );
 }
 
-async function updateFoundProduct(id: bigint | number, changedSearchFields: string[], deps: ProductIndexingDeps): Promise<void> {
+async function updateFoundProduct(
+  id: bigint | number,
+  changedSearchFields: string[],
+  deps: ProductIndexingDeps,
+): Promise<void> {
   const product = await ProductRecord.find(id, deps);
   if (!product) throw new RecordNotFound("Link", id);
   await performProductIndexing(product, "update", changedSearchFields, "async");
 }
 
-const trailingKey = (args: JsonValue[]) => `send_to_elasticsearch_worker:trailing:${createHash("sha1").update(esJson(args)).digest("hex")}`;
+const trailingKey = (args: JsonValue[]) =>
+  `send_to_elasticsearch_worker:trailing:${createHash("sha1").update(esJson(args)).digest("hex")}`;
 
 // SendToElasticsearchWorker#perform
 export async function sendToElasticsearch(args: JsonValue[], deps: ProductIndexingDeps): Promise<void> {
@@ -114,12 +130,16 @@ export async function sendToElasticsearch(args: JsonValue[], deps: ProductIndexi
     throw error;
   } finally {
     // A duplicate dropped while this job waited may have committed after this run read the data.
-    if (dropped && !failed) await performAsync(SEND_TO_ELASTICSEARCH_WORKER, args, { delaySeconds: TRAILING_DELAY_SECONDS });
+    if (dropped && !failed)
+      await performAsync(SEND_TO_ELASTICSEARCH_WORKER, args, { delaySeconds: TRAILING_DELAY_SECONDS });
   }
 }
 
 // RefreshUserProductsRecommendationEligibilityJob / RefreshMerchantAccountProductsRecommendationEligibilityJob#perform
-export async function refreshProductsRecommendationEligibility(userId: JsonValue | undefined, deps: ProductIndexingDeps): Promise<void> {
+export async function refreshProductsRecommendationEligibility(
+  userId: JsonValue | undefined,
+  deps: ProductIndexingDeps,
+): Promise<void> {
   const cast = castId(userId);
   const [user] = await selectRows<Row>(
     cast === null
@@ -127,9 +147,14 @@ export async function refreshProductsRecommendationEligibility(userId: JsonValue
       : Prisma.sql`SELECT \`users\`.* FROM \`users\` WHERE \`users\`.\`id\` = ${cast} LIMIT 1`,
   );
   if (!user) return;
-  await findInBatches<Row>("links", Prisma.sql`\`links\`.\`user_id\` = ${user.id}`, FIND_EACH_BATCH_SIZE, async (products) => {
-    for (const product of products) await enqueueIndexUpdatesFor([product.id as bigint], ["is_recommendable"], deps);
-  });
+  await findInBatches<Row>(
+    "links",
+    Prisma.sql`\`links\`.\`user_id\` = ${user.id}`,
+    FIND_EACH_BATCH_SIZE,
+    async (products) => {
+      for (const product of products) await enqueueIndexUpdatesFor([product.id as bigint], ["is_recommendable"], deps);
+    },
+  );
 }
 
 function hitsOf(response: EsResponse): { _id: string }[] {
@@ -138,7 +163,8 @@ function hitsOf(response: EsResponse): { _id: string }[] {
   return hits;
 }
 
-const scrollIdOf = (response: EsResponse) => ((response.body as { _scroll_id?: string } | null)?._scroll_id ?? null) as string | null;
+const scrollIdOf = (response: EsResponse) =>
+  ((response.body as { _scroll_id?: string } | null)?._scroll_id ?? null) as string | null;
 
 // String#to_i
 const toI = (value: string) => {
@@ -150,7 +176,14 @@ const toI = (value: string) => {
 export async function reindexRecommendableProducts(deps: ProductIndexingDeps & { scrollSize?: number }): Promise<void> {
   const scrollSize = deps.scrollSize ?? REINDEX_SCROLL_SIZE;
   const index = indexName("Link");
-  let response = await search({ index, scroll: "1m", body: { query: { term: { is_recommendable: true } } }, size: scrollSize, sort: REINDEX_SCROLL_SORT, source: false });
+  let response = await search({
+    index,
+    scroll: "1m",
+    body: { query: { term: { is_recommendable: true } } },
+    size: scrollSize,
+    sort: REINDEX_SCROLL_SORT,
+    source: false,
+  });
 
   for (let page = 0; ; page++) {
     const hits = hitsOf(response);
@@ -169,7 +202,11 @@ export async function reindexRecommendableProducts(deps: ProductIndexingDeps & {
     if (ids.length > 0) {
       // Reconcile is_recommendable on every document: a lost refund-time refresh can leave an
       // ineligible product indexed as recommendable until this runs.
-      const args = ids.map((id) => [id, "update", recentSaleIds.has(String(id)) ? [...SALES_VOLUME_ATTRIBUTES, "is_recommendable"] : ["is_recommendable"]]);
+      const args = ids.map((id) => [
+        id,
+        "update",
+        recentSaleIds.has(String(id)) ? [...SALES_VOLUME_ATTRIBUTES, "is_recommendable"] : ["is_recommendable"],
+      ]);
       const at = Math.floor(deps.now().getTime() / 1000) + page * SECONDS_PER_MINUTE;
       await pushBulkWith(currentJobsRuntime(), { class: SEND_TO_ELASTICSEARCH_WORKER, args, queue: "low", at });
     }

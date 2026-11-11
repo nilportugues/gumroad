@@ -48,7 +48,10 @@ describe("identifyStateCode (UsZipCodes.identify_state_code)", () => {
   });
 
   it("matches every row of config/zip_code_database.csv", () => {
-    const rows = readFileSync(new URL("../../../../config/zip_code_database.csv", import.meta.url), "utf8").split("\n").slice(1).filter(Boolean);
+    const rows = readFileSync(new URL("../../../../config/zip_code_database.csv", import.meta.url), "utf8")
+      .split("\n")
+      .slice(1)
+      .filter(Boolean);
     const expected = new Map(rows.map((row) => row.split(",") as [string, string]));
     expected.set("85144", "AZ");
     expect(expected.size).toBeGreaterThan(40_000);
@@ -60,16 +63,22 @@ describe("esPostalCodeVatExempt (Compliance.es_postal_code_vat_exempt?)", () => 
   it.each(["35000", "35001", "38001", "38999", "51001", "52001", "52080", " 38400 "])("is true for %j", (code) => {
     expect(esPostalCodeVatExempt(code)).toBe(true);
   });
-  it.each(["08001", "28001", "34999", "39000", "3500", "350000", "35", "3500A", " 35001x", null, "", "   "])("is false for %j", (code) => {
-    expect(esPostalCodeVatExempt(code)).toBe(false);
-  });
+  it.each(["08001", "28001", "34999", "39000", "3500", "350000", "35", "3500A", " 35001x", null, "", "   "])(
+    "is false for %j",
+    (code) => {
+      expect(esPostalCodeVatExempt(code)).toBe(false);
+    },
+  );
 });
 
 describe("OmanVatNumberValidationService", () => {
   it("accepts OM plus ten digits", () => expect(omanVatNumber("OM1234567890")).toBe(true));
-  it.each([null, "   ", "OM123456", "ON1234567890", "om1234567890", "1234567890", "OMABCDEFGHIJ"])("rejects %j", (value) => {
-    expect(omanVatNumber(value)).toBe(false);
-  });
+  it.each([null, "   ", "OM123456", "ON1234567890", "om1234567890", "1234567890", "OMABCDEFGHIJ"])(
+    "rejects %j",
+    (value) => {
+      expect(omanVatNumber(value)).toBe(false);
+    },
+  );
 });
 
 describe("other offline tax-id validators (derived from the Ruby source)", () => {
@@ -117,7 +126,11 @@ describe("regionalVatIdValidator routing (derived from RegionalVatIdValidationSe
 describe("SalesTaxCalculation (spec/business/sales_tax/sales_tax_calculation_spec.rb)", () => {
   it("zero tax helper", () => {
     expect(zeroTax(100)).toMatchObject({ priceCents: 100, taxCents: 0, zipTaxRateCountry: null });
-    expect(salesTaxCalculationToHash(zeroTax(100))).toMatchObject({ price_cents: 100, tax_cents: 0, has_vat_id_input: false });
+    expect(salesTaxCalculationToHash(zeroTax(100))).toMatchObject({
+      price_cents: 100,
+      tax_cents: 0,
+      has_vat_id_input: false,
+    });
   });
   it("zero business VAT marks the status valid", () => {
     expect(zeroBusinessVat(100).businessVatStatus).toBe("valid");
@@ -128,11 +141,30 @@ describe("SalesTaxCalculation (spec/business/sales_tax/sales_tax_calculation_spe
     ["Australia", "AU", 10, true],
     ["Singapore", "SG", 8, true],
   ])("serializes %s", (_name, country, taxCents, hasVatIdInput) => {
-    const hash = salesTaxCalculationToHash({ priceCents: 100, taxCents, zipTaxRateCountry: country, businessVatStatus: null, isQuebec: false });
-    expect(hash).toEqual({ price_cents: 100, tax_cents: taxCents, business_vat_status: null, has_vat_id_input: hasVatIdInput });
+    const hash = salesTaxCalculationToHash({
+      priceCents: 100,
+      taxCents,
+      zipTaxRateCountry: country,
+      businessVatStatus: null,
+      isQuebec: false,
+    });
+    expect(hash).toEqual({
+      price_cents: 100,
+      tax_cents: taxCents,
+      business_vat_status: null,
+      has_vat_id_input: hasVatIdInput,
+    });
   });
   it("serializes Quebec with no rate", () => {
-    expect(salesTaxCalculationToHash({ priceCents: 100, taxCents: 8, zipTaxRateCountry: null, businessVatStatus: null, isQuebec: true }).has_vat_id_input).toBe(true);
+    expect(
+      salesTaxCalculationToHash({
+        priceCents: 100,
+        taxCents: 8,
+        zipTaxRateCountry: null,
+        businessVatStatus: null,
+        isQuebec: true,
+      }).has_vat_id_input,
+    ).toBe(true);
   });
 });
 
@@ -161,10 +193,18 @@ describe("lookupTaxCents (spec/controllers/customer_surcharge_controller_spec.rb
 
 describe("buyerTaxRegion and tax eligibility (derived from SalesTaxCalculator)", () => {
   it("resolves a US taxable state from the postal code", () => {
-    expect(buyerTaxRegion({ country: "US", postal_code: "10001" })).toEqual({ state: "NY", isUsTaxableState: true, isCaTaxable: false, isQuebec: false });
+    expect(buyerTaxRegion({ country: "US", postal_code: "10001" })).toEqual({
+      state: "NY",
+      isUsTaxableState: true,
+      isCaTaxable: false,
+      isQuebec: false,
+    });
   });
   it("treats California as US-known but not taxable", () => {
-    expect(buyerTaxRegion({ country: "US", postal_code: "94104" })).toMatchObject({ state: "CA", isUsTaxableState: false });
+    expect(buyerTaxRegion({ country: "US", postal_code: "94104" })).toMatchObject({
+      state: "CA",
+      isUsTaxableState: false,
+    });
   });
   it("uses the province for Canada", () => {
     expect(buyerTaxRegion({ country: "CA", state: "QC" })).toMatchObject({ isCaTaxable: true, isQuebec: true });
@@ -177,12 +217,24 @@ describe("buyerTaxRegion and tax eligibility (derived from SalesTaxCalculator)",
     expect(esVatExemptWithoutGeoIp("DE", { postal_code: "35001" })).toBe(false);
   });
 
-  const base = { rateIsSellerOwn: false, isPhysical: false, region: { isUsTaxableState: false, isCaTaxable: false }, featureActive: () => false, entirelyPhysicalShipment: () => false };
+  const base = {
+    rateIsSellerOwn: false,
+    isPhysical: false,
+    region: { isUsTaxableState: false, isCaTaxable: false },
+    featureActive: () => false,
+    entirelyPhysicalShipment: () => false,
+  };
   it("collects EU VAT on digital goods but not on entirely physical shipments into the EU-27", () => {
     expect(taxEligible({ ...base, rateCountry: "DE" })).toBe(true);
-    expect(taxEligible({ ...base, rateCountry: "DE", isPhysical: true, entirelyPhysicalShipment: () => true })).toBe(false);
-    expect(taxEligible({ ...base, rateCountry: "GB", isPhysical: true, entirelyPhysicalShipment: () => true })).toBe(true);
-    expect(taxEligible({ ...base, rateCountry: "DE", rateIsSellerOwn: true, entirelyPhysicalShipment: () => true })).toBe(true);
+    expect(taxEligible({ ...base, rateCountry: "DE", isPhysical: true, entirelyPhysicalShipment: () => true })).toBe(
+      false,
+    );
+    expect(taxEligible({ ...base, rateCountry: "GB", isPhysical: true, entirelyPhysicalShipment: () => true })).toBe(
+      true,
+    );
+    expect(
+      taxEligible({ ...base, rateCountry: "DE", rateIsSellerOwn: true, entirelyPhysicalShipment: () => true }),
+    ).toBe(true);
   });
   it("gates feature-flagged countries and physical goods", () => {
     expect(taxEligible({ ...base, rateCountry: "JP" })).toBe(false);
@@ -191,12 +243,23 @@ describe("buyerTaxRegion and tax eligibility (derived from SalesTaxCalculator)",
     expect(taxEligible({ ...base, rateCountry: "TH", featureActive: (f) => f === "collect_tax_th" })).toBe(true);
     expect(taxEligible({ ...base, rateCountry: "US" })).toBe(false);
     expect(taxEligible({ ...base, rateCountry: "US", isPhysical: true })).toBe(true);
-    expect(taxEligible({ ...base, rateCountry: "US", region: { isUsTaxableState: true, isCaTaxable: false } })).toBe(true);
+    expect(taxEligible({ ...base, rateCountry: "US", region: { isUsTaxableState: true, isCaTaxable: false } })).toBe(
+      true,
+    );
   });
 });
 
 describe("taxNameFor", () => {
-  it.each([["IN", "GST"], ["NZ", "GST"], ["AU", "GST"], ["SG", "GST"], ["MY", "Service tax"], ["JP", "CT"], ["DE", "VAT"], ["toString", "VAT"]])("%s is %s", (code, name) => {
+  it.each([
+    ["IN", "GST"],
+    ["NZ", "GST"],
+    ["AU", "GST"],
+    ["SG", "GST"],
+    ["MY", "Service tax"],
+    ["JP", "CT"],
+    ["DE", "VAT"],
+    ["toString", "VAT"],
+  ])("%s is %s", (code, name) => {
     expect(taxNameFor(code)).toBe(name);
   });
 });

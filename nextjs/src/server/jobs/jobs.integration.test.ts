@@ -5,30 +5,48 @@ import { readFileSync } from "node:fs";
 import { Redis } from "ioredis";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { startWorker, type StartedWorker } from "../../worker/index.ts";
 import { BRIDGE_INBOX, runBridge } from "../../worker/bridge.ts";
 import { syncCronSchedulers } from "../../worker/cron.ts";
+import { startWorker, type StartedWorker } from "../../worker/index.ts";
 import type { JobHandler } from "../../worker/jobs/types.ts";
+
 import { enqueueWith } from "./enqueue.ts";
-import { JOB_REGISTRY } from "./registry.generated.ts";
 import type { JobDefinition } from "./registry-types.ts";
+import { JOB_REGISTRY } from "./registry.generated.ts";
 import { createJobsRuntime, type JobsRuntime } from "./runtime.ts";
 import { pushToSidekiq } from "./sidekiq/client.ts";
 import { buildSidekiqItem } from "./sidekiq/item.ts";
 import { dumpRubyJson, type JsonValue, parseRubyJson } from "./sidekiq/ruby-json.ts";
 
 const url = process.env.JOBS_REDIS_URL;
-if (url && /\/0$|^[^/]*\/\/[^/]+$/.test(url)) throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
+if (url && /\/0$|^[^/]*\/\/[^/]+$/.test(url))
+  throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
 
-const base = { file: "", sidekiqJob: true, customLockArgs: false, customRetryIn: false, retriesExhausted: false } as const;
+const base = {
+  file: "",
+  sidekiqJob: true,
+  customLockArgs: false,
+  customRetryIn: false,
+  retriesExhausted: false,
+} as const;
 const registry: Record<string, JobDefinition> = {
   ...(JOB_REGISTRY as Record<string, JobDefinition>),
   NodeLockedJob: { ...base, runtime: "node", options: { retry: 1, queue: "low", lock: "until_executed" } },
   // Same class name as NodeLockedJob would have on the Ruby side before it was ported.
   RubyLockedJob: { ...base, runtime: "ruby", options: { retry: 1, queue: "low", lock: "until_executed" } },
   RetryStubJob: { ...base, runtime: "ruby", options: { retry: false, queue: "low" } },
-  RetryInJob: { ...base, runtime: "node", customRetryIn: true, retriesExhausted: true, options: { retry: 1, queue: "low", lock: "until_executed" } },
-  UntilExecutedWithTtlJob: { ...base, runtime: "ruby", options: { retry: 5, queue: "default", lock: "until_executed", lock_ttl: 900 } },
+  RetryInJob: {
+    ...base,
+    runtime: "node",
+    customRetryIn: true,
+    retriesExhausted: true,
+    options: { retry: 1, queue: "low", lock: "until_executed" },
+  },
+  UntilExecutedWithTtlJob: {
+    ...base,
+    runtime: "ruby",
+    options: { retry: 5, queue: "default", lock: "until_executed", lock_ttl: 900 },
+  },
 };
 registry.RetryFalseJob = registry.RetryStubJob!;
 
@@ -42,7 +60,11 @@ async function snapshot(redis: Redis): Promise<Snapshot> {
     const expires = (await redis.pttl(key)) > 0;
     if (key === "uniquejobs:changelog") {
       const members = await redis.zrange(key, "0", "-1");
-      result[key] = { type, messages: members.map((member) => (JSON.parse(member) as { message: string }).message), expires };
+      result[key] = {
+        type,
+        messages: members.map((member) => (JSON.parse(member) as { message: string }).message),
+        expires,
+      };
       continue;
     }
     let value: JsonValue;
@@ -99,9 +121,21 @@ describe.skipIf(!url)("jobs against Redis", () => {
   });
 
   describe("Sidekiq pushes leave the Redis state Ruby leaves", () => {
-    const golden = parseRubyJson(readFileSync(new URL("./__fixtures__/sidekiq-wire.golden.json", import.meta.url), "utf8")) as unknown as {
+    const golden = parseRubyJson(
+      readFileSync(new URL("./__fixtures__/sidekiq-wire.golden.json", import.meta.url), "utf8"),
+    ) as unknown as {
       now: number;
-      pushes: { name: string; class: string; args: JsonValue[]; in?: number; queue?: string; set?: Record<string, string | number>; repeat?: boolean; jids: (string | null)[]; redis: Snapshot }[];
+      pushes: {
+        name: string;
+        class: string;
+        args: JsonValue[];
+        in?: number;
+        queue?: string;
+        set?: Record<string, string | number>;
+        repeat?: boolean;
+        jids: (string | null)[];
+        redis: Snapshot;
+      }[];
     };
 
     it.each(golden.pushes.map((push) => [push.name, push] as const))("%s", async (_name, push) => {
@@ -128,7 +162,12 @@ describe.skipIf(!url)("jobs against Redis", () => {
   });
 
   it("runs a ported low job end to end on BullMQ", async () => {
-    worker = await startWorker({ runtime, queues: ["low"], handlers: { LogResendEventJob: recordingHandler("LogResendEventJob") }, prefix: "ws05test" });
+    worker = await startWorker({
+      runtime,
+      queues: ["low"],
+      handlers: { LogResendEventJob: recordingHandler("LogResendEventJob") },
+      prefix: "ws05test",
+    });
     const jid = await enqueueWith(runtime, "LogResendEventJob", [{ type: "email.delivered" }]);
     const run = await waitFor(() => ran.find((entry) => entry.jid === jid));
     expect(run.args).toEqual([{ type: "email.delivered" }]);
@@ -137,7 +176,12 @@ describe.skipIf(!url)("jobs against Redis", () => {
   });
 
   it("delays a ported job like perform_in", async () => {
-    worker = await startWorker({ runtime, queues: ["low"], handlers: { LogResendEventJob: recordingHandler("LogResendEventJob") }, prefix: "ws05test" });
+    worker = await startWorker({
+      runtime,
+      queues: ["low"],
+      handlers: { LogResendEventJob: recordingHandler("LogResendEventJob") },
+      prefix: "ws05test",
+    });
     const enqueuedAt = Date.now();
     await enqueueWith(runtime, "LogResendEventJob", [1], { delaySeconds: 1 });
     await waitFor(() => ran[0]);
@@ -165,7 +209,13 @@ describe.skipIf(!url)("jobs against Redis", () => {
     expect(await enqueueWith(runtime, "NodeLockedJob", [8])).not.toBeNull();
 
     // A Ruby-side push of the same class, queue and args computes the same digest and is dropped.
-    const item = buildSidekiqItem({ className: "NodeLockedJob", definition: registry.RubyLockedJob!, args: [7], jid: "ruby-side", now: runtime.now() });
+    const item = buildSidekiqItem({
+      className: "NodeLockedJob",
+      definition: registry.RubyLockedJob!,
+      args: [7],
+      jid: "ruby-side",
+      now: runtime.now(),
+    });
     expect(await pushToSidekiq(redis, item, runtime.now())).toBeNull();
 
     release();
@@ -175,8 +225,19 @@ describe.skipIf(!url)("jobs against Redis", () => {
   });
 
   it("forwards a job Rails pushed to the bridge inbox", async () => {
-    worker = await startWorker({ runtime, queues: ["low"], handlers: { LogResendEventJob: recordingHandler("LogResendEventJob") }, prefix: "ws05test" });
-    const item = buildSidekiqItem({ className: "LogResendEventJob", definition: registry.LogResendEventJob!, args: [12345678901234567n], jid: "abc123abc123abc123abc123", now: runtime.now() });
+    worker = await startWorker({
+      runtime,
+      queues: ["low"],
+      handlers: { LogResendEventJob: recordingHandler("LogResendEventJob") },
+      prefix: "ws05test",
+    });
+    const item = buildSidekiqItem({
+      className: "LogResendEventJob",
+      definition: registry.LogResendEventJob!,
+      args: [12345678901234567n],
+      jid: "abc123abc123abc123abc123",
+      now: runtime.now(),
+    });
     await redis.lpush(BRIDGE_INBOX, dumpRubyJson(item));
 
     const abort = new AbortController();
@@ -187,7 +248,11 @@ describe.skipIf(!url)("jobs against Redis", () => {
     await bridge;
     blocking.disconnect();
 
-    expect(run).toEqual({ className: "LogResendEventJob", args: [12345678901234567n], jid: "abc123abc123abc123abc123" });
+    expect(run).toEqual({
+      className: "LogResendEventJob",
+      args: [12345678901234567n],
+      jid: "abc123abc123abc123abc123",
+    });
     expect(await redis.llen("nextjs:bridge:processing")).toBe(0);
   });
 
@@ -208,7 +273,11 @@ describe.skipIf(!url)("jobs against Redis", () => {
         retriesExhausted: {
           RetryInJob: async (msg, error) => {
             // JobRetry runs outside the unique-jobs middleware: the until_executed lock is gone.
-            exhausted.push({ msg, message: (error as Error).message, digests: await redis.zcard("uniquejobs:digests") });
+            exhausted.push({
+              msg,
+              message: (error as Error).message,
+              digests: await redis.zcard("uniquejobs:digests"),
+            });
           },
         },
       },
@@ -219,7 +288,13 @@ describe.skipIf(!url)("jobs against Redis", () => {
     expect(ran.map((run) => run.jid)).toEqual([jid, jid]);
     expect(entry!.message).toBe("attempt 1");
     expect(entry!.digests).toBe(0);
-    expect(entry!.msg).toMatchObject({ class: "RetryInJob", args: [5], retry_count: 1, error_message: "attempt 1", error_class: "Error" });
+    expect(entry!.msg).toMatchObject({
+      class: "RetryInJob",
+      args: [5],
+      retry_count: 1,
+      error_message: "attempt 1",
+      error_class: "Error",
+    });
     const failed = await runtime.queue("low").getFailed();
     expect(failed.map((job) => job.id)).toEqual([jid]);
   }, 30_000);

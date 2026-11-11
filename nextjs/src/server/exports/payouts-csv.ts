@@ -9,10 +9,26 @@ import { rubyToF } from "../../lib/ruby-to-f.ts";
 import { RubyFloat } from "../jobs/sidekiq/ruby-json.ts";
 
 export const PAYOUT_HEADERS: readonly string[] = [
-  "Type", "Date", "Purchase ID", "Item Name", "Buyer Name", "Buyer Email", "Taxes ($)", "Shipping ($)", "Sale Price ($)", "Gumroad Fees ($)", "Net Total ($)",
+  "Type",
+  "Date",
+  "Purchase ID",
+  "Item Name",
+  "Buyer Name",
+  "Buyer Email",
+  "Taxes ($)",
+  "Shipping ($)",
+  "Sale Price ($)",
+  "Gumroad Fees ($)",
+  "Net Total ($)",
 ];
 export const PAYOUT_TOTALS_COLUMN_NAME = "Totals";
-export const PAYOUT_TOTALS_FIELDS: readonly string[] = ["Taxes ($)", "Shipping ($)", "Sale Price ($)", "Gumroad Fees ($)", "Net Total ($)"];
+export const PAYOUT_TOTALS_FIELDS: readonly string[] = [
+  "Taxes ($)",
+  "Shipping ($)",
+  "Sale Price ($)",
+  "Gumroad Fees ($)",
+  "Net Total ($)",
+];
 
 export const PAYPAL_PAYOUTS_HEADING = "PayPal Payouts";
 export const STRIPE_CONNECT_PAYOUTS_HEADING = "Stripe Connect Payouts";
@@ -21,7 +37,8 @@ export const STRIPE_CONNECT_PAYOUTS_HEADING = "Stripe Connect Payouts";
 // heading shifts the subtotal row out of its columns.
 export const CARD_SALES_SUBTOTAL_HEADING = "Subtotal - activity paid out by Gumroad";
 export const PAYPAL_SALES_SUBTOTAL_HEADING = "Subtotal - PayPal sales (paid out by PayPal; nets to zero here)";
-export const STRIPE_CONNECT_SALES_SUBTOTAL_HEADING = "Subtotal - Stripe Connect sales (paid out by Stripe; nets to zero here)";
+export const STRIPE_CONNECT_SALES_SUBTOTAL_HEADING =
+  "Subtotal - Stripe Connect sales (paid out by Stripe; nets to zero here)";
 
 export const PAYPAL_PAYOUTS_NOTE =
   "PayPal sales (and their Gumroad fees) are settled by PayPal directly; this line removes their net amount so they don't count toward this payout.";
@@ -71,9 +88,12 @@ export function generateTotalsRow(totals: Totals, heading: string = PAYOUT_TOTAL
 
 // Adds the note to a processor deduction row without touching the shared row it came from.
 export function annotatePayoutDeductionRow(row: PayoutRow): PayoutRow {
-  const note = row[TYPE_COLUMN] === PAYPAL_PAYOUTS_HEADING ? PAYPAL_PAYOUTS_NOTE
-    : row[TYPE_COLUMN] === STRIPE_CONNECT_PAYOUTS_HEADING ? STRIPE_CONNECT_PAYOUTS_NOTE
-      : null;
+  const note =
+    row[TYPE_COLUMN] === PAYPAL_PAYOUTS_HEADING
+      ? PAYPAL_PAYOUTS_NOTE
+      : row[TYPE_COLUMN] === STRIPE_CONNECT_PAYOUTS_HEADING
+        ? STRIPE_CONNECT_PAYOUTS_NOTE
+        : null;
   if (note === null) return row;
   const annotated = [...row];
   annotated[ITEM_NAME_COLUMN] = note;
@@ -82,7 +102,11 @@ export function annotatePayoutDeductionRow(row: PayoutRow): PayoutRow {
 
 // One subtotal row per group, only when the payout mixes groups. The Gumroad group is the grand total less
 // the PayPal and Stripe Connect groups, so it never depends on which rows are the same objects.
-export function subtotalRows(data: readonly PayoutRow[], paypalRows: readonly PayoutRow[], stripeConnectRows: readonly PayoutRow[]): PayoutRow[] {
+export function subtotalRows(
+  data: readonly PayoutRow[],
+  paypalRows: readonly PayoutRow[],
+  stripeConnectRows: readonly PayoutRow[],
+): PayoutRow[] {
   if (paypalRows.length === 0 && stripeConnectRows.length === 0) return [];
 
   const paypalTotals = calculateTotals(paypalRows);
@@ -100,7 +124,11 @@ export function subtotalRows(data: readonly PayoutRow[], paypalRows: readonly Pa
   return rows;
 }
 
-export function payoutCsv(data: readonly PayoutRow[], paypalRows: readonly PayoutRow[], stripeConnectRows: readonly PayoutRow[]): string {
+export function payoutCsv(
+  data: readonly PayoutRow[],
+  paypalRows: readonly PayoutRow[],
+  stripeConnectRows: readonly PayoutRow[],
+): string {
   const rows: PayoutRow[] = [
     [...PAYOUT_HEADERS],
     ...data.map(annotatePayoutDeductionRow),
@@ -126,7 +154,11 @@ export function sortPayoutRows(data: readonly PayoutRow[]): PayoutRow[] {
 export type Summary = { row: PayoutRow; deltaCents: number };
 
 // The Ruby sums balances' amounts, minus the USD payout fee, and shows the gap as a Technical Adjustment row.
-export function technicalAdjustmentRow(periodEndOn: string, expectedCents: number, runningTotalCents: number): PayoutRow | null {
+export function technicalAdjustmentRow(
+  periodEndOn: string,
+  expectedCents: number,
+  runningTotalCents: number,
+): PayoutRow | null {
   if (expectedCents === runningTotalCents) return null;
   const row = emptyRow();
   row[TYPE_COLUMN] = "Technical Adjustment";
@@ -165,21 +197,43 @@ function identity(sale: SaleFacts): CsvCell[] {
 
 export function saleSummary(sale: SaleFacts, succeededOn: string): Summary {
   return {
-    row: ["Sale", succeededOn, ...identity(sale), new RubyFloat(sale.taxDollars), new RubyFloat(sale.shippingDollars),
-      new RubyFloat(sale.priceDollars), new RubyFloat(sale.feeDollars), new RubyFloat(sale.netTotal)],
+    row: [
+      "Sale",
+      succeededOn,
+      ...identity(sale),
+      new RubyFloat(sale.taxDollars),
+      new RubyFloat(sale.shippingDollars),
+      new RubyFloat(sale.priceDollars),
+      new RubyFloat(sale.feeDollars),
+      new RubyFloat(sale.netTotal),
+    ],
     deltaCents: sale.paymentCents,
   };
 }
 
 export function chargebackSummary(sale: SaleFacts, chargebackOn: string): Summary {
   return {
-    row: ["Chargeback", chargebackOn, ...identity(sale), negated(sale.taxDollars), negated(sale.shippingDollars),
-      negated(sale.priceDollars), negated(sale.feeDollars), negated(sale.netTotal)],
+    row: [
+      "Chargeback",
+      chargebackOn,
+      ...identity(sale),
+      negated(sale.taxDollars),
+      negated(sale.shippingDollars),
+      negated(sale.priceDollars),
+      negated(sale.feeDollars),
+      negated(sale.netTotal),
+    ],
     deltaCents: -sale.paymentCents,
   };
 }
 
-export type RefundFacts = { createdOn: string; amountCents: number; feeCents: number; creatorTaxCents: number; retainedFeeCents: number | null };
+export type RefundFacts = {
+  createdOn: string;
+  amountCents: number;
+  feeCents: number;
+  creatorTaxCents: number;
+  retainedFeeCents: number | null;
+};
 
 // A refund whose balance transaction is gone or that is the whole purchase.
 export function fullRefundSummary(refund: RefundFacts, sale: SaleFacts): Summary {
@@ -187,8 +241,16 @@ export function fullRefundSummary(refund: RefundFacts, sale: SaleFacts): Summary
   const fee = sale.feeWaivedOnRefund ? -sale.feeDollars : -sale.feeDollars + retainedDollars;
   const net = sale.feeWaivedOnRefund ? -sale.netTotal : -sale.netTotal - retainedDollars;
   return {
-    row: ["Full Refund", refund.createdOn, ...identity(sale), negated(sale.taxDollars), negated(sale.shippingDollars),
-      negated(sale.priceDollars), new RubyFloat(fee), new RubyFloat(net)],
+    row: [
+      "Full Refund",
+      refund.createdOn,
+      ...identity(sale),
+      negated(sale.taxDollars),
+      negated(sale.shippingDollars),
+      negated(sale.priceDollars),
+      new RubyFloat(fee),
+      new RubyFloat(net),
+    ],
     deltaCents: sale.feeWaivedOnRefund ? -sale.paymentCents : -sale.paymentCents - (refund.retainedFeeCents ?? 0),
   };
 }
@@ -211,30 +273,60 @@ export function partialRefundSummary(btxn: BalanceTransactionRefundFacts, sale: 
     deltaCents -= retainedCents;
   }
   return {
-    row: ["Partial Refund", btxn.refund.createdOn, ...identity(sale), negated(rubyRoundHalfUp(btxn.refund.creatorTaxCents / CENTS_PER_DOLLAR)),
-      new RubyFloat(-0), rounded(grossDollars), rounded(feeDollars), rounded(netDollars)],
+    row: [
+      "Partial Refund",
+      btxn.refund.createdOn,
+      ...identity(sale),
+      negated(rubyRoundHalfUp(btxn.refund.creatorTaxCents / CENTS_PER_DOLLAR)),
+      new RubyFloat(-0),
+      rounded(grossDollars),
+      rounded(feeDollars),
+      rounded(netDollars),
+    ],
     deltaCents,
   };
 }
 
 // A refund attempt that failed after acceptance: its debit is labelled "Failed Refund" and its offsetting
 // credit "Failed Refund Reversal".
-export function failedRefundSummary(btxn: { createdOn: string; issuedAmountGrossCents: number; issuedAmountNetCents: number }, sale: SaleFacts): Summary {
+export function failedRefundSummary(
+  btxn: { createdOn: string; issuedAmountGrossCents: number; issuedAmountNetCents: number },
+  sale: SaleFacts,
+): Summary {
   return {
-    row: [btxn.issuedAmountNetCents < 0 ? "Failed Refund" : "Failed Refund Reversal", btxn.createdOn, ...identity(sale), "", "",
+    row: [
+      btxn.issuedAmountNetCents < 0 ? "Failed Refund" : "Failed Refund Reversal",
+      btxn.createdOn,
+      ...identity(sale),
+      "",
+      "",
       rounded(btxn.issuedAmountGrossCents / CENTS_PER_DOLLAR),
       rounded((btxn.issuedAmountGrossCents - btxn.issuedAmountNetCents) / CENTS_PER_DOLLAR),
-      rounded(btxn.issuedAmountNetCents / CENTS_PER_DOLLAR)],
+      rounded(btxn.issuedAmountNetCents / CENTS_PER_DOLLAR),
+    ],
     deltaCents: btxn.issuedAmountNetCents,
   };
 }
 
 // PayPal and Stripe Connect refunds: these processors settle the money, so the row nets against the payout.
-export function processorRefundSummary(label: "PayPal Refund" | "Stripe Connect Refund", refund: RefundFacts, sale: SaleFacts): Summary {
+export function processorRefundSummary(
+  label: "PayPal Refund" | "Stripe Connect Refund",
+  refund: RefundFacts,
+  sale: SaleFacts,
+): Summary {
   return {
-    row: [label, refund.createdOn, ...identity(sale), negated(rubyRoundHalfUp(refund.creatorTaxCents / CENTS_PER_DOLLAR)), new RubyFloat(-0),
-      new RubyFloat(-rubyRoundHalfUp(refund.amountCents / CENTS_PER_DOLLAR)), rounded(refund.feeCents / CENTS_PER_DOLLAR),
-      new RubyFloat(-rubyRoundHalfUp(refund.amountCents / CENTS_PER_DOLLAR) + rubyRoundHalfUp(refund.feeCents / CENTS_PER_DOLLAR))],
+    row: [
+      label,
+      refund.createdOn,
+      ...identity(sale),
+      negated(rubyRoundHalfUp(refund.creatorTaxCents / CENTS_PER_DOLLAR)),
+      new RubyFloat(-0),
+      new RubyFloat(-rubyRoundHalfUp(refund.amountCents / CENTS_PER_DOLLAR)),
+      rounded(refund.feeCents / CENTS_PER_DOLLAR),
+      new RubyFloat(
+        -rubyRoundHalfUp(refund.amountCents / CENTS_PER_DOLLAR) + rubyRoundHalfUp(refund.feeCents / CENTS_PER_DOLLAR),
+      ),
+    ],
     deltaCents: -(refund.amountCents - refund.feeCents),
   };
 }

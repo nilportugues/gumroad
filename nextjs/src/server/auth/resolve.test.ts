@@ -1,11 +1,12 @@
 import type { TeamMembership, User } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 
+import { UserFlags } from "../models/user.ts";
+
 import { deriveRailsCookieSecrets, writeEncryptedCookie, writeSignedCookie } from "./rails-cookies.ts";
 import { CURRENT_SELLER_COOKIE_NAME, REMEMBER_COOKIE_NAME } from "./rails-session-config.ts";
 import { railsLoggedInUser, resolveAuth } from "./resolve.ts";
 import type { AuthStore } from "./store.ts";
-import { UserFlags } from "../models/user.ts";
 
 const secrets = deriveRailsCookieSecrets("c".repeat(128));
 const SESSION = "_gumroad_app_session_test";
@@ -15,27 +16,61 @@ const HASH = "$2a$04$abcdefghijklmnopqrstuuJ0T3Kq0k2j5H3pQvR3dS9dQd1sQ6s5a";
 
 let nextId = 1n;
 function makeUser(attributes: Partial<User> = {}): User {
-  return { id: nextId++, encrypted_password: HASH, deleted_at: null, flags: 1n, remember_created_at: null, last_active_sessions_invalidated_at: null, ...attributes } as User;
+  return {
+    id: nextId++,
+    encrypted_password: HASH,
+    deleted_at: null,
+    flags: 1n,
+    remember_created_at: null,
+    last_active_sessions_invalidated_at: null,
+    ...attributes,
+  } as User;
 }
 
-function makeStore(users: User[], { memberships = [] as TeamMembership[], impersonations = new Map<bigint, string>() } = {}): AuthStore {
+function makeStore(
+  users: User[],
+  { memberships = [] as TeamMembership[], impersonations = new Map<bigint, string>() } = {},
+): AuthStore {
   return {
     findUserById: async (id) => users.find((u) => u.id === id) ?? null,
     findAliveUserById: async (id) => users.find((u) => u.id === id && u.deleted_at === null) ?? null,
     findUserForLogin: async () => null,
     switchableMemberships: async (userId) =>
-      memberships.filter((m) => m.user_id === userId && m.deleted_at === null && users.some((u) => u.id === m.seller_id && u.deleted_at === null)),
+      memberships.filter(
+        (m) =>
+          m.user_id === userId &&
+          m.deleted_at === null &&
+          users.some((u) => u.id === m.seller_id && u.deleted_at === null),
+      ),
     impersonatedUserId: async (adminId) => impersonations.get(adminId) ?? null,
     clearImpersonation: async () => {},
     forgetRememberedLogins: async () => {},
   };
 }
 
-function membership(user: User, seller: User, role = "admin", attributes: Partial<TeamMembership> = {}): TeamMembership {
-  return { id: nextId++, user_id: user.id, seller_id: seller.id, role, deleted_at: null, last_accessed_at: null, created_at: now, updated_at: now, ...attributes };
+function membership(
+  user: User,
+  seller: User,
+  role = "admin",
+  attributes: Partial<TeamMembership> = {},
+): TeamMembership {
+  return {
+    id: nextId++,
+    user_id: user.id,
+    seller_id: seller.id,
+    role,
+    deleted_at: null,
+    last_accessed_at: null,
+    created_at: now,
+    updated_at: now,
+    ...attributes,
+  };
 }
 
-function sessionCookie(user: User, { lastSignInAt = nowSeconds as number | null, salt = HASH.slice(0, 29) } = {}): string {
+function sessionCookie(
+  user: User,
+  { lastSignInAt = nowSeconds as number | null, salt = HASH.slice(0, 29) } = {},
+): string {
   return writeEncryptedCookie(secrets, SESSION, {
     session_id: "abc",
     "warden.user.user.key": [[Number(user.id)], salt],
@@ -80,7 +115,10 @@ describe("resolveAuth", () => {
   describe("remember cookie", () => {
     it("signs in when the session has no user", async () => {
       const user = makeUser({ remember_created_at: new Date((nowSeconds - 3600) * 1000) });
-      const { context, authenticatedVia } = await resolve({ [REMEMBER_COOKIE_NAME]: rememberCookie(user) }, makeStore([user]));
+      const { context, authenticatedVia } = await resolve(
+        { [REMEMBER_COOKIE_NAME]: rememberCookie(user) },
+        makeStore([user]),
+      );
       expect(context.loggedInUser).toBe(user);
       expect(authenticatedVia).toBe("remember_cookie");
     });
@@ -88,54 +126,86 @@ describe("resolveAuth", () => {
     it("signs in when the session's user no longer exists", async () => {
       const gone = makeUser();
       const user = makeUser({ remember_created_at: new Date((nowSeconds - 3600) * 1000) });
-      const { context } = await resolve({ [SESSION]: sessionCookie(gone), [REMEMBER_COOKIE_NAME]: rememberCookie(user) }, makeStore([user]));
+      const { context } = await resolve(
+        { [SESSION]: sessionCookie(gone), [REMEMBER_COOKIE_NAME]: rememberCookie(user) },
+        makeStore([user]),
+      );
       expect(context.loggedInUser).toBe(user);
     });
 
     it("rejects a token from before a password change", async () => {
       const user = makeUser({ remember_created_at: new Date((nowSeconds - 3600) * 1000) });
-      expect((await resolve({ [REMEMBER_COOKIE_NAME]: rememberCookie(user, { token: "$2a$04$otherotherotherotherot" }) }, makeStore([user]))).context.loggedInUser).toBeNull();
+      expect(
+        (
+          await resolve(
+            { [REMEMBER_COOKIE_NAME]: rememberCookie(user, { token: "$2a$04$otherotherotherotherot" }) },
+            makeStore([user]),
+          )
+        ).context.loggedInUser,
+      ).toBeNull();
     });
 
     it("rejects tokens once Devise forgot the user on sign out", async () => {
       const user = makeUser({ remember_created_at: null });
-      expect((await resolve({ [REMEMBER_COOKIE_NAME]: rememberCookie(user) }, makeStore([user]))).context.loggedInUser).toBeNull();
+      expect(
+        (await resolve({ [REMEMBER_COOKIE_NAME]: rememberCookie(user) }, makeStore([user]))).context.loggedInUser,
+      ).toBeNull();
     });
 
     it("rejects tokens older than remember_for", async () => {
       const user = makeUser({ remember_created_at: new Date("2026-01-01T00:00:00Z") });
       const generatedAt = `${Date.parse("2026-09-30T11:00:00Z") / 1000}.0`;
-      expect((await resolve({ [REMEMBER_COOKIE_NAME]: rememberCookie(user, { generatedAt }) }, makeStore([user]))).context.loggedInUser).toBeNull();
+      expect(
+        (await resolve({ [REMEMBER_COOKIE_NAME]: rememberCookie(user, { generatedAt }) }, makeStore([user]))).context
+          .loggedInUser,
+      ).toBeNull();
     });
 
     it("rejects users without a password, where Rails' rememberable_value raises", async () => {
       const user = makeUser({ encrypted_password: "", remember_created_at: new Date((nowSeconds - 3600) * 1000) });
-      expect((await resolve({ [REMEMBER_COOKIE_NAME]: rememberCookie(user, { token: "" }) }, makeStore([user]))).context.loggedInUser).toBeNull();
+      expect(
+        (await resolve({ [REMEMBER_COOKIE_NAME]: rememberCookie(user, { token: "" }) }, makeStore([user]))).context
+          .loggedInUser,
+      ).toBeNull();
     });
   });
 
   describe("invalidate_session_if_necessary", () => {
     it("signs out sessions created before the invalidation", async () => {
       const user = makeUser({ last_active_sessions_invalidated_at: new Date((nowSeconds - 10) * 1000) });
-      const { context, effects } = await resolve({ [SESSION]: sessionCookie(user, { lastSignInAt: nowSeconds - 11 }) }, makeStore([user]));
+      const { context, effects } = await resolve(
+        { [SESSION]: sessionCookie(user, { lastSignInAt: nowSeconds - 11 }) },
+        makeStore([user]),
+      );
       expect(context.loggedInUser).toBeNull();
       expect(effects.signOut).toBe(true);
     });
 
     it("keeps sessions created in the same second or later", async () => {
       const user = makeUser({ last_active_sessions_invalidated_at: new Date((nowSeconds - 10) * 1000 + 999) });
-      const { context } = await resolve({ [SESSION]: sessionCookie(user, { lastSignInAt: nowSeconds - 10 }) }, makeStore([user]));
+      const { context } = await resolve(
+        { [SESSION]: sessionCookie(user, { lastSignInAt: nowSeconds - 10 }) },
+        makeStore([user]),
+      );
       expect(context.loggedInUser).toBe(user);
     });
 
     it("signs out sessions with no last_sign_in_at", async () => {
       const user = makeUser({ last_active_sessions_invalidated_at: new Date(0) });
-      expect((await resolve({ [SESSION]: sessionCookie(user, { lastSignInAt: null }) }, makeStore([user]))).context.loggedInUser).toBeNull();
+      expect(
+        (await resolve({ [SESSION]: sessionCookie(user, { lastSignInAt: null }) }, makeStore([user]))).context
+          .loggedInUser,
+      ).toBeNull();
     });
 
     it("lets a remember-cookie login through, which Rails stamps with the current time", async () => {
-      const user = makeUser({ remember_created_at: new Date((nowSeconds - 3600) * 1000), last_active_sessions_invalidated_at: new Date((nowSeconds - 5) * 1000) });
-      expect((await resolve({ [REMEMBER_COOKIE_NAME]: rememberCookie(user) }, makeStore([user]))).context.loggedInUser).toBe(user);
+      const user = makeUser({
+        remember_created_at: new Date((nowSeconds - 3600) * 1000),
+        last_active_sessions_invalidated_at: new Date((nowSeconds - 5) * 1000),
+      });
+      expect(
+        (await resolve({ [REMEMBER_COOKIE_NAME]: rememberCookie(user) }, makeStore([user]))).context.loggedInUser,
+      ).toBe(user);
     });
   });
 
@@ -144,7 +214,10 @@ describe("resolveAuth", () => {
       const user = makeUser({ last_active_sessions_invalidated_at: now });
       const store = makeStore([user]);
       const stale = writeEncryptedCookie(secrets, CURRENT_SELLER_COOKIE_NAME, 999_999);
-      const { context, effects } = await resolve({ [SESSION]: sessionCookie(user, { lastSignInAt: nowSeconds - 1 }), [CURRENT_SELLER_COOKIE_NAME]: stale }, store);
+      const { context, effects } = await resolve(
+        { [SESSION]: sessionCookie(user, { lastSignInAt: nowSeconds - 1 }), [CURRENT_SELLER_COOKIE_NAME]: stale },
+        store,
+      );
       expect(context.loggedInUser).toBeNull();
       expect(effects.signedOut).toEqual({ user, seller: user, impersonating: false });
       expect(effects.clearCurrentSeller).toBe(true);
@@ -181,7 +254,9 @@ describe("resolveAuth", () => {
       const staff = admin();
       const target = makeUser({ last_active_sessions_invalidated_at: now });
       const store = makeStore([staff, target], { impersonations: new Map([[staff.id, String(target.id)]]) });
-      expect((await resolve({ [SESSION]: sessionCookie(staff, { lastSignInAt: nowSeconds - 1 }) }, store)).effects.signOut).toBe(true);
+      expect(
+        (await resolve({ [SESSION]: sessionCookie(staff, { lastSignInAt: nowSeconds - 1 }) }, store)).effects.signOut,
+      ).toBe(true);
     });
   });
 
@@ -192,7 +267,10 @@ describe("resolveAuth", () => {
       const member = makeUser();
       const seller = makeUser();
       const store = makeStore([member, seller], { memberships: [membership(member, seller)] });
-      const { context, effects } = await resolve({ [SESSION]: sessionCookie(member), [CURRENT_SELLER_COOKIE_NAME]: sellerCookie(seller) }, store);
+      const { context, effects } = await resolve(
+        { [SESSION]: sessionCookie(member), [CURRENT_SELLER_COOKIE_NAME]: sellerCookie(seller) },
+        store,
+      );
       expect(context.currentSeller).toBe(seller);
       expect(effects.clearCurrentSeller).toBe(false);
     });
@@ -200,8 +278,13 @@ describe("resolveAuth", () => {
     it("falls back to the user, and clears the cookie, after the membership is deleted", async () => {
       const member = makeUser();
       const seller = makeUser();
-      const store = makeStore([member, seller], { memberships: [membership(member, seller, "admin", { deleted_at: now })] });
-      const { context, effects } = await resolve({ [SESSION]: sessionCookie(member), [CURRENT_SELLER_COOKIE_NAME]: sellerCookie(seller) }, store);
+      const store = makeStore([member, seller], {
+        memberships: [membership(member, seller, "admin", { deleted_at: now })],
+      });
+      const { context, effects } = await resolve(
+        { [SESSION]: sessionCookie(member), [CURRENT_SELLER_COOKIE_NAME]: sellerCookie(seller) },
+        store,
+      );
       expect(context.currentSeller).toBe(member);
       expect(effects.clearCurrentSeller).toBe(true);
     });
@@ -210,14 +293,20 @@ describe("resolveAuth", () => {
       const member = makeUser();
       const seller = makeUser({ deleted_at: now });
       const store = makeStore([member, seller], { memberships: [membership(member, seller)] });
-      const { context, effects } = await resolve({ [SESSION]: sessionCookie(member), [CURRENT_SELLER_COOKIE_NAME]: sellerCookie(seller) }, store);
+      const { context, effects } = await resolve(
+        { [SESSION]: sessionCookie(member), [CURRENT_SELLER_COOKIE_NAME]: sellerCookie(seller) },
+        store,
+      );
       expect(context.currentSeller).toBe(member);
       expect(effects.clearCurrentSeller).toBe(true);
     });
 
     it("leaves current_seller_id alone when the visitor is signed out", async () => {
       const seller = makeUser();
-      const { context, effects } = await resolve({ [CURRENT_SELLER_COOKIE_NAME]: sellerCookie(seller) }, makeStore([seller]));
+      const { context, effects } = await resolve(
+        { [CURRENT_SELLER_COOKIE_NAME]: sellerCookie(seller) },
+        makeStore([seller]),
+      );
       expect(context.currentSeller).toBeNull();
       expect(effects.clearCurrentSeller).toBe(false);
     });
