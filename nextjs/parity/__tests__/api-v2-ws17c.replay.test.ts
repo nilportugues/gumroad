@@ -36,6 +36,8 @@ const WS17C_SPEC_DIRS = [
   "sales_exports",
   "links",
   "licenses",
+  "files",
+  "media_destroy",
 ].map((name) => `${name}_parity_spec`);
 const SPECS = existsSync(FIXTURES)
   ? readdirSync(FIXTURES).filter(
@@ -59,6 +61,7 @@ const ROUTE_FLAGS = [
   "sales",
   "products",
   "licenses",
+  "files",
 ]
   .map((name) => `nextjs_api_v2_${name}`)
   .join(",");

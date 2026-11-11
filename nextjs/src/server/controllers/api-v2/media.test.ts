@@ -14,7 +14,7 @@ vi.mock("../../infra/cdn-url.ts", () => ({
     url.replace("https://gumroad-public-storage.s3.amazonaws.com/", "https://public-files.example.com/"),
 }));
 
-const { index } = await import("./media.ts");
+const { destroy, index } = await import("./media.ts");
 
 const owner = { id: 7n } as never;
 const file = (over: Record<string, unknown> = {}) => ({
@@ -83,5 +83,22 @@ describe("Api::V2::MediaController#index", () => {
   it("hands back a blob stored on another service", async () => {
     mocks.selectRows.mockResolvedValueOnce([file()]).mockResolvedValueOnce([blob({ service_name: "local" })]);
     await expect(index({ owner })).rejects.toThrow(/service/u);
+  });
+});
+
+describe("Api::V2::MediaController#destroy", () => {
+  const input = { owner, routeParams: { id: "abcdefghij123456" } };
+
+  it("says the media was not found when the seller has no live file with that public id", async () => {
+    mocks.selectRows.mockResolvedValueOnce([]);
+    expect(JSON.parse(String((await destroy(input)).body))).toEqual({
+      success: false,
+      message: "The media was not found.",
+    });
+  });
+
+  it("hands the delete of a hosted file back to Rails", async () => {
+    mocks.selectRows.mockResolvedValueOnce([{ id: 1n }]);
+    await expect(destroy(input)).rejects.toThrow("purges its blob");
   });
 });

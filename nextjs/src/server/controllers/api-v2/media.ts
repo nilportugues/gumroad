@@ -1,5 +1,5 @@
-// Api::V2::MediaController#index (app/controllers/api/v2/media_controller.rb). #create and #destroy download remote files, moderate
-// them and purge blobs: they stay in Rails.
+// Api::V2::MediaController#index (app/controllers/api/v2/media_controller.rb) and the lookup of #destroy. #create stays in Rails: it is
+// throttled by Rack::Attack and downloads remote files. Deleting a file purges its blob from storage, so it goes to Rails too.
 import { Prisma } from "@prisma/client";
 
 import { isConfiguredService, publicStorageUrl } from "../../infra/active-storage.ts";
@@ -7,7 +7,7 @@ import { cdnUrlFor } from "../../infra/cdn-url.ts";
 import { column, selectRows, table } from "../../models/sql.ts";
 import { HandBackToRails } from "../application-controller.ts";
 
-import { type ApiV2Input, registerApiV2, renderResponse } from "./base.ts";
+import { type ApiV2Input, errorWithObject, registerApiV2, renderResponse } from "./base.ts";
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -52,4 +52,21 @@ registerApiV2({
   scopes: ["view_profile"],
   requireScope: ["view_profile"],
   run: index,
+});
+
+// `media_files.find_by(public_id: params[:id])`
+export async function destroy({ owner, routeParams }: Pick<ApiV2Input, "owner" | "routeParams">) {
+  const [file] = await selectRows<Row>(
+    Prisma.sql`SELECT ${column("public_files", "id")} FROM ${table("public_files")} WHERE ${column("public_files", "deleted_at")} IS NULL AND ${column("public_files", "seller_id")} = ${owner.id} AND ${column("public_files", "resource_type")} = 'User' AND ${column("public_files", "resource_id")} = ${owner.id} AND ${column("public_files", "public_id")} = ${routeParams.id!} LIMIT 1`,
+  );
+  if (file === undefined) return errorWithObject("media", null);
+  throw new HandBackToRails("deleting a hosted file, which purges its blob from storage");
+}
+
+registerApiV2({
+  method: "DELETE",
+  pattern: "/v2/media/:id",
+  scopes: ["edit_profile"],
+  requireScope: ["edit_profile"],
+  run: destroy,
 });

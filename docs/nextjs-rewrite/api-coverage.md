@@ -15,7 +15,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 
 | Namespace | Routes | Native | Hands back | Not registered | Unresolved |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 105 | 0 | 33 | 0 |
+| API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 115 | 0 | 23 | 0 |
 | Mobile API (`/mobile` on the API host) | 64 | 50 | 0 | 14 | 0 |
 | Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 41 | 4 | 37 | 3 |
 | Internal API, Gumroad domain (`/internal`, JSON for the React Router pages) | 23 | 11 | 0 | 12 | 0 |
@@ -24,10 +24,10 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 
 | Route | Ruby controller#action | Status | Flag | Fixture |
 | --- | --- | --- | --- | --- |
-| `POST /v2/files/presign` | `Api::V2::FilesController#presign` | not registered | - | n |
-| `POST /v2/files/complete` | `Api::V2::FilesController#complete` | not registered | - | n |
-| `POST /v2/files/abort` | `Api::V2::FilesController#abort` | not registered | - | n |
-| `POST /v2/direct_uploads` | `Api::V2::DirectUploadsController#create` | not registered | - | n |
+| `POST /v2/files/presign` | `Api::V2::FilesController#presign` | native | `nextjs_api_v2_files` | y |
+| `POST /v2/files/complete` | `Api::V2::FilesController#complete` | native | `nextjs_api_v2_files` | y |
+| `POST /v2/files/abort` | `Api::V2::FilesController#abort` | native | `nextjs_api_v2_files` | y |
+| `POST /v2/direct_uploads` | `Api::V2::DirectUploadsController#create` | native | `nextjs_api_v2_files` | y |
 | `POST /v2/licenses/verify` | `Api::V2::LicensesController#verify` | native | `nextjs_api_v2_licenses` | y |
 | `PUT /v2/licenses/enable` | `Api::V2::LicensesController#enable` | native | `nextjs_api_v2_licenses` | y |
 | `PUT /v2/licenses/disable` | `Api::V2::LicensesController#disable` | native | `nextjs_api_v2_licenses` | y |
@@ -51,7 +51,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `DELETE /v2/pages/:id` | `Api::V2::PagesController#destroy` | native | `nextjs_api_v2_pages` | y |
 | `GET /v2/media` | `Api::V2::MediaController#index` | native | `nextjs_api_v2_media` | y |
 | `POST /v2/media` | `Api::V2::MediaController#create` | not registered | - | n |
-| `DELETE /v2/media/:id` | `Api::V2::MediaController#destroy` | not registered | - | n |
+| `DELETE /v2/media/:id` | `Api::V2::MediaController#destroy` | native | `nextjs_api_v2_media` | y |
 | `GET /v2/categories` | `Api::V2::CategoriesController#index` | native | `nextjs_api_v2_products` | y |
 | `GET /v2/help/articles` | `Api::V2::HelpArticlesController#index` | native | `nextjs_api_v2_help_articles` | y |
 | `GET /v2/help/articles/:slug` | `Api::V2::HelpArticlesController#show` | native | `nextjs_api_v2_help_articles` | y |
@@ -99,16 +99,16 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `POST /v2/products/:link_id/builds/deploy` | `Api::V2::ProductBuildsController#deploy` | not registered | - | n |
 | `POST /v2/products/:link_id/builds/:id/promote` | `Api::V2::ProductBuildsController#promote` | not registered | - | n |
 | `GET /v2/products/:link_id/reviews` | `Api::V2::ProductReviewsController#index` | native | `nextjs_api_v2_product_reviews` | y |
-| `PUT /v2/products/:link_id/bundle_contents` | `Api::V2::BundleContentsController#update` | not registered | - | n |
+| `PUT /v2/products/:link_id/bundle_contents` | `Api::V2::BundleContentsController#update` | native | `nextjs_api_v2_products` | y |
 | `POST /v2/products/:link_id/thumbnail` | `Api::V2::ThumbnailsController#create` | not registered | - | n |
 | `DELETE /v2/products/:link_id/thumbnail` | `Api::V2::ThumbnailsController#destroy` | not registered | - | n |
-| `POST /v2/products/:link_id/covers` | `Api::V2::CoversController#create` | not registered | - | n |
-| `DELETE /v2/products/:link_id/covers/:id` | `Api::V2::CoversController#destroy` | not registered | - | n |
+| `POST /v2/products/:link_id/covers` | `Api::V2::CoversController#create` | native | `nextjs_api_v2_products` | y |
+| `DELETE /v2/products/:link_id/covers/:id` | `Api::V2::CoversController#destroy` | native | `nextjs_api_v2_products` | y |
 | `PUT /v2/products/:id/disable` | `Api::V2::LinksController#disable` | native | `nextjs_api_v2_products` | y |
-| `PUT /v2/products/:id/enable` | `Api::V2::LinksController#enable` | not registered | - | y |
+| `PUT /v2/products/:id/enable` | `Api::V2::LinksController#enable` | native | `nextjs_api_v2_products` | y |
 | `POST /v2/products/:id/preview_custom_html` | `Api::V2::LinksController#preview_custom_html` | not registered | - | n |
 | `GET /v2/products/:id/custom_html` | `Api::V2::LinksController#custom_html` | native | `nextjs_api_v2_products` | y |
-| `POST /v2/products/:id/custom_html/edit` | `Api::V2::LinksController#edit_custom_html` | not registered | - | n |
+| `POST /v2/products/:id/custom_html/edit` | `Api::V2::LinksController#edit_custom_html` | native | `nextjs_api_v2_products` | y |
 | `PUT /v2/products/:id/sections` | `Api::V2::LinksController#update_sections` | native | `nextjs_api_v2_products` | y |
 | `GET /v2/products/:product_id/marketing/recommendations` | `Api::V2::MarketingActionsController#recommendations` | native | `nextjs_api_v2_marketing_actions` | y |
 | `POST /v2/products/:product_id/marketing_actions` | `Api::V2::MarketingActionsController#create` | native | `nextjs_api_v2_marketing_actions` | y |
