@@ -7,7 +7,7 @@
 //   - #set_country: the 403s for a seller who already has a country and for a territory;
 //   - #paypal_connect: the redirect for missing or foreign PayPal parameters;
 //   - #remediation and #verify_stripe_remediation: the redirects for a seller with no Stripe account (and, for #remediation, a
-//     rejected account with nothing left to submit).
+//     rejected account with nothing left to submit), then the Stripe reads and the AccountLink (settings-payments-remediation.ts).
 // Handed to Rails whole, before any write or processor call: everything else. A saved payout method, bank account or card, a
 // country change, compliance information, payout preferences, Stripe account creation and account links, PayPal merchant
 // linking, credit card removal and the remediation sync.
@@ -30,6 +30,10 @@ import { settingsPaymentsUserPolicy } from "../policies/settings/payments-user.t
 import { HandBackToRails, type ActionResult, type Redirected } from "./application-controller.ts";
 import { jsonResponse, sellerJsonAction } from "./json-seller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
+import {
+  remediateStripeAccount,
+  verifyStripeRemediation as verifyStripeRemediationOf,
+} from "./settings-payments-remediation.ts";
 
 const FOUND = 302;
 const PAYMENTS_PATH = "/settings/payments";
@@ -189,7 +193,7 @@ async function remediation(input: MutationInput): Promise<ActionResult> {
   const disabledReason = jsonAttr({ json_data: account.json_data as string | null }, "stripe_disabled_reason") ?? "";
   if (disabledReason.startsWith("rejected.") && !hasRequested) return { status: FOUND, location: PAYMENTS_PATH };
 
-  throw new HandBackToRails("a Stripe account link, which is created at Stripe");
+  return remediateStripeAccount(input, account, hasRequested);
 }
 
 // GET /settings/payments/verify_stripe_remediation
@@ -197,8 +201,16 @@ async function verifyStripeRemediation(input: MutationInput): Promise<ActionResu
   const denied = await guard(input, authorizeAs(settingsPaymentsUserPolicy.verifyStripeRemediation));
   if (denied) return denied;
 
-  if ((await stripeAccountOf(input)) === null) return { status: FOUND, location: PAYMENTS_PATH };
-  throw new HandBackToRails("the Stripe account retrieval, which marks compliance requests as provided");
+  const account = await stripeAccountOf(input);
+  if (account === null) return { status: FOUND, location: PAYMENTS_PATH };
+  return verifyStripeRemediationOf(
+    input,
+    account,
+    async () =>
+      (await db.userComplianceInfoRequest.count({
+        where: { user_id: Number(sellerOf(input).id), state: "requested" },
+      })) > 0,
+  );
 }
 
 registerMutations(
