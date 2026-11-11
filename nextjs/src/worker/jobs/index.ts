@@ -133,6 +133,7 @@ import {
 } from "./subscription-write-jobs.ts";
 import { suspendAccountsWithPaymentAddressWorker, suspendUsersWorker } from "./suspend-jobs.ts";
 import { syncStripeBusinessProfileUrlWorker } from "./sync-stripe-business-profile-url-worker.ts";
+import { submitToIndexnowJob } from "./submit-to-indexnow-job.ts";
 import type { JobHandler } from "./types.ts";
 import { updateCachedSalesRelatedProductsInfosJob } from "./update-cached-sales-related-products-infos-job.ts";
 import { updateCurrenciesWorker } from "./update-currencies-worker.ts";
@@ -261,6 +262,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   RegenerateSalesRelatedProductsInfosJob: regenerateSalesRelatedProductsInfosJob,
   UpdateSalesRelatedProductsInfosJob: updateSalesRelatedProductsInfosJob,
   UpdateTaxonomyStatsJob: updateTaxonomyStatsJob,
+  SubmitToIndexnowJob: submitToIndexnowJob,
   DeleteProductRichContentWorker: deleteProductRichContentWorker,
   RemoveSuspendedAccountFollowsWorker: removeSuspendedAccountFollowsWorker,
   RefundPurchaseWorker: refundPurchaseWorker,

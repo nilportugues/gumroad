@@ -3305,7 +3305,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SubtitleFileSizeWorker": {
     "file": "app/sidekiq/subtitle_file_size_worker.rb",

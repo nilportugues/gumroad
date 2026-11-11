@@ -10,6 +10,8 @@
 #   rows        the touched tables afterwards, for the Node run against a real database
 #   seed        the INSERTs that set the case up, so Node can start from the same rows
 #   es          with capture_elasticsearch!, every Elasticsearch request (answered 200 {})
+#   http        with capture_http!, every other outbound request (method, url, headers, body), answered
+#               from the case's `http_responses:` in order ({status:, body:, headers:}), 200 {} after that
 #   redis_before  with `setup:`, the scratch Redis the case started from
 #
 # Sidekiq-unique-jobs is switched on (the test environment turns it off) and SecureRandom.hex(12)
@@ -57,6 +59,28 @@ module EsCapture
   end
 end
 
+# Answers every outbound HTTP request (HTTParty, Net::HTTP, Faraday) from WebMock and records it; nothing leaves the machine.
+module HttpCapture
+  class << self
+    def requests = (@requests ||= [])
+
+    attr_writer :responses
+
+    def next_response = (@responses&.shift || {})
+
+    def start
+      require "webmock"
+      WebMock.enable!
+      WebMock.disable_net_connect!(allow: [/127\.0\.0\.1/, /elasticsearch/, /dynamodb/, /minio/, /redis/])
+      WebMock.stub_request(:any, /./).to_return do |request|
+        requests << { "method" => request.method.to_s.upcase, "url" => request.uri.to_s, "headers" => request.headers.to_h.sort.to_h, "body" => request.body }
+        answer = next_response
+        { status: answer[:status] || 200, body: answer[:body] || "{}", headers: answer[:headers] || {} }
+      end
+    end
+  end
+end
+
 module RailsCases
   include ActiveSupport::Testing::TimeHelpers
 
@@ -89,6 +113,11 @@ module RailsCases
     Elasticsearch::Model.client = client
     [Link, Purchase, Installment, AudienceMember, ConfirmedFollowerEvent, ProductPageView].each { _1.__elasticsearch__.client = client }
     @capture_es = true
+  end
+
+  def capture_http!
+    HttpCapture.start
+    @capture_http = true
   end
 
   def quoted_insert(table, row)
@@ -127,6 +156,8 @@ module RailsCases
     EsCapture.requests.clear
     EsCapture.body = extra[:es_body]&.to_json
     EsCapture.bodies = extra[:es_bodies]&.map(&:to_json)
+    HttpCapture.requests.clear
+    HttpCapture.responses = extra[:http_responses]&.dup
     error = nil
     cache = []
     subscriber = ActiveSupport::Notifications.subscribe(/\Acache_(delete|write)\.active_support\z/) do |event, *, payload|
@@ -150,6 +181,7 @@ module RailsCases
       "name" => name, "seed" => seed_sql, "error" => error, "statements" => statements,
       "redis" => snapshot_redis(redis), "cache" => cache, "rows" => tables.to_h { [_1, dump(_1)] }.reject { |_, dumped| dumped["rows"].empty? }
     }.merge(@capture_es ? { "es" => EsCapture.requests.dup } : {})
+     .merge(@capture_http ? { "http" => HttpCapture.requests.dup } : {})
      .merge(redis_before ? { "redis_before" => redis_before } : {})
      .merge(extra.transform_keys(&:to_s))
   end
