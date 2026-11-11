@@ -29,7 +29,7 @@ const FIRST_COMPILE_TIMEOUT_MS = 180_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "-parity";
 const RAILS_ANSWER = "rails answered";
-const HANDED_BACK = /hands-back/;
+const HANDED_BACK = /hands-back/u;
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
 const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "m").exec(envTest)?.[1];
 
@@ -58,7 +58,7 @@ const COMPARE = {
 
 const allCases = readdirSync(FIXTURE_DIR)
   .filter((file) => file.endsWith(".json"))
-  .map((file) => [file.replace(/\.json$/, ""), path.join(FIXTURE_DIR, file), loadFixture(path.join(FIXTURE_DIR, file)).exchanges.length - 1] as const);
+  .map((file) => [file.replace(/\.json$/u, ""), path.join(FIXTURE_DIR, file), loadFixture(path.join(FIXTURE_DIR, file)).exchanges.length - 1] as const);
 
 // Rails serves the throttled routes whole; rack-attack-routes.replay.test.ts replays those.
 const cases = withoutRailsOnly(allCases, ([, file, index]) => loadFixture(file).exchanges[index]!.request);
@@ -163,7 +163,7 @@ describe.skipIf(!url)("storefront profile products parity", () => {
           assertParity(result);
         }
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => /error|Error|at /.test(line)).slice(-25).join("\n");
+        const logs = server.output().split("\n").filter((line) => /error|Error|at /u.test(line)).slice(-25).join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
     },

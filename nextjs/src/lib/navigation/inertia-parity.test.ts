@@ -17,7 +17,7 @@ let corePath: string | null = null;
 try {
   corePath = createRequire(import.meta.url)
     .resolve("@inertiajs/core")
-    .replace(/index\.js$/, "index.esm.js");
+    .replace(/index\.js$/u, "index.esm.js");
 } catch {
   corePath = null;
 }

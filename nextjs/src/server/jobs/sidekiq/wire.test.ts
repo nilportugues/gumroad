@@ -80,11 +80,11 @@ describe("dumpRubyJson", () => {
 
   it("writes bigints exactly and refuses unsafe numbers", () => {
     expect(dumpRubyJson([12345678901234567n])).toBe("[12345678901234567]");
-    expect(() => dumpRubyJson([2 ** 60])).toThrow(/bigint/);
+    expect(() => dumpRubyJson([2 ** 60])).toThrow(/bigint/u);
   });
 
   it("refuses floats Ruby would print in exponent form differently", () => {
-    expect(() => dumpRubyJson([1e-7])).toThrow(/serialize/);
+    expect(() => dumpRubyJson([1e-7])).toThrow(/serialize/u);
   });
 
   it("round-trips Ruby's integral floats and big integers", () => {

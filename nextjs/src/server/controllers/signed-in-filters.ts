@@ -70,7 +70,7 @@ const CORE_PATH_PREFIXES = ["/products", "/bundles", "/customers", "/payouts", "
 const CORE_PATHS = ["/dashboard"];
 const ORDERED_PREFIXES = Object.entries(PATH_PREFIXES).sort(([a], [b]) => b.length - a.length);
 
-const normalizePath = (path: string) => path.replace(/\/$/, "").toLowerCase();
+const normalizePath = (path: string) => path.replace(/\/$/u, "").toLowerCase();
 const pathMatches = (normalized: string, prefix: string) => normalized === prefix || normalized.startsWith(`${prefix}/`);
 
 export function dashboardPath(path: string): boolean {
@@ -102,14 +102,14 @@ export function requestFormat(request: RailsRequest): RequestFormat {
   if (param !== undefined && param !== null) return param === "html" ? "html" : param === "json" ? "json" : "other";
   const accept = request.headers.get("accept");
   const xhr = request.headers.get("x-requested-with") === "XMLHttpRequest";
-  const browserLike = /,\s*\*\/\*|\*\/\*\s*,/.test(accept ?? "");
+  const browserLike = /,\s*\*\/\*|\*\/\*\s*,/u.test(accept ?? "");
   const validAccept = (xhr && (isPresent(accept) || request.headers.has("content-type"))) || (isPresent(accept) && !browserLike);
   if (!validAccept) return xhr ? "other" : "html";
   const types = (accept ?? "")
     .split(",")
     .map((entry, index) => {
       const [type = "", ...params] = entry.split(";").map((part) => part.trim());
-      const quality = params.map((param) => /^q=([\d.]+)$/.exec(param)?.[1]).find((q) => q !== undefined);
+      const quality = params.map((param) => /^q=([\d.]+)$/u.exec(param)?.[1]).find((q) => q !== undefined);
       return { type, quality: quality === undefined ? 1 : Number(quality), index };
     })
     .sort((a, b) => b.quality - a.quality || a.index - b.index)

@@ -25,7 +25,7 @@ const golden = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, "__fixt
 };
 
 const VOLATILE_HEADERS = new Set(["date", "x-request-id", "x-runtime", "content-length", "set-cookie"]);
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 const HOUR_MS = 3_600_000;
 
 const ROUTES: Record<string, ReturnType<typeof healthcheckRoute>> = {
@@ -40,7 +40,7 @@ const RECORDED_AT = new Date("2026-10-31T21:00:00Z");
 const emptyRedis = { get: async () => null, zremrangebyscore: async () => 0, zcard: async () => 0 } as unknown as ReturnType<HealthcheckDeps["redis"]>;
 
 function describeCookie(line: string, requestCsrf: string | undefined, now: number): Cookie {
-  const [pair = "", ...rawAttributes] = line.split(/;\s*/);
+  const [pair = "", ...rawAttributes] = line.split(/;\s*/u);
   const index = pair.indexOf("=");
   const name = pair.slice(0, index);
   const value = decodeURIComponent(pair.slice(index + 1).replaceAll("+", " "));
@@ -59,8 +59,8 @@ function describeCookie(line: string, requestCsrf: string | undefined, now: numb
 function normalizeSession(session: Record<string, unknown>, requestCsrf: string | undefined): Record<string, unknown> {
   return Object.fromEntries(
     Object.entries(session).map(([key, value]) => {
-      if (key === "session_id" && typeof value === "string" && /^[0-9a-f]{32}$/.test(value)) return [key, "<hex32>"];
-      if (key === "_csrf_token") return [key, value === requestCsrf ? "<request csrf token>" : /^[\w-]{43}$/.test(String(value)) ? "<new csrf token>" : value];
+      if (key === "session_id" && typeof value === "string" && /^[0-9a-f]{32}$/u.test(value)) return [key, "<hex32>"];
+      if (key === "_csrf_token") return [key, value === requestCsrf ? "<request csrf token>" : /^[\w-]{43}$/u.test(String(value)) ? "<new csrf token>" : value];
       return [key, value];
     }),
   );
@@ -103,7 +103,7 @@ describe("ApplicationController envelope around healthcheck actions", () => {
 
     const requestSession = headers
       .get("cookie")
-      ?.split(/;\s*/)
+      ?.split(/;\s*/u)
       .find((pair) => pair.startsWith(`${golden.sessionKey}=`))
       ?.slice(golden.sessionKey.length + 1);
     const requestCsrf = requestSession

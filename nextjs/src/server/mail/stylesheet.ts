@@ -13,8 +13,8 @@ export class StylesheetNotPortedError extends Error {}
 // EmailStylesheetLoader#unwrap_layers
 export function unwrapLayers(css: string): string {
   if (!css.includes("@layer")) return css;
-  const layer = /@layer\b(?:[^{};@/]|\/\*[^@]*?\*\/)*([;{])/y;
-  const chunk = /"(?:\\[\s\S]|[^"\\])*(?:"|(?![\s\S]))|'(?:\\[\s\S]|[^'\\])*(?:'|(?![\s\S]))|\/\*[\s\S]*?(?:\*\/|(?![\s\S]))|[^{}"'/@]+|[\s\S]/y;
+  const layer = /@layer\b(?:[^{};@/]|\/\*[^@]*?\*\/)*([;{])/yu;
+  const chunk = /"(?:\\[\s\S]|[^"\\])*(?:"|(?![\s\S]))|'(?:\\[\s\S]|[^'\\])*(?:'|(?![\s\S]))|\/\*[\s\S]*?(?:\*\/|(?![\s\S]))|[^{}"'/@]+|[\s\S]/yu;
   let output = "";
   const closesLayer: boolean[] = [];
   let pos = 0;

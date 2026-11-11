@@ -44,10 +44,10 @@ const ROUTE_FLAGS = [
 const FIRST_COMPILE_TIMEOUT_MS = 240_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
-const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1];
-const secureIdVersion = /^SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION=(.+)$/m.exec(envTest)?.[1];
-const secureIdKey = /^SECURE_EXTERNAL_ID__KEYS__1=(.+)$/m.exec(envTest)?.[1];
-const stripeKey = /^STRIPE_PUBLIC_KEY_TEST=(.+)$/m.exec(envTest)?.[1];
+const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1];
+const secureIdVersion = /^SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION=(.+)$/mu.exec(envTest)?.[1];
+const secureIdKey = /^SECURE_EXTERNAL_ID__KEYS__1=(.+)$/mu.exec(envTest)?.[1];
+const stripeKey = /^STRIPE_PUBLIC_KEY_TEST=(.+)$/mu.exec(envTest)?.[1];
 
 // Next.js owns what it renders and caches: Vite asset preloads, `vary`, and the per-response random
 // values (CSP nonce, masked CSRF tokens).
@@ -96,7 +96,7 @@ const cases = SPEC_DIRS.flatMap((dir) =>
     .map((file) => {
       const fixturePath = path.join(FIXTURES_ROOT, dir, file);
       return [
-        `${dir.replace(/_(signed_in_)?spec$/g, "")}: ${file.replace(/\.json$/, "")}`,
+        `${dir.replace(/_(signed_in_)?spec$/gu, "")}: ${file.replace(/\.json$/u, "")}`,
         fixturePath,
         loadFixture(fixturePath).exchanges.length - 1,
       ] as const;
@@ -161,7 +161,7 @@ describe.skipIf(!url)("Url redirect unavailable pages parity", () => {
         const logs = server
           .output()
           .split("\n")
-          .filter((line) => /error|Error|at /.test(line))
+          .filter((line) => /error|Error|at /u.test(line))
           .slice(-25)
           .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);

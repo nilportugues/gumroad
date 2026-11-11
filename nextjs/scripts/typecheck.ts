@@ -6,7 +6,7 @@ import { spawnSync } from "node:child_process";
 
 const result = spawnSync("./node_modules/.bin/tsc", ["--noEmit", "-p", "."], { encoding: "utf8" });
 const lines = `${result.stdout}${result.stderr}`.split("\n");
-const errors = lines.filter((line) => / error TS\d+:/.test(line));
+const errors = lines.filter((line) => / error TS\d+:/u.test(line));
 const shared = errors.filter((line) => line.startsWith("../app/javascript/"));
 const own = errors.filter((line) => !line.startsWith("../app/javascript/"));
 

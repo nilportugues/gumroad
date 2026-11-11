@@ -69,7 +69,7 @@ const cases = SPECS.flatMap((spec) => {
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
     .filter((file) => file.endsWith(".json"))
-    .map((file) => [`${spec}: ${file.replace(/\.json$/, "")}`, path.join(dir, file), loadFixture(path.join(dir, file)).exchanges.length - 1] as const);
+    .map((file) => [`${spec}: ${file.replace(/\.json$/u, "")}`, path.join(dir, file), loadFixture(path.join(dir, file)).exchanges.length - 1] as const);
 });
 
 describe.skipIf(!url)("OAuth and integrations", () => {
@@ -99,7 +99,7 @@ describe.skipIf(!url)("OAuth and integrations", () => {
     const railsPort = (rails.address() as { port: number }).port;
     server = await startNextServer({
       RAILS_ENV: "test",
-      OBFUSCATE_IDS_CIPHER_KEY: /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1] ?? "",
+      OBFUSCATE_IDS_CIPHER_KEY: /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1] ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
       NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS,
       INSTAGRAM_APP_SECRET,

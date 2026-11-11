@@ -39,9 +39,9 @@ function affiliatesIndexInput(request: RailsRequest): IndexInput {
 const sellerGuard = (input: GuardInput, authorize: (context: SellerContext) => boolean | Promise<boolean>) => settingsGuard({ authorize })(input);
 
 // The :id of `/…/:id/edit`.
-const editId = (input: GuardInput) => decodeURIComponent(/\/([^/.?]+)\/edit$/.exec(input.url.pathname)![1]!);
+const editId = (input: GuardInput) => decodeURIComponent(/\/([^/.?]+)\/edit$/u.exec(input.url.pathname)![1]!);
 
-const queryOf = (url: URL) => ({ queryString: url.search.replace(/^\?/, "") }) as RailsRequest;
+const queryOf = (url: URL) => ({ queryString: url.search.replace(/^\?/u, "") }) as RailsRequest;
 
 const affiliateFromParams = async (sellerId: bigint, id: string) => {
   const decoded = decrypt(id);

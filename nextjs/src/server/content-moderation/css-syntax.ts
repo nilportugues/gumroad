@@ -20,10 +20,10 @@ export type CssRule = CssStyleRule | CssAtRule | CssError;
 
 const REPLACEMENT = "�";
 const isDigit = (c: string | undefined) => c !== undefined && c >= "0" && c <= "9";
-const isHex = (c: string | undefined) => c !== undefined && /^[0-9a-fA-F]$/.test(c);
+const isHex = (c: string | undefined) => c !== undefined && /^[0-9a-fA-F]$/u.test(c);
 const isNewline = (c: string | undefined) => c === "\n";
 const isWhitespace = (c: string | undefined) => c === " " || c === "\t" || c === "\n";
-const isNameStart = (c: string | undefined) => c !== undefined && (/^[A-Za-z_]$/.test(c) || c.codePointAt(0)! >= 0x80);
+const isNameStart = (c: string | undefined) => c !== undefined && (/^[A-Za-z_]$/u.test(c) || c.codePointAt(0)! >= 0x80);
 const isNameChar = (c: string | undefined) => isNameStart(c) || isDigit(c) || c === "-";
 const isNonPrintable = (c: string | undefined) => {
   if (c === undefined) return false;
@@ -32,7 +32,7 @@ const isNonPrintable = (c: string | undefined) => {
 };
 
 function preprocess(css: string): string {
-  return css.replace(/\r\n?|\f/g, "\n").replace(/\0/g, REPLACEMENT);
+  return css.replace(/\r\n?|\f/gu, "\n").replace(/\0/gu, REPLACEMENT);
 }
 
 export function tokenize(input: string): CssToken[] {

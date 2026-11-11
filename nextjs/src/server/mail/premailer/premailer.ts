@@ -23,8 +23,8 @@ import { search } from "./selector.ts";
 
 export type StylesheetLoader = (href: string) => string;
 
-const RE_UNMERGABLE_SELECTORS = /(:(visited|active|hover|focus|after|before|selection|target|first-(line|letter))|^@)/im;
-const RE_RESET_SELECTORS = /^(:#outlook|body[^\n]*|\.ReadMsgBody|\.ExternalClass|img|#backgroundTable)$/m;
+const RE_UNMERGABLE_SELECTORS = /(:(visited|active|hover|focus|after|before|selection|target|first-(line|letter))|^@)/imu;
+const RE_RESET_SELECTORS = /^(:#outlook|body[^\n]*|\.ReadMsgBody|\.ExternalClass|img|#backgroundTable)$/mu;
 
 const RELATED_ATTRIBUTES: Record<string, [string, string][]> = {
   h1: [["text-align", "align"]],

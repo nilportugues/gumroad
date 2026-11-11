@@ -111,7 +111,7 @@ export function tzinfoName(railsZone: string): string | null {
 // TZInfo::Timezone#utc_offset: the offset in force right now, daylight saving included.
 export function observedUtcOffset(identifier: string, now = new Date()): number {
   const part = new Intl.DateTimeFormat("en-US", { timeZone: identifier, timeZoneName: "longOffset" }).formatToParts(now).find((p) => p.type === "timeZoneName")?.value ?? "GMT";
-  const match = /^GMT(?:([+-])(\d{2}):(\d{2}))?$/.exec(part);
+  const match = /^GMT(?:([+-])(\d{2}):(\d{2}))?$/u.exec(part);
   if (!match || !match[1]) return 0;
   const seconds = Number(match[2]) * 3600 + Number(match[3]) * 60;
   return match[1] === "-" ? -seconds : seconds;

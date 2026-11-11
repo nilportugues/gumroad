@@ -12,8 +12,8 @@ const table = JSON.parse(readFileSync(path.join(process.cwd(), "routes.json"), "
 
 // "POST api:/v2/products" and "POST /api/v2/products" are the same route on the API host and the Gumroad domain.
 function normalized(key: string): string {
-  const [method, rest] = /^(POST|PUT|PATCH|DELETE) /.test(key) ? [key.split(" ")[0]!, key.slice(key.indexOf(" ") + 1)] : ["GET", key];
-  return `${method} ${rest.replace(/^api:/, "").replace(/^\/api\/v2\//, "/v2/")}`;
+  const [method, rest] = /^(POST|PUT|PATCH|DELETE) /u.test(key) ? [key.split(" ")[0]!, key.slice(key.indexOf(" ") + 1)] : ["GET", key];
+  return `${method} ${rest.replace(/^api:/u, "").replace(/^\/api\/v2\//u, "/v2/")}`;
 }
 
 describe("v2 API routes", () => {

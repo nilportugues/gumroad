@@ -20,7 +20,7 @@ export class RubySymbol {
 export class RubyAsciiString {
   readonly value: string;
   constructor(value: string) {
-    if (!/^[\x00-\x7f]*$/.test(value)) throw new MarshalRefusedError("US-ASCII string with non-ASCII characters");
+    if (!/^[\x00-\x7f]*$/u.test(value)) throw new MarshalRefusedError("US-ASCII string with non-ASCII characters");
     this.value = value;
   }
 }
@@ -102,7 +102,7 @@ function wBytes(state: DumpState, bytes: Uint8Array): void {
 }
 
 const utf8 = new TextEncoder();
-const isAscii = (text: string) => /^[\x00-\x7f]*$/.test(text);
+const isAscii = (text: string) => /^[\x00-\x7f]*$/u.test(text);
 
 function wSymbol(state: DumpState, name: string): void {
   const index = state.symbols.get(name);

@@ -14,7 +14,7 @@ function resolvePackagePath(specifier) {
 }
 
 function rewrite(params) {
-  return params.replace(/^(["'])([^"']+)\1/, (match, quote, specifier) => {
+  return params.replace(/^(["'])([^"']+)\1/u, (match, quote, specifier) => {
     const resolved = resolvePackagePath(specifier);
     return resolved ? `${quote}${resolved}${quote}` : match;
   });
@@ -24,7 +24,7 @@ function rewrite(params) {
 module.exports = () => ({
   postcssPlugin: "resolve-tailwind-packages",
   Once(root) {
-    root.walkAtRules(/^(import|plugin)$/, (rule) => {
+    root.walkAtRules(/^(import|plugin)$/u, (rule) => {
       rule.params = rewrite(rule.params);
     });
   },

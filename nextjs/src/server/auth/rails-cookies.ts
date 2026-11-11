@@ -12,7 +12,7 @@ const GCM_IV_BYTES = 12;
 const GCM_TAG_BYTES = 16;
 const SEPARATOR = "--";
 const SHA1_HEX_LENGTH = 40;
-const STRICT_BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+const STRICT_BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u;
 const LEGACY_ENVELOPE_PREFIX = '{"_rails":{"message":';
 // U+2028 and U+2029 built from code points so the source stays plain ASCII.
 const JSON_UNSAFE_FOR_HTML = new RegExp(`[<>&${String.fromCharCode(0x2028, 0x2029)}]`, "g");

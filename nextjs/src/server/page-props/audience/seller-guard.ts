@@ -15,7 +15,7 @@ const ACCOUNT_EMAIL_REQUIRED = "Please add an email address to your account befo
 
 // Rack's URL-encoding for query values (`Hash#to_query` uses CGI.escape): spaces are `+`.
 export const cgiEscape = (value: string) =>
-  encodeURIComponent(value).replace(/%20/g, "+").replace(/[!'()*~]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+  encodeURIComponent(value).replace(/%20/gu, "+").replace(/[!'()*~]/gu, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
 
 // PunditAuthorization#build_error_message
 export function notAllowedMessage(context: SellerContext): string {

@@ -5,7 +5,7 @@ import bcrypt from "bcryptjs";
 import { getConfig } from "../infra/config.ts";
 
 // BCrypt::Password.valid_hash?
-const BCRYPT_HASH = /^\$[0-9a-z]{2,}\$[0-9]{2,}\$[A-Za-z0-9./]{53,}$/;
+const BCRYPT_HASH = /^\$[0-9a-z]{2,}\$[0-9]{2,}\$[A-Za-z0-9./]{53,}$/u;
 // config/initializers/devise.rb: `Rails.env.test? ? 1 : 11`; bcrypt-ruby raises 1 to its minimum of 4.
 const PRODUCTION_STRETCHES = 11;
 const MIN_BCRYPT_COST = 4;

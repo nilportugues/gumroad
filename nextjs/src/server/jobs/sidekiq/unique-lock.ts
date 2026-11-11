@@ -36,7 +36,7 @@ const redisVersions = new WeakMap<Redis, Promise<string>>();
 function redisVersion(redis: Redis): Promise<string> {
   let version = redisVersions.get(redis);
   if (!version) {
-    version = redis.info("server").then((info) => info.match(/^redis_version:(\S+)/m)?.[1] ?? "0.0.0");
+    version = redis.info("server").then((info) => info.match(/^redis_version:(\S+)/mu)?.[1] ?? "0.0.0");
     redisVersions.set(redis, version);
   }
   return version;

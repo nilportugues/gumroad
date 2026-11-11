@@ -97,7 +97,7 @@ function matches(pattern: string[], path: string[]): boolean {
 
 function format(path: string[]): string {
   return path
-    .map((segment, i) => (/^\d+$/.test(segment) ? `[${segment}]` : i === 0 ? segment : `.${segment}`))
+    .map((segment, i) => (/^\d+$/u.test(segment) ? `[${segment}]` : i === 0 ? segment : `.${segment}`))
     .join("");
 }
 

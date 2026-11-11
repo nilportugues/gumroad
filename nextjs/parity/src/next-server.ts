@@ -48,7 +48,7 @@ export async function startNextServer(env: Record<string, string>): Promise<Next
   };
 
   const deadline = Date.now() + READY_TIMEOUT_MS;
-  while (!/Ready in/.test(output)) {
+  while (!/Ready in/u.test(output)) {
     if (child.exitCode !== null) throw new Error(`next dev exited early:\n${output}`);
     if (Date.now() > deadline) {
       await stop();

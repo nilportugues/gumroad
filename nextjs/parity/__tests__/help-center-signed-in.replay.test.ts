@@ -24,8 +24,8 @@ const ROUTE_FLAGS = "nextjs_help_center_category,nextjs_help_center_articles";
 const FIRST_COMPILE_TIMEOUT_MS = 180_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
-const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1];
-const stripeKey = /^STRIPE_PUBLIC_KEY_TEST=(.+)$/m.exec(envTest)?.[1];
+const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1];
+const stripeKey = /^STRIPE_PUBLIC_KEY_TEST=(.+)$/mu.exec(envTest)?.[1];
 
 // Exchanges to replay: the last one, unless the example visits twice (the second visit shows the
 // seeding is not repeated).
@@ -68,7 +68,7 @@ const COMPARE = {
 const files = readdirSync(FIXTURE_DIR).filter((file) => file.endsWith(".json"));
 const cases = files.flatMap((file) => {
   const exchanges = loadFixture(path.join(FIXTURE_DIR, file)).exchanges;
-  return (EXCHANGES[file] ?? [exchanges.length - 1]).map((index) => [`${file.replace(/^help-center-when-signed-in-/, "").replace(/\.json$/, "")} (#${index})`, file, index] as const);
+  return (EXCHANGES[file] ?? [exchanges.length - 1]).map((index) => [`${file.replace(/^help-center-when-signed-in-/u, "").replace(/\.json$/u, "")} (#${index})`, file, index] as const);
 });
 
 describe.skipIf(!url)("HelpCenter parity when signed in", () => {
@@ -125,7 +125,7 @@ describe.skipIf(!url)("HelpCenter parity when signed in", () => {
       try {
         assertParity(result);
       } catch (error) {
-        const logs = server.output().split('\n').filter((line) => /error|Error|at /.test(line)).slice(-25).join('\n');
+        const logs = server.output().split('\n').filter((line) => /error|Error|at /u.test(line)).slice(-25).join('\n');
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
     },

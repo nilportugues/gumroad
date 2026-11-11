@@ -88,7 +88,7 @@ const cases = SPECS.flatMap((spec) => {
   const dir = path.join(FIXTURES, spec);
   return readdirSync(dir)
     .filter((file) => file.endsWith(".json"))
-    .map((file) => [`${spec.replace(/_spec$/, "")}: ${file.replace(/\.json$/, "")}`, path.join(dir, file), loadFixture(path.join(dir, file)).exchanges.length - 1] as const);
+    .map((file) => [`${spec.replace(/_spec$/u, "")}: ${file.replace(/\.json$/u, "")}`, path.join(dir, file), loadFixture(path.join(dir, file)).exchanges.length - 1] as const);
 });
 
 describe.skipIf(!url)("WS-12c parity", () => {
@@ -119,7 +119,7 @@ describe.skipIf(!url)("WS-12c parity", () => {
     const secureIdKey = testEnv("SECURE_EXTERNAL_ID__KEYS__1");
     server = await startNextServer({
       RAILS_ENV: "test",
-      OBFUSCATE_IDS_CIPHER_KEY: /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1] ?? "",
+      OBFUSCATE_IDS_CIPHER_KEY: /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1] ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
       ...(secureIdKey ? { SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION: testEnv("SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION") ?? "1", SECURE_EXTERNAL_ID__KEYS__1: secureIdKey } : {}),
       NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS,

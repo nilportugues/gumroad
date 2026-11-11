@@ -31,8 +31,8 @@ const MINIO_ENDPOINT = "http://localhost:9010";
 const MINIO_CREDENTIALS = { accessKeyId: "minioadmin", secretAccessKey: "minioadmin" };
 const PUBLIC_BUCKET = "gumroad-specs";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
-const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1];
-const stripeKey = /^STRIPE_PUBLIC_KEY_TEST=(.+)$/m.exec(envTest)?.[1];
+const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1];
+const stripeKey = /^STRIPE_PUBLIC_KEY_TEST=(.+)$/mu.exec(envTest)?.[1];
 
 // Same exclusions as help-center-signed-in.replay.test.ts, plus the Elasticsearch calls, which this
 // test checks itself against the stand-in.
@@ -59,7 +59,7 @@ const COMPARE = {
 };
 
 const files = url ? readdirSync(FIXTURE_DIR).filter((file) => file.endsWith(".json")) : [];
-const cases = files.map((file) => [file.replace(/^help-center-when-signed-in-with-data-the-shared-props-read-/, "").replace(/\.json$/, ""), file] as const);
+const cases = files.map((file) => [file.replace(/^help-center-when-signed-in-with-data-the-shared-props-read-/u, "").replace(/\.json$/u, ""), file] as const);
 
 type Request = { body: string };
 
@@ -183,7 +183,7 @@ describe.skipIf(!url)("HelpCenter parity when signed in, with data the shared pr
       try {
         assertParity(result);
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => /error|Error|at /.test(line)).slice(-25).join("\n");
+        const logs = server.output().split("\n").filter((line) => /error|Error|at /u.test(line)).slice(-25).join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
       // Rails asked Elasticsearch exactly what the port asked, in the same order.

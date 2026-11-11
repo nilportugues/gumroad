@@ -13,9 +13,9 @@ import { assertFlatQuery, requestFormat } from "./rails-params.ts";
 import { queryParam } from "./rails-request.ts";
 
 // Journey's escape_segment: unreserved characters, sub-delimiters, ":" and "@" stay as they are.
-const escapeSegment = (segment: string) => segment.replace(/[^A-Za-z0-9\-._~!$&'()*+,;=:@]/g, (char) => encodeURIComponent(char));
+const escapeSegment = (segment: string) => segment.replace(/[^A-Za-z0-9\-._~!$&'()*+,;=:@]/gu, (char) => encodeURIComponent(char));
 
-const MANAGE_PATH = /^\/subscriptions\/([^/.]+)\/manage$/;
+const MANAGE_PATH = /^\/subscriptions\/([^/.]+)\/manage$/u;
 
 async function manageFilters(chain: Chain): Promise<FilterOutcome> {
   // A JSON request gets `{ success: false, redirect_to: ... }`, and any other format is left to Rails.

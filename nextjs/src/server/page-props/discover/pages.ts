@@ -26,9 +26,9 @@ const discoverPage: PageSpec = {
   props: async (_, action) => {
     const { url, headers, context, meta, state } = action;
     const visitor = railsLoggedInUser(context);
-    const sent = /(?:^|;\s*)_gumroad_guid=([^;]+)/.exec(headers.get("cookie") ?? "")?.[1];
+    const sent = /(?:^|;\s*)_gumroad_guid=([^;]+)/u.exec(headers.get("cookie") ?? "")?.[1];
     const guid = sent ? decodeURIComponent(sent) : (action.renderState?.mintedGuid ?? null);
-    const queryString = url.search.replace(/^\?/, "");
+    const queryString = url.search.replace(/^\?/u, "");
     const request: DiscoverRequest = {
       path: url.pathname,
       queryString,

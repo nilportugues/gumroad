@@ -22,7 +22,7 @@ const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES_ROOT = "parity/fixtures/requests";
 const SPEC_DIRS = readdirSync(FIXTURES_ROOT).filter(
-  (dir) => /^seller_products_.*_spec$/.test(dir) && existsSync(path.join(FIXTURES_ROOT, dir)),
+  (dir) => /^seller_products_.*_spec$/u.test(dir) && existsSync(path.join(FIXTURES_ROOT, dir)),
 );
 const ROUTE_FLAGS = [
   "nextjs_products_index",
@@ -36,8 +36,8 @@ const ROUTE_FLAGS = [
 const FIRST_COMPILE_TIMEOUT_MS = 240_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
-const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1];
-const stripeKey = /^STRIPE_PUBLIC_KEY_TEST=(.+)$/m.exec(envTest)?.[1];
+const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1];
+const stripeKey = /^STRIPE_PUBLIC_KEY_TEST=(.+)$/mu.exec(envTest)?.[1];
 
 // The product pages sum each product's sales in Elasticsearch, which the replayer does not seed: an
 // empty purchases index (the mapping Rails' test index holds, under the name the server derives with no
@@ -108,7 +108,7 @@ const cases = SPEC_DIRS.flatMap((dir) =>
     .map((file) => {
       const fixturePath = path.join(FIXTURES_ROOT, dir, file);
       return [
-        `${dir.replace(/^seller_products_|_spec$/g, "")}: ${file.replace(/\.json$/, "")}`,
+        `${dir.replace(/^seller_products_|_spec$/gu, "")}: ${file.replace(/\.json$/u, "")}`,
         fixturePath,
         loadFixture(fixturePath).exchanges.length - 1,
       ] as const;
@@ -186,13 +186,13 @@ describe.skipIf(!url)("Seller products pages parity when signed in", () => {
         if (process.env.PARITY_DUMP_SERVER) writeFileSync(process.env.PARITY_DUMP_SERVER, output);
         const logs = output
           .split("\n")
-          .filter((line) => /error|Error|at /.test(line))
+          .filter((line) => /error|Error|at /u.test(line))
           .slice(-25)
           .join("\n");
         // A page graph that calls a Routes helper the compat table lacks fails to compile: name them all.
-        const missing = [...new Set([...output.matchAll(/Export (\w+) doesn't exist/g)].map((match) => match[1]))].join(
-          ", ",
-        );
+        const missing = [
+          ...new Set([...output.matchAll(/Export (\w+) doesn't exist/gu)].map((match) => match[1])),
+        ].join(", ");
         throw new Error(
           `${(error as Error).message}\n--- server ---\n${logs}${missing ? `\nmissing Routes helpers: ${missing}` : ""}`,
         );

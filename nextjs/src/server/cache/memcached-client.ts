@@ -53,7 +53,7 @@ function openConnection(server: MemcachedServer, timeoutMs: number): Connection 
         request.resolve(null);
         return true;
       }
-      const match = /^VALUE \S+ (\d+) (\d+)$/.exec(line);
+      const match = /^VALUE \S+ (\d+) (\d+)$/u.exec(line);
       if (!match) {
         fail(new MemcachedError(`${server.name}: unexpected ${line}`));
         return false;
@@ -110,7 +110,7 @@ function openConnection(server: MemcachedServer, timeoutMs: number): Connection 
 }
 
 function assertKey(key: string): void {
-  if (key.length === 0 || key.length > 250 || /[\x00-\x20\x7f]/.test(key)) throw new MemcachedError(`invalid memcached key ${JSON.stringify(key)}`);
+  if (key.length === 0 || key.length > 250 || /[\x00-\x20\x7f]/u.test(key)) throw new MemcachedError(`invalid memcached key ${JSON.stringify(key)}`);
 }
 
 export function createMemcachedTransport(serverConfigs: string[], options: { timeoutMs?: number } = {}): CacheTransport {

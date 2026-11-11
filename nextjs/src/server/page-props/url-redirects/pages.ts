@@ -16,7 +16,7 @@ const safeDecode = (value: string) => {
   }
 };
 
-const query = (action: ActionContext, name: string) => queryParam({ queryString: action.url.search.replace(/^\?/, "") } as RailsRequest, name) ?? null;
+const query = (action: ActionContext, name: string) => queryParam({ queryString: action.url.search.replace(/^\?/u, "") } as RailsRequest, name) ?? null;
 
 function unavailablePage(component: string, page: UnavailablePage): PageSpec {
   const options: ActionOptions = { filters: unavailableFilters(page) };

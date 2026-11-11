@@ -48,15 +48,15 @@ const SPECS = [
 ];
 // The port makes no Stripe call: a flagged seller whose merchant account Stripe would be asked about, or who has a
 // requested compliance request, are handed to Rails whole. Those examples are proven by the request reaching Rails.
-const HANDED_BACK = /asks-stripe|sends-a-seller-stripe-has-asked/;
+const HANDED_BACK = /asks-stripe|sends-a-seller-stripe-has-asked/u;
 const RAILS_ANSWER = "rails answered";
 const ROUTE_FLAGS = "nextjs_audience,nextjs_churn,nextjs_analytics";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "-parity";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
-const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1];
-const stripeKey = /^STRIPE_PUBLIC_KEY_TEST=(.+)$/m.exec(envTest)?.[1];
+const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1];
+const stripeKey = /^STRIPE_PUBLIC_KEY_TEST=(.+)$/mu.exec(envTest)?.[1];
 const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "m").exec(envTest)?.[1];
 const dynamoPrefix = testEnv("DYNAMODB_TABLE_PREFIX");
 const awsAccessKeyId = testEnv("AWS_ACCESS_KEY_ID");
@@ -108,7 +108,7 @@ const cases = SPECS.flatMap((spec) => {
     .map(
       (file) =>
         [
-          `${spec}: ${file.replace(/\.json$/, "")}`,
+          `${spec}: ${file.replace(/\.json$/u, "")}`,
           path.join(dir, file),
           loadFixture(path.join(dir, file)).exchanges.length - 1,
         ] as const,
@@ -243,7 +243,7 @@ describe.skipIf(!url)("seller dashboards parity when signed in", () => {
         const logs = server
           .output()
           .split("\n")
-          .filter((line) => /error|Error|at /.test(line))
+          .filter((line) => /error|Error|at /u.test(line))
           .slice(-25)
           .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);

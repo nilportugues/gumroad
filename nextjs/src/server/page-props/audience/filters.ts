@@ -26,14 +26,14 @@ export function formatMoney(cents: number, currencyType: string | null): string 
   const absolute = Math.abs(cents);
   const whole = Math.trunc(absolute / currency.subunit_to_unit);
   const fraction = absolute % currency.subunit_to_unit;
-  const grouped = String(whole).replace(/\B(?=(\d{3})+(?!\d))/g, currency.thousands_separator);
+  const grouped = String(whole).replace(/\B(?=(\d{3})+(?!\d))/gu, currency.thousands_separator);
   const decimals = fraction === 0 || currency.exponent === 0 ? "" : `${currency.decimal_mark}${String(fraction).padStart(currency.exponent, "0")}`;
   return `${negative ? "-" : ""}${grouped}${decimals}`;
 }
 
 // `convert_to_date(date)`: Date.parse of a stored string. Only the leading ISO date is ported.
 function convertToDate(value: YamlValue, key: string): string {
-  const match = typeof value === "string" ? /^(\d{4}-\d{2}-\d{2})/.exec(value) : null;
+  const match = typeof value === "string" ? /^(\d{4}-\d{2}-\d{2})/u.exec(value) : null;
   if (!match) throw new NotPortedError(`${key} that is not an ISO 8601 date`);
   return match[1]!;
 }

@@ -42,7 +42,7 @@ export function timeZoneAbbreviation(timezone: string | null, now = new Date()):
       new Intl.DateTimeFormat("en-US", { timeZone: iana, timeZoneName: "longOffset" })
         .formatToParts(date)
         .find((p) => p.type === "timeZoneName")?.value ?? "GMT";
-    const match = /GMT(?:([+-])(\d{2}):(\d{2}))?/.exec(part);
+    const match = /GMT(?:([+-])(\d{2}):(\d{2}))?/u.exec(part);
     return match?.[1] ? (match[1] === "-" ? -1 : 1) * (Number(match[2]) * 60 + Number(match[3])) : 0;
   };
   const year = now.getUTCFullYear();

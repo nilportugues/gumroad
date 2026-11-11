@@ -25,7 +25,7 @@ describe("Devise password parity", () => {
 
   it("writes hashes Devise can read, with the pepper", async () => {
     const hash = await digestPassword("secret", { pepper: "p", stretches: 4 });
-    expect(hash).toMatch(/^\$2[ab]\$04\$/);
+    expect(hash).toMatch(/^\$2[ab]\$04\$/u);
     expect(await validPassword(hash, "secret", { pepper: "p", stretches: 4 })).toBe(true);
     expect(await validPassword(hash, "secret", { pepper: null, stretches: 4 })).toBe(false);
   });

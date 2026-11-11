@@ -16,7 +16,7 @@ describe("rubyToS", () => {
   });
 
   it("refuses arrays and hashes", () => {
-    expect(() => rubyToS([1])).toThrow(/not ported/);
-    expect(() => rubyToS({ a: 1 })).toThrow(/not ported/);
+    expect(() => rubyToS([1])).toThrow(/not ported/u);
+    expect(() => rubyToS({ a: 1 })).toThrow(/not ported/u);
   });
 });

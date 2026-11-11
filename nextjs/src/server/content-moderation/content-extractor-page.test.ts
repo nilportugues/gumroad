@@ -18,7 +18,7 @@ const SECRET = "test-secret-key-base";
 const SELLER = { subdomain: "seller-studio.example.com", activeCustomDomain: null };
 
 const options = {
-  sanitizeCustomHtml: (html: string) => html.replace(/<marquee>.*?<\/marquee>/gs, ""),
+  sanitizeCustomHtml: (html: string) => html.replace(/<marquee>.*?<\/marquee>/gsu, ""),
   sanitizeRichContent: (html: string) => html,
   secretKeyBase: SECRET,
 };

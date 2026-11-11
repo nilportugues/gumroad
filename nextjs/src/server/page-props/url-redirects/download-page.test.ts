@@ -129,7 +129,7 @@ describe("downloadPageFilters", () => {
     expect(String(mocks.db.$executeRaw.mock.calls[0]![0].sql)).toContain("uses = COALESCE(uses, 0) + 1");
     expect(String(mocks.db.$executeRaw.mock.calls[1]![0].sql)).toContain("flags = COALESCE(flags, 0) |");
     expect(request.afterCookies).toHaveLength(1);
-    expect(request.afterCookies[0]).toMatch(/^confirmed_redirect=.+; path=\/; httponly; samesite=lax$/);
+    expect(request.afterCookies[0]).toMatch(/^confirmed_redirect=.+; path=\/; httponly; samesite=lax$/u);
     expect(request.headers.get("x-robots-tag")).toBe("noindex");
   });
 

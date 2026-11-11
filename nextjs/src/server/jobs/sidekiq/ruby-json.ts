@@ -65,8 +65,8 @@ export function rubyFloatToS(value: number): string {
 export function parseRubyJson(text: string): JsonValue {
   return JSON.parse(text, (_key, value: unknown, context?: { source?: string }) => {
     if (typeof value === "number" && context?.source !== undefined) {
-      if (/^-?\d+$/.test(context.source) && !Number.isSafeInteger(value)) return BigInt(context.source);
-      if (/[.eE]/.test(context.source) && Number.isInteger(value)) return new RubyFloat(value);
+      if (/^-?\d+$/u.test(context.source) && !Number.isSafeInteger(value)) return BigInt(context.source);
+      if (/[.eE]/u.test(context.source) && Number.isInteger(value)) return new RubyFloat(value);
     }
     return value;
   }) as JsonValue;

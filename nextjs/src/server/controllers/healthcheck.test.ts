@@ -154,7 +154,7 @@ describe("the filter chain around an action", () => {
 
   it("raises on a path-relative redirect target, as load_defaults 8.1 does", () => {
     const request = railsRequest(new Request(`${APP}/healthcheck/payouts`));
-    expect(() => redirectLocation(request, "elsewhere.example.com/x")).toThrow(/Path relative URL redirect/);
+    expect(() => redirectLocation(request, "elsewhere.example.com/x")).toThrow(/Path relative URL redirect/u);
     expect(redirectLocation(request, "/x")).toBe("http://app.test.gumroad.com:31337/x");
     expect(redirectLocation(request, "//cdn.example.com/x\r\n")).toBe("//cdn.example.com/x");
   });

@@ -139,7 +139,7 @@ const allCases = SPECS.flatMap((spec) => {
     .map(
       (file) =>
         [
-          `${spec.replace(/_spec$/, "")}: ${file.replace(/\.json$/, "")}`,
+          `${spec.replace(/_spec$/u, "")}: ${file.replace(/\.json$/u, "")}`,
           path.join(dir, file),
           loadFixture(path.join(dir, file)).exchanges.length - 1,
         ] as const,
@@ -182,7 +182,7 @@ describe.skipIf(!url)("Mobile API parity", () => {
     const railsPort = (rails.address() as { port: number }).port;
     server = await startNextServer({
       RAILS_ENV: "test",
-      OBFUSCATE_IDS_CIPHER_KEY: /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1] ?? "",
+      OBFUSCATE_IDS_CIPHER_KEY: /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1] ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
       MOBILE_TOKEN: testEnv("MOBILE_TOKEN") ?? "",
       MOBILE_API_OAUTH_APPLICATION_UID: testEnv("MOBILE_API_OAUTH_APPLICATION_UID") ?? "",

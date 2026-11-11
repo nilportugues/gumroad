@@ -391,7 +391,7 @@ function createQueryStringManager(options: InfiniteScrollOptions & { getPageName
               const href = currentPage().url;
               initialUrl = new URL(href, window.location.href);
               payloadUrl = new URL(href, window.location.href);
-              initialUrlWasAbsolute = /^[a-z][a-z0-9+.-]*:/i.test(href);
+              initialUrlWasAbsolute = /^[a-z][a-z0-9+.-]*:/iu.test(href);
             }
             const pageName = options.getPageName();
             if (page === "1") payloadUrl.searchParams.delete(pageName);

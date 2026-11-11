@@ -21,7 +21,7 @@ import { redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests/api/v2";
-const SPEC_PATTERN = /^products_api_.*_parity_spec$/;
+const SPEC_PATTERN = /^products_api_.*_parity_spec$/u;
 const ROUTE_FLAGS = "nextjs_api_v2_products";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
@@ -42,9 +42,9 @@ const COMPARE = {
   ],
 };
 
-const NEXT_VARY = /(?:rsc|next-router-state-tree|next-router-prefetch|next-router-segment-prefetch)(?:, )?/g;
+const NEXT_VARY = /(?:rsc|next-router-state-tree|next-router-prefetch|next-router-segment-prefetch)(?:, )?/gu;
 const withoutNextVary = (vary: unknown) => (typeof vary === "string" ? vary.replace(NEXT_VARY, "") : vary);
-const HANDED_BACK = /back-to-rails|through-rails/;
+const HANDED_BACK = /back-to-rails|through-rails/u;
 
 const dirs = existsSync(FIXTURES) ? readdirSync(FIXTURES).filter((dir) => SPEC_PATTERN.test(dir)) : [];
 const cases = dirs.flatMap((spec) =>
@@ -53,7 +53,7 @@ const cases = dirs.flatMap((spec) =>
     .map(
       (file) =>
         [
-          `${spec}: ${file.replace(/\.json$/, "")}`,
+          `${spec}: ${file.replace(/\.json$/u, "")}`,
           path.join(FIXTURES, spec, file),
           loadFixture(path.join(FIXTURES, spec, file)).exchanges.length - 1,
         ] as const,
@@ -138,7 +138,7 @@ describe.skipIf(!url)("v2 API product resources", () => {
       const warmed = new Set<string>();
       for (const [, file, index] of cases) {
         const request = loadFixture(file).exchanges.at(index)!.request;
-        const route = `${request.method} ${request.path.replace(/[?].*/, "").replace(/\/[A-Za-z0-9_=-]{12,}/g, "/:id")}`;
+        const route = `${request.method} ${request.path.replace(/[?].*/u, "").replace(/\/[A-Za-z0-9_=-]{12,}/gu, "/:id")}`;
         if (warmed.has(route)) continue;
         warmed.add(route);
         await replayFixtureExchange(file, index, options()).catch(() => undefined);

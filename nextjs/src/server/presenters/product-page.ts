@@ -67,7 +67,7 @@ const present = (value: string | null | undefined): value is string => value != 
 
 // String#to_i
 const rubyToI = (value: string) => {
-  const match = /^\s*[+-]?\d+(?:_\d+)*/.exec(value);
+  const match = /^\s*[+-]?\d+(?:_\d+)*/u.exec(value);
   return match ? Number(match[0].replaceAll("_", "")) : 0;
 };
 
@@ -83,7 +83,7 @@ export function snippetTruncate(input: string, length = SNIPPET_MAX_LENGTH): str
   return `${prefix.replace(SNIPPET_TRAILING_PUNCTUATION, "")}${SNIPPET_OMISSION}`;
 }
 
-const stripTags = (html: string) => html.replace(/<[^>]*>/g, "");
+const stripTags = (html: string) => html.replace(/<[^>]*>/gu, "");
 
 function viewerOf(
   query: Query,
@@ -134,7 +134,7 @@ async function setMeta(
   );
   const onOwnCustomDomain = (await customDomainByHost(host))?.user_id === row.user_id;
   const canonicalUrl = longUrl(row, seller, {
-    host: onOwnCustomDomain && customDomainUrl ? customDomainUrl.replace(/\/$/, "") : null,
+    host: onOwnCustomDomain && customDomainUrl ? customDomainUrl.replace(/\/$/u, "") : null,
   });
 
   meta.set({ name: "description", content: description });

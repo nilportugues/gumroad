@@ -4,14 +4,14 @@ export type Query = { [key: string]: string | string[] | Query };
 
 export function parseQuery(search: string): Query {
   const result: Query = {};
-  for (const pair of search.replace(/^\?/, "").split("&")) {
+  for (const pair of search.replace(/^\?/u, "").split("&")) {
     if (pair === "") continue;
     const index = pair.indexOf("=");
     const decode = (value: string) => decodeURIComponent(value.replaceAll("+", " "));
     const key = decode(index === -1 ? pair : pair.slice(0, index));
     const value = index === -1 ? "" : decode(pair.slice(index + 1));
-    const [, base = key, rest = ""] = /^([^[]+)((?:\[[^\]]*\])*)$/.exec(key) ?? [];
-    const segments = [...rest.matchAll(/\[([^\]]*)\]/g)].map((match) => match[1]!);
+    const [, base = key, rest = ""] = /^([^[]+)((?:\[[^\]]*\])*)$/u.exec(key) ?? [];
+    const segments = [...rest.matchAll(/\[([^\]]*)\]/gu)].map((match) => match[1]!);
     let node: Query = result;
     let name = base;
     for (const [i, segment] of segments.entries()) {
@@ -33,8 +33,8 @@ export function parseQuery(search: string): Query {
 // CGI.escape
 export const cgiEscape = (value: string) =>
   encodeURIComponent(value)
-    .replace(/%20/g, "+")
-    .replace(/[!'()*]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
+    .replace(/%20/gu, "+")
+    .replace(/[!'()*]/gu, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
 
 // Hash#to_query: keys sorted, nested as `a[b]=`, lists as `a[]=`.
 export function toQuery(query: Query, prefix?: string): string[] {

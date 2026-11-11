@@ -9,7 +9,7 @@ import { enqueueIndexUpdatesFor, refreshProductsRecommendationEligibility, reind
 import type { JsonValue } from "../../server/jobs/sidekiq/ruby-json.ts";
 
 const url = process.env.JOBS_REDIS_URL;
-if (url && /\/0$|^[^/]*\/\/[^/]+$/.test(url)) throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
+if (url && /\/0$|^[^/]*\/\/[^/]+$/u.test(url)) throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
 
 describe.skipIf(!url)("product indexing jobs", () => {
   const redis = new Redis(url ?? "", { maxRetriesPerRequest: null, lazyConnect: true });

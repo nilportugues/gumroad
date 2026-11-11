@@ -47,7 +47,7 @@ describe("warden session", () => {
 
   it("writes a session Rails reads back as signed in", () => {
     const session = newWardenSession({ id: 42n, encrypted_password: "$2a$11$abcdefghijklmnopqrstuvwxyz0123" }, new Date(1_700_000_000_000));
-    expect(session.session_id).toMatch(/^[0-9a-f]{32}$/);
+    expect(session.session_id).toMatch(/^[0-9a-f]{32}$/u);
     expect(wardenUserFromSession(session)).toEqual({ userId: 42n, salt: "$2a$11$abcdefghijklmnopqrstuv", lastSignInAt: 1_700_000_000 });
   });
 

@@ -26,7 +26,7 @@ import {
 import type { InstallmentListType } from "./installment-search.ts";
 
 const seller = (context: { currentSeller: User | null }) => context.currentSeller!;
-const queryOf = (url: URL) => ({ queryString: url.search.replace(/^\?/, "") });
+const queryOf = (url: URL) => ({ queryString: url.search.replace(/^\?/u, "") });
 
 const listPage = (component: string, type: InstallmentListType): PageSpec => ({
   component,

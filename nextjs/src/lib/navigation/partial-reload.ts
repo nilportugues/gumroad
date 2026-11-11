@@ -34,7 +34,7 @@ function setPath(target: Record<string, unknown>, path: string, value: unknown) 
   const segments = path.split(".");
   let node: Record<string, unknown> = target;
   segments.slice(0, -1).forEach((segment, index) => {
-    if (node[segment] === null || typeof node[segment] !== "object") node[segment] = /^\d+$/.test(segments[index + 1] ?? "") ? [] : {};
+    if (node[segment] === null || typeof node[segment] !== "object") node[segment] = /^\d+$/u.test(segments[index + 1] ?? "") ? [] : {};
     node = node[segment] as Record<string, unknown>;
   });
   node[segments[segments.length - 1]!] = value;

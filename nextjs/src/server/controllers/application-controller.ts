@@ -175,7 +175,7 @@ const UTM_REQUIRED_PARAMS = ["utm_source", "utm_medium", "utm_campaign"];
 const ETAG_CACHE_CONTROL = "max-age=0, private, must-revalidate";
 const NO_ETAG_CACHE_CONTROL = "no-cache";
 const ETAG_DIGEST_LENGTH = 32;
-const BROWSER_LIKE_ACCEPTS = /,\s*\*\/\*|\*\/\*\s*,/;
+const BROWSER_LIKE_ACCEPTS = /,\s*\*\/\*|\*\/\*\s*,/u;
 
 // config/initializers/id_headers.rb
 function debugHeaders(): Record<string, string> {
@@ -196,8 +196,8 @@ function getRequiredEnv(name: string): string {
 // CookieJar#handle_options for `domain: :all` without a tld_length.
 export function allDomain(host: string): string | undefined {
   const labels = host.split(".");
-  if (/^[\d.]+$/.test(host) || labels.includes("") || labels.length === 1) return undefined;
-  return (/\.[^.]{2,3}\.[^.]{2}$/.test(host) ? labels.slice(-3) : labels.slice(-2)).join(".");
+  if (/^[\d.]+$/u.test(host) || labels.includes("") || labels.length === 1) return undefined;
+  return (/\.[^.]{2,3}\.[^.]{2}$/u.test(host) ? labels.slice(-3) : labels.slice(-2)).join(".");
 }
 
 // Request::Session as the cookie store loads it: the decrypted hash, with a session_id added.
@@ -293,14 +293,14 @@ function shouldApplyVaryHeader(request: RailsRequest): boolean {
 // locations raise under load_defaults 8.1 (action_on_path_relative_redirect = :raise).
 export function redirectLocation(request: RailsRequest, location: string): string {
   let url: string;
-  if (/^([a-z][a-z\d\-+.]*:|\/\/)/i.test(location)) url = location;
+  if (/^([a-z][a-z\d\-+.]*:|\/\/)/iu.test(location)) url = location;
   else {
     if (location !== "" && !location.startsWith("/") && !location.startsWith("?")) {
       throw new Error(`Path relative URL redirect detected: ${JSON.stringify(location)}`);
     }
     url = request.protocol + request.hostWithPort + location;
   }
-  return url.replace(/[\0\r\n]/g, "");
+  return url.replace(/[\0\r\n]/gu, "");
 }
 
 type ControllerResponse = { status: number; headers: Headers; body: string | Uint8Array };
@@ -351,7 +351,7 @@ export function takeRenderState(chain: Chain): RenderState {
     clearHistory: data.inertia_clear_history === true,
     pageState: chain.pageState,
     ...(typeof data.signup_referrer === "string" ? { signupReferrer: data.signup_referrer } : {}),
-    ...(chain.guid ? { mintedGuid: /^_gumroad_guid=([^;]+)/.exec(chain.guid)?.[1] } : {}),
+    ...(chain.guid ? { mintedGuid: /^_gumroad_guid=([^;]+)/u.exec(chain.guid)?.[1] } : {}),
   };
   if ("flash" in data) data.flash = null;
   delete data.inertia_errors;
@@ -364,7 +364,7 @@ function peekState(chain: Chain): Pick<RenderState, "mobileParam" | "signupRefer
   return {
     mobileParam: data.mobile_param,
     ...(typeof data.signup_referrer === "string" ? { signupReferrer: data.signup_referrer } : {}),
-    ...(chain.guid ? { mintedGuid: /^_gumroad_guid=([^;]+)/.exec(chain.guid)?.[1] } : {}),
+    ...(chain.guid ? { mintedGuid: /^_gumroad_guid=([^;]+)/u.exec(chain.guid)?.[1] } : {}),
   };
 }
 
@@ -553,7 +553,7 @@ const xsrfCookie = (chain: Chain) => {
     // Rack escapes the bytes (URI.encode_www_form_component); the cookie value is not valid UTF-8, so it cannot go through setCookieHeader.
     const value = Array.from(chain.xsrfCookieBytes(globalCsrfToken(chain.csrfToken)))
       .map((byte) =>
-        /[*\-._0-9A-Za-z]/.test(String.fromCharCode(byte))
+        /[*\-._0-9A-Za-z]/u.test(String.fromCharCode(byte))
           ? String.fromCharCode(byte)
           : byte === 0x20
             ? "+"
@@ -700,7 +700,7 @@ function applySecureHeaders(request: RailsRequest, headers: Headers, options: Ac
     for (const cookie of cookies) {
       const flagged = new Set(
         cookie
-          .split(/[;,]\s?/)
+          .split(/[;,]\s?/u)
           .map((pair) => (pair.split("=", 1)[0] ?? "").toLowerCase())
           .filter((name) => name === "secure" || name === "httponly" || name === "samesite"),
       );
@@ -718,7 +718,7 @@ function applySecureHeaders(request: RailsRequest, headers: Headers, options: Ac
 // Rack::Cors: the "*" resource matches every path, so Origin is always added to Vary.
 function applyCorsVary(headers: Headers): void {
   const vary = headers.get("vary");
-  const values = vary ? vary.split(/,\s*/) : [];
+  const values = vary ? vary.split(/,\s*/u) : [];
   if (!values.includes("Origin")) values.push("Origin");
   headers.set("vary", values.join(", "));
 }
@@ -731,7 +731,7 @@ function publicException(request: RailsRequest, status: number): { headers: Head
   const accept = request.headers.get("accept");
   const single =
     accept !== null && !accept.includes(",") && !BROWSER_LIKE_ACCEPTS.test(accept)
-      ? accept.split(/\s*;\s*/)[0]!.trim()
+      ? accept.split(/\s*;\s*/u)[0]!.trim()
       : "";
   const formats: Record<string, [string, () => string]> = {
     json: ["application/json", () => JSON.stringify({ status, error: message })],

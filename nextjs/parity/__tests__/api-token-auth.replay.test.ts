@@ -58,7 +58,7 @@ describe.skipIf(!url)("API token authentication", () => {
     expect(files.length).toBeGreaterThanOrEqual(18);
   });
 
-  it.each(files.map((file) => [file.replace(/\.json$/, ""), file] as const))("%s", async (_name, file) => {
+  it.each(files.map((file) => [file.replace(/\.json$/u, ""), file] as const))("%s", async (_name, file) => {
     const fixture = loadFixture(path.join(FIXTURE_DIR, file));
     const exchange = fixture.exchanges.at(-1)!;
     const actual = await replayExchange(exchange, { sql, transport: handle, interceptHttp: false }, fixture);

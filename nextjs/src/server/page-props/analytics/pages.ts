@@ -16,7 +16,7 @@ import { churnData, churnParams } from "./churn.ts";
 import { analyticsPageProps } from "./sales.ts";
 
 const seller = (context: { currentSeller: User | null }) => context.currentSeller!;
-const queryOf = (url: URL) => ({ queryString: url.search.replace(/^\?/, "") });
+const queryOf = (url: URL) => ({ queryString: url.search.replace(/^\?/u, "") });
 
 // DashboardPreference#set_dashboard_preference_to_audience / _to_sales: `cookies[:last_viewed_dashboard] = ...`
 const dashboardPreference = (value: "audience" | "sales") =>

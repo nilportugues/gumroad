@@ -30,7 +30,7 @@ describe.skipIf(!url)("ProductPresenter goldens", () => {
       RAILS_ENV: "test",
       DATABASE_URL: url!,
       REDIS_HOST: redisHost,
-      OBFUSCATE_IDS_CIPHER_KEY: /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1] ?? "",
+      OBFUSCATE_IDS_CIPHER_KEY: /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1] ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
     });
     client = new PrismaClient({ datasourceUrl: url });
@@ -67,7 +67,7 @@ describe.skipIf(!url)("ProductPresenter goldens", () => {
 
   it.each([...UNPORTED_PRODUCTS])("refuses the unported card of %s", async (name) => {
     const c = golden.cards.find((candidate) => candidate.product === name && candidate.input === "seller host")!;
-    await expect(presenter.cardForWeb(BigInt(c.productId), optionsOf(c.args))).rejects.toThrow(/not ported/);
+    await expect(presenter.cardForWeb(BigInt(c.productId), optionsOf(c.args))).rejects.toThrow(/not ported/u);
   });
 
   it.each(golden.cards.map((c) => [`${c.product} / ${c.input}`, c] as const))("card %s", async (_name, c) => {
@@ -77,7 +77,7 @@ describe.skipIf(!url)("ProductPresenter goldens", () => {
     const card = await presenter.cardForWeb(BigInt(c.productId), options).catch((error: Error) => error);
     if (card instanceof Error) {
       expect(UNPORTED_PRODUCTS.has(c.product), card.message).toBe(true);
-      expect(card.message).toMatch(/not ported/);
+      expect(card.message).toMatch(/not ported/u);
       return;
     }
     expect(JSON.parse(JSON.stringify(card))).toEqual(c.card);
@@ -90,7 +90,7 @@ describe.skipIf(!url)("ProductPresenter goldens", () => {
       try {
         return run();
       } catch (error) {
-        expect((error as Error).message).toMatch(/not ported/);
+        expect((error as Error).message).toMatch(/not ported/u);
         return "refused";
       }
     };

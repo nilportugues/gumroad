@@ -46,7 +46,7 @@ export function discoverRequestOf(
 export function guidOf(request: Chain["request"], minted: string | null): string | null {
   const sent = request.cookies.get(GUID_COOKIE);
   if (sent) return sent;
-  return minted ? (/^_gumroad_guid=([^;]+)/.exec(minted)?.[1] ?? null) : null;
+  return minted ? (/^_gumroad_guid=([^;]+)/u.exec(minted)?.[1] ?? null) : null;
 }
 
 export async function discoverFilters(chain: Chain): Promise<FilterOutcome> {

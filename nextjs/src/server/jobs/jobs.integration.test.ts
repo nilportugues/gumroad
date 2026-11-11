@@ -19,7 +19,7 @@ import { buildSidekiqItem } from "./sidekiq/item.ts";
 import { dumpRubyJson, type JsonValue, parseRubyJson } from "./sidekiq/ruby-json.ts";
 
 const url = process.env.JOBS_REDIS_URL;
-if (url && /\/0$|^[^/]*\/\/[^/]+$/.test(url))
+if (url && /\/0$|^[^/]*\/\/[^/]+$/u.test(url))
   throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
 
 const base = {

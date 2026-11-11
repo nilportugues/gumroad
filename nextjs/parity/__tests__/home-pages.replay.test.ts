@@ -23,7 +23,7 @@ const ROUTE_FLAGS = "nextjs_features_md";
 const FIRST_COMPILE_TIMEOUT_MS = 240_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
-const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1];
+const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1];
 
 const COMPARE = {
   ignore: [
@@ -39,7 +39,7 @@ const cases = (existsSync(FIXTURES) ? readdirSync(FIXTURES) : [])
   .filter((file) => file.endsWith(".json"))
   .map((file) => {
     const fixturePath = path.join(FIXTURES, file);
-    return [file.replace(/\.json$/, ""), fixturePath, loadFixture(fixturePath).exchanges.length - 1] as const;
+    return [file.replace(/\.json$/u, ""), fixturePath, loadFixture(fixturePath).exchanges.length - 1] as const;
   });
 
 describe.skipIf(!url)("HomeController#features_md", () => {
@@ -121,7 +121,7 @@ describe.skipIf(!url)("HomeController#features_md", () => {
         const logs = server
           .output()
           .split("\n")
-          .filter((line) => !/built-in version of this loader|^\s*$/.test(line))
+          .filter((line) => !/built-in version of this loader|^\s*$/u.test(line))
           .slice(-40)
           .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);

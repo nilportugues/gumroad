@@ -27,7 +27,7 @@ import { aliveFollowingWishlistsOf, aliveWishlistsOf, wishlistsLibraryProps } fr
 
 // params[name] for a flat query key; a bracketed one was handed back to Rails by the filters.
 export const queryValue = (action: ActionContext, name: string) =>
-  queryParam({ queryString: action.url.search.replace(/^\?/, "") } as RailsRequest, name);
+  queryParam({ queryString: action.url.search.replace(/^\?/u, "") } as RailsRequest, name);
 
 // The tags PageMeta::Analytics sets stay where ApplicationController declares them while the
 // controller's re-declared callbacks (title, CSRF, defaults) move to the end of the chain.
@@ -57,7 +57,7 @@ async function libraryPage(action: ActionContext) {
   action.meta.set({ title: "Library" });
   const user = railsLoggedInUser(action.context);
   if (!user) throw new TypeError("undefined method for nil: logged_in_user");
-  const params = libraryParams({ queryString: action.url.search.replace(/^\?/, "") } as RailsRequest);
+  const params = libraryParams({ queryString: action.url.search.replace(/^\?/u, "") } as RailsRequest);
   return {
     ...(await libraryProps(user, params)),
     purchase_analytics: await purchaseAnalyticsProps(user.id, params.purchaseIds ?? []),

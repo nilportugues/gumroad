@@ -14,7 +14,7 @@ const FIXTURES = path.join(process.cwd(), "parity", "fixtures", "requests");
 type Body = { query: { bool: { filter: Array<Record<string, any>> } }; aggs: Record<string, unknown> };
 const requests: Body[] = [];
 if (existsSync(FIXTURES)) {
-  for (const dir of readdirSync(FIXTURES).filter((name) => /^seller_products_.*_spec$/.test(name))) {
+  for (const dir of readdirSync(FIXTURES).filter((name) => /^seller_products_.*_spec$/u.test(name))) {
     for (const file of readdirSync(path.join(FIXTURES, dir))) {
       const fixture = JSON.parse(readFileSync(path.join(FIXTURES, dir, file), "utf8")) as { exchanges: Array<{ http?: Array<{ url: string; body: string }> }> };
       for (const call of fixture.exchanges.flatMap((exchange) => exchange.http ?? [])) {

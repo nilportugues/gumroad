@@ -9,4 +9,4 @@ const ESCAPES: Record<string, string> = {
   "\u2029": "\\u2029",
 };
 
-export const railsJson = (value: unknown): string => JSON.stringify(value).replace(/[<>&\u2028\u2029]/g, (char) => ESCAPES[char]!);
+export const railsJson = (value: unknown): string => JSON.stringify(value).replace(/[<>&\u2028\u2029]/gu, (char) => ESCAPES[char]!);

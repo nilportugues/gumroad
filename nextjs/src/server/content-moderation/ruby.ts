@@ -9,7 +9,7 @@ export function rubySplit(value: string, separator: string): string[] {
 
 // String#strip: whitespace and NUL.
 export function rubyStrip(value: string): string {
-  return value.replace(/^[\s\0]+|[\s\0]+$/g, "");
+  return value.replace(/^[\s\0]+|[\s\0]+$/gu, "");
 }
 
 // Only nil and false are falsy.

@@ -64,7 +64,7 @@ const COMPARE = {
   ],
 };
 
-const NEXT_VARY = /(?:rsc|next-router-state-tree|next-router-prefetch|next-router-segment-prefetch)(?:, )?/g;
+const NEXT_VARY = /(?:rsc|next-router-state-tree|next-router-prefetch|next-router-segment-prefetch)(?:, )?/gu;
 const withoutNextVary = (vary: unknown) => (typeof vary === "string" ? vary.replace(NEXT_VARY, "") : vary);
 
 const cases = SPECS.flatMap((spec) => {
@@ -75,7 +75,7 @@ const cases = SPECS.flatMap((spec) => {
     .map(
       (file) =>
         [
-          `${spec}: ${file.replace(/\.json$/, "")}`,
+          `${spec}: ${file.replace(/\.json$/u, "")}`,
           path.join(dir, file),
           loadFixture(path.join(dir, file)).exchanges.length - 1,
         ] as const,
@@ -187,7 +187,7 @@ describe.skipIf(!url)("mobile analytics parity", () => {
     async () => {
       const warmed = new Set<string>();
       for (const [, file, index] of cases) {
-        const route = loadFixture(file).exchanges.at(index)!.request.path.replace(/[?].*/, "");
+        const route = loadFixture(file).exchanges.at(index)!.request.path.replace(/[?].*/u, "");
         if (warmed.has(route)) continue;
         warmed.add(route);
         await replay(file, index).catch(() => undefined);
@@ -208,7 +208,7 @@ describe.skipIf(!url)("mobile analytics parity", () => {
         const logs = server
           .output()
           .split("\n")
-          .filter((line) => /error|Error|at /.test(line))
+          .filter((line) => /error|Error|at /u.test(line))
           .slice(-25)
           .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);

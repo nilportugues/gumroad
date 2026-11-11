@@ -33,14 +33,14 @@ const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests/discover_parity_spec";
 // A buyer's cart or purchases make curated products, which the port hands back to Rails.
-const HANDED_BACK = /buyer-who-has-purchased/;
+const HANDED_BACK = /buyer-who-has-purchased/u;
 const RAILS_ANSWER = "rails answered";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "-parity-discover";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
-const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1];
-const stripeKey = /^STRIPE_PUBLIC_KEY_TEST=(.+)$/m.exec(envTest)?.[1];
+const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1];
+const stripeKey = /^STRIPE_PUBLIC_KEY_TEST=(.+)$/mu.exec(envTest)?.[1];
 
 // Next.js owns what it renders and caches: Vite asset preloads, `vary`, and the per-response random values.
 const COMPARE = {
@@ -84,7 +84,7 @@ const allCases = existsSync(FIXTURES)
       .map(
         (file) =>
           [
-            file.replace(/\.json$/, ""),
+            file.replace(/\.json$/u, ""),
             path.join(FIXTURES, file),
             loadFixture(path.join(FIXTURES, file)).exchanges.length - 1,
           ] as const,
@@ -211,7 +211,7 @@ describe.skipIf(!url)("Discover parity", () => {
         const logs = server
           .output()
           .split("\n")
-          .filter((line) => /error|Error|at /.test(line))
+          .filter((line) => /error|Error|at /u.test(line))
           .slice(-25)
           .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);

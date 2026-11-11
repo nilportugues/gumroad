@@ -24,7 +24,7 @@ export type RouteDecision =
 const asksForJson = (request: ProxyRequestInfo) => /^\s*application\/json\b/iu.test(request.headers.get("accept") ?? "");
 
 // Requests Next.js answers no matter what: its own assets and dev tooling.
-const NEXT_INTERNAL = /^\/(_next|__nextjs)/;
+const NEXT_INTERNAL = /^\/(_next|__nextjs)/u;
 
 export async function decideRoute(
   request: ProxyRequestInfo,

@@ -8,7 +8,7 @@ const WORD_CHAR = "[\\p{L}\\p{M}\\p{Nd}\\p{Pc}]";
 const WORD_CHAR_RE = /[\p{L}\p{M}\p{Nd}\p{Pc}]/u;
 
 function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
 // Ruby's \b is "word-ness changes here". JS's \b is ASCII-only, so the boundary is spelled out

@@ -21,7 +21,7 @@ const FIXTURE_DIR = "parity/fixtures/requests/signed_in_filters_spec";
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 
 // The cases where the filter lets the request through to its action.
-const PASSES_THROUGH = [/lets-an-impersonating-admin-write/, /lets-a-suspended-user-read/];
+const PASSES_THROUGH = [/lets-an-impersonating-admin-write/u, /lets-a-suspended-user-read/u];
 
 const COMPARE = {
   ignore: [
@@ -79,7 +79,7 @@ describe.skipIf(!url)("ApplicationController filters when signed in", () => {
     expect(files.length).toBeGreaterThanOrEqual(14);
   });
 
-  it.each(files.map((file) => [file.replace(/^signed-in-filters-/, "").replace(/\.json$/, ""), file] as const))(
+  it.each(files.map((file) => [file.replace(/^signed-in-filters-/u, "").replace(/\.json$/u, ""), file] as const))(
     "%s",
     async (name, file) => {
       const fixture = loadFixture(path.join(FIXTURE_DIR, file));

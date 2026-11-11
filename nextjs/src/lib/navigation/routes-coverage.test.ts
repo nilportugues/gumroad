@@ -15,13 +15,13 @@ function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) return sourceFiles(full);
-    return /\.(ts|tsx|js|jsx)$/.test(entry.name) ? [full] : [];
+    return /\.(ts|tsx|js|jsx)$/u.test(entry.name) ? [full] : [];
   });
 }
 
 describe("route helpers", () => {
   it("define every Routes helper app/javascript calls", () => {
-    const used = new Set(sourceFiles(appJavascript).flatMap((file) => [...readFileSync(file, "utf8").matchAll(/(?:^|[^.\w$])Routes\.(\w+)/g)].map((m) => m[1]!)));
+    const used = new Set(sourceFiles(appJavascript).flatMap((file) => [...readFileSync(file, "utf8").matchAll(/(?:^|[^.\w$])Routes\.(\w+)/gu)].map((m) => m[1]!)));
     expect([...used].filter((name) => !(name in routes)).sort()).toEqual([]);
   });
 });

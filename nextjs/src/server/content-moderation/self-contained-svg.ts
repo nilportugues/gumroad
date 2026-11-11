@@ -35,7 +35,7 @@ function nodeIsLocal(node: Node, parent: Element | null): boolean {
 
     for (const attribute of node.attrs) {
       const value = attribute.value;
-      if (/data:/i.test(value)) return false;
+      if (/data:/iu.test(value)) return false;
 
       switch (attribute.name.toLowerCase()) {
         case "href":
@@ -46,7 +46,7 @@ function nodeIsLocal(node: Node, parent: Element | null): boolean {
           break;
         default:
           // FuncIRI presentation attributes (fill, filter, mask, ...); attributes are already decoded.
-          for (const match of value.matchAll(/url\(\s*(["']?)(.*?)\1\s*\)/gis)) {
+          for (const match of value.matchAll(/url\(\s*(["']?)(.*?)\1\s*\)/gisu)) {
             if (!(match[2] ?? "").trim().startsWith("#")) return false;
           }
       }
@@ -57,7 +57,7 @@ function nodeIsLocal(node: Node, parent: Element | null): boolean {
 
   if (node.nodeName === "#text") {
     const content = (node as DefaultTreeAdapterMap["textNode"]).value;
-    if (/data:/i.test(content)) return false;
+    if (/data:/iu.test(content)) return false;
     if (parent?.tagName.toLowerCase() === "style" && !cssReferencesAllLocal(content)) return false;
   }
   return true;

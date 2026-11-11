@@ -108,7 +108,7 @@ export function domainConfig(env: Record<string, string | undefined>): DomainCon
     config.validDiscoverRequestHost = customDomain;
   }
   if (railsEnv === "development" && env.LOCAL_PROXY_DOMAIN !== undefined) {
-    config.validRequestHosts.push(env.LOCAL_PROXY_DOMAIN.replace(/https?:\/\//, ""));
+    config.validRequestHosts.push(env.LOCAL_PROXY_DOMAIN.replace(/https?:\/\//u, ""));
   }
   return config;
 }

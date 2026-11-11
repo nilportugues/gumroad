@@ -77,20 +77,20 @@ function splitTopLevel(input: string, separator: string): string[] {
 
 function constantsOf(source: string): Map<string, string> {
   const constants = new Map<string, string>();
-  for (const match of source.matchAll(/^\s*([A-Z][A-Z0-9_]*) = (.+)$/gm)) constants.set(match[1]!, stripComment(match[2]!).trim());
+  for (const match of source.matchAll(/^\s*([A-Z][A-Z0-9_]*) = (.+)$/gmu)) constants.set(match[1]!, stripComment(match[2]!).trim());
   return constants;
 }
 
 // Integer seconds for `6.hours.to_i`, `LOCK_TTL.to_i`, `SCAN_TIME_BUDGET + 1.hour`, `900`.
 function evaluateInteger(expression: string, constants: Map<string, string>, file: string): number {
-  const terms = splitTopLevel(expression.replace(/\.to_i$/, ""), "+");
+  const terms = splitTopLevel(expression.replace(/\.to_i$/u, ""), "+");
   return terms.reduce((sum, rawTerm) => {
-    const term = rawTerm.replace(/\.to_i$/, "").replaceAll("_", "");
-    const literal = term.match(/^\d+$/);
+    const term = rawTerm.replace(/\.to_i$/u, "").replaceAll("_", "");
+    const literal = term.match(/^\d+$/u);
     if (literal) return sum + Number(term);
-    const duration = rawTerm.match(/^(\d+)\.(second|minute|hour|day|week)s?(\.to_i)?$/);
+    const duration = rawTerm.match(/^(\d+)\.(second|minute|hour|day|week)s?(\.to_i)?$/u);
     if (duration) return sum + Number(duration[1]) * DURATION_UNITS[duration[2]!]!;
-    const constant = rawTerm.replace(/\.to_i$/, "");
+    const constant = rawTerm.replace(/\.to_i$/u, "");
     const definition = constants.get(constant);
     if (definition !== undefined) return sum + evaluateInteger(definition, constants, file);
     throw new Error(`${file}: cannot evaluate \`${rawTerm}\``);
@@ -100,7 +100,7 @@ function evaluateInteger(expression: string, constants: Map<string, string>, fil
 function parseValue(raw: string, constants: Map<string, string>, file: string): Value {
   const text = raw.trim();
   if (text.startsWith(":")) return text.slice(1);
-  if (/^"[^"#]*"$/.test(text) || /^'[^']*'$/.test(text)) return text.slice(1, -1);
+  if (/^"[^"#]*"$/u.test(text) || /^'[^']*'$/u.test(text)) return text.slice(1, -1);
   if (text === "true") return true;
   if (text === "false") return false;
   if (text === "nil") return null;
@@ -111,7 +111,7 @@ function parseValue(raw: string, constants: Map<string, string>, file: string): 
 function parsePairs(text: string, constants: Map<string, string>, file: string): Record<string, Value> {
   const result: Record<string, Value> = {};
   for (const pair of splitTopLevel(text, ",")) {
-    const match = pair.match(/^(?:(\w+):|["'](\w+)["']\s*=>)\s*(.+)$/s);
+    const match = pair.match(/^(?:(\w+):|["'](\w+)["']\s*=>)\s*(.+)$/su);
     if (!match) throw new Error(`${file}: cannot parse option \`${pair}\``);
     result[match[1] ?? match[2]!] = parseValue(match[3]!, constants, file);
   }
@@ -127,7 +127,7 @@ function statements(source: string): Statement[] {
   const lines = source.split("\n").map(stripComment);
   const balance = (s: string) => [...s].reduce((n, ch) => n + ("{[(".includes(ch) ? 1 : "}])".includes(ch) ? -1 : 0), 0);
   for (let i = 0; i < lines.length; i++) {
-    const head = lines[i]!.match(/^\s*(sidekiq_options|recurring_lock_ttl)\b\(?\s*(.*)$/);
+    const head = lines[i]!.match(/^\s*(sidekiq_options|recurring_lock_ttl)\b\(?\s*(.*)$/u);
     if (!head) continue;
     let text = head[2]!.trim();
     while ((text.endsWith(",") || balance(text) > 0) && i + 1 < lines.length) text += ` ${lines[++i]!.trim()}`;
@@ -193,14 +193,14 @@ function jobFiles(): string[] {
     (readdirSync(join(repoRoot, dir), { recursive: true }) as string[])
       .filter((file) => file.endsWith(".rb") && !file.startsWith("concerns/"))
       .map((file) => `${dir}/${file}`)
-      .filter((relative) => dir === "app/sidekiq" || /^\s*include Sidekiq::(Job|Worker)\b/m.test(readFileSync(join(repoRoot, relative), "utf8"))),
+      .filter((relative) => dir === "app/sidekiq" || /^\s*include Sidekiq::(Job|Worker)\b/mu.test(readFileSync(join(repoRoot, relative), "utf8"))),
   ).sort();
 }
 
 // `class A::B`, or `class B` nested in `module A`.
 function classNameOf(source: string): string | undefined {
-  const modules = [...source.matchAll(/^\s*module ([\w:]+)\s*$/gm)].map((match) => match[1]);
-  const className = source.match(/^\s*class ([\w:]+)/m)?.[1];
+  const modules = [...source.matchAll(/^\s*module ([\w:]+)\s*$/gmu)].map((match) => match[1]);
+  const className = source.match(/^\s*class ([\w:]+)/mu)?.[1];
   return className && [...modules, className].join("::");
 }
 
@@ -210,7 +210,7 @@ function parseJobFile(relative: string, schedule: CronEntry[]): [string, JobEntr
   const className = classNameOf(source);
 
   if (!className) {
-    const alias = source.match(/^(\w+) = (\w+)\s*$/m);
+    const alias = source.match(/^(\w+) = (\w+)\s*$/mu);
     if (!alias) throw new Error(`${relative}: no class or alias found`);
     const entry: JobEntry = {
       file: relative,
@@ -240,11 +240,11 @@ function parseJobFile(relative: string, schedule: CronEntry[]): [string, JobEntr
 
   const entry: JobEntry = {
     file: relative,
-    sidekiqJob: /^\s*include Sidekiq::(Job|Worker)\b/m.test(source),
+    sidekiqJob: /^\s*include Sidekiq::(Job|Worker)\b/mu.test(source),
     options,
-    customLockArgs: /^\s*def self\.lock_args\b/m.test(source),
-    customRetryIn: /^\s*sidekiq_retry_in\b/m.test(source),
-    retriesExhausted: /^\s*sidekiq_retries_exhausted\b/m.test(source) || /^\s*include FinanceReportFailureAlert\b/m.test(source),
+    customLockArgs: /^\s*def self\.lock_args\b/mu.test(source),
+    customRetryIn: /^\s*sidekiq_retry_in\b/mu.test(source),
+    retriesExhausted: /^\s*sidekiq_retries_exhausted\b/mu.test(source) || /^\s*include FinanceReportFailureAlert\b/mu.test(source),
     ...(recurringLockMaxAttempt === undefined ? {} : { recurringLockMaxAttempt }),
     runtime: PORTED_JOBS.includes(className) ? "node" : "ruby",
   };

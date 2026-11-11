@@ -42,9 +42,9 @@ export const isVariable = (contentType: string | null) =>
 // ActiveStorage::Filename#extension: File.extname without its dot. A leading dot names a hidden
 // file, not an extension.
 function filenameExtension(filename: string): string {
-  const base = filename.replace(/^.*\//, "");
-  const dot = base.replace(/^\.+/, "").lastIndexOf(".");
-  return dot < 0 ? "" : base.replace(/^\.+/, "").slice(dot + 1);
+  const base = filename.replace(/^.*\//u, "");
+  const dot = base.replace(/^\.+/u, "").lastIndexOf(".");
+  return dot < 0 ? "" : base.replace(/^\.+/u, "").slice(dot + 1);
 }
 
 // Blob#default_variant_format: a web image keeps its own format (the filename's extension when it
@@ -78,7 +78,7 @@ const uriEscape = (segment: string) => cgiEscape(segment).replaceAll("+", "%20")
 // and test), the bucket as the host of the global S3 endpoint otherwise.
 export function publicStorageUrl(key: string): string {
   const config = storageConfig();
-  const path = key.replace(/[^/]+/g, uriEscape);
+  const path = key.replace(/[^/]+/gu, uriEscape);
   if (config.env === "development" || config.env === "test")
     return `${config.s3Endpoint}/${config.publicStorageS3Bucket}/${path}`;
   return `https://${config.publicStorageS3Bucket}.s3.amazonaws.com/${path}`;

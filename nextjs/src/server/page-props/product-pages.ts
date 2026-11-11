@@ -20,7 +20,7 @@ const productPage: PageSpec = {
   props: async (params, action) => {
     const row = (await findLink(BigInt(String(action.state.product_id))))!;
     const seller = (await findUserById(row.user_id!))!;
-    const query = parseQuery(action.url.search.replace(/^\?/, ""));
+    const query = parseQuery(action.url.search.replace(/^\?/u, ""));
     const pathCode = params.code;
     const queryCode = typeof query.code === "string" && query.code.trim() !== "" ? query.code : null;
     const code = pathCode && pathCode.trim() !== "" ? pathCode : queryCode;

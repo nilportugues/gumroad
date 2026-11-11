@@ -108,7 +108,7 @@ describe("resolveAuth", () => {
 
   it("rejects a session cookie that does not decrypt", async () => {
     const user = makeUser();
-    const tampered = sessionCookie(user).replace(/^./, (c) => (c === "A" ? "B" : "A"));
+    const tampered = sessionCookie(user).replace(/^./u, (c) => (c === "A" ? "B" : "A"));
     expect((await resolve({ [SESSION]: tampered }, makeStore([user]))).context.loggedInUser).toBeNull();
   });
 

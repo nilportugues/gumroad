@@ -26,7 +26,7 @@ export function currencySource(): string {
 // URI.open(source).read: open-uri for http(s), a plain file otherwise. Non-2xx raises, as
 // OpenURI::HTTPError does.
 export async function readCurrencySource(source: string = currencySource()): Promise<string> {
-  if (!/^https?:\/\//.test(source)) return readFile(source, "utf8");
+  if (!/^https?:\/\//u.test(source)) return readFile(source, "utf8");
   const response = await fetch(source, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
   if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
   return response.text();

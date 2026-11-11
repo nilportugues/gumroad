@@ -9,7 +9,7 @@ import { isPresent, type RailsRequest } from "./rails-request.ts";
 // Ruby's CGI.escape: space as "+", and only A-Z a-z 0-9 _ . - ~ stay as they are.
 export function cgiEscape(value: string): string {
   return encodeURIComponent(value)
-    .replace(/[!'()*]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`)
+    .replace(/[!'()*]/gu, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`)
     .replaceAll("%20", "+");
 }
 
@@ -17,7 +17,7 @@ export function cgiEscape(value: string): string {
 // is not followed by two hex digits stays. A run that is not valid UTF-8 makes the later string
 // operations raise in Ruby, so it is handed back rather than guessed.
 export function cgiUnescape(value: string): string {
-  return value.replaceAll("+", " ").replace(/(?:%[0-9a-fA-F]{2})+/g, (run) => {
+  return value.replaceAll("+", " ").replace(/(?:%[0-9a-fA-F]{2})+/gu, (run) => {
     const bytes = Buffer.from(run.replaceAll("%", ""), "hex");
     const text = bytes.toString("utf8");
     if (!Buffer.from(text, "utf8").equals(bytes)) throw new HandBackToRails();
@@ -28,7 +28,7 @@ export function cgiUnescape(value: string): string {
 // CGI.parse(query): "&" and ";" separate pairs; a pair without "=" has a nil value.
 export function cgiParse(query: string): Map<string, (string | null)[]> {
   const params = new Map<string, (string | null)[]>();
-  for (const pair of query.split(/[&;]/)) {
+  for (const pair of query.split(/[&;]/u)) {
     const index = pair.indexOf("=");
     const key = cgiUnescape(index === -1 ? pair : pair.slice(0, index));
     const value = index === -1 ? null : cgiUnescape(pair.slice(index + 1));
@@ -52,7 +52,7 @@ export function assertFlatQuery(query: string, arrayKeys: string[] = []): void {
 // ActionDispatch::Request#referrer
 export const referrer = (request: RailsRequest): string | null => request.headers.get("referer");
 
-const BROWSER_LIKE_ACCEPTS = /,\s*\*\/\*|\*\/\*\s*,/;
+const BROWSER_LIKE_ACCEPTS = /,\s*\*\/\*|\*\/\*\s*,/u;
 const JSON_TYPES = new Set(["application/json", "text/x-json", "application/jsonrequest"]);
 const HTML_TYPES = new Set(["text/html", "application/xhtml+xml", "*/*"]);
 
@@ -65,8 +65,8 @@ export function requestFormat(request: RailsRequest): "html" | "json" | "other" 
   if (!usable) return xhr ? "other" : "html";
 
   const entries = accept!.split(",").map((entry, order) => {
-    const [type = "", ...parameters] = entry.trim().split(/\s*;\s*/);
-    const quality = parameters.map((parameter) => /^q=([\d.]+)$/.exec(parameter)?.[1]).find((q) => q !== undefined);
+    const [type = "", ...parameters] = entry.trim().split(/\s*;\s*/u);
+    const quality = parameters.map((parameter) => /^q=([\d.]+)$/u.exec(parameter)?.[1]).find((q) => q !== undefined);
     return { type: type.toLowerCase(), quality: quality === undefined ? 1 : Number.parseFloat(quality), order };
   });
   entries.sort((a, b) => b.quality - a.quality || a.order - b.order);
@@ -78,27 +78,27 @@ export function requestFormat(request: RailsRequest): "html" | "json" | "other" 
 
 // Addressable::URI::CharacterClasses: what each component keeps when Addressable::URI.escape
 // re-encodes a URI.
-const AUTHORITY_CLASS = /^[A-Za-z0-9\-._~!$&'()*+,;=:@[\]]$/;
-const PATH_CLASS = /^[A-Za-z0-9\-._~!$&'()*+,;=:@/]$/;
-const QUERY_CLASS = /^[A-Za-z0-9\-._~!$&'()*+,;=:@/?]$/;
+const AUTHORITY_CLASS = /^[A-Za-z0-9\-._~!$&'()*+,;=:@[\]]$/u;
+const PATH_CLASS = /^[A-Za-z0-9\-._~!$&'()*+,;=:@/]$/u;
+const QUERY_CLASS = /^[A-Za-z0-9\-._~!$&'()*+,;=:@/?]$/u;
 
 // Addressable::URI.encode_component: every character outside the class, "%" included, becomes its
 // UTF-8 bytes as %XX.
 const encodeComponent = (value: string, allowed: RegExp) =>
-  [...value].map((char) => (allowed.test(char) ? char : Buffer.from(char, "utf8").toString("hex").toUpperCase().replace(/../g, "%$&"))).join("");
+  [...value].map((char) => (allowed.test(char) ? char : Buffer.from(char, "utf8").toString("hex").toUpperCase().replace(/../gu, "%$&"))).join("");
 
 // RFC 3986 appendix B, which Addressable::URI.parse splits a URI with.
-const URI_SPLIT = /^(?:([^:/?#]+):)?(?:\/\/([^/?#]*))?([^?#]*)(?:\?([^#]*))?(?:#(.*))?$/s;
+const URI_SPLIT = /^(?:([^:/?#]+):)?(?:\/\/([^/?#]*))?([^?#]*)(?:\?([^#]*))?(?:#(.*))?$/su;
 
 // SafeRedirectPathService#url: URI.parse(Addressable::URI.escape(CGI.unescape(path).split("#").first)).
 function escapedUri(path: string) {
   const unescaped = cgiUnescape(path);
   // Ruby's "###".split("#") is empty, and Addressable raises on the nil that leaves.
-  if (/^#*$/.test(unescaped)) throw new HandBackToRails();
+  if (/^#*$/u.test(unescaped)) throw new HandBackToRails();
   const [, scheme, authority, urlPath = "", query] = URI_SPLIT.exec(unescaped.split("#")[0]!)!;
   // An opaque URI ("javascript:...") has no path, which Ruby's gsub then raises on; any other
   // scheme is Addressable's and URI's to validate.
-  if (scheme !== undefined && (authority === undefined || !/^https?$/i.test(scheme))) throw new HandBackToRails();
+  if (scheme !== undefined && (authority === undefined || !/^https?$/iu.test(scheme))) throw new HandBackToRails();
   const escaped =
     (scheme === undefined ? "" : `${scheme}:`) +
     (authority === undefined ? "" : `//${encodeComponent(authority, AUTHORITY_CLASS)}`) +
@@ -122,18 +122,18 @@ export function safeRedirectPath(
 ): string {
   let path = input;
   if (path !== null) {
-    const separator = path.search(/[?#]/);
+    const separator = path.search(/[?#]/u);
     const head = separator === -1 ? path : path.slice(0, separator);
-    path = head.replaceAll("\\", "/").replace(/%5[Cc]/g, "/") + (separator === -1 ? "" : path.slice(separator));
+    path = head.replaceAll("\\", "/").replace(/%5[Cc]/gu, "/") + (separator === -1 ? "" : path.slice(separator));
   }
   if (!isPresent(path)) return "/";
 
   const url = escapedUri(path);
   if (url.path === null) throw new HandBackToRails();
-  const subdomainHost = url.host !== null && new RegExp(`.*\\.${rootDomain.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`).test(url.host);
+  const subdomainHost = url.host !== null && new RegExp(`.*\\.${rootDomain.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}$`).test(url.host);
   if ((allowSubdomainHost && subdomainHost) || url.host === request.host) return path;
 
-  let relative = url.path.replace(/^\/+/, "/");
+  let relative = url.path.replace(/^\/+/u, "/");
   if (relative !== "" && !relative.startsWith("/")) relative = `/${relative}`;
   return url.query === null ? relative : `${relative}?${url.query}`;
 }

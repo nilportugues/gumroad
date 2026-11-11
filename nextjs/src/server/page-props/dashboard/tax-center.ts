@@ -25,7 +25,7 @@ const sym = (name: string) => new RubySymbol(name);
 
 // String#to_i
 export function rubyToI(value: string): number {
-  const match = /^\s*[-+]?\d[\d_]*/.exec(value);
+  const match = /^\s*[-+]?\d[\d_]*/u.exec(value);
   return match ? Number(match[0].replaceAll("_", "")) : 0;
 }
 
@@ -33,7 +33,7 @@ export function rubyToI(value: string): number {
 export function formatCentsAsDollars(cents: bigint): string {
   const negative = cents < 0n;
   const absolute = negative ? -cents : cents;
-  const dollars = (absolute / 100n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const dollars = (absolute / 100n).toString().replace(/\B(?=(\d{3})+(?!\d))/gu, ",");
   return `${negative ? "-" : ""}$${dollars}.${(absolute % 100n).toString().padStart(2, "0")}`;
 }
 
@@ -90,7 +90,7 @@ export async function taxCenterProps(seller: User, requestedYear: number, now = 
       const t = await totals(seller.id, year);
       const net = t.gross - t.fees - t.taxes - t.affiliateCredit;
       return new Map<MarshalValue, MarshalValue>([
-        [sym("document"), type.replace(/^us_/, "").replaceAll("_", "-").toUpperCase()],
+        [sym("document"), type.replace(/^us_/u, "").replaceAll("_", "-").toUpperCase()],
         [sym("type"), "IRS form"],
         [sym("year"), year],
         [sym("form_type"), type],

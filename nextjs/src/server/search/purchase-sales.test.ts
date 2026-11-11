@@ -43,7 +43,7 @@ describe("User#sales_cents_total", () => {
     const total = await salesCentsTotal(BigInt(recorded.user_id));
 
     expect(total).toBe(recorded.total);
-    const normalized = sent.map((request) => ({ method: request.method, path: request.path.replace(/^\/purchases\//, `/${RECORDED_INDEX}/`), query: request.query ?? {}, body: request.body }));
+    const normalized = sent.map((request) => ({ method: request.method, path: request.path.replace(/^\/purchases\//u, `/${RECORDED_INDEX}/`), query: request.query ?? {}, body: request.body }));
     expect(normalized).toEqual(exchanges.map(({ method, path, query, body }) => ({ method, path: `/${path}`, query, body })));
   });
 

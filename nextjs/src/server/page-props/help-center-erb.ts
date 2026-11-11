@@ -31,24 +31,24 @@ type Kwargs = { [key: string]: string | number };
 
 // ERB::Util.html_escape
 const HTML_ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
-const escape = (text: string) => text.replace(/[&<>"']/g, (char) => HTML_ESCAPES[char]!);
+const escape = (text: string) => text.replace(/[&<>"']/gu, (char) => HTML_ESCAPES[char]!);
 
 type Token = { type: "string" | "number" | "ident" | "label" | "punct"; value: string };
 
 function tokenize(source: string): Token[] {
   const tokens: Token[] = [];
-  const pattern = /\s*(?:"((?:[^"\\]|\\.)*)"|(\d+)|([A-Za-z_][\w]*(?:::[A-Za-z_]\w*)*)(:)?|([(),]))/y;
+  const pattern = /\s*(?:"((?:[^"\\]|\\.)*)"|(\d+)|([A-Za-z_][\w]*(?:::[A-Za-z_]\w*)*)(:)?|([(),]))/yu;
   let rest = 0;
   while (rest < source.length) {
     pattern.lastIndex = rest;
     const match = pattern.exec(source);
     if (!match) throw new Error(`Unsupported ERB expression: ${source}`);
-    if (match[1] !== undefined) tokens.push({ type: "string", value: match[1].replace(/\\(.)/g, "$1") });
+    if (match[1] !== undefined) tokens.push({ type: "string", value: match[1].replace(/\\(.)/gu, "$1") });
     else if (match[2] !== undefined) tokens.push({ type: "number", value: match[2] });
     else if (match[3] !== undefined) tokens.push({ type: match[4] ? "label" : "ident", value: match[3] });
     else tokens.push({ type: "punct", value: match[5]! });
     rest = pattern.lastIndex;
-    if (/^\s*$/.test(source.slice(rest))) break;
+    if (/^\s*$/u.test(source.slice(rest))) break;
   }
   return tokens;
 }
@@ -136,7 +136,7 @@ class Evaluator {
 
 // ActionView asset path for public/ files: URLs and absolute paths are left alone.
 function imagePath(source: string, assetHost: string | null): string {
-  if (/^(?:[a-z][a-z\d+.-]*:|\/)/i.test(source)) return source;
+  if (/^(?:[a-z][a-z\d+.-]*:|\/)/iu.test(source)) return source;
   return `${assetHost ?? ""}/images/${source}`;
 }
 
@@ -148,7 +148,7 @@ export function renderArticleContent(slug: string, options: ArticleRenderOptions
     template = readFileSync(path.join(CONTENTS_DIR, `_${slug}.html.erb`), "utf8");
     templates.set(slug, template);
   }
-  return template.replace(/<%=\s*([\s\S]*?)\s*%>/g, (_, expression: string) => {
+  return template.replace(/<%=\s*([\s\S]*?)\s*%>/gu, (_, expression: string) => {
     const value = new Evaluator(tokenize(expression), options, expression).run();
     return value instanceof SafeString ? value.value : escape(String(value));
   });

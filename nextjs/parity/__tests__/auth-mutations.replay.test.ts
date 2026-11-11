@@ -49,7 +49,7 @@ const ROUTE_FLAGS = [
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
-const UNSUBSCRIBE_PATH = /^\/users\/unsubscribe\/([^/]+)$/;
+const UNSUBSCRIBE_PATH = /^\/users\/unsubscribe\/([^/]+)$/u;
 const UNSUBSCRIBE_SCOPE = "email_unsubscribe";
 // auth_account_parity_spec mints the link with expires_at: 2.days.from_now.
 const UNSUBSCRIBE_LINK_LIFETIME_MS = 2 * 86_400_000;
@@ -149,7 +149,7 @@ const allCases = SPECS.flatMap((spec) => {
     .map(
       (file) =>
         [
-          `${spec}: ${file.replace(/\.json$/, "")}`,
+          `${spec}: ${file.replace(/\.json$/u, "")}`,
           path.join(dir, file),
           loadFixture(path.join(dir, file)).exchanges.length - 1,
         ] as const,
@@ -254,7 +254,7 @@ describe.skipIf(!url)("mutations of the authentication pages", () => {
     await new Promise<void>((resolve) => pwned.listen(0, "127.0.0.1", resolve));
     const railsPort = (rails.address() as { port: number }).port;
     const pwnedPort = (pwned.address() as { port: number }).port;
-    const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1];
+    const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1];
     server = await startNextServer({
       RAILS_ENV: "test",
       OBFUSCATE_IDS_CIPHER_KEY: obfuscateKey ?? "",

@@ -16,7 +16,7 @@ export function numberToHumanSize(size: number | bigint | null): string | null {
   const factor = 10 ** precision;
   // BigDecimal#round is half up; a decimal literal such as 1.005 is exact there, so round on the shortest string.
   const rounded = Math.round(Number((value * factor).toPrecision(15))) / factor;
-  const text = precision > 0 ? rounded.toFixed(precision).replace(/\.?0+$/, "") : String(rounded);
+  const text = precision > 0 ? rounded.toFixed(precision).replace(/\.?0+$/u, "") : String(rounded);
   return `${text} ${UNITS[exponent]}`;
 }
 

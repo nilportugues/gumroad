@@ -10,7 +10,7 @@ const XHTML1_NAMES: Record<string, number> = { amp: 38, lt: 60, gt: 62, quot: 34
 
 function decodeEntities(text: string): string {
   return text.replace(
-    /&(?:([a-z][a-z0-9]{1,7})|#([0-9]{1,7})|#x([0-9a-f]{1,6}));/gi,
+    /&(?:([a-z][a-z0-9]{1,7})|#([0-9]{1,7})|#x([0-9a-f]{1,6}));/giu,
     (whole, name?: string, dec?: string, hex?: string) => {
       if (name !== undefined) {
         const code = XHTML1_NAMES[name];

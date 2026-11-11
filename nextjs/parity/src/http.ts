@@ -67,7 +67,7 @@ export async function captureResponse(response: Response, now: Date, bodyNow = n
 export function setCookies(lines: string[], now: Date): Record<string, Record<string, Json>> {
   const out: Record<string, Record<string, Json>> = {};
   for (const line of [...lines].sort()) {
-    const [pair = "", ...attributes] = line.split(/;\s*/);
+    const [pair = "", ...attributes] = line.split(/;\s*/u);
     const [name = "", value = ""] = splitOnce(pair, "=");
     const parsed: Record<string, Json> = { value: cookieValue(name, safeDecode(value)) };
     for (const attribute of attributes) {
@@ -125,17 +125,17 @@ async function responseBody(response: Response, now: Date): Promise<Partial<Capt
 
 // Same extraction as Recorder#inertia_page: the props are the contract, the layout is not.
 export function inertiaPage(html: string): Json | undefined {
-  const script = /<script[^>]*data-page="[^"]*"[^>]*>([\s\S]*?)<\/script>/.exec(html);
+  const script = /<script[^>]*data-page="[^"]*"[^>]*>([\s\S]*?)<\/script>/u.exec(html);
   if (script?.[1] !== undefined) return parseJson(script[1]);
-  const attribute = /\sdata-page="([^"]*)"/.exec(html);
+  const attribute = /\sdata-page="([^"]*)"/u.exec(html);
   if (attribute?.[1] !== undefined) return parseJson(unescapeHtml(attribute[1]));
   return undefined;
 }
 
 function unescapeHtml(text: string): string {
   return text
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => String.fromCodePoint(parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, dec: string) => String.fromCodePoint(Number(dec)))
+    .replace(/&#x([0-9a-f]+);/giu, (_, hex: string) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/gu, (_, dec: string) => String.fromCodePoint(Number(dec)))
     .replaceAll("&quot;", '"')
     .replaceAll("&#39;", "'")
     .replaceAll("&apos;", "'")

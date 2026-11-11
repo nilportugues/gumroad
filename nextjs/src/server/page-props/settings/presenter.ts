@@ -56,7 +56,7 @@ type Pages = string[];
 const present = (value: string | null | undefined): value is string => value != null && value.trim() !== "";
 const capitalize = (value: string) => value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
 // Time#iso8601
-const iso8601 = (date: Date) => date.toISOString().replace(/\.\d{3}Z$/, "Z");
+const iso8601 = (date: Date) => date.toISOString().replace(/\.\d{3}Z$/u, "Z");
 
 // OauthApplication#icon_url: cdn_url_for(file.url), the blob's own public URL.
 export async function iconUrl(application: OauthApplication): Promise<string | null> {
@@ -461,7 +461,7 @@ export async function authorizedApplicationsProps(context: SellerContext, now = 
         icon_url: await iconUrl(application),
         is_own_app: application.owner_id !== null && BigInt(application.owner_id) === seller.id,
         first_authorized_at: iso8601(grants.get(application.id)!.created_at),
-        scopes: liveScopes.get(application.id) ?? grants.get(application.id)!.scopes.split(/\s+/).filter(Boolean),
+        scopes: liveScopes.get(application.id) ?? grants.get(application.id)!.scopes.split(/\s+/u).filter(Boolean),
         id: externalId(application.id),
       })),
     ),
@@ -483,7 +483,7 @@ async function liveScopesByApplication(
   for (const token of tokens) {
     if (token.expires_in !== null && token.created_at.getTime() + token.expires_in * 1000 <= now.getTime()) continue;
     const scopes = result.get(token.application_id) ?? [];
-    for (const scope of (token.scopes ?? "").split(/\s+/).filter(Boolean))
+    for (const scope of (token.scopes ?? "").split(/\s+/u).filter(Boolean))
       if (!scopes.includes(scope)) scopes.push(scope);
     if (scopes.length > 0) result.set(token.application_id, scopes);
   }

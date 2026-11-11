@@ -290,7 +290,7 @@ describe("skus", () => {
         ({ $queryRaw: async (query: { sql: string }) => ((sql = query.sql), []), $executeRaw: async () => 0 }) as never,
     );
     await editBlockers(product(), seller);
-    expect(sql).not.toMatch(/`base_variants`\.`link_id`/);
+    expect(sql).not.toMatch(/`base_variants`\.`link_id`/u);
   });
 
   it("accepts a product with skus_enabled set: edit_props reads neither the flag nor the SKU rows", async () => {
@@ -454,7 +454,7 @@ describe("productTagNames", () => {
         }) as never,
     );
     await expect(productTagNames(5n)).resolves.toEqual(["art", "music"]);
-    expect(sql).toMatch(/ORDER BY `product_taggings`\.`tag_id` ASC/);
+    expect(sql).toMatch(/ORDER BY `product_taggings`\.`tag_id` ASC/u);
   });
 });
 
@@ -478,8 +478,8 @@ describe("otherProductRefundPolicies", () => {
       product_name: "Other",
       title: "14-day money back guarantee",
     });
-    expect(sql).toMatch(/`updated_at` DESC/);
-    expect(sql).toMatch(/`deleted_at` IS NULL/);
+    expect(sql).toMatch(/`updated_at` DESC/u);
+    expect(sql).toMatch(/`deleted_at` IS NULL/u);
   });
 });
 
@@ -516,7 +516,7 @@ describe("installmentPlanProps", () => {
         }) as never,
     );
     await expect(installmentPlanProps(5n)).resolves.toEqual({ number_of_installments: 3, recurrence: "monthly" });
-    expect(sql).toMatch(/`deleted_at` IS NULL/);
+    expect(sql).toMatch(/`deleted_at` IS NULL/u);
   });
 
   it("is nil without a live plan", async () => {

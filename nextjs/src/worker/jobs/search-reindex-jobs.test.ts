@@ -11,7 +11,7 @@ import { backfillMerchantAccountRecommendationEligibilityJob, reindexSubscriptio
 import type { JobHandler } from "./types.ts";
 
 const url = process.env.JOBS_REDIS_URL;
-if (url && /\/0$|^[^/]*\/\/[^/]+$/.test(url)) throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
+if (url && /\/0$|^[^/]*\/\/[^/]+$/u.test(url)) throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
 let realRedis: Redis | undefined;
 beforeAll(() => {
   if (url) realRedis = new Redis(url);

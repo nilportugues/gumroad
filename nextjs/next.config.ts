@@ -90,19 +90,19 @@ const config: NextConfig = {
     rules: {
       // Vite turns `$assets/...` images into URL strings; Next would turn them into objects.
       "*.{png,jpg,svg,webp,gif}": {
-        condition: { path: /(^|[\\/])public[\\/]/ },
+        condition: { path: /(^|[\\/])public[\\/]/u },
         loaders: [{ loader: "./build/public-asset-url-loader.cjs", options: { publicDir: path.join(repoRoot, "public") } }],
         as: "*.js",
       },
       // Vite's `?inline` suffix: the compiled stylesheet as a string (CartRecoveryCard's email preview).
       "*.scss": {
-        condition: { all: [{ path: /(^|[\\/])app[\\/]javascript[\\/]/ }, { query: /inline/ }] },
+        condition: { all: [{ path: /(^|[\\/])app[\\/]javascript[\\/]/u }, { query: /inline/u }] },
         loaders: ["./build/scss-inline-loader.cjs"],
         as: "*.js",
       },
       // The Vite build auto-imports the js-routes `Routes` global into every module that uses it.
       "*.{ts,tsx}": {
-        condition: { path: /(^|[\\/])app[\\/]javascript[\\/]/ },
+        condition: { path: /(^|[\\/])app[\\/]javascript[\\/]/u },
         loaders: ["./build/routes-auto-import-loader.cjs"],
       },
     },

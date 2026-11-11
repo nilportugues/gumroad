@@ -13,14 +13,14 @@ const GENERATABLE_HEAD_KEY_PROPERTIES = ["name", "property", "http_equiv"] as co
 export function parameterize(value: string): string {
   return value
     .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-zA-Z0-9\-_]+/g, "-")
-    .replace(/-{2,}/g, "-")
-    .replace(/^-|-$/g, "")
+    .replace(/[̀-ͯ]/gu, "")
+    .replace(/[^a-zA-Z0-9\-_]+/gu, "-")
+    .replace(/-{2,}/gu, "-")
+    .replace(/^-|-$/gu, "")
     .toLowerCase();
 }
 
-const camelizeLower = (key: string) => key.replace(/_([a-z\d])/g, (_, letter: string) => letter.toUpperCase());
+const camelizeLower = (key: string) => key.replace(/_([a-z\d])/gu, (_, letter: string) => letter.toUpperCase());
 
 // Ruby's `compact_blank!`: nil, false, and empty strings/arrays/hashes are dropped.
 function isBlank(value: unknown): boolean {
