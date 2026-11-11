@@ -3022,7 +3022,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SendPurchaseReceiptJob": {
     "file": "app/sidekiq/send_purchase_receipt_job.rb",

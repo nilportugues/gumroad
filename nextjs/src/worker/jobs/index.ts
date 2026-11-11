@@ -110,6 +110,7 @@ import { sellerUpdatesWorker } from "./seller-updates-worker.ts";
 import { sendCommunityChatRecapNotificationsJob } from "./send-community-chat-recap-notifications-job.ts";
 import { sendLastPostJob } from "./send-last-post-job.ts";
 import { sendMarketingXReconnectEmailJob } from "./send-marketing-x-reconnect-email-job.ts";
+import { sendPreorderSellerSummaryWorker } from "./send-preorder-seller-summary-worker.ts";
 import { sendPurchaseReceiptJob } from "./send-purchase-receipt-job.ts";
 import { sendWorkflowInstallmentWorker } from "./send-workflow-installment-worker.ts";
 import {
@@ -118,6 +119,7 @@ import {
   deleteStripeApplePayDomainWorker,
   syncStripeBusinessProfileUrlJob,
 } from "./stripe-jobs.ts";
+import { submitToIndexnowJob } from "./submit-to-indexnow-job.ts";
 import {
   chargeDeclinedReminderWorker,
   findSubscriptionsWithMissingChargeWorker,
@@ -133,7 +135,6 @@ import {
 } from "./subscription-write-jobs.ts";
 import { suspendAccountsWithPaymentAddressWorker, suspendUsersWorker } from "./suspend-jobs.ts";
 import { syncStripeBusinessProfileUrlWorker } from "./sync-stripe-business-profile-url-worker.ts";
-import { submitToIndexnowJob } from "./submit-to-indexnow-job.ts";
 import type { JobHandler } from "./types.ts";
 import { updateCachedSalesRelatedProductsInfosJob } from "./update-cached-sales-related-products-infos-job.ts";
 import { updateCurrenciesWorker } from "./update-currencies-worker.ts";
@@ -262,6 +263,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   RegenerateSalesRelatedProductsInfosJob: regenerateSalesRelatedProductsInfosJob,
   UpdateSalesRelatedProductsInfosJob: updateSalesRelatedProductsInfosJob,
   UpdateTaxonomyStatsJob: updateTaxonomyStatsJob,
+  SendPreorderSellerSummaryWorker: sendPreorderSellerSummaryWorker,
   SubmitToIndexnowJob: submitToIndexnowJob,
   DeleteProductRichContentWorker: deleteProductRichContentWorker,
   RemoveSuspendedAccountFollowsWorker: removeSuspendedAccountFollowsWorker,
