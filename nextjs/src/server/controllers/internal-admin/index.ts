@@ -24,6 +24,11 @@ import "./purchases.ts";
 import "./purchase-writes.ts";
 import "./users-reads.ts";
 import "./admin-web.ts";
+import "./url-redirects.ts";
+import "./licenses.ts";
+import "./sendgrid-emails.ts";
+import "./risk-recovery.ts";
+import "./payouts.ts";
 
 export async function internalAdminResponse(incoming: Request): Promise<Response> {
   const target = incoming.headers.get(PAGE_URL_HEADER);
