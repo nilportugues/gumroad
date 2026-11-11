@@ -60,6 +60,7 @@ import "@/server/controllers/comments-mutations";
 import "@/server/controllers/product-editor-json";
 import "@/server/controllers/product-editor-mutations";
 import "@/server/controllers/checkout-upsells";
+import "@/server/controllers/profile-products";
 import "@/server/controllers/checkout-upsell-products";
 import "@/server/controllers/offer-codes-selection";
 import "@/server/controllers/purchases-search";

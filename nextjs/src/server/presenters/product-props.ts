@@ -18,11 +18,19 @@ import { thumbnailUrl } from "../page-props/buyer/products.ts";
 import { NotPortedError } from "../page-props/not-ported.ts";
 import { collaboratingProductIds, linkPolicy } from "../policies/link.ts";
 import type { SellerContext } from "../policies/seller-context.ts";
+import { sellerReputationProps } from "../models/user-reputation-summary.ts";
 import { PurchaseSearchService } from "../search/purchase-search.ts";
 
 import { bestOfferCodeResult, defaultOfferCodes, saleLabel } from "./best-offer-code.ts";
 import { htmlSafeDescription } from "./description.ts";
 import { durationDisplayable, numberToHumanSize, pluralize, resolutionDisplayable } from "./human-size.ts";
+import {
+  assertNoAttachedPublicFiles,
+  assertNoBoughtPurchase,
+  coverProps,
+  waitlistProps,
+  wishlistProps,
+} from "./product-props-extras.ts";
 import { findLink, findUserById, type LinkRow, type PriceRow, reviewStat, type UserRow } from "./product-reads.ts";
 import {
   authorBylineProps,
@@ -746,6 +754,8 @@ export type ProductPageViewerInput = {
   recommendedBy: string | null;
   sellerCustomDomainUrl: string | null;
   request: PresenterRequest;
+  // Side effects of a rendered page (the reputation snapshot's refresh job), run by whoever sends the page.
+  afterRender?: (() => Promise<void>)[];
 };
 
 // -------------------------------------------------------------------------------------------------
@@ -770,69 +780,36 @@ export async function selectionOptions(row: LinkRow) {
 
 export async function productProps(row: LinkRow, seller: UserRow, viewer: ProductPageViewerInput) {
   const sellerActor = userActor(seller.id);
-  if (await isFeatureEnabled("seller_reputation_summary", sellerActor))
-    throw new NotPortedError("User#seller_reputation_summary");
+  const reputation = await sellerReputationProps(seller, row, viewer.afterRender);
   let canEdit = false;
+  let wishlists: Awaited<ReturnType<typeof wishlistProps>> = [];
   if (viewer.user && viewer.context) {
-    // A purchase of the visitor's goes through Purchase#purchase_info, and a wishlist through WishlistPresenter#listing_props.
-    if (
-      await hasRows(
-        "purchases",
-        Prisma.sql`${column("purchases", "link_id")} = ${row.id} AND ${column("purchases", "purchaser_id")} = ${viewer.user.id}`,
-      )
-    )
-      throw new NotPortedError("Purchase#purchase_info");
-    if (
-      viewer.context.seller &&
-      (await hasRows(
-        "wishlists",
-        Prisma.sql`${column("wishlists", "user_id")} = ${viewer.context.seller.id} AND ${column("wishlists", "deleted_at")} IS NULL`,
-      ))
-    )
-      throw new NotPortedError("WishlistPresenter#listing_props");
     canEdit = linkPolicy.edit(
       viewer.context,
       { id: row.id, user_id: row.user_id, flags: row.flags as bigint | number },
       await collaboratingProductIds(viewer.context, [row.id]),
     );
+    if (viewer.context.seller) wishlists = await wishlistProps(row, viewer.context.seller.id);
   }
   if (viewer.purchaseId !== null || viewer.purchaseEmailDigest !== null)
     throw new NotPortedError("Link#purchase_for_email_digest");
-  if (
-    viewer.browserGuid !== null &&
-    (await hasRows(
-      "purchases",
-      Prisma.sql`${column("purchases", "link_id")} = ${row.id} AND ${column("purchases", "browser_guid")} = ${viewer.browserGuid}`,
-    ))
-  ) {
-    throw new NotPortedError("Link#purchase_info_for_product_page");
-  }
+  await assertNoBoughtPurchase(
+    row,
+    { userId: viewer.user && viewer.context ? viewer.user.id : null, browserGuid: viewer.browserGuid },
+    flag(row, "is_in_preorder_state"),
+  );
   const collaborator = await collaboratorForDisplay(row);
-  // The page head preloads the call calendar through the Vite manifest, which Node does not have.
-  if (row.native_type === "call") throw new NotPortedError("PageMeta::Product vite_asset_path for the call calendar");
   const published = row.deleted_at === null && row.purchase_disabled_at === null && !row.draft;
-  if (
+  const waitlist =
     flag(row, "waitlist_enabled") &&
     !published &&
     row.deleted_at === null &&
     row.banned_at === null &&
     !flag(row, "is_unpublished_by_admin")
-  )
-    throw new NotPortedError("ProductProps#waitlist_props");
-  if (
-    await hasRows(
-      "public_files",
-      Prisma.sql`${column("public_files", "resource_type")} = 'Link' AND ${column("public_files", "resource_id")} = ${row.id} AND ${column("public_files", "deleted_at")} IS NULL`,
-    )
-  )
-    throw new NotPortedError("PublicFilePresenter#props");
-  if (
-    await hasRows(
-      "asset_previews",
-      Prisma.sql`${column("asset_previews", "link_id")} = ${row.id} AND ${column("asset_previews", "deleted_at")} IS NULL`,
-    )
-  )
-    throw new NotPortedError("AssetPreview#as_json");
+      ? await waitlistProps(row, seller, canEdit)
+      : null;
+  await assertNoAttachedPublicFiles(row);
+  const covers = await coverProps(row);
 
   const [files, prices] = await Promise.all([aliveProductFiles(row.id), alivePricesOf(row.id)]);
   const priced: Priced = { purchaseType: PURCHASE_TYPES[row.purchase_type ?? -1] ?? null, prices };
@@ -866,13 +843,13 @@ export async function productProps(row: LinkRow, seller: UserRow, viewer: Produc
       customDomainUrl: viewer.sellerCustomDomainUrl,
     }),
     collaborating_user: collaborator ? await authorBylineProps(collaborator) : null,
-    covers: [],
-    main_cover_id: null,
+    ...covers,
     thumbnail_url: await thumbnailUrl(row.id),
     quantity_remaining: await remainingForSale(row, closeFeature),
     long_url: longUrl(row, seller),
     is_sales_limited: (row.max_purchase_count ?? 0) !== 0,
     ratings: flag(row, "display_product_reviews") ? await ratingStats(row.id) : null,
+    ...reputation,
     custom_button_text_option: (data.custom_button_text_option as string | null | undefined) ?? null,
     is_compliance_blocked: complianceBlocked(viewer.remoteIp),
     is_published: !row.draft && row.deleted_at === null,
@@ -930,7 +907,7 @@ export async function productProps(row: LinkRow, seller: UserRow, viewer: Produc
     has_third_party_analytics: await hasThirdPartyAnalytics(row, seller, "product"),
     ppp_details: await pppDetails(row, seller, viewer.remoteIp),
     can_edit: canEdit,
-    waitlist: null,
+    waitlist,
     refund_policy: await refundPolicyProps(row, seller),
     bundle_products: await bundleProductsProps(row, viewer),
     public_files: [],
@@ -967,6 +944,6 @@ export async function productProps(row: LinkRow, seller: UserRow, viewer: Produc
     sale_label: saleLabel(result, defaults.auto),
     selection_discounts: selection,
     purchase: null,
-    wishlists: [],
+    wishlists,
   };
 }

@@ -79,6 +79,7 @@ const RENDERED = new Set(
     "renders-a-commission-product",
     "renders-a-preorder",
     "renders-a-pay-what-you-want-product",
+    "renders-the-waitlist-of-an-unpublished-product-to-a-visitor",
     "renders-an-unpublished-product-with-a-noindex-header",
     "renders-a-deleted-product-with-a-noindex-header",
     "renders-an-adult-product",
@@ -93,7 +94,7 @@ const RENDERED = new Set(
     "does-not-credit-a-collaborator-whose-invitation-is-still-pending",
   ]
     .map((name) => `on-a-seller-subdomain-${name}`)
-    .concat(["on-a-product-s-custom-domain-renders-the-product-at-the-root", "signed-in-shows-the-seller-their-own-product-with-the-edit-controls", "signed-in-lists-the-posts-a-profile-section-could-show-in-the-seller-s-edit-controls"]),
+    .concat(["on-a-product-s-custom-domain-renders-the-product-at-the-root", "signed-in-shows-the-seller-their-own-product-with-the-edit-controls", "signed-in-lists-the-posts-a-profile-section-could-show-in-the-seller-s-edit-controls", "signed-in-lists-the-viewer-s-wishlists-with-what-each-holds-of-the-product", "signed-in-shows-a-buyer-whose-purchase-was-refunded-the-product-without-a-purchase", "signed-in-counts-the-waitlist-of-an-unpublished-product-for-the-seller"]),
 );
 
 // The route gate (hostKindOf) sends a host that no alive seller owns to Rails whole: its catch-all is the 404. So does the root of a custom
