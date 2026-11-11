@@ -13,6 +13,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import type { RequestContext } from "../auth/context.ts";
+import { releaseThrottleCounts, throttledResponse } from "../infra/rack-attack.ts";
 import { readEncryptedCookie, writeEncryptedCookie } from "../auth/rails-cookies.ts";
 import {
   railsCookieSecrets,
@@ -787,6 +788,7 @@ export function rackRedirect(incoming: Request, location: string, status = 301):
 }
 
 export async function forwardToRails(request: Request): Promise<Response> {
+  await releaseThrottleCounts();
   const source = new URL(request.url);
   const target = new URL(`${source.pathname}${source.search}`, getRequiredConfig("RAILS_ORIGIN"));
   const headers = new Headers(request.headers);
@@ -800,6 +802,22 @@ export async function forwardToRails(request: Request): Promise<Response> {
 export function sessionCsrfToken(request: RailsRequest): string | null {
   const token = loadSession(request).data._csrf_token;
   return typeof token === "string" ? token : null;
+}
+
+// Rack::Attack's 429. Rails sends it from middleware, so no controller ran, but the session cookie middleware outside Rack::Attack still
+// re-commits the session it loaded and the default security headers are on the response.
+export function throttledRailsResponse(incoming: Request, retryAfter: number): Response {
+  const request = railsRequest(incoming);
+  const response = throttledResponse(retryAfter);
+  const headers = response.headers;
+  headers.set("cache-control", "no-cache");
+  headers.set("x-content-type-options", "nosniff");
+  headers.set("x-download-options", "noopen");
+  headers.set("x-permitted-cross-domain-policies", "none");
+  headers.set("x-xss-protection", "1; mode=block");
+  applyCorsVary(headers);
+  headers.append("set-cookie", sessionCookie(request, loadSession(request), new Date()));
+  return new Response(response.body, { status: response.status, headers });
 }
 
 // Runs `action` the way Rails runs a controller action for this request, and returns the response

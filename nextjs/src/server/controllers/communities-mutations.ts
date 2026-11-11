@@ -3,6 +3,7 @@
 import { Prisma, type Community, type CommunityChatMessage, type User } from "@prisma/client";
 
 import { decrypt, encrypt } from "../../lib/obfuscate-ids.ts";
+import { THROTTLE_RULES } from "../infra/rack-attack-rules.ts";
 import { assertCanBroadcast, broadcastToCommunity } from "../infra/anycable.ts";
 import {
   CommunityChatMessages,
@@ -151,7 +152,7 @@ registerMutations(
   {
     method: "POST",
     pattern: "/communities/:community_id/chat_messages",
-    railsOnly: "/ip/period:chat_messages",
+    throttles: [THROTTLE_RULES.chatMessageCreate],
     run: async (input) => {
       let params: { content?: string } = {};
       const { denied, loaded } = await guarded(input, {});

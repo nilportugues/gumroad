@@ -3,7 +3,7 @@
 //
 // Whatever the port cannot prove goes to Rails whole, body included, before its first write: a request whose CSRF token or Origin
 // Rails would judge differently (Rails answers with a null session), a body Node does not parse, and any NotPortedError.
-import { HandBackToRails, forwardToRails, processAction, sessionCsrfToken, type ActionContext, type ActionOptions, type ActionResult } from "./application-controller.ts";
+import { HandBackToRails, forwardToRails, processAction, sessionCsrfToken, throttledRailsResponse, type ActionContext, type ActionOptions, type ActionResult } from "./application-controller.ts";
 import { MUTATION_PATH } from "./inertia-page.ts";
 import { railsRequest, type RailsRequest } from "./rails-request.ts";
 import { requestFormat } from "./rails-params.ts";
@@ -17,6 +17,7 @@ import { NotPortedError } from "../models/user.ts";
 import { NotPortedError as PageNotPortedError } from "../page-props/not-ported.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
 import { randomUUID } from "node:crypto";
+import { throttleIdentity, throttleRequest, withThrottleScope, type ThrottleRule } from "../infra/rack-attack.ts";
 
 export { MUTATION_PATH };
 
@@ -57,6 +58,9 @@ export type MutationSpec = {
   // The Rack::Attack rule (config/initializers/rack_attack.rb) that counts this route in Rails' Redis. A Node answer would skip that counter, so
   // the route is not in routes.json and, were a request to arrive anyway, Rails takes it whole.
   railsOnly?: string;
+  // The Rack::Attack rules that count this route. Node counts in the same Redis keys, so the route can be served here; a request handed
+  // back to Rails is uncounted first (forwardToRails) because Rails counts it again.
+  throttles?: readonly ThrottleRule[];
   run(input: MutationInput): Promise<ActionResult>;
 };
 
@@ -115,7 +119,11 @@ export function remoteIp(request: RailsRequest): string | null {
   return [...addresses].reverse().find((address) => !PRIVATE_ADDRESS.test(address)) ?? addresses[0] ?? null;
 }
 
-export async function mutationResponse(incoming: Request): Promise<Response> {
+export function mutationResponse(incoming: Request): Promise<Response> {
+  return withThrottleScope(() => serveMutation(incoming));
+}
+
+async function serveMutation(incoming: Request): Promise<Response> {
   const target = incoming.headers.get(PAGE_URL_HEADER);
   if (target === null) return new Response(null, { status: 404 });
   const host = incoming.headers.get("x-forwarded-host") ?? incoming.headers.get("host") ?? "localhost";
@@ -131,6 +139,10 @@ export async function mutationResponse(incoming: Request): Promise<Response> {
   let params: Params;
   try {
     params = candidate.rawBody ? {} : requestParams(url, request.headers.get("content-type"), bytes);
+    if (candidate.throttles !== undefined) {
+      const outcome = await throttleRequest(candidate.throttles, { pathname: url.pathname, method: request.method, ip: throttleIdentity(request.headers, remoteIp(railsRequest(request))), params });
+      if (outcome.throttled) return throttledRailsResponse(request, outcome.retryAfter);
+    }
     // Pundit answers 401 JSON to a request that is not HTML.
     if (!candidate.skipForgeryProtection) {
       const formats = candidate.formats ?? [candidate.json ? "json" : "html"];

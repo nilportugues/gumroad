@@ -25,11 +25,13 @@ describe "Post comments mutations when signed in", type: :request do
   end
 
   # The session is made on the main domain, the request goes to the seller's host.
-  def send_json(method, path, body = nil)
+  def send_json(method, path, body = nil, ip: nil)
     host! DOMAIN
     token = csrf_token
     host! seller.subdomain
-    public_send(method, path, params: body&.to_json, headers: json_headers.merge("X-CSRF-Token" => token))
+    headers = json_headers.merge("X-CSRF-Token" => token)
+    headers["CF-Connecting-IP"] = ip if ip
+    public_send(method, path, params: body&.to_json, headers:)
   end
 
   def sign_in_on_main_domain(user)
@@ -238,6 +240,53 @@ describe "Post comments mutations when signed in", type: :request do
       send_json(:delete, "/posts/#{post_record.external_id}/comments/#{comment.external_id}")
 
       expect(response).to have_http_status(:unauthorized).or have_http_status(:not_found)
+    end
+  end
+
+  # config/initializers/rack_attack.rb counts comment writes per post and address in Redis (5 a minute, then exponential backoff). Node counts in the
+  # same keys, so the sixth request of the window is refused there too. A localhost address is safelisted, hence the explicit one.
+  describe "throttling" do
+    let(:client_ip) { "203.0.113.7" }
+
+    before do
+      Rack::Attack.cache.store.flushdb
+      # The counter is keyed by the minute window: start early in one so the requests cannot straddle two.
+      sleep(61 - Time.now.sec) if Time.now.sec > 45
+    end
+
+    it "refuses the sixth comment of a minute from one address with a 429", parity: true do
+      sign_in_on_main_domain(seller)
+
+      5.times do |i|
+        send_json(:post, "/posts/#{post_record.external_id}/comments", { comment: { content: "Note #{i}" } }, ip: client_ip)
+        expect(response).to be_successful
+      end
+
+      send_json(:post, "/posts/#{post_record.external_id}/comments", { comment: { content: "One too many" } }, ip: client_ip)
+
+      expect(response).to have_http_status(:too_many_requests)
+      expect(response.headers["Retry-After"].to_i).to be_between(1, 60)
+      expect(response.body).to eq("Retry later\n")
+    end
+
+    it "refuses the sixth edit of a minute from one address with a 429", parity: true do
+      comment = comment_on(post_record, author: reader)
+      sign_in_on_main_domain(reader)
+
+      6.times do |i|
+        send_json(:put, "/posts/#{post_record.external_id}/comments/#{comment.external_id}", { comment: { content: "Edit #{i}" } }, ip: client_ip)
+      end
+
+      expect(response).to have_http_status(:too_many_requests)
+    end
+
+    it "does not count a request from localhost", parity: true do
+      sign_in_on_main_domain(seller)
+
+      6.times do |i|
+        send_json(:post, "/posts/#{post_record.external_id}/comments", { comment: { content: "Note #{i}" } })
+        expect(response).to be_successful
+      end
     end
   end
 end

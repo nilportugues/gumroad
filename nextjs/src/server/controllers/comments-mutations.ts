@@ -7,6 +7,7 @@
 import { Prisma, type Comment, type Installment, type User } from "@prisma/client";
 
 import { decrypt, encrypt } from "../../lib/obfuscate-ids.ts";
+import { THROTTLE_RULES } from "../infra/rack-attack-rules.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
 import { autoLink } from "../html/rinku.ts";
 import { CommentDeletable, Comments, COMMENT_TYPES } from "../models/comment.ts";
@@ -240,7 +241,7 @@ async function destroy(input: MutationInput): Promise<ActionResult> {
 }
 
 registerMutations(
-  { method: "POST", pattern: "/posts/:post_id/comments", formats: ["json"], railsOnly: "/ip:comments:post", run: create },
-  { method: "PUT", pattern: "/posts/:post_id/comments/:id", formats: ["json"], railsOnly: "/ip:comments:put", run: update },
+  { method: "POST", pattern: "/posts/:post_id/comments", formats: ["json"], throttles: [THROTTLE_RULES.commentCreate], run: create },
+  { method: "PUT", pattern: "/posts/:post_id/comments/:id", formats: ["json"], throttles: [THROTTLE_RULES.commentUpdate], run: update },
   { method: "DELETE", pattern: "/posts/:post_id/comments/:id", formats: ["json"], run: destroy },
 );

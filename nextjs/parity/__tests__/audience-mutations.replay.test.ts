@@ -23,6 +23,9 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 // cookie's place, every row written and every job enqueued.
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
+// Rack::Attack's counters live in their own Redis database: the seeder flushes the main one before every exchange, which would zero a count.
+const rackAttackHost = process.env.PARITY_RACK_ATTACK_REDIS_HOST;
+const THROTTLE_CASE = /-throttling-refuses-/u;
 const FIXTURES = "parity/fixtures/requests";
 const SPECS = [
   "emails_mutations_signed_in_spec",
@@ -139,7 +142,10 @@ const allCases = SPECS.flatMap((spec) => {
 });
 
 // Rails serves the throttled routes whole; rack-attack-routes.replay.test.ts replays those.
-const cases = withoutRailsOnly(allCases, ([, file, index]) => loadFixture(file).exchanges[index]!.request);
+const railsServed = withoutRailsOnly(allCases, ([, file, index]) => loadFixture(file).exchanges[index]!.request);
+// A throttled request is only refused after the earlier ones of its example counted: those are replayed in order by their own test below.
+const cases = railsServed.filter(([name]) => !THROTTLE_CASE.test(name));
+const throttleCases = railsServed.filter(([name]) => THROTTLE_CASE.test(name));
 
 describe.skipIf(!url)("mutations of the emails and workflows pages", () => {
   let client: PrismaClient;
@@ -183,7 +189,7 @@ describe.skipIf(!url)("mutations of the emails and workflows pages", () => {
       DATABASE_URL: url!,
       REDIS_HOST: redisHost,
       SIDEKIQ_REDIS_HOST: redisHost,
-      RACK_ATTACK_REDIS_HOST: redisHost,
+      RACK_ATTACK_REDIS_HOST: rackAttackHost ?? redisHost,
       DYNAMODB_ENDPOINT: process.env.DYNAMODB_ENDPOINT ?? "http://localhost:8012",
       ...(testEnv("DYNAMODB_TABLE_PREFIX") ? { DYNAMODB_TABLE_PREFIX: testEnv("DYNAMODB_TABLE_PREFIX")! } : {}),
       AWS_S3_ENDPOINT: process.env.AWS_S3_ENDPOINT ?? "http://localhost:9010",
@@ -242,13 +248,23 @@ describe.skipIf(!url)("mutations of the emails and workflows pages", () => {
   });
 
   afterAll(async () => {
+    if (rackAttackHost) await rackAttackRedis().flushdb();
     await server?.stop();
     rails?.close();
     await closeAllRedis();
     await redis?.quit();
+    await rackRedis?.quit();
     await client?.$disconnect();
     process.env = saved;
   });
+
+  // Connection to the Rack::Attack database.
+  let rackRedis: Redis | undefined;
+  const rackAttackRedis = () => {
+    const [hostAndPort = "", db = "0"] = rackAttackHost!.split("/");
+    const [host = "127.0.0.1", port = "6379"] = hostAndPort.split(":");
+    return (rackRedis ??= new Redis({ host, port: Number(port), db: Number(db) }));
+  };
 
   it("finds the fixtures", () => {
     expect(cases.length).toBeGreaterThan(0);
@@ -312,6 +328,40 @@ describe.skipIf(!url)("mutations of the emails and workflows pages", () => {
           .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
+    },
+    FIRST_COMPILE_TIMEOUT_MS,
+  );
+
+  // Replays every write of the example in order against a counter that starts empty: the last one is refused with the 429 Rails answered.
+  it.skipIf(!rackAttackHost).each(throttleCases)(
+    "%s",
+    async (name, file, last) => {
+      const fixture = loadFixture(file);
+      handedBack.length = 0;
+      await rackAttackRedis().flushdb();
+      // The counter is keyed by the minute window: start early in one so the replay cannot straddle two.
+      const secondInWindow = new Date().getUTCSeconds();
+      if (secondInWindow > 45) await new Promise((resolve) => setTimeout(resolve, (61 - secondInWindow) * 1000));
+      const writes = fixture.exchanges.flatMap((exchange, index) =>
+        index <= last && /^(POST|PUT)$/u.test(exchange.request.method) && /\/comments/u.test(exchange.request.path)
+          ? [index]
+          : [],
+      );
+      expect(writes.length).toBe(6);
+      for (const index of writes) {
+        const { file: _file, ...options } = replayOptions(file, name);
+        const result = await replayFixtureExchange(fixture, index, {
+          ...options,
+          // The seconds left in the window depend on when the replay ran; the status and body say it was refused.
+          compare: { ...COMPARE, ignore: [...COMPARE.ignore, "response.headers.retry-after"] },
+        });
+        assertParity(result);
+        if (index === last) {
+          expect(result.exchanges[0]!.actual.response.status).toBe(429);
+          expect(Number(result.exchanges[0]!.actual.response.headers["retry-after"])).toBeGreaterThan(0);
+        }
+      }
+      expect(handedBack).toHaveLength(0);
     },
     FIRST_COMPILE_TIMEOUT_MS,
   );

@@ -46,9 +46,6 @@ export const RAILS_ONLY_KEYS = [
   "POST api:/v2/user/preview_custom_html",
   "POST /api/v2/user/preview_custom_html",
   "POST /purchases/:id/resend_receipt",
-  "POST /communities/:community_id/chat_messages",
-  "POST seller:/posts/:post_id/comments",
-  "PUT seller:/posts/:post_id/comments/:id",
   "POST /products/:product_id/marketing_actions/:id/execute.json",
 ] as const;
 

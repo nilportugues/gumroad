@@ -48,8 +48,6 @@ const ROUTE_FLAGS = [
   "nextjs_api_v2_sales",
   "nextjs_api_v2_user",
   "nextjs_purchases_public_guards",
-  "nextjs_communities_writes",
-  "nextjs_comments_writes",
   "nextjs_marketing_actions",
 ].join(",");
 
@@ -164,18 +162,6 @@ const CASES = [
   [
     "POST /purchases/:id/resend_receipt",
     "requests/purchases_controller_parity_spec/purchases-controller-guards-resending-a-receipt-answers-404-for-a-purchase-that-does-not-exist",
-  ],
-  [
-    "POST /communities/:community_id/chat_messages",
-    "requests/communities_mutations_signed_in_spec/communities-mutations-when-signed-in-chat-messages-posts-a-message-as-the-seller",
-  ],
-  [
-    "POST seller:/posts/:post_id/comments",
-    "requests/comments_mutations_signed_in_spec/post-comments-mutations-when-signed-in-post-posts-post-id-comments-adds-a-root-comment-of-the-seller",
-  ],
-  [
-    "PUT seller:/posts/:post_id/comments/:id",
-    "requests/comments_mutations_signed_in_spec/post-comments-mutations-when-signed-in-put-posts-post-id-comments-id-lets-the-author-edit-their-comment",
   ],
   [
     "POST /products/:product_id/marketing_actions/:id/execute.json",

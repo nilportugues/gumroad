@@ -4,6 +4,8 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { compileRouteTable, type RouteTable } from "../../lib/navigation/proxy/route-table.ts";
+import { THROTTLE_RULES } from "../infra/rack-attack-rules.ts";
+import type { ThrottleRule } from "../infra/rack-attack.ts";
 
 // config/initializers/rack_attack.rb counts requests in Rails' Redis. A Node answer never reaches that counter, and counting in Node as well would
 // count every request handed back twice, so a route Rack::Attack throttles must stay out of routes.json and be served by Rails whole. This test fails
@@ -188,8 +190,41 @@ const RULES: Rule[] = [
   { source: ["\\A/(api/)?v2/media(\\.\\w+)?\\z"], methods: ["POST"], samples: ["/v2/media", "/api/v2/media"] },
 ];
 
+// The call in rack_attack.rb that a ThrottleRule ports: same helper, path, method, limit and period.
+function assertMirrors(rule: ThrottleRule): void {
+  if (!("regexpSource" in rule.path)) throw new Error("literal paths are checked by hand");
+  const helper = rule.kind === "ip" ? "throttle_by_ip" : "throttle_by_ip_for_period";
+  const escaped = rule.path.regexpSource.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const call = new RegExp(
+    `${helper} path: /${escaped}/,\\s+method: :${rule.method},\\s+requests: ${rule.requests},\\s+period: ${rule.periodSeconds}\\.seconds`,
+    "u",
+  );
+  expect(rackAttack).toMatch(call);
+}
+
+const throttledInNode = (name: string, rule: string, key: keyof typeof THROTTLE_RULES) => ({
+  route: name,
+  rule,
+  reason:
+    "Node counts the rule in the same Redis keys (src/server/infra/rack-attack.ts) and uncounts a request it hands back to Rails, so the bucket is incremented once",
+  check: () => {
+    assertMirrors(THROTTLE_RULES[key]);
+    expect(
+      readFileSync(path.join(nextjsRoot, "src/server/controllers/mutation.ts"), "utf8"),
+      "mutation.ts counts before it serves",
+    ).toContain("throttleRequest(candidate.throttles");
+  },
+});
+
 // Throttled, matched by a Node route, and still safe. Every entry must still match something, and say why the counter is not skipped.
 const ALLOWED: { route: string; rule: string; reason: string; check?: () => void }[] = [
+  throttledInNode("POST seller:/posts/:post_id/comments", "\\A/posts/.+/comments\\z", "commentCreate"),
+  throttledInNode("PUT seller:/posts/:post_id/comments/:id", "\\A/posts/.+/comments/.+\\z", "commentUpdate"),
+  throttledInNode(
+    "POST /communities/:community_id/chat_messages",
+    "\\A/communities/[^/]+/chat_messages\\z",
+    "chatMessageCreate",
+  ),
   {
     route: "api:/v2/products/:id",
     rule: "\\A/(api/)?v2/products/comps(\\.\\w+)?\\z",
@@ -393,11 +428,8 @@ const GROUPS: Record<string, string[]> = {
     "POST api:/v2/user/preview_custom_html",
     "POST /api/v2/user/preview_custom_html",
   ],
-  "buyer and community writes (resend_receipt, comments, chat messages, marketing execute)": [
+  "buyer writes (resend_receipt, marketing execute)": [
     "POST /purchases/:id/resend_receipt",
-    "POST seller:/posts/:post_id/comments",
-    "PUT seller:/posts/:post_id/comments/:id",
-    "POST /communities/:community_id/chat_messages",
     "POST /products/:product_id/marketing_actions/:id/execute.json",
   ],
 };
