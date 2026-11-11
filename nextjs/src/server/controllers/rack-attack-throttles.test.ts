@@ -40,6 +40,20 @@ const COUNTED_IN_NODE: Record<string, string[]> = {
   "\\A/posts/.+/comments\\z": ["/ip:(?-mix:\\A\\/posts\\/.+\\/comments\\z):post"],
   "\\A/posts/.+/comments/.+\\z": ["/ip:(?-mix:\\A\\/posts\\/.+\\/comments\\/.+\\z):put"],
   "\\A/(?:[^/]+/)?landing/products\\z": ["/ip/params:(?-mix:\\A\\/(?:[^\\/]+\\/)?landing\\/products\\z):get"],
+  // Served by an api-v2 or mobile handler, which also runs through processAction.
+  "\\A/(?:muse|claude|chatgpt)/v1/oauth2/register(?:\\.[^/]+)?\\z": ["oauth_dynamic_registration/ip"],
+  "ends_with:/v2/sales": ["/api/v2/sales"],
+  "\\A/(api/)?v2/user/custom_html(\\.\\w+)?\\z": [
+    "/ip:(?-mix:\\A\\/(api\\/)?v2\\/user\\/custom_html(\\.\\w+)?\\z):put",
+    "/ip:(?-mix:\\A\\/(api\\/)?v2\\/user\\/custom_html(\\.\\w+)?\\z):patch",
+    "/params:(?-mix:\\A\\/(api\\/)?v2\\/user\\/custom_html(\\.\\w+)?\\z):put",
+    "/params:(?-mix:\\A\\/(api\\/)?v2\\/user\\/custom_html(\\.\\w+)?\\z):patch",
+  ],
+  "\\A/(api/)?v2/user/preview_custom_html(\\.\\w+)?\\z": [
+    "/ip:(?-mix:\\A\\/(api\\/)?v2\\/user\\/preview_custom_html(\\.\\w+)?\\z):post",
+    "/params:(?-mix:\\A\\/(api\\/)?v2\\/user\\/preview_custom_html(\\.\\w+)?\\z):post",
+  ],
+  "\\A/(?:api/)?mobile/url_redirects/download/(?<token>[^/]+)/(?<file>[^/.]+)": ["mobile_url_redirect_download/token"],
 };
 
 const ANY = "any";
@@ -302,6 +316,12 @@ const methodsOf = (rule: Rule, all: readonly string[]) =>
 
 const routes = compileRouteTable(routeTable);
 
+// processAction counts the request (rack-attack.ts); a mutation, an api-v2 handler and a mobile handler all answer through it.
+const runsThroughProcessAction = (entry: unknown): boolean => {
+  const { mutation, handler } = (entry ?? {}) as { mutation?: boolean; handler?: string };
+  return mutation === true || handler === "api-v2" || handler === "mobile";
+};
+
 // A route's path with each `:param` filled by a value that cannot collide with a literal, then by the literals a throttle names.
 function probes(routePath: string): string[] {
   const filled = (value: string) =>
@@ -347,8 +367,7 @@ describe("Rack::Attack throttles", () => {
       ),
   );
   const countedInNode = (hit: { route: string; literal: string }) =>
-    (routeTable[hit.route] as { mutation?: boolean } | undefined)?.mutation === true &&
-    (COUNTED_IN_NODE[hit.literal] ?? []).length > 0;
+    runsThroughProcessAction(routeTable[hit.route]) && (COUNTED_IN_NODE[hit.literal] ?? []).length > 0;
   const allowed = (hit: { route: string; literal: string }) =>
     countedInNode(hit) ||
     ALLOWED.some((entry) => entry.route === hit.route && (entry.rule === "*" || entry.rule === hit.literal));
@@ -374,12 +393,11 @@ describe("Rack::Attack throttles", () => {
   });
 
   it("defines each rule with the name, limit and period Rails registers", () => {
-    // Regenerate with: Rack::Attack.configuration.throttles.map { |name, t| [name, t.limit.to_f, t.period] } (RAILS_ENV=test).
-    const golden = JSON.parse(
+    const { throttles: registered } = JSON.parse(
       readFileSync(path.join(nextjsRoot, "parity/golden/rack-attack-throttles.json"), "utf8"),
-    ) as [string, number, number][];
+    ) as { throttles: { name: string; limit: number; period: number }[] };
     for (const rule of RACK_ATTACK_RULES)
-      expect(golden, rule.name).toContainEqual([rule.name, rule.limit, rule.period]);
+      expect(registered, rule.name).toContainEqual({ name: rule.name, limit: rule.limit, period: rule.period });
   });
 
   it("lists only allowed routes that still match a throttle", () => {
@@ -411,18 +429,7 @@ const GROUPS: Record<string, string[]> = {
     "/paypal_charge_data",
     "/offer_codes/compute_discount",
   ],
-  "mobile download token": ["/mobile/url_redirects/download/:token/:product_file_id"],
   "ACME challenge": ["seller:/.well-known/acme-challenge/:token", "product:/.well-known/acme-challenge/:token"],
-  "API v2 (sales index past page 10, user custom HTML writes and previews)": [
-    "api:/v2/sales",
-    "/api/v2/sales",
-    "PUT api:/v2/user/custom_html",
-    "PUT /api/v2/user/custom_html",
-    "PATCH api:/v2/user/custom_html",
-    "PATCH /api/v2/user/custom_html",
-    "POST api:/v2/user/preview_custom_html",
-    "POST /api/v2/user/preview_custom_html",
-  ],
   "marketing actions (per-user rule)": ["POST /products/:product_id/marketing_actions/:id/execute.json"],
 };
 

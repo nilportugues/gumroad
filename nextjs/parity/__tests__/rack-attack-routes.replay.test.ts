@@ -39,10 +39,7 @@ const ROUTE_FLAGS = [
   "nextjs_route_redirects",
   "nextjs_public_lookup_data",
   "nextjs_checkout_offer_codes",
-  "nextjs_mobile_url_redirect_delivery",
   "nextjs_acme_challenge",
-  "nextjs_api_v2_sales",
-  "nextjs_api_v2_user",
   "nextjs_marketing_actions",
 ].join(",");
 
@@ -95,24 +92,8 @@ const CASES = [
     "requests/offer_codes_compute_discount_parity_spec/offer-codes-compute-discount-rejects-an-unknown-code-as-invalid-offer",
   ],
   [
-    "/mobile/url_redirects/download/:token/:product_file_id",
-    "requests/api/mobile/mobile_api_parity_spec/mobile-api-parity-get-mobile-url-redirects-stream-hls-playlist-download-token-product-file-id-answers-404-for-revoked-ac-62a5ad7c",
-  ],
-  [
     "seller:/.well-known/acme-challenge/:token",
     "requests/public_files_parity_spec/public-files-get-well-known-acme-challenge-token-serves-the-staged-challenge-on-a-seller-custom-domain",
-  ],
-  [
-    "/api/v2/sales",
-    "controllers/api/v2/sales_controller_spec/api-v2-salescontroller-get-index-grants-access-with-the-account-scope",
-  ],
-  [
-    "PUT api:/v2/user/custom_html",
-    "requests/api/v2/users_parity_spec/api-v2-user-custom-html-requires-the-custom-html-parameter",
-  ],
-  [
-    "POST api:/v2/user/preview_custom_html",
-    "requests/api/v2/users_parity_spec/api-v2-user-custom-html-requires-custom-html-for-a-preview",
   ],
   [
     "POST /products/:product_id/marketing_actions/:id/execute.json",
@@ -184,11 +165,6 @@ describe.skipIf(!url)("routes Rack::Attack throttles", () => {
     expect(RAILS_ONLY_KEYS.filter((key) => !covered.has(key))).toEqual([
       "product:/",
       "product:/.well-known/acme-challenge/:token",
-      "api:/v2/sales",
-      "PUT /api/v2/user/custom_html",
-      "PATCH api:/v2/user/custom_html",
-      "PATCH /api/v2/user/custom_html",
-      "POST /api/v2/user/preview_custom_html",
     ]);
   });
 

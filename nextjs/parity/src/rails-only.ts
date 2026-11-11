@@ -24,17 +24,8 @@ export const RAILS_ONLY_KEYS = [
   "/license_key_lookup_data",
   "/paypal_charge_data",
   "/offer_codes/compute_discount",
-  "/mobile/url_redirects/download/:token/:product_file_id",
   "seller:/.well-known/acme-challenge/:token",
   "product:/.well-known/acme-challenge/:token",
-  "api:/v2/sales",
-  "/api/v2/sales",
-  "PUT api:/v2/user/custom_html",
-  "PUT /api/v2/user/custom_html",
-  "PATCH api:/v2/user/custom_html",
-  "PATCH /api/v2/user/custom_html",
-  "POST api:/v2/user/preview_custom_html",
-  "POST /api/v2/user/preview_custom_html",
   "POST /products/:product_id/marketing_actions/:id/execute.json",
 ] as const;
 

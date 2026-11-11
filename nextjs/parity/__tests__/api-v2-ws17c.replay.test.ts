@@ -13,6 +13,7 @@ import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { recreateIndex, replayIndexName } from "../src/elasticsearch";
 import { loadFixture } from "../src/fixture";
+import { fillFirstThrottle, rackAttackCounters } from "../src/rack-attack";
 import { withoutRailsOnly } from "../src/rails-only";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
@@ -33,6 +34,7 @@ const WS17C_SPEC_DIRS = [
   "pages",
   "help_articles",
   "mcp",
+  "mcp_register",
   "payouts_media",
   "sales_exports",
   "links",
@@ -275,11 +277,18 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
   // The tool descriptions of tools/list carry fixed example dates, which must not move with the days since the recording.
   let driftDates = true;
   let seedClock: Date | undefined;
+  // Runs once the seeder has reset Redis, ahead of the request under test.
+  let afterRedisReset: (() => Promise<void>) | undefined;
   const replayOptions = (random: string[] = []) => ({
     driftDates,
     ...(seedClock ? { seedClock } : {}),
     sql,
-    redis: redisSeeder(redis),
+    redis: {
+      reset: async (entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0]) => {
+        await redisSeeder(redis).reset(entries);
+        await afterRedisReset?.();
+      },
+    },
     transport: httpTransport(server.baseUrl),
     interceptHttp: false,
     jobs: redisJobs(redis),
@@ -300,6 +309,7 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
     async (name, file, index) => {
       try {
         seedClock = undefined;
+        afterRedisReset = undefined;
         const fixture = loadFixture(file);
         const expected = fixture.exchanges[index]!;
         expected.jobs = [...(expected.jobs ?? [])]
@@ -311,8 +321,14 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
           expect(handedBack).toHaveLength(1);
           expect(handedBack[0]).toMatchObject({ method: expected.request.method, url: expected.request.path });
           expect(Object.keys(handed.exchanges[0]!.actual.db ?? {})).toEqual([]);
+          // Rails counts the request it receives: what Node counted ahead of the hand-back is taken back.
+          expect(Object.values(await rackAttackCounters(redis)).every((count) => count === 0)).toBe(true);
           return;
         }
+        // The recording filled the throttle by calling Rack::Attack in a loop; the replay puts the same counter at its limit.
+        const tripsThrottle = name.includes("-past-the-per-ip-limit");
+        if (tripsThrottle) handedBack.length = 0;
+        if (tripsThrottle) afterRedisReset = async () => void (await fillFirstThrottle(redis, expected.request));
         const pinned = PINNED_CLOCKS.find(([fragment]) => name.includes(fragment));
         driftDates = !pinned && !name.includes("answers-a-tools-list-call");
         seedClock = pinned ? new Date(pinned[1]) : undefined;
@@ -342,10 +358,26 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
                 ? ["response.json.next_page_key", "response.json.next_page_url"]
                 : iftttSales
                   ? ["response.json.data.*.meta.timestamp"]
-                  : [],
+                  : tripsThrottle
+                    ? ["response.headers.retry-after"]
+                    : [],
           ),
         );
         assertParity(result);
+        if (tripsThrottle) {
+          const retryAfter = Number(result.exchanges[0]!.actual.response.headers["retry-after"]);
+          expect(retryAfter).toBeGreaterThan(0);
+          expect(retryAfter).toBeLessThanOrEqual(60);
+          expect(handedBack).toHaveLength(0);
+        }
+        if (name.includes("-counts-a-refusal")) {
+          // Every tier of `oauth_dynamic_registration/ip` counted the request once, under the key Rack::Attack uses.
+          const counters = await rackAttackCounters(redis);
+          expect(Object.keys(counters).map((key) => key.replace(/^rack::attack:\d+:/u, "")).sort()).toEqual(
+            ["", "/2", "/3", "/4", "/5"].map((tier) => `oauth_dynamic_registration/ip${tier}:203.0.113.55`).sort(),
+          );
+          expect(Object.values(counters)).toEqual([1, 1, 1, 1, 1]);
+        }
         if (iftttSales) {
           expect(handedBack).toHaveLength(0);
           const rows = (result.exchanges[0]!.actual.response.json as { data: { meta: { timestamp: number } }[] }).data;

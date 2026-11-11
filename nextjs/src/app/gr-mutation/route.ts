@@ -39,6 +39,7 @@ import "@/server/controllers/purchase-access-writes";
 import "@/server/controllers/product-review-responses";
 import "@/server/controllers/shipments";
 import "@/server/controllers/imported-customers";
+import "@/server/controllers/customers-missing-actions";
 import "@/server/controllers/library-mutations";
 import "@/server/controllers/communities-mutations";
 import "@/server/controllers/secure-redirect-mutations";
