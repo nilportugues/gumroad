@@ -62,7 +62,7 @@ const LOW_QUEUE = "low";
 export type SubscriptionJobDeps = Pick<SubscriptionDeps, "featureActive">;
 
 // A job argument that doubles as a mail argument and part of a SentEmailInfo digest keeps its type.
-function mailerArgument(value: JsonValue): string | number | boolean | null {
+export function mailerArgument(value: JsonValue): string | number | boolean | null {
   if (value === null || typeof value === "string" || typeof value === "boolean" || Number.isSafeInteger(value))
     return value as string | number | boolean | null;
   throw new NotPortedError(`a ${typeof value} mail argument`, "the argument's Ruby #inspect is not ported");
@@ -78,7 +78,7 @@ async function findSubscription(argument: JsonValue): Promise<Subscription> {
   return findByIdBang<Subscription>("Subscription", recordIdFrom(argument, "Subscription.find"));
 }
 
-async function deliverReminder(context: JobContext, method: string, argument: JsonValue): Promise<void> {
+export async function deliverReminder(context: JobContext, method: string, argument: JsonValue): Promise<void> {
   await deliverLater(
     context.runtime,
     { mailer: CUSTOMER_LOW_PRIORITY_MAILER, method, args: [mailerArgument(argument)], queue: LOW_QUEUE },
@@ -238,7 +238,7 @@ export const reviewReminderJobWith = (overrides: Partial<JobDeps> = {}) =>
   })(overrides);
 
 // Purchase#eligible_for_review_reminder?
-async function eligibleForReviewReminder(purchase: Purchase): Promise<boolean> {
+export async function eligibleForReviewReminder(purchase: Purchase): Promise<boolean> {
   if (!allowsReviewToBeCounted(purchase)) return false;
   if ((await findOneBy("ProductReview", "purchase_id", purchase.id)) !== null) return false;
   const seller = await findById<User>("User", purchase.seller_id);

@@ -1,6 +1,7 @@
 // Handlers for every class in src/server/jobs/ported-jobs.ts, keyed by Ruby class name.
 import type { RetriesExhausted, RetryIn } from "../retry.ts";
 
+import { orderReviewReminderJob } from "./order-review-reminder-job.ts";
 import { alertOnRetiredManagedAccountActivityJob } from "./alert-on-retired-managed-account-activity-job.ts";
 import { alertOnZeroBuyerCurrencyWalletPurchasesJob } from "./alert-on-zero-buyer-currency-wallet-purchases-job.ts";
 import { backfillOrphanedShownProductsInProfileSectionsJob } from "./backfill-orphaned-shown-products-in-profile-sections-job.ts";
@@ -162,6 +163,7 @@ import {
 } from "./workflow-jobs.ts";
 
 export const JOB_HANDLERS: Record<string, JobHandler> = {
+  OrderReviewReminderJob: orderReviewReminderJob,
   AlertOnRetiredManagedAccountActivityJob: alertOnRetiredManagedAccountActivityJob,
   AlertOnZeroBuyerCurrencyWalletPurchasesJob: alertOnZeroBuyerCurrencyWalletPurchasesJob,
   "Radar::SyncValueListsJob": radarSyncValueListsJob,
