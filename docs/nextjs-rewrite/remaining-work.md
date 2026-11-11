@@ -7,10 +7,10 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 | Measure | Done | Total | Share |
 | --- | ---: | ---: | ---: |
-| Routes served natively (counted, static check) | 884 | 978 | 90.4% |
-| Routes registered in routes.json (counted; upper bound, adds the 8 listed under "hands back") | 892 | 978 | 91.2% |
-| Routes weighted by difficulty (counted routes, estimated weights) | 1683 | 1857 | 90.6% |
-| Same, registered in routes.json (upper bound) | 1691 | 1857 | 91.1% |
+| Routes served natively (counted, static check) | 888 | 978 | 90.8% |
+| Routes registered in routes.json (counted; upper bound, adds the 8 listed under "hands back") | 896 | 978 | 91.6% |
+| Routes weighted by difficulty (counted routes, estimated weights) | 1693 | 1857 | 91.2% |
+| Same, registered in routes.json (upper bound) | 1701 | 1857 | 91.6% |
 | Rails Inertia pages with Node props (counted, string match) | 105 | 114 | 92.1% |
 | Sidekiq job classes running in Node (counted) | 143 | 296 | 48.3% |
 
@@ -28,15 +28,15 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 - The route share counts endpoints, and an endpoint is one row whether it is a health check or a purchase. The weighted share corrects that only as far as my weights are right.
 - Neither number measures the code under the routes. A route is counted native as soon as Node serves its common path, while its hard branches (see "Known partial hand-backs") still go to Rails. The shares therefore overstate how much of the work is finished, most for checkout, payouts, and the mobile and MCP APIs.
-- Code volume cross-check (counted, not a completion measure): Node has 132,887 non-test lines under `src/server` and `src/worker`; Rails has 197,057 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
-- 304 distinct rollout flags gate the routes in routes.json; none is enabled in production.
+- Code volume cross-check (counted, not a completion measure): Node has 133,455 non-test lines under `src/server` and `src/worker`; Rails has 197,057 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
+- 306 distinct rollout flags gate the routes in routes.json; none is enabled in production.
 
 ## By workstream
 
 | Workstream | Routes | Native | Hands back | Not registered | Native % | Weight | Native weight | Weighted % |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | Redirect-only routes (no controller) | 42 | 42 | 0 | 0 | 100.0% | 42 | 42 | 100.0% |
-| WS-10 Settings and account | 180 | 147 | 5 | 28 | 81.7% | 291 | 230 | 79.0% |
+| WS-10 Settings and account | 180 | 151 | 5 | 24 | 83.9% | 291 | 240 | 82.5% |
 | WS-11 Help, pages, blog, profiles | 71 | 48 | 0 | 23 | 67.6% | 80 | 56 | 70.0% |
 | WS-12 Products and bundles | 141 | 129 | 3 | 9 | 91.5% | 207 | 190 | 91.8% |
 | WS-13 Audience, emails, workflows | 53 | 53 | 0 | 0 | 100.0% | 106 | 106 | 100.0% |
@@ -49,7 +49,7 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 | WS-20 Checkout and orders | 71 | 53 | 0 | 18 | 74.6% | 222 | 163 | 73.4% |
 | WS-21 Payment processors | 8 | 8 | 0 | 0 | 100.0% | 32 | 32 | 100.0% |
 | WS-23 Balances and payouts | 25 | 25 | 0 | 0 | 100.0% | 74 | 74 | 100.0% |
-| **All** | 978 | 884 | 8 | 86 | 90.4% | 1857 | 1683 | 90.6% |
+| **All** | 978 | 888 | 8 | 82 | 90.8% | 1857 | 1693 | 91.2% |
 
 ## Sensitivity to the weights
 
@@ -57,18 +57,18 @@ The weights are the soft part of this inventory, so here is the headline under o
 
 | Scheme | Native weight | Total weight | Share |
 | --- | ---: | ---: | ---: |
-| Every route counts 1 (the plain route share) | 884 | 978 | 90.4% |
-| Verb only: GET 1, other verbs 2 | 1290 | 1427 | 90.4% |
-| Rubric weights 1 to 4 (the headline) | 1683 | 1857 | 90.6% |
-| Rubric weights doubled per step: 1, 2, 4, 8 | 1982 | 2194 | 90.3% |
+| Every route counts 1 (the plain route share) | 888 | 978 | 90.8% |
+| Verb only: GET 1, other verbs 2 | 1294 | 1427 | 90.7% |
+| Rubric weights 1 to 4 (the headline) | 1693 | 1857 | 91.2% |
+| Rubric weights doubled per step: 1, 2, 4, 8 | 1995 | 2194 | 90.9% |
 
 ## By weight
 
 | Weight | Routes | Native | Native % |
 | ---: | ---: | ---: | ---: |
-| 1 | 386 | 344 | 89.1% |
+| 1 | 386 | 345 | 89.4% |
 | 2 | 330 | 301 | 91.2% |
-| 3 | 237 | 219 | 92.4% |
+| 3 | 237 | 222 | 93.7% |
 | 4 | 25 | 20 | 80.0% |
 
 ## By controller
@@ -81,7 +81,6 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `OrdersController` | WS-20 Checkout and orders | 5 | 0 | 0 | 5 | 4 (20) | 20 |
 | `PaypalController` | WS-20 Checkout and orders | 4 | 0 | 0 | 4 | 3 (12) | 12 |
 | `HomeController` | WS-11 Help, pages, blog, profiles | 12 | 2 | 0 | 10 | 1 (12) | 10 |
-| `Integrations::GoogleCalendarController` | WS-10 Settings and account | 3 | 0 | 0 | 3 | 3 (9) | 9 |
 | `Oauth::TokensController` | WS-10 Settings and account | 8 | 4 | 0 | 4 | 2 (16) | 8 |
 | `Api::V2::LinksController` | WS-17 Public and mobile API | 12 | 8 | 0 | 4 | 1/2 (20) | 7 |
 | `BraintreeController` | WS-20 Checkout and orders | 2 | 0 | 0 | 2 | 3 (6) | 6 |
@@ -92,7 +91,7 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `Logins::PasskeysController` | WS-10 Settings and account | 2 | 0 | 0 | 2 | 2 (4) | 4 |
 | `CheckoutController` | WS-20 Checkout and orders | 2 | 1 | 0 | 1 | 3 (6) | 3 |
 | `Checkout::ReturnsController` | WS-20 Checkout and orders | 1 | 0 | 0 | 1 | 3 (3) | 3 |
-| `Integrations::DiscordController` | WS-10 Settings and account | 4 | 3 | 0 | 1 | 3 (12) | 3 |
+| `Integrations::GoogleCalendarController` | WS-10 Settings and account | 3 | 2 | 0 | 1 | 3 (9) | 3 |
 | `Integrations::ZoomController` | WS-10 Settings and account | 2 | 1 | 0 | 1 | 3 (6) | 3 |
 | `McpConnectorsController` | WS-11 Help, pages, blog, profiles | 3 | 0 | 0 | 3 | 1 (3) | 3 |
 | `Oauth::DeviceAuthorizationsController` | WS-10 Settings and account | 2 | 0 | 0 | 2 | 1/2 (3) | 3 |
@@ -117,7 +116,6 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `ProductReviewVideos::StreamsController` | WS-12 Products and bundles | 1 | 0 | 0 | 1 | 1 (1) | 1 |
 | `Products::AvailableOfferCodesController` | WS-12 Products and bundles | 1 | 0 | 1 | 0 | 1 (1) | 1 |
 | `Products::OtherRefundPoliciesController` | WS-12 Products and bundles | 1 | 0 | 1 | 0 | 1 (1) | 1 |
-| `SellerPlanController` | WS-10 Settings and account | 1 | 0 | 0 | 1 | 1 (1) | 1 |
 | `TestController` | WS-11 Help, pages, blog, profiles | 1 | 0 | 0 | 1 | 1 (1) | 1 |
 | `ThirdPartyAnalyticsController` | WS-11 Help, pages, blog, profiles | 2 | 1 | 0 | 1 | 1 (2) | 1 |
 | `AcmeChallengesController` | WS-11 Help, pages, blog, profiles | 1 | 1 | 0 | 0 | 1 (1) | 0 |
@@ -258,6 +256,7 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `InstagramCallbacksController` | WS-10 Settings and account | 3 | 3 | 0 | 0 | 1/2 (5) | 0 |
 | `InstantPayoutsController` | WS-23 Balances and payouts | 1 | 1 | 0 | 0 | 4 (4) | 0 |
 | `Integrations::CircleController` | WS-10 Settings and account | 3 | 3 | 0 | 0 | 3 (9) | 0 |
+| `Integrations::DiscordController` | WS-10 Settings and account | 4 | 4 | 0 | 0 | 3 (12) | 0 |
 | `LibraryController` | WS-16 Library and content delivery | 6 | 6 | 0 | 0 | 1/2 (9) | 0 |
 | `LicensesController` | WS-12 Products and bundles | 1 | 1 | 0 | 0 | 2 (2) | 0 |
 | `LlmsController` | WS-11 Help, pages, blog, profiles | 1 | 1 | 0 | 0 | 1 (1) | 0 |
@@ -305,6 +304,7 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `RobotsController` | WS-11 Help, pages, blog, profiles | 1 | 1 | 0 | 0 | 1 (1) | 0 |
 | `S3UtilityController` | WS-16 Library and content delivery | 3 | 3 | 0 | 0 | 1 (3) | 0 |
 | `SecureRedirectController` | WS-16 Library and content delivery | 2 | 2 | 0 | 0 | 1/2 (3) | 0 |
+| `SellerPlanController` | WS-10 Settings and account | 1 | 1 | 0 | 0 | 1 (1) | 0 |
 | `Sellers::SwitchController` | WS-10 Settings and account | 1 | 1 | 0 | 0 | 2 (2) | 0 |
 | `Settings::AdvancedController` | WS-10 Settings and account | 2 | 2 | 0 | 0 | 1/2 (3) | 0 |
 | `Settings::AuthorizedApplicationsController` | WS-10 Settings and account | 1 | 1 | 0 | 0 | 1 (1) | 0 |

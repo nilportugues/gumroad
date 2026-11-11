@@ -126,6 +126,11 @@ export const Account = {
   listExternalAccounts: externalAccounts.list,
 };
 
+export const CheckoutSession = {
+  create: create<Stripe.Checkout.Session>("/v1/checkout/sessions"),
+  retrieve: retrieve<Stripe.Checkout.Session>("/v1/checkout/sessions"),
+};
+
 export const AccountLink = {
   create: create<Stripe.AccountLink>("/v1/account_links"),
 };
