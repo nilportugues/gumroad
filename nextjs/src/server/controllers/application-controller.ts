@@ -745,7 +745,7 @@ export async function pageEnvelope(incoming: Request, options: ActionOptions = {
   } catch (error) {
     if (error instanceof HandBackToRails) return { response: await forwardToRails(incoming) };
     const status = exceptionStatus(error);
-    if (status === 500) { console.error("DBG processAction", error); notifyError(error); }
+    if (status === 500) notifyError(error);
     const page = publicException(request, status);
     return wrap(page.headers, status, page.body === "" ? null : page.body);
   }
