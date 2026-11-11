@@ -766,7 +766,7 @@ const dateOf = (time: Date | null | undefined): string | undefined =>
   time == null ? undefined : time.toISOString().slice(0, 10);
 
 // CGI.escape
-const cgiEscape = (value: string): string =>
+export const cgiEscape = (value: string): string =>
   encodeURIComponent(value)
     .replaceAll("%20", "+")
     .replace(/[!'()*]/gu, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);

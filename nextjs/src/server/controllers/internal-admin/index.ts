@@ -18,6 +18,8 @@ import "./piracy-report-writes.ts";
 import "./users.ts";
 import "./user-writes.ts";
 import "./user-watch.ts";
+import "./purchases.ts";
+import "./purchase-writes.ts";
 import "./users-reads.ts";
 import "./admin-web.ts";
 

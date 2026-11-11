@@ -106,6 +106,7 @@ const CURSOR_PAGES: [RegExp, number][] = [
   [/paginates-affiliates-with-a-cursor #2/u, 120],
   [/applies-a-granted-cursor-to-the-received-scope.* #2/u, 4320],
   [/pages-the-affiliates-with-a-signed-cursor #2/u, 120],
+  [/pages-the-purchases-that-share-an-ip-address-with-a-signed-cursor #2/u, 60],
 ];
 // The cursor is `urlsafe(base64(json_string)--hmac)`.
 function cursorInstant(fixturePath: string, index: number, ageMinutes: number): number {
@@ -283,7 +284,14 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
             ...COMPARE.ignore,
             ...(fromRequestSpec ? ["response.cookies._gumroad_app_session_test.value"] : ["response.cookies"]),
             // The server stamps the token with its own, unpinned clock.
-            ...(pinned ? ["db.admin_api_tokens.updated.*.changes.last_used_at"] : []),
+            ...(pinned
+              ? [
+                  "db.admin_api_tokens.updated.*.changes.last_used_at",
+                  // Twenty years from the pinned clock, measured against the replay's own now: the gap grows with the recording's age.
+                  "response.cookies._gumroad_app_session_test.expires",
+                  "response.cookies._gumroad_guid.expires",
+                ]
+              : []),
           ],
         },
       }).finally(() => {

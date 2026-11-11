@@ -7,8 +7,9 @@ import { Prisma } from "@prisma/client";
 import { db } from "../../../lib/db.ts";
 import { getConfig } from "../../infra/config.ts";
 import { NotPortedError } from "../../models/user.ts";
+import type { Rendered } from "../application-controller.ts";
 import type { Params } from "../rails-body.ts";
-import { failure, isBlank } from "./base.ts";
+import { failure, halted, isBlank } from "./base.ts";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
@@ -69,11 +70,11 @@ export type CursorPage<Row> = { rows: Row[]; pagination: { next: string | null; 
 
 // `table` and `where` are fixed by the caller; the cursor and limit come from the request.
 export async function paginateWithCursor<Row extends { id: bigint | number; created_at_iso: string }>(
-  table: "affiliates" | "comments" | "credits",
+  table: "affiliates" | "comments" | "credits" | "purchases",
   where: Prisma.Sql,
   params: Params,
   select: Prisma.Sql,
-): Promise<CursorPage<Row> | { invalid: ReturnType<typeof failure> }> {
+): Promise<CursorPage<Row> | { invalid: Rendered }> {
   const limit = cursorLimit(params.limit);
   let cursorCondition = Prisma.empty;
   if (!isBlank(params.cursor)) {
@@ -81,7 +82,8 @@ export async function paginateWithCursor<Row extends { id: bigint | number; crea
     try {
       cursor = decodeCursor(params.cursor);
     } catch (error) {
-      if (error instanceof InvalidCursor) return { invalid: failure("invalid cursor", 400) };
+      if (error instanceof InvalidCursor) // rescue_from aborts the callback chain, so the XSRF-TOKEN after_action does not run.
+      return { invalid: halted(failure("invalid cursor", 400)) };
       throw error;
     }
     // The column's own precision truncates the value, as the attribute cast does.

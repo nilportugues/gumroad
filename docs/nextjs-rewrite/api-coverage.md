@@ -17,7 +17,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | --- | ---: | ---: | ---: | ---: | ---: |
 | API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 96 | 0 | 42 | 0 |
 | Mobile API (`/mobile` on the API host) | 64 | 50 | 0 | 14 | 0 |
-| Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 25 | 4 | 53 | 3 |
+| Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 36 | 4 | 42 | 3 |
 | Internal API, Gumroad domain (`/internal`, JSON for the React Router pages) | 23 | 11 | 0 | 12 | 0 |
 
 ## API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain)
@@ -239,18 +239,18 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `GET /internal/mobile_minimum_version` | `Api::Internal::MobileMinimumVersionsController#show` | native | `nextjs_internal_api_host` | y |
 | `GET /internal/home_page_numbers` | `Api::Internal::HomePageNumbersController#index` | native | `nextjs_internal_api_host` | y |
 | `GET /internal/admin/whoami` | `Api::Internal::Admin::WhoamiController#show` | native | `nextjs_admin_api_auth` | y |
-| `GET /internal/admin/purchases/:id` | `Api::Internal::Admin::PurchasesController#show` | not registered | - | n |
-| `GET /internal/admin/purchases/search` | `Api::Internal::Admin::PurchasesController#search` | not registered | - | n |
-| `GET /internal/admin/purchases/lookup` | `Api::Internal::Admin::PurchasesController#lookup` | not registered | - | n |
-| `POST /internal/admin/purchases/resend_all_receipts` | `Api::Internal::Admin::PurchasesController#resend_all_receipts` | not registered | - | n |
+| `GET /internal/admin/purchases/:id` | `Api::Internal::Admin::PurchasesController#show` | native | `nextjs_admin_api_purchases` | y |
+| `GET /internal/admin/purchases/search` | `Api::Internal::Admin::PurchasesController#search` | native | `nextjs_admin_api_purchases` | y |
+| `GET /internal/admin/purchases/lookup` | `Api::Internal::Admin::PurchasesController#lookup` | native | `nextjs_admin_api_purchases` | y |
+| `POST /internal/admin/purchases/resend_all_receipts` | `Api::Internal::Admin::PurchasesController#resend_all_receipts` | native | `nextjs_admin_api_purchases` | y |
 | `POST /internal/admin/purchases/reassign` | `Api::Internal::Admin::PurchasesController#reassign` | not registered | - | n |
-| `POST /internal/admin/purchases/:id/refund` | `Api::Internal::Admin::PurchasesController#refund` | not registered | - | n |
-| `POST /internal/admin/purchases/:id/resend_receipt` | `Api::Internal::Admin::PurchasesController#resend_receipt` | not registered | - | n |
-| `POST /internal/admin/purchases/:id/refund_taxes` | `Api::Internal::Admin::PurchasesController#refund_taxes` | not registered | - | n |
-| `POST /internal/admin/purchases/:id/cancel_subscription` | `Api::Internal::Admin::PurchasesController#cancel_subscription` | not registered | - | n |
-| `POST /internal/admin/purchases/:id/block_buyer` | `Api::Internal::Admin::PurchasesController#block_buyer` | not registered | - | n |
-| `POST /internal/admin/purchases/:id/unblock_buyer` | `Api::Internal::Admin::PurchasesController#unblock_buyer` | not registered | - | n |
-| `POST /internal/admin/purchases/:id/refund_for_fraud` | `Api::Internal::Admin::PurchasesController#refund_for_fraud` | not registered | - | n |
+| `POST /internal/admin/purchases/:id/refund` | `Api::Internal::Admin::PurchasesController#refund` | native | `nextjs_admin_api_purchases` | y |
+| `POST /internal/admin/purchases/:id/resend_receipt` | `Api::Internal::Admin::PurchasesController#resend_receipt` | native | `nextjs_admin_api_purchases` | y |
+| `POST /internal/admin/purchases/:id/refund_taxes` | `Api::Internal::Admin::PurchasesController#refund_taxes` | native | `nextjs_admin_api_purchases` | y |
+| `POST /internal/admin/purchases/:id/cancel_subscription` | `Api::Internal::Admin::PurchasesController#cancel_subscription` | native | `nextjs_admin_api_purchases` | y |
+| `POST /internal/admin/purchases/:id/block_buyer` | `Api::Internal::Admin::PurchasesController#block_buyer` | native | `nextjs_admin_api_purchases` | y |
+| `POST /internal/admin/purchases/:id/unblock_buyer` | `Api::Internal::Admin::PurchasesController#unblock_buyer` | native | `nextjs_admin_api_purchases` | y |
+| `POST /internal/admin/purchases/:id/refund_for_fraud` | `Api::Internal::Admin::PurchasesController#refund_for_fraud` | native | `nextjs_admin_api_purchases` | y |
 | `GET /internal/admin/licenses/lookup` | `Api::Internal::Admin::LicensesController#lookup` | not registered | - | n |
 | `GET /internal/admin/sendgrid_emails/check_status` | `Api::Internal::Admin::SendgridEmailsController#check_status` | not registered | - | n |
 | `POST /internal/admin/sendgrid_emails/remove_suppression` | `Api::Internal::Admin::SendgridEmailsController#remove_suppression` | not registered | - | n |
