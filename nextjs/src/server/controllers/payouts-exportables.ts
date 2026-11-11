@@ -19,7 +19,7 @@ export const PAYOUTS_EXPORTABLES_OPTIONS: ActionOptions = {};
 const OLDEST_DISPLAYABLE = "2013-01-04";
 
 // `current_seller.payments.completed.displayable`
-const scopedPayments = (sellerId: bigint) =>
+export const scopedPayments = (sellerId: bigint) =>
   Prisma.sql`${column("payments", "user_id")} = ${sellerId} AND ${column("payments", "state")} = 'completed' AND ${column("payments", "created_at")} >= ${OLDEST_DISPLAYABLE}`;
 
 // config.time_zone is unset, so the database's UTC is also the zone `Time.zone.local(year).all_year` and the dates are read in.

@@ -36,6 +36,7 @@ import "@/server/controllers/posts-redirect";
 import "@/server/controllers/product-editor-json";
 import "@/server/controllers/product-editor-mutations";
 import "@/server/controllers/url-redirects/mutations";
+import "@/server/controllers/payouts-exports";
 import { mutationResponse } from "@/server/controllers/mutation";
 
 // GET: the logout and emailed two-factor links, which change state without a form.
