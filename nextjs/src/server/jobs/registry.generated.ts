@@ -2795,7 +2795,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SellerUpdatesWorker": {
     "file": "app/sidekiq/seller_updates_worker.rb",

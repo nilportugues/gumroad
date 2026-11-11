@@ -112,6 +112,7 @@ import {
   backfillMerchantAccountRecommendationEligibilityJob,
   reindexSubscriptionCurrentEmailWorker,
 } from "./search-reindex-jobs.ts";
+import { sellerUpdateWorker } from "./seller-update-worker.ts";
 import { sellerUpdatesWorker } from "./seller-updates-worker.ts";
 import { sendCommunityChatRecapNotificationsJob } from "./send-community-chat-recap-notifications-job.ts";
 import { sendFeatureAnnouncementCampaignJob } from "./send-feature-announcement-campaign-job.ts";
@@ -275,6 +276,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   UpdateSalesRelatedProductsInfosJob: updateSalesRelatedProductsInfosJob,
   UpdateTaxonomyStatsJob: updateTaxonomyStatsJob,
   CalculateSaleNumbersWorker: calculateSaleNumbersWorker,
+  SellerUpdateWorker: sellerUpdateWorker,
   CalculatePayoutNumbersWorker: calculatePayoutNumbersWorker,
   "Radar::AddValueListItemJob": radarAddValueListItemJob,
   "Radar::RemoveValueListItemJob": radarRemoveValueListItemJob,
