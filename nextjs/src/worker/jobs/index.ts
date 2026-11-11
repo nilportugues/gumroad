@@ -28,6 +28,7 @@ import {
 } from "./delete-old-records-jobs.ts";
 import { deleteOldVersionsRecordsWorker } from "./delete-old-versions-records-worker.ts";
 import { deleteProductFilesArchivesWorker } from "./delete-product-files-archives-worker.ts";
+import { deleteProductRichContentWorker } from "./delete-product-rich-content-worker.ts";
 import { deleteWishlistProductsJob } from "./delete-wishlist-products-job.ts";
 import { dispatchPendingWorkflowInstallmentScheduleIntentsJob } from "./dispatch-workflow-intents-job.ts";
 import { disputeEvidenceDueSoonReminderJob } from "./dispute-evidence-due-soon-reminder-job.ts";
@@ -245,6 +246,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   DeleteExpiredOauthDeviceAuthorizationsJob: deleteExpiredOauthDeviceAuthorizationsJob,
   FlushDeliveredEmailInfosJob: flushDeliveredEmailInfosJob,
   DeleteProductFilesArchivesWorker: deleteProductFilesArchivesWorker,
+  DeleteProductRichContentWorker: deleteProductRichContentWorker,
   RemoveSuspendedAccountFollowsWorker: removeSuspendedAccountFollowsWorker,
   RefundPurchaseWorker: refundPurchaseWorker,
   UpdateUserBalanceStatsCacheWorker: updateUserBalanceStatsCacheWorker,

@@ -832,7 +832,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "DeleteStripeApplePayDomainWorker": {
     "file": "app/sidekiq/delete_stripe_apple_pay_domain_worker.rb",

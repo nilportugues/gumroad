@@ -54,6 +54,8 @@ export function humanAttributeName(attribute: string): string {
 
 export class Errors {
   readonly details: ErrorDetail[] = [];
+  // A model's `self.human_attribute_name` override (RichContent: description is "Content").
+  readonly humanNames: Record<string, string> = {};
 
   // `errors.add(:attr, :blank)` or `errors.add(:attr, "custom message")`.
   add(attribute: string, typeOrMessage: ErrorType | string = "invalid", options: Record<string, unknown> = {}): void {
@@ -80,7 +82,7 @@ export class Errors {
   }
 
   fullMessages(): string[] {
-    return this.details.map((d) => (d.attribute === "base" ? d.message : `${humanAttributeName(d.attribute)} ${d.message}`));
+    return this.details.map((d) => (d.attribute === "base" ? d.message : `${this.humanNames[d.attribute] ?? humanAttributeName(d.attribute)} ${d.message}`));
   }
 
   clear(): void {
