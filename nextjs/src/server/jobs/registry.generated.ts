@@ -3627,7 +3627,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "UpdatePurchaseHealthcheckThresholdJob": {
     "file": "app/sidekiq/update_purchase_healthcheck_threshold_job.rb",

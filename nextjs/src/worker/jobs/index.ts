@@ -88,6 +88,7 @@ import { radarAddValueListItemJob, radarRemoveValueListItemJob } from "./radar-v
 import { rebuildGmailAbuseFilterJob } from "./rebuild-gmail-abuse-filter-job.ts";
 import { recordOrderChargeOutcomeJob } from "./record-order-charge-outcome-job.ts";
 import { recordProductFileMissingFromStorageJob } from "./record-product-file-missing-from-storage-job.ts";
+import { updatePurchaseEmailToMatchAccountWorker } from "./update-purchase-email-to-match-account-worker.ts";
 import { recoverAusBacktaxFromStripeAccountJob } from "./recover-aus-backtax-from-stripe-account-job.ts";
 import { refreshClosedTierDiscoverPricesJob } from "./refresh-closed-tier-discover-prices-job.ts";
 import { refreshCustomDomainRoutabilityWorker } from "./refresh-custom-domain-routability-worker.ts";
@@ -324,6 +325,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   ReindexSellerOfferCodesRecoveryJob: reindexSellerOfferCodesRecoveryJob,
   CustomDomainsVerificationWorker: customDomainsVerificationWorker,
   RecordProductFileMissingFromStorageJob: recordProductFileMissingFromStorageJob,
+  UpdatePurchaseEmailToMatchAccountWorker: updatePurchaseEmailToMatchAccountWorker,
 };
 
 // `sidekiq_retry_in` and `sidekiq_retries_exhausted` blocks of ported jobs, keyed by Ruby class name.

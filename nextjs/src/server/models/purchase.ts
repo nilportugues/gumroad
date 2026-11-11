@@ -77,6 +77,11 @@ async function firstBatch(clauses: { joins?: Prisma.Sql; where: Prisma.Sql }): P
   return rows.map((row) => castRow<Purchase>("Purchase", row));
 }
 
+// `user.purchases.find_each`, first batch (`has_many :purchases, foreign_key: :purchaser_id`).
+export function purchasesOfPurchaserFirstBatch(purchaserId: bigint): Promise<Purchase[]> {
+  return firstBatch({ where: Prisma.sql`${column(PURCHASES, "purchaser_id")} = ${purchaserId}` });
+}
+
 // `Purchase.rentals_to_expire.find_each`, first batch.
 export function rentalsToExpireFirstBatch(now: Date): Promise<Purchase[]> {
   const redirects = (name: string) => column(URL_REDIRECTS, name);
