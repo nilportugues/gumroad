@@ -30,7 +30,7 @@ const CART_RECOVERY_RECEIPT = "Use the product Share page or Workflows to change
 const POST_CLOSED = "This post can no longer be changed.";
 const POST_NOT_CANCELLABLE = "This post can no longer be cancelled.";
 
-type ProductRow = {
+export type ProductRow = {
   id: bigint;
   user_id: bigint | null;
   deleted_at: Date | null;
@@ -39,10 +39,15 @@ type ProductRow = {
 };
 
 // `head :not_found`
-const notFound = (): ActionResult => ({ status: 404, body: "", contentType: "application/json", paramsRead: true });
+export const notFound = (): ActionResult => ({
+  status: 404,
+  body: "",
+  contentType: "application/json",
+  paramsRead: true,
+});
 
 // `Link.find_by(unique_permalink: params[:product_id]) || e404`: deleted products included.
-async function fetchProduct(input: MutationInput): Promise<ProductRow> {
+export async function fetchProduct(input: MutationInput): Promise<ProductRow> {
   const permalink = input.routeParams.product_id;
   const [row] = permalink
     ? await selectRows<ProductRow>(
