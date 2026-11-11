@@ -13,12 +13,22 @@ describe "Wishlists::ProductsController#index", type: :request do
   let(:wishlist) { create(:wishlist, user: owner, name: "Reading list") }
   let(:json_headers) { { "Accept" => "application/json" } }
 
-  # `page` is always sent, as the wishlist page does: with none, `pagy` reads a `params` the presenter does not have (500).
+  # `page` is sent unless an example says otherwise, as the wishlist page does.
   before { host! DOMAIN }
 
   def fetch(list = wishlist, params: {})
     host! owner.subdomain
     get "/wishlists/#{list.external_id}/products", params: { page: "1" }.merge(params), headers: json_headers
+  end
+
+  # The test environment re-raises what Rails does not rescue; production answers the 500 page, which is what is recorded.
+  def fetch_as_production(params)
+    host! owner.subdomain
+    previous = Rails.application.env_config["action_dispatch.show_exceptions"]
+    Rails.application.env_config["action_dispatch.show_exceptions"] = :all
+    get "/wishlists/#{wishlist.external_id}/products", params:, headers: json_headers
+  ensure
+    Rails.application.env_config["action_dispatch.show_exceptions"] = previous
   end
 
   it "lists the cards of a public wishlist", parity: true do
@@ -134,5 +144,47 @@ describe "Wishlists::ProductsController#index", type: :request do
     fetch
 
     expect(response.parsed_body["items"].first["option"]).to include("name" => "Large")
+  end
+
+  describe "a page Pagy cannot read" do
+    before { create(:wishlist_product, wishlist:, product: create(:product, name: "Only one")) }
+
+    it "answers 500 when page is absent", parity: true do
+      fetch_as_production({})
+
+      expect(response).to have_http_status(:internal_server_error)
+    end
+
+    it "answers 500 for a page of zero", parity: true do
+      fetch_as_production(page: "0")
+
+      expect(response).to have_http_status(:internal_server_error)
+    end
+
+    it "answers 500 for a page that is not a number", parity: true do
+      fetch_as_production(page: "abc")
+
+      expect(response).to have_http_status(:internal_server_error)
+    end
+
+    it "answers 500 for a negative page", parity: true do
+      fetch_as_production(page: "-1")
+
+      expect(response).to have_http_status(:internal_server_error)
+    end
+
+    it "reads a blank page as the first", parity: true do
+      fetch(params: { page: "" })
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["pagination"]).to include("page" => 1)
+    end
+
+    it "reads the digits a page starts with", parity: true do
+      fetch(params: { page: "1abc" })
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["pagination"]).to include("page" => 1)
+    end
   end
 end

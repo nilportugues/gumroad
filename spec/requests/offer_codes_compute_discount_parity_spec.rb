@@ -329,4 +329,84 @@ describe "Offer codes compute_discount", type: :request do
       expect(response.parsed_body["notice"]).to eq("The code applies to some items. The selected options for the other items are not eligible.")
     end
   end
+
+  # Rack::Attack counts the route per client address (`throttle_by_ip`, 60 requests in 30 seconds, then the backoff tiers), and the Node
+  # port counts in the same Redis keys. The earlier requests of a window are added to the counter directly, as sixty fixtures of one
+  # request each would hold nothing more; offer-codes-compute-discount.replay.test.ts adds the same count in Node's Redis before the
+  # last request. The clock is frozen so the window cannot end mid-example.
+  describe "the Rack::Attack throttle" do
+    let(:throttle) { "/ip:/offer_codes/compute_discount" }
+    let(:client) { "203.0.113.7" }
+    let(:frozen_at) { Time.at(1_800_000_001).utc }
+
+    before do
+      Rack::Attack.cache.store.flushdb
+      travel_to(frozen_at)
+    end
+
+    after do
+      travel_back
+      Rack::Attack.cache.store.flushdb
+    end
+
+    def count_requests(times, name: throttle, period: 30, ip: client)
+      times.times { Rack::Attack.cache.count("#{name}:#{ip}", period) }
+    end
+
+    def compute_from(headers = { "CF-Connecting-IP" => client })
+      get "/offer_codes/compute_discount", params: { code: "nope", products: cart(product) }, headers:
+    end
+
+    it "answers the sixtieth request of an address in a window", parity: true do
+      count_requests(59)
+
+      compute_from
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["error_code"]).to eq("invalid_offer")
+    end
+
+    it "answers 429 to the sixty-first request of an address in a window", parity: true do
+      count_requests(60)
+
+      compute_from
+
+      expect(response).to have_http_status(:too_many_requests)
+      expect(response.body).to eq("Retry later\n")
+      expect(response.headers["Retry-After"]).to eq("29")
+    end
+
+    it "counts each address on its own", parity: true do
+      count_requests(60)
+
+      compute_from("CF-Connecting-IP" => "203.0.113.8")
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "answers 429 once the second backoff tier is past its limit", parity: true do
+      count_requests(240, name: "#{throttle}/2", period: 64)
+
+      compute_from
+
+      expect(response).to have_http_status(:too_many_requests)
+      expect(response.headers["Retry-After"]).to eq((64 - (frozen_at.to_i % 64)).to_s)
+    end
+
+    it "reads the client from X-Forwarded-For when Cloudflare sent nothing", parity: true do
+      count_requests(60)
+
+      compute_from("X-Forwarded-For" => client)
+
+      expect(response).to have_http_status(:too_many_requests)
+    end
+
+    it "does not throttle a loopback client", parity: true do
+      count_requests(100, ip: "127.0.0.1")
+
+      compute_from({})
+
+      expect(response).to have_http_status(:ok)
+    end
+  end
 end

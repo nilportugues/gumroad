@@ -1,9 +1,9 @@
-// WishlistsController#show on seller subdomains and custom domains (`seller:/wishlists/:id`). Rendered for a visitor who is not
-// signed in (routes.json: signedOutOnly) with no `layout` param; the signed-in page (`following`, `can_edit`) and the profile and
-// discover layouts go to Rails.
+// WishlistsController#show on seller subdomains and custom domains (`seller:/wishlists/:id`), for a signed-out or signed-in visitor
+// and the `profile` and `discover` layouts. A discover layout whose visitor has curated-product sources goes to Rails.
 import { Prisma } from "@prisma/client";
 
 import { decryptNumeric } from "../../../lib/obfuscate-ids.ts";
+import { railsLoggedInUser } from "../../auth/resolve.ts";
 import {
   type Chain,
   type FilterOutcome,
@@ -14,9 +14,15 @@ import { assertFlatQuery } from "../../controllers/rails-params.ts";
 import { queryParam } from "../../controllers/rails-request.ts";
 import { rubyToI } from "../../models/concerns/ruby-numeric.ts";
 import { column, selectRows, table } from "../../models/sql.ts";
+import { loadSellerContext } from "../../policies/seller-context.ts";
+import { settingsProfilePolicy } from "../../policies/settings/profile.ts";
+import { guidOf } from "../../presenters/product-page.ts";
 import { findUserById } from "../../presenters/product-reads.ts";
 import { publicProps, setWishlistPageMeta, type WishlistRow } from "../../presenters/wishlist.ts";
+import { hasCuratedProductSources } from "../discover/discover.ts";
+import { taxonomiesForNav } from "../discover/taxonomies.ts";
 import type { PageSpec } from "../pages.ts";
+import { creatorProfile } from "../settings/profile.ts";
 
 import { requireHtmlPage } from "./post-pages.ts";
 import { setFaviconMetaTags } from "./post.ts";
@@ -25,8 +31,6 @@ import { userByDomain } from "./seller-host.ts";
 const WISHLIST_PATH = /^\/wishlists\/([^/.?]+)$/u;
 // ObfuscateIds::MAX_NUMERIC_ID
 const MAX_NUMERIC_ID = 2 ** 30 - 1;
-
-const blank = (value: string | null | undefined) => value == null || value.trim() === "";
 
 // `user_by_domain(request.host).wishlists.alive.find_by_url_slug(params[:id])`
 async function wishlistOf(chain: Chain): Promise<{ wishlist: WishlistRow; ownerId: bigint }> {
@@ -48,10 +52,13 @@ async function wishlistOf(chain: Chain): Promise<{ wishlist: WishlistRow; ownerI
 async function wishlistFilters(chain: Chain): Promise<FilterOutcome> {
   requireHtmlPage(chain);
   assertFlatQuery(chain.request.queryString);
-  // A layout adds the profile or the discover navigation; a blank one adds nothing.
-  if (!blank(queryParam(chain.request, "layout"))) throw new HandBackToRails("a wishlist with a layout");
-  if (queryParam(chain.request, "recommended_by") === "") throw new HandBackToRails("a blank recommender");
   const { wishlist, ownerId } = await wishlistOf(chain);
+  // `curated_products` (RecommendedProducts::DiscoverService) feeds the discover navigation; the port answers only the empty list.
+  if (queryParam(chain.request, "layout") === "discover") {
+    const visitor = railsLoggedInUser(chain.auth.context);
+    if (await hasCuratedProductSources(visitor, guidOf(chain.headers.get("cookie"))))
+      throw new HandBackToRails("curated products for the discover navigation");
+  }
   return { state: { wishlist_id: String(wishlist.id), owner_id: String(ownerId) } };
 }
 
@@ -61,6 +68,8 @@ export const WISHLIST_PAGES: Record<string, PageSpec> = {
     buyerCurrencyFooter: true,
     options: { filters: wishlistFilters },
     props: async (_params, action) => {
+      const context = await loadSellerContext(action.context);
+      const layout = action.url.searchParams.get("layout");
       const [wishlist] = await selectRows<WishlistRow>(
         Prisma.sql`SELECT ${Prisma.raw("`wishlists`.*")} FROM ${table("wishlists")} WHERE ${column("wishlists", "id")} = ${BigInt(action.state.wishlist_id as string)} LIMIT 1`,
       );
@@ -78,6 +87,15 @@ export const WISHLIST_PAGES: Record<string, PageSpec> = {
           cookies: new Map(),
         },
         recommendedBy,
+        pundit: { userId: context.user?.id ?? null, sellerId: context.seller?.id ?? null },
+        layout,
+        // ProfilePresenter#can_edit_profile?
+        creatorProfile: () =>
+          creatorProfile(
+            owner as unknown as Parameters<typeof creatorProfile>[0],
+            !!context.user && context.seller?.id === owner.id && settingsProfilePolicy.update(context),
+          ),
+        taxonomiesForNav,
       });
     },
   },

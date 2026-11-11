@@ -5,7 +5,6 @@
 // Rails would judge differently (Rails answers with a null session), a body Node does not parse, and any NotPortedError.
 import { HandBackToRails, forwardToRails, processAction, sessionCsrfToken, type ActionContext, type ActionOptions, type ActionResult } from "./application-controller.ts";
 import { MUTATION_PATH } from "./inertia-page.ts";
-import { countRackAttack } from "./rack-attack.ts";
 import { railsRequest, type RailsRequest } from "./rails-request.ts";
 import { requestFormat } from "./rails-params.ts";
 import { requestParams, type Params } from "./rails-body.ts";
@@ -18,6 +17,8 @@ import { NotPortedError } from "../models/user.ts";
 import { NotPortedError as PageNotPortedError } from "../page-props/not-ported.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
 import { randomUUID } from "node:crypto";
+import { railsEnv } from "../infra/rails-env.ts";
+import { resetRailsCacheForTesting } from "../cache/rails-cache.ts";
 
 export { MUTATION_PATH };
 
@@ -117,6 +118,8 @@ export function remoteIp(request: RailsRequest): string | null {
 }
 
 export async function mutationResponse(incoming: Request): Promise<Response> {
+  // The replay harness seeds each example into an empty database, so a cache entry keyed by a row id must not outlive it.
+  if (railsEnv() === "test" && incoming.headers.has("x-parity-reset-cache")) resetRailsCacheForTesting();
   const target = incoming.headers.get(PAGE_URL_HEADER);
   if (target === null) return new Response(null, { status: 404 });
   const host = incoming.headers.get("x-forwarded-host") ?? incoming.headers.get("host") ?? "localhost";
@@ -144,16 +147,6 @@ export async function mutationResponse(incoming: Request): Promise<Response> {
       return forwardToRails(request);
     }
     throw error;
-  }
-
-  // Rack::Attack sits ahead of everything in Rails, so a Node answer counts the request itself (rack-attack.ts); forwardToRails takes the count back.
-  try {
-    const throttled = await countRackAttack(request, bytes);
-    if (throttled !== null) return throttled;
-  } catch (error) {
-    if (!(error instanceof HandBackToRails)) throw error;
-    console.warn(`[mutation] ${request.method} ${url.pathname} handed back to Rails: ${error.message}`);
-    return forwardToRails(request);
   }
 
   return processAction(request, candidate.options ?? {}, async ({ request: railsReq, context, peekState, chain }) => {

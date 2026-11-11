@@ -11,8 +11,9 @@ import { closeAllRedis } from "@/server/infra/redis";
 
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { loadFixture } from "../src/fixture";
-import { withoutRailsOnly } from "../src/rails-only";
 import { startNextServer, type NextServer } from "../src/next-server";
+import { expectRetryAfter, type Preload, withPreload } from "../src/rack-attack";
+import { withoutRailsOnly } from "../src/rails-only";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { redisSeeder } from "../src/session";
 
@@ -32,9 +33,22 @@ const COMPARE = {
     "response.headers.cache-control",
     "response.headers.link",
     "response.headers.vary",
+    // The window ends at a different instant than in the recording; the test checks the value against the clock.
+    "response.headers.retry-after",
     "response.cookies.XSRF-TOKEN.value",
     "db.versions",
   ],
+};
+
+// The requests Rails counted before the recorded one (the example adds them to the counter directly), by example name.
+const T = "/ip:/offer_codes/compute_discount";
+const PRELOADS: Record<string, Preload> = {
+  "the-sixtieth-request": { tier: T, period: 30, discriminator: "203.0.113.7", count: 59 },
+  "the-sixty-first-request": { tier: T, period: 30, discriminator: "203.0.113.7", count: 60 },
+  "counts-each-address-on-its-own": { tier: T, period: 30, discriminator: "203.0.113.7", count: 60 },
+  "second-backoff-tier": { tier: `${T}/2`, period: 64, discriminator: "203.0.113.7", count: 240 },
+  "reads-the-client-from-x-forwarded-for": { tier: T, period: 30, discriminator: "203.0.113.7", count: 60 },
+  "does-not-throttle-a-loopback-client": { tier: T, period: 30, discriminator: "127.0.0.1", count: 100 },
 };
 
 const allCases = readdirSync(DIR)
@@ -76,6 +90,7 @@ describe.skipIf(!url)("Offer codes compute_discount parity", () => {
       SECRET_KEY_BASE,
       DATABASE_URL: url!,
       REDIS_HOST: redisHost,
+      RACK_ATTACK_REDIS_HOST: redisHost,
     });
   }, FIRST_COMPILE_TIMEOUT_MS);
 
@@ -89,21 +104,39 @@ describe.skipIf(!url)("Offer codes compute_discount parity", () => {
   });
 
   it("finds the fixtures", () => {
-    expect(allCases).toHaveLength(35);
+    expect(allCases).toHaveLength(41);
   });
+
+  // The first request compiles the handler for tens of seconds, and a throttle window is 30: compile before any example preloads a counter.
+  it(
+    "compiles the handlers",
+    async () => {
+      const [, file, index] = cases[0]!;
+      await replayFixtureExchange(file, index, {
+        sql,
+        redis: redisSeeder(redis),
+        transport: httpTransport(server.baseUrl),
+        interceptHttp: false,
+        compare: COMPARE,
+      }).catch(() => undefined);
+    },
+    FIRST_COMPILE_TIMEOUT_MS,
+  );
 
   it.each(cases)(
     "%s",
-    async (_name, fixturePath, index) => {
+    async (name, fixturePath, index) => {
+      const preload = Object.entries(PRELOADS).find(([key]) => name.includes(key))?.[1];
       const result = await replayFixtureExchange(fixturePath, index, {
         sql,
-        redis: redisSeeder(redis),
+        redis: withPreload(redis, redisSeeder(redis), preload),
         transport: httpTransport(server.baseUrl),
         interceptHttp: false,
         compare: COMPARE,
       });
       try {
         assertParity(result);
+        expectRetryAfter(result.exchanges[0]!.actual.response, [30, 64]);
       } catch (error) {
         throw new Error(
           `${(error as Error).message}\n--- server ---\n${server.output().split("\n").slice(-25).join("\n")}`,

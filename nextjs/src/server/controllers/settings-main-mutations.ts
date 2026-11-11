@@ -370,7 +370,7 @@ async function resendConfirmationEmail(input: MutationInput): Promise<ActionResu
 }
 
 registerMutations(
-  { method: "PUT", pattern: MAIN_PATH, railsOnly: "/ip:/settings:put", run: update },
+  { method: "PUT", pattern: MAIN_PATH, run: update },
   { method: "PATCH", pattern: MAIN_PATH, run: update },
   {
     method: "POST",

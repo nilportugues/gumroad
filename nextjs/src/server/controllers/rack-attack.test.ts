@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { evaluate, rackRequest, type RackStore, type Throttle } from "./rack-attack.ts";
+import { evaluate, RACK_ATTACK_RULES, rackRequest, type RackStore, type Throttle } from "./rack-attack.ts";
 
 function memoryStore(): RackStore & { counts: Map<string, number>; expiries: Map<string, number> } {
   const counts = new Map<string, number>();
@@ -123,5 +123,42 @@ describe("rackRequest", () => {
     expect(form.form).toEqual({ user_id: "abc" });
     expect(json.form).toEqual({});
     expect(json.json).toEqual({ user_id: "abc" });
+  });
+});
+
+describe("login, signup and settings rules", () => {
+  const countedKeys = async (path: string, init: RequestInit = {}) => {
+    const store = memoryStore();
+    await evaluate(request(path, init), store, RACK_ATTACK_RULES, () => NOW);
+    return [...store.counts.keys()].map((key) => key.replace(/^rack::attack:\d+:/u, ""));
+  };
+
+  it("keys POST /login on the address, one counter per tier", async () => {
+    const keys = await countedKeys("/login", { method: "POST" });
+    expect(keys).toEqual([
+      "/ip:/login:post:203.0.113.9",
+      ...[2, 3, 4, 5].map((level) => `/ip:/login:post/${level}:203.0.113.9`),
+    ]);
+  });
+
+  it("leaves GET /login uncounted and counts every method of /signup", async () => {
+    expect(await countedKeys("/login")).toEqual([]);
+    expect(await countedKeys("/signup")).toHaveLength(5);
+  });
+
+  it("counts the submitted login of /login.json by account as well", async () => {
+    const keys = await countedKeys("/login.json?user[login]=someone", { method: "POST" });
+    expect(keys).toContain("logins/login:someone");
+    expect(keys).toContain("/ip:/login.json:203.0.113.9");
+  });
+
+  it("hands back a login that is not a string", async () => {
+    await expect(countedKeys("/login.json?user[login][]=a", { method: "POST" })).rejects.toThrow(/not a string/u);
+  });
+
+  it("marks the rules rack_attack.rb registers only in production", () => {
+    const names = RACK_ATTACK_RULES.filter((rule) => rule.productionOnly === true).map((rule) => rule.name);
+    expect(names).toContain("/ip:/settings:put");
+    expect(RACK_ATTACK_RULES.find((rule) => rule.name === "logins/login")?.productionOnly).toBeFalsy();
   });
 });

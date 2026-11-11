@@ -162,6 +162,8 @@ export const SELLER_PRODUCTS_PAGES: Record<string, PageSpec> = {
   "/products/collabs": productsCollabs,
   "/products/new": productsNew,
   "/products": productsIndex,
+  // `resources :links` names the same `links#index`.
+  "/links": productsIndex,
   "/products/archived": productsArchived,
   "/products/affiliated": productsAffiliated,
 };
