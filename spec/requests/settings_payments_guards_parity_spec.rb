@@ -524,14 +524,188 @@ describe "Settings::PaymentsController guards", type: :request do
       expect(response).to redirect_to(dashboard_path)
     end
 
-    it "hands the merchant id of the seller to Rails", parity: true do
-      allow_any_instance_of(PaypalMerchantAccountManager).to receive(:update_merchant_account).and_return("PayPal account linked")
-      log_in(seller)
+    context "with a PayPal merchant id of the seller" do
+      let(:paypal_merchant_id) { "PAYPALMERCHANT" }
+      let(:json_content_type) { { "Content-Type" => "application/json" } }
+      let(:connect_params) do
+        { merchantIdInPayPal: paypal_merchant_id, merchantId: "#{seller.external_id}-1", permissionsGranted: "true", accountStatus: "BUSINESS_ACCOUNT", consentStatus: "true", isEmailConfirmed: "true" }
+      end
 
-      get paypal_connect_settings_payments_path, params: { merchantIdInPayPal: "PAYPALMERCHANT", merchantId: "#{seller.external_id}-1" }
+      before { seller.update_column(:payment_address, "payouts@example.com") }
 
-      expect(response).to redirect_to(checkout_form_path)
-      expect(flash[:notice]).to eq("PayPal account linked")
+      def stub_paypal_token
+        stub_request(:post, "#{PAYPAL_REST_ENDPOINT}/v1/oauth2/token")
+          .to_return(status: 200, body: { token_type: "Bearer", access_token: "A21AAtestpartnertoken", expires_in: 32_400 }.to_json, headers: json_content_type)
+      end
+
+      def paypal_details(**overrides)
+        {
+          merchant_id: paypal_merchant_id,
+          primary_email: "connected@example.com",
+          primary_email_confirmed: true,
+          payments_receivable: true,
+          country: "US",
+          primary_currency: "USD",
+          oauth_integrations: [{ integration_type: "OAUTH_THIRD_PARTY", integration_method: "PAYPAL", oauth_third_party: [{ partner_client_id: PAYPAL_PARTNER_CLIENT_ID }] }],
+        }.merge(overrides)
+      end
+
+      def stub_paypal_merchant(status: 200, **overrides)
+        stub_paypal_token
+        stub_request(:get, "#{PAYPAL_REST_ENDPOINT}/v1/customer/partners/#{PAYPAL_PARTNER_ID}/merchant-integrations/#{paypal_merchant_id}")
+          .to_return(status:, body: paypal_details(**overrides).to_json, headers: json_content_type)
+      end
+
+      def connect
+        get paypal_connect_settings_payments_path, params: connect_params
+      end
+
+      it "connects an account PayPal reports as ready to receive payments", parity: true do
+        stub_paypal_merchant
+        log_in(seller)
+
+        connect
+
+        expect(response).to redirect_to(checkout_form_path)
+        expect(flash[:notice]).to eq("You have successfully connected your PayPal account with Gumroad.")
+        expect(seller.merchant_accounts.paypal.alive.sole).to be_charge_processor_verified
+      end
+
+      it "connects an account when the token is already cached", parity: true do
+        stub_paypal_merchant
+        PaypalPartnerRestCredentials::REDIS_KEY_STORAGE_NS.set(PaypalPartnerRestCredentials::TOKEN_KEY, "Bearer A21AAcachedtoken")
+        log_in(seller)
+
+        connect
+
+        expect(flash[:notice]).to eq("You have successfully connected your PayPal account with Gumroad.")
+      end
+
+      it "takes the country and currency PayPal reports", parity: true do
+        stub_paypal_merchant(country: "GB", primary_currency: "GBP")
+        log_in(seller)
+
+        connect
+
+        account = seller.merchant_accounts.paypal.alive.sole
+        expect([account.country, account.currency]).to eq(%w[GB gbp])
+      end
+
+      it "reads the country code PayPal uses for China as China, where the integration is not supported", parity: true do
+        stub_paypal_merchant(country: "C2", primary_currency: "CNY")
+        log_in(seller)
+
+        connect
+
+        expect(flash[:notice]).to eq("Your PayPal account could not be connected because this PayPal integration is not supported in your country.")
+      end
+
+      it "removes the seller's other PayPal accounts once one is verified", parity: true do
+        create(:merchant_account_paypal, user: seller, charge_processor_merchant_id: "OLDMERCHANT")
+        stub_paypal_merchant
+        log_in(seller)
+
+        connect
+
+        expect(seller.merchant_accounts.paypal.alive.pluck(:charge_processor_merchant_id)).to eq([paypal_merchant_id])
+      end
+
+      it "asks the seller to confirm the PayPal email address", parity: true do
+        stub_paypal_merchant(primary_email_confirmed: false, payments_receivable: false)
+        log_in(seller)
+
+        connect
+
+        expect(flash[:notice]).to eq("You need to confirm the email address (connected@example.com) attached to your PayPal account before you can start using it with Gumroad.")
+      end
+
+      it "tells the seller PayPal cannot receive payments right now", parity: true do
+        stub_paypal_merchant(payments_receivable: false)
+        log_in(seller)
+
+        connect
+
+        expect(flash[:notice]).to start_with("PayPal reports that your account cannot receive payments right now.")
+      end
+
+      it "tells the seller the permissions are missing", parity: true do
+        stub_paypal_merchant(oauth_integrations: [])
+        log_in(seller)
+
+        connect
+
+        expect(flash[:notice]).to start_with("Your PayPal account connect with Gumroad is incomplete because of missing permissions.")
+      end
+
+      it "turns away an account from a country PayPal Commerce Platform does not support", parity: true do
+        stub_paypal_merchant(country: "BR", primary_currency: "BRL")
+        log_in(seller)
+
+        connect
+
+        expect(flash[:notice]).to eq("Your PayPal account could not be connected because this PayPal integration is not supported in your country.")
+        expect(seller.merchant_accounts.paypal.alive).to be_empty
+      end
+
+      it "turns away an email address PayPal refuses to pay", parity: true do
+        create(:payment, user: seller, processor: PayoutProcessorType::PAYPAL, payment_address: "connected@example.com", state: Payment::FAILED, failure_reason: Payment::FailureReason::TERMINAL_PAYPAL_FAILURE_REASONS.first)
+        stub_paypal_merchant
+        log_in(seller)
+
+        connect
+
+        expect(flash[:notice]).to eq("PayPal won't accept payouts to that account. Please connect a different PayPal account.")
+        expect(seller.merchant_accounts.paypal.alive).to be_empty
+      end
+
+      it "answers with nothing when PayPal cannot describe the account", parity: true do
+        stub_paypal_merchant(status: 500)
+        log_in(seller)
+
+        connect
+
+        expect(response).to redirect_to(checkout_form_path)
+        expect(flash[:notice]).to be_nil
+      end
+
+      it "leaves a verified account alone without asking PayPal", parity: true do
+        create(:merchant_account_paypal, user: seller, charge_processor_merchant_id: paypal_merchant_id, charge_processor_verified_at: Time.current, meta: { "merchantId" => "#{seller.external_id}-1" })
+        log_in(seller)
+
+        connect
+
+        expect(flash[:notice]).to eq("You have successfully connected your PayPal account with Gumroad.")
+      end
+
+      it "brings back a deleted account for the same merchant", parity: true do
+        deleted = create(:merchant_account_paypal, user: seller, charge_processor_merchant_id: paypal_merchant_id)
+        deleted.delete_charge_processor_account!
+        stub_paypal_merchant
+        log_in(seller)
+
+        connect
+
+        expect(deleted.reload).to be_alive
+        expect(deleted).to be_charge_processor_verified
+      end
+
+      it "refuses a seller with no way of being paid", parity: true do
+        seller.update_column(:payment_address, "")
+        log_in(seller)
+
+        connect
+
+        expect(flash[:notice]).to eq("Your PayPal account could not be connected because you do not meet the eligibility requirements.")
+      end
+
+      it "notes the connection on the seller when a team admin makes it", parity: true do
+        stub_paypal_merchant
+        as_team_member(:admin)
+
+        connect
+
+        expect(seller.comments.last.content).to start_with("PayPal account connection updated by team admin")
+      end
     end
   end
 

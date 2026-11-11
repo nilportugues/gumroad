@@ -8,7 +8,8 @@
 //     written as a new compliance revision (models/user-compliance-info-writes.ts) with the seller's currency moved to it; JP, a
 //     guardian, a minor birthday and open compliance requests are handed back;
 //   - #remove_credit_card: the whole action (no processor call: it clears credit_card_id and saves the seller);
-//   - #paypal_connect: the redirect for missing or foreign PayPal parameters;
+//   - #paypal_connect: the redirect for missing or foreign PayPal parameters, then PaypalMerchantAccountManager#update_merchant_account
+//     (models/paypal-merchant-account-connect.ts);
 //   - #remediation and #verify_stripe_remediation: the redirects for a seller with no Stripe account (and, for #remediation, a
 //     rejected account with nothing left to submit), then the Stripe reads and the AccountLink (settings-payments-remediation.ts).
 // Handed to Rails whole, before any write or processor call: everything else. A saved payout method, bank account or card, a
@@ -29,6 +30,7 @@ import {
   jsonAttr,
   legalEntityCountryCode,
 } from "../models/user-compliance-info.ts";
+import { updatePaypalMerchantAccount } from "../models/paypal-merchant-account-connect.ts";
 import { TosAgreements } from "../models/tos-agreement.ts";
 import { findUserBang, setFlag, setJsonDataForAttr, Users } from "../models/user.ts";
 import { domainConfig } from "../page-props/domain.ts";
@@ -141,6 +143,14 @@ async function update(input: MutationInput): Promise<ActionResult> {
 }
 
 const SEE_OTHER = 303;
+const PAYPAL_META_PARAMS = [
+  "merchantId",
+  "permissionsGranted",
+  "accountStatus",
+  "consentStatus",
+  "productIntentID",
+  "isEmailConfirmed",
+];
 const MILITARY_STATES = ["AA", "AE", "AP"];
 const THRESHOLD_TOO_LOW_MESSAGE = "Your payout threshold must be greater than the minimum payout amount";
 const SWITCH_PREFERENCES: readonly string[] = [
@@ -323,7 +333,18 @@ async function paypalConnect(input: MutationInput): Promise<ActionResult> {
   )
     return { status: FOUND, location: CHECKOUT_FORM_PATH, flash: { notice: PAYPAL_ERROR_MESSAGE } };
 
-  throw new HandBackToRails("the linking of a PayPal merchant account, which calls PayPal");
+  // `params.slice(...)` keeps the order of the names asked for, and only those present.
+  const meta: Record<string, string> = {};
+  for (const name of PAYPAL_META_PARAMS) {
+    const value = input.params[name];
+    if (value === undefined) continue;
+    if (typeof value !== "string") throw new HandBackToRails("a PayPal parameter that is not text");
+    meta[name] = value;
+  }
+
+  const notice = await updatePaypalMerchantAccount(sellerOf(input), merchantIdInPayPal as string, meta);
+  await logPayoutSettingsUpdateByNonOwner(input, "PayPal account connection updated");
+  return { status: FOUND, location: CHECKOUT_FORM_PATH, ...(notice === null ? {} : { flash: { notice } }) };
 }
 
 // `current_seller.stripe_account`
