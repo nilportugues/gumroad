@@ -24,9 +24,9 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
-const SPECS = ["settings_mutations_signed_in_spec", "settings_payments_backtax_opt_in_spec"];
+const SPECS = ["settings_mutations_signed_in_spec", "settings_payments_backtax_opt_in_spec", "settings_totp_signed_in_spec"];
 const ROUTE_FLAGS =
-  "nextjs_settings_third_party_analytics_writes,nextjs_settings_advanced_writes,nextjs_settings_billing_writes,nextjs_settings_dismiss_ai_promo_writes,nextjs_settings_team_members_writes,nextjs_settings_payments_backtax_writes";
+  "nextjs_settings_third_party_analytics_writes,nextjs_settings_advanced_writes,nextjs_settings_billing_writes,nextjs_settings_dismiss_ai_promo_writes,nextjs_settings_team_members_writes,nextjs_settings_payments_backtax_writes,nextjs_settings_totp_writes";
 const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "-settings";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
