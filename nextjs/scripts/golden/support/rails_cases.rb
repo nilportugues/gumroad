@@ -28,6 +28,11 @@ module EsCapture
 
     def body = (@body || "{}")
 
+    # One answer per request in order, `body` after they run out; a case sets it with `es_bodies:`.
+    attr_writer :bodies
+
+    def next_body = (@bodies&.shift || body)
+
     def start
       server = TCPServer.new("127.0.0.1", 0)
       Thread.new { loop { serve(server.accept) } }
@@ -44,7 +49,7 @@ module EsCapture
       body = headers["content-length"] ? socket.read(headers["content-length"].to_i) : nil
       path, query = target.split("?", 2)
       requests << { "method" => method, "path" => path, "query" => query, "body" => body }
-      answer = self.body
+      answer = next_body
       socket.write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: #{answer.bytesize}\r\nConnection: close\r\n\r\n#{answer}")
     ensure
       socket.close
@@ -119,6 +124,7 @@ module RailsCases
     $jid_seq = 0
     EsCapture.requests.clear
     EsCapture.body = extra[:es_body]&.to_json
+    EsCapture.bodies = extra[:es_bodies]&.map(&:to_json)
     error = nil
     cache = []
     subscriber = ActiveSupport::Notifications.subscribe(/\Acache_(delete|write)\.active_support\z/) do |event, *, payload|

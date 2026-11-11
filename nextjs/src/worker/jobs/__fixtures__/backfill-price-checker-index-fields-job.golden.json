@@ -1,0 +1,846 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "no products indexed",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/products/_search",
+          "query": "_source=false&scroll=1m&size=5000&sort=_doc",
+          "body": "{\"query\":{\"match_all\":{}}}"
+        },
+        {
+          "method": "DELETE",
+          "path": "/_search/scroll/scroll-1",
+          "query": null,
+          "body": null
+        }
+      ],
+      "job": "BackfillPriceCheckerIndexFieldsJob",
+      "args": [],
+      "es_bodies": [
+        {
+          "_scroll_id": "scroll-1",
+          "hits": {
+            "hits": []
+          }
+        }
+      ]
+    },
+    {
+      "name": "one page of products",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":10,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executing\",\"on_conflict\":\"mark_for_trailing_run\",\"lock_ttl\":600,\"class\":\"SendToElasticsearchWorker\",\"args\":[1,\"update\",[\"price_currency_type\",\"customizable_price\",\"native_type\"]],\"jid\":\"000000000000000000000002\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1,\"update\",[\"price_currency_type\",\"customizable_price\",\"native_type\"]],\"lock_digest\":\"uniquejobs:a06d205e7380f93e01645602329287c0\"}",
+              1793795445.0
+            ],
+            [
+              "{\"retry\":10,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executing\",\"on_conflict\":\"mark_for_trailing_run\",\"lock_ttl\":600,\"class\":\"SendToElasticsearchWorker\",\"args\":[2,\"update\",[\"price_currency_type\",\"customizable_price\",\"native_type\"]],\"jid\":\"000000000000000000000003\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[2,\"update\",[\"price_currency_type\",\"customizable_price\",\"native_type\"]],\"lock_digest\":\"uniquejobs:3939ecf7491924e4d318a7a618914fef\"}",
+              1793795445.0
+            ],
+            [
+              "{\"retry\":10,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executing\",\"on_conflict\":\"mark_for_trailing_run\",\"lock_ttl\":600,\"class\":\"SendToElasticsearchWorker\",\"args\":[3,\"update\",[\"price_currency_type\",\"customizable_price\",\"native_type\"]],\"jid\":\"000000000000000000000004\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[3,\"update\",[\"price_currency_type\",\"customizable_price\",\"native_type\"]],\"lock_digest\":\"uniquejobs:db64ae655bde13818d0343af850c17d3\"}",
+              1793795445.0
+            ]
+          ],
+          "expires": false
+        },
+        "uniquejobs:3939ecf7491924e4d318a7a618914fef": {
+          "type": "string",
+          "value": "000000000000000000000003",
+          "expires": true
+        },
+        "uniquejobs:3939ecf7491924e4d318a7a618914fef:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000003": "1.7937954451230001e+9"
+          },
+          "expires": true
+        },
+        "uniquejobs:a06d205e7380f93e01645602329287c0": {
+          "type": "string",
+          "value": "000000000000000000000002",
+          "expires": true
+        },
+        "uniquejobs:a06d205e7380f93e01645602329287c0:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000002": "1.7937954451230001e+9"
+          },
+          "expires": true
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "count": 6,
+          "expires": false
+        },
+        "uniquejobs:db64ae655bde13818d0343af850c17d3": {
+          "type": "string",
+          "value": "000000000000000000000004",
+          "expires": true
+        },
+        "uniquejobs:db64ae655bde13818d0343af850c17d3:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000004": "1.7937954451230001e+9"
+          },
+          "expires": true
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:3939ecf7491924e4d318a7a618914fef",
+              1793795445.0
+            ],
+            [
+              "uniquejobs:a06d205e7380f93e01645602329287c0",
+              1793795445.0
+            ],
+            [
+              "uniquejobs:db64ae655bde13818d0343af850c17d3",
+              1793795445.0
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/products/_search",
+          "query": "_source=false&scroll=1m&size=5000&sort=_doc",
+          "body": "{\"query\":{\"match_all\":{}}}"
+        },
+        {
+          "method": "GET",
+          "path": "/_search/scroll/scroll-1",
+          "query": "scroll=1m",
+          "body": null
+        },
+        {
+          "method": "DELETE",
+          "path": "/_search/scroll/scroll-1",
+          "query": null,
+          "body": null
+        }
+      ],
+      "job": "BackfillPriceCheckerIndexFieldsJob",
+      "args": [],
+      "es_bodies": [
+        {
+          "_scroll_id": "scroll-1",
+          "hits": {
+            "hits": [
+              {
+                "_id": "1"
+              },
+              {
+                "_id": "2"
+              },
+              {
+                "_id": "3"
+              }
+            ]
+          }
+        },
+        {
+          "_scroll_id": "scroll-1",
+          "hits": {
+            "hits": []
+          }
+        }
+      ]
+    },
+    {
+      "name": "three pages of products",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":10,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executing\",\"on_conflict\":\"mark_for_trailing_run\",\"lock_ttl\":600,\"class\":\"SendToElasticsearchWorker\",\"args\":[1,\"update\",[\"price_currency_type\",\"customizable_price\",\"native_type\"]],\"jid\":\"000000000000000000000002\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1,\"update\",[\"price_currency_type\",\"customizable_price\",\"native_type\"]],\"lock_digest\":\"uniquejobs:a06d205e7380f93e01645602329287c0\"}",
+              1793795445.0
+            ],
+            [
+              "{\"retry\":10,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executing\",\"on_conflict\":\"mark_for_trailing_run\",\"lock_ttl\":600,\"class\":\"SendToElasticsearchWorker\",\"args\":[2,\"update\",[\"price_currency_type\",\"customizable_price\",\"native_type\"]],\"jid\":\"000000000000000000000003\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[2,\"update\",[\"price_currency_type\",\"customizable_price\",\"native_type\"]],\"lock_digest\":\"uniquejobs:3939ecf7491924e4d318a7a618914fef\"}",
+              1793795445.0
+            ],
+            [
+              "{\"retry\":10,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executing\",\"on_conflict\":\"mark_for_trailing_run\",\"lock_ttl\":610,\"class\":\"SendToElasticsearchWorker\",\"args\":[3,\"update\",[\"price_currency_type\",\"customizable_price\",\"native_type\"]],\"jid\":\"000000000000000000000005\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[3,\"update\",[\"price_currency_type\",\"customizable_price\",\"native_type\"]],\"lock_digest\":\"uniquejobs:db64ae655bde13818d0343af850c17d3\"}",
+              1793795455.0
+            ],
+            [
+              "{\"retry\":10,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executing\",\"on_conflict\":\"mark_for_trailing_run\",\"lock_ttl\":610,\"class\":\"SendToElasticsearchWorker\",\"args\":[4,\"update\",[\"price_currency_type\",\"customizable_price\",\"native_type\"]],\"jid\":\"000000000000000000000006\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[4,\"update\",[\"price_currency_type\",\"customizable_price\",\"native_type\"]],\"lock_digest\":\"uniquejobs:fcc314b09ce0315c9022adc1382520b8\"}",
+              1793795455.0
+            ],
+            [
+              "{\"retry\":10,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executing\",\"on_conflict\":\"mark_for_trailing_run\",\"lock_ttl\":620,\"class\":\"SendToElasticsearchWorker\",\"args\":[5,\"update\",[\"price_currency_type\",\"customizable_price\",\"native_type\"]],\"jid\":\"000000000000000000000008\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[5,\"update\",[\"price_currency_type\",\"customizable_price\",\"native_type\"]],\"lock_digest\":\"uniquejobs:bc48a2090bbf599006e701038ac97853\"}",
+              1793795465.0
+            ]
+          ],
+          "expires": false
+        },
+        "uniquejobs:3939ecf7491924e4d318a7a618914fef": {
+          "type": "string",
+          "value": "000000000000000000000003",
+          "expires": true
+        },
+        "uniquejobs:3939ecf7491924e4d318a7a618914fef:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000003": "1.7937954451230001e+9"
+          },
+          "expires": true
+        },
+        "uniquejobs:a06d205e7380f93e01645602329287c0": {
+          "type": "string",
+          "value": "000000000000000000000002",
+          "expires": true
+        },
+        "uniquejobs:a06d205e7380f93e01645602329287c0:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000002": "1.7937954451230001e+9"
+          },
+          "expires": true
+        },
+        "uniquejobs:bc48a2090bbf599006e701038ac97853": {
+          "type": "string",
+          "value": "000000000000000000000008",
+          "expires": true
+        },
+        "uniquejobs:bc48a2090bbf599006e701038ac97853:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000008": "1.7937954451230001e+9"
+          },
+          "expires": true
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "count": 10,
+          "expires": false
+        },
+        "uniquejobs:db64ae655bde13818d0343af850c17d3": {
+          "type": "string",
+          "value": "000000000000000000000005",
+          "expires": true
+        },
+        "uniquejobs:db64ae655bde13818d0343af850c17d3:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000005": "1.7937954451230001e+9"
+          },
+          "expires": true
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:3939ecf7491924e4d318a7a618914fef",
+              1793795445.0
+            ],
+            [
+              "uniquejobs:a06d205e7380f93e01645602329287c0",
+              1793795445.0
+            ],
+            [
+              "uniquejobs:db64ae655bde13818d0343af850c17d3",
+              1793795455.0
+            ],
+            [
+              "uniquejobs:fcc314b09ce0315c9022adc1382520b8",
+              1793795455.0
+            ],
+            [
+              "uniquejobs:bc48a2090bbf599006e701038ac97853",
+              1793795465.0
+            ]
+          ],
+          "expires": false
+        },
+        "uniquejobs:fcc314b09ce0315c9022adc1382520b8": {
+          "type": "string",
+          "value": "000000000000000000000006",
+          "expires": true
+        },
+        "uniquejobs:fcc314b09ce0315c9022adc1382520b8:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000006": "1.7937954451230001e+9"
+          },
+          "expires": true
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/products/_search",
+          "query": "_source=false&scroll=1m&size=5000&sort=_doc",
+          "body": "{\"query\":{\"match_all\":{}}}"
+        },
+        {
+          "method": "GET",
+          "path": "/_search/scroll/scroll-1",
+          "query": "scroll=1m",
+          "body": null
+        },
+        {
+          "method": "GET",
+          "path": "/_search/scroll/scroll-2",
+          "query": "scroll=1m",
+          "body": null
+        },
+        {
+          "method": "GET",
+          "path": "/_search/scroll/scroll-3",
+          "query": "scroll=1m",
+          "body": null
+        },
+        {
+          "method": "DELETE",
+          "path": "/_search/scroll/scroll-4",
+          "query": null,
+          "body": null
+        }
+      ],
+      "job": "BackfillPriceCheckerIndexFieldsJob",
+      "args": [],
+      "es_bodies": [
+        {
+          "_scroll_id": "scroll-1",
+          "hits": {
+            "hits": [
+              {
+                "_id": "1"
+              },
+              {
+                "_id": "2"
+              }
+            ]
+          }
+        },
+        {
+          "_scroll_id": "scroll-2",
+          "hits": {
+            "hits": [
+              {
+                "_id": "3"
+              },
+              {
+                "_id": "4"
+              }
+            ]
+          }
+        },
+        {
+          "_scroll_id": "scroll-3",
+          "hits": {
+            "hits": [
+              {
+                "_id": "5"
+              }
+            ]
+          }
+        },
+        {
+          "_scroll_id": "scroll-4",
+          "hits": {
+            "hits": []
+          }
+        }
+      ]
+    },
+    {
+      "name": "ids that are not plain integers",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":10,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executing\",\"on_conflict\":\"mark_for_trailing_run\",\"lock_ttl\":600,\"class\":\"SendToElasticsearchWorker\",\"args\":[-3,\"update\",[\"price_currency_type\",\"customizable_price\",\"native_type\"]],\"jid\":\"000000000000000000000005\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[-3,\"update\",[\"price_currency_type\",\"customizable_price\",\"native_type\"]],\"lock_digest\":\"uniquejobs:0bf21885a7cd68103ea55c7dc53ca458\"}",
+              1793795445.0
+            ],
+            [
+              "{\"retry\":10,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executing\",\"on_conflict\":\"mark_for_trailing_run\",\"lock_ttl\":600,\"class\":\"SendToElasticsearchWorker\",\"args\":[0,\"update\",[\"price_currency_type\",\"customizable_price\",\"native_type\"]],\"jid\":\"000000000000000000000003\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[0,\"update\",[\"price_currency_type\",\"customizable_price\",\"native_type\"]],\"lock_digest\":\"uniquejobs:644755074beee73658a4def2545f0cd3\"}",
+              1793795445.0
+            ],
+            [
+              "{\"retry\":10,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executing\",\"on_conflict\":\"mark_for_trailing_run\",\"lock_ttl\":600,\"class\":\"SendToElasticsearchWorker\",\"args\":[12,\"update\",[\"price_currency_type\",\"customizable_price\",\"native_type\"]],\"jid\":\"000000000000000000000002\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[12,\"update\",[\"price_currency_type\",\"customizable_price\",\"native_type\"]],\"lock_digest\":\"uniquejobs:78ff50a40400063dba03e6a4b3e4937f\"}",
+              1793795445.0
+            ],
+            [
+              "{\"retry\":10,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executing\",\"on_conflict\":\"mark_for_trailing_run\",\"lock_ttl\":600,\"class\":\"SendToElasticsearchWorker\",\"args\":[7,\"update\",[\"price_currency_type\",\"customizable_price\",\"native_type\"]],\"jid\":\"000000000000000000000004\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[7,\"update\",[\"price_currency_type\",\"customizable_price\",\"native_type\"]],\"lock_digest\":\"uniquejobs:06d814969a43945d671446dc17ebb4b9\"}",
+              1793795445.0
+            ]
+          ],
+          "expires": false
+        },
+        "send_to_elasticsearch_worker:trailing:23bd873e1ef7f440bacd8b7ce07edc88d95b1930": {
+          "type": "string",
+          "value": "1",
+          "expires": true
+        },
+        "uniquejobs:06d814969a43945d671446dc17ebb4b9": {
+          "type": "string",
+          "value": "000000000000000000000004",
+          "expires": true
+        },
+        "uniquejobs:06d814969a43945d671446dc17ebb4b9:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000004": "1.7937954451230001e+9"
+          },
+          "expires": true
+        },
+        "uniquejobs:0bf21885a7cd68103ea55c7dc53ca458": {
+          "type": "string",
+          "value": "000000000000000000000005",
+          "expires": true
+        },
+        "uniquejobs:0bf21885a7cd68103ea55c7dc53ca458:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000005": "1.7937954451230001e+9"
+          },
+          "expires": true
+        },
+        "uniquejobs:644755074beee73658a4def2545f0cd3": {
+          "type": "string",
+          "value": "000000000000000000000003",
+          "expires": true
+        },
+        "uniquejobs:644755074beee73658a4def2545f0cd3:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000003": "1.7937954451230001e+9"
+          },
+          "expires": true
+        },
+        "uniquejobs:78ff50a40400063dba03e6a4b3e4937f": {
+          "type": "string",
+          "value": "000000000000000000000002",
+          "expires": true
+        },
+        "uniquejobs:78ff50a40400063dba03e6a4b3e4937f:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000002": "1.7937954451230001e+9"
+          },
+          "expires": true
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "count": 9,
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:06d814969a43945d671446dc17ebb4b9",
+              1793795445.0
+            ],
+            [
+              "uniquejobs:0bf21885a7cd68103ea55c7dc53ca458",
+              1793795445.0
+            ],
+            [
+              "uniquejobs:644755074beee73658a4def2545f0cd3",
+              1793795445.0
+            ],
+            [
+              "uniquejobs:78ff50a40400063dba03e6a4b3e4937f",
+              1793795445.0
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/products/_search",
+          "query": "_source=false&scroll=1m&size=5000&sort=_doc",
+          "body": "{\"query\":{\"match_all\":{}}}"
+        },
+        {
+          "method": "GET",
+          "path": "/_search/scroll/scroll-1",
+          "query": "scroll=1m",
+          "body": null
+        },
+        {
+          "method": "DELETE",
+          "path": "/_search/scroll/scroll-1",
+          "query": null,
+          "body": null
+        }
+      ],
+      "job": "BackfillPriceCheckerIndexFieldsJob",
+      "args": [],
+      "es_bodies": [
+        {
+          "_scroll_id": "scroll-1",
+          "hits": {
+            "hits": [
+              {
+                "_id": "12abc"
+              },
+              {
+                "_id": "x"
+              },
+              {
+                "_id": " 7"
+              },
+              {
+                "_id": "-3"
+              },
+              {
+                "_id": ""
+              }
+            ]
+          }
+        },
+        {
+          "_scroll_id": "scroll-1",
+          "hits": {
+            "hits": []
+          }
+        }
+      ]
+    },
+    {
+      "name": "an answer without hits",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/products/_search",
+          "query": "_source=false&scroll=1m&size=5000&sort=_doc",
+          "body": "{\"query\":{\"match_all\":{}}}"
+        },
+        {
+          "method": "DELETE",
+          "path": "/_search/scroll/scroll-1",
+          "query": null,
+          "body": null
+        }
+      ],
+      "job": "BackfillPriceCheckerIndexFieldsJob",
+      "args": [],
+      "es_bodies": [
+        {
+          "_scroll_id": "scroll-1"
+        }
+      ]
+    },
+    {
+      "name": "an answer with null hits",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/products/_search",
+          "query": "_source=false&scroll=1m&size=5000&sort=_doc",
+          "body": "{\"query\":{\"match_all\":{}}}"
+        },
+        {
+          "method": "DELETE",
+          "path": "/_search/scroll/scroll-1",
+          "query": null,
+          "body": null
+        }
+      ],
+      "job": "BackfillPriceCheckerIndexFieldsJob",
+      "args": [],
+      "es_bodies": [
+        {
+          "_scroll_id": "scroll-1",
+          "hits": {
+            "hits": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "an answer without a scroll id",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":10,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executing\",\"on_conflict\":\"mark_for_trailing_run\",\"lock_ttl\":600,\"class\":\"SendToElasticsearchWorker\",\"args\":[1,\"update\",[\"price_currency_type\",\"customizable_price\",\"native_type\"]],\"jid\":\"000000000000000000000002\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1,\"update\",[\"price_currency_type\",\"customizable_price\",\"native_type\"]],\"lock_digest\":\"uniquejobs:a06d205e7380f93e01645602329287c0\"}",
+              1793795445.0
+            ]
+          ],
+          "expires": false
+        },
+        "uniquejobs:a06d205e7380f93e01645602329287c0": {
+          "type": "string",
+          "value": "000000000000000000000002",
+          "expires": true
+        },
+        "uniquejobs:a06d205e7380f93e01645602329287c0:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000002": "1.7937954451230001e+9"
+          },
+          "expires": true
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "count": 2,
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:a06d205e7380f93e01645602329287c0",
+              1793795445.0
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/products/_search",
+          "query": "_source=false&scroll=1m&size=5000&sort=_doc",
+          "body": "{\"query\":{\"match_all\":{}}}"
+        },
+        {
+          "method": "GET",
+          "path": "/_search/scroll",
+          "query": "scroll=1m",
+          "body": null
+        }
+      ],
+      "job": "BackfillPriceCheckerIndexFieldsJob",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": [
+              {
+                "_id": "1"
+              }
+            ]
+          }
+        },
+        {
+          "hits": {
+            "hits": []
+          }
+        }
+      ]
+    },
+    {
+      "name": "a scroll id that needs escaping",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":10,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executing\",\"on_conflict\":\"mark_for_trailing_run\",\"lock_ttl\":600,\"class\":\"SendToElasticsearchWorker\",\"args\":[1,\"update\",[\"price_currency_type\",\"customizable_price\",\"native_type\"]],\"jid\":\"000000000000000000000002\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1,\"update\",[\"price_currency_type\",\"customizable_price\",\"native_type\"]],\"lock_digest\":\"uniquejobs:a06d205e7380f93e01645602329287c0\"}",
+              1793795445.0
+            ]
+          ],
+          "expires": false
+        },
+        "uniquejobs:a06d205e7380f93e01645602329287c0": {
+          "type": "string",
+          "value": "000000000000000000000002",
+          "expires": true
+        },
+        "uniquejobs:a06d205e7380f93e01645602329287c0:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000002": "1.7937954451230001e+9"
+          },
+          "expires": true
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "count": 2,
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:a06d205e7380f93e01645602329287c0",
+              1793795445.0
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/products/_search",
+          "query": "_source=false&scroll=1m&size=5000&sort=_doc",
+          "body": "{\"query\":{\"match_all\":{}}}"
+        },
+        {
+          "method": "GET",
+          "path": "/_search/scroll/a%2Fb+c%2Bd",
+          "query": "scroll=1m",
+          "body": null
+        },
+        {
+          "method": "DELETE",
+          "path": "/_search/scroll/a%2Fb+c%2Bd",
+          "query": null,
+          "body": null
+        }
+      ],
+      "job": "BackfillPriceCheckerIndexFieldsJob",
+      "args": [],
+      "es_bodies": [
+        {
+          "_scroll_id": "a/b c+d",
+          "hits": {
+            "hits": [
+              {
+                "_id": "1"
+              }
+            ]
+          }
+        },
+        {
+          "_scroll_id": "a/b c+d",
+          "hits": {
+            "hits": []
+          }
+        }
+      ]
+    },
+    {
+      "name": "the same product twice in a page",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":10,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executing\",\"on_conflict\":\"mark_for_trailing_run\",\"lock_ttl\":600,\"class\":\"SendToElasticsearchWorker\",\"args\":[4,\"update\",[\"price_currency_type\",\"customizable_price\",\"native_type\"]],\"jid\":\"000000000000000000000002\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[4,\"update\",[\"price_currency_type\",\"customizable_price\",\"native_type\"]],\"lock_digest\":\"uniquejobs:fcc314b09ce0315c9022adc1382520b8\"}",
+              1793795445.0
+            ]
+          ],
+          "expires": false
+        },
+        "send_to_elasticsearch_worker:trailing:7a8a1afa7733c5972e2735e4591f37d53e98051c": {
+          "type": "string",
+          "value": "1",
+          "expires": true
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "count": 3,
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:fcc314b09ce0315c9022adc1382520b8",
+              1793795445.0
+            ]
+          ],
+          "expires": false
+        },
+        "uniquejobs:fcc314b09ce0315c9022adc1382520b8": {
+          "type": "string",
+          "value": "000000000000000000000002",
+          "expires": true
+        },
+        "uniquejobs:fcc314b09ce0315c9022adc1382520b8:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000002": "1.7937954451230001e+9"
+          },
+          "expires": true
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/products/_search",
+          "query": "_source=false&scroll=1m&size=5000&sort=_doc",
+          "body": "{\"query\":{\"match_all\":{}}}"
+        },
+        {
+          "method": "GET",
+          "path": "/_search/scroll/scroll-1",
+          "query": "scroll=1m",
+          "body": null
+        },
+        {
+          "method": "DELETE",
+          "path": "/_search/scroll/scroll-1",
+          "query": null,
+          "body": null
+        }
+      ],
+      "job": "BackfillPriceCheckerIndexFieldsJob",
+      "args": [],
+      "es_bodies": [
+        {
+          "_scroll_id": "scroll-1",
+          "hits": {
+            "hits": [
+              {
+                "_id": "4"
+              },
+              {
+                "_id": "4"
+              }
+            ]
+          }
+        },
+        {
+          "_scroll_id": "scroll-1",
+          "hits": {
+            "hits": []
+          }
+        }
+      ]
+    }
+  ]
+}

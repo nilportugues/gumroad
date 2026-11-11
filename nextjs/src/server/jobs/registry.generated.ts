@@ -285,7 +285,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "BackfillTaggingsCountOnTagsJob": {
     "file": "app/sidekiq/backfill_taggings_count_on_tags_job.rb",
