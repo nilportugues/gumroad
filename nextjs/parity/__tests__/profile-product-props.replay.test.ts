@@ -21,11 +21,8 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
-const SPECS = [
-  "profile_product_props_parity_spec",
-].filter((dir) => existsSync(path.join(FIXTURES, dir)));
-const ROUTE_FLAGS =
-  "nextjs_profile_products";
+const SPECS = ["profile_product_props_parity_spec"].filter((dir) => existsSync(path.join(FIXTURES, dir)));
+const ROUTE_FLAGS = "nextjs_profile_products";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
@@ -43,7 +40,11 @@ function redisJobs(redis: Redis): JobsChannel {
         if ((await redis.type(key)) !== "hash") continue;
         const data = await redis.hget(key, "data");
         if (data === null) continue;
-        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as { class: string; args: unknown[]; queue: string };
+        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as {
+          class: string;
+          args: unknown[];
+          queue: string;
+        };
         jobs.push({ class: item.class, args: item.args, queue: item.queue });
       }
       return jobs;
@@ -127,7 +128,9 @@ describe.skipIf(!url)("profile product props", () => {
       NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS,
       RAILS_ORIGIN: `http://127.0.0.1:${railsPort}`,
       SECRET_KEY_BASE,
-      ...(testEnv("RECAPTCHA_MONEY_SITE_KEY") ? { RECAPTCHA_MONEY_SITE_KEY: testEnv("RECAPTCHA_MONEY_SITE_KEY")! } : {}),
+      ...(testEnv("RECAPTCHA_MONEY_SITE_KEY")
+        ? { RECAPTCHA_MONEY_SITE_KEY: testEnv("RECAPTCHA_MONEY_SITE_KEY")! }
+        : {}),
       DATABASE_URL: url!,
       REDIS_HOST: redisHost,
       SIDEKIQ_REDIS_HOST: redisHost,
