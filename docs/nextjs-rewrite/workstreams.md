@@ -64,6 +64,9 @@ criteria; "state" above is what is ported and proven by replay or golden.
 
 Known gaps a branch left on purpose. Each still hands back to Rails (or throws `NotPortedError`) until closed.
 
+What is left unregistered in WS-10, WS-11 and WS-14, route by route and by class (throttled, mail, Stripe, external provider, layout page and
+so on), is in [ws10-11-14-triage.md](ws10-11-14-triage.md).
+
 Parity replays (setup in [parity-local-stack.md](parity-local-stack.md)): all 59 replay files pass (2,758 tests, 2026-11-10) and every tagged
 spec example has a fixture. What is left on the parity side is in [parity-tasks.md](parity-tasks.md):
 

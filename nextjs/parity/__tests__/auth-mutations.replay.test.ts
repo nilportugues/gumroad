@@ -111,6 +111,11 @@ const COMPARE = {
     "response.inertia.props.authenticity_token",
     "response.inertia.props._inertia_meta.2.content",
     "response.inertia.props._inertia_meta.12.value",
+    // The same values in the JSON an Inertia visit gets.
+    "response.json.props.csp_nonce",
+    "response.json.props.authenticity_token",
+    "response.json.props._inertia_meta.2.content",
+    "response.json.props._inertia_meta.12.value",
     "response.headers.cache-control",
     // Every cookie value is encrypted or signed with a random IV; the session, remember and two-factor payloads are compared decrypted.
     "response.cookies.*.value",

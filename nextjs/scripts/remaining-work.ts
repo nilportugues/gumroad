@@ -93,6 +93,9 @@ function expandEach(lines: string[]): string[] {
 
 // Routes the DSL parser cannot see because Devise, Doorkeeper and `mount` generate them. Enumerated by hand from the gems' route tables
 // and the controllers named in routes.rb; the parser reports the originating statements as "synthetic" so they cannot be missed.
+// `omniauth_providers` of the User model: Devise draws one authorize (GET and POST) and one callback (GET and POST) route per provider.
+const OMNIAUTH_PROVIDERS = ["twitter", "stripe_connect", "google_oauth2", "youtube", "instagram", "tiktok", "apple"];
+
 const SYNTHETIC: Route[] = [
   ...[
     ["GET", "/users/forgot_password/new", "user/passwords", "new"],
@@ -104,16 +107,19 @@ const SYNTHETIC: Route[] = [
     ["GET", "/users/confirmation", "confirmations", "show"],
     ["POST", "/users/confirmation", "confirmations", "create"],
     ["GET", "/users/confirmation/new", "confirmations", "new"],
-    ["GET", "/users/auth/:provider", "user/omniauth_callbacks", "passthru"],
-    ["GET", "/users/auth/:provider/callback", "user/omniauth_callbacks", "callback"],
-    ["POST", "/users/auth/:provider/callback", "user/omniauth_callbacks", "callback"],
+    ...OMNIAUTH_PROVIDERS.flatMap((provider) => [
+      ["GET", `/users/auth/${provider}`, "user/omniauth_callbacks", "passthru"],
+      ["POST", `/users/auth/${provider}`, "user/omniauth_callbacks", "passthru"],
+      ["GET", `/users/auth/${provider}/callback`, "user/omniauth_callbacks", provider],
+      ["POST", `/users/auth/${provider}/callback`, "user/omniauth_callbacks", provider],
+    ]),
     ["GET", "/oauth/authorize", "oauth/authorizations", "new"],
     ["POST", "/oauth/authorize", "oauth/authorizations", "create"],
     ["DELETE", "/oauth/authorize", "oauth/authorizations", "destroy"],
     ["POST", "/oauth/token", "oauth/tokens", "create"],
     ["POST", "/oauth/revoke", "oauth/tokens", "revoke"],
     ["POST", "/oauth/introspect", "oauth/tokens", "introspect"],
-    ["GET", "/oauth/token/info", "oauth/token_info", "show"],
+    ["GET", "/oauth/token/info", "doorkeeper/token_info", "show"],
     ["GET", "/oauth/applications", "oauth/applications", "index"],
     ["POST", "/oauth/applications", "oauth/applications", "create"],
     ["GET", "/oauth/applications/new", "oauth/applications", "new"],
@@ -275,6 +281,11 @@ const normalizeParams = (path: string) =>
     .replace(/:\w+(\([^)]*\))?/gu, ":p")
     .replace(/\/\*\w+/gu, "/*p");
 
+// Path strings that interpolate a name (`${PAGES_PATH}/:slug`, `/${client}/v1/oauth2/authorize`): a constant of the same file with a plain
+// string value is substituted, any other interpolation matches one path segment.
+const templatePatterns: RegExp[] = [];
+const INTERPOLATION = "\u0000";
+
 function sourceLiterals(): Set<string> {
   const found = new Set<string>();
   const walk = (dir: string, appDir: boolean) => {
@@ -282,8 +293,24 @@ function sourceLiterals(): Set<string> {
       const full = join(dir, name);
       if (statSync(full).isDirectory()) walk(full, appDir);
       else if ((full.endsWith(".ts") || full.endsWith(".tsx")) && !full.endsWith(".test.ts")) {
-        for (const match of readFileSync(full, "utf8").matchAll(/["'`](\/[A-Za-z0-9_:*./-]*)["'`]/gu))
+        const text = readFileSync(full, "utf8");
+        // A route key may carry the host scope Rails' constraints give it: `seller:/subscribe`.
+        for (const match of text.matchAll(/["'`](?:(?:seller|product|api|discover):)?(\/[A-Za-z0-9_:*./()[\]+=-]*)["'`]/gu))
           found.add(normalizeParams(match[1]!));
+        const constants = new Map(
+          [...text.matchAll(/^(?:export )?const (\w+) = ["'`]([^"'`$]*)["'`]/gmu)].map((match) => [match[1]!, match[2]!]),
+        );
+        for (const match of text.matchAll(/`([^`\s]*\$\{[^`\s]*)`/gu)) {
+          const resolved = match[1]!
+            .replace(/\$\{(\w+)\}/gu, (whole, name: string) => constants.get(name) ?? whole)
+            .replace(/\$\{[^}]*\}/gu, INTERPOLATION);
+          if (!resolved.startsWith("/")) continue;
+          const segments = normalizeParams(resolved).split(INTERPOLATION);
+          // `/${x}` alone would match every one-segment route.
+          if (segments.length > 1 && !segments.some((part) => /[A-Za-z0-9]/u.test(part))) continue;
+          if (segments.length === 1) found.add(segments[0]!);
+          else templatePatterns.push(new RegExp(`^${segments.map((part) => part.replace(/[.*+?^$|()[\]{}\\]/gu, "\\$&")).join("[^/]+")}$`, "u"));
+        }
       }
     }
   };
@@ -367,7 +394,7 @@ const CONTROLLER_RULES: Rule[] = [
   { match: /^(orders|checkout|customer_surcharge|braintree|paypal|stripe|offer_codes|events)\b/u, workstream: "WS-20 Checkout and orders", floor: 3 },
   { match: /^purchases\b/u, workstream: "WS-20 Checkout and orders", floor: 3 },
   { match: /^(settings\/payments|settings\/stripe|settings\/billing|settings\/beneficial_owners|settings\/guardians|payouts|balances|oauth_completions|tax_center)\b/u, workstream: "WS-23 Balances and payouts", floor: 3 },
-  { match: /^(settings|user|users|logins|signup|confirmations|two_factor_authentication|sellers|oauth)\b/u, workstream: "WS-10 Settings and account", floor: 1 },
+  { match: /^(settings|user|users|logins|signup|confirmations|two_factor_authentication|sellers|oauth|doorkeeper)\b/u, workstream: "WS-10 Settings and account", floor: 1 },
   { match: /^(help_center|gumroad_blog|home|pages|profile_sections|github_stars|favicons|robots|llms|indexnow_keys|mcp_connectors|gumclaw|embedded_javascripts|redirects|third_party_analytics|application|healthcheck|test_pings)\b/u, workstream: "WS-11 Help, pages, blog, profiles", floor: 1 },
   { match: /^(links|products|bundles|collaborators|affiliate|affiliates|global_affiliates|tags|product_|asset_previews|thumbnails|recommended_products|wishlists|reviews|product_reviews|offer_code|upsells|variant|custom_fields|cart_items_count|licenses|calls|commissions|review_videos)/u, workstream: "WS-12 Products and bundles", floor: 1 },
   { match: /^(followers|installments|posts|workflows|emails|audience|imported_customers|utm_link|affiliate_requests|communities|community)/u, workstream: "WS-13 Audience, emails, workflows", floor: 2 },
@@ -422,6 +449,7 @@ function rows(parsed: Parsed): Row[] {
       hit !== undefined &&
       ((hit.entry.redirect ?? hit.entry.redirectReplace) !== undefined ||
         literals.has(path) ||
+        templatePatterns.some((pattern) => pattern.test(path)) ||
         (hit.entry.handler !== undefined && !GENERIC_HANDLERS.has(hit.entry.handler) && new RegExp(`\\b${hit.entry.handler}\\s*:`, "u").test(serverText)));
     const status = hit === undefined ? "not registered" : served ? "native" : "hands back";
     return { ...route, status, ...classify(route) };
@@ -668,7 +696,9 @@ function build(): string {
   return out.join("\n");
 }
 
-if (import.meta.main) {
+if (import.meta.main && process.argv.includes("--rows")) {
+  for (const row of rows(parseRoutes())) console.log(JSON.stringify(row));
+} else if (import.meta.main) {
   const document = build();
   if (process.argv.includes("--stdout")) process.stdout.write(document);
   else if (process.argv.includes("--check")) {

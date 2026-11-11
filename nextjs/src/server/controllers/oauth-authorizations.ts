@@ -1,5 +1,6 @@
 // Oauth::AuthorizationsController (app/controllers/oauth/authorizations_controller.rb over Doorkeeper 5.7.1's), on /oauth/authorize and the
-// /muse, /claude, /chatgpt and /ifttt `v1/oauth2/authorize` aliases of #new.
+// /muse, /claude, /chatgpt and /ifttt `v1/oauth2/authorize` aliases of #new, the `/:alias/v1/oauth2/authorize/:code` aliases of #show and
+// Notion's `/notion/oauth2/authorize` (Oauth::Notion::AuthorizationsController: #new, with a Notion call after the sign-in check).
 //
 // Ported: a signed-out visit (redirect to /oauth/login), #create of a request Doorkeeper's PreAuthorization rejects (a redirect back to
 // the client with `error`, or a 400/401 JSON body), and #destroy (the Deny button).
@@ -7,7 +8,7 @@
 //   - every outcome of #new but the login redirect: handle_auth_errors is :render, so errors render the error page, a layout like the
 //     consent page; #destroy of a response type with no strategy renders it too;
 //   - #create of a request that passes every check, which issues a grant whose code is random;
-//   - `/oauth/authorize/:code` (#show), which renders the layout, and any dynamically registered MCP client (extra screening);
+//   - #show of a signed-in visitor, which renders the layout, and any dynamically registered MCP client (extra screening);
 //   - a value Node does not parse as Ruby would: anything but plain printable text in a parameter, a redirect URI that is not a plain
 //     http(s) URL (custom schemes, loopback hosts, queries) or a client whose registered ones are not, and `response_mode`.
 import { Prisma } from "@prisma/client";
@@ -233,7 +234,8 @@ const ownerOrLogin = (input: MutationInput): ActionResult | null =>
 function newAuthorization(input: MutationInput): ActionResult {
   const halted = ownerOrLogin(input);
   if (halted) return halted;
-  // handle_auth_errors is :render, so every other outcome of #new is an ERB view in the application layout: the consent page or the error page.
+  // handle_auth_errors is :render, so every other outcome of #new is an ERB view in the application layout: the consent page or the error
+  // page. #show renders the code page in it as well, and Notion's #new calls the Notion API first.
   throw new HandBackToRails("a page rendered in the application layout");
 }
 
@@ -291,13 +293,12 @@ async function destroyAuthorization(input: MutationInput): Promise<ActionResult>
   );
 }
 
-const NEW_PATTERNS = [
-  "/oauth/authorize",
-  ...["muse", "claude", "chatgpt", "ifttt"].map((client) => `/${client}/v1/oauth2/authorize`),
-];
+const ALIASES = ["muse", "claude", "chatgpt", "ifttt"];
+const NEW_PATTERNS = ["/oauth/authorize", "/notion/oauth2/authorize", ...ALIASES.map((client) => `/${client}/v1/oauth2/authorize`)];
+const SHOW_PATTERNS = ALIASES.map((client) => `/${client}/v1/oauth2/authorize/:code`);
 
 registerMutations(
-  ...NEW_PATTERNS.map((pattern) => ({
+  ...[...NEW_PATTERNS, ...SHOW_PATTERNS].map((pattern) => ({
     method: "GET",
     pattern,
     skipForgeryProtection: true,
