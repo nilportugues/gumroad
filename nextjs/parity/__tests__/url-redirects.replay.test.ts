@@ -234,7 +234,7 @@ describe.skipIf(!url)("url redirect delivery", () => {
 
   // The first request to a route compiles it, and the time a write is stamped with is the replay's clock plus the compile: replay one
   // fixture before the first comparison.
-  const replayOptions = (file: string, name: string) => ({
+  const replayOptions = (file: string, _name: string) => ({
     sql,
     redis: {
       reset: (entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0]) => redisSeeder(redis).reset(entries),
@@ -290,14 +290,14 @@ describe.skipIf(!url)("url redirect delivery", () => {
 
   it.each(cases)(
     "%s",
-    async (_name, file, index) => {
+    async (name, file, index) => {
       try {
         const fixture = loadFixture(file);
         // Rails and Node push in different orders across stores: both sides are compared sorted.
         const expected = fixture.exchanges[index]!;
         expected.jobs = [...(expected.jobs ?? [])].sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
-        const { file: _file, ...options } = replayOptions(file, _name);
-        if (_name.includes("hands-a-")) {
+        const { file: _file, ...options } = replayOptions(file, name);
+        if (name.includes("hands-a-")) {
           // Whatever Node cannot prove goes to Rails whole, before its first write.
           handedBack.length = 0;
           const handed = await replayFixtureExchange(fixture, index, options);

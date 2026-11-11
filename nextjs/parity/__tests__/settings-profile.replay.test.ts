@@ -183,7 +183,7 @@ describe.skipIf(!url)("settings profile save", () => {
     process.env = saved;
   });
 
-  const options = (name = "") => ({
+  const options = (_name = "") => ({
     sql,
     redis: {
       reset: async (entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0]) => {

@@ -251,14 +251,14 @@ export function preprocess(source: string, admin: string): string[] {
     line = line.replace(/^(\s*)root to: (.*)$/u, '$1get "/", to: $2');
     line = line.replace(
       /^(\s*)resources? "(\w+)"/u,
-      (_m, ws: string) =>
-        `${ws}${_m.trim().startsWith("resource ") ? "resource" : "resources"} :${/"(\w+)"/u.exec(_m)![1]}`,
+      (m, ws: string) =>
+        `${ws}${m.trim().startsWith("resource ") ? "resource" : "resources"} :${/"(\w+)"/u.exec(m)![1]}`,
     );
     // `namespace :x, path: "p"` and `scope path: "p", module: :m` keep their path in an option the parser does not read
     line = line.replace(/^(\s*)namespace :(\w+), path: "([^"]*)" do$/u, '$1scope "$3", module: "$2" do');
     line = line.replace(
       /^(\s*)scope (?!")(.*)\bpath: "([^"]*)"(.*) do$/u,
-      (m, ws: string, before: string, path: string, after: string) => {
+      (_m, ws: string, before: string, path: string, after: string) => {
         const module = /module: (?::(\w+)|"(\w+)")/u.exec(`${before}${after}`);
         return `${ws}scope "${path}"${module ? `, module: "${module[1] ?? module[2]}"` : ""} do`;
       },
