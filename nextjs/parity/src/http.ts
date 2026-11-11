@@ -46,7 +46,8 @@ export function buildRequest(request: FixtureRequest): Request {
   return new Request(url, { method: request.method, headers, body });
 }
 
-export async function captureResponse(response: Response, now: Date): Promise<CapturedResponse> {
+// `bodyNow` is the instant the body's times are measured from when the rows were seeded against another clock than the server's.
+export async function captureResponse(response: Response, now: Date, bodyNow = now): Promise<CapturedResponse> {
   const headers: Record<string, string> = {};
   response.headers.forEach((value, name) => {
     if (name !== "location" && !VOLATILE_RESPONSE_HEADERS.has(name)) headers[name] = value;
@@ -60,7 +61,7 @@ export async function captureResponse(response: Response, now: Date): Promise<Ca
   if (location) captured.location = location;
   const cookies = setCookies(response.headers.getSetCookie(), now);
   if (Object.keys(cookies).length) captured.cookies = cookies;
-  return { ...captured, ...(await responseBody(response, now)) };
+  return { ...captured, ...(await responseBody(response, bodyNow)) };
 }
 
 export function setCookies(lines: string[], now: Date): Record<string, Record<string, Json>> {

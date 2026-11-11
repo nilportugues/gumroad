@@ -96,6 +96,18 @@ async function resetAudienceIndex() {
   await es.close();
 }
 
+// These requests carry a literal instant or date (a page key, an `after` timestamp, a report range) while the rows are
+// seeded relative to the replay's clock, so drifting the response cannot line them up. The seeding clock is pinned to
+// the instant of the recording instead (the middle of what the hour-rounded `<now-Nh>` tokens allow). Only the seed
+// resolves against it: the server's cookie expiries and the rest of the response stay on the replay's clock.
+const PINNED_CLOCKS: [fragment: string, recordedAt: string][] = [
+  ["serves-the-page-after-a-page-key", "2026-11-11T01:01:59Z"],
+  ["-sale-trigger-after-a-time", "2026-11-10T21:00:00Z"],
+  ["-sale-trigger-before-a-time", "2026-11-10T21:00:00Z"],
+  ["-reports-sales-totals-", "2026-11-10T16:45:00Z"],
+  ["-reports-the-spend-of-a-buyer-in-a-date-range", "2026-11-10T16:45:00Z"],
+];
+
 const jobKey = (job: { class: string; args: unknown; queue?: string }) =>
   `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
 
@@ -258,8 +270,10 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
 
   // The tool descriptions of tools/list carry fixed example dates, which must not move with the days since the recording.
   let driftDates = true;
+  let seedClock: Date | undefined;
   const replayOptions = (random: string[] = []) => ({
     driftDates,
+    ...(seedClock ? { seedClock } : {}),
     sql,
     redis: redisSeeder(redis),
     transport: httpTransport(server.baseUrl),
@@ -281,6 +295,7 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
     "%s",
     async (name, file, index) => {
       try {
+        seedClock = undefined;
         const fixture = loadFixture(file);
         const expected = fixture.exchanges[index]!;
         expected.jobs = [...(expected.jobs ?? [])]
@@ -294,7 +309,9 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
           expect(Object.keys(handed.exchanges[0]!.actual.db ?? {})).toEqual([]);
           return;
         }
-        driftDates = !name.includes("answers-a-tools-list-call");
+        const pinned = PINNED_CLOCKS.find(([fragment]) => name.includes(fragment));
+        driftDates = !pinned && !name.includes("answers-a-tools-list-call");
+        seedClock = pinned ? new Date(pinned[1]) : undefined;
         const paginates = name.includes("paginates-with-a-page-key");
         // License#generate_serial is random: both sides mint a key of the same shape, and the response carries the one saved.
         const rotates = name.includes("-rotate-gives-");

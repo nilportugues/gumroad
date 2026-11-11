@@ -65,6 +65,9 @@ export type ReplayOptions = {
   interceptHttp?: boolean;
   // False when the replay runs on the recording's own day (a pinned clock): the recorded strings need no moving.
   driftDates?: boolean;
+  // The instant the seed's tokens resolve against, for a request that carries a literal date the rows are measured
+  // against. The request and the port still run on the replay's clock.
+  seedClock?: Date;
 };
 
 export async function replayExchange(
@@ -78,8 +81,9 @@ export async function replayExchange(
   // Whole seconds: a time in the query (a cursor) is written without fractions, so rows seeded from the same
   // token must not carry any either.
   const now = new Date(Math.floor(Date.now() / 1000) * 1000);
-  await seedDatabase(sql, exchange.seed, now);
-  await redis?.reset(exchange.redis ?? {}, exchange, now);
+  const seedNow = options.seedClock ?? now;
+  await seedDatabase(sql, exchange.seed, seedNow);
+  await redis?.reset(exchange.redis ?? {}, exchange, seedNow);
   const schema = await readSchema(sql);
   const before = await dump(sql, schema, await nonEmptyTables(sql, schema));
   await jobs?.reset();
@@ -94,7 +98,7 @@ export async function replayExchange(
   } finally {
     interceptor?.restore();
   }
-  const captured = await captureResponse(response, now);
+  const captured = await captureResponse(response, now, seedNow);
 
   const after = await dump(sql, schema, new Set([...Object.keys(before), ...(await nonEmptyTables(sql, schema))]));
   return {
