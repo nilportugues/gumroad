@@ -248,6 +248,17 @@ function invalidToken(token: AccessTokenRow | null, now: Date): Rendered {
   });
 }
 
+// Doorkeeper::TokenInfoController#show over the same bearer lookup: any token that is not accessible gets the generic invalid_token
+// response (`OAuth::InvalidTokenResponse.new`, without the revoked or expired reason). The JSON of an accessible token carries
+// `expires_in`, counted from the clock, so it stays in Rails.
+async function tokenInfo(input: MutationInput): Promise<ActionResult> {
+  assertNoSession(input);
+  const now = new Date();
+  const token = await bearerToken(input);
+  if (token === null || !accessible(token, now)) return invalidToken(null, now);
+  throw new NotPortedError("an accessible token, whose JSON counts expires_in from the clock", "doorkeeper-5.7.1/app/controllers/doorkeeper/token_info_controller.rb");
+}
+
 // OAuth::TokenIntrospection: the caller proves itself with client credentials or a bearer token of the same application.
 async function introspect(input: MutationInput): Promise<ActionResult> {
   assertNoSession(input);
@@ -307,6 +318,7 @@ registerMutations(
   ...TOKEN_PATHS.map((pattern) => ({ method: "POST", pattern, ...OPTIONS, run: createToken })),
   { method: "POST", pattern: "/oauth/revoke", ...OPTIONS, run: revoke },
   { method: "POST", pattern: "/oauth/introspect", ...OPTIONS, run: introspect },
+  { method: "GET", pattern: "/oauth/token/info", ...OPTIONS, run: tokenInfo },
 );
 
 export { clientCredentials, createToken, introspect, revoke, TOKEN_PATHS };

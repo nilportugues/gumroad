@@ -139,7 +139,7 @@ export const PAGES: Record<string, PageSpec> = {
   "/users/unsubscribe_feature_announcements/:token": {
     component: "Users/FeatureAnnouncements/Unsubscribe",
     options: FEATURE_ANNOUNCEMENT_OPTIONS,
-    props: ({ token }) => unsubscribeProps(token!),
+    props: ({ token }, action) => unsubscribeProps(token!, action.state),
   },
   "/secure_url_redirect": { component: "SecureRedirect/New", options: SECURE_REDIRECT_OPTIONS, props: (_, action) => secureRedirectPageProps(action) },
   "/help/category/:slug": {

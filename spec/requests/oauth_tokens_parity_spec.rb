@@ -523,4 +523,50 @@ describe "OAuth tokens", type: :request do
       expect(response).to have_http_status(:unauthorized)
     end
   end
+
+  describe "GET /oauth/token/info" do
+    let(:invalid_token_body) { { "error" => "invalid_token", "error_description" => "The access token is invalid", "state" => "unauthorized" } }
+
+    it "answers invalid_token when no token is sent", parity: true do
+      get "/oauth/token/info"
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(response.parsed_body).to eq(invalid_token_body)
+      expect(response.headers["WWW-Authenticate"]).to eq('Bearer realm="Doorkeeper", error="invalid_token", error_description="The access token is invalid"')
+    end
+
+    it "answers invalid_token for an unknown bearer token", parity: true do
+      get "/oauth/token/info", headers: { "Authorization" => "Bearer unknown" }
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(response.parsed_body).to eq(invalid_token_body)
+    end
+
+    it "answers invalid_token for an unknown access_token param", parity: true do
+      get "/oauth/token/info", params: { access_token: "unknown" }
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "gives a revoked token the generic invalid_token description", parity: true do
+      get "/oauth/token/info", headers: { "Authorization" => "Bearer #{access_token_for(public_app, revoked_at: 1.hour.ago).token}" }
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(response.parsed_body).to eq(invalid_token_body)
+    end
+
+    it "gives an expired token the generic invalid_token description", parity: true do
+      get "/oauth/token/info", headers: { "Authorization" => "Bearer #{access_token_for(public_app, expires_in: 60, created_at: 2.hours.ago).token}" }
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(response.parsed_body).to eq(invalid_token_body)
+    end
+
+    it "hands an accessible token to Rails", parity: true do
+      get "/oauth/token/info", headers: { "Authorization" => "Bearer #{access_token_for(public_app).token}" }
+
+      expect(response).to be_successful
+      expect(response.parsed_body).to include("resource_owner_id" => resource_owner.id, "scope" => ["view_profile"])
+    end
+  end
 end

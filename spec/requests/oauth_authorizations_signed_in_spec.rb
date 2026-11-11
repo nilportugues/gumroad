@@ -47,6 +47,27 @@ describe "OAuth authorizations", type: :request do
       expect(response).to have_http_status(:found)
       expect(response.location).to include("/oauth/login?next=%2Fclaude%2Fv1%2Foauth2%2Fauthorize%3F")
     end
+
+    it "sends the visitor of the Notion alias to the login page and back", parity: true do
+      get "/notion/oauth2/authorize", params: authorize_params(code: "notion-code")
+
+      expect(response).to have_http_status(:found)
+      expect(response.location).to include("/oauth/login?next=%2Fnotion%2Foauth2%2Fauthorize%3F")
+    end
+
+    it "sends the visitor of a connector code page to the login page and back", parity: true do
+      get "/muse/v1/oauth2/authorize/abc123"
+
+      expect(response).to have_http_status(:found)
+      expect(response.location).to eq("http://#{DOMAIN}/oauth/login?next=%2Fmuse%2Fv1%2Foauth2%2Fauthorize%2Fabc123")
+    end
+
+    it "sends the visitor of the IFTTT code page to the login page and back", parity: true do
+      get "/ifttt/v1/oauth2/authorize/abc123", params: { state: "a b" }
+
+      expect(response).to have_http_status(:found)
+      expect(response.location).to include("/oauth/login?next=%2Fifttt%2Fv1%2Foauth2%2Fauthorize%2Fabc123%3Fstate%3Da")
+    end
   end
 
   describe "GET /oauth/authorize" do
@@ -69,6 +90,19 @@ describe "OAuth authorizations", type: :request do
       get "/oauth/authorize", params: authorize_params(client_id: "unknown-client")
 
       expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "hands the code page of a signed-in visitor to Rails", parity: true do
+      get "/claude/v1/oauth2/authorize/abc123"
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "hands the Notion alias of a signed-in visitor to Rails", parity: true do
+      allow_any_instance_of(NotionApi).to receive(:get_bot_token)
+      get "/notion/oauth2/authorize", params: authorize_params
+
+      expect(response).to have_http_status(:ok)
     end
 
     it "hands the connector alias to Rails", parity: true do

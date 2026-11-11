@@ -83,7 +83,7 @@ function parseArgs(rest: string): {
   }
   const options: Record<string, string> = {};
   for (const match of trimmed.matchAll(
-    /(\w+):\s*(\[[^\]]*\]|"[^"]*"|'[^']*'|:\w+|true|false|[A-Za-z_][\w:.]*(?:\([^)]*\))?|\{[^}]*\})/gu,
+    /(\w+):\s*(\[[^\]]*\]|%[iw]\[[^\]]*\]|"[^"]*"|'[^']*'|:\w+|true|false|[A-Za-z_][\w:.]*(?:\([^)]*\))?|\{[^}]*\})/gu,
   )) {
     options[match[1]!] = match[2]!;
   }
@@ -98,6 +98,8 @@ const listOf = (value: string | undefined) =>
 
 function onlyList(value: string | undefined): string[] | undefined {
   if (value === undefined) return undefined;
+  // `%i[show update]` holds bare words, which listOf (it reads `:symbol`) would not find.
+  if (value.startsWith("%")) return value.slice(3, -1).split(/\s+/u).filter((word) => word !== "");
   return value.startsWith("[") ? listOf(value) : [stringOf(value)!];
 }
 
@@ -144,7 +146,7 @@ export function parseBlock(lines: string[], start: number, end: number, initialM
     if (frame.kind === "resources") base = frame.nestedPrefix!;
     else if (frame.kind === "member") base = frame.memberPath!;
     else if (frame.kind === "collection") base = frame.collectionPath!;
-    else if (frame.kind === "resource") base = join2(frame.path, frame.collectionPath!.split("/").pop()!);
+    else if (frame.kind === "resource") base = frame.path;
     const collectionPath = `${base}/${pathName}`;
     const memberPath = singular ? collectionPath : `${collectionPath}/:${param}`;
     const only = onlyList(options.only);
