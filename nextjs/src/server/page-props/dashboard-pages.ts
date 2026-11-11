@@ -19,7 +19,7 @@ import {
   type IndexInput,
   type Sort,
 } from "./dashboard/affiliates.ts";
-import { collaboratorsIndexProps, collaboratorsSharedProps, editCollaboratorProps, findAliveCollaborator, newCollaboratorProps } from "./dashboard/collaborators.ts";
+import { collaboratorsIndexProps, incomingCollaboratorsProps, collaboratorsSharedProps, editCollaboratorProps, findAliveCollaborator, newCollaboratorProps } from "./dashboard/collaborators.ts";
 import { rubyToI, taxCenterEnabled, taxCenterProps } from "./dashboard/tax-center.ts";
 import type { PageSpec } from "./pages.ts";
 import type { GuardInput } from "./guards.ts";
@@ -66,6 +66,16 @@ export const DASHBOARD_PAGES: Record<string, PageSpec> = {
       // Collaborators::BaseController redefines set_default_page_title.
       meta.set({ title: "Collaborators" });
       return { ...(await collaboratorsSharedProps(context.currentSeller!)), ...(await collaboratorsIndexProps(context.currentSeller!)) };
+    },
+  },
+
+  // Collaborators::IncomingsController#index
+  "/collaborators/incomings": {
+    component: "Collaborators/Incomings/Index",
+    guard: (input) => sellerGuard(input, collaboratorPolicy.index),
+    props: async (_, { context, meta }) => {
+      meta.set({ title: "Collaborators" });
+      return { ...(await collaboratorsSharedProps(context.currentSeller!)), ...(await incomingCollaboratorsProps(context.currentSeller!)) };
     },
   },
 

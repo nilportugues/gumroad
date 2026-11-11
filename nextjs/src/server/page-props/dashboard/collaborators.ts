@@ -1,11 +1,15 @@
-// CollaboratorsPresenter#index_props and CollaboratorPresenter#inertia_shared_props.
+// CollaboratorsPresenter#index_props, IncomingCollaboratorsPresenter#index_props and CollaboratorPresenter#inertia_shared_props.
 import { Prisma, type User } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
 import { encrypt as externalId } from "../../../lib/obfuscate-ids.ts";
 import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
-import { column, selectRows, table } from "../../models/sql.ts";
+import { column, columnIn, selectRows, table } from "../../models/sql.ts";
+import type { LinkRow, UserRow } from "../../presenters/product-reads.ts";
+import { longUrl } from "../../presenters/product.ts";
+import { NotPortedError } from "../not-ported.ts";
 import { avatarUrl, displayName } from "../signed-in/presenters.ts";
+
 import { hasBrazilianStripeConnectAccount, hasValidPayoutInfo } from "./payout-info.ts";
 
 export const DEFAULT_PERCENT_COMMISSION = 50;
@@ -51,6 +55,11 @@ async function invitedCollaboratorIds(ids: number[]): Promise<Set<number>> {
   return new Set(rows.map((row) => Number(row.collaborator_id)));
 }
 
+// `collaborator.collaborator_invitation.present?`
+export async function hasCollaboratorInvitation(collaboratorId: number): Promise<boolean> {
+  return (await invitedCollaboratorIds([collaboratorId])).has(collaboratorId);
+}
+
 async function productAffiliates(ids: number[]): Promise<ProductAffiliateRow[]> {
   if (ids.length === 0) return [];
   const pa = (name: string) => column("affiliates_links", name);
@@ -89,6 +98,66 @@ export async function collaboratorsIndexProps(seller: User): Promise<Record<stri
     });
   }
   return { collaborators: props, has_incoming_collaborators: await hasIncomingCollaborators(seller.id) };
+}
+
+type IncomingRow = CollaboratorRow & { seller_id: number; has_invitation: number | bigint | boolean };
+
+// IncomingCollaboratorsPresenter#index_props: the collaborations the seller was invited to, pending invitations first.
+export async function incomingCollaboratorsProps(seller: User): Promise<Record<string, unknown>> {
+  const a = (name: string) => column("affiliates", name);
+  const invitationId = column("collaborator_invitations", "id");
+  const rows = await selectRows<IncomingRow>(
+    Prisma.sql`SELECT ${a("id")}, ${a("seller_id")}, ${a("affiliate_user_id")}, ${a("affiliate_basis_points")}, ${a("flags")}, (${invitationId} IS NOT NULL) AS has_invitation FROM ${table("affiliates")} LEFT JOIN ${table("collaborator_invitations")} ON ${column("collaborator_invitations", "collaborator_id")} = ${a("id")} WHERE ${a("affiliate_user_id")} = ${seller.id} AND ${a("type")} = 'Collaborator' AND ${a("deleted_at")} IS NULL ORDER BY CASE WHEN ${invitationId} IS NULL THEN 1 ELSE 0 END, ${a("id")} ASC`,
+  );
+  const ids = rows.map((row) => row.id);
+  const assignments = ids.length === 0 ? [] : await incomingProductAffiliates(ids);
+  const links = new Map<bigint, LinkRow>();
+  if (assignments.length > 0) {
+    const found = await selectRows<LinkRow>(
+      Prisma.sql`SELECT ${Prisma.raw("`links`.*")} FROM ${table("links")} WHERE ${columnIn("links", "id", [...new Set(assignments.map((assignment) => assignment.link_id))])}`,
+    );
+    for (const link of found) links.set(BigInt(link.id), link);
+  }
+  const userIds = [...new Set([...rows.map((row) => BigInt(row.seller_id)), ...[...links.values()].map((link) => BigInt(link.user_id!))])];
+  const users = new Map((await db.user.findMany({ where: { id: { in: userIds } } })).map((user) => [user.id, user]));
+
+  const collaborators: Record<string, unknown>[] = [];
+  for (const row of rows) {
+    const owner = users.get(BigInt(row.seller_id))!;
+    const own = percentage(row.affiliate_basis_points);
+    collaborators.push({
+      percent_commission: own ?? DEFAULT_PERCENT_COMMISSION,
+      apply_to_all_products: (row.flags & APPLY_TO_ALL_PRODUCTS_FLAG) !== 0,
+      dont_show_as_co_creator: (row.flags & DONT_SHOW_AS_CO_CREATOR_FLAG) !== 0,
+      id: externalId(row.id),
+      invitation_accepted: Number(row.has_invitation) === 0,
+      products: assignments
+        .filter((assignment) => assignment.affiliate_id === row.id)
+        .map((assignment) => {
+          const link = links.get(BigInt(assignment.link_id));
+          // Rails raises on a product row that is gone.
+          if (link === undefined) throw new NotPortedError("An incoming collaboration on a product that no longer exists");
+          const commission = percentage(assignment.affiliate_basis_points) ?? own;
+          return {
+            id: externalId(link.id),
+            name: link.name,
+            ...(commission === null ? {} : { percent_commission: commission }),
+            url: longUrl(link, users.get(BigInt(link.user_id!)) as unknown as UserRow),
+          };
+        }),
+      seller_avatar_url: await avatarUrl(owner),
+      seller_email: owner.email,
+      seller_name: displayName(owner, { preferEmailOverDefaultUsername: true }),
+    });
+  }
+  return { collaborators };
+}
+
+async function incomingProductAffiliates(ids: number[]) {
+  const pa = (name: string) => column("affiliates_links", name);
+  return selectRows<{ affiliate_id: number; affiliate_basis_points: number | null; link_id: bigint }>(
+    Prisma.sql`SELECT ${pa("affiliate_id")}, ${pa("affiliate_basis_points")}, ${pa("link_id")} FROM ${table("affiliates_links")} WHERE ${pa("affiliate_id")} IN (${Prisma.join(ids)}) ORDER BY ${pa("id")} ASC`,
+  );
 }
 
 // CollaboratorPresenter#inertia_shared_props
