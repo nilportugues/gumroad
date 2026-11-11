@@ -19,11 +19,12 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 
 // Replays the checkout form settings page and its update (WS-20f, spec/requests/checkout_form_signed_in_spec.rb), with the same method as dashboard-json.replay.test.ts: each fixture is a login,
 // a CSRF fetch and the request under test, and only the last is replayed against `next dev` with the route flags on. A request the
-// port hands back must reach the stand-in Rails with its body, before anything is written.
+// port hands back must reach the stand-in Rails with its body, before anything is written. PayPal is a stand-in too
+// (OUTBOUND_HTTP_STAND_IN): it answers the calls recorded in the fixture, and Node must have made the same ones, in order.
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
-const SPECS = ["checkout_form_signed_in_spec"];
+const SPECS = ["checkout_form_signed_in_spec", "checkout_form_paypal_connect_parity_spec"];
 const ROUTE_FLAGS = ["nextjs_checkout_form", "nextjs_checkout_form_writes"].join(",");
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
@@ -127,6 +128,9 @@ describe.skipIf(!url)("checkout form", () => {
   let es: ElasticsearchClient;
   let server: NextServer;
   let rails: Server;
+  let standIn: Server;
+  const recordedHttp: { response?: { status?: number; contentType?: string; body?: string } }[] = [];
+  const received: { method: string; url: string; body: string }[] = [];
   const handedBack: { method: string; url: string; body: string }[] = [];
   const saved = { ...process.env };
 
@@ -154,7 +158,26 @@ describe.skipIf(!url)("checkout form", () => {
     });
     await new Promise<void>((resolve) => rails.listen(0, "127.0.0.1", resolve));
     const railsPort = (rails.address() as { port: number }).port;
+    standIn = createServer((request, response) => {
+      const chunks: Buffer[] = [];
+      request.on("data", (chunk: Buffer) => chunks.push(chunk));
+      request.on("end", () => {
+        received.push({
+          method: request.method ?? "",
+          url: String(request.headers["x-parity-original-url"] ?? request.url),
+          body: Buffer.concat(chunks).toString("utf8"),
+        });
+        const answer = recordedHttp.shift()?.response;
+        if (answer === undefined) return void response.writeHead(599).end("parity: no recorded answer left");
+        response.writeHead(answer.status ?? 200, answer.contentType ? { "content-type": answer.contentType } : {});
+        response.end(answer.body ?? "");
+      });
+    });
+    await new Promise<void>((resolve) => standIn.listen(0, "127.0.0.1", resolve));
     server = await startNextServer({
+      OUTBOUND_HTTP_STAND_IN: `http://127.0.0.1:${(standIn.address() as { port: number }).port}`,
+      PAYPAL_PARTNER_MERCHANT_ID: testEnv("PAYPAL_PARTNER_MERCHANT_ID") ?? "",
+      PAYPAL_PARTNER_CLIENT_ID: testEnv("PAYPAL_PARTNER_CLIENT_ID") ?? "",
       RAILS_ENV: "test",
       OBFUSCATE_IDS_CIPHER_KEY: testEnv("OBFUSCATE_IDS_CIPHER_KEY") ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
@@ -179,6 +202,7 @@ describe.skipIf(!url)("checkout form", () => {
   afterAll(async () => {
     await server?.stop();
     await new Promise((resolve) => rails?.close(resolve));
+    await new Promise((resolve) => standIn?.close(resolve));
     await closeAllRedis();
     await redis?.quit();
     await es?.close();
@@ -234,6 +258,8 @@ describe.skipIf(!url)("checkout form", () => {
         const fixture = loadFixture(file);
         const recorded = fixture.exchanges[index]!;
         recorded.jobs = [...(recorded.jobs ?? [])].sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
+        recordedHttp.splice(0, recordedHttp.length, ...(recorded.http ?? []));
+        received.length = 0;
         if (HANDED_BACK.test(name)) {
           handedBack.length = 0;
           const handed = await replayFixtureExchange(fixture, index, options(name));
@@ -252,6 +278,10 @@ describe.skipIf(!url)("checkout form", () => {
         }
         const result = await replayFixtureExchange(fixture, index, options(name));
         assertParity(result);
+        // The port called PayPal as Rails did: the same method, URL and body, in the same order.
+        expect(received).toEqual(
+          (recorded.http ?? []).map((call) => ({ method: call.method, url: call.url, body: call.body ?? "" })),
+        );
         const { expected, actual } = result.exchanges[0]!;
         // Next.js owns Vary on the pages it renders.
         if (fixture.exchanges[index]!.request.method !== "GET")

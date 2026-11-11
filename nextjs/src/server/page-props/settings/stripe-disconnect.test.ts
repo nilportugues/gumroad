@@ -8,7 +8,7 @@ vi.mock("../../models/sql.ts", async (importOriginal) => ({
 }));
 
 import { balanceToForfeitCents } from "./payments.ts";
-import { stripeDisconnectAllowed } from "./stripe-disconnect.ts";
+import { activePreorders, activeSubscribers, stripeDisconnectAllowed } from "./stripe-disconnect.ts";
 
 const text = (call: number) => (selectRows.mock.calls[call]![0] as Prisma.Sql).sql;
 
@@ -49,6 +49,18 @@ describe("stripeDisconnectAllowed", () => {
     await stripeDisconnectAllowed(7, 9);
     for (const [sql] of selectRows.mock.calls as [Prisma.Sql][]) {
       expect(sql.values).toEqual(expect.arrayContaining([7, 9, "stripe"]));
+    }
+  });
+});
+
+describe("activeSubscribers and activePreorders for another processor", () => {
+  it("filter on the processor and, with no merchant account, not on the account", async () => {
+    selectRows.mockResolvedValue([]);
+    expect(await activeSubscribers(7, "paypal")).toBe(false);
+    expect(await activePreorders(7, "paypal")).toBe(false);
+    for (const [sql] of selectRows.mock.calls as [Prisma.Sql][]) {
+      expect(sql.values).toEqual(expect.arrayContaining([7, "paypal"]));
+      expect(sql.sql).not.toContain("merchant_account_id");
     }
   });
 });
