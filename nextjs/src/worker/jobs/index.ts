@@ -143,6 +143,7 @@ import {
   setSubscriptionAsDeactivatedWorker,
   unsubscribeAndFailWorker,
 } from "./subscription-write-jobs.ts";
+import { subtitleFileSizeWorker } from "./subtitle-file-size-worker.ts";
 import { suspendAccountsWithPaymentAddressWorker, suspendUsersWorker } from "./suspend-jobs.ts";
 import { syncStripeBusinessProfileUrlWorker } from "./sync-stripe-business-profile-url-worker.ts";
 import type { JobHandler } from "./types.ts";
@@ -277,6 +278,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   UpdateTaxonomyStatsJob: updateTaxonomyStatsJob,
   CalculateSaleNumbersWorker: calculateSaleNumbersWorker,
   SellerUpdateWorker: sellerUpdateWorker,
+  SubtitleFileSizeWorker: subtitleFileSizeWorker,
   CalculatePayoutNumbersWorker: calculatePayoutNumbersWorker,
   "Radar::AddValueListItemJob": radarAddValueListItemJob,
   "Radar::RemoveValueListItemJob": radarRemoveValueListItemJob,

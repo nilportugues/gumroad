@@ -3317,7 +3317,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SuspendAccountsWithPaymentAddressWorker": {
     "file": "app/sidekiq/suspend_accounts_with_payment_address_worker.rb",
