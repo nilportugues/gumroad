@@ -4,7 +4,8 @@ require "spec_helper"
 
 # Checkout::Upsells::ProductsController (GET /checkout/upsells/products and /products/:id), recorded for the Next.js port
 # (PARITY_RECORD=1) and replayed by nextjs/parity/__tests__/ws20u.replay.test.ts, which sends the last request of each example. A product
-# with an uploaded thumbnail goes through Active Storage variants, so that example records what Node hands back.
+# with an uploaded thumbnail answers the file's own URL when Active Storage cannot transform it (the example below); the processed variants
+# are recorded in checkout_form_uploaded_images_parity_spec.rb.
 describe "Checkout upsell products", type: :request do
   include Parity::AudienceSignedIn
 
@@ -19,11 +20,12 @@ describe "Checkout upsell products", type: :request do
 
   def products_json = response.parsed_body
 
-  # The factory's PNG cannot be written into a fixture; any attached file sends Node back to Rails.
+  # A text file, so Active Storage cannot make a variant of it and no image is uploaded during the request.
   def attach_text_thumbnail(product)
     thumbnail = Thumbnail.new(product:)
     thumbnail.file.attach(io: StringIO.new("not an image"), filename: "thumbnail.txt", content_type: "text/plain")
     thumbnail.save!(validate: false)
+    thumbnail
   end
 
   describe "index" do
@@ -95,12 +97,14 @@ describe "Checkout upsell products", type: :request do
         expect(products_json.first["thumbnail_url"]).to eq("https://images.example.com/photo.png")
       end
 
-      it "hands a product with an uploaded thumbnail to Rails", parity: true do
-        attach_text_thumbnail(make_product("Pictured"))
+      it "links the file itself for an uploaded thumbnail that cannot be transformed", parity: true do
+        product = make_product("Pictured")
+        thumbnail = attach_text_thumbnail(product)
 
         get checkout_upsells_products_path, headers: accept_json
 
         expect(response).to have_http_status(:ok)
+        expect(products_json.first["thumbnail_url"]).to eq(thumbnail.url)
       end
 
       it "caps the list at 25 products", parity: true do
@@ -218,13 +222,14 @@ describe "Checkout upsell products", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "hands a product with an uploaded thumbnail to Rails", parity: true do
+    it "links the file itself for an uploaded thumbnail that cannot be transformed", parity: true do
       product = make_product("Pictured")
-      attach_text_thumbnail(product)
+      thumbnail = attach_text_thumbnail(product)
 
       get checkout_upsells_product_path(product.external_id), headers: accept_json
 
       expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["thumbnail_url"]).to eq(thumbnail.url)
     end
   end
 end

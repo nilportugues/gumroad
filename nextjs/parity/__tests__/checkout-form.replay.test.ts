@@ -28,6 +28,7 @@ const SPECS = [
   "checkout_form_signed_in_spec",
   "checkout_form_paypal_connect_parity_spec",
   "checkout_form_custom_fields_parity_spec",
+  "checkout_form_uploaded_images_parity_spec",
 ];
 const ROUTE_FLAGS = ["nextjs_checkout_form", "nextjs_checkout_form_writes"].join(",");
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
@@ -65,6 +66,11 @@ const COMPARE = {
     "jobs.*.at",
   ],
 };
+
+// Calls to the object store (an Active Storage existence check) are made by the AWS client, which reaches the local store itself.
+const objectStore = process.env.AWS_S3_ENDPOINT ?? "http://localhost:9010";
+const railsHttp = (exchange: { http?: { url: string; method: string; body?: string | null }[] }) =>
+  (exchange.http ?? []).filter((call) => !call.url.startsWith(objectStore));
 
 const NEXT_VARY = /(?:rsc|next-router-state-tree|next-router-prefetch|next-router-segment-prefetch)(?:, )?/gu;
 const withoutNextVary = (vary: unknown) => (typeof vary === "string" ? vary.replace(NEXT_VARY, "") : vary);
@@ -262,7 +268,7 @@ describe.skipIf(!url)("checkout form", () => {
         const fixture = loadFixture(file);
         const recorded = fixture.exchanges[index]!;
         recorded.jobs = [...(recorded.jobs ?? [])].sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
-        recordedHttp.splice(0, recordedHttp.length, ...(recorded.http ?? []));
+        recordedHttp.splice(0, recordedHttp.length, ...railsHttp(recorded));
         received.length = 0;
         if (HANDED_BACK.test(name)) {
           handedBack.length = 0;
@@ -284,7 +290,7 @@ describe.skipIf(!url)("checkout form", () => {
         assertParity(result);
         // The port called PayPal as Rails did: the same method, URL and body, in the same order.
         expect(received).toEqual(
-          (recorded.http ?? []).map((call) => ({ method: call.method, url: call.url, body: call.body ?? "" })),
+          railsHttp(recorded).map((call) => ({ method: call.method, url: call.url, body: call.body ?? "" })),
         );
         const { expected, actual } = result.exchanges[0]!;
         // Next.js owns Vary on the pages it renders.

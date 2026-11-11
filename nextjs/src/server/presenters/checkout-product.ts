@@ -3,8 +3,8 @@
 //
 // What Rails derives from the Stripe/PayPal lanes, a signed URL, a random token or a variant of the product this port does not read
 // throws NotPortedError, so the caller hands the request back before anything is sent: the restart token of a membership,
-// PPP, a seller with a merchant account, an uploaded thumbnail or avatar, and a
-// seller on buyer-local currency.
+// PPP, a thumbnail or avatar variant Rails has not processed yet, custom fields linked against their ids, and a seller on
+// buyer-local currency.
 import { Prisma, type User } from "@prisma/client";
 
 import { decrypt, encrypt as externalId } from "../../lib/obfuscate-ids.ts";
