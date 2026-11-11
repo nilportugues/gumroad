@@ -86,7 +86,7 @@ export function nameDisplayable(file: ProductFile, fields: S3Fields | null): str
 }
 
 // ProductFile#display_extension
-function displayExtension(file: ProductFile, fields: S3Fields | null): string {
+export function displayExtension(file: ProductFile, fields: S3Fields | null): string {
   if (isExternalLink(file)) return "URL";
   const s3Extension = fields === null || fields.extension === "" ? "" : fields.extension.slice(1).toUpperCase();
   return s3Extension !== "" ? s3Extension : (file.filetype ?? "").toUpperCase();
