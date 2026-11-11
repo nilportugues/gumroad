@@ -107,7 +107,7 @@ describe("CalculateSaleNumbersWorker", () => {
       const body: JsonValue = {
         aggregations: { total_made: { value: total as JsonValue }, number_of_creators: { value: 5 } },
       };
-      const base = golden.cases[0];
+      const base = golden.cases[0]!;
       const { es, error, fake } = await run({ ...base, es_bodies: [body], statements: [] });
 
       expect(error?.name).toBe("HandBackToRuby");
