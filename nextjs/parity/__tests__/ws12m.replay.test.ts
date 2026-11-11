@@ -12,6 +12,7 @@ import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
+import { withoutRailsOnly } from "../src/rails-only";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
 
@@ -100,7 +101,7 @@ const COMPARE = {
   ],
 };
 
-const cases = SPECS.flatMap((spec) => {
+const allCases = SPECS.flatMap((spec) => {
   const dir = path.join(FIXTURES, spec);
   return readdirSync(dir)
     .filter((file) => file.endsWith(".json"))
@@ -110,14 +111,20 @@ const cases = SPECS.flatMap((spec) => {
         `${spec.replace(/_spec$/, "")}: ${file.replace(/\.json$/, "")}`,
         path.join(dir, file),
         fixture.exchanges.length - 1,
-        fixture.exchanges.at(-1)!.request.method,
+        fixture.exchanges.at(-1)!.request,
       ] as const;
     });
   // The first request to /gr-mutation compiles it, which takes seconds and would push a write's `<now>` timestamps out of the replay's
   // window. GETs write nothing, so they go first.
 })
-  .sort((a, b) => Number(b[3] === "GET") - Number(a[3] === "GET"))
-  .map(([name, file, index]) => [name, file, index] as const);
+  .sort((a, b) => Number(b[3].method === "GET") - Number(a[3].method === "GET"))
+  .map(([name, file, index, request]) => [name, file, index, request] as const);
+
+// Execute is throttled, so Rails serves it whole: the hand-back examples stay (they prove the request reaches the Rails stand-in), the
+// recorded 404 and 422 answers have nothing to compare.
+const cases = withoutRailsOnly(allCases, ([name, , , request]) => (/hands-an?-/u.test(name) ? {} : request)).map(
+  ([name, file, index]) => [name, file, index] as const,
+);
 
 describe.skipIf(!url)("WS-12m parity", () => {
   let client: PrismaClient;
