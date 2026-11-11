@@ -15,7 +15,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 
 | Namespace | Routes | Native | Hands back | Not registered | Unresolved |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 101 | 0 | 37 | 0 |
+| API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 105 | 0 | 33 | 0 |
 | Mobile API (`/mobile` on the API host) | 64 | 50 | 0 | 14 | 0 |
 | Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 41 | 4 | 37 | 3 |
 | Internal API, Gumroad domain (`/internal`, JSON for the React Router pages) | 23 | 11 | 0 | 12 | 0 |
@@ -87,11 +87,11 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `PUT /v2/products/:link_id/variant_categories/:id` | `Api::V2::VariantCategoriesController#update` | native | `nextjs_api_v2_products` | y |
 | `DELETE /v2/products/:link_id/variant_categories/:id` | `Api::V2::VariantCategoriesController#destroy` | native | `nextjs_api_v2_products` | y |
 | `GET /v2/products/:link_id/variant_categories/:variant_category_id/variants` | `Api::V2::VariantsController#index` | native | `nextjs_api_v2_products` | y |
-| `POST /v2/products/:link_id/variant_categories/:variant_category_id/variants` | `Api::V2::VariantsController#create` | not registered | - | n |
+| `POST /v2/products/:link_id/variant_categories/:variant_category_id/variants` | `Api::V2::VariantsController#create` | native | `nextjs_api_v2_products` | y |
 | `GET /v2/products/:link_id/variant_categories/:variant_category_id/variants/:id` | `Api::V2::VariantsController#show` | native | `nextjs_api_v2_products` | y |
-| `PATCH /v2/products/:link_id/variant_categories/:variant_category_id/variants/:id` | `Api::V2::VariantsController#update` | not registered | - | n |
-| `PUT /v2/products/:link_id/variant_categories/:variant_category_id/variants/:id` | `Api::V2::VariantsController#update` | not registered | - | n |
-| `DELETE /v2/products/:link_id/variant_categories/:variant_category_id/variants/:id` | `Api::V2::VariantsController#destroy` | not registered | - | n |
+| `PATCH /v2/products/:link_id/variant_categories/:variant_category_id/variants/:id` | `Api::V2::VariantsController#update` | native | `nextjs_api_v2_products` | y |
+| `PUT /v2/products/:link_id/variant_categories/:variant_category_id/variants/:id` | `Api::V2::VariantsController#update` | native | `nextjs_api_v2_products` | y |
+| `DELETE /v2/products/:link_id/variant_categories/:variant_category_id/variants/:id` | `Api::V2::VariantsController#destroy` | native | `nextjs_api_v2_products` | y |
 | `GET /v2/products/:link_id/skus` | `Api::V2::SkusController#index` | native | `nextjs_api_v2_products` | y |
 | `GET /v2/products/:link_id/subscribers` | `Api::V2::SubscribersController#index` | native | `nextjs_api_v2_subscribers` | y |
 | `GET /v2/products/:link_id/builds` | `Api::V2::ProductBuildsController#index` | native | `nextjs_api_v2_products` | y |

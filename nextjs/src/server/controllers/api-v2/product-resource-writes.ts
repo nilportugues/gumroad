@@ -8,7 +8,7 @@ import { invalidateProductCache } from "../../models/link.ts";
 import { recordVariantCategoryDeletion, requestIdOf } from "../../models/product-variant-deletion-audit.ts";
 import { NotPortedError } from "../../page-props/not-ported.ts";
 import { type ApiV2Input, EDIT_PRODUCTS_SCOPES, errorWithCreatingObject, errorWithObject, loadProduct, registerApiV2, successWithObject } from "./base.ts";
-import { findVariantCategory, productCustomFields } from "./product-resources.ts";
+import { findVariantCategory, loadVariant, loadVariantCategory, productCustomFields } from "./product-resources.ts";
 import { customFieldJson, externalId, variantCategoryJson } from "./records.ts";
 
 const productOf = (input: ApiV2Input): Link => input.state.product;
@@ -212,3 +212,30 @@ async function updateVariantCategory(input: ApiV2Input) {
   await invalidateProductCache(link.id);
   return successWithObject("variant_category", variantCategoryJson({ ...category, title: given ? title : category.title }));
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Api::V2::VariantsController#create, #update and #destroy
+//
+// Served: the before_actions (token scope, product, category and version lookups) and the destroy of a version that is already deleted,
+// which writes nothing. Handed to Rails whole, before any write: every save (the version's validations, price callbacks and rich content)
+// and the deletion of a live version (it takes a row lock, touches the product and records the deletion audit).
+const VARIANTS = "/v2/products/:link_id/variant_categories/:variant_category_id/variants";
+const handBack = (reason: string): Promise<never> => Promise.reject(new NotPortedError(reason));
+const SAVE_REASON = "saving a version, which validates its price and name and may rewrite its rich content";
+
+registerApiV2(
+  { method: "POST", pattern: VARIANTS, scopes: EDIT_PRODUCTS_SCOPES, before: loadVariantCategory, run: () => handBack(SAVE_REASON) },
+  { method: "PATCH", pattern: `${VARIANTS}/:id`, scopes: EDIT_PRODUCTS_SCOPES, before: loadVariant, run: () => handBack(SAVE_REASON) },
+  { method: "PUT", pattern: `${VARIANTS}/:id`, scopes: EDIT_PRODUCTS_SCOPES, before: loadVariant, run: () => handBack(SAVE_REASON) },
+  {
+    method: "DELETE",
+    pattern: `${VARIANTS}/:id`,
+    scopes: EDIT_PRODUCTS_SCOPES,
+    before: loadVariant,
+    // A retry, or a request that lost the race: `with_lock` re-reads the row and finds it deleted, so nothing is written or audited.
+    run: (input) => {
+      const variant = input.state.variant as { deleted_at: Date | null };
+      return variant.deleted_at === null ? handBack("deleting a live version, which audits the deletion") : Promise.resolve(successWithObject("variant", null));
+    },
+  },
+);
