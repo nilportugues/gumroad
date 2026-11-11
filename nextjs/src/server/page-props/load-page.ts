@@ -77,6 +77,7 @@ export type LoadPageOptions = {
   // The proxy's x-gr-page-url wins; this is the fallback for renders that bypass it.
   url: string;
   mobileAppWebView?: boolean;
+  buyerCurrencyFooter?: boolean;
   analyticsEnabled?: boolean;
   // Session state from the Rails chain, when the caller ran it itself (the X-Inertia route handler).
   renderState?: RenderState;
@@ -141,7 +142,7 @@ async function requestUrl(path: string, requestHeaders: Headers, config: DomainC
 export async function loadPage(
   component: string,
   action: (action: ActionContext) => Promise<Record<string, unknown>> | Record<string, unknown>,
-  { url, mobileAppWebView = false, analyticsEnabled, renderState }: LoadPageOptions,
+  { url, mobileAppWebView = false, buyerCurrencyFooter = false, analyticsEnabled, renderState }: LoadPageOptions,
 ): Promise<InertiaPage> {
   const config = domainConfig(process.env);
   const requestHeaders = await headers();
@@ -177,7 +178,7 @@ export async function loadPage(
     partialRequest(component, requestHeaders),
     requestHeaders.get("x-inertia-infinite-scroll-merge-intent"),
   );
-  const shared = await sharedProps({ context, config, request, meta, csrfToken, ports, mobileAppWebView });
+  const shared = await sharedProps({ context, config, request, meta, csrfToken, ports, mobileAppWebView, buyerCurrencyFooter });
   const errors = await ports.session.consumeInertiaErrors();
   // promote_visited_nav_item runs after Rails renders, so the props above do not list the visit.
   if (state?.promoteNavItemPath && context.loggedInUser)

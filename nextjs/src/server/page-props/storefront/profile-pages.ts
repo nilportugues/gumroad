@@ -381,6 +381,7 @@ async function profileProps(seller: User, request: PresenterRequest, visitor: Pa
 export const PROFILE_PAGES: Record<string, PageSpec> = {
   "seller:/": {
     component: "Users/Show",
+    buyerCurrencyFooter: true,
     options: {
       filters: async (chain): Promise<FilterOutcome> => {
         const seller = await storefrontFilters(chain, { noindex: true, affiliateCookie: true, customHtml: true });

@@ -19,11 +19,11 @@
 import { Prisma } from "@prisma/client";
 import type { User } from "@prisma/client";
 
-import { BUYER_CURRENCY_BY_COUNTRY } from "../infra/buyer-currency-countries.ts";
+import { detectedBuyerCurrency } from "../infra/buyer-currency-countries.ts";
 import { getConfig } from "../infra/config.ts";
 import { CONTINENT_SHIPPING_COUNTRIES } from "../infra/continent-shipping-countries.ts";
 import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
-import { geoIpLookup, type GeoIpResult } from "../infra/geo-ip.ts";
+import { geoIpLookup } from "../infra/geo-ip.ts";
 import { getNamespacedRedis } from "../infra/redis.ts";
 import { getRate, getUsdCents, RateUnavailable, rubyStringToF } from "../models/concerns/currency-helper.ts";
 import { LinkFlags } from "../models/link.ts";
@@ -465,15 +465,7 @@ async function sellerEnabled(sellerId: bigint): Promise<boolean> {
   return castBoolean(jsonDataForAttr(record, "disable_buyer_local_currency", false)) !== true;
 }
 
-// CurrencyHelper#buyer_currency_for_ip: the GeoIP country's currency when config/currencies.json supports it.
-export function detectedBuyerCurrency(
-  ip: string | null,
-  lookup: (ip: string | null) => Pick<GeoIpResult, "countryCode"> | null = geoIpLookup,
-): string | null {
-  const countryCode = lookup(ip)?.countryCode;
-  if (countryCode === undefined || countryCode === null || blank(countryCode)) return null;
-  return BUYER_CURRENCY_BY_COUNTRY[countryCode.toUpperCase()] ?? null;
-}
+export { detectedBuyerCurrency };
 
 // Mime types Rails registers for the `format` query values below (Mime::Type.register in action_dispatch/http/mime_types.rb).
 const FORMAT_PARAM_CONTENT_TYPES: Record<string, string> = {

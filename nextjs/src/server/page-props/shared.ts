@@ -6,6 +6,8 @@ import type { RequestContext } from "@/server/auth/context";
 import { getConfig } from "@/server/infra/config";
 
 import { requestCookies } from "../controllers/rack-cookies.ts";
+import { detectedBuyerCurrency } from "../infra/buyer-currency-countries.ts";
+import { remoteIp } from "./audience/events.ts";
 import { formAuthenticityToken } from "./csrf.ts";
 import { assetHost, type DomainConfig } from "./domain.ts";
 import { MetaTagBuilder, defaultPageTitle, pageTitle } from "./meta-tags.ts";
@@ -112,6 +114,7 @@ export async function sharedProps({
   csrfToken,
   ports,
   mobileAppWebView,
+  buyerCurrencyFooter = false,
 }: {
   context: RequestContext;
   config: DomainConfig;
@@ -121,6 +124,7 @@ export async function sharedProps({
   ports: SharedPropsPorts;
   // Controllers that call `enable_mobile_app_web_view` share is_mobile_app_web_view.
   mobileAppWebView: boolean;
+  buyerCurrencyFooter?: boolean;
 }): Promise<Record<string, unknown>> {
   // pundit_user.user is logged_in_user: the impersonated user while impersonating.
   const pundit = { user: context.impersonatedUser ?? context.loggedInUser, seller: context.currentSeller };
@@ -149,6 +153,8 @@ export async function sharedProps({
     authenticity_token: csrfToken,
     flash: flashStatus ? { message: flash[flashStatus[0]], status: flashStatus[1] } : null,
     title: pageTitle(meta, config.railsEnv),
+    // `inertia_share if: -> { buyer_currency_footer_actions.include?(action_name) }`
+    ...(buyerCurrencyFooter ? { detected_buyer_currency: detectedBuyerCurrency(remoteIp(request.headers)) } : {}),
   };
 
   // `inertia_share if: :user_signed_in?`: Devise's current_user, the admin while impersonating.

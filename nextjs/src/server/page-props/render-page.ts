@@ -15,7 +15,7 @@ const decodeParam = (value: string) => {
   }
 };
 
-export async function renderPage(pattern: string, encodedParams: Record<string, string>, options: Omit<LoadPageOptions, "url" | "mobileAppWebView" | "analyticsEnabled"> = {}): Promise<InertiaPage> {
+export async function renderPage(pattern: string, encodedParams: Record<string, string>, options: Omit<LoadPageOptions, "url" | "mobileAppWebView" | "analyticsEnabled" | "buyerCurrencyFooter"> = {}): Promise<InertiaPage> {
   const spec = PAGES[pattern];
   if (!spec) throw new Error(`No page is registered for ${pattern}`);
   const params = Object.fromEntries(Object.entries(encodedParams).map(([name, value]) => [name, decodeParam(value)]));
@@ -33,5 +33,5 @@ export async function renderPage(pattern: string, encodedParams: Record<string, 
       redirect(redirected.location);
     }
   }
-  return loadPage(spec.component, (action) => spec.props(params, action), { ...options, url, mobileAppWebView: spec.mobileAppWebView ?? false, analyticsEnabled: spec.analyticsEnabled });
+  return loadPage(spec.component, (action) => spec.props(params, action), { ...options, url, mobileAppWebView: spec.mobileAppWebView ?? false, analyticsEnabled: spec.analyticsEnabled, buyerCurrencyFooter: spec.buyerCurrencyFooter ?? false });
 }
