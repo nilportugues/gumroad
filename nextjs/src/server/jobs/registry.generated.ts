@@ -359,7 +359,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "CalculatePayoutNumbersWorker": {
     "file": "app/sidekiq/calculate_payout_numbers_worker.rb",

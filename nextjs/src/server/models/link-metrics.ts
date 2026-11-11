@@ -8,15 +8,19 @@
 // not a Variant (a Sku counts its own stock).
 import { Prisma, type BundleProduct, type Link } from "@prisma/client";
 
+import { defineFlags } from "../../lib/flags.ts";
 import { CHARGED_SALES_SEARCH_OPTIONS } from "../search/creator-analytics-sales.ts";
 import { PurchaseFlags } from "../search/flags.ts";
 import { aggregationValue } from "../search/purchase-sales.ts";
 import { PurchaseSearchService } from "../search/purchase-search.ts";
 
 import { BaseVariantFlags } from "./base-variant.ts";
-import { LinkFlags } from "./link.ts";
 import { castRow, column, findInBatches, selectRows, table } from "./sql.ts";
 import { NoMethodError, NotPortedError } from "./user.ts";
+
+// The two has_flags positions of link.rb these metrics read. link.ts imports product-cached-value.ts, which imports
+// this file, so the full LinkFlags cannot be imported here.
+const LinkFlags = defineFlags("links", { 19: "is_tiered_membership", 26: "is_bundle" }, { queryMode: "bit_operator" });
 
 type Product = Pick<Link, "id" | "flags" | "max_purchase_count" | "duration_in_months">;
 type VariantRow = {

@@ -3,6 +3,7 @@ import type { RetriesExhausted, RetryIn } from "../retry.ts";
 
 import { backfillTaggingsCountOnTagsJob } from "./backfill-taggings-count-on-tags-job.ts";
 import { backfillOrphanedShownProductsInProfileSectionsJob } from "./backfill-orphaned-shown-products-in-profile-sections-job.ts";
+import { cacheProductDataWorker } from "./cache-product-data-worker.ts";
 import { invalidateProductCacheWorker } from "./invalidate-product-cache-worker.ts";
 import { refreshHighVolumeSellerFeeEligibilityJob } from "./refresh-high-volume-seller-fee-eligibility-job.ts";
 import { rebuildGmailAbuseFilterJob } from "./rebuild-gmail-abuse-filter-job.ts";
@@ -259,6 +260,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   BackfillTaggingsCountOnTagsJob: backfillTaggingsCountOnTagsJob,
   RebuildGmailAbuseFilterJob: rebuildGmailAbuseFilterJob,
   InvalidateProductCacheWorker: invalidateProductCacheWorker,
+  CacheProductDataWorker: cacheProductDataWorker,
   BackfillOrphanedShownProductsInProfileSectionsJob: backfillOrphanedShownProductsInProfileSectionsJob,
   RefreshHighVolumeSellerFeeEligibilityJob: refreshHighVolumeSellerFeeEligibilityJob,
 };

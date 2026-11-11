@@ -52,7 +52,7 @@ const metrics: Record<string, (product: Link) => Promise<unknown>> = {
 
 describe("Link metrics", () => {
   it("has a golden case for every metric and every edge the port reads", () => {
-    expect(golden.cases.length).toBeGreaterThanOrEqual(75);
+    expect(golden.cases.length).toBeGreaterThanOrEqual(78);
     expect(new Set(golden.cases.map((c) => c.metric))).toEqual(new Set(Object.keys(metrics)));
   });
 
