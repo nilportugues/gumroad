@@ -1,4 +1,4 @@
-// Api::V2::SalesController (app/controllers/api/v2/sales_controller.rb): #resend_receipt, and the reads #index and #show, which render
+// Api::V2::SalesController (app/controllers/api/v2/sales_controller.rb): #resend_receipt, #export (the row and the job; the CSV is built by the worker), and the reads #index and #show, which render
 // Purchase#as_json(version: 2) (models/purchase-json.ts). #refund moves money and belongs to phase 2.
 import { Prisma } from "@prisma/client";
 
@@ -7,6 +7,7 @@ import { performAsync } from "../../models/concerns/job-runtime.ts";
 import { followingEmails, purchasesAsJsonV2 } from "../../models/purchase-json.ts";
 import { column, selectRows, table } from "../../models/sql.ts";
 import { PurchaseFlags } from "../../search/flags.ts";
+import { queueSalesExport, salesExportQuery, type SalesExportFilters } from "../../exports/sales-export.ts";
 import { HandBackToRails } from "../application-controller.ts";
 import { error400, errorWithObject, fromExternalId, registerApiV2, renderResponse, successWithObject, type ApiV2Input } from "./base.ts";
 import { decodePageKey, paginationInfo, USEC_FORMAT } from "./pagination.ts";
@@ -52,6 +53,31 @@ function strptimeDate(value: unknown): { date: string } | { invalid: true } {
   const real = new Date(Date.UTC(year, month - 1, day));
   if (real.getUTCFullYear() !== year || real.getUTCMonth() !== month - 1 || real.getUTCDate() !== day) return { invalid: true };
   return { date: `${match[1]}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}` };
+}
+
+// export_filters: a date goes on to Date.parse, which agrees with the strptime check for these spellings only
+const EXPORT_DATE = /^\d{4}-\d{1,2}-\d{1,2}(?: (?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d)?$/u;
+
+async function exportSales({ owner, params }: ApiV2Input) {
+  const filters: SalesExportFilters = {};
+  for (const [param, key] of [["from", "startDate"], ["to", "endDate"]] as const) {
+    const value = params[param];
+    if (value === undefined || value === null || (typeof value === "string" && !present(value))) continue;
+    const parsed = strptimeDate(value);
+    if ("invalid" in parsed) return error400(`Invalid date format provided in field '${param}'. Dates must be in the format YYYY-MM-DD.`);
+    if (!EXPORT_DATE.test(value as string)) throw new HandBackToRails("a date spelling Date.parse reads differently");
+    filters[key] = parsed.date;
+  }
+  const productParam = params.product_id;
+  if (productParam !== undefined && productParam !== null && (typeof productParam !== "string" || present(productParam))) {
+    if (typeof productParam !== "string") throw new HandBackToRails("a product_id that is not text");
+    const id = fromExternalId(productParam);
+    const [product] = id === null ? [] : await selectRows<{ id: bigint }>(Prisma.sql`SELECT ${column("links", "id")} FROM ${table("links")} WHERE ${column("links", "user_id")} = ${owner.id} AND ${column("links", "id")} = ${id} LIMIT 1`);
+    if (product === undefined) return error400("Invalid product ID.");
+    filters.productIds = [Number(product.id)];
+  }
+  await queueSalesExport(owner.id, salesExportQuery(owner.id, filters));
+  return renderResponse(true, { status: "queued", recipient_email: owner.email });
 }
 
 // String#to_i
@@ -145,6 +171,7 @@ async function index({ owner, params, request }: ApiV2Input) {
 }
 
 registerApiV2(
+  { method: "POST", pattern: "/v2/sales/exports", scopes: ["view_sales"], run: exportSales },
   { method: "GET", pattern: "/v2/sales", scopes: ["view_sales"], run: index },
   // Rails routes /v2/sales/summary ahead of /v2/sales/:id; until the summary is served it must not be read as a sale id.
   {

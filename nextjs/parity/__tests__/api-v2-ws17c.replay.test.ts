@@ -32,6 +32,7 @@ const WS17C_SPEC_DIRS = [
   "help_articles",
   "mcp",
   "payouts_media",
+  "sales_exports",
 ].map((name) => `${name}_parity_spec`);
 const SPECS = existsSync(FIXTURES)
   ? readdirSync(FIXTURES).filter(
@@ -52,6 +53,7 @@ const ROUTE_FLAGS = [
   "notion_unfurl",
   "media",
   "payouts",
+  "sales",
 ]
   .map((name) => `nextjs_api_v2_${name}`)
   .join(",");

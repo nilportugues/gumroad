@@ -15,7 +15,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 
 | Namespace | Routes | Native | Hands back | Not registered | Unresolved |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 80 | 0 | 58 | 0 |
+| API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 81 | 0 | 57 | 0 |
 | Mobile API (`/mobile` on the API host) | 64 | 39 | 0 | 25 | 0 |
 | Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 17 | 0 | 65 | 3 |
 | Internal API, Gumroad domain (`/internal`, JSON for the React Router pages) | 23 | 11 | 0 | 12 | 0 |
@@ -142,7 +142,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `GET /v2/workflows/:id` | `Api::V2::WorkflowsController#show` | native | `nextjs_api_v2_workflows` | y |
 | `POST /v2/workflows/:workflow_id/emails` | `Api::V2::Workflows::EmailsController#create` | native | `nextjs_api_v2_workflows` | y |
 | `PUT /v2/workflows/:workflow_id/emails/:email_id` | `Api::V2::Workflows::EmailsController#update` | native | `nextjs_api_v2_workflows` | y |
-| `POST /v2/sales/exports` | `Api::V2::SalesController#export` | not registered | - | n |
+| `POST /v2/sales/exports` | `Api::V2::SalesController#export` | native | `nextjs_api_v2_sales` | y |
 | `GET /v2/sales/summary` | `Api::V2::SalesController#summary` | native | `nextjs_api_v2_sales` | n |
 | `GET /v2/sales` | `Api::V2::SalesController#index` | native | `nextjs_api_v2_sales` | y |
 | `GET /v2/sales/:id` | `Api::V2::SalesController#show` | native | `nextjs_api_v2_sales` | y |
