@@ -1,3 +1,5 @@
+import path from "node:path";
+
 import { describe, expect, it, vi } from "vitest";
 
 import type { RequestContext } from "@/server/auth/context";
@@ -130,6 +132,22 @@ describe("shared props", () => {
     expect(tags["meta-property-og-image"]).toMatchObject({ content: "https://assets.gumroad.com/images/opengraph_image.png" });
     expect(tags["meta-property-gr-google_analytics-enabled"]).toMatchObject({ content: "true" });
     expect(tags["meta-property-gr-logged_in_user-id"]).not.toHaveProperty("content");
+  });
+
+  it("shares the IP-detected buyer currency only for pages with a footer currency selector", async () => {
+    process.env.GEOIP_DATABASE_PATH = path.join(import.meta.dirname, "../infra/__fixtures__/GeoLite2-City-Test.mmdb");
+    try {
+      const forwarded = { ...request, headers: new Headers({ "x-forwarded-for": "10.0.0.1, 81.2.69.142" }) };
+      const base = { context: signedOut, config, request: forwarded, meta: new MetaTagBuilder(), csrfToken: "tok", ports: ports(), mobileAppWebView: false };
+
+      expect(await sharedProps({ ...base, buyerCurrencyFooter: true })).toMatchObject({ detected_buyer_currency: "gbp" });
+      expect(await sharedProps(base)).not.toHaveProperty("detected_buyer_currency");
+      // A visitor GeoIP cannot place still gets the key, as null.
+      const unknown = { ...request, headers: new Headers({ "x-forwarded-for": "8.8.8.8" }) };
+      expect(await sharedProps({ ...base, request: unknown, buyerCurrencyFooter: true })).toMatchObject({ detected_buyer_currency: null });
+    } finally {
+      delete process.env.GEOIP_DATABASE_PATH;
+    }
   });
 
   it("shares is_mobile_app_web_view for controllers that enable it", async () => {

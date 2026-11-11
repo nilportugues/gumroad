@@ -7,11 +7,11 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 | Measure | Done | Total | Share |
 | --- | ---: | ---: | ---: |
-| Routes served natively (counted, static check) | 795 | 978 | 81.3% |
-| Routes registered in routes.json (counted; upper bound, adds the 5 listed under "hands back") | 800 | 978 | 81.8% |
-| Routes weighted by difficulty (counted routes, estimated weights) | 1520 | 1857 | 81.9% |
-| Same, registered in routes.json (upper bound) | 1525 | 1857 | 82.1% |
-| Rails Inertia pages with Node props (counted, string match) | 101 | 114 | 88.6% |
+| Routes served natively (counted, static check) | 797 | 978 | 81.5% |
+| Routes registered in routes.json (counted; upper bound, adds the 5 listed under "hands back") | 802 | 978 | 82.0% |
+| Routes weighted by difficulty (counted routes, estimated weights) | 1522 | 1857 | 82.0% |
+| Same, registered in routes.json (upper bound) | 1527 | 1857 | 82.2% |
+| Rails Inertia pages with Node props (counted, string match) | 102 | 114 | 89.5% |
 | Sidekiq job classes running in Node (counted) | 114 | 296 | 38.5% |
 
 ## Method
@@ -28,8 +28,8 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 - The route share counts endpoints, and an endpoint is one row whether it is a health check or a purchase. The weighted share corrects that only as far as my weights are right.
 - Neither number measures the code under the routes. A route is counted native as soon as Node serves its common path, while its hard branches (see "Known partial hand-backs") still go to Rails. The shares therefore overstate how much of the work is finished, most for checkout, payouts, and the mobile and MCP APIs.
-- Code volume cross-check (counted, not a completion measure): Node has 120,401 non-test lines under `src/server` and `src/worker`; Rails has 197,057 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
-- 284 distinct rollout flags gate the routes in routes.json; none is enabled in production.
+- Code volume cross-check (counted, not a completion measure): Node has 120,833 non-test lines under `src/server` and `src/worker`; Rails has 197,057 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
+- 286 distinct rollout flags gate the routes in routes.json; none is enabled in production.
 
 ## By workstream
 
@@ -38,7 +38,7 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 | Redirect-only routes (no controller) | 42 | 41 | 0 | 1 | 97.6% | 42 | 41 | 97.6% |
 | WS-10 Settings and account | 180 | 115 | 0 | 65 | 63.9% | 291 | 176 | 60.5% |
 | WS-11 Help, pages, blog, profiles | 71 | 42 | 0 | 29 | 59.2% | 80 | 50 | 62.5% |
-| WS-12 Products and bundles | 141 | 110 | 4 | 27 | 78.0% | 207 | 167 | 80.7% |
+| WS-12 Products and bundles | 141 | 112 | 4 | 25 | 79.4% | 207 | 169 | 81.6% |
 | WS-13 Audience, emails, workflows | 53 | 47 | 0 | 6 | 88.7% | 106 | 94 | 88.7% |
 | WS-14 Discover and search | 4 | 3 | 0 | 1 | 75.0% | 5 | 4 | 80.0% |
 | WS-15 Analytics and exports | 23 | 20 | 0 | 3 | 87.0% | 26 | 21 | 80.8% |
@@ -49,7 +49,7 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 | WS-20 Checkout and orders | 71 | 51 | 0 | 20 | 71.8% | 222 | 157 | 70.7% |
 | WS-21 Payment processors | 8 | 0 | 0 | 8 | 0.0% | 32 | 0 | 0.0% |
 | WS-23 Balances and payouts | 25 | 25 | 0 | 0 | 100.0% | 74 | 74 | 100.0% |
-| **All** | 978 | 795 | 5 | 178 | 81.3% | 1857 | 1520 | 81.9% |
+| **All** | 978 | 797 | 5 | 176 | 81.5% | 1857 | 1522 | 82.0% |
 
 ## Sensitivity to the weights
 
@@ -57,16 +57,16 @@ The weights are the soft part of this inventory, so here is the headline under o
 
 | Scheme | Native weight | Total weight | Share |
 | --- | ---: | ---: | ---: |
-| Every route counts 1 (the plain route share) | 795 | 978 | 81.3% |
-| Verb only: GET 1, other verbs 2 | 1156 | 1427 | 81.0% |
-| Rubric weights 1 to 4 (the headline) | 1520 | 1857 | 81.9% |
-| Rubric weights doubled per step: 1, 2, 4, 8 | 1779 | 2194 | 81.1% |
+| Every route counts 1 (the plain route share) | 797 | 978 | 81.5% |
+| Verb only: GET 1, other verbs 2 | 1158 | 1427 | 81.1% |
+| Rubric weights 1 to 4 (the headline) | 1522 | 1857 | 82.0% |
+| Rubric weights doubled per step: 1, 2, 4, 8 | 1781 | 2194 | 81.2% |
 
 ## By weight
 
 | Weight | Routes | Native | Native % |
 | ---: | ---: | ---: | ---: |
-| 1 | 386 | 305 | 79.0% |
+| 1 | 386 | 307 | 79.5% |
 | 2 | 330 | 267 | 80.9% |
 | 3 | 237 | 211 | 89.0% |
 | 4 | 25 | 12 | 48.0% |
@@ -150,8 +150,6 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `TestController` | WS-11 Help, pages, blog, profiles | 1 | 0 | 0 | 1 | 1 (1) | 1 |
 | `ThirdPartyAnalyticsController` | WS-11 Help, pages, blog, profiles | 2 | 1 | 0 | 1 | 1 (2) | 1 |
 | `UrlRedirectsController` | WS-16 Library and content delivery | 23 | 22 | 1 | 0 | 1/2 (27) | 1 |
-| `WishlistsController` | WS-12 Products and bundles | 5 | 4 | 0 | 1 | 1/2 (8) | 1 |
-| `Wishlists::ProductsController` | WS-12 Products and bundles | 3 | 2 | 0 | 1 | 1/2 (5) | 1 |
 | `Admin::BaseController` | WS-18 Admin | 3 | 3 | 0 | 0 | 1/2 (4) | 0 |
 | `AffiliateRedirectController` | WS-12 Products and bundles | 2 | 2 | 0 | 0 | 1 (2) | 0 |
 | `AffiliateRequestsController` | WS-12 Products and bundles | 7 | 7 | 0 | 0 | 1/2 (10) | 0 |
@@ -346,8 +344,10 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `Users::ReviewRemindersController` | WS-10 Settings and account | 4 | 4 | 0 | 0 | 1 (4) | 0 |
 | `UtmLinkTrackingController` | WS-13 Audience, emails, workflows | 1 | 1 | 0 | 0 | 2 (2) | 0 |
 | `UtmLinksController` | WS-13 Audience, emails, workflows | 6 | 6 | 0 | 0 | 2 (12) | 0 |
+| `WishlistsController` | WS-12 Products and bundles | 5 | 5 | 0 | 0 | 1/2 (8) | 0 |
 | `Wishlists::FollowersController` | WS-12 Products and bundles | 3 | 3 | 0 | 0 | 1/2 (5) | 0 |
 | `Wishlists::FollowingController` | WS-12 Products and bundles | 1 | 1 | 0 | 0 | 1 (1) | 0 |
+| `Wishlists::ProductsController` | WS-12 Products and bundles | 3 | 3 | 0 | 0 | 1/2 (5) | 0 |
 | `WorkflowsController` | WS-13 Audience, emails, workflows | 6 | 6 | 0 | 0 | 2 (12) | 0 |
 | `Workflows::EmailsController` | WS-13 Audience, emails, workflows | 2 | 2 | 0 | 0 | 2 (4) | 0 |
 
@@ -379,7 +379,6 @@ A diagnostic for the matcher: each is either a path the parser or the matcher mi
 - `UrlRedirects/Read`
 - `UrlRedirects/Stream`
 - `Users/Coffee`
-- `Wishlists/Show`
 
 ## Known partial hand-backs (inside routes counted as native)
 
@@ -405,7 +404,7 @@ Copied by hand from workstreams.md, parity-debt.md and parity-tasks.md as of 202
 
 ## Frontend and pages
 
-- Inertia pages Rails renders: 114. With Node props: 101 (88.6%), counted by name; the 13 under "Rails Inertia pages without Node props" are the unported ones.
+- Inertia pages Rails renders: 114. With Node props: 102 (89.5%), counted by name; the 12 under "Rails Inertia pages without Node props" are the unported ones.
 - The React page components are not rewritten: they are reused unchanged from `app/javascript` through the Inertia compatibility layer, so there is no per-component port to count until WS-41. Porting a page means its props, route and guards, which is what the page count measures.
 
 ## Non-code items (unweighted, not in any percentage)

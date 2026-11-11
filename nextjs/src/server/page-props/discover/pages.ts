@@ -22,6 +22,7 @@ import {
 
 const discoverPage: PageSpec = {
   component: "Discover/Index",
+  buyerCurrencyFooter: true,
   options: DISCOVER_OPTIONS,
   props: async (_, action) => {
     const { url, headers, context, meta, state } = action;

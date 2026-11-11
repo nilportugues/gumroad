@@ -1,3 +1,5 @@
+import { geoIpLookup, type GeoIpResult } from "./geo-ip.ts";
+
 // Generated from the countries gem 6.0.1 (vendor/bundle/ruby/*/gems/countries-6.0.1/lib/countries/data/countries/<alpha2>.yaml, `currency_code`),
 // keeping the countries whose currency is a key of config/currencies.json: ISO3166::Country.new(code).currency_code.downcase filtered by
 // CURRENCY_CHOICES. BG is the CurrencyHelper::BUYER_CURRENCY_COUNTRY_OVERRIDES entry (euro, while the gem still lists the lev).
@@ -109,3 +111,13 @@ export const BUYER_CURRENCY_BY_COUNTRY: Readonly<Record<string, string>> = {
   ZA: "zar",
   ZW: "usd",
 };
+
+// CurrencyHelper#buyer_currency_for_ip: the GeoIP country's currency when config/currencies.json supports it.
+export function detectedBuyerCurrency(
+  ip: string | null,
+  lookup: (ip: string | null) => Pick<GeoIpResult, "countryCode"> | null = geoIpLookup,
+): string | null {
+  const countryCode = lookup(ip)?.countryCode;
+  if (countryCode === undefined || countryCode === null || countryCode.trim() === "") return null;
+  return BUYER_CURRENCY_BY_COUNTRY[countryCode.toUpperCase()] ?? null;
+}

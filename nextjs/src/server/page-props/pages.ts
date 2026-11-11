@@ -65,6 +65,8 @@ export type PageSpec = {
   guard?: PageGuard;
   props: (params: Params, action: ActionContext) => Record<string, unknown> | Promise<Record<string, unknown>>;
   mobileAppWebView?: boolean;
+  // `buyer_currency_footer_actions` lists the action: InertiaRendering shares the IP-detected presentment currency.
+  buyerCurrencyFooter?: boolean;
   // A controller that overrides `analytics_enabled?` (CheckoutController: always true).
   analyticsEnabled?: boolean;
   // The controller's filters beyond ApplicationController's (see ActionOptions): both the proxy's

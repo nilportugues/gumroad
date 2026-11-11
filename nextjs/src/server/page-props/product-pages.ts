@@ -16,6 +16,7 @@ import type { PageSpec } from "./pages.ts";
 const productPage: PageSpec = {
   component: "Products/Show",
   mobileAppWebView: true,
+  buyerCurrencyFooter: true,
   options: PRODUCT_PAGE_OPTIONS,
   props: async (params, action) => {
     const row = (await findLink(BigInt(String(action.state.product_id))))!;

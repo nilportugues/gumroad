@@ -1,0 +1,194 @@
+import { createServer, type Server } from "node:http";
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
+
+import { PrismaClient } from "@prisma/client";
+import { Redis } from "ioredis";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { closeAllRedis } from "@/server/infra/redis";
+
+import { prismaExecutor, type SqlExecutor } from "../src/db";
+import { loadFixture } from "../src/fixture";
+import { startNextServer, type NextServer } from "../src/next-server";
+import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
+import { reencryptCookies, redisSeeder } from "../src/session";
+
+// Replays the storefront profile, subscribe and affiliate request page request specs, recorded
+// through the full Rack stack, so cookies, XSRF-TOKEN and the SecureHeaders are compared. Fixtures
+// with setup requests (CSRF fetch, login) replay only the last exchange.
+const url = process.env.PARITY_DATABASE_URL;
+const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
+const FIXTURE_DIRS = ["parity/fixtures/requests/wishlist_show_page_parity_spec"];
+const ROUTE_FLAGS = ["nextjs_wishlist_show"].join(",");
+const WARM_PATHS = ["/gr-host/seller/wishlists/x"];
+const FIRST_COMPILE_TIMEOUT_MS = 180_000;
+const SECRET_KEY_BASE = "parity-replay-secret-key-base";
+const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
+const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1];
+const recaptchaKey = /^RECAPTCHA_MONEY_SITE_KEY=(.+)$/m.exec(envTest)?.[1];
+const stripeKey = /^STRIPE_PUBLIC_KEY_TEST=(.+)$/m.exec(envTest)?.[1];
+
+// Next.js owns what it renders and caches: Vite asset preloads, `vary`, and the per-response random
+// values (CSP nonce, masked CSRF tokens).
+const COMPARE = {
+  ignore: [
+    // Added by the test environment's Rack stack, not by the app.
+    "response.headers.x-original-headers-class",
+    // Next.js owns Cache-Control on rendered HTML (no-store).
+    "response.headers.cache-control",
+    // Rack::MiniProfiler's authorization cookie for team members.
+    "response.cookies.__profilin",
+    // Masked per response.
+    "response.cookies.XSRF-TOKEN.value",
+    "db.dashboard_nav_promotions.inserted.*.created_at",
+    "db.dashboard_nav_promotions.inserted.*.updated_at",
+    "db.versions",
+    "db.users.updated.*.changes.updated_at",
+    "response.headers.link",
+    "response.headers.vary",
+    "response.inertia.props.csp_nonce",
+    "response.inertia.props.authenticity_token",
+    // _inertia_meta[2] is the csrf-token <meta>
+    "response.inertia.props._inertia_meta.2.content",
+    // Signed with the recording app's random secret_key_base; message-verifier.test.ts pins the algorithm against Ruby.
+    "response.json.props.csp_nonce",
+    "response.json.props.authenticity_token",
+    "response.json.props._inertia_meta.2.content",
+  ],
+};
+
+// The test environment renders a 404 as Rails' exception debug page; production (and Next.js) render
+// public/404.html. Everything else about the response is compared.
+const hasDebugPageBody = (file: string) => /-answers-404-/.test(file);
+
+const allCases = FIXTURE_DIRS.flatMap((dir) =>
+  readdirSync(dir)
+    .filter((file) => file.endsWith(".json"))
+    .map((file) => {
+      const exchanges = loadFixture(path.join(dir, file)).exchanges;
+      return [
+        `${path.basename(dir)}/${file.replace(/\.json$/, "")}`,
+        path.join(dir, file),
+        exchanges.length - 1,
+      ] as const;
+    }),
+);
+
+const cases = allCases;
+
+function compareFor(name: string) {
+  const ignore = [...COMPARE.ignore, ...(hasDebugPageBody(name) ? ["response.body"] : [])];
+  return { ...COMPARE, ignore };
+}
+
+describe.skipIf(!url)("wishlist show page", () => {
+  let client: PrismaClient;
+  let sql: SqlExecutor;
+  let redis: Redis;
+  let server: NextServer;
+  let rails: Server;
+  const handedBack: { method: string; url: string }[] = [];
+  const saved = { ...process.env };
+
+  beforeAll(async () => {
+    client = new PrismaClient({ datasourceUrl: url });
+    sql = prismaExecutor(client);
+    const [hostAndPort = "", db = "0"] = redisHost.split("/");
+    const [host = "127.0.0.1", port = "6379"] = hostAndPort.split(":");
+    redis = new Redis({ host, port: Number(port), db: Number(db) });
+    rails = createServer((request, response) => {
+      handedBack.push({ method: request.method ?? "", url: request.url ?? "" });
+      response.writeHead(204).end();
+    });
+    await new Promise<void>((resolve) => rails.listen(0, "127.0.0.1", resolve));
+    const railsPort = (rails.address() as { port: number }).port;
+    server = await startNextServer({
+      RAILS_ENV: "test",
+      OBFUSCATE_IDS_CIPHER_KEY: obfuscateKey ?? "",
+      OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
+      ...(recaptchaKey ? { RECAPTCHA_MONEY_SITE_KEY: recaptchaKey } : {}),
+      ...(stripeKey ? { STRIPE_PUBLIC_KEY_TEST: stripeKey } : {}),
+      NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS,
+      NEXTJS_ASSUME_SIGNED_OUT: "1",
+      // The GeoLite2 test database the recording read (stub_const GEOIP).
+      GEOIP_DATABASE_PATH: path.resolve("src/server/infra/__fixtures__/GeoLite2-City-Test.mmdb"),
+      RAILS_ORIGIN: `http://127.0.0.1:${railsPort}`,
+      SECRET_KEY_BASE,
+      DATABASE_URL: url!,
+      REDIS_HOST: redisHost,
+    });
+  }, FIRST_COMPILE_TIMEOUT_MS);
+
+  afterAll(async () => {
+    await server?.stop();
+    rails?.close();
+    await closeAllRedis();
+    await redis?.quit();
+    await client?.$disconnect();
+    process.env = saved;
+  });
+
+  // The first request to a route compiles it, which would age the seeded timestamps past the replayer's
+  // tolerance for the first fixture that hits it.
+  it(
+    "warms up the routes",
+    async () => {
+      const headers = { "x-forwarded-host": "app.test.gumroad.com:31337" };
+      for (const warmPath of WARM_PATHS)
+        await fetch(new URL(warmPath, server.baseUrl), { headers, redirect: "manual" });
+    },
+    FIRST_COMPILE_TIMEOUT_MS * 2,
+  );
+
+  it("finds the fixtures", () => {
+    expect(cases.length).toBeGreaterThan(0);
+  });
+
+  it.each(cases)(
+    "%s",
+    async (name, file, index) => {
+      // Whatever Node cannot prove goes to Rails whole.
+      if (/-hands-an?-/u.test(name)) {
+        handedBack.length = 0;
+        const handed = await replayFixtureExchange(file, index, {
+          sql,
+          redis: redisSeeder(redis),
+          transport: httpTransport(server.baseUrl),
+          interceptHttp: false,
+          rewriteRequest: (request, fixture, now) => reencryptCookies(request, fixture, SECRET_KEY_BASE, now),
+          compare: compareFor(path.basename(file, ".json")),
+        });
+        const request = loadFixture(file).exchanges[index]!.request;
+        expect(handedBack).toHaveLength(1);
+        expect(handedBack[0]).toMatchObject({
+          method: request.method,
+          url: request.query ? `${request.path}?${request.query}` : request.path,
+        });
+        expect(Object.keys(handed.exchanges[0]!.actual.db)).toEqual([]);
+        return;
+      }
+      const result = await replayFixtureExchange(file, index, {
+        sql,
+        redis: redisSeeder(redis),
+        transport: httpTransport(server.baseUrl),
+        // The server is another process, out of the replayer's reach.
+        interceptHttp: false,
+        rewriteRequest: (request, fixture, now) => reencryptCookies(request, fixture, SECRET_KEY_BASE, now),
+        compare: compareFor(path.basename(file, ".json")),
+      });
+      try {
+        assertParity(result);
+      } catch (error) {
+        const logs = server
+          .output()
+          .split("\n")
+          .filter((line) => /error|Error|at /.test(line))
+          .slice(-25)
+          .join("\n");
+        throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
+      }
+    },
+    FIRST_COMPILE_TIMEOUT_MS,
+  );
+});

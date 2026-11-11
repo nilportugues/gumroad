@@ -3,8 +3,10 @@
 import type { PageSpec } from "../pages.ts";
 import { POST_PAGES } from "./post-pages.ts";
 import { PROFILE_PAGES } from "./profile-pages.ts";
+import { WISHLIST_PAGES } from "./wishlist-pages.ts";
 
 export const STOREFRONT_PAGES: Record<string, PageSpec> = {
   ...POST_PAGES,
   ...PROFILE_PAGES,
+  ...WISHLIST_PAGES,
 };
