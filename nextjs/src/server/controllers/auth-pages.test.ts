@@ -1,11 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ResolvedAuth } from "../auth/resolve.ts";
-import { MetaTagBuilder } from "../page-props/meta-tags.ts";
 import { secureRedirectPageProps, rubyToI } from "../page-props/auth-pages.ts";
 import type { ActionContext } from "../page-props/load-page.ts";
+import { MetaTagBuilder } from "../page-props/meta-tags.ts";
+
 import { type Chain, HandBackToRails } from "./application-controller.ts";
-import { LOGIN_OPTIONS, resendCooldownSeconds, SECURE_REDIRECT_OPTIONS, SIGNUP_OPTIONS, teamInvitationEmail, TWO_FACTOR_OPTIONS } from "./auth-pages.ts";
+import {
+  LOGIN_OPTIONS,
+  resendCooldownSeconds,
+  SECURE_REDIRECT_OPTIONS,
+  SIGNUP_OPTIONS,
+  teamInvitationEmail,
+  TWO_FACTOR_OPTIONS,
+} from "./auth-pages.ts";
 import { railsRequest } from "./rails-request.ts";
 
 const signedOut: ResolvedAuth = {
@@ -14,8 +22,16 @@ const signedOut: ResolvedAuth = {
   authenticatedVia: null,
 };
 
-const chainFor = (path: string, headers: Record<string, string> = {}, session: Record<string, unknown> = {}): Chain => ({
-  request: railsRequest(new Request(`http://app.test.gumroad.com:31337${path}`, { headers: { host: "app.test.gumroad.com:31337", ...headers } })),
+const chainFor = (
+  path: string,
+  headers: Record<string, string> = {},
+  session: Record<string, unknown> = {},
+): Chain => ({
+  request: railsRequest(
+    new Request(`http://app.test.gumroad.com:31337${path}`, {
+      headers: { host: "app.test.gumroad.com:31337", ...headers },
+    }),
+  ),
   now: new Date("2026-01-01T00:00:00Z"),
   headers: new Headers(),
   session: { data: { ...session } },
@@ -41,7 +57,9 @@ describe("LoginsController#new filters", () => {
     const outcome = await filters(chain);
 
     expect(outcome).toHaveProperty("state");
-    const { passkey_login_options: options } = (outcome as { state: Record<string, unknown> }).state as { passkey_login_options: Record<string, unknown> };
+    const { passkey_login_options: options } = (outcome as { state: Record<string, unknown> }).state as {
+      passkey_login_options: Record<string, unknown>;
+    };
     expect(options).toEqual({
       challenge: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
       timeout: 120_000,
@@ -50,7 +68,14 @@ describe("LoginsController#new filters", () => {
       rpId: "test.gumroad.com",
       userVerification: "required",
     });
-    expect(Object.keys(options)).toEqual(["challenge", "timeout", "extensions", "allowCredentials", "rpId", "userVerification"]);
+    expect(Object.keys(options)).toEqual([
+      "challenge",
+      "timeout",
+      "extensions",
+      "allowCredentials",
+      "rpId",
+      "userVerification",
+    ]);
     expect(chain.session.data.webauthn_authentication_challenge).toBe(options.challenge);
 
     const other = chainFor("/login");
@@ -62,7 +87,13 @@ describe("LoginsController#new filters", () => {
     const chain = chainFor("/login", { referer: "http://app.test.gumroad.com:31337/products/new?a=b c" });
     const outcome = await filters(chain);
 
-    expect(outcome).toEqual({ halt: { status: 302, location: "/login?next=http%3A%2F%2Fapp.test.gumroad.com%3A31337%2Fproducts%2Fnew%3Fa%3Db+c", rescued: false } });
+    expect(outcome).toEqual({
+      halt: {
+        status: 302,
+        location: "/login?next=http%3A%2F%2Fapp.test.gumroad.com%3A31337%2Fproducts%2Fnew%3Fa%3Db+c",
+        rescued: false,
+      },
+    });
     expect(chain.session.data).not.toHaveProperty("webauthn_authentication_challenge");
   });
 
@@ -73,12 +104,18 @@ describe("LoginsController#new filters", () => {
     expect(chain.headers.get("x-robots-tag")).toBe("noindex");
 
     const json = await filters(chainFor("/login", { accept: "application/json" }));
-    expect(json).toEqual({ halt: { status: 400, body: "", contentType: "text/html", rescued: true, paramsRead: true } });
-    expect(await filters(chainFor("/login", { accept: "application/json", "x-inertia": "true" }))).toHaveProperty("state");
+    expect(json).toEqual({
+      halt: { status: 400, body: "", contentType: "text/html", rescued: true, paramsRead: true },
+    });
+    expect(await filters(chainFor("/login", { accept: "application/json", "x-inertia": "true" }))).toHaveProperty(
+      "state",
+    );
   });
 
   it("redirects an unparseable next to the bare login page", async () => {
-    expect(await filters(chainFor("/login?next=http%3A%2F%2Fbad+host%2Fpath"))).toEqual({ halt: { status: 302, location: "/login", rescued: true } });
+    expect(await filters(chainFor("/login?next=http%3A%2F%2Fbad+host%2Fpath"))).toEqual({
+      halt: { status: 302, location: "/login", rescued: true },
+    });
   });
 
   it("hands array and hash params back to Rails", async () => {
@@ -88,7 +125,9 @@ describe("LoginsController#new filters", () => {
 
 describe("SignupController#new filters", () => {
   it("hands back a request that is not asking for html", async () => {
-    await expect(SIGNUP_OPTIONS.filters!(chainFor("/signup", { accept: "application/json" }))).rejects.toBeInstanceOf(HandBackToRails);
+    await expect(SIGNUP_OPTIONS.filters!(chainFor("/signup", { accept: "application/json" }))).rejects.toBeInstanceOf(
+      HandBackToRails,
+    );
   });
 });
 
@@ -97,8 +136,13 @@ describe("TwoFactorAuthenticationController#show filters", () => {
     const chain = chainFor("/two-factor?next=/dashboard");
     const outcome = await TWO_FACTOR_OPTIONS.filters!(chain);
 
-    expect(outcome).toEqual({ halt: { status: 303, location: "/login?next=%2Ftwo-factor%3Fnext%3D%2Fdashboard", rescued: true } });
-    expect(chain.session.data.flash).toEqual({ discard: [], flashes: { warning: "Your login session expired. Please sign in again." } });
+    expect(outcome).toEqual({
+      halt: { status: 303, location: "/login?next=%2Ftwo-factor%3Fnext%3D%2Fdashboard", rescued: true },
+    });
+    expect(chain.session.data.flash).toEqual({
+      discard: [],
+      flashes: { warning: "Your login session expired. Please sign in again." },
+    });
   });
 });
 
@@ -106,12 +150,18 @@ describe("SecureRedirectController#new filters", () => {
   const filters = SECURE_REDIRECT_OPTIONS.filters!;
 
   it("sends a visitor without a payload to the home page", async () => {
-    expect(await filters(chainFor("/secure_url_redirect"))).toEqual({ halt: { status: 302, location: "/", rescued: true } });
-    expect(await filters(chainFor("/secure_url_redirect?encrypted_payload=%20"))).toEqual({ halt: { status: 302, location: "/", rescued: true } });
+    expect(await filters(chainFor("/secure_url_redirect"))).toEqual({
+      halt: { status: 302, location: "/", rescued: true },
+    });
+    expect(await filters(chainFor("/secure_url_redirect?encrypted_payload=%20"))).toEqual({
+      halt: { status: 302, location: "/", rescued: true },
+    });
   });
 
   it("falls back to the default copy for blank params", async () => {
-    const outcome = await filters(chainFor("/secure_url_redirect?encrypted_payload=abc&message=&field_name=%20&error_message=Nope"));
+    const outcome = await filters(
+      chainFor("/secure_url_redirect?encrypted_payload=abc&message=&field_name=%20&error_message=Nope"),
+    );
     const { state } = outcome as { state: Record<string, unknown> };
 
     expect(secureRedirectPageProps({ state } as ActionContext)).toEqual({
@@ -142,7 +192,9 @@ describe("resendCooldownSeconds", () => {
 describe("teamInvitationEmail", () => {
   it("reads the email of a team invitation path only", () => {
     expect(teamInvitationEmail("/settings/team/invitations/abc/accept?email=a%40example.com")).toBe("a@example.com");
-    expect(teamInvitationEmail("/settings/team/invitations/abc/accept?email=a%2Bb%40example.com&email=last%40example.com")).toBe("last@example.com");
+    expect(
+      teamInvitationEmail("/settings/team/invitations/abc/accept?email=a%2Bb%40example.com&email=last%40example.com"),
+    ).toBe("last@example.com");
     expect(teamInvitationEmail("/settings/team/invitations/abc/accept")).toBeNull();
     expect(teamInvitationEmail("/dashboard?email=a%40example.com")).toBeNull();
     expect(teamInvitationEmail(null)).toBeNull();

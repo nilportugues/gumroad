@@ -8,22 +8,23 @@ import type { Redis } from "ioredis";
 
 import { notifyError } from "../infra/error-reporting.ts";
 import { getRedis } from "../infra/redis.ts";
-import { afterCommitEverywhere } from "./concerns/job-runtime.ts";
+
 import { deletable } from "./concerns/deletable.ts";
+import { afterCommitEverywhere } from "./concerns/job-runtime.ts";
 import { hasPaperTrail } from "./concerns/paper-trail.ts";
 import { associationCache, loadBelongsTo, type BelongsTo } from "./concerns/rails-validations.ts";
-import { findById } from "./row-reads.ts";
-import { defineModel, type Callback, type SaveOptions } from "./runtime/define-model.ts";
-import type { ModelRecord } from "./runtime/record.ts";
-import { participate } from "./runtime/transaction.ts";
-import { validatesPresenceOf } from "./runtime/validators.ts";
+import { rubyToI } from "./concerns/ruby-numeric.ts";
 import {
   CACHE_COMMITTED_VERSION_SCRIPT,
   INSTALLMENT_RULE_VERSION_CACHE_TTL_SECONDS,
   rulePendingTokenKey,
   ruleVersionKey,
 } from "./installment-rule.ts";
-import { rubyToI } from "./concerns/ruby-numeric.ts";
+import { findById } from "./row-reads.ts";
+import { defineModel, type Callback, type SaveOptions } from "./runtime/define-model.ts";
+import type { ModelRecord } from "./runtime/record.ts";
+import { participate } from "./runtime/transaction.ts";
+import { validatesPresenceOf } from "./runtime/validators.ts";
 
 export type InstallmentRuleRecord = ModelRecord<InstallmentRule>;
 
@@ -51,8 +52,16 @@ return 0
 `;
 
 // What the callbacks take from outside the model: the main Redis ($redis), SecureRandom.uuid and ErrorNotifier.
-export type InstallmentRuleDeps = { redis: () => Redis; uuid: () => string; notify: (error: unknown, context: Record<string, unknown>) => void };
-const defaultDeps: InstallmentRuleDeps = { redis: () => getRedis("main"), uuid: () => randomUUID(), notify: (error, context) => notifyError(error, context) };
+export type InstallmentRuleDeps = {
+  redis: () => Redis;
+  uuid: () => string;
+  notify: (error: unknown, context: Record<string, unknown>) => void;
+};
+const defaultDeps: InstallmentRuleDeps = {
+  redis: () => getRedis("main"),
+  uuid: () => randomUUID(),
+  notify: (error, context) => notifyError(error, context),
+};
 let deps: InstallmentRuleDeps = defaultDeps;
 
 // Tests swap in a scratch Redis and a sequential uuid; returns the restore function.
@@ -65,29 +74,60 @@ export function setInstallmentRuleDeps(overrides: Partial<InstallmentRuleDeps>):
 }
 
 const INSTALLMENT_WORKFLOW = "installmentWorkflow";
-const INSTALLMENT: BelongsTo = { name: "installment", foreignKey: "installment_id", targetTable: "installments", targetModel: "Installment" };
+const INSTALLMENT: BelongsTo = {
+  name: "installment",
+  foreignKey: "installment_id",
+  targetTable: "installments",
+  targetModel: "Installment",
+};
 
 // The installment the validations loaded: callbacks that run after validation read it as `installment` does.
-const loadedInstallment = (record: InstallmentRuleRecord): Installment | null => (associationCache(record).get("installment")?.row as Installment | null | undefined) ?? null;
+const loadedInstallment = (record: InstallmentRuleRecord): Installment | null =>
+  (associationCache(record).get("installment")?.row as Installment | null | undefined) ?? null;
 
 // `workflow_rule?`: `installment&.workflow_id.present?`
 const workflowRule = (record: InstallmentRuleRecord) => loadedInstallment(record)?.workflow_id != null;
 
-const deliveryDateChanged = (record: InstallmentRuleRecord) => record.attributeChanged("delayed_delivery_time") || record.attributeChanged("to_be_published_at");
+const deliveryDateChanged = (record: InstallmentRuleRecord) =>
+  record.attributeChanged("delayed_delivery_time") || record.attributeChanged("to_be_published_at");
 
 const paperTrail = hasPaperTrail<InstallmentRule>("InstallmentRule", { itemType: "InstallmentRule" });
 
 async function cachePendingVersionBang(installmentId: number, version: number, token: string): Promise<number> {
   const result = await deps
     .redis()
-    .eval(CACHE_PENDING_VERSION_SCRIPT, 2, ruleVersionKey(installmentId), rulePendingTokenKey(installmentId), String(version), token, String(PENDING_VERSION_CACHE_TTL_SECONDS), String(PENDING_OWNER_CACHE_TTL_SECONDS));
+    .eval(
+      CACHE_PENDING_VERSION_SCRIPT,
+      2,
+      ruleVersionKey(installmentId),
+      rulePendingTokenKey(installmentId),
+      String(version),
+      token,
+      String(PENDING_VERSION_CACHE_TTL_SECONDS),
+      String(PENDING_OWNER_CACHE_TTL_SECONDS),
+    );
   return rubyToI(String(result));
 }
 
 // `InstallmentRule.promote_pending_version`: a Redis failure is reported and the commit goes on.
-async function promotePendingVersion(installmentId: number, ruleId: number, version: number, token: string): Promise<void> {
+async function promotePendingVersion(
+  installmentId: number,
+  ruleId: number,
+  version: number,
+  token: string,
+): Promise<void> {
   try {
-    await deps.redis().eval(CACHE_COMMITTED_VERSION_SCRIPT, 2, ruleVersionKey(installmentId), rulePendingTokenKey(installmentId), String(version), token, String(INSTALLMENT_RULE_VERSION_CACHE_TTL_SECONDS));
+    await deps
+      .redis()
+      .eval(
+        CACHE_COMMITTED_VERSION_SCRIPT,
+        2,
+        ruleVersionKey(installmentId),
+        rulePendingTokenKey(installmentId),
+        String(version),
+        token,
+        String(INSTALLMENT_RULE_VERSION_CACHE_TTL_SECONDS),
+      );
   } catch (error) {
     deps.notify(error, { installment_rule_id: ruleId });
   }
@@ -95,7 +135,9 @@ async function promotePendingVersion(installmentId: number, ruleId: number, vers
 
 async function clearPendingVersion(installmentId: number, ruleId: number, token: string): Promise<void> {
   try {
-    await deps.redis().eval(CLEAR_PENDING_VERSION_SCRIPT, 2, ruleVersionKey(installmentId), rulePendingTokenKey(installmentId), token);
+    await deps
+      .redis()
+      .eval(CLEAR_PENDING_VERSION_SCRIPT, 2, ruleVersionKey(installmentId), rulePendingTokenKey(installmentId), token);
   } catch (error) {
     deps.notify(error, { installment_rule_id: ruleId });
   }
@@ -103,7 +145,11 @@ async function clearPendingVersion(installmentId: number, ruleId: number, token:
 
 // AfterCommitEverywhere.after_rollback: once the outermost transaction rolls back.
 function afterRollbackEverywhere(fn: () => Promise<unknown>): void {
-  participate({}, "update", () => ({ commit: async () => {}, rollback: async () => void (await fn()), restore: () => {} }));
+  participate({}, "update", () => ({
+    commit: async () => {},
+    rollback: async () => void (await fn()),
+    restore: () => {},
+  }));
 }
 
 const validations: Callback<InstallmentRule>[] = [
@@ -134,7 +180,8 @@ const validations: Callback<InstallmentRule>[] = [
       // `installment.workflow` is loaded once per installment instance
       if (installment.workflow_id !== null) {
         const memo = (record.ivars[INSTALLMENT_WORKFLOW] ??= new Map()) as Map<number, Promise<unknown>>;
-        if (!memo.has(installment.workflow_id)) memo.set(installment.workflow_id, findById("Workflow", installment.workflow_id));
+        if (!memo.has(installment.workflow_id))
+          memo.set(installment.workflow_id, findById("Workflow", installment.workflow_id));
         if ((await memo.get(installment.workflow_id)) !== null) return;
       }
       if (record.get("to_be_published_at") !== null) return;
@@ -189,7 +236,17 @@ export const InstallmentRules = defineModel<InstallmentRule>({
         const installmentId = record.get("installment_id");
         if (installmentId === null) return;
         try {
-          await deps.redis().eval(CACHE_COMMITTED_VERSION_SCRIPT, 2, ruleVersionKey(installmentId), rulePendingTokenKey(installmentId), String(record.get("version")), "", String(INSTALLMENT_RULE_VERSION_CACHE_TTL_SECONDS));
+          await deps
+            .redis()
+            .eval(
+              CACHE_COMMITTED_VERSION_SCRIPT,
+              2,
+              ruleVersionKey(installmentId),
+              rulePendingTokenKey(installmentId),
+              String(record.get("version")),
+              "",
+              String(INSTALLMENT_RULE_VERSION_CACHE_TTL_SECONDS),
+            );
         } catch (error) {
           deps.notify(error, { installment_rule_id: record.get("id") });
         }
@@ -209,4 +266,5 @@ export function advanceVersionBang(rule: InstallmentRuleRecord, options: SaveOpt
 }
 
 // `mark_deleted!` (Deletable)
-export const markDeletedBang = (rule: InstallmentRuleRecord, options: SaveOptions = {}) => softDeletion.markDeletedBang(rule, options);
+export const markDeletedBang = (rule: InstallmentRuleRecord, options: SaveOptions = {}) =>
+  softDeletion.markDeletedBang(rule, options);

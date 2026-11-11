@@ -4,13 +4,20 @@ import { readFileSync } from "node:fs";
 import { deflateSync, inflateSync } from "node:zlib";
 
 import pako from "pako";
-
 import { describe, expect, it } from "vitest";
 
 import { dalliRetrieve, dalliStore, dumpEntry, loadEntry } from "./coder.ts";
 import { buildRing, parseServer } from "./dalli-ring.ts";
 import { type CacheName, expandedVersion, normalizeKey, relationCacheKeyWithVersion, versionText } from "./keys.ts";
-import { MarshalRefusedError, RubyAsciiString, RubyFloat, RubySymbol, marshalDump, marshalLoad, type MarshalValue } from "./marshal.ts";
+import {
+  MarshalRefusedError,
+  RubyAsciiString,
+  RubyFloat,
+  RubySymbol,
+  marshalDump,
+  marshalLoad,
+  type MarshalValue,
+} from "./marshal.ts";
 import { type CacheOptions, createRailsCache, railsCacheNamespace } from "./rails-cache.ts";
 import { type CacheTransport, createMemoryTransport, sanitizeTtl } from "./transport.ts";
 
@@ -53,7 +60,9 @@ type Golden = {
 type KeyedDesc = { cacheKey: string; cacheVersion: string | null };
 type CacheNameDesc = string | KeyedDesc | (string | number | KeyedDesc)[];
 
-const golden = JSON.parse(readFileSync(new URL("./__fixtures__/rails-cache.golden.json", import.meta.url), "utf8")) as Golden;
+const golden = JSON.parse(
+  readFileSync(new URL("./__fixtures__/rails-cache.golden.json", import.meta.url), "utf8"),
+) as Golden;
 
 function floatFromHex(hex: string): number {
   return Buffer.from(hex, "hex").readDoubleBE(0);
@@ -106,25 +115,44 @@ function toDesc(value: MarshalValue | undefined): Desc {
   if (value instanceof RubyAsciiString) return { t: "ascii", v: value.value };
   if (value instanceof RubySymbol) return { t: "sym", v: value.name };
   if (Array.isArray(value)) return { t: "arr", v: value.map(toDesc) };
-  if (value instanceof Map) return { t: "hash", v: [...value].map(([key, element]) => [toDesc(key), toDesc(element)] as [Desc, Desc]) };
-  return { t: "hash", v: Object.entries(value).map(([key, element]) => [toDesc(key), toDesc(element)] as [Desc, Desc]) };
+  if (value instanceof Map)
+    return { t: "hash", v: [...value].map(([key, element]) => [toDesc(key), toDesc(element)] as [Desc, Desc]) };
+  return {
+    t: "hash",
+    v: Object.entries(value).map(([key, element]) => [toDesc(key), toDesc(element)] as [Desc, Desc]),
+  };
 }
 
 function buildName(name: CacheNameDesc): CacheName {
-  if (Array.isArray(name)) return name.map((part) => (typeof part === "object" ? { cacheKey: part.cacheKey, cacheVersion: part.cacheVersion } : part));
+  if (Array.isArray(name))
+    return name.map((part) =>
+      typeof part === "object" ? { cacheKey: part.cacheKey, cacheVersion: part.cacheVersion } : part,
+    );
   return name;
 }
 
 // NaN has several bit patterns; Ruby and V8 both use the canonical quiet NaN here.
 describe("Marshal subset", () => {
-  it.each(golden.marshal.map((c) => [JSON.stringify(c.value).slice(0, 80), c] as const))("dumps and loads %s", (_name, c) => {
-    expect(marshalDump(build(c.value)).toString("hex")).toBe(c.dump);
-    expect(toDesc(marshalLoad(Buffer.from(c.dump, "hex")))).toEqual(c.load);
-  });
+  it.each(golden.marshal.map((c) => [JSON.stringify(c.value).slice(0, 80), c] as const))(
+    "dumps and loads %s",
+    (_name, c) => {
+      expect(marshalDump(build(c.value)).toString("hex")).toBe(c.dump);
+      expect(toDesc(marshalLoad(Buffer.from(c.dump, "hex")))).toEqual(c.load);
+    },
+  );
 
   it("dumps plain JS numbers and objects as Ruby would", () => {
-    expect(marshalDump([3, 40, 170]).toString("hex")).toBe(golden.marshal.find((c) => JSON.stringify(c.value) === JSON.stringify(toDesc([3, 40, 170])))!.dump);
-    expect(marshalDump({ a: 1, b: [1, 2] })).toEqual(marshalDump(new Map<MarshalValue, MarshalValue>([["a", 1], ["b", [1, 2]]])));
+    expect(marshalDump([3, 40, 170]).toString("hex")).toBe(
+      golden.marshal.find((c) => JSON.stringify(c.value) === JSON.stringify(toDesc([3, 40, 170])))!.dump,
+    );
+    expect(marshalDump({ a: 1, b: [1, 2] })).toEqual(
+      marshalDump(
+        new Map<MarshalValue, MarshalValue>([
+          ["a", 1],
+          ["b", [1, 2]],
+        ]),
+      ),
+    );
     expect(marshalDump(12345.678)).toEqual(marshalDump(new RubyFloat(12345.678)));
   });
 
@@ -137,7 +165,9 @@ describe("Marshal subset", () => {
       expect(() => marshalLoad(Buffer.from(hex, "hex"))).toThrow(MarshalRefusedError);
     }
     // A String with a non-UTF-8 encoding ivar.
-    expect(() => marshalLoad(Buffer.from("040849220661063a0d656e636f64696e67220f53686966745f4a4953", "hex"))).toThrow(MarshalRefusedError);
+    expect(() => marshalLoad(Buffer.from("040849220661063a0d656e636f64696e67220f53686966745f4a4953", "hex"))).toThrow(
+      MarshalRefusedError,
+    );
   });
 });
 
@@ -151,7 +181,9 @@ describe("Zlib::Deflate.deflate", () => {
   });
 
   it("includes inputs where node:zlib differs from Ruby", () => {
-    expect(golden.deflate.some((c) => deflateSync(Buffer.from(c.input, "hex")).toString("hex") !== c.output)).toBe(true);
+    expect(golden.deflate.some((c) => deflateSync(Buffer.from(c.input, "hex")).toString("hex") !== c.output)).toBe(
+      true,
+    );
   });
 });
 
@@ -170,15 +202,20 @@ describe("ActiveSupport::Cache::Coder (7.1) and Dalli's value", () => {
 });
 
 describe("keys", () => {
-  it.each(golden.keys.map((c) => [`${c.namespace}:${JSON.stringify(c.name).slice(0, 60)}`, c] as const))("%s", (_name, c) => {
-    const name = buildName(c.name);
-    expect(normalizeKey(name, c.namespace)).toBe(c.key);
-    const version = expandedVersion(name);
-    expect(version === null ? null : versionText(version)).toBe(c.version);
-  });
+  it.each(golden.keys.map((c) => [`${c.namespace}:${JSON.stringify(c.name).slice(0, 60)}`, c] as const))(
+    "%s",
+    (_name, c) => {
+      const name = buildName(c.name);
+      expect(normalizeKey(name, c.namespace)).toBe(c.key);
+      const version = expandedVersion(name);
+      expect(version === null ? null : versionText(version)).toBe(c.version);
+    },
+  );
 
   it.each(golden.relations.map((c) => [c.sql, c] as const))("relation cache_key_with_version for %s", (_sql, c) => {
-    const max = c.max_updated_at ? { time: new Date(c.max_updated_at), micros: Number(c.max_updated_at.slice(20, 26)) } : null;
+    const max = c.max_updated_at
+      ? { time: new Date(c.max_updated_at), micros: Number(c.max_updated_at.slice(20, 26)) }
+      : null;
     expect(relationCacheKeyWithVersion(c.model, c.sql, c.size, max)).toBe(c.key);
   });
 });
@@ -222,7 +259,11 @@ describe("MemCacheStore semantics", () => {
     let now = golden.flow[0]!.now;
     const memory = createMemoryTransport(() => now);
     let ops: (string | number)[][] = [];
-    const store = createRailsCache({ transport: recordingTransport(memory, (op) => ops.push(op)), namespace: "rev123", now: () => now });
+    const store = createRailsCache({
+      transport: recordingTransport(memory, (op) => ops.push(op)),
+      namespace: "rev123",
+      now: () => now,
+    });
 
     for (const [index, step] of golden.flow.entries()) {
       now = step.now;
@@ -255,9 +296,20 @@ describe("MemCacheStore semantics", () => {
           break;
       }
       const label = `step ${index} (${step.op} ${JSON.stringify(step.name).slice(0, 40)})`;
-      expect({ label, result, blockRan, ops }).toEqual({ label, result: step.result, blockRan: step.block_ran, ops: step.ops });
+      expect({ label, result, blockRan, ops }).toEqual({
+        label,
+        result: step.result,
+        blockRan: step.block_ran,
+        ops: step.ops,
+      });
       const state = Object.fromEntries(
-        [...memory.entries].filter(([, entry]) => entry.expiresAt === null || entry.expiresAt > Math.floor(now)).sort(([a], [b]) => (a < b ? -1 : 1)).map(([key, entry]) => [key, { value: entry.value.toString("hex"), flags: entry.flags, exptime: entry.exptime }]),
+        [...memory.entries]
+          .filter(([, entry]) => entry.expiresAt === null || entry.expiresAt > Math.floor(now))
+          .sort(([a], [b]) => (a < b ? -1 : 1))
+          .map(([key, entry]) => [
+            key,
+            { value: entry.value.toString("hex"), flags: entry.flags, exptime: entry.exptime },
+          ]),
       );
       expect(state).toEqual(step.memcached);
     }

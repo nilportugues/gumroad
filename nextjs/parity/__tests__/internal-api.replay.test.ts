@@ -8,8 +8,8 @@ import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { AudienceMemberRecord } from "@/server/search/documents/simple";
 import { closeAllRedis } from "@/server/infra/redis";
+import { AudienceMemberRecord } from "@/server/search/documents/simple";
 
 import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
@@ -28,7 +28,8 @@ const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
 const SPECS = ["internal_api_parity_spec", "internal_agent_parity_spec", "internal_sends_parity_spec"];
-const ROUTE_FLAGS = "nextjs_internal_api_host,nextjs_internal_installments,nextjs_internal_product_files,nextjs_internal_review_videos,nextjs_internal_agent,nextjs_internal_product_posts,nextjs_internal_customer_emails,nextjs_internal_receipt_previews";
+const ROUTE_FLAGS =
+  "nextjs_internal_api_host,nextjs_internal_installments,nextjs_internal_product_files,nextjs_internal_review_videos,nextjs_internal_agent,nextjs_internal_product_posts,nextjs_internal_customer_emails,nextjs_internal_receipt_previews";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "-parity";
@@ -58,10 +59,20 @@ const HOME_PAGE_CASE = "groups-the-stored-payout-by-thousands";
 
 // The clicks each case finds in the engagement table: [url, click_count].
 const CLICKS: Record<string, [string, number][]> = {
-  "lists-the-clicked-urls-by-count": [["https://example.com/a", 2], ["http://www.example.com/b", 5], ["view_attachments_url", 3]],
-  "sums-stored-urls-that-display-the-same": [["https://example.com/a", 2], ["http://www.example.com/a", 1]],
+  "lists-the-clicked-urls-by-count": [
+    ["https://example.com/a", 2],
+    ["http://www.example.com/b", 5],
+    ["view_attachments_url", 3],
+  ],
+  "sums-stored-urls-that-display-the-same": [
+    ["https://example.com/a", 2],
+    ["http://www.example.com/a", 1],
+  ],
   "lets-an-accountant-read-the-clicks": [["https://example.com/a", 2]],
-  "hands-a-list-of-urls-with-equal-counts-to-rails": [["https://example.com/a", 2], ["https://example.com/b", 2]],
+  "hands-a-list-of-urls-with-equal-counts-to-rails": [
+    ["https://example.com/a", 2],
+    ["https://example.com/b", 2],
+  ],
 };
 
 const cases = SPECS.flatMap((spec) => {
@@ -69,7 +80,14 @@ const cases = SPECS.flatMap((spec) => {
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
     .filter((file) => file.endsWith(".json"))
-    .map((file) => [file.replace(/\.json$/, ""), path.join(dir, file), loadFixture(path.join(dir, file)).exchanges.length - 1] as const);
+    .map(
+      (file) =>
+        [
+          file.replace(/\.json$/, ""),
+          path.join(dir, file),
+          loadFixture(path.join(dir, file)).exchanges.length - 1,
+        ] as const,
+    );
 });
 
 // Jobs Node enqueues sit in Sidekiq's own lists (the Ruby job) or BullMQ (a ported one).
@@ -84,8 +102,18 @@ function redisJobs(redis: Redis): JobsChannel {
         if ((await redis.type(key)) !== "hash") continue;
         const data = await redis.hget(key, "data");
         if (data === null) continue;
-        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as { class: string; args: unknown[]; queue: string; at?: number };
-        jobs.push({ class: item.class, args: item.args, queue: item.queue, ...(item.at === undefined ? {} : { at: item.at }) });
+        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as {
+          class: string;
+          args: unknown[];
+          queue: string;
+          at?: number;
+        };
+        jobs.push({
+          class: item.class,
+          args: item.args,
+          queue: item.queue,
+          ...(item.at === undefined ? {} : { at: item.at }),
+        });
       }
       for (const key of await redis.keys("queue:*")) {
         for (const raw of await redis.lrange(key, 0, -1)) {
@@ -104,7 +132,8 @@ async function dynamo(operation: string, payload: unknown): Promise<Record<strin
     headers: {
       "content-type": "application/x-amz-json-1.0",
       "x-amz-target": `DynamoDB_20120810.${operation}`,
-      authorization: "AWS4-HMAC-SHA256 Credential=local/20250101/us-east-1/dynamodb/aws4_request, SignedHeaders=host, Signature=local",
+      authorization:
+        "AWS4-HMAC-SHA256 Credential=local/20250101/us-east-1/dynamodb/aws4_request, SignedHeaders=host, Signature=local",
     },
     body: JSON.stringify(payload),
   });
@@ -114,11 +143,24 @@ async function dynamo(operation: string, payload: unknown): Promise<Record<strin
 // The partition of `installmentId` holds exactly `clicks` (URL# items), as the spec's put_item calls left it.
 async function seedClicks(installmentId: number, clicks: [string, number][]): Promise<void> {
   const TableName = `${DYNAMODB_TABLE_PREFIX}email_engagement`;
-  const existing = await dynamo("Query", { TableName, KeyConditionExpression: "pk = :pk", ExpressionAttributeValues: { ":pk": { S: String(installmentId) } } });
-  for (const item of (existing.Items as Record<string, { S: string }>[] | undefined) ?? []) await dynamo("DeleteItem", { TableName, Key: { pk: item.pk, sk: item.sk } });
+  const existing = await dynamo("Query", {
+    TableName,
+    KeyConditionExpression: "pk = :pk",
+    ExpressionAttributeValues: { ":pk": { S: String(installmentId) } },
+  });
+  for (const item of (existing.Items as Record<string, { S: string }>[] | undefined) ?? [])
+    await dynamo("DeleteItem", { TableName, Key: { pk: item.pk, sk: item.sk } });
   for (const [clickUrl, count] of clicks) {
     const sk = `URL#${createHash("sha256").update(clickUrl).digest("hex")}`;
-    await dynamo("PutItem", { TableName, Item: { pk: { S: String(installmentId) }, sk: { S: sk }, click_url: { S: clickUrl }, click_count: { N: String(count) } } });
+    await dynamo("PutItem", {
+      TableName,
+      Item: {
+        pk: { S: String(installmentId) },
+        sk: { S: sk },
+        click_url: { S: clickUrl },
+        click_count: { N: String(count) },
+      },
+    });
   }
 }
 
@@ -147,7 +189,11 @@ describe.skipIf(!url)("Api::Internal endpoints", () => {
       const chunks: Buffer[] = [];
       request.on("data", (chunk: Buffer) => chunks.push(chunk));
       request.on("end", () => {
-        handedBack.push({ method: request.method ?? "", url: request.url ?? "", body: Buffer.concat(chunks).toString("utf8") });
+        handedBack.push({
+          method: request.method ?? "",
+          url: request.url ?? "",
+          body: Buffer.concat(chunks).toString("utf8"),
+        });
         response.writeHead(204).end();
       });
     });
@@ -189,7 +235,17 @@ describe.skipIf(!url)("Api::Internal endpoints", () => {
   // is what the port writes. The recorder keeps the page as a placeholder, so the format it was served in is not a contract.
   const compareFor = (file: string, index: number) => {
     const body = loadFixture(file).exchanges.at(index)!.response.body;
-    return typeof body === "string" && body.startsWith("<rails exception debug page") ? { ignore: [...COMPARE.ignore, "response.headers.content-type", "response.json", "response.body", "response.cookies"] } : COMPARE;
+    return typeof body === "string" && body.startsWith("<rails exception debug page")
+      ? {
+          ignore: [
+            ...COMPARE.ignore,
+            "response.headers.content-type",
+            "response.json",
+            "response.body",
+            "response.cookies",
+          ],
+        }
+      : COMPARE;
   };
 
   const options = (compare: typeof COMPARE = COMPARE) => ({
@@ -217,11 +273,20 @@ describe.skipIf(!url)("Api::Internal endpoints", () => {
     interceptHttp: false,
     jobs: redisJobs(redis),
     // The webhook's timestamp is part of the header, not of the signed body: the recorded one is long past the minute Rails allows.
-    rewriteRequest: (request: Parameters<typeof reencryptCookies>[0], loaded: Parameters<typeof reencryptCookies>[1], now: Date) => {
+    rewriteRequest: (
+      request: Parameters<typeof reencryptCookies>[0],
+      loaded: Parameters<typeof reencryptCookies>[1],
+      now: Date,
+    ) => {
       const rewritten = reencryptCookies(request, loaded, SECRET_KEY_BASE, now);
       const signature = rewritten.headers["grmc-signature"];
       const stale = currentCase.includes("stale-timestamp");
-      return typeof signature === "string" && !stale ? { ...rewritten, headers: { ...rewritten.headers, "grmc-signature": signature.replace(/^t=\d+/, `t=${Date.now()}`) } } : rewritten;
+      return typeof signature === "string" && !stale
+        ? {
+            ...rewritten,
+            headers: { ...rewritten.headers, "grmc-signature": signature.replace(/^t=\d+/, `t=${Date.now()}`) },
+          }
+        : rewritten;
     },
     compare,
   });
@@ -231,19 +296,23 @@ describe.skipIf(!url)("Api::Internal endpoints", () => {
   });
 
   // The first request to a route compiles it, which would age the seeded timestamps past the replayer's tolerance.
-  it("compiles the handlers", async () => {
-    const warmed = new Set<string>();
-    for (const [name, file, index] of cases) {
-      const request = loadFixture(file).exchanges.at(index)!.request;
-      // Rails.cache is the server's own memory: a replay of the home page numbers would fill it for the cases after it.
-      if (request.path === HOME_PAGE_NUMBERS) continue;
-      const route = `${request.method} ${request.path.replace(/\/[^/]*(?==\/|$)/g, "/:id").replace(/[?].*/, "")}`;
-      if (warmed.has(route)) continue;
-      warmed.add(route);
-      currentCase = name;
-      await replayFixtureExchange(file, index, options()).catch(() => undefined);
-    }
-  }, FIRST_COMPILE_TIMEOUT_MS * 3);
+  it(
+    "compiles the handlers",
+    async () => {
+      const warmed = new Set<string>();
+      for (const [name, file, index] of cases) {
+        const request = loadFixture(file).exchanges.at(index)!.request;
+        // Rails.cache is the server's own memory: a replay of the home page numbers would fill it for the cases after it.
+        if (request.path === HOME_PAGE_NUMBERS) continue;
+        const route = `${request.method} ${request.path.replace(/\/[^/]*(?==\/|$)/g, "/:id").replace(/[?].*/, "")}`;
+        if (warmed.has(route)) continue;
+        warmed.add(route);
+        currentCase = name;
+        await replayFixtureExchange(file, index, options()).catch(() => undefined);
+      }
+    },
+    FIRST_COMPILE_TIMEOUT_MS * 3,
+  );
 
   // The server caches the figure for a day, as Rails does: the first case replayed is the one that finds the cache empty. The rest of the
   // figures are pinned by number-with-delimiter.golden.json.
@@ -260,14 +329,21 @@ describe.skipIf(!url)("Api::Internal endpoints", () => {
           const request = fixture.exchanges[index]!.request;
           expect(handedBack).toHaveLength(1);
           expect(handedBack[0]).toMatchObject({ method: request.method });
-          expect(decodeURIComponent(handedBack[0]!.url.split("?")[0]!)).toBe(decodeURIComponent(request.path.split("?")[0]!));
+          expect(decodeURIComponent(handedBack[0]!.url.split("?")[0]!)).toBe(
+            decodeURIComponent(request.path.split("?")[0]!),
+          );
           if (request.body) expect(JSON.parse(handedBack[0]!.body)).toEqual(JSON.parse(request.body));
           expect(Object.keys(handed.exchanges[0]!.actual.db ?? {})).toEqual([]);
           return;
         }
         assertParity(await replayFixtureExchange(fixture, index, options(compareFor(file, index))));
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => !line.startsWith("Next.js includes")).slice(-40).join("\n");
+        const logs = server
+          .output()
+          .split("\n")
+          .filter((line) => !line.startsWith("Next.js includes"))
+          .slice(-40)
+          .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
     },

@@ -33,7 +33,10 @@ const RE_COLOUR_NUMERIC = `\\b(hsl|rgb)${S}*\\(${NUM},${NUM},${NUM}\\)`;
 const RE_COLOUR_NUMERIC_ALPHA = `\\b(hsla|rgba)${S}*\\(${NUM},${NUM},${NUM},${NUM}\\)`;
 const RE_COLOUR_HEX = `${S}*#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})\\b`;
 const RE_COLOUR_NAMED = `${S}*\\b(${NAMED_COLOURS.join("|")})\\b`;
-export const RE_COLOUR = new RegExp(`(?:${RE_COLOUR_NUMERIC})|(?:${RE_COLOUR_NUMERIC_ALPHA})|(?:${RE_COLOUR_HEX})|(?:${RE_COLOUR_NAMED})`, "i");
+export const RE_COLOUR = new RegExp(
+  `(?:${RE_COLOUR_NUMERIC})|(?:${RE_COLOUR_NUMERIC_ALPHA})|(?:${RE_COLOUR_HEX})|(?:${RE_COLOUR_NAMED})`,
+  "i",
+);
 
 const RE_INHERIT = possibleValues("inherit");
 const URI_RX = `url\\(("([^"]*)"|'([^']*)'|([^)]*))\\)`;
@@ -45,9 +48,27 @@ const RE_INSIDE_OUTSIDE = possibleValues("inside", "outside");
 const RE_SCROLL_FIXED = possibleValues("scroll", "fixed");
 const RE_REPEAT = possibleValues("repeat(\\-x|\\-y)*|no\\-repeat");
 const RE_LIST_STYLE_TYPE = possibleValues(
-  "disc", "circle", "square", "decimal-leading-zero", "decimal", "lower-roman", "upper-roman", "lower-greek",
-  "lower-alpha", "lower-latin", "upper-alpha", "upper-latin", "hebrew", "armenian", "georgian", "cjk-ideographic",
-  "hiragana", "hira-gana-iroha", "katakana-iroha", "katakana", "none",
+  "disc",
+  "circle",
+  "square",
+  "decimal-leading-zero",
+  "decimal",
+  "lower-roman",
+  "upper-roman",
+  "lower-greek",
+  "lower-alpha",
+  "lower-latin",
+  "upper-alpha",
+  "upper-latin",
+  "hebrew",
+  "armenian",
+  "georgian",
+  "cjk-ideographic",
+  "hiragana",
+  "hira-gana-iroha",
+  "katakana-iroha",
+  "katakana",
+  "none",
 );
 const BOX_MODEL_UNITS_RX = `(auto|inherit|0|(-*([0-9]+|[0-9]*\\.[0-9]+)(rem|vw|vh|vm|vmin|vmax|e[mx]+|px|[cm]+m|p[tc+]|in|%)))(?:[ \\t\\n\\v\\f\\r;]|${END_Z})`;
 const RE_BORDER_UNITS = new RegExp(`(?:${BOX_MODEL_UNITS_RX})|(?:(thin|medium|thick))`, "i");
@@ -60,7 +81,8 @@ const SINGLE_POSITION = `(?:${RE_LENGTH_OR_PERCENTAGE}|left|center|right|top|bot
 const SINGLE_SIZE = `(?:${RE_LENGTH_OR_PERCENTAGE}|auto|cover|contain|initial|inherit)`;
 const RE_BACKGROUND_POSITION = new RegExp(`${SINGLE_POSITION}${S}+${SINGLE_POSITION}|${SINGLE_POSITION}`, "i");
 const RE_BACKGROUND_SIZE = new RegExp(`${S}*/${S}*(${SINGLE_SIZE}${S}+${SINGLE_SIZE}|${SINGLE_SIZE})`, "i");
-const FONT_UNITS_RX = /((x+-)*small|medium|larger*|auto|inherit|([0-9]+|[0-9]*\.[0-9]+)(e[mx]+|px|[cm]+m|p[tc+]|in|%)*)/i;
+const FONT_UNITS_RX =
+  /((x+-)*small|medium|larger*|auto|inherit|([0-9]+|[0-9]*\.[0-9]+)(e[mx]+|px|[cm]+m|p[tc+]|in|%)*)/i;
 
 const NON_ID_ATTRIBUTES_AND_PSEUDO_CLASSES_RX =
   /(?:\.\w+)|\[(?:\w+)|(?::(?:link|visited|active|hover|focus|lang|target|enabled|disabled|checked|indeterminate|root|nth-child|nth-last-child|nth-of-type|nth-last-of-type|first-child|last-child|first-of-type|last-of-type|only-child|only-of-type|empty|contains))/gi;
@@ -204,7 +226,8 @@ export class Declarations {
   // (possibly empty), so the third never runs.
   toString(): string {
     let out = "";
-    for (const [property, value] of this.map) out += `${property}: ${value.value}${value.important ? " !important" : ""}; `;
+    for (const [property, value] of this.map)
+      out += `${property}: ${value.value}${value.important ? " !important" : ""}; `;
     out = out.replace(new RegExp(`${BOL}[ \\t\\n\\v\\f\\r^({)]+|[\\n\\r\\f\\t]*|${S}+${EOL}`, "g"), "");
     return strip(out);
   }
@@ -213,7 +236,14 @@ export class Declarations {
 // ---------------------------------------------------------------------------------------------
 // RuleSet
 
-const BACKGROUND_PROPERTIES = ["background-color", "background-image", "background-repeat", "background-position", "background-size", "background-attachment"];
+const BACKGROUND_PROPERTIES = [
+  "background-color",
+  "background-image",
+  "background-repeat",
+  "background-position",
+  "background-size",
+  "background-attachment",
+];
 const LIST_STYLE_PROPERTIES = ["list-style-type", "list-style-position", "list-style-image"];
 const FONT_STYLE_PROPERTIES = ["font-style", "font-variant", "font-weight", "font-size", "line-height", "font-family"];
 const FONT_WEIGHT_PROPERTIES = ["font-style", "font-weight", "font-variant"];
@@ -290,7 +320,9 @@ export class RuleSet {
   private expandOnce: boolean;
   private expanded = false;
 
-  constructor(options: { selectors?: string | null; block?: string | null; specificity?: number | null; cached?: boolean } = {}) {
+  constructor(
+    options: { selectors?: string | null; block?: string | null; specificity?: number | null; cached?: boolean } = {},
+  ) {
     this.specificity = options.specificity ?? null;
     this.expandOnce = options.cached ?? false;
     if (options.selectors) this.selectors = rubySplitComma(options.selectors);
@@ -380,7 +412,9 @@ export class RuleSet {
     for (const [property, [top, right, bottom, left]] of DIMENSIONS) {
       const declaration = this.declarations.get(property);
       if (!declaration) continue;
-      const value = declaration.value.replace(new RegExp(RE_COLOUR.source, "gi"), (c) => c.replace(new RegExp(`(${S}*,${S}*)`, "g"), ","));
+      const value = declaration.value.replace(new RegExp(RE_COLOUR.source, "gi"), (c) =>
+        c.replace(new RegExp(`(${S}*,${S}*)`, "g"), ","),
+      );
       const matches = splitValuePreservingFunctionWhitespace(value);
       let values: string[];
       switch (matches.length) {
@@ -519,7 +553,11 @@ export class RuleSet {
         if (declaration) sides.set(side, declaration.value);
       });
       if (sides.size !== dimensions.length) continue;
-      const newValue = strip(computeDimensionsShorthand(sides).map((side) => sides.get(side)).join(" "));
+      const newValue = strip(
+        computeDimensionsShorthand(sides)
+          .map((side) => sides.get(side))
+          .join(" "),
+      );
       if (newValue !== "") this.declarations.set(property, newValue);
       for (const d of dimensions) this.declarations.delete(d);
     }
@@ -566,7 +604,9 @@ function rubySplitComma(selectors: string): string[] {
   return split(selectors, ",").map((s) => strip(s.replace(new RegExp(`${S}+`, "g"), " ")));
 }
 
-function computeDimensionsShorthand(values: Map<"top" | "right" | "bottom" | "left", string>): ("top" | "right" | "bottom" | "left")[] {
+function computeDimensionsShorthand(
+  values: Map<"top" | "right" | "bottom" | "left", string>,
+): ("top" | "right" | "bottom" | "left")[] {
   if (new Set(values.values()).size === 1) return ["top"];
   if (values.get("left") !== values.get("right")) return ["top", "right", "bottom", "left"];
   if (values.get("top") === values.get("bottom")) return ["top", "left"];
@@ -632,9 +672,13 @@ export class CssParser {
     this.rules.push({ mediaTypes: list, rules: ruleSet });
   }
 
-  eachSelector(callback: (selector: string, declarations: string, specificity: number, mediaTypes: string[]) => void): void {
+  eachSelector(
+    callback: (selector: string, declarations: string, specificity: number, mediaTypes: string[]) => void,
+  ): void {
     for (const { mediaTypes, rules } of this.rules) {
-      rules.eachSelector((selector, declarations, specificity) => callback(selector, declarations, specificity, mediaTypes));
+      rules.eachSelector((selector, declarations, specificity) =>
+        callback(selector, declarations, specificity, mediaTypes),
+      );
     }
   }
 

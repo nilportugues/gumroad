@@ -4,16 +4,17 @@
 // code blocks (Rouge), upsells, embeds and buttons in the message, a seller profile other than the
 // default one (its stylesheet is compiled by SassC), and any environment but production (the
 // layout's banner).
-import defaults from "./post-email-defaults.generated.json" with { type: "json" };
-import { domainConfig } from "../infra/domain.ts";
-import { railsEnv } from "../infra/rails-env.ts";
+import { type HtmlNode, setAttribute, textContent } from "../html/libxml2-tree.ts";
+import { fragmentToHtml, html4Fragment } from "../html/loofah.ts";
 import { autoLink } from "../html/rinku.ts";
 import { cgiUnescapeHtml } from "../html/sanitizer.ts";
-import { fragmentToHtml, html4Fragment } from "../html/loofah.ts";
-import { type HtmlNode, setAttribute, textContent } from "../html/libxml2-tree.ts";
+import { domainConfig } from "../infra/domain.ts";
+import { railsEnv } from "../infra/rails-env.ts";
 import { squish } from "../search/plaintext.ts";
-import { entrypointStylesheetHrefs, loadEmailStylesheet } from "./stylesheet.ts";
+
+import defaults from "./post-email-defaults.generated.json" with { type: "json" };
 import { customizedPremailer } from "./premailer/premailer.ts";
+import { entrypointStylesheetHrefs, loadEmailStylesheet } from "./stylesheet.ts";
 import { gumroadAddressFull, h, mailerUrl } from "./views.ts";
 
 export class PostEmailNotPortedError extends Error {
@@ -23,7 +24,13 @@ export class PostEmailNotPortedError extends Error {
   }
 }
 
-export type DefaultProfile = { font: string | null; background_color: string | null; highlight_color: string | null; border_radius: string | null; button_hover: string | null };
+export type DefaultProfile = {
+  font: string | null;
+  background_color: string | null;
+  highlight_color: string | null;
+  border_radius: string | null;
+  button_hover: string | null;
+};
 
 // `SellerProfile` after_initialize: a missing value takes its default.
 export function isDefaultProfile(profile: DefaultProfile | null): boolean {
@@ -40,10 +47,54 @@ export function isDefaultProfile(profile: DefaultProfile | null): boolean {
 
 // Loofah's :newline_block_elements: these elements, and <br>, are surrounded by newlines.
 const LINEBREAKERS = new Set([
-  "address", "blockquote", "center", "dir", "div", "dl", "fieldset", "form", "h1", "h2", "h3", "h4", "h5", "h6", "hr",
-  "isindex", "menu", "noframes", "noscript", "ol", "p", "pre", "table", "ul", "article", "aside", "canvas", "dd", "dt",
-  "figcaption", "figure", "footer", "header", "hgroup", "li", "main", "nav", "output", "section", "tfoot", "video",
-  "frameset", "tbody", "td", "th", "thead", "tr", "br",
+  "address",
+  "blockquote",
+  "center",
+  "dir",
+  "div",
+  "dl",
+  "fieldset",
+  "form",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "hr",
+  "isindex",
+  "menu",
+  "noframes",
+  "noscript",
+  "ol",
+  "p",
+  "pre",
+  "table",
+  "ul",
+  "article",
+  "aside",
+  "canvas",
+  "dd",
+  "dt",
+  "figcaption",
+  "figure",
+  "footer",
+  "header",
+  "hgroup",
+  "li",
+  "main",
+  "nav",
+  "output",
+  "section",
+  "tfoot",
+  "video",
+  "frameset",
+  "tbody",
+  "td",
+  "th",
+  "thead",
+  "tr",
+  "br",
 ]);
 
 function loofahText(nodes: HtmlNode[]): string {
@@ -78,7 +129,8 @@ const REWRITTEN = /<pre|<upsell-card|tiptap__raw|tiptap__button|<body|<html/iu;
 export function plainMessage(message: string | null): string {
   if (message === null) throw new PostEmailNotPortedError("a post without a message");
   if (message === "" || /^[\t\n\v\f\r ]*$/u.test(message)) return message;
-  if (REWRITTEN.test(message)) throw new PostEmailNotPortedError("a message with code blocks, upsells, embeds, buttons or a document tag");
+  if (REWRITTEN.test(message))
+    throw new PostEmailNotPortedError("a message with code blocks, upsells, embeds, buttons or a document tag");
   return fragmentToHtml(html4Fragment(message));
 }
 
@@ -112,11 +164,14 @@ export type PostEmailView = {
   profile: DefaultProfile | null;
 };
 
-const present = (value: string | null | undefined): value is string => value !== null && value !== undefined && !/^[\t\n\v\f\r ]*$/u.test(value);
+const present = (value: string | null | undefined): value is string =>
+  value !== null && value !== undefined && !/^[\t\n\v\f\r ]*$/u.test(value);
 
 // `content_tag(:span, ...)` / `link_to(..., "{{post_url}}", target: "_blank", class: "title")`
 function postTitle(view: PostEmailView): string {
-  return view.hasPostUrl ? `<a target="_blank" class="title" href="{{post_url}}">${h(view.subject)}</a>` : `<span class="title">${h(view.subject)}</span>`;
+  return view.hasPostUrl
+    ? `<a target="_blank" class="title" href="{{post_url}}">${h(view.subject)}</a>`
+    : `<span class="title">${h(view.subject)}</span>`;
 }
 
 // layouts/mailers/_header_section.html.erb without a subheading
@@ -132,7 +187,8 @@ function preheader(text: string): string {
 
 // posts/post_email.html.erb
 export function postEmailHtml(view: PostEmailView): string {
-  if (railsEnv() !== "production") throw new PostEmailNotPortedError(`the post email outside production (${railsEnv()})`);
+  if (railsEnv() !== "production")
+    throw new PostEmailNotPortedError(`the post email outside production (${railsEnv()})`);
   if (!isDefaultProfile(view.profile)) throw new PostEmailNotPortedError("a seller profile other than the default one");
   const message = withPerBlockTextDirection(autoLink(plainMessage(view.message), MESSAGE_LINK_ATTRIBUTES));
   const buttonStyle = defaults.email_primary_button_style;

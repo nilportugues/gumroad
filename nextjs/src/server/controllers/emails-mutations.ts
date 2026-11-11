@@ -4,28 +4,36 @@ import { Prisma, type Installment } from "@prisma/client";
 import * as Routes from "@/lib/navigation/routes";
 
 import { decrypt, encrypt } from "../../lib/obfuscate-ids.ts";
-import { Installments, markDeleted } from "../models/installment-writes.ts";
 import { InstallmentFlags } from "../models/installment-post.ts";
+import { Installments, markDeleted } from "../models/installment-writes.ts";
+import type { ModelRecord } from "../models/runtime/record.ts";
 import { saveInstallment } from "../models/save-installment.ts";
 import { castRow, column, selectRows, table } from "../models/sql.ts";
-import { domainConfig } from "../page-props/domain.ts";
 import { sellerGuard } from "../page-props/audience/seller-guard.ts";
+import { domainConfig } from "../page-props/domain.ts";
 import { authorize } from "../policies/authorize.ts";
-import { installmentPolicy } from "../policies/installment.ts";
 import type { PolicyQuery } from "../policies/authorize.ts";
+import { installmentPolicy } from "../policies/installment.ts";
 import type { SellerContext } from "../policies/seller-context.ts";
+
 import { RoutingError, allowedReferrer, type ActionResult } from "./application-controller.ts";
 import { railsSegment, registerMutations, type MutationInput } from "./mutation.ts";
-import type { ModelRecord } from "../models/runtime/record.ts";
 
 const SEE_OTHER = 303;
 const editPath = (id: string) => `/emails/${railsSegment(id)}/edit`;
 const FOUND = 302;
 
-const redirect = (location: string, notice?: string, status = SEE_OTHER): ActionResult => ({ status, location, ...(notice === undefined ? {} : { flash: { notice } }) });
+const redirect = (location: string, notice?: string, status = SEE_OTHER): ActionResult => ({
+  status,
+  location,
+  ...(notice === undefined ? {} : { flash: { notice } }),
+});
 
 // `current_seller.installments.alive.find_by_external_id(params[:id])`, or e404
-async function setInstallment(seller: NonNullable<SellerContext["seller"]>, id: string): Promise<ModelRecord<Installment>> {
+async function setInstallment(
+  seller: NonNullable<SellerContext["seller"]>,
+  id: string,
+): Promise<ModelRecord<Installment>> {
   const decrypted = decrypt(id);
   const [row] =
     decrypted === null
@@ -38,12 +46,25 @@ async function setInstallment(seller: NonNullable<SellerContext["seller"]>, id: 
 }
 
 // Sellers::BaseController's filters, `set_installment` (update and destroy), then the action's `authorize`.
-async function guarded(input: MutationInput, policy: PolicyQuery, find: boolean): Promise<{ denied: ActionResult | null; installment: ModelRecord<Installment> | null }> {
+async function guarded(
+  input: MutationInput,
+  policy: PolicyQuery,
+  find: boolean,
+): Promise<{ denied: ActionResult | null; installment: ModelRecord<Installment> | null }> {
   let installment: ModelRecord<Installment> | null = null;
   const denied = await sellerGuard(
-    { context: input.context, config: domainConfig(process.env), url: input.url, params: input.routeParams, urlOptions: input.urlOptions },
+    {
+      context: input.context,
+      config: domainConfig(process.env),
+      url: input.url,
+      params: input.routeParams,
+      urlOptions: input.urlOptions,
+    },
     (sellerContext) => authorize(policy, sellerContext),
-    { beforeAuthorize: async (sellerContext) => void (find && (installment = await setInstallment(sellerContext.seller!, input.routeParams.id!))) },
+    {
+      beforeAuthorize: async (sellerContext) =>
+        void (find && (installment = await setInstallment(sellerContext.seller!, input.routeParams.id!))),
+    },
   );
   return { denied, installment };
 }
@@ -55,10 +76,18 @@ async function save(input: MutationInput, installment: ModelRecord<Installment> 
   const saved = result.installment;
   if (result.ok && saved !== null) {
     const id = encrypt(saved.get("id"));
-    if (action === "save_and_preview_post") return redirect(`${editPath(id)}?preview_post=true`, "Preview link opened.");
+    if (action === "save_and_preview_post")
+      return redirect(`${editPath(id)}?preview_post=true`, "Preview link opened.");
     if (action === "save_and_preview_email") return redirect(editPath(id), "A preview has been sent to your email.");
-    if (action === "save_and_publish") return redirect(Routes.published_emails_path(), InstallmentFlags.isSet(saved.get("flags"), "send_emails") ? "Email successfully sent!" : "Email successfully published!");
-    if (action === "save_and_schedule") return redirect(Routes.scheduled_emails_path(), "Email successfully scheduled!");
+    if (action === "save_and_publish")
+      return redirect(
+        Routes.published_emails_path(),
+        InstallmentFlags.isSet(saved.get("flags"), "send_emails")
+          ? "Email successfully sent!"
+          : "Email successfully published!",
+      );
+    if (action === "save_and_schedule")
+      return redirect(Routes.scheduled_emails_path(), "Email successfully scheduled!");
     return redirect(editPath(id), installment === null ? "Email created!" : "Changes saved!");
   }
   const location = installment === null ? Routes.new_email_path() : editPath(encrypt(installment.get("id")));

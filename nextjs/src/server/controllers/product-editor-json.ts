@@ -8,24 +8,31 @@ import { Prisma, type Tag } from "@prisma/client";
 
 import { encrypt as externalId } from "../../lib/obfuscate-ids.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
-import { geoIpLookup } from "../infra/geo-ip.ts";
-import { LinkFlags } from "../models/link.ts";
-import { performAsync } from "../models/concerns/job-runtime.ts";
-import { UserFlags } from "../models/user.ts";
-import { castRow, column, selectRows, table } from "../models/sql.ts";
-import { aliveCartProductCount, fetchCart } from "../page-props/checkout/checkout.ts";
-import { createUserEvent, referrerDomain, remoteIp } from "../page-props/audience/events.ts";
 import { titleize } from "../html/installment-message.ts";
+import { geoIpLookup } from "../infra/geo-ip.ts";
+import { performAsync } from "../models/concerns/job-runtime.ts";
+import { LinkFlags } from "../models/link.ts";
+import { castRow, column, selectRows, table } from "../models/sql.ts";
+import { UserFlags } from "../models/user.ts";
+import { createUserEvent, referrerDomain, remoteIp } from "../page-props/audience/events.ts";
+import { aliveCartProductCount, fetchCart } from "../page-props/checkout/checkout.ts";
 import { isBot } from "../page-props/discover/discover.ts";
 import { authorize } from "../policies/authorize.ts";
 import { collaboratingProductIds, linkPolicy, productsVariantsLinkPolicy } from "../policies/link.ts";
 import { type SellerContext } from "../policies/seller-context.ts";
-import { type ActionContext, type ActionResult, HandBackToRails, processAction, RoutingError } from "./application-controller.ts";
+
+import {
+  type ActionContext,
+  type ActionResult,
+  HandBackToRails,
+  processAction,
+  RoutingError,
+} from "./application-controller.ts";
+import { sellerJsonAction } from "./json-seller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { requestFormat } from "./rails-params.ts";
 import { queryParam } from "./rails-request.ts";
 import { authorizeJson, json } from "./seller-json.ts";
-import { sellerJsonAction } from "./json-seller.ts";
 
 const GUMROAD_GUID_COOKIE = "_gumroad_guid";
 const TAGS_LIMIT = 10;
@@ -44,13 +51,22 @@ const isoMillis = (time: Date | null): string | null => (time === null ? null : 
 // `params[:name]` as a plain string, else a hand-back (an array or hash parameter makes Rails call a String method on it).
 function stringParam(request: ActionContext["request"], name: string): string | null | undefined {
   const query = request.queryString;
-  if (new RegExp(`(^|&)${name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}(\\[|%5B)`, "iu").test(query)) throw new HandBackToRails(`a structured ${name} parameter`);
+  if (new RegExp(`(^|&)${name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}(\\[|%5B)`, "iu").test(query))
+    throw new HandBackToRails(`a structured ${name} parameter`);
   return queryParam(request, name);
 }
 
 // ----- TagsController#index
 
-const TAG_COLUMNS = ["id", "name", "created_at", "updated_at", "humanized_name", "flagged_at", "taggings_count"] as const;
+const TAG_COLUMNS = [
+  "id",
+  "name",
+  "created_at",
+  "updated_at",
+  "humanized_name",
+  "flagged_at",
+  "taggings_count",
+] as const;
 
 async function tagsIndex({ request }: ActionContext): Promise<ActionResult> {
   const text = stringParam(request, "text");
@@ -68,7 +84,14 @@ async function tagsIndex({ request }: ActionContext): Promise<ActionResult> {
     if (tag.humanized_name === null && tag.name === null) throw new HandBackToRails("a tag without a name");
     const attributes = { ...tag, humanized_name: tag.humanized_name ?? titleize(tag.name!) };
     return {
-      ...Object.fromEntries(TAG_COLUMNS.map((name) => [name, name === "created_at" || name === "updated_at" || name === "flagged_at" ? isoMillis(attributes[name] as Date | null) : attributes[name]])),
+      ...Object.fromEntries(
+        TAG_COLUMNS.map((name) => [
+          name,
+          name === "created_at" || name === "updated_at" || name === "flagged_at"
+            ? isoMillis(attributes[name] as Date | null)
+            : attributes[name],
+        ]),
+      ),
       uses: Number(row.uses),
     };
   });
@@ -81,7 +104,8 @@ export const tagsResponse = (incoming: Request): Promise<Response> => processAct
 
 // The JSON answer. The Inertia frame (`format.any`) is the `/cart_items_count` page on the Gumroad domain; on a seller host it is Rails'.
 async function cartItemsCount(action: Pick<ActionContext, "request" | "context">): Promise<ActionResult> {
-  if (requestFormat(action.request) !== "json") throw new HandBackToRails("cart_items_count asked for something other than JSON");
+  if (requestFormat(action.request) !== "json")
+    throw new HandBackToRails("cart_items_count asked for something other than JSON");
   const user = railsLoggedInUser(action.context);
   const guid = action.request.cookies.get(GUMROAD_GUID_COOKIE) ?? null;
   return json({ cart_items_count: await aliveCartProductCount(user?.id ?? null, guid) });
@@ -91,7 +115,15 @@ registerMutations({ method: "GET", pattern: "/cart_items_count", skipForgeryProt
 
 // ----- LinksController#fetch_product: `Link.fetch(params[:id] || params[:link_id]) || e404`
 
-type ProductRow = { id: bigint; user_id: bigint | null; price_cents: number | null; flags: bigint; name: string | null; unique_permalink: string | null; price_currency_type: string | null };
+type ProductRow = {
+  id: bigint;
+  user_id: bigint | null;
+  price_cents: number | null;
+  flags: bigint;
+  name: string | null;
+  unique_permalink: string | null;
+  price_currency_type: string | null;
+};
 
 async function fetchVisibleProduct(permalink: string | null): Promise<ProductRow | null> {
   if (permalink === null) return null;
@@ -172,29 +204,42 @@ const BOOLEAN_FALSE_VALUES = new Set(["0", "f", "F", "false", "FALSE", "off", "O
 // `source_url = request.referrer if request.get?` and the signed analytics payload only matter for a GET; one without a token never
 // counts, one with a token verifies a message the port does not read.
 async function incrementViewsGet(action: ActionContext, routeParams: Record<string, string>): Promise<ActionResult> {
-  if (requestFormat(action.request) === "other") throw new HandBackToRails("increment_views asked for a format other than JSON");
+  if (requestFormat(action.request) === "other")
+    throw new HandBackToRails("increment_views asked for a format other than JSON");
   if ((await fetchVisibleProduct(routeParams.id ?? null)) === null) throw new RoutingError("Not Found");
-  if (present(queryParam(action.request, "analytics_token") ?? null)) throw new HandBackToRails("an increment_views GET carrying an analytics token");
+  if (present(queryParam(action.request, "analytics_token") ?? null))
+    throw new HandBackToRails("an increment_views GET carrying an analytics token");
   return json({ success: true });
 }
 
 async function incrementViews(input: MutationInput): Promise<ActionResult> {
   const { request, context, params } = input;
   // A GIF beacon answers the image.
-  if (requestFormat(request) === "other") throw new HandBackToRails("increment_views asked for a format other than JSON");
+  if (requestFormat(request) === "other")
+    throw new HandBackToRails("increment_views asked for a format other than JSON");
   const product = await fetchVisibleProduct(input.routeParams.id ?? null);
   if (product === null) throw new RoutingError("Not Found");
   const user = railsLoggedInUser(context);
-  const skip = isBot(request.headers.get("user-agent"), params as never) || (user !== null && (product.user_id === context.currentSeller?.id || UserFlags.isSet(user.flags, "is_team_member"))) || context.impersonatedUser != null;
+  const skip =
+    isBot(request.headers.get("user-agent"), params as never) ||
+    (user !== null &&
+      (product.user_id === context.currentSeller?.id || UserFlags.isSet(user.flags, "is_team_member"))) ||
+    context.impersonatedUser != null;
   if (skip) return json({ success: true });
 
   const referrerParam = params.referrer;
   const referrerList = Array.isArray(referrerParam) ? referrerParam : referrerParam == null ? [] : [referrerParam];
   if (referrerList.some((entry) => typeof entry !== "string")) throw new HandBackToRails("a non-string referrer");
-  for (const key of ["was_product_recommended", "view_url", "plugins"]) if (params[key] != null && typeof params[key] !== "string") throw new HandBackToRails(`a non-string ${key} parameter`);
+  for (const key of ["was_product_recommended", "view_url", "plugins"])
+    if (params[key] != null && typeof params[key] !== "string")
+      throw new HandBackToRails(`a non-string ${key} parameter`);
   let referrer: string | null = (referrerList as string[]).filter(present).at(-1) ?? request.headers.get("referer");
-  if (referrer !== null && present(referrer)) referrer = referrer.replace(/[^\x00-\x7f]/gu, "").slice(0, REFERRER_MAX_LENGTH + 1);
-  const recommended = typeof params.was_product_recommended === "string" && params.was_product_recommended !== "" && !BOOLEAN_FALSE_VALUES.has(params.was_product_recommended);
+  if (referrer !== null && present(referrer))
+    referrer = referrer.replace(/[^\x00-\x7f]/gu, "").slice(0, REFERRER_MAX_LENGTH + 1);
+  const recommended =
+    typeof params.was_product_recommended === "string" &&
+    params.was_product_recommended !== "" &&
+    !BOOLEAN_FALSE_VALUES.has(params.was_product_recommended);
   const ip = remoteIp(request.headers);
   const geo = geoIpLookup(ip);
   const agent = request.headers.get("user-agent");
@@ -214,7 +259,9 @@ async function incrementViews(input: MutationInput): Promise<ActionResult> {
         ip_address: ip,
         url: (params.view_url as string | undefined) ?? input.url.pathname,
         browser_guid: request.cookies.get(GUMROAD_GUID_COOKIE) ?? null,
-        browser_fingerprint: createHash("md5").update([agent ?? "", (params.plugins as string | undefined) ?? ""].join(",")).digest("hex"),
+        browser_fingerprint: createHash("md5")
+          .update([agent ?? "", (params.plugins as string | undefined) ?? ""].join(","))
+          .digest("hex"),
         referrer,
       },
     },
@@ -224,35 +271,52 @@ async function incrementViews(input: MutationInput): Promise<ActionResult> {
 
 // ----- Products::VariantsController#index
 
-type VariantRow = { id: bigint; name: string | null; max_purchase_count: number | null; description: string | null; price_difference_cents: number | null; customizable_price: number | boolean | null; duration_in_minutes: number | null; sales_count_for_inventory_cache: number };
+type VariantRow = {
+  id: bigint;
+  name: string | null;
+  max_purchase_count: number | null;
+  description: string | null;
+  price_difference_cents: number | null;
+  customizable_price: number | boolean | null;
+  duration_in_minutes: number | null;
+  sales_count_for_inventory_cache: number;
+};
 
 async function variantsIndex(action: ActionContext, routeParams: Record<string, string>): Promise<ActionResult> {
-  return sellerJsonAction(action, () => true, async (sellerContext) => {
-    const seller = action.context.currentSeller!;
-    const product = await fetchOwnedProduct(routeParams.link_id ?? null, seller.id);
-    const denied = await authorizeJson(action, () => authorize(productsVariantsLinkPolicy.index, sellerContext));
-    if (denied) return denied;
-    if (LinkFlags.isSet(product.flags, "is_tiered_membership") || LinkFlags.isSet(product.flags, "skus_enabled")) throw new HandBackToRails("options of a tiered membership or a product with SKUs");
-    const [category] = await selectRows<{ id: bigint }>(
-      Prisma.sql`SELECT ${column("variant_categories", "id")} FROM ${table("variant_categories")} WHERE ${column("variant_categories", "link_id")} = ${product.id} AND ${column("variant_categories", "deleted_at")} IS NULL ORDER BY ${column("variant_categories", "id")} ASC LIMIT 1`,
-    );
-    if (category === undefined) return json([]);
-    const rows = await selectRows<VariantRow>(
-      Prisma.sql`SELECT ${Prisma.raw("`base_variants`.*")} FROM ${table("base_variants")} WHERE ${column("base_variants", "type")} = 'Variant' AND ${column("base_variants", "variant_category_id")} = ${category.id} AND ${column("base_variants", "deleted_at")} IS NULL ORDER BY ${column("base_variants", "position_in_category")} ASC, ${column("base_variants", "created_at")} ASC`,
-    );
-    return json(
-      rows.map((row) => ({
-        id: externalId(row.id),
-        name: row.name === "Untitled" ? product.name : (row.name ?? ""),
-        quantity_left: row.max_purchase_count === null ? null : Math.max(row.max_purchase_count - Number(row.sales_count_for_inventory_cache ?? 0), 0),
-        description: row.description ?? "",
-        price_difference_cents: row.price_difference_cents,
-        recurrence_price_values: null,
-        is_pwyw: !!row.customizable_price,
-        duration_in_minutes: row.duration_in_minutes,
-      })),
-    );
-  });
+  return sellerJsonAction(
+    action,
+    () => true,
+    async (sellerContext) => {
+      const seller = action.context.currentSeller!;
+      const product = await fetchOwnedProduct(routeParams.link_id ?? null, seller.id);
+      const denied = await authorizeJson(action, () => authorize(productsVariantsLinkPolicy.index, sellerContext));
+      if (denied) return denied;
+      if (LinkFlags.isSet(product.flags, "is_tiered_membership") || LinkFlags.isSet(product.flags, "skus_enabled"))
+        throw new HandBackToRails("options of a tiered membership or a product with SKUs");
+      const [category] = await selectRows<{ id: bigint }>(
+        Prisma.sql`SELECT ${column("variant_categories", "id")} FROM ${table("variant_categories")} WHERE ${column("variant_categories", "link_id")} = ${product.id} AND ${column("variant_categories", "deleted_at")} IS NULL ORDER BY ${column("variant_categories", "id")} ASC LIMIT 1`,
+      );
+      if (category === undefined) return json([]);
+      const rows = await selectRows<VariantRow>(
+        Prisma.sql`SELECT ${Prisma.raw("`base_variants`.*")} FROM ${table("base_variants")} WHERE ${column("base_variants", "type")} = 'Variant' AND ${column("base_variants", "variant_category_id")} = ${category.id} AND ${column("base_variants", "deleted_at")} IS NULL ORDER BY ${column("base_variants", "position_in_category")} ASC, ${column("base_variants", "created_at")} ASC`,
+      );
+      return json(
+        rows.map((row) => ({
+          id: externalId(row.id),
+          name: row.name === "Untitled" ? product.name : (row.name ?? ""),
+          quantity_left:
+            row.max_purchase_count === null
+              ? null
+              : Math.max(row.max_purchase_count - Number(row.sales_count_for_inventory_cache ?? 0), 0),
+          description: row.description ?? "",
+          price_difference_cents: row.price_difference_cents,
+          recurrence_price_values: null,
+          is_pwyw: !!row.customizable_price,
+          duration_in_minutes: row.duration_in_minutes,
+        })),
+      );
+    },
+  );
 }
 
 // `Link.fetch(permalink, user: current_seller) || e404`
@@ -264,11 +328,21 @@ async function fetchOwnedProduct(permalink: string | null, sellerId: bigint): Pr
 
 // ----- Products::OtherRefundPoliciesController#index and AvailableOfferCodesController#index
 
-async function editableProduct(action: ActionContext, sellerContext: SellerContext, permalink: string | null): Promise<{ halt: ActionResult } | { halt: null; product: ProductRow }> {
+async function editableProduct(
+  action: ActionContext,
+  sellerContext: SellerContext,
+  permalink: string | null,
+): Promise<{ halt: ActionResult } | { halt: null; product: ProductRow }> {
   const product = await findProductByPermalink(permalink);
   if (product === null) throw new RoutingError("Not Found");
   const collaborating = await collaboratingProductIds(sellerContext, [product.id]);
-  const denied = await authorizeJson(action, () => authorize((c, record) => linkPolicy.edit(c, record, collaborating), sellerContext, { id: product.id, user_id: product.user_id, flags: product.flags }));
+  const denied = await authorizeJson(action, () =>
+    authorize((c, record) => linkPolicy.edit(c, record, collaborating), sellerContext, {
+      id: product.id,
+      user_id: product.user_id,
+      flags: product.flags,
+    }),
+  );
   return denied ? { halt: denied } : { halt: null, product };
 }
 
@@ -282,25 +356,34 @@ const REFUND_PERIOD_TITLES = new Map<number, string>([
 ]);
 
 async function otherRefundPolicies(action: ActionContext, routeParams: Record<string, string>): Promise<ActionResult> {
-  return sellerJsonAction(action, () => true, async (sellerContext) => {
-    const found = await editableProduct(action, sellerContext, routeParams.product_id ?? null);
-    if (found.halt) return found.halt;
-    const { product } = found;
-    const rows = await selectRows<{ id: bigint; fine_print: string | null; max_refund_period_in_days: number | null; name: string | null }>(
-      Prisma.sql`SELECT ${Prisma.raw("`refund_policies`.*")}, ${column("links", "name")} FROM ${table("refund_policies")} INNER JOIN ${table("links")} ON ${column("links", "id")} = ${column("refund_policies", "product_id")}
+  return sellerJsonAction(
+    action,
+    () => true,
+    async (sellerContext) => {
+      const found = await editableProduct(action, sellerContext, routeParams.product_id ?? null);
+      if (found.halt) return found.halt;
+      const { product } = found;
+      const rows = await selectRows<{
+        id: bigint;
+        fine_print: string | null;
+        max_refund_period_in_days: number | null;
+        name: string | null;
+      }>(
+        Prisma.sql`SELECT ${Prisma.raw("`refund_policies`.*")}, ${column("links", "name")} FROM ${table("refund_policies")} INNER JOIN ${table("links")} ON ${column("links", "id")} = ${column("refund_policies", "product_id")}
         WHERE ${column("refund_policies", "seller_id")} = ${product.user_id} AND ${column("refund_policies", "product_id")} IS NOT NULL AND ${column("links", "deleted_at")} IS NULL AND ${LinkFlags.condition("archived", false)} AND ${column("refund_policies", "product_id")} <> ${product.id}
         ORDER BY ${column("refund_policies", "updated_at")} DESC`,
-    );
-    return json(
-      rows.map((row) => ({
-        fine_print: row.fine_print,
-        id: externalId(row.id),
-        max_refund_period_in_days: row.max_refund_period_in_days,
-        product_name: row.name,
-        title: REFUND_PERIOD_TITLES.get(row.max_refund_period_in_days ?? -1) ?? null,
-      })),
-    );
-  });
+      );
+      return json(
+        rows.map((row) => ({
+          fine_print: row.fine_print,
+          id: externalId(row.id),
+          max_refund_period_in_days: row.max_refund_period_in_days,
+          product_name: row.name,
+          title: REFUND_PERIOD_TITLES.get(row.max_refund_period_in_days ?? -1) ?? null,
+        })),
+      );
+    },
+  );
 }
 
 type OfferCodeRow = {
@@ -322,49 +405,71 @@ type OfferCodeRow = {
 const ONCE_PER_CART_FLAG = 4n; // OfferCode flag 3
 
 async function availableOfferCodes(action: ActionContext, routeParams: Record<string, string>): Promise<ActionResult> {
-  return sellerJsonAction(action, () => true, async (sellerContext) => {
-    const found = await editableProduct(action, sellerContext, routeParams.product_id ?? null);
-    if (found.halt) return found.halt;
-    const { product } = found;
-    const query = stringParam(action.request, "query");
-    if (query != null && !ASCII_ONLY.test(query)) throw new HandBackToRails("an offer code search with non-ASCII text");
-    const searching = present(query);
-    const limit = searching ? MAX_OFFER_CODES_LIMIT : INITIAL_OFFER_CODES_LIMIT;
-    const nameFilter = searching ? Prisma.sql` AND LOWER(${column("offer_codes", "name")}) LIKE ${`%${query.trim().toLowerCase()}%`}` : Prisma.empty;
-    const order = searching ? Prisma.sql` ORDER BY ${column("offer_codes", "created_at")} DESC LIMIT ${OFFER_CODE_SEARCH_LIMIT}` : Prisma.empty;
-    const productCodes = await selectRows<OfferCodeRow>(
-      Prisma.sql`SELECT ${Prisma.raw("`offer_codes`.*")} FROM ${table("offer_codes")} INNER JOIN ${table("offer_codes_products")} ON ${column("offer_codes", "id")} = ${column("offer_codes_products", "offer_code_id")}
+  return sellerJsonAction(
+    action,
+    () => true,
+    async (sellerContext) => {
+      const found = await editableProduct(action, sellerContext, routeParams.product_id ?? null);
+      if (found.halt) return found.halt;
+      const { product } = found;
+      const query = stringParam(action.request, "query");
+      if (query != null && !ASCII_ONLY.test(query))
+        throw new HandBackToRails("an offer code search with non-ASCII text");
+      const searching = present(query);
+      const limit = searching ? MAX_OFFER_CODES_LIMIT : INITIAL_OFFER_CODES_LIMIT;
+      const nameFilter = searching
+        ? Prisma.sql` AND LOWER(${column("offer_codes", "name")}) LIKE ${`%${query.trim().toLowerCase()}%`}`
+        : Prisma.empty;
+      const order = searching
+        ? Prisma.sql` ORDER BY ${column("offer_codes", "created_at")} DESC LIMIT ${OFFER_CODE_SEARCH_LIMIT}`
+        : Prisma.empty;
+      const productCodes = await selectRows<OfferCodeRow>(
+        Prisma.sql`SELECT ${Prisma.raw("`offer_codes`.*")} FROM ${table("offer_codes")} INNER JOIN ${table("offer_codes_products")} ON ${column("offer_codes", "id")} = ${column("offer_codes_products", "offer_code_id")}
         WHERE ${column("offer_codes_products", "product_id")} = ${product.id} AND ${column("offer_codes", "deleted_at")} IS NULL AND ${column("offer_codes", "new_customers_only")} = FALSE${nameFilter}${order}`,
-    );
-    const universalCodes = await selectRows<OfferCodeRow>(
-      Prisma.sql`SELECT ${Prisma.raw("`offer_codes`.*")} FROM ${table("offer_codes")}
+      );
+      const universalCodes = await selectRows<OfferCodeRow>(
+        Prisma.sql`SELECT ${Prisma.raw("`offer_codes`.*")} FROM ${table("offer_codes")}
         WHERE ${column("offer_codes", "user_id")} = ${product.user_id} AND (universal = 1 AND (currency_type = ${product.price_currency_type} OR currency_type IS NULL)) AND ${column("offer_codes", "deleted_at")} IS NULL
         AND NOT EXISTS (SELECT 1 FROM offer_codes_excluded_products WHERE offer_codes_excluded_products.offer_code_id = offer_codes.id AND offer_codes_excluded_products.product_id = ${product.id})
         AND ${column("offer_codes", "new_customers_only")} = FALSE${nameFilter}${order}`,
-    );
-    // `(product_codes + universal_codes).sort_by(&:created_at).reverse!.first(limit)`
-    const combined = [...productCodes, ...universalCodes].sort((a, b) => a.created_at.getTime() - b.created_at.getTime()).reverse().slice(0, limit);
-    const props = [];
-    for (const code of combined) props.push(await offerCodeProps(code));
-    return json(props);
-  });
+      );
+      // `(product_codes + universal_codes).sort_by(&:created_at).reverse!.first(limit)`
+      const combined = [...productCodes, ...universalCodes]
+        .sort((a, b) => a.created_at.getTime() - b.created_at.getTime())
+        .reverse()
+        .slice(0, limit);
+      const props = [];
+      for (const code of combined) props.push(await offerCodeProps(code));
+      return json(props);
+    },
+  );
 }
 
 async function offerCodeProps(code: OfferCodeRow): Promise<Record<string, unknown>> {
   const tiers = code.ownership_duration_tiers;
-  const tiered = typeof tiers === "string" ? (JSON.parse(tiers) as unknown[]).length > 0 : Array.isArray(tiers) && tiers.length > 0;
+  const tiered =
+    typeof tiers === "string" ? (JSON.parse(tiers) as unknown[]).length > 0 : Array.isArray(tiers) && tiers.length > 0;
   const isCents = code.amount_cents != null;
   if (tiered) throw new HandBackToRails("a tiered offer code");
   if (isCents && (code.flags & ONCE_PER_CART_FLAG) !== 0n) throw new HandBackToRails("a once-per-cart offer code");
-  const variant = await selectRows(Prisma.sql`SELECT 1 AS one FROM ${table("offer_codes_variants")} WHERE ${column("offer_codes_variants", "offer_code_id")} = ${code.id} LIMIT 1`);
+  const variant = await selectRows(
+    Prisma.sql`SELECT 1 AS one FROM ${table("offer_codes_variants")} WHERE ${column("offer_codes_variants", "offer_code_id")} = ${code.id} LIMIT 1`,
+  );
   if (variant.length > 0) throw new HandBackToRails("an offer code limited to options");
   const universal = !!code.universal;
   let productIds: string[] | null = null;
   const excluded: string[] = [];
   if (universal) {
-    for (const row of await selectRows<{ product_id: bigint }>(Prisma.sql`SELECT ${column("offer_codes_excluded_products", "product_id")} FROM ${table("offer_codes_excluded_products")} WHERE ${column("offer_codes_excluded_products", "offer_code_id")} = ${code.id}`)) excluded.push(externalId(row.product_id));
+    for (const row of await selectRows<{ product_id: bigint }>(
+      Prisma.sql`SELECT ${column("offer_codes_excluded_products", "product_id")} FROM ${table("offer_codes_excluded_products")} WHERE ${column("offer_codes_excluded_products", "offer_code_id")} = ${code.id}`,
+    ))
+      excluded.push(externalId(row.product_id));
   } else {
-    productIds = (await selectRows<{ product_id: bigint }>(Prisma.sql`SELECT ${column("offer_codes_products", "product_id")} FROM ${table("offer_codes_products")} WHERE ${column("offer_codes_products", "offer_code_id")} = ${code.id}`)).map((row) => externalId(row.product_id));
+    productIds = (
+      await selectRows<{ product_id: bigint }>(
+        Prisma.sql`SELECT ${column("offer_codes_products", "product_id")} FROM ${table("offer_codes_products")} WHERE ${column("offer_codes_products", "offer_code_id")} = ${code.id}`,
+      )
+    ).map((row) => externalId(row.product_id));
   }
   const discount: Record<string, unknown> = {
     ...(isCents ? { type: "fixed", cents: code.amount_cents } : { type: "percent", percents: code.amount_percentage }),
@@ -382,13 +487,30 @@ async function offerCodeProps(code: OfferCodeRow): Promise<Record<string, unknow
 const routeParamsOf = (params: Promise<Record<string, string>>) => params;
 
 export const variantsResponse = (incoming: Request, params: Promise<Record<string, string>>): Promise<Response> =>
-  routeParamsOf(params).then((routeParams) => processAction(incoming, {}, (action) => variantsIndex(action, routeParams)));
-export const otherRefundPoliciesResponse = (incoming: Request, params: Promise<Record<string, string>>): Promise<Response> =>
-  routeParamsOf(params).then((routeParams) => processAction(incoming, {}, (action) => otherRefundPolicies(action, routeParams)));
-export const availableOfferCodesResponse = (incoming: Request, params: Promise<Record<string, string>>): Promise<Response> =>
-  routeParamsOf(params).then((routeParams) => processAction(incoming, {}, (action) => availableOfferCodes(action, routeParams)));
-export const incrementViewsGetResponse = (incoming: Request, params: Promise<Record<string, string>>): Promise<Response> =>
-  routeParamsOf(params).then((routeParams) => processAction(incoming, {}, (action) => incrementViewsGet(action, routeParams)));
+  routeParamsOf(params).then((routeParams) =>
+    processAction(incoming, {}, (action) => variantsIndex(action, routeParams)),
+  );
+export const otherRefundPoliciesResponse = (
+  incoming: Request,
+  params: Promise<Record<string, string>>,
+): Promise<Response> =>
+  routeParamsOf(params).then((routeParams) =>
+    processAction(incoming, {}, (action) => otherRefundPolicies(action, routeParams)),
+  );
+export const availableOfferCodesResponse = (
+  incoming: Request,
+  params: Promise<Record<string, string>>,
+): Promise<Response> =>
+  routeParamsOf(params).then((routeParams) =>
+    processAction(incoming, {}, (action) => availableOfferCodes(action, routeParams)),
+  );
+export const incrementViewsGetResponse = (
+  incoming: Request,
+  params: Promise<Record<string, string>>,
+): Promise<Response> =>
+  routeParamsOf(params).then((routeParams) =>
+    processAction(incoming, {}, (action) => incrementViewsGet(action, routeParams)),
+  );
 
 registerMutations(
   { method: "POST", pattern: "/links/:id/track_user_action", formats: ["any"], run: trackUserAction },

@@ -79,28 +79,31 @@ describe.skipIf(!url)("ApplicationController filters when signed in", () => {
     expect(files.length).toBeGreaterThanOrEqual(14);
   });
 
-  it.each(files.map((file) => [file.replace(/^signed-in-filters-/, "").replace(/\.json$/, ""), file] as const))("%s", async (name, file) => {
-    const fixture = loadFixture(path.join(FIXTURE_DIR, file));
-    const index = fixture.exchanges.length - 1;
-    const exchange = fixture.exchanges[index]!;
-    actionRan = false;
+  it.each(files.map((file) => [file.replace(/^signed-in-filters-/, "").replace(/\.json$/, ""), file] as const))(
+    "%s",
+    async (name, file) => {
+      const fixture = loadFixture(path.join(FIXTURE_DIR, file));
+      const index = fixture.exchanges.length - 1;
+      const exchange = fixture.exchanges[index]!;
+      actionRan = false;
 
-    const result = await replayFixtureExchange(fixture, index, {
-      sql,
-      redis: redisSeeder(redis),
-      transport: await transportFor(exchange.request.path),
-      interceptHttp: false,
-      rewriteRequest: (request, loaded, now) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
-      compare: COMPARE,
-    });
+      const result = await replayFixtureExchange(fixture, index, {
+        sql,
+        redis: redisSeeder(redis),
+        transport: await transportFor(exchange.request.path),
+        interceptHttp: false,
+        rewriteRequest: (request, loaded, now) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
+        compare: COMPARE,
+      });
 
-    if (PASSES_THROUGH.some((pattern) => pattern.test(name))) {
-      // The stand-in action answers instead of the real one; what matters is that the filter let go.
-      expect(actionRan).toBe(true);
-      return;
-    }
-    // A refused write never reaches its action.
-    expect(actionRan).toBe(false);
-    assertParity(result);
-  });
+      if (PASSES_THROUGH.some((pattern) => pattern.test(name))) {
+        // The stand-in action answers instead of the real one; what matters is that the filter let go.
+        expect(actionRan).toBe(true);
+        return;
+      }
+      // A refused write never reaches its action.
+      expect(actionRan).toBe(false);
+      assertParity(result);
+    },
+  );
 });

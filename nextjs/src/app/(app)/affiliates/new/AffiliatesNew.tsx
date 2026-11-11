@@ -1,12 +1,13 @@
 "use client";
 
 import { XSquare } from "@boxicons/react";
-import { useForm, usePage } from "@/lib/navigation";
 import * as React from "react";
 
+import { AffiliateForm, AffiliateProduct } from "$app/pages/Affiliates/Form";
 import { cast } from "$app/utils/cast";
 import { isValidEmail } from "$app/utils/email";
 import { isUrlValid } from "$app/utils/url";
+import { useForm, usePage } from "@/lib/navigation";
 
 import { Button } from "$app/components/Button";
 import { useLoggedInUser } from "$app/components/LoggedInUser";
@@ -16,8 +17,6 @@ import { Fieldset, FieldsetTitle } from "$app/components/ui/Fieldset";
 import { Input } from "$app/components/ui/Input";
 import { Label } from "$app/components/ui/Label";
 import { PageHeader } from "$app/components/ui/PageHeader";
-
-import { AffiliateForm, AffiliateProduct } from "$app/pages/Affiliates/Form";
 
 type Props = {
   products: AffiliateProduct[];

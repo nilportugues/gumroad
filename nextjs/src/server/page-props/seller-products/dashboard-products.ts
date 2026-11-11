@@ -4,9 +4,16 @@ import { Prisma, type User } from "@prisma/client";
 import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
 import { LinkFlags } from "../../models/link.ts";
 import { column, selectRows, table } from "../../models/sql.ts";
-import { PurchaseSearchService } from "../../search/purchase-search.ts";
-import { collaboratingProductIds, linkPolicy, piracyReportsNew, productDuplicatesLinkPolicy, productsArchivedLinkPolicy } from "../../policies/link.ts";
+import {
+  collaboratingProductIds,
+  linkPolicy,
+  piracyReportsNew,
+  productDuplicatesLinkPolicy,
+  productsArchivedLinkPolicy,
+} from "../../policies/link.ts";
 import type { SellerContext } from "../../policies/seller-context.ts";
+import { PurchaseSearchService } from "../../search/purchase-search.ts";
+
 import {
   assertPriceSupported,
   assertStatsCached,
@@ -47,16 +54,28 @@ function tableQuery(seller: User, kind: TableKind, archived: boolean, params: Li
 export type ArchivedCounts = { hasProducts: boolean };
 
 // The page of rows a table shows, before any per-row work.
-export async function tableRows(seller: User, kind: TableKind, archived: boolean, params: ListingParams): Promise<{ pagination: Page; rows: LinkRow[] }> {
+export async function tableRows(
+  seller: User,
+  kind: TableKind,
+  archived: boolean,
+  params: ListingParams,
+): Promise<{ pagination: Page; rows: LinkRow[] }> {
   const { from, where } = tableQuery(seller, kind, archived, params);
   return sortAndPaginate({ from, where, table: params[kind], sellerId: seller.id });
 }
 
 // Everything that sends the page to Rails, checked ahead of the render.
-export async function assertListingSupported(seller: User, archived: boolean, params: ListingParams): Promise<{ products: LinkRow[]; memberships: LinkRow[] }> {
+export async function assertListingSupported(
+  seller: User,
+  archived: boolean,
+  params: ListingParams,
+): Promise<{ products: LinkRow[]; memberships: LinkRow[] }> {
   assertTableSupported(params.products);
   assertTableSupported(params.memberships);
-  const [products, memberships] = await Promise.all([tableRows(seller, "products", archived, params), tableRows(seller, "memberships", archived, params)]);
+  const [products, memberships] = await Promise.all([
+    tableRows(seller, "products", archived, params),
+    tableRows(seller, "memberships", archived, params),
+  ]);
   const rows = [...products.rows, ...memberships.rows];
   const data = await loadRowData(rows);
   await assertThumbnailsSupported(data);
@@ -69,16 +88,19 @@ const CHARGED_STATES = ["preorder_authorization_successful", "successful", "preo
 
 // The PurchaseSearchService options of Link#total_usd_cents
 export const totalUsdCentsOptions = (productId: bigint) => ({
-    state: CHARGED_STATES,
-    exclude_giftees: true,
-    exclude_refunded: true,
-    exclude_unreversed_chargedback: true,
-    exclude_non_successful_preorder_authorizations: true,
-    exclude_bundle_product_purchases: true,
-    exclude_commission_completion_purchases: true,
-    product: Number(productId),
-    size: 0,
-    aggs: { price_cents_total: { sum: { field: "price_cents" } }, amount_refunded_cents_total: { sum: { field: "amount_refunded_cents" } } },
+  state: CHARGED_STATES,
+  exclude_giftees: true,
+  exclude_refunded: true,
+  exclude_unreversed_chargedback: true,
+  exclude_non_successful_preorder_authorizations: true,
+  exclude_bundle_product_purchases: true,
+  exclude_commission_completion_purchases: true,
+  product: Number(productId),
+  size: 0,
+  aggs: {
+    price_cents_total: { sum: { field: "price_cents" } },
+    amount_refunded_cents_total: { sum: { field: "amount_refunded_cents" } },
+  },
 });
 
 // Link#total_usd_cents
@@ -99,7 +121,10 @@ async function rowsData(seller: User, context: SellerContext, rows: LinkRow[]): 
   await assertThumbnailsSupported(data);
   const stats = await freshCachedStats(rows);
   assertStatsCached(rows, stats);
-  const collaborating = await collaboratingProductIds(context, rows.map((row) => row.id));
+  const collaborating = await collaboratingProductIds(
+    context,
+    rows.map((row) => row.id),
+  );
   const reportable = await piracyReportsNew(context, await isFeatureEnabled("piracy_reports", userActor(seller.id)));
   const result: Record<string, unknown>[] = [];
   for (const row of rows) {
@@ -133,21 +158,34 @@ async function rowsData(seller: User, context: SellerContext, rows: LinkRow[]): 
   return result;
 }
 
-export async function tableData(seller: User, context: SellerContext, kind: TableKind, archived: boolean, params: ListingParams) {
+export async function tableData(
+  seller: User,
+  context: SellerContext,
+  kind: TableKind,
+  archived: boolean,
+  params: ListingParams,
+) {
   const { pagination, rows } = await tableRows(seller, kind, archived, params);
-  return { [kind]: await rowsData(seller, context, rows), pagination, sort: params[kind].sort } as Record<string, unknown>;
+  return { [kind]: await rowsData(seller, context, rows), pagination, sort: params[kind].sort } as Record<
+    string,
+    unknown
+  >;
 }
 
 // `seller.products.visible.not_archived.exists?` / `seller.products.archived.exists?` (the latter is not `visible`)
 export async function hasProducts(seller: User, archived: boolean): Promise<boolean> {
   const alive = archived ? Prisma.empty : Prisma.sql` AND ${column("links", "deleted_at")} IS NULL`;
-  const rows = await selectRows(Prisma.sql`SELECT 1 FROM ${table("links")} WHERE ${column("links", "user_id")} = ${seller.id}${alive} AND ${LinkFlags.condition("archived", archived)} LIMIT 1`);
+  const rows = await selectRows(
+    Prisma.sql`SELECT 1 FROM ${table("links")} WHERE ${column("links", "user_id")} = ${seller.id}${alive} AND ${LinkFlags.condition("archived", archived)} LIMIT 1`,
+  );
   return rows.length > 0;
 }
 
 // User#archived_products_count
 export async function archivedProductsCount(seller: User): Promise<number> {
-  const [row] = await selectRows<{ count: bigint }>(Prisma.sql`SELECT COUNT(*) AS count FROM ${table("links")} WHERE ${column("links", "user_id")} = ${seller.id} AND ${column("links", "deleted_at")} IS NULL AND ${LinkFlags.condition("archived", true)}`);
+  const [row] = await selectRows<{ count: bigint }>(
+    Prisma.sql`SELECT COUNT(*) AS count FROM ${table("links")} WHERE ${column("links", "user_id")} = ${seller.id} AND ${column("links", "deleted_at")} IS NULL AND ${LinkFlags.condition("archived", true)}`,
+  );
   return Number(row?.count ?? 0);
 }
 

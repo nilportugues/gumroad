@@ -13,21 +13,27 @@ import { HandBackToRuby } from "../jobs/hand-back.ts";
 import { deliverLater } from "../mail/active-job.ts";
 import { mailRoute } from "../mail/delivery.ts";
 import { PurchaseFlags } from "../search/flags.ts";
+
 import { afterCommitEverywhere, currentJobsRuntime, performAsync } from "./concerns/job-runtime.ts";
 import { hasPaperTrail } from "./concerns/paper-trail.ts";
+import { PurchaseRecord } from "./purchase-pricing.ts";
+import { PURCHASES } from "./purchase.ts";
+import { findById } from "./row-reads.ts";
 import { defineModel, type Callback, type CallbackContext } from "./runtime/define-model.ts";
 import type { ModelRecord } from "./runtime/record.ts";
-import { PURCHASES } from "./purchase.ts";
-import { PurchaseRecord } from "./purchase-pricing.ts";
-import { findById } from "./row-reads.ts";
 import { SentEmailInfos, mailerKeyDigest } from "./sent-email-info.ts";
 import { castRow, column, execute, findInBatches, quoteName, selectRows, table } from "./sql.ts";
-import { latestSubscriptionEvent, SubscriptionEvents, SUBSCRIPTION_EVENT_TYPES, type SubscriptionEventType } from "./subscription-event.ts";
+import {
+  latestSubscriptionEvent,
+  SubscriptionEvents,
+  SUBSCRIPTION_EVENT_TYPES,
+  type SubscriptionEventType,
+} from "./subscription-event.ts";
 import { SubscriptionFlags, SubscriptionRecord, type SubscriptionDeps } from "./subscription.ts";
 import { NotPortedError, UserFlags } from "./user.ts";
+import { ArgumentError } from "./with-filtering.ts";
 import { SEND_WORKFLOW_INSTALLMENT_WORKER, schedulableInstallments } from "./workflow-scheduling.ts";
 import { assertWorkflowSupported, WorkflowRecord } from "./workflow.ts";
-import { ArgumentError } from "./with-filtering.ts";
 
 export type SubscriptionModel = ModelRecord<Subscription>;
 
@@ -38,7 +44,12 @@ const PURCHASE_INDEX_DELAY_SECONDS = 2;
 const PING_DELAY_SECONDS = 5;
 const PURCHASE_FIND_EACH_BATCH_SIZE = 1000;
 // Purchase::COUNTS_TOWARDS_INVENTORY_STATES
-const COUNTS_TOWARDS_INVENTORY_STATES = ["preorder_authorization_successful", "in_progress", "successful", "not_charged"];
+const COUNTS_TOWARDS_INVENTORY_STATES = [
+  "preorder_authorization_successful",
+  "in_progress",
+  "successful",
+  "not_charged",
+];
 // ResourceSubscription::CANCELLED_RESOURCE_NAME and SUBSCRIPTION_ENDED_RESOURCE_NAME
 const CANCELLED_RESOURCE_NAME = "cancellation";
 const SUBSCRIPTION_ENDED_RESOURCE_NAME = "subscription_ended";
@@ -75,12 +86,15 @@ export function subscriptionView(record: SubscriptionModel): SubscriptionRecord 
 }
 
 const nowOf = (record: SubscriptionModel) => (record.ivars[DEPS] as SubscriptionDeps).now();
-const flag = (record: SubscriptionModel, name: Parameters<typeof SubscriptionFlags.isSet>[1]) => SubscriptionFlags.isSet(record.get("flags"), name);
+const flag = (record: SubscriptionModel, name: Parameters<typeof SubscriptionFlags.isSet>[1]) =>
+  SubscriptionFlags.isSet(record.get("flags"), name);
 
 // `payment_options`, loaded once
 function paymentOptions(record: SubscriptionModel): Promise<unknown[]> {
   return subscriptionView(record).loaded("payment_options", () =>
-    selectRows(Prisma.sql`SELECT ${Prisma.raw("`payment_options`.*")} FROM ${table("payment_options")} WHERE ${column("payment_options", "subscription_id")} = ${record.get("id")}`),
+    selectRows(
+      Prisma.sql`SELECT ${Prisma.raw("`payment_options`.*")} FROM ${table("payment_options")} WHERE ${column("payment_options", "subscription_id")} = ${record.get("id")}`,
+    ),
   );
 }
 
@@ -105,7 +119,8 @@ const validations: Callback<Subscription>[] = [
   {
     name: "must_have_payment_option",
     async run(record) {
-      if ((await paymentOptions(record)).length === 0) record.errors.add("base", "Subscription must have at least one PaymentOption");
+      if ((await paymentOptions(record)).length === 0)
+        record.errors.add("base", "Subscription must have at least one PaymentOption");
     },
   },
   {
@@ -114,7 +129,8 @@ const validations: Callback<Subscription>[] = [
       if (!flag(record, "is_installment_plan")) return;
       if (!record.attributeChanged("cancelled_at", { from: null })) return;
       if (flag(record, "cancelled_by_admin")) return;
-      if (flag(record, "cancelled_by_buyer")) record.errors.add("base", "Installment plans cannot be cancelled by the customer");
+      if (flag(record, "cancelled_by_buyer"))
+        record.errors.add("base", "Installment plans cannot be cancelled by the customer");
     },
   },
 ];
@@ -126,7 +142,11 @@ async function createInterruptionEvent(record: SubscriptionModel, ctx: CallbackC
   if (latest !== null && latest.event_type === SUBSCRIPTION_EVENT_TYPES[eventType]) return;
 
   const now = ctx.now ?? (() => new Date());
-  const event = SubscriptionEvents.build({ subscription_id: record.get("id"), event_type: SUBSCRIPTION_EVENT_TYPES[eventType], occurred_at: record.get("deactivated_at") ?? now() });
+  const event = SubscriptionEvents.build({
+    subscription_id: record.get("id"),
+    event_type: SUBSCRIPTION_EVENT_TYPES[eventType],
+    occurred_at: record.get("deactivated_at") ?? now(),
+  });
   event.ivars.subscription = record;
   await SubscriptionEvents.saveBang(event, { now });
 }
@@ -162,7 +182,9 @@ async function syncInventoryCounterCaches(record: SubscriptionModel): Promise<vo
 
 // PostToPingEndpointsWorker.perform_in(5.seconds, nil, nil, resource_name, id)
 function sendNotificationWebhook(record: SubscriptionModel, resourceName: string): Promise<string | null> {
-  return performAsync("PostToPingEndpointsWorker", [null, null, resourceName, record.get("id")], { delaySeconds: PING_DELAY_SECONDS });
+  return performAsync("PostToPingEndpointsWorker", [null, null, resourceName, record.get("id")], {
+    delaySeconds: PING_DELAY_SECONDS,
+  });
 }
 
 // Purchase#schedule_audience_member_refresh, evaluated for `purchase.email` now and run after commit.
@@ -182,7 +204,10 @@ function scheduleAudienceMemberRefresh(purchase: Purchase): Promise<void> {
 function isRedisTransportError(error: unknown): boolean {
   const name = (error as { name?: string } | null)?.name ?? "";
   const code = (error as { code?: string } | null)?.code ?? "";
-  return name === "MaxRetriesPerRequestError" || ["ECONNREFUSED", "ECONNRESET", "ETIMEDOUT", "EPIPE", "ENOTFOUND", "NR_CLOSED"].includes(code);
+  return (
+    name === "MaxRetriesPerRequestError" ||
+    ["ECONNREFUSED", "ECONNRESET", "ETIMEDOUT", "EPIPE", "ENOTFOUND", "NR_CLOSED"].includes(code)
+  );
 }
 
 // TransactionalAttributeChangeTracker
@@ -206,7 +231,11 @@ const afterCommit: Callback<Subscription>[] = [
           PURCHASE_FIND_EACH_BATCH_SIZE,
           async (rows) => {
             for (const purchase of rows) {
-              await performAsync("ElasticsearchIndexerWorker", ["update", { record_id: purchase.id, class_name: "Purchase", fields }], { delaySeconds: PURCHASE_INDEX_DELAY_SECONDS });
+              await performAsync(
+                "ElasticsearchIndexerWorker",
+                ["update", { record_id: purchase.id, class_name: "Purchase", fields }],
+                { delaySeconds: PURCHASE_INDEX_DELAY_SECONDS },
+              );
             }
           },
           column(PURCHASES, "id"),
@@ -218,7 +247,14 @@ const afterCommit: Callback<Subscription>[] = [
         if (original !== null) {
           await performAsync(
             "ElasticsearchIndexerWorker",
-            ["update", { record_id: original.id, class_name: "Purchase", fields: ["subscription_current_email", "subscription_current_email_domain"] }],
+            [
+              "update",
+              {
+                record_id: original.id,
+                class_name: "Purchase",
+                fields: ["subscription_current_email", "subscription_current_email_domain"],
+              },
+            ],
             { delaySeconds: PURCHASE_INDEX_DELAY_SECONDS },
           );
         }
@@ -265,7 +301,10 @@ export const Subscriptions = defineModel<Subscription>({
       name: "(guard) create",
       on: "create",
       run: () => {
-        throw new NotPortedError("Subscription#create", "subscription.rb:82-91 (enable_mor_fee, update_last_payment_option)");
+        throw new NotPortedError(
+          "Subscription#create",
+          "subscription.rb:82-91 (enable_mor_fee, update_last_payment_option)",
+        );
       },
     },
   ],
@@ -274,7 +313,8 @@ export const Subscriptions = defineModel<Subscription>({
     {
       name: "end_indian_card_mandate_hold",
       unless: (record) => subscriptionView(record).indianCardMandateHeld(),
-      run: (record) => record.set("flags", SubscriptionFlags.set(record.get("flags"), "indian_card_mandate_hold_pending", false)),
+      run: (record) =>
+        record.set("flags", SubscriptionFlags.set(record.get("flags"), "indian_card_mandate_hold_pending", false)),
     },
   ],
   afterUpdate: [...paperTrail.afterUpdate],
@@ -287,8 +327,16 @@ export const Subscriptions = defineModel<Subscription>({
         for (const name of savedColumns(record)) changed.add(name);
       },
     },
-    { name: "create_interruption_event", if: (record) => record.savedChanges.deactivated_at !== undefined, run: createInterruptionEvent },
-    { name: "sync_inventory_counter_caches_for_purchases", if: (record) => record.savedChanges.deactivated_at !== undefined, run: syncInventoryCounterCaches },
+    {
+      name: "create_interruption_event",
+      if: (record) => record.savedChanges.deactivated_at !== undefined,
+      run: createInterruptionEvent,
+    },
+    {
+      name: "sync_inventory_counter_caches_for_purchases",
+      if: (record) => record.savedChanges.deactivated_at !== undefined,
+      run: syncInventoryCounterCaches,
+    },
   ],
   beforeDestroy: [
     {
@@ -333,7 +381,8 @@ export async function readWorkflowsForCancellation(record: SubscriptionModel): P
     try {
       if (new WorkflowRecord(workflow).memberCancellationTrigger) assertWorkflowSupported(workflow);
     } catch (error) {
-      if (error instanceof ArgumentError) throw new NotPortedError("a workflow whose json_data is not a Hash", "json_data.rb");
+      if (error instanceof ArgumentError)
+        throw new NotPortedError("a workflow whose json_data is not a Hash", "json_data.rb");
       throw error;
     }
   }
@@ -343,19 +392,30 @@ export async function readWorkflowsForCancellation(record: SubscriptionModel): P
 // `schedule_member_cancellation_workflow_jobs` after `return if alive? || !cancelled?`: one
 // SendWorkflowInstallmentWorker at `deactivated_at + delay` per installment of each member
 // cancellation workflow that applies to the original purchase.
-async function scheduleMemberCancellationWorkflowJobs(record: SubscriptionModel, original: Purchase | null, workflows: Workflow[]): Promise<void> {
+async function scheduleMemberCancellationWorkflowJobs(
+  record: SubscriptionModel,
+  original: Purchase | null,
+  workflows: Workflow[],
+): Promise<void> {
   const purchase = original === null ? null : new PurchaseRecord(original, subscriptionView(record));
   const deactivatedAt = record.get("deactivated_at") as Date;
   for (const row of workflows) {
     const workflow = new WorkflowRecord(row);
     if (!workflow.memberCancellationTrigger) continue;
-    if (purchase === null) throw new NoMethodError(workflow.productType ? "undefined method 'link_id' for nil" : "undefined method 'slice' for nil");
+    if (purchase === null)
+      throw new NoMethodError(
+        workflow.productType ? "undefined method 'link_id' for nil" : "undefined method 'slice' for nil",
+      );
     if (!(await workflow.appliesToPurchase(purchase))) continue;
 
     for (const { installment, rule } of await schedulableInstallments(workflow, { published: false })) {
       if (rule.delayed_delivery_time === null) throw new TypeError("can't convert nil into an exact number");
       const at = new Date(deactivatedAt.getTime() + rule.delayed_delivery_time * 1000);
-      await performAsync(SEND_WORKFLOW_INSTALLMENT_WORKER, [installment.id, rule.version, null, null, null, Number(record.get("id"))], { at });
+      await performAsync(
+        SEND_WORKFLOW_INSTALLMENT_WORKER,
+        [installment.id, rule.version, null, null, null, Number(record.get("id"))],
+        { at },
+      );
     }
   }
 }
@@ -374,7 +434,8 @@ export async function deactivateBang(record: SubscriptionModel, options: Deactiv
   });
 
   if (isCancelled(record)) {
-    if (options.workflows === undefined) throw new NotPortedError("Subscription#schedule_member_cancellation_workflow_jobs", "subscription.rb:2028");
+    if (options.workflows === undefined)
+      throw new NotPortedError("Subscription#schedule_member_cancellation_workflow_jobs", "subscription.rb:2028");
     await scheduleMemberCancellationWorkflowJobs(record, original, options.workflows);
   }
 }
@@ -382,7 +443,11 @@ export async function deactivateBang(record: SubscriptionModel, options: Deactiv
 // ----- mail
 
 async function deliverMail(record: SubscriptionModel, mailer: string, method: string, queue: string): Promise<void> {
-  await deliverLater(currentJobsRuntime(), { mailer, method, args: [Number(record.get("id"))], queue }, mailRoute(mailer, method));
+  await deliverLater(
+    currentJobsRuntime(),
+    { mailer, method, args: [Number(record.get("id"))], queue },
+    mailRoute(mailer, method),
+  );
 }
 
 async function enablePaymentEmail(record: SubscriptionModel): Promise<boolean> {
@@ -394,7 +459,8 @@ async function enablePaymentEmail(record: SubscriptionModel): Promise<boolean> {
 // A subscription cancelled while the job waited for the lock would also schedule member
 // cancellation workflows after deactivating, which Node has not read; Rails runs the job from scratch.
 function handBackIfCancelled(record: SubscriptionModel): void {
-  if (record.get("cancelled_at") != null) throw new HandBackToRuby("the subscription was cancelled while waiting for its lock");
+  if (record.get("cancelled_at") != null)
+    throw new HandBackToRuby("the subscription was cancelled while waiting for its lock");
 }
 
 // `end_subscription!`
@@ -407,7 +473,8 @@ export async function endSubscriptionBang(record: SubscriptionModel): Promise<vo
     await deactivateBang(record);
 
     await deliverMail(record, CUSTOMER_LOW_PRIORITY_MAILER, "subscription_ended", "low");
-    if (await enablePaymentEmail(record)) await deliverMail(record, CONTACTING_CREATOR_MAILER, "subscription_ended", "critical");
+    if (await enablePaymentEmail(record))
+      await deliverMail(record, CONTACTING_CREATOR_MAILER, "subscription_ended", "critical");
   });
 }
 
@@ -430,7 +497,10 @@ async function creditCardToCharge(record: SubscriptionModel): Promise<CreditCard
 // throws NotPortedError when a failed charge could be such a failure.
 export async function checkMandateRecovery(record: SubscriptionModel): Promise<void> {
   const view = subscriptionView(record);
-  if (!((await view.indiaCardMandateReliabilityEnabled()) && !flag(record, "renewal_disabled_due_to_indian_card_mandate"))) return;
+  if (
+    !((await view.indiaCardMandateReliabilityEnabled()) && !flag(record, "renewal_disabled_due_to_indian_card_mandate"))
+  )
+    return;
 
   const cardId = (await creditCardToCharge(record))?.id ?? null;
   const currentPeriodStartedAt = (await view.endTimeOfLastPaidPeriod()) ?? record.get("created_at");
@@ -438,7 +508,11 @@ export async function checkMandateRecovery(record: SubscriptionModel): Promise<v
   const [failure] = await selectRows(
     Prisma.sql`SELECT ${Prisma.raw(`${quoteName(PURCHASES)}.*`)} FROM ${table(PURCHASES)} WHERE ${column(PURCHASES, "subscription_id")} = ${record.get("id")} AND ${column(PURCHASES, "purchase_state")} = 'failed' AND ${column(PURCHASES, "credit_card_id")} = ${cardId} AND (created_at >= ${currentPeriodStartedAt}) ORDER BY ${column(PURCHASES, "created_at")} DESC, ${column(PURCHASES, "id")} DESC LIMIT 1`,
   );
-  if (failure !== undefined) throw new NotPortedError("Purchase#indian_card_mandate_error_status and Subscription#refresh_indian_card_mandate!", "subscription.rb:1124-1140");
+  if (failure !== undefined)
+    throw new NotPortedError(
+      "Purchase#indian_card_mandate_error_status and Subscription#refresh_indian_card_mandate!",
+      "subscription.rb:1124-1140",
+    );
 }
 
 // The creator's "subscription_autocancelled" notice, at most once a week per subscription. The
@@ -448,14 +522,22 @@ async function notifyCreatorOfAutocancellation(record: SubscriptionModel): Promi
   const key = mailerKeyDigest(CONTACTING_CREATOR_MAILER, "subscription_autocancelled", id);
   const where = Prisma.sql`${column(SENT_EMAIL_INFOS, "key")} = ${key}`;
   const cutoff = new Date(nowOf(record).getTime() - REPEATED_CANCELLATION_EMAIL_DAYS * 86_400_000);
-  const [recent] = await selectRows(Prisma.sql`SELECT 1 AS one FROM ${table(SENT_EMAIL_INFOS)} WHERE ${where} AND (created_at > ${cutoff}) LIMIT 1`);
+  const [recent] = await selectRows(
+    Prisma.sql`SELECT 1 AS one FROM ${table(SENT_EMAIL_INFOS)} WHERE ${where} AND (created_at > ${cutoff}) LIMIT 1`,
+  );
   if (recent !== undefined) return;
 
   const now = () => nowOf(record);
-  const [previous] = await selectRows<{ id: bigint }>(Prisma.sql`SELECT ${Prisma.raw(`${quoteName(SENT_EMAIL_INFOS)}.*`)} FROM ${table(SENT_EMAIL_INFOS)} WHERE ${where} ORDER BY ${column(SENT_EMAIL_INFOS, "id")} ASC LIMIT 1`);
+  const [previous] = await selectRows<{ id: bigint }>(
+    Prisma.sql`SELECT ${Prisma.raw(`${quoteName(SENT_EMAIL_INFOS)}.*`)} FROM ${table(SENT_EMAIL_INFOS)} WHERE ${where} ORDER BY ${column(SENT_EMAIL_INFOS, "id")} ASC LIMIT 1`,
+  );
   if (previous !== undefined) {
     const stale = SentEmailInfos.load(castRow("SentEmailInfo", previous));
-    await SentEmailInfos.updateBang(stale, { key: mailerKeyDigest(CONTACTING_CREATOR_MAILER, "subscription_autocancelled", id, previous.id) }, { now });
+    await SentEmailInfos.updateBang(
+      stale,
+      { key: mailerKeyDigest(CONTACTING_CREATOR_MAILER, "subscription_autocancelled", id, previous.id) },
+      { now },
+    );
   }
   const notice = await SentEmailInfos.createBang({ key }, { now });
 

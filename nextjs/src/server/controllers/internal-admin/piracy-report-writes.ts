@@ -11,7 +11,17 @@ import { railsEnv } from "../../infra/rails-env.ts";
 import { NotPortedError } from "../../models/user.ts";
 import { domainConfig } from "../../page-props/domain.ts";
 import { eligibilityErrors } from "../../page-props/piracy-reports/pages.ts";
-import { type AdminRequest, failure, halted, isBlank, jsonRendered, paramToS, PIRACY_SCOPE, recordAdminWrite } from "./base.ts";
+
+import {
+  type AdminRequest,
+  failure,
+  halted,
+  isBlank,
+  jsonRendered,
+  paramToS,
+  PIRACY_SCOPE,
+  recordAdminWrite,
+} from "./base.ts";
 import { type DetailReport, REPORT_NOT_FOUND, serializeDetail } from "./piracy-report-detail.ts";
 import { SOURCE, serializeSummary } from "./piracy-reports.ts";
 import { defineAdminRoute } from "./registry.ts";
@@ -36,7 +46,10 @@ const MS_PER_DAY = 86_400_000;
 const DEFAULT_PORTS: Record<string, number> = { http: 80, https: 443 };
 // A host, port, path, query and fragment URI.parse accepts without a second reading (no userinfo, IPv6, brackets or bare percent signs).
 const PCHAR = "(?:[A-Za-z0-9\\-._~!$&'()*+,;=:@]|%[0-9A-Fa-f]{2})";
-const HTTP_URL = new RegExp(`^(https?)://([A-Za-z0-9](?:[A-Za-z0-9.-]*))(?::(\\d{1,5}))?((?:/${PCHAR}*)*)(?:\\?((?:${PCHAR}|[/?])*))?(?:#(?:${PCHAR}|[/?])*)?$`, "iu");
+const HTTP_URL = new RegExp(
+  `^(https?)://([A-Za-z0-9](?:[A-Za-z0-9.-]*))(?::(\\d{1,5}))?((?:/${PCHAR}*)*)(?:\\?((?:${PCHAR}|[/?])*))?(?:#(?:${PCHAR}|[/?])*)?$`,
+  "iu",
+);
 
 type Tx = Prisma.TransactionClient;
 type Parsed = { scheme: string; host: string; port: number; path: string; query: string | null };
@@ -44,24 +57,38 @@ type Parsed = { scheme: string; host: string; port: number; path: string; query:
 // String#strip: whitespace and NUL at both ends.
 const rubyStrip = (value: string): string => value.replace(/^[\0\t\n\v\f\r ]+|[\0\t\n\v\f\r ]+$/gu, "");
 const charLength = (value: string): number => [...value].length;
-const isHash = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
+const isHash = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
 const unprocessable = (errors: string[]) => jsonRendered({ success: false, message: toSentence(errors), errors }, 422);
-const auditTarget = (report: { id: bigint; external_id: string }) => ({ type: "PiracyReport", id: report.id, externalId: report.external_id });
+const auditTarget = (report: { id: bigint; external_id: string }) => ({
+  type: "PiracyReport",
+  id: report.id,
+  externalId: report.external_id,
+});
 
 async function findReport(admin: AdminRequest): Promise<DetailReport | null> {
-  return db.piracyReport.findFirst({ where: { external_id: paramToS(admin.params.id, SOURCE) }, include: { seller: true, product: true } });
+  return db.piracyReport.findFirst({
+    where: { external_id: paramToS(admin.params.id, SOURCE) },
+    include: { seller: true, product: true },
+  });
 }
 
 // with_lock: the row is locked and reloaded, so a concurrent second request sees the first one's result.
 async function withLock<T>(report: DetailReport, block: (tx: Tx, locked: DetailReport) => Promise<T>): Promise<T> {
   return db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM piracy_reports WHERE id = ${report.id} FOR UPDATE`;
-    const locked = await tx.piracyReport.findUniqueOrThrow({ where: { id: report.id }, include: { seller: true, product: true } });
+    const locked = await tx.piracyReport.findUniqueOrThrow({
+      where: { id: report.id },
+      include: { seller: true, product: true },
+    });
     return block(tx, locked);
   });
 }
 
-function defineReportWrite(name: string, run: (admin: AdminRequest, report: DetailReport) => Promise<ReturnType<typeof jsonRendered>>): void {
+function defineReportWrite(
+  name: string,
+  run: (admin: AdminRequest, report: DetailReport) => Promise<ReturnType<typeof jsonRendered>>,
+): void {
   defineAdminRoute({
     method: "POST",
     pattern: `/internal/admin/piracy_reports/:id/${name}`,
@@ -69,7 +96,11 @@ function defineReportWrite(name: string, run: (admin: AdminRequest, report: Deta
     run: async (admin) => {
       const report = await findReport(admin);
       if (report === null) return halted(failure(REPORT_NOT_FOUND, 404));
-      return recordAdminWrite(admin, { action: `piracy_reports.${name}`, target: auditTarget(report), wrapper: WRAPPER }, () => run(admin, report));
+      return recordAdminWrite(
+        admin,
+        { action: `piracy_reports.${name}`, target: auditTarget(report), wrapper: WRAPPER },
+        () => run(admin, report),
+      );
     },
   });
 }
@@ -77,9 +108,19 @@ function defineReportWrite(name: string, run: (admin: AdminRequest, report: Deta
 defineReportWrite("start_screening", (_admin, report) =>
   withLock(report, async (tx, locked) => {
     if (locked.state !== "requested") {
-      return jsonRendered({ success: false, message: `Cannot transition state via :start_screening from :${locked.state} (Reason(s): State cannot transition via "start screening")` }, 422);
+      return jsonRendered(
+        {
+          success: false,
+          message: `Cannot transition state via :start_screening from :${locked.state} (Reason(s): State cannot transition via "start screening")`,
+        },
+        422,
+      );
     }
-    const saved = await tx.piracyReport.update({ where: { id: locked.id }, data: { state: "screening", updated_at: new Date() }, include: { seller: true, product: true } });
+    const saved = await tx.piracyReport.update({
+      where: { id: locked.id },
+      data: { state: "screening", updated_at: new Date() },
+      include: { seller: true, product: true },
+    });
     return jsonRendered({ success: true, report: serializeSummary(saved) });
   }),
 );
@@ -87,7 +128,8 @@ defineReportWrite("start_screening", (_admin, report) =>
 type Check = { passed: boolean | null; reason: string };
 
 // ScreenService::PASSED_VALUES: only a boolean or its string form counts.
-const passedValue = (value: unknown): boolean | null => (value === true || value === "true" ? true : value === false || value === "false" ? false : null);
+const passedValue = (value: unknown): boolean | null =>
+  value === true || value === "true" ? true : value === false || value === "false" ? false : null;
 
 export function screeningInput(admin: AdminRequest) {
   const verdict = paramToS(admin.params.verdict, SOURCE);
@@ -113,9 +155,11 @@ export function screeningInput(admin: AdminRequest) {
   if (verdict === "pass") {
     const missing = SCREENING_CHECKS.filter((key) => !Object.hasOwn(checks, key));
     if (missing.length > 0) errors.push(`a pass verdict needs every check: missing ${missing.join(", ")}`);
-    if (!Object.values(checks).every((entry) => entry.passed === true)) errors.push("every check must pass for a pass verdict");
+    if (!Object.values(checks).every((entry) => entry.passed === true))
+      errors.push("every check must pass for a pass verdict");
   }
-  if (verdict === "fail" && !Object.values(checks).some((entry) => entry.passed === false)) errors.push("a fail verdict needs at least one failed check");
+  if (verdict === "fail" && !Object.values(checks).some((entry) => entry.passed === false))
+    errors.push("a fail verdict needs at least one failed check");
   return { verdict, checks, errors };
 }
 
@@ -125,15 +169,28 @@ defineReportWrite("screen", (admin, report) =>
     const { verdict, checks, errors } = screeningInput(admin);
     if (errors.length > 0) return unprocessable(errors);
     // A pass renders the notice from the recipient registry and mails the seller to sign it.
-    if (verdict === "pass") throw new NotPortedError("a pass verdict (renders the notice and sends the signature request)", SOURCE);
+    if (verdict === "pass")
+      throw new NotPortedError("a pass verdict (renders the notice and sends the signature request)", SOURCE);
 
     const now = new Date();
     const screeningChecks = verdict === "fail" ? { agent: checks, rails: [] } : { agent: checks };
-    const data: Prisma.PiracyReportUpdateInput = { screening_verdict: verdict, screening_checks: screeningChecks as Prisma.InputJsonValue, screened_at: now, updated_at: now };
+    const data: Prisma.PiracyReportUpdateInput = {
+      screening_verdict: verdict,
+      screening_checks: screeningChecks as Prisma.InputJsonValue,
+      screened_at: now,
+      updated_at: now,
+    };
     if (verdict === "fail") data.state = "declined";
-    const saved = await tx.piracyReport.update({ where: { id: locked.id }, data, include: { seller: true, product: true } });
+    const saved = await tx.piracyReport.update({
+      where: { id: locked.id },
+      data,
+      include: { seller: true, product: true },
+    });
     // The answer carries the checks in the order they were assigned; MySQL's JSON column reorders keys on the way back.
-    return jsonRendered({ success: true, report: await serializeDetail({ ...saved, screening_checks: screeningChecks as Prisma.JsonObject }) });
+    return jsonRendered({
+      success: true,
+      report: await serializeDetail({ ...saved, screening_checks: screeningChecks as Prisma.JsonObject }),
+    });
   }),
 );
 
@@ -144,14 +201,18 @@ export function parseIsoDate(value: string): string | null {
   return date.toISOString().slice(0, 10) === value ? value : null;
 }
 
-const shiftDays = (date: Date, days: number): string => new Date(date.getTime() + days * MS_PER_DAY).toISOString().slice(0, 10);
+const shiftDays = (date: Date, days: number): string =>
+  new Date(date.getTime() + days * MS_PER_DAY).toISOString().slice(0, 10);
 
 defineReportWrite("counter_notice", (admin, report) =>
   withLock(report, async (_tx, locked) => {
     // A recorded counter-notice whose forward never went out is finished by mailing the seller.
-    if (locked.state === "counter_noticed" && locked.counter_notice_forwarded_at === null) throw new NotPortedError("the retry of a counter-notice forward (mails the seller)", SOURCE);
-    if (!isBlank(locked.counter_notice_body)) return unprocessable(["A counter-notice is already recorded for this report"]);
-    const open = locked.state === "sent" || (locked.state === "resolved" && REOPENABLE_OUTCOMES.includes(locked.outcome ?? ""));
+    if (locked.state === "counter_noticed" && locked.counter_notice_forwarded_at === null)
+      throw new NotPortedError("the retry of a counter-notice forward (mails the seller)", SOURCE);
+    if (!isBlank(locked.counter_notice_body))
+      return unprocessable(["A counter-notice is already recorded for this report"]);
+    const open =
+      locked.state === "sent" || (locked.state === "resolved" && REOPENABLE_OUTCOMES.includes(locked.outcome ?? ""));
     if (!open) return unprocessable(["The report has no notice out with a host"]);
     if (locked.sent_at === null) throw new NotPortedError("a sent report without a sent_at", SOURCE);
 
@@ -159,8 +220,10 @@ defineReportWrite("counter_notice", (admin, report) =>
     const received = parseIsoDate(paramToS(admin.params.received_on, SOURCE));
     const errors: string[] = [];
     if (isBlank(body)) errors.push("body is required");
-    if (charLength(body) > MAX_COUNTER_NOTICE_LENGTH || Buffer.byteLength(body) > MAX_COUNTER_NOTICE_BYTES) errors.push("body is too long");
-    if (received === null || received < shiftDays(locked.sent_at, -1) || received > shiftDays(new Date(), 1)) errors.push("received_on must be a YYYY-MM-DD date between the send date and today");
+    if (charLength(body) > MAX_COUNTER_NOTICE_LENGTH || Buffer.byteLength(body) > MAX_COUNTER_NOTICE_BYTES)
+      errors.push("body is too long");
+    if (received === null || received < shiftDays(locked.sent_at, -1) || received > shiftDays(new Date(), 1))
+      errors.push("received_on must be a YYYY-MM-DD date between the send date and today");
     if (errors.length > 0) return unprocessable(errors);
     throw new NotPortedError("a counter-notice (records it and mails the seller)", SOURCE);
   }),
@@ -170,14 +233,17 @@ defineReportWrite("resolve", (admin, report) =>
   withLock(report, async (_tx, locked) => {
     const outcome = paramToS(admin.params.outcome, SOURCE);
     const reason = rubyStrip(paramToS(admin.params.reason, SOURCE));
-    if (locked.state === "resolved" && locked.outcome === outcome && locked.outcome_notified_at === null) throw new NotPortedError("the retry of an outcome email", SOURCE);
+    if (locked.state === "resolved" && locked.outcome === outcome && locked.outcome_notified_at === null)
+      throw new NotPortedError("the retry of an outcome email", SOURCE);
     if (locked.state === "resolved") return unprocessable(["The report already has an outcome"]);
-    if (!["sent", "counter_noticed"].includes(locked.state)) return unprocessable(["The report has no notice out with a host"]);
+    if (!["sent", "counter_noticed"].includes(locked.state))
+      return unprocessable(["The report has no notice out with a host"]);
 
     const errors: string[] = [];
     if (!OUTCOMES.includes(outcome)) errors.push(`outcome must be one of ${OUTCOMES.join(", ")}`);
     if (outcome === "withdrawn" && isBlank(reason)) errors.push("a withdrawn report needs a reason");
-    if (outcome === "restored" && locked.state !== "counter_noticed") errors.push("restored needs a recorded counter-notice");
+    if (outcome === "restored" && locked.state !== "counter_noticed")
+      errors.push("restored needs a recorded counter-notice");
     if (charLength(reason) > MAX_OUTCOME_REASON_LENGTH) errors.push("reason is too long");
     if (errors.length > 0) return unprocessable(errors);
     throw new NotPortedError("an outcome (records it and mails the seller)", SOURCE);
@@ -193,11 +259,21 @@ export function parseHttpUrl(value: string): Parsed | null {
     return null;
   }
   const scheme = match[1]!.toLowerCase();
-  return { scheme, host: match[2]!, port: match[3] === undefined ? DEFAULT_PORTS[scheme]! : Number(match[3]), path: match[4]!, query: match[5] ?? null };
+  return {
+    scheme,
+    host: match[2]!,
+    port: match[3] === undefined ? DEFAULT_PORTS[scheme]! : Number(match[3]),
+    path: match[4]!,
+    query: match[5] ?? null,
+  };
 }
 
 // PiracyReport.normalized_host
-const normalizedHost = (host: string): string => host.toLowerCase().replace(/\.$/u, "").replace(/^www\./u, "");
+const normalizedHost = (host: string): string =>
+  host
+    .toLowerCase()
+    .replace(/\.$/u, "")
+    .replace(/^www\./u, "");
 
 // PiracyReport.normalize_url: two spellings of the same page collide on the unique index.
 export function normalizeUrl(uri: Parsed): string {
@@ -214,19 +290,32 @@ export function normalizeUrl(uri: Parsed): string {
 function gumroadDomains(): string[] {
   const config = domainConfig(process.env);
   const env = railsEnv();
-  const emailDomain = env === "production" ? "gumroad.com" : env === "test" ? "test.gumroad.com" : "staging.gumroad.com";
-  return [...new Set([config.rootDomain, config.shortDomain, config.discoverDomain, config.apiDomain, emailDomain].map((domain) => domain.split(":")[0]!.toLowerCase()))];
+  const emailDomain =
+    env === "production" ? "gumroad.com" : env === "test" ? "test.gumroad.com" : "staging.gumroad.com";
+  return [
+    ...new Set(
+      [config.rootDomain, config.shortDomain, config.discoverDomain, config.apiDomain, emailDomain].map((domain) =>
+        domain.split(":")[0]!.toLowerCase(),
+      ),
+    ),
+  ];
 }
 
 // PiracyReport.gumroad_hosted?: a seller's custom domain is hosted by Gumroad too.
 export async function gumroadHosted(host: string): Promise<boolean> {
   const normalized = normalizedHost(host);
   if (gumroadDomains().some((domain) => normalized === domain || normalized.endsWith(`.${domain}`))) return true;
-  return (await db.customDomain.count({ where: { deleted_at: null, domain: { in: [normalized, `www.${normalized}`] } } })) > 0;
+  return (
+    (await db.customDomain.count({ where: { deleted_at: null, domain: { in: [normalized, `www.${normalized}`] } } })) >
+    0
+  );
 }
 
 function newExternalId(): string {
-  return Array.from({ length: EXTERNAL_ID_LENGTH }, () => EXTERNAL_ID_ALPHABET[randomInt(EXTERNAL_ID_ALPHABET.length)]).join("");
+  return Array.from(
+    { length: EXTERNAL_ID_LENGTH },
+    () => EXTERNAL_ID_ALPHABET[randomInt(EXTERNAL_ID_ALPHABET.length)],
+  ).join("");
 }
 
 const startOfMonth = (now: Date): Date => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
@@ -241,45 +330,86 @@ defineAdminRoute({
     const { user } = found;
 
     const productId = decrypt(paramToS(admin.params.product_id, SOURCE));
-    const product = productId === null ? null : await db.link.findFirst({ where: { id: BigInt(productId), user_id: user.id, purchase_disabled_at: null, banned_at: null, deleted_at: null } });
+    const product =
+      productId === null
+        ? null
+        : await db.link.findFirst({
+            where: {
+              id: BigInt(productId),
+              user_id: user.id,
+              purchase_disabled_at: null,
+              banned_at: null,
+              deleted_at: null,
+            },
+          });
     if (product === null) return failure("Product not found", 404);
 
-    return recordAdminWrite(admin, { action: "piracy_reports.create", target: { type: "User", id: user.id, externalId: user.external_id }, wrapper: WRAPPER }, async () => {
-      const url = rubyStrip(paramToS(admin.params.url, SOURCE));
-      const ticket = admin.params.ticket_url;
-      if (ticket !== undefined && ticket !== null && typeof ticket !== "string") throw new NotPortedError("a ticket_url that is not text", SOURCE);
-      const ticketUrl = typeof ticket === "string" && !isBlank(ticket) ? ticket : null;
+    return recordAdminWrite(
+      admin,
+      {
+        action: "piracy_reports.create",
+        target: { type: "User", id: user.id, externalId: user.external_id },
+        wrapper: WRAPPER,
+      },
+      async () => {
+        const url = rubyStrip(paramToS(admin.params.url, SOURCE));
+        const ticket = admin.params.ticket_url;
+        if (ticket !== undefined && ticket !== null && typeof ticket !== "string")
+          throw new NotPortedError("a ticket_url that is not text", SOURCE);
+        const ticketUrl = typeof ticket === "string" && !isBlank(ticket) ? ticket : null;
 
-      return db.$transaction(async (tx) => {
-        await tx.$queryRaw`SELECT id FROM users WHERE id = ${user.id} FOR UPDATE`;
-        const seller = await tx.user.findUniqueOrThrow({ where: { id: user.id } });
-        const errors = await eligibilityErrors(seller, product);
+        return db.$transaction(async (tx) => {
+          await tx.$queryRaw`SELECT id FROM users WHERE id = ${user.id} FOR UPDATE`;
+          const seller = await tx.user.findUniqueOrThrow({ where: { id: user.id } });
+          const errors = await eligibilityErrors(seller, product);
 
-        const uri = parseHttpUrl(url);
-        if (uri === null) errors.push("The URL must start with http:// or https://");
-        else if (await gumroadHosted(uri.host)) errors.push(HOSTED_ON_GUMROAD_ERROR);
-        else {
-          const digest = createHash("sha256").update(normalizeUrl(uri)).digest("hex");
-          if ((await tx.piracyReport.count({ where: { product_id: product.id, normalized_url_digest: digest } })) > 0) errors.push("This page has already been reported for this product");
-        }
-        const now = new Date();
-        if ((await tx.piracyReport.count({ where: { seller_id: seller.id, created_at: { gte: startOfMonth(now) } } })) >= MONTHLY_LIMIT) errors.push(`The monthly limit of ${MONTHLY_LIMIT} reports has been reached`);
-        if (errors.length > 0) return unprocessable(errors);
+          const uri = parseHttpUrl(url);
+          if (uri === null) errors.push("The URL must start with http:// or https://");
+          else if (await gumroadHosted(uri.host)) errors.push(HOSTED_ON_GUMROAD_ERROR);
+          else {
+            const digest = createHash("sha256").update(normalizeUrl(uri)).digest("hex");
+            if ((await tx.piracyReport.count({ where: { product_id: product.id, normalized_url_digest: digest } })) > 0)
+              errors.push("This page has already been reported for this product");
+          }
+          const now = new Date();
+          if (
+            (await tx.piracyReport.count({
+              where: { seller_id: seller.id, created_at: { gte: startOfMonth(now) } },
+            })) >= MONTHLY_LIMIT
+          )
+            errors.push(`The monthly limit of ${MONTHLY_LIMIT} reports has been reached`);
+          if (errors.length > 0) return unprocessable(errors);
 
-        // The model's own validations (lengths, a second URL inside the path) answer with Rails' messages.
-        const embedsAnotherUrl = /https?(?::|%3a)/iu.test(url.replace(/^https?:\/\/[^/?#]*/iu, ""));
-        if (charLength(url) > MAX_REPORTED_URL_LENGTH || (ticketUrl !== null && charLength(ticketUrl) > MAX_TICKET_URL_LENGTH) || embedsAnotherUrl) {
-          throw new NotPortedError("a report the model would refuse", SOURCE);
-        }
-        let externalId = newExternalId();
-        while ((await tx.piracyReport.count({ where: { external_id: externalId } })) > 0) externalId = newExternalId();
-        const created = await tx.piracyReport.create({
-          data: { external_id: externalId, seller_id: seller.id, product_id: product.id, source: "support", ticket_url: ticketUrl, state: "requested", url, normalized_url_digest: createHash("sha256").update(normalizeUrl(uri!)).digest("hex"), created_at: now, updated_at: now },
-          include: { seller: true, product: true },
+          // The model's own validations (lengths, a second URL inside the path) answer with Rails' messages.
+          const embedsAnotherUrl = /https?(?::|%3a)/iu.test(url.replace(/^https?:\/\/[^/?#]*/iu, ""));
+          if (
+            charLength(url) > MAX_REPORTED_URL_LENGTH ||
+            (ticketUrl !== null && charLength(ticketUrl) > MAX_TICKET_URL_LENGTH) ||
+            embedsAnotherUrl
+          ) {
+            throw new NotPortedError("a report the model would refuse", SOURCE);
+          }
+          let externalId = newExternalId();
+          while ((await tx.piracyReport.count({ where: { external_id: externalId } })) > 0)
+            externalId = newExternalId();
+          const created = await tx.piracyReport.create({
+            data: {
+              external_id: externalId,
+              seller_id: seller.id,
+              product_id: product.id,
+              source: "support",
+              ticket_url: ticketUrl,
+              state: "requested",
+              url,
+              normalized_url_digest: createHash("sha256").update(normalizeUrl(uri!)).digest("hex"),
+              created_at: now,
+              updated_at: now,
+            },
+            include: { seller: true, product: true },
+          });
+          return jsonRendered({ success: true, report: serializeSummary(created) }, 201);
         });
-        return jsonRendered({ success: true, report: serializeSummary(created) }, 201);
-      });
-    });
+      },
+    );
   },
 });
-

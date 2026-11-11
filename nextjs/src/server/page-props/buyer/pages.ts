@@ -1,6 +1,8 @@
 // The buyer-facing Inertia pages (forgot password, subscription magic link, invoices, library,
 // wishlists, reviews). Registered in ../pages.ts. Not ported, and so not in routes.json: see the
 // report in nextjs/src/app/(app)/CONVERTING.md ("Buyer pages").
+import { railsLoggedInUser } from "../../auth/resolve.ts";
+import { teamInvitationEmail } from "../../controllers/auth-pages.ts";
 import {
   EDIT_PASSWORD_OPTIONS,
   idFromExternalId,
@@ -14,18 +16,18 @@ import {
   safeDecode,
   WISHLISTS_OPTIONS,
 } from "../../controllers/buyer-pages.ts";
-import { railsLoggedInUser } from "../../auth/resolve.ts";
-import { libraryProps, purchaseAnalyticsProps, receiptPurchases } from "./library.ts";
-import { reviewsProps } from "./reviews.ts";
-import { aliveFollowingWishlistsOf, aliveWishlistsOf, wishlistsLibraryProps } from "./wishlists.ts";
 import { queryParam, type RailsRequest } from "../../controllers/rails-request.ts";
-import { teamInvitationEmail } from "../../controllers/auth-pages.ts";
 import type { ActionContext } from "../load-page.ts";
 import type { PageSpec } from "../pages.ts";
+
+import { libraryProps, purchaseAnalyticsProps, receiptPurchases } from "./library.ts";
+import { reviewsProps } from "./reviews.ts";
 import { magicLinkProps } from "./subscriptions.ts";
+import { aliveFollowingWishlistsOf, aliveWishlistsOf, wishlistsLibraryProps } from "./wishlists.ts";
 
 // params[name] for a flat query key; a bracketed one was handed back to Rails by the filters.
-export const queryValue = (action: ActionContext, name: string) => queryParam({ queryString: action.url.search.replace(/^\?/, "") } as RailsRequest, name);
+export const queryValue = (action: ActionContext, name: string) =>
+  queryParam({ queryString: action.url.search.replace(/^\?/, "") } as RailsRequest, name);
 
 // The tags PageMeta::Analytics sets stay where ApplicationController declares them while the
 // controller's re-declared callbacks (title, CSRF, defaults) move to the end of the chain.
@@ -70,7 +72,10 @@ export const BUYER_PAGES: Record<string, PageSpec> = {
     options: NEW_PASSWORD_OPTIONS,
     props: (_, action) => {
       passwordsMeta(action, "Forgot password");
-      return { email: queryValue(action, "email") ?? teamInvitationEmail(queryValue(action, "next") ?? null), application_name: null };
+      return {
+        email: queryValue(action, "email") ?? teamInvitationEmail(queryValue(action, "next") ?? null),
+        application_name: null,
+      };
     },
   },
   "/users/forgot_password/edit": {
@@ -106,14 +111,22 @@ export const BUYER_PAGES: Record<string, PageSpec> = {
     options: WISHLISTS_OPTIONS,
     props: async (_, action) => {
       action.meta.set({ title: "Following" });
-      return { wishlists: await wishlistsLibraryProps(await aliveFollowingWishlistsOf(currentSeller(action).id), { isWishlistCreator: false }) };
+      return {
+        wishlists: await wishlistsLibraryProps(await aliveFollowingWishlistsOf(currentSeller(action).id), {
+          isWishlistCreator: false,
+        }),
+      };
     },
   },
   // LibraryController#index. `purchase_id` (post-checkout analytics) in a non-USD or buyer-local currency goes to Rails in the filters.
   "/library": { component: "Library/Index", options: LIBRARY_OPTIONS, props: (_, action) => libraryPage(action) },
   // `get "/read", to: "library#index"`: the same action under another path.
   "/read": { component: "Library/Index", options: LIBRARY_OPTIONS, props: (_, action) => libraryPage(action) },
-  "/library/purchase/:id": { component: "Library/Index", options: LIBRARY_OPTIONS, props: (_, action) => libraryPage(action) },
+  "/library/purchase/:id": {
+    component: "Library/Index",
+    options: LIBRARY_OPTIONS,
+    props: (_, action) => libraryPage(action),
+  },
   // ReviewsController#index: ReviewsPresenter.new(current_seller)
   "/reviews": {
     component: "Reviews/Index",

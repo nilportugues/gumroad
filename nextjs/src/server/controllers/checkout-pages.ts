@@ -3,13 +3,19 @@
 import { Prisma } from "@prisma/client";
 
 import { railsLoggedInUser } from "../auth/resolve.ts";
-import { domainConfig } from "../page-props/domain.ts";
-import { fetchCart, storedDiscountCodeCount, visibleCartProductCount, cartStateOf } from "../page-props/checkout/checkout.ts";
-import { selectRows } from "../models/sql.ts";
 import { decryptSecureExternalId } from "../models/secure-external-id.ts";
+import { selectRows } from "../models/sql.ts";
+import {
+  fetchCart,
+  storedDiscountCodeCount,
+  visibleCartProductCount,
+  cartStateOf,
+} from "../page-props/checkout/checkout.ts";
+import { domainConfig } from "../page-props/domain.ts";
+
 import { HandBackToRails, type ActionOptions, type Chain, type FilterOutcome } from "./application-controller.ts";
-import { parseQuery, toQuery } from "./rails-query.ts";
 import { assertFlatQuery, requestFormat } from "./rails-params.ts";
+import { parseQuery, toQuery } from "./rails-query.ts";
 import { isPresent, queryParam } from "./rails-request.ts";
 
 const CART_LOGIN_SCOPE = "cart_login";
@@ -53,7 +59,14 @@ async function processCartIdParam(chain: Chain): Promise<FilterOutcome | null> {
   if (cart === null) return redirect;
   if (cart.user_id !== null) {
     const login = toQuery({ next: pathWithoutCartId, email: cart.user_email ?? "" }).join("&");
-    return { halt: { status: 302, rescued: true, location: `${chain.request.protocol}${chain.request.hostWithPort}/login?${login}`, flash: { alert: LOGIN_REQUIRED_MESSAGE } } };
+    return {
+      halt: {
+        status: 302,
+        rescued: true,
+        location: `${chain.request.protocol}${chain.request.hostWithPort}/login?${login}`,
+        flash: { alert: LOGIN_REQUIRED_MESSAGE },
+      },
+    };
   }
   // The visitor's own guest cart would be merged into this one (MergeCartsService writes).
   if ((cart.browser_guid ?? null) !== browserGuid(chain)) throw new HandBackToRails();

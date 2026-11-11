@@ -1,25 +1,36 @@
 // DropboxFilesController (app/controllers/dropbox_files_controller.rb): the Dropbox chooser of the product editor.
 import { Prisma, type DropboxFile, type Link, type User } from "@prisma/client";
 
-import { NotPortedError } from "../models/user.ts";
-import { createDropboxFile, dropboxFileJson, findDropboxFileForUser, listDropboxFiles, transitionDropboxFile } from "../models/dropbox-file.ts";
-import { dropboxFilesPolicy } from "../policies/s3-utility.ts";
-import { authorize } from "../policies/authorize.ts";
+import { encrypt } from "../../lib/obfuscate-ids.ts";
+import {
+  createDropboxFile,
+  dropboxFileJson,
+  findDropboxFileForUser,
+  listDropboxFiles,
+  transitionDropboxFile,
+} from "../models/dropbox-file.ts";
 import { castRow, column, selectRows, table } from "../models/sql.ts";
+import { NotPortedError } from "../models/user.ts";
+import { authorize } from "../policies/authorize.ts";
+import { dropboxFilesPolicy } from "../policies/s3-utility.ts";
+
 import { HandBackToRails, RoutingError, type ActionResult } from "./application-controller.ts";
 import { json, jsonAction, jsonSellerGuard } from "./json-actions.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
-import { encrypt } from "../../lib/obfuscate-ids.ts";
 
 // `params.permit(:id, :bytes, :name, :link, :icon, :link_id)`: scalars only, the rest is dropped
 function scalar(value: unknown): string | number | boolean | null | undefined {
-  return value === null || ["string", "number", "boolean"].includes(typeof value) ? (value as string | number | boolean | null) : undefined;
+  return value === null || ["string", "number", "boolean"].includes(typeof value)
+    ? (value as string | number | boolean | null)
+    : undefined;
 }
 
 // `fetch_product_and_enforce_ownership if permitted_params[:link_id]`: `Link.fetch(link_id, user: current_seller) || e404`
 async function fetchProduct(seller: User, linkId: unknown): Promise<Link> {
   if (typeof linkId !== "string") throw new NotPortedError("Link.fetch", "a link_id that is not a string");
-  const [row] = await selectRows(Prisma.sql`SELECT ${Prisma.raw("`links`.*")} FROM ${table("links")} WHERE ${column("links", "user_id")} = ${seller.id} AND ${column("links", "deleted_at")} IS NULL AND ${column("links", "unique_permalink")} = ${linkId} LIMIT 1`);
+  const [row] = await selectRows(
+    Prisma.sql`SELECT ${Prisma.raw("`links`.*")} FROM ${table("links")} WHERE ${column("links", "user_id")} = ${seller.id} AND ${column("links", "deleted_at")} IS NULL AND ${column("links", "unique_permalink")} = ${linkId} LIMIT 1`,
+  );
   if (!row) throw new RoutingError("Not Found");
   return castRow<Link>("Link", row);
 }
@@ -27,7 +38,10 @@ async function fetchProduct(seller: User, linkId: unknown): Promise<Link> {
 const wantsLink = (value: unknown) => value !== undefined && value !== null && value !== "" && value !== false;
 
 async function serialize(record: DropboxFile, seller: User, link: Link | null) {
-  return dropboxFileJson(record, { userExternalId: record.user_id === null ? null : (seller.external_id ?? null), linkExternalId: link === null ? (record.link_id === null ? null : encrypt(record.link_id)) : encrypt(link.id) });
+  return dropboxFileJson(record, {
+    userExternalId: record.user_id === null ? null : (seller.external_id ?? null),
+    linkExternalId: link === null ? (record.link_id === null ? null : encrypt(record.link_id)) : encrypt(link.id),
+  });
 }
 
 export function dropboxIndexRoute(request: Request) {

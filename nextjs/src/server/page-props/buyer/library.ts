@@ -10,16 +10,16 @@ import { db } from "../../../lib/db.ts";
 import { decrypt, encrypt } from "../../../lib/obfuscate-ids.ts";
 import { HandBackToRails } from "../../controllers/application-controller.ts";
 import { grantsAccess } from "../../controllers/url-redirects/access.ts";
-import { LinkFlags } from "../../models/link.ts";
-import { isFlagSet, tiktokPixelId, Users } from "../../models/user.ts";
 import { moneyFormatterFormat } from "../../models/concerns/money-formatter.ts";
-import { buyerCurrencyDisplayProps, linkFields } from "../../presenters/product.ts";
-import { findLink, findUserById } from "../../presenters/product-reads.ts";
-import { NotPortedError } from "../not-ported.ts";
+import { LinkFlags } from "../../models/link.ts";
 import { castRow, column, selectRows, table } from "../../models/sql.ts";
 import { SubscriptionFlags } from "../../models/subscription.ts";
+import { isFlagSet, tiktokPixelId, Users } from "../../models/user.ts";
+import { findLink, findUserById } from "../../presenters/product-reads.ts";
+import { buyerCurrencyDisplayProps, linkFields } from "../../presenters/product.ts";
 import { PurchaseFlags } from "../../search/flags.ts";
 import { domainConfig } from "../domain.ts";
+import { NotPortedError } from "../not-ported.ts";
 
 import { thumbnailOrCoverUrl } from "./products.ts";
 import { avatarUrl, profileUrl } from "./users.ts";
@@ -134,7 +134,12 @@ async function purchaseEventProps(purchase: Purchase): Promise<Record<string, un
     tiktok_pixel_id: tiktokPixelId(record) ?? null,
     free_sales: !isFlagSet(record, "skip_free_sale_analytics"),
   };
-  if (!present(analytics.google_analytics_id) && !present(analytics.facebook_pixel_id) && !present(analytics.tiktok_pixel_id)) return {};
+  if (
+    !present(analytics.google_analytics_id) &&
+    !present(analytics.facebook_pixel_id) &&
+    !present(analytics.tiktok_pixel_id)
+  )
+    return {};
 
   const currency = purchase.displayed_price_currency_type ?? "";
   if (currency !== "usd" || linkFields.currency(product) !== "usd") throw new HandBackToRails();

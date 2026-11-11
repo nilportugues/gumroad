@@ -34,35 +34,36 @@ describe("GlobalConfig parity with Ruby", () => {
   const savedEnv = { ...process.env };
 
   beforeAll(() => {
-    setCredentialsForTesting(parseCredentialsYaml(decryptEncryptedFile(credentialsGolden.encrypted, credentialsGolden.key)));
+    setCredentialsForTesting(
+      parseCredentialsYaml(decryptEncryptedFile(credentialsGolden.encrypted, credentialsGolden.key)),
+    );
   });
 
   afterEach(() => {
     process.env = { ...savedEnv };
   });
 
-  it.each((globalConfigGolden as GoldenCase[]).map((c) => [JSON.stringify([c.env, c.method, c.args, c.default]), c] as const))(
-    "%s",
-    (_label, c) => {
-      Object.assign(process.env, c.env);
-      const hasDefault = Object.hasOwn(c, "default");
-      const defaultValue = c.default === null ? undefined : c.default;
-      const call = () =>
-        c.method === "dig"
-          ? hasDefault
-            ? digConfig(c.args as string[], defaultValue)
-            : digConfig(c.args as string[])
-          : hasDefault
-            ? getConfigValue(c.args as string, defaultValue)
-            : getConfigValue(c.args as string);
+  it.each(
+    (globalConfigGolden as GoldenCase[]).map((c) => [JSON.stringify([c.env, c.method, c.args, c.default]), c] as const),
+  )("%s", (_label, c) => {
+    Object.assign(process.env, c.env);
+    const hasDefault = Object.hasOwn(c, "default");
+    const defaultValue = c.default === null ? undefined : c.default;
+    const call = () =>
+      c.method === "dig"
+        ? hasDefault
+          ? digConfig(c.args as string[], defaultValue)
+          : digConfig(c.args as string[])
+        : hasDefault
+          ? getConfigValue(c.args as string, defaultValue)
+          : getConfigValue(c.args as string);
 
-      if (c.error) {
-        expect(call).toThrow(TypeError);
-      } else {
-        expect(call() ?? null).toEqual(c.value);
-      }
-    },
-  );
+    if (c.error) {
+      expect(call).toThrow(TypeError);
+    } else {
+      expect(call() ?? null).toEqual(c.value);
+    }
+  });
 
   it("stringifies scalar credentials through getConfig", () => {
     expect(getConfig("STRIPE__MAX_RETRIES")).toBe("3");

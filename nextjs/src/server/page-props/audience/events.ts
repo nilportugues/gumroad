@@ -1,18 +1,20 @@
 // The Events concern's `create_user_event` for the dashboard page views (followers_view,
 // workflows_view, emails_view): an `events` row describing the request.
-import { Prisma } from "@prisma/client";
 import { createHash } from "node:crypto";
+
+import { Prisma } from "@prisma/client";
 
 import type { RequestContext } from "@/server/auth/context";
 
 import { railsLoggedInUser } from "../../auth/resolve.ts";
+import type { RenderState } from "../../controllers/application-controller.ts";
 import { geoIpLookup } from "../../infra/geo-ip.ts";
 import { isInvalidUriError, rubyUriParse } from "../../models/concerns/ruby-uri.ts";
 import { transaction } from "../../models/runtime/transaction.ts";
 import { column, execute, selectRows, table } from "../../models/sql.ts";
-import { isMobile } from "../shared.ts";
 import { NotPortedError } from "../not-ported.ts";
-import type { RenderState } from "../../controllers/application-controller.ts";
+import { isMobile } from "../shared.ts";
+
 import { rackParam, type QuerySource } from "./support.ts";
 
 const EVENTS = "events";
@@ -51,13 +53,24 @@ export function referrerDomain(url: string | null): string {
 
 // ActionDispatch::RemoteIp with the default trusted proxies. REMOTE_ADDR is the socket peer, which Next
 // copies into X-Forwarded-For when the request has none.
-const TRUSTED_PROXIES = [/^127\./, /^::1$/, /^f[cd][0-9a-f]{2}:/i, /^10\./, /^172\.(1[6-9]|2\d|3[01])\./, /^192\.168\./, /^169\.254\./, /^fe[89ab][0-9a-f]:/i];
+const TRUSTED_PROXIES = [
+  /^127\./,
+  /^::1$/,
+  /^f[cd][0-9a-f]{2}:/i,
+  /^10\./,
+  /^172\.(1[6-9]|2\d|3[01])\./,
+  /^192\.168\./,
+  /^169\.254\./,
+  /^fe[89ab][0-9a-f]:/i,
+];
 export function remoteIp(headers: Headers): string | null {
-  const forwarded = (headers.get("x-forwarded-for") ?? "").trim().split(/[,\s]+/u).filter((ip) => ip !== "");
+  const forwarded = (headers.get("x-forwarded-for") ?? "")
+    .trim()
+    .split(/[,\s]+/u)
+    .filter((ip) => ip !== "");
   const ips = [...forwarded].reverse();
   return ips.find((ip) => !TRUSTED_PROXIES.some((proxy) => proxy.test(ip))) ?? ips.at(-1) ?? null;
 }
-
 
 function param(request: QuerySource, name: string): string | undefined {
   const value = rackParam(request, name);
@@ -76,13 +89,20 @@ export type EventSource = {
 };
 
 // FlagShihTzu::TRUE_VALUES, which also holds true and 1 for a value that came from a JSON body.
-const flagTrue = (value: unknown): boolean => value === true || value === 1 || (typeof value === "string" && FLAG_TRUE_VALUES.includes(value));
+const flagTrue = (value: unknown): boolean =>
+  value === true || value === 1 || (typeof value === "string" && FLAG_TRUE_VALUES.includes(value));
 // ActiveModel::Type::Boolean#cast
-const castBooleanValue = (value: unknown): boolean | null => (value === undefined || value === null || value === "" ? null : ![false, 0, ...BOOLEAN_FALSE_VALUES].includes(value as never));
+const castBooleanValue = (value: unknown): boolean | null =>
+  value === undefined || value === null || value === ""
+    ? null
+    : ![false, 0, ...BOOLEAN_FALSE_VALUES].includes(value as never);
 const isBlankString = (value: unknown): boolean => typeof value === "string" && /^[\s\0]*$/u.test(value);
 
 // Events#create_user_event(name): nothing while impersonating.
-export async function createUserEvent(name: string, { context, headers, url, state, params, product }: EventSource): Promise<number | null> {
+export async function createUserEvent(
+  name: string,
+  { context, headers, url, state, params, product }: EventSource,
+): Promise<number | null> {
   if (context.impersonatedUser) return null;
   const user = railsLoggedInUser(context);
   const query: QuerySource = { queryString: url.search.replace(/^\?/, "") };
@@ -106,9 +126,15 @@ export async function createUserEvent(name: string, { context, headers, url, sta
     return (list as string[]).filter((entry) => !isBlankString(entry));
   })();
   let referrer: string | null = referrers.at(-1) ?? requestReferrer;
-  if (referrer !== null && !/^\s*$/u.test(referrer)) referrer = referrer.replace(/[^\x00-\x7f]/gu, "").slice(0, REFERRER_MAX_LENGTH);
+  if (referrer !== null && !/^\s*$/u.test(referrer))
+    referrer = referrer.replace(/[^\x00-\x7f]/gu, "").slice(0, REFERRER_MAX_LENGTH);
 
-  const cookies = new Map((headers.get("cookie") ?? "").split(/;\s*/u).filter(Boolean).map((pair) => [pair.slice(0, pair.indexOf("=")), pair.slice(pair.indexOf("=") + 1)]));
+  const cookies = new Map(
+    (headers.get("cookie") ?? "")
+      .split(/;\s*/u)
+      .filter(Boolean)
+      .map((pair) => [pair.slice(0, pair.indexOf("=")), pair.slice(pair.indexOf("=") + 1)]),
+  );
   const signupReferrer = state?.signupReferrer;
   const wasProductRecommended = flagTrue(read("was_product_recommended"));
   let visitId = 0;
@@ -137,15 +163,21 @@ export async function createUserEvent(name: string, { context, headers, url, sta
     ip_longitude: 0,
     ip_latitude: 0,
     is_modal: castBooleanValue(read("is_modal")),
-    browser_fingerprint: createHash("md5").update([userAgent ?? "", plugins ?? ""].join(",")).digest("hex"),
+    browser_fingerprint: createHash("md5")
+      .update([userAgent ?? "", plugins ?? ""].join(","))
+      .digest("hex"),
     browser_guid: cookies.get("_gumroad_guid") ?? state?.mintedGuid ?? null,
-    referrer_domain: wasProductRecommended ? REFERRER_DOMAIN_FOR_GUMROAD_RECOMMENDED_PRODUCTS : referrerDomain(referrer),
+    referrer_domain: wasProductRecommended
+      ? REFERRER_DOMAIN_FOR_GUMROAD_RECOMMENDED_PRODUCTS
+      : referrerDomain(referrer),
     ip_state: geo?.regionName ?? null,
     price_cents: product?.price_cents ?? null,
   };
   const names = Object.keys(values);
   return transaction(async () => {
-    await execute(Prisma.sql`INSERT INTO ${table(EVENTS)} (${Prisma.join(names.map((name) => column(EVENTS, name)))}) VALUES (${Prisma.join(names.map((name) => values[name]))})`);
+    await execute(
+      Prisma.sql`INSERT INTO ${table(EVENTS)} (${Prisma.join(names.map((name) => column(EVENTS, name)))}) VALUES (${Prisma.join(names.map((name) => values[name]))})`,
+    );
     const [row] = await selectRows<{ id: bigint }>(Prisma.sql`SELECT LAST_INSERT_ID() AS ${Prisma.raw("`id`")}`);
     return Number(row!.id);
   });

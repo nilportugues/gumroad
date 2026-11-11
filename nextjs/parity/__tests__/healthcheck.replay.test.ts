@@ -6,7 +6,12 @@ import type { Redis } from "ioredis";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { resetRailsCacheForTesting } from "@/server/cache/rails-cache";
-import { defaultHealthcheckDeps, REDIS_KEYS, type HealthcheckDeps, setHealthcheckDepsForTesting } from "@/server/controllers/healthcheck";
+import {
+  defaultHealthcheckDeps,
+  REDIS_KEYS,
+  type HealthcheckDeps,
+  setHealthcheckDepsForTesting,
+} from "@/server/controllers/healthcheck";
 import { closeAllRedis, getRedis } from "@/server/infra/redis";
 import { setSqlClient } from "@/server/models/sql";
 import { InvalidRequestError } from "@/server/stripe/errors";
@@ -60,25 +65,64 @@ const SETUPS: [RegExp, Setup][] = [
   [/Sidekiq queues .*queue queues returns HTTP service_unavailable/, async () => sizes(0, 300_001, 0)],
   [/retry set .*returns HTTP success/, async () => sizes(0, 0, 19_999)],
   [/retry set .*returns HTTP service_unavailable/, async () => sizes(0, 0, 20_001)],
-  [/'payouts' when a payout batch is in flight/, async (r) => void (await r.zadd(REDIS_KEYS.payoutBatchInFlight, nowSeconds(), "job-token"))],
-  [/'payouts' when the only entries are older/, async (r) => void (await r.zadd(REDIS_KEYS.payoutBatchInFlight, staleScore(3), "dead-job-token"))],
+  [
+    /'payouts' when a payout batch is in flight/,
+    async (r) => void (await r.zadd(REDIS_KEYS.payoutBatchInFlight, nowSeconds(), "job-token")),
+  ],
+  [
+    /'payouts' when the only entries are older/,
+    async (r) => void (await r.zadd(REDIS_KEYS.payoutBatchInFlight, staleScore(3), "dead-job-token")),
+  ],
   [
     /'payouts' when a stale entry sits alongside/,
-    async (r) => void (await r.zadd(REDIS_KEYS.payoutBatchInFlight, staleScore(3), "dead-job-token", nowSeconds(), "live-job-token")),
+    async (r) =>
+      void (await r.zadd(
+        REDIS_KEYS.payoutBatchInFlight,
+        staleScore(3),
+        "dead-job-token",
+        nowSeconds(),
+        "live-job-token",
+      )),
   ],
-  [/'long_running_jobs' when a long-running job is in flight/, async (r) => void (await r.zadd(REDIS_KEYS.longRunningJobsInFlight, nowSeconds(), "job-token"))],
-  [/'long_running_jobs' when the only entries are older/, async (r) => void (await r.zadd(REDIS_KEYS.longRunningJobsInFlight, staleScore(6), "dead-job-token"))],
+  [
+    /'long_running_jobs' when a long-running job is in flight/,
+    async (r) => void (await r.zadd(REDIS_KEYS.longRunningJobsInFlight, nowSeconds(), "job-token")),
+  ],
+  [
+    /'long_running_jobs' when the only entries are older/,
+    async (r) => void (await r.zadd(REDIS_KEYS.longRunningJobsInFlight, staleScore(6), "dead-job-token")),
+  ],
   [
     /'long_running_jobs' when a stale entry sits alongside/,
-    async (r) => void (await r.zadd(REDIS_KEYS.longRunningJobsInFlight, staleScore(6), "dead-job-token", nowSeconds(), "live-job-token")),
+    async (r) =>
+      void (await r.zadd(
+        REDIS_KEYS.longRunningJobsInFlight,
+        staleScore(6),
+        "dead-job-token",
+        nowSeconds(),
+        "live-job-token",
+      )),
   ],
-  [/'paypal_balance' when PayPal topup is not needed/, async (r) => void (await r.set(REDIS_KEYS.paypalTopupNeeded, "false"))],
-  [/'paypal_balance' when PayPal topup is needed/, async (r) => void (await r.set(REDIS_KEYS.paypalTopupNeeded, "true"))],
-  [/'stripe_balance' when Stripe topup is not needed/, async (r) => void (await r.set(REDIS_KEYS.stripeBalanceTopupNeeded, "false"))],
-  [/'stripe_balance' when Stripe topup is needed/, async (r) => void (await r.set(REDIS_KEYS.stripeBalanceTopupNeeded, "true"))],
+  [
+    /'paypal_balance' when PayPal topup is not needed/,
+    async (r) => void (await r.set(REDIS_KEYS.paypalTopupNeeded, "false")),
+  ],
+  [
+    /'paypal_balance' when PayPal topup is needed/,
+    async (r) => void (await r.set(REDIS_KEYS.paypalTopupNeeded, "true")),
+  ],
+  [
+    /'stripe_balance' when Stripe topup is not needed/,
+    async (r) => void (await r.set(REDIS_KEYS.stripeBalanceTopupNeeded, "false")),
+  ],
+  [
+    /'stripe_balance' when Stripe topup is needed/,
+    async (r) => void (await r.set(REDIS_KEYS.stripeBalanceTopupNeeded, "true")),
+  ],
   [
     /reports an active registration/,
-    async () => stagingBranch(async () => ({ active: true, message: "Apple Pay on my-branch.apps.staging.gumroad.org: active" })),
+    async () =>
+      stagingBranch(async () => ({ active: true, message: "Apple Pay on my-branch.apps.staging.gumroad.org: active" })),
   ],
   [
     /reports an inactive registration/,
@@ -155,7 +199,11 @@ describe.skipIf(!url || !redisHost)("HealthcheckController parity", () => {
     const route = await ROUTES[fixture.exchanges[0]!.request.path]!();
     // A controller spec bypasses the session middleware, and with it the session cookie and the
     // XSRF-TOKEN cookie committed alongside; the port sends both, as Rails does over HTTP.
-    const result = await replayFixture(fixture, { sql, transport: routeHandlers(route), compare: { subset: ["response.cookies"] } });
+    const result = await replayFixture(fixture, {
+      sql,
+      transport: routeHandlers(route),
+      compare: { subset: ["response.cookies"] },
+    });
     assertParity(result);
   });
 

@@ -8,9 +8,16 @@ import { LinkFlags } from "../../models/link.ts";
 import { column, selectRows, table } from "../../models/sql.ts";
 import { collaboratingProductIds, linkPolicy, piracyReportsTabVisible } from "../../policies/link.ts";
 import type { SellerContext } from "../../policies/seller-context.ts";
+import {
+  type Aggregations,
+  affiliateCreditAggs,
+  aggregationValue,
+  ownAffiliateCreditCents,
+} from "../../search/purchase-sales.ts";
 import { PurchaseSearchService } from "../../search/purchase-search.ts";
-import { type Aggregations, affiliateCreditAggs, aggregationValue, ownAffiliateCreditCents } from "../../search/purchase-sales.ts";
 import { hasBrazilianStripeConnectAccount } from "../dashboard/payout-info.ts";
+
+import { archivedProductsCount } from "./dashboard-products.ts";
 import {
   assertPriceSupported,
   assertStatsCached,
@@ -29,7 +36,6 @@ import {
   sortAndPaginate,
   thumbnailJson,
 } from "./listing.ts";
-import { archivedProductsCount } from "./dashboard-products.ts";
 
 export const COLLAB_SORT_KEYS = ["name", "display_price_cents", "cut", "successful_sales_count", "revenue"] as const;
 type Kind = "products" | "memberships";
@@ -39,7 +45,10 @@ const present = (value: string | null): value is string => value !== null && val
 // Link.collabs_as_seller_or_collaborator(user): the product's collaborations the user is the seller or the collaborator of
 // (an accepted, alive Collaborator), joined once per collaboration as ActiveRecord joins them.
 function collabsQuery(userId: bigint, params: ListingParams, kind: Kind | null) {
-  const flag = kind === null ? Prisma.empty : Prisma.sql` AND ${LinkFlags.condition("is_recurring_billing", kind === "memberships")}`;
+  const flag =
+    kind === null
+      ? Prisma.empty
+      : Prisma.sql` AND ${LinkFlags.condition("is_recurring_billing", kind === "memberships")}`;
   const search = present(params.query) ? Prisma.sql` AND links.name LIKE ${`%${params.query}%`}` : Prisma.empty;
   return {
     from: Prisma.sql`${table("links")} INNER JOIN affiliates_links ON affiliates_links.link_id = links.id INNER JOIN affiliates ON affiliates.id = affiliates_links.affiliate_id`,
@@ -60,7 +69,8 @@ const CHARGED_SALES_OPTIONS = {
 };
 const ALL_SUCCESS_STATES_EXCEPT_PREORDER_AUTH = ["successful", "not_charged", "gift_receiver_purchase_successful"];
 
-const aggregationsOf = (result: { response: { aggregations?: unknown } }) => result.response.aggregations as Aggregations;
+const aggregationsOf = (result: { response: { aggregations?: unknown } }) =>
+  result.response.aggregations as Aggregations;
 
 // The PurchaseSearchService options of Product::Stats#total_usd_cents_earned_by_user
 export function earnedByUserOptions(productId: bigint, productUserId: bigint | null, userId: bigint) {
@@ -75,37 +85,52 @@ export function earnedByUserOptions(productId: bigint, productUserId: bigint | n
         direct_affiliate_fees_total: { sum: { field: "direct_affiliate_credit_fee_cents" } },
       }
     : affiliateCreditAggs(Number(userId));
-  return { forSeller, options: { ...CHARGED_SALES_OPTIONS, product: Number(productId), size: 0, aggs, [forSeller ? "seller" : "affiliate_user"]: Number(userId) } };
+  return {
+    forSeller,
+    options: {
+      ...CHARGED_SALES_OPTIONS,
+      product: Number(productId),
+      size: 0,
+      aggs,
+      [forSeller ? "seller" : "affiliate_user"]: Number(userId),
+    },
+  };
 }
 
 // Product::Stats#total_usd_cents_earned_by_user
-export async function totalUsdCentsEarnedByUser(productId: bigint, productUserId: bigint | null, userId: bigint): Promise<number> {
+export async function totalUsdCentsEarnedByUser(
+  productId: bigint,
+  productUserId: bigint | null,
+  userId: bigint,
+): Promise<number> {
   const { forSeller, options } = earnedByUserOptions(productId, productUserId, userId);
   const result = await PurchaseSearchService.process(options);
   const aggregations = aggregationsOf(result);
   const value = (name: string) => aggregationValue(aggregations[name]?.value, name);
   if (forSeller) {
-    const affiliateTotal = value("affiliate_cents_total") + value("affiliate_fees_total") - value("amount_refunded_cents_total");
+    const affiliateTotal =
+      value("affiliate_cents_total") + value("affiliate_fees_total") - value("amount_refunded_cents_total");
     const directAffiliateTotal = value("direct_affiliate_cents_total") + value("direct_affiliate_fees_total");
     return value("price_cents_total") - affiliateTotal - directAffiliateTotal;
   }
-  const earned = ownAffiliateCreditCents(aggregations, "amount_cents") + ownAffiliateCreditCents(aggregations, "fee_cents");
+  const earned =
+    ownAffiliateCreditCents(aggregations, "amount_cents") + ownAffiliateCreditCents(aggregations, "fee_cents");
   return earned - ownAffiliateCreditCents(aggregations, "amount_partially_refunded_cents");
 }
 
 // The PurchaseSearchService options of Product::Stats#active_customers_count
 export const activeCustomersOptions = (productId: bigint) => ({
-    product: Number(productId),
-    state: ALL_SUCCESS_STATES_EXCEPT_PREORDER_AUTH,
-    exclude_giftees: true,
-    exclude_refunded_except_subscriptions: true,
-    exclude_deactivated_subscriptions: true,
-    exclude_unreversed_chargedback: true,
-    exclude_non_original_subscription_purchases: true,
-    exclude_commission_completion_purchases: true,
-    exclude_bundle_product_purchases: true,
-    size: 0,
-    aggs: { unique_email_count: { cardinality: { field: "email.raw" } } },
+  product: Number(productId),
+  state: ALL_SUCCESS_STATES_EXCEPT_PREORDER_AUTH,
+  exclude_giftees: true,
+  exclude_refunded_except_subscriptions: true,
+  exclude_deactivated_subscriptions: true,
+  exclude_unreversed_chargedback: true,
+  exclude_non_original_subscription_purchases: true,
+  exclude_commission_completion_purchases: true,
+  exclude_bundle_product_purchases: true,
+  size: 0,
+  aggs: { unique_email_count: { cardinality: { field: "email.raw" } } },
 });
 
 export async function activeCustomersCount(productId: bigint): Promise<number> {
@@ -138,8 +163,12 @@ async function tableRows(seller: User, params: ListingParams, kind: Kind) {
 export async function assertCollabsSupported(seller: User, params: ListingParams): Promise<void> {
   assertTableSupported(params.products);
   assertTableSupported(params.memberships);
-  for (const sort of [params.products.sort, params.memberships.sort]) if (sort && (sort.key === "cut" || sort.key === "display_price_cents")) throw new HandBackToRails();
-  const [products, memberships] = await Promise.all([tableRows(seller, params, "products"), tableRows(seller, params, "memberships")]);
+  for (const sort of [params.products.sort, params.memberships.sort])
+    if (sort && (sort.key === "cut" || sort.key === "display_price_cents")) throw new HandBackToRails();
+  const [products, memberships] = await Promise.all([
+    tableRows(seller, params, "products"),
+    tableRows(seller, params, "memberships"),
+  ]);
   const rows = [...products.rows, ...memberships.rows];
   const data = await loadRowData(rows);
   await assertThumbnailsSupported(data);
@@ -155,8 +184,16 @@ async function rowsData(seller: User, context: SellerContext, rows: LinkRow[]) {
   await assertThumbnailsSupported(data);
   const stats = await freshCachedStats(rows);
   assertStatsCached(rows, stats);
-  const collaborating = await collaboratingProductIds(context, rows.map((row) => row.id));
-  const owners = new Map((await db.user.findMany({ where: { id: { in: [...new Set(rows.map((row) => row.user_id!))] } } })).map((owner) => [owner.id, owner]));
+  const collaborating = await collaboratingProductIds(
+    context,
+    rows.map((row) => row.id),
+  );
+  const owners = new Map(
+    (await db.user.findMany({ where: { id: { in: [...new Set(rows.map((row) => row.user_id!))] } } })).map((owner) => [
+      owner.id,
+      owner,
+    ]),
+  );
   const result: Record<string, unknown>[] = [];
   for (const row of rows) {
     assertPriceSupported(row, data);
@@ -202,13 +239,20 @@ export async function collabsStats(seller: User, params: ListingParams) {
     if (productFlag(row.flags, "is_recurring_billing")) totalMembers += await activeCustomersCount(BigInt(row.id));
     else totalCustomers += await activeCustomersCount(BigInt(row.id));
   }
-  return { total_revenue: totalRevenue, total_customers: totalCustomers, total_members: totalMembers, total_collaborations: totalCollaborations };
+  return {
+    total_revenue: totalRevenue,
+    total_customers: totalCustomers,
+    total_members: totalMembers,
+    total_collaborations: totalCollaborations,
+  };
 }
 
 export async function collabsFlags(seller: User, context: SellerContext) {
   return {
     archived_tab_visible: (await archivedProductsCount(seller)) > 0,
     piracy_reports_tab_visible: await piracyReportsTabVisible(context),
-    collaborators_disabled_reason: (await hasBrazilianStripeConnectAccount(seller.id)) ? "Collaborators with Brazilian Stripe accounts are not supported." : null,
+    collaborators_disabled_reason: (await hasBrazilianStripeConnectAccount(seller.id))
+      ? "Collaborators with Brazilian Stripe accounts are not supported."
+      : null,
   };
 }

@@ -9,20 +9,37 @@
 // go to MySQL each time and rely on the query cache to be answered like Rails does. Methods call
 // each other exactly as the Ruby does, repeats included, because the cache's hits (and the
 // statements that follow a cache clear) depend on the order of the calls.
-import { Prisma, type BasePrice, type InstallmentPlanSnapshot, type Link, type MerchantAccount, type PaymentOption, type ProductInstallmentPlan, type Purchase, type Subscription, type User } from "@prisma/client";
+import {
+  Prisma,
+  type BasePrice,
+  type InstallmentPlanSnapshot,
+  type Link,
+  type MerchantAccount,
+  type PaymentOption,
+  type ProductInstallmentPlan,
+  type Purchase,
+  type Subscription,
+  type User,
+} from "@prisma/client";
 
 import { defineFlags } from "../../lib/flags.ts";
-import { advance, type Duration } from "./concerns/ruby-time.ts";
 import { type FlipperActor, isFeatureEnabled, userActor } from "../infra/flipper.ts";
-import SUBSCRIPTION_DATA from "./subscription-data.generated.json" with { type: "json" };
+import { PurchaseFlags } from "../search/flags.ts";
+
+import { advance, type Duration } from "./concerns/ruby-time.ts";
 import { aliveStripeAccountsOf, isStripeConnectAccount, type MerchantAccountRow } from "./merchant-account.ts";
 import { isChargedbackNotReversedOrRefunded, PURCHASES } from "./purchase.ts";
 import { findById, findOneBy } from "./row-reads.ts";
 import { castRow, column, quoteName, selectRows, table } from "./sql.ts";
-import { isSupportedByStripeConnect, LEGAL_ENTITY_COUNTRY_ROUTING_FEATURE, stripeConnectRoutingCountryCode, type ComplianceInfoCountries } from "./stripe-connect-routing.ts";
-import { UserFlags } from "./user.ts";
-import { PurchaseFlags } from "../search/flags.ts";
+import {
+  isSupportedByStripeConnect,
+  LEGAL_ENTITY_COUNTRY_ROUTING_FEATURE,
+  stripeConnectRoutingCountryCode,
+  type ComplianceInfoCountries,
+} from "./stripe-connect-routing.ts";
+import SUBSCRIPTION_DATA from "./subscription-data.generated.json" with { type: "json" };
 import { currentSubscriptionPriceCents } from "./subscription-pricing.ts";
+import { UserFlags } from "./user.ts";
 
 export const SUBSCRIPTIONS = "subscriptions";
 
@@ -62,8 +79,20 @@ export function pastAndNotDeactivated(columnName: (typeof DEACTIVATION_COLUMNS)[
 // ---------------------------------------------------------------------------------------------
 // BasePrice::Recurrence
 
-export const RECURRENCE_TO_NUMBER_OF_MONTHS: Readonly<Record<string, number>> = { monthly: 1, quarterly: 3, biannually: 6, yearly: 12, every_two_years: 24 };
-const RECURRENCE_TO_RENEWAL_REMINDER_EMAIL_DAYS: Readonly<Record<string, number>> = { monthly: 1, quarterly: 7, biannually: 7, yearly: 7, every_two_years: 7 };
+export const RECURRENCE_TO_NUMBER_OF_MONTHS: Readonly<Record<string, number>> = {
+  monthly: 1,
+  quarterly: 3,
+  biannually: 6,
+  yearly: 12,
+  every_two_years: 24,
+};
+const RECURRENCE_TO_RENEWAL_REMINDER_EMAIL_DAYS: Readonly<Record<string, number>> = {
+  monthly: 1,
+  quarterly: 7,
+  biannually: 7,
+  yearly: 7,
+  every_two_years: 7,
+};
 const LONG_RENEWAL_THRESHOLD_IN_MONTHS = 12;
 const LONG_RENEWAL_ADVANCE_REMINDER_EMAIL_DAYS = 30;
 
@@ -96,14 +125,17 @@ const forSubscription = (id: bigint) => Prisma.sql`${column(PURCHASES, "subscrip
 const inState = (state: string) => Prisma.sql`${column(PURCHASES, "purchase_state")} = ${state}`;
 // Purchase.not_fully_refunded / .not_chargedback_or_chargedback_reversed (chargeback_reversed is flag bit 512).
 const NOT_FULLY_REFUNDED = Prisma.raw("(purchases.stripe_refunded IS NULL OR purchases.stripe_refunded = 0)");
-const NOT_CHARGEDBACK_OR_REVERSED = Prisma.raw("(purchases.chargeback_date IS NULL OR (purchases.chargeback_date IS NOT NULL AND purchases.flags & '512' != 0))");
+const NOT_CHARGEDBACK_OR_REVERSED = Prisma.raw(
+  "(purchases.chargeback_date IS NULL OR (purchases.chargeback_date IS NOT NULL AND purchases.flags & '512' != 0))",
+);
 
 async function purchaseRows(sql: Prisma.Sql): Promise<Purchase[]> {
   return (await selectRows(sql)).map((row) => castRow<Purchase>("Purchase", row));
 }
 
 // flag_shih_tzu's scopes are `where("<condition>")`, which ActiveRecord wraps in parentheses again.
-export const purchaseFlagScope = (name: Parameters<typeof PurchaseFlags.isSet>[1], enabled: boolean) => wrapped(PurchaseFlags.condition(name, enabled));
+export const purchaseFlagScope = (name: Parameters<typeof PurchaseFlags.isSet>[1], enabled: boolean) =>
+  wrapped(PurchaseFlags.condition(name, enabled));
 
 const present = (value: string | null | undefined) => value != null && value.trim() !== "";
 
@@ -182,7 +214,9 @@ export class SubscriptionRecord {
   }
 
   lastPaymentOption(): Promise<PaymentOption | null> {
-    return this.loaded("last_payment_option", () => findById<PaymentOption>("PaymentOption", this.row.last_payment_option_id));
+    return this.loaded("last_payment_option", () =>
+      findById<PaymentOption>("PaymentOption", this.row.last_payment_option_id),
+    );
   }
 
   // `has_one :original_purchase`, a scope on the flags.
@@ -217,8 +251,13 @@ export class SubscriptionRecord {
     );
     if (info === undefined) return false;
     // `stripe_connect_routing_country_code`
-    const legalEntityRouting = await this.deps.featureActive(LEGAL_ENTITY_COUNTRY_ROUTING_FEATURE, userActor(seller.id));
-    return isSupportedByStripeConnect(stripeConnectRoutingCountryCode(info as ComplianceInfoCountries, legalEntityRouting));
+    const legalEntityRouting = await this.deps.featureActive(
+      LEGAL_ENTITY_COUNTRY_ROUTING_FEATURE,
+      userActor(seller.id),
+    );
+    return isSupportedByStripeConnect(
+      stripeConnectRoutingCountryCode(info as ComplianceInfoCountries, legalEntityRouting),
+    );
   }
 
   // `seller.stripe_connect_account`
@@ -228,11 +267,16 @@ export class SubscriptionRecord {
 
   // `seller.merchant_account(stripe)`
   async sellerStripeMerchantAccount(seller: User): Promise<MerchantAccountRow | null> {
-    const connected = (await this.merchantMigrationEnabled(seller)) && (await this.stripeConnectAccount(seller)) !== null;
+    const connected =
+      (await this.merchantMigrationEnabled(seller)) && (await this.stripeConnectAccount(seller)) !== null;
     if (connected) return this.stripeConnectAccount(seller);
     // `find { can_accept_charges? && !is_a_stripe_connect_account? }`: a Gumroad-managed Stripe
     // account, whose country must be one Stripe accepts charges in.
-    return (await aliveStripeAccountsOf(seller.id)).find((account) => !CROSS_BORDER_PAYOUTS_COUNTRIES.has(String(account.country)) && !isStripeConnectAccount(account)) ?? null;
+    return (
+      (await aliveStripeAccountsOf(seller.id)).find(
+        (account) => !CROSS_BORDER_PAYOUTS_COUNTRIES.has(String(account.country)) && !isStripeConnectAccount(account),
+      ) ?? null
+    );
   }
 
   // `renewal_merchant_account`: the seller's, else `MerchantAccount.gumroad(stripe)`.
@@ -320,7 +364,8 @@ export class SubscriptionRecord {
   // `price`: `(last_payment_option || fetch_last_payment_option).price`
   async price(): Promise<BasePrice | null> {
     const stored = await this.lastPaymentOption();
-    if (stored !== null) return this.loaded(`price:${String(stored.id)}`, () => findById<BasePrice>("BasePrice", stored.price_id));
+    if (stored !== null)
+      return this.loaded(`price:${String(stored.id)}`, () => findById<BasePrice>("BasePrice", stored.price_id));
     // A freshly fetched option loads its own price each time.
     const fetched = await this.fetchLastPaymentOption();
     if (fetched === null) throw nilReceiver("price");
@@ -343,10 +388,17 @@ export class SubscriptionRecord {
       return price.recurrence;
     }
     const option = await this.lastPaymentOption();
-    const snapshot = option === null ? null : await this.loaded(`snapshot:${String(option.id)}`, () => findOneBy<InstallmentPlanSnapshot>("InstallmentPlanSnapshot", "payment_option_id", option.id));
+    const snapshot =
+      option === null
+        ? null
+        : await this.loaded(`snapshot:${String(option.id)}`, () =>
+            findOneBy<InstallmentPlanSnapshot>("InstallmentPlanSnapshot", "payment_option_id", option.id),
+          );
     if (snapshot === null) {
       if (option === null) throw nilReceiver("installment_plan");
-      const plan = await this.loaded(`plan:${String(option.id)}`, () => findById<ProductInstallmentPlan>("ProductInstallmentPlan", option.product_installment_plan_id));
+      const plan = await this.loaded(`plan:${String(option.id)}`, () =>
+        findById<ProductInstallmentPlan>("ProductInstallmentPlan", option.product_installment_plan_id),
+      );
       if (plan === null) throw nilReceiver("recurrence");
       return plan.recurrence;
     }
@@ -366,19 +418,25 @@ export class SubscriptionRecord {
   }
 
   async successfulPurchasesCount(): Promise<number> {
-    const [row] = await selectRows<Record<string, unknown>>(Prisma.sql`SELECT COUNT(*) FROM ${table(PURCHASES)} WHERE ${forSubscription(this.id)} AND ${inState(this.successfulState())}`);
+    const [row] = await selectRows<Record<string, unknown>>(
+      Prisma.sql`SELECT COUNT(*) FROM ${table(PURCHASES)} WHERE ${forSubscription(this.id)} AND ${inState(this.successfulState())}`,
+    );
     return Number(row!["COUNT(*)"]);
   }
 
   // `successful_purchases.last`
   async lastSuccessfulCharge(): Promise<Purchase | null> {
-    const [row] = await purchaseRows(Prisma.sql`${SUBSCRIPTION_PURCHASES_SELECT} WHERE ${forSubscription(this.id)} AND ${inState(this.successfulState())} ORDER BY ${column(PURCHASES, "id")} DESC LIMIT 1`);
+    const [row] = await purchaseRows(
+      Prisma.sql`${SUBSCRIPTION_PURCHASES_SELECT} WHERE ${forSubscription(this.id)} AND ${inState(this.successfulState())} ORDER BY ${column(PURCHASES, "id")} DESC LIMIT 1`,
+    );
     return row ?? null;
   }
 
   // `purchases.last`
   async lastPurchaseRow(): Promise<Purchase | null> {
-    const [row] = await purchaseRows(Prisma.sql`${SUBSCRIPTION_PURCHASES_SELECT} WHERE ${forSubscription(this.id)} ORDER BY ${column(PURCHASES, "id")} DESC LIMIT 1`);
+    const [row] = await purchaseRows(
+      Prisma.sql`${SUBSCRIPTION_PURCHASES_SELECT} WHERE ${forSubscription(this.id)} ORDER BY ${column(PURCHASES, "id")} DESC LIMIT 1`,
+    );
     return row ?? null;
   }
 
@@ -400,7 +458,9 @@ export class SubscriptionRecord {
 
   // `has_a_charge_in_progress?`
   async hasAChargeInProgress(): Promise<boolean> {
-    const rows = await selectRows(Prisma.sql`SELECT 1 AS one FROM ${table(PURCHASES)} WHERE ${forSubscription(this.id)} AND ${inState("in_progress")} LIMIT 1`);
+    const rows = await selectRows(
+      Prisma.sql`SELECT 1 AS one FROM ${table(PURCHASES)} WHERE ${forSubscription(this.id)} AND ${inState("in_progress")} LIMIT 1`,
+    );
     return rows.length > 0;
   }
 
@@ -427,9 +487,13 @@ export class SubscriptionRecord {
   async endTimeOfSubscription(): Promise<Date> {
     if (this.row.free_trial_ends_at != null) {
       const last = await this.lastPurchase();
-      if (last !== null && PurchaseFlags.isSet(last.flags, "is_free_trial_purchase")) return this.row.free_trial_ends_at;
+      if (last !== null && PurchaseFlags.isSet(last.flags, "is_free_trial_purchase"))
+        return this.row.free_trial_ends_at;
     }
-    if ((await this.endTimeOfLastPaidPeriod()) !== null && (await this.endTimeOfLastPaidPeriod())!.getTime() > this.now().getTime()) {
+    if (
+      (await this.endTimeOfLastPaidPeriod()) !== null &&
+      (await this.endTimeOfLastPaidPeriod())!.getTime() > this.now().getTime()
+    ) {
       return (await this.endTimeOfLastPaidPeriod())!;
     }
     const lastRow = await this.lastPurchaseRow();

@@ -10,8 +10,9 @@ import { createJobsRuntime } from "../../server/jobs/runtime.ts";
 import type { JsonValue } from "../../server/jobs/sidekiq/ruby-json.ts";
 import { goldenRouter, useGoldenEnvironment } from "../../server/mail/__fixtures__/application-mailer-golden.ts";
 import type { ComposedMail } from "../../server/mail/compose.ts";
-import { asSidekiqJob, contextFor, recordingSidekiqRedis, sequentialJids } from "./__fixtures__/golden.ts";
 import { setEsSender } from "../../server/search/transport.ts";
+
+import { asSidekiqJob, contextFor, recordingSidekiqRedis, sequentialJids } from "./__fixtures__/golden.ts";
 import { type Statement, sqlReplay } from "./__fixtures__/sql-replay.ts";
 import { sendPurchaseReceiptJobWith } from "./send-purchase-receipt-job.ts";
 
@@ -23,12 +24,18 @@ type JobCase = {
   ivs: string[];
   rands_used: number[];
   features: string[];
-  delivered: { encoded: string; envelope_to: string[]; settings: { address: string; domain: string; password: string } }[];
+  delivered: {
+    encoded: string;
+    envelope_to: string[];
+    settings: { address: string; domain: string; password: string };
+  }[];
   stamp_jobs: string[];
   email_infos: unknown[];
   es: { body: string; status: number; response: Record<string, unknown> }[];
 };
-const golden = JSON.parse(readFileSync(new URL("../../server/mail/__fixtures__/receipt-mailer.golden.json", import.meta.url), "utf8")) as {
+const golden = JSON.parse(
+  readFileSync(new URL("../../server/mail/__fixtures__/receipt-mailer.golden.json", import.meta.url), "utf8"),
+) as {
   now: string;
   secrets: Record<string, string>;
   cases: { jobs: JobCase[] };
@@ -55,7 +62,8 @@ afterAll(() => {
 });
 
 // Date, Message-ID and boundary are random on both sides.
-const stable = (encoded: string) => encoded.replace(/^(Date|Message-ID): .*$/gmu, "$1: x").replace(/--==_mimepart_[\w-]+/gu, "B");
+const stable = (encoded: string) =>
+  encoded.replace(/^(Date|Message-ID): .*$/gmu, "$1: x").replace(/--==_mimepart_[\w-]+/gu, "B");
 
 let restoreEs: (() => void) | undefined;
 afterEach(() => restoreEs?.());
@@ -75,7 +83,12 @@ describe("SendPurchaseReceiptJob", () => {
       });
       const sent: ComposedMail[] = [];
       const recording = recordingSidekiqRedis();
-      const runtime = createJobsRuntime({ sidekiqRedis: recording.redis, bullmqRedis: recording.redis, now: () => now.getTime() / 1000, newJid: sequentialJids() });
+      const runtime = createJobsRuntime({
+        sidekiqRedis: recording.redis,
+        bullmqRedis: recording.redis,
+        now: () => now.getTime() / 1000,
+        newJid: sequentialJids(),
+      });
       let draws = 0;
       const handler = sendPurchaseReceiptJobWith({
         now: () => new Date(now),
@@ -121,7 +134,11 @@ describe("SendPurchaseReceiptJob", () => {
         const delivered = c.delivered[i]!;
         expect(stable(mail.encoded)).toBe(stable(delivered.encoded));
         expect(mail.envelopeTo).toEqual(delivered.envelope_to);
-        expect(mail.smtp).toMatchObject({ address: delivered.settings.address, domain: delivered.settings.domain, password: delivered.settings.password });
+        expect(mail.smtp).toMatchObject({
+          address: delivered.settings.address,
+          domain: delivered.settings.domain,
+          password: delivered.settings.password,
+        });
       });
       expect(recording.snapshot()).toEqual({});
     });

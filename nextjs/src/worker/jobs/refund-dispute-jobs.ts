@@ -13,10 +13,14 @@ import { Prisma, type DisputeEvidence, type Refund } from "@prisma/client";
 import { notifyError } from "../../server/infra/error-reporting.ts";
 import { beforeSideEffects } from "../../server/jobs/hand-back.ts";
 import type { JsonValue } from "../../server/jobs/sidekiq/ruby-json.ts";
-import { performAsync } from "../../server/models/concerns/job-runtime.ts";
 import { COMMENT_TYPES, Comments } from "../../server/models/comment.ts";
-import { disputesMissingEvidenceFirstBatch, preloadDisputes, TERMINAL_DISPUTE_STATES } from "../../server/models/dispute.ts";
+import { performAsync } from "../../server/models/concerns/job-runtime.ts";
 import { DISPUTE_EVIDENCES, disputeEvidenceScopes, windowOpen } from "../../server/models/dispute-evidence.ts";
+import {
+  disputesMissingEvidenceFirstBatch,
+  preloadDisputes,
+  TERMINAL_DISPUTE_STATES,
+} from "../../server/models/dispute.ts";
 import {
   escalateBang,
   failedRefundExceptionScopes,
@@ -29,12 +33,23 @@ import {
   refundOf,
   type FailedRefundExceptionRecord,
 } from "../../server/models/failed-refund-exception.ts";
+import {
+  externalId,
+  failedRefundFeeReversalExists,
+  jsonDataForAttr,
+  pendingFeeRetention,
+  purchaseOf,
+  REFUNDS,
+  Refunds,
+  retainedFeeCents,
+  type RefundRecord,
+} from "../../server/models/refund.ts";
 import { recordIdFrom } from "../../server/models/row-reads.ts";
-import { externalId, failedRefundFeeReversalExists, jsonDataForAttr, pendingFeeRetention, purchaseOf, REFUNDS, Refunds, retainedFeeCents, type RefundRecord } from "../../server/models/refund.ts";
 import { clearQueryCache } from "../../server/models/runtime/query-cache.ts";
 import { transaction } from "../../server/models/runtime/transaction.ts";
 import { castRow, column, findInBatches, selectRows, table } from "../../server/models/sql.ts";
 import { findUserBang, isSuspended, nameOrUsername, NotPortedError } from "../../server/models/user.ts";
+
 import { modelJob, type JobDeps } from "./support/job-deps.ts";
 
 // ErrorNotifier.notify(message, context: {...}): `context:` is a keyword of its own, so what reaches
@@ -55,22 +70,17 @@ const BATCH_SIZE = 1_000;
 export const fightDisputesJobWith = modelJob({ min: 0 }, async (_args, deps) => {
   const now = deps.now();
   const where = Prisma.sql`${disputeEvidenceScopes.sellerContacted()} AND ${disputeEvidenceScopes.notResolved()}`;
-  await findInBatches<DisputeEvidence>(
-    DISPUTE_EVIDENCES,
-    where,
-    BATCH_SIZE,
-    async (rows) => {
-      const evidences = rows.map((row) => castRow<DisputeEvidence>("DisputeEvidence", row));
-      const disputes = await preloadDisputes(evidences);
-      for (const evidence of evidences) {
-        if (windowOpen(evidence.seller_contacted_at, now)) continue;
-        const dispute = disputes.get(String(evidence.dispute_id));
-        if (!dispute) throw new TypeError("undefined method 'state' for nil");
-        if (dispute.state != null && TERMINAL_DISPUTE_STATES.includes(dispute.state)) continue;
-        await performAsync(FIGHT_DISPUTE_JOB, [Number(dispute.id)]);
-      }
-    },
-  );
+  await findInBatches<DisputeEvidence>(DISPUTE_EVIDENCES, where, BATCH_SIZE, async (rows) => {
+    const evidences = rows.map((row) => castRow<DisputeEvidence>("DisputeEvidence", row));
+    const disputes = await preloadDisputes(evidences);
+    for (const evidence of evidences) {
+      if (windowOpen(evidence.seller_contacted_at, now)) continue;
+      const dispute = disputes.get(String(evidence.dispute_id));
+      if (!dispute) throw new TypeError("undefined method 'state' for nil");
+      if (dispute.state != null && TERMINAL_DISPUTE_STATES.includes(dispute.state)) continue;
+      await performAsync(FIGHT_DISPUTE_JOB, [Number(dispute.id)]);
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -96,7 +106,10 @@ function nilReceiver(method: string): never {
   throw new TypeError(`undefined method '${method}' for nil`);
 }
 
-export const notifyFailedRefundExceptionJobWith = (overrides: Partial<JobDeps> = {}, extra: Partial<RefundDisputeDeps> = {}) => {
+export const notifyFailedRefundExceptionJobWith = (
+  overrides: Partial<JobDeps> = {},
+  extra: Partial<RefundDisputeDeps> = {},
+) => {
   const { notify } = { ...defaultDeps, ...extra };
   return modelJob({ min: 1 }, async ([exceptionId], deps) => {
     const id = await beforeSideEffects(() => recordIdFrom(exceptionId, "FailedRefundException.find"));
@@ -148,7 +161,12 @@ export const notifyFailedRefundExceptionJobWith = (overrides: Partial<JobDeps> =
 // ---------------------------------------------------------------------------------------------
 // DispatchPendingFailedRefundExceptionsJob
 
-async function escalate(exception: FailedRefundExceptionRecord, reason: string, notify: RefundDisputeDeps["notify"], deps: JobDeps): Promise<void> {
+async function escalate(
+  exception: FailedRefundExceptionRecord,
+  reason: string,
+  notify: RefundDisputeDeps["notify"],
+  deps: JobDeps,
+): Promise<void> {
   const message = `Failed-refund exception #${String(exception.get("id"))} escalated. ${reason} Refund ${String(exception.get("refund_id"))}, owner ${exception.get("owner")}.`;
   // Unrescued on purpose: if Sentry itself raises, the row stays pending and the next run retries.
   notify(message, {
@@ -164,7 +182,10 @@ async function escalate(exception: FailedRefundExceptionRecord, reason: string, 
   await escalateBang(exception, reason, deps.now);
 }
 
-export const dispatchPendingFailedRefundExceptionsJobWith = (overrides: Partial<JobDeps> = {}, extra: Partial<RefundDisputeDeps> = {}) => {
+export const dispatchPendingFailedRefundExceptionsJobWith = (
+  overrides: Partial<JobDeps> = {},
+  extra: Partial<RefundDisputeDeps> = {},
+) => {
   const { notify } = { ...defaultDeps, ...extra };
   return modelJob({ min: 0 }, async (_args, deps) => {
     const each = (where: Prisma.Sql, body: (exception: FailedRefundExceptionRecord) => Promise<void>) =>
@@ -176,11 +197,21 @@ export const dispatchPendingFailedRefundExceptionsJobWith = (overrides: Partial<
       await performAsync(NOTIFY_JOB, [Number(exception.get("id"))]);
     });
     await each(failedRefundExceptionScopes.deliveryExhausted(), (exception) =>
-      escalate(exception, `Sentry reporting failed ${exception.get("notification_failures")} times; the error reporter needs attention.`, notify, deps),
+      escalate(
+        exception,
+        `Sentry reporting failed ${exception.get("notification_failures")} times; the error reporter needs attention.`,
+        notify,
+        deps,
+      ),
     );
     // `Time.current` is read when the relation is built, after the first two loops.
     await each(failedRefundExceptionScopes.overdue(deps.now()), (exception) =>
-      escalate(exception, `Response SLA breached: due by ${iso8601(exception.get("due_at"))} and still pending.`, notify, deps),
+      escalate(
+        exception,
+        `Response SLA breached: due by ${iso8601(exception.get("due_at"))} and still pending.`,
+        notify,
+        deps,
+      ),
     );
   })(overrides);
 };
@@ -210,7 +241,11 @@ export const refundUnpaidPurchasesWorkerWith = modelJob({ min: 2 }, async ([user
   if (!isSuspended(user)) return;
 
   for (const purchaseId of await unpaidPurchaseIds(user.get("id"))) {
-    await performAsync(REFUND_PURCHASE_WORKER, [Number(purchaseId), adminUserIdArg as JsonValue, SUSPENDED_REFUND_REASON]);
+    await performAsync(REFUND_PURCHASE_WORKER, [
+      Number(purchaseId),
+      adminUserIdArg as JsonValue,
+      SUSPENDED_REFUND_REASON,
+    ]);
   }
 
   const admin = await findUserBang(adminId);
@@ -235,7 +270,10 @@ export const refundUnpaidPurchasesWorkerWith = modelJob({ min: 2 }, async ([user
 // A refund with a fee still pending goes to Rails (a Stripe transfer lookup, ledger rows, `save!`).
 // Like the Ruby job, an error on one refund (a lock wait timeout, say) is reported and the sweep moves
 // on; if a later refund then has to be handed back, Rails reports the first one again.
-export const recoverPendingRefundFeeRetentionJobWith = (overrides: Partial<JobDeps> = {}, extra: Partial<RefundDisputeDeps> = {}) => {
+export const recoverPendingRefundFeeRetentionJobWith = (
+  overrides: Partial<JobDeps> = {},
+  extra: Partial<RefundDisputeDeps> = {},
+) => {
   const { notify } = { ...defaultDeps, ...extra };
   return modelJob({ min: 0 }, async () => {
     await beforeSideEffects(() =>
@@ -249,7 +287,10 @@ export const recoverPendingRefundFeeRetentionJobWith = (overrides: Partial<JobDe
             notify(error, { context: { refund_id: n(refund.get("id")), purchase_id: n(refund.get("purchase_id")) } });
             continue;
           }
-          throw new NotPortedError("Refund#collect_pending_fee_retention!", "refund.rb:collect_pending_fee_retention! (Stripe fee transfer, ledger rows, save!)");
+          throw new NotPortedError(
+            "Refund#collect_pending_fee_retention!",
+            "refund.rb:collect_pending_fee_retention! (Stripe fee transfer, ledger rows, save!)",
+          );
         }
       }),
     );
@@ -259,11 +300,17 @@ export const recoverPendingRefundFeeRetentionJobWith = (overrides: Partial<JobDe
 // `pending = purchase.with_lock { reload.fee_retention_pending }`
 async function feeRetentionPending(refund: RefundRecord): Promise<boolean> {
   const purchase = await purchaseOf(refund);
-  if (purchase === null) throw new NotPortedError("Refund#recover_pending_fee_retention! without a purchase", "refund.rb:recover_pending_fee_retention!");
+  if (purchase === null)
+    throw new NotPortedError(
+      "Refund#recover_pending_fee_retention! without a purchase",
+      "refund.rb:recover_pending_fee_retention!",
+    );
   const pending = await transaction(async () => {
     // lock! reloads the purchase FOR UPDATE.
     clearQueryCache();
-    await selectRows(Prisma.sql`SELECT ${Prisma.raw("`purchases`.*")} FROM ${table("purchases")} WHERE ${column("purchases", "id")} = ${purchase.id} LIMIT 1 FOR UPDATE`);
+    await selectRows(
+      Prisma.sql`SELECT ${Prisma.raw("`purchases`.*")} FROM ${table("purchases")} WHERE ${column("purchases", "id")} = ${purchase.id} LIMIT 1 FOR UPDATE`,
+    );
     await Refunds.reload(refund);
     return jsonDataForAttr(refund, "fee_retention_pending");
   });
@@ -278,7 +325,11 @@ async function feeRetentionPending(refund: RefundRecord): Promise<boolean> {
 export const createMissingDisputeEvidenceJobWith = modelJob({ min: 0 }, async (_args, deps) => {
   await beforeSideEffects(async () => {
     const disputes = await disputesMissingEvidenceFirstBatch(deps.now());
-    if (disputes.length > 0) throw new NotPortedError("CreateMissingDisputeEvidenceJob#create_evidence_for", "create_missing_dispute_evidence_job.rb:create_evidence_for");
+    if (disputes.length > 0)
+      throw new NotPortedError(
+        "CreateMissingDisputeEvidenceJob#create_evidence_for",
+        "create_missing_dispute_evidence_job.rb:create_evidence_for",
+      );
   });
 });
 

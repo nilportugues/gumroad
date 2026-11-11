@@ -6,9 +6,9 @@ import { Prisma, type Comment, type Link, type PlatformBlock } from "@prisma/cli
 
 import { getRedis } from "../infra/redis.ts";
 
+import { COMMENT_TYPES, Comments } from "./comment.ts";
 import { afterCommitEverywhere, performAsync } from "./concerns/job-runtime.ts";
 import { setAssociation } from "./concerns/rails-validations.ts";
-import { COMMENT_TYPES, Comments } from "./comment.ts";
 import { aliveCustomDomainOf, CustomDomainDeletable } from "./custom-domain.ts";
 import { Events } from "./event.ts";
 import { bannedAtValue, Links, type LinkRecord } from "./link.ts";
@@ -45,8 +45,14 @@ const TRANSITIONS: Record<RiskEvent, { from: readonly string[] | null; to: strin
   mark_not_reviewed: { from: ["on_probation"], to: "not_reviewed" },
   flag_for_tos_violation: { from: ["not_reviewed", "compliant", "flagged_for_fraud"], to: "flagged_for_tos_violation" },
   flag_for_fraud: { from: ["not_reviewed", "compliant", "flagged_for_tos_violation"], to: "flagged_for_fraud" },
-  suspend_for_fraud: { from: ["not_reviewed", "compliant", "on_probation", "flagged_for_fraud", "flagged_for_tos_violation"], to: "suspended_for_fraud" },
-  suspend_for_tos_violation: { from: ["not_reviewed", "compliant", "on_probation", "flagged_for_tos_violation", "flagged_for_fraud"], to: "suspended_for_tos_violation" },
+  suspend_for_fraud: {
+    from: ["not_reviewed", "compliant", "on_probation", "flagged_for_fraud", "flagged_for_tos_violation"],
+    to: "suspended_for_fraud",
+  },
+  suspend_for_tos_violation: {
+    from: ["not_reviewed", "compliant", "on_probation", "flagged_for_tos_violation", "flagged_for_fraud"],
+    to: "suspended_for_tos_violation",
+  },
   put_on_probation: { from: ALL, to: "on_probation" },
 };
 
@@ -106,13 +112,33 @@ export function resetRiskCollaborators(): void {
 const GMAIL_ABUSE_REDIS_KEY = "gmail_abuse:normalized_emails";
 const GMAIL_DOMAINS = ["gmail.com", "googlemail.com"];
 const CASCADE_AUTHOR = "suspend_sellers_other_accounts";
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
 
 type Options = { now?: () => Date };
-type Transition = { event: RiskEvent; from: string | null; to: string; params: TransitionParams | undefined; now: () => Date };
+type Transition = {
+  event: RiskEvent;
+  from: string | null;
+  to: string;
+  params: TransitionParams | undefined;
+  now: () => Date;
+};
 
 // Time.current.to_fs(:formatted_date_full_month): "%B %-d, %Y", and config.time_zone is UTC.
-export const formattedDateFullMonth = (date: Date) => `${MONTHS[date.getUTCMonth()]} ${date.getUTCDate()}, ${date.getUTCFullYear()}`;
+export const formattedDateFullMonth = (date: Date) =>
+  `${MONTHS[date.getUTCMonth()]} ${date.getUTCDate()}, ${date.getUTCFullYear()}`;
 // String#humanize on a state name.
 const humanize = (name: string) => name.charAt(0).toUpperCase() + name.slice(1).replaceAll("_", " ");
 const firstWord = (name: string) => name.match(/^[^_]*/u)![0];
@@ -124,23 +150,43 @@ export function canFire(user: UserRecord, event: RiskEvent): boolean {
 }
 
 // `user.<event>!(params)`.
-export async function fireRiskEventBang(user: UserRecord, event: RiskEvent, params?: TransitionParams, options: Options = {}): Promise<true> {
+export async function fireRiskEventBang(
+  user: UserRecord,
+  event: RiskEvent,
+  params?: TransitionParams,
+  options: Options = {},
+): Promise<true> {
   await fire(user, event, params, options, true);
   return true;
 }
 
 // `user.<event>(params)`: false (with an error on user_risk_state) instead of InvalidTransition.
-export function fireRiskEvent(user: UserRecord, event: RiskEvent, params?: TransitionParams, options: Options = {}): Promise<boolean> {
+export function fireRiskEvent(
+  user: UserRecord,
+  event: RiskEvent,
+  params?: TransitionParams,
+  options: Options = {},
+): Promise<boolean> {
   return fire(user, event, params, options, false);
 }
 
-async function fire(user: UserRecord, event: RiskEvent, params: TransitionParams | undefined, options: Options, bang: boolean): Promise<boolean> {
+async function fire(
+  user: UserRecord,
+  event: RiskEvent,
+  params: TransitionParams | undefined,
+  options: Options,
+  bang: boolean,
+): Promise<boolean> {
   const from = user.get("user_risk_state");
   const { to } = TRANSITIONS[event];
   const humanEvent = event.replaceAll("_", " ");
   if (!canFire(user, event)) {
     if (bang) throw new InvalidTransition(event, from, `User risk state cannot transition via "${humanEvent}"`);
-    user.errors.add("user_risk_state", "invalid_transition", { message: `cannot transition via "${humanEvent}"`, event: humanEvent, state: from });
+    user.errors.add("user_risk_state", "invalid_transition", {
+      message: `cannot transition via "${humanEvent}"`,
+      event: humanEvent,
+      state: from,
+    });
     return false;
   }
   // before_transition any => flagged/suspended, :do => :not_verified?. It is the first callback for
@@ -154,20 +200,24 @@ async function fire(user: UserRecord, event: RiskEvent, params: TransitionParams
   const transition: Transition = { event, from, to, params, now: options.now ?? (() => new Date()) };
   let saved = true;
   let reasons = "";
-  await transaction(async () => {
-    if (["compliant", "on_probation", "not_reviewed"].includes(to)) await refuseUnauthorizedSuspensionClear(user, transition);
-    if (to === "compliant") await rebaseFlagsOntoLockedRow(user);
-    user.set("user_risk_state", to);
-    saved = await Users.save(user, { now: transition.now });
-    if (!saved) {
-      reasons = user.errors.fullMessages().join(", ");
-      // state_machines rolls the attribute back and raises ActiveRecord::Rollback.
-      user.set("user_risk_state", from);
-      return false;
-    }
-    await runAfterCallbacks(user, transition);
-    return true;
-  }, { returningStatus: true });
+  await transaction(
+    async () => {
+      if (["compliant", "on_probation", "not_reviewed"].includes(to))
+        await refuseUnauthorizedSuspensionClear(user, transition);
+      if (to === "compliant") await rebaseFlagsOntoLockedRow(user);
+      user.set("user_risk_state", to);
+      saved = await Users.save(user, { now: transition.now });
+      if (!saved) {
+        reasons = user.errors.fullMessages().join(", ");
+        // state_machines rolls the attribute back and raises ActiveRecord::Rollback.
+        user.set("user_risk_state", from);
+        return false;
+      }
+      await runAfterCallbacks(user, transition);
+      return true;
+    },
+    { returningStatus: true },
+  );
   if (!saved && bang) throw new InvalidTransition(event, from, reasons);
   return saved;
 }
@@ -181,7 +231,10 @@ async function refuseUnauthorizedSuspensionClear(user: UserRecord, transition: T
   if (!(RISK_STATES.SUSPENDED as readonly (string | null)[]).includes(persisted)) return;
   const clear = transition.params?.clear_suspension;
   const authorized = clear === "if_suspended_by_account_cascade" ? await suspendedByAccountCascade(user) : !!clear;
-  if (!authorized) throw new SuspensionClearNotAuthorizedError(`refusing to clear ${persisted}: the caller did not authorize clearing this suspension`);
+  if (!authorized)
+    throw new SuspensionClearNotAuthorizedError(
+      `refusing to clear ${persisted}: the caller did not authorize clearing this suspension`,
+    );
 }
 
 async function suspendedByAccountCascade(user: UserRecord): Promise<boolean> {
@@ -222,7 +275,8 @@ async function runAfterCallbacks(user: UserRecord, t: Transition): Promise<void>
   if (toSuspended) {
     const id = user.get("id");
     const delay = { delaySeconds: SUSPEND_JOB_DELAY_SECONDS };
-    if (t.params?.skip_transition_callback !== "suspend_sellers_other_accounts") await performAsync("SuspendAccountsWithPaymentAddressWorker", [id], delay);
+    if (t.params?.skip_transition_callback !== "suspend_sellers_other_accounts")
+      await performAsync("SuspendAccountsWithPaymentAddressWorker", [id], delay);
     await performAsync("BlockSuspendedAccountIpWorker", [id], delay);
     await performAsync("RemoveSuspendedAccountFollowsWorker", [id], delay);
     await deleteCustomDomain(user, t.now);
@@ -238,8 +292,10 @@ async function runAfterCallbacks(user: UserRecord, t: Transition): Promise<void>
   const toCleared = t.to === "compliant" || t.to === "on_probation";
   if (fromSuspended && toCleared) await setLinksBannedAt(user, null, t.now);
   if ((fromSuspended || t.from === "not_reviewed") && toCleared) await unblockSellerIp(user, t.now);
-  if (fromSuspended && t.to === "compliant" && t.params?.skip_transition_callback !== "enable_sellers_other_accounts") await enableSellersOtherAccounts(user, t.now);
-  if (fromSuspended && toCleared && subdomain(user)) await performAsync("CreateStripeApplePayDomainWorker", [user.get("id")]);
+  if (fromSuspended && t.to === "compliant" && t.params?.skip_transition_callback !== "enable_sellers_other_accounts")
+    await enableSellersOtherAccounts(user, t.now);
+  if (fromSuspended && toCleared && subdomain(user))
+    await performAsync("CreateStripeApplePayDomainWorker", [user.get("id")]);
   if ((fromSuspended || FLAGGED.includes(t.from)) && toCleared) await removeFromGmailAbuseFilter(user);
 }
 
@@ -263,14 +319,20 @@ const COMMENT_TYPE: Record<string, string> = {
 };
 
 async function findProductName(productId: unknown): Promise<string | null> {
-  const [row] = await selectRows<{ name: string | null }>(Prisma.sql`SELECT ${Prisma.raw("`links`.*")} FROM ${table("links")} WHERE ${column("links", "id")} = ${productId} LIMIT 1`);
-  if (!row) throw Object.assign(new Error(`Couldn't find Link with 'id'=${String(productId)}`), { rubyClass: "ActiveRecord::RecordNotFound" });
+  const [row] = await selectRows<{ name: string | null }>(
+    Prisma.sql`SELECT ${Prisma.raw("`links`.*")} FROM ${table("links")} WHERE ${column("links", "id")} = ${productId} LIMIT 1`,
+  );
+  if (!row)
+    throw Object.assign(new Error(`Couldn't find Link with 'id'=${String(productId)}`), {
+      rubyClass: "ActiveRecord::RecordNotFound",
+    });
   return row.name;
 }
 
 async function addUserComment(user: UserRecord, t: Transition): Promise<void> {
   const params = t.params;
-  if (!params || (!params.author_id && !params.author_name)) throw new RiskArgumentError("first transition argument must include an author_id or author_name");
+  if (!params || (!params.author_id && !params.author_name))
+    throw new RiskArgumentError("first transition argument must include an author_id or author_name");
   const authorName = params.author_name || nameOrUsername(await findUserBang(params.author_id));
   const date = formattedDateFullMonth(t.now());
   let content = COMMENT_CONTENT[t.to]!(authorName, date);
@@ -295,7 +357,9 @@ async function addProductComment(user: UserRecord, t: Transition): Promise<void>
   const params = t.params;
   if (params?.bulk) return;
   if (!params || !params.product_id) throw new RiskArgumentError("first transition argument must include a product_id");
-  const [product] = await selectRows<{ id: bigint }>(Prisma.sql`SELECT ${Prisma.raw("`links`.*")} FROM ${table("links")} WHERE ${column("links", "id")} = ${params.product_id} LIMIT 1`);
+  const [product] = await selectRows<{ id: bigint }>(
+    Prisma.sql`SELECT ${Prisma.raw("`links`.*")} FROM ${table("links")} WHERE ${column("links", "id")} = ${params.product_id} LIMIT 1`,
+  );
   if (!product) throw new TypeError("undefined method 'comments' for nil");
   await Comments.createBang(
     {
@@ -344,7 +408,10 @@ async function identityValue(user: UserRecord, platform: string): Promise<unknow
   return cache.get(platform)?.[name] ?? null;
 }
 
-async function currentlyLinked(user: UserRecord, verification: { platform: string | null; uid: unknown; superseded_at: unknown }): Promise<boolean> {
+async function currentlyLinked(
+  user: UserRecord,
+  verification: { platform: string | null; uid: unknown; superseded_at: unknown },
+): Promise<boolean> {
   if (verification.superseded_at != null) return false;
   const platform = verification.platform ?? "";
   let value: unknown;
@@ -360,7 +427,9 @@ async function recordSocialConnectHoldReleased(user: UserRecord, now: () => Date
   const userId = user.get("id");
   const surface = "mark_compliant";
   const log = (error: unknown, what = "hold_released") =>
-    console.error(`SocialConnectFunnel ${what} failed for user ${String(userId)}: ${(error as Error).name}: ${(error as Error).message}`);
+    console.error(
+      `SocialConnectFunnel ${what} failed for user ${String(userId)}: ${(error as Error).name}: ${(error as Error).message}`,
+    );
   try {
     const [offer] = await selectRows<Record<string, Date | null>>(
       Prisma.sql`SELECT MAX(${column("events", "created_at")}) FROM ${table("events")} WHERE ${column("events", "user_id")} = ${userId} AND ${column("events", "event_name")} = 'social_connect_offered'`,
@@ -370,7 +439,8 @@ async function recordSocialConnectHoldReleased(user: UserRecord, now: () => Date
     );
     const linked: string[] = [];
     for (const verification of verifications) {
-      if ((await currentlyLinked(user, verification)) && !linked.includes(verification.platform!)) linked.push(verification.platform!);
+      if ((await currentlyLinked(user, verification)) && !linked.includes(verification.platform!))
+        linked.push(verification.platform!);
     }
     const lastOfferAt = offer ? (Object.values(offer)[0] ?? null) : null;
     const since = lastOfferAt ? Prisma.sql` AND (created_at >= ${lastOfferAt})` : Prisma.empty;
@@ -380,7 +450,16 @@ async function recordSocialConnectHoldReleased(user: UserRecord, now: () => Date
       );
       if (exists) continue;
       try {
-        await Events.createBang({ event_name: "social_connect_hold_released", user_id: BigInt(userId as bigint), parent_referrer: provider, view_url: surface, referrer: null } as never, { now });
+        await Events.createBang(
+          {
+            event_name: "social_connect_hold_released",
+            user_id: BigInt(userId as bigint),
+            parent_referrer: provider,
+            view_url: surface,
+            referrer: null,
+          } as never,
+          { now },
+        );
       } catch (error) {
         log(error, `hold_released/${provider}`);
       }
@@ -392,8 +471,13 @@ async function recordSocialConnectHoldReleased(user: UserRecord, now: () => Date
 
 // invalidate_active_sessions!
 export async function invalidateActiveSessions(user: UserRecord, now: () => Date): Promise<void> {
-  await Users.updateBang(user, { last_active_sessions_invalidated_at: new Date(Math.floor(now().getTime() / 1000) * 1000) }, { now });
-  for (const application of await firstPartyMobileApplications()) await revokeAccessTokensFor(application, user.get("id"), now);
+  await Users.updateBang(
+    user,
+    { last_active_sessions_invalidated_at: new Date(Math.floor(now().getTime() / 1000) * 1000) },
+    { now },
+  );
+  for (const application of await firstPartyMobileApplications())
+    await revokeAccessTokensFor(application, user.get("id"), now);
 }
 
 const LINKS = Symbol("links");
@@ -402,7 +486,9 @@ const LINKS = Symbol("links");
 async function userLinks(user: UserRecord): Promise<LinkRecord[]> {
   const ivars = user.ivars as Record<symbol, LinkRecord[] | undefined>;
   if (ivars[LINKS]) return ivars[LINKS];
-  const rows = await selectRows(Prisma.sql`SELECT ${Prisma.raw("`links`.*")} FROM ${table("links")} WHERE ${column("links", "user_id")} = ${user.get("id")}`);
+  const rows = await selectRows(
+    Prisma.sql`SELECT ${Prisma.raw("`links`.*")} FROM ${table("links")} WHERE ${column("links", "user_id")} = ${user.get("id")}`,
+  );
   const links = rows.map((row) => {
     const link = Links.load(castRow<Link>("Link", row));
     // Setting the inverse reads the foreign key, which PaperTrail's object order then shows.
@@ -432,7 +518,8 @@ async function unblockSellerIp(user: UserRecord, now: () => Date): Promise<void>
   if (ip == null || String(ip).trim() === "") return;
   const where = Prisma.sql`${column("platform_blocks", "object_type")} = 'ip_address' AND ${column("platform_blocks", "object_value")} = ${ip}`;
   await findInBatches("platform_blocks", where, 1000, async (rows) => {
-    for (const row of rows) await unblockPlatformBlock(PlatformBlocks.load(castRow<PlatformBlock>("PlatformBlock", row)), now);
+    for (const row of rows)
+      await unblockPlatformBlock(PlatformBlocks.load(castRow<PlatformBlock>("PlatformBlock", row)), now);
   });
 }
 
@@ -464,7 +551,9 @@ async function enableSellersOtherAccounts(user: UserRecord, now: () => Date): Pr
       Prisma.sql`SELECT DISTINCT ${column("bank_accounts", "user_id")} FROM ${table("bank_accounts")} WHERE ${column("bank_accounts", "deleted_at")} IS NULL AND ${columnIn("bank_accounts", "stripe_fingerprint", fingerprints)} AND ${column("bank_accounts", "user_id")} != ${id}`,
     )
   ).map((r) => r.user_id);
-  const siblings = await selectRows(Prisma.sql`SELECT ${Prisma.raw("`users`.*")} FROM ${table("users")} WHERE ${columnIn("users", "id", userIds)}`);
+  const siblings = await selectRows(
+    Prisma.sql`SELECT ${Prisma.raw("`users`.*")} FROM ${table("users")} WHERE ${columnIn("users", "id", userIds)}`,
+  );
   for (const row of siblings) {
     const sibling = Users.load(castRow("User", row));
     const theirs = (
@@ -486,11 +575,15 @@ async function releaseCascadeSuspendedSibling(sibling: UserRecord, content: stri
     await fireRiskEventBang(
       sibling,
       "mark_compliant",
-      { author_name: "enable_sellers_other_accounts", content, skip_transition_callback: "enable_sellers_other_accounts", clear_suspension: "if_suspended_by_account_cascade" },
+      {
+        author_name: "enable_sellers_other_accounts",
+        content,
+        skip_transition_callback: "enable_sellers_other_accounts",
+        clear_suspension: "if_suspended_by_account_cascade",
+      },
       { now },
     );
   } catch (error) {
     if (!(error instanceof SuspensionClearNotAuthorizedError)) throw error;
   }
 }
-

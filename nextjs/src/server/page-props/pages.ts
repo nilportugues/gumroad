@@ -5,11 +5,27 @@ import { splitScopedPattern } from "@/lib/navigation/proxy/route-table";
 import * as Routes from "@/lib/navigation/routes";
 
 import type { ActionOptions, Redirected } from "../controllers/application-controller.ts";
-import { LOGIN_OPTIONS, SECURE_REDIRECT_OPTIONS, SIGNUP_OPTIONS, TWO_FACTOR_OPTIONS } from "../controllers/auth-pages.ts";
+import {
+  LOGIN_OPTIONS,
+  SECURE_REDIRECT_OPTIONS,
+  SIGNUP_OPTIONS,
+  TWO_FACTOR_OPTIONS,
+} from "../controllers/auth-pages.ts";
 import { FEATURE_ANNOUNCEMENT_OPTIONS, unsubscribeProps } from "../controllers/feature-announcements.ts";
 import { REVIEW_REMINDER_OPTIONS, reviewReminderProps } from "../controllers/review-reminders.ts";
+
+import { AGENT_PAGES } from "./agent/pages.ts";
+import { ANALYTICS_PAGES } from "./analytics/pages.ts";
+import { AUDIENCE_PAGES } from "./audience/pages.ts";
 import { loginPageProps, secureRedirectPageProps, signupPageProps, twoFactorPageProps } from "./auth-pages.ts";
+import { BUNDLES_PAGES } from "./bundles/pages.ts";
 import { BUYER_PAGES } from "./buyer/pages.ts";
+import { CHECKOUT_DISCOUNTS_PAGES } from "./checkout-discounts-pages.ts";
+import { CHECKOUT_FORM_PAGES } from "./checkout-form/pages.ts";
+import { CHECKOUT_PAGES } from "./checkout-pages.ts";
+import { COMMUNITY_PAGES } from "./communities/pages.ts";
+import { DASHBOARD_PAGES } from "./dashboard-pages.ts";
+import { DISPUTE_EVIDENCE_PAGES } from "./dispute-evidence/pages.ts";
 import { assetHost } from "./domain.ts";
 import {
   articleProps,
@@ -22,25 +38,15 @@ import {
 import type { PageGuard } from "./guards.ts";
 import type { PreflightOutcome, PreflightRequest } from "./preflight.ts";
 import { PUBLIC_PAGES } from "./public-pages.ts";
-import { AUDIENCE_PAGES } from "./audience/pages.ts";
-import { ANALYTICS_PAGES } from "./analytics/pages.ts";
 import { EMAILS_PAGES } from "./emails/pages.ts";
 import { PIRACY_REPORT_PAGES } from "./piracy-reports/pages.ts";
-import { DISPUTE_EVIDENCE_PAGES } from "./dispute-evidence/pages.ts";
 import type { ActionContext } from "./load-page.ts";
-import { DASHBOARD_PAGES } from "./dashboard-pages.ts";
+import { SELLER_PRODUCTS_PAGES } from "./seller-products/pages.ts";
 import { OAUTH_APPLICATION_PAGES, SETTINGS_PAGES } from "./settings/pages.ts";
 import { STOREFRONT_PAGES } from "./storefront/pages.ts";
 import { PRODUCT_PAGES } from "./product-pages.ts";
 import { PAYOUTS_PAGES } from "./payouts/pages.ts";
-import { CHECKOUT_PAGES } from "./checkout-pages.ts";
-import { CHECKOUT_DISCOUNTS_PAGES } from "./checkout-discounts-pages.ts";
-import { CHECKOUT_FORM_PAGES } from "./checkout-form/pages.ts";
-import { AGENT_PAGES } from "./agent/pages.ts";
-import { SELLER_PRODUCTS_PAGES } from "./seller-products/pages.ts";
-import { BUNDLES_PAGES } from "./bundles/pages.ts";
 import { URL_REDIRECT_PAGES } from "./url-redirects/pages.ts";
-import { COMMUNITY_PAGES } from "./communities/pages.ts";
 import { DISCOVER_PAGES } from "./discover/pages.ts";
 import { DASHBOARD_HOME_PAGES } from "./dashboard-home/pages.ts";
 import { CUSTOMERS_PAGES } from "./customers/pages.ts";
@@ -125,11 +131,27 @@ export const PAGES: Record<string, PageSpec> = {
   "/login": { component: "Logins/New", options: LOGIN_OPTIONS, props: (_, action) => loginPageProps(action) },
   "/oauth/login": { component: "Logins/New", options: LOGIN_OPTIONS, props: (_, action) => loginPageProps(action) },
   "/signup": { component: "Signup/New", options: SIGNUP_OPTIONS, props: (_, action) => signupPageProps(action) },
-  "/two-factor": { component: "TwoFactorAuthentication/Show", options: TWO_FACTOR_OPTIONS, props: (_, action) => twoFactorPageProps(action) },
+  "/two-factor": {
+    component: "TwoFactorAuthentication/Show",
+    options: TWO_FACTOR_OPTIONS,
+    props: (_, action) => twoFactorPageProps(action),
+  },
   // Users::ReviewRemindersController: the opt-out is written by the filters (controllers/review-reminders.ts).
-  "/users/subscribe_review_reminders": { component: "Users/ReviewReminders/Subscribe", options: REVIEW_REMINDER_OPTIONS.subscribe, props: () => ({}) },
-  "/users/unsubscribe_review_reminders": { component: "Users/ReviewReminders/Unsubscribe", options: REVIEW_REMINDER_OPTIONS.unsubscribe, props: () => ({}) },
-  "/users/subscribe_review_reminders/:id": { component: "Users/ReviewReminders/Subscribe", options: REVIEW_REMINDER_OPTIONS.subscribeByToken, props: () => ({}) },
+  "/users/subscribe_review_reminders": {
+    component: "Users/ReviewReminders/Subscribe",
+    options: REVIEW_REMINDER_OPTIONS.subscribe,
+    props: () => ({}),
+  },
+  "/users/unsubscribe_review_reminders": {
+    component: "Users/ReviewReminders/Unsubscribe",
+    options: REVIEW_REMINDER_OPTIONS.unsubscribe,
+    props: () => ({}),
+  },
+  "/users/subscribe_review_reminders/:id": {
+    component: "Users/ReviewReminders/Subscribe",
+    options: REVIEW_REMINDER_OPTIONS.subscribeByToken,
+    props: () => ({}),
+  },
   "/users/unsubscribe_review_reminders/:id": {
     component: "Users/ReviewReminders/Unsubscribe",
     options: REVIEW_REMINDER_OPTIONS.unsubscribeByToken,
@@ -141,7 +163,11 @@ export const PAGES: Record<string, PageSpec> = {
     options: FEATURE_ANNOUNCEMENT_OPTIONS,
     props: ({ token }, action) => unsubscribeProps(token!, action.state),
   },
-  "/secure_url_redirect": { component: "SecureRedirect/New", options: SECURE_REDIRECT_OPTIONS, props: (_, action) => secureRedirectPageProps(action) },
+  "/secure_url_redirect": {
+    component: "SecureRedirect/New",
+    options: SECURE_REDIRECT_OPTIONS,
+    props: (_, action) => secureRedirectPageProps(action),
+  },
   "/help/category/:slug": {
     component: "HelpCenter/Categories/Show",
     redirect: ({ slug }) => (findCategoryBySlug(slug!) ? null : helpCenterRoot()),
@@ -209,10 +235,14 @@ const decodeSegment = (segment: string) => {
 // Gumroad domain is keyed "seller:/path" or "product:/path" (see route-table.ts).
 export type PageScope = "gumroad" | "seller" | "product";
 
-export const scopeOfPattern = (pattern: string): PageScope => (splitScopedPattern(pattern).scope as PageScope | null) ?? "gumroad";
+export const scopeOfPattern = (pattern: string): PageScope =>
+  (splitScopedPattern(pattern).scope as PageScope | null) ?? "gumroad";
 
 // Params for a path that matches `pattern` (`:name` is one segment, as in route-table.ts).
-export function matchPagePath(pathname: string, scope: PageScope = "gumroad"): { pattern: string; params: Params } | null {
+export function matchPagePath(
+  pathname: string,
+  scope: PageScope = "gumroad",
+): { pattern: string; params: Params } | null {
   // A glob (`/*taxonomy`) is every path, so it matches after the others.
   const patterns = Object.keys(PAGES).sort((a, b) => Number(a.includes("/*")) - Number(b.includes("/*")));
   for (const pattern of patterns) {
@@ -234,7 +264,8 @@ export function matchPagePath(pathname: string, scope: PageScope = "gumroad"): {
       })
       .join("/");
     const match = new RegExp(`^${source}$`).exec(pathname);
-    if (match) return { pattern, params: Object.fromEntries(names.map((name, i) => [name, decodeSegment(match[i + 1]!)])) };
+    if (match)
+      return { pattern, params: Object.fromEntries(names.map((name, i) => [name, decodeSegment(match[i + 1]!)])) };
   }
   return null;
 }

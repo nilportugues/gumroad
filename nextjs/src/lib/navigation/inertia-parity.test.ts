@@ -15,7 +15,9 @@ import type { Page, PageProps, ReloadOptions } from "./types";
 const PORT = 47391;
 let corePath: string | null = null;
 try {
-  corePath = createRequire(import.meta.url).resolve("@inertiajs/core").replace(/index\.js$/, "index.esm.js");
+  corePath = createRequire(import.meta.url)
+    .resolve("@inertiajs/core")
+    .replace(/index\.js$/, "index.esm.js");
 } catch {
   corePath = null;
 }
@@ -32,10 +34,17 @@ let stamp = 0;
 // merge strategies of Inertia 2 on /deep.
 function inertiaPage(url: URL, headers: http.IncomingHttpHeaders) {
   const partialComponent = headers["x-inertia-partial-component"];
-  const only = String(headers["x-inertia-partial-data"] ?? "").split(",").filter(Boolean);
-  const except = String(headers["x-inertia-partial-except"] ?? "").split(",").filter(Boolean);
-  const reset = String(headers["x-inertia-reset"] ?? "").split(",").filter(Boolean);
-  const component = url.pathname === "/deep" ? "Deep/Index" : url.pathname === "/scroll" ? "Scroll/Index" : "Items/Index";
+  const only = String(headers["x-inertia-partial-data"] ?? "")
+    .split(",")
+    .filter(Boolean);
+  const except = String(headers["x-inertia-partial-except"] ?? "")
+    .split(",")
+    .filter(Boolean);
+  const reset = String(headers["x-inertia-reset"] ?? "")
+    .split(",")
+    .filter(Boolean);
+  const component =
+    url.pathname === "/deep" ? "Deep/Index" : url.pathname === "/scroll" ? "Scroll/Index" : "Items/Index";
   const page = Number(url.searchParams.get("page") ?? 1);
   stamp += 1;
   if (component === "Scroll/Index") return scrollPage(url, headers, partialComponent === component, only, reset);
@@ -43,7 +52,13 @@ function inertiaPage(url: URL, headers: http.IncomingHttpHeaders) {
   const all: Record<string, unknown> =
     component === "Deep/Index"
       ? {
-          feed: { data: [{ id: page, v: stamp }, { id: 100, v: stamp }], meta: { page, seen: [page] } },
+          feed: {
+            data: [
+              { id: page, v: stamp },
+              { id: 100, v: stamp },
+            ],
+            meta: { page, seen: [page] },
+          },
           tags: [`t${page}`],
           stamp,
         }
@@ -72,14 +87,32 @@ function scrollPage(url: URL, headers: http.IncomingHttpHeaders, partial: boolea
   const cursor = Number(url.searchParams.get("cursor") ?? 4);
   const intent = headers["x-inertia-infinite-scroll-merge-intent"];
   const from = intent === "prepend" ? Math.max(0, cursor - 3) : intent === "append" ? cursor : Math.max(0, cursor - 2);
-  const to = intent === "prepend" ? cursor : intent === "append" ? Math.min(MESSAGES.length, cursor + 2) : Math.min(MESSAGES.length, cursor + 2);
+  const to =
+    intent === "prepend"
+      ? cursor
+      : intent === "append"
+        ? Math.min(MESSAGES.length, cursor + 2)
+        : Math.min(MESSAGES.length, cursor + 2);
   const slice = MESSAGES.slice(from, to);
   const props: Record<string, unknown> = { errors: {} };
   if (!partial || only.length === 0 || only.includes("messages")) props.messages = slice;
   if (!partial || only.length === 0 || only.includes("stamp")) props.stamp = stamp;
-  const out: Record<string, unknown> = { component: "Scroll/Index", props, url: url.pathname + url.search, version: null };
+  const out: Record<string, unknown> = {
+    component: "Scroll/Index",
+    props,
+    url: url.pathname + url.search,
+    version: null,
+  };
   if ("messages" in props) {
-    out.scrollProps = { messages: { pageName: "cursor", previousPage: from > 0 ? from : null, nextPage: to < MESSAGES.length ? to : null, currentPage: cursor, reset: reset.includes("messages") } };
+    out.scrollProps = {
+      messages: {
+        pageName: "cursor",
+        previousPage: from > 0 ? from : null,
+        nextPage: to < MESSAGES.length ? to : null,
+        currentPage: cursor,
+        reset: reset.includes("messages"),
+      },
+    };
     if (!reset.includes("messages")) out[intent === "prepend" ? "prependProps" : "mergeProps"] = ["messages"];
   }
   return out;
@@ -89,7 +122,16 @@ beforeAll(async () => {
   server = http.createServer((req, res) => {
     const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
     const headers: Record<string, string> = {};
-    for (const name of ["x-inertia", "x-inertia-partial-component", "x-inertia-partial-data", "x-inertia-partial-except", "x-inertia-reset", "x-inertia-error-bag", "x-requested-with", "x-inertia-infinite-scroll-merge-intent"]) {
+    for (const name of [
+      "x-inertia",
+      "x-inertia-partial-component",
+      "x-inertia-partial-data",
+      "x-inertia-partial-except",
+      "x-inertia-reset",
+      "x-inertia-error-bag",
+      "x-requested-with",
+      "x-inertia-infinite-scroll-merge-intent",
+    ]) {
       if (req.headers[name]) headers[name] = String(req.headers[name]);
     }
     requests.push({ path: url.pathname + url.search, headers });
@@ -107,15 +149,43 @@ afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
 type Step = { name: string; options: ReloadOptions & { data?: Record<string, unknown> } };
 type Snapshot = { name: string; request: Request | undefined; props: unknown; scrollProps?: unknown; search: string };
 
-const sequences: Record<string, { path: string; initial: PageProps; initialScroll?: Page["scrollProps"]; steps: Step[] }> = {
+const sequences: Record<
+  string,
+  { path: string; initial: PageProps; initialScroll?: Page["scrollProps"]; steps: Step[] }
+> = {
   "scroll props with merge intents": {
     path: "/scroll",
     initial: { messages: MESSAGES.slice(2, 6), stamp: 0 },
     initialScroll: { messages: { pageName: "cursor", previousPage: 2, nextPage: 6, currentPage: 4, reset: false } },
     steps: [
-      { name: "next", options: { data: { cursor: 6 }, only: ["messages"], preserveUrl: true, headers: { "X-Inertia-Infinite-Scroll-Merge-Intent": "append" } } },
-      { name: "previous", options: { data: { cursor: 2 }, only: ["messages"], preserveUrl: true, headers: { "X-Inertia-Infinite-Scroll-Merge-Intent": "prepend" } } },
-      { name: "reset", options: { data: { cursor: 4 }, only: ["messages"], reset: ["messages"], preserveUrl: true, headers: { "X-Inertia-Infinite-Scroll-Merge-Intent": "append" } } },
+      {
+        name: "next",
+        options: {
+          data: { cursor: 6 },
+          only: ["messages"],
+          preserveUrl: true,
+          headers: { "X-Inertia-Infinite-Scroll-Merge-Intent": "append" },
+        },
+      },
+      {
+        name: "previous",
+        options: {
+          data: { cursor: 2 },
+          only: ["messages"],
+          preserveUrl: true,
+          headers: { "X-Inertia-Infinite-Scroll-Merge-Intent": "prepend" },
+        },
+      },
+      {
+        name: "reset",
+        options: {
+          data: { cursor: 4 },
+          only: ["messages"],
+          reset: ["messages"],
+          preserveUrl: true,
+          headers: { "X-Inertia-Infinite-Scroll-Merge-Intent": "append" },
+        },
+      },
     ],
   },
   "appending a merge prop": {
@@ -124,7 +194,10 @@ const sequences: Record<string, { path: string; initial: PageProps; initialScrol
     steps: [
       { name: "load more", options: { data: { page: 2 }, only: ["items", "page"], preserveUrl: true } },
       { name: "load more again", options: { data: { page: 3 }, only: ["items", "page"], preserveUrl: true } },
-      { name: "reset the list", options: { data: { page: 1 }, only: ["items", "page"], reset: ["items"], preserveUrl: true } },
+      {
+        name: "reset the list",
+        options: { data: { page: 1 }, only: ["items", "page"], reset: ["items"], preserveUrl: true },
+      },
       { name: "single prop", options: { only: ["stamp"] } },
       { name: "except", options: { except: ["stamp"], data: { page: 2 } } },
     ],
@@ -134,18 +207,31 @@ const sequences: Record<string, { path: string; initial: PageProps; initialScrol
     initial: { feed: { data: [{ id: 1, v: 0 }], meta: { page: 1, seen: [1] } }, tags: ["t1"], stamp: 0 },
     steps: [
       { name: "page 2", options: { data: { page: 2 }, only: ["feed", "tags"], preserveUrl: true } },
-      { name: "same page again (matched ids replace)", options: { data: { page: 2 }, only: ["feed", "tags"], preserveUrl: true } },
+      {
+        name: "same page again (matched ids replace)",
+        options: { data: { page: 2 }, only: ["feed", "tags"], preserveUrl: true },
+      },
       { name: "reset", options: { data: { page: 5 }, only: ["feed"], reset: ["feed"], preserveUrl: true } },
     ],
   },
 };
 
-const componentOf = (path: string) => (path === "/deep" ? "Deep/Index" : path === "/scroll" ? "Scroll/Index" : "Items/Index");
+const componentOf = (path: string) =>
+  path === "/deep" ? "Deep/Index" : path === "/scroll" ? "Scroll/Index" : "Items/Index";
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 60));
 
-async function runReal(core: typeof import("@inertiajs/core"), sequence: (typeof sequences)[string]): Promise<Snapshot[]> {
-  const initialPage = { component: componentOf(sequence.path), props: { errors: {}, ...sequence.initial }, url: sequence.path, version: null, ...(sequence.initialScroll ? { scrollProps: sequence.initialScroll } : {}) };
+async function runReal(
+  core: typeof import("@inertiajs/core"),
+  sequence: (typeof sequences)[string],
+): Promise<Snapshot[]> {
+  const initialPage = {
+    component: componentOf(sequence.path),
+    props: { errors: {}, ...sequence.initial },
+    url: sequence.path,
+    version: null,
+    ...(sequence.initialScroll ? { scrollProps: sequence.initialScroll } : {}),
+  };
   window.history.replaceState(null, "", sequence.path);
   let current: Page = initialPage as Page;
   await (core.router as unknown as { init: (options: unknown) => Promise<void> }).init({
@@ -161,7 +247,13 @@ async function runReal(core: typeof import("@inertiajs/core"), sequence: (typeof
     requests = [];
     await new Promise<void>((resolve) => core.router.reload({ ...step.options, onFinish: () => resolve() } as never));
     await settle();
-    out.push({ name: step.name, request: requests[0], props: current.props, scrollProps: current.scrollProps, search: window.location.search });
+    out.push({
+      name: step.name,
+      request: requests[0],
+      props: current.props,
+      scrollProps: current.scrollProps,
+      search: window.location.search,
+    });
   }
   return out;
 }
@@ -177,7 +269,13 @@ async function runCompat(sequence: (typeof sequences)[string]): Promise<Snapshot
     refresh: vi.fn(),
     prefetch: vi.fn(),
     remount: vi.fn(),
-    getPage: () => ({ component, url: window.location.pathname + window.location.search, version: null, props: props as Page["props"], ...(scrollProps ? { scrollProps } : {}) }),
+    getPage: () => ({
+      component,
+      url: window.location.pathname + window.location.search,
+      version: null,
+      props: props as Page["props"],
+      ...(scrollProps ? { scrollProps } : {}),
+    }),
     setPageProps: (update) => {
       props = update(props);
     },
@@ -203,7 +301,9 @@ describe.skipIf(!corePath)("partial reloads against the real @inertiajs/core rou
     it(`sends the same requests and ends with the same props: ${name}`, async () => {
       // jsdom's AbortSignal is not undici's; the signal is only for cancellation.
       const nodeFetch = globalThis.fetch;
-      vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => nodeFetch(input, { ...init, signal: undefined }));
+      vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) =>
+        nodeFetch(input, { ...init, signal: undefined }),
+      );
       const core = (await import(/* @vite-ignore */ corePath!)) as typeof import("@inertiajs/core");
       const real = await runReal(core, sequence);
       const mine = await runCompat(sequence);
@@ -211,7 +311,8 @@ describe.skipIf(!corePath)("partial reloads against the real @inertiajs/core rou
       // Guards against both clients silently doing nothing.
       expect(real.every((snapshot) => snapshot.request?.headers["x-inertia"] === "true")).toBe(true);
       if (sequence.path === "/items") expect((real[1]!.props as { items: unknown[] }).items).toHaveLength(6);
-      if (sequence.path === "/scroll") expect((real[1]!.props as { messages: unknown[] }).messages.length).toBeGreaterThan(4);
+      if (sequence.path === "/scroll")
+        expect((real[1]!.props as { messages: unknown[] }).messages.length).toBeGreaterThan(4);
       vi.unstubAllGlobals();
     });
   }

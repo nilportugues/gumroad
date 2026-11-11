@@ -11,7 +11,15 @@ import { parseRubyJson, type JsonValue } from "../../server/jobs/sidekiq/ruby-js
 import { isRecordNotUnique } from "../../server/models/sql.ts";
 import { setStripeClientForTesting, StripeClient, type TransportRequest } from "../../server/stripe/client.ts";
 import { stripeConfigFromEnv } from "../../server/stripe/config.ts";
-import { asSidekiqJob, contextFor, recordingSidekiqRedis, rubyRuntimeRegistry, sequentialJids, type RedisSnapshot } from "./__fixtures__/golden.ts";
+
+import {
+  asSidekiqJob,
+  contextFor,
+  recordingSidekiqRedis,
+  rubyRuntimeRegistry,
+  sequentialJids,
+  type RedisSnapshot,
+} from "./__fixtures__/golden.ts";
 import { sqlReplay, type Statement } from "./__fixtures__/sql-replay.ts";
 import {
   createStripeApplePayDomainWorkerRetriesExhausted,
@@ -23,7 +31,13 @@ import {
 const notifyError = vi.hoisted(() => vi.fn());
 vi.mock("../../server/infra/error-reporting.ts", () => ({ notifyError }));
 
-type Recorded = { method: string; path: string; query: string | null; headers: Record<string, string>; body: string | null };
+type Recorded = {
+  method: string;
+  path: string;
+  query: string | null;
+  headers: Record<string, string>;
+  body: string | null;
+};
 type GoldenCase = {
   name: string;
   args: JsonValue[];
@@ -35,7 +49,9 @@ type GoldenCase = {
   notifications: [string, Record<string, unknown>][];
   log: string[];
 };
-const golden = parseRubyJson(readFileSync(new URL("./__fixtures__/stripe-jobs.golden.json", import.meta.url), "utf8")) as unknown as {
+const golden = parseRubyJson(
+  readFileSync(new URL("./__fixtures__/stripe-jobs.golden.json", import.meta.url), "utf8"),
+) as unknown as {
   now: number;
   jobs: Record<string, GoldenCase[]>;
   retries_exhausted: Record<string, { args: JsonValue[]; notifications: [string, Record<string, unknown>][] }[]>;
@@ -52,7 +68,14 @@ const rubyRegistry = rubyRuntimeRegistry();
 // User-Agent and X-Stripe-Client-User-Agent describe the bindings and are not recorded; the
 // idempotency key is random and the telemetry header carries a duration, so both compare by shape.
 // Content-Length is set by the transport (client.test.ts checks it on the wire).
-const COMPARED_HEADERS = ["authorization", "content-type", "stripe-version", "stripe-account", "accept", "accept-encoding"];
+const COMPARED_HEADERS = [
+  "authorization",
+  "content-type",
+  "stripe-version",
+  "stripe-account",
+  "accept",
+  "accept-encoding",
+];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 
 function normalize(request: Recorded) {
@@ -73,9 +96,19 @@ function fakeStripe(responses: GoldenCase["stripe"]["responses"]) {
     transport: async (request: TransportRequest) => {
       const [path, ...query] = request.url.replace("http://stripe.test", "").split("?");
       const headers = Object.fromEntries(Object.entries(request.headers).map(([k, v]) => [k.toLowerCase(), v]));
-      requests.push({ method: request.method.toUpperCase(), path: path!, query: query.length ? query.join("?") : null, headers, body: request.body });
+      requests.push({
+        method: request.method.toUpperCase(),
+        path: path!,
+        query: query.length ? query.join("?") : null,
+        headers,
+        body: request.body,
+      });
       const [status, responseHeaders, body] = script.shift() ?? [500, {}, "no scripted response"];
-      return { status, headers: Object.fromEntries(Object.entries(responseHeaders).map(([k, v]) => [k.toLowerCase(), v])), body };
+      return {
+        status,
+        headers: Object.fromEntries(Object.entries(responseHeaders).map(([k, v]) => [k.toLowerCase(), v])),
+        body,
+      };
     },
   });
   return { client, requests, sleeps };
@@ -105,7 +138,13 @@ for (const [name, cases] of Object.entries(golden.jobs)) {
       const logged: string[] = [];
       vi.spyOn(console, "info").mockImplementation((message: string) => void logged.push(message));
       const recording = recordingSidekiqRedis();
-      const runtime = createJobsRuntime({ sidekiqRedis: recording.redis, bullmqRedis: recording.redis, registry: rubyRegistry, now: () => golden.now, newJid: sequentialJids() });
+      const runtime = createJobsRuntime({
+        sidekiqRedis: recording.redis,
+        bullmqRedis: recording.redis,
+        registry: rubyRegistry,
+        now: () => golden.now,
+        newJid: sequentialJids(),
+      });
 
       let error: unknown = null;
       try {
@@ -124,7 +163,10 @@ for (const [name, cases] of Object.entries(golden.jobs)) {
         // The message is the fake MySQL driver's; the class is what Sidekiq retries on.
         expect(isRecordNotUnique(error)).toBe(true);
       } else {
-        const actual = error === null ? null : { class: (error as { rubyClass?: string }).rubyClass, message: (error as Error).message };
+        const actual =
+          error === null
+            ? null
+            : { class: (error as { rubyClass?: string }).rubyClass, message: (error as Error).message };
         expect(actual).toEqual(c.error ?? null);
       }
     });
@@ -132,10 +174,22 @@ for (const [name, cases] of Object.entries(golden.jobs)) {
 }
 
 describe("CreateStripeApplePayDomainWorker sidekiq_retries_exhausted", () => {
-  it.each(golden.retries_exhausted.CreateStripeApplePayDomainWorker!.map((c) => [JSON.stringify(c.args), c] as const))("args %s", async (_, c) => {
-    const { redis } = recordingSidekiqRedis();
-    const runtime = createJobsRuntime({ sidekiqRedis: redis, bullmqRedis: redis, registry: rubyRegistry, now: () => golden.now });
-    await createStripeApplePayDomainWorkerRetriesExhausted({ class: "CreateStripeApplePayDomainWorker", jid: "abc", queue: "low", args: c.args, retry: 3 }, new Error("boom"), { runtime });
-    expect(notifyError.mock.calls.map(([message, context = {}]) => [message, context])).toEqual(c.notifications);
-  });
+  it.each(golden.retries_exhausted.CreateStripeApplePayDomainWorker!.map((c) => [JSON.stringify(c.args), c] as const))(
+    "args %s",
+    async (_, c) => {
+      const { redis } = recordingSidekiqRedis();
+      const runtime = createJobsRuntime({
+        sidekiqRedis: redis,
+        bullmqRedis: redis,
+        registry: rubyRegistry,
+        now: () => golden.now,
+      });
+      await createStripeApplePayDomainWorkerRetriesExhausted(
+        { class: "CreateStripeApplePayDomainWorker", jid: "abc", queue: "low", args: c.args, retry: 3 },
+        new Error("boom"),
+        { runtime },
+      );
+      expect(notifyError.mock.calls.map(([message, context = {}]) => [message, context])).toEqual(c.notifications);
+    },
+  );
 });

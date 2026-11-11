@@ -8,23 +8,40 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { rubyInspect, RubySymbol } from "../models/concerns/ruby-values.ts";
+
 import { StripeClient, sleepTime } from "./client.ts";
 import { STRIPE_API_VERSION, stripeConfigFromEnv, type StripeConfig } from "./config.ts";
 import { urlEncode } from "./encode.ts";
 import { StripeError } from "./errors.ts";
 import { Account, ApplePayDomain, Balance, Payout, Transfer } from "./resources.ts";
 
-type Recorded = { method: string; path: string; query: string | null; headers: Record<string, string>; body: string | null };
+type Recorded = {
+  method: string;
+  path: string;
+  query: string | null;
+  headers: Record<string, string>;
+  body: string | null;
+};
 type GoldenCase = {
   name: string;
   responses?: [number, Record<string, string>, string][];
   requests?: Recorded[];
   retries: number;
   result?: unknown;
-  error?: { class: string; message: string; to_s: string; code: string | null; http_status: number | null; request_id: string | null; param: string | null };
+  error?: {
+    class: string;
+    message: string;
+    to_s: string;
+    code: string | null;
+    http_status: number | null;
+    request_id: string | null;
+    param: string | null;
+  };
   api_base_port?: number;
 };
-const golden = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, "__fixtures__/stripe-requests.golden.json"), "utf8")) as {
+const golden = JSON.parse(
+  fs.readFileSync(path.join(import.meta.dirname, "__fixtures__/stripe-requests.golden.json"), "utf8"),
+) as {
   sleep_time: { retries: number; samples: [number, number] }[];
   cases: GoldenCase[];
 };
@@ -33,16 +50,21 @@ type Opts = { client: StripeClient };
 const CALLS: Record<string, (o: Opts) => Promise<unknown>> = {
   "account retrieve": (o) => Account.retrieve("acct_1", o),
   "account retrieve escapes the id": (o) => Account.retrieve("acct_ 1/x", o),
-  "account update business profile url": (o) => Account.update("acct_1", { business_profile: { url: "https://new.gumroad.com" } }, o),
-  "account update lifts the charges pause": (o) => Account.update("acct_1", { risk_controls: { charges: { pause_requested: false } } }, o),
-  "payout retrieve expanded on a connected account": (o) => Payout.retrieve({ id: "po_1", expand: ["balance_transaction"] }, { ...o, stripeAccount: "acct_1" }),
+  "account update business profile url": (o) =>
+    Account.update("acct_1", { business_profile: { url: "https://new.gumroad.com" } }, o),
+  "account update lifts the charges pause": (o) =>
+    Account.update("acct_1", { risk_controls: { charges: { pause_requested: false } } }, o),
+  "payout retrieve expanded on a connected account": (o) =>
+    Payout.retrieve({ id: "po_1", expand: ["balance_transaction"] }, { ...o, stripeAccount: "acct_1" }),
   "payout retrieve on a connected account": (o) => Payout.retrieve("po_1", { ...o, stripeAccount: "acct_1" }),
   "balance retrieve on a connected account": (o) => Balance.retrieve({ ...o, stripeAccount: "acct_1" }),
   "transfer create on a connected account": (o) =>
     Transfer.create({ amount: 1234, currency: "usd", destination: "acct_platform" }, { ...o, stripeAccount: "acct_1" }),
   "transfer retrieve": (o) => Transfer.retrieve("tr_1", o),
-  "transfer list drops nil params": (o) => Transfer.list({ destination: "acct_1", created: { lt: 1_700_000_000 }, limit: 100, starting_after: null }, o),
-  "transfer list pages": (o) => Transfer.list({ destination: "acct_1", created: { lt: 1_700_000_000 }, limit: 100, starting_after: "tr_2" }, o),
+  "transfer list drops nil params": (o) =>
+    Transfer.list({ destination: "acct_1", created: { lt: 1_700_000_000 }, limit: 100, starting_after: null }, o),
+  "transfer list pages": (o) =>
+    Transfer.list({ destination: "acct_1", created: { lt: 1_700_000_000 }, limit: 100, starting_after: "tr_2" }, o),
   "transfer reversal": (o) => Transfer.createReversal("tr_1", { amount: 500 }, o),
   "apple pay domain create": (o) => ApplePayDomain.create({ domain_name: "seller.gumroad.com" }, o),
   "apple pay domain retrieve": (o) => ApplePayDomain.retrieve("apwc_1", o),
@@ -51,7 +73,16 @@ const CALLS: Record<string, (o: Opts) => Promise<unknown>> = {
     Account.update(
       "acct_1",
       {
-        metadata: { "a b": "x&y=z+ü*~!'()", skipped: null, t: true, f: false, n: 12, neg: -3, float: 1.5, sym: new RubySymbol("value") },
+        metadata: {
+          "a b": "x&y=z+ü*~!'()",
+          skipped: null,
+          t: true,
+          f: false,
+          n: 12,
+          neg: -3,
+          float: 1.5,
+          sym: new RubySymbol("value"),
+        },
         individual: { address: { line1: "", line2: "Apt. #4 [rear]" } },
         list: ["a", { k: "v" }, ["x", "y"], null],
         empty_hash: {},
@@ -70,7 +101,8 @@ const CALLS: Record<string, (o: Opts) => Promise<unknown>> = {
   "401 authentication error": (o) => Balance.retrieve({ ...o, stripeAccount: "acct_1" }),
   "402 card error": (o) => Transfer.create({ amount: 1, currency: "usd", destination: "acct_2" }, o),
   "400 idempotency error": (o) => Transfer.create({ amount: 1, currency: "usd", destination: "acct_2" }, o),
-  "429 lock timeout is retried with the same idempotency key": (o) => Transfer.create({ amount: 1, currency: "usd", destination: "acct_2" }, o),
+  "429 lock timeout is retried with the same idempotency key": (o) =>
+    Transfer.create({ amount: 1, currency: "usd", destination: "acct_2" }, o),
   "429 rate limit is not retried": (o) => Account.retrieve("acct_1", o),
   "409 conflict is retried": (o) => Account.retrieve("acct_1", o),
   "500 is retried until max_network_retries": (o) => Account.retrieve("acct_1", o),
@@ -84,7 +116,17 @@ const CALLS: Record<string, (o: Opts) => Promise<unknown>> = {
 
 // The headers that carry meaning; User-Agent and X-Stripe-Client-User-Agent describe the
 // bindings and differ by design. Idempotency keys are random, so they compare by identity.
-const COMPARED_HEADERS = ["authorization", "content-type", "stripe-version", "stripe-account", "idempotency-key", "x-stripe-client-telemetry", "accept", "accept-encoding", "content-length"];
+const COMPARED_HEADERS = [
+  "authorization",
+  "content-type",
+  "stripe-version",
+  "stripe-account",
+  "idempotency-key",
+  "x-stripe-client-telemetry",
+  "accept",
+  "accept-encoding",
+  "content-length",
+];
 
 function normalize(requests: Recorded[]) {
   const keys = new Map<string, string>();
@@ -93,7 +135,10 @@ function normalize(requests: Recorded[]) {
     for (const name of COMPARED_HEADERS) {
       let value = request.headers[name];
       if (value === undefined) continue;
-      if (name === "idempotency-key" && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(value)) {
+      if (
+        name === "idempotency-key" &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(value)
+      ) {
         if (!keys.has(value)) keys.set(value, `<uuid ${keys.size + 1}>`);
         value = keys.get(value)!;
       }
@@ -122,7 +167,13 @@ beforeAll(async () => {
       const [pathname, ...rest] = (req.url ?? "").split("?");
       const headers: Record<string, string> = {};
       for (const [name, value] of Object.entries(req.headers)) if (typeof value === "string") headers[name] = value;
-      recorded.push({ method: req.method!, path: pathname!, query: rest.length ? rest.join("?") : null, headers, body: req.headers["content-length"] ? Buffer.concat(chunks).toString("utf8") : null });
+      recorded.push({
+        method: req.method!,
+        path: pathname!,
+        query: rest.length ? rest.join("?") : null,
+        headers,
+        body: req.headers["content-length"] ? Buffer.concat(chunks).toString("utf8") : null,
+      });
       const [status, responseHeaders, body] = script.shift() ?? [500, {}, "no scripted response"];
       res.writeHead(status, { ...responseHeaders, "Content-Length": Buffer.byteLength(body) });
       res.end(body);
@@ -135,7 +186,12 @@ beforeAll(async () => {
 afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
 
 function config(apiBase: string): StripeConfig {
-  return { ...stripeConfigFromEnv(), apiKey: "sk_test_golden", apiBase, apiVersion: "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;" };
+  return {
+    ...stripeConfigFromEnv(),
+    apiKey: "sk_test_golden",
+    apiBase,
+    apiVersion: "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+  };
 }
 
 describe("requests match stripe-ruby 12.5.0", () => {
@@ -186,13 +242,16 @@ describe("requests match stripe-ruby 12.5.0", () => {
 });
 
 describe("retry backoff", () => {
-  it.each(golden.sleep_time.map((s) => [s.retries, s] as const))("stays within the gem's range after %i retries", (retries, s) => {
-    const cfg = config("http://x");
-    const [min, max] = [sleepTime(retries, cfg, () => 0), sleepTime(retries, cfg, () => 0.999999)];
-    expect(min).toBeLessThanOrEqual(s.samples[0] + 1e-9);
-    expect(max).toBeGreaterThanOrEqual(s.samples[1] - 1e-3);
-    expect(max).toBeLessThanOrEqual(cfg.maxNetworkRetryDelay);
-  });
+  it.each(golden.sleep_time.map((s) => [s.retries, s] as const))(
+    "stays within the gem's range after %i retries",
+    (retries, s) => {
+      const cfg = config("http://x");
+      const [min, max] = [sleepTime(retries, cfg, () => 0), sleepTime(retries, cfg, () => 0.999999)];
+      expect(min).toBeLessThanOrEqual(s.samples[0] + 1e-9);
+      expect(max).toBeGreaterThanOrEqual(s.samples[1] - 1e-3);
+      expect(max).toBeLessThanOrEqual(cfg.maxNetworkRetryDelay);
+    },
+  );
 });
 
 describe("configuration", () => {
@@ -202,7 +261,9 @@ describe("configuration", () => {
       process.env.RAILS_ENV = "test";
       expect(stripeConfigFromEnv().apiVersion).toBe(STRIPE_API_VERSION);
       process.env.RAILS_ENV = "production";
-      expect(stripeConfigFromEnv().apiVersion).toBe("2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;");
+      expect(stripeConfigFromEnv().apiVersion).toBe(
+        "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+      );
     } finally {
       process.env.RAILS_ENV = previous;
     }

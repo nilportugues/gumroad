@@ -2,14 +2,15 @@
 // seller subdomains and custom domains, and on a product's own domain. The filters live in
 // controllers/product-page.ts; the render is presenters/product-page.ts, which hands back to Rails what it
 // cannot prove (HandBackToRails in the filter chain).
+import { railsLoggedInUser } from "../auth/resolve.ts";
 import { PRODUCT_PAGE_OPTIONS } from "../controllers/product-page.ts";
-import { aliveCartProductCount } from "./checkout/checkout.ts";
-import { remoteIp } from "./audience/events.ts";
+import { parseQuery } from "../controllers/rails-query.ts";
+import { loadSellerContext } from "../policies/seller-context.ts";
 import { buildProductPage, guidOf, sellerCustomDomainUrl, viewerOf } from "../presenters/product-page.ts";
 import { findLink, findUserById } from "../presenters/product-reads.ts";
-import { parseQuery } from "../controllers/rails-query.ts";
-import { railsLoggedInUser } from "../auth/resolve.ts";
-import { loadSellerContext } from "../policies/seller-context.ts";
+
+import { remoteIp } from "./audience/events.ts";
+import { aliveCartProductCount } from "./checkout/checkout.ts";
 import type { PageSpec } from "./pages.ts";
 
 const productPage: PageSpec = {
@@ -23,7 +24,20 @@ const productPage: PageSpec = {
     const pathCode = params.code;
     const queryCode = typeof query.code === "string" && query.code.trim() !== "" ? query.code : null;
     const code = pathCode && pathCode.trim() !== "" ? pathCode : queryCode;
-    const viewer = viewerOf(query, code, railsLoggedInUser(action.context), railsLoggedInUser(action.context) ? await loadSellerContext(action.context) : null, remoteIp(action.headers), guidOf(action.headers.get("cookie")), sellerCustomDomainUrl(action.state.user_custom_domain === "1", action.url.host), { host: action.url.hostname, hostWithPort: action.url.host, protocol: action.url.protocol === "https:" ? "https://" : "http://" });
+    const viewer = viewerOf(
+      query,
+      code,
+      railsLoggedInUser(action.context),
+      railsLoggedInUser(action.context) ? await loadSellerContext(action.context) : null,
+      remoteIp(action.headers),
+      guidOf(action.headers.get("cookie")),
+      sellerCustomDomainUrl(action.state.user_custom_domain === "1", action.url.host),
+      {
+        host: action.url.hostname,
+        hostWithPort: action.url.host,
+        protocol: action.url.protocol === "https:" ? "https://" : "http://",
+      },
+    );
     return buildProductPage(row, seller, viewer, action.meta, action.url.hostname);
   },
 };

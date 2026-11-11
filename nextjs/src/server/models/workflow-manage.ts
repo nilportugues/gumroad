@@ -4,20 +4,24 @@
 // (DefaultAbandonedCartWorkflowGeneratorService), which the controller hands to Rails.
 import { Prisma, type Installment, type Link, type User, type Workflow } from "@prisma/client";
 
-import { InstallmentFlags } from "./installment-post.ts";
-import { setAssociation } from "./concerns/rails-validations.ts";
 import { jsonData } from "./concerns/json-data.ts";
-import { Installments, InstallmentInvalid, markDeletedBang as markInstallmentDeletedBang } from "./installment-writes.ts";
-import { addAndValidateFilters, findBaseVariantId, permit, present } from "./save-installment.ts";
+import { setAssociation } from "./concerns/rails-validations.ts";
+import { InstallmentFlags } from "./installment-post.ts";
+import {
+  Installments,
+  InstallmentInvalid,
+  markDeletedBang as markInstallmentDeletedBang,
+} from "./installment-writes.ts";
 import { RecordInvalid } from "./runtime/errors.ts";
 import type { ModelRecord } from "./runtime/record.ts";
 import { transaction } from "./runtime/transaction.ts";
+import { addAndValidateFilters, findBaseVariantId, permit, present } from "./save-installment.ts";
 import { castRow, column, findInBatches, selectRows, table } from "./sql.ts";
 import { eligibleForAbandonedCartWorkflows } from "./user-email-eligibility.ts";
 import { NotPortedError } from "./user.ts";
 import { PRODUCT_TYPE, VARIANT_TYPE } from "./with-filtering.ts";
-import { WorkflowFlags } from "./workflow.ts";
 import { installmentOf, publishBang, unpublishBang, Workflows } from "./workflow-writes.ts";
+import { WorkflowFlags } from "./workflow.ts";
 
 type WorkflowRecord = ModelRecord<Workflow>;
 const ABANDONED_CART_TYPE = "abandoned_cart";
@@ -39,7 +43,13 @@ const SCALAR_KEYS = [
   "send_to_past_customers",
   "save_action_name",
 ] as const;
-const ARRAY_KEYS = ["bought_products", "not_bought_products", "affiliate_products", "bought_variants", "not_bought_variants"] as const;
+const ARRAY_KEYS = [
+  "bought_products",
+  "not_bought_products",
+  "affiliate_products",
+  "bought_variants",
+  "not_bought_variants",
+] as const;
 
 export const permitWorkflow = (raw: unknown): Record<string, unknown> => permit(raw, SCALAR_KEYS, ARRAY_KEYS);
 
@@ -68,14 +78,25 @@ export async function manageWorkflow(
   const productOrVariant = type === PRODUCT_TYPE || type === VARIANT_TYPE;
   let workflow = input.workflow;
   if (workflow === null) {
-    workflow = Workflows.build(productOrVariant ? { seller_id: Number(product!.user_id), link_id: Number(product!.id) } : { seller_id: Number(seller.id) });
+    workflow = Workflows.build(
+      productOrVariant
+        ? { seller_id: Number(product!.user_id), link_id: Number(product!.id) }
+        : { seller_id: Number(seller.id) },
+    );
     // product.workflows.build(seller: product.user) sets the association; seller.workflows.build leaves it for the validation to load.
     if (productOrVariant) setAssociation(workflow, "seller", workflow.get("seller_id"), seller);
   }
   const record = workflow;
   const now = options.now;
   const name = params.name;
-  record.set("name", name === undefined || name === null ? null : typeof name === "string" ? name : refuse("a workflow name that is not text"));
+  record.set(
+    "name",
+    name === undefined || name === null
+      ? null
+      : typeof name === "string"
+        ? name
+        : refuse("a workflow name that is not text"),
+  );
 
   if (record.newRecord && type === ABANDONED_CART_TYPE) {
     if (!(await eligibleForAbandonedCartWorkflows(seller))) {
@@ -87,13 +108,32 @@ export async function manageWorkflow(
 
   const neverPublished = record.get("first_published_at") === null;
   if (neverPublished) {
-    record.set("workflow_type", typeof type === "string" ? type : type === undefined || type === null ? null : refuse("a workflow type that is not text"));
+    record.set(
+      "workflow_type",
+      typeof type === "string"
+        ? type
+        : type === undefined || type === null
+          ? null
+          : refuse("a workflow type that is not text"),
+    );
     record.set("base_variant_id", type === VARIANT_TYPE ? await findBaseVariantId(params.variant_external_id) : null);
     record.set("link_id", productOrVariant ? Number(product!.id) : null);
-    record.set("flags", WorkflowFlags.set(record.get("flags"), "send_to_past_customers", TRUE_VALUES.includes(params.send_to_past_customers as never)));
+    record.set(
+      "flags",
+      WorkflowFlags.set(
+        record.get("flags"),
+        "send_to_past_customers",
+        TRUE_VALUES.includes(params.send_to_past_customers as never),
+      ),
+    );
     // `workflow.abandoned_cart_type?`-style predicates read `attributes`, which materializes every attribute in column order.
     record.materializeAll();
-    record.untracked(() => addAndValidateFilters(record, params, seller.timezone ?? "Pacific Time (US & Canada)", { typeColumn: "workflow_type", currency: seller.currency_type ?? "usd" }));
+    record.untracked(() =>
+      addAndValidateFilters(record, params, seller.timezone ?? "Pacific Time (US & Canada)", {
+        typeColumn: "workflow_type",
+        currency: seller.currency_type ?? "usd",
+      }),
+    );
     if (!record.errors.isEmpty()) return { ok: false, error: record.errors.fullMessages()[0]!, workflow: record };
   }
 
@@ -110,13 +150,19 @@ export async function manageWorkflow(
         const rows = await selectRows(
           Prisma.sql`SELECT 1 AS one FROM ${table("installments")} WHERE ${aliveInstallments(record, Prisma.sql`${column("installments", "installment_type")} = ${ABANDONED_CART_TYPE}`)} LIMIT 1`,
         );
-        if (wasJustCreated || rows.length === 0) refuse("the default abandoned cart email (DefaultAbandonedCartWorkflowGeneratorService)");
+        if (wasJustCreated || rows.length === 0)
+          refuse("the default abandoned cart email (DefaultAbandonedCartWorkflowGeneratorService)");
       }
 
       if (!wasJustCreated && !abandoned) {
-        await findInBatches<Installment>("installments", aliveInstallments(record, Prisma.sql`${column("installments", "installment_type")} = ${ABANDONED_CART_TYPE}`), BATCH_SIZE, async (rows) => {
-          for (const row of rows) await markInstallmentDeletedBang(installmentOf(row), { now });
-        });
+        await findInBatches<Installment>(
+          "installments",
+          aliveInstallments(record, Prisma.sql`${column("installments", "installment_type")} = ${ABANDONED_CART_TYPE}`),
+          BATCH_SIZE,
+          async (rows) => {
+            for (const row of rows) await markInstallmentDeletedBang(installmentOf(row), { now });
+          },
+        );
       }
 
       if (neverPublished) {
@@ -137,7 +183,8 @@ export async function manageWorkflow(
       }
 
       if (!wasJustCreated) {
-        if (params.save_action_name === SAVE_AND_PUBLISH_ACTION) await publishBang(record, { ...(now ? { now } : {}), ...(options.uuid ? { uuid: options.uuid } : {}) });
+        if (params.save_action_name === SAVE_AND_PUBLISH_ACTION)
+          await publishBang(record, { ...(now ? { now } : {}), ...(options.uuid ? { uuid: options.uuid } : {}) });
         if (params.save_action_name === SAVE_AND_UNPUBLISH_ACTION) await unpublishBang(record, now ? { now } : {});
       }
     });
@@ -151,14 +198,16 @@ export async function manageWorkflow(
   return { ok: error === null, error, workflow: record };
 }
 
-const installmentFlags = (flags: number, enabled: boolean) => InstallmentFlags.set(flags, "is_for_new_customers_of_workflow", enabled);
+const installmentFlags = (flags: number, enabled: boolean) =>
+  InstallmentFlags.set(flags, "is_for_new_customers_of_workflow", enabled);
 
 // WorkflowsController#fetch_product_and_enforce_ownership: `current_seller.products.visible` by unique, then by custom permalink.
 export async function findVisibleProduct(seller: User, permalink: unknown): Promise<Link | null> {
-  if (typeof permalink !== "string" && permalink !== null && permalink !== undefined) return refuse("a permalink that is not text");
+  if (typeof permalink !== "string" && permalink !== null && permalink !== undefined)
+    return refuse("a permalink that is not text");
   for (const name of ["unique_permalink", "custom_permalink"]) {
     const [row] = await selectRows(
-      Prisma.sql`SELECT ${Prisma.raw("\`links\`.*")} FROM ${table("links")} WHERE ${column("links", "user_id")} = ${seller.id} AND ${column("links", "deleted_at")} IS NULL AND ${column("links", name)} ${permalink === null || permalink === undefined ? Prisma.sql`IS NULL` : Prisma.sql`= ${permalink}`} LIMIT 1`,
+      Prisma.sql`SELECT ${Prisma.raw("`links`.*")} FROM ${table("links")} WHERE ${column("links", "user_id")} = ${seller.id} AND ${column("links", "deleted_at")} IS NULL AND ${column("links", name)} ${permalink === null || permalink === undefined ? Prisma.sql`IS NULL` : Prisma.sql`= ${permalink}`} LIMIT 1`,
     );
     if (row) return castRow<Link>("Link", row);
   }

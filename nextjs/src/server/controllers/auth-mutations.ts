@@ -7,27 +7,27 @@
 // not plain strings.
 import { compare } from "bcryptjs";
 
+import { db } from "../../lib/db.ts";
 import { decrypt as obfuscateDecrypt } from "../../lib/obfuscate-ids.ts";
 import { verifyTotp } from "../../lib/rotp.ts";
 import { validPassword } from "../auth/devise-password.ts";
 import { prismaAuthStore } from "../auth/store.ts";
-import { db } from "../../lib/db.ts";
+import { isBlank } from "../html/text-helper.ts";
 import { railsEnv } from "../infra/rails-env.ts";
-import { sendAuthenticationToken } from "../models/two-factor-authentication.ts";
 import { currentJobsRuntime } from "../models/concerns/job-runtime.ts";
+import { sendAuthenticationToken } from "../models/two-factor-authentication.ts";
 import { findUser, isConfirmed, isFlagSet, passwordIsPwned, type UserRecord } from "../models/user.ts";
 import { domainConfig } from "../page-props/domain.ts";
-import { type ActionOptions, type ActionResult, allowedReferrer, type Chain, HandBackToRails, type Redirected, RoutingError } from "./application-controller.ts";
+
 import {
-  addTwoFactorAuthenticatedIp,
-  assertNoGuestCart,
-  clearDashboardPreference,
-  refreshPasskeySetupPrompt,
-  rememberedTwoFactor,
-  signIn,
-  signOutUser,
-  twoFactorAuthCookie,
-} from "./auth-session.ts";
+  type ActionOptions,
+  type ActionResult,
+  allowedReferrer,
+  type Chain,
+  HandBackToRails,
+  type Redirected,
+  RoutingError,
+} from "./application-controller.ts";
 import {
   referrerIsValidAfterLoginPath,
   sessionPresent,
@@ -38,15 +38,25 @@ import {
   TWO_FACTOR_SENT_AT_SESSION_KEY,
   TWO_FACTOR_USER_SESSION_KEY,
 } from "./auth-pages.ts";
+import {
+  addTwoFactorAuthenticatedIp,
+  assertNoGuestCart,
+  clearDashboardPreference,
+  refreshPasskeySetupPrompt,
+  rememberedTwoFactor,
+  signIn,
+  signOutUser,
+  twoFactorAuthCookie,
+} from "./auth-session.ts";
 import { type MutationInput, registerMutations, remoteIp } from "./mutation.ts";
 import { cgiEscape, cgiUnescape, referrer, safeRedirectPath } from "./rails-params.ts";
 import { fullpath } from "./rails-request.ts";
-import { isBlank } from "../html/text-helper.ts";
 
 const LOGIN_PATH = "/login";
 const TWO_FACTOR_PATH = "/two-factor";
 const VERIFY_TWO_FACTOR_PATH = "/two-factor/verify.html";
-const DELETED_ACCOUNT_LOGIN_ERROR = "You cannot log in because your account was deleted. Email support@gumroad.com if you'd like to use this email address for a new account.";
+const DELETED_ACCOUNT_LOGIN_ERROR =
+  "You cannot log in because your account was deleted. Email support@gumroad.com if you'd like to use this email address for a new account.";
 const PWNED_PASSWORD_WARNING =
   "Your password has previously appeared in a data breach as per haveibeenpwned.com and should never be used. We strongly recommend you change your password everywhere you have used it.";
 const SIGNED_OUT_FLASH = "Signed out successfully.";
@@ -55,7 +65,8 @@ const DEFAULT_AUTH_TOKEN = "000000";
 const TOKEN_VALIDITY_SECONDS = 10 * 60;
 const TOTP_DRIFT_SECONDS = 30;
 
-const isHash = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
+const isHash = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
 
 // A param Rails would read as a String (or nil); anything else is a shape the port leaves to Rails.
 function stringParam(value: unknown): string | null {
@@ -77,7 +88,8 @@ function clientIp(input: MutationInput): string {
 // The Devise `prepend_before_action :require_no_authentication` of LoginsController#create: a signed-in visitor is sent where a login
 // would have sent them, which depends on `params[:next]` and the referrer; the port leaves it to Rails.
 async function requireSignedOut(chain: Chain): Promise<Redirected | null> {
-  if (chain.auth.context.loggedInUser || chain.auth.effects.signedOut) throw new HandBackToRails("a signed-in visitor posting the login form");
+  if (chain.auth.context.loggedInUser || chain.auth.effects.signedOut)
+    throw new HandBackToRails("a signed-in visitor posting the login form");
   return null;
 }
 
@@ -111,11 +123,16 @@ export function resetTwoFactorSession(chain: Chain): void {
   delete chain.session.data[TWO_FACTOR_SENT_AT_SESSION_KEY];
 }
 
-const loginError = (message: string): Redirected => ({ status: 303, location: LOGIN_PATH, flash: { warning: message } });
+const loginError = (message: string): Redirected => ({
+  status: 303,
+  location: LOGIN_PATH,
+  flash: { warning: message },
+});
 
 // Devise's activatable hook refuses an account whose address is unconfirmed, and confirmation is Devise's to apply.
 function assertConfirmed(user: UserRecord): void {
-  if (isBlank(user.get("provider")) && !isConfirmed(user) && !isBlank(user.get("email"))) throw new HandBackToRails("an unconfirmed account");
+  if (isBlank(user.get("provider")) && !isConfirmed(user) && !isBlank(user.get("email")))
+    throw new HandBackToRails("an unconfirmed account");
 }
 
 async function totpEnabled(userId: bigint): Promise<boolean> {
@@ -124,7 +141,11 @@ async function totpEnabled(userId: bigint): Promise<boolean> {
 }
 
 // TwoFactorAuthenticationValidator#prepare_for_two_factor_authentication
-export async function prepareTwoFactorAuthentication(chain: Chain, user: UserRecord, params: Record<string, unknown>): Promise<void> {
+export async function prepareTwoFactorAuthentication(
+  chain: Chain,
+  user: UserRecord,
+  params: Record<string, unknown>,
+): Promise<void> {
   chain.session.data[TWO_FACTOR_USER_SESSION_KEY] = Number(user.get("id"));
   if (await totpEnabled(user.get("id"))) {
     chain.session.data[TWO_FACTOR_METHOD_SESSION_KEY] = "totp";
@@ -133,7 +154,8 @@ export async function prepareTwoFactorAuthentication(chain: Chain, user: UserRec
   chain.session.data[TWO_FACTOR_METHOD_SESSION_KEY] = "email";
   // The token already travels in the next URL (the emailed login link).
   const next = params.next;
-  if (next !== undefined && next !== null && typeof next !== "string") throw new HandBackToRails("a next parameter that is not a string");
+  if (next !== undefined && next !== null && typeof next !== "string")
+    throw new HandBackToRails("a next parameter that is not a string");
   if (typeof next === "string" && next !== "" && next.includes(VERIFY_TWO_FACTOR_PATH)) return;
   await sendAuthenticationToken(currentJobsRuntime(), { id: user.get("id"), email: user.get("email") });
   chain.session.data[TWO_FACTOR_SENT_AT_SESSION_KEY] = nowSeconds(chain);
@@ -149,7 +171,8 @@ async function loginCreate(input: MutationInput): Promise<ActionResult> {
     if (identifier !== null && !isBlank(identifier)) found = await prismaAuthStore.findUserForLogin(identifier);
   }
   if (found === null) return loginError("An account does not exist with that email.");
-  if (!(await validPassword(found.encrypted_password, password))) return loginError("Please try another password. The one you entered was incorrect.");
+  if (!(await validPassword(found.encrypted_password, password)))
+    return loginError("Please try another password. The one you entered was incorrect.");
   if (found.deleted_at !== null) return loginError(DELETED_ACCOUNT_LOGIN_ERROR);
 
   const user = await findUser(found.id);
@@ -159,7 +182,9 @@ async function loginCreate(input: MutationInput): Promise<ActionResult> {
 
   const cookies: string[] = [];
   let signedIn = false;
-  const remembered = isFlagSet(user, "two_factor_authentication_enabled") ? await rememberedTwoFactor(chain, user, ip) : { skip: true, cookies: [] };
+  const remembered = isFlagSet(user, "two_factor_authentication_enabled")
+    ? await rememberedTwoFactor(chain, user, ip)
+    : { skip: true, cookies: [] };
   if (remembered.skip) {
     await assertNoGuestCart(chain);
     cookies.push(...remembered.cookies);
@@ -173,9 +198,21 @@ async function loginCreate(input: MutationInput): Promise<ActionResult> {
 
   // devise-pwned_password's after_set_user hook: the password sent with the form is checked once the user is signed in.
   const flash: Record<string, string> = {};
-  if (signedIn && isHash(params.user) && params.user.password != null && password !== null && (await passwordIsPwned(password))) flash.warning = PWNED_PASSWORD_WARNING;
+  if (
+    signedIn &&
+    isHash(params.user) &&
+    params.user.password != null &&
+    password !== null &&
+    (await passwordIsPwned(password))
+  )
+    flash.warning = PWNED_PASSWORD_WARNING;
 
-  return { status: 302, location: await loginPathFor(chain, user.get("id"), params), cookies, ...(Object.keys(flash).length > 0 ? { flash } : {}) };
+  return {
+    status: 302,
+    location: await loginPathFor(chain, user.get("id"), params),
+    cookies,
+    ...(Object.keys(flash).length > 0 ? { flash } : {}),
+  };
 }
 
 // after_sign_out_path_for: `url_from(request.referrer) || "/"`
@@ -215,7 +252,8 @@ type TwoFactorStep = { user: UserRecord } | { halt: ActionResult };
 // The before_actions of TwoFactorAuthenticationController: redirect_to_signed_in_path, fetch_user, redirect_to_login_path,
 // validate_user_id_from_params.
 async function twoFactorUser({ chain, params, request }: MutationInput): Promise<TwoFactorStep> {
-  if (chain.auth.context.loggedInUser || chain.auth.effects.signedOut) throw new HandBackToRails("a signed-in visitor on the two-factor routes");
+  if (chain.auth.context.loggedInUser || chain.auth.effects.signedOut)
+    throw new HandBackToRails("a signed-in visitor on the two-factor routes");
 
   const userId = chain.session.data[TWO_FACTOR_USER_SESSION_KEY];
   const user = sessionPresent(userId) ? await findUser(userId) : null;
@@ -253,15 +291,23 @@ async function validTwoFactorToken(chain: Chain, user: UserRecord, token: string
   if (method === "totp" || method === "recovery") {
     const credential = await db.totpCredential.findUnique({ where: { user_id: user.get("id") } });
     if (method === "totp") {
-      if (credential && token !== null && token !== "" && verifyTotp(credential.otp_secret, token, TOTP_DRIFT_SECONDS, chain.now)) return true;
+      if (
+        credential &&
+        token !== null &&
+        token !== "" &&
+        verifyTotp(credential.otp_secret, token, TOTP_DRIFT_SECONDS, chain.now)
+      )
+        return true;
       return defaultToken;
     }
-    if (token !== null && (await recoveryCodeMatches(user.get("id"), token))) throw new HandBackToRails("a recovery code");
+    if (token !== null && (await recoveryCodeMatches(user.get("id"), token)))
+      throw new HandBackToRails("a recovery code");
     return defaultToken;
   }
   // token_authenticated?
   const secret = user.get("otp_secret_key");
-  if (secret && token !== null && token !== "" && verifyTotp(secret, token, TOKEN_VALIDITY_SECONDS, chain.now)) return true;
+  if (secret && token !== null && token !== "" && verifyTotp(secret, token, TOKEN_VALIDITY_SECONDS, chain.now))
+    return true;
   return defaultToken;
 }
 
@@ -281,15 +327,27 @@ async function verifyAuthTokenAndRedirect(input: MutationInput, user: UserRecord
   await addTwoFactorAuthenticatedIp(user, ip);
   resetTwoFactorSession(chain);
   await refreshPasskeySetupPrompt(chain, user);
-  return { status: 303, location: await loginPathFor(chain, user.get("id"), params), flash: { notice: "Successfully logged in!" }, cookies };
+  return {
+    status: 303,
+    location: await loginPathFor(chain, user.get("id"), params),
+    flash: { notice: "Successfully logged in!" },
+    cookies,
+  };
 }
 
-async function twoFactor(input: MutationInput, action: (user: UserRecord) => Promise<ActionResult>): Promise<ActionResult> {
+async function twoFactor(
+  input: MutationInput,
+  action: (user: UserRecord) => Promise<ActionResult>,
+): Promise<ActionResult> {
   const step = await twoFactorUser(input);
   return "halt" in step ? step.halt : action(step.user);
 }
 
-const redirectToTwoFactor = (flash?: Record<string, string>): Redirected => ({ status: 303, location: TWO_FACTOR_PATH, ...(flash ? { flash } : {}) });
+const redirectToTwoFactor = (flash?: Record<string, string>): Redirected => ({
+  status: 303,
+  location: TWO_FACTOR_PATH,
+  ...(flash ? { flash } : {}),
+});
 
 async function resendToken(chain: Chain, user: UserRecord): Promise<void> {
   await sendAuthenticationToken(currentJobsRuntime(), { id: user.get("id"), email: user.get("email") });
@@ -302,8 +360,21 @@ registerMutations(
   { method: "DELETE", pattern: "/logout", options: LOGOUT_OPTIONS, run: logout },
   { method: "GET", pattern: "/logout", options: LOGOUT_OPTIONS, skipForgeryProtection: true, run: logout },
   { method: "DELETE", pattern: "/users/sign_out", options: LOGOUT_OPTIONS, run: logout },
-  { method: "POST", pattern: "/two-factor", options: TWO_FACTOR_OPTIONS, railsOnly: "/params:/two-factor:post", run: (input) => twoFactor(input, (user) => verifyAuthTokenAndRedirect(input, user)) },
-  { method: "GET", pattern: "/two-factor/verify", options: TWO_FACTOR_OPTIONS, skipForgeryProtection: true, railsOnly: "/params:/two-factor/verify", run: (input) => twoFactor(input, (user) => verifyAuthTokenAndRedirect(input, user)) },
+  {
+    method: "POST",
+    pattern: "/two-factor",
+    options: TWO_FACTOR_OPTIONS,
+    railsOnly: "/params:/two-factor:post",
+    run: (input) => twoFactor(input, (user) => verifyAuthTokenAndRedirect(input, user)),
+  },
+  {
+    method: "GET",
+    pattern: "/two-factor/verify",
+    options: TWO_FACTOR_OPTIONS,
+    skipForgeryProtection: true,
+    railsOnly: "/params:/two-factor/verify",
+    run: (input) => twoFactor(input, (user) => verifyAuthTokenAndRedirect(input, user)),
+  },
   {
     method: "POST",
     pattern: "/two-factor/resend_authentication_token",
@@ -311,7 +382,8 @@ registerMutations(
     railsOnly: "/params:/two-factor/resend_authentication_token:post",
     run: (input) =>
       twoFactor(input, async (user) => {
-        if (twoFactorMethod(input.chain) !== "email") return redirectToTwoFactor({ warning: "Cannot resend token for authenticator app." });
+        if (twoFactorMethod(input.chain) !== "email")
+          return redirectToTwoFactor({ warning: "Cannot resend token for authenticator app." });
         await resendToken(input.chain, user);
         return redirectToTwoFactor({ notice: "Resent the authentication token, please check your inbox." });
       }),
@@ -351,4 +423,3 @@ registerMutations(
       }),
   },
 );
-

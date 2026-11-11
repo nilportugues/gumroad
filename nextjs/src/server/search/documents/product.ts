@@ -4,25 +4,54 @@
 // as they do under the Rails executor; an association is loaded once per record, a relation on every call.
 import { Prisma } from "@prisma/client";
 
+import { indexName } from "../../infra/elasticsearch.ts";
 import { userActor } from "../../infra/flipper.ts";
+import approximations from "../../infra/i18n-approximations.json" with { type: "json" };
 import { isAdult } from "../../models/concerns/adult-keyword-detector.ts";
 import { ago } from "../../models/concerns/ruby-time.ts";
 import { isStripeConnectAccount, type MerchantAccountRow } from "../../models/merchant-account.ts";
-import { castRow, selectRows } from "../../models/sql.ts";
 import type { Row } from "../../models/runtime/record.ts";
-import approximations from "../../infra/i18n-approximations.json" with { type: "json" };
+import { castRow, selectRows } from "../../models/sql.ts";
 import { search } from "../api.ts";
-import { indexName } from "../../infra/elasticsearch.ts";
 import { type JsonValue, RubyFloat, timeAsJson } from "../es-json.ts";
 import { isBlank, jsonColumn } from "../rows.ts";
 
 // Product::Searchable::SEARCH_FIELDS, in the order as_indexed_json writes them.
 export const PRODUCT_SEARCH_FIELDS = [
-  "user_id", "is_physical", "tags", "creator_name", "sales_volume", "created_at", "average_rating", "reviews_count",
-  "is_subscription", "is_bundle", "filetypes", "price_cents", "available_price_cents", "updated_at", "creator_external_id",
-  "content_updated_at", "total_fee_cents", "past_year_fee_cents", "staff_picked_at", "offer_codes", "taxonomy_attribute_filters",
-  "name", "rated_as_adult", "description", "is_recommendable", "is_alive_on_profile", "is_alive", "taxonomy_id", "is_preorder",
-  "display_product_reviews", "is_call", "native_type", "price_currency_type", "customizable_price",
+  "user_id",
+  "is_physical",
+  "tags",
+  "creator_name",
+  "sales_volume",
+  "created_at",
+  "average_rating",
+  "reviews_count",
+  "is_subscription",
+  "is_bundle",
+  "filetypes",
+  "price_cents",
+  "available_price_cents",
+  "updated_at",
+  "creator_external_id",
+  "content_updated_at",
+  "total_fee_cents",
+  "past_year_fee_cents",
+  "staff_picked_at",
+  "offer_codes",
+  "taxonomy_attribute_filters",
+  "name",
+  "rated_as_adult",
+  "description",
+  "is_recommendable",
+  "is_alive_on_profile",
+  "is_alive",
+  "taxonomy_id",
+  "is_preorder",
+  "display_product_reviews",
+  "is_call",
+  "native_type",
+  "price_currency_type",
+  "customizable_price",
 ] as const;
 
 // Product::Searchable::ATTRIBUTE_TO_SEARCH_FIELDS_MAP: the Link columns whose change reindexes these fields.
@@ -58,12 +87,22 @@ const SUBSCRIPTION_DURATIONS = ["monthly", "yearly", "quarterly", "biannually", 
 const CHARGED_SALES_STATES = ["preorder_authorization_successful", "successful", "preorder_concluded_successfully"];
 
 // has_flags bit positions (Link, User, BasePrice, BaseVariant).
-const LINK_FLAG = { is_recurring_billing: 2, is_in_preorder_state: 4, archived: 5, is_physical: 8, is_adult: 16, display_product_reviews: 17, is_tiered_membership: 19, is_bundle: 26 };
+const LINK_FLAG = {
+  is_recurring_billing: 2,
+  is_in_preorder_state: 4,
+  archived: 5,
+  is_physical: 8,
+  is_adult: 16,
+  display_product_reviews: 17,
+  is_tiered_membership: 19,
+  is_bundle: 26,
+};
 const USER_ALL_ADULT_PRODUCTS = 32;
 const PRICE_IS_RENTAL = 1;
 const VARIANT_CLOSED_TO_NEW_PURCHASES = 3;
 
-const flag = (flags: unknown, position: number) => (BigInt((flags as bigint | number | null) ?? 0) & (1n << BigInt(position - 1))) !== 0n;
+const flag = (flags: unknown, position: number) =>
+  (BigInt((flags as bigint | number | null) ?? 0) & (1n << BigInt(position - 1))) !== 0n;
 
 export class ProductSearchPropertyError extends Error {
   constructor(attribute: string) {
@@ -144,11 +183,13 @@ function filterTokenFor(attribute: Row, value: unknown): string | null {
       break;
     }
     case "boolean":
-      if (value !== null && value !== undefined && value !== "") normalized = String(!FALSE_VALUES.has(value instanceof RubyFloat ? value.value : value));
+      if (value !== null && value !== undefined && value !== "")
+        normalized = String(!FALSE_VALUES.has(value instanceof RubyFloat ? value.value : value));
       break;
     // "number" is not filterable, so its normalized value never makes a token.
   }
-  if (normalized === null || isBlank(normalized) || !["enum", "boolean"].includes(String(attribute.value_type))) return null;
+  if (normalized === null || isBlank(normalized) || !["enum", "boolean"].includes(String(attribute.value_type)))
+    return null;
   return `${String(attribute.name)}:${parameterizeUnderscore(normalized)}`;
 }
 
@@ -157,11 +198,15 @@ function linkJsonData(value: unknown): Record<string, JsonValue> | null {
   if (value === null || value === undefined) return null;
   if (typeof value === "string" && value.trim() === "") return null;
   const data = jsonColumn(value);
-  return data !== null && typeof data === "object" && !Array.isArray(data) && !(data instanceof RubyFloat) ? (data as Record<string, JsonValue>) : null;
+  return data !== null && typeof data === "object" && !Array.isArray(data) && !(data instanceof RubyFloat)
+    ? (data as Record<string, JsonValue>)
+    : null;
 }
 
 const findRow = async (model: Prisma.ModelName, table: string, id: unknown): Promise<Row | null> => {
-  const [row] = await selectRows<Row>(Prisma.sql`SELECT ${raw(`\`${table}\`.*`)} FROM ${raw(`\`${table}\``)} WHERE ${raw(`\`${table}\`.\`id\``)} = ${id} LIMIT 1`);
+  const [row] = await selectRows<Row>(
+    Prisma.sql`SELECT ${raw(`\`${table}\`.*`)} FROM ${raw(`\`${table}\``)} WHERE ${raw(`\`${table}\`.\`id\``)} = ${id} LIMIT 1`,
+  );
   return row ? castRow(model, row) : null;
 };
 
@@ -194,8 +239,16 @@ function chargedSalesBody(productId: bigint, createdAfter: Date, aggs: Record<st
 }
 
 // `aggregations.<a>.value - aggregations.<b>.value`. Sum aggregations are doubles, so Ruby gets Floats.
-async function aggregateDifference(productId: bigint, createdAfter: Date, total: [string, string], refunded: [string, string]): Promise<RubyFloat> {
-  const response = await search({ index: indexName("Purchase"), body: chargedSalesBody(productId, createdAfter, Object.fromEntries([total, refunded])) });
+async function aggregateDifference(
+  productId: bigint,
+  createdAfter: Date,
+  total: [string, string],
+  refunded: [string, string],
+): Promise<RubyFloat> {
+  const response = await search({
+    index: indexName("Purchase"),
+    body: chargedSalesBody(productId, createdAfter, Object.fromEntries([total, refunded])),
+  });
   const aggregations = (response.body as { aggregations?: Record<string, { value: unknown }> } | null)?.aggregations;
   const value = (name: string) => {
     const agg = aggregations?.[name];
@@ -251,7 +304,8 @@ export class ProductRecord {
 
   // belongs_to :taxonomy
   private taxonomy(): Promise<Row | null> {
-    this.taxonomyMemo ??= this.row.taxonomy_id == null ? Promise.resolve(null) : findRow("Taxonomy", "taxonomies", this.row.taxonomy_id);
+    this.taxonomyMemo ??=
+      this.row.taxonomy_id == null ? Promise.resolve(null) : findRow("Taxonomy", "taxonomies", this.row.taxonomy_id);
     return this.taxonomyMemo;
   }
 
@@ -292,7 +346,12 @@ export class ProductRecord {
         return (user.name ?? username(user)) as JsonValue;
       }
       case "sales_volume":
-        return aggregateDifference(this.id, ago(DEFAULT_SALES_VOLUME_RECENTNESS, this.deps.now()), ["price_cents_total", "price_cents"], ["amount_refunded_cents_total", "amount_refunded_cents"]);
+        return aggregateDifference(
+          this.id,
+          ago(DEFAULT_SALES_VOLUME_RECENTNESS, this.deps.now()),
+          ["price_cents_total", "price_cents"],
+          ["amount_refunded_cents_total", "amount_refunded_cents"],
+        );
       case "is_recommendable":
         return this.isRecommendable();
       case "rated_as_adult":
@@ -354,15 +413,27 @@ export class ProductRecord {
       case "content_updated_at":
         return timeAsJson(row.content_updated_at as Date | null);
       case "total_fee_cents":
-        return aggregateDifference(this.id, ago(DEFAULT_SALES_VOLUME_RECENTNESS, this.deps.now()), ["fee_cents_total", "fee_cents"], ["fee_refunded_cents_total", "fee_refunded_cents"]);
+        return aggregateDifference(
+          this.id,
+          ago(DEFAULT_SALES_VOLUME_RECENTNESS, this.deps.now()),
+          ["fee_cents_total", "fee_cents"],
+          ["fee_refunded_cents_total", "fee_refunded_cents"],
+        );
       case "past_year_fee_cents":
-        return aggregateDifference(this.id, ago(PAST_YEAR, this.deps.now()), ["fee_cents_total", "fee_cents"], ["fee_refunded_cents_total", "fee_refunded_cents"]);
+        return aggregateDifference(
+          this.id,
+          ago(PAST_YEAR, this.deps.now()),
+          ["fee_cents_total", "fee_cents"],
+          ["fee_refunded_cents_total", "fee_refunded_cents"],
+        );
       case "staff_picked_at": {
         const pick = await this.staffPick();
         return pick && pick.deleted_at == null ? timeAsJson(pick.updated_at as Date) : null;
       }
       case "offer_codes":
-        return (await this.productAndUniversalOfferCodes()).slice(-MAX_OFFER_CODES_IN_INDEX).map((code) => code.code as JsonValue);
+        return (await this.productAndUniversalOfferCodes())
+          .slice(-MAX_OFFER_CODES_IN_INDEX)
+          .map((code) => code.code as JsonValue);
       case "taxonomy_attribute_filters":
         return this.taxonomyAttributeFilterTokens();
       default:
@@ -394,10 +465,13 @@ export class ProductRecord {
 
   private async defaultPrice(): Promise<Row | null> {
     const prices = await this.pricesForCurrency();
-    if (this.purchaseType === "rent_only") return prices.filter((price) => flag(price.flags, PRICE_IS_RENTAL)).at(-1) ?? null;
+    if (this.purchaseType === "rent_only")
+      return prices.filter((price) => flag(price.flags, PRICE_IS_RENTAL)).at(-1) ?? null;
     let relevant = prices.filter((price) => !flag(price.flags, PRICE_IS_RENTAL));
-    const duration = this.row.subscription_duration == null ? null : SUBSCRIPTION_DURATIONS[Number(this.row.subscription_duration)];
-    if (flag(this.flags, LINK_FLAG.is_recurring_billing) && duration) relevant = relevant.filter((price) => price.recurrence === duration);
+    const duration =
+      this.row.subscription_duration == null ? null : SUBSCRIPTION_DURATIONS[Number(this.row.subscription_duration)];
+    if (flag(this.flags, LINK_FLAG.is_recurring_billing) && duration)
+      relevant = relevant.filter((price) => price.recurrence === duration);
     return relevant.at(-1) ?? null;
   }
 
@@ -458,7 +532,8 @@ export class ProductRecord {
     if (!flag(this.flags, LINK_FLAG.is_tiered_membership)) return this.availablePriceCents();
     const tierIds = (await this.tiersForNewBuyers()).map(idOf);
     if (tierIds.length === 0) return [];
-    const variantIds = tierIds.length === 1 ? Prisma.sql`= ${tierIds[0]}` : Prisma.sql`IN (${Prisma.join(tierIds, ", ")})`;
+    const variantIds =
+      tierIds.length === 1 ? Prisma.sql`= ${tierIds[0]}` : Prisma.sql`IN (${Prisma.join(tierIds, ", ")})`;
     const prices = await selectRows<{ price_cents: number }>(
       Prisma.sql`SELECT \`prices\`.\`price_cents\` FROM \`prices\` WHERE \`prices\`.\`variant_id\` ${variantIds} AND \`prices\`.\`deleted_at\` IS NULL AND ((\`prices\`.\`flags\` & 1 = 0))`,
     );
@@ -485,7 +560,10 @@ export class ProductRecord {
   private async closedToNewBuyers(tier: Row): Promise<boolean> {
     if (!flag(tier.flags, VARIANT_CLOSED_TO_NEW_PURCHASES)) return false;
     if (tier.type !== "Variant") return false;
-    const category = tier.variant_category_id == null ? null : await findRow("VariantCategory", "variant_categories", tier.variant_category_id);
+    const category =
+      tier.variant_category_id == null
+        ? null
+        : await findRow("VariantCategory", "variant_categories", tier.variant_category_id);
     const link = category?.link_id == null ? null : await findRow("Link", "links", category.link_id);
     if (!link) throw new NoMethodError("undefined method 'is_tiered_membership?' for nil");
     if (!flag(link.flags, LINK_FLAG.is_tiered_membership)) return false;
@@ -511,7 +589,12 @@ export class ProductRecord {
     const data = linkJsonData(this.row.json_data);
     const section = (key: string): Record<string, JsonValue> => {
       const value = data?.[key];
-      return value !== null && value !== undefined && typeof value === "object" && !Array.isArray(value) && !(value instanceof RubyFloat) && Object.keys(value).length > 0
+      return value !== null &&
+        value !== undefined &&
+        typeof value === "object" &&
+        !Array.isArray(value) &&
+        !(value instanceof RubyFloat) &&
+        Object.keys(value).length > 0
         ? (value as Record<string, JsonValue>)
         : {};
     };
@@ -539,12 +622,18 @@ export class ProductRecord {
     if (flag(this.flags, LINK_FLAG.is_adult)) return true;
     const user = await this.requireUser("all_adult_products?");
     if (flag(user.flags, USER_ALL_ADULT_PRODUCTS)) return true;
-    return [this.row.name, this.row.description, user.name, username(user), user.bio].some((text) => isAdult(text as string | null));
+    return [this.row.name, this.row.description, user.name, username(user), user.bio].some((text) =>
+      isAdult(text as string | null),
+    );
   }
 
   // Product::Recommendations#recommendable_reasons: every reason is evaluated, in this order.
   private async isRecommendable(): Promise<boolean> {
-    const reasons: boolean[] = [this.alive, !flag(this.flags, LINK_FLAG.archived), flag(this.flags, LINK_FLAG.display_product_reviews)];
+    const reasons: boolean[] = [
+      this.alive,
+      !flag(this.flags, LINK_FLAG.archived),
+      flag(this.flags, LINK_FLAG.display_product_reviews),
+    ];
     const max = this.row.max_purchase_count;
     if (max != null) {
       const [row] = await selectRows<{ sales_count_for_inventory_cache: unknown }>(
@@ -560,7 +649,12 @@ export class ProductRecord {
     );
     reasons.push(sale.length > 0);
     const user = await this.requireUser("recommendable_reasons");
-    reasons.push(!isBlank(user.name) || !isBlank(username(user)), user.deleted_at == null, await payoutFilled(user), user.user_risk_state === "compliant");
+    reasons.push(
+      !isBlank(user.name) || !isBlank(username(user)),
+      user.deleted_at == null,
+      await payoutFilled(user),
+      user.user_risk_state === "compliant",
+    );
     return reasons.every(Boolean);
   }
 }

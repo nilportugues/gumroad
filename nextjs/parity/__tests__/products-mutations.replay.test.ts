@@ -33,7 +33,8 @@ const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "m").ex
 // The product reindex of a post attached to a product asks Elasticsearch for a document the replay does not hold, and Node then
 // queues the fallback job Rails never needed.
 const IGNORED_JOBS = new Set(["SendToElasticsearchWorker"]);
-const jobKey = (job: { class: string; args: unknown; queue?: string }) => `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
+const jobKey = (job: { class: string; args: unknown; queue?: string }) =>
+  `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
 
 function redisJobs(redis: Redis): JobsChannel {
   return {
@@ -46,20 +47,42 @@ function redisJobs(redis: Redis): JobsChannel {
         if ((await redis.type(key)) !== "hash") continue;
         const data = await redis.hget(key, "data");
         if (data === null) continue;
-        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as { class: string; args: unknown[]; queue: string; at?: number };
+        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as {
+          class: string;
+          args: unknown[];
+          queue: string;
+          at?: number;
+        };
         if (IGNORED_JOBS.has(item.class)) continue;
-        jobs.push({ class: item.class, args: item.args, queue: item.queue, ...(item.at === undefined ? {} : { at: item.at }) });
+        jobs.push({
+          class: item.class,
+          args: item.args,
+          queue: item.queue,
+          ...(item.at === undefined ? {} : { at: item.at }),
+        });
       }
       // Jobs that still run in Ruby are pushed to Sidekiq's own lists (`queue:<name>`, `schedule`).
       for (const key of await redis.keys("queue:*")) {
         for (const raw of await redis.lrange(key, 0, -1)) {
           const item = JSON.parse(raw) as { class: string; args: unknown[]; queue: string; at?: number };
-          if (!IGNORED_JOBS.has(item.class)) jobs.push({ class: item.class, args: item.args, queue: item.queue, ...(item.at === undefined ? {} : { at: item.at }) });
+          if (!IGNORED_JOBS.has(item.class))
+            jobs.push({
+              class: item.class,
+              args: item.args,
+              queue: item.queue,
+              ...(item.at === undefined ? {} : { at: item.at }),
+            });
         }
       }
       for (const raw of await redis.zrange("schedule", "0", "-1")) {
         const item = JSON.parse(raw) as { class: string; args: unknown[]; queue: string; at?: number };
-        if (!IGNORED_JOBS.has(item.class)) jobs.push({ class: item.class, args: item.args, queue: item.queue, ...(item.at === undefined ? {} : { at: item.at }) });
+        if (!IGNORED_JOBS.has(item.class))
+          jobs.push({
+            class: item.class,
+            args: item.args,
+            queue: item.queue,
+            ...(item.at === undefined ? {} : { at: item.at }),
+          });
       }
       return jobs.sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
     },
@@ -93,7 +116,14 @@ const cases = SPECS.flatMap((spec) => {
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
     .filter((file) => file.endsWith(".json"))
-    .map((file) => [`${spec}: ${file.replace(/\.json$/, "")}`, path.join(dir, file), loadFixture(path.join(dir, file)).exchanges.length - 1] as const);
+    .map(
+      (file) =>
+        [
+          `${spec}: ${file.replace(/\.json$/, "")}`,
+          path.join(dir, file),
+          loadFixture(path.join(dir, file)).exchanges.length - 1,
+        ] as const,
+    );
 });
 
 describe.skipIf(!url)("JSON mutations of the products dashboard", () => {
@@ -116,7 +146,11 @@ describe.skipIf(!url)("JSON mutations of the products dashboard", () => {
       const chunks: Buffer[] = [];
       request.on("data", (chunk: Buffer) => chunks.push(chunk));
       request.on("end", () => {
-        handedBack.push({ method: request.method ?? "", url: request.url ?? "", body: Buffer.concat(chunks).toString("utf8") });
+        handedBack.push({
+          method: request.method ?? "",
+          url: request.url ?? "",
+          body: Buffer.concat(chunks).toString("utf8"),
+        });
         response.writeHead(204).end();
       });
     });
@@ -153,7 +187,11 @@ describe.skipIf(!url)("JSON mutations of the products dashboard", () => {
     transport: httpTransport(server.baseUrl),
     interceptHttp: false,
     jobs: redisJobs(redis),
-    rewriteRequest: (request: Parameters<typeof reencryptCookies>[0], loaded: Parameters<typeof reencryptCookies>[1], now: Date) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
+    rewriteRequest: (
+      request: Parameters<typeof reencryptCookies>[0],
+      loaded: Parameters<typeof reencryptCookies>[1],
+      now: Date,
+    ) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
     compare: name.includes("404") ? { ignore: [...COMPARE.ignore, "response.body"] } : COMPARE,
     file,
   });
@@ -171,12 +209,20 @@ describe.skipIf(!url)("JSON mutations of the products dashboard", () => {
     expect(cases.length).toBeGreaterThan(0);
   });
 
-  it("compiles the handler", async () => {
-    for (const [name, file, index] of [cases.find(([name]) => name.includes("archives-a-published")) ?? cases[0]!, cases.find(([name]) => name.includes("unarchives")) ?? cases[0]!, cases.find(([name]) => name.includes("unpublishes-a-published")) ?? cases[0]!]) {
-      const { file: _file, ...options } = replayOptions(file, name);
-      await replayFixtureExchange(file, index, options).catch(() => undefined);
-    }
-  }, FIRST_COMPILE_TIMEOUT_MS);
+  it(
+    "compiles the handler",
+    async () => {
+      for (const [name, file, index] of [
+        cases.find(([name]) => name.includes("archives-a-published")) ?? cases[0]!,
+        cases.find(([name]) => name.includes("unarchives")) ?? cases[0]!,
+        cases.find(([name]) => name.includes("unpublishes-a-published")) ?? cases[0]!,
+      ]) {
+        const { file: _file, ...options } = replayOptions(file, name);
+        await replayFixtureExchange(file, index, options).catch(() => undefined);
+      }
+    },
+    FIRST_COMPILE_TIMEOUT_MS,
+  );
 
   it.each(cases)(
     "%s",
@@ -201,7 +247,12 @@ describe.skipIf(!url)("JSON mutations of the products dashboard", () => {
         const result = await replayFixtureExchange(fixture, index, options);
         assertParity(result);
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => !line.startsWith("Next.js includes")).slice(-40).join("\n");
+        const logs = server
+          .output()
+          .split("\n")
+          .filter((line) => !line.startsWith("Next.js includes"))
+          .slice(-40)
+          .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
     },

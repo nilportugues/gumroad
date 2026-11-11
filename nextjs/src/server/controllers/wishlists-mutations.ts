@@ -5,22 +5,36 @@ import * as Routes from "@/lib/navigation/routes";
 
 import { decrypt, encrypt } from "../../lib/obfuscate-ids.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
-import { WishlistDeletable, Wishlists } from "../models/wishlist.ts";
-import { castRow, column, execute, selectRows, table } from "../models/sql.ts";
-import { transaction } from "../models/runtime/transaction.ts";
 import type { ModelRecord } from "../models/runtime/record.ts";
+import { transaction } from "../models/runtime/transaction.ts";
+import { castRow, column, execute, selectRows, table } from "../models/sql.ts";
+import { WishlistDeletable, Wishlists } from "../models/wishlist.ts";
 import { notAllowedMessage } from "../page-props/settings/guard.ts";
 import { wishlistPolicy } from "../policies/buyer.ts";
 import { loadSellerContext, type SellerContext } from "../policies/seller-context.ts";
+
 import { HandBackToRails, RoutingError, type ActionResult } from "./application-controller.ts";
 import { jsonResponse } from "./json-seller.ts";
+import { registerMutations, type MutationInput } from "./mutation.ts";
 import { cgiEscape, requestFormat } from "./rails-params.ts";
 import { fullpath } from "./rails-request.ts";
-import { registerMutations, type MutationInput } from "./mutation.ts";
 
 const SEE_OTHER = 303;
 // Wishlist.attribute_names
-const WRAPPED_COLUMNS = ["id", "user_id", "name", "deleted_at", "created_at", "updated_at", "followers_last_contacted_at", "description", "flags", "recommendable", "follower_count", "recent_follower_count"];
+const WRAPPED_COLUMNS = [
+  "id",
+  "user_id",
+  "name",
+  "deleted_at",
+  "created_at",
+  "updated_at",
+  "followers_last_contacted_at",
+  "description",
+  "flags",
+  "recommendable",
+  "follower_count",
+  "recent_follower_count",
+];
 const DISCOVER_OPTED_OUT_FLAG = 1;
 // FlagShihTzu::TRUE_VALUES
 const FLAG_TRUE_VALUES = [true, 1, "1", "t", "T", "true", "TRUE", "on", "ON"];
@@ -32,7 +46,8 @@ const redirect = (notice?: string, inertiaErrors?: Record<string, unknown>): Act
   ...(inertiaErrors === undefined ? {} : { inertiaErrors }),
 });
 
-const isHash = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
+const isHash = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
 
 // `params.require(:wishlist).permit(...)`: a missing or non-hash value raises in Rails, and a value that is not a plain string
 // would be cast by ActiveRecord.
@@ -40,11 +55,15 @@ function permitted(input: MutationInput, keys: string[]): Record<string, unknown
   const { params } = input;
   let wishlist = params.wishlist;
   // ParamsWrapper: a JSON body without the key is wrapped under it, limited to the model's columns.
-  if (!("wishlist" in params) && (input.request.headers.get("content-type") ?? "").split(";")[0]!.trim().toLowerCase() === "application/json") {
+  if (
+    !("wishlist" in params) &&
+    (input.request.headers.get("content-type") ?? "").split(";")[0]!.trim().toLowerCase() === "application/json"
+  ) {
     wishlist = Object.fromEntries(Object.entries(params).filter(([key]) => WRAPPED_COLUMNS.includes(key)));
   }
   // `require` raises for a missing or blank value.
-  if (!isHash(wishlist) || Object.keys(wishlist).length === 0) throw new HandBackToRails("a wishlist parameter that is not a populated hash");
+  if (!isHash(wishlist) || Object.keys(wishlist).length === 0)
+    throw new HandBackToRails("a wishlist parameter that is not a populated hash");
   const out: Record<string, unknown> = {};
   for (const key of keys) {
     if (!(key in wishlist)) continue;
@@ -84,19 +103,31 @@ export function signedOutRefusal(input: MutationInput): ActionResult | null {
 }
 
 // authenticate_user!, then `authorize`, answered as PunditAuthorization#default_user_not_authorized does.
-async function guarded(input: MutationInput, authorize: (context: SellerContext) => boolean, find: boolean): Promise<{ denied: ActionResult | null; wishlist: ModelRecord<Wishlist> | null }> {
+async function guarded(
+  input: MutationInput,
+  authorize: (context: SellerContext) => boolean,
+  find: boolean,
+): Promise<{ denied: ActionResult | null; wishlist: ModelRecord<Wishlist> | null }> {
   const signedOut = signedOutRefusal(input);
   if (signedOut) return { denied: signedOut, wishlist: null };
   if (input.context.currentSeller === null) throw new HandBackToRails("a signed-in request without a current seller");
   const sellerContext = await loadSellerContext(input.context);
   const wishlist = find ? await findWishlist(input.context.currentSeller.id, input.routeParams.id!) : null;
-  if (!(find ? wishlistPolicy.update(sellerContext, { user_id: wishlist!.get("user_id") }) : authorize(sellerContext))) {
+  if (
+    !(find ? wishlistPolicy.update(sellerContext, { user_id: wishlist!.get("user_id") }) : authorize(sellerContext))
+  ) {
     const message = notAllowedMessage(sellerContext);
     const account = input.url.searchParams.get("account_switched");
     return {
-      denied: requestFormat(input.request) === "json"
-        ? { ...jsonResponse({ success: false, error: message }, 401), rescued: true }
-        : { status: 302, location: Routes.dashboard_url(input.urlOptions), rescued: true, ...(account ? {} : { flash: { alert: message } }) },
+      denied:
+        requestFormat(input.request) === "json"
+          ? { ...jsonResponse({ success: false, error: message }, 401), rescued: true }
+          : {
+              status: 302,
+              location: Routes.dashboard_url(input.urlOptions),
+              rescued: true,
+              ...(account ? {} : { flash: { alert: message } }),
+            },
       wishlist,
     };
   }
@@ -137,9 +168,17 @@ registerMutations(
       wishlist!.assign(columns as Partial<Wishlist>);
       if ("discover_opted_out" in attributes) {
         const flags = Number(wishlist!.get("flags"));
-        wishlist!.set("flags", (FLAG_TRUE_VALUES.includes(optedOut as never) ? flags | DISCOVER_OPTED_OUT_FLAG : flags & ~DISCOVER_OPTED_OUT_FLAG) as never);
+        wishlist!.set(
+          "flags",
+          (FLAG_TRUE_VALUES.includes(optedOut as never)
+            ? flags | DISCOVER_OPTED_OUT_FLAG
+            : flags & ~DISCOVER_OPTED_OUT_FLAG) as never,
+        );
       }
-      if (await Wishlists.save(wishlist!)) return json(input) ? { status: 204, body: "", contentType: "application/json", paramsRead: true } : redirect("Wishlist updated!");
+      if (await Wishlists.save(wishlist!))
+        return json(input)
+          ? { status: 204, body: "", contentType: "application/json", paramsRead: true }
+          : redirect("Wishlist updated!");
       const messages = wishlist!.errors.fullMessages();
       return json(input) ? jsonResponse({ error: messages[0] }, 422) : redirect(undefined, { base: messages });
     },
@@ -154,7 +193,9 @@ registerMutations(
       await transaction(async () => {
         await WishlistDeletable.markDeletedBang(wishlist!);
         // `wishlist_followers.alive.update_all(deleted_at: Time.current)`
-        await execute(Prisma.sql`UPDATE ${table("wishlist_followers")} SET ${column("wishlist_followers", "deleted_at")} = ${new Date(Math.floor(Date.now() / 1000) * 1000)} WHERE ${column("wishlist_followers", "wishlist_id")} = ${wishlist!.get("id")} AND ${column("wishlist_followers", "deleted_at")} IS NULL`);
+        await execute(
+          Prisma.sql`UPDATE ${table("wishlist_followers")} SET ${column("wishlist_followers", "deleted_at")} = ${new Date(Math.floor(Date.now() / 1000) * 1000)} WHERE ${column("wishlist_followers", "wishlist_id")} = ${wishlist!.get("id")} AND ${column("wishlist_followers", "deleted_at")} IS NULL`,
+        );
       });
       return redirect("Wishlist deleted!");
     },

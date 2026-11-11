@@ -14,7 +14,19 @@ import { plaintextDescription } from "../../presenters/description.ts";
 import { formattedTotalPrice } from "../../presenters/mobile-serializers.ts";
 import { longUrl } from "../../presenters/product.ts";
 import { HandBackToRails, type ActionResult } from "../application-controller.ts";
-import { authorize, errorWithObject, halted, permittedScalar, PUBLIC_READ_SCOPES, renderJson, renderResponse, successWithObject, type ApiCall, type Params } from "./ws17c-base.ts";
+
+import {
+  authorize,
+  errorWithObject,
+  halted,
+  permittedScalar,
+  PUBLIC_READ_SCOPES,
+  renderJson,
+  renderResponse,
+  successWithObject,
+  type ApiCall,
+  type Params,
+} from "./ws17c-base.ts";
 
 // Api::V2::UsersController::THEME_SURFACES
 const THEME_SURFACES = [
@@ -41,19 +53,56 @@ export const tokenScopes = (token: OauthAccessToken): string[] => (token.scopes 
 const hasAny = (held: string[], wanted: string[]) => wanted.some((scope) => held.includes(scope));
 
 // User#as_json(api_scopes:) (app/models/concerns/user/as_json.rb)
-export async function userAsJson(user: User, scopes: string[], overrides: { name?: string | null } = {}): Promise<Record<string, unknown>> {
+export async function userAsJson(
+  user: User,
+  scopes: string[],
+  overrides: { name?: string | null } = {},
+): Promise<Record<string, unknown>> {
   const name = overrides.name !== undefined ? overrides.name : user.name;
   const links = await db.link.findMany({ where: { user_id: user.id }, orderBy: { id: "asc" } });
-  const permalinks = links.length === 0 ? null : links.filter((link) => link.purchase_disabled_at === null && link.banned_at === null && link.deleted_at === null).map((link) => (link.custom_permalink && link.custom_permalink.trim() !== "" ? link.custom_permalink : link.unique_permalink));
+  const permalinks =
+    links.length === 0
+      ? null
+      : links
+          .filter((link) => link.purchase_disabled_at === null && link.banned_at === null && link.deleted_at === null)
+          .map((link) =>
+            link.custom_permalink && link.custom_permalink.trim() !== ""
+              ? link.custom_permalink
+              : link.unique_permalink,
+          );
   const avatar = await avatarUrl(user);
-  const common = { id: user.external_id, user_id: encrypt(user.id), url: profileUrl(user), profile_picture_url: avatar, links: permalinks };
+  const common = {
+    id: user.external_id,
+    user_id: encrypt(user.id),
+    url: profileUrl(user),
+    profile_picture_url: avatar,
+    links: permalinks,
+  };
   const valid = hasAny(scopes, ["edit_products", "view_sales", "revenue_share", "ifttt", "view_profile", "account"]);
   const result: Record<string, unknown> = valid
-    ? { name, currency_type: user.currency_type, bio: user.bio, twitter_handle: user.twitter_handle, ...common, profile_url: avatar, email: formEmail(Users.load(user)) }
-    : { ...Object.fromEntries(Object.entries({ name, bio: user.bio, twitter_handle: user.twitter_handle }).filter(([, value]) => value !== null && value !== undefined)), ...common };
+    ? {
+        name,
+        currency_type: user.currency_type,
+        bio: user.bio,
+        twitter_handle: user.twitter_handle,
+        ...common,
+        profile_url: avatar,
+        email: formEmail(Users.load(user)),
+      }
+    : {
+        ...Object.fromEntries(
+          Object.entries({ name, bio: user.bio, twitter_handle: user.twitter_handle }).filter(
+            ([, value]) => value !== null && value !== undefined,
+          ),
+        ),
+        ...common,
+      };
   if (hasAny(scopes, ["view_profile", "account"])) result.display_name = displayName(user);
   if (hasAny(scopes, ["view_profile", "edit_profile", "account"])) {
-    const profile = await db.sellerProfile.findFirst({ where: { seller_id: user.id }, select: { seo_title: true, seo_description: true } });
+    const profile = await db.sellerProfile.findFirst({
+      where: { seller_id: user.id },
+      select: { seo_title: true, seo_description: true },
+    });
     result.seo_title = profile?.seo_title ?? null;
     result.seo_description = profile?.seo_description ?? null;
   }
@@ -68,7 +117,10 @@ export async function show(call: ApiCall): Promise<ActionResult> {
   const scopes = tokenScopes(auth.token);
   if (truthy(call.params.is_ifttt)) {
     const blank = auth.owner.name === null || auth.owner.name.trim() === "";
-    return successWithObject("data", await userAsJson(auth.owner, scopes, { name: blank ? auth.owner.email : auth.owner.name }));
+    return successWithObject(
+      "data",
+      await userAsJson(auth.owner, scopes, { name: blank ? auth.owner.email : auth.owner.name }),
+    );
   }
   return successWithObject("user", await userAsJson(auth.owner, scopes));
 }
@@ -88,7 +140,8 @@ export async function theme(call: ApiCall): Promise<ActionResult> {
       font: profile.get("font"),
       applies_to: THEME_SURFACES,
       editable_by_seller: true,
-      how_to_change: "The seller changes these themselves in Settings > Profile > Design, which previews the change before saving.",
+      how_to_change:
+        "The seller changes these themselves in Settings > Profile > Design, which previews the change before saving.",
     },
   });
 }
@@ -96,7 +149,10 @@ export async function theme(call: ApiCall): Promise<ActionResult> {
 type Tab = { name?: string | null; sections?: (number | string)[] | null };
 
 async function rootPage(user: User) {
-  return db.page.findFirst({ where: { pageable_type: "User", pageable_id: user.id, slug: null }, orderBy: { id: "asc" } });
+  return db.page.findFirst({
+    where: { pageable_type: "User", pageable_id: user.id, slug: null },
+    orderBy: { id: "asc" },
+  });
 }
 
 const customHtmlLive = async (user: User) => {
@@ -109,14 +165,23 @@ export async function profileLayout(call: ApiCall): Promise<ActionResult> {
   if (halted(auth)) return auth.halt;
   const seller = auth.owner;
   const profile = await loadSellerProfile(Users.load(seller));
-  const sections = await db.sellerProfileSection.findMany({ where: { seller_id: seller.id, product_id: null }, orderBy: { id: "asc" } });
+  const sections = await db.sellerProfileSection.findMany({
+    where: { seller_id: seller.id, product_id: null },
+    orderBy: { id: "asc" },
+  });
   const byId = new Map(sections.map((section) => [Number(section.id), section]));
-  let tabs: Tab[] = (((profile.get("json_data") as Record<string, unknown> | null) ?? {}).tabs as Tab[] | undefined) ?? [];
+  let tabs: Tab[] =
+    (((profile.get("json_data") as Record<string, unknown> | null) ?? {}).tabs as Tab[] | undefined) ?? [];
   if (sections.length === 0) {
-    const products = await db.link.findMany({ where: { user_id: seller.id, purchase_disabled_at: null, banned_at: null, deleted_at: null }, select: { flags: true } });
-    if (products.some((product) => !LinkFlags.isSet(product.flags, "archived"))) tabs = [{ name: DEFAULT_PRODUCTS_TAB_NAME, sections: [DEFAULT_PRODUCTS_SECTION_ID] }];
+    const products = await db.link.findMany({
+      where: { user_id: seller.id, purchase_disabled_at: null, banned_at: null, deleted_at: null },
+      select: { flags: true },
+    });
+    if (products.some((product) => !LinkFlags.isSet(product.flags, "archived")))
+      tabs = [{ name: DEFAULT_PRODUCTS_TAB_NAME, sections: [DEFAULT_PRODUCTS_SECTION_ID] }];
   }
-  const customVisible = (await isFeatureEnabled(CUSTOM_HTML_FEATURE, userActor(seller.id))) && (await customHtmlLive(seller)) !== null;
+  const customVisible =
+    (await isFeatureEnabled(CUSTOM_HTML_FEATURE, userActor(seller.id))) && (await customHtmlLive(seller)) !== null;
   return renderResponse(true, {
     profile_layout: {
       rendering: customVisible ? "custom_html" : "tabs_and_sections",
@@ -133,7 +198,8 @@ export async function profileLayout(call: ApiCall): Promise<ActionResult> {
         }),
       })),
       editable_by_seller: true,
-      how_to_change: "The seller edits these in the dashboard under Settings > Profile. You have no endpoint for them — you can read this layout but not change it.",
+      how_to_change:
+        "The seller edits these in the dashboard under Settings > Profile. You have no endpoint for them — you can read this layout but not change it.",
     },
   });
 }
@@ -145,10 +211,12 @@ export async function update(call: ApiCall): Promise<ActionResult> {
   if (!isConfirmed(Users.load(user))) return renderResponse(false, { message: CONFIRM_EMAIL_MESSAGE });
   for (const key of SEO_PARAMS) {
     const value = call.params[key];
-    if (key in call.params && value !== null && typeof value !== "string") return renderResponse(false, { message: `${key} must be a string.` });
+    if (key in call.params && value !== null && typeof value !== "string")
+      return renderResponse(false, { message: `${key} must be a string.` });
   }
   // The profile's SEO fields are written under `with_locked_seller_profile`, with SellerProfile's `normalizes` and JSON-schema validation.
-  if (SEO_PARAMS.some((key) => permittedScalar(call.params, key).present)) throw new HandBackToRails("an SEO field update");
+  if (SEO_PARAMS.some((key) => permittedScalar(call.params, key).present))
+    throw new HandBackToRails("an SEO field update");
 
   const record = Users.load(user);
   const attributes: Record<string, unknown> = {};
@@ -156,7 +224,11 @@ export async function update(call: ApiCall): Promise<ActionResult> {
     const permitted = permittedScalar(call.params, key);
     if (permitted.present) attributes[key] = permitted.value === null ? null : String(permitted.value);
   }
-  if (await Users.update(record, attributes as never)) return successWithObject("user", await userAsJson(await db.user.findUniqueOrThrow({ where: { id: user.id } }), tokenScopes(auth.token)));
+  if (await Users.update(record, attributes as never))
+    return successWithObject(
+      "user",
+      await userAsJson(await db.user.findUniqueOrThrow({ where: { id: user.id } }), tokenScopes(auth.token)),
+    );
   return errorWithObject("user", record.errors.fullMessages());
 }
 
@@ -169,7 +241,9 @@ async function customHtmlEnabled(owner: User): Promise<ActionResult | null> {
 // Api::V2::BaseController#custom_html_length_error
 function customHtmlLengthError(params: Record<string, unknown>): string | null {
   const value = params.custom_html;
-  return typeof value === "string" && [...value].length > MAX_CUSTOM_HTML_LENGTH ? `custom_html is too long (maximum is ${MAX_CUSTOM_HTML_LENGTH} characters).` : null;
+  return typeof value === "string" && [...value].length > MAX_CUSTOM_HTML_LENGTH
+    ? `custom_html is too long (maximum is ${MAX_CUSTOM_HTML_LENGTH} characters).`
+    : null;
 }
 
 export async function customHtml(call: ApiCall): Promise<ActionResult> {
@@ -181,10 +255,16 @@ export async function customHtml(call: ApiCall): Promise<ActionResult> {
   // Pages::DefaultProfileDocument renders the storefront as a standalone document.
   if (html === null) throw new HandBackToRails("a profile with no custom HTML to read back");
   const page = await rootPage(auth.owner);
-  return renderResponse(true, { custom_html: page!.custom_html, rendered_html: html, has_landing_page: true, profile_url: profileUrlOrNull(auth.owner) });
+  return renderResponse(true, {
+    custom_html: page!.custom_html,
+    rendered_html: html,
+    has_landing_page: true,
+    profile_url: profileUrlOrNull(auth.owner),
+  });
 }
 
-const profileUrlOrNull = (user: User) => (user.username !== null && user.username.trim() !== "" ? profileUrl(user) : null);
+const profileUrlOrNull = (user: User) =>
+  user.username !== null && user.username.trim() !== "" ? profileUrl(user) : null;
 
 export async function updateCustomHtml(call: ApiCall): Promise<ActionResult> {
   const auth = await authorize(call, ["edit_profile"]);
@@ -193,7 +273,8 @@ export async function updateCustomHtml(call: ApiCall): Promise<ActionResult> {
   if (disabled) return disabled;
   if (!isConfirmed(Users.load(auth.owner))) return renderResponse(false, { message: CONFIRM_EMAIL_MESSAGE });
   if (!("custom_html" in call.params)) return renderResponse(false, { message: "custom_html is required." });
-  if (call.params.custom_html !== null && typeof call.params.custom_html !== "string") return renderResponse(false, { message: "custom_html must be a string." });
+  if (call.params.custom_html !== null && typeof call.params.custom_html !== "string")
+    return renderResponse(false, { message: "custom_html must be a string." });
   const tooLong = customHtmlLengthError(call.params);
   if (tooLong) return renderResponse(false, { message: tooLong });
   // Pages::CustomHtmlWriter sanitizes the HTML (Ai::PageSanitizer, Nokogiri) and moderates it before the write.
@@ -207,8 +288,14 @@ export async function editCustomHtml(call: ApiCall): Promise<ActionResult> {
   if (disabled) return disabled;
   if (!isConfirmed(Users.load(auth.owner))) return renderResponse(false, { message: CONFIRM_EMAIL_MESSAGE });
   const { find, replace } = call.params;
-  if (typeof find !== "string" || find.trim() === "") return renderResponse(false, { message: "find is required and must be a non-empty string copied exactly from the current custom HTML." });
-  if (typeof replace !== "string") return renderResponse(false, { message: 'replace is required and must be a string (use "" to delete the snippet).' });
+  if (typeof find !== "string" || find.trim() === "")
+    return renderResponse(false, {
+      message: "find is required and must be a non-empty string copied exactly from the current custom HTML.",
+    });
+  if (typeof replace !== "string")
+    return renderResponse(false, {
+      message: 'replace is required and must be a string (use "" to delete the snippet).',
+    });
   throw new HandBackToRails("a targeted custom HTML edit");
 }
 
@@ -219,7 +306,8 @@ export async function previewCustomHtml(call: ApiCall): Promise<ActionResult> {
   if (disabled) return disabled;
   if (!("custom_html" in call.params)) return renderResponse(false, { message: "custom_html is required." });
   const value = call.params.custom_html;
-  if (value !== null && typeof value !== "string") return renderResponse(false, { message: "custom_html must be a string." });
+  if (value !== null && typeof value !== "string")
+    return renderResponse(false, { message: "custom_html must be a string." });
   const tooLong = customHtmlLengthError(call.params);
   if (tooLong) return renderResponse(false, { message: tooLong });
   throw new HandBackToRails("a custom HTML preview");

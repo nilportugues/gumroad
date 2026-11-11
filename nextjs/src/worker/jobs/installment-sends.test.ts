@@ -11,12 +11,20 @@ import { readFileSync } from "node:fs";
 import { Redis } from "ioredis";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { useGoldenEnvironment } from "../../server/mail/__fixtures__/application-mailer-golden.ts";
 import { evaluateFeature, parseGateValues } from "../../server/infra/flipper.ts";
 import { createJobsRuntime } from "../../server/jobs/runtime.ts";
 import { parseRubyJson, RubyFloat, type JsonValue } from "../../server/jobs/sidekiq/ruby-json.ts";
+import { useGoldenEnvironment } from "../../server/mail/__fixtures__/application-mailer-golden.ts";
 import type { ProviderTransport } from "../../server/models/post-email-api.ts";
-import { asSidekiqJob, contextFor, rubyRuntimeRegistry, sequentialJids, snapshotRedis, type RedisSnapshot } from "./__fixtures__/golden.ts";
+
+import {
+  asSidekiqJob,
+  contextFor,
+  rubyRuntimeRegistry,
+  sequentialJids,
+  snapshotRedis,
+  type RedisSnapshot,
+} from "./__fixtures__/golden.ts";
 import { sqlReplay, type Statement } from "./__fixtures__/sql-replay.ts";
 import { sendLastPostJobWith } from "./send-last-post-job.ts";
 import { sendWorkflowInstallmentWorkerWith } from "./send-workflow-installment-worker.ts";
@@ -36,10 +44,13 @@ type Case = {
   ivs: string[];
   rands_used: number[];
 };
-const golden = parseRubyJson(readFileSync(new URL("./__fixtures__/installment-sends.golden.json", import.meta.url), "utf8")) as unknown as { cases: Case[] };
+const golden = parseRubyJson(
+  readFileSync(new URL("./__fixtures__/installment-sends.golden.json", import.meta.url), "utf8"),
+) as unknown as { cases: Case[] };
 
 const url = process.env.JOBS_REDIS_URL;
-if (url && /\/0$|^[^/]*\/\/[^/]+$/u.test(url)) throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
+if (url && /\/0$|^[^/]*\/\/[^/]+$/u.test(url))
+  throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
 let redis: Redis | undefined;
 let restoreEnvironment: () => void;
 const saved: Record<string, string | undefined> = {};
@@ -92,18 +103,31 @@ const HANDED_BACK: Record<string, "before" | "claim"> = {
 };
 
 const withoutSetup = (snapshot: RedisSnapshot, before: RedisSnapshot) =>
-  Object.fromEntries(Object.entries(snapshot).filter(([key, entry]) => JSON.stringify(before[key]) !== JSON.stringify(entry)));
-const withoutJobIds = (value: unknown) => JSON.stringify(value, (_key, v) => (v instanceof RubyFloat ? v.value : v)).replace(/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}/gu, "JOB_ID");
+  Object.fromEntries(
+    Object.entries(snapshot).filter(([key, entry]) => JSON.stringify(before[key]) !== JSON.stringify(entry)),
+  );
+const withoutJobIds = (value: unknown) =>
+  JSON.stringify(value, (_key, v) => (v instanceof RubyFloat ? v.value : v)).replace(
+    /[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}/gu,
+    "JOB_ID",
+  );
 
 describe("SendLastPostJob, SendWorkflowInstallmentWorker and SendWorkflowInstallmentRescheduleJob", () => {
   for (const c of golden.cases) {
     it.skipIf(!url)(c.name, async () => {
       const handedBack = HANDED_BACK[c.name];
       // A float with no fraction is a RubyFloat.
-      const nowSeconds = typeof c.case_now === "number" ? c.case_now : (c.case_now as unknown as { value: number }).value;
+      const nowSeconds =
+        typeof c.case_now === "number" ? c.case_now : (c.case_now as unknown as { value: number }).value;
       const sql = sqlReplay(c.statements);
       await restore(redis!, c.redis_before);
-      const runtime = createJobsRuntime({ sidekiqRedis: redis!, bullmqRedis: redis!, registry: rubyRuntimeRegistry(), now: () => nowSeconds, newJid: sequentialJids() });
+      const runtime = createJobsRuntime({
+        sidekiqRedis: redis!,
+        bullmqRedis: redis!,
+        registry: rubyRuntimeRegistry(),
+        now: () => nowSeconds,
+        newJid: sequentialJids(),
+      });
       const calls: Provider[] = [];
       const transport: ProviderTransport = {
         async sendgrid(apiKey, body) {
@@ -122,24 +146,28 @@ describe("SendLastPostJob, SendWorkflowInstallmentWorker and SendWorkflowInstall
       const now = () => new Date(Math.round(nowSeconds * 1000));
       const today = new Date(nowSeconds * 1000).toISOString().slice(0, 10);
       const send: Parameters<typeof sendWorkflowInstallmentWorkerWith>[1] = {
-          now,
-          featureActive: active,
-          randomIv: () => ivs.shift()!,
-          transport,
-          redis: () => redis!,
-          deliver: () => true,
-          sleep: async () => {},
-          log: () => {},
-          router: {
-            featureActive: (name: string) => active(name, null),
-            redisGet: (key: string) => redis!.get(key),
-            redisIncr: (key: string) => redis!.incr(key),
-            rand: () => rands.shift()!,
-            today: () => today,
-          },
-          subscriptionDeps: { now, featureActive: active },
-        };
-      const factories = { SendLastPostJob: sendLastPostJobWith, SendWorkflowInstallmentWorker: sendWorkflowInstallmentWorkerWith, SendWorkflowInstallmentRescheduleJob: sendWorkflowInstallmentRescheduleJobWith };
+        now,
+        featureActive: active,
+        randomIv: () => ivs.shift()!,
+        transport,
+        redis: () => redis!,
+        deliver: () => true,
+        sleep: async () => {},
+        log: () => {},
+        router: {
+          featureActive: (name: string) => active(name, null),
+          redisGet: (key: string) => redis!.get(key),
+          redisIncr: (key: string) => redis!.incr(key),
+          rand: () => rands.shift()!,
+          today: () => today,
+        },
+        subscriptionDeps: { now, featureActive: active },
+      };
+      const factories = {
+        SendLastPostJob: sendLastPostJobWith,
+        SendWorkflowInstallmentWorker: sendWorkflowInstallmentWorkerWith,
+        SendWorkflowInstallmentRescheduleJob: sendWorkflowInstallmentRescheduleJobWith,
+      };
       const handler = factories[c.job as keyof typeof factories]({ now }, send);
       let error: unknown = null;
       try {
@@ -156,7 +184,9 @@ describe("SendLastPostJob, SendWorkflowInstallmentWorker and SendWorkflowInstall
           expect(sql.log).toEqual(sql.expected.slice(0, sql.log.length));
           expect(withoutSetup(await snapshotRedis(redis!), c.redis_before)).toEqual({});
         } else {
-          expect(sql.log.at(-1)).toMatch(/^DELETE FROM `sent_post_emails` WHERE `sent_post_emails`\.`post_id` = 10 AND `sent_post_emails`\.`email` = /u);
+          expect(sql.log.at(-1)).toMatch(
+            /^DELETE FROM `sent_post_emails` WHERE `sent_post_emails`\.`post_id` = 10 AND `sent_post_emails`\.`email` = /u,
+          );
           const performed = sql.log.slice(0, -1);
           expect(performed).toEqual(sql.expected.slice(0, performed.length));
           expect(performed.some((statement) => statement.startsWith("INSERT INTO `sent_post_emails`"))).toBe(true);
@@ -169,7 +199,9 @@ describe("SendLastPostJob, SendWorkflowInstallmentWorker and SendWorkflowInstall
       expect(calls).toEqual(c.providers);
       expect(ivs).toEqual([]);
       const after = withoutSetup(await snapshotRedis(redis!), c.redis_before);
-      expect(JSON.parse(withoutJobIds(after))).toEqual(JSON.parse(withoutJobIds(withoutSetup(c.redis, c.redis_before))));
+      expect(JSON.parse(withoutJobIds(after))).toEqual(
+        JSON.parse(withoutJobIds(withoutSetup(c.redis, c.redis_before))),
+      );
     });
   }
 });

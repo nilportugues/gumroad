@@ -15,22 +15,72 @@ export const REFERRER_DOMAIN_FOR_GUMROAD_RECOMMENDED_PRODUCTS = "recommended_by_
 const CARD_TYPE_PAYPAL = "paypal";
 
 // BasePrice::Recurrence::RECURRENCE_TO_NUMBER_OF_MONTHS
-const RECURRENCE_TO_NUMBER_OF_MONTHS: Record<string, number> = { monthly: 1, quarterly: 3, biannually: 6, yearly: 12, every_two_years: 24 };
+const RECURRENCE_TO_NUMBER_OF_MONTHS: Record<string, number> = {
+  monthly: 1,
+  quarterly: 3,
+  biannually: 6,
+  yearly: 12,
+  every_two_years: 24,
+};
 
 // `mappings.to_hash[:properties].keys`: the order as_indexed_json writes the fields in.
 export const PURCHASE_SEARCH_FIELDS = [
-  "id", "can_contact", "chargeback_date", "country_or_ip_country", "created_at", "latest_charge_date", "email", "email_domain",
-  "subscription_current_email", "subscription_current_email_domain", "paypal_email", "fee_cents", "full_name",
-  "not_chargedback_or_chargedback_reversed", "not_refunded_except_subscriptions", "not_subscription_or_original_subscription_purchase",
-  "successful_authorization_or_without_preorder", "price_cents", "purchase_state", "amount_refunded_cents", "fee_refunded_cents",
-  "tax_refunded_cents", "selected_flags", "stripe_refunded", "tax_cents", "monthly_recurring_revenue", "ip_country", "ip_state",
-  "referrer_domain", "license_serial", "license_uses", "variant_ids", "product_ids_from_same_seller_purchased_by_purchaser",
-  "variant_ids_from_same_seller_purchased_by_purchaser", "affiliate_credit_id", "affiliate_credit_affiliate_user_id",
-  "affiliate_credit_amount_cents", "affiliate_credit_fee_cents", "affiliate_credit_amount_partially_refunded_cents",
-  "affiliate_credit_fee_partially_refunded_cents", "direct_affiliate_credit_affiliate_user_id", "direct_affiliate_credit_amount_cents",
-  "direct_affiliate_credit_fee_cents", "direct_affiliate_credit_amount_partially_refunded_cents",
-  "direct_affiliate_credit_fee_partially_refunded_cents", "product_id", "product_unique_permalink", "product_name", "product_description",
-  "seller_id", "seller_name", "purchaser_id", "subscription_id", "subscription_cancelled_at", "subscription_deactivated_at", "taxonomy_id",
+  "id",
+  "can_contact",
+  "chargeback_date",
+  "country_or_ip_country",
+  "created_at",
+  "latest_charge_date",
+  "email",
+  "email_domain",
+  "subscription_current_email",
+  "subscription_current_email_domain",
+  "paypal_email",
+  "fee_cents",
+  "full_name",
+  "not_chargedback_or_chargedback_reversed",
+  "not_refunded_except_subscriptions",
+  "not_subscription_or_original_subscription_purchase",
+  "successful_authorization_or_without_preorder",
+  "price_cents",
+  "purchase_state",
+  "amount_refunded_cents",
+  "fee_refunded_cents",
+  "tax_refunded_cents",
+  "selected_flags",
+  "stripe_refunded",
+  "tax_cents",
+  "monthly_recurring_revenue",
+  "ip_country",
+  "ip_state",
+  "referrer_domain",
+  "license_serial",
+  "license_uses",
+  "variant_ids",
+  "product_ids_from_same_seller_purchased_by_purchaser",
+  "variant_ids_from_same_seller_purchased_by_purchaser",
+  "affiliate_credit_id",
+  "affiliate_credit_affiliate_user_id",
+  "affiliate_credit_amount_cents",
+  "affiliate_credit_fee_cents",
+  "affiliate_credit_amount_partially_refunded_cents",
+  "affiliate_credit_fee_partially_refunded_cents",
+  "direct_affiliate_credit_affiliate_user_id",
+  "direct_affiliate_credit_amount_cents",
+  "direct_affiliate_credit_fee_cents",
+  "direct_affiliate_credit_amount_partially_refunded_cents",
+  "direct_affiliate_credit_fee_partially_refunded_cents",
+  "product_id",
+  "product_unique_permalink",
+  "product_name",
+  "product_description",
+  "seller_id",
+  "seller_name",
+  "purchaser_id",
+  "subscription_id",
+  "subscription_cancelled_at",
+  "subscription_deactivated_at",
+  "taxonomy_id",
 ] as const;
 
 // Purchase::Searchable::ATTRIBUTE_TO_SEARCH_FIELDS
@@ -42,7 +92,12 @@ export const PURCHASE_ATTRIBUTE_TO_SEARCH_FIELDS: Record<string, string | string
   created_at: "created_at",
   email: ["email", "email_domain", "subscription_current_email", "subscription_current_email_domain"],
   fee_cents: "fee_cents",
-  flags: ["selected_flags", "not_chargedback_or_chargedback_reversed", "not_subscription_or_original_subscription_purchase", "referrer_domain"],
+  flags: [
+    "selected_flags",
+    "not_chargedback_or_chargedback_reversed",
+    "not_subscription_or_original_subscription_purchase",
+    "referrer_domain",
+  ],
   full_name: "full_name",
   ip_country: ["country_or_ip_country", "ip_country"],
   ip_state: "ip_state",
@@ -105,16 +160,20 @@ export class PurchaseRecord {
   constructor(row: Row, loadedBy?: SubscriptionRecord) {
     this.row = row;
     const id = row.id;
-    const belongsTo = (model: Prisma.ModelName, table: string, key: string) => new Memo(async () => (row[key] == null ? null : findById(model, table, row[key])));
+    const belongsTo = (model: Prisma.ModelName, table: string, key: string) =>
+      new Memo(async () => (row[key] == null ? null : findById(model, table, row[key])));
     this.subscriptionMemo = new Memo(async () => {
       if (loadedBy) return loadedBy;
-      const subscription = row.subscription_id == null ? null : await findById("Subscription", "subscriptions", row.subscription_id);
+      const subscription =
+        row.subscription_id == null ? null : await findById("Subscription", "subscriptions", row.subscription_id);
       return subscription ? new SubscriptionRecord(subscription) : null;
     });
     this.linkMemo = belongsTo("Link", "links", "link_id");
     this.sellerMemo = belongsTo("User", "users", "seller_id");
     this.purchaserMemo = belongsTo("User", "users", "purchaser_id");
-    this.licenseMemo = new Memo(() => findOneWhere("License", "licenses", Prisma.sql`${col("licenses", "purchase_id")} = ${id}`));
+    this.licenseMemo = new Memo(() =>
+      findOneWhere("License", "licenses", Prisma.sql`${col("licenses", "purchase_id")} = ${id}`),
+    );
     const credit = (direct: boolean) =>
       new Memo(() =>
         findOneWhere(
@@ -125,7 +184,9 @@ export class PurchaseRecord {
       );
     this.affiliateCreditMemo = credit(false);
     this.directAffiliateCreditMemo = credit(true);
-    this.giftGivenMemo = new Memo(() => findOneWhere("Gift", "gifts", Prisma.sql`${col("gifts", "gifter_purchase_id")} = ${id}`));
+    this.giftGivenMemo = new Memo(() =>
+      findOneWhere("Gift", "gifts", Prisma.sql`${col("gifts", "gifter_purchase_id")} = ${id}`),
+    );
   }
 
   static async find(id: unknown): Promise<PurchaseRecord | null> {
@@ -134,7 +195,8 @@ export class PurchaseRecord {
   }
 
   get = (name: string): unknown => this.row[name];
-  flag = (name: (typeof PURCHASE_FLAG_MAPPING)[keyof typeof PURCHASE_FLAG_MAPPING]): boolean => PurchaseFlags.isSet(this.row.flags as bigint, name);
+  flag = (name: (typeof PURCHASE_FLAG_MAPPING)[keyof typeof PURCHASE_FLAG_MAPPING]): boolean =>
+    PurchaseFlags.isSet(this.row.flags as bigint, name);
 
   subscription = () => this.subscriptionMemo.get();
   link = () => this.linkMemo.get();
@@ -145,7 +207,11 @@ export class PurchaseRecord {
 
   // Purchase#is_recurring_subscription_charge
   async isRecurringSubscriptionCharge(): Promise<boolean> {
-    return (await this.subscription()) !== null && !this.flag("is_original_subscription_purchase") && !this.flag("is_gift_receiver_purchase");
+    return (
+      (await this.subscription()) !== null &&
+      !this.flag("is_original_subscription_purchase") &&
+      !this.flag("is_gift_receiver_purchase")
+    );
   }
 
   // Purchase#license
@@ -159,7 +225,9 @@ export class PurchaseRecord {
   }
 
   private refundsSum(column: string): Promise<number> {
-    return sumOf(Prisma.sql`SELECT SUM(${col("refunds", column)}) FROM ${Prisma.raw(q("refunds"))} WHERE ${col("refunds", "purchase_id")} = ${this.row.id} AND ${Prisma.raw(REFUNDS_EFFECTIVE)}`);
+    return sumOf(
+      Prisma.sql`SELECT SUM(${col("refunds", column)}) FROM ${Prisma.raw(q("refunds"))} WHERE ${col("refunds", "purchase_id")} = ${this.row.id} AND ${Prisma.raw(REFUNDS_EFFECTIVE)}`,
+    );
   }
 
   // Purchase#by_email relation: `where(email:)`, `IS NULL` for nil.
@@ -172,8 +240,17 @@ export class PurchaseRecord {
     const row = this.row;
     let match: RegExpExecArray | null;
     switch (field) {
-      case "id": case "can_contact": case "created_at": case "full_name": case "price_cents": case "chargeback_date":
-      case "purchase_state": case "ip_country": case "ip_state": case "fee_cents": case "tax_cents":
+      case "id":
+      case "can_contact":
+      case "created_at":
+      case "full_name":
+      case "price_cents":
+      case "chargeback_date":
+      case "purchase_state":
+      case "ip_country":
+      case "ip_state":
+      case "fee_cents":
+      case "tax_cents":
         return attributeAsJson(row[field]);
       case "email":
         return lower(row.email);
@@ -198,11 +275,20 @@ export class PurchaseRecord {
       case "not_chargedback_or_chargedback_reversed":
         return row.chargeback_date == null || this.flag("chargeback_reversed");
       case "not_refunded_except_subscriptions":
-        return row.stripe_refunded !== true || (row.subscription_id != null && BigInt(row.subscription_id as bigint) !== 0n);
+        return (
+          row.stripe_refunded !== true || (row.subscription_id != null && BigInt(row.subscription_id as bigint) !== 0n)
+        );
       case "not_subscription_or_original_subscription_purchase":
-        return row.subscription_id == null || (this.flag("is_original_subscription_purchase") && !this.flag("is_archived_original_subscription_purchase"));
+        return (
+          row.subscription_id == null ||
+          (this.flag("is_original_subscription_purchase") && !this.flag("is_archived_original_subscription_purchase"))
+        );
       case "successful_authorization_or_without_preorder":
-        return ["preorder_authorization_successful", "preorder_concluded_successfully"].includes(String(row.purchase_state)) || row.preorder_id == null;
+        return (
+          ["preorder_authorization_successful", "preorder_concluded_successfully"].includes(
+            String(row.purchase_state),
+          ) || row.preorder_id == null
+        );
       case "country_or_ip_country":
         return (presence(row.country) ?? row.ip_country ?? null) as JsonValue;
       case "amount_refunded_cents":
@@ -212,7 +298,9 @@ export class PurchaseRecord {
       case "tax_refunded_cents":
         return this.refundsSum("creator_tax_cents");
       case "referrer_domain":
-        return this.flag("was_product_recommended") ? REFERRER_DOMAIN_FOR_GUMROAD_RECOMMENDED_PRODUCTS : extractDomain(row.referrer as string | null);
+        return this.flag("was_product_recommended")
+          ? REFERRER_DOMAIN_FOR_GUMROAD_RECOMMENDED_PRODUCTS
+          : extractDomain(row.referrer as string | null);
       case "product_description": {
         const link = await this.link();
         if (!link) throw new RubyNoMethodError("plaintext_description");
@@ -232,7 +320,9 @@ export class PurchaseRecord {
       case "product_ids_from_same_seller_purchased_by_purchaser": {
         const seller = await this.seller();
         if (!seller) throw new RubyNoMethodError("sales");
-        const rows = await selectRows<{ link_id: unknown }>(Prisma.sql`SELECT distinct link_id FROM ${Prisma.raw(q("purchases"))} WHERE ${this.byEmailSql(seller.id)}`);
+        const rows = await selectRows<{ link_id: unknown }>(
+          Prisma.sql`SELECT distinct link_id FROM ${Prisma.raw(q("purchases"))} WHERE ${this.byEmailSql(seller.id)}`,
+        );
         return rows.map((r) => (r.link_id == null ? null : BigInt(r.link_id as bigint)));
       }
       case "variant_ids_from_same_seller_purchased_by_purchaser": {
@@ -255,7 +345,9 @@ export class PurchaseRecord {
           Prisma.sql`SELECT ${Prisma.raw(q("created_at"))} FROM ${Prisma.raw(q("purchases"))} FORCE INDEX(${Prisma.raw(q("index_purchases_on_subscription_id"))}) WHERE ${col("purchases", "subscription_id")} = ${subscription.row.id} AND ${col("purchases", "purchase_state")} = 'successful' ORDER BY ${Prisma.raw(q("created_at"))} DESC, ${Prisma.raw(q("id"))} DESC LIMIT 1`,
         );
         if (!latest || latest.created_at == null) return null;
-        return attributeAsJson(latest.created_at instanceof Date ? latest.created_at : new Date(String(latest.created_at)));
+        return attributeAsJson(
+          latest.created_at instanceof Date ? latest.created_at : new Date(String(latest.created_at)),
+        );
       }
       case "monthly_recurring_revenue": {
         if (!this.flag("is_original_subscription_purchase")) return null;
@@ -277,10 +369,20 @@ export class PurchaseRecord {
         return license ? attributeAsJson(license.uses) : null;
       }
     }
-    if ((match = /^affiliate_credit_(id|affiliate_user_id|amount_cents|fee_cents|amount_partially_refunded_cents|fee_partially_refunded_cents)$/u.exec(field))) {
+    if (
+      (match =
+        /^affiliate_credit_(id|affiliate_user_id|amount_cents|fee_cents|amount_partially_refunded_cents|fee_partially_refunded_cents)$/u.exec(
+          field,
+        ))
+    ) {
       return creditValue(await this.affiliateCredit(), match[1]!);
     }
-    if ((match = /^direct_affiliate_credit_(affiliate_user_id|amount_cents|fee_cents|amount_partially_refunded_cents|fee_partially_refunded_cents)$/u.exec(field))) {
+    if (
+      (match =
+        /^direct_affiliate_credit_(affiliate_user_id|amount_cents|fee_cents|amount_partially_refunded_cents|fee_partially_refunded_cents)$/u.exec(
+          field,
+        ))
+    ) {
       return creditValue(await this.directAffiliateCredit(), match[1]!);
     }
     if ((match = /^product_(id|unique_permalink|name)$/u.exec(field))) {
@@ -342,14 +444,22 @@ export class SubscriptionRecord {
       new Memo(async () => {
         // Scope conditions come wrapped in their own parentheses.
         const scoped = (sql: Prisma.Sql) => Prisma.sql`(${sql})`;
-        const conditions = [Prisma.sql`${col("purchases", "subscription_id")} = ${row.id}`, scoped(PurchaseFlags.condition("is_original_subscription_purchase"))];
-        if (archived) conditions.push(scoped(PurchaseFlags.condition("is_archived_original_subscription_purchase", false)));
+        const conditions = [
+          Prisma.sql`${col("purchases", "subscription_id")} = ${row.id}`,
+          scoped(PurchaseFlags.condition("is_original_subscription_purchase")),
+        ];
+        if (archived)
+          conditions.push(scoped(PurchaseFlags.condition("is_archived_original_subscription_purchase", false)));
         const found = await findOneWhere("Purchase", "purchases", Prisma.join(conditions, " AND "), suffix);
         return found ? new PurchaseRecord(found, this) : null;
       });
     this.originalPurchaseMemo = original(Prisma.empty, true);
     this.trueOriginalPurchaseMemo = original(Prisma.sql` ORDER BY ${col("purchases", "id")} ASC`, false);
-    this.lastPaymentOptionMemo = new Memo(async () => (row.last_payment_option_id == null ? null : findById("PaymentOption", "payment_options", row.last_payment_option_id)));
+    this.lastPaymentOptionMemo = new Memo(async () =>
+      row.last_payment_option_id == null
+        ? null
+        : findById("PaymentOption", "payment_options", row.last_payment_option_id),
+    );
   }
 
   originalPurchase = () => this.originalPurchaseMemo.get();
@@ -376,7 +486,11 @@ export class SubscriptionRecord {
     const option = await this.lastPaymentOptionMemo.get();
     if (!option) return null;
     const key = String(option.price_id);
-    if (!this.priceMemos.has(key)) this.priceMemos.set(key, new Memo(async () => (option.price_id == null ? null : findById("BasePrice", "prices", option.price_id))));
+    if (!this.priceMemos.has(key))
+      this.priceMemos.set(
+        key,
+        new Memo(async () => (option.price_id == null ? null : findById("BasePrice", "prices", option.price_id))),
+      );
     const price = await this.priceMemos.get(key)!.get();
     return price ? price.recurrence : null;
   }

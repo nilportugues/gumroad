@@ -11,23 +11,34 @@ import { Prisma, type Follower, type Link, type Purchase, type User } from "@pri
 import type { Redis } from "ioredis";
 
 import { encrypt } from "../../lib/obfuscate-ids.ts";
+import { stripTags } from "../html/sanitizer.ts";
 import { getConfig } from "../infra/config.ts";
 import { domainConfig } from "../infra/domain.ts";
 import { isFeatureEnabled, userActor, type FlipperActor } from "../infra/flipper.ts";
-import { getRedis } from "../infra/redis.ts";
 import { railsEnv } from "../infra/rails-env.ts";
-import { currentJobsRuntime, performAsync } from "./concerns/job-runtime.ts";
+import { getRedis } from "../infra/redis.ts";
 import { performBulkWith } from "../jobs/push-bulk.ts";
-import { stripTags } from "../html/sanitizer.ts";
-import { EMAIL_PROVIDER_RESEND, EMAIL_PROVIDER_SENDGRID, buildHeaders, determineEmailProvider, forceSendgridForRecipients, mailDomains, type EmailProvider, type RouterDeps, defaultRouterDeps } from "../mail/mailer-info.ts";
+import {
+  EMAIL_PROVIDER_RESEND,
+  EMAIL_PROVIDER_SENDGRID,
+  buildHeaders,
+  determineEmailProvider,
+  forceSendgridForRecipients,
+  mailDomains,
+  type EmailProvider,
+  type RouterDeps,
+  defaultRouterDeps,
+} from "../mail/mailer-info.ts";
 import { PostEmailNotPortedError, renderPostEmail, type RenderedPostEmail } from "../mail/post-email-template.ts";
 import { escapeSegment } from "../mail/routes.ts";
 import { mailerUrl } from "../mail/views.ts";
+
+import { currentJobsRuntime, performAsync } from "./concerns/job-runtime.ts";
 import type { InstallmentPost } from "./installment-post.ts";
-import { secureExternalId } from "./secure-external-id.ts";
-import { connectedTo } from "./runtime/query-cache.ts";
 import { findById } from "./row-reads.ts";
+import { connectedTo } from "./runtime/query-cache.ts";
 import { transaction } from "./runtime/transaction.ts";
+import { secureExternalId } from "./secure-external-id.ts";
 import { column, execute, inList, isLockWaitTimeout, selectRows, table } from "./sql.ts";
 
 export class ResendApiResponseError extends Error {
@@ -107,10 +118,12 @@ export const defaultPostEmailDeps = (): PostEmailDeps => ({
 
 // ----- recipients
 
-const present = (value: string | null | undefined): value is string => value !== null && value !== undefined && !/^[\t\n\v\f\r ]*$/u.test(value);
+const present = (value: string | null | undefined): value is string =>
+  value !== null && value !== undefined && !/^[\t\n\v\f\r ]*$/u.test(value);
 
 // PostEmailApi.valid_email_address_for_resend?
-const MAIL_TO_EMAIL = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/u;
+const MAIL_TO_EMAIL =
+  /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/u;
 export function validEmailAddressForResend(email: string | null | undefined): boolean {
   if (!present(email)) return false;
   // eslint-disable-next-line no-control-regex
@@ -139,7 +152,8 @@ export function personalizationName(recipient: Recipient): string | null {
 }
 
 const rubyStrip = (value: string) => value.replace(/^[\t\n\v\f\r ]+|[\t\n\v\f\r \0]+$/gu, "");
-const tokenValue = (fallback: string | undefined, firstName: string | null) => firstName ?? (present(fallback) ? rubyStrip(fallback) : FIRST_NAME_DEFAULT);
+const tokenValue = (fallback: string | undefined, firstName: string | null) =>
+  firstName ?? (present(fallback) ? rubyStrip(fallback) : FIRST_NAME_DEFAULT);
 
 // PostEmailPersonalization.substitutions: one entry per distinct spelling of the token.
 export function personalizationSubstitutions(content: string, firstName: string | null): [string, string][] {
@@ -160,19 +174,28 @@ const PLAIN_SENDER_NAME = /^[A-Za-z0-9 '-]+$/u;
 export function fromEmailAddressName(name: string | null): string {
   if (!present(name)) return "Gumroad";
   const stripped = rubyStrip(name.replaceAll(":", ""));
-  if (!PLAIN_SENDER_NAME.test(name) || stripped === "") throw new PostEmailNotPortedError("a sender name Mail would quote or encode");
+  if (!PLAIN_SENDER_NAME.test(name) || stripped === "")
+    throw new PostEmailNotPortedError("a sender name Mail would quote or encode");
   return stripped;
 }
 
 // MailerHelper#creators_from_email_address
-const creatorsFromEmailAddress = (username: string | null) => `${present(username) ? username : "creators"}@${mailDomains().creators}`;
+const creatorsFromEmailAddress = (username: string | null) =>
+  `${present(username) ? username : "creators"}@${mailDomains().creators}`;
 
 // strip_tags(link.name): the text of the product name, with its markup escaped.
 const sanitizedProductName = (link: Link) => stripTags(link.name);
 
 // ----- the post, rendered once
 
-export type PostEmailTemplate = { rendered: RenderedPostEmail; hasPostUrl: boolean; hasDownloadButton: boolean; hasCommentButton: boolean; hasSellerUpdateReason: boolean; sanitizedProductName: string | null };
+export type PostEmailTemplate = {
+  rendered: RenderedPostEmail;
+  hasPostUrl: boolean;
+  hasDownloadButton: boolean;
+  hasCommentButton: boolean;
+  hasSellerUpdateReason: boolean;
+  sanitizedProductName: string | null;
+};
 
 async function renderTemplate(post: InstallmentPost, hasFiles: boolean): Promise<PostEmailTemplate> {
   const seller = await post.user();
@@ -199,7 +222,14 @@ async function renderTemplate(post: InstallmentPost, hasFiles: boolean): Promise
     if (link === null) throw new TypeError("undefined method 'name' for nil");
     productName = sanitizedProductName(link);
   }
-  return { rendered, hasPostUrl, hasDownloadButton: hasFiles, hasCommentButton, hasSellerUpdateReason, sanitizedProductName: productName };
+  return {
+    rendered,
+    hasPostUrl,
+    hasDownloadButton: hasFiles,
+    hasCommentButton,
+    hasSellerUpdateReason,
+    sanitizedProductName: productName,
+  };
 }
 
 // CustomMailerRouteBuilder#build_mailer_post_route
@@ -218,15 +248,25 @@ async function postRoute(post: InstallmentPost, purchase: Purchase | undefined):
 }
 
 function unsubscribeUrl(recipient: Recipient, deps: PostEmailDeps): string {
-  if (recipient.purchase !== undefined) return mailerUrl(`/purchases/${secureExternalId("Purchase", recipient.purchase.id, "unsubscribe", { randomIv: deps.randomIv })}/unsubscribe`);
-  if (recipient.follower !== undefined) return mailerUrl(`/follow/${escapeSegment(encrypt(recipient.follower.id))}/cancel`);
-  if (recipient.affiliate !== undefined) return mailerUrl(`/affiliates/${escapeSegment(recipient.affiliate.external_id ?? "")}/unsubscribe_posts`);
+  if (recipient.purchase !== undefined)
+    return mailerUrl(
+      `/purchases/${secureExternalId("Purchase", recipient.purchase.id, "unsubscribe", { randomIv: deps.randomIv })}/unsubscribe`,
+    );
+  if (recipient.follower !== undefined)
+    return mailerUrl(`/follow/${escapeSegment(encrypt(recipient.follower.id))}/cancel`);
+  if (recipient.affiliate !== undefined)
+    return mailerUrl(`/affiliates/${escapeSegment(recipient.affiliate.external_id ?? "")}/unsubscribe_posts`);
   return "#";
 }
 
 const isFree = (purchase: Purchase | undefined) => purchase?.price_cents === 0 && purchase.shipping_cents === 0;
 
-async function sellerUpdateReason(post: InstallmentPost, recipient: Recipient, template: PostEmailTemplate, wording: "post" | "email"): Promise<string | null> {
+async function sellerUpdateReason(
+  post: InstallmentPost,
+  recipient: Recipient,
+  template: PostEmailTemplate,
+  wording: "post" | "email",
+): Promise<string | null> {
   const seller = await post.seller();
   if (seller === null) throw new TypeError("undefined method 'name' for nil");
   const free = isFree(recipient.purchase);
@@ -247,7 +287,8 @@ async function sellerUpdateReason(post: InstallmentPost, recipient: Recipient, t
   // Link#long_url: the seller's subdomain, else the root domain
   const target = await productUrl(post, link);
   const anchor = `<a href="${target}">${productName}</a>`;
-  if (await post.memberCancellationTrigger()) return `You've received this email because you cancelled your membership to ${anchor}.`;
+  if (await post.memberCancellationTrigger())
+    return `You've received this email because you cancelled your membership to ${anchor}.`;
   if (isRecurringBilling(link)) return `You've received this email because you subscribed to ${anchor}.`;
   if (free) return `You've received this email because you got ${anchor}.`;
   return `You've received this email because you've purchased ${anchor}.`;
@@ -257,17 +298,25 @@ const isRecurringBilling = (link: Link) => (BigInt(link.flags) & 2n) !== 0n;
 
 // Link#long_url without options: the seller's subdomain, else the root domain
 async function productUrl(post: InstallmentPost, link: Link): Promise<string> {
-  const user = await post.loaded("link_user_for_url", async () => (link.user_id === null ? null : findById<User>("User", link.user_id)));
+  const user = await post.loaded("link_user_for_url", async () =>
+    link.user_id === null ? null : findById<User>("User", link.user_id),
+  );
   if (user === null) throw new TypeError("undefined method 'subdomain_with_protocol' for nil");
   const permalink = present(link.custom_permalink) ? link.custom_permalink : link.unique_permalink;
   const { protocol, domain, rootDomain } = domainConfig();
-  const host = present(user.username) ? `${protocol}://${user.username.replaceAll("_", "-")}.${rootDomain}` : `${protocol}://${domain}`;
+  const host = present(user.username)
+    ? `${protocol}://${user.username.replaceAll("_", "-")}.${rootDomain}`
+    : `${protocol}://${domain}`;
   return `${host}/l/${escapeSegment(permalink ?? "")}`;
 }
 
 // ----- SendGrid
 
-type Personalization = { to: { email: string }[]; substitutions: Record<string, string>; custom_args: Record<string, string> };
+type Personalization = {
+  to: { email: string }[];
+  substitutions: Record<string, string>;
+  custom_args: Record<string, string>;
+};
 
 function customArgs(recipient: Recipient, post: InstallmentPost): Record<string, string> {
   const args: Record<string, string> = {};
@@ -285,7 +334,12 @@ function customArgs(recipient: Recipient, post: InstallmentPost): Record<string,
   return args;
 }
 
-async function sendgridPersonalization(post: InstallmentPost, recipient: Recipient, template: PostEmailTemplate, deps: PostEmailDeps): Promise<Personalization> {
+async function sendgridPersonalization(
+  post: InstallmentPost,
+  recipient: Recipient,
+  template: PostEmailTemplate,
+  deps: PostEmailDeps,
+): Promise<Personalization> {
   const substitutions: Record<string, string> = { "{{subject}}": await post.subject() };
   if (template.hasPostUrl) {
     const postUrl = await postRoute(post, recipient.purchase);
@@ -298,19 +352,33 @@ async function sendgridPersonalization(post: InstallmentPost, recipient: Recipie
   if (template.hasSellerUpdateReason) {
     const reason = await sellerUpdateReason(post, recipient, template, "email");
     // the SendGrid wording of a seller post says "post"
-    substitutions["{{seller_update_reason}}"] = (post.sellerType ? await sellerUpdateReason(post, recipient, template, "post") : reason)!;
+    substitutions["{{seller_update_reason}}"] = (
+      post.sellerType ? await sellerUpdateReason(post, recipient, template, "post") : reason
+    )!;
   }
   substitutions["{{t_powered_by}}"] = "Powered by";
   substitutions["{{t_unsubscribe}}"] = "Unsubscribe";
   substitutions["{{unsubscribe_url}}"] = unsubscribeUrl(recipient, deps);
-  for (const [key, value] of personalizationSubstitutions(template.rendered.html, personalizationName(recipient))) substitutions[key] = value;
+  for (const [key, value] of personalizationSubstitutions(template.rendered.html, personalizationName(recipient)))
+    substitutions[key] = value;
   return { to: [{ email: recipient.email }], substitutions, custom_args: customArgs(recipient, post) };
 }
 
 // ----- Resend
 
-async function resendEmail(post: InstallmentPost, recipient: Recipient, template: PostEmailTemplate, deps: PostEmailDeps): Promise<Record<string, unknown>> {
-  const method = recipient.purchase ? PURCHASE_INSTALLMENT_MAILER_METHOD : recipient.follower ? FOLLOWER_INSTALLMENT_MAILER_METHOD : recipient.affiliate ? DIRECT_AFFILIATE_INSTALLMENT_MAILER_METHOD : null;
+async function resendEmail(
+  post: InstallmentPost,
+  recipient: Recipient,
+  template: PostEmailTemplate,
+  deps: PostEmailDeps,
+): Promise<Record<string, unknown>> {
+  const method = recipient.purchase
+    ? PURCHASE_INSTALLMENT_MAILER_METHOD
+    : recipient.follower
+      ? FOLLOWER_INSTALLMENT_MAILER_METHOD
+      : recipient.affiliate
+        ? DIRECT_AFFILIATE_INSTALLMENT_MAILER_METHOD
+        : null;
   if (method === null) throw new PostEmailNotPortedError("a recipient without a purchase, follower or affiliate");
   const mailerId = recipient.purchase?.id ?? recipient.follower?.id ?? recipient.affiliate?.id;
   const headers = buildHeaders({
@@ -336,7 +404,13 @@ async function resendEmail(post: InstallmentPost, recipient: Recipient, template
   };
 }
 
-async function personalizeContent(post: InstallmentPost, source: string, recipient: Recipient, template: PostEmailTemplate, deps: PostEmailDeps): Promise<string> {
+async function personalizeContent(
+  post: InstallmentPost,
+  source: string,
+  recipient: Recipient,
+  template: PostEmailTemplate,
+  deps: PostEmailDeps,
+): Promise<string> {
   const substitutions: [string, string][] = [
     ["{{subject}}", await post.subject()],
     ["{{t_powered_by}}", "Powered by"],
@@ -346,7 +420,11 @@ async function personalizeContent(post: InstallmentPost, source: string, recipie
   if (template.hasPostUrl) substitutions.push(["{{post_url}}", (await postRoute(post, recipient.purchase)) ?? ""]);
   if (template.hasDownloadButton) throw new PostEmailNotPortedError("a post with files");
   if (template.hasCommentButton) substitutions.push(["{{t_post_a_comment}}", "Reply with a comment"]);
-  if (template.hasSellerUpdateReason) substitutions.push(["{{seller_update_reason}}", (await sellerUpdateReason(post, recipient, template, "email")) ?? ""]);
+  if (template.hasSellerUpdateReason)
+    substitutions.push([
+      "{{seller_update_reason}}",
+      (await sellerUpdateReason(post, recipient, template, "email")) ?? "",
+    ]);
   let content = source;
   for (const [key, value] of substitutions) {
     // `gsub!(string, string)` reads backslashes in the replacement as back-references.
@@ -365,30 +443,51 @@ type Handoff = (recipients: Recipient[]) => Promise<void>;
 async function lockLiveFollows(sellerId: bigint | number, followerIds: number[]): Promise<Map<number, string | null>> {
   let previous: unknown;
   try {
-    [previous] = Object.values((await selectRows<Record<string, unknown>>(Prisma.sql`SELECT @@SESSION.innodb_lock_wait_timeout`))[0] ?? {});
+    [previous] = Object.values(
+      (await selectRows<Record<string, unknown>>(Prisma.sql`SELECT @@SESSION.innodb_lock_wait_timeout`))[0] ?? {},
+    );
     await execute(Prisma.raw(`SET SESSION innodb_lock_wait_timeout = ${HANDOFF_LOCK_WAIT_SECONDS}`));
-    const existing = await selectRows<{ id: number }>(Prisma.sql`SELECT ${column("followers", "id")} FROM ${table("followers")} WHERE ${idCondition(followerIds)}`);
+    const existing = await selectRows<{ id: number }>(
+      Prisma.sql`SELECT ${column("followers", "id")} FROM ${table("followers")} WHERE ${idCondition(followerIds)}`,
+    );
     if (existing.length === 0) return new Map();
     const live = await selectRows<{ id: number; email: string | null }>(
       Prisma.sql`SELECT ${column("followers", "id")}, ${column("followers", "email")} FROM ${table("followers")} WHERE ${column("followers", "deleted_at")} IS NULL AND ${column("followers", "confirmed_at")} IS NOT NULL AND ${idCondition(existing.map((row) => row.id))} AND ${column("followers", "followed_id")} = ${sellerId} FOR SHARE`,
     );
     return new Map(live.map((row) => [row.id, row.email]));
   } catch (error) {
-    if (isLockWaitTimeout(error) || (error instanceof Error && "errno" in error && (error as { errno: unknown }).errno === 1213)) throw new LockUnavailable(error instanceof Error ? error.message : String(error));
+    if (
+      isLockWaitTimeout(error) ||
+      (error instanceof Error && "errno" in error && (error as { errno: unknown }).errno === 1213)
+    )
+      throw new LockUnavailable(error instanceof Error ? error.message : String(error));
     throw error;
   } finally {
-    if (previous !== undefined && previous !== null && String(previous) !== "") await execute(Prisma.raw(`SET SESSION innodb_lock_wait_timeout = ${Math.trunc(Number(previous))}`));
+    if (previous !== undefined && previous !== null && String(previous) !== "")
+      await execute(Prisma.raw(`SET SESSION innodb_lock_wait_timeout = ${Math.trunc(Number(previous))}`));
   }
 }
 
-const idCondition = (ids: number[]) => (ids.length === 1 ? Prisma.sql`${column("followers", "id")} = ${ids[0]}` : Prisma.sql`${column("followers", "id")} IN ${inList(ids)}`);
+const idCondition = (ids: number[]) =>
+  ids.length === 1
+    ? Prisma.sql`${column("followers", "id")} = ${ids[0]}`
+    : Prisma.sql`${column("followers", "id")} IN ${inList(ids)}`;
 
-const stillAtAddress = (liveEmail: string | null | undefined, recipientEmail: string) => present(liveEmail) && liveEmail.trim().toLowerCase() === recipientEmail.trim().toLowerCase();
+const stillAtAddress = (liveEmail: string | null | undefined, recipientEmail: string) =>
+  present(liveEmail) && liveEmail.trim().toLowerCase() === recipientEmail.trim().toLowerCase();
 
 // PostFollowerHandoff.hold, without a newsletter admission (those posts are handed back before this).
-async function hold(post: InstallmentPost, recipients: Recipient[], onWithheld: ((withheld: Recipient[]) => Promise<void>) | undefined, deps: PostEmailDeps, handoff: Handoff): Promise<Recipient[]> {
+async function hold(
+  post: InstallmentPost,
+  recipients: Recipient[],
+  onWithheld: ((withheld: Recipient[]) => Promise<void>) | undefined,
+  deps: PostEmailDeps,
+  handoff: Handoff,
+): Promise<Recipient[]> {
   if (recipients.length === 0) return recipients;
-  const followerIds = [...new Set(recipients.flatMap((recipient) => (recipient.follower === undefined ? [] : [recipient.follower.id])))];
+  const followerIds = [
+    ...new Set(recipients.flatMap((recipient) => (recipient.follower === undefined ? [] : [recipient.follower.id]))),
+  ];
   if (followerIds.length === 0) {
     await handoff(recipients);
     return recipients;
@@ -402,7 +501,8 @@ async function hold(post: InstallmentPost, recipients: Recipient[], onWithheld: 
       const kept: Recipient[] = [];
       withheld = [];
       for (const recipient of recipients) {
-        if (recipient.follower === undefined || stillAtAddress(liveEmails.get(recipient.follower.id), recipient.email)) kept.push(recipient);
+        if (recipient.follower === undefined || stillAtAddress(liveEmails.get(recipient.follower.id), recipient.email))
+          kept.push(recipient);
         else withheld.push(recipient);
       }
       if (kept.length > 0) await handoff(kept);
@@ -429,7 +529,9 @@ async function withTransientRetry<T>(deps: PostEmailDeps, context: string, call:
     } catch (error) {
       const code = (error as { cause?: { code?: string } }).cause?.code ?? (error as { code?: string }).code;
       if (attempt > BACKOFF_SECONDS.length || code === undefined || !TRANSIENT_CODES.has(code)) throw error;
-      deps.log(`[TransientDeliveryRetry] ${context} transient connection error on attempt ${attempt} (${String(error)}), retrying`);
+      deps.log(
+        `[TransientDeliveryRetry] ${context} transient connection error on attempt ${attempt} (${String(error)}), retrying`,
+      );
       await deps.sleep(BACKOFF_SECONDS[attempt - 1]!);
     }
   }
@@ -439,7 +541,12 @@ const httpTransport: ProviderTransport = {
   async sendgrid(apiKey, body) {
     const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
       method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json", "Content-Type": "application/json", "User-Agent": "sendgrid/6.7.0;ruby" },
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "User-Agent": "sendgrid/6.7.0;ruby",
+      },
       body: JSON.stringify(body),
     });
     return { status: response.status, body: await response.text() };
@@ -447,7 +554,12 @@ const httpTransport: ProviderTransport = {
   async resend(apiKey, kind, body) {
     const response = await fetch(`https://api.resend.com/${kind === "batch" ? "emails/batch" : "emails"}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json", "User-Agent": "resend-ruby:0.16.0", Authorization: `Bearer ${apiKey}` },
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "User-Agent": "resend-ruby:0.16.0",
+        Authorization: `Bearer ${apiKey}`,
+      },
       body: JSON.stringify(body),
     });
     return { status: response.status, body: await response.text() };
@@ -456,11 +568,20 @@ const httpTransport: ProviderTransport = {
 
 // ----- records after the handoff
 
-async function createEmailInfoRecords(post: InstallmentPost, recipients: Recipient[], deps: PostEmailDeps): Promise<void> {
-  const purchases = recipients.flatMap((recipient) => (recipient.purchase === undefined ? [] : [recipient.purchase.id]));
+async function createEmailInfoRecords(
+  post: InstallmentPost,
+  recipients: Recipient[],
+  deps: PostEmailDeps,
+): Promise<void> {
+  const purchases = recipients.flatMap((recipient) =>
+    recipient.purchase === undefined ? [] : [recipient.purchase.id],
+  );
   if (purchases.length === 0) return;
   const sentAt = deps.now();
-  const rows = purchases.map((purchaseId) => Prisma.sql`(${"CreatorContactingCustomersEmailInfo"}, ${post.id}, ${PURCHASE_INSTALLMENT_MAILER_METHOD}, ${"sent"}, ${sentAt}, ${purchaseId})`);
+  const rows = purchases.map(
+    (purchaseId) =>
+      Prisma.sql`(${"CreatorContactingCustomersEmailInfo"}, ${post.id}, ${PURCHASE_INSTALLMENT_MAILER_METHOD}, ${"sent"}, ${sentAt}, ${purchaseId})`,
+  );
   await execute(
     Prisma.sql`INSERT INTO ${table("email_infos")} (${Prisma.raw("`type`,`installment_id`,`email_name`,`state`,`sent_at`,`purchase_id`")}) VALUES ${Prisma.join(rows, ", ")} AS ${Prisma.raw("`email_infos_values`")}`,
   );
@@ -479,7 +600,9 @@ async function bufferDeliveredDelta(installmentId: number, by: number, deps: Pos
       .sadd(DELIVERED_DELTA_IDS, String(installmentId))
       .exec();
   } catch {
-    await execute(Prisma.sql`UPDATE ${table("installments")} SET ${column("installments", "customer_count")} = COALESCE(${column("installments", "customer_count")}, 0) + ${by} WHERE ${column("installments", "id")} = ${installmentId}`);
+    await execute(
+      Prisma.sql`UPDATE ${table("installments")} SET ${column("installments", "customer_count")} = COALESCE(${column("installments", "customer_count")}, 0) + ${by} WHERE ${column("installments", "id")} = ${installmentId}`,
+    );
     return;
   }
   try {
@@ -489,7 +612,11 @@ async function bufferDeliveredDelta(installmentId: number, by: number, deps: Pos
   }
 }
 
-export type ProcessArgs = { post: InstallmentPost; recipients: Recipient[]; onWithheld?: (withheld: Recipient[]) => Promise<void> };
+export type ProcessArgs = {
+  post: InstallmentPost;
+  recipients: Recipient[];
+  onWithheld?: (withheld: Recipient[]) => Promise<void>;
+};
 
 async function afterHandoff(post: InstallmentPost, delivered: Recipient[], deps: PostEmailDeps): Promise<void> {
   if (delivered.length === 0) return;
@@ -501,8 +628,13 @@ async function afterHandoff(post: InstallmentPost, delivered: Recipient[], deps:
 async function pushNotifications(post: InstallmentPost, recipients: Recipient[]): Promise<void> {
   const emails = recipients.map((recipient) => recipient.email);
   const unique = [...new Set(emails)];
-  const condition = unique.length === 1 ? Prisma.sql`${column("users", "email")} = ${unique[0]}` : Prisma.sql`${column("users", "email")} IN ${inList(unique)}`;
-  const users = await selectRows<{ id: bigint; email: string }>(Prisma.sql`SELECT ${column("users", "id")}, ${column("users", "email")} FROM ${table("users")} WHERE ${condition}`);
+  const condition =
+    unique.length === 1
+      ? Prisma.sql`${column("users", "email")} = ${unique[0]}`
+      : Prisma.sql`${column("users", "email")} IN ${inList(unique)}`;
+  const users = await selectRows<{ id: bigint; email: string }>(
+    Prisma.sql`SELECT ${column("users", "id")}, ${column("users", "email")} FROM ${table("users")} WHERE ${condition}`,
+  );
   if (users.length === 0) return;
   const byEmail = new Map(users.map((user) => [user.email, user]));
   const seller = await post.seller();
@@ -526,7 +658,9 @@ async function validateRecipients(post: InstallmentPost, recipients: Recipient[]
   const hasFiles = await post.hasFiles();
   for (const recipient of recipients) {
     if (!present(recipient.email)) throw new Error("Recipients must have an email");
-    const roles = [recipient.purchase, recipient.follower, recipient.affiliate].filter((record) => record !== undefined).length;
+    const roles = [recipient.purchase, recipient.follower, recipient.affiliate].filter(
+      (record) => record !== undefined,
+    ).length;
     if (roles > 1) throw new Error("Recipients can't have a purchase and/or a follower and/or an affiliate record");
   }
   return hasFiles;
@@ -544,10 +678,13 @@ async function processSendgrid(args: ProcessArgs, deps: PostEmailDeps): Promise<
   const subject = await post.subject();
   const replyTo = { email: await post.replyToEmail() };
   const personalizations = new Map<Recipient, Personalization>();
-  for (const recipient of recipients) personalizations.set(recipient, await sendgridPersonalization(post, recipient, template, deps));
+  for (const recipient of recipients)
+    personalizations.set(recipient, await sendgridPersonalization(post, recipient, template, deps));
   const delivered = await hold(post, recipients, args.onWithheld, deps, async (kept) => {
     if (!deps.deliver()) {
-      deps.log(`[PostSendgridApi] Would have sent post ${post.id} to ${kept.length} recipients (perform_deliveries = false)`);
+      deps.log(
+        `[PostSendgridApi] Would have sent post ${post.id} to ${kept.length} recipients (perform_deliveries = false)`,
+      );
       return;
     }
     const body = {
@@ -562,7 +699,9 @@ async function processSendgrid(args: ProcessArgs, deps: PostEmailDeps): Promise<
       custom_args: { installment_id: String(post.id), seller_id: String(post.row.seller_id) },
       reply_to: replyTo,
     };
-    const result = await withTransientRetry(deps, `PostSendgridApi post_id=${post.id}`, () => deps.transport.sendgrid(getConfig("SENDGRID_GR_CREATORS_API_KEY") ?? "", body));
+    const result = await withTransientRetry(deps, `PostSendgridApi post_id=${post.id}`, () =>
+      deps.transport.sendgrid(getConfig("SENDGRID_GR_CREATORS_API_KEY") ?? "", body),
+    );
     if (result.status < 200 || result.status > 299) throw new SendGridApiResponseError(result.body);
   });
   await afterHandoff(post, delivered, deps);
@@ -578,12 +717,18 @@ async function processResend(args: ProcessArgs, deps: PostEmailDeps): Promise<vo
   for (const recipient of recipients) emails.set(recipient, await resendEmail(post, recipient, template, deps));
   const delivered = await hold(post, recipients, args.onWithheld, deps, async (kept) => {
     if (!deps.deliver()) {
-      deps.log(`[PostResendApi] Would have sent post ${post.id} to ${kept.length} recipients (perform_deliveries = false)`);
+      deps.log(
+        `[PostResendApi] Would have sent post ${post.id} to ${kept.length} recipients (perform_deliveries = false)`,
+      );
       return;
     }
     const batch = kept.map((recipient) => emails.get(recipient));
     const apiKey = getConfig("RESEND_CREATORS_API_KEY") ?? "";
-    const result = await withTransientRetry(deps, `PostResendApi post_id=${post.id}`, () => (batch.length === 1 ? deps.transport.resend(apiKey, "email", batch[0]) : deps.transport.resend(apiKey, "batch", batch)));
+    const result = await withTransientRetry(deps, `PostResendApi post_id=${post.id}`, () =>
+      batch.length === 1
+        ? deps.transport.resend(apiKey, "email", batch[0])
+        : deps.transport.resend(apiKey, "batch", batch),
+    );
     if (result.status < 200 || result.status > 299) throw new ResendApiResponseError(result.body);
   });
   await afterHandoff(post, delivered, deps);
@@ -591,10 +736,17 @@ async function processResend(args: ProcessArgs, deps: PostEmailDeps): Promise<vo
 
 // ----- PostEmailApi.process
 
-async function providerFor(post: InstallmentPost, email: string, sellerActor: FlipperActor | null, deps: PostEmailDeps): Promise<EmailProvider> {
+async function providerFor(
+  post: InstallmentPost,
+  email: string,
+  sellerActor: FlipperActor | null,
+  deps: PostEmailDeps,
+): Promise<EmailProvider> {
   if (!(await deps.featureActive("use_resend_for_post_emails", sellerActor))) return EMAIL_PROVIDER_SENDGRID;
-  if (await deps.featureActive("force_resend_for_post_emails", sellerActor)) return forceSendgridForRecipients(email) ? EMAIL_PROVIDER_SENDGRID : EMAIL_PROVIDER_RESEND;
-  if (validEmailAddressForResend(email) && !forceSendgridForRecipients(email)) return determineEmailProvider("creators", deps.router);
+  if (await deps.featureActive("force_resend_for_post_emails", sellerActor))
+    return forceSendgridForRecipients(email) ? EMAIL_PROVIDER_SENDGRID : EMAIL_PROVIDER_RESEND;
+  if (validEmailAddressForResend(email) && !forceSendgridForRecipients(email))
+    return determineEmailProvider("creators", deps.router);
   return EMAIL_PROVIDER_SENDGRID;
 }
 
@@ -622,4 +774,3 @@ export async function processPostEmail(args: ProcessArgs, deps: PostEmailDeps): 
   if (resend.length > 0) await processResend({ ...args, recipients: resend }, deps);
   if (sendgrid.length > 0) await processSendgrid({ ...args, recipients: sendgrid }, deps);
 }
-

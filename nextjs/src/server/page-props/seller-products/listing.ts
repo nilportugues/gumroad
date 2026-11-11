@@ -15,7 +15,13 @@ import { productLongUrl } from "../buyer/users.ts";
 import { domainConfig } from "../domain.ts";
 
 export const PER_PAGE = 50;
-export const PRODUCT_SORT_KEYS = ["name", "display_price_cents", "successful_sales_count", "revenue", "status"] as const;
+export const PRODUCT_SORT_KEYS = [
+  "name",
+  "display_price_cents",
+  "successful_sales_count",
+  "revenue",
+  "status",
+] as const;
 const SQL_SORT_KEYS = new Set(["name", "successful_sales_count", "revenue", "status", "cut"]);
 
 export type Sort = { key: string; direction: "asc" | "desc" };
@@ -67,8 +73,23 @@ export type LinkRow = Prisma.LinkGetPayload<object>;
 
 // The Link columns a listing row reads.
 const LISTING_COLUMNS = [
-  "id", "user_id", "name", "unique_permalink", "custom_permalink", "flags", "purchase_disabled_at", "deleted_at", "draft", "price_currency_type",
-  "purchase_type", "subscription_duration", "duration_in_months", "customizable_price", "price_cents", "rental_price_cents", "created_at",
+  "id",
+  "user_id",
+  "name",
+  "unique_permalink",
+  "custom_permalink",
+  "flags",
+  "purchase_disabled_at",
+  "deleted_at",
+  "draft",
+  "price_currency_type",
+  "purchase_type",
+  "subscription_duration",
+  "duration_in_months",
+  "customizable_price",
+  "price_cents",
+  "rental_price_cents",
+  "created_at",
 ] as const;
 const listingColumns = () => Prisma.join(LISTING_COLUMNS.map((name) => column("links", name)));
 
@@ -76,7 +97,13 @@ export type Page = { pages: number; page: number };
 
 // `pagy(collection.sorted_by(...).order(created_at: :desc), limit: PER_PAGE, page:, overflow: :last_page)`
 // over `from` (tables and joins) and `where`.
-export async function sortAndPaginate(options: { from: Prisma.Sql; where: Prisma.Sql; table: TableParams; sellerId: bigint; cut?: Prisma.Sql }): Promise<{ pagination: Page; rows: LinkRow[] }> {
+export async function sortAndPaginate(options: {
+  from: Prisma.Sql;
+  where: Prisma.Sql;
+  table: TableParams;
+  sellerId: bigint;
+  cut?: Prisma.Sql;
+}): Promise<{ pagination: Page; rows: LinkRow[] }> {
   const { from, where, table: params, sellerId } = options;
   const direction = Prisma.raw(params.sort?.direction === "desc" ? "DESC" : "ASC");
   let joins = Prisma.empty;
@@ -99,7 +126,9 @@ export async function sortAndPaginate(options: { from: Prisma.Sql; where: Prisma
   }
   const withCte = joins === Prisma.empty ? Prisma.empty : cachedValuesCte(sellerId);
 
-  const [counted] = await selectRows<{ count: bigint }>(Prisma.sql`${withCte}SELECT COUNT(*) AS count FROM ${from}${joins} WHERE ${where}`);
+  const [counted] = await selectRows<{ count: bigint }>(
+    Prisma.sql`${withCte}SELECT COUNT(*) AS count FROM ${from}${joins} WHERE ${where}`,
+  );
   const count = Number(counted?.count ?? 0);
   const last = Math.max(Math.ceil(count / PER_PAGE), 1);
   const requested = params.page === null ? 1 : paramToI(params.page);
@@ -114,7 +143,8 @@ export async function sortAndPaginate(options: { from: Prisma.Sql; where: Prisma
 function cachedValuesCte(sellerId: bigint): Prisma.Sql {
   return Prisma.sql`WITH \`latest_product_cached_values\` AS (SELECT \`product_cached_values\`.* FROM \`product_cached_values\` INNER JOIN (SELECT product_id, MAX(id) AS max_id FROM product_cached_values WHERE product_id IN (SELECT \`links\`.\`id\` FROM \`links\` WHERE \`links\`.\`user_id\` = ${sellerId}) GROUP BY product_id) latest ON product_cached_values.product_id = latest.product_id AND product_cached_values.id = latest.max_id) `;
 }
-const latestCachedValuesJoin = (_sellerId: bigint): Prisma.Sql => Prisma.sql` LEFT JOIN latest_product_cached_values ON latest_product_cached_values.product_id = links.id`;
+const latestCachedValuesJoin = (_sellerId: bigint): Prisma.Sql =>
+  Prisma.sql` LEFT JOIN latest_product_cached_values ON latest_product_cached_values.product_id = links.id`;
 
 // ---- rows ----
 
@@ -132,8 +162,23 @@ export const RECURRENCE_LABELS: Record<string, string> = {
 const IS_RENTAL_FLAG = 1;
 const CLOSED_TO_NEW_PURCHASES_FLAG = 4;
 
-type PriceRow = { id: number; link_id: number | null; variant_id: number | null; price_cents: number; recurrence: string | null; flags: number };
-type VariantRow = { id: number; variant_category_id: number | null; link_id: number | null; price_difference_cents: number | null; flags: number; customizable_price: boolean | number | null; type: string | null };
+type PriceRow = {
+  id: number;
+  link_id: number | null;
+  variant_id: number | null;
+  price_cents: number;
+  recurrence: string | null;
+  flags: number;
+};
+type VariantRow = {
+  id: number;
+  variant_category_id: number | null;
+  link_id: number | null;
+  price_difference_cents: number | null;
+  flags: number;
+  customizable_price: boolean | number | null;
+  type: string | null;
+};
 
 export type RowData = {
   prices: PriceRow[];
@@ -162,15 +207,36 @@ export async function loadRowData(rows: readonly LinkRow[]): Promise<RowData> {
     Prisma.sql`SELECT id, link_id, variant_id, price_cents, recurrence, flags FROM prices
       WHERE deleted_at IS NULL AND (link_id IN (${productIds})${variantIds.length > 0 ? Prisma.sql` OR variant_id IN (${Prisma.join(variantIds)})` : Prisma.empty}) ORDER BY id ASC`,
   );
-  const thumbnailRows = await selectRows<{ id: bigint; product_id: bigint; unsplash_url: string | null; guid: string | null; deleted_at: Date | null }>(
+  const thumbnailRows = await selectRows<{
+    id: bigint;
+    product_id: bigint;
+    unsplash_url: string | null;
+    guid: string | null;
+    deleted_at: Date | null;
+  }>(
     Prisma.sql`SELECT id, product_id, unsplash_url, guid, deleted_at FROM thumbnails WHERE product_id IN (${productIds}) ORDER BY id ASC`,
   );
   const thumbnails: RowData["thumbnails"] = new Map();
-  for (const thumbnail of thumbnailRows) if (!thumbnails.has(BigInt(thumbnail.product_id))) thumbnails.set(BigInt(thumbnail.product_id), { ...thumbnail, id: BigInt(thumbnail.id) });
-  return { prices, variants, categories: new Map(categories.map((category) => [category.id, { link_id: category.link_id, tier: category.title?.toLowerCase() === "tier" }])), thumbnails };
+  for (const thumbnail of thumbnailRows)
+    if (!thumbnails.has(BigInt(thumbnail.product_id)))
+      thumbnails.set(BigInt(thumbnail.product_id), { ...thumbnail, id: BigInt(thumbnail.id) });
+  return {
+    prices,
+    variants,
+    categories: new Map(
+      categories.map((category) => [
+        category.id,
+        { link_id: category.link_id, tier: category.title?.toLowerCase() === "tier" },
+      ]),
+    ),
+    thumbnails,
+  };
 }
 
-const isSet = (flags: bigint | number, flag: "is_recurring_billing" | "is_tiered_membership" | "is_in_preorder_state" | "is_duplicating" | "archived") => LinkFlags.isSet(flags, flag);
+const isSet = (
+  flags: bigint | number,
+  flag: "is_recurring_billing" | "is_tiered_membership" | "is_in_preorder_state" | "is_duplicating" | "archived",
+) => LinkFlags.isSet(flags, flag);
 
 // Thumbnails that go through Active Storage (an uploaded file) are not ported.
 export async function assertThumbnailsSupported(data: RowData): Promise<void> {
@@ -186,7 +252,10 @@ export async function assertThumbnailsSupported(data: RowData): Promise<void> {
 export function thumbnailJson(product: LinkRow, data: RowData): { url: string | null; guid: string | null } | null {
   const thumbnail = data.thumbnails.get(product.id);
   if (!thumbnail || thumbnail.deleted_at !== null) return null;
-  return { url: thumbnail.unsplash_url && thumbnail.unsplash_url.trim() !== "" ? thumbnail.unsplash_url : null, guid: thumbnail.guid };
+  return {
+    url: thumbnail.unsplash_url && thumbnail.unsplash_url.trim() !== "" ? thumbnail.unsplash_url : null,
+    guid: thumbnail.guid,
+  };
 }
 
 const dollars = (cents: number) => {
@@ -201,7 +270,8 @@ type Tier = { variant: VariantRow; prices: PriceRow[] };
 // shows its price anyway). A closed tier depends on `can_close_to_new_buyers?`, which the port leaves to Rails.
 function tiersOf(product: LinkRow, data: RowData): Tier[] {
   const tiers = data.variants.filter((variant) => {
-    const category = variant.variant_category_id === null ? undefined : data.categories.get(variant.variant_category_id);
+    const category =
+      variant.variant_category_id === null ? undefined : data.categories.get(variant.variant_category_id);
     return variant.type === "Variant" && category?.tier === true && category.link_id === Number(product.id);
   });
   return tiers.map((variant) => ({ variant, prices: data.prices.filter((price) => price.variant_id === variant.id) }));
@@ -214,28 +284,42 @@ export function assertPriceSupported(product: LinkRow, data: RowData): void {
   if ((product.price_currency_type ?? USD).toLowerCase() !== USD) throw new HandBackToRails();
   if (product.purchase_type !== BUY_ONLY && product.purchase_type !== null) throw new HandBackToRails();
   if (product.duration_in_months !== null && isSet(product.flags, "is_tiered_membership")) throw new HandBackToRails();
-  if (isSet(product.flags, "is_tiered_membership") && tiersOf(product, data).some((tier) => (tier.variant.flags & CLOSED_TO_NEW_PURCHASES_FLAG) !== 0)) throw new HandBackToRails();
+  if (
+    isSet(product.flags, "is_tiered_membership") &&
+    tiersOf(product, data).some((tier) => (tier.variant.flags & CLOSED_TO_NEW_PURCHASES_FLAG) !== 0)
+  )
+    throw new HandBackToRails();
 }
 
-const subscriptionDuration = (product: LinkRow) => (product.subscription_duration === null ? null : (RECURRENCES[product.subscription_duration] ?? null));
+const subscriptionDuration = (product: LinkRow) =>
+  product.subscription_duration === null ? null : (RECURRENCES[product.subscription_duration] ?? null);
 
 // Link#display_price_cents
 export function displayPriceCents(product: LinkRow, data: RowData): number {
   if (isSet(product.flags, "is_tiered_membership")) return lowestTierPrice(product, data).price_cents;
   const alivePrices = data.prices.filter((price) => price.link_id === Number(product.id) && price.variant_id === null);
   let relevant = buyPrices(alivePrices);
-  if (isSet(product.flags, "is_recurring_billing") && subscriptionDuration(product) !== null) relevant = relevant.filter((price) => price.recurrence === subscriptionDuration(product));
+  if (isSet(product.flags, "is_recurring_billing") && subscriptionDuration(product) !== null)
+    relevant = relevant.filter((price) => price.recurrence === subscriptionDuration(product));
   const base = relevant.at(-1)?.price_cents ?? 0;
   const options = data.variants.filter(
-    (variant) => variant.link_id === Number(product.id) || (variant.variant_category_id !== null && data.categories.get(variant.variant_category_id)?.link_id === Number(product.id)),
+    (variant) =>
+      variant.link_id === Number(product.id) ||
+      (variant.variant_category_id !== null &&
+        data.categories.get(variant.variant_category_id)?.link_id === Number(product.id)),
   );
-  const differences = options.map((variant) => variant.price_difference_cents).filter((value): value is number => value !== null);
+  const differences = options
+    .map((variant) => variant.price_difference_cents)
+    .filter((value): value is number => value !== null);
   return base + (differences.length > 0 ? Math.min(...differences) : 0);
 }
 
 function lowestTierPrice(product: LinkRow, data: RowData): { price_cents: number; recurrence: string | null } {
   const candidates = tiersOf(product, data).flatMap((tier) => buyPrices(tier.prices));
-  const lowest = candidates.reduce<PriceRow | null>((best, price) => (best === null || price.price_cents < best.price_cents ? price : best), null);
+  const lowest = candidates.reduce<PriceRow | null>(
+    (best, price) => (best === null || price.price_cents < best.price_cents ? price : best),
+    null,
+  );
   return lowest ?? { price_cents: 0, recurrence: subscriptionDuration(product) };
 }
 
@@ -247,20 +331,34 @@ export function priceFormattedVerbose(product: LinkRow, data: RowData): string {
   if (!tiered) customizable = !!product.customizable_price;
   else {
     const offered = tiersOf(product, data);
-    customizable = offered.length > 1 || offered.some((tier) => !!tier.variant.customizable_price) || (offered.length === 1 && buyPrices(offered[0]!.prices).length > 1);
+    customizable =
+      offered.length > 1 ||
+      offered.some((tier) => !!tier.variant.customizable_price) ||
+      (offered.length === 1 && buyPrices(offered[0]!.prices).length > 1);
   }
-  const label = isSet(product.flags, "is_recurring_billing") ? ` ${recurrence ? (RECURRENCE_LABELS[recurrence] ?? "") : ""}` : "";
+  const label = isSet(product.flags, "is_recurring_billing")
+    ? ` ${recurrence ? (RECURRENCE_LABELS[recurrence] ?? "") : ""}`
+    : "";
   return `${dollars(displayPriceCents(product, data))}${customizable ? "+" : ""}${label}`;
 }
 
 // ---- stats ----
 
-export type CachedStats = { successful_sales_count: number | null; remaining_for_sale_count: number | null; monthly_recurring_revenue: number; revenue_pending: number; total_usd_cents: number };
+export type CachedStats = {
+  successful_sales_count: number | null;
+  remaining_for_sale_count: number | null;
+  monthly_recurring_revenue: number;
+  revenue_pending: number;
+  total_usd_cents: number;
+};
 
 // Product::Caching.dashboard_collection_data: the fresh cached value of each product; a product without one is
 // computed from Elasticsearch and enqueues a CacheProductDataWorker job, which Rails does.
 export async function freshCachedStats(rows: readonly LinkRow[]): Promise<Map<bigint, CachedStats>> {
-  const values = await db.productCachedValue.findMany({ where: { product_id: { in: ids(rows) }, expired: false }, orderBy: { id: "asc" } });
+  const values = await db.productCachedValue.findMany({
+    where: { product_id: { in: ids(rows) }, expired: false },
+    orderBy: { id: "asc" },
+  });
   const stats = new Map<bigint, CachedStats>();
   for (const value of values) {
     if (stats.has(value.product_id)) continue;
@@ -283,7 +381,10 @@ export const externalEditPath = (product: LinkRow) => `/products/${product.uniqu
 // Integer#present?
 export const hasDuration = (product: LinkRow) => product.duration_in_months !== null;
 
-export function productUrls(product: LinkRow, owner: Parameters<typeof productLongUrl>[1]): { url: string; url_without_protocol: string } {
+export function productUrls(
+  product: LinkRow,
+  owner: Parameters<typeof productLongUrl>[1],
+): { url: string; url_without_protocol: string } {
   const url = productLongUrl(product as never, owner);
   return { url, url_without_protocol: url.slice(`${domainConfig(process.env).protocol}://`.length) };
 }

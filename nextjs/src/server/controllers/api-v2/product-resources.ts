@@ -6,7 +6,19 @@ import { db } from "../../../lib/db.ts";
 import { storageConfig } from "../../infra/storage.ts";
 import { hasEditorContent } from "../../models/rich-content.ts";
 import { HandBackToRails } from "../application-controller.ts";
-import { type ApiV2Input, EDIT_PRODUCTS_SCOPES, errorWithObject, loadProduct, present, PUBLIC_READ_SCOPES, registerApiV2, renderResponse, successWithObject } from "./base.ts";
+
+import {
+  type ApiV2Input,
+  EDIT_PRODUCTS_SCOPES,
+  errorWithObject,
+  loadProduct,
+  present,
+  PUBLIC_READ_SCOPES,
+  registerApiV2,
+  renderResponse,
+  successWithObject,
+} from "./base.ts";
+import { fromExternalId } from "./base.ts";
 import {
   aliveVariantCategories,
   aliveVariants,
@@ -20,7 +32,6 @@ import {
   variantCategoryJson,
   variantJson,
 } from "./records.ts";
-import { fromExternalId } from "./base.ts";
 
 const productOf = (input: ApiV2Input): Link => input.state.product;
 
@@ -29,16 +40,23 @@ const productOf = (input: ApiV2Input): Link => input.state.product;
 
 async function skus(link: Link): Promise<BaseVariant[]> {
   if (linkFlag(link, "skus_enabled")) {
-    const alive = await db.baseVariant.findMany({ where: { type: "Sku", link_id: Number(link.id), deleted_at: null }, orderBy: { id: "asc" } });
+    const alive = await db.baseVariant.findMany({
+      where: { type: "Sku", link_id: Number(link.id), deleted_at: null },
+      orderBy: { id: "asc" },
+    });
     const real = alive.filter((sku) => (sku.flags & IS_DEFAULT_SKU) === 0);
     return real.length > 0 ? real : alive.filter((sku) => (sku.flags & IS_DEFAULT_SKU) !== 0);
   }
   return linkFlag(link, "is_physical") ? aliveVariants(link) : [];
 }
 
-registerApiV2(
-  { method: "GET", pattern: "/v2/products/:link_id/skus", scopes: PUBLIC_READ_SCOPES, before: loadProduct("link_id"), run: async (input) => successWithObject("skus", (await skus(productOf(input))).map(baseVariantJson)) },
-);
+registerApiV2({
+  method: "GET",
+  pattern: "/v2/products/:link_id/skus",
+  scopes: PUBLIC_READ_SCOPES,
+  before: loadProduct("link_id"),
+  run: async (input) => successWithObject("skus", (await skus(productOf(input))).map(baseVariantJson)),
+});
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Api::V2::CustomFieldsController
@@ -57,7 +75,11 @@ registerApiV2({
   pattern: "/v2/products/:link_id/custom_fields",
   scopes: PUBLIC_READ_SCOPES,
   before: loadProduct("link_id"),
-  run: async (input) => successWithObject("custom_fields", await Promise.all((await productCustomFields(productOf(input))).map(customFieldJson))),
+  run: async (input) =>
+    successWithObject(
+      "custom_fields",
+      await Promise.all((await productCustomFields(productOf(input))).map(customFieldJson)),
+    ),
 });
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -75,7 +97,11 @@ registerApiV2(
     pattern: "/v2/products/:link_id/variant_categories",
     scopes: PUBLIC_READ_SCOPES,
     before: loadProduct("link_id"),
-    run: async (input) => successWithObject("variant_categories", (await aliveVariantCategories(productOf(input))).map(variantCategoryJson)),
+    run: async (input) =>
+      successWithObject(
+        "variant_categories",
+        (await aliveVariantCategories(productOf(input))).map(variantCategoryJson),
+      ),
   },
   {
     method: "GET",
@@ -106,14 +132,22 @@ async function loadVariant(input: ApiV2Input) {
   const halted = await loadVariantCategory(input);
   if (halted) return halted;
   const decoded = fromExternalId(input.routeParams.id);
-  input.state.variant = decoded === null ? null : await db.baseVariant.findFirst({ where: { type: "Variant", variant_category_id: input.state.variantCategory.id, id: decoded } });
+  input.state.variant =
+    decoded === null
+      ? null
+      : await db.baseVariant.findFirst({
+          where: { type: "Variant", variant_category_id: input.state.variantCategory.id, id: decoded },
+        });
   return input.state.variant ? undefined : errorWithObject("variant", null);
 }
 
 // RichContents#rich_content_json for a version.
 export async function variantRichContentJson(link: Link, variant: BaseVariant): Promise<unknown[]> {
   if (linkFlag(link, "has_same_rich_content_for_all_variants") && (await hidesVariantRichContent(link))) return [];
-  const pages = await db.richContent.findMany({ where: { entity_type: "BaseVariant", entity_id: variant.id, deleted_at: null }, orderBy: { position: "asc" } });
+  const pages = await db.richContent.findMany({
+    where: { entity_type: "BaseVariant", entity_id: variant.id, deleted_at: null },
+    orderBy: { position: "asc" },
+  });
   return pages.map((page) => ({
     id: externalId(page.id),
     page_id: externalId(page.id),
@@ -131,7 +165,9 @@ export async function hidesVariantRichContent(link: Link): Promise<boolean> {
   if (pages.some(hasEditorContent)) return true;
   const variants = await aliveVariants(link);
   if (variants.length === 0) return true;
-  const variantPages = await db.richContent.findMany({ where: { entity_type: "BaseVariant", entity_id: { in: variants.map((variant) => variant.id) }, deleted_at: null } });
+  const variantPages = await db.richContent.findMany({
+    where: { entity_type: "BaseVariant", entity_id: { in: variants.map((variant) => variant.id) }, deleted_at: null },
+  });
   return !variantPages.some(hasEditorContent);
 }
 
@@ -148,8 +184,14 @@ registerApiV2(
     scopes: PUBLIC_READ_SCOPES,
     before: loadVariantCategory,
     async run(input) {
-      const variants = await db.baseVariant.findMany({ where: { type: "Variant", variant_category_id: input.state.variantCategory.id, deleted_at: null }, orderBy: { id: "asc" } });
-      return successWithObject("variants", await Promise.all(variants.map((variant) => variantJson(variant, productOf(input)))));
+      const variants = await db.baseVariant.findMany({
+        where: { type: "Variant", variant_category_id: input.state.variantCategory.id, deleted_at: null },
+        orderBy: { id: "asc" },
+      });
+      return successWithObject(
+        "variants",
+        await Promise.all(variants.map((variant) => variantJson(variant, productOf(input)))),
+      );
     },
   },
   {
@@ -167,7 +209,10 @@ registerApiV2(
 async function loadBuild(input: ApiV2Input) {
   const halted = await loadProduct("link_id")(input);
   if (halted) return halted;
-  input.state.build = await db.productBuild.findFirst({ where: { product_id: productOf(input).id, public_id: input.routeParams.id }, orderBy: { id: "asc" } });
+  input.state.build = await db.productBuild.findFirst({
+    where: { product_id: productOf(input).id, public_id: input.routeParams.id },
+    orderBy: { id: "asc" },
+  });
   return input.state.build ? undefined : errorWithObject("build", null);
 }
 
@@ -177,12 +222,29 @@ registerApiV2(
     pattern: "/v2/products/:link_id/builds",
     scopes: EDIT_PRODUCTS_SCOPES,
     before: loadProduct("link_id"),
-    run: async (input) => renderResponse(true, { builds: (await db.productBuild.findMany({ where: { product_id: productOf(input).id }, orderBy: { number: "asc" } })).map(productBuildJson) }),
+    run: async (input) =>
+      renderResponse(true, {
+        builds: (
+          await db.productBuild.findMany({ where: { product_id: productOf(input).id }, orderBy: { number: "asc" } })
+        ).map(productBuildJson),
+      }),
   },
-  { method: "GET", pattern: "/v2/products/:link_id/builds/:id", scopes: EDIT_PRODUCTS_SCOPES, before: loadBuild, run: async (input) => renderResponse(true, { build: productBuildJson(input.state.build) }) },
+  {
+    method: "GET",
+    pattern: "/v2/products/:link_id/builds/:id",
+    scopes: EDIT_PRODUCTS_SCOPES,
+    before: loadBuild,
+    run: async (input) => renderResponse(true, { build: productBuildJson(input.state.build) }),
+  },
   // #deploy copies the seller's upload inside S3 under the product lock and #promote swaps the live file, rewrites the rich content and
   // enqueues the unpack job; Rails takes both once the checks below pass.
-  { method: "POST", pattern: "/v2/products/:link_id/builds/deploy", scopes: EDIT_PRODUCTS_SCOPES, before: loadProduct("link_id"), run: deployBuild },
+  {
+    method: "POST",
+    pattern: "/v2/products/:link_id/builds/deploy",
+    scopes: EDIT_PRODUCTS_SCOPES,
+    before: loadProduct("link_id"),
+    run: deployBuild,
+  },
   {
     method: "POST",
     pattern: "/v2/products/:link_id/builds/:id/promote",
@@ -199,9 +261,14 @@ async function deployBuild(input: ApiV2Input) {
   if (typeof url !== "string" || !present(url)) return renderResponse(false, { message: "url is required." });
   const sellerPrefix = `${storageConfig().s3BaseUrl}attachments/${input.owner.external_id}/`;
   if (!url.startsWith(sellerPrefix) || url.includes("..") || /%2f/iu.test(url) || !url.endsWith(".zip")) {
-    return renderResponse(false, { message: "url must be a .zip you uploaded with POST /v2/files/presign and /v2/files/complete." });
+    return renderResponse(false, {
+      message: "url must be a .zip you uploaded with POST /v2/files/presign and /v2/files/complete.",
+    });
   }
-  const existing = await db.productBuild.findFirst({ where: { product_id: productOf(input).id, source_url: url }, orderBy: { id: "asc" } });
+  const existing = await db.productBuild.findFirst({
+    where: { product_id: productOf(input).id, source_url: url },
+    orderBy: { id: "asc" },
+  });
   if (existing) return renderResponse(true, { build: productBuildJson(existing) });
   throw new HandBackToRails("a build deployed from an upload in S3");
 }

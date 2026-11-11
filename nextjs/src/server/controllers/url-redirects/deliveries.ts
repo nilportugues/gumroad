@@ -2,38 +2,82 @@
 // Dispatched from public-handlers.ts (`url_redirects`); each runs the controller's before_actions, the action and its after_actions.
 import { db } from "../../../lib/db.ts";
 import { decrypt, encrypt } from "../../../lib/obfuscate-ids.ts";
+import { isListenable, isStreamable, mustBePdfStamped, s3Fields } from "../../models/product-file.ts";
 import { PurchaseFlags } from "../../search/flags.ts";
-import { HandBackToRails, RoutingError, type ActionContext, type ActionResult, type Rendered } from "../application-controller.ts";
+import {
+  HandBackToRails,
+  RoutingError,
+  type ActionContext,
+  type ActionResult,
+  type Rendered,
+} from "../application-controller.ts";
 import { json } from "../json-actions.ts";
+import { requestFormat } from "../rails-params.ts";
 import { parseQuery } from "../rails-query.ts";
 import { queryParam, isPresent } from "../rails-request.ts";
-import { requestFormat } from "../rails-params.ts";
-import { appDomainUrl, checkPermissions, createConsumptionEvent, loadRedirect, registerDownload, requireSellerForTestPurchase, type Loaded } from "./access.ts";
-import { aliveProductFiles, displayFilename, hlsPlaylistOrSmilPath, isFileDownloadable, signedLocationForFile, signedUrl, StorageObjectMissing, triggerFilesLifecycleEvents, type DeliveryFile } from "./files.ts";
+
+import {
+  appDomainUrl,
+  checkPermissions,
+  createConsumptionEvent,
+  loadRedirect,
+  registerDownload,
+  requireSellerForTestPurchase,
+  type Loaded,
+} from "./access.ts";
+import {
+  aliveProductFiles,
+  displayFilename,
+  hlsPlaylistOrSmilPath,
+  isFileDownloadable,
+  signedLocationForFile,
+  signedUrl,
+  StorageObjectMissing,
+  triggerFilesLifecycleEvents,
+  type DeliveryFile,
+} from "./files.ts";
 import { downloadSubtitleFile, hlsPlaylistAction, smil } from "./streaming.ts";
-import { isListenable, isStreamable, mustBePdfStamped, s3Fields } from "../../models/product-file.ts";
 
 const FOUND = 302;
 const NOT_FOUND = 404;
 const NO_LONGER_AVAILABLE_WARNING = "The file is no longer available. Please contact the seller.";
 
-const found = (location: string, extra: { cookies?: string[]; flash?: Record<string, string> } = {}): ActionResult => ({ status: FOUND, location, ...extra });
+const found = (location: string, extra: { cookies?: string[]; flash?: Record<string, string> } = {}): ActionResult => ({
+  status: FOUND,
+  location,
+  ...extra,
+});
 const downloadPageUrl = (token: string) => appDomainUrl(`/d/${token}`);
-const jsonFormat = (action: ActionContext, path: string) => path.endsWith(".json") || requestFormat(action.request) === "json";
+const jsonFormat = (action: ActionContext, path: string) =>
+  path.endsWith(".json") || requestFormat(action.request) === "json";
 // e404_json
 const notFoundJson = (): Rendered => json({ success: false, error: "Not found" }, NOT_FOUND);
 
-const asList = (value: unknown): string[] => (Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : typeof value === "string" ? [value] : []);
+const asList = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : typeof value === "string"
+      ? [value]
+      : [];
 
 // ProductFile.by_external_ids: ids that do not decrypt match nothing.
 const byExternalIds = (files: DeliveryFile[], externalIds: string[]) => {
-  const ids = new Set(externalIds.map((id) => decrypt(id)).filter((id): id is number => id !== null).map(BigInt));
+  const ids = new Set(
+    externalIds
+      .map((id) => decrypt(id))
+      .filter((id): id is number => id !== null)
+      .map(BigInt),
+  );
   return files.filter(({ file }) => ids.has(file.id));
 };
 
 type Context = { loaded: Loaded; action: ActionContext; token: string; now: Date };
 
-async function viaPermissions(token: string, action: ActionContext, actionName: string): Promise<{ context: Context } | { halted: ActionResult }> {
+async function viaPermissions(
+  token: string,
+  action: ActionContext,
+  actionName: string,
+): Promise<{ context: Context } | { halted: ActionResult }> {
   const loaded = await loadRedirect(token);
   const halted = await checkPermissions({ loaded, action, actionName });
   return halted ? { halted } : { context: { loaded, action, token, now: new Date() } };
@@ -50,7 +94,10 @@ async function show(token: string, action: ActionContext): Promise<ActionResult>
   try {
     // UrlRedirect#redirect_or_s3_location
     const [only] = files;
-    location = files.length === 1 && only ? ((await signedLocationForFile(only)) ?? downloadPageUrl(token)) : downloadPageUrl(token);
+    location =
+      files.length === 1 && only
+        ? ((await signedLocationForFile(only)) ?? downloadPageUrl(token))
+        : downloadPageUrl(token);
   } catch (error) {
     if (!(error instanceof StorageObjectMissing)) throw error;
     return found(downloadPageUrl(token), { flash: { warning: NO_LONGER_AVAILABLE_WARNING } });
@@ -68,13 +115,21 @@ async function downloadProductFiles(token: string, action: ActionContext): Promi
   if ("halted" in gate) return gate.halted;
   const { loaded, now } = gate.context;
   const asJson = jsonFormat(action, action.request.path);
-  const files = byExternalIds(await aliveProductFiles(loaded), asList(parseQuery(action.request.queryString).product_file_ids));
-  if (files.length === 0 || !(await Promise.all(files.map((delivery) => isFileDownloadable(loaded, delivery)))).every(Boolean)) throw new RoutingError("Not Found");
+  const files = byExternalIds(
+    await aliveProductFiles(loaded),
+    asList(parseQuery(action.request.queryString).product_file_ids),
+  );
+  if (
+    files.length === 0 ||
+    !(await Promise.all(files.map((delivery) => isFileDownloadable(loaded, delivery)))).every(Boolean)
+  )
+    throw new RoutingError("Not Found");
 
   try {
     if (asJson) {
       const listed = [];
-      for (const delivery of files) listed.push({ url: await signedLocationForFile(delivery), filename: displayFilename(delivery) });
+      for (const delivery of files)
+        listed.push({ url: await signedLocationForFile(delivery), filename: displayFilename(delivery) });
       return json({ files: listed });
     }
     const [first] = files;
@@ -97,12 +152,19 @@ async function downloadArchive(token: string, action: ActionContext): Promise<Ac
   const folderId = queryParam(action.request, "folder_id");
   if (isPresent(folderId)) throw new HandBackToRails("a folder archive");
   const { purchase, product, redirect } = loaded;
-  if (purchase && PurchaseFlags.isSet(purchase.flags, "is_bundle_purchase")) throw new HandBackToRails("a bundle archive");
+  if (purchase && PurchaseFlags.isSet(purchase.flags, "is_bundle_purchase"))
+    throw new HandBackToRails("a bundle archive");
   if (redirect.preorder_id !== null) throw new HandBackToRails("a url redirect of a preorder");
 
   const files = await aliveProductFiles(loaded);
   // UrlRedirect#entity_archive: the product's latest ready archive, none when it holds stampable PDFs.
-  const archive = product === null || files.some(({ file }) => mustBePdfStamped(file)) ? null : await db.productFilesArchive.findFirst({ where: { link_id: product.id, folder_id: null, deleted_at: null, product_files_archive_state: "ready" }, orderBy: { id: "desc" } });
+  const archive =
+    product === null || files.some(({ file }) => mustBePdfStamped(file))
+      ? null
+      : await db.productFilesArchive.findFirst({
+          where: { link_id: product.id, folder_id: null, deleted_at: null, product_files_archive_state: "ready" },
+          orderBy: { id: "desc" },
+        });
   if (jsonFormat(action, action.request.path)) {
     const url = archive ? `${action.request.protocol}${action.request.hostWithPort}/zip/${token}` : null;
     return json({ url });
@@ -123,7 +185,12 @@ async function downloadArchive(token: string, action: ActionContext): Promise<Ac
 // #media_urls
 async function mediaUrls(token: string, action: ActionContext): Promise<ActionResult> {
   const loaded = await loadRedirect(token);
-  if (requireSellerForTestPurchase(loaded, action) === "forbidden") return jsonFormat(action, action.request.path) ? notFoundJson() : (() => { throw new RoutingError("Not Found"); })();
+  if (requireSellerForTestPurchase(loaded, action) === "forbidden")
+    return jsonFormat(action, action.request.path)
+      ? notFoundJson()
+      : (() => {
+          throw new RoutingError("Not Found");
+        })();
   const requested = asList(parseQuery(action.request.queryString).file_ids);
   if (requested.length === 0) return json({});
   const result: Record<string, string[]> = {};
@@ -131,7 +198,8 @@ async function mediaUrls(token: string, action: ActionContext): Promise<ActionRe
     for (const delivery of byExternalIds(await aliveProductFiles(loaded), requested)) {
       const urls: string[] = [];
       if (isStreamable(delivery.file)) urls.push(await hlsPlaylistOrSmilPath(token, delivery));
-      if (isListenable(delivery.file) || isStreamable(delivery.file)) urls.push((await signedLocationForFile(delivery))!);
+      if (isListenable(delivery.file) || isStreamable(delivery.file))
+        urls.push((await signedLocationForFile(delivery))!);
       result[encryptId(delivery)] = urls;
     }
   } catch (error) {
@@ -143,7 +211,10 @@ async function mediaUrls(token: string, action: ActionContext): Promise<ActionRe
 
 const encryptId = ({ file }: DeliveryFile) => encrypt(file.id);
 
-const PRODUCT_FILE_ROUTES: { pattern: RegExp; run: (token: string, fileId: string, action: ActionContext) => Promise<ActionResult> }[] = [
+const PRODUCT_FILE_ROUTES: {
+  pattern: RegExp;
+  run: (token: string, fileId: string, action: ActionContext) => Promise<ActionResult>;
+}[] = [
   { pattern: /^\/r\/([^/.]+)\/([^/.]+)\/stream\.smil$/u, run: smil },
   { pattern: /^\/r\/([^/.]+)\/([^/.]+)\/index\.m3u8$/u, run: hlsPlaylistAction },
 ];
@@ -166,6 +237,12 @@ export async function urlRedirectsAction(action: ActionContext): Promise<ActionR
     if (match) return route.run(decodeURIComponent(match[1]!), decodeURIComponent(match[2]!), action);
   }
   const subtitle = /^\/r\/([^/.]+)\/([^/.]+)\/([^/.]+)$/u.exec(path);
-  if (subtitle) return downloadSubtitleFile(decodeURIComponent(subtitle[1]!), decodeURIComponent(subtitle[2]!), decodeURIComponent(subtitle[3]!), action);
+  if (subtitle)
+    return downloadSubtitleFile(
+      decodeURIComponent(subtitle[1]!),
+      decodeURIComponent(subtitle[2]!),
+      decodeURIComponent(subtitle[3]!),
+      action,
+    );
   throw new RoutingError("Not Found");
 }

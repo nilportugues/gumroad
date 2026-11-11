@@ -5,6 +5,7 @@ import type { WatchedUser } from "@prisma/client";
 import { db } from "../../../lib/db.ts";
 import { encrypt } from "../../../lib/obfuscate-ids.ts";
 import { NotPortedError } from "../../models/user.ts";
+
 import { failure, isBlank, jsonRendered, paramToS, recordAdminWrite } from "./base.ts";
 import { defineAdminRoute } from "./registry.ts";
 import { findUserForWrite } from "./user-writes.ts";
@@ -60,7 +61,8 @@ function serializeWatchedUser(watched: WatchedUser) {
   };
 }
 
-const activeWatch = (userId: bigint) => db.watchedUser.findFirst({ where: { user_id: userId, deleted_at: null }, orderBy: { id: "asc" } });
+const activeWatch = (userId: bigint) =>
+  db.watchedUser.findFirst({ where: { user_id: userId, deleted_at: null }, orderBy: { id: "asc" } });
 
 defineAdminRoute(
   {
@@ -71,11 +73,20 @@ defineAdminRoute(
       const found = await findUserForWrite(admin, false);
       if ("refusal" in found) return found.refusal;
       const { user } = found;
-      return recordAdminWrite(admin, { action: "users.watch", target: { type: "User", id: user.id, externalId: user.external_id }, wrapper: WRAPPER }, async () => {
-        if (parseThresholdCents(admin.params.revenue_threshold) === null) return failure(THRESHOLD_INVALID_MESSAGE, 400);
-        if ((await activeWatch(user.id)) !== null) return failure("User is already being watched", 422);
-        throw new NotPortedError("a new watch (WatchedUser#sync! recomputes revenue and unpaid balance)", SOURCE);
-      });
+      return recordAdminWrite(
+        admin,
+        {
+          action: "users.watch",
+          target: { type: "User", id: user.id, externalId: user.external_id },
+          wrapper: WRAPPER,
+        },
+        async () => {
+          if (parseThresholdCents(admin.params.revenue_threshold) === null)
+            return failure(THRESHOLD_INVALID_MESSAGE, 400);
+          if ((await activeWatch(user.id)) !== null) return failure("User is already being watched", 422);
+          throw new NotPortedError("a new watch (WatchedUser#sync! recomputes revenue and unpaid balance)", SOURCE);
+        },
+      );
     },
   },
   {
@@ -86,17 +97,35 @@ defineAdminRoute(
       const found = await findUserForWrite(admin, false);
       if ("refusal" in found) return found.refusal;
       const { user } = found;
-      return recordAdminWrite(admin, { action: "users.update_watch", target: { type: "User", id: user.id, externalId: user.external_id }, wrapper: WRAPPER }, async () => {
-        const threshold = parseThresholdCents(admin.params.revenue_threshold);
-        if (threshold === null) return failure(THRESHOLD_INVALID_MESSAGE, 400);
-        const watched = await activeWatch(user.id);
-        if (watched === null) return failure(NOT_WATCHED_MESSAGE, 422);
-        const notes = "notes" in admin.params ? notesParam(admin.params.notes) : watched.notes;
-        // An update that changes nothing writes nothing, updated_at included.
-        const changed = watched.revenue_threshold_cents !== threshold || watched.notes !== notes;
-        const saved = changed ? await db.watchedUser.update({ where: { id: watched.id }, data: { revenue_threshold_cents: threshold, notes, updated_at: new Date() } }) : watched;
-        return jsonRendered({ success: true, user_id: user.external_id, message: "Watchlist updated", watched_user: serializeWatchedUser(saved) });
-      });
+      return recordAdminWrite(
+        admin,
+        {
+          action: "users.update_watch",
+          target: { type: "User", id: user.id, externalId: user.external_id },
+          wrapper: WRAPPER,
+        },
+        async () => {
+          const threshold = parseThresholdCents(admin.params.revenue_threshold);
+          if (threshold === null) return failure(THRESHOLD_INVALID_MESSAGE, 400);
+          const watched = await activeWatch(user.id);
+          if (watched === null) return failure(NOT_WATCHED_MESSAGE, 422);
+          const notes = "notes" in admin.params ? notesParam(admin.params.notes) : watched.notes;
+          // An update that changes nothing writes nothing, updated_at included.
+          const changed = watched.revenue_threshold_cents !== threshold || watched.notes !== notes;
+          const saved = changed
+            ? await db.watchedUser.update({
+                where: { id: watched.id },
+                data: { revenue_threshold_cents: threshold, notes, updated_at: new Date() },
+              })
+            : watched;
+          return jsonRendered({
+            success: true,
+            user_id: user.external_id,
+            message: "Watchlist updated",
+            watched_user: serializeWatchedUser(saved),
+          });
+        },
+      );
     },
   },
   {
@@ -106,13 +135,21 @@ defineAdminRoute(
       const found = await findUserForWrite(admin, false);
       if ("refusal" in found) return found.refusal;
       const { user } = found;
-      return recordAdminWrite(admin, { action: "users.unwatch", target: { type: "User", id: user.id, externalId: user.external_id }, wrapper: WRAPPER }, async () => {
-        const watched = await activeWatch(user.id);
-        if (watched === null) return failure(NOT_WATCHED_MESSAGE, 422);
-        const now = new Date();
-        await db.watchedUser.update({ where: { id: watched.id }, data: { deleted_at: now, updated_at: now } });
-        return jsonRendered({ success: true, user_id: user.external_id, message: "User removed from watchlist" });
-      });
+      return recordAdminWrite(
+        admin,
+        {
+          action: "users.unwatch",
+          target: { type: "User", id: user.id, externalId: user.external_id },
+          wrapper: WRAPPER,
+        },
+        async () => {
+          const watched = await activeWatch(user.id);
+          if (watched === null) return failure(NOT_WATCHED_MESSAGE, 422);
+          const now = new Date();
+          await db.watchedUser.update({ where: { id: watched.id }, data: { deleted_at: now, updated_at: now } });
+          return jsonRendered({ success: true, user_id: user.external_id, message: "User removed from watchlist" });
+        },
+      );
     },
   },
 );

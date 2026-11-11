@@ -4,16 +4,27 @@ import { Prisma, type BaseVariant, type Link, type OfferCode, type User } from "
 
 import { encrypt } from "../../lib/obfuscate-ids.ts";
 import { isFeatureEnabled } from "../infra/flipper.ts";
-import { OfferCodeFlags, OfferCodeRecord, NON_GIFT_SUCCESS_STATES, NOT_RECURRING_CHARGE, countsTowardsUses, normalizeTiers, poc, purchaseFlag, states } from "../models/offer-code.ts";
 import { LinkFlags } from "../models/link.ts";
+import {
+  OfferCodeFlags,
+  OfferCodeRecord,
+  NON_GIFT_SUCCESS_STATES,
+  NOT_RECURRING_CHARGE,
+  countsTowardsUses,
+  normalizeTiers,
+  poc,
+  purchaseFlag,
+  states,
+} from "../models/offer-code.ts";
 import { castRow, column, columnIn, selectRows, table } from "../models/sql.ts";
 import { NotPortedError } from "../models/user.ts";
-import { timeAsJson } from "../search/es-json.ts";
+import { BLACK_FRIDAY_CODE } from "../page-props/discover/discover.ts";
 import { checkoutOfferCodePolicy } from "../policies/checkout-offer-code.ts";
 import type { SellerContext } from "../policies/seller-context.ts";
-import { BLACK_FRIDAY_CODE } from "../page-props/discover/discover.ts";
-import { longUrl } from "./product.ts";
+import { timeAsJson } from "../search/es-json.ts";
+
 import type { LinkRow, UserRow } from "./product-reads.ts";
+import { longUrl } from "./product.ts";
 
 export const PER_PAGE = 10;
 export const BLACK_FRIDAY_CODE_NAME = "Black Friday 2025";
@@ -32,7 +43,8 @@ const star = (name: string) => Prisma.raw(`\`${name}\`.*`);
 // OfferCode::Sorting#sorted_by
 
 // Purchase.offer_code_statistics: the association scope lands in the join's ON clause.
-const statisticsCondition = () => Prisma.sql`${states(NON_GIFT_SUCCESS_STATES)} AND ${NOT_RECURRING_CHARGE} AND ${purchaseFlag("is_archived_original_subscription_purchase", false)}`;
+const statisticsCondition = () =>
+  Prisma.sql`${states(NON_GIFT_SUCCESS_STATES)} AND ${NOT_RECURRING_CHARGE} AND ${purchaseFlag("is_archived_original_subscription_purchase", false)}`;
 
 // OfferCode::Sorting::USES_SORT_SQL
 const USES_SORT_SQL = Prisma.sql`COALESCE(SUM(CASE WHEN ${poc("once_per_cart")} = TRUE THEN CASE WHEN ${poc("once_per_cart_allocation_id")} IS NULL THEN 1 ELSE 0 END ELSE ${column("purchases", "quantity")} END), 0) + COUNT(DISTINCT CASE WHEN ${poc("once_per_cart")} = TRUE THEN ${poc("once_per_cart_allocation_id")} END)`;
@@ -56,7 +68,10 @@ function sortClauses(sort: Sort): { joins: Prisma.Sql; group: Prisma.Sql; order:
         order: Prisma.sql`${USES_SORT_SQL} ${direction}, `,
       };
     case "term":
-      return { ...none, order: Prisma.sql`${column("offer_codes", "valid_at")} ${direction}, ${column("offer_codes", "expires_at")} ${direction}, ` };
+      return {
+        ...none,
+        order: Prisma.sql`${column("offer_codes", "valid_at")} ${direction}, ${column("offer_codes", "expires_at")} ${direction}, `,
+      };
     default:
       return none;
   }
@@ -65,7 +80,12 @@ function sortClauses(sort: Sort): { joins: Prisma.Sql; group: Prisma.Sql; order:
 // ---------------------------------------------------------------------------------------------
 // HABTM preloads: the join rows first, then the targets, in the join rows' order as ActiveRecord's preloader leaves them.
 
-async function preloadHabtm<T extends { id: bigint | number }>(joinTable: string, foreignKey: string, codeIds: number[], load: (ids: (bigint | number)[]) => Promise<T[]>): Promise<Map<number, T[]>> {
+async function preloadHabtm<T extends { id: bigint | number }>(
+  joinTable: string,
+  foreignKey: string,
+  codeIds: number[],
+  load: (ids: (bigint | number)[]) => Promise<T[]>,
+): Promise<Map<number, T[]>> {
   const out = new Map<number, T[]>(codeIds.map((id) => [id, []]));
   if (codeIds.length === 0) return out;
   const joins = await selectRows<{ offer_code_id: bigint | number; target_id: bigint | number }>(
@@ -80,11 +100,29 @@ async function preloadHabtm<T extends { id: bigint | number }>(joinTable: string
   return out;
 }
 
-const loadLinks = async (ids: (bigint | number)[]): Promise<LinkRow[]> => (ids.length === 0 ? [] : selectRows<LinkRow>(Prisma.sql`SELECT ${star("links")} FROM ${table("links")} WHERE ${columnIn("links", "id", ids)}`));
+const loadLinks = async (ids: (bigint | number)[]): Promise<LinkRow[]> =>
+  ids.length === 0
+    ? []
+    : selectRows<LinkRow>(
+        Prisma.sql`SELECT ${star("links")} FROM ${table("links")} WHERE ${columnIn("links", "id", ids)}`,
+      );
 const loadVariants = async (ids: (bigint | number)[]): Promise<BaseVariant[]> =>
-  ids.length === 0 ? [] : (await selectRows(Prisma.sql`SELECT ${star("base_variants")} FROM ${table("base_variants")} WHERE ${columnIn("base_variants", "id", ids)}`)).map((row) => castRow<BaseVariant>("BaseVariant", row));
+  ids.length === 0
+    ? []
+    : (
+        await selectRows(
+          Prisma.sql`SELECT ${star("base_variants")} FROM ${table("base_variants")} WHERE ${columnIn("base_variants", "id", ids)}`,
+        )
+      ).map((row) => castRow<BaseVariant>("BaseVariant", row));
 
-type LoadedCode = { record: OfferCodeRecord; products: LinkRow[]; ownershipProducts: LinkRow[]; excludedProducts: LinkRow[]; variants: BaseVariant[]; ownerOf: Map<string, bigint | number | null> };
+type LoadedCode = {
+  record: OfferCodeRecord;
+  products: LinkRow[];
+  ownershipProducts: LinkRow[];
+  excludedProducts: LinkRow[];
+  variants: BaseVariant[];
+  ownerOf: Map<string, bigint | number | null>;
+};
 
 async function loadCodes(rows: OfferCode[]): Promise<LoadedCode[]> {
   const ids = rows.map((row) => row.id);
@@ -93,27 +131,60 @@ async function loadCodes(rows: OfferCode[]): Promise<LoadedCode[]> {
   const excluded = await preloadHabtm("offer_codes_excluded_products", "product_id", ids, loadLinks);
   const variants = await preloadHabtm("offer_codes_variants", "variant_id", ids, loadVariants);
   // Only a Variant has a category (a Sku reads its own link_id).
-  const categoryIds = [...new Set([...variants.values()].flat().filter((variant) => variant.type === "Variant" && variant.variant_category_id !== null).map((variant) => variant.variant_category_id!))];
+  const categoryIds = [
+    ...new Set(
+      [...variants.values()]
+        .flat()
+        .filter((variant) => variant.type === "Variant" && variant.variant_category_id !== null)
+        .map((variant) => variant.variant_category_id!),
+    ),
+  ];
   const categories = new Map<string, bigint | number | null>();
   if (categoryIds.length > 0)
-    for (const row of await selectRows<{ id: bigint | number; link_id: bigint | number | null }>(Prisma.sql`SELECT ${column("variant_categories", "id")}, ${column("variant_categories", "link_id")} FROM ${table("variant_categories")} WHERE ${columnIn("variant_categories", "id", categoryIds)}`))
+    for (const row of await selectRows<{ id: bigint | number; link_id: bigint | number | null }>(
+      Prisma.sql`SELECT ${column("variant_categories", "id")}, ${column("variant_categories", "link_id")} FROM ${table("variant_categories")} WHERE ${columnIn("variant_categories", "id", categoryIds)}`,
+    ))
       categories.set(String(row.id), row.link_id);
   return rows.map((row) => {
     const own = variants.get(row.id)!;
     // BaseVariant#owning_product_id
-    const ownerOf = new Map(own.map((variant) => [String(variant.id), variant.type === "Variant" ? (categories.get(String(variant.variant_category_id)) ?? null) : variant.link_id] as const));
-    return { record: new OfferCodeRecord(row), products: products.get(row.id)!, ownershipProducts: ownership.get(row.id)!, excludedProducts: excluded.get(row.id)!, variants: own, ownerOf };
+    const ownerOf = new Map(
+      own.map(
+        (variant) =>
+          [
+            String(variant.id),
+            variant.type === "Variant"
+              ? (categories.get(String(variant.variant_category_id)) ?? null)
+              : variant.link_id,
+          ] as const,
+      ),
+    );
+    return {
+      record: new OfferCodeRecord(row),
+      products: products.get(row.id)!,
+      ownershipProducts: ownership.get(row.id)!,
+      excludedProducts: excluded.get(row.id)!,
+      variants: own,
+      ownerOf,
+    };
   });
 }
 
 // ---------------------------------------------------------------------------------------------
 // Checkout::DiscountsController#fetch_offer_codes
 
-export async function fetchOfferCodes(seller: User, params: ListingParams): Promise<{ pagination: Pagination; codes: LoadedCode[] }> {
+export async function fetchOfferCodes(
+  seller: User,
+  params: ListingParams,
+): Promise<{ pagination: Pagination; codes: LoadedCode[] }> {
   const filter = Prisma.sql`${column("offer_codes", "user_id")} = ${seller.id} AND ${column("offer_codes", "deleted_at")} IS NULL AND ${column("offer_codes", "code")} IS NOT NULL${
-    params.query === null ? Prisma.empty : Prisma.sql` AND (name LIKE ${`%${params.query}%`} OR code LIKE ${`%${params.query}%`})`
+    params.query === null
+      ? Prisma.empty
+      : Prisma.sql` AND (name LIKE ${`%${params.query}%`} OR code LIKE ${`%${params.query}%`})`
   }`;
-  const [counted] = await selectRows<{ total: bigint | number }>(Prisma.sql`SELECT COUNT(*) AS total FROM ${table("offer_codes")} WHERE ${filter}`);
+  const [counted] = await selectRows<{ total: bigint | number }>(
+    Prisma.sql`SELECT COUNT(*) AS total FROM ${table("offer_codes")} WHERE ${filter}`,
+  );
   const total = Number(counted!.total);
 
   // Pagy's last page is 1 for an empty list; an out-of-range page maps to the closest valid one.
@@ -123,7 +194,10 @@ export async function fetchOfferCodes(seller: User, params: ListingParams): Prom
   const rows = await selectRows(
     Prisma.sql`SELECT ${star("offer_codes")} FROM ${table("offer_codes")} ${joins} WHERE ${filter} ${group} ORDER BY ${order}${column("offer_codes", "updated_at")} DESC LIMIT ${PER_PAGE} OFFSET ${(page - 1) * PER_PAGE}`,
   );
-  return { pagination: { pages: last, page }, codes: await loadCodes(rows.map((row) => castRow<OfferCode>("OfferCode", row))) };
+  return {
+    pagination: { pages: last, page },
+    codes: await loadCodes(rows.map((row) => castRow<OfferCode>("OfferCode", row))),
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -182,40 +256,73 @@ export function offerCodeProps(loaded: LoadedCode, seller: User, sellerContext: 
   };
 }
 
-type OptionRow = { id: bigint | number; name: string | null; variant_category_id: bigint | number | null; position_in_category: number | null; created_at: Date };
+type OptionRow = {
+  id: bigint | number;
+  name: string | null;
+  variant_category_id: bigint | number | null;
+  position_in_category: number | null;
+  created_at: Date;
+};
 
 // Checkout::DiscountsPresenter#product_props_by_product
 export async function productPropsByProduct(seller: User) {
-  const products = await selectRows<LinkRow>(Prisma.sql`SELECT ${star("links")} FROM ${table("links")} WHERE ${column("links", "user_id")} = ${seller.id} AND ${column("links", "deleted_at")} IS NULL ORDER BY ${column("links", "id")}`);
+  const products = await selectRows<LinkRow>(
+    Prisma.sql`SELECT ${star("links")} FROM ${table("links")} WHERE ${column("links", "user_id")} = ${seller.id} AND ${column("links", "deleted_at")} IS NULL ORDER BY ${column("links", "id")}`,
+  );
   if (products.length === 0) return [];
   const ids = products.map((product) => product.id);
   const categories = await selectRows<{ id: bigint | number; link_id: bigint | number }>(
     Prisma.sql`SELECT ${column("variant_categories", "id")}, ${column("variant_categories", "link_id")} FROM ${table("variant_categories")} WHERE ${columnIn("variant_categories", "link_id", ids)} AND ${column("variant_categories", "deleted_at")} IS NULL ORDER BY ${column("variant_categories", "id")}`,
   );
-  const variants = categories.length === 0 ? [] : await selectRows<OptionRow>(
-    Prisma.sql`SELECT ${star("base_variants")} FROM ${table("base_variants")} WHERE ${columnIn("base_variants", "variant_category_id", categories.map((category) => category.id))} AND ${column("base_variants", "type")} = 'Variant' AND ${column("base_variants", "deleted_at")} IS NULL ORDER BY ${column("base_variants", "id")}`,
-  );
+  const variants =
+    categories.length === 0
+      ? []
+      : await selectRows<OptionRow>(
+          Prisma.sql`SELECT ${star("base_variants")} FROM ${table("base_variants")} WHERE ${columnIn(
+            "base_variants",
+            "variant_category_id",
+            categories.map((category) => category.id),
+          )} AND ${column("base_variants", "type")} = 'Variant' AND ${column("base_variants", "deleted_at")} IS NULL ORDER BY ${column("base_variants", "id")}`,
+        );
   const skus = await selectRows<OptionRow & { link_id: bigint | number }>(
     Prisma.sql`SELECT ${star("base_variants")} FROM ${table("base_variants")} WHERE ${columnIn("base_variants", "link_id", ids)} AND ${column("base_variants", "type")} = 'Sku' AND ${column("base_variants", "deleted_at")} IS NULL AND (${column("base_variants", "flags")} & 1) = 0 ORDER BY ${column("base_variants", "id")}`,
   );
 
   return products.map((product) => {
-    const props: ReturnType<typeof productProps> & { options?: { id: string; name: string }[] } = productProps(product, seller);
+    const props: ReturnType<typeof productProps> & { options?: { id: string; name: string }[] } = productProps(
+      product,
+      seller,
+    );
     let options: OptionRow[];
     if (flag(product, "skus_enabled")) {
       options = skus.filter((sku) => String(sku.link_id) === String(product.id));
     } else {
       const firstCategory = categories.find((category) => String(category.link_id) === String(product.id));
       options = variants
-        .filter((variant) => firstCategory !== undefined && String(variant.variant_category_id) === String(firstCategory.id))
-        .sort((a, b) => (a.position_in_category === null ? 0 : 1) - (b.position_in_category === null ? 0 : 1) || (a.position_in_category ?? 0) - (b.position_in_category ?? 0) || a.created_at.getTime() - b.created_at.getTime());
+        .filter(
+          (variant) => firstCategory !== undefined && String(variant.variant_category_id) === String(firstCategory.id),
+        )
+        .sort(
+          (a, b) =>
+            (a.position_in_category === null ? 0 : 1) - (b.position_in_category === null ? 0 : 1) ||
+            (a.position_in_category ?? 0) - (b.position_in_category ?? 0) ||
+            a.created_at.getTime() - b.created_at.getTime(),
+        );
     }
-    if (options.length > 0) props.options = options.map((option) => ({ id: encrypt(option.id), name: option.name === UNTITLED ? product.name! : (option.name ?? "") }));
+    if (options.length > 0)
+      props.options = options.map((option) => ({
+        id: encrypt(option.id),
+        name: option.name === UNTITLED ? product.name! : (option.name ?? ""),
+      }));
     return props;
   });
 }
 
-export async function discountsProps(seller: User, sellerContext: SellerContext, listing: Awaited<ReturnType<typeof fetchOfferCodes>>) {
+export async function discountsProps(
+  seller: User,
+  sellerContext: SellerContext,
+  listing: Awaited<ReturnType<typeof fetchOfferCodes>>,
+) {
   return {
     pages: DASHBOARD_PAGES,
     pagination: listing.pagination,
@@ -247,12 +354,19 @@ export async function offerCodeStatistics(offerCodeId: number) {
   // Hash#merge keeps the first hash's key order and appends the new keys.
   const usesByProduct = new Map<string, number>();
   for (const rows of [perItem, legacyPerCart, allocated])
-    for (const row of rows) usesByProduct.set(encrypt(row.link_id), (usesByProduct.get(encrypt(row.link_id)) ?? 0) + Number(String(row.total)));
+    for (const row of rows)
+      usesByProduct.set(
+        encrypt(row.link_id),
+        (usesByProduct.get(encrypt(row.link_id)) ?? 0) + Number(String(row.total)),
+      );
   const [revenue] = await selectRows<{ total: unknown }>(
     Prisma.sql`SELECT SUM(${column("purchases", "price_cents")}) AS total FROM ${table("purchases")} WHERE ${column("purchases", "offer_code_id")} = ${offerCodeId} AND ${statistics}`,
   );
   return {
-    uses: { total: [...usesByProduct.values()].reduce((sum, value) => sum + value, 0), products: Object.fromEntries(usesByProduct) },
+    uses: {
+      total: [...usesByProduct.values()].reduce((sum, value) => sum + value, 0),
+      products: Object.fromEntries(usesByProduct),
+    },
     revenue_cents: revenue?.total == null ? 0 : Number(String(revenue.total)),
   };
 }

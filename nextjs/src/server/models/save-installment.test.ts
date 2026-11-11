@@ -9,18 +9,25 @@ import type { Installment, User, Workflow } from "@prisma/client";
 import { Redis } from "ioredis";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import {
+  asSidekiqJob,
+  rubyRuntimeRegistry,
+  sequentialJids,
+  snapshotRedis,
+  type RedisSnapshot,
+} from "../../worker/jobs/__fixtures__/golden.ts";
+import { sqlReplay, type Statement } from "../../worker/jobs/__fixtures__/sql-replay.ts";
 import { createJobsRuntime } from "../jobs/runtime.ts";
 import { parseRubyJson, RubyFloat } from "../jobs/sidekiq/ruby-json.ts";
 import { setEsSender, type EsRequest } from "../search/transport.ts";
-import { asSidekiqJob, rubyRuntimeRegistry, sequentialJids, snapshotRedis, type RedisSnapshot } from "../../worker/jobs/__fixtures__/golden.ts";
-import { sqlReplay, type Statement } from "../../worker/jobs/__fixtures__/sql-replay.ts";
+
 import { withJobsRuntime } from "./concerns/job-runtime.ts";
 import { setInstallmentRuleDeps } from "./installment-rule-writes.ts";
 import { installmentDeps, Installments } from "./installment-writes.ts";
+import { findByIdBang } from "./row-reads.ts";
 import { saveInstallment } from "./save-installment.ts";
 import { findVisibleProduct, manageWorkflow, permitWorkflow } from "./workflow-manage.ts";
 import { Workflows } from "./workflow-writes.ts";
-import { findByIdBang } from "./row-reads.ts";
 
 // ObfuscateIds keys the golden was recorded with (scripts/golden/save-installment.rb).
 process.env.OBFUSCATE_IDS_CIPHER_KEY ??= "ws82-golden-obfuscate-key";
@@ -40,10 +47,13 @@ type Case = {
   statements: Statement[];
   redis: RedisSnapshot;
 };
-const golden = parseRubyJson(readFileSync(new URL("./__fixtures__/save-installment.golden.json", import.meta.url), "utf8")) as unknown as { cases: Case[] };
+const golden = parseRubyJson(
+  readFileSync(new URL("./__fixtures__/save-installment.golden.json", import.meta.url), "utf8"),
+) as unknown as { cases: Case[] };
 
 const url = process.env.JOBS_REDIS_URL;
-if (url && /\/0$|^[^/]*\/\/[^/]+$/u.test(url)) throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
+if (url && /\/0$|^[^/]*\/\/[^/]+$/u.test(url))
+  throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
 let redis: Redis | undefined;
 beforeAll(() => {
   if (url) redis = new Redis(url);
@@ -81,7 +91,11 @@ const sequentialUuid = () => {
   let seq = 0;
   return () => `00000000-0000-4000-8000-${String(++seq).padStart(12, "0")}`;
 };
-const withoutJobIds = (value: unknown) => JSON.stringify(value, (_key, v) => (v instanceof RubyFloat ? v.value : v)).replace(/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}/gu, "JOB_ID");
+const withoutJobIds = (value: unknown) =>
+  JSON.stringify(value, (_key, v) => (v instanceof RubyFloat ? v.value : v)).replace(
+    /[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}/gu,
+    "JOB_ID",
+  );
 const secondsOf = (value: unknown) => (typeof value === "number" ? value : (value as RubyFloat).value);
 
 describe("SaveInstallmentService", () => {
@@ -95,7 +109,13 @@ describe("SaveInstallmentService", () => {
       const nowSeconds = secondsOf(c.case_now);
       const now = () => new Date(Math.round(nowSeconds * 1000));
       const sql = sqlReplay(c.statements);
-      const runtime = createJobsRuntime({ sidekiqRedis: redis!, bullmqRedis: redis!, registry: rubyRuntimeRegistry(), now: () => nowSeconds, newJid: sequentialJids() });
+      const runtime = createJobsRuntime({
+        sidekiqRedis: redis!,
+        bullmqRedis: redis!,
+        registry: rubyRuntimeRegistry(),
+        now: () => nowSeconds,
+        newJid: sequentialJids(),
+      });
       const esSent: EsRequest[] = [];
       const restoreEs = setEsSender(async (request) => {
         esSent.push(request);
@@ -115,15 +135,28 @@ describe("SaveInstallmentService", () => {
               const seller = await findByIdBang<User>("User", 1n);
               if (c.kind === "workflow") {
                 const params = permitWorkflow(c.request_params.workflow);
-                const product = params.workflow_type === "product" || params.workflow_type === "variant" ? await findVisibleProduct(seller, params.permalink) : null;
-                if ((params.workflow_type === "product" || params.workflow_type === "variant") && product === null) throw new Error("404");
-                const workflow = c.installment_id === null ? null : Workflows.load(await findByIdBang<Workflow>("Workflow", BigInt(c.installment_id)));
+                const product =
+                  params.workflow_type === "product" || params.workflow_type === "variant"
+                    ? await findVisibleProduct(seller, params.permalink)
+                    : null;
+                if ((params.workflow_type === "product" || params.workflow_type === "variant") && product === null)
+                  throw new Error("404");
+                const workflow =
+                  c.installment_id === null
+                    ? null
+                    : Workflows.load(await findByIdBang<Workflow>("Workflow", BigInt(c.installment_id)));
                 const managed = await manageWorkflow({ seller, params, product, workflow }, { now, uuid });
                 result = { ok: managed.ok, error: managed.error, installment: null };
                 return;
               }
-              const installment = c.installment_id === null ? null : Installments.load(await findByIdBang<Installment>("Installment", BigInt(c.installment_id)));
-              result = await saveInstallment({ seller, params: c.request_params, installment }, { now, hex4: () => (++hex).toString(16).padStart(8, "0"), notify: () => {} });
+              const installment =
+                c.installment_id === null
+                  ? null
+                  : Installments.load(await findByIdBang<Installment>("Installment", BigInt(c.installment_id)));
+              result = await saveInstallment(
+                { seller, params: c.request_params, installment },
+                { now, hex4: () => (++hex).toString(16).padStart(8, "0"), notify: () => {} },
+              );
             }),
           nowSeconds,
         );
@@ -137,7 +170,9 @@ describe("SaveInstallmentService", () => {
 
       if (REFUSED.has(c.name)) {
         expect((error as Error | null)?.name).toBe("NotPortedError");
-        const performed = sql.log.filter((statement, index) => !(statement === "ROLLBACK" && index === sql.log.length - 1));
+        const performed = sql.log.filter(
+          (statement, index) => !(statement === "ROLLBACK" && index === sql.log.length - 1),
+        );
         expect(performed).toEqual(sql.expected.slice(0, performed.length));
         return;
       }
@@ -152,9 +187,14 @@ describe("SaveInstallmentService", () => {
       const expected = c.return!;
       expect(result!.error).toEqual(expected.error);
       expect(result!.ok).toEqual(expected.ok);
-      expect(esSent.map((request) => ({ method: request.method, path: request.path, query: new URLSearchParams(request.query ?? {}).toString() || null, body: request.body ?? null }))).toEqual(
-        (c.es ?? []).map(({ method, path, query, body }) => ({ method, path, query, body })),
-      );
+      expect(
+        esSent.map((request) => ({
+          method: request.method,
+          path: request.path,
+          query: new URLSearchParams(request.query ?? {}).toString() || null,
+          body: request.body ?? null,
+        })),
+      ).toEqual((c.es ?? []).map(({ method, path, query, body }) => ({ method, path, query, body })));
       expect(JSON.parse(withoutJobIds(await snapshotRedis(redis!)))).toEqual(JSON.parse(withoutJobIds(c.redis)));
     });
   }

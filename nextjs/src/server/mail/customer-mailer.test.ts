@@ -3,18 +3,34 @@ import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { sqlReplay } from "../../worker/jobs/__fixtures__/sql-replay.ts";
-import { goldenIvs, goldenRouter, identityOf, type MessageCase, useGoldenEnvironment } from "./__fixtures__/application-mailer-golden.ts";
-import type { MailerLevel } from "./mailer-info.ts";
+import type { Statement } from "../../worker/jobs/__fixtures__/sql-replay.ts";
+import type { JsonValue } from "../jobs/sidekiq/ruby-json.ts";
+
+import {
+  goldenIvs,
+  goldenRouter,
+  identityOf,
+  type MessageCase,
+  useGoldenEnvironment,
+} from "./__fixtures__/application-mailer-golden.ts";
 import { composeMail } from "./compose.ts";
 import { renderNodeMailer } from "./delivery.ts";
+import type { MailerLevel } from "./mailer-info.ts";
 import { deserializeArgument } from "./ruby-value.ts";
 import { MailViewNotPortedError } from "./views.ts";
-import type { JsonValue } from "../jobs/sidekiq/ruby-json.ts";
-import type { Statement } from "../../worker/jobs/__fixtures__/sql-replay.ts";
 
 type CustomerCase = MessageCase & { mailer_level?: { via: string; level: MailerLevel } };
-type ErrorCase = { name: string; mailer: string; method: string; job_args: JsonValue[]; statements: Statement[]; error: { class: string; message: string } };
-const golden = JSON.parse(readFileSync(new URL("__fixtures__/customer-mailer.golden.json", import.meta.url), "utf8")) as {
+type ErrorCase = {
+  name: string;
+  mailer: string;
+  method: string;
+  job_args: JsonValue[];
+  statements: Statement[];
+  error: { class: string; message: string };
+};
+const golden = JSON.parse(
+  readFileSync(new URL("__fixtures__/customer-mailer.golden.json", import.meta.url), "utf8"),
+) as {
   now: string;
   secrets: Record<string, string>;
   cases: { messages: CustomerCase[]; errors: ErrorCase[]; refused: CustomerCase[] };
@@ -57,14 +73,23 @@ describe("CustomerMailer", () => {
   for (const c of golden.cases.refused) {
     it(`leaves ${c.method} (${c.name}) to Rails`, async () => {
       sqlReplay(c.statements);
-      await expect(renderNodeMailer(c.mailer, c.method, c.job_args.map(deserializeArgument), { router: goldenRouter({ features: [], redis: {}, rands: [] }), mailerLevel: async () => "level_1" })).rejects.toBeInstanceOf(MailViewNotPortedError);
+      await expect(
+        renderNodeMailer(c.mailer, c.method, c.job_args.map(deserializeArgument), {
+          router: goldenRouter({ features: [], redis: {}, rands: [] }),
+          mailerLevel: async () => "level_1",
+        }),
+      ).rejects.toBeInstanceOf(MailViewNotPortedError);
     });
   }
 
   for (const c of golden.cases.errors) {
     it(`fails ${c.method} (${c.name}) with Rails' error`, async () => {
       const replay = sqlReplay(c.statements);
-      await expect(renderNodeMailer(c.mailer, c.method, c.job_args.map(deserializeArgument), { mailerLevel: async () => "level_1" })).rejects.toThrow(c.error.message);
+      await expect(
+        renderNodeMailer(c.mailer, c.method, c.job_args.map(deserializeArgument), {
+          mailerLevel: async () => "level_1",
+        }),
+      ).rejects.toThrow(c.error.message);
       expect(replay.log).toEqual(replay.expected);
     });
   }

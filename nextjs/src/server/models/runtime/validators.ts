@@ -57,9 +57,13 @@ function validator<R extends Row>(
   };
 }
 
-const withMessage = (opts: { message?: string }, extra: Record<string, unknown> = {}) => (opts.message ? { ...extra, message: opts.message } : extra);
+const withMessage = (opts: { message?: string }, extra: Record<string, unknown> = {}) =>
+  opts.message ? { ...extra, message: opts.message } : extra;
 
-export function validatesPresenceOf<R extends Row>(attributes: (keyof R & string)[], opts: Common<R> = {}): Callback<R> {
+export function validatesPresenceOf<R extends Row>(
+  attributes: (keyof R & string)[],
+  opts: Common<R> = {},
+): Callback<R> {
   return validator(`validates_presence_of ${attributes.join(", ")}`, attributes, opts, (record, attribute, value) => {
     if (isBlank(value)) record.errors.add(attribute, "blank", withMessage(opts));
   });
@@ -77,29 +81,48 @@ export function validatesLengthOf<R extends Row>(
 ): Callback<R> {
   return validator(`validates_length_of ${attributes.join(", ")}`, attributes, opts, (record, attribute, value) => {
     const length = rubyLength(value);
-    if (opts.is !== undefined && length !== opts.is) record.errors.add(attribute, "wrong_length", withMessage(opts, { count: opts.is }));
+    if (opts.is !== undefined && length !== opts.is)
+      record.errors.add(attribute, "wrong_length", withMessage(opts, { count: opts.is }));
     if (opts.minimum !== undefined && length < opts.minimum)
-      record.errors.add(attribute, "too_short", withMessage({ message: opts.too_short ?? opts.message }, { count: opts.minimum }));
+      record.errors.add(
+        attribute,
+        "too_short",
+        withMessage({ message: opts.too_short ?? opts.message }, { count: opts.minimum }),
+      );
     // LengthValidator skips the maximum check for nil.
     if (opts.maximum !== undefined && value != null && length > opts.maximum)
-      record.errors.add(attribute, "too_long", withMessage({ message: opts.too_long ?? opts.message }, { count: opts.maximum }));
+      record.errors.add(
+        attribute,
+        "too_long",
+        withMessage({ message: opts.too_long ?? opts.message }, { count: opts.maximum }),
+      );
   });
 }
 
-export function validatesFormatOf<R extends Row>(attributes: (keyof R & string)[], opts: Common<R> & { with?: RegExp; without?: RegExp }): Callback<R> {
+export function validatesFormatOf<R extends Row>(
+  attributes: (keyof R & string)[],
+  opts: Common<R> & { with?: RegExp; without?: RegExp },
+): Callback<R> {
   return validator(`validates_format_of ${attributes.join(", ")}`, attributes, opts, (record, attribute, value) => {
     const text = value == null ? "" : String(value);
-    if ((opts.with && !opts.with.test(text)) || (opts.without && opts.without.test(text))) record.errors.add(attribute, "invalid", withMessage(opts));
+    if ((opts.with && !opts.with.test(text)) || (opts.without && opts.without.test(text)))
+      record.errors.add(attribute, "invalid", withMessage(opts));
   });
 }
 
-export function validatesInclusionOf<R extends Row>(attributes: (keyof R & string)[], opts: Common<R> & { in: readonly unknown[] }): Callback<R> {
+export function validatesInclusionOf<R extends Row>(
+  attributes: (keyof R & string)[],
+  opts: Common<R> & { in: readonly unknown[] },
+): Callback<R> {
   return validator(`validates_inclusion_of ${attributes.join(", ")}`, attributes, opts, (record, attribute, value) => {
     if (!opts.in.includes(value)) record.errors.add(attribute, "inclusion", withMessage(opts, { value }));
   });
 }
 
-export function validatesExclusionOf<R extends Row>(attributes: (keyof R & string)[], opts: Common<R> & { in: readonly unknown[] }): Callback<R> {
+export function validatesExclusionOf<R extends Row>(
+  attributes: (keyof R & string)[],
+  opts: Common<R> & { in: readonly unknown[] },
+): Callback<R> {
   return validator(`validates_exclusion_of ${attributes.join(", ")}`, attributes, opts, (record, attribute, value) => {
     if (opts.in.includes(value)) record.errors.add(attribute, "exclusion", withMessage(opts, { value }));
   });
@@ -116,22 +139,38 @@ export function validatesNumericalityOf<R extends Row>(
     equal_to?: number;
   },
 ): Callback<R> {
-  return validator(`validates_numericality_of ${attributes.join(", ")}`, attributes, opts, (record, attribute, value) => {
-    const n = typeof value === "bigint" ? Number(value) : Prisma.Decimal.isDecimal(value) ? Number(value) : typeof value === "number" ? value : Number.NaN;
-    if (value == null || Number.isNaN(n)) return record.errors.add(attribute, "not_a_number", withMessage(opts, { value }));
-    if (opts.only_integer && !Number.isInteger(n)) return record.errors.add(attribute, "not_an_integer", withMessage(opts, { value }));
-    const checks: [keyof typeof opts, (limit: number) => boolean, Parameters<ModelRecord<R>["errors"]["add"]>[1]][] = [
-      ["greater_than", (l) => n > l, "greater_than"],
-      ["greater_than_or_equal_to", (l) => n >= l, "greater_than_or_equal_to"],
-      ["equal_to", (l) => n === l, "equal_to"],
-      ["less_than", (l) => n < l, "less_than"],
-      ["less_than_or_equal_to", (l) => n <= l, "less_than_or_equal_to"],
-    ];
-    for (const [key, ok, type] of checks) {
-      const limit = opts[key] as number | undefined;
-      if (limit !== undefined && !ok(limit)) record.errors.add(attribute, type, withMessage(opts, { count: limit, value }));
-    }
-  });
+  return validator(
+    `validates_numericality_of ${attributes.join(", ")}`,
+    attributes,
+    opts,
+    (record, attribute, value) => {
+      const n =
+        typeof value === "bigint"
+          ? Number(value)
+          : Prisma.Decimal.isDecimal(value)
+            ? Number(value)
+            : typeof value === "number"
+              ? value
+              : Number.NaN;
+      if (value == null || Number.isNaN(n))
+        return record.errors.add(attribute, "not_a_number", withMessage(opts, { value }));
+      if (opts.only_integer && !Number.isInteger(n))
+        return record.errors.add(attribute, "not_an_integer", withMessage(opts, { value }));
+      const checks: [keyof typeof opts, (limit: number) => boolean, Parameters<ModelRecord<R>["errors"]["add"]>[1]][] =
+        [
+          ["greater_than", (l) => n > l, "greater_than"],
+          ["greater_than_or_equal_to", (l) => n >= l, "greater_than_or_equal_to"],
+          ["equal_to", (l) => n === l, "equal_to"],
+          ["less_than", (l) => n < l, "less_than"],
+          ["less_than_or_equal_to", (l) => n <= l, "less_than_or_equal_to"],
+        ];
+      for (const [key, ok, type] of checks) {
+        const limit = opts[key] as number | undefined;
+        if (limit !== undefined && !ok(limit))
+          record.errors.add(attribute, type, withMessage(opts, { count: limit, value }));
+      }
+    },
+  );
 }
 
 // UniquenessValidator. MySQL's *_ci collations make `=` case-insensitive, which is what Rails
@@ -141,21 +180,34 @@ export function validatesUniquenessOf<R extends Row>(
   attributes: (keyof R & string)[],
   opts: Common<R> & { scope?: (keyof R & string)[]; conditions?: string; case_sensitive?: boolean },
 ): Callback<R> {
-  return validator(`validates_uniqueness_of ${attributes.join(", ")}`, attributes, opts, async (record, attribute, value, { tx }) => {
-    const where: Prisma.Sql[] = [
-      value == null ? Prisma.sql`${Prisma.raw(`\`${table}\`.\`${attribute}\``)} IS NULL` : opts.case_sensitive
-        ? Prisma.sql`${Prisma.raw(`\`${table}\`.\`${attribute}\``)} = BINARY ${value}`
-        : Prisma.sql`${Prisma.raw(`\`${table}\`.\`${attribute}\``)} = ${value}`,
-    ];
-    for (const scope of opts.scope ?? []) {
-      const scoped = record.get(scope);
-      where.push(scoped == null ? Prisma.sql`${Prisma.raw(`\`${table}\`.\`${scope}\``)} IS NULL` : Prisma.sql`${Prisma.raw(`\`${table}\`.\`${scope}\``)} = ${scoped}`);
-    }
-    if (record.persisted) where.push(Prisma.sql`${Prisma.raw(`\`${table}\`.\`id\``)} != ${record.get("id")}`);
-    if (opts.conditions) where.push(Prisma.raw(opts.conditions));
-    const rows = await tx.$queryRaw<unknown[]>(Prisma.sql`SELECT 1 AS one FROM ${Prisma.raw(`\`${table}\``)} WHERE ${Prisma.join(where, " AND ")} LIMIT 1`);
-    if (rows.length > 0) record.errors.add(attribute, "taken", withMessage(opts, { value }));
-  });
+  return validator(
+    `validates_uniqueness_of ${attributes.join(", ")}`,
+    attributes,
+    opts,
+    async (record, attribute, value, { tx }) => {
+      const where: Prisma.Sql[] = [
+        value == null
+          ? Prisma.sql`${Prisma.raw(`\`${table}\`.\`${attribute}\``)} IS NULL`
+          : opts.case_sensitive
+            ? Prisma.sql`${Prisma.raw(`\`${table}\`.\`${attribute}\``)} = BINARY ${value}`
+            : Prisma.sql`${Prisma.raw(`\`${table}\`.\`${attribute}\``)} = ${value}`,
+      ];
+      for (const scope of opts.scope ?? []) {
+        const scoped = record.get(scope);
+        where.push(
+          scoped == null
+            ? Prisma.sql`${Prisma.raw(`\`${table}\`.\`${scope}\``)} IS NULL`
+            : Prisma.sql`${Prisma.raw(`\`${table}\`.\`${scope}\``)} = ${scoped}`,
+        );
+      }
+      if (record.persisted) where.push(Prisma.sql`${Prisma.raw(`\`${table}\`.\`id\``)} != ${record.get("id")}`);
+      if (opts.conditions) where.push(Prisma.raw(opts.conditions));
+      const rows = await tx.$queryRaw<unknown[]>(
+        Prisma.sql`SELECT 1 AS one FROM ${Prisma.raw(`\`${table}\``)} WHERE ${Prisma.join(where, " AND ")} LIMIT 1`,
+      );
+      if (rows.length > 0) record.errors.add(attribute, "taken", withMessage(opts, { value }));
+    },
+  );
 }
 
 // belongs_to without `optional: true` (belongs_to_required_by_default). With

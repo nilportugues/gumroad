@@ -9,11 +9,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { closeAllRedis } from "@/server/infra/redis";
 
+import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { ELASTICSEARCH_HOST, recreateIndex, reindexPurchases, replayIndexName } from "../src/elasticsearch";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
-import type { JobsChannel, RawJob } from "../src/channels";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
 
@@ -23,8 +23,20 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
-const SPECS = ["utm_links_mutations_signed_in_spec", "wishlist_items_mutations_signed_in_spec", "post_views_signed_in_spec", "profile_sections_signed_in_spec"];
-const ROUTE_FLAGS = ["nextjs_utm_links_writes", "nextjs_utm_link_tracking", "nextjs_wishlist_items_writes", "nextjs_wishlist_unsubscribe", "nextjs_post_views", "nextjs_profile_sections_writes"].join(",");
+const SPECS = [
+  "utm_links_mutations_signed_in_spec",
+  "wishlist_items_mutations_signed_in_spec",
+  "post_views_signed_in_spec",
+  "profile_sections_signed_in_spec",
+];
+const ROUTE_FLAGS = [
+  "nextjs_utm_links_writes",
+  "nextjs_utm_link_tracking",
+  "nextjs_wishlist_items_writes",
+  "nextjs_wishlist_unsubscribe",
+  "nextjs_post_views",
+  "nextjs_profile_sections_writes",
+].join(",");
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "-parity";
@@ -67,7 +79,8 @@ const withoutNextVary = (vary: unknown) => (typeof vary === "string" ? vary.repl
 const HANDED_BACK = /hands-a-|through-rails/;
 
 // Jobs Node enqueues are BullMQ jobs wrapping the Sidekiq item; jobs of a class Ruby still runs sit in Sidekiq's own lists and schedule.
-const jobKey = (job: { class: string; args: unknown; queue?: string }) => `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
+const jobKey = (job: { class: string; args: unknown; queue?: string }) =>
+  `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
 const redisJobs = (redis: Redis): JobsChannel => ({
   async reset() {
     /* the seeder flushes the database */
@@ -78,8 +91,18 @@ const redisJobs = (redis: Redis): JobsChannel => ({
       if ((await redis.type(key)) !== "hash") continue;
       const data = await redis.hget(key, "data");
       if (data === null) continue;
-      const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as { class: string; args: unknown[]; queue: string; at?: number };
-      jobs.push({ class: item.class, args: item.args, queue: item.queue, ...(item.at === undefined ? {} : { at: item.at }) });
+      const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as {
+        class: string;
+        args: unknown[];
+        queue: string;
+        at?: number;
+      };
+      jobs.push({
+        class: item.class,
+        args: item.args,
+        queue: item.queue,
+        ...(item.at === undefined ? {} : { at: item.at }),
+      });
     }
     for (const key of await redis.keys("queue:*")) {
       for (const raw of await redis.lrange(key, 0, -1)) {
@@ -100,7 +123,14 @@ const cases = SPECS.flatMap((spec) => {
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
     .filter((file) => file.endsWith(".json"))
-    .map((file) => [`${spec}: ${file.replace(/\.json$/, "")}`, path.join(dir, file), loadFixture(path.join(dir, file)).exchanges.length - 1] as const);
+    .map(
+      (file) =>
+        [
+          `${spec}: ${file.replace(/\.json$/, "")}`,
+          path.join(dir, file),
+          loadFixture(path.join(dir, file)).exchanges.length - 1,
+        ] as const,
+    );
 });
 
 describe.skipIf(!url)("ws11b storefront and audience", () => {
@@ -127,7 +157,11 @@ describe.skipIf(!url)("ws11b storefront and audience", () => {
       const chunks: Buffer[] = [];
       request.on("data", (chunk: Buffer) => chunks.push(chunk));
       request.on("end", () => {
-        handedBack.push({ method: request.method ?? "", url: request.url ?? "", body: Buffer.concat(chunks).toString("utf8") });
+        handedBack.push({
+          method: request.method ?? "",
+          url: request.url ?? "",
+          body: Buffer.concat(chunks).toString("utf8"),
+        });
         response.writeHead(204).end();
       });
     });
@@ -177,9 +211,19 @@ describe.skipIf(!url)("ws11b storefront and audience", () => {
     transport: httpTransport(server.baseUrl),
     interceptHttp: false,
     jobs: redisJobs(redis),
-    rewriteRequest: (request: Parameters<typeof reencryptCookies>[0], loaded: Parameters<typeof reencryptCookies>[1], now: Date) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
+    rewriteRequest: (
+      request: Parameters<typeof reencryptCookies>[0],
+      loaded: Parameters<typeof reencryptCookies>[1],
+      now: Date,
+    ) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
     // The 404 page body is not recorded.
-    compare: { ignore: [...COMPARE.ignore, ...(name.includes("404") ? ["response.body", "response.json", "response.headers.content-type"] : []), ...(name.includes("generates-a-permalink") ? ["db.utm_links.inserted.*.permalink"] : [])] },
+    compare: {
+      ignore: [
+        ...COMPARE.ignore,
+        ...(name.includes("404") ? ["response.body", "response.json", "response.headers.content-type"] : []),
+        ...(name.includes("generates-a-permalink") ? ["db.utm_links.inserted.*.permalink"] : []),
+      ],
+    },
   });
 
   it("finds the fixtures", () => {
@@ -188,9 +232,13 @@ describe.skipIf(!url)("ws11b storefront and audience", () => {
 
   // The first request down a code path compiles what it imports, which would age the seeded timestamps past the
   // replayer's tolerance. One warm-up per route is not enough: a 404 never reaches the modules a delete loads.
-  it("compiles the handlers", async () => {
-    for (const [, file, index] of cases) await replayFixtureExchange(file, index, options()).catch(() => undefined);
-  }, FIRST_COMPILE_TIMEOUT_MS * 3);
+  it(
+    "compiles the handlers",
+    async () => {
+      for (const [, file, index] of cases) await replayFixtureExchange(file, index, options()).catch(() => undefined);
+    },
+    FIRST_COMPILE_TIMEOUT_MS * 3,
+  );
 
   it.each(cases)(
     "%s",
@@ -205,7 +253,9 @@ describe.skipIf(!url)("ws11b storefront and audience", () => {
           const request = fixture.exchanges[index]!.request;
           expect(handedBack).toHaveLength(1);
           expect(handedBack[0]).toMatchObject({ method: request.method });
-          expect(decodeURIComponent(handedBack[0]!.url.split("?")[0]!)).toBe(decodeURIComponent(request.path.split("?")[0]!));
+          expect(decodeURIComponent(handedBack[0]!.url.split("?")[0]!)).toBe(
+            decodeURIComponent(request.path.split("?")[0]!),
+          );
           if (request.body) expect(JSON.parse(handedBack[0]!.body)).toEqual(JSON.parse(request.body));
           expect(Object.keys(handed.exchanges[0]!.actual.db ?? {})).toEqual([]);
           return;
@@ -215,7 +265,12 @@ describe.skipIf(!url)("ws11b storefront and audience", () => {
         const { expected, actual } = result.exchanges[0]!;
         expect(withoutNextVary(actual.response.headers.vary)).toBe(expected.response.headers.vary);
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => !line.startsWith("Next.js includes")).slice(-40).join("\n");
+        const logs = server
+          .output()
+          .split("\n")
+          .filter((line) => !line.startsWith("Next.js includes"))
+          .slice(-40)
+          .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
     },

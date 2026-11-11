@@ -1,17 +1,18 @@
 // Handlers for every class in src/server/jobs/ported-jobs.ts, keyed by Ruby class name.
 import type { RetriesExhausted, RetryIn } from "../retry.ts";
 
-import { backfillTaggingsCountOnTagsJob } from "./backfill-taggings-count-on-tags-job.ts";
 import { backfillOrphanedShownProductsInProfileSectionsJob } from "./backfill-orphaned-shown-products-in-profile-sections-job.ts";
-import { cacheProductDataWorker } from "./cache-product-data-worker.ts";
-import { invalidateProductCacheWorker } from "./invalidate-product-cache-worker.ts";
-import { refreshHighVolumeSellerFeeEligibilityJob } from "./refresh-high-volume-seller-fee-eligibility-job.ts";
-import { rebuildGmailAbuseFilterJob } from "./rebuild-gmail-abuse-filter-job.ts";
+import { deleteOldVersionsRecordsWorker } from "./delete-old-versions-records-worker.ts";
+import { deleteProductFilesArchivesWorker } from "./delete-product-files-archives-worker.ts";
+import { purgeOldDeletedAssetPreviewsWorker } from "./purge-old-deleted-asset-previews-worker.ts";
+import { backfillPriceCheckerIndexFieldsJob } from "./backfill-price-checker-index-fields-job.ts";
+import { backfillTaggingsCountOnTagsJob } from "./backfill-taggings-count-on-tags-job.ts";
 import {
   deleteExpiredProductCachedValuesWorker,
   deleteOldUnusedEventsWorker,
   deleteProcessedWorkflowInstallmentScheduleIntentsJob,
 } from "./batched-cleanup-jobs.ts";
+import { cacheProductDataWorker } from "./cache-product-data-worker.ts";
 import {
   contentModerationAdminCommentJob,
   detectLegalEntityCountryDriftJob,
@@ -27,11 +28,6 @@ import {
   deleteOldProcessedStripeEventsJob,
   deleteOldSentEmailInfoRecordsJob,
 } from "./delete-old-records-jobs.ts";
-import { deleteOldVersionsRecordsWorker } from "./delete-old-versions-records-worker.ts";
-import { deleteProductFilesArchivesWorker } from "./delete-product-files-archives-worker.ts";
-import { purgeOldDeletedAssetPreviewsWorker } from "./purge-old-deleted-asset-previews-worker.ts";
-import { backfillPriceCheckerIndexFieldsJob } from "./backfill-price-checker-index-fields-job.ts";
-import { refreshClosedTierDiscoverPricesJob } from "./refresh-closed-tier-discover-prices-job.ts";
 import { deleteProductRichContentWorker } from "./delete-product-rich-content-worker.ts";
 import { deleteWishlistProductsJob } from "./delete-wishlist-products-job.ts";
 import { dispatchPendingWorkflowInstallmentScheduleIntentsJob } from "./dispatch-workflow-intents-job.ts";
@@ -43,6 +39,7 @@ import { flushDeliveredEmailInfosJob } from "./flush-delivered-email-infos-job.t
 import { handleSnsAwsConfigEventWorker } from "./handle-sns-aws-config-event-worker.ts";
 import { handleStripeAutodebitForNegativeBalance } from "./handle-stripe-autodebit-job.ts";
 import { internalNotificationWorker } from "./internal-notification-worker.ts";
+import { invalidateProductCacheWorker } from "./invalidate-product-cache-worker.ts";
 import { expireStampedPdfsJob, updateLargeSellersSalesCountJob } from "./large-seller-and-stamped-pdf-jobs.ts";
 import {
   liftPlatformStripePauseJob,
@@ -77,7 +74,10 @@ import {
   syncStuckPurchasesJob,
   updatePurchaseHealthcheckThresholdJob,
 } from "./purchase-reads-jobs.ts";
+import { rebuildGmailAbuseFilterJob } from "./rebuild-gmail-abuse-filter-job.ts";
 import { recoverAusBacktaxFromStripeAccountJob } from "./recover-aus-backtax-from-stripe-account-job.ts";
+import { refreshClosedTierDiscoverPricesJob } from "./refresh-closed-tier-discover-prices-job.ts";
+import { refreshHighVolumeSellerFeeEligibilityJob } from "./refresh-high-volume-seller-fee-eligibility-job.ts";
 import {
   createMissingDisputeEvidenceJob,
   dispatchPendingFailedRefundExceptionsJob,

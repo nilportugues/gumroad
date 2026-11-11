@@ -4,13 +4,24 @@
 import { Prisma, type Comment } from "@prisma/client";
 
 import { Comments, COMMENT_TYPES } from "../../server/models/comment.ts";
-import { aliveStripeAccountsOf, isGumroadManagedStripeAccount } from "../../server/models/merchant-account.ts";
 import { rubyJsonParse } from "../../server/models/concerns/serialized-columns.ts";
+import { aliveStripeAccountsOf, isGumroadManagedStripeAccount } from "../../server/models/merchant-account.ts";
 import { column, columnIn, selectRows, table } from "../../server/models/sql.ts";
-import { findUser, isCompliant, isDeleted, isFlagSet, payoutsPausedBy, setFlag, setJsonDataForAttr, Users, type UserRecord } from "../../server/models/user.ts";
+import {
+  findUser,
+  isCompliant,
+  isDeleted,
+  isFlagSet,
+  payoutsPausedBy,
+  setFlag,
+  setJsonDataForAttr,
+  Users,
+  type UserRecord,
+} from "../../server/models/user.ts";
 import { InvalidRequestError, PermissionError } from "../../server/stripe/errors.ts";
 import { Account } from "../../server/stripe/resources.ts";
 import type { RetriesExhausted, RetryIn } from "../retry.ts";
+
 import { modelJob, defaultJobDeps } from "./support/job-deps.ts";
 
 const AUTHOR_NAME = "platform-stripe-pause-lift";
@@ -19,7 +30,10 @@ const LIFTED_PREFIX = "Lifted the platform Stripe pause on";
 const CONFIRMED_PREFIX = "Confirmed the platform Stripe pause is lifted on";
 const REPEATED_FAILED_PAYOUTS_AUTHOR = "pause_payouts_after_repeated_failures";
 // User::SYSTEM_PAYOUT_PAUSING_COMMENT_AUTHORS
-const SYSTEM_PAYOUT_PAUSING_AUTHORS = [REPEATED_FAILED_PAYOUTS_AUTHOR, "pause_payouts_for_seller_based_on_chargeback_rate"];
+const SYSTEM_PAYOUT_PAUSING_AUTHORS = [
+  REPEATED_FAILED_PAYOUTS_AUTHOR,
+  "pause_payouts_for_seller_based_on_chargeback_rate",
+];
 // StripePayoutProcessor::UNACCOUNTED_MONEY_HOLD_MARKER / MISSING_CAPABILITY_MESSAGE
 const UNACCOUNTED_MONEY_HOLD_MARKER = "could not be accounted for";
 const MISSING_CAPABILITY_MESSAGE = /needs to have at least one of the following capabilities enabled/u;
@@ -50,9 +64,16 @@ export class TransfersNotActiveYet extends Error {
 // Stripe turns transfers back on in its own time: minutes between those retries, Sidekiq's default
 // backoff for anything else. `TRANSFERS_RETRY_DELAYS[count].to_i` is 0 past the list.
 const TRANSFERS_RETRY_DELAYS = [600, 1800, 3600];
-export const liftPlatformStripePauseJobRetryIn: RetryIn = (count, error) => (error instanceof TransfersNotActiveYet ? (TRANSFERS_RETRY_DELAYS[count] ?? 0) : null);
+export const liftPlatformStripePauseJobRetryIn: RetryIn = (count, error) =>
+  error instanceof TransfersNotActiveYet ? (TRANSFERS_RETRY_DELAYS[count] ?? 0) : null;
 
-type State = { charges_paused: unknown; payouts_paused: unknown; disabled_reason: unknown; past_due: boolean; transfers: unknown };
+type State = {
+  charges_paused: unknown;
+  payouts_paused: unknown;
+  disabled_reason: unknown;
+  past_due: boolean;
+  transfers: unknown;
+};
 type Now = () => Date;
 
 const truthy = (value: unknown) => value !== null && value !== undefined && value !== false;
@@ -65,16 +86,19 @@ function dig(value: unknown, ...keys: string[]): unknown {
   }
   return current;
 }
-const isPresent = (value: unknown) => truthy(value) && !(Array.isArray(value) && value.length === 0) && !(typeof value === "string" && value.trim() === "");
+const isPresent = (value: unknown) =>
+  truthy(value) && !(Array.isArray(value) && value.length === 0) && !(typeof value === "string" && value.trim() === "");
 // #inspect of the JSON scalars a Stripe account carries.
-const inspect = (value: unknown) => (value == null ? "nil" : typeof value === "string" ? JSON.stringify(value) : String(value));
+const inspect = (value: unknown) =>
+  value == null ? "nil" : typeof value === "string" ? JSON.stringify(value) : String(value);
 
 function stateOf(account: unknown): State {
   return {
     charges_paused: dig(account, "risk_controls", "charges", "pause_requested"),
     payouts_paused: dig(account, "risk_controls", "payouts", "pause_requested"),
     disabled_reason: dig(account, "requirements", "disabled_reason"),
-    past_due: isPresent(dig(account, "requirements", "past_due")) || isPresent(dig(account, "future_requirements", "past_due")),
+    past_due:
+      isPresent(dig(account, "requirements", "past_due")) || isPresent(dig(account, "future_requirements", "past_due")),
     transfers: dig(account, "capabilities", "transfers"),
   };
 }
@@ -84,19 +108,27 @@ const describe = (s: State) =>
   `disabled reason: ${inspect(s.disabled_reason)}, past due: ${String(s.past_due)}, transfers: ${inspect(s.transfers)}`;
 
 const isClear = (s: State | null) =>
-  s !== null && !truthy(s.charges_paused) && s.payouts_paused === false && !s.past_due && (s.disabled_reason == null || s.disabled_reason === "platform_paused");
+  s !== null &&
+  !truthy(s.charges_paused) &&
+  s.payouts_paused === false &&
+  !s.past_due &&
+  (s.disabled_reason == null || s.disabled_reason === "platform_paused");
 
 function reasonToSkip(s: State): string | null {
-  if (s.payouts_paused !== false) return "payouts are paused too, or their state is unknown, so the hold may be deliberate";
+  if (s.payouts_paused !== false)
+    return "payouts are paused too, or their state is unknown, so the hold may be deliberate";
   if (!truthy(s.charges_paused)) return "the charges pause is not set";
-  if (s.disabled_reason !== "platform_paused") return `the account is disabled for ${inspect(s.disabled_reason)}, not platform_paused`;
+  if (s.disabled_reason !== "platform_paused")
+    return `the account is disabled for ${inspect(s.disabled_reason)}, not platform_paused`;
   return s.past_due ? "Stripe still lists past-due requirements" : null;
 }
 
 // Re-flagged, suspended or closed since the transition: the pause is no longer ours to lift.
-const isEligible = (user: UserRecord | null): user is UserRecord => user !== null && isCompliant(user) && !isDeleted(user);
+const isEligible = (user: UserRecord | null): user is UserRecord =>
+  user !== null && isCompliant(user) && !isDeleted(user);
 
-const userComments = (user: UserRecord) => Prisma.sql`${column("comments", "commentable_id")} = ${user.get("id")} AND ${column("comments", "commentable_type")} = 'User'`;
+const userComments = (user: UserRecord) =>
+  Prisma.sql`${column("comments", "commentable_id")} = ${user.get("id")} AND ${column("comments", "commentable_type")} = 'User'`;
 
 async function latestNote(user: UserRecord, stripeAccountId: string): Promise<{ content: string | null } | undefined> {
   const [row] = await selectRows<{ content: string | null }>(
@@ -114,10 +146,24 @@ async function liftedByUs(user: UserRecord, stripeAccountId: string): Promise<bo
   return isPresent(content) && (content!.startsWith(LIFTED_PREFIX) || content!.startsWith(CONFIRMED_PREFIX));
 }
 
-async function addNote(user: UserRecord, content: string, now: Now, commentType: string = COMMENT_TYPES.NOTE): Promise<void> {
-  await Comments.createBang({ commentable_id: BigInt(user.get("id") as bigint), commentable_type: "User", author_name: AUTHOR_NAME, comment_type: commentType, content } as Partial<Comment>, {
-    now,
-  });
+async function addNote(
+  user: UserRecord,
+  content: string,
+  now: Now,
+  commentType: string = COMMENT_TYPES.NOTE,
+): Promise<void> {
+  await Comments.createBang(
+    {
+      commentable_id: BigInt(user.get("id") as bigint),
+      commentable_type: "User",
+      author_name: AUTHOR_NAME,
+      comment_type: commentType,
+      content,
+    } as Partial<Comment>,
+    {
+      now,
+    },
+  );
 }
 
 async function liftPause(user: UserRecord, stripeAccountId: string, now: Now): Promise<State | null> {
@@ -139,17 +185,36 @@ async function liftPause(user: UserRecord, stripeAccountId: string, now: Now): P
 
     const skip = reasonToSkip(before);
     if (skip) {
-      await addNote(user, `Left the platform Stripe pause on ${stripeAccountId}: ${skip}. Before: ${describe(before)}.`, now);
+      await addNote(
+        user,
+        `Left the platform Stripe pause on ${stripeAccountId}: ${skip}. Before: ${describe(before)}.`,
+        now,
+      );
       return before;
     }
     // The risk state can change while Stripe answers, so look again right before the write.
     if (!isEligible(await findUser(user.get("id")))) {
-      if (pending) await addNote(user, `Did not lift the platform Stripe pause on ${stripeAccountId}: the seller is no longer eligible.`, now);
+      if (pending)
+        await addNote(
+          user,
+          `Did not lift the platform Stripe pause on ${stripeAccountId}: the seller is no longer eligible.`,
+          now,
+        );
       return null;
     }
-    await addNote(user, `${INTENT_PREFIX} ${stripeAccountId} after the account was marked compliant. Before: ${describe(before)}.`, now);
-    const after = stateOf(await Account.update(stripeAccountId, { risk_controls: { charges: { pause_requested: false } } }));
-    await addNote(user, `${LIFTED_PREFIX} ${stripeAccountId} after the account was marked compliant. Before: ${describe(before)}. After: ${describe(after)}.`, now);
+    await addNote(
+      user,
+      `${INTENT_PREFIX} ${stripeAccountId} after the account was marked compliant. Before: ${describe(before)}.`,
+      now,
+    );
+    const after = stateOf(
+      await Account.update(stripeAccountId, { risk_controls: { charges: { pause_requested: false } } }),
+    );
+    await addNote(
+      user,
+      `${LIFTED_PREFIX} ${stripeAccountId} after the account was marked compliant. Before: ${describe(before)}. After: ${describe(after)}.`,
+      now,
+    );
     return after;
   } catch (error) {
     if (!(error instanceof InvalidRequestError || error instanceof PermissionError)) throw error;
@@ -231,7 +296,10 @@ async function failedPayoutsCountedTowardHold(payment: PaymentRow): Promise<Paym
   if (payment.bank_account_id != null) {
     scope = Prisma.sql`${column("payments", "user_id")} = ${userId} AND ${column("payments", "bank_account_id")} = ${payment.bank_account_id}`;
   } else if (payment.processor === STRIPE_PROCESSOR && isPresent(destinationId)) {
-    const account = payment.stripe_connect_account_id == null ? Prisma.sql` IS NULL` : Prisma.sql` = ${payment.stripe_connect_account_id}`;
+    const account =
+      payment.stripe_connect_account_id == null
+        ? Prisma.sql` IS NULL`
+        : Prisma.sql` = ${payment.stripe_connect_account_id}`;
     scope = Prisma.sql`${column("payments", "user_id")} = ${userId} AND ${column("payments", "processor")} = ${payment.processor} AND ${column("payments", "stripe_connect_account_id")}${account} AND (json_data->>'$.stripe_payout_destination_id' = ${destinationId})`;
   } else if (payment.processor === PAYPAL_PROCESSOR && isPresent(payment.payment_address)) {
     scope = Prisma.sql`${column("payments", "user_id")} = ${userId} AND ${column("payments", "processor")} = ${PAYPAL_PROCESSOR} AND ${column("payments", "payment_address")} = ${payment.payment_address}`;
@@ -241,13 +309,21 @@ async function failedPayoutsCountedTowardHold(payment: PaymentRow): Promise<Paym
   scope = Prisma.sql`${scope} AND (COALESCE(payments.json_data->>'$.retired_account_drain', '') != 'true')`;
 
   const lastCompletedAt = firstValue<Date>(
-    (await selectRows<Record<string, unknown>>(Prisma.sql`SELECT MAX(${column("payments", "created_at")}) FROM ${table("payments")} WHERE ${scope} AND ${column("payments", "state")} = 'completed'`))[0],
+    (
+      await selectRows<Record<string, unknown>>(
+        Prisma.sql`SELECT MAX(${column("payments", "created_at")}) FROM ${table("payments")} WHERE ${scope} AND ${column("payments", "state")} = 'completed'`,
+      )
+    )[0],
   );
   const since = lastCompletedAt ? Prisma.sql` AND (created_at > ${lastCompletedAt})` : Prisma.empty;
   const where = Prisma.sql`${scope} AND ${column("payments", "state")} IN ('failed', 'returned') AND (failure_reason IS NULL OR failure_reason NOT IN (${Prisma.join(TERMINAL_PAYPAL_FAILURE_REASONS, ", ")}))${since} AND (failure_reason IS NULL OR failure_reason NOT IN (${Prisma.join(TRANSIENT_AND_INTERNAL_REASONS, ", ")}))`;
-  const [count] = await selectRows<Record<string, unknown>>(Prisma.sql`SELECT COUNT(*) FROM ${table("payments")} WHERE ${where}`);
+  const [count] = await selectRows<Record<string, unknown>>(
+    Prisma.sql`SELECT COUNT(*) FROM ${table("payments")} WHERE ${where}`,
+  );
   if (Number(firstValue<bigint>(count)) < MAX_CONSECUTIVE_FAILED_PAYOUTS) return null;
-  return selectRows<PaymentRow>(Prisma.sql`SELECT ${Prisma.raw("`payments`.*")} FROM ${table("payments")} WHERE ${where}`);
+  return selectRows<PaymentRow>(
+    Prisma.sql`SELECT ${Prisma.raw("`payments`.*")} FROM ${table("payments")} WHERE ${where}`,
+  );
 }
 
 // Counted per destination, as the hold itself is.
@@ -257,7 +333,13 @@ async function trippingFailures(user: UserRecord): Promise<PaymentRow[][]> {
   );
   const firstPerDestination = new Map<string, PaymentRow>();
   for (const payment of payments) {
-    const key = JSON.stringify([payment.processor, String(payment.bank_account_id), payment.stripe_connect_account_id, paymentJson(payment).stripe_payout_destination_id ?? null, payment.payment_address]);
+    const key = JSON.stringify([
+      payment.processor,
+      String(payment.bank_account_id),
+      payment.stripe_connect_account_id,
+      paymentJson(payment).stripe_payout_destination_id ?? null,
+      payment.payment_address,
+    ]);
     if (!firstPerDestination.has(key)) firstPerDestination.set(key, payment);
   }
   const result: PaymentRow[][] = [];
@@ -317,10 +399,15 @@ export const liftPlatformStripePauseJobWith = modelJob({ min: 1 }, async ([userI
   if (!isEligible(user)) return;
   const accounts = (await aliveStripeAccountsOf(user.get("id"))).filter(isGumroadManagedStripeAccount);
   const states: (State | null)[] = [];
-  for (const account of accounts) states.push(await liftPause(user, account.charge_processor_merchant_id as string, deps.now));
+  for (const account of accounts)
+    states.push(await liftPause(user, account.charge_processor_merchant_id as string, deps.now));
   // A hold may stand for a problem on any of the seller's accounts, so every one must be clear.
   if (states.length > 0 && states.every(isClear)) {
-    await releaseFailedPayoutHold(user.get("id"), states.every((state) => state!.transfers === "active"), deps.now);
+    await releaseFailedPayoutHold(
+      user.get("id"),
+      states.every((state) => state!.transfers === "active"),
+      deps.now,
+    );
   }
 });
 
@@ -347,7 +434,11 @@ export function liftPlatformStripePauseJobRetriesExhaustedWith(now: Now = defaul
     // Under the lock, so a resume landing between the check and the note cannot leave a wrong note.
     await Users.withLock(holder, async () => {
       if ((await repeatedFailedPayoutsHoldStartedAt(holder)) === null) return;
-      await addNote(holder, `Kept the failed-payout hold: ${message} Release it by hand once the account can receive transfers.`, now);
+      await addNote(
+        holder,
+        `Kept the failed-payout hold: ${message} Release it by hand once the account can receive transfers.`,
+        now,
+      );
     });
   };
 }

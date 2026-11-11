@@ -21,7 +21,12 @@ type CollaboratorRow = {
   flags: number;
 };
 
-type ProductAffiliateRow = { affiliate_id: number; affiliate_basis_points: number | null; product_id: bigint; product_name: string };
+type ProductAffiliateRow = {
+  affiliate_id: number;
+  affiliate_basis_points: number | null;
+  product_id: bigint;
+  product_name: string;
+};
 
 // Affiliate#affiliate_percentage
 const percentage = (basisPoints: number | null) => (basisPoints === null ? null : Math.floor(basisPoints / 100));
@@ -72,7 +77,12 @@ export async function collaboratorsIndexProps(seller: User): Promise<Record<stri
   const collaborators = await aliveCollaborators(seller.id);
   const ids = collaborators.map((collaborator) => collaborator.id);
   const [invited, assignments] = await Promise.all([invitedCollaboratorIds(ids), productAffiliates(ids)]);
-  const users = new Map((await db.user.findMany({ where: { id: { in: collaborators.map((c) => c.affiliate_user_id!) } } })).map((user) => [user.id, user]));
+  const users = new Map(
+    (await db.user.findMany({ where: { id: { in: collaborators.map((c) => c.affiliate_user_id!) } } })).map((user) => [
+      user.id,
+      user,
+    ]),
+  );
 
   const props: Record<string, unknown>[] = [];
   for (const collaborator of collaborators) {
@@ -93,7 +103,11 @@ export async function collaboratorsIndexProps(seller: User): Promise<Record<stri
         .map((assignment) => {
           const commission = percentage(assignment.affiliate_basis_points) ?? own;
           // `.compact` drops the nil url, and a nil commission with it.
-          return { id: externalId(assignment.product_id), name: assignment.product_name, ...(commission === null ? {} : { percent_commission: commission }) };
+          return {
+            id: externalId(assignment.product_id),
+            name: assignment.product_name,
+            ...(commission === null ? {} : { percent_commission: commission }),
+          };
         }),
     });
   }
@@ -118,7 +132,12 @@ export async function incomingCollaboratorsProps(seller: User): Promise<Record<s
     );
     for (const link of found) links.set(BigInt(link.id), link);
   }
-  const userIds = [...new Set([...rows.map((row) => BigInt(row.seller_id)), ...[...links.values()].map((link) => BigInt(link.user_id!))])];
+  const userIds = [
+    ...new Set([
+      ...rows.map((row) => BigInt(row.seller_id)),
+      ...[...links.values()].map((link) => BigInt(link.user_id!)),
+    ]),
+  ];
   const users = new Map((await db.user.findMany({ where: { id: { in: userIds } } })).map((user) => [user.id, user]));
 
   const collaborators: Record<string, unknown>[] = [];
@@ -136,7 +155,8 @@ export async function incomingCollaboratorsProps(seller: User): Promise<Record<s
         .map((assignment) => {
           const link = links.get(BigInt(assignment.link_id));
           // Rails raises on a product row that is gone.
-          if (link === undefined) throw new NotPortedError("An incoming collaboration on a product that no longer exists");
+          if (link === undefined)
+            throw new NotPortedError("An incoming collaboration on a product that no longer exists");
           const commission = percentage(assignment.affiliate_basis_points) ?? own;
           return {
             id: externalId(link.id),
@@ -162,7 +182,11 @@ async function incomingProductAffiliates(ids: number[]) {
 
 // CollaboratorPresenter#inertia_shared_props
 export async function collaboratorsSharedProps(seller: User): Promise<Record<string, unknown>> {
-  return { collaborators_disabled_reason: (await hasBrazilianStripeConnectAccount(seller.id)) ? "Collaborators with Brazilian Stripe accounts are not supported." : null };
+  return {
+    collaborators_disabled_reason: (await hasBrazilianStripeConnectAccount(seller.id))
+      ? "Collaborators with Brazilian Stripe accounts are not supported."
+      : null,
+  };
 }
 
 // ---- new / edit ----
@@ -183,44 +207,74 @@ export async function findAliveCollaborator(id: number): Promise<CollaboratorRec
   return row ?? null;
 }
 
-type FormOptions = { applyToAllProducts: boolean; dontShowAsCoCreator: boolean; email: string | null; percentCommission: number | null; title: string };
+type FormOptions = {
+  applyToAllProducts: boolean;
+  dontShowAsCoCreator: boolean;
+  email: string | null;
+  percentCommission: number | null;
+  title: string;
+};
 
 // CollaboratorPresenter#all_products
 async function allProducts(seller: User, collaborator: CollaboratorRecord | null, options: FormOptions) {
   const l = (name: string) => column("links", name);
-  const products = await selectRows<{ id: bigint; name: string; draft: number | boolean | null; purchase_disabled_at: Date | null; flags: bigint }>(
+  const products = await selectRows<{
+    id: bigint;
+    name: string;
+    draft: number | boolean | null;
+    purchase_disabled_at: Date | null;
+    flags: bigint;
+  }>(
     Prisma.sql`SELECT ${l("id")}, ${l("name")}, ${l("draft")}, ${l("purchase_disabled_at")}, ${l("flags")} FROM ${table("links")} WHERE ${l("user_id")} = ${seller.id} AND ${l("deleted_at")} IS NULL ORDER BY ${l("id")} ASC`,
   );
   const visible = products.filter((product) => (BigInt(product.flags) & ARCHIVED_FLAG) === 0n);
   if (visible.length === 0) return [];
   const pa = (name: string) => column("affiliates_links", name);
   const a = (name: string) => column("affiliates", name);
-  const assignments = await selectRows<{ link_id: number; affiliate_id: number; type: string; deleted_at: Date | null; affiliate_basis_points: number | null; flags: bigint }>(
+  const assignments = await selectRows<{
+    link_id: number;
+    affiliate_id: number;
+    type: string;
+    deleted_at: Date | null;
+    affiliate_basis_points: number | null;
+    flags: bigint;
+  }>(
     Prisma.sql`SELECT ${pa("link_id")} AS link_id, ${pa("affiliate_id")} AS affiliate_id, ${a("type")} AS type, ${a("deleted_at")} AS deleted_at, ${pa("affiliate_basis_points")} AS affiliate_basis_points, ${pa("flags")} AS flags FROM ${table("affiliates_links")} INNER JOIN ${table("affiliates")} ON ${a("id")} = ${pa("affiliate_id")} WHERE ${pa("link_id")} IN (${Prisma.join(visible.map((product) => product.id))}) ORDER BY ${pa("id")} ASC`,
   );
   // With :collab_and_affiliates adding a collaborator keeps the product's affiliates, so there is nothing to warn about.
   const affiliatesRemovedOnCollab = !(await isFeatureEnabled("collab_and_affiliates", userActor(seller.id)));
   return visible.map((product) => {
     const own = assignments.filter((assignment) => assignment.link_id === Number(product.id));
-    const productAffiliate = collaborator ? own.find((assignment) => assignment.affiliate_id === collaborator.id) : undefined;
-    const hasAnotherCollaborator = own.some((assignment) => assignment.type === "Collaborator" && assignment.deleted_at === null && assignment.affiliate_id !== collaborator?.id);
+    const productAffiliate = collaborator
+      ? own.find((assignment) => assignment.affiliate_id === collaborator.id)
+      : undefined;
+    const hasAnotherCollaborator = own.some(
+      (assignment) =>
+        assignment.type === "Collaborator" &&
+        assignment.deleted_at === null &&
+        assignment.affiliate_id !== collaborator?.id,
+    );
     const published = product.purchase_disabled_at === null && !Number(product.draft);
     return {
       id: externalId(product.id),
       name: product.name,
       has_another_collaborator: hasAnotherCollaborator,
-      has_affiliates: affiliatesRemovedOnCollab && own.some((assignment) => assignment.type === "DirectAffiliate" && assignment.deleted_at === null),
+      has_affiliates:
+        affiliatesRemovedOnCollab &&
+        own.some((assignment) => assignment.type === "DirectAffiliate" && assignment.deleted_at === null),
       published,
       enabled: collaborator ? productAffiliate !== undefined : !hasAnotherCollaborator && published,
       percent_commission: percentage(productAffiliate?.affiliate_basis_points ?? null) ?? options.percentCommission,
-      dont_show_as_co_creator: (productAffiliate !== undefined && (BigInt(productAffiliate.flags) & 1n) !== 0n) || options.dontShowAsCoCreator,
+      dont_show_as_co_creator:
+        (productAffiliate !== undefined && (BigInt(productAffiliate.flags) & 1n) !== 0n) || options.dontShowAsCoCreator,
     };
   });
 }
 
 // CollaboratorPresenter#collaborator_form_props, then `.compact` on each hash.
 async function formProps(seller: User, collaborator: CollaboratorRecord | null, options: FormOptions) {
-  const compact = <T extends Record<string, unknown>>(hash: T) => Object.fromEntries(Object.entries(hash).filter(([, value]) => value !== null && value !== undefined));
+  const compact = <T extends Record<string, unknown>>(hash: T) =>
+    Object.fromEntries(Object.entries(hash).filter(([, value]) => value !== null && value !== undefined));
   return {
     form_data: compact({
       id: collaborator ? externalId(collaborator.id) : null,
@@ -241,7 +295,13 @@ async function formProps(seller: User, collaborator: CollaboratorRecord | null, 
 }
 
 export const newCollaboratorProps = (seller: User) =>
-  formProps(seller, null, { applyToAllProducts: true, dontShowAsCoCreator: false, email: "", percentCommission: DEFAULT_PERCENT_COMMISSION, title: "New collaborator" });
+  formProps(seller, null, {
+    applyToAllProducts: true,
+    dontShowAsCoCreator: false,
+    email: "",
+    percentCommission: DEFAULT_PERCENT_COMMISSION,
+    title: "New collaborator",
+  });
 
 export async function editCollaboratorProps(seller: User, collaborator: CollaboratorRecord) {
   const user = (await db.user.findUnique({ where: { id: BigInt(collaborator.affiliate_user_id!) } }))!;

@@ -11,14 +11,15 @@ import { randomUUID } from "node:crypto";
 import { Prisma, type Installment } from "@prisma/client";
 
 import { HTTP_URI_REGEXP } from "../../lib/ruby-uri-regexp.ts";
-import { generateSlug, RESERVED_WORDS } from "./friendly-id.ts";
-import { INSTALLMENT_ATTRIBUTE_TO_SEARCH_FIELDS } from "../search/documents/simple.ts";
 import { filterCount } from "../search/audience-member-search.ts";
+import { INSTALLMENT_ATTRIBUTE_TO_SEARCH_FIELDS } from "../search/documents/simple.ts";
 import { salesCentsTotal } from "../search/purchase-sales.ts";
+
 import { deletable } from "./concerns/deletable.ts";
-import { jsonData, mergeJsonDataWithCurrentRow } from "./concerns/json-data.ts";
 import { performAsync } from "./concerns/job-runtime.ts";
+import { jsonData, mergeJsonDataWithCurrentRow } from "./concerns/json-data.ts";
 import { hasPaperTrail } from "./concerns/paper-trail.ts";
+import { generateSlug, RESERVED_WORDS } from "./friendly-id.ts";
 import { audienceMembersFilterParams } from "./installment-audience.ts";
 import { InstallmentFlags, InstallmentPost } from "./installment-post.ts";
 import { defineModel, type Callback, type SaveOptions } from "./runtime/define-model.ts";
@@ -68,16 +69,19 @@ export function post(record: InstallmentModel): InstallmentPost {
   loaded.memo = (record.ivars[ASSOCIATIONS] ??= new Map()) as InstallmentPost["memo"];
   return loaded;
 }
-const flag = (record: InstallmentModel, name: Parameters<typeof InstallmentFlags.isSet>[1]) => InstallmentFlags.isSet(record.get("flags") as number, name);
+const flag = (record: InstallmentModel, name: Parameters<typeof InstallmentFlags.isSet>[1]) =>
+  InstallmentFlags.isSet(record.get("flags") as number, name);
 const isPublishing = (record: InstallmentModel) => record.ivars[PUBLISHING] === true;
 const published = (record: InstallmentModel) => record.get("published_at") !== null;
 // String#present?: `[[:space:]]` is the Unicode White_Space property.
-const present = (value: string | null | undefined) => value !== null && value !== undefined && !/^\p{White_Space}*$/u.test(value);
+const present = (value: string | null | undefined) =>
+  value !== null && value !== undefined && !/^\p{White_Space}*$/u.test(value);
 
 // `scrubbed_message.blank?`: Loofah keeps `br` and `p` and the text around them. Node judges the messages whose text is plain.
 function messageHasText(message: string | null): boolean {
   if (message === null) return false;
-  if (/<\s*(script|style|noscript|template|iframe|object|embed|svg|math|!--)/iu.test(message)) return refuse("a message with markup the sanitizer drops (message_must_be_provided)");
+  if (/<\s*(script|style|noscript|template|iframe|object|embed|svg|math|!--)/iu.test(message))
+    return refuse("a message with markup the sanitizer drops (message_must_be_provided)");
   const text = message.replace(/<[^>]*>/gu, "");
   if (/[A-Za-z0-9]/u.test(text)) return true;
   if (text.trim() === "" && !/&/u.test(text)) return false;
@@ -102,7 +106,8 @@ const validations: Callback<Installment>[] = [
   {
     name: "message_must_be_provided",
     run(record) {
-      if (!messageHasText(record.get("message"))) record.errors.add("base", "Please include a message as part of the update.");
+      if (!messageHasText(record.get("message")))
+        record.errors.add("base", "Please include a message as part of the update.");
     },
   },
   {
@@ -112,7 +117,8 @@ const validations: Callback<Installment>[] = [
       const text = record.get("call_to_action_text");
       if (!present(url) && !present(text)) return;
       if (!present(text)) record.errors.add("base", "Please enter text for your call to action.");
-      if (url === null || !present(url) || !HTTP_URI_REGEXP.test(url)) record.errors.add("base", "Please provide a valid URL for your call to action.");
+      if (url === null || !present(url) || !HTTP_URI_REGEXP.test(url))
+        record.errors.add("base", "Please provide a valid URL for your call to action.");
     },
   },
   {
@@ -158,22 +164,32 @@ const validations: Callback<Installment>[] = [
     // `shown_on_profile_changed?`: the flag's bit differs from the one in the database
     if: (record) => {
       const change = record.changes().flags;
-      return change !== undefined && InstallmentFlags.isSet(change[0] as number, "shown_on_profile") !== InstallmentFlags.isSet(change[1] as number, "shown_on_profile");
+      return (
+        change !== undefined &&
+        InstallmentFlags.isSet(change[0] as number, "shown_on_profile") !==
+          InstallmentFlags.isSet(change[1] as number, "shown_on_profile")
+      );
     },
     async run(record) {
       if (!flag(record, "shown_on_profile")) return;
       const seller = await post(record).seller();
       if (seller === null) throw new TypeError("undefined method 'confirmed?' for nil");
-      if (seller.confirmed_at === null) record.errors.add("base", "Please confirm your email before creating a public post.");
+      if (seller.confirmed_at === null)
+        record.errors.add("base", "Please confirm your email before creating a public post.");
     },
   },
   {
     name: "content_moderation_check",
-    if: (record) => isPublishing(record) || (record.persisted && published(record) && (record.attributeChanged("name") || record.attributeChanged("message"))),
+    if: (record) =>
+      isPublishing(record) ||
+      (record.persisted &&
+        published(record) &&
+        (record.attributeChanged("name") || record.attributeChanged("message"))),
     async run(record) {
       if (await vipCreator(record)) return;
       // ContentModeration::ModerateRecordService.check: with the kill switch off nothing is reviewed.
-      if (await defaultSubscriptionDeps.featureActive(CONTENT_MODERATION_FEATURE, null)) refuse("content moderation of a post (ModerateRecordService asks an AI model)");
+      if (await defaultSubscriptionDeps.featureActive(CONTENT_MODERATION_FEATURE, null))
+        refuse("content moderation of a post (ModerateRecordService asks an AI model)");
     },
   },
 ];
@@ -186,7 +202,12 @@ const setSlug: Callback<Installment> = {
   async run(record) {
     const name = record.get("name");
     if (record.get("slug") !== null || name === null) return;
-    const slug = await generateSlug("installments", name, record.newRecord ? null : record.get("id"), installmentDeps.uuid);
+    const slug = await generateSlug(
+      "installments",
+      name,
+      record.newRecord ? null : record.get("id"),
+      installmentDeps.uuid,
+    );
     record.set("slug", slug);
   },
 };
@@ -236,7 +257,11 @@ export const Installments = defineModel<Installment>({
       name: "send_to_elasticsearch",
       on: "create",
       async run(record) {
-        await performAsync("ElasticsearchIndexerWorker", ["index", { record_id: record.get("id"), class_name: "Installment" }], { delaySeconds: ELASTICSEARCH_INDEX_DELAY_SECONDS });
+        await performAsync(
+          "ElasticsearchIndexerWorker",
+          ["index", { record_id: record.get("id"), class_name: "Installment" }],
+          { delaySeconds: ELASTICSEARCH_INDEX_DELAY_SECONDS },
+        );
       },
     },
     {
@@ -247,7 +272,11 @@ export const Installments = defineModel<Installment>({
         const committed = (record.ivars[COMMITTED] as string[] | undefined) ?? [];
         const fields = [...new Set(committed.flatMap((name) => INSTALLMENT_ATTRIBUTE_TO_SEARCH_FIELDS[name] ?? []))];
         if (fields.length === 0) return;
-        await performAsync("ElasticsearchIndexerWorker", ["update", { record_id: record.get("id"), class_name: "Installment", fields }], { delaySeconds: ELASTICSEARCH_UPDATE_DELAY_SECONDS });
+        await performAsync(
+          "ElasticsearchIndexerWorker",
+          ["update", { record_id: record.get("id"), class_name: "Installment", fields }],
+          { delaySeconds: ELASTICSEARCH_UPDATE_DELAY_SECONDS },
+        );
       },
     },
   ],
@@ -261,16 +290,24 @@ async function transcodeVideos(record: InstallmentModel): Promise<void> {
 }
 
 // `publish!(published_at:)`
-export async function publishBang(record: InstallmentModel, { publishedAt = null, now }: { publishedAt?: Date | null; now?: () => Date } = {}): Promise<void> {
+export async function publishBang(
+  record: InstallmentModel,
+  { publishedAt = null, now }: { publishedAt?: Date | null; now?: () => Date } = {},
+): Promise<void> {
   const user = await userOf(record);
-  if (user.confirmed_at === null) throw new InstallmentInvalid("You have to confirm your email address before you can do that.");
+  if (user.confirmed_at === null)
+    throw new InstallmentInvalid("You have to confirm your email address before you can do that.");
   await transcodeVideos(record);
   // datetime(0): ActiveRecord drops the fraction of a second
   const publishedAtWhole = publishedAt ?? (now ?? (() => new Date()))();
   record.set("published_at", new Date(Math.floor(publishedAtWhole.getTime() / SECOND_MS) * SECOND_MS));
   // `workflow.present?`: loading the association leaves its foreign key materialized
   if ((record.get("workflow_id") ?? null) !== null) record.touch("workflow_id");
-  if ((record.get("workflow_id") ?? null) !== null) record.set("flags", Number(InstallmentFlags.set(record.get("flags") as number, "workflow_installment_published_once_already", true)));
+  if ((record.get("workflow_id") ?? null) !== null)
+    record.set(
+      "flags",
+      Number(InstallmentFlags.set(record.get("flags") as number, "workflow_installment_published_once_already", true)),
+    );
   record.ivars[PUBLISHING] = true;
   try {
     await Installments.saveBang(record, { now } as SaveOptions);
@@ -280,14 +317,22 @@ export async function publishBang(record: InstallmentModel, { publishedAt = null
 }
 
 // `unpublish!(is_unpublished_by_admin:)`
-export async function unpublishBang(record: InstallmentModel, { isUnpublishedByAdmin = false, now }: { isUnpublishedByAdmin?: boolean; now?: () => Date } = {}): Promise<void> {
+export async function unpublishBang(
+  record: InstallmentModel,
+  { isUnpublishedByAdmin = false, now }: { isUnpublishedByAdmin?: boolean; now?: () => Date } = {},
+): Promise<void> {
   record.set("published_at", null);
-  record.set("flags", Number(InstallmentFlags.set(record.get("flags") as number, "is_unpublished_by_admin", isUnpublishedByAdmin)));
+  record.set(
+    "flags",
+    Number(InstallmentFlags.set(record.get("flags") as number, "is_unpublished_by_admin", isUnpublishedByAdmin)),
+  );
   await Installments.saveBang(record, { now } as SaveOptions);
 }
 
 // `mark_deleted` (Deletable): the non-bang save, which reports an invalid post as false.
-export const markDeleted = (record: InstallmentModel, options: SaveOptions = {}) => softDeletion.markDeleted(record, options);
+export const markDeleted = (record: InstallmentModel, options: SaveOptions = {}) =>
+  softDeletion.markDeleted(record, options);
 
 // `mark_deleted!` (Deletable)
-export const markDeletedBang = (record: InstallmentModel, options: SaveOptions = {}) => softDeletion.markDeletedBang(record, options);
+export const markDeletedBang = (record: InstallmentModel, options: SaveOptions = {}) =>
+  softDeletion.markDeletedBang(record, options);

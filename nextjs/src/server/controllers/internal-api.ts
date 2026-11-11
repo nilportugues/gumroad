@@ -8,8 +8,8 @@ import { Prisma, type Installment } from "@prisma/client";
 import { decrypt } from "../../lib/obfuscate-ids.ts";
 import { doorkeeperAuthorize, doorkeeperToken } from "../auth/api-token.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
-import { railsCache } from "../cache/rails-cache.ts";
 import { RubySymbol, type MarshalValue } from "../cache/marshal.ts";
+import { railsCache } from "../cache/rails-cache.ts";
 import { getConfig } from "../infra/config.ts";
 import { getRedis } from "../infra/redis.ts";
 import { performAsync } from "../models/concerns/job-runtime.ts";
@@ -18,27 +18,35 @@ import { urlClickCounts } from "../models/email-engagement-store.ts";
 import { audienceMembersFilterParams } from "../models/installment-audience.ts";
 import { InstallmentPost } from "../models/installment-post.ts";
 import { createBlast, RECIPIENT_FILTER_UNOPENED } from "../models/post-email-blast.ts";
-import { transaction } from "../models/runtime/transaction.ts";
 import { findAliveVideo, setApprovalStatusBang } from "../models/product-review-video.ts";
+import { transaction } from "../models/runtime/transaction.ts";
 import { castRow, column, selectRows, table } from "../models/sql.ts";
 import { NotPortedError } from "../models/user.ts";
 import { NotPortedError as PageNotPortedError } from "../page-props/not-ported.ts";
+import { PAGE_URL_HEADER } from "../page-props/render-state.ts";
 import { authorize } from "../policies/authorize.ts";
 import { installmentPolicy } from "../policies/installment.ts";
 import { collaboratingProductIds, linkPolicy } from "../policies/link.ts";
 import { productReviewVideoPolicy } from "../policies/product-review-video.ts";
 import { loadSellerContext } from "../policies/seller-context.ts";
-import type { JsonValue } from "../search/es-json.ts";
 import { filterCount } from "../search/audience-member-search.ts";
-import { forwardToRails, HandBackToRails, processAction, RoutingError, type ActionResult, type Rendered } from "./application-controller.ts";
+import type { JsonValue } from "../search/es-json.ts";
+
+import {
+  forwardToRails,
+  HandBackToRails,
+  processAction,
+  RoutingError,
+  type ActionResult,
+  type Rendered,
+} from "./application-controller.ts";
 import { agentActionStatus, agentConversationsLatest, agentTurnStatus } from "./internal-agent.ts";
 import { productPosts } from "./internal-product-posts.ts";
-import { PAGE_URL_HEADER } from "../page-props/render-state.ts";
-import { railsRequest, type RailsRequest } from "./rails-request.ts";
 import { json, jsonAction } from "./json-actions.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { numberWithDelimiter } from "./number-with-delimiter.ts";
 import { assertFlatQuery } from "./rails-params.ts";
+import { railsRequest, type RailsRequest } from "./rails-request.ts";
 import { authorizeJson, notFoundJson } from "./seller-json.ts";
 
 const UNAUTHORIZED = 401;
@@ -51,7 +59,8 @@ async function handingBack<T>(run: () => Promise<T>): Promise<T> {
   try {
     return await run();
   } catch (error) {
-    if (error instanceof NotPortedError || error instanceof PageNotPortedError) throw new HandBackToRails(error.message);
+    if (error instanceof NotPortedError || error instanceof PageNotPortedError)
+      throw new HandBackToRails(error.message);
     throw error;
   }
 }
@@ -59,10 +68,19 @@ async function handingBack<T>(run: () => Promise<T>): Promise<T> {
 // ---- API host, no session
 
 // `head :status`, which names no format of its own.
-const head = (status: number, headers: Record<string, string> = {}): Rendered => ({ status, body: "", contentType: "text/html", headers, paramsRead: true });
+const head = (status: number, headers: Record<string, string> = {}): Rendered => ({
+  status,
+  body: "",
+  contentType: "text/html",
+  headers,
+  paramsRead: true,
+});
 
 // The same from a before_action: the after_actions did not run.
-const halted = (status: number, headers: Record<string, string> = {}): ActionResult => ({ ...head(status, headers), rescued: true });
+const halted = (status: number, headers: Record<string, string> = {}): ActionResult => ({
+  ...head(status, headers),
+  rescued: true,
+});
 
 // `$redis.get(key)` for a value the app tolerates losing: a transport error reads as nil.
 async function redisGetOrNil(key: string): Promise<string | null> {
@@ -77,10 +95,17 @@ async function redisGetOrNil(key: string): Promise<string | null> {
 export async function mobileMinimumVersion(request: RailsRequest): Promise<ActionResult> {
   assertFlatQuery(request.queryString);
   const parameters = Object.fromEntries(new URLSearchParams(request.queryString));
-  const token = await doorkeeperToken({ authorization: request.headers.get("authorization"), parameters, path: request.path });
+  const token = await doorkeeperToken({
+    authorization: request.headers.get("authorization"),
+    parameters,
+    path: request.path,
+  });
   const authorization = await doorkeeperAuthorize(token, ["account", "mobile_api"]);
   if (!authorization.ok) return halted(authorization.status, authorization.headers);
-  return json({ minimum_version: await redisGetOrNil("mobile:minimum_version"), minimum_update_created_at: await redisGetOrNil("mobile:minimum_update_created_at") });
+  return json({
+    minimum_version: await redisGetOrNil("mobile:minimum_version"),
+    minimum_update_created_at: await redisGetOrNil("mobile:minimum_update_created_at"),
+  });
 }
 
 const HOME_PAGE_SOURCE = "home_page_numbers_controller.rb";
@@ -92,7 +117,8 @@ function cachedHash(value: MarshalValue): JsonValue | undefined {
   if (!(value instanceof Map) || value.size === 0) return undefined;
   const out: Record<string, JsonValue> = {};
   for (const [key, entry] of value) {
-    if (!(key instanceof RubySymbol) || typeof entry !== "string") throw new NotPortedError("a cached home page figure that is not a string", HOME_PAGE_SOURCE);
+    if (!(key instanceof RubySymbol) || typeof entry !== "string")
+      throw new NotPortedError("a cached home page figure that is not a string", HOME_PAGE_SOURCE);
     out[key.name] = entry;
   }
   return out;
@@ -116,7 +142,10 @@ async function homePageNumbersUnchecked(): Promise<ActionResult> {
   }
   const figure = `$${numberWithDelimiter(payout)}`;
   // A stalled read is served uncached: degrading the figure must not publish it on the homepage for a day.
-  if (!stalled) await cache.write(HOME_PAGE_NUMBERS_KEY, new Map([[new RubySymbol("prev_week_payout_usd"), figure]]), { expiresIn: HOME_PAGE_NUMBERS_TTL_SECONDS });
+  if (!stalled)
+    await cache.write(HOME_PAGE_NUMBERS_KEY, new Map([[new RubySymbol("prev_week_payout_usd"), figure]]), {
+      expiresIn: HOME_PAGE_NUMBERS_TTL_SECONDS,
+    });
   return json({ prev_week_payout_usd: figure });
 }
 
@@ -138,8 +167,10 @@ function plainJson(text: string): JsonValue {
   let parsed: unknown;
   try {
     parsed = JSON.parse(text, ((_key: string, value: unknown, context: { source?: string }) => {
-      if (typeof value === "number" && !/^-?(0|[1-9]\d*)$/u.test(context.source ?? "")) throw new HandBackToRails("a webhook number that is not an integer");
-      if (typeof value === "number" && !Number.isSafeInteger(value)) throw new HandBackToRails("a webhook integer beyond 2^53");
+      if (typeof value === "number" && !/^-?(0|[1-9]\d*)$/u.test(context.source ?? ""))
+        throw new HandBackToRails("a webhook number that is not an integer");
+      if (typeof value === "number" && !Number.isSafeInteger(value))
+        throw new HandBackToRails("a webhook integer beyond 2^53");
       return value;
     }) as Parameters<typeof JSON.parse>[1]);
   } catch (error) {
@@ -151,16 +182,22 @@ function plainJson(text: string): JsonValue {
 
 function grmcWebhook(input: MutationInput): Promise<ActionResult> {
   // The handler reads the body a second time: Rails hands that read the raw post only once the JSON params parser has run.
-  if (!/^application\/json\b/iu.test(input.request.headers.get("content-type") ?? "")) throw new HandBackToRails("a GRMC webhook that is not application/json");
+  if (!/^application\/json\b/iu.test(input.request.headers.get("content-type") ?? ""))
+    throw new HandBackToRails("a GRMC webhook that is not application/json");
   const body = Buffer.from(input.rawBody);
   const { timestamp, signature } = signatureParts(input.request.headers.get("grmc-signature") ?? "");
   const secret = getConfig("GRMC_WEBHOOK_SECRET");
   if (secret === undefined) throw new HandBackToRails("a GRMC webhook without a secret");
-  const withinTolerance = Math.abs(rubyToI(timestamp) / MILLISECONDS_PER_SECOND - Date.now() / MILLISECONDS_PER_SECOND) <= GRMC_SIGNATURE_TOLERANCE_MS / MILLISECONDS_PER_SECOND;
+  const withinTolerance =
+    Math.abs(rubyToI(timestamp) / MILLISECONDS_PER_SECOND - Date.now() / MILLISECONDS_PER_SECOND) <=
+    GRMC_SIGNATURE_TOLERANCE_MS / MILLISECONDS_PER_SECOND;
   const expected = Buffer.from(createHmac("sha256", secret).update(body).digest("hex"));
   const given = Buffer.from(signature ?? "");
   if (!withinTolerance || given.length !== expected.length || !timingSafeEqual(given, expected)) {
-    return Promise.resolve({ ...json({ success: false, message: "invalid timestamp or signature" }, UNAUTHORIZED), rescued: true });
+    return Promise.resolve({
+      ...json({ success: false, message: "invalid timestamp or signature" }, UNAUTHORIZED),
+      rescued: true,
+    });
   }
   return handleGrmc(body);
 }
@@ -194,7 +231,11 @@ type InstallmentAction = (input: MutationInput, installment: InstallmentPost) =>
 
 // `installment = ...find_by_external_id(params[:id])`, then `return (skip_authorization and e404_json) unless installment`,
 // then the policy's query.
-async function withSellerInstallment(input: MutationInput, query: (context: Parameters<typeof installmentPolicy.index>[0]) => boolean, run: InstallmentAction): Promise<ActionResult> {
+async function withSellerInstallment(
+  input: MutationInput,
+  query: (context: Parameters<typeof installmentPolicy.index>[0]) => boolean,
+  run: InstallmentAction,
+): Promise<ActionResult> {
   const refused = requireSignedIn(input);
   if (refused) return refused;
   const installment = await findSellerInstallment(input.context.currentSeller!.id, input.routeParams.id!);
@@ -225,15 +266,38 @@ export const installmentClickedUrls = (request: Request, routeParams: Record<str
       withSellerInstallment(input, installmentPolicy.index, async (_input, post) => {
         const counts = [...(await urlClickCounts(post.id))];
         // `sort_by { |_, v| -v }` is not stable: only a strict order is one Ruby would repeat.
-        if (new Set(counts.map(([, count]) => count)).size !== counts.length) throw new NotPortedError("clicked URLs with equal counts", "installment.rb");
+        if (new Set(counts.map(([, count]) => count)).size !== counts.length)
+          throw new NotPortedError("clicked URLs with equal counts", "installment.rb");
         counts.sort((a, b) => b[1] - a[1]);
-        return json({ clicked_urls: counts.map(([url, count]) => ({ url: url === VIEW_ATTACHMENTS_URL ? "View content" : url, count })) });
+        return json({
+          clicked_urls: counts.map(([url, count]) => ({
+            url: url === VIEW_ATTACHMENTS_URL ? "View content" : url,
+            count,
+          })),
+        });
       }),
     ),
   );
 
-const RECIPIENT_COUNT_SCALARS = ["paid_more_than_cents", "paid_less_than_cents", "bought_from", "active_customers_only", "minimum_license_uses", "installment_type", "created_after", "created_before", "not_clicked_post_id"] as const;
-const RECIPIENT_COUNT_LISTS = ["bought_products", "bought_variants", "not_bought_products", "not_bought_variants", "affiliate_products", "waitlisted_products"] as const;
+const RECIPIENT_COUNT_SCALARS = [
+  "paid_more_than_cents",
+  "paid_less_than_cents",
+  "bought_from",
+  "active_customers_only",
+  "minimum_license_uses",
+  "installment_type",
+  "created_after",
+  "created_before",
+  "not_clicked_post_id",
+] as const;
+const RECIPIENT_COUNT_LISTS = [
+  "bought_products",
+  "bought_variants",
+  "not_bought_products",
+  "not_bought_variants",
+  "affiliate_products",
+  "waitlisted_products",
+] as const;
 
 const isScalar = (value: unknown): value is string | null => value === null || typeof value === "string";
 
@@ -250,7 +314,9 @@ export const installmentRecipientCount = (request: Request) =>
     handingBack(async () => {
       const refused = requireSignedIn(input);
       if (refused) return refused;
-      const denied = await authorizeJson(input, (context) => authorize(installmentPolicy.updatedRecipientCount, context));
+      const denied = await authorizeJson(input, (context) =>
+        authorize(installmentPolicy.updatedRecipientCount, context),
+      );
       if (denied) return denied;
 
       const seller = input.context.currentSeller!;
@@ -268,8 +334,13 @@ export const installmentRecipientCount = (request: Request) =>
 
       const jsonData: Record<string, unknown> = { ...permitted };
       delete jsonData.installment_type;
-      for (const name of ["paid_more_than_cents", "paid_less_than_cents"] as const) if (name in jsonData) jsonData[name] = centsValue(name, jsonData[name] as string | null);
-      const post = new InstallmentPost({ seller_id: seller.id, installment_type: (permitted.installment_type as string | null | undefined) ?? null, json_data: JSON.stringify(jsonData) } as unknown as Installment);
+      for (const name of ["paid_more_than_cents", "paid_less_than_cents"] as const)
+        if (name in jsonData) jsonData[name] = centsValue(name, jsonData[name] as string | null);
+      const post = new InstallmentPost({
+        seller_id: seller.id,
+        installment_type: (permitted.installment_type as string | null | undefined) ?? null,
+        json_data: JSON.stringify(jsonData),
+      } as unknown as Installment);
 
       const audience = await filterCount(seller.id);
       const recipients = await filterCount(seller.id, await audienceMembersFilterParams(post));
@@ -280,9 +351,12 @@ export const installmentRecipientCount = (request: Request) =>
 // FetchProductByUniquePermalink: `params[:id] || params[:link_id] || params[:product_id]`, a blank one is a 404.
 async function fetchProductByUniquePermalink(input: MutationInput): Promise<{ id: bigint; user_id: bigint | null }> {
   const given = input.params.id ?? input.params.link_id ?? input.routeParams.product_id;
-  if (given !== undefined && given !== null && typeof given !== "string") throw new HandBackToRails("a product permalink that is not text");
+  if (given !== undefined && given !== null && typeof given !== "string")
+    throw new HandBackToRails("a product permalink that is not text");
   if (given === undefined || given === null || given.trim() === "") throw new RoutingError("Not Found");
-  const [row] = await selectRows<{ id: bigint; user_id: bigint | null }>(Prisma.sql`SELECT ${column("links", "id")}, ${column("links", "user_id")} FROM ${table("links")} WHERE ${column("links", "unique_permalink")} = ${given} LIMIT 1`);
+  const [row] = await selectRows<{ id: bigint; user_id: bigint | null }>(
+    Prisma.sql`SELECT ${column("links", "id")}, ${column("links", "user_id")} FROM ${table("links")} WHERE ${column("links", "unique_permalink")} = ${given} LIMIT 1`,
+  );
   if (!row) throw new RoutingError("Not Found");
   return row;
 }
@@ -332,7 +406,12 @@ async function recentlyResent(postId: bigint | number, now: Date): Promise<boole
 
 // `resend_limit_reached?`
 async function resendLimitReached(postId: bigint | number): Promise<boolean> {
-  return (await blastCount(Prisma.sql`${column("post_email_blasts", "completed_at")} IS NOT NULL AND ${column("post_email_blasts", "delivery_count")} >= 1`, postId)) >= MAX_RESENDS;
+  return (
+    (await blastCount(
+      Prisma.sql`${column("post_email_blasts", "completed_at")} IS NOT NULL AND ${column("post_email_blasts", "delivery_count")} >= 1`,
+      postId,
+    )) >= MAX_RESENDS
+  );
 }
 
 // `resendable_to_non_openers?`: published, emailed, sent to customers, and not a send that expired without reaching anyone.
@@ -414,9 +493,12 @@ async function reviewVideoDecision(input: MutationInput, action: VideoAction): P
   const [owner] = await selectRows<{ seller_id: bigint | null; purchase_id: bigint | null }>(
     Prisma.sql`SELECT ${column("purchases", "seller_id")}, ${column("product_reviews", "purchase_id")} FROM ${table("product_reviews")} LEFT JOIN ${table("purchases")} ON ${column("purchases", "id")} = ${column("product_reviews", "purchase_id")} WHERE ${column("product_reviews", "id")} = ${video.get("product_review_id")} LIMIT 1`,
   );
-  if (owner === undefined || owner.purchase_id === null) throw new NotPortedError("ProductReviewVideoPolicy", "a video whose review has no purchase");
+  if (owner === undefined || owner.purchase_id === null)
+    throw new NotPortedError("ProductReviewVideoPolicy", "a video whose review has no purchase");
   const sellerId = owner.seller_id;
-  const denied = await authorizeJson(input, (context) => authorize(productReviewVideoPolicy[action], context, sellerId));
+  const denied = await authorizeJson(input, (context) =>
+    authorize(productReviewVideoPolicy[action], context, sellerId),
+  );
   if (denied) return denied;
   await setApprovalStatusBang(video, action === "approve" ? "approved" : "rejected");
   // The route defaults the format to JSON, which `head` takes as its content type.
@@ -527,10 +609,25 @@ registerMutations(
   { method: "POST", pattern: "/internal/installments/:id/non_opener_resend", formats: ["any"], run: nonOpenerResend },
   { method: "POST", pattern: "/internal/installments/:id/preview_email", formats: ["any"], run: previewEmail },
   { method: "POST", pattern: "/internal/installments/:id/remaining_send", formats: ["any"], run: remainingSend },
-  { method: "POST", pattern: "/internal/customers/:purchase_id/single_customer_email", formats: ["any"], run: singleCustomerEmail },
+  {
+    method: "POST",
+    pattern: "/internal/customers/:purchase_id/single_customer_email",
+    formats: ["any"],
+    run: singleCustomerEmail,
+  },
   { method: "POST", pattern: "/internal/product_public_files", formats: ["any"], run: productPublicFile },
-  { method: "POST", pattern: "/internal/product_review_videos/:product_review_video_id/approvals", formats: ["any"], run: (input) => reviewVideoDecision(input, "approve") },
-  { method: "POST", pattern: "/internal/product_review_videos/:product_review_video_id/rejections", formats: ["any"], run: (input) => reviewVideoDecision(input, "reject") },
+  {
+    method: "POST",
+    pattern: "/internal/product_review_videos/:product_review_video_id/approvals",
+    formats: ["any"],
+    run: (input) => reviewVideoDecision(input, "approve"),
+  },
+  {
+    method: "POST",
+    pattern: "/internal/product_review_videos/:product_review_video_id/rejections",
+    formats: ["any"],
+    run: (input) => reviewVideoDecision(input, "reject"),
+  },
 );
 
 // ---- Dispatcher for the GETs: routes.json marks them `handler: "internal"`, the proxy rewrites them to /gr-public/internal
@@ -538,7 +635,8 @@ registerMutations(
 
 type GetRoute = { pattern: string; run(request: Request, routeParams: Record<string, string>): Promise<Response> };
 
-const apiHost = (action: (request: RailsRequest) => Promise<ActionResult>) => (request: Request) => processAction(request, {}, () => action(railsRequest(request)));
+const apiHost = (action: (request: RailsRequest) => Promise<ActionResult>) => (request: Request) =>
+  processAction(request, {}, () => action(railsRequest(request)));
 
 const GET_ROUTES: GetRoute[] = [
   { pattern: "/internal/mobile_minimum_version", run: apiHost(mobileMinimumVersion) },
@@ -566,7 +664,9 @@ function matchRoute(pattern: string, path: string): Record<string, string> | nul
     })
     .join("/");
   const match = new RegExp(`^${source}$`, "u").exec(path);
-  return match === null ? null : Object.fromEntries(names.map((name, index) => [name, decodeURIComponent(match[index + 1]!)]));
+  return match === null
+    ? null
+    : Object.fromEntries(names.map((name, index) => [name, decodeURIComponent(match[index + 1]!)]));
 }
 
 export async function internalResponse(incoming: Request): Promise<Response> {

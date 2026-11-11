@@ -12,7 +12,17 @@ import { WorkflowRecord } from "../../models/workflow.ts";
 import { jsonFilters } from "../../page-props/audience/filters.ts";
 import { RubyFloat } from "../../search/es-json.ts";
 import { HandBackToRails, type ActionResult } from "../application-controller.ts";
-import { authorize, error400, errorWithObject, halted, renderResponse, successWithObject, timeJson, type ApiCall } from "./ws17c-base.ts";
+
+import {
+  authorize,
+  error400,
+  errorWithObject,
+  halted,
+  renderResponse,
+  successWithObject,
+  timeJson,
+  type ApiCall,
+} from "./ws17c-base.ts";
 
 const API_CACHE_EXPIRATION_SECONDS = 5;
 const API_CACHE_PREFIX = "api_workflow";
@@ -25,14 +35,24 @@ const SECONDS_PER_UNIT: Record<string, number> = { hour: 3600, day: 86_400, week
 const MAX_DELAY_SECONDS = 2 ** 31 - 1;
 const OVERFLOW_DELAY_MESSAGE = `Use a delay of ${Math.trunc(MAX_DELAY_SECONDS / (365 * 86_400))} years or less.`;
 const WRITE_PARAMS = ["subject", "body", "delay_amount", "delay_unit"] as const;
-const WORKFLOW_STATE_PARAMS = ["publish", "unpublish", "draft", "state", "published_at", "save_action_name", "send_to_past_customers"] as const;
+const WORKFLOW_STATE_PARAMS = [
+  "publish",
+  "unpublish",
+  "draft",
+  "state",
+  "published_at",
+  "save_action_name",
+  "send_to_past_customers",
+] as const;
 
 const externalId = (id: number | bigint) => encrypt(id);
 
 type Linked = { id: number };
 const find = async <T>(tableName: string, id: number | bigint | null): Promise<T | null> => {
   if (id === null) return null;
-  const [row] = await selectRows<T>(Prisma.sql`SELECT * FROM ${table(tableName)} WHERE ${column(tableName, "id")} = ${id} LIMIT 1`);
+  const [row] = await selectRows<T>(
+    Prisma.sql`SELECT * FROM ${table(tableName)} WHERE ${column(tableName, "id")} = ${id} LIMIT 1`,
+  );
   return row ?? null;
 };
 
@@ -48,15 +68,27 @@ async function emailsOf(workflow: Workflow): Promise<EmailRow[]> {
   const installments = await selectRows<Installment>(
     Prisma.sql`SELECT ${table("installments")}.* FROM ${table("installments")} INNER JOIN ${table("installment_rules")} ON ${column("installment_rules", "installment_id")} = ${column("installments", "id")} WHERE ${column("installments", "workflow_id")} = ${workflow.id} AND ${column("installments", "deleted_at")} IS NULL ORDER BY ${column("installment_rules", "delayed_delivery_time")} ASC, ${column("installments", "id")} ASC`,
   );
-  const rules = installments.length === 0 ? [] : await selectRows<InstallmentRule>(Prisma.sql`SELECT * FROM ${table("installment_rules")} WHERE ${column("installment_rules", "installment_id")} IN (${Prisma.join(installments.map((installment) => installment.id))})`);
-  return installments.map((installment) => ({ installment, rule: rules.find((rule) => rule.installment_id === installment.id)! }));
+  const rules =
+    installments.length === 0
+      ? []
+      : await selectRows<InstallmentRule>(
+          Prisma.sql`SELECT * FROM ${table("installment_rules")} WHERE ${column("installment_rules", "installment_id")} IN (${Prisma.join(installments.map((installment) => installment.id))})`,
+        );
+  return installments.map((installment) => ({
+    installment,
+    rule: rules.find((rule) => rule.installment_id === installment.id)!,
+  }));
 }
 
 // Post::Caching.cache_key_for(id, key)
 const eventKey = (id: number, key: string) => `${key}_for_installment_${id}_ddb`;
 
 // WorkflowPresenter#batched_counts: a count another request read in the last five seconds, else DynamoDB.
-async function batchedCounts(emails: Installment[], key: "unique_open_count" | "unique_click_count", pick: "open_count" | "click_pair_count"): Promise<Map<number, number>> {
+async function batchedCounts(
+  emails: Installment[],
+  key: "unique_open_count" | "unique_click_count",
+  pick: "open_count" | "click_pair_count",
+): Promise<Map<number, number>> {
   const counts = new Map<number, number>();
   const missing: number[] = [];
   for (const email of emails) {
@@ -69,19 +101,26 @@ async function batchedCounts(emails: Installment[], key: "unique_open_count" | "
   for (const id of missing) {
     const count = queried.get(id)?.[pick] ?? 0;
     counts.set(id, count);
-    await railsCache().write(`${API_CACHE_PREFIX}_${eventKey(id, key)}`, count, { expiresIn: API_CACHE_EXPIRATION_SECONDS });
+    await railsCache().write(`${API_CACHE_PREFIX}_${eventKey(id, key)}`, count, {
+      expiresIn: API_CACHE_EXPIRATION_SECONDS,
+    });
   }
   return counts;
 }
 
 // (count.fdiv(sent) * 100).round(1), nil for no sends
-const rate = (count: number, sent: number) => (sent === 0 ? null : new RubyFloat(rubyFloatRoundDigits((count / sent) * 100, 1)));
+const rate = (count: number, sent: number) =>
+  sent === 0 ? null : new RubyFloat(rubyFloatRoundDigits((count / sent) * 100, 1));
 
 async function presentEmails(workflow: Workflow, rows: EmailRow[], includeAnalytics: boolean) {
   const link = await find<Linked>("links", workflow.link_id);
   const installments = rows.map((row) => row.installment);
-  const opens = includeAnalytics ? await batchedCounts(installments, "unique_open_count", "open_count") : new Map<number, number>();
-  const clicks = includeAnalytics ? await batchedCounts(installments, "unique_click_count", "click_pair_count") : new Map<number, number>();
+  const opens = includeAnalytics
+    ? await batchedCounts(installments, "unique_open_count", "open_count")
+    : new Map<number, number>();
+  const clicks = includeAnalytics
+    ? await batchedCounts(installments, "unique_click_count", "click_pair_count")
+    : new Map<number, number>();
   return rows.map(({ installment, rule }) => {
     const sent = installment.customer_count ?? 0;
     const open = opens.get(installment.id) ?? null;
@@ -108,7 +147,11 @@ async function presentEmails(workflow: Workflow, rows: EmailRow[], includeAnalyt
   });
 }
 
-async function workflowProps(seller: User, workflow: Workflow, options: { emailsCount?: number; includeEmails?: boolean }) {
+async function workflowProps(
+  seller: User,
+  workflow: Workflow,
+  options: { emailsCount?: number; includeEmails?: boolean },
+) {
   const record = new WorkflowRecord(workflow);
   const link = await find<Linked>("links", workflow.link_id);
   const variant = await find<Linked>("base_variants", workflow.base_variant_id);
@@ -148,7 +191,8 @@ export async function index(call: ApiCall): Promise<ActionResult> {
     for (const row of grouped) counts.set(Number(row.workflow_id), Number(row.count));
   }
   const props = [];
-  for (const workflow of workflows) props.push(await workflowProps(auth.owner, workflow, { emailsCount: counts.get(workflow.id) ?? 0 }));
+  for (const workflow of workflows)
+    props.push(await workflowProps(auth.owner, workflow, { emailsCount: counts.get(workflow.id) ?? 0 }));
   return successWithObject("workflows", props);
 }
 
@@ -197,7 +241,8 @@ function writeParamsError(call: ApiCall, workflow: Workflow, requireAll: boolean
     if (missing) return `${missing} is required.`;
   } else if (supplied.length === 0) return "Provide at least one of: subject, body, delay_amount, or delay_unit.";
   const { subject, body } = call.params;
-  if (present(call, "subject") && (typeof subject !== "string" || subject.trim() === "")) return "subject must be a non-empty string.";
+  if (present(call, "subject") && (typeof subject !== "string" || subject.trim() === ""))
+    return "subject must be a non-empty string.";
   if (present(call, "body") && typeof body !== "string") return "body must be a string.";
   const delayParams = (["delay_amount", "delay_unit"] as const).filter((key) => present(call, key));
   if (delayParams.length === 0) return null;
@@ -206,7 +251,8 @@ function writeParamsError(call: ApiCall, workflow: Workflow, requireAll: boolean
   const amount = parsedDelayAmount(call.params.delay_amount);
   if (amount === null || amount < 0) return "delay_amount must be a non-negative integer.";
   const unit = call.params.delay_unit;
-  if (typeof unit !== "string" || !(DELAY_UNITS as readonly string[]).includes(unit)) return `delay_unit must be one of: ${DELAY_UNITS.join(", ")}.`;
+  if (typeof unit !== "string" || !(DELAY_UNITS as readonly string[]).includes(unit))
+    return `delay_unit must be one of: ${DELAY_UNITS.join(", ")}.`;
   if (amount * SECONDS_PER_UNIT[unit]! > MAX_DELAY_SECONDS) return OVERFLOW_DELAY_MESSAGE;
   return null;
 }

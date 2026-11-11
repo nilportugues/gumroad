@@ -6,16 +6,17 @@ import { readFileSync } from "node:fs";
 import type { Redis } from "ioredis";
 import { expect } from "vitest";
 
-import { createJobsRuntime, type JobsRuntime } from "../../jobs/runtime.ts";
-import { JOB_REGISTRY } from "../../jobs/registry.generated.ts";
-import type { JobDefinition } from "../../jobs/registry-types.ts";
-import { type JsonValue, parseRubyJson, RubyFloat } from "../../jobs/sidekiq/ruby-json.ts";
-import { withJobsRuntime } from "../../models/concerns/job-runtime.ts";
 import { sequentialJids } from "../../../worker/jobs/__fixtures__/golden.ts";
 import { sqlReplay, type Statement } from "../../../worker/jobs/__fixtures__/sql-replay.ts";
+import type { JobDefinition } from "../../jobs/registry-types.ts";
+import { JOB_REGISTRY } from "../../jobs/registry.generated.ts";
+import { createJobsRuntime, type JobsRuntime } from "../../jobs/runtime.ts";
+import { type JsonValue, parseRubyJson, RubyFloat } from "../../jobs/sidekiq/ruby-json.ts";
+import { withJobsRuntime } from "../../models/concerns/job-runtime.ts";
+import { SIDEKIQ_EXECUTOR, WEB_EXECUTOR, withExecutor } from "../../models/runtime/query-cache.ts";
 import type { ProductDocumentDeps } from "../documents/product.ts";
 import { esJson } from "../es-json.ts";
-import { SIDEKIQ_EXECUTOR, WEB_EXECUTOR, withExecutor } from "../../models/runtime/query-cache.ts";
+
 import { esRecorder } from "./job-harness.ts";
 import type { EsRequestRecord } from "./search-golden.ts";
 
@@ -33,7 +34,9 @@ export type ProductCase = {
   trailing_key?: string;
 };
 
-export const productGolden = parseRubyJson(readFileSync(new URL("product-search.golden.json", import.meta.url), "utf8")) as unknown as {
+export const productGolden = parseRubyJson(
+  readFileSync(new URL("product-search.golden.json", import.meta.url), "utf8"),
+) as unknown as {
   now: number;
   es_index: string;
   search_fields: string[];
@@ -44,11 +47,15 @@ export const productGolden = parseRubyJson(readFileSync(new URL("product-search.
   user_product_index_updates: ProductCase[];
 };
 
-const nowSeconds = () => { const now = productGolden.now as unknown; return now instanceof RubyFloat ? now.value : Number(now); };
+const nowSeconds = () => {
+  const now = productGolden.now as unknown;
+  return now instanceof RubyFloat ? now.value : Number(now);
+};
 
 export const goldenDeps = (c: ProductCase): ProductDocumentDeps => ({
   now: () => new Date(nowSeconds() * 1000),
-  featureActive: async (name, actor) => c.features.some(([feature, featureActor]) => feature === name && (featureActor === null || featureActor === actor)),
+  featureActive: async (name, actor) =>
+    c.features.some(([feature, featureActor]) => feature === name && (featureActor === null || featureActor === actor)),
 });
 
 // The classes these cases enqueue ran in Ruby when they were recorded.
@@ -59,13 +66,20 @@ export function recordedRegistry(): Record<string, JobDefinition> {
 }
 
 export function goldenRuntime(redis: Redis): JobsRuntime {
-  return createJobsRuntime({ sidekiqRedis: redis, bullmqRedis: redis, registry: recordedRegistry(), now: nowSeconds, newJid: sequentialJids() });
+  return createJobsRuntime({
+    sidekiqRedis: redis,
+    bullmqRedis: redis,
+    registry: recordedRegistry(),
+    now: nowSeconds,
+    newJid: sequentialJids(),
+  });
 }
 
 const plain = (value: unknown): unknown => {
   if (value instanceof RubyFloat) return value.value;
   if (Array.isArray(value)) return value.map(plain);
-  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, plain(v)]));
+  if (value && typeof value === "object")
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, plain(v)]));
   return value;
 };
 
@@ -77,7 +91,11 @@ export async function snapshot(redis: Redis): Promise<unknown> {
     const expires = (await redis.pttl(key)) > 0;
     if (key === "uniquejobs:changelog") {
       const members = await redis.zrange(key, "0", "-1");
-      result[key] = { type, messages: members.map((member) => (JSON.parse(member) as { message: string }).message), expires };
+      result[key] = {
+        type,
+        messages: members.map((member) => (JSON.parse(member) as { message: string }).message),
+        expires,
+      };
       continue;
     }
     let value: JsonValue;
