@@ -13,7 +13,7 @@ import { LinkFlags } from "../models/link.ts";
 import { performAsync } from "../models/concerns/job-runtime.ts";
 import { UserFlags } from "../models/user.ts";
 import { castRow, column, selectRows, table } from "../models/sql.ts";
-import { fetchCart } from "../page-props/checkout/checkout.ts";
+import { aliveCartProductCount, fetchCart } from "../page-props/checkout/checkout.ts";
 import { createUserEvent, referrerDomain, remoteIp } from "../page-props/audience/events.ts";
 import { titleize } from "../html/installment-message.ts";
 import { isBot } from "../page-props/discover/discover.ts";
@@ -79,23 +79,15 @@ export const tagsResponse = (incoming: Request): Promise<Response> => processAct
 
 // ----- LinksController#cart_items_count
 
-async function cartItemsCount(action: ActionContext): Promise<ActionResult> {
-  // `format.any` renders the Inertia frame.
+// The JSON answer. The Inertia frame (`format.any`) is the `/cart_items_count` page on the Gumroad domain; on a seller host it is Rails'.
+async function cartItemsCount(action: Pick<ActionContext, "request" | "context">): Promise<ActionResult> {
   if (requestFormat(action.request) !== "json") throw new HandBackToRails("cart_items_count asked for something other than JSON");
   const user = railsLoggedInUser(action.context);
   const guid = action.request.cookies.get(GUMROAD_GUID_COOKIE) ?? null;
-  const cart = await fetchCart(user?.id ?? null, guid);
-  let count = 0;
-  if (cart !== null) {
-    const [row] = await selectRows<{ count: bigint | number }>(
-      Prisma.sql`SELECT COUNT(*) AS count FROM ${table("cart_products")} WHERE ${column("cart_products", "cart_id")} = ${cart.id} AND ${column("cart_products", "deleted_at")} IS NULL`,
-    );
-    count = Number(row?.count ?? 0);
-  }
-  return json({ cart_items_count: count });
+  return json({ cart_items_count: await aliveCartProductCount(user?.id ?? null, guid) });
 }
 
-export const cartItemsCountResponse = (incoming: Request): Promise<Response> => processAction(incoming, {}, cartItemsCount);
+registerMutations({ method: "GET", pattern: "/cart_items_count", skipForgeryProtection: true, run: cartItemsCount });
 
 // ----- LinksController#fetch_product: `Link.fetch(params[:id] || params[:link_id]) || e404`
 

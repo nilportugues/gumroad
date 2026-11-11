@@ -3,6 +3,7 @@
 // controllers/product-page.ts; the render is presenters/product-page.ts, which hands back to Rails what it
 // cannot prove (HandBackToRails in the filter chain).
 import { PRODUCT_PAGE_OPTIONS } from "../controllers/product-page.ts";
+import { aliveCartProductCount } from "./checkout/checkout.ts";
 import { remoteIp } from "./audience/events.ts";
 import { buildProductPage, guidOf, sellerCustomDomainUrl, viewerOf } from "../presenters/product-page.ts";
 import { findLink, findUserById } from "../presenters/product-reads.ts";
@@ -27,7 +28,20 @@ const productPage: PageSpec = {
   },
 };
 
+// LinksController#cart_items_count for a request that is not asking for JSON. `disable_third_party_analytics!` is prepended to it.
+const cartItemsCountPage: PageSpec = {
+  component: "Products/CartItemsCount",
+  analyticsEnabled: false,
+  // LinksController shares is_mobile_app_web_view with every action; only new, create and edit sign the WebView in.
+  mobileAppWebView: true,
+  props: async (_, action) => {
+    const user = railsLoggedInUser(action.context);
+    return { cart_items_count: await aliveCartProductCount(user?.id ?? null, guidOf(action.headers.get("cookie"))) };
+  },
+};
+
 export const PRODUCT_PAGES: Record<string, PageSpec> = {
+  "/cart_items_count": cartItemsCountPage,
   "/l/:id": productPage,
   "/l/:id/:code": productPage,
   "seller:/l/:id": productPage,

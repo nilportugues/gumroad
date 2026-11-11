@@ -124,6 +124,30 @@ describe("decideRoute", () => {
   });
 });
 
+describe("a page that also answers format.json", () => {
+  const routes = compileRouteTable({
+    "/cart_items_count": { flag: "nextjs_cart_items_count", inertia: true, jsonMutation: true },
+    "seller:/cart_items_count": { flag: "nextjs_cart_items_count", jsonMutation: true },
+  });
+  const on = gate(["nextjs_cart_items_count"], null);
+  const json = { headers: { Accept: "application/json" } };
+
+  it("sends a request asking for JSON to the mutation handler", async () => {
+    expect(await decideRoute(request("https://gumroad.com/cart_items_count", json), routes, production, on)).toMatchObject({ action: "mutation" });
+  });
+
+  it("serves the page to a browser and answers its Inertia request from Next", async () => {
+    expect(await decideRoute(request("https://gumroad.com/cart_items_count", { headers: { Accept: "text/html,application/xhtml+xml,*/*;q=0.8" } }), routes, production, on)).toMatchObject({ action: "next" });
+    expect(await decideRoute(request("https://gumroad.com/cart_items_count", { headers: { "X-Inertia": "true", Accept: "application/json" } }), routes, production, on)).toMatchObject({ action: "inertia" });
+  });
+
+  it("leaves a request that is not asking for JSON to Rails on a host with no page", async () => {
+    expect(await decideRoute(request("https://seller.gumroad.com/cart_items_count", json), routes, production, on)).toMatchObject({ action: "mutation" });
+    expect(await decideRoute(request("https://seller.gumroad.com/cart_items_count"), routes, production, on)).toEqual({ action: "rails" });
+    expect(await decideRoute(request("https://seller.gumroad.com/cart_items_count", { headers: { "X-Inertia": "true" } }), routes, production, on)).toEqual({ action: "rails" });
+  });
+});
+
 describe("router-level redirects", () => {
   const redirects = compileRouteTable({
     "/users/sign_in": { flag: "nextjs_auth_devise_redirects", redirect: "/login", redirectQuery: "keep" },

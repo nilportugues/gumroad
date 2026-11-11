@@ -20,6 +20,9 @@ export type RouteDecision =
   | { action: "hard-navigation" }
   | { action: "rails" };
 
+// The first type of Accept is JSON: what `request({ accept: "json" })` sends.
+const asksForJson = (request: ProxyRequestInfo) => /^\s*application\/json\b/iu.test(request.headers.get("accept") ?? "");
+
 // Requests Next.js answers no matter what: its own assets and dev tooling.
 const NEXT_INTERNAL = /^\/(_next|__nextjs)/;
 
@@ -61,6 +64,12 @@ export async function decideRoute(
     return location === null ? toRails : { action: "redirect", route, location };
   }
   if (route.mutation) return { action: "mutation", route };
+  // The handler checks the format itself (requestFormat) and hands back what it does not model; this only keeps a browser's HTML
+  // request, which Rails renders as the page, away from it.
+  if (route.jsonMutation && !isInertiaRequest) {
+    if (asksForJson(request)) return { action: "mutation", route };
+    if (!route.inertia) return toRails;
+  }
   if (route.handler !== null) return { action: "handler", route, handler: route.handler };
   if (isInertiaRequest) return route.inertia ? { action: "inertia", route } : { action: "rails" };
   if (route.inertia === "only") return toRails;

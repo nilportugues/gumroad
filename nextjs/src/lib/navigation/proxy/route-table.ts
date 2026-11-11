@@ -31,6 +31,10 @@ export type RouteEntry = {
   // A non-GET action ported to Node (server/controllers/mutation.ts), keyed "POST /emails". Its requests are answered by the
   // /gr-mutation handler, which hands whatever it cannot prove back to Rails with the body.
   mutation?: boolean;
+  // A GET action that answers `format.json` (an `Accept: application/json` request, which `request()` in the app sends) from the
+  // /gr-mutation handler. The same path is also the HTML page (`inertia`), or Rails when `inertia` is off: such a route never
+  // takes a request that is not asking for JSON.
+  jsonMutation?: boolean;
   // The path is only this route when the gate says so (`taxonomy`: DiscoverTaxonomyConstraint). Such a route
   // matches after every other, as a catch-all glob must.
   pathGate?: "taxonomy";
@@ -101,6 +105,7 @@ export function compileRouteTable(table: RouteTable): CompiledRoute[] {
       hosts: entry.hosts ?? scope ?? "gumroad",
       methods: entry.methods ?? (METHOD_PREFIX.test(pattern) ? [METHOD_PREFIX.exec(pattern)![1]!] : DEFAULT_METHODS),
       mutation: entry.mutation ?? false,
+      jsonMutation: entry.jsonMutation ?? false,
       signedOutOnly: entry.signedOutOnly ?? false,
       signedInOnly: entry.signedInOnly ?? false,
       inertia: entry.inertia ?? false,
