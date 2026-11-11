@@ -135,6 +135,19 @@ but `banned_at`, a product without `unique_permalink`, a non-USD price whose rat
 (`validate_bundle_content_eligibility`). Money messages come from `link-data.generated.json`,
 which `scripts/golden/link-writes.rb` writes from the app's own formatter.
 
+`link-metrics.ts` ports the five metrics `ProductCachedValue` caches: `successful_sales_count`,
+`monthly_recurring_revenue` and `total_usd_cents` (Elasticsearch requests through
+`PurchaseSearchService`), `remaining_for_sale_count` (variants, tiers, bundles and the stock
+counters) and `revenue_pending` (`pending_balance` over the active fixed-length subscriptions).
+Golden: `__fixtures__/link-metrics.golden.json` (`scripts/golden/link-metrics.rb`), 78 cases run by
+the real app over a seeded database and a real purchases index, each holding the statements, the
+Elasticsearch requests with their answers and the value Ruby returned. Hands back with
+`NotPortedError`: a tier closed to new purchases on a tiered membership (a Flipper feature) and a
+bundle variant that is not a `Variant`. `product-cached-value.ts` builds on them: its before_create
+`assign_cached_values` runs the five metrics in Rails' order and casts them like ActiveModel does
+(`decimal(10, 2)` for the two revenue columns, `to_i` for `total_usd_cents`); golden:
+`worker/jobs/__fixtures__/cache-product-data-worker.golden.json`.
+
 ### `CustomDomain` (`custom-domain.ts`)
 
 Ported for `mark_deleted!` on an alive domain (golden: the suspension cases of
@@ -356,8 +369,6 @@ Still Ruby-only on the job-port models (app/models/...):
   `mark_processed!`, `:104` `claim_fanout!`, `:113` `begin_fanout`, `:135` `renew_fanout`, `:148`
   `defer_fanout`.
 - `event.rb:4` `TimestampScopes`, `:40` `user_external_id`.
-- `product_cached_value.rb:18` `assign_cached_values` (reads `Link` metrics), so the before_create
-  aborts and rows cannot be created from Node.
 - `zip_tax_rate.rb:14-15` the `json_data` accessors.
 - `community_chat_recap_run.rb:13` `between`, `:22` `check_if_finished!`.
 - `large_seller.rb:17` `create_if_warranted` (takes a `User`).
