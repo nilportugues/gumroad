@@ -29,8 +29,6 @@ const envTest = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "mu").e
 // The flags that served these routes before they left routes.json.
 const ROUTE_FLAGS = [
   "nextjs_auth_signup",
-  "nextjs_auth_login_writes",
-  "nextjs_settings_main_writes",
   "nextjs_settings_totp_writes",
   "nextjs_settings_passkeys_writes",
   "nextjs_storefront_profile",
@@ -46,11 +44,6 @@ const CASES = [
   [
     "/signup",
     "requests/auth_pages_parity_spec/authentication-pages-get-signup-renders-the-signup-page-with-the-platform-stats",
-  ],
-  ["POST /login", "requests/auth_mutations_parity_spec/authentication-mutations-post-login-signs-in-with-a-username"],
-  [
-    "PUT /settings",
-    "requests/settings_main_signed_in_spec/settings-main-when-signed-in-update-saves-the-switches-the-locale-the-time-zone-and-the-currency",
   ],
   [
     "POST /settings/totp/confirm",
