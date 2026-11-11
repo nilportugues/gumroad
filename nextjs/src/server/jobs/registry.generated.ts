@@ -2078,7 +2078,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RecordSocialScoreShadowEvaluationsJob": {
     "file": "app/sidekiq/record_social_score_shadow_evaluations_job.rb",
