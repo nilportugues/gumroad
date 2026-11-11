@@ -7,6 +7,7 @@ import { decideRoute } from "@/lib/navigation/proxy/decide";
 import { routeGate, setRouteGate } from "@/lib/navigation/proxy/gate";
 import { compileRouteTable, type RouteTable } from "@/lib/navigation/proxy/route-table";
 import { pageEnvelope } from "@/server/controllers/application-controller";
+import { uncountRackAttack } from "@/server/controllers/rack-attack";
 import { HOST_PAGE_PREFIX, INERTIA_PAGE_PATH, MUTATION_PATH, PUBLIC_HANDLER_PREFIX, REDIRECT_LOCATION_HEADER, REDIRECT_PATH } from "@/server/controllers/inertia-page";
 import { getRequiredConfig } from "@/server/infra/config";
 import { domainConfig } from "@/server/page-props/domain";
@@ -65,7 +66,12 @@ export async function proxy(request: NextRequest) {
     // attached to the response the page renders (see pageEnvelope).
     const envelope = await pageEnvelope(request, PAGES[decision.route.pattern]?.options);
     // The handler answers a redirect or a bare 400 (a before_action's `head`) through processAction.
-    if ("response" in envelope) return envelope.response.headers.has("location") || envelope.response.status === 400 ? viaHandler() : envelope.response;
+    if ("response" in envelope) {
+      if (!envelope.response.headers.has("location") && envelope.response.status !== 400) return envelope.response;
+      // processAction counts the request again, so the count pageEnvelope took is taken back first.
+      await uncountRackAttack(request);
+      return viaHandler();
+    }
     forwarded.set(RENDER_STATE_HEADER, encodeRenderState(envelope.renderState));
     // A page that only exists on seller or product-domain hosts lives under /gr-host/<scope>, because
     // the same path can be a Gumroad-domain page (`/affiliates`) and App Router routes by path alone.
