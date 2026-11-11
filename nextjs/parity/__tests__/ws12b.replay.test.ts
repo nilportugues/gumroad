@@ -28,6 +28,7 @@ const SPECS = [
   "product_review_responses_signed_in_spec",
   "shipments_signed_in_spec",
   "imported_customers_signed_in_spec",
+  "posts_redirect_from_purchase_id_signed_in_spec",
 ].filter((dir) => existsSync(path.join(FIXTURES, dir)));
 const ROUTE_FLAGS = [
   "nextjs_affiliate_redirect",
@@ -35,6 +36,7 @@ const ROUTE_FLAGS = [
   "nextjs_review_responses",
   "nextjs_imported_customers",
   "nextjs_purchase_access_writes",
+  "nextjs_post_purchase_redirect",
 ].join(",");
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
