@@ -1,9 +1,15 @@
-// The Link readers the buyer pages share: thumbnails and cover previews. An uploaded file goes
-// through Active Storage variants and the CDN rewrite, which are not ported.
+// The Link readers the buyer pages share: thumbnails and cover previews. An uploaded thumbnail's URL is read from the variant Rails
+// already processed; a cover preview's uploaded file is not ported.
 import { Prisma } from "@prisma/client";
 
+import { isConfiguredService, isVariable, publicStorageUrl, resizeToLimitDigest } from "../../infra/active-storage.ts";
+import { cdnUrlFor } from "../../infra/cdn-url.ts";
 import { column, selectRows, table } from "../../models/sql.ts";
 import { NotPortedError } from "../not-ported.ts";
+import { attachmentsOf, blobById, variantBlobKey, variantRecordId } from "../signed-in/reads.ts";
+
+// Thumbnail::DISPLAY_THUMBNAIL_DIMENSION
+const DISPLAY_THUMBNAIL_DIMENSION = 600;
 
 const present = (value: string | null | undefined): value is string => value != null && value.trim() !== "";
 
@@ -21,8 +27,28 @@ async function thumbnailUrlWhere(productId: bigint, aliveOnly: boolean): Promise
   );
   if (!thumbnail) return null;
   if (present(thumbnail.unsplash_url)) return thumbnail.unsplash_url;
-  if (await hasAttachment("Thumbnail", thumbnail.id, "file")) throw new NotPortedError("Thumbnail#url for an uploaded file");
-  return null;
+  return uploadedThumbnailUrl(thumbnail.id);
+}
+
+// Thumbnail#url for an uploaded file: a gif, and a file Active Storage cannot transform (which Rails rescues), answer the file's own URL;
+// any other image answers the 600px variant's URL, through the CDN rewrite. A variant Rails has not processed yet is made by
+// ImageMagick, which Rails keeps.
+async function uploadedThumbnailUrl(thumbnailId: bigint): Promise<string | null> {
+  const [attachment] = await attachmentsOf("Thumbnail", thumbnailId, "file");
+  if (attachment === undefined) return null;
+  const blob = await blobById(attachment.blob_id);
+  if (blob === null) throw new NotPortedError("Thumbnail#url for an attachment whose blob row is missing");
+  if (!isConfiguredService(blob.service_name))
+    throw new NotPortedError(`Active Storage service ${JSON.stringify(blob.service_name)}`);
+  const original = cdnUrlFor(publicStorageUrl(blob.key)) ?? null;
+  if (blob.content_type?.includes("gif")) return original;
+  if (!isVariable(blob.content_type)) return original;
+  const digest = resizeToLimitDigest(blob.content_type!, blob.filename, DISPLAY_THUMBNAIL_DIMENSION);
+  const recordId = await variantRecordId(blob.id, digest);
+  if (recordId === null) throw new NotPortedError("Generating a thumbnail variant");
+  const key = await variantBlobKey(recordId);
+  if (key === null) throw new NotPortedError("A thumbnail variant record without its file");
+  return cdnUrlFor(publicStorageUrl(key)) ?? null;
 }
 
 // `thumbnail_alive&.url`
@@ -42,7 +68,8 @@ export async function thumbnailOrCoverUrl(productId: bigint): Promise<string | n
   );
   for (const preview of previews) {
     if (present(preview.unsplash_url)) return preview.unsplash_url;
-    if (await hasAttachment("AssetPreview", preview.id, "file")) throw new NotPortedError("AssetPreview#url for an uploaded file");
+    if (await hasAttachment("AssetPreview", preview.id, "file"))
+      throw new NotPortedError("AssetPreview#url for an uploaded file");
   }
   return null;
 }

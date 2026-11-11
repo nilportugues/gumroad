@@ -1,44 +1,28 @@
 // Checkout::FormPresenter#form_props (app/presenters/checkout/form_presenter.rb) for Checkout::FormController#show.
 //
 // The cart item and the card are CheckoutPresenter and ProductPresenter output for the seller's newest product (presenters/checkout-product.ts
-// hands back the products it cannot prove), and a connected PayPal account is fetched live from PayPal, so a seller with any merchant
-// account goes to Rails whole (HandBackToRails).
+// hands back the products it cannot prove). The PayPal Connect card is in ./paypal-connect.ts.
 import { Prisma, type User } from "@prisma/client";
 
 import { encrypt as externalId } from "../../../lib/obfuscate-ids.ts";
 import { HandBackToRails } from "../../controllers/application-controller.ts";
-import { alpha2ByName } from "../../models/compliance-countries.ts";
 import { CustomFieldFlags } from "../../models/custom-field.ts";
 import { LinkFlags } from "../../models/link.ts";
 import { column, selectRows, table } from "../../models/sql.ts";
 import { aliveUserComplianceInfoRow } from "../../models/user-compliance-info.ts";
-import { jsonDataForAttr, UserFlags, Users } from "../../models/user.ts";
-import { roleAdminFor, requireUser, type SellerContext } from "../../policies/seller-context.ts";
+import { UserFlags } from "../../models/user.ts";
+import { type SellerContext } from "../../policies/seller-context.ts";
 import { checkoutProduct } from "../../presenters/checkout-product.ts";
 import { findLink } from "../../presenters/product-reads.ts";
 import { cardForWeb } from "../../presenters/product.ts";
 import { NotPortedError } from "../not-ported.ts";
 import { connectAccountFeeInfo } from "../settings/payments.ts";
-import { nativePayoutsSupported } from "../signed-in/data.ts";
-import { activeBankAccount, type ComplianceInfoRow } from "../signed-in/reads.ts";
+import { type ComplianceInfoRow } from "../signed-in/reads.ts";
+
+import { assertPaypalAccountSupported, paypalConnect } from "./paypal-connect.ts";
 
 // CheckoutDashboardHelper#pages
 const PAGES = ["discounts", "form", "upsells"];
-// ISO3166::Country[code].common_name of PaypalMerchantAccountManager::COUNTRY_CODES_NOT_SUPPORTED_BY_PCP, in that order.
-const PCP_UNSUPPORTED_COUNTRIES: [string, string][] = [
-  ["DZ", "Algeria"],
-  ["BR", "Brazil"],
-  ["CN", "China"],
-  ["EG", "Egypt"],
-  ["IN", "India"],
-  ["IL", "Israel"],
-  ["JP", "Japan"],
-  ["FM", "Micronesia, Federated States of"],
-  ["MA", "Morocco"],
-  ["TR", "Türkiye"],
-];
-
-const present = (value: string | null | undefined) => value != null && value.trim() !== "";
 
 type FieldRow = {
   id: bigint;
@@ -58,8 +42,10 @@ async function customFieldsProps(seller: User) {
   );
   const props = [];
   for (const field of fields) {
-    const products = await selectRows<{ product_id: bigint }>(
-      Prisma.sql`SELECT ${column("custom_fields_products", "product_id")} FROM ${table("custom_fields_products")} INNER JOIN ${table("links")} ON ${column("links", "id")} = ${column("custom_fields_products", "product_id")} WHERE ${column("custom_fields_products", "custom_field_id")} = ${field.id} ORDER BY ${column("custom_fields_products", "id")} ASC`,
+    // `field.products` is a habtm read with no ORDER BY: MySQL walks `links` by id on small tables and the join rows by id on large ones.
+    // assertFormSupported hands the request back unless the two agree, so id order is the order.
+    const products = await selectRows<{ id: bigint }>(
+      Prisma.sql`SELECT ${table("links")}.* FROM ${table("links")} INNER JOIN ${table("custom_fields_products")} ON ${column("links", "id")} = ${column("custom_fields_products", "product_id")} WHERE ${column("custom_fields_products", "custom_field_id")} = ${field.id} ORDER BY ${column("links", "id")} ASC`,
     );
     props.push({
       id: externalId(field.id),
@@ -68,7 +54,7 @@ async function customFieldsProps(seller: User) {
       required: bool(field.required),
       global: bool(field.global),
       collect_per_product: CustomFieldFlags.isSet(field.flags, "collect_per_product"),
-      products: products.map((row) => externalId(row.product_id)),
+      products: products.map((row) => externalId(row.id)),
     });
   }
   return props;
@@ -76,45 +62,6 @@ async function customFieldsProps(seller: User) {
 
 async function exists(sql: Prisma.Sql) {
   return (await selectRows(sql)).length > 0;
-}
-
-// Checkout::FormPresenter#paypal_connect for a seller without a merchant account (so none of the PayPal-connected branches apply).
-async function paypalConnect(seller: User, context: SellerContext, info: ComplianceInfoRow | null) {
-  const bank = await activeBankAccount(seller.id);
-  const record = Users.load(seller);
-  const countryCode = info === null ? null : alpha2ByName(info.country);
-  // User#paypal_connect_enabled?: the grandfathered country needs a connected account, which this seller lacks.
-  const enabled = info !== null && !PCP_UNSUPPORTED_COUNTRIES.some(([code]) => code === countryCode);
-  // Settings::Payments::UserPolicy#paypal_connect? is update?: the admin role, for the seller in context.
-  const show = roleAdminFor(requireUser(context)) && enabled;
-
-  const legalCountry = info === null ? null : legalEntityCode(info);
-  const canCreateBankRail = (nativePayoutsSupported(info) && legalCountry !== "IN") || legalCountry === "AE";
-  const canSetupBank = bank !== null || canCreateBankRail;
-  const canSetupPaypal =
-    present(seller.payment_address) ||
-    present(jsonDataForAttr(record, "invalidated_paypal_payout_address") as string | null) ||
-    !nativePayoutsSupported(info) ||
-    ["AE", "EG", "KZ", "IN"].includes(legalCountry ?? "");
-
-  return {
-    show_paypal_connect: show,
-    allow_paypal_connect: bank !== null || present(seller.payment_address),
-    unsupported_countries: PCP_UNSUPPORTED_COUNTRIES.map(([, name]) => name),
-    email: null,
-    charge_processor_merchant_id: null,
-    charge_processor_verified: false,
-    needs_email_confirmation: false,
-    paypal_disconnect_allowed: true,
-    paypal_disconnect_removes_payout_rail: false,
-    paypal_disconnect_blocks_publishing: false,
-    payout_setup_method: canSetupBank && !canSetupPaypal ? "bank_account" : "paypal_email",
-  };
-}
-
-// UserComplianceInfo#legal_entity_country_code
-function legalEntityCode(info: ComplianceInfoRow): string | null {
-  return (info.is_business ? alpha2ByName(info.business_country) : null) ?? alpha2ByName(info.country);
 }
 
 // The seller's products, newest first, and the cart item and card Rails builds from the newest one.
@@ -143,20 +90,14 @@ export async function assertFormSupported(seller: User): Promise<void> {
     if (error instanceof NotPortedError) throw new HandBackToRails(error.message);
     throw error;
   }
+  await assertPaypalAccountSupported(seller);
+  // A listed field linked to a later product before an earlier one: its products' order depends on the plan MySQL picks.
   if (
     await exists(
-      Prisma.sql`SELECT 1 FROM ${table("merchant_accounts")} WHERE ${column("merchant_accounts", "user_id")} = ${seller.id} LIMIT 1`,
+      Prisma.sql`SELECT 1 FROM ${table("custom_fields")} INNER JOIN ${Prisma.raw("`custom_fields_products` `earlier`")} ON ${column("earlier", "custom_field_id")} = ${column("custom_fields", "id")} INNER JOIN ${Prisma.raw("`custom_fields_products` `later`")} ON ${column("later", "custom_field_id")} = ${column("custom_fields", "id")} AND ${column("later", "id")} > ${column("earlier", "id")} AND ${column("later", "product_id")} < ${column("earlier", "product_id")} INNER JOIN ${Prisma.raw("`links` `earlier_link`")} ON ${column("earlier_link", "id")} = ${column("earlier", "product_id")} INNER JOIN ${Prisma.raw("`links` `later_link`")} ON ${column("later_link", "id")} = ${column("later", "product_id")} WHERE ${column("custom_fields", "seller_id")} = ${seller.id} AND ${CustomFieldFlags.condition("is_post_purchase", false)} LIMIT 1`,
     )
   ) {
-    throw new HandBackToRails("a seller with a merchant account, whose PayPal details Rails fetches live");
-  }
-  // The habtm read joins links with no order of its own; two rows would make the order a guess.
-  if (
-    await exists(
-      Prisma.sql`SELECT 1 FROM ${table("custom_fields")} INNER JOIN ${table("custom_fields_products")} ON ${column("custom_fields_products", "custom_field_id")} = ${column("custom_fields", "id")} INNER JOIN ${table("links")} ON ${column("links", "id")} = ${column("custom_fields_products", "product_id")} WHERE ${column("custom_fields", "seller_id")} = ${seller.id} GROUP BY ${column("custom_fields", "id")} HAVING COUNT(*) > 1 LIMIT 1`,
-    )
-  ) {
-    throw new HandBackToRails("a custom field with several products");
+    throw new HandBackToRails("a custom field linked to its products against their ids");
   }
 }
 

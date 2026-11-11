@@ -1017,6 +1017,26 @@ export async function connectAccountFeeInfo(seller: User) {
   return (await feeInfo(facts)).connect_account_fee_info;
 }
 
+// User#has_stripe_account_connected?, #stripe_account and #stripe_connect_account: what the PayPal disconnect warnings and
+// `has_payout_information?` read of the seller's Stripe side.
+export async function stripeRails(seller: User) {
+  const info = await fetchOrBuildComplianceInfo(seller.id);
+  const facts: Facts = {
+    seller,
+    record: Users.load(seller),
+    info,
+    aliveInfo: info.persisted ? info.row : null,
+    now: new Date(),
+    bankAccount: null,
+    stripeAccounts: await aliveStripeAccountsOf(seller.id),
+  };
+  return {
+    hasStripeAccountConnected: await hasStripeAccountConnected(facts),
+    hasStripeAccount: stripeAccount(facts) !== null,
+    hasStripeConnectAccount: stripeConnectAccount(facts) !== null,
+  };
+}
+
 // Settings::GuardiansController#ensure_guardian_required: a seller paid through a non-Brazilian Connect account never needs a guardian,
 // and without an alive compliance revision there is nothing to require one.
 export async function legalGuardianRequired(seller: User, now = new Date()): Promise<boolean> {

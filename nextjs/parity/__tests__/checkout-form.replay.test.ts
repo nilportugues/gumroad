@@ -7,7 +7,9 @@ import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { railsMessageVerifierVerified } from "@/server/auth/message-verifier";
 import { closeAllRedis } from "@/server/infra/redis";
+import { RESTART_INTENT_PURPOSE, RESTART_INTENT_TTL_MS } from "@/server/services/checkout-restart-intent-token";
 
 import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
@@ -19,11 +21,18 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 
 // Replays the checkout form settings page and its update (WS-20f, spec/requests/checkout_form_signed_in_spec.rb), with the same method as dashboard-json.replay.test.ts: each fixture is a login,
 // a CSRF fetch and the request under test, and only the last is replayed against `next dev` with the route flags on. A request the
-// port hands back must reach the stand-in Rails with its body, before anything is written.
+// port hands back must reach the stand-in Rails with its body, before anything is written. PayPal is a stand-in too
+// (OUTBOUND_HTTP_STAND_IN): it answers the calls recorded in the fixture, and Node must have made the same ones, in order.
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
-const SPECS = ["checkout_form_signed_in_spec"];
+const SPECS = [
+  "checkout_form_signed_in_spec",
+  "checkout_form_paypal_connect_parity_spec",
+  "checkout_form_custom_fields_parity_spec",
+  "checkout_form_uploaded_images_parity_spec",
+  "checkout_form_restart_intent_parity_spec",
+];
 const ROUTE_FLAGS = ["nextjs_checkout_form", "nextjs_checkout_form_writes"].join(",");
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
@@ -58,8 +67,27 @@ const COMPARE = {
     "db.custom_fields_products.inserted.*.updated_at",
     "http",
     "jobs.*.at",
+    // A Checkout::RestartIntentToken holds the clock; `restartIntents` below decodes and compares it.
+    "**.restart_intent",
   ],
 };
+
+// Calls to the object store (an Active Storage existence check) are made by the AWS client, which reaches the local store itself.
+const objectStore = process.env.AWS_S3_ENDPOINT ?? "http://localhost:9010";
+const railsHttp = (exchange: { http?: { url: string; method: string; body?: string | null }[] }) =>
+  (exchange.http ?? []).filter((call) => !call.url.startsWith(objectStore));
+
+// The `restart_intent` tokens of a response, decoded with the secret both apps signed with (the epoch as the clock, because a recorded
+// token has long expired by the time it is replayed).
+const restartIntents = (response: unknown) =>
+  [...JSON.stringify(response).matchAll(/"restart_intent":"([^"]+)"/gu)].map(
+    ([, token]) =>
+      railsMessageVerifierVerified(RESTART_INTENT_PURPOSE, token!, RESTART_INTENT_PURPOSE, new Date(0)) as {
+        product_id: number;
+        buyer_id: number | null;
+        issued_at: number;
+      } | null,
+  );
 
 const NEXT_VARY = /(?:rsc|next-router-state-tree|next-router-prefetch|next-router-segment-prefetch)(?:, )?/gu;
 const withoutNextVary = (vary: unknown) => (typeof vary === "string" ? vary.replace(NEXT_VARY, "") : vary);
@@ -127,11 +155,15 @@ describe.skipIf(!url)("checkout form", () => {
   let es: ElasticsearchClient;
   let server: NextServer;
   let rails: Server;
+  let standIn: Server;
+  const recordedHttp: { response?: { status?: number; contentType?: string; body?: string } }[] = [];
+  const received: { method: string; url: string; body: string }[] = [];
   const handedBack: { method: string; url: string; body: string }[] = [];
   const saved = { ...process.env };
 
   beforeAll(async () => {
     process.env.DATABASE_URL = url;
+    process.env.SECRET_KEY_BASE = SECRET_KEY_BASE;
     process.env.ELASTICSEARCH_HOST = ELASTICSEARCH_HOST;
     process.env.ES_INDEX_SUFFIX = ES_INDEX_SUFFIX;
     client = new PrismaClient({ datasourceUrl: url });
@@ -154,7 +186,26 @@ describe.skipIf(!url)("checkout form", () => {
     });
     await new Promise<void>((resolve) => rails.listen(0, "127.0.0.1", resolve));
     const railsPort = (rails.address() as { port: number }).port;
+    standIn = createServer((request, response) => {
+      const chunks: Buffer[] = [];
+      request.on("data", (chunk: Buffer) => chunks.push(chunk));
+      request.on("end", () => {
+        received.push({
+          method: request.method ?? "",
+          url: String(request.headers["x-parity-original-url"] ?? request.url),
+          body: Buffer.concat(chunks).toString("utf8"),
+        });
+        const answer = recordedHttp.shift()?.response;
+        if (answer === undefined) return void response.writeHead(599).end("parity: no recorded answer left");
+        response.writeHead(answer.status ?? 200, answer.contentType ? { "content-type": answer.contentType } : {});
+        response.end(answer.body ?? "");
+      });
+    });
+    await new Promise<void>((resolve) => standIn.listen(0, "127.0.0.1", resolve));
     server = await startNextServer({
+      OUTBOUND_HTTP_STAND_IN: `http://127.0.0.1:${(standIn.address() as { port: number }).port}`,
+      PAYPAL_PARTNER_MERCHANT_ID: testEnv("PAYPAL_PARTNER_MERCHANT_ID") ?? "",
+      PAYPAL_PARTNER_CLIENT_ID: testEnv("PAYPAL_PARTNER_CLIENT_ID") ?? "",
       RAILS_ENV: "test",
       OBFUSCATE_IDS_CIPHER_KEY: testEnv("OBFUSCATE_IDS_CIPHER_KEY") ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
@@ -179,6 +230,7 @@ describe.skipIf(!url)("checkout form", () => {
   afterAll(async () => {
     await server?.stop();
     await new Promise((resolve) => rails?.close(resolve));
+    await new Promise((resolve) => standIn?.close(resolve));
     await closeAllRedis();
     await redis?.quit();
     await es?.close();
@@ -234,6 +286,8 @@ describe.skipIf(!url)("checkout form", () => {
         const fixture = loadFixture(file);
         const recorded = fixture.exchanges[index]!;
         recorded.jobs = [...(recorded.jobs ?? [])].sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
+        recordedHttp.splice(0, recordedHttp.length, ...railsHttp(recorded));
+        received.length = 0;
         if (HANDED_BACK.test(name)) {
           handedBack.length = 0;
           const handed = await replayFixtureExchange(fixture, index, options(name));
@@ -252,7 +306,21 @@ describe.skipIf(!url)("checkout form", () => {
         }
         const result = await replayFixtureExchange(fixture, index, options(name));
         assertParity(result);
+        // The port called PayPal as Rails did: the same method, URL and body, in the same order.
+        expect(received).toEqual(
+          railsHttp(recorded).map((call) => ({ method: call.method, url: call.url, body: call.body ?? "" })),
+        );
         const { expected, actual } = result.exchanges[0]!;
+        // Both apps signed the same products for a guest, and Node's token was issued just now and lasts an hour like Rails'.
+        const [railsTokens, nodeTokens] = [restartIntents(expected.response), restartIntents(actual.response)];
+        expect(nodeTokens).toHaveLength(railsTokens.length);
+        railsTokens.forEach((rails, index) => {
+          const node = nodeTokens[index];
+          expect(rails).not.toBeNull();
+          expect(node).not.toBeNull();
+          expect(node).toMatchObject({ product_id: rails!.product_id, buyer_id: rails!.buyer_id });
+          expect(Math.abs(Date.now() / 1000 - node!.issued_at)).toBeLessThan(RESTART_INTENT_TTL_MS / 1000);
+        });
         // Next.js owns Vary on the pages it renders.
         if (fixture.exchanges[index]!.request.method !== "GET")
           expect(withoutNextVary(actual.response.headers.vary)).toBe(expected.response.headers.vary);

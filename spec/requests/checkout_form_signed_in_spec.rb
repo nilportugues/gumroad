@@ -6,7 +6,7 @@ require "spec_helper"
 # and replayed by nextjs/parity/__tests__/checkout-form.replay.test.ts, which sends the last request of each example.
 #
 # The page's cart item is CheckoutPresenter output for the seller's newest product. Node serves it for a plain product; a physical
-# product, a membership, an upsell or cross-sell, and a connected PayPal account (fetched live from PayPal) are "hands a ..." examples:
+# product, a membership, an upsell or cross-sell, are "hands a ..." examples:
 # the replay asserts Node passed the request to Rails untouched and wrote nothing.
 describe "Checkout form settings when signed in", type: :request do
   include Parity::AudienceSignedIn
@@ -320,16 +320,6 @@ describe "Checkout form settings when signed in", type: :request do
       props = inertia_props_of(response)
       expect(props["products"].last["name"]).to eq("Old")
       expect(props["cart_item"]["product"]["name"]).to eq(props["products"].first["name"])
-    end
-
-
-    it "hands a seller with a connected PayPal account to Rails", parity: true do
-      create(:merchant_account_paypal, user: seller)
-      log_in(seller)
-
-      get checkout_form_path
-
-      expect(response).to be_successful
     end
   end
 
