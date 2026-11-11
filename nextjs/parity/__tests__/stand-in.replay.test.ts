@@ -17,7 +17,8 @@ describe.skipIf(!url)("stand-in write observation", () => {
 
   beforeAll(async () => {
     client = new PrismaClient({ datasourceUrl: url });
-    for (const probe of [EARLY, LATE]) await client.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS ${probe} (id INT PRIMARY KEY)`);
+    for (const probe of [EARLY, LATE])
+      await client.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS ${probe} (id INT PRIMARY KEY)`);
     stripe = await startStandIn(uncommittedReader(client));
   });
 
@@ -29,7 +30,15 @@ describe.skipIf(!url)("stand-in write observation", () => {
 
   const exchange = (timeline: Exchange["timeline"]) =>
     ({
-      http: [{ method: "POST", url: STRIPE_URL, body: "charge=ch_1", headers: { "idempotency-key": "<uuid>" }, response: {} }],
+      http: [
+        {
+          method: "POST",
+          url: STRIPE_URL,
+          body: "charge=ch_1",
+          headers: { "idempotency-key": "<uuid>" },
+          response: {},
+        },
+      ],
       timeline,
     }) as unknown as Exchange;
 
@@ -41,7 +50,7 @@ describe.skipIf(!url)("stand-in write observation", () => {
     await stripe.baseline();
     await client.$transaction(async (tx) => {
       if (before) await tx.$executeRawUnsafe(`INSERT INTO ${before} VALUES (1)`);
-      const response = await fetch(stripe.url + "/v1/refunds", {
+      const response = await fetch(`${stripe.url}/v1/refunds`, {
         method: "POST",
         headers: { "x-parity-original-url": STRIPE_URL, "idempotency-key": "3f2b8f3e-5c0e-4f6b-9a39-0d1f4a6b7c8d" },
         body: "charge=ch_1",
@@ -61,7 +70,13 @@ describe.skipIf(!url)("stand-in write observation", () => {
     const seen = await run(EARLY, LATE);
 
     expect(seen.calls).toHaveLength(1);
-    expect(seen.calls[0]).toMatchObject({ method: "POST", url: STRIPE_URL, body: "charge=ch_1", headers: { "idempotency-key": "<uuid>" }, writtenBefore: [EARLY] });
+    expect(seen.calls[0]).toMatchObject({
+      method: "POST",
+      url: STRIPE_URL,
+      body: "charge=ch_1",
+      headers: { "idempotency-key": "<uuid>" },
+      writtenBefore: [EARLY],
+    });
     expect(seen.writtenAfter).toEqual([LATE]);
   });
 

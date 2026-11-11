@@ -50,13 +50,24 @@ describe("interceptFetch", () => {
   };
 
   it("records headers only when the fixture does, so recordings made before the timeline replay unchanged", async () => {
-    const old = interceptFetch([{ method: "POST", url: "https://api.stripe.com/v1/refunds", body: "charge=ch_1", response: {} }], now);
+    const old = interceptFetch(
+      [{ method: "POST", url: "https://api.stripe.com/v1/refunds", body: "charge=ch_1", response: {} }],
+      now,
+    );
     await post(old);
     expect(old.calls()[0]).not.toHaveProperty("headers");
     old.restore();
 
     const recorded = interceptFetch(
-      [{ method: "POST", url: "https://api.stripe.com/v1/refunds", body: "charge=ch_1", headers: { "idempotency-key": "<uuid>" }, response: {} }],
+      [
+        {
+          method: "POST",
+          url: "https://api.stripe.com/v1/refunds",
+          body: "charge=ch_1",
+          headers: { "idempotency-key": "<uuid>" },
+          response: {},
+        },
+      ],
       now,
     );
     await post(recorded);
@@ -83,7 +94,13 @@ describe("timelineSegments", () => {
 describe("standInDifferences", () => {
   const exchange = {
     http: [
-      { method: "POST", url: "https://api.stripe.com/v1/refunds", body: "charge=ch_1", headers: { "idempotency-key": "<uuid>", authorization: "sha256:a" }, response: {} },
+      {
+        method: "POST",
+        url: "https://api.stripe.com/v1/refunds",
+        body: "charge=ch_1",
+        headers: { "idempotency-key": "<uuid>", authorization: "sha256:a" },
+        response: {},
+      },
     ],
     timeline: [
       { type: "http", index: 0 },
@@ -111,21 +128,29 @@ describe("standInDifferences", () => {
   });
 
   it("flags a derived idempotency key where Rails sent a random one, and a missing key", () => {
-    expect(standInDifferences(exchange, { calls: [call({ headers: { "idempotency-key": "refund_1", authorization: "sha256:b" } })], writtenAfter: ["refunds"] })).toEqual([
-      expect.stringContaining("headers"),
-    ]);
-    expect(standInDifferences(exchange, { calls: [call({ headers: { authorization: "sha256:b" } })], writtenAfter: ["refunds"] })).toEqual([
-      expect.stringContaining("headers"),
-    ]);
+    expect(
+      standInDifferences(exchange, {
+        calls: [call({ headers: { "idempotency-key": "refund_1", authorization: "sha256:b" } })],
+        writtenAfter: ["refunds"],
+      }),
+    ).toEqual([expect.stringContaining("headers")]);
+    expect(
+      standInDifferences(exchange, {
+        calls: [call({ headers: { authorization: "sha256:b" } })],
+        writtenAfter: ["refunds"],
+      }),
+    ).toEqual([expect.stringContaining("headers")]);
   });
 
   it("compares the credential digest only when asked", () => {
-    expect(standInDifferences(exchange, { calls: [call()], writtenAfter: ["refunds"] }, { compareAuthorization: true })).toEqual([
-      expect.stringContaining("headers"),
-    ]);
+    expect(
+      standInDifferences(exchange, { calls: [call()], writtenAfter: ["refunds"] }, { compareAuthorization: true }),
+    ).toEqual([expect.stringContaining("headers")]);
   });
 
   it("flags a missing call", () => {
-    expect(standInDifferences(exchange, { calls: [], writtenAfter: ["refunds"] })[0]).toContain("Rails made 1, Node made 0");
+    expect(standInDifferences(exchange, { calls: [], writtenAfter: ["refunds"] })[0]).toContain(
+      "Rails made 1, Node made 0",
+    );
   });
 });

@@ -65,7 +65,8 @@ async function heldByGumroad(merchantAccountId: bigint | number | null): Promise
   );
 }
 
-const blank = (value: unknown) => value === undefined || value === null || (typeof value === "string" && value.trim() === "");
+const blank = (value: unknown) =>
+  value === undefined || value === null || (typeof value === "string" && value.trim() === "");
 
 export async function refundPurchase(input: MutationInput): Promise<ActionResult> {
   const user = railsLoggedInUser(input.context);
@@ -76,22 +77,30 @@ export async function refundPurchase(input: MutationInput): Promise<ActionResult
 
   const amount = input.params.amount;
   // `amount&.include?(",")` raises on anything but a String.
-  if (amount !== undefined && amount !== null && typeof amount !== "string") throw new HandBackToRails("a refund amount that is not text");
+  if (amount !== undefined && amount !== null && typeof amount !== "string")
+    throw new HandBackToRails("a refund amount that is not text");
   if (typeof amount === "string" && amount.includes(",")) return failure(COMMAS_NOT_SUPPORTED);
 
   const purchase = await paidSale(seller.id, input.routeParams.id!);
   if (purchase === null) return notFoundJson();
   // paypal_refund_expired? compares against six calendar months.
-  if (purchase.card_type === PAYPAL_CARD_TYPE) throw new HandBackToRails("a PayPal refund, whose expiry depends on the calendar");
+  if (purchase.card_type === PAYPAL_CARD_TYPE)
+    throw new HandBackToRails("a PayPal refund, whose expiry depends on the calendar");
 
   // A partial refund parses the amount in the product's currency and short-circuits to a full refund in several cases.
   if (!blank(amount)) throw new HandBackToRails("a refund with an amount, which is converted and may be partial");
 
-  if (!CHARGE_PROCESSORS.includes(purchase.charge_processor_id ?? "")) throw new HandBackToRails("a purchase of a removed processor");
+  if (!CHARGE_PROCESSORS.includes(purchase.charge_processor_id ?? ""))
+    throw new HandBackToRails("a purchase of a removed processor");
   // refund_and_save!: Purchase#refunds are summed with the `effective` scope, so a purchase with refunds hands back.
-  if (await exists(Prisma.sql`SELECT 1 FROM ${table("refunds")} WHERE ${column("refunds", "purchase_id")} = ${purchase.id} LIMIT 1`))
+  if (
+    await exists(
+      Prisma.sql`SELECT 1 FROM ${table("refunds")} WHERE ${column("refunds", "purchase_id")} = ${purchase.id} LIMIT 1`,
+    )
+  )
     throw new HandBackToRails("a purchase that already has refunds");
-  if (purchase.stripe_transaction_id === null || purchase.stripe_transaction_id === "") return failure(NOTHING_TO_REFUND);
+  if (purchase.stripe_transaction_id === null || purchase.stripe_transaction_id === "")
+    return failure(NOTHING_TO_REFUND);
 
   const chargedBack = purchase.chargeback_date !== null;
   if (chargedBack && !PurchaseFlags.isSet(purchase.flags, "chargeback_reversed")) return failure(ACTIVE_DISPUTE);

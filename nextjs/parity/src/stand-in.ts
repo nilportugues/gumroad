@@ -39,7 +39,10 @@ export type StandIn = {
 // question is which write came first, not whether it has committed.
 export function uncommittedReader(client: PrismaClient): SqlExecutor {
   const run = <T>(fn: (tx: PrismaClient) => Promise<T>) =>
-    client.$transaction((tx) => fn(tx as unknown as PrismaClient), { isolationLevel: "ReadUncommitted", timeout: 60_000 });
+    client.$transaction((tx) => fn(tx as unknown as PrismaClient), {
+      isolationLevel: "ReadUncommitted",
+      timeout: 60_000,
+    });
   const reader: SqlExecutor = {
     query: (sql, params = []) => run((tx) => tx.$queryRawUnsafe<Record<string, unknown>[]>(sql, ...params)),
     execute: async (sql, params = []) => {
@@ -59,7 +62,9 @@ async function fingerprints(sql: SqlExecutor): Promise<Fingerprints> {
 }
 
 function changedTables(before: Fingerprints, after: Fingerprints): string[] {
-  return [...new Set([...before.keys(), ...after.keys()])].filter((table) => before.get(table) !== after.get(table)).sort();
+  return [...new Set([...before.keys(), ...after.keys()])]
+    .filter((table) => before.get(table) !== after.get(table))
+    .sort();
 }
 
 export async function startStandIn(reader: SqlExecutor): Promise<StandIn> {
@@ -81,7 +86,9 @@ export async function startStandIn(reader: SqlExecutor): Promise<StandIn> {
           method,
           url,
           headers: keptHttpHeaders(
-            Object.fromEntries(Object.entries(request.headers).map(([name, value]) => [name, [value].flat().join(", ")])),
+            Object.fromEntries(
+              Object.entries(request.headers).map(([name, value]) => [name, [value].flat().join(", ")]),
+            ),
           ),
           writtenBefore: changedTables(last, now),
         };
@@ -92,7 +99,10 @@ export async function startStandIn(reader: SqlExecutor): Promise<StandIn> {
         const index = unused.findIndex((candidate) => candidate.method === method && candidate.url === url);
         if (index === -1) return void response.writeHead(599).end(`parity: no recorded answer for ${method} ${url}`);
         const [answer] = unused.splice(index, 1);
-        response.writeHead(answer!.response.status ?? 200, answer!.response.contentType ? { "content-type": answer!.response.contentType } : {});
+        response.writeHead(
+          answer!.response.status ?? 200,
+          answer!.response.contentType ? { "content-type": answer!.response.contentType } : {},
+        );
         response.end(answer!.response.body ?? "");
       });
     });
@@ -149,15 +159,18 @@ export function standInDifferences(
 
   recorded.forEach((call, index) => {
     const got = actual.calls[index];
-    if (!got) return void differences.push(`call ${index + 1}: Rails sent ${call.method} ${call.url}, Node sent nothing`);
+    if (!got)
+      return void differences.push(`call ${index + 1}: Rails sent ${call.method} ${call.url}, Node sent nothing`);
     const label = `call ${index + 1} ${call.method} ${call.url}`;
     if (got.method !== call.method || decodeURIComponent(got.url) !== decodeURIComponent(call.url))
       differences.push(`${label}: Node sent ${got.method} ${got.url}`);
-    if ((got.body ?? "") !== (call.body ?? "")) differences.push(`${label}: body\n    rails: ${call.body}\n    next:  ${got.body}`);
+    if ((got.body ?? "") !== (call.body ?? ""))
+      differences.push(`${label}: body\n    rails: ${call.body}\n    next:  ${got.body}`);
     const want = { ...call.headers };
     const have = { ...got.headers };
     if (!options.compareAuthorization) {
-      if ("authorization" in want !== "authorization" in have) differences.push(`${label}: authorization present on one side only`);
+      if ("authorization" in want !== "authorization" in have)
+        differences.push(`${label}: authorization present on one side only`);
       delete want.authorization;
       delete have.authorization;
     }
@@ -172,7 +185,9 @@ export function standInDifferences(
     const have = (got[index] ?? []).filter((table) => !ignore.has(table));
     if (want.join() !== have.join()) {
       const where = index === expected.length - 1 ? "after the last call" : `before call ${index + 1}`;
-      differences.push(`writes ${where}\n    rails: ${want.join(", ") || "none"}\n    next:  ${have.join(", ") || "none"}`);
+      differences.push(
+        `writes ${where}\n    rails: ${want.join(", ") || "none"}\n    next:  ${have.join(", ") || "none"}`,
+      );
     }
   });
   return differences;

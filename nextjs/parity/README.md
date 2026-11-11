@@ -53,7 +53,8 @@ Each passing example writes `fixtures/<spec path>/<example>.json` with one excha
 | `elasticsearch` | The documents of `ConfirmedFollowerEvent`, the one index with no table behind it, just before the request (times as tokens). The replay's seeder gets it as `reset(entries, exchange, now)`; `src/elasticsearch.ts` rebuilds indices (and the purchases index from the seeded rows) under the server's `ES_INDEX_SUFFIX` |
 | `jobs` | Every Sidekiq push: class, args, queue, `at`; ActiveJob wrappers unwrapped |
 | `mails` | Every delivered mail: mailer, addresses, subject, text and HTML |
-| `http` | Every WebMock-seen call: method, URL, content type, body, and the response it got |
+| `http` | Every WebMock-seen call: method, URL, content type, body, the headers that matter (`headers`: `idempotency-key`, `stripe-account`, `paypal-request-id`, and `authorization` as a `sha256:` digest; a random key is `<uuid>`) and the response it got |
+| `timeline` | Only when the request made an outbound call: its INSERT/UPDATE/DELETE statements (`op`, `table`), calls and enqueued jobs in the order Rails took them (`http` and `job` events point into those arrays by `index`) |
 
 Normalisation, shared by `spec/support/parity/canonical.rb` and `src/canonical.ts` and pinned by
 `__tests__/canonical-vectors.json`:
@@ -132,6 +133,15 @@ await replayFixtureExchange(path, index, {
 Rails specs run with PaperTrail off, so `versions` rows are never recorded; ignore `db.versions` for
 replays whose port saves a versioned model. `insert_all` timestamps come from the database clock,
 which is the machine's time zone locally.
+
+### Payment processors: order and idempotency
+
+A port that reaches Stripe or PayPal sets `OUTBOUND_HTTP_STAND_IN` to `startStandIn(uncommittedReader(prisma))` (`src/stand-in.ts`), calls
+`stand-in.arm(exchange.http)` and passes `beforeRequest: () => standIn.baseline()` to the replay. The stand-in answers the recorded
+calls and notes the tables written before each one (it reads uncommitted rows, since Rails and Node write in transactions).
+`standInDifferences(exchange, await standIn.finish())` then compares the calls (URL, body, idempotency key, account) and the tables written
+between calls with `timelineSegments(exchange.timeline)`. A "hands a ..." example asserts the stand-in saw no call and Node wrote nothing
+(`money-hand-backs.replay.test.ts`). Fixtures recorded before these fields existed replay unchanged.
 
 ## Limits
 

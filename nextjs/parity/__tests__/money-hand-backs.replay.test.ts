@@ -16,15 +16,23 @@ import { assertParity, httpTransport, replayFixtureExchange } from "../src/repla
 import { reencryptCookies, redisSeeder } from "../src/session";
 import { standInDifferences, startStandIn, timelineSegments, uncommittedReader, type StandIn } from "../src/stand-in";
 
-// Replays PUT /purchases/:id/refund (spec/requests/purchases_refund_parity_spec.rb). Stripe is a stand-in (OUTBOUND_HTTP_STAND_IN) that
+// Replays the requests that reach a payment processor: PUT /purchases/:id/refund (spec/requests/purchases_refund_parity_spec.rb), POST
+// /instant_payouts (instant_payouts_parity_spec.rb) and the settings save that creates a Stripe account
+// (settings_payments_stripe_account_parity_spec.rb). Stripe is a stand-in (OUTBOUND_HTTP_STAND_IN) that
 // answers the calls the fixture recorded and reports which tables had been written when each one arrived. A refusal Rails makes before
 // it calls the processor must make no call and write nothing; an example named "hands a ..." must reach Rails whole, with no Stripe
 // call and no write from Node (a refund past the guards moves money, and the ledger writes follow the calls).
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
-const SPECS = ["purchases_refund_parity_spec"];
-const ROUTE_FLAGS = "nextjs_purchases_seller_guards";
+const SPECS = [
+  "purchases_refund_parity_spec",
+  "instant_payouts_parity_spec",
+  "settings_payments_stripe_account_parity_spec",
+];
+const ROUTE_FLAGS = ["nextjs_purchases_seller_guards", "nextjs_payouts_guards", "nextjs_settings_payments_guards"].join(
+  ",",
+);
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
@@ -89,7 +97,7 @@ const cases = SPECS.flatMap((spec) => {
     );
 });
 
-describe.skipIf(!url)("PurchasesController#refund", () => {
+describe.skipIf(!url)("requests that call a payment processor", () => {
   let client: PrismaClient;
   let sql: SqlExecutor;
   let redis: Redis;
@@ -197,9 +205,49 @@ describe.skipIf(!url)("PurchasesController#refund", () => {
     const segments = timelineSegments(exchange.timeline!);
     expect(segments.slice(0, 4)).toEqual([[], [], [], []]);
     expect(segments[4]).toEqual(
-      expect.arrayContaining(["audience_members", "balance_transactions", "balances", "credits", "purchases", "refunds"]),
+      expect.arrayContaining([
+        "audience_members",
+        "balance_transactions",
+        "balances",
+        "credits",
+        "purchases",
+        "refunds",
+      ]),
     );
     expect(exchange.timeline![0]).toEqual({ type: "http", index: 0 });
+  });
+
+  // Rails creates the payout row and moves the balance before it asks Stripe for the payout, and finishes the row after.
+  it("records Rails reading Stripe twice, writing the payout, then creating it with a random idempotency key", () => {
+    const [, file, index] = cases.find(([, file]) => file.includes("instant_payouts_parity_spec"))!;
+    const exchange = loadFixture(file).exchanges[index]!;
+    expect(exchange.http.map((call) => `${call.method} ${new URL(call.url).pathname}`)).toEqual([
+      expect.stringMatching(/^GET \/v1\/accounts\/acct_\w+\/external_accounts\/ba_/u),
+      "GET /v1/balance",
+      "POST /v1/payouts",
+    ]);
+    expect(exchange.http[2]!.headers).toMatchObject({
+      "idempotency-key": "<uuid>",
+      "stripe-account": expect.stringMatching(/^acct_/u),
+    });
+    expect(timelineSegments(exchange.timeline!)).toEqual([
+      [],
+      [],
+      ["balances", "payments", "payments_balances"],
+      ["payments"],
+    ]);
+  });
+
+  // The account row is inserted before the processor is called and filled in after.
+  it("records Rails inserting the merchant account before it creates the Stripe account", () => {
+    const [, file, index] = cases.find(([, file]) => file.includes("settings_payments_stripe_account_parity_spec"))!;
+    const exchange = loadFixture(file).exchanges[index]!;
+    expect(exchange.http.map((call) => `${call.method} ${new URL(call.url).pathname}`)).toEqual(["POST /v1/accounts"]);
+    expect(exchange.http[0]!.headers).toMatchObject({ "idempotency-key": "<uuid>" });
+    expect(timelineSegments(exchange.timeline!)).toEqual([
+      ["comments", "merchant_accounts", "tos_agreements", "users"],
+      ["bank_accounts", "comments", "merchant_accounts"],
+    ]);
   });
 
   it.each(cases)(
