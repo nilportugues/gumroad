@@ -1,5 +1,5 @@
 // The small public endpoints that are not pages: RobotsController, LlmsController, FaviconsController, AcmeChallengesController,
-// IndexnowKeysController, PublicController#crossdomain and GithubStarsController. routes.json marks them with a `handler`; the
+// IndexnowKeysController, PublicController#crossdomain, GithubStarsController and HomeController#features_md. routes.json marks them with a `handler`; the
 // proxy rewrites them to /gr-public/<handler> (app/gr-public/[action]/route.ts), which lands here.
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -58,6 +58,24 @@ const STOREFRONT_BINGBOT_CRAWL_DELAY_SECONDS = 10;
 // GithubStarsController
 const GITHUB_STARS_CACHE_KEY = "github_stars_antiwork/gumroad";
 const GITHUB_STARS_MAX_AGE_SECONDS = 3600;
+// HomeController#features_md
+const FEATURES_URL = "https://gumroad.com/features";
+const FEATURES_MD_CACHE_CONTROL = "max-age=60, public, stale-while-revalidate=3600, s-maxage=300";
+const FEATURES_MD_SOURCE = "app/services/features_markdown_generator.rb";
+const MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
 // AcmeChallengesController
 const MAX_ACME_TOKEN_LENGTH = 64;
 const VALID_ACME_TOKEN = /^[A-Za-z0-9_-]+$/u;
@@ -170,6 +188,35 @@ async function githubStars(): Promise<Rendered> {
   };
 }
 
+// FeaturesMarkdownGenerator is a squiggly heredoc: the text is read from it, minus the common indent, so the two cannot drift.
+// Date.current is UTC (config.time_zone is unset).
+export function featuresMarkdown(now: Date): string {
+  const source = readFileSync(path.join(railsRoot(), FEATURES_MD_SOURCE), "utf8");
+  const heredoc = /<<~MARKDOWN\n([\s\S]*?)\n[ ]*MARKDOWN\n/u.exec(source)?.[1];
+  if (heredoc === undefined || heredoc.includes("\\")) throw new HandBackToRails("features.md heredoc not readable");
+  const lines = heredoc.split("\n");
+  const indent = Math.min(...lines.filter((line) => line.trim() !== "").map((line) => /^ */u.exec(line)![0].length));
+  const today = `${MONTH_NAMES[now.getUTCMonth()]} ${now.getUTCDate()}, ${now.getUTCFullYear()}`;
+  return `${lines.map((line) => line.slice(indent)).join("\n")}\n`
+    .replaceAll("#{FEATURES_URL}", FEATURES_URL)
+    .replace('#{Date.current.strftime("%B %-d, %Y")}', () => today);
+}
+
+// Only the cookie-less, utm-less request is served: HomeController#edge_cacheable_request? skips the session, the guid and the
+// XSRF-TOKEN cookie for it, and publishes the response. Any other request writes cookies Rails owns.
+function featuresMd(request: RailsRequest, url: URL, now: Date): Rendered {
+  assertFlatQuery(request.queryString);
+  if (request.cookies.size > 0 || [...url.searchParams.keys()].some((key) => key.startsWith("utm_")))
+    throw new HandBackToRails("features.md with cookies or utm params");
+  return {
+    status: 200,
+    body: featuresMarkdown(now),
+    contentType: "text/markdown; charset=utf-8",
+    headers: { "cache-control": FEATURES_MD_CACHE_CONTROL },
+    paramsRead: true,
+  };
+}
+
 // EmbeddedJavascriptsController#analytics and app/views/embedded_javascripts/analytics.js.erb
 const ANALYTICS_VERIFIER = "product_analytics_view";
 const ANALYTICS_SCRIPT_TOKEN_PURPOSE = "external_landing_page_script";
@@ -257,6 +304,10 @@ const HANDLERS: Record<string, Handler> = {
     run: async (_request, url) => indexnowKey(decodeURIComponent(url.pathname.slice(1).replace(/\.txt$/u, ""))),
   },
   github_stars: { run: () => githubStars() },
+  features_md: {
+    options: { bare: true },
+    run: (request, url, action) => Promise.resolve(featuresMd(request, url, action.chain.now)),
+  },
   wishlist_unsubscribe: { run: (request) => wishlistUnsubscribe(request) },
   utm_tracking: { run: (_request, url) => utmLinkRedirect(decodeURIComponent(url.pathname.split("/").at(-1) ?? "")) },
   analytics_js: { run: (request) => analyticsScript(request) },
