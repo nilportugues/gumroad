@@ -3,13 +3,15 @@
 // OauthCompletionsController#stripe.
 //
 // Ported: sign-in, the account email, the tax center switch, the Pundit refusals, the tax form lookups and the missing OAuth session.
-// Handed to Rails whole, before any write or processor call: everything that passes them (the Stripe disconnect, the instant payout,
-// the tax form download, the transaction report job and linking the Stripe account).
+// Ported past the guards: the Stripe disconnect (a local write, no Stripe call). Handed to Rails whole, before any write or processor
+// call: the instant payout, the tax form download, the transaction report job and linking the Stripe account.
 import { Prisma } from "@prisma/client";
 
 import * as Routes from "@/lib/navigation/routes";
 
 import { column, selectRows, table } from "../models/sql.ts";
+import { disconnectStripe } from "../models/stripe-merchant-account-disconnect.ts";
+import { findUserBang } from "../models/user.ts";
 import { transactionReportAvailable, taxCenterEnabled } from "../page-props/dashboard/tax-center.ts";
 import { domainConfig } from "../page-props/domain.ts";
 import { settingsGuard } from "../page-props/settings/guard.ts";
@@ -23,6 +25,7 @@ import { HandBackToRails, type ActionResult, type Redirected } from "./applicati
 import { jsonResponse, sellerJsonAction } from "./json-seller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { authorizeJson } from "./seller-json.ts";
+import { logPayoutSettingsUpdateByNonOwner } from "./settings-payments-mutations.ts";
 
 const FOUND = 302;
 const NOT_FOUND = 404;
@@ -48,8 +51,13 @@ function disconnect(input: MutationInput): Promise<ActionResult> {
   return sellerJsonAction(
     input,
     (context) => settingsPaymentsUserPolicy.stripeConnect(context, context.seller!),
-    () => {
-      throw new HandBackToRails("disconnecting Stripe deletes the connected account at the processor");
+    async () => {
+      const { success, hadConnectedAccount } = await disconnectStripe(
+        await findUserBang(input.context.currentSeller!.id),
+      );
+      // The manager reports success for a no-op too, so the note needs an account that was there to remove.
+      if (success && hadConnectedAccount) await logPayoutSettingsUpdateByNonOwner(input, "Stripe account disconnected");
+      return jsonResponse({ success });
     },
   );
 }

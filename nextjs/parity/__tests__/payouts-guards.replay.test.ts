@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { closeAllRedis } from "@/server/infra/redis";
 
+import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
@@ -34,9 +35,42 @@ const COMPARE = {
     "response.cookies.__profilin",
     "response.cookies.XSRF-TOKEN.value",
     "db.versions",
+    // A seeded row is as old as the replay, so Node's save lands in the same second and writes no visible change.
+    "db.users.updated.*.changes.updated_at",
+    "db.merchant_accounts.updated.*.changes.updated_at",
     "http",
   ],
 };
+
+// A ported job Node enqueues is a BullMQ job wrapping the Sidekiq item; one whose body stays in Ruby goes to Sidekiq's own list.
+function redisJobs(redis: Redis): JobsChannel {
+  return {
+    async reset() {
+      /* the seeder flushes the database */
+    },
+    async drain(): Promise<RawJob[]> {
+      const jobs: RawJob[] = [];
+      for (const key of await redis.keys("bull:*")) {
+        if ((await redis.type(key)) !== "hash") continue;
+        const data = await redis.hget(key, "data");
+        if (data === null) continue;
+        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as {
+          class: string;
+          args: unknown[];
+          queue: string;
+        };
+        jobs.push({ class: item.class, args: item.args, queue: item.queue });
+      }
+      for (const key of await redis.keys("queue:*")) {
+        for (const raw of await redis.lrange(key, 0, -1)) {
+          const item = JSON.parse(raw) as { class: string; args: unknown[]; queue: string };
+          jobs.push({ class: item.class, args: item.args, queue: item.queue });
+        }
+      }
+      return jobs;
+    },
+  };
+}
 
 const cases = existsSync(DIR)
   ? readdirSync(DIR)
@@ -109,6 +143,7 @@ describe.skipIf(!url)("Payout guards", () => {
 
   const replayOptionsFor = (compare: { ignore: string[] }) => ({
     sql,
+    jobs: redisJobs(redis),
     redis: {
       reset: (entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0]) => redisSeeder(redis).reset(entries),
     },

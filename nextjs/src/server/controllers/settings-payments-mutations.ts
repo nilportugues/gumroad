@@ -29,7 +29,7 @@ export async function signatureMatchesLegalName(sellerId: bigint, signature: str
 
 // AuditsPayoutSettingsChanges#log_payout_settings_update_by_non_owner. Best-effort: the agreement is already saved, so a failure
 // here must not turn the answer into an error.
-async function logPayoutSettingsUpdateByNonOwner(input: MutationInput, description: string): Promise<void> {
+export async function logPayoutSettingsUpdateByNonOwner(input: MutationInput, description: string): Promise<void> {
   const loggedInUser = railsLoggedInUser(input.context);
   const seller = input.context.currentSeller!;
   if (loggedInUser === null || loggedInUser.id === seller.id) return;
