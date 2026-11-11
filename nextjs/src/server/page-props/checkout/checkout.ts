@@ -53,6 +53,16 @@ export async function fetchCart(userId: bigint | null, browserGuid: string | nul
   return row ?? null;
 }
 
+// `Cart.fetch_by(user:, browser_guid:)&.cart_products&.alive&.count || 0`, as LinksController#cart_items_count counts it.
+export async function aliveCartProductCount(userId: bigint | null, browserGuid: string | null): Promise<number> {
+  const cart = await fetchCart(userId, browserGuid);
+  if (cart === null) return 0;
+  const [row] = await selectRows<{ count: bigint | number }>(
+    Prisma.sql`SELECT COUNT(*) AS count FROM \`cart_products\` WHERE \`cart_products\`.\`cart_id\` = ${cart.id} AND \`cart_products\`.\`deleted_at\` IS NULL`,
+  );
+  return Number(row?.count ?? 0);
+}
+
 // Cart#visible_cart_products: alive lines whose product is not archived.
 export async function visibleCartProductCount(cartId: bigint): Promise<number> {
   const [row] = await selectRows<{ count: bigint | number }>(
