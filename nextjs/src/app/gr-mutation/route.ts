@@ -73,6 +73,8 @@ import "@/server/controllers/collaborators-main-mutations";
 import "@/server/controllers/bundle-mutations";
 import "@/server/controllers/product-review-set";
 import "@/server/controllers/asset-previews-thumbnails";
+import "@/server/controllers/discover-search-suggestions";
+import "@/server/controllers/test-pings";
 import { mutationResponse } from "@/server/controllers/mutation";
 
 // GET: the logout and emailed two-factor links, which change state without a form.
