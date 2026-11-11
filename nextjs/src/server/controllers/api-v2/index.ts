@@ -15,6 +15,8 @@ import "./payouts.ts";
 import "./media.ts";
 import "./subscribers.ts";
 import "./ws17c.ts";
+import "./product-comps.ts";
+import "./product-writes.ts";
 import "./links.ts";
 import "./licenses.ts";
 import "./files.ts";
