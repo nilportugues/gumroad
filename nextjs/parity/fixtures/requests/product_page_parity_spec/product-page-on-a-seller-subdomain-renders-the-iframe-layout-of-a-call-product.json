@@ -1,7 +1,7 @@
 {
   "version": 1,
   "spec": "spec/requests/product_page_parity_spec.rb",
-  "example": "Product page on a seller subdomain hands a product whose covers are Unsplash photos to Rails",
+  "example": "Product page on a seller subdomain renders the iframe layout of a call product",
   "sessionCookie": "_gumroad_app_session_test",
   "secretKeyBase": "parity-replay-secret-key-base",
   "recordedOn": "2026-11-11",
@@ -40,17 +40,27 @@
               }
             ]
           },
-          "asset_previews": {
+          "base_variants": {
             "columns": {
-              "id": "bigint",
-              "link_id": "bigint",
-              "guid": "varchar",
-              "oembed": "text",
+              "id": "int",
+              "variant_category_id": "int",
+              "price_difference_cents": "int",
+              "name": "varchar",
+              "max_purchase_count": "int",
+              "deleted_at": "datetime",
               "created_at": "datetime",
               "updated_at": "datetime",
-              "deleted_at": "datetime",
-              "position": "int",
-              "unsplash_url": "varchar"
+              "type": "varchar",
+              "link_id": "int",
+              "custom_sku": "varchar",
+              "flags": "int",
+              "description": "varchar",
+              "position_in_category": "int",
+              "customizable_price": "tinyint",
+              "subscription_price_change_effective_date": "date",
+              "subscription_price_change_message": "longtext",
+              "duration_in_minutes": "int",
+              "sales_count_for_inventory_cache": "int"
             },
             "primaryKey": [
               "id"
@@ -58,25 +68,70 @@
             "rows": [
               {
                 "id": 1,
-                "link_id": 1,
-                "guid": "pagecoverone",
-                "oembed": null,
+                "variant_category_id": 1,
+                "price_difference_cents": null,
+                "name": "30 minutes",
+                "max_purchase_count": null,
+                "deleted_at": null,
                 "created_at": "<now>",
                 "updated_at": "<now>",
-                "deleted_at": null,
-                "position": 0,
-                "unsplash_url": "https://images.example.com/photo.jpg"
-              },
+                "type": "Variant",
+                "link_id": null,
+                "custom_sku": null,
+                "flags": 0,
+                "description": null,
+                "position_in_category": 0,
+                "customizable_price": null,
+                "subscription_price_change_effective_date": null,
+                "subscription_price_change_message": null,
+                "duration_in_minutes": 30,
+                "sales_count_for_inventory_cache": 0
+              }
+            ]
+          },
+          "call_availabilities": {
+            "columns": {
+              "id": "bigint",
+              "call_id": "bigint",
+              "start_time": "datetime",
+              "end_time": "datetime",
+              "created_at": "datetime",
+              "updated_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
               {
-                "id": 2,
-                "link_id": 1,
-                "guid": "pagecovertwo",
-                "oembed": null,
+                "id": 1,
+                "call_id": 1,
+                "start_time": "<now-24h>",
+                "end_time": "<now+8760h>",
                 "created_at": "<now>",
-                "updated_at": "<now>",
-                "deleted_at": null,
-                "position": 1,
-                "unsplash_url": "https://images.example.com/second.jpg"
+                "updated_at": "<now>"
+              }
+            ]
+          },
+          "call_limitation_infos": {
+            "columns": {
+              "id": "bigint",
+              "call_id": "bigint",
+              "minimum_notice_in_minutes": "int",
+              "maximum_calls_per_day": "int",
+              "created_at": "datetime",
+              "updated_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "call_id": 1,
+                "minimum_notice_in_minutes": 180,
+                "maximum_calls_per_day": null,
+                "created_at": "<now>",
+                "updated_at": "<now>"
               }
             ]
           },
@@ -146,8 +201,8 @@
               {
                 "id": 1,
                 "user_id": 1,
-                "name": "Pictured",
-                "unique_permalink": "n",
+                "name": "Call",
+                "unique_permalink": "g",
                 "preview_url": null,
                 "description": "This is a collection of works spanning 1984 — 1994, while I spent time in a shack in the Andes.",
                 "purchase_type": 0,
@@ -194,7 +249,7 @@
                 "free_trial_duration_amount": null,
                 "content_updated_at": null,
                 "taxonomy_id": null,
-                "native_type": "digital",
+                "native_type": "call",
                 "discover_fee_per_thousand": 100,
                 "support_email": null,
                 "default_offer_code_id": null,
@@ -339,19 +394,19 @@
               {
                 "id": 1,
                 "email": "seller@example.com",
-                "encrypted_password": "$2a$04$29/5rhpF6SCALlvPUWwZ5e7BuJerLBIWh/jVqMmPUsSXQSv5S4c7u",
+                "encrypted_password": "$2a$04$NOx0n1kK5BD4BKEIhbOfQeNKo8tHKRhvKyOsjvlv4p/xfWTvNTwZ2",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": null,
                 "sign_in_count": 0,
                 "current_sign_in_at": null,
                 "last_sign_in_at": null,
-                "current_sign_in_ip": "14.189.13.103",
-                "last_sign_in_ip": "86.137.124.17",
+                "current_sign_in_ip": "5.104.243.60",
+                "last_sign_in_ip": "17.163.47.162",
                 "created_at": "<now-744h>",
                 "updated_at": "<now>",
                 "name": "Parity Seller",
-                "payment_address": "edgar_1@gumroad.com",
+                "payment_address": "edgar_55@gumroad.com",
                 "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
@@ -376,8 +431,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "7013077886577",
-                "account_created_ip": "101.78.62.95",
+                "external_id": "4227722940254",
+                "account_created_ip": "162.114.30.4",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -395,7 +450,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "VCPBJCUM47QFZEKWKQ2JFWTCWETCXOE5",
+                "otp_secret_key": "3FM4NFB6CJZOKNMZ2RX7SRMQ5TINOYZ4",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -405,15 +460,39 @@
                 "twitter_handle": null
               }
             ]
+          },
+          "variant_categories": {
+            "columns": {
+              "id": "int",
+              "link_id": "int",
+              "deleted_at": "datetime",
+              "title": "varchar",
+              "flags": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "link_id": 1,
+                "deleted_at": null,
+                "title": "Duration",
+                "flags": 0
+              }
+            ]
           }
         },
         "autoIncrement": {
           "affiliates": 2,
-          "asset_previews": 3,
+          "base_variants": 2,
+          "call_availabilities": 2,
+          "call_limitation_infos": 2,
           "links": 2,
           "prices": 2,
           "refund_policies": 2,
-          "users": 2
+          "users": 2,
+          "variant_categories": 2
         }
       },
       "redis": {
@@ -454,7 +533,8 @@
       "request": {
         "source": "request",
         "method": "GET",
-        "path": "/l/n",
+        "path": "/l/g",
+        "query": "embed=true",
         "headers": {
           "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
           "host": "seller.test.gumroad.com:31337"
@@ -478,13 +558,13 @@
         },
         "cookies": {
           "XSRF-TOKEN": {
-            "value": "20SZuuTlFxsZfFT2LgbEnRK5S4d2RMOvRUWjhN_6aSd29inG_tjEfIaH4AlNLl-oYqn1NgaOMNgrCEaEPhxb4A",
+            "value": "SiUMBFkQSi06tjt2ydxedBZHjfz7NMQepXWKF1US7MgFKBgGbdxXJGNFeht195QuO9rhtFRW69QI7Ncm4PeONQ",
             "path": "/",
             "samesite": "lax",
             "httponly": true
           },
           "_gumroad_app_session_test": {
-            "value": "FEqSH4bi4NJ2zu29APB+qFgPUaniYniTWN83thyo9FVoDCJFRhPPFhWMQcm0Hx528I8RjpM7IK4+WKxBFjSlEbHY1YrAr9tR+7K3so9FlxwIC1r96iqJSbmNqUOkmTt23gPgVZ/dM9KTrhjkyeZ/yY6DWlLxWNlvmN4tfEFl5IjfmAOvgVlkUZ2av/PFVIlrwgbrWsWzL1ekhRuRHYMhwJqCu8h/DCex61cJ1hfI69LHMXs51jQGMrfGnhL6uZau/uhClGGBf5XhSGjrred3260yETVIUxZIKtRkgWU7A3oj2dyikmRwTlcPktMKi1lJJd0NmE7KW3ooEsFtBS0FWqYuBDKHhgRYcktAVJifzlKU+CLC0czq2RZkMxl+EXVaEfhv--HQ9F5ITZ//+sRvzH--N1913lv9kzdSPXGuTlJziA==",
+            "value": "TqmiwJmrv5fnS89C0uCLuUO7qMcZnqX3sCtIuS0VRyR2ebwcZzcJignd4O5X726TflQfrmoMisCJn6BZUPo6lzOZeMB35e/iQYeHmfR9+YxAFirk7OWl/0fMSDl5yt5MGO5fzJTfIkMwMM9dZTJ/VcnXsn27b21vJJp2YpZLJ8kpvhR1hIdjQWGBDYbQvhvE8a7KgiDuAmarDmZB8jfsLLbM7MUJhpg7eNsz7clZ3w/Ex2jtaYtLg5+kaDOBfr7dw21/rF5W4vVy/prWA80aBg9/dJqmLDHZ6Ya+rkQST+MxZFCIO/4VwJJCY8V4gycS2VCioQRx7+0ZlIc7Eke3hB56WzbOJyxVfsqVCd+SXEy1a+6OdKlMSFCKnMqWkouRWWZt--FmdDbW/WB9olXD8r--hzgKBlm+MyS24plyBD5KTg==",
             "domain": "gumroad.com",
             "path": "/",
             "expires": "<now+87672h>",
@@ -501,7 +581,7 @@
           }
         },
         "inertia": {
-          "component": "Products/Show",
+          "component": "Products/Iframe/Show",
           "props": {
             "errors": {},
             "design_settings": {
@@ -524,58 +604,33 @@
             },
             "logged_in_user": null,
             "current_seller": null,
-            "csp_nonce": "PXEsGsU6WCQT4rLOuncs5U+7f+Cz5sfcupImQYegN/Y=",
+            "csp_nonce": "ndzuTfdKUxnJkH+sNz4aRqOlXBHXQWXMl8PnFzbNL2A=",
             "locale": "en-US",
             "feature_flags": {
               "disable_stripe_signup": false
             },
-            "authenticity_token": "3SwRHLfKamWkD5U5xllX4rpiV5QrjUovmqsB66xJj85wnqFgrfe5Ajv0IcalcczXynLpJVtHuVj05uTrTa-9CQ",
+            "authenticity_token": "HPdVZ78Ar_mwxdmmKnyLKVsVWiPWdapz3hF3f9I4EzdT-kFli8yy8Ok2mMuWV0Fzdog2a3kXhblziCpOZ91xyg",
             "flash": null,
-            "title": "Pictured",
+            "title": "Call",
             "detected_buyer_currency": null,
             "is_mobile_app_web_view": false,
             "product": {
               "id": "1UokxkyxJ__gd-gssE0g7w==",
-              "permalink": "n",
-              "name": "Pictured",
+              "permalink": "g",
+              "name": "Call",
               "seller": {
-                "id": "7013077886577",
+                "id": "4227722940254",
                 "name": "Parity Seller",
                 "avatar_url": "/images/gumroad-default-avatar-5.png",
                 "profile_url": "http://seller.test.gumroad.com:31337/",
                 "is_verified": false
               },
               "collaborating_user": null,
-              "covers": [
-                {
-                  "url": "https://images.example.com/photo.jpg",
-                  "original_url": "https://images.example.com/photo.jpg",
-                  "thumbnail": null,
-                  "id": "pagecoverone",
-                  "type": "unsplash",
-                  "filetype": null,
-                  "width": null,
-                  "height": null,
-                  "native_width": null,
-                  "native_height": null
-                },
-                {
-                  "url": "https://images.example.com/second.jpg",
-                  "original_url": "https://images.example.com/second.jpg",
-                  "thumbnail": null,
-                  "id": "pagecovertwo",
-                  "type": "unsplash",
-                  "filetype": null,
-                  "width": null,
-                  "height": null,
-                  "native_width": null,
-                  "native_height": null
-                }
-              ],
-              "main_cover_id": "pagecoverone",
+              "covers": [],
+              "main_cover_id": null,
               "thumbnail_url": null,
               "quantity_remaining": null,
-              "long_url": "http://seller.test.gumroad.com:31337/l/n",
+              "long_url": "http://seller.test.gumroad.com:31337/l/g",
               "is_sales_limited": false,
               "ratings": {
                 "count": 0,
@@ -620,14 +675,25 @@
               "is_multiseat_license": false,
               "is_licensed": false,
               "hide_sold_out_variants": false,
-              "native_type": "digital",
+              "native_type": "call",
               "preorder": null,
               "duration_in_months": null,
               "rental": null,
               "is_quantity_enabled": false,
               "free_trial": null,
               "recurrences": null,
-              "options": [],
+              "options": [
+                {
+                  "id": "1UokxkyxJ__gd-gssE0g7w==",
+                  "name": "30 minutes",
+                  "quantity_left": null,
+                  "description": "",
+                  "price_difference_cents": null,
+                  "recurrence_price_values": null,
+                  "is_pwyw": false,
+                  "duration_in_minutes": 30
+                }
+              ],
               "analytics": {
                 "google_analytics_id": null,
                 "facebook_pixel_id": null,
@@ -659,27 +725,11 @@
             },
             "purchase": null,
             "wishlists": [],
-            "currency_code": "usd",
-            "show_ratings_filter": true,
-            "creator_profile": {
-              "external_id": "7013077886577",
-              "avatar_url": "/images/gumroad-default-avatar-5.png",
-              "name": "Parity Seller",
-              "twitter_handle": null,
-              "youtube_channel_id": null,
-              "subdomain": "seller.test.gumroad.com:31337",
-              "is_verified": false,
-              "can_edit": false,
-              "follow_recaptcha_site_key": "6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI",
-              "hide_follow_form": false
-            },
-            "sections": [],
-            "main_section_index": 0,
             "_inertia_meta": [
               {
                 "tagName": "title",
                 "headKey": "title",
-                "innerContent": "Pictured"
+                "innerContent": "Call"
               },
               {
                 "tagName": "meta",
@@ -691,7 +741,7 @@
                 "tagName": "meta",
                 "headKey": "meta-name-csrf-token",
                 "name": "csrf-token",
-                "content": "-dWaZ1NE7Uf1VtaTivuB_NruCrCr6ChVJxpavgUGSSVUZyobSXk-IGqtYmzp0xrJqv60Adsi2yJJV7--5OB74g"
+                "content": "HvbqYj66VXKifp_OxkXJKdrHKTS7ku4gWhI4dtMQ5aNR-_5gCnZIe_uN3qN6bgNz91pFfBTwwer3i2VHZvWHXg"
               },
               {
                 "tagName": "meta",
@@ -719,18 +769,19 @@
                 "tagName": "meta",
                 "headKey": "meta-property-og-image",
                 "property": "og:image",
-                "content": "https://images.example.com/photo.jpg"
+                "content": "/images/opengraph_image.png"
               },
               {
                 "tagName": "meta",
                 "headKey": "meta-property-og-image-alt",
-                "property": "og:image:alt"
+                "property": "og:image:alt",
+                "content": "Gumroad"
               },
               {
                 "tagName": "meta",
                 "headKey": "meta-property-og-title",
                 "property": "og:title",
-                "content": "Pictured"
+                "content": "Call"
               },
               {
                 "tagName": "meta",
@@ -821,7 +872,7 @@
                 "tagName": "meta",
                 "headKey": "meta-property-product-retailer_item_id",
                 "property": "product:retailer_item_id",
-                "content": "n"
+                "content": "g"
               },
               {
                 "tagName": "meta",
@@ -845,7 +896,7 @@
                 "tagName": "meta",
                 "headKey": "meta-property-og-url",
                 "property": "og:url",
-                "content": "http://seller.test.gumroad.com:31337/l/n"
+                "content": "http://seller.test.gumroad.com:31337/l/g"
               },
               {
                 "tagName": "meta",
@@ -857,24 +908,13 @@
                 "tagName": "meta",
                 "headKey": "meta-property-twitter-title",
                 "property": "twitter:title",
-                "content": "Pictured"
+                "content": "Call"
               },
               {
                 "tagName": "meta",
                 "headKey": "meta-property-twitter-card",
                 "property": "twitter:card",
-                "content": "summary_large_image"
-              },
-              {
-                "tagName": "meta",
-                "headKey": "meta-property-twitter-image",
-                "property": "twitter:image",
-                "content": "https://images.example.com/photo.jpg"
-              },
-              {
-                "tagName": "meta",
-                "headKey": "meta-property-twitter-image-alt",
-                "property": "twitter:image:alt"
+                "content": "summary"
               },
               {
                 "tagName": "meta",
@@ -890,9 +930,16 @@
               },
               {
                 "tagName": "link",
+                "headKey": "call-calendar",
+                "rel": "modulepreload",
+                "crossorigin": "anonymous",
+                "href": "/vite-test/assets/Calendar-CiNM5enb.js"
+              },
+              {
+                "tagName": "link",
                 "headKey": "canonical",
                 "rel": "canonical",
-                "href": "http://seller.test.gumroad.com:31337/l/n"
+                "href": "http://seller.test.gumroad.com:31337/l/g"
               },
               {
                 "tagName": "script",
@@ -901,11 +948,10 @@
                 "innerContent": {
                   "@context": "https://schema.org",
                   "@type": "Product",
-                  "name": "Pictured",
+                  "name": "Call",
                   "description": "This is a collection of works spanning 1984 — 1994, while I spent time in a shack in the Andes.",
-                  "url": "http://seller.test.gumroad.com:31337/l/n",
-                  "image": "https://images.example.com/photo.jpg",
-                  "sku": "n",
+                  "url": "http://seller.test.gumroad.com:31337/l/g",
+                  "sku": "g",
                   "brand": {
                     "@type": "Brand",
                     "name": "Parity Seller"
@@ -914,7 +960,7 @@
                     "@type": "Offer",
                     "priceCurrency": "USD",
                     "availability": "https://schema.org/InStock",
-                    "url": "http://seller.test.gumroad.com:31337/l/n",
+                    "url": "http://seller.test.gumroad.com:31337/l/g",
                     "price": 1.0
                   }
                 }
@@ -935,7 +981,7 @@
               }
             ]
           },
-          "url": "/l/n",
+          "url": "/l/g?embed=true",
           "version": null,
           "encryptHistory": false,
           "clearHistory": false

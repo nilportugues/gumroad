@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { namespacedKey } from "../infra/redis.ts";
 import { setCurrencyDepsForTesting } from "../models/concerns/currency-helper.ts";
-import { bookWorkExamples, ebookStructuredData, offerPrice, usdOfferPriceCents } from "./product-page.ts";
+import { bookWorkExamples, ebookStructuredData, offerPrice, productPageKind, usdOfferPriceCents } from "./product-page.ts";
 
 // Product::StructuredData#build_ebook_structured_data and #build_book_work_examples.
 describe("bookWorkExamples", () => {
@@ -110,5 +110,22 @@ describe("usdOfferPriceCents", () => {
 
     rates({}, true);
     expect(await usdOfferPriceCents("eur", 1000)).toBeNull();
+  });
+});
+
+describe("productPageKind", () => {
+  it("picks the layout before embed and overlay", () => {
+    expect(productPageKind({ layout: "profile", embed: "true" })).toBe("profile");
+    expect(productPageKind({ layout: "discover", overlay: "true" })).toBe("discover");
+  });
+
+  it("treats a present embed or overlay as the iframe page, even when blank", () => {
+    expect(productPageKind({ embed: "" })).toBe("iframe");
+    expect(productPageKind({ overlay: "true" })).toBe("iframe");
+  });
+
+  it("falls back to the standard page", () => {
+    expect(productPageKind({})).toBe("show");
+    expect(productPageKind({ layout: "something" })).toBe("show");
   });
 });

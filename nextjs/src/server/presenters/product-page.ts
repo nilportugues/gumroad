@@ -9,6 +9,7 @@ import { railsLoggedInUser } from "../auth/resolve.ts";
 import { HandBackToRails } from "../controllers/application-controller.ts";
 import type { Chain } from "../controllers/application-controller.ts";
 import type { Query } from "../controllers/rails-query.ts";
+import { viteAssetPath } from "../infra/vite.ts";
 import { cachedRate, getUsdCents, rubyStringToF, unitScalingFactor } from "../models/concerns/currency-helper.ts";
 import { customStyles, withDefaults } from "../models/seller-profile-styles.ts";
 import { sellerProfile as loadSellerProfile, Users } from "../models/user.ts";
@@ -29,12 +30,15 @@ import {
   reviewSummary,
   type ProductPageViewerInput,
 } from "./product-props.ts";
+import { coverProps } from "./product-props-extras.ts";
 import { customDomainByHost, type LinkRow, type UserRow } from "./product-reads.ts";
 import { longUrl } from "./product.ts";
 
 import { creatorProfile, visiblePosts } from "../page-props/settings/profile.ts";
 import { setFaviconMetaTags } from "../page-props/storefront/post.ts";
 import { setHostMeta } from "../page-props/storefront/post-pages.ts";
+import { hasCuratedProductSources } from "../page-props/discover/discover.ts";
+import { taxonomiesForNav } from "../page-props/discover/taxonomies.ts";
 import type { MetaTagBuilder } from "../page-props/meta-tags.ts";
 
 export type RenderContext = {
@@ -50,9 +54,6 @@ const SNIPPET_MAX_LENGTH = 160;
 const SNIPPET_OMISSION = "...";
 const SNIPPET_TRAILING_PUNCTUATION = /[.,;:!?…]+$/u;
 const UNSUPPORTED_PARAMS = [
-  "layout",
-  "embed",
-  "overlay",
   "wanted",
   "purchase_id",
   "purchase_email_digest",
@@ -64,6 +65,23 @@ const DISCOVER_RECOMMENDERS = ["search", "discover"];
 const GUID_COOKIE = "_gumroad_guid";
 
 const present = (value: string | null | undefined): value is string => value != null && value.trim() !== "";
+
+export type ProductPageKind = "show" | "iframe" | "profile" | "discover";
+
+// The branch of LinksController#show that picks the Inertia component: `layout` first, then `embed` or `overlay` (any value,
+// even a blank one: `params[:embed] || params[:overlay]`). The storefront-wrapped Products/Profile/Show of a visitor is handed back.
+export function productPageKind(query: Query): ProductPageKind {
+  if (query.layout === "profile") return "profile";
+  if (query.layout === "discover") return "discover";
+  return query.embed !== undefined || query.overlay !== undefined ? "iframe" : "show";
+}
+
+export const PRODUCT_PAGE_COMPONENTS: Record<ProductPageKind, string> = {
+  show: "Products/Show",
+  iframe: "Products/Iframe/Show",
+  profile: "Products/Profile/Show",
+  discover: "Products/Discover/Show",
+};
 
 // String#to_i
 const rubyToI = (value: string) => {
@@ -105,6 +123,7 @@ function viewerOf(
     // (params[:quantity] || 1).to_i
     quantity: typeof query.quantity === "string" ? rubyToI(query.quantity) : 1,
     discountCode: code,
+    layout: text("layout"),
     purchaseId: text("purchase_id"),
     purchaseEmailDigest: text("purchase_email_digest"),
     recommendedBy: text("recommended_by"),
@@ -125,6 +144,7 @@ async function setMeta(
   seller: UserRow,
   host: string,
   customDomainUrl: string | null,
+  covers: { url: string | null }[] = [],
 ) {
   await setHostMeta(meta, seller as unknown as User);
   meta.set({ title: row.name });
@@ -155,9 +175,21 @@ async function setMeta(
   meta.set({ property: "og:title", content: row.name });
   meta.set({ property: "og:description", content: description });
   meta.set({ property: "og:url", content: canonicalUrl });
+  // Link#social_share_image: the first cover when it is an image. `coverProps` only lets Unsplash covers through, whose url is the photo.
+  const shareImage = covers[0]?.url ?? null;
+  if (present(shareImage ?? "")) {
+    meta.set({ property: "og:image", content: shareImage });
+    meta.set({ property: "og:image:alt", content: "" });
+  }
   meta.set({ property: "og:type", content: ":product" });
   meta.set({ property: "twitter:title", content: row.name });
-  meta.set({ property: "twitter:card", content: "summary" });
+  if (shareImage !== null) {
+    meta.set({ property: "twitter:card", content: "summary_large_image" });
+    meta.set({ property: "twitter:image", content: shareImage });
+    meta.set({ property: "twitter:image:alt", content: "" });
+  } else {
+    meta.set({ property: "twitter:card", content: "summary" });
+  }
   meta.set({ property: "twitter:domain", content: "Gumroad" });
   meta.set({
     property: "twitter:description",
@@ -165,6 +197,15 @@ async function setMeta(
   });
   if (present(seller.twitter_handle as string))
     meta.set({ property: "twitter:creator", content: `@${seller.twitter_handle}` });
+  // The page imports the calendar after it mounts; only call products show one, so only they preload it.
+  if (row.native_type === "call")
+    meta.set({
+      tag_name: "link",
+      rel: "modulepreload",
+      crossorigin: "anonymous",
+      href: viteAssetPath("components/ui/Calendar.tsx"),
+      head_key: "call-calendar",
+    });
   meta.set({ tag_name: "link", rel: "canonical", href: canonicalUrl, head_key: "canonical" });
 
   const summary = (await customSummary(row)) ?? (html ? stripTags(html) : null);
@@ -191,6 +232,7 @@ async function setMeta(
           authorName: seller.name,
           description: structuredDescription,
           url: canonicalUrl,
+          image: shareImage,
           sku: row.unique_permalink,
           workExamples: bookWorkExamples(row.name, await bookFiles(row)),
           offers,
@@ -201,6 +243,7 @@ async function setMeta(
           name: row.name,
           description: structuredDescription,
           url: canonicalUrl,
+          image: shareImage,
           sku: row.unique_permalink,
           brand: present(seller.name) ? { "@type": "Brand", name: seller.name } : null,
           offers,
@@ -300,6 +343,7 @@ export function ebookStructuredData(input: {
   authorName: string | null;
   description: string | null;
   url: string;
+  image?: string | null;
   sku: string | null;
   workExamples: Record<string, unknown>[];
   offers: Record<string, unknown>;
@@ -311,6 +355,8 @@ export function ebookStructuredData(input: {
     author: { "@type": "Person", name: input.authorName },
     description: input.description,
     url: input.url,
+    // Link#social_share_image.presence
+    ...(input.image !== undefined ? { image: input.image } : {}),
     sku: input.sku,
   };
   if (input.workExamples.length > 0) data.workExample = input.workExamples;
@@ -365,21 +411,37 @@ async function editingProps(seller: UserRow) {
   };
 }
 
+// `@product.taxonomy&.ancestry_path&.join("/")` (closure_tree: the root first, the taxonomy itself last)
+async function taxonomyPath(row: LinkRow): Promise<string | null> {
+  if (row.taxonomy_id === null || row.taxonomy_id === undefined) return null;
+  const slugs = await selectRows<{ slug: string }>(
+    Prisma.sql`SELECT ${column("taxonomies", "slug")} FROM ${table("taxonomy_hierarchies")} INNER JOIN ${table("taxonomies")} ON ${column("taxonomies", "id")} = ${column("taxonomy_hierarchies", "ancestor_id")} WHERE ${column("taxonomy_hierarchies", "descendant_id")} = ${row.taxonomy_id as bigint} ORDER BY ${column("taxonomy_hierarchies", "generations")} DESC`,
+  );
+  return slugs.length === 0 ? null : slugs.map((entry) => entry.slug).join("/");
+}
+
 async function build(
   row: LinkRow,
   seller: UserRow,
   viewer: ProductPageViewerInput,
   meta: MetaTagBuilder,
   host: string,
+  kind: ProductPageKind = "show",
 ) {
   const props = await productProps(row, seller, viewer);
-  // The page head preloads the call calendar through the Vite manifest, which Node does not have.
-  if (row.native_type === "call") throw new NotPortedError("PageMeta::Product vite_asset_path for the call calendar");
-  // The page's og:image and twitter tags and its image preloads come from the first cover.
-  if (props.product.covers.length > 0) throw new NotPortedError("PageMeta::Product image tags for a product with covers");
-  await setMeta(meta, row, seller, host, viewer.sellerCustomDomainUrl);
+  await setMeta(
+    meta,
+    row,
+    seller,
+    host,
+    viewer.sellerCustomDomainUrl,
+    props.product.covers as { url: string | null }[],
+  );
+  // ProductPresenter#iframe_product_props is product_props alone.
+  if (kind === "iframe") return props;
   const storefront = ((BigInt(seller.flags as bigint | number) >> 57n) & 1n) === 1n;
-  if (storefront) throw new NotPortedError("ProductPresenter#profile_product_props");
+  // A discover page never gets the storefront catalogue (`show_storefront_catalog?`).
+  if (storefront && kind !== "discover") throw new NotPortedError("ProductPresenter#profile_product_props");
   const [section] = await selectRows(
     Prisma.sql`SELECT 1 FROM ${table("seller_profile_sections")} WHERE ${column("seller_profile_sections", "product_id")} = ${row.id} LIMIT 1`,
   );
@@ -390,7 +452,7 @@ async function build(
   const [hasReviews] = await selectRows(
     Prisma.sql`SELECT 1 FROM ${table("links")} WHERE ${column("links", "user_id")} = ${seller.id} AND ${column("links", "deleted_at")} IS NULL AND ${column("links", "purchase_disabled_at")} IS NULL AND ${column("links", "banned_at")} IS NULL AND (${column("links", "flags")} & ${1 << 16}) != 0 LIMIT 1`,
   );
-  return {
+  const page = {
     ...props,
     currency_code: viewer.user?.currency_type || "usd",
     show_ratings_filter: !!hasReviews,
@@ -402,11 +464,18 @@ async function build(
     main_section_index: Number(data?.main_section_index ?? 0) || 0,
     ...(editing ? await editingProps(seller) : {}),
   };
+  if (kind !== "discover") return page;
+  // The navigation lists the visitor's curated products first; the port answers only the case where there are none.
+  if (await hasCuratedProductSources(viewer.user, viewer.browserGuid))
+    throw new NotPortedError("curated products for the discover navigation");
+  return { ...page, taxonomy_path: await taxonomyPath(row), taxonomies_for_nav: await taxonomiesForNav() };
 }
 
 export async function assertRenderable(context: RenderContext): Promise<void> {
   const { chain, product, seller, query, code } = context;
   for (const name of UNSUPPORTED_PARAMS) if (name in query) throw new HandBackToRails();
+  // A layout that is not text (`layout[]=x`) matches no branch in Rails but reaches the bundle links as a hash or list.
+  if ("layout" in query && typeof query.layout !== "string") throw new HandBackToRails();
   if (typeof query.recommended_by === "string" && DISCOVER_RECOMMENDERS.includes(query.recommended_by))
     throw new HandBackToRails();
   try {
@@ -427,6 +496,7 @@ export async function assertRenderable(context: RenderContext): Promise<void> {
       viewer,
       new (await import("../page-props/meta-tags.ts")).MetaTagBuilder(),
       chain.request.host,
+      productPageKind(query),
     );
     // set_noindex_header if !@product.alive?
     if (product.purchase_disabled_at !== null || product.banned_at !== null || product.deleted_at !== null)
@@ -440,4 +510,15 @@ export async function assertRenderable(context: RenderContext): Promise<void> {
   }
 }
 
-export { build as buildProductPage, guidOf, viewerOf };
+// The tags a before_action leaves on a response that renders no product (the discover layout's autocomplete partial).
+async function setProductPageMeta(
+  meta: MetaTagBuilder,
+  row: LinkRow,
+  seller: UserRow,
+  host: string,
+  customDomainUrl: string | null,
+) {
+  await setMeta(meta, row, seller, host, customDomainUrl, (await coverProps(row)).covers as { url: string | null }[]);
+}
+
+export { build as buildProductPage, guidOf, setProductPageMeta, viewerOf };

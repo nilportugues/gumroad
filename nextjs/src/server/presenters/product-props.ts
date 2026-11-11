@@ -596,7 +596,7 @@ async function bundleProductsProps(bundle: LinkRow, viewer: ProductPageViewerInp
       ).toLowerCase(),
       thumbnail_url: await thumbnailUrl(product.id),
       native_type: product.native_type,
-      url: await urlForProductPage(product, seller!, viewer.request, { recommendedBy: viewer.recommendedBy }),
+      url: await urlForProductPage(product, seller!, viewer.request, { recommendedBy: viewer.recommendedBy, target: viewer.layout }),
       quantity,
       variant: variant?.name ?? null,
     });
@@ -752,6 +752,8 @@ export type ProductPageViewerInput = {
   purchaseId: string | null;
   purchaseEmailDigest: string | null;
   recommendedBy: string | null;
+  // `params[:layout]`, which the links of a bundle's products carry along.
+  layout?: string | null;
   sellerCustomDomainUrl: string | null;
   request: PresenterRequest;
   // Side effects of a rendered page (the reputation snapshot's refresh job), run by whoever sends the page.
