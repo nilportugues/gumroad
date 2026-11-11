@@ -1,13 +1,13 @@
 // Settings::DismissAiProductGenerationPromosController#create and Settings::Team::MembersController#update, #destroy and #restore
 // (app/controllers/settings/). All are Sellers::BaseController JSON actions, so a request that does not ask for JSON goes to Rails.
 //
-// Handed to Rails before the first write: a membership change that fails validation (Rails raises RecordInvalid, a 500), a missing
-// `team_membership` hash or a scalar role that is not a string (an array or hash role is dropped by `permit`), and the removal of a member of the Gumroad account, whose user update
-// runs the whole User save.
+// A membership change that fails validation raises RecordInvalid, which processAction answers with Rails' 422 page.
+//
+// Handed to Rails before the first write: a missing `team_membership` hash and the removal of a member of the Gumroad account, whose
+// user update runs the whole User save.
 import type { TeamMembership } from "@prisma/client";
 
 import { decrypt } from "../../lib/obfuscate-ids.ts";
-import { RecordInvalid } from "../models/runtime/errors.ts";
 import type { ModelRecord } from "../models/runtime/record.ts";
 import { sellerMembershipById, TeamMembershipDeletable, TeamMemberships } from "../models/team-membership.ts";
 import { findUserBang, setFlag, Users } from "../models/user.ts";
@@ -80,12 +80,7 @@ function memberAction(
           rescued: true,
         };
       }
-      try {
-        return await run(membership);
-      } catch (error) {
-        if (error instanceof RecordInvalid) throw new HandBackToRails(`an invalid team membership: ${error.message}`);
-        throw error;
-      }
+      return run(membership);
     },
   );
 }
@@ -98,9 +93,9 @@ export function permittedRole(params: Record<string, unknown>): { role?: string 
   if (!("role" in value)) return {};
   // `permit` drops an array or hash under a scalar key, so `update!({})` changes nothing.
   if (Array.isArray(value.role) || isHash(value.role)) return {};
-  // A number, boolean or nil casts to a string outside ROLES: the inclusion validation raises RecordInvalid, which hands back.
-  if (typeof value.role !== "string") throw new HandBackToRails("a role that is not a string");
-  return { role: value.role };
+  // A number or boolean casts to a string outside ROLES and nil stays nil: the inclusion validation fails either way.
+  if (value.role === null || typeof value.role === "string") return { role: value.role! };
+  return { role: String(value.role) };
 }
 
 const success = () => jsonResponse({ success: true }, 200, true);

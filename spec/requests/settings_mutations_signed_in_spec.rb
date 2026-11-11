@@ -457,6 +457,28 @@ describe "Settings mutations when signed in", type: :request do
         expect(other.reload.deleted?).to be(false)
       end
 
+      [["a role outside the team roles", "chief"], ["a numeric role", 7], ["a null role", nil]].each do |label, role|
+        it "answers 422 and keeps the role for #{label}", parity: true do
+          log_in(seller)
+
+          send_json(:put, settings_team_member_path(membership.external_id, format: :json), team_membership: { role: })
+
+          expect(response).to have_http_status(:unprocessable_entity)
+          expect(membership.reload.role).to eq(TeamMembership::ROLE_MARKETING)
+        end
+      end
+
+      it "answers 422 when restoring a membership the member has since joined again", parity: true do
+        membership.update_as_deleted!
+        create(:team_membership, user: member, seller:, role: TeamMembership::ROLE_SUPPORT)
+        log_in(seller)
+
+        send_json(:put, restore_settings_team_member_path(membership.external_id, format: :json))
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(membership.reload.deleted?).to be(true)
+      end
+
       it "refuses a member whose role cannot manage the team", parity: true do
         member_with_role(TeamMembership::ROLE_SUPPORT)
 

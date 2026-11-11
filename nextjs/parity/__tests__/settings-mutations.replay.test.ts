@@ -213,7 +213,8 @@ describe.skipIf(!url)("mutations of the settings pages", () => {
       loaded: Parameters<typeof reencryptCookies>[1],
       now: Date,
     ) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
-    compare: COMPARE,
+    // The test environment answers a 422 with its exception debug page, which the fixture does not keep.
+    compare: name.includes("422") ? { ignore: [...COMPARE.ignore, "response.body"] } : COMPARE,
     file,
   });
 
