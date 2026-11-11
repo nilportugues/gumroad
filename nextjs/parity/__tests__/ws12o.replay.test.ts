@@ -25,12 +25,14 @@ const SPECS = [
   "marketing_abandoned_carts_parity_spec",
   "recommended_products_parity_spec",
   "mobile_tracking_parity_spec",
+  "bundle_content_edit_signed_in_spec",
 ].filter((dir) => existsSync(path.join(FIXTURES, dir)));
 const ROUTE_FLAGS =
-  "nextjs_products_affiliated_destroy_guards,nextjs_marketing_abandoned_cart_guards,nextjs_recommended_products,nextjs_mobile_tracking";
+  "nextjs_products_affiliated_destroy_guards,nextjs_marketing_abandoned_cart_guards,nextjs_recommended_products,nextjs_mobile_tracking,nextjs_bundle_editor_content";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
+const stripeKey = /^STRIPE_PUBLIC_KEY_TEST=(.+)$/mu.exec(envTest)?.[1];
 const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "mu").exec(envTest)?.[1];
 
 const COMPARE = {
@@ -43,6 +45,18 @@ const COMPARE = {
     "response.cookies.XSRF-TOKEN.value",
     "db.versions",
     "http",
+    // insert_all leaves these to the database clock, which is not UTC on every machine.
+    "db.dashboard_nav_promotions.inserted.*.created_at",
+    "db.dashboard_nav_promotions.inserted.*.updated_at",
+    // Per-response random values of a rendered page.
+    "response.inertia.props.csp_nonce",
+    "response.inertia.props.authenticity_token",
+    "response.inertia.props._inertia_meta.2.content",
+    "response.inertia.props._inertia_meta.1.content",
+    "response.json.props.csp_nonce",
+    "response.json.props.authenticity_token",
+    "response.json.props._inertia_meta.1.content",
+    "response.json.props._inertia_meta.2.content",
   ],
 };
 
@@ -93,6 +107,7 @@ describe.skipIf(!url)("WS-12o ports", () => {
       RAILS_ENV: "test",
       OBFUSCATE_IDS_CIPHER_KEY: /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1] ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
+      ...(stripeKey ? { STRIPE_PUBLIC_KEY_TEST: stripeKey } : {}),
       NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS,
       RAILS_ORIGIN: `http://127.0.0.1:${railsPort}`,
       SECRET_KEY_BASE,
@@ -168,7 +183,10 @@ describe.skipIf(!url)("WS-12o ports", () => {
             method: request.method,
             url: request.query ? `${request.path}?${request.query}` : request.path,
           });
-          expect(Object.keys(handed.exchanges[0]!.actual.db)).toEqual([]);
+          // A signed-in page seeds the dashboard nav rows in the filters, as Rails does, before the action hands back.
+          expect(
+            Object.keys(handed.exchanges[0]!.actual.db).filter((table) => table !== "dashboard_nav_promotions"),
+          ).toEqual([]);
           return;
         }
         assertParity(await replayFixtureExchange(fixture, index, replayOptions(file)));

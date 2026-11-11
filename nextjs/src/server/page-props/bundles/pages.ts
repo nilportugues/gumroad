@@ -1,20 +1,24 @@
 // BundlesController#show (`/bundles/:id`) and the Bundles::{Product,Share}Controller#edit pages (props in edit.ts).
-// Bundles::ContentController#edit is not ported (deferred Elasticsearch `search_data`). The `/bundles/:id/edit*` routes
+// Bundles::ContentController#edit (the deferred Elasticsearch `search_data` is answered by Rails). The `/bundles/:id/edit*` routes
 // are Rails route redirects (config/routes.rb), not controller actions, so they stay in Rails.
 import { Prisma } from "@prisma/client";
 
+import * as Routes from "@/lib/navigation/routes";
+
 import { encrypt as externalId, decrypt } from "../../../lib/obfuscate-ids.ts";
-import { HandBackToRails, RoutingError } from "../../controllers/application-controller.ts";
+import { HandBackToRails, type Redirected, RoutingError } from "../../controllers/application-controller.ts";
 import { LinkFlags } from "../../models/link.ts";
 import { column, selectRows, table } from "../../models/sql.ts";
 import { authorize } from "../../policies/authorize.ts";
 import { collaboratingProductIds, linkPolicy } from "../../policies/link.ts";
+import { NotAuthorizedError } from "../../policies/seller-context.ts";
 import { findLink, findUserById, type LinkRow } from "../../presenters/product-reads.ts";
 import { sellerGuard } from "../audience/seller-guard.ts";
 import type { PageSpec } from "../pages.ts";
 
 import {
   assertBundleEditSupported,
+  bundleEditContentProps,
   bundleEditProductProps,
   bundleEditShareProps,
   type BundleEditInput,
@@ -78,18 +82,30 @@ function bundleEditor(
   return {
     component,
     guard: async (info) => {
+      let denied: Redirected | null = null;
       const redirected = await sellerGuard(info, async (context) => {
         const bundle = await findBundle(info.params.bundle_id!);
         const collaborating = await collaboratingProductIds(context, [bundle.id]);
-        authorize((c, record) => linkPolicy.edit(c, record, collaborating), context, {
-          id: bundle.id,
-          user_id: bundle.user_id,
-          flags: bundle.flags ?? 0,
-        });
+        try {
+          authorize((c, record) => linkPolicy.edit(c, record, collaborating), context, {
+            id: bundle.id,
+            user_id: bundle.user_id,
+            flags: bundle.flags ?? 0,
+          });
+        } catch (error) {
+          if (!(error instanceof NotAuthorizedError)) throw error;
+          // PunditAuthorization#product_edit_user_not_authorized: a shared edit link lands on the product page.
+          denied = {
+            status: 302,
+            location: Routes.short_link_url(bundle.unique_permalink!, info.urlOptions),
+            rescued: true,
+          };
+          return;
+        }
         const owner = (await findUserById(bundle.user_id!))!;
         await assertBundleEditSupported(bundle, owner, tab);
       });
-      return redirected ?? null;
+      return redirected ?? denied;
     },
     props: async (params, { meta }) => {
       const bundle = await findBundle(params.bundle_id!);
@@ -103,5 +119,6 @@ function bundleEditor(
 export const BUNDLES_PAGES: Record<string, PageSpec> = {
   "/bundles/:id": bundleShow,
   "/bundles/:bundle_id/product/edit": bundleEditor("Bundles/Product/Edit", "product", bundleEditProductProps),
+  "/bundles/:bundle_id/content/edit": bundleEditor("Bundles/Content/Edit", "content", bundleEditContentProps),
   "/bundles/:bundle_id/share/edit": bundleEditor("Bundles/Share/Edit", "share", bundleEditShareProps),
 };

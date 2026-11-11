@@ -7,9 +7,19 @@ const KIND = Symbol("lazyProp");
 type Kind = "lazy" | "optional" | "merge" | "always" | "defer" | "scroll";
 // ScrollMetadata::Props#as_json
 export type ScrollMetadata = { pageName: string; previousPage: unknown; nextPage: unknown; currentPage: unknown };
-export type LazyProp = { [KIND]: Kind; resolve: () => unknown; group?: string; metadata?: () => ScrollMetadata | Promise<ScrollMetadata> };
+export type LazyProp = {
+  [KIND]: Kind;
+  resolve: () => unknown;
+  group?: string;
+  appends?: boolean;
+  metadata?: () => ScrollMetadata | Promise<ScrollMetadata>;
+};
 
-const wrap = (kind: Kind, resolve: () => unknown, group?: string): LazyProp => ({ [KIND]: kind, resolve, ...(group === undefined ? {} : { group }) });
+const wrap = (kind: Kind, resolve: () => unknown, group?: string): LazyProp => ({
+  [KIND]: kind,
+  resolve,
+  ...(group === undefined ? {} : { group }),
+});
 
 // `-> { ... }`
 export const lazy = (resolve: () => unknown): LazyProp => wrap("lazy", resolve);
@@ -23,15 +33,24 @@ export const always = (resolve: () => unknown): LazyProp => wrap("always", resol
 // `InertiaRails.defer(group:) { ... }`: left out of the first load and listed in `deferredProps`; a partial
 // reload of the page that asks for it gets it.
 export const defer = (resolve: () => unknown, group = DEFAULT_DEFER_GROUP): LazyProp => wrap("defer", resolve, group);
+// `InertiaRails.defer(merge: true) { ... }`: deferred, and listed in `mergeProps` on the first load too.
+export const deferMerge = (resolve: () => unknown, group = DEFAULT_DEFER_GROUP): LazyProp => ({
+  ...defer(resolve, group),
+  appends: true,
+});
 export const DEFAULT_DEFER_GROUP = "default";
 
 // `InertiaRails.scroll(metadata) { ... }` with the HashAdapter: a merge prop that appends, or prepends for
 // the `X-Inertia-Infinite-Scroll-Merge-Intent: prepend` request, and is listed in `scrollProps`. Rails builds
 // `metadata` in the action, so it is evaluated whenever the props are resolved, even if a partial reload
 // leaves the prop out.
-export const scroll = (metadata: () => ScrollMetadata | Promise<ScrollMetadata>, resolve: () => unknown): LazyProp => ({ ...wrap("scroll", resolve), metadata });
+export const scroll = (metadata: () => ScrollMetadata | Promise<ScrollMetadata>, resolve: () => unknown): LazyProp => ({
+  ...wrap("scroll", resolve),
+  metadata,
+});
 
-export const isLazyProp = (value: unknown): value is LazyProp => value !== null && typeof value === "object" && KIND in value;
+export const isLazyProp = (value: unknown): value is LazyProp =>
+  value !== null && typeof value === "object" && KIND in value;
 export const lazyKind = (value: LazyProp): Kind => value[KIND];
 
 // null: not a partial reload of this component, which sends every prop but the optional ones.
@@ -42,7 +61,8 @@ export type ScrollIntent = string | null;
 
 // A top-level prop is sent unless `only` is given and omits it, or `except` names it.
 const keep = (key: string, partial: NonNullable<PartialRequest>) =>
-  !(partial.only.length > 0 && !partial.only.includes(key)) && !(partial.except.length > 0 && partial.except.includes(key));
+  !(partial.only.length > 0 && !partial.only.includes(key)) &&
+  !(partial.except.length > 0 && partial.except.includes(key));
 
 export type ResolvedProps = {
   props: Record<string, unknown>;
@@ -61,7 +81,11 @@ export type ResolvedProps = {
 
 // The props a response carries, with the wrappers resolved. A prop left out is never computed.
 // `mergeProps` leaves out the props the client asked to reset (`X-Inertia-Reset`).
-export async function resolveLazyProps(props: Record<string, unknown>, partial: PartialRequest, scrollIntent: ScrollIntent = null): Promise<ResolvedProps> {
+export async function resolveLazyProps(
+  props: Record<string, unknown>,
+  partial: PartialRequest,
+  scrollIntent: ScrollIntent = null,
+): Promise<ResolvedProps> {
   const resolved: Record<string, unknown> = {};
   const mergeProps: string[] = [];
   const prependProps: string[] = [];
@@ -84,13 +108,14 @@ export async function resolveLazyProps(props: Record<string, unknown>, partial: 
     if (kind === "defer" && !partial) {
       (deferredProps[value.group!] ??= []).push(key);
       deferredLoaders[key] = async () => value.resolve();
+      if (value.appends) mergeProps.push(key);
       continue;
     }
     if (kind === "optional" && !partial) continue;
     if (partial && !keep(key, partial)) continue;
     resolved[key] = await value.resolve();
     const reset = (partial?.reset ?? []).includes(key);
-    if (kind === "merge" && !reset) mergeProps.push(key);
+    if ((kind === "merge" || value.appends) && !reset) mergeProps.push(key);
     if (kind === "scroll") {
       scrollProps[key] = { ...metadata!, reset };
       if (!reset) (scrollIntent === "prepend" ? prependProps : mergeProps).push(key);
