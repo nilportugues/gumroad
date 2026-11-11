@@ -3,7 +3,7 @@
 //
 // What Rails derives from the Stripe/PayPal lanes, a signed URL, a random token or a variant of the product this port does not read
 // throws NotPortedError, so the caller hands the request back before anything is sent: the restart token of a membership,
-// physical products (shippable countries), PPP, a seller with a merchant account, an uploaded thumbnail or avatar, and a
+// PPP, a seller with a merchant account, an uploaded thumbnail or avatar, and a
 // seller on buyer-local currency.
 import { Prisma, type User } from "@prisma/client";
 
@@ -12,7 +12,8 @@ import { autoLink } from "../html/rinku.ts";
 import { sanitize } from "../html/sanitizer.ts";
 import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
 import { getRate, rubyStringToF, isCurrencyTypeSingleUnit } from "../models/concerns/currency-helper.ts";
-import { alpha2ByName } from "../models/compliance-countries.ts";
+import { alpha2ByName, COUNTRIES, isBlockedCountry } from "../models/compliance-countries.ts";
+import { CONTINENT_SHIPPING_COUNTRIES } from "../infra/continent-shipping-countries.ts";
 import { CustomFieldFlags } from "../models/custom-field.ts";
 import { LinkFlags } from "../models/link.ts";
 import { column, selectRows, table } from "../models/sql.ts";
@@ -335,13 +336,67 @@ async function crossSellProps(row: LinkRow, selectedOptionName: string | null): 
   return props;
 }
 
+const SYRIA = "SY";
+const VIRTUAL_COUNTRY_FLAG = 1;
+const ELSEWHERE = "ELSEWHERE";
+const SUPPORTED_SHIPPING_COUNTRY_CODES = ["US", "CA", "GB"];
+const SUPPORTED_COUNTRIES_FEATURE = "physical_shipping_us_ca_uk_only";
+// Compliance::Countries.for_select, which is sorted by name.
+const SELECTABLE_COUNTRY_CODES = COUNTRIES.filter(
+  (country) => !isBlockedCountry(country.alpha2) && country.alpha2 !== SYRIA,
+)
+  .sort((a, b) => (a.common_name < b.common_name ? -1 : a.common_name > b.common_name ? 1 : 0))
+  .map((country) => country.alpha2);
+// ShippingDestination::Destinations.shipping_countries.keys
+const SHIPPING_COUNTRY_KEYS = new Set([
+  "US",
+  "ASIA",
+  "EUROPE",
+  "NORTH AMERICA",
+  ELSEWHERE,
+  ...SELECTABLE_COUNTRY_CODES,
+]);
+
+// ShippingDestination#country_or_countries, keys only: a continent or ELSEWHERE stands for the countries it covers.
+function countriesOfDestination(countryCode: string, virtual: boolean): string[] {
+  const countries =
+    virtual || countryCode === ELSEWHERE
+      ? (CONTINENT_SHIPPING_COUNTRIES[countryCode] ?? SELECTABLE_COUNTRY_CODES)
+      : SHIPPING_COUNTRY_KEYS.has(countryCode)
+        ? [countryCode]
+        : [];
+  return countries.filter((code) => !isBlockedCountry(code));
+}
+
+// Link#shippable_country_codes: the union of the live destinations' countries minus the exclusions, empty for a digital product.
+async function shippableCountryCodes(row: LinkRow): Promise<string[]> {
+  if (!flag(row, "is_physical")) return [];
+  const destinations = await selectRows<{ country_code: string; flags: bigint | number }>(
+    Prisma.sql`SELECT ${column("shipping_destinations", "country_code")}, ${column("shipping_destinations", "flags")} FROM ${table("shipping_destinations")} WHERE ${column("shipping_destinations", "link_id")} = ${row.id} AND ${column("shipping_destinations", "deleted_at")} IS NULL ORDER BY ${column("shipping_destinations", "id")} ASC`,
+  );
+  const exclusions = new Set(
+    (
+      await selectRows<{ country_code: string }>(
+        Prisma.sql`SELECT ${column("shipping_exclusions", "country_code")} FROM ${table("shipping_exclusions")} WHERE ${column("shipping_exclusions", "product_id")} = ${row.id}`,
+      )
+    ).map((exclusion) => exclusion.country_code),
+  );
+  const included = destinations.flatMap((destination) =>
+    countriesOfDestination(destination.country_code, bit(destination.flags, VIRTUAL_COUNTRY_FLAG)),
+  );
+  const shippable = [...new Set(included)].filter((code) => !exclusions.has(code));
+  return (await isFeatureEnabled(SUPPORTED_COUNTRIES_FEATURE))
+    ? shippable.filter((code) => SUPPORTED_SHIPPING_COUNTRY_CODES.includes(code))
+    : shippable;
+}
+
 // CheckoutPresenter#checkout_product with `logged_in_user: nil, ip: nil` and no params.
 export async function checkoutProduct(row: LinkRow, request: CheckoutRequest = {}) {
   const { cartParams = {}, includeCrossSells = true } = request;
   const seller = (await findUserById(row.user_id!))!;
-  if (flag(row, "is_physical")) throw new NotPortedError("Link#shippable_country_codes for a physical product");
   if (await pppEnabled(row, seller)) throw new NotPortedError("Link#cart_item with purchasing power parity on");
 
+  const shippableCountries = await shippableCountryCodes(row);
   const upsell = await availableUpsell(row);
   const offeredVariantIds = await upsellOfferedVariantIds(row, upsell);
   const bundleProducts = await aliveBundleProducts(row.id);
@@ -384,8 +439,8 @@ export async function checkoutProduct(row: LinkRow, request: CheckoutRequest = {
     pwyw: row.customizable_price ? { suggested_price_cents: row.suggested_price_cents } : null,
     installment_plan: await installmentPlan(row),
     is_multiseat_license: flag(row, "is_multiseat_license") && row.native_type !== "call",
-    shippable_country_codes: [] as string[],
-    ships_nowhere: false,
+    shippable_country_codes: shippableCountries,
+    ships_nowhere: flag(row, "is_physical") && shippableCountries.length === 0,
   };
   const productOptions = options.map((option) => ({
     ...option,

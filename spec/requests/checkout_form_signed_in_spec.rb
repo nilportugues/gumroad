@@ -200,13 +200,29 @@ describe "Checkout form settings when signed in", type: :request do
       expect(cart_item["option_id"]).to be_present
     end
 
-    it "hands a seller with a physical product to Rails", parity: true do
-      create(:physical_product, user: seller, name: "Poster", created_at: Time.utc(2025, 1, 2))
+    it "previews a physical product with the countries it ships to", parity: true do
+      poster = create(:physical_product, user: seller, name: "Poster", created_at: Time.utc(2025, 1, 2))
+      poster.shipping_destinations.delete_all
+      create(:shipping_destination, link: poster, country_code: "US")
+      create(:shipping_destination, link: poster, country_code: "NORTH AMERICA", is_virtual_country: true)
+      ShippingExclusion.create!(product: poster, country_code: "MX")
       log_in(seller)
 
       get checkout_form_path
 
-      expect(inertia_props_of(response)["cart_item"]["product"]).to include("require_shipping" => true)
+      product = inertia_props_of(response)["cart_item"]["product"]
+      expect(product).to include("require_shipping" => true, "ships_nowhere" => false)
+      expect(product["shippable_country_codes"]).to include("US", "CA")
+      expect(product["shippable_country_codes"]).not_to include("MX")
+    end
+
+    it "previews a physical product that ships nowhere yet", parity: true do
+      create(:physical_product, user: seller, name: "Poster", created_at: Time.utc(2025, 1, 2)).shipping_destinations.delete_all
+      log_in(seller)
+
+      get checkout_form_path
+
+      expect(inertia_props_of(response)["cart_item"]["product"]).to include("require_shipping" => true, "ships_nowhere" => true)
     end
 
     it "previews the first available tier of the seller's membership", parity: true do

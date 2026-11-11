@@ -285,8 +285,70 @@ describe "Checkout upsells when signed in", type: :request do
         expect(response.parsed_body["option_id"]).to eq(subscription.alive_variants.first.external_id)
       end
 
-      it "hands a physical product cart item to Rails", parity: true do
+      it "answers a physical product that ships nowhere yet", parity: true do
         poster = create(:physical_product, user: seller, name: "Poster", created_at: Time.utc(2025, 1, 1))
+        poster.shipping_destinations.delete_all
+
+        get cart_item_checkout_upsells_path(product_id: poster.external_id), headers: accept_json
+
+        expect(response).to have_http_status(:ok)
+        expect(response.parsed_body["product"]).to include("shippable_country_codes" => [], "ships_nowhere" => true, "require_shipping" => true)
+      end
+
+      it "lists the countries a physical product ships to, in destination order", parity: true do
+        poster = create(:physical_product, user: seller, name: "Poster", created_at: Time.utc(2025, 1, 1))
+        poster.shipping_destinations.delete_all
+        create(:shipping_destination, link: poster, country_code: "US")
+        create(:shipping_destination, link: poster, country_code: "FR")
+        create(:shipping_destination, link: poster, country_code: "JP", deleted_at: Time.utc(2025, 1, 2))
+
+        get cart_item_checkout_upsells_path(product_id: poster.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]).to include("shippable_country_codes" => %w[US FR], "ships_nowhere" => false)
+      end
+
+      it "expands a continent destination and drops the countries excluded from it", parity: true do
+        poster = create(:physical_product, user: seller, name: "Poster", created_at: Time.utc(2025, 1, 1))
+        poster.shipping_destinations.delete_all
+        create(:shipping_destination, link: poster, country_code: "US")
+        create(:shipping_destination, link: poster, country_code: "EUROPE", is_virtual_country: true)
+        create(:shipping_destination, link: poster, country_code: "ASIA", is_virtual_country: true, deleted_at: Time.utc(2025, 1, 2))
+        %w[FR DE].each { ShippingExclusion.create!(product: poster, country_code: _1) }
+
+        get cart_item_checkout_upsells_path(product_id: poster.external_id), headers: accept_json
+
+        codes = response.parsed_body["product"]["shippable_country_codes"]
+        expect(codes.first).to eq("US")
+        expect(codes).to include("GB", "IT")
+        expect(codes).not_to include("FR", "DE", "JP")
+      end
+
+      it "expands an elsewhere destination to every selectable country", parity: true do
+        poster = create(:physical_product, user: seller, name: "Poster", created_at: Time.utc(2025, 1, 1))
+        ShippingExclusion.create!(product: poster, country_code: "FR")
+
+        get cart_item_checkout_upsells_path(product_id: poster.external_id), headers: accept_json
+
+        codes = response.parsed_body["product"]["shippable_country_codes"]
+        expect(codes).to include("US", "JP")
+        expect(codes).not_to include("FR", "SY")
+      end
+
+      it "keeps only the supported countries while physical shipping is restricted", parity: true do
+        Feature.activate(:physical_shipping_us_ca_uk_only)
+        poster = create(:physical_product, user: seller, name: "Poster", created_at: Time.utc(2025, 1, 1))
+
+        get cart_item_checkout_upsells_path(product_id: poster.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["shippable_country_codes"]).to match_array(%w[US CA GB])
+      end
+
+      it "answers a physical product with versions", parity: true do
+        poster = create(:physical_product, user: seller, name: "Poster", created_at: Time.utc(2025, 1, 1))
+        poster.shipping_destinations.delete_all
+        create(:shipping_destination, link: poster, country_code: "US")
+        category = create(:variant_category, link: poster, title: "Size")
+        create(:variant, variant_category: category, name: "Small")
 
         get cart_item_checkout_upsells_path(product_id: poster.external_id), headers: accept_json
 
