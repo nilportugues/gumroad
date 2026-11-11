@@ -7,10 +7,10 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 | Measure | Done | Total | Share |
 | --- | ---: | ---: | ---: |
-| Routes served natively (counted, static check) | 859 | 978 | 87.8% |
-| Routes registered in routes.json (counted; upper bound, adds the 9 listed under "hands back") | 868 | 978 | 88.8% |
-| Routes weighted by difficulty (counted routes, estimated weights) | 1648 | 1857 | 88.7% |
-| Same, registered in routes.json (upper bound) | 1657 | 1857 | 89.2% |
+| Routes served natively (counted, static check) | 871 | 978 | 89.1% |
+| Routes registered in routes.json (counted; upper bound, adds the 9 listed under "hands back") | 880 | 978 | 90.0% |
+| Routes weighted by difficulty (counted routes, estimated weights) | 1664 | 1857 | 89.6% |
+| Same, registered in routes.json (upper bound) | 1673 | 1857 | 90.1% |
 | Rails Inertia pages with Node props (counted, string match) | 102 | 114 | 89.5% |
 | Sidekiq job classes running in Node (counted) | 128 | 296 | 43.2% |
 
@@ -28,19 +28,19 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 - The route share counts endpoints, and an endpoint is one row whether it is a health check or a purchase. The weighted share corrects that only as far as my weights are right.
 - Neither number measures the code under the routes. A route is counted native as soon as Node serves its common path, while its hard branches (see "Known partial hand-backs") still go to Rails. The shares therefore overstate how much of the work is finished, most for checkout, payouts, and the mobile and MCP APIs.
-- Code volume cross-check (counted, not a completion measure): Node has 127,291 non-test lines under `src/server` and `src/worker`; Rails has 197,057 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
-- 296 distinct rollout flags gate the routes in routes.json; none is enabled in production.
+- Code volume cross-check (counted, not a completion measure): Node has 127,567 non-test lines under `src/server` and `src/worker`; Rails has 197,057 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
+- 298 distinct rollout flags gate the routes in routes.json; none is enabled in production.
 
 ## By workstream
 
 | Workstream | Routes | Native | Hands back | Not registered | Native % | Weight | Native weight | Weighted % |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Redirect-only routes (no controller) | 42 | 41 | 0 | 1 | 97.6% | 42 | 41 | 97.6% |
-| WS-10 Settings and account | 180 | 140 | 5 | 35 | 77.8% | 291 | 218 | 74.9% |
-| WS-11 Help, pages, blog, profiles | 71 | 45 | 0 | 26 | 63.4% | 80 | 53 | 66.3% |
-| WS-12 Products and bundles | 141 | 121 | 3 | 17 | 85.8% | 207 | 181 | 87.4% |
+| Redirect-only routes (no controller) | 42 | 42 | 0 | 0 | 100.0% | 42 | 42 | 100.0% |
+| WS-10 Settings and account | 180 | 145 | 5 | 30 | 80.6% | 291 | 226 | 77.7% |
+| WS-11 Help, pages, blog, profiles | 71 | 48 | 0 | 23 | 67.6% | 80 | 56 | 70.0% |
+| WS-12 Products and bundles | 141 | 123 | 3 | 15 | 87.2% | 207 | 184 | 88.9% |
 | WS-13 Audience, emails, workflows | 53 | 52 | 0 | 1 | 98.1% | 106 | 104 | 98.1% |
-| WS-14 Discover and search | 4 | 3 | 0 | 1 | 75.0% | 5 | 4 | 80.0% |
+| WS-14 Discover and search | 4 | 4 | 0 | 0 | 100.0% | 5 | 5 | 100.0% |
 | WS-15 Analytics and exports | 23 | 23 | 0 | 0 | 100.0% | 26 | 26 | 100.0% |
 | WS-16 Library and content delivery | 39 | 38 | 1 | 0 | 97.4% | 51 | 50 | 98.0% |
 | WS-17 Public and mobile API | 199 | 191 | 0 | 8 | 96.0% | 359 | 345 | 96.1% |
@@ -49,7 +49,7 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 | WS-20 Checkout and orders | 71 | 53 | 0 | 18 | 74.6% | 222 | 163 | 73.4% |
 | WS-21 Payment processors | 8 | 8 | 0 | 0 | 100.0% | 32 | 32 | 100.0% |
 | WS-23 Balances and payouts | 25 | 25 | 0 | 0 | 100.0% | 74 | 74 | 100.0% |
-| **All** | 978 | 859 | 9 | 110 | 87.8% | 1857 | 1648 | 88.7% |
+| **All** | 978 | 871 | 9 | 98 | 89.1% | 1857 | 1664 | 89.6% |
 
 ## Sensitivity to the weights
 
@@ -57,17 +57,17 @@ The weights are the soft part of this inventory, so here is the headline under o
 
 | Scheme | Native weight | Total weight | Share |
 | --- | ---: | ---: | ---: |
-| Every route counts 1 (the plain route share) | 859 | 978 | 87.8% |
-| Verb only: GET 1, other verbs 2 | 1258 | 1427 | 88.2% |
-| Rubric weights 1 to 4 (the headline) | 1648 | 1857 | 88.7% |
-| Rubric weights doubled per step: 1, 2, 4, 8 | 1946 | 2194 | 88.7% |
+| Every route counts 1 (the plain route share) | 871 | 978 | 89.1% |
+| Verb only: GET 1, other verbs 2 | 1274 | 1427 | 89.3% |
+| Rubric weights 1 to 4 (the headline) | 1664 | 1857 | 89.6% |
+| Rubric weights doubled per step: 1, 2, 4, 8 | 1962 | 2194 | 89.4% |
 
 ## By weight
 
 | Weight | Routes | Native | Native % |
 | ---: | ---: | ---: | ---: |
-| 1 | 386 | 328 | 85.0% |
-| 2 | 330 | 293 | 88.8% |
+| 1 | 386 | 336 | 87.0% |
+| 2 | 330 | 297 | 90.0% |
 | 3 | 237 | 218 | 92.0% |
 | 4 | 25 | 20 | 80.0% |
 
@@ -80,7 +80,7 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `User::OmniauthCallbacksController` | WS-10 Settings and account | 30 | 14 | 5 | 11 | 1/2 (45) | 25 |
 | `OrdersController` | WS-20 Checkout and orders | 5 | 0 | 0 | 5 | 4 (20) | 20 |
 | `PaypalController` | WS-20 Checkout and orders | 4 | 0 | 0 | 4 | 3 (12) | 12 |
-| `HomeController` | WS-11 Help, pages, blog, profiles | 12 | 1 | 0 | 11 | 1 (12) | 11 |
+| `HomeController` | WS-11 Help, pages, blog, profiles | 12 | 2 | 0 | 10 | 1 (12) | 10 |
 | `Integrations::GoogleCalendarController` | WS-10 Settings and account | 3 | 0 | 0 | 3 | 3 (9) | 9 |
 | `Oauth::TokensController` | WS-10 Settings and account | 8 | 4 | 0 | 4 | 2 (16) | 8 |
 | `Api::V2::LinksController` | WS-17 Public and mobile API | 12 | 8 | 0 | 4 | 1/2 (20) | 7 |
@@ -90,38 +90,33 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `CommissionsController` | WS-12 Products and bundles | 2 | 0 | 0 | 2 | 2 (4) | 4 |
 | `EmbeddedJavascriptsController` | WS-11 Help, pages, blog, profiles | 5 | 1 | 0 | 4 | 1 (5) | 4 |
 | `Logins::PasskeysController` | WS-10 Settings and account | 2 | 0 | 0 | 2 | 2 (4) | 4 |
-| `Settings::PasskeysController` | WS-10 Settings and account | 4 | 2 | 0 | 2 | 2 (8) | 4 |
 | `Api::Internal::Admin::UsersController` | WS-18 Admin | 26 | 25 | 0 | 1 | 3 (78) | 3 |
 | `Api::Internal::AgentCustomHtmlPreviewsController` | WS-17 Public and mobile API | 2 | 0 | 0 | 2 | 1/2 (3) | 3 |
 | `CheckoutController` | WS-20 Checkout and orders | 2 | 1 | 0 | 1 | 3 (6) | 3 |
 | `Checkout::ReturnsController` | WS-20 Checkout and orders | 1 | 0 | 0 | 1 | 3 (3) | 3 |
 | `Integrations::DiscordController` | WS-10 Settings and account | 4 | 3 | 0 | 1 | 3 (12) | 3 |
 | `Integrations::ZoomController` | WS-10 Settings and account | 2 | 1 | 0 | 1 | 3 (6) | 3 |
-| `LinksController` | WS-12 Products and bundles | 27 | 25 | 0 | 2 | 1/2 (39) | 3 |
 | `McpConnectorsController` | WS-11 Help, pages, blog, profiles | 3 | 0 | 0 | 3 | 1 (3) | 3 |
 | `Oauth::DeviceAuthorizationsController` | WS-10 Settings and account | 2 | 0 | 0 | 2 | 1/2 (3) | 3 |
 | `ProductBuildPlayerFilesController` | WS-12 Products and bundles | 2 | 0 | 0 | 2 | 1/2 (3) | 3 |
 | `ProductFilesUtilityController` | WS-12 Products and bundles | 3 | 0 | 0 | 3 | 1 (3) | 3 |
 | `Products::BuildsController` | WS-12 Products and bundles | 2 | 0 | 1 | 1 | 1/2 (3) | 3 |
-| `SignupController` | WS-10 Settings and account | 3 | 1 | 0 | 2 | 1/2 (5) | 3 |
 | `Stripe::SetupIntentsController` | WS-20 Checkout and orders | 1 | 0 | 0 | 1 | 3 (3) | 3 |
 | `Api::Internal::AiProductDetailsGenerationsController` | WS-17 Public and mobile API | 1 | 0 | 0 | 1 | 2 (2) | 2 |
 | `Api::V2::MediaController` | WS-17 Public and mobile API | 3 | 2 | 0 | 1 | 1/2 (5) | 2 |
 | `CommentsController` | WS-13 Audience, emails, workflows | 4 | 3 | 0 | 1 | 2 (8) | 2 |
 | `HelpCenter::ContactsController` | WS-11 Help, pages, blog, profiles | 1 | 0 | 0 | 1 | 2 (2) | 2 |
+| `LinksController` | WS-12 Products and bundles | 27 | 26 | 0 | 1 | 1/2 (39) | 2 |
 | `Oauth::DeviceCodesController` | WS-10 Settings and account | 1 | 0 | 0 | 1 | 2 (2) | 2 |
-| `Products::MarketingActionsController` | WS-12 Products and bundles | 5 | 4 | 0 | 1 | 1/2 (8) | 2 |
 | `Sellers::BrandAccountsController` | WS-10 Settings and account | 1 | 0 | 0 | 1 | 2 (2) | 2 |
-| `Settings::TotpController` | WS-10 Settings and account | 4 | 3 | 0 | 1 | 2 (8) | 2 |
+| `SignupController` | WS-10 Settings and account | 3 | 2 | 0 | 1 | 1/2 (5) | 2 |
 | `User::PasswordsController` | WS-10 Settings and account | 5 | 4 | 0 | 1 | 1/2 (8) | 2 |
-| `AcmeChallengesController` | WS-11 Help, pages, blog, profiles | 1 | 0 | 0 | 1 | 1 (1) | 1 |
 | `Admin::FlipperUiController` | WS-18 Admin | 1 | 0 | 0 | 1 | 1 (1) | 1 |
 | `Admin::SidekiqWebController` | WS-18 Admin | 1 | 0 | 0 | 1 | 1 (1) | 1 |
 | `AffiliatesController` | WS-12 Products and bundles | 11 | 10 | 0 | 1 | 1/2 (14) | 1 |
 | `ApplicationController` | WS-11 Help, pages, blog, profiles | 1 | 0 | 0 | 1 | 1 (1) | 1 |
 | `BundlesController` | WS-12 Products and bundles | 2 | 1 | 0 | 1 | 1 (2) | 1 |
 | `ConfirmationsController` | WS-10 Settings and account | 3 | 2 | 0 | 1 | 1/2 (4) | 1 |
-| `DiscoverController` | WS-14 Discover and search | 3 | 2 | 0 | 1 | 1 (3) | 1 |
 | `GlobalAffiliates::ProductEligibilityController` | WS-12 Products and bundles | 1 | 0 | 0 | 1 | 1 (1) | 1 |
 | `GumclawController` | WS-11 Help, pages, blog, profiles | 1 | 0 | 0 | 1 | 1 (1) | 1 |
 | `HealthcheckController` | WS-11 Help, pages, blog, profiles | 9 | 8 | 0 | 1 | 1 (9) | 1 |
@@ -130,13 +125,11 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `ProductReviewVideos::UploadContextsController` | WS-12 Products and bundles | 1 | 0 | 0 | 1 | 1 (1) | 1 |
 | `Products::AvailableOfferCodesController` | WS-12 Products and bundles | 1 | 0 | 1 | 0 | 1 (1) | 1 |
 | `Products::OtherRefundPoliciesController` | WS-12 Products and bundles | 1 | 0 | 1 | 0 | 1 (1) | 1 |
-| `PublicController` | WS-11 Help, pages, blog, profiles | 11 | 10 | 0 | 1 | 1/2 (12) | 1 |
-| `RedirectsController` | Redirect-only routes (no controller) | 42 | 41 | 0 | 1 | 1 (42) | 1 |
 | `SellerPlanController` | WS-10 Settings and account | 1 | 0 | 0 | 1 | 1 (1) | 1 |
 | `TestController` | WS-11 Help, pages, blog, profiles | 1 | 0 | 0 | 1 | 1 (1) | 1 |
 | `ThirdPartyAnalyticsController` | WS-11 Help, pages, blog, profiles | 2 | 1 | 0 | 1 | 1 (2) | 1 |
 | `UrlRedirectsController` | WS-16 Library and content delivery | 23 | 22 | 1 | 0 | 1/2 (27) | 1 |
-| `UsersController` | WS-10 Settings and account | 18 | 17 | 0 | 1 | 1/2 (20) | 1 |
+| `AcmeChallengesController` | WS-11 Help, pages, blog, profiles | 1 | 1 | 0 | 0 | 1 (1) | 0 |
 | `Admin::BaseController` | WS-18 Admin | 3 | 3 | 0 | 0 | 1/2 (4) | 0 |
 | `AffiliateRedirectController` | WS-12 Products and bundles | 2 | 2 | 0 | 0 | 1 (2) | 0 |
 | `AffiliateRequestsController` | WS-12 Products and bundles | 7 | 7 | 0 | 0 | 1/2 (10) | 0 |
@@ -253,6 +246,7 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `CustomerSurchargeController` | WS-20 Checkout and orders | 1 | 1 | 0 | 0 | 4 (4) | 0 |
 | `CustomersController` | WS-15 Analytics and exports | 11 | 11 | 0 | 0 | 1/2 (13) | 0 |
 | `DashboardController` | WS-15 Analytics and exports | 7 | 7 | 0 | 0 | 1/2 (8) | 0 |
+| `DiscoverController` | WS-14 Discover and search | 3 | 3 | 0 | 0 | 1 (3) | 0 |
 | `Discover::SearchAutocompleteController` | WS-14 Discover and search | 1 | 1 | 0 | 0 | 2 (2) | 0 |
 | `Doorkeeper::TokenInfoController` | WS-10 Settings and account | 1 | 1 | 0 | 0 | 1 (1) | 0 |
 | `DropboxFilesController` | WS-16 Library and content delivery | 3 | 3 | 0 | 0 | 1/2 (5) | 0 |
@@ -295,11 +289,13 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `Products::ArchivedController` | WS-12 Products and bundles | 3 | 3 | 0 | 0 | 1/2 (5) | 0 |
 | `Products::CollabsController` | WS-12 Products and bundles | 1 | 1 | 0 | 0 | 1 (1) | 0 |
 | `Products::MarketingAbandonedCartsController` | WS-12 Products and bundles | 2 | 2 | 0 | 0 | 1/2 (3) | 0 |
+| `Products::MarketingActionsController` | WS-12 Products and bundles | 5 | 5 | 0 | 0 | 1/2 (8) | 0 |
 | `Products::MobileTrackingController` | WS-12 Products and bundles | 1 | 1 | 0 | 0 | 1 (1) | 0 |
 | `Products::RemainingCallAvailabilitiesController` | WS-12 Products and bundles | 7 | 7 | 0 | 0 | 1/2 (10) | 0 |
 | `Products::VariantsController` | WS-12 Products and bundles | 1 | 1 | 0 | 0 | 1 (1) | 0 |
 | `Products::WaitlistEmailsController` | WS-12 Products and bundles | 1 | 1 | 0 | 0 | 2 (2) | 0 |
 | `ProfileSectionsController` | WS-11 Help, pages, blog, profiles | 3 | 3 | 0 | 0 | 2 (6) | 0 |
+| `PublicController` | WS-11 Help, pages, blog, profiles | 11 | 11 | 0 | 0 | 1/2 (12) | 0 |
 | `PurchaseCustomFieldsController` | WS-12 Products and bundles | 1 | 1 | 0 | 0 | 2 (2) | 0 |
 | `Purchases::DisputeEvidenceController` | WS-20 Checkout and orders | 3 | 3 | 0 | 0 | 3 (9) | 0 |
 | `Purchases::InvoicesController` | WS-20 Checkout and orders | 4 | 4 | 0 | 0 | 3 (12) | 0 |
@@ -307,6 +303,7 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `Purchases::ProductController` | WS-20 Checkout and orders | 1 | 1 | 0 | 0 | 3 (3) | 0 |
 | `Purchases::VariantsController` | WS-20 Checkout and orders | 1 | 1 | 0 | 0 | 3 (3) | 0 |
 | `RecommendedProductsController` | WS-12 Products and bundles | 1 | 1 | 0 | 0 | 1 (1) | 0 |
+| `RedirectsController` | Redirect-only routes (no controller) | 42 | 42 | 0 | 0 | 1 (42) | 0 |
 | `ReviewsController` | WS-12 Products and bundles | 1 | 1 | 0 | 0 | 1 (1) | 0 |
 | `RobotsController` | WS-11 Help, pages, blog, profiles | 1 | 1 | 0 | 0 | 1 (1) | 0 |
 | `S3UtilityController` | WS-16 Library and content delivery | 3 | 3 | 0 | 0 | 1 (3) | 0 |
@@ -319,6 +316,7 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `Settings::DismissAiProductGenerationPromosController` | WS-10 Settings and account | 1 | 1 | 0 | 0 | 2 (2) | 0 |
 | `Settings::GuardiansController` | WS-23 Balances and payouts | 2 | 2 | 0 | 0 | 3 (6) | 0 |
 | `Settings::MainController` | WS-10 Settings and account | 3 | 3 | 0 | 0 | 1/2 (5) | 0 |
+| `Settings::PasskeysController` | WS-10 Settings and account | 4 | 4 | 0 | 0 | 2 (8) | 0 |
 | `Settings::PasswordController` | WS-10 Settings and account | 2 | 2 | 0 | 0 | 1/2 (3) | 0 |
 | `Settings::PaymentsController` | WS-23 Balances and payouts | 8 | 8 | 0 | 0 | 3 (24) | 0 |
 | `Settings::ProfileController` | WS-10 Settings and account | 2 | 2 | 0 | 0 | 1/2 (3) | 0 |
@@ -329,6 +327,7 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `Settings::Team::InvitationsController` | WS-10 Settings and account | 6 | 6 | 0 | 0 | 1/2 (11) | 0 |
 | `Settings::Team::MembersController` | WS-10 Settings and account | 4 | 4 | 0 | 0 | 1/2 (7) | 0 |
 | `Settings::ThirdPartyAnalyticsController` | WS-10 Settings and account | 2 | 2 | 0 | 0 | 1/2 (3) | 0 |
+| `Settings::TotpController` | WS-10 Settings and account | 4 | 4 | 0 | 0 | 2 (8) | 0 |
 | `ShipmentsController` | WS-13 Audience, emails, workflows | 1 | 1 | 0 | 0 | 2 (2) | 0 |
 | `Subscriptions::MagicLinksController` | WS-20 Checkout and orders | 2 | 2 | 0 | 0 | 3 (6) | 0 |
 | `TagsController` | WS-12 Products and bundles | 1 | 1 | 0 | 0 | 1 (1) | 0 |
@@ -339,6 +338,7 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `TwoFactorAuthenticationController` | WS-10 Settings and account | 7 | 7 | 0 | 0 | 1/2 (12) | 0 |
 | `UserPagesController` | WS-10 Settings and account | 3 | 3 | 0 | 0 | 1 (3) | 0 |
 | `User::InvalidateActiveSessionsController` | WS-10 Settings and account | 1 | 1 | 0 | 0 | 2 (2) | 0 |
+| `UsersController` | WS-10 Settings and account | 18 | 18 | 0 | 0 | 1/2 (20) | 0 |
 | `Users::FeatureAnnouncementsController` | WS-10 Settings and account | 2 | 2 | 0 | 0 | 1/2 (3) | 0 |
 | `Users::OauthController` | WS-10 Settings and account | 1 | 1 | 0 | 0 | 1 (1) | 0 |
 | `Users::ReviewRemindersController` | WS-10 Settings and account | 4 | 4 | 0 | 0 | 1 (4) | 0 |
