@@ -4,7 +4,8 @@ require "spec_helper"
 
 # Settings::Team::InvitationsController the way the team page calls it (JSON body, the CSRF token in a header) and the emailed accept
 # link, recorded for the Next.js port (PARITY_RECORD=1) and replayed by nextjs/parity/__tests__/settings-mutations.replay.test.ts, which
-# sends the last request of each example. The examples named "hands ..." are the sends and joins Node leaves to Rails.
+# sends the last request of each example. The examples named "hands ..." are the requests Node leaves to Rails: the join of the team
+# and a mailbox only Mail::AddressList can read.
 describe "Settings team invitations when signed in", type: :request do
   include Parity::AudienceSignedIn
 
@@ -27,6 +28,26 @@ describe "Settings team invitations when signed in", type: :request do
   end
 
   def invitation_path(record = invitation) = settings_team_invitation_path(record.external_id, format: :json)
+
+  # The mail jobs of a request spec go through the test adapter, so the fixture holds none; the replay asserts the same job.
+  def enqueued_invitation_mails
+    ActiveJob::Base.queue_adapter.enqueued_jobs.select { _1["arguments"].first(2) == %w[TeamMailer invite] }
+  end
+
+  def expect_invitation_mail_for(record)
+    mail = enqueued_invitation_mails.sole
+    expect(mail["queue_name"]).to eq("default")
+    expect(mail["arguments"].last["args"]).to eq([{ "_aj_globalid" => "gid://gumroad/TeamInvitation/#{record.id}" }])
+  end
+
+  # The send throttle is a sorted set, which a recording does not capture: the replay refills it from the example's name.
+  def fill_send_throttle(count, seconds_ago)
+    count.times { |index| $redis.zadd(RedisKey.team_invitation_send_throttle(seller.id), seconds_ago.seconds.ago.to_f, "send#{index}") }
+  end
+
+  def burst_report(window)
+    ["risk", "Team invitations rate limited", "Seller teaminvites (#{seller.email}) was refused team invitations past #{window}. Admin: #{seller.external_id}"]
+  end
 
   describe "updating the role" do
     it "changes the role", parity: true do
@@ -197,13 +218,37 @@ describe "Settings team invitations when signed in", type: :request do
       expect(response.parsed_body).to eq("success" => false, "error_message" => "Your account can't send team invitations right now.")
     end
 
-    it "hands a resend of a valid invitation to Rails", parity: true do
+    it "extends the expiry and enqueues the invitation mail", parity: true do
+      invitation.update_column(:expires_at, 1.day.from_now)
       log_in(seller)
 
       send_json(:put, resend_invitation_settings_team_invitation_path(invitation.external_id, format: :json))
 
       expect(response.parsed_body).to eq("success" => true)
       expect(invitation.reload.expires_at).to be > 6.days.from_now
+      expect_invitation_mail_for(invitation)
+    end
+
+    it "refuses past the hourly allowance and reports the burst", parity: true do
+      fill_send_throttle(10, 150)
+      log_in(seller)
+
+      send_json(:put, resend_invitation_settings_team_invitation_path(invitation.external_id, format: :json))
+
+      expect(response).to have_http_status(:too_many_requests)
+      expect(response.parsed_body["error"]).to eq("You've reached the limit of 10 team invitations per hour. You can invite again in 58 minutes.")
+      expect(response.headers["Retry-After"].to_i).to eq(response.parsed_body["retry_after"])
+      expect(InternalNotificationWorker.jobs.map { _1["args"] }).to eq([burst_report("10/hour")])
+      expect(enqueued_invitation_mails).to be_empty
+    end
+
+    it "hands a resend of a quoted-mailbox invitation to Rails", parity: true do
+      invitation.update_column(:email, '"quoted name"@example.com')
+      log_in(seller)
+
+      send_json(:put, resend_invitation_settings_team_invitation_path(invitation.external_id, format: :json))
+
+      expect(response.parsed_body).to eq("success" => true)
     end
   end
 
@@ -262,13 +307,78 @@ describe "Settings team invitations when signed in", type: :request do
       expect(seller.team_invitations.count).to eq(1)
     end
 
-    it "hands a valid invitation to Rails", parity: true do
+    it "creates the invitation, expiring at the end of the day a week out, and enqueues the invitation mail", parity: true do
+      log_in(seller)
+
+      send_json(:post, invite_path, team_invitation: { email: " New@Example.com ", role: TeamMembership::ROLE_SUPPORT })
+
+      expect(response.parsed_body).to eq("success" => true)
+      created = seller.team_invitations.find_by!(email: "new@example.com")
+      expect(created.role).to eq(TeamMembership::ROLE_SUPPORT)
+      # The column keeps microseconds, which is all of the end of the day it can hold.
+      expect(created.expires_at.iso8601(6)).to eq(TeamInvitation::ACTIVE_INTERVAL_IN_DAYS.days.from_now.at_end_of_day.iso8601(6))
+      expect_invitation_mail_for(created)
+    end
+
+    it "does not count invitations against a reviewed seller", parity: true do
+      seller.update_columns(user_risk_state: "compliant")
+      2.times { |index| create(:team_invitation, seller:, email: "earlier#{index}@example.com", role: TeamInvitation::ROLES.first) }
       log_in(seller)
 
       send_json(:post, invite_path, team_invitation: { email: "new@example.com", role: TeamMembership::ROLE_SUPPORT })
 
       expect(response.parsed_body).to eq("success" => true)
-      expect(seller.team_invitations.pluck(:email)).to include("new@example.com")
+      expect(seller.team_invitations.count).to eq(4)
+      expect(InternalNotificationWorker.jobs).to be_empty
+    end
+
+    it "refuses an unreviewed seller at the total cap, removed invitations included, and reports the burst", parity: true do
+      2.times { |index| create(:team_invitation, seller:, email: "earlier#{index}@example.com", role: TeamInvitation::ROLES.first, deleted_at: Time.current) }
+      log_in(seller)
+
+      send_json(:post, invite_path, team_invitation: { email: "new@example.com", role: TeamMembership::ROLE_SUPPORT })
+
+      expect(response.parsed_body).to eq("success" => false, "error_message" => "New accounts can have up to 3 team invitations while the account is being reviewed. Please contact support if you need more.")
+      expect(seller.team_invitations.count).to eq(3)
+      expect(InternalNotificationWorker.jobs.map { _1["args"] }).to eq([burst_report("3/account")])
+      expect(enqueued_invitation_mails).to be_empty
+    end
+
+    it "refuses past the hourly allowance and reports the burst", parity: true do
+      seller.update_columns(user_risk_state: "compliant")
+      fill_send_throttle(10, 150)
+      log_in(seller)
+
+      send_json(:post, invite_path, team_invitation: { email: "new@example.com", role: TeamMembership::ROLE_SUPPORT })
+
+      expect(response).to have_http_status(:too_many_requests)
+      expect(response.parsed_body["error"]).to eq("You've reached the limit of 10 team invitations per hour. You can invite again in 58 minutes.")
+      expect(response.headers["Retry-After"].to_i).to eq(response.parsed_body["retry_after"])
+      expect(seller.team_invitations.count).to eq(1)
+      expect(InternalNotificationWorker.jobs.map { _1["args"] }).to eq([burst_report("10/hour")])
+      expect(enqueued_invitation_mails).to be_empty
+    end
+
+    it "refuses past the daily allowance without reporting a seller reported already", parity: true do
+      seller.update_columns(user_risk_state: "compliant")
+      fill_send_throttle(50, 7230)
+      $redis.set(RedisKey.team_invitation_burst_reported(seller.id), 1)
+      log_in(seller)
+
+      send_json(:post, invite_path, team_invitation: { email: "new@example.com", role: TeamMembership::ROLE_SUPPORT })
+
+      expect(response).to have_http_status(:too_many_requests)
+      expect(response.parsed_body["error"]).to eq("You've reached the limit of 50 team invitations per day. You can invite again in 22 hours.")
+      expect(seller.team_invitations.count).to eq(1)
+      expect(InternalNotificationWorker.jobs).to be_empty
+    end
+
+    it "hands a quoted-mailbox invitation to Rails", parity: true do
+      log_in(seller)
+
+      send_json(:post, invite_path, team_invitation: { email: '"quoted name"@example.com', role: TeamMembership::ROLE_SUPPORT })
+
+      expect(response.parsed_body).to eq("success" => true)
     end
 
     it "hands a request without a team_invitation hash to Rails", parity: true do
