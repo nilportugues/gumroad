@@ -13,7 +13,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ActivateIntegrationsWorker": {
     "file": "app/sidekiq/activate_integrations_worker.rb",
@@ -2401,7 +2401,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ReindexRecommendableProductsWorker": {
     "file": "app/sidekiq/reindex_recommendable_products_worker.rb",
@@ -3666,7 +3666,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "UpdateSellerRefundEligibilityJob": {
     "file": "app/sidekiq/update_seller_refund_eligibility_job.rb",
@@ -3702,7 +3702,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "UpdateUserBalanceStatsCacheWorker": {
     "file": "app/sidekiq/update_user_balance_stats_cache_worker.rb",

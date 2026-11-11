@@ -7,14 +7,21 @@ import { readFileSync } from "node:fs";
 
 import { Prisma } from "@prisma/client";
 
-import { quote, renderSql } from "../../../server/models/runtime/quoting.ts";
-import { setSqlClient, type SqlClient } from "../../../server/models/sql.ts";
-import { setTransactionRunner, type Tx } from "../../../server/models/runtime/transaction.ts";
 import { parseRubyJson, type JsonValue } from "../../../server/jobs/sidekiq/ruby-json.ts";
+import { quote, renderSql } from "../../../server/models/runtime/quoting.ts";
+import { setTransactionRunner, type Tx } from "../../../server/models/runtime/transaction.ts";
+import { setSqlClient, type SqlClient } from "../../../server/models/sql.ts";
+
 import type { RedisSnapshot } from "./golden.ts";
 
 type Value = JsonValue | { $time: string } | { $decimal: string };
-export type StatementResult = { fields?: string[]; rows?: Value[][]; affected?: number; last_id?: number; error?: { number: number; message: string } };
+export type StatementResult = {
+  fields?: string[];
+  rows?: Value[][];
+  affected?: number;
+  last_id?: number;
+  error?: { number: number; message: string };
+};
 export type Statement = { sql: string; result?: StatementResult };
 export type ModelJobCase = {
   name: string;
@@ -31,7 +38,9 @@ export type ModelJobsGolden = {
   adult_keyword_detector: [string | null, boolean][];
 };
 
-export const modelJobsGolden = parseRubyJson(readFileSync(new URL("model-jobs.golden.json", import.meta.url), "utf8")) as unknown as ModelJobsGolden;
+export const modelJobsGolden = parseRubyJson(
+  readFileSync(new URL("model-jobs.golden.json", import.meta.url), "utf8"),
+) as unknown as ModelJobsGolden;
 export const GOLDEN_NOW = new Date(Math.round(modelJobsGolden.now * 1000));
 export const goldenNow = () => new Date(GOLDEN_NOW.getTime());
 
@@ -46,11 +55,17 @@ function decode(value: Value): unknown {
 }
 
 function failure(error: { number: number; message: string }): Error {
-  if (error.number === 1062) return new Prisma.PrismaClientKnownRequestError(error.message, { code: "P2002", clientVersion: Prisma.prismaVersion.client });
+  if (error.number === 1062)
+    return new Prisma.PrismaClientKnownRequestError(error.message, {
+      code: "P2002",
+      clientVersion: Prisma.prismaVersion.client,
+    });
   return Object.assign(new Error(error.message), { errno: error.number });
 }
 
-const prismaModels = new Map(Prisma.dmmf.datamodel.models.map((m) => [m.name.charAt(0).toLowerCase() + m.name.slice(1), m]));
+const prismaModels = new Map(
+  Prisma.dmmf.datamodel.models.map((m) => [m.name.charAt(0).toLowerCase() + m.name.slice(1), m]),
+);
 
 // `parseJsonOf`: tables whose JSON columns the model reads parsed, as Prisma returns them.
 export function sqlReplay(golden: Statement[], options: { parseJsonOf?: string[] } = {}) {
@@ -65,7 +80,9 @@ export function sqlReplay(golden: Statement[], options: { parseJsonOf?: string[]
     return result;
   };
   const rows = (result: StatementResult) =>
-    (result.rows ?? []).map((row) => Object.fromEntries((result.fields ?? []).map((field, i) => [field, decode(row[i]!)])));
+    (result.rows ?? []).map((row) =>
+      Object.fromEntries((result.fields ?? []).map((field, i) => [field, decode(row[i]!)])),
+    );
 
   // Prisma's raw queries parse a JSON column (mysql2 hands Rails the text, which the golden recorded).
   const parseJsonColumns = (sql: string, result: Record<string, unknown>[]) => {
@@ -78,10 +95,13 @@ export function sqlReplay(golden: Statement[], options: { parseJsonOf?: string[]
   };
 
   let begun: boolean | null = null;
+  // Rails sends an isolated transaction's SET TRANSACTION ISOLATION LEVEL and BEGIN as one batch, which the recorder drops with
+  // its other SET statements, so the golden of such a transaction has no BEGIN.
+  let isolated = false;
   const touch = () => {
     if (begun === false) {
       begun = true;
-      next("BEGIN");
+      if (!isolated) next("BEGIN");
     }
   };
 
@@ -107,13 +127,24 @@ export function sqlReplay(golden: Statement[], options: { parseJsonOf?: string[]
     const columns = model.fields.filter((f) => f.kind === "scalar").map((f) => f.dbName ?? f.name);
     const q = (name: string) => `\`${name}\``;
     // A Date for a `date` column is quoted as the date alone, as ActiveRecord's Date type does.
-    const dateOnly = new Set(model.fields.filter((f) => (f.nativeType as [string, string[]] | null | undefined)?.[0] === "Date").map((f) => f.dbName ?? f.name));
-    const quoteColumn = (c: string, value: unknown) => (value === Prisma.DbNull ? "NULL" : dateOnly.has(c) && value instanceof Date ? `'${value.toISOString().slice(0, 10)}'` : quote(value));
+    const dateOnly = new Set(
+      model.fields
+        .filter((f) => (f.nativeType as [string, string[]] | null | undefined)?.[0] === "Date")
+        .map((f) => f.dbName ?? f.name),
+    );
+    const quoteColumn = (c: string, value: unknown) =>
+      value === Prisma.DbNull
+        ? "NULL"
+        : dateOnly.has(c) && value instanceof Date
+          ? `'${value.toISOString().slice(0, 10)}'`
+          : quote(value);
     return {
       async create({ data }: { data: Record<string, unknown> }) {
         touch();
         const names = columns.filter((c) => c in data);
-        const result = next(`INSERT INTO ${q(tableName)} (${names.map(q).join(", ")}) VALUES (${names.map((c) => quoteColumn(c, data[c])).join(", ")})`);
+        const result = next(
+          `INSERT INTO ${q(tableName)} (${names.map(q).join(", ")}) VALUES (${names.map((c) => quoteColumn(c, data[c])).join(", ")})`,
+        );
         return { ...data, id: data.id ?? BigInt(result.last_id ?? 0) };
       },
       async update({ where, data }: { where: { id: unknown }; data: Record<string, unknown> }) {
@@ -141,8 +172,9 @@ export function sqlReplay(golden: Statement[], options: { parseJsonOf?: string[]
   });
 
   setSqlClient(() => client(false));
-  setTransactionRunner(async (fn) => {
+  setTransactionRunner(async (fn, runnerOptions) => {
     begun = false;
+    isolated = runnerOptions?.isolation !== undefined;
     try {
       const result = await fn(tx);
       if (begun) next("COMMIT");

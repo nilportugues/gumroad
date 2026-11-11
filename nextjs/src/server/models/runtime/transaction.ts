@@ -3,12 +3,14 @@
 // after_rollback runs if it rolls back.
 import { AsyncLocalStorage } from "node:async_hooks";
 
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 import { noteRollback, queryCacheClient } from "./query-cache.ts";
 
 export type Tx = Prisma.TransactionClient;
-export type TransactionRunner = <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>;
+// `isolation` is `transaction(isolation: :read_committed)`; a runner that cannot honour it may ignore it.
+export type TransactionOptions = { isolation?: "read_committed" };
+export type TransactionRunner = <T>(fn: (tx: Tx) => Promise<T>, options?: TransactionOptions) => Promise<T>;
 export type Action = "create" | "update" | "destroy";
 
 export type Participant = {
@@ -36,9 +38,11 @@ const storage = new AsyncLocalStorage<State>();
 // Rails completes. maxWait mirrors the pool's checkout_timeout (5s, unset in database.yml).
 const TRANSACTION_OPTIONS = { maxWait: 5_000, timeout: 2_147_483_647 };
 
-let runner: TransactionRunner = async (fn) => {
+let runner: TransactionRunner = async (fn, options = {}) => {
   const { db } = await import("../../../lib/db.ts");
-  return db.$transaction(fn, TRANSACTION_OPTIONS);
+  const isolationLevel =
+    options.isolation === "read_committed" ? Prisma.TransactionIsolationLevel.ReadCommitted : undefined;
+  return db.$transaction(fn, { ...TRANSACTION_OPTIONS, ...(isolationLevel ? { isolationLevel } : {}) });
 };
 
 // Tests swap in a fake client; production uses the shared PrismaClient.
@@ -55,7 +59,10 @@ class RollbackSignal extends Error {}
 // `returningStatus` mirrors with_transaction_returning_status: a `false` result rolls back the
 // outermost transaction, but inside a joined one it is only returned (ActiveRecord::Rollback is
 // swallowed by nested transactions without requires_new).
-export async function transaction<T>(fn: (tx: Tx) => Promise<T>, options: { returningStatus?: boolean } = {}): Promise<T> {
+export async function transaction<T>(
+  fn: (tx: Tx) => Promise<T>,
+  options: { returningStatus?: boolean; isolation?: "read_committed" } = {},
+): Promise<T> {
   const current = storage.getStore();
   if (current) return fn(current.tx);
 
@@ -65,15 +72,18 @@ export async function transaction<T>(fn: (tx: Tx) => Promise<T>, options: { retu
   // ActiveRecord begins lazily, so a transaction that sent nothing has nothing to roll back.
   let materialized = false;
   try {
-    await runner(async (rawTx) => {
-      const tx = queryCacheClient(rawTx, () => {
-        materialized = true;
-      });
-      return storage.run({ tx, participants }, async () => {
-        result = await fn(tx);
-        if (options.returningStatus && (result as unknown) === false) throw new RollbackSignal();
-      });
-    });
+    await runner(
+      async (rawTx) => {
+        const tx = queryCacheClient(rawTx, () => {
+          materialized = true;
+        });
+        return storage.run({ tx, participants }, async () => {
+          result = await fn(tx);
+          if (options.returningStatus && (result as unknown) === false) throw new RollbackSignal();
+        });
+      },
+      { isolation: options.isolation },
+    );
   } catch (error) {
     rolledBack = true;
     if (materialized) noteRollback();
@@ -86,7 +96,8 @@ export async function transaction<T>(fn: (tx: Tx) => Promise<T>, options: { retu
   const lastSaved = new Map<string, Participant>();
   for (const p of participants.values()) if (p.identity) lastSaved.set(p.identity(), p);
   for (const p of participants.values()) {
-    if (p.prepare && (!p.identity || lastSaved.get(p.identity()) === p)) await p.prepare(p.destroyed ? "destroy" : p.firstAction);
+    if (p.prepare && (!p.identity || lastSaved.get(p.identity()) === p))
+      await p.prepare(p.destroyed ? "destroy" : p.firstAction);
   }
   const committed = new Set<string>();
   for (const p of participants.values()) {
@@ -101,7 +112,11 @@ export async function transaction<T>(fn: (tx: Tx) => Promise<T>, options: { retu
   return result;
 }
 
-export function participate(record: object, action: Action, make: () => Omit<Participant, "firstAction" | "destroyed" | "triggered">): Participant {
+export function participate(
+  record: object,
+  action: Action,
+  make: () => Omit<Participant, "firstAction" | "destroyed" | "triggered">,
+): Participant {
   const state = storage.getStore();
   if (!state) throw new Error("participate() called outside transaction()");
   let p = state.participants.get(record);

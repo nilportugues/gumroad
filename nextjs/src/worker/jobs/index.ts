@@ -2,9 +2,6 @@
 import type { RetriesExhausted, RetryIn } from "../retry.ts";
 
 import { backfillOrphanedShownProductsInProfileSectionsJob } from "./backfill-orphaned-shown-products-in-profile-sections-job.ts";
-import { deleteOldVersionsRecordsWorker } from "./delete-old-versions-records-worker.ts";
-import { deleteProductFilesArchivesWorker } from "./delete-product-files-archives-worker.ts";
-import { purgeOldDeletedAssetPreviewsWorker } from "./purge-old-deleted-asset-previews-worker.ts";
 import { backfillPriceCheckerIndexFieldsJob } from "./backfill-price-checker-index-fields-job.ts";
 import { backfillTaggingsCountOnTagsJob } from "./backfill-taggings-count-on-tags-job.ts";
 import {
@@ -28,7 +25,10 @@ import {
   deleteOldProcessedStripeEventsJob,
   deleteOldSentEmailInfoRecordsJob,
 } from "./delete-old-records-jobs.ts";
+import { deleteOldVersionsRecordsWorker } from "./delete-old-versions-records-worker.ts";
+import { deleteProductFilesArchivesWorker } from "./delete-product-files-archives-worker.ts";
 import { deleteProductRichContentWorker } from "./delete-product-rich-content-worker.ts";
+import { deleteUnusedPublicFilesJob } from "./delete-unused-public-files-job.ts";
 import { deleteWishlistProductsJob } from "./delete-wishlist-products-job.ts";
 import { dispatchPendingWorkflowInstallmentScheduleIntentsJob } from "./dispatch-workflow-intents-job.ts";
 import { disputeEvidenceDueSoonReminderJob } from "./dispute-evidence-due-soon-reminder-job.ts";
@@ -74,6 +74,7 @@ import {
   syncStuckPurchasesJob,
   updatePurchaseHealthcheckThresholdJob,
 } from "./purchase-reads-jobs.ts";
+import { purgeOldDeletedAssetPreviewsWorker } from "./purge-old-deleted-asset-previews-worker.ts";
 import { rebuildGmailAbuseFilterJob } from "./rebuild-gmail-abuse-filter-job.ts";
 import { recoverAusBacktaxFromStripeAccountJob } from "./recover-aus-backtax-from-stripe-account-job.ts";
 import { refreshClosedTierDiscoverPricesJob } from "./refresh-closed-tier-discover-prices-job.ts";
@@ -92,6 +93,7 @@ import {
   refundPurchaseWorker,
   updateUserBalanceStatsCacheWorker,
 } from "./refund-payout-guard-jobs.ts";
+import { regenerateSalesRelatedProductsInfosJob } from "./regenerate-sales-related-products-infos-job.ts";
 import { removeSuspendedAccountFollowsWorker } from "./remove-suspended-account-follows-worker.ts";
 import { blockSuspendedAccountIpWorker, checkPaymentAddressWorker } from "./risk-jobs.ts";
 import { scheduleWorkflowInstallmentJob } from "./schedule-workflow-installment-job.ts";
@@ -135,7 +137,9 @@ import type { JobHandler } from "./types.ts";
 import { updateCachedSalesRelatedProductsInfosJob } from "./update-cached-sales-related-products-infos-job.ts";
 import { updateCurrenciesWorker } from "./update-currencies-worker.ts";
 import { updatePurchasingPowerParityFactorsWorker } from "./update-purchasing-power-parity-factors-worker.ts";
+import { updateSalesRelatedProductsInfosJob } from "./update-sales-related-products-infos-job.ts";
 import { updateSellerRefundEligibilityJob } from "./update-seller-refund-eligibility-job.ts";
+import { updateTaxonomyStatsJob } from "./update-taxonomy-stats-job.ts";
 import { updateUtmLinkStatsJob } from "./update-utm-link-stats-job.ts";
 import { warmSellerReputationSummaryJob } from "./warm-seller-reputation-summary-job.ts";
 import { recalculateRecentWishlistFollowerCountJob } from "./wishlist-jobs.ts";
@@ -253,6 +257,10 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   PurgeOldDeletedAssetPreviewsWorker: purgeOldDeletedAssetPreviewsWorker,
   RefreshClosedTierDiscoverPricesJob: refreshClosedTierDiscoverPricesJob,
   BackfillPriceCheckerIndexFieldsJob: backfillPriceCheckerIndexFieldsJob,
+  DeleteUnusedPublicFilesJob: deleteUnusedPublicFilesJob,
+  RegenerateSalesRelatedProductsInfosJob: regenerateSalesRelatedProductsInfosJob,
+  UpdateSalesRelatedProductsInfosJob: updateSalesRelatedProductsInfosJob,
+  UpdateTaxonomyStatsJob: updateTaxonomyStatsJob,
   DeleteProductRichContentWorker: deleteProductRichContentWorker,
   RemoveSuspendedAccountFollowsWorker: removeSuspendedAccountFollowsWorker,
   RefundPurchaseWorker: refundPurchaseWorker,

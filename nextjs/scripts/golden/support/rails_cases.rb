@@ -105,7 +105,9 @@ module RailsCases
   end
 
   def dump(table)
-    result = ActiveRecord::Base.connection.select_all("SELECT * FROM #{ActiveRecord::Base.connection.quote_table_name(table)} ORDER BY id")
+    # A join table such as taxonomy_hierarchies has no id: order by the first column then.
+    order = ActiveRecord::Base.connection.column_exists?(table, "id") ? "id" : "1"
+    result = ActiveRecord::Base.connection.select_all("SELECT * FROM #{ActiveRecord::Base.connection.quote_table_name(table)} ORDER BY #{order}")
     { "fields" => result.columns, "rows" => result.rows.map { |row| row.map { RailsRecorder.encode_value(_1) } } }
   end
 
