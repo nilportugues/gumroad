@@ -200,6 +200,24 @@ const RUBY_PATH = {
 
 const API_V2_TOKEN_MAX_LEVEL = 6;
 
+// GROUPED_RECEIPT_LOOKUP_PATHS: each path with an optional format suffix.
+const GROUPED_RECEIPT_PATHS = ["/charge_data", "/license_key_lookup_data", "/paypal_charge_data"] as const;
+const groupedReceiptPath = (path: string, requestPath: string) =>
+  requestPath === path || (requestPath.startsWith(`${path}.`) && !requestPath.slice(path.length + 1).includes("/"));
+
+// `req.params["email"].to_s.strip.downcase.presence`, shared by the first two lookups: the harm is to the recipient, so it is keyed apart from the address.
+function groupedReceiptRecipient(request: RackRequest): string | null {
+  if (
+    !groupedReceiptPath("/charge_data", request.path) &&
+    !groupedReceiptPath("/license_key_lookup_data", request.path)
+  )
+    return null;
+  const email = interpolate(rackParams(request).email)
+    .replace(/^[\0\t\n\v\f\r ]+|[\0\t\n\v\f\r ]+$/gu, "")
+    .toLowerCase();
+  return email === "" ? null : email;
+}
+
 // Listed in the order rack_attack.rb defines them, which is the order Rack::Attack counts in.
 const RULES: Throttle[] = [
   ...productionOnly(
@@ -213,6 +231,7 @@ const RULES: Throttle[] = [
   ),
   ...productionOnly(backoff("/ip:/follow_from_embed_form", 3, 20, 5, memoized(exactPathIp("/follow_from_embed_form")))),
   ...backoff("/ip:/discover", 60, 30, 5, memoized(exactPathIp("/discover"))),
+  ...backoff("/ip:/offer_codes/compute_discount", 60, 30, 5, memoized(exactPathIp("/offer_codes/compute_discount"))),
   ...backoff(
     "mobile_url_redirect_download/token",
     60,
@@ -224,6 +243,16 @@ const RULES: Throttle[] = [
       return match ? `${match.token}/${match.file}` : null;
     }),
   ),
+  ...GROUPED_RECEIPT_PATHS.flatMap((path) =>
+    backoff(
+      `/ip:${path}`,
+      3,
+      20,
+      5,
+      memoized((request) => (groupedReceiptPath(path, request.path) ? request.remoteIp : null)),
+    ),
+  ),
+  ...backoff("/params:grouped_receipt:email", 6, 60, 6, memoized(groupedReceiptRecipient)),
   ...backoff(
     "oauth_dynamic_registration/ip",
     20,

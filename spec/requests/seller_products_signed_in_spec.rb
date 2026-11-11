@@ -44,6 +44,23 @@ describe "Seller products pages when signed in", type: :request do
       expect(page["props"]).not_to include("products_data")
     end
 
+    it "renders the page at /links, the path of the resource", parity: true do
+      log_in(seller)
+
+      get "/links"
+
+      expect(response).to be_successful
+      expect(inertia_page_of(response)).to include("component" => "Products/Index", "url" => "/links")
+    end
+
+    it "lists the products and memberships at /links", parity: true do
+      log_in(seller)
+
+      tables "/links", query: "art"
+
+      expect(response.parsed_body["props"]["products_data"]["products"].map { _1["name"] }).to eq(["Art pack"])
+    end
+
     it "lists the products and memberships newest first", parity: true do
       log_in(seller)
 

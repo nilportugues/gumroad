@@ -37,8 +37,6 @@ const ROUTE_FLAGS = [
   "nextjs_product_page",
   "nextjs_discover",
   "nextjs_route_redirects",
-  "nextjs_public_lookup_data",
-  "nextjs_checkout_offer_codes",
   "nextjs_acme_challenge",
   "nextjs_marketing_actions",
 ].join(",");
@@ -74,22 +72,6 @@ const CASES = [
   [
     "/purchases",
     "requests/route_redirects_parity_spec/route-redirects-on-the-gumroad-domain-answers-purchases-with-a-301-to-library",
-  ],
-  [
-    "/charge_data",
-    "requests/public_data_parity_spec/public-lookup-data-get-charge-data-reports-failure-for-an-address-with-no-purchases",
-  ],
-  [
-    "/license_key_lookup_data",
-    "requests/public_data_parity_spec/public-lookup-data-get-license-key-lookup-data-reports-failure-for-an-address-with-no-purchases",
-  ],
-  [
-    "/paypal_charge_data",
-    "requests/public_data_parity_spec/public-lookup-data-get-paypal-charge-data-reports-failure-for-an-unknown-invoice",
-  ],
-  [
-    "/offer_codes/compute_discount",
-    "requests/offer_codes_compute_discount_parity_spec/offer-codes-compute-discount-rejects-an-unknown-code-as-invalid-offer",
   ],
   [
     "seller:/.well-known/acme-challenge/:token",

@@ -11,7 +11,10 @@ import { jsonResponse } from "./json-seller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { assertFlatQuery } from "./rails-params.ts";
 
-const POSITIVE_INTEGER = /^[1-9]\d*$/u;
+// Pagy reads `page` with `to_i` (digits, an optional sign and underscore separators after leading whitespace; blank is the first
+// page). A page past what a signed 32-bit offset holds is for Rails: the database's own error is not reproduced.
+const RUBY_INTEGER_PREFIX = /^\s*([+-]?\d+(?:_\d+)*)/u;
+const MAX_PAGE = 2 ** 31 - 1;
 
 async function index(input: MutationInput): Promise<ActionResult> {
   assertFlatQuery(input.request.queryString);
@@ -25,9 +28,15 @@ async function index(input: MutationInput): Promise<ActionResult> {
         );
   if (!wishlist) throw new RoutingError("Not Found");
 
-  // Without `page` Rails raises in `pagy` (the presenter has no `params`), and Pagy refuses a page below 1.
+  // Without `page` Rails raises a NameError in `pagy` (the presenter has no `params`) and Pagy raises VariableError below page 1: both 500.
   const page = input.params.page;
-  if (typeof page !== "string" || !POSITIVE_INTEGER.test(page)) throw new HandBackToRails("a page Pagy would not read");
+  if (page === undefined)
+    throw new Error("undefined local variable or method 'params' for an instance of WishlistPresenter");
+  if (typeof page !== "string") throw new HandBackToRails("a page that is not a plain value");
+  const digits = RUBY_INTEGER_PREFIX.exec(page)?.[1]?.replaceAll("_", "");
+  const requested = page.trim() === "" ? 1 : Number(digits ?? 0);
+  if (requested < 1) throw new Error("expected :page >= 1");
+  if (requested > MAX_PAGE) throw new HandBackToRails("a page past a signed 32-bit offset");
 
   return jsonResponse(
     await publicItems(wishlist, {
@@ -40,7 +49,7 @@ async function index(input: MutationInput): Promise<ActionResult> {
         cookies: new Map(),
       },
       currentSellerId: input.context.currentSeller?.id ?? null,
-      page: Number(page),
+      page: requested,
     }),
   );
 }

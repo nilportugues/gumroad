@@ -34,6 +34,7 @@ const wishlist: WishlistRow = {
   name: "Reading list!",
   description: null,
   recommendable: 1,
+  flags: 0,
 };
 const owner = { id: 9n, name: "Ada", username: "ada", external_id: "ext" } as never;
 const request = {

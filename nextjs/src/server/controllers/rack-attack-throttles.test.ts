@@ -40,6 +40,10 @@ const COUNTED_IN_NODE: Record<string, string[]> = {
   "\\A/posts/.+/comments\\z": ["/ip:(?-mix:\\A\\/posts\\/.+\\/comments\\z):post"],
   "\\A/posts/.+/comments/.+\\z": ["/ip:(?-mix:\\A\\/posts\\/.+\\/comments\\/.+\\z):put"],
   "\\A/(?:[^/]+/)?landing/products\\z": ["/ip/params:(?-mix:\\A\\/(?:[^\\/]+\\/)?landing\\/products\\z):get"],
+  "/offer_codes/compute_discount": ["/ip:/offer_codes/compute_discount"],
+  "grouped:/charge_data": ["/ip:/charge_data", "/params:grouped_receipt:email"],
+  "grouped:/license_key_lookup_data": ["/ip:/license_key_lookup_data", "/params:grouped_receipt:email"],
+  "grouped:/paypal_charge_data": ["/ip:/paypal_charge_data"],
   "/follow": ["/ip:/follow:post", "/ip/params:/follow:post"],
   "/follow_from_embed_form": ["/ip:/follow_from_embed_form", "/ip/params:/follow_from_embed_form"],
   // Served by an api-v2 or mobile handler, which also runs through processAction.
@@ -318,10 +322,10 @@ const methodsOf = (rule: Rule, all: readonly string[]) =>
 
 const routes = compileRouteTable(routeTable);
 
-// processAction counts the request (rack-attack.ts); a mutation, an api-v2 handler and a mobile handler all answer through it.
+// processAction counts the request (rack-attack.ts); a mutation and every `handler` (api-v2, mobile, public) answer through it.
 const runsThroughProcessAction = (entry: unknown): boolean => {
   const { mutation, handler } = (entry ?? {}) as { mutation?: boolean; handler?: string };
-  return mutation === true || handler === "api-v2" || handler === "mobile";
+  return mutation === true || typeof handler === "string";
 };
 
 // A route's path with each `:param` filled by a value that cannot collide with a literal, then by the literals a throttle names.
@@ -425,12 +429,6 @@ const GROUPS: Record<string, string[]> = {
     "POST /settings/passkeys/registration_options",
   ],
   "pages (/ on seller hosts, /discover, /purchases)": ["seller:/", "product:/", "/discover", "/purchases"],
-  "checkout lookups (grouped receipt, compute_discount)": [
-    "/charge_data",
-    "/license_key_lookup_data",
-    "/paypal_charge_data",
-    "/offer_codes/compute_discount",
-  ],
   "ACME challenge": ["seller:/.well-known/acme-challenge/:token", "product:/.well-known/acme-challenge/:token"],
   "marketing actions (per-user rule)": ["POST /products/:product_id/marketing_actions/:id/execute.json"],
 };

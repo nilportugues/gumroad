@@ -1,8 +1,8 @@
 // The small public endpoints that are not pages: RobotsController, LlmsController, FaviconsController,
 // IndexnowKeysController, PublicController#crossdomain, GithubStarsController and HomeController#features_md. routes.json marks them with a `handler`; the
 // proxy rewrites them to /gr-public/<handler> (app/gr-public/[action]/route.ts), which lands here.
-// Not here: the ACME challenge and the ported but unrouted charge_data, license_key_lookup_data, paypal_charge_data and compute_discount
-// (public-data.ts, offer-codes.ts). Rack::Attack throttles them in Rails' Redis, and a Node answer would skip that counter.
+// Not here: the ACME challenge. Rack::Attack throttles the lookups (charge_data, license_key_lookup_data, paypal_charge_data) and
+// compute_discount; processAction counts them in Rails' Redis (rack-attack.ts) before they answer.
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -10,6 +10,7 @@ import path from "node:path";
 import { db } from "../../lib/db.ts";
 import { classifyHost } from "../../lib/navigation/proxy/hosts.ts";
 import { railsMessageVerifierGenerate, railsMessageVerifierVerified } from "../auth/message-verifier.ts";
+import { railsLoggedInUser } from "../auth/resolve.ts";
 import { railsCache } from "../cache/rails-cache.ts";
 import { getConfig } from "../infra/config.ts";
 import { railsRoot } from "../infra/rails-env.ts";
@@ -20,6 +21,7 @@ import { domainConfig } from "../page-props/domain.ts";
 import { PAGE_URL_HEADER } from "../page-props/render-state.ts";
 import { avatarUrl } from "../page-props/signed-in/presenters.ts";
 import { userByDomain } from "../page-props/storefront/seller-host.ts";
+import { esJson } from "../search/es-json.ts";
 
 import { apiV2Response } from "./api-v2/base.ts";
 import "./api-v2/index.ts";
@@ -36,11 +38,10 @@ import { impersonate, redirectToStripeDashboard } from "./internal-admin/admin-w
 import { internalAdminResponse } from "./internal-admin/index.ts";
 import { internalResponse } from "./internal-api.ts";
 import { mobileResponse } from "./mobile-api.ts";
+import { computeDiscount } from "./offer-codes.ts";
+import { chargeData, licenseKeyLookupData, paypalChargeData } from "./public-data.ts";
 import { assertFlatQuery } from "./rails-params.ts";
 import { queryParam, type RailsRequest, railsRequest } from "./rails-request.ts";
-
-import { esJson } from "../search/es-json.ts";
-
 import { urlRedirectsAction } from "./url-redirects/deliveries.ts";
 import { utmLinkRedirect } from "./utm-link-tracking.ts";
 import { wishlistUnsubscribe } from "./wishlist-unsubscribe.ts";
@@ -289,6 +290,23 @@ const HANDLERS: Record<string, Handler> = {
   analytics_js: { run: (request) => analyticsScript(request) },
   admin_impersonate: { run: (request, url, action) => impersonate(request, url, action) },
   admin_stripe_dashboard: { run: (request, url, action) => redirectToStripeDashboard(request, url, action) },
+  // GROUPED_RECEIPT_LOOKUP_PATHS
+  charge_data: {
+    options: { optOutOfCsp: true },
+    run: (request) => chargeData(request),
+  },
+  license_key_lookup_data: {
+    options: { optOutOfCsp: true },
+    run: (request) => licenseKeyLookupData(request),
+  },
+  paypal_charge_data: {
+    options: { optOutOfCsp: true },
+    run: (request) => paypalChargeData(request),
+  },
+  // OfferCodesController#compute_discount
+  compute_discount: {
+    run: (request, _url, action) => computeDiscount(request, railsLoggedInUser(action.context)),
+  },
   url_redirects: { run: (_request, _url, action) => urlRedirectsAction(action) },
   discord_oauth_redirect: { run: (request) => discordHandlers.discord_oauth_redirect(request) },
   discord_join_server: { run: (request, _url, action) => discordHandlers.discord_join_server(request, action) },

@@ -6,6 +6,8 @@ require "spec_helper"
 # for the Next.js port (PARITY_RECORD=1) and replayed by nextjs/parity/__tests__/wishlist-show.replay.test.ts. An example named
 # "hands a ..." is one Node leaves to Rails whole.
 describe "Wishlist show page", type: :request do
+  include Parity::AudienceSignedIn
+
   let(:owner) { create(:user, name: "Wishlist Owner", username: "wishowner") }
   let(:wishlist) { create(:wishlist, user: owner, name: "Reading list", description: "Books worth the shelf space") }
 
@@ -132,12 +134,121 @@ describe "Wishlist show page", type: :request do
     expect(response).to have_http_status(:not_found)
   end
 
-  it "hands a profile-layout wishlist to Rails", parity: true do
+  it "renders the wishlist for a signed-in visitor who follows it", parity: true do
+    add_products(1)
+    visitor = create(:user, name: "Following Visitor")
+    create(:wishlist_follower, wishlist:, follower_user: visitor)
+    log_in(visitor)
+
+    visit_wishlist
+
+    expect(props).to include("following" => true, "can_follow" => true, "can_edit" => false, "discover_opted_out" => nil)
+    expect(props["user"]).to include("name" => "Wishlist Owner")
+  end
+
+  it "renders the wishlist for a signed-in visitor who does not follow it", parity: true do
+    add_products(1)
+    log_in(create(:user))
+
+    visit_wishlist
+
+    expect(props).to include("following" => false, "can_follow" => true, "can_edit" => false)
+    expect(props["items"].first).to include("giftable" => true)
+  end
+
+  it "renders the owner's own wishlist as editable", parity: true do
+    add_products(2)
+    log_in(owner)
+
+    visit_wishlist
+
+    expect(props).to include("user" => nil, "can_follow" => false, "can_edit" => true, "discover_opted_out" => false)
+    expect(props["items"].first).to include("giftable" => false)
+  end
+
+  it "reports a wishlist opted out of discover to its owner", parity: true do
+    wishlist.update!(discover_opted_out: true)
+    log_in(owner)
+
+    visit_wishlist
+
+    expect(props).to include("can_edit" => true, "discover_opted_out" => true)
+  end
+
+  it "renders a wishlist the owner's team member visits as that seller", parity: true do
+    add_products(1)
+    member = create(:user)
+    membership = create(:team_membership, seller: create(:user), user: member, role: TeamMembership::ROLE_ADMIN)
+    log_in(member)
+    switch_to(membership)
+
+    visit_wishlist
+
+    expect(props).to include("following" => false, "can_follow" => true, "can_edit" => false)
+  end
+
+  it "adds the creator profile to a profile-layout wishlist", parity: true do
     add_products(1)
 
     visit_wishlist(params: { layout: "profile" })
 
     expect(response).to be_successful
     expect(props["layout"]).to eq("profile")
+    expect(props["creator_profile"]).to include("name" => "Wishlist Owner", "can_edit" => false, "subdomain" => owner.subdomain)
+  end
+
+  it "lets the owner edit the profile around a profile-layout wishlist", parity: true do
+    log_in(owner)
+
+    visit_wishlist(params: { layout: "profile" })
+
+    expect(props["creator_profile"]).to include("can_edit" => true)
+  end
+
+  it "adds the taxonomies to a discover-layout wishlist", parity: true do
+    add_products(1)
+    design = Taxonomy.create!(slug: "design")
+    Taxonomy.create!(slug: "icons", parent: design)
+    Taxonomy.create!(slug: "other")
+
+    visit_wishlist(params: { layout: "discover" })
+
+    expect(props["layout"]).to eq("discover")
+    expect(props["taxonomies_for_nav"].map { _1["slug"] }).to include("design", "icons", "other")
+    expect(props["taxonomies_for_nav"]).to be_an(Array).and(be_present)
+    expect(props).not_to have_key("creator_profile")
+  end
+
+  it "passes an unknown layout through without navigation", parity: true do
+    visit_wishlist(params: { layout: "elsewhere" })
+
+    expect(props["layout"]).to eq("elsewhere")
+    expect(props.keys).not_to include("creator_profile", "taxonomies_for_nav")
+  end
+
+  it "adds nothing for a blank layout", parity: true do
+    visit_wishlist(params: { layout: "" })
+
+    expect(props).not_to have_key("layout")
+  end
+
+  it "keeps a blank recommender in the product links", parity: true do
+    add_products(1)
+
+    visit_wishlist(params: { recommended_by: "" })
+
+    expect(props["items"].first["product"]["url"]).to be_present
+  end
+
+  it "hands a discover-layout wishlist of a buyer with a cart to Rails", parity: true do
+    add_products(1)
+    visitor = create(:user)
+    cart = create(:cart, user: visitor)
+    create(:cart_product, cart:, product: create(:product))
+    log_in(visitor)
+
+    visit_wishlist(params: { layout: "discover" })
+
+    expect(props["layout"]).to eq("discover")
   end
 end
