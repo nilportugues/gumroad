@@ -17,7 +17,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | --- | ---: | ---: | ---: | ---: | ---: |
 | API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 96 | 0 | 42 | 0 |
 | Mobile API (`/mobile` on the API host) | 64 | 50 | 0 | 14 | 0 |
-| Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 36 | 4 | 42 | 3 |
+| Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 41 | 4 | 37 | 3 |
 | Internal API, Gumroad domain (`/internal`, JSON for the React Router pages) | 23 | 11 | 0 | 12 | 0 |
 
 ## API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain)
@@ -309,11 +309,11 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `POST /internal/admin/scheduled_payouts` | `Api::Internal::Admin::ScheduledPayoutsController#create` | not registered | - | n |
 | `POST /internal/admin/scheduled_payouts/:id/execute` | `Api::Internal::Admin::ScheduledPayoutsController#execute` | not registered | - | n |
 | `POST /internal/admin/scheduled_payouts/:id/cancel` | `Api::Internal::Admin::ScheduledPayoutsController#cancel` | not registered | - | n |
-| `GET /internal/admin/products` | `Api::Internal::Admin::ProductsController#index` | not registered | - | n |
-| `GET /internal/admin/products/:id` | `Api::Internal::Admin::ProductsController#show` | not registered | - | n |
-| `GET /internal/admin/products/:id/files/:file_id/download_url` | `Api::Internal::Admin::ProductsController#file_download` | not registered | - | n |
-| `POST /internal/admin/products/:id/hold_sales` | `Api::Internal::Admin::ProductsController#hold_sales` | not registered | - | n |
-| `POST /internal/admin/products/:id/release_sales_hold` | `Api::Internal::Admin::ProductsController#release_sales_hold` | not registered | - | n |
+| `GET /internal/admin/products` | `Api::Internal::Admin::ProductsController#index` | native | `nextjs_admin_api_products` | y |
+| `GET /internal/admin/products/:id` | `Api::Internal::Admin::ProductsController#show` | native | `nextjs_admin_api_products` | y |
+| `GET /internal/admin/products/:id/files/:file_id/download_url` | `Api::Internal::Admin::ProductsController#file_download` | native | `nextjs_admin_api_products` | y |
+| `POST /internal/admin/products/:id/hold_sales` | `Api::Internal::Admin::ProductsController#hold_sales` | native | `nextjs_admin_api_products` | y |
+| `POST /internal/admin/products/:id/release_sales_hold` | `Api::Internal::Admin::ProductsController#release_sales_hold` | native | `nextjs_admin_api_products` | y |
 | `GET /internal/admin/url_redirects/:id` | `Api::Internal::Admin::UrlRedirectsController#show` | not registered | - | n |
 | `POST /internal/admin/url_redirects/:id/grant_download` | `Api::Internal::Admin::UrlRedirectsController#grant_download` | not registered | - | n |
 | `DELETE /internal/admin/url_redirects/:id/revoke_download` | `Api::Internal::Admin::UrlRedirectsController#revoke_download` | not registered | - | n |

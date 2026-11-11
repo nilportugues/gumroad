@@ -69,6 +69,10 @@ const COMPARE = {
     // A new piracy report gets a random external id.
     "db.piracy_reports.inserted.*.external_id",
     "response.json.report.report_id",
+    // A new sales hold gets a random external id.
+    "db.product_sales_holds.inserted.*.external_id",
+    "response.json.sales_hold.id",
+    "response.json.product.active_sales_hold_id",
     // A cursor holds the time of the row it follows, which the replay seeds relative to its own clock.
     "response.json.pagination.next",
   ],
