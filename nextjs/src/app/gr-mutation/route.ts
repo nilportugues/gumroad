@@ -28,6 +28,7 @@ import "@/server/controllers/custom-domain-verifications";
 import "@/server/controllers/mobile-pre-authorizations";
 import "@/server/controllers/signup-save-to-library";
 import "@/server/controllers/integrations-circle";
+import "@/server/controllers/integrations-zoom";
 import "@/server/controllers/dashboard-json";
 import "@/server/controllers/audience-mutations";
 import "@/server/controllers/events-mutations";

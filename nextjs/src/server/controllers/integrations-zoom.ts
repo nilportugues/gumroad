@@ -4,9 +4,9 @@ import { getConfig } from "../infra/config.ts";
 import { outboundFetch } from "../infra/outbound-http.ts";
 import { Ratelimit } from "../services/ratelimit.ts";
 
+import { HandBackToRails } from "./application-controller.ts";
 import { jsonResponse } from "./json-seller.ts";
 import { registerMutations } from "./mutation.ts";
-import { HandBackToRails } from "./application-controller.ts";
 
 const ZOOM_OAUTH_URL = "https://zoom.us/oauth/token";
 const ZOOM_API_URL = "https://api.zoom.us/v2";
@@ -37,7 +37,7 @@ const isHash = (value: unknown): value is Record<string, unknown> =>
 // ActiveSupport's Object#present? for a value read out of JSON.
 function isPresent(value: unknown): boolean {
   if (value === null || value === undefined || value === false) return false;
-  if (typeof value === "string") return !/^[\s\u0000]*$/u.test(value);
+  if (typeof value === "string") return !/^\s*$/u.test(value);
   if (Array.isArray(value)) return value.length > 0;
   if (isHash(value)) return Object.keys(value).length > 0;
   return true;
@@ -70,7 +70,9 @@ registerMutations({
     // A missing code encodes as a bare key and a non-string one differently: Rails decides.
     if (typeof code !== "string") throw new HandBackToRails("an OAuth code that is not a string");
     const redirectUri = `${request.protocol}${request.hostWithPort}${OAUTH_REDIRECT_PATH}`;
-    const basic = Buffer.from(`${getConfig("ZOOM_CLIENT_ID") ?? ""}:${getConfig("ZOOM_CLIENT_SECRET") ?? ""}`).toString("base64");
+    const basic = Buffer.from(`${getConfig("ZOOM_CLIENT_ID") ?? ""}:${getConfig("ZOOM_CLIENT_SECRET") ?? ""}`).toString(
+      "base64",
+    );
 
     const oauth = await parsedResponse(
       await outboundFetch(ZOOM_OAUTH_URL, {
@@ -85,7 +87,8 @@ registerMutations({
     );
     const accessToken = dig(oauth.parsed, "access_token");
     const refreshToken = dig(oauth.parsed, "refresh_token");
-    if (!oauth.ok || !isPresent(accessToken) || !isPresent(refreshToken)) return jsonResponse({ success: false }, 200, true);
+    if (!oauth.ok || !isPresent(accessToken) || !isPresent(refreshToken))
+      return jsonResponse({ success: false }, 200, true);
 
     const ratelimit = new Ratelimit(RATE_LIMIT_KEY);
     const user = await ratelimit.execWithinThreshold(
@@ -94,7 +97,9 @@ registerMutations({
       async () => {
         await ratelimit.add(RATE_LIMIT_KEY);
         return parsedResponse(
-          await outboundFetch(`${ZOOM_API_URL}/users/me`, { headers: { Authorization: `Bearer ${String(accessToken)}` } }),
+          await outboundFetch(`${ZOOM_API_URL}/users/me`, {
+            headers: { Authorization: `Bearer ${String(accessToken)}` },
+          }),
         );
       },
     );
