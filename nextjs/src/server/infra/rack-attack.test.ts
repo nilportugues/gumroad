@@ -3,12 +3,13 @@ import { readFileSync } from "node:fs";
 import type { Redis } from "ioredis";
 import { describe, expect, it } from "vitest";
 
-import { countThrottles, RULES, type ThrottleRequest, throttledResponse } from "./rack-attack.ts";
+import { countThrottles, normalizePath, RULES, type ThrottleRequest, throttledResponse } from "./rack-attack.ts";
 
 // rack-attack-throttles.golden.json comes from rack_attack.rb itself (__fixtures__/generators/rack_attack_throttles.rb): every throttle in
 // definition order, and the Redis keys and TTLs Rack::Attack writes for one request with the clock frozen.
 type Golden = {
   throttles: { name: string; limit: number; period: number }[];
+  normalized_paths: Record<string, string>;
   counts: {
     name: string;
     method: string;
@@ -56,7 +57,12 @@ class FakeRedis {
   }
 }
 
-function requestFor(method: string, target: string, authorization?: string | null, ip = "203.0.113.9"): ThrottleRequest {
+function requestFor(
+  method: string,
+  target: string,
+  authorization?: string | null,
+  ip = "203.0.113.9",
+): ThrottleRequest {
   const url = new URL(target, "http://app.test.gumroad.com");
   const headers = new Headers({ "cf-connecting-ip": ip });
   if (authorization) headers.set("authorization", authorization);
@@ -94,6 +100,11 @@ describe("Rack::Attack throttles", () => {
       for (const [key, { ttl }] of Object.entries(entry.keys)) expect(fake.ttls.get(key)! - ttl).toBeLessThanOrEqual(1);
     });
   }
+
+  it("normalizes a path as Rack::Attack does before matching it", () => {
+    for (const [path, normalized] of Object.entries(golden.normalized_paths))
+      expect(normalizePath(path), path).toBe(normalized);
+  });
 
   it("trips at the request past the limit and reports the time left in the window", async () => {
     const fake = new FakeRedis();

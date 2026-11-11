@@ -25,7 +25,10 @@ export type ThrottleRequest = {
   params(): Promise<Record<string, unknown>>;
 };
 
-type Discriminator = (request: ThrottleRequest, ip: string) => string | null | undefined | false | Promise<string | null | undefined | false>;
+type Discriminator = (
+  request: ThrottleRequest,
+  ip: string,
+) => string | null | undefined | false | Promise<string | null | undefined | false>;
 
 export type Throttle = { name: string; limit: number; period: number; discriminator: Discriminator };
 
@@ -47,6 +50,17 @@ export function rackRemoteIp(headers: Headers): string {
   return [...forwarded].reverse().find((address) => !PRIVATE_ADDRESS.test(address)) ?? forwarded[0] ?? "127.0.0.1";
 }
 
+// ActionDispatch::Journey::Router::Utils.normalize_path, which Rack::Attack runs on PATH_INFO: a leading slash, runs of slashes squeezed,
+// the trailing slash dropped and percent escapes upcased.
+export function normalizePath(path: string): string {
+  const squeezed = `/${path}`.replace(/\/+/gu, "/").replace(/\/+$/u, "");
+  return (squeezed === "" ? "/" : squeezed).replace(/(%[a-f0-9]{2})/gu, (escape) => escape.toUpperCase());
+}
+
+// Rack::Attack.throttle_discriminator_normalizer: `discriminator.to_s.strip.downcase`.
+const normalizeDiscriminator = (discriminator: string) =>
+  discriminator.replace(/^[\0\t\n\v\f\r ]+|[\0\t\n\v\f\r ]+$/gu, "").toLowerCase();
+
 // `throttle_with_exponential_backoff`: the base throttle and, for each level up to max_level, one that allows `rpm * level` requests
 // per 8^level seconds.
 export function exponentialBackoff(
@@ -60,12 +74,18 @@ export function exponentialBackoff(
   const levels = Array.from({ length: Math.max(maxLevel - 1, 0) }, (_, index) => index + 2);
   return [
     { name, limit: requests, period, discriminator },
-    ...levels.map((level) => ({ name: `${name}/${level}`, limit: rpm * level, period: BACKOFF_BASE ** level, discriminator })),
+    ...levels.map((level) => ({
+      name: `${name}/${level}`,
+      limit: rpm * level,
+      period: BACKOFF_BASE ** level,
+      discriminator,
+    })),
   ];
 }
 
 // Object#presence for a string; any other value is not a token.
-const presence = (value: unknown): string | undefined => (typeof value === "string" && value.trim() !== "" ? value : undefined);
+const presence = (value: unknown): string | undefined =>
+  typeof value === "string" && value.trim() !== "" ? value : undefined;
 
 // v2_product_token in rack_attack.rb: `params["access_token"].presence`, else the bearer token of the Authorization header.
 export async function bearerOrAccessToken(request: ThrottleRequest): Promise<string | undefined> {
@@ -105,7 +125,14 @@ const RUBY_REGEXP_NAMES = {
 } as const;
 
 // `throttle_by_ip` on a path regexp: the identifier carries the request path as well.
-function byIpOnRegexp(name: string, pattern: RegExp, method: string, requests: number, period: number, maxLevel?: number): Throttle[] {
+function byIpOnRegexp(
+  name: string,
+  pattern: RegExp,
+  method: string,
+  requests: number,
+  period: number,
+  maxLevel?: number,
+): Throttle[] {
   return exponentialBackoff(
     name,
     requests,
@@ -121,7 +148,8 @@ function byTokenOnRegexp(name: string, pattern: RegExp, method: string, requests
     name,
     requests,
     period,
-    async (request) => (matches(request, pattern, method) ? `${request.path}:${(await bearerOrAccessToken(request)) ?? ""}` : undefined),
+    async (request) =>
+      matches(request, pattern, method) ? `${request.path}:${(await bearerOrAccessToken(request)) ?? ""}` : undefined,
     PARAMS_MAX_LEVEL,
   );
 }
@@ -131,7 +159,9 @@ function byTokenOnRegexp(name: string, pattern: RegExp, method: string, requests
 export const RULES: ThrottleRule[] = [
   {
     source: "/discover",
-    throttles: exponentialBackoff("/ip:/discover", 60, 30, (request, ip) => (request.path === "/discover" ? ip : undefined)),
+    throttles: exponentialBackoff("/ip:/discover", 60, 30, (request, ip) =>
+      request.path === "/discover" ? ip : undefined,
+    ),
   },
   {
     source: "\\A/(?:api/)?mobile/url_redirects/download/(?<token>[^/]+)/(?<file>[^/.]+)",
@@ -217,8 +247,11 @@ export const RULES: ThrottleRule[] = [
 export const modelledSources = (): string[] => RULES.map((rule) => rule.source);
 
 // The Redis key a throttle counts a discriminator under in the period containing `epoch` (seconds).
-export const throttleKey = (throttle: Pick<Throttle, "name" | "period">, discriminator: string, epoch: number): string =>
-  `${KEY_PREFIX}:${Math.floor(epoch / throttle.period)}:${throttle.name}:${discriminator}`;
+export const throttleKey = (
+  throttle: Pick<Throttle, "name" | "period">,
+  discriminator: string,
+  epoch: number,
+): string => `${KEY_PREFIX}:${Math.floor(epoch / throttle.period)}:${throttle.name}:${discriminator}`;
 
 // The throttles a request is counted in, with the discriminator each keys it by, in the order Rack::Attack evaluates them.
 export async function matchingThrottles(
@@ -229,7 +262,7 @@ export async function matchingThrottles(
   const found: { throttle: Throttle; discriminator: string }[] = [];
   for (const throttle of rules.flatMap((rule) => rule.throttles)) {
     const discriminator = await throttle.discriminator(request, ip);
-    if (discriminator) found.push({ throttle, discriminator });
+    if (discriminator) found.push({ throttle, discriminator: normalizeDiscriminator(discriminator) });
   }
   return found;
 }
@@ -260,8 +293,9 @@ export async function countThrottles(request: ThrottleRequest, options: CountOpt
     await pipeline.exec();
   };
   for (const throttle of candidates) {
-    const discriminator = await throttle.discriminator(request, ip);
-    if (!discriminator) continue;
+    const raw = await throttle.discriminator(request, ip);
+    if (!raw) continue;
+    const discriminator = normalizeDiscriminator(raw);
     const epoch = Math.floor((options.now ?? Date.now)() / 1000);
     // + 1 against the timing error Rack::Attack documents (rack-attack#85).
     const expiresIn = throttle.period - (epoch % throttle.period) + 1;

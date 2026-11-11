@@ -1,5 +1,11 @@
 // Rack::Attack in front of a Node-served action: counts the request in Rails' Redis (infra/rack-attack.ts) and answers its 429.
-import { countThrottles, type RackAttackOutcome, type ThrottleRequest, throttledResponse } from "../infra/rack-attack.ts";
+import {
+  countThrottles,
+  normalizePath,
+  type RackAttackOutcome,
+  type ThrottleRequest,
+  throttledResponse,
+} from "../infra/rack-attack.ts";
 
 import { parseNestedQuery, type Params } from "./rails-body.ts";
 
@@ -22,7 +28,7 @@ export function throttleRequest(incoming: Request): ThrottleRequest {
   };
   return {
     method: incoming.method,
-    path: url.pathname,
+    path: normalizePath(url.pathname),
     headers: incoming.headers,
     params: () => (params ??= read()),
   };

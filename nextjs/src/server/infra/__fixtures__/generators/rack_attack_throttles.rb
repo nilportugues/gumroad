@@ -21,7 +21,7 @@ CASES = [
   { name: "user custom html patch", method: "PATCH", path: "/api/v2/user/custom_html", authorization: "Bearer abc123" },
   { name: "user custom html put by param", method: "PUT", path: "/v2/user/custom_html?access_token=xyz" },
   { name: "user preview", method: "POST", path: "/v2/user/preview_custom_html", authorization: "bearer tok" },
-  { name: "media", method: "POST", path: "/v2/media", authorization: "Bearer media" },
+  { name: "media", method: "POST", path: "/v2/media", authorization: "Bearer MediaTOKEN " },
   { name: "product create", method: "POST", path: "/v2/products" },
   { name: "product comps", method: "GET", path: "/api/v2/products/comps", authorization: "Bearer comps" },
   { name: "product preview", method: "POST", path: "/v2/products/p/preview_custom_html", authorization: "Bearer prev" }
@@ -39,5 +39,9 @@ counts = CASES.map do |entry|
 end
 Rack::Attack.cache.store.flushdb
 
+normalized_paths = ["/v2/sales/", "//v2///sales", "/v2/sales//", "/a%2fb", "/caf%c3%a9/x", "v2/sales", "", "/", "//"].to_h do |path|
+  [path, Rack::Attack::PathNormalizer.normalize_path(path)]
+end
+
 puts "JSONSTART"
-puts JSON.pretty_generate({ throttles:, counts: })
+puts JSON.pretty_generate({ throttles:, counts:, normalized_paths: })

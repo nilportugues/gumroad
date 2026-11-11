@@ -245,6 +245,34 @@ const COUNTED_IN_NODE: { routes: string[]; rule: string; proof: string }[] = [
     rule: "\\A/(?:muse|claude|chatgpt)/v1/oauth2/register(?:\\.[^/]+)?\\z",
     proof: "parity/__tests__/api-v2-ws17c.replay.test.ts: mcp_register ... answers-429-past-the-per-ip-limit",
   },
+  {
+    routes: ["api:/v2/sales", "/api/v2/sales"],
+    rule: "ends_with:/v2/sales",
+    proof: "parity/__tests__/rack-attack-counted.replay.test.ts: get-v2-sales-answers-429-past-ten-pages-in-a-second",
+  },
+  {
+    routes: [
+      "PUT api:/v2/user/custom_html",
+      "PUT /api/v2/user/custom_html",
+      "PATCH api:/v2/user/custom_html",
+      "PATCH /api/v2/user/custom_html",
+    ],
+    rule: "\\A/(api/)?v2/user/custom_html(\\.\\w+)?\\z",
+    proof:
+      "parity/__tests__/rack-attack-counted.replay.test.ts: patch-v2-user-custom-html-answers-429-past-the-per-ip-limit",
+  },
+  {
+    routes: ["POST api:/v2/user/preview_custom_html", "POST /api/v2/user/preview_custom_html"],
+    rule: "\\A/(api/)?v2/user/preview_custom_html(\\.\\w+)?\\z",
+    proof:
+      "parity/__tests__/rack-attack-counted.replay.test.ts: post-v2-user-preview-custom-html-answers-429-past-the-per-ip-limit",
+  },
+  {
+    routes: ["/mobile/url_redirects/download/:token/:product_file_id"],
+    rule: "\\A/(?:api/)?mobile/url_redirects/download/(?<token>[^/]+)/(?<file>[^/.]+)",
+    proof:
+      "parity/__tests__/rack-attack-counted.replay.test.ts: get-mobile-url-redirects-download-token-product-file-id-answers-429-past-sixty-download-5b4fd66f",
+  },
 ];
 for (const { routes: countedRoutes, rule, proof } of COUNTED_IN_NODE)
   for (const route of countedRoutes)
@@ -401,18 +429,7 @@ const GROUPS: Record<string, string[]> = {
     "/paypal_charge_data",
     "/offer_codes/compute_discount",
   ],
-  "mobile download token": ["/mobile/url_redirects/download/:token/:product_file_id"],
   "ACME challenge": ["seller:/.well-known/acme-challenge/:token", "product:/.well-known/acme-challenge/:token"],
-  "API v2 (sales index past page 10, user custom HTML writes and previews)": [
-    "api:/v2/sales",
-    "/api/v2/sales",
-    "PUT api:/v2/user/custom_html",
-    "PUT /api/v2/user/custom_html",
-    "PATCH api:/v2/user/custom_html",
-    "PATCH /api/v2/user/custom_html",
-    "POST api:/v2/user/preview_custom_html",
-    "POST /api/v2/user/preview_custom_html",
-  ],
   "buyer and community writes (resend_receipt, comments, chat messages, marketing execute)": [
     "POST /purchases/:id/resend_receipt",
     "POST seller:/posts/:post_id/comments",

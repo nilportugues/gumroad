@@ -16,7 +16,15 @@ const EDIT_PROFILE = ["edit_profile"];
 const MARKETING = { scopes: EDIT_EMAILS, requireScope: EDIT_EMAILS };
 
 type Spec = Omit<ApiV2Route, "method" | "pattern" | "scopes" | "run"> & { scopes?: string[] };
-const route = (method: string) => (pattern: string, run: ApiV2Route["run"], spec: Spec = {}): ApiV2Route => ({ method, pattern, scopes: PUBLIC_READ_SCOPES, run, ...spec });
+const route =
+  (method: string) =>
+  (pattern: string, run: ApiV2Route["run"], spec: Spec = {}): ApiV2Route => ({
+    method,
+    pattern,
+    scopes: PUBLIC_READ_SCOPES,
+    run,
+    ...spec,
+  });
 const get = route("GET");
 const post = route("POST");
 const put = route("PUT");
@@ -24,7 +32,8 @@ const patch = route("PATCH");
 const del = route("DELETE");
 
 // `is_ifttt: true` is a route default of GET /ifttt/v1/user/info.
-const iftttUserInfo: ApiV2Route["run"] = (input) => users.show({ ...input, params: { ...input.params, is_ifttt: true } });
+const iftttUserInfo: ApiV2Route["run"] = (input) =>
+  users.show({ ...input, params: { ...input.params, is_ifttt: true } });
 
 const connector = (client: string): ApiV2Route[] => [
   get(`/${client}/v1/status`, mcp.status, { anonymous: true }),
@@ -47,8 +56,9 @@ registerApiV2(
   put("/v2/user", users.update, { scopes: EDIT_PROFILE }),
   patch("/v2/user", users.update, { scopes: EDIT_PROFILE }),
   get("/v2/user/custom_html", users.customHtml),
-  // PUT and PATCH /v2/user/custom_html and POST /v2/user/preview_custom_html stay in Rails whole: Rack::Attack throttles them (even their
-  // refusals count), and a Node answer skips that counter.
+  put("/v2/user/custom_html", users.updateCustomHtml, { scopes: EDIT_PROFILE }),
+  patch("/v2/user/custom_html", users.updateCustomHtml, { scopes: EDIT_PROFILE }),
+  post("/v2/user/preview_custom_html", users.previewCustomHtml, { scopes: EDIT_PROFILE }),
   post("/v2/user/custom_html/edit", users.editCustomHtml, { scopes: EDIT_PROFILE }),
   get("/ifttt/v1/status", users.iftttStatus, { anonymous: true }),
   get("/ifttt/v1/user/info", iftttUserInfo),
@@ -77,12 +87,27 @@ registerApiV2(
   post("/v2/workflows/:workflow_id/emails", workflows.createEmail, { scopes: EDIT_EMAILS }),
   put("/v2/workflows/:workflow_id/emails/:email_id", workflows.updateEmail, { scopes: EDIT_EMAILS }),
 
-  get("/v2/products/:product_id/marketing/recommendations", marketingActions.recommendations, { ...MARKETING, before: marketingActions.fetchMarketingProduct }),
-  post("/v2/products/:product_id/marketing_actions", marketingActions.create, { ...MARKETING, before: marketingActions.fetchMarketingProduct }),
+  get("/v2/products/:product_id/marketing/recommendations", marketingActions.recommendations, {
+    ...MARKETING,
+    before: marketingActions.fetchMarketingProduct,
+  }),
+  post("/v2/products/:product_id/marketing_actions", marketingActions.create, {
+    ...MARKETING,
+    before: marketingActions.fetchMarketingProduct,
+  }),
   get("/v2/marketing_actions/:id", marketingActions.show, { ...MARKETING, before: marketingActions.beforeShow }),
-  post("/v2/marketing_actions/:id/approve", marketingActions.approve, { ...MARKETING, before: marketingActions.beforeApproveOrExecute }),
-  post("/v2/marketing_actions/:id/execute", marketingActions.execute, { ...MARKETING, before: marketingActions.beforeApproveOrExecute }),
-  post("/v2/marketing_actions/:id/cancel", marketingActions.cancelAction, { ...MARKETING, before: marketingActions.beforeCancel }),
+  post("/v2/marketing_actions/:id/approve", marketingActions.approve, {
+    ...MARKETING,
+    before: marketingActions.beforeApproveOrExecute,
+  }),
+  post("/v2/marketing_actions/:id/execute", marketingActions.execute, {
+    ...MARKETING,
+    before: marketingActions.beforeApproveOrExecute,
+  }),
+  post("/v2/marketing_actions/:id/cancel", marketingActions.cancelAction, {
+    ...MARKETING,
+    before: marketingActions.beforeCancel,
+  }),
 
   get("/v2/pages", pages.index),
   get("/v2/pages/:id", pages.show),
