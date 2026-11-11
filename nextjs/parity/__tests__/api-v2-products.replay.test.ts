@@ -50,7 +50,14 @@ const dirs = existsSync(FIXTURES) ? readdirSync(FIXTURES).filter((dir) => SPEC_P
 const cases = dirs.flatMap((spec) =>
   readdirSync(path.join(FIXTURES, spec))
     .filter((file) => file.endsWith(".json"))
-    .map((file) => [`${spec}: ${file.replace(/\.json$/, "")}`, path.join(FIXTURES, spec, file), loadFixture(path.join(FIXTURES, spec, file)).exchanges.length - 1] as const),
+    .map(
+      (file) =>
+        [
+          `${spec}: ${file.replace(/\.json$/, "")}`,
+          path.join(FIXTURES, spec, file),
+          loadFixture(path.join(FIXTURES, spec, file)).exchanges.length - 1,
+        ] as const,
+    ),
 );
 
 describe.skipIf(!url)("v2 API product resources", () => {
@@ -73,7 +80,11 @@ describe.skipIf(!url)("v2 API product resources", () => {
       const chunks: Buffer[] = [];
       request.on("data", (chunk: Buffer) => chunks.push(chunk));
       request.on("end", () => {
-        handedBack.push({ method: request.method ?? "", url: request.url ?? "", body: Buffer.concat(chunks).toString("utf8") });
+        handedBack.push({
+          method: request.method ?? "",
+          url: request.url ?? "",
+          body: Buffer.concat(chunks).toString("utf8"),
+        });
         response.writeHead(204).end();
       });
     });
@@ -120,17 +131,21 @@ describe.skipIf(!url)("v2 API product resources", () => {
   });
 
   // The first request to a route compiles it, which would age the seeded timestamps past the replayer's tolerance.
-  it("compiles the handlers", async () => {
-    await replayFixtureExchange(cases[0]![1], cases[0]![2], options()).catch(() => undefined);
-    const warmed = new Set<string>();
-    for (const [, file, index] of cases) {
-      const request = loadFixture(file).exchanges.at(index)!.request;
-      const route = `${request.method} ${request.path.replace(/[?].*/, "").replace(/\/[A-Za-z0-9_=-]{12,}/g, "/:id")}`;
-      if (warmed.has(route)) continue;
-      warmed.add(route);
-      await replayFixtureExchange(file, index, options()).catch(() => undefined);
-    }
-  }, FIRST_COMPILE_TIMEOUT_MS * 3);
+  it(
+    "compiles the handlers",
+    async () => {
+      await replayFixtureExchange(cases[0]![1], cases[0]![2], options()).catch(() => undefined);
+      const warmed = new Set<string>();
+      for (const [, file, index] of cases) {
+        const request = loadFixture(file).exchanges.at(index)!.request;
+        const route = `${request.method} ${request.path.replace(/[?].*/, "").replace(/\/[A-Za-z0-9_=-]{12,}/g, "/:id")}`;
+        if (warmed.has(route)) continue;
+        warmed.add(route);
+        await replayFixtureExchange(file, index, options()).catch(() => undefined);
+      }
+    },
+    FIRST_COMPILE_TIMEOUT_MS * 3,
+  );
 
   it.each(cases)(
     "%s",
@@ -143,7 +158,9 @@ describe.skipIf(!url)("v2 API product resources", () => {
           const request = fixture.exchanges[index]!.request;
           expect(handedBack).toHaveLength(1);
           expect(handedBack[0]).toMatchObject({ method: request.method });
-          expect(decodeURIComponent(handedBack[0]!.url.split("?")[0]!)).toBe(decodeURIComponent(request.path.split("?")[0]!));
+          expect(decodeURIComponent(handedBack[0]!.url.split("?")[0]!)).toBe(
+            decodeURIComponent(request.path.split("?")[0]!),
+          );
           expect(Object.keys(handed.exchanges[0]!.actual.db ?? {})).toEqual([]);
           return;
         }
@@ -152,7 +169,12 @@ describe.skipIf(!url)("v2 API product resources", () => {
         const { expected, actual } = result.exchanges[0]!;
         expect(withoutNextVary(actual.response.headers.vary)).toBe(expected.response.headers.vary);
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => !line.startsWith("Next.js includes")).slice(-40).join("\n");
+        const logs = server
+          .output()
+          .split("\n")
+          .filter((line) => !line.startsWith("Next.js includes"))
+          .slice(-40)
+          .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
     },

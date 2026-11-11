@@ -12,8 +12,8 @@ import { closeAllRedis } from "@/server/infra/redis";
 import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { loadFixture } from "../src/fixture";
-import { withoutRailsOnly } from "../src/rails-only";
 import { startNextServer, type NextServer } from "../src/next-server";
+import { withoutRailsOnly } from "../src/rails-only";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
 
@@ -24,8 +24,16 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
-const SPECS = ["emails_mutations_signed_in_spec", "workflows_mutations_signed_in_spec", "audience_export_signed_in_spec", "followers_mutations_signed_in_spec", "followers_confirm_link_spec", "comments_mutations_signed_in_spec"];
-const ROUTE_FLAGS = "nextjs_emails_writes,nextjs_workflows_writes,nextjs_audience_export,nextjs_followers_writes,nextjs_followers_confirm,nextjs_comments_writes";
+const SPECS = [
+  "emails_mutations_signed_in_spec",
+  "workflows_mutations_signed_in_spec",
+  "audience_export_signed_in_spec",
+  "followers_mutations_signed_in_spec",
+  "followers_confirm_link_spec",
+  "comments_mutations_signed_in_spec",
+];
+const ROUTE_FLAGS =
+  "nextjs_emails_writes,nextjs_workflows_writes,nextjs_audience_export,nextjs_followers_writes,nextjs_followers_confirm,nextjs_comments_writes";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
@@ -35,13 +43,17 @@ const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "m").ex
 // The product reindex of a post attached to a product asks Elasticsearch for a document the replay does not hold, and Node then
 // queues the fallback job Rails never needed.
 const IGNORED_JOBS = new Set(["SendToElasticsearchWorker"]);
-const jobKey = (job: { class: string; args: unknown; queue?: string }) => `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
+const jobKey = (job: { class: string; args: unknown; queue?: string }) =>
+  `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
 
 // The sending limit counts the seller's audience in Elasticsearch: an empty audience_members index (no seller in these fixtures has one).
 async function resetAudienceIndex() {
   const es = new ElasticsearchClient({ node: process.env.ELASTICSEARCH_HOST ?? "http://localhost:9200" });
   await es.indices.delete({ index: "audience_members" }, { ignore: [404] });
-  await es.indices.create({ index: "audience_members", body: { settings: { index: { number_of_shards: 1, number_of_replicas: 0 } } } });
+  await es.indices.create({
+    index: "audience_members",
+    body: { settings: { index: { number_of_shards: 1, number_of_replicas: 0 } } },
+  });
   await es.close();
 }
 
@@ -56,9 +68,19 @@ function redisJobs(redis: Redis): JobsChannel {
         if ((await redis.type(key)) !== "hash") continue;
         const data = await redis.hget(key, "data");
         if (data === null) continue;
-        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as { class: string; args: unknown[]; queue: string; at?: number };
+        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as {
+          class: string;
+          args: unknown[];
+          queue: string;
+          at?: number;
+        };
         if (IGNORED_JOBS.has(item.class)) continue;
-        jobs.push({ class: item.class, args: item.args, queue: item.queue, ...(item.at === undefined ? {} : { at: item.at }) });
+        jobs.push({
+          class: item.class,
+          args: item.args,
+          queue: item.queue,
+          ...(item.at === undefined ? {} : { at: item.at }),
+        });
       }
       // A job whose body stays in Ruby (Exports::AudienceExportWorker) goes straight to Sidekiq's list.
       for (const key of await redis.keys("queue:*")) {
@@ -106,7 +128,14 @@ const allCases = SPECS.flatMap((spec) => {
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
     .filter((file) => file.endsWith(".json"))
-    .map((file) => [`${spec}: ${file.replace(/\.json$/, "")}`, path.join(dir, file), loadFixture(path.join(dir, file)).exchanges.length - 1] as const);
+    .map(
+      (file) =>
+        [
+          `${spec}: ${file.replace(/\.json$/, "")}`,
+          path.join(dir, file),
+          loadFixture(path.join(dir, file)).exchanges.length - 1,
+        ] as const,
+    );
 });
 
 // Rails serves the throttled routes whole; rack-attack-routes.replay.test.ts replays those.
@@ -132,7 +161,11 @@ describe.skipIf(!url)("mutations of the emails and workflows pages", () => {
       const chunks: Buffer[] = [];
       request.on("data", (chunk: Buffer) => chunks.push(chunk));
       request.on("end", () => {
-        handedBack.push({ method: request.method ?? "", url: request.url ?? "", body: Buffer.concat(chunks).toString("utf8") });
+        handedBack.push({
+          method: request.method ?? "",
+          url: request.url ?? "",
+          body: Buffer.concat(chunks).toString("utf8"),
+        });
         response.writeHead(204).end();
       });
     });
@@ -169,26 +202,42 @@ describe.skipIf(!url)("mutations of the emails and workflows pages", () => {
     transport: httpTransport(server.baseUrl),
     interceptHttp: false,
     jobs: redisJobs(redis),
-    rewriteRequest: (request: Parameters<typeof reencryptCookies>[0], loaded: Parameters<typeof reencryptCookies>[1], now: Date) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
-    compare: name.includes("delete-followers") || name.includes("follow-confirmation-link")
-      ? {
-          ignore: [
-            ...COMPARE.ignore,
-            // SecureRandom.uuid of the ConfirmedFollowerEvent job
-            "jobs.*.args.*.id",
-            // The details keep the follow's created_at as an absolute time; the seed's is the replay's clock. The shape is asserted below.
-            "db.audience_members.inserted.*.details",
-            ...(name.includes("404") ? ["response.body"] : []),
-          ],
-        } : name.includes("404") ? { ignore: [...COMPARE.ignore, "response.body"] } : name.includes("publishes-a-workflow")
-        ? // SecureRandom.uuid tokens of the schedule intents and the jobs that carry them
-          { ignore: [...COMPARE.ignore, "db.workflow_installment_schedule_intents.inserted.*.token", "db.workflow_installment_schedule_intents.inserted.*.dispatch_token", "jobs.*.args.*"] }
-        : name.includes("numeric-suffix") ? { ignore: [...COMPARE.ignore, "db.installments.inserted.*.slug"] }
-        : name.includes("schedules-an-email")
-          ? // The posted 2099 date canonicalizes to hours from now, which shrinks as the fixture ages;
-            // save-installment.golden.json pins the stored value.
-            { ignore: [...COMPARE.ignore, "db.installment_rules.inserted.*.to_be_published_at"] }
-          : COMPARE,
+    rewriteRequest: (
+      request: Parameters<typeof reencryptCookies>[0],
+      loaded: Parameters<typeof reencryptCookies>[1],
+      now: Date,
+    ) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
+    compare:
+      name.includes("delete-followers") || name.includes("follow-confirmation-link")
+        ? {
+            ignore: [
+              ...COMPARE.ignore,
+              // SecureRandom.uuid of the ConfirmedFollowerEvent job
+              "jobs.*.args.*.id",
+              // The details keep the follow's created_at as an absolute time; the seed's is the replay's clock. The shape is asserted below.
+              "db.audience_members.inserted.*.details",
+              ...(name.includes("404") ? ["response.body"] : []),
+            ],
+          }
+        : name.includes("404")
+          ? { ignore: [...COMPARE.ignore, "response.body"] }
+          : name.includes("publishes-a-workflow")
+            ? // SecureRandom.uuid tokens of the schedule intents and the jobs that carry them
+              {
+                ignore: [
+                  ...COMPARE.ignore,
+                  "db.workflow_installment_schedule_intents.inserted.*.token",
+                  "db.workflow_installment_schedule_intents.inserted.*.dispatch_token",
+                  "jobs.*.args.*",
+                ],
+              }
+            : name.includes("numeric-suffix")
+              ? { ignore: [...COMPARE.ignore, "db.installments.inserted.*.slug"] }
+              : name.includes("schedules-an-email")
+                ? // The posted 2099 date canonicalizes to hours from now, which shrinks as the fixture ages;
+                  // save-installment.golden.json pins the stored value.
+                  { ignore: [...COMPARE.ignore, "db.installment_rules.inserted.*.to_be_published_at"] }
+                : COMPARE,
     file,
   });
 
@@ -205,13 +254,21 @@ describe.skipIf(!url)("mutations of the emails and workflows pages", () => {
     expect(cases.length).toBeGreaterThan(0);
   });
 
-  it("compiles the handler", async () => {
-    await resetAudienceIndex();
-    for (const [name, file, index] of [cases.find(([name]) => name.includes("creates-a-draft")) ?? cases[0]!, cases.find(([name]) => name.includes("updates-a-draft")) ?? cases[0]!, cases.find(([name]) => name.includes("deletes-a-draft")) ?? cases[0]!]) {
-      const { file: _file, ...options } = replayOptions(file, name);
-      await replayFixtureExchange(file, index, options).catch(() => undefined);
-    }
-  }, FIRST_COMPILE_TIMEOUT_MS);
+  it(
+    "compiles the handler",
+    async () => {
+      await resetAudienceIndex();
+      for (const [name, file, index] of [
+        cases.find(([name]) => name.includes("creates-a-draft")) ?? cases[0]!,
+        cases.find(([name]) => name.includes("updates-a-draft")) ?? cases[0]!,
+        cases.find(([name]) => name.includes("deletes-a-draft")) ?? cases[0]!,
+      ]) {
+        const { file: _file, ...options } = replayOptions(file, name);
+        await replayFixtureExchange(file, index, options).catch(() => undefined);
+      }
+    },
+    FIRST_COMPILE_TIMEOUT_MS,
+  );
 
   it.each(cases)(
     "%s",
@@ -236,12 +293,23 @@ describe.skipIf(!url)("mutations of the emails and workflows pages", () => {
         const result = await replayFixtureExchange(fixture, index, options);
         assertParity(result);
         if (_name.includes("confirms-an-unconfirmed-follower")) {
-          const inserted = (result.exchanges.at(-1)!.actual.db as Record<string, { inserted: { details: string }[] }>).audience_members!.inserted;
+          const inserted = (result.exchanges.at(-1)!.actual.db as Record<string, { inserted: { details: string }[] }>)
+            .audience_members!.inserted;
           expect(inserted).toHaveLength(1);
-          expect(JSON.parse(inserted[0]!.details)).toMatchObject({ follower: { id: expect.any(Number), created_at: expect.stringMatching(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/u) } });
+          expect(JSON.parse(inserted[0]!.details)).toMatchObject({
+            follower: {
+              id: expect.any(Number),
+              created_at: expect.stringMatching(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/u),
+            },
+          });
         }
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => !line.startsWith("Next.js includes")).slice(-40).join("\n");
+        const logs = server
+          .output()
+          .split("\n")
+          .filter((line) => !line.startsWith("Next.js includes"))
+          .slice(-40)
+          .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
     },

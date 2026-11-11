@@ -56,7 +56,14 @@ const cases = SPECS.flatMap((spec) => {
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
     .filter((file) => file.endsWith(".json"))
-    .map((file) => [`${spec}: ${file.replace(/\.json$/, "")}`, path.join(dir, file), loadFixture(path.join(dir, file)).exchanges.length - 1] as const);
+    .map(
+      (file) =>
+        [
+          `${spec}: ${file.replace(/\.json$/, "")}`,
+          path.join(dir, file),
+          loadFixture(path.join(dir, file)).exchanges.length - 1,
+        ] as const,
+    );
 });
 
 describe.skipIf(!url)("customers table JSON", () => {
@@ -83,7 +90,11 @@ describe.skipIf(!url)("customers table JSON", () => {
       const chunks: Buffer[] = [];
       request.on("data", (chunk: Buffer) => chunks.push(chunk));
       request.on("end", () => {
-        handedBack.push({ method: request.method ?? "", url: request.url ?? "", body: Buffer.concat(chunks).toString("utf8") });
+        handedBack.push({
+          method: request.method ?? "",
+          url: request.url ?? "",
+          body: Buffer.concat(chunks).toString("utf8"),
+        });
         response.writeHead(204).end();
       });
     });
@@ -132,7 +143,11 @@ describe.skipIf(!url)("customers table JSON", () => {
     },
     transport: httpTransport(server.baseUrl),
     interceptHttp: false,
-    rewriteRequest: (request: Parameters<typeof reencryptCookies>[0], loaded: Parameters<typeof reencryptCookies>[1], now: Date) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
+    rewriteRequest: (
+      request: Parameters<typeof reencryptCookies>[0],
+      loaded: Parameters<typeof reencryptCookies>[1],
+      now: Date,
+    ) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
     compare: COMPARE,
   });
 
@@ -141,16 +156,20 @@ describe.skipIf(!url)("customers table JSON", () => {
   });
 
   // The first request to a route compiles it, which would age the seeded timestamps past the replayer's tolerance.
-  it("compiles the handlers", async () => {
-    const warmed = new Set<string>();
-    for (const [, file, index] of cases) {
-      const request = loadFixture(file).exchanges.at(index)!.request;
-      const route = `${request.method} ${request.path.replace(/[?].*/, "")}`;
-      if (warmed.has(route)) continue;
-      warmed.add(route);
-      await replayFixtureExchange(file, index, options()).catch(() => undefined);
-    }
-  }, FIRST_COMPILE_TIMEOUT_MS * 3);
+  it(
+    "compiles the handlers",
+    async () => {
+      const warmed = new Set<string>();
+      for (const [, file, index] of cases) {
+        const request = loadFixture(file).exchanges.at(index)!.request;
+        const route = `${request.method} ${request.path.replace(/[?].*/, "")}`;
+        if (warmed.has(route)) continue;
+        warmed.add(route);
+        await replayFixtureExchange(file, index, options()).catch(() => undefined);
+      }
+    },
+    FIRST_COMPILE_TIMEOUT_MS * 3,
+  );
 
   it.each(cases)(
     "%s",
@@ -163,7 +182,9 @@ describe.skipIf(!url)("customers table JSON", () => {
           const request = fixture.exchanges[index]!.request;
           expect(handedBack).toHaveLength(1);
           expect(handedBack[0]).toMatchObject({ method: request.method });
-          expect(decodeURIComponent(handedBack[0]!.url.split("?")[0]!)).toBe(decodeURIComponent(request.path.split("?")[0]!));
+          expect(decodeURIComponent(handedBack[0]!.url.split("?")[0]!)).toBe(
+            decodeURIComponent(request.path.split("?")[0]!),
+          );
           if (request.body) expect(JSON.parse(handedBack[0]!.body)).toEqual(JSON.parse(request.body));
           expect(Object.keys(handed.exchanges[0]!.actual.db ?? {})).toEqual([]);
           return;
@@ -173,7 +194,12 @@ describe.skipIf(!url)("customers table JSON", () => {
         const { expected, actual } = result.exchanges[0]!;
         expect(withoutNextVary(actual.response.headers.vary)).toBe(expected.response.headers.vary);
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => !line.startsWith("Next.js includes")).slice(-40).join("\n");
+        const logs = server
+          .output()
+          .split("\n")
+          .filter((line) => !line.startsWith("Next.js includes"))
+          .slice(-40)
+          .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
     },
