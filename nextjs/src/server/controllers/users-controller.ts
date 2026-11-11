@@ -66,7 +66,7 @@ function headNotFound(input: MutationInput): Rendered {
   };
 }
 
-function requireHtml(input: MutationInput): void {
+export function requireHtml(input: MutationInput): void {
   if (requestFormat(input.request) !== "html") throw new HandBackToRails("a request whose format is not HTML");
 }
 
@@ -82,7 +82,7 @@ const servable = (user: User | null): user is User =>
   user !== null && user.username !== null && isAccountActive(Users.load(user));
 
 // #set_user_and_custom_domain_config for the route's host: `/:username/...` on the Gumroad domain, the seller's own host otherwise.
-async function profileUser(input: MutationInput): Promise<User> {
+export async function profileUser(input: MutationInput): Promise<User> {
   const username = input.routeParams.username;
   if (username === undefined) return sellerOfHost(input.url);
   const user = await userByUsername(username);
