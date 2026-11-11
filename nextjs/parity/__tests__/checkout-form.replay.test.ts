@@ -7,7 +7,9 @@ import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { railsMessageVerifierVerified } from "@/server/auth/message-verifier";
 import { closeAllRedis } from "@/server/infra/redis";
+import { RESTART_INTENT_PURPOSE, RESTART_INTENT_TTL_MS } from "@/server/services/checkout-restart-intent-token";
 
 import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
@@ -29,6 +31,7 @@ const SPECS = [
   "checkout_form_paypal_connect_parity_spec",
   "checkout_form_custom_fields_parity_spec",
   "checkout_form_uploaded_images_parity_spec",
+  "checkout_form_restart_intent_parity_spec",
 ];
 const ROUTE_FLAGS = ["nextjs_checkout_form", "nextjs_checkout_form_writes"].join(",");
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
@@ -64,6 +67,8 @@ const COMPARE = {
     "db.custom_fields_products.inserted.*.updated_at",
     "http",
     "jobs.*.at",
+    // A Checkout::RestartIntentToken holds the clock; `restartIntents` below decodes and compares it.
+    "**.restart_intent",
   ],
 };
 
@@ -71,6 +76,18 @@ const COMPARE = {
 const objectStore = process.env.AWS_S3_ENDPOINT ?? "http://localhost:9010";
 const railsHttp = (exchange: { http?: { url: string; method: string; body?: string | null }[] }) =>
   (exchange.http ?? []).filter((call) => !call.url.startsWith(objectStore));
+
+// The `restart_intent` tokens of a response, decoded with the secret both apps signed with (the epoch as the clock, because a recorded
+// token has long expired by the time it is replayed).
+const restartIntents = (response: unknown) =>
+  [...JSON.stringify(response).matchAll(/"restart_intent":"([^"]+)"/gu)].map(
+    ([, token]) =>
+      railsMessageVerifierVerified(RESTART_INTENT_PURPOSE, token!, RESTART_INTENT_PURPOSE, new Date(0)) as {
+        product_id: number;
+        buyer_id: number | null;
+        issued_at: number;
+      } | null,
+  );
 
 const NEXT_VARY = /(?:rsc|next-router-state-tree|next-router-prefetch|next-router-segment-prefetch)(?:, )?/gu;
 const withoutNextVary = (vary: unknown) => (typeof vary === "string" ? vary.replace(NEXT_VARY, "") : vary);
@@ -146,6 +163,7 @@ describe.skipIf(!url)("checkout form", () => {
 
   beforeAll(async () => {
     process.env.DATABASE_URL = url;
+    process.env.SECRET_KEY_BASE = SECRET_KEY_BASE;
     process.env.ELASTICSEARCH_HOST = ELASTICSEARCH_HOST;
     process.env.ES_INDEX_SUFFIX = ES_INDEX_SUFFIX;
     client = new PrismaClient({ datasourceUrl: url });
@@ -293,6 +311,16 @@ describe.skipIf(!url)("checkout form", () => {
           railsHttp(recorded).map((call) => ({ method: call.method, url: call.url, body: call.body ?? "" })),
         );
         const { expected, actual } = result.exchanges[0]!;
+        // Both apps signed the same products for a guest, and Node's token was issued just now and lasts an hour like Rails'.
+        const [railsTokens, nodeTokens] = [restartIntents(expected.response), restartIntents(actual.response)];
+        expect(nodeTokens).toHaveLength(railsTokens.length);
+        railsTokens.forEach((rails, index) => {
+          const node = nodeTokens[index];
+          expect(rails).not.toBeNull();
+          expect(node).not.toBeNull();
+          expect(node).toMatchObject({ product_id: rails!.product_id, buyer_id: rails!.buyer_id });
+          expect(Math.abs(Date.now() / 1000 - node!.issued_at)).toBeLessThan(RESTART_INTENT_TTL_MS / 1000);
+        });
         // Next.js owns Vary on the pages it renders.
         if (fixture.exchanges[index]!.request.method !== "GET")
           expect(withoutNextVary(actual.response.headers.vary)).toBe(expected.response.headers.vary);

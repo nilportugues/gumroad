@@ -2,9 +2,8 @@
 // buyer: Checkout::FormPresenter#form_props and Checkout::UpsellsController#cart_item (`logged_in_user: nil, ip: nil`, empty params).
 //
 // What Rails derives from the Stripe/PayPal lanes, a signed URL, a random token or a variant of the product this port does not read
-// throws NotPortedError, so the caller hands the request back before anything is sent: the restart token of a membership,
-// PPP, a thumbnail or avatar variant Rails has not processed yet, custom fields linked against their ids, and a seller on
-// buyer-local currency.
+// throws NotPortedError, so the caller hands the request back before anything is sent: PPP, a thumbnail or avatar variant Rails has not
+// processed yet, custom fields linked against their ids, and a seller on buyer-local currency.
 import { Prisma, type User } from "@prisma/client";
 
 import { decrypt, encrypt as externalId } from "../../lib/obfuscate-ids.ts";
@@ -25,6 +24,7 @@ import { UserFlags } from "../models/user.ts";
 import { thumbnailUrl } from "../page-props/buyer/products.ts";
 import { NotPortedError } from "../page-props/not-ported.ts";
 import { avatarUrl } from "../page-props/signed-in/presenters.ts";
+import { issueRestartIntentToken } from "../services/checkout-restart-intent-token.ts";
 
 import {
   aliveBundleProducts,
@@ -421,8 +421,6 @@ async function shippableCountryCodes(row: LinkRow): Promise<string[]> {
 // CheckoutPresenter#checkout_product with `logged_in_user: nil, ip: nil` and no params.
 export async function checkoutProduct(row: LinkRow, request: CheckoutRequest = {}) {
   const { cartParams = {}, includeCrossSells = true, arrival = false } = request;
-  // Rails signs a restart_intent token (random issued_at, message verifier) for a recurring product being added
-  if (arrival && flag(row, "is_recurring_billing")) throw new NotPortedError("Checkout::RestartIntentToken.issue");
   const seller = (await findUserById(row.user_id!))!;
 
   const shippableCountries = await shippableCountryCodes(row);
@@ -525,6 +523,9 @@ export async function checkoutProduct(row: LinkRow, request: CheckoutRequest = {
     recommender_model_name: null,
     accepted_offer: null,
   };
+  // The callers have no buyer (`logged_in_user: nil`), so the token is a guest's.
+  if (arrival && flag(row, "is_recurring_billing"))
+    Object.assign(value, { restart_intent: issueRestartIntentToken(row.id, null) });
   if (includeCrossSells) {
     const selectedName = productOptions.find((option) => option.id === value.option_id)?.name ?? null;
     value.product.cross_sells = await crossSellProps(row, selectedName);
