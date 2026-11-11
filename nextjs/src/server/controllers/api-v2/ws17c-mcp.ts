@@ -1,13 +1,15 @@
 // Api::V2::McpController (the /muse, /claude and /chatgpt connector paths and the `.well-known` documents) and
 // Api::V2::NotionUnfurlUrlsController. The JSON-RPC envelope and tools/list are ported (../../mcp/server.ts); a tool call runs here only for the bodies in mcp/tool-bodies.ts,
-// dynamic client registration and the product preview of the Notion unfurl stay in Rails.
+// dynamic client registration answers its refusals here and hands the row it would insert (random client id and secret) to Rails, and the product preview of the Notion unfurl stays in Rails.
 import { isFeatureEnabled } from "../../infra/flipper.ts";
 import { METHOD_HEADER, MCP_PROTOCOL_FLAG, NAME_HEADER, VERSION_HEADER } from "../../mcp/constants.ts";
 import { recordProtocolTelemetry } from "../../mcp/protocol-telemetry.ts";
 import { RpcSession, rpcHttpStatus } from "../../mcp/server.ts";
+import { isInvalidUriError, rubyUriParseParts } from "../../models/concerns/ruby-uri.ts";
 import { domainConfig } from "../../page-props/domain.ts";
 import { HandBackToRails, type ActionResult } from "../application-controller.ts";
 
+import { present } from "./base.ts";
 import { head, renderJson, type ApiCall } from "./ws17c-base.ts";
 
 // Mcp::OauthClientRegistration::MCP_SCOPES
@@ -167,3 +169,91 @@ export const renderUnauthorized = () => renderJson(NOTION_UNAUTHORIZED, 401);
 
 // DELETE /notion/unfurl: nothing to unfurl, nothing to authorize.
 export const notionUnfurlDestroy = async (): Promise<ActionResult> => head(200, {}, false);
+
+// Mcp::OauthClientRegistration
+const REDIRECT_URIS_MAX = 10;
+const REDIRECT_URIS_MAX_LENGTH = 255;
+const TOKEN_ENDPOINT_AUTH_METHODS = ["none", "client_secret_post", "client_secret_basic"];
+const LOCAL_HOSTS = ["localhost", "127.0.0.1"];
+
+class RegistrationError extends Error {}
+
+// String#strip: ASCII whitespace and NUL.
+const rubyStrip = (value: string) => value.replace(/^[\0\t\n\v\f\r ]+|[\0\t\n\v\f\r ]+$/gu, "");
+const truthy = (value: unknown) => value !== undefined && value !== null && value !== false;
+
+// `Array(raw).flatten`, then `uri.to_s.strip`: a number or a boolean can only ever read as a URL without a host, so it stands in as "0".
+function redirectUris(params: Record<string, unknown>): string[] {
+  const raw = [params.redirect_uris, params.redirect_uri].find(truthy);
+  if (raw !== undefined && typeof raw === "object" && !Array.isArray(raw)) throw new HandBackToRails("redirect_uris as a hash");
+  const entries = [raw].flat(Infinity).filter((entry) => entry !== undefined);
+  if (entries.length > REDIRECT_URIS_MAX) throw new RegistrationError(`redirect_uris must contain at most ${REDIRECT_URIS_MAX} entries`);
+  const strings = entries.map((entry) => {
+    if (entry === null) return "";
+    if (typeof entry === "string") return rubyStrip(entry);
+    if (typeof entry === "object") throw new HandBackToRails("a hash inside redirect_uris");
+    return "0";
+  });
+  return [...new Set(strings.filter(present))];
+}
+
+function validateRedirectUri(value: string): void {
+  if (value.includes("*")) throw new RegistrationError("redirect_uris must not contain wildcards");
+  let parts;
+  try {
+    parts = rubyUriParseParts(value);
+  } catch (error) {
+    if (isInvalidUriError(error)) throw new RegistrationError("redirect_uris must be valid URLs");
+    throw new HandBackToRails("a redirect URI whose components Ruby's URI rejects");
+  }
+  if (!present(parts.host)) throw new RegistrationError("redirect_uris must be absolute http(s) URLs");
+  if (present(parts.fragment)) throw new RegistrationError("redirect_uris must not include a fragment");
+  const https = parts.scheme === "https";
+  const localHttp = parts.scheme === "http" && LOCAL_HOSTS.includes(parts.host!);
+  if (!https && !localHttp) throw new RegistrationError("redirect_uris must be https (or http on localhost)");
+}
+
+// `(@params["x"] || @params[:x]).to_s`, for a value a client can only send as a string or leave out.
+function stringParam(params: Record<string, unknown>, name: string): string {
+  const value = params[name];
+  if (!truthy(value)) return "";
+  if (typeof value !== "string") throw new HandBackToRails(`a ${name} that is not a string`);
+  return value;
+}
+
+function validateRegistration(params: Record<string, unknown>): void {
+  const uris = redirectUris(params);
+  if (uris.length === 0) throw new RegistrationError("redirect_uris is required");
+  for (const uri of uris) validateRedirectUri(uri);
+  if ([...uris.join("\n")].length > REDIRECT_URIS_MAX_LENGTH)
+    throw new RegistrationError(`redirect_uris must be at most ${REDIRECT_URIS_MAX_LENGTH} characters combined`);
+  // OauthApplication.new evaluates its arguments in order: the name, the redirect URI, `confidential?`, then the scopes.
+  stringParam(params, "client_name");
+  const method = stringParam(params, "token_endpoint_auth_method");
+  if (present(method) && !TOKEN_ENDPOINT_AUTH_METHODS.includes(method)) throw new RegistrationError("unsupported token_endpoint_auth_method");
+  const requested = stringParam(params, "scope").split(/[ \t\n\v\f\r]+/u).filter((scope) => scope !== "");
+  if (requested.length > 0 && !requested.some((scope) => MCP_SCOPES.includes(scope))) throw new RegistrationError("no supported scopes requested");
+}
+
+// Api::V2::McpController#register.
+export async function register(call: ApiCall): Promise<ActionResult> {
+  const invalid = (message: string) => renderJson({ error: "invalid_client_metadata", error_description: message }, 400);
+  const text = new TextDecoder().decode(call.rawBody);
+  const source = present(text) ? text : "{}";
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(source);
+  } catch {
+    // Rails answers "JSON parse error" for it, but its parser reads comments and rejects bytes JavaScript's does not.
+    throw new HandBackToRails("a registration body that is not JSON");
+  }
+  const params = parsed !== null && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {};
+  try {
+    validateRegistration(params);
+  } catch (error) {
+    if (error instanceof RegistrationError) return invalid(error.message);
+    throw error;
+  }
+  // The row it inserts carries a random client id and secret.
+  throw new HandBackToRails("a valid dynamic client registration");
+}

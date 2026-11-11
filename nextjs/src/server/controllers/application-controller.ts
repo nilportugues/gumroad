@@ -35,6 +35,7 @@ import { NotPortedError } from "../page-props/not-ported.ts";
 import { esJson } from "../search/es-json.ts";
 import { redirectUrlFor } from "../services/subdomain-redirector.ts";
 
+import { rackAttack } from "./rack-attack.ts";
 import { setCookieHeader } from "./rack-cookies.ts";
 import { isPresent, queryParam, type RailsRequest, railsRequest } from "./rails-request.ts";
 import {
@@ -812,13 +813,21 @@ export async function processAction(
   const request = railsRequest(incoming);
   if (mayTrackUtmVisit(request, domainConfig(process.env).validRequestHosts)) return forwardToRails(incoming);
 
+  // Rack::Attack sits ahead of the whole chain, and counts a request that Rails then serves.
+  const counted = await rackAttack(incoming);
+  if (counted.throttled) return counted.throttled;
+
   const now = new Date();
   let response: ControllerResponse;
   try {
     response = await runChain(request, options, action, now);
     applyEtag(request, response);
   } catch (error) {
-    if (error instanceof HandBackToRails) return forwardToRails(incoming);
+    if (error instanceof HandBackToRails) {
+      // Rails counts it again.
+      await counted.undo();
+      return forwardToRails(incoming);
+    }
     const status = exceptionStatus(error);
     if (status === 500) notifyError(error);
     const page = publicException(request, status);

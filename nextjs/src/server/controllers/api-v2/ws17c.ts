@@ -28,6 +28,7 @@ const iftttUserInfo: ApiV2Route["run"] = (input) => users.show({ ...input, param
 
 const connector = (client: string): ApiV2Route[] => [
   get(`/${client}/v1/status`, mcp.status, { anonymous: true }),
+  post(`/${client}/v1/oauth2/register`, mcp.register, { anonymous: true, keepSession: true, rawJsonBody: true }),
   ...(["GET", "POST"] as const).map((method) =>
     route(method)(`/${client}/v1/mcp`, mcp.mcp, {
       scopes: mcp.MCP_AUTHORIZE_SCOPES,

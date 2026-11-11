@@ -53,8 +53,8 @@ const RFC3986_RELATIVE_REF = new RegExp(
 );
 
 export type RubyUri = { scheme: string | null; host: string | null };
-// Every component callers read: URI#path (nil for an opaque URI) and URI#query.
-export type RubyUriParts = RubyUri & { path: string | null; query: string | null };
+// Every component callers read: URI#path (nil for an opaque URI), URI#query and URI#fragment.
+export type RubyUriParts = RubyUri & { path: string | null; query: string | null; fragment: string | null };
 
 function invalid(message: string): never {
   throw new RubyUriError("URI::InvalidURIError", message);
@@ -127,5 +127,5 @@ export function rubyUriParseParts(uri: string): RubyUriParts {
     const to = opaque.split("?")[0]!;
     if (!/^(?:[^@,;]+@[^@,;]+(?:$|[,;]))*$/u.test(to)) throw new RubyUriError("URI::InvalidComponentError", `unrecognised opaque part for mailtoURL: ${opaque}`);
   }
-  return { scheme: scheme?.toLowerCase() ?? null, host, path, query };
+  return { scheme: scheme?.toLowerCase() ?? null, host, path, query, fragment };
 }

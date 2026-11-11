@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { compileRouteTable, type RouteTable } from "../../lib/navigation/proxy/route-table.ts";
+import { modelledSources } from "../infra/rack-attack.ts";
 
 // config/initializers/rack_attack.rb counts requests in Rails' Redis. A Node answer never reaches that counter, and counting in Node as well would
 // count every request handed back twice, so a route Rack::Attack throttles must stay out of routes.json and be served by Rails whole. This test fails
@@ -234,6 +235,25 @@ const ALLOWED: { route: string; rule: string; reason: string; check?: () => void
     },
   },
 ];
+
+// Throttled and served by Node, which counts the request itself: server/infra/rack-attack.ts adds to the same Redis key, expiry and limit as
+// rack_attack.rb before the action runs (rack-attack.test.ts pins them to a Ruby golden), and takes the count back for a request it hands to
+// Rails, which counts it again. Each rule needs a parity example that trips its limit (see the replay named in `proof`).
+const COUNTED_IN_NODE: { routes: string[]; rule: string; proof: string }[] = [
+  {
+    routes: ["POST /muse/v1/oauth2/register", "POST /claude/v1/oauth2/register", "POST /chatgpt/v1/oauth2/register"],
+    rule: "\\A/(?:muse|claude|chatgpt)/v1/oauth2/register(?:\\.[^/]+)?\\z",
+    proof: "parity/__tests__/api-v2-ws17c.replay.test.ts: mcp_register ... answers-429-past-the-per-ip-limit",
+  },
+];
+for (const { routes: countedRoutes, rule, proof } of COUNTED_IN_NODE)
+  for (const route of countedRoutes)
+    ALLOWED.push({
+      route,
+      rule,
+      reason: `counted in Node (${proof})`,
+      check: () => expect(modelledSources()).toContain(rule),
+    });
 
 // The path literals of rack_attack.rb, as RULES writes them: string paths, regexp bodies, the %w lists and the suffix check.
 function literalsIn(source: string): string[] {
