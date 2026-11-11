@@ -15,3 +15,4 @@ import "./media.ts";
 import "./subscribers.ts";
 import "./ws17c.ts";
 import "./links.ts";
+import "./licenses.ts";

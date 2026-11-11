@@ -1,0 +1,596 @@
+# frozen_string_literal: true
+
+require "spec_helper"
+
+# Api::V2::LicensesController through the full Rack stack, recorded for the Next.js port (PARITY_RECORD=1) and replayed by
+# nextjs/parity/__tests__/api-v2-ws17c.replay.test.ts. A purchase the port cannot serialize (variants, offer code, gift, custom fields,
+# a recurring charge) is recorded as what Node hands back.
+describe "API v2 licenses", type: :request do
+  include Parity::ApiV2Requests
+  include Parity::MobileApi
+
+  let(:seller) { create(:user, name: "License Seller", email: "license-seller@example.com") }
+  let(:product) { create(:product, user: seller, name: "Licensed", unique_permalink: "licensed", custom_permalink: "maxlicense", is_licensed: true) }
+  let(:sale) { purchase_row(link: product, seller:, email: "buyer@example.com", purchase_state: "successful", quantity: 1) }
+  let!(:license) { create(:license, link: product, purchase: sale, serial: "AAAAAAAA-BBBBBBBB-CCCCCCCC-DDDDDDDD", uses: 0) }
+  let(:key) { license.serial }
+
+  def verify(params = {}, options = {}) = api_call(:post, "/licenses/verify", params:, **options)
+
+  def write(action, params = {}, options = {})
+    api_call(:put, "/licenses/#{action}", params:, token: options.fetch(:token) { api_token(seller) })
+  end
+
+  # Creating the customer of a licensed product mints its license.
+  def imported_license(uses: 0)
+    customer = create(:imported_customer, link_id: product.id, importing_user: seller, email: "imported@example.com", purchase_date: 3.days.ago)
+    customer.license.tap { |imported| imported.update_columns(serial: "55555555-66666666-77777777-88888888", uses:) }
+  end
+
+  describe "POST /licenses/verify" do
+    it "verifies a license by product id and counts the use", parity: true do
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body).to include("success" => true, "uses" => 1)
+      expect(response.parsed_body["purchase"]).to include("license_key" => key, "refunded" => false, "chargebacked" => false)
+      expect(license.reload.uses).to eq(1)
+    end
+
+    it "verifies a license by unique permalink", parity: true do
+      verify(product_permalink: product.unique_permalink, license_key: key)
+
+      expect(response.parsed_body["uses"]).to eq(1)
+    end
+
+    it "verifies a license by custom permalink in another case", parity: true do
+      verify(product_permalink: "MaxLicense", license_key: key)
+
+      expect(response.parsed_body["uses"]).to eq(1)
+    end
+
+    it "verifies a license by the legacy id parameter", parity: true do
+      verify(id: product.unique_permalink, license_key: key)
+
+      expect(response.parsed_body["success"]).to eq(true)
+    end
+
+    it "verifies a license by the legacy link_id parameter", parity: true do
+      verify(link_id: product.custom_permalink, license_key: key)
+
+      expect(response.parsed_body["success"]).to eq(true)
+    end
+
+    it "verifies a license through the /api prefix on the Gumroad domain", parity: true do
+      verify({ product_id: product.external_id, license_key: key }, api_host: false)
+
+      expect(response.parsed_body["uses"]).to eq(1)
+    end
+
+    it "does not count the use when increment_uses_count is the string false", parity: true do
+      verify(product_id: product.external_id, license_key: key, increment_uses_count: "false")
+
+      expect(response.parsed_body["uses"]).to eq(0)
+      expect(license.reload.uses).to eq(0)
+    end
+
+    it "does not count the use when increment_uses_count is a JSON false", parity: true do
+      verify({ product_id: product.external_id, license_key: key, increment_uses_count: false }, as: :json)
+
+      expect(response.parsed_body["uses"]).to eq(0)
+    end
+
+    it "counts the use when increment_uses_count is anything else", parity: true do
+      license.update_column(:uses, 4)
+
+      verify(product_id: product.external_id, license_key: key, increment_uses_count: "0")
+
+      expect(response.parsed_body["uses"]).to eq(5)
+    end
+
+    it "serializes the quantity of the purchase", parity: true do
+      sale.update_column(:quantity, 3)
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response.parsed_body["purchase"]["quantity"]).to eq(3)
+    end
+
+    it "serializes the buyer and the card of the purchase", parity: true do
+      sale.update_columns(full_name: "Ada Buyer", referrer: "twitter.com", card_type: "visa", card_visual: "**** **** **** 4242", ip_country: "United States", can_contact: false)
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response.parsed_body["purchase"]).to include("full_name" => "Ada Buyer", "referrer" => "twitter.com", "ip_country" => "United States", "can_contact" => false)
+    end
+
+    it "serializes a test purchase by the seller", parity: true do
+      sale.update_column(:purchaser_id, seller.id)
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response.parsed_body["purchase"]).to include("test" => true, "purchaser_id" => seller.external_id)
+    end
+
+    it "serializes a multiseat license", parity: true do
+      sale.update_column(:flags, sale.flags | Purchase.flag_mapping["flags"][:is_multiseat_license])
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response.parsed_body["purchase"]["is_multiseat_license"]).to eq(true)
+    end
+
+    it "serializes a discover fee and a dispute that was won", parity: true do
+      sale.update_columns(chargeback_date: 1.day.ago, flags: sale.flags | Purchase.flag_mapping["flags"][:chargeback_reversed] | Purchase.flag_mapping["flags"][:was_discover_fee_charged])
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response.parsed_body["purchase"]).to include("chargebacked" => false, "disputed" => true, "dispute_won" => true, "discover_fee_charged" => true)
+    end
+
+    it "serializes a refunded purchase", parity: true do
+      sale.update_column(:stripe_refunded, true)
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response.parsed_body["purchase"]["refunded"]).to eq(true)
+    end
+
+    it "serializes a chargebacked purchase", parity: true do
+      sale.update_column(:chargeback_date, 1.day.ago)
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response.parsed_body["purchase"]).to include("chargebacked" => true, "disputed" => true)
+    end
+
+    it "serializes a purchase of a product that is not licensed, with no key", parity: true do
+      product.update_column(:flags, product.flags & ~Link.flag_mapping["flags"][:is_licensed])
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response.parsed_body["purchase"]).not_to include("license_key")
+    end
+
+    it "serializes a membership with its subscription dates", parity: true do
+      membership = create(:membership_product, user: seller, subscription_duration: :monthly)
+      subscription = create(:subscription, link: membership, user: nil)
+      original = purchase_row(link: membership, seller:, subscription:, is_original_subscription_purchase: true, purchase_state: "successful")
+      member_license = create(:license, link: membership, purchase: original, serial: "11111111-22222222-33333333-44444444")
+      subscription.update_columns(ended_at: Time.utc(2026, 10, 1, 12), cancelled_at: Time.utc(2026, 10, 2, 12), failed_at: Time.utc(2026, 10, 3, 12))
+
+      verify(product_id: membership.external_id, license_key: member_license.serial)
+
+      expect(response.parsed_body["purchase"]).to include("subscription_ended_at", "subscription_cancelled_at", "subscription_failed_at", "recurrence" => "monthly")
+    end
+
+    it "serializes a membership whose subscription is alive", parity: true do
+      membership = create(:membership_product, user: seller, subscription_duration: :monthly)
+      subscription = create(:subscription, link: membership, user: nil)
+      original = purchase_row(link: membership, seller:, subscription:, is_original_subscription_purchase: true, purchase_state: "successful")
+      member_license = create(:license, link: membership, purchase: original, serial: "11111111-22222222-33333333-44444444")
+
+      verify(product_id: membership.external_id, license_key: member_license.serial)
+
+      expect(response.parsed_body["purchase"]).to include("subscription_id" => subscription.external_id, "subscription_ended_at" => nil)
+    end
+
+    it "serializes a license of an imported customer", parity: true do
+      imported = imported_license
+
+      verify(product_id: product.external_id, license_key: imported.serial)
+
+      expect(response.parsed_body["imported_customer"]).to include("email" => "imported@example.com", "is_imported_customer" => true)
+      expect(response.parsed_body["imported_customer"]).not_to include("license_key")
+    end
+
+    it "serializes a license that has neither a purchase nor an imported customer", parity: true do
+      orphan = License.create!(link: product, serial: "99999999-AAAAAAAA-BBBBBBBB-CCCCCCCC", uses: 2)
+
+      verify(product_id: product.external_id, license_key: orphan.serial)
+
+      expect(response.parsed_body).to eq("success" => true, "uses" => 3)
+    end
+
+    it "refuses a disabled license", parity: true do
+      license.update_column(:disabled_at, 1.day.ago)
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body).to eq("success" => false, "message" => "This license key has been disabled.")
+      expect(license.reload.uses).to eq(0)
+    end
+
+    it "refuses a purchase whose access was revoked", parity: true do
+      sale.update_column(:flags, sale.flags | Purchase.flag_mapping["flags"][:is_access_revoked])
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body["message"]).to eq("Access to the purchase associated with this license has expired.")
+    end
+
+    it "does not find an unknown license key", parity: true do
+      verify(product_id: product.external_id, license_key: "does-not-exist")
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body).to eq("success" => false, "message" => "That license does not exist for the provided product.")
+    end
+
+    it "does not find a request without a license key", parity: true do
+      verify(product_id: product.external_id)
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "does not find a license through another product's id", parity: true do
+      other = create(:product, user: seller, is_licensed: true)
+
+      verify(product_id: other.external_id, license_key: key)
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "does not find a license through an id that is not a product", parity: true do
+      verify(product_id: "not-an-id", license_key: key)
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "does not find a license through a permalink of another product", parity: true do
+      other = create(:product, user: seller, unique_permalink: "elsewhere")
+
+      verify(product_permalink: other.unique_permalink, license_key: key)
+
+      expect(response).to have_http_status(:not_found)
+      expect(license.reload.uses).to eq(0)
+    end
+
+    it "does not find a license without a product id or permalink", parity: true do
+      verify(license_key: key)
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "refuses a license key that is not a string", parity: true do
+      verify("product_id" => product.external_id, "license_key" => [key])
+
+      expect(response).to have_http_status(:bad_request)
+      expect(response.parsed_body).to eq("success" => false, "message" => "The 'license_key' parameter must be a string.")
+    end
+
+    it "refuses a product id that is not a string", parity: true do
+      verify("product_id" => { "a" => "b" }, "license_key" => key)
+
+      expect(response).to have_http_status(:bad_request)
+      expect(response.parsed_body["message"]).to eq("The 'product_id' parameter must be a string.")
+    end
+
+    it "refuses a legacy link id that is not a string", parity: true do
+      verify("link_id" => ["x"], "license_key" => key)
+
+      expect(response).to have_http_status(:bad_request)
+      expect(response.parsed_body["message"]).to eq("The 'link_id' parameter must be a string.")
+    end
+
+    context "when the product id is required" do
+      before { create(:product, custom_permalink: product.unique_permalink) }
+
+      it "answers 500 for a product created after the cutoff", parity: true do
+        $redis.set(RedisKey.force_product_id_timestamp, "2000-01-01 00:00:00 UTC")
+
+        verify(product_permalink: product.unique_permalink, license_key: key)
+
+        expect(response).to have_http_status(:internal_server_error)
+        expect(response.parsed_body["message"]).to eq("The 'product_id' parameter is required to verify the license for this product. Please set 'product_id' to '#{product.external_id}' in the request.")
+        expect(license.reload.uses).to eq(0)
+      end
+
+      it "answers 500 when the permalink does not match the product", parity: true do
+        $redis.set(RedisKey.force_product_id_timestamp, "2000-01-01 00:00:00 UTC")
+
+        verify(product_permalink: "nothing-like-it", license_key: key)
+
+        expect(response).to have_http_status(:internal_server_error)
+      end
+
+      it "verifies a product created before the cutoff", parity: true do
+        $redis.set(RedisKey.force_product_id_timestamp, "2099-01-01 00:00:00 UTC")
+
+        verify(product_permalink: product.unique_permalink, license_key: key)
+
+        expect(response.parsed_body["success"]).to eq(true)
+      end
+
+      it "verifies when the product skips the check", parity: true do
+        $redis.set(RedisKey.force_product_id_timestamp, "2000-01-01 00:00:00 UTC")
+        Redis::Namespace.new(:license_verifications, redis: $redis).set("skip_product_id_check_#{product.id}", true)
+
+        verify(product_permalink: product.unique_permalink, license_key: key)
+
+        expect(response.parsed_body["success"]).to eq(true)
+      end
+
+      it "verifies when no cutoff is set", parity: true do
+        verify(product_permalink: product.unique_permalink, license_key: key)
+
+        expect(response.parsed_body["success"]).to eq(true)
+      end
+
+      it "verifies with a product id whatever the cutoff", parity: true do
+        $redis.set(RedisKey.force_product_id_timestamp, "2000-01-01 00:00:00 UTC")
+
+        verify(product_id: product.external_id, license_key: key)
+
+        expect(response.parsed_body["success"]).to eq(true)
+      end
+    end
+
+    it "hands a verification that carries a token to Rails", parity: true do
+      verify({ product_id: product.external_id, license_key: key }, token: api_token(seller))
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "hands a license of a purchase with variants to Rails", parity: true do
+      category = create(:variant_category, link: product)
+      sale.variant_attributes << create(:variant, variant_category: category, name: "Gold")
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["purchase"]["variants"]).to eq("(Gold)")
+    end
+
+    it "hands a license of a purchase with an offer code to Rails", parity: true do
+      offer_code = create(:offer_code, user: seller, products: [product], code: "SAVE10", amount_cents: 100)
+      sale.update_column(:offer_code_id, offer_code.id)
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["purchase"]["offer_code"]).to include("code" => "SAVE10")
+    end
+
+    it "hands a license of a gifted purchase to Rails", parity: true do
+      gifter = purchase_row(link: product, seller:, email: "gifter@example.com", purchase_state: "successful")
+      Gift.new(link: product, gifter_purchase: gifter, giftee_purchase: sale, gifter_email: "gifter@example.com", giftee_email: "buyer@example.com").save!(validate: false)
+      sale.update_column(:flags, sale.flags | Purchase.flag_mapping["flags"][:is_gift_receiver_purchase])
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["purchase"]).to include("is_gift_receiver_purchase" => true)
+    end
+
+    it "hands a license of a purchase with custom fields to Rails", parity: true do
+      PurchaseCustomField.create!(purchase: sale, field_type: "text", name: "Company", value: "Example Inc")
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["purchase"]["Company"]).to eq("Example Inc")
+    end
+  end
+
+  describe "PUT /licenses/enable" do
+    it "enables a disabled license", parity: true do
+      license.update_column(:disabled_at, 1.day.ago)
+
+      write(:enable, product_id: product.external_id, license_key: key)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body).to include("success" => true, "uses" => 0)
+      expect(license.reload.disabled?).to eq(false)
+    end
+
+    it "enables a license that is already enabled", parity: true do
+      write(:enable, product_permalink: product.unique_permalink, license_key: key)
+
+      expect(response.parsed_body["success"]).to eq(true)
+    end
+
+    it "enables a license through the /api prefix on the Gumroad domain", parity: true do
+      license.update_column(:disabled_at, 1.day.ago)
+
+      api_call(:put, "/licenses/enable", token: api_token(seller), params: { product_id: product.external_id, license_key: key }, api_host: false)
+
+      expect(license.reload.disabled?).to eq(false)
+    end
+
+    it "enables a license for a token with the account scope", parity: true do
+      license.update_column(:disabled_at, 1.day.ago)
+
+      write(:enable, { product_id: product.external_id, license_key: key }, token: api_token(seller, scopes: "account"))
+
+      expect(license.reload.disabled?).to eq(false)
+    end
+
+    it "refuses a token that lacks the edit_products scope", parity: true do
+      write(:enable, { product_id: product.external_id, license_key: key }, token: api_token(seller, scopes: "view_sales"))
+
+      expect(response).to have_http_status(:forbidden)
+    end
+
+    it "refuses a request without a token", parity: true do
+      write(:enable, { product_id: product.external_id, license_key: key }, token: nil)
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "answers 404 for another seller's license", parity: true do
+      write(:enable, { product_id: product.external_id, license_key: key }, token: api_token(create(:user)))
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body).to eq("success" => false, "error" => "Not found")
+    end
+
+    it "does not find an unknown license", parity: true do
+      write(:enable, product_id: product.external_id, license_key: "does-not-exist")
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body["message"]).to eq("That license does not exist for the provided product.")
+    end
+
+    it "refuses a purchase whose access was revoked", parity: true do
+      sale.update_column(:flags, sale.flags | Purchase.flag_mapping["flags"][:is_access_revoked])
+
+      write(:enable, product_id: product.external_id, license_key: key)
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body["message"]).to eq("Access to the purchase associated with this license has expired.")
+    end
+
+    it "hands a license key that is a list to Rails", parity: true do
+      write(:enable, "product_id" => product.external_id, "license_key" => [key])
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "hands a license of a purchase with variants to Rails without enabling it", parity: true do
+      category = create(:variant_category, link: product)
+      sale.variant_attributes << create(:variant, variant_category: category, name: "Gold")
+      license.update_column(:disabled_at, 1.day.ago)
+
+      write(:enable, product_id: product.external_id, license_key: key)
+
+      expect(response).to have_http_status(:ok)
+      expect(license.reload.disabled?).to eq(false)
+    end
+  end
+
+  describe "PUT /licenses/disable" do
+    it "disables a license", parity: true do
+      write(:disable, product_id: product.external_id, license_key: key)
+
+      expect(response.parsed_body).to include("success" => true, "uses" => 0)
+      expect(license.reload.disabled?).to eq(true)
+    end
+
+    it "disables a license by permalink", parity: true do
+      write(:disable, product_permalink: product.custom_permalink, license_key: key)
+
+      expect(license.reload.disabled?).to eq(true)
+    end
+
+    it "disables the license of an imported customer", parity: true do
+      imported = imported_license(uses: 1)
+
+      write(:disable, product_id: product.external_id, license_key: imported.serial)
+
+      expect(response.parsed_body).to include("success" => true, "uses" => 1)
+      expect(response.parsed_body["imported_customer"]).to include("email" => "imported@example.com")
+      expect(imported.reload.disabled?).to eq(true)
+    end
+
+    it "answers 404 for another seller's license", parity: true do
+      write(:disable, { product_id: product.external_id, license_key: key }, token: api_token(create(:user)))
+
+      expect(response).to have_http_status(:not_found)
+      expect(license.reload.disabled?).to eq(false)
+    end
+
+    it "refuses a request without a token", parity: true do
+      write(:disable, { product_id: product.external_id, license_key: key }, token: nil)
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(license.reload.disabled?).to eq(false)
+    end
+  end
+
+  describe "PUT /licenses/decrement_uses_count" do
+    it "decrements the uses", parity: true do
+      license.update_column(:uses, 3)
+
+      write(:decrement_uses_count, product_id: product.external_id, license_key: key)
+
+      expect(response.parsed_body).to include("success" => true, "uses" => 2)
+      expect(license.reload.uses).to eq(2)
+    end
+
+    it "keeps the uses at zero", parity: true do
+      write(:decrement_uses_count, product_id: product.external_id, license_key: key)
+
+      expect(response.parsed_body["uses"]).to eq(0)
+      expect(license.reload.uses).to eq(0)
+    end
+
+    it "decrements by permalink", parity: true do
+      license.update_column(:uses, 1)
+
+      write(:decrement_uses_count, product_permalink: product.unique_permalink, license_key: key)
+
+      expect(response.parsed_body["uses"]).to eq(0)
+    end
+
+    it "answers 404 for another seller's license", parity: true do
+      license.update_column(:uses, 2)
+
+      write(:decrement_uses_count, { product_id: product.external_id, license_key: key }, token: api_token(create(:user)))
+
+      expect(response).to have_http_status(:not_found)
+      expect(license.reload.uses).to eq(2)
+    end
+
+    it "refuses a request without a token", parity: true do
+      write(:decrement_uses_count, { product_id: product.external_id, license_key: key }, token: nil)
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "decrements the uses of a membership license", parity: true do
+      membership = create(:membership_product, user: seller, subscription_duration: :monthly)
+      subscription = create(:subscription, link: membership, user: nil)
+      original = purchase_row(link: membership, seller:, subscription:, is_original_subscription_purchase: true, purchase_state: "successful")
+      member_license = create(:license, link: membership, purchase: original, serial: "11111111-22222222-33333333-44444444", uses: 2)
+
+      write(:decrement_uses_count, product_id: membership.external_id, license_key: member_license.serial)
+
+      expect(response.parsed_body["uses"]).to eq(1)
+    end
+  end
+
+  describe "PUT /licenses/rotate" do
+    it "gives the license a new key", parity: true do
+      write(:rotate, product_id: product.external_id, license_key: key)
+
+      expect(response).to have_http_status(:ok)
+      expect(license.reload.serial).not_to eq(key)
+      expect(response.parsed_body["purchase"]["license_key"]).to eq(license.serial)
+    end
+
+    it "gives the license of an imported customer a new key", parity: true do
+      imported = imported_license(uses: 1)
+
+      write(:rotate, product_id: product.external_id, license_key: imported.serial)
+
+      expect(imported.reload.serial).not_to eq("55555555-66666666-77777777-88888888")
+      expect(response.parsed_body["imported_customer"]).to include("email" => "imported@example.com")
+    end
+
+    it "answers 404 for another seller's license", parity: true do
+      write(:rotate, { product_id: product.external_id, license_key: key }, token: api_token(create(:user)))
+
+      expect(response).to have_http_status(:not_found)
+      expect(license.reload.serial).to eq(key)
+    end
+
+    it "refuses a request without a token", parity: true do
+      write(:rotate, { product_id: product.external_id, license_key: key }, token: nil)
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(license.reload.serial).to eq(key)
+    end
+
+    it "hands a license of a purchase with an offer code to Rails without rotating it", parity: true do
+      offer_code = create(:offer_code, user: seller, products: [product], code: "SAVE10", amount_cents: 100)
+      sale.update_column(:offer_code_id, offer_code.id)
+
+      write(:rotate, product_id: product.external_id, license_key: key)
+
+      expect(response).to have_http_status(:ok)
+      expect(license.reload.serial).not_to eq(key)
+    end
+  end
+end
