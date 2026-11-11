@@ -15,8 +15,8 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 
 | Namespace | Routes | Native | Hands back | Not registered | Unresolved |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 128 | 0 | 10 | 0 |
-| Mobile API (`/mobile` on the API host) | 64 | 62 | 0 | 2 | 0 |
+| API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 132 | 0 | 6 | 0 |
+| Mobile API (`/mobile` on the API host) | 64 | 63 | 0 | 1 | 0 |
 | Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 77 | 4 | 1 | 3 |
 | Internal API, Gumroad domain (`/internal`, JSON for the React Router pages) | 23 | 20 | 0 | 3 | 0 |
 
@@ -39,10 +39,10 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `PUT /v2/user` | `Api::V2::UsersController#update` | native | `nextjs_api_v2_user` | y |
 | `PATCH /v2/user` | `Api::V2::UsersController#update` | native | `nextjs_api_v2_user` | y |
 | `GET /v2/user/custom_html` | `Api::V2::UsersController#custom_html` | native | `nextjs_api_v2_user` | y |
-| `PUT /v2/user/custom_html` | `Api::V2::UsersController#update_custom_html` | not registered | - | y |
-| `PATCH /v2/user/custom_html` | `Api::V2::UsersController#update_custom_html` | not registered | - | n |
+| `PUT /v2/user/custom_html` | `Api::V2::UsersController#update_custom_html` | native | `nextjs_api_v2_user` | y |
+| `PATCH /v2/user/custom_html` | `Api::V2::UsersController#update_custom_html` | native | `nextjs_api_v2_user` | y |
 | `POST /v2/user/custom_html/edit` | `Api::V2::UsersController#edit_custom_html` | native | `nextjs_api_v2_user` | y |
-| `POST /v2/user/preview_custom_html` | `Api::V2::UsersController#preview_custom_html` | not registered | - | y |
+| `POST /v2/user/preview_custom_html` | `Api::V2::UsersController#preview_custom_html` | native | `nextjs_api_v2_user` | y |
 | `GET /v2/pages` | `Api::V2::PagesController#index` | native | `nextjs_api_v2_pages` | y |
 | `GET /v2/pages/:id` | `Api::V2::PagesController#show` | native | `nextjs_api_v2_pages` | y |
 | `POST /v2/pages` | `Api::V2::PagesController#create` | native | `nextjs_api_v2_pages` | y |
@@ -144,7 +144,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `PUT /v2/workflows/:workflow_id/emails/:email_id` | `Api::V2::Workflows::EmailsController#update` | native | `nextjs_api_v2_workflows` | y |
 | `POST /v2/sales/exports` | `Api::V2::SalesController#export` | native | `nextjs_api_v2_sales` | y |
 | `GET /v2/sales/summary` | `Api::V2::SalesController#summary` | native | `nextjs_api_v2_sales` | y |
-| `GET /v2/sales` | `Api::V2::SalesController#index` | not registered | - | y |
+| `GET /v2/sales` | `Api::V2::SalesController#index` | native | `nextjs_api_v2_sales` | y |
 | `GET /v2/sales/:id` | `Api::V2::SalesController#show` | native | `nextjs_api_v2_sales` | y |
 | `PUT /v2/sales/:id/mark_as_shipped` | `Api::V2::SalesController#mark_as_shipped` | native | `nextjs_api_v2_sales` | y |
 | `PUT /v2/sales/:id/refund` | `Api::V2::SalesController#refund` | native | `nextjs_api_v2_sales` | y |
@@ -178,7 +178,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `GET /mobile/url_redirects/fetch_placeholder_products` | `Api::Mobile::UrlRedirectsController#fetch_placeholder_products` | native | `nextjs_mobile_url_redirects` | n |
 | `GET /mobile/url_redirects/stream/:token/:product_file_id` | `Api::Mobile::UrlRedirectsController#stream` | native | `nextjs_mobile_url_redirect_delivery` | y |
 | `GET /mobile/url_redirects/hls_playlist/:token/:product_file_id/index.m3u8` | `Api::Mobile::UrlRedirectsController#hls_playlist` | native | `nextjs_mobile_url_redirect_delivery` | y |
-| `GET /mobile/url_redirects/download/:token/:product_file_id` | `Api::Mobile::UrlRedirectsController#download` | not registered | - | y |
+| `GET /mobile/url_redirects/download/:token/:product_file_id` | `Api::Mobile::UrlRedirectsController#download` | native | `nextjs_mobile_url_redirect_delivery` | y |
 | `GET /mobile/subscriptions/subscription_attributes/:id` | `Api::Mobile::SubscriptionsController#subscription_attributes` | native | `nextjs_mobile_subscriptions` | y |
 | `GET /mobile/preorders/preorder_attributes/:id` | `Api::Mobile::PreordersController#preorder_attributes` | native | `nextjs_mobile_preorders` | y |
 | `GET /mobile/sales` | `Api::Mobile::SalesController#index` | native | `nextjs_mobile_sales` | y |
