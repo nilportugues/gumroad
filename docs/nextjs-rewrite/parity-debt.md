@@ -196,7 +196,7 @@ area is closed. Flags not listed under a replay are covered by the replay file i
 | `url-redirect-pages`, `url-redirects` | `url_redirect_*` (36 missing, 1.1) | `nextjs_url_redirect_*` (16 flags) $, `nextjs_url_redirect_writes` $, `nextjs_consumption_analytics` |
 | `ws75-pages` | `agent_signed_in_spec`, `piracy_reports_signed_in_spec`, `dispute_evidence_signed_in_spec`, `generate_invoice_redirect_spec` | `nextjs_agent`, `_piracy_reports`, `_dispute_evidence`, `_dispute_evidence_success`, `_generate_invoice_redirect` |
 | `internal-api` | `internal_api_parity_spec`, `internal_agent_parity_spec` | `nextjs_internal_agent`, `_internal_api_host`, `_internal_installments`, `_internal_product_files`, `_internal_product_posts`, `_internal_review_videos` |
-| `ws17e-admin-api` | `controllers/api/internal/admin/*`, `admin_impersonate_parity_spec` | `nextjs_admin_api_auth`, `_campaigns`, `_piracy`, `_users`, `nextjs_admin_impersonate` |
+| `ws17e-admin-api` | `controllers/api/internal/admin/*`, `admin_impersonate_parity_spec`, `admin_users_parity_spec` (affiliates, compliance_info, unpaid_balance, the watchlist writes; four "hands a ..." cases) | `nextjs_admin_api_auth`, `_campaigns`, `_piracy`, `_users`, `nextjs_admin_impersonate` |
 | `api-v2-products`, `api-v2-ws17b`, `api-v2-ws17c`, `api-token-auth` | `api/v2/*_parity_spec`, `controllers/api/v2/*` | `nextjs_api_v2_*` (17 flags; licenses are not served in Node, see 4.6; `payouts_media` records the Polish and Bosnian IBAN-prefixed `bank_account_visual`, while Card and European destinations still hand back with no example) |
 | `mobile-api`, `mobile-analytics` | `api/mobile/*_parity_spec` (37 missing, 1.1) | `nextjs_mobile_*` (17 flags); `nextjs_mobile_url_redirects` has no replay (1.2) |
 

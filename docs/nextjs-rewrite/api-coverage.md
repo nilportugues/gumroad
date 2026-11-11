@@ -17,7 +17,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | --- | ---: | ---: | ---: | ---: | ---: |
 | API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 80 | 0 | 58 | 0 |
 | Mobile API (`/mobile` on the API host) | 64 | 39 | 0 | 25 | 0 |
-| Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 17 | 0 | 65 | 3 |
+| Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 23 | 0 | 59 | 3 |
 | Internal API, Gumroad domain (`/internal`, JSON for the React Router pages) | 23 | 11 | 0 | 12 | 0 |
 
 ## API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain)
@@ -274,15 +274,15 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `POST /internal/admin/feature_announcement_campaigns/:id/deliver` | `Api::Internal::Admin::FeatureAnnouncementCampaignsController#deliver` | native | `nextjs_admin_api_campaigns` | n |
 | `POST /internal/admin/feature_announcement_campaigns/:id/cancel` | `Api::Internal::Admin::FeatureAnnouncementCampaignsController#cancel` | native | `nextjs_admin_api_campaigns` | n |
 | `GET /internal/admin/users/info` | `Api::Internal::Admin::UsersController#info` | not registered | - | n |
-| `GET /internal/admin/users/affiliates` | `Api::Internal::Admin::UsersController#affiliates` | not registered | - | n |
+| `GET /internal/admin/users/affiliates` | `Api::Internal::Admin::UsersController#affiliates` | native | `nextjs_admin_api_users` | y |
 | `GET /internal/admin/users/comments` | `Api::Internal::Admin::UsersController#comments` | native | `nextjs_admin_api_users` | n |
-| `GET /internal/admin/users/compliance_info` | `Api::Internal::Admin::UsersController#compliance_info` | not registered | - | n |
+| `GET /internal/admin/users/compliance_info` | `Api::Internal::Admin::UsersController#compliance_info` | native | `nextjs_admin_api_users` | y |
 | `GET /internal/admin/users/purchases` | `Api::Internal::Admin::UsersController#purchases` | not registered | - | n |
 | `GET /internal/admin/users/radar_stats` | `Api::Internal::Admin::UsersController#radar_stats` | not registered | - | n |
 | `GET /internal/admin/users/related` | `Api::Internal::Admin::UsersController#related` | not registered | - | n |
 | `GET /internal/admin/users/social_connections` | `Api::Internal::Admin::UsersController#social_connections` | not registered | - | n |
 | `GET /internal/admin/users/suspension` | `Api::Internal::Admin::UsersController#suspension` | native | `nextjs_admin_api_users` | n |
-| `GET /internal/admin/users/unpaid_balance` | `Api::Internal::Admin::UsersController#unpaid_balance` | not registered | - | n |
+| `GET /internal/admin/users/unpaid_balance` | `Api::Internal::Admin::UsersController#unpaid_balance` | native | `nextjs_admin_api_users` | y |
 | `GET /internal/admin/users/credits` | `Api::Internal::Admin::UsersController#credits` | native | `nextjs_admin_api_users` | n |
 | `POST /internal/admin/users/reset_password` | `Api::Internal::Admin::UsersController#reset_password` | not registered | - | n |
 | `POST /internal/admin/users/update_email` | `Api::Internal::Admin::UsersController#update_email` | not registered | - | n |
@@ -295,9 +295,9 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `POST /internal/admin/users/refund_all_for_fraud` | `Api::Internal::Admin::UsersController#refund_all_for_fraud` | not registered | - | n |
 | `POST /internal/admin/users/refund_balance` | `Api::Internal::Admin::UsersController#refund_balance` | not registered | - | n |
 | `POST /internal/admin/users/add_credit` | `Api::Internal::Admin::UsersController#add_credit` | not registered | - | n |
-| `POST /internal/admin/users/watch` | `Api::Internal::Admin::UsersController#watch` | not registered | - | n |
-| `POST /internal/admin/users/update_watch` | `Api::Internal::Admin::UsersController#update_watch` | not registered | - | n |
-| `POST /internal/admin/users/unwatch` | `Api::Internal::Admin::UsersController#unwatch` | not registered | - | n |
+| `POST /internal/admin/users/watch` | `Api::Internal::Admin::UsersController#watch` | native | `nextjs_admin_api_users` | y |
+| `POST /internal/admin/users/update_watch` | `Api::Internal::Admin::UsersController#update_watch` | native | `nextjs_admin_api_users` | y |
+| `POST /internal/admin/users/unwatch` | `Api::Internal::Admin::UsersController#unwatch` | native | `nextjs_admin_api_users` | y |
 | `POST /internal/admin/users/restore_bank_payout_rail` | `Api::Internal::Admin::UsersController#restore_bank_payout_rail` | not registered | - | n |
 | `POST /internal/admin/low_balance_probation_recoveries/preview` | `Api::Internal::Admin::LowBalanceProbationRecoveriesController#preview` | not registered | - | n |
 | `POST /internal/admin/low_balance_probation_recoveries/execute` | `Api::Internal::Admin::LowBalanceProbationRecoveriesController#execute` | not registered | - | n |

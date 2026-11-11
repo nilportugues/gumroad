@@ -69,7 +69,7 @@ export type CursorPage<Row> = { rows: Row[]; pagination: { next: string | null; 
 
 // `table` and `where` are fixed by the caller; the cursor and limit come from the request.
 export async function paginateWithCursor<Row extends { id: bigint | number; created_at_iso: string }>(
-  table: "comments" | "credits",
+  table: "affiliates" | "comments" | "credits",
   where: Prisma.Sql,
   params: Params,
   select: Prisma.Sql,

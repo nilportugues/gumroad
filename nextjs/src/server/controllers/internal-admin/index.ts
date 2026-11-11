@@ -15,6 +15,8 @@ import "./campaigns.ts";
 import "./piracy-reports.ts";
 import "./users.ts";
 import "./user-writes.ts";
+import "./user-watch.ts";
+import "./users-reads.ts";
 import "./admin-web.ts";
 
 export async function internalAdminResponse(incoming: Request): Promise<Response> {

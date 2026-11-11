@@ -19,7 +19,7 @@ type WriteUser = { id: bigint; external_id: string | null; email: string | null 
 const toSentence = (messages: string[]) => (messages.length <= 2 ? messages.join(" and ") : `${messages.slice(0, -1).join(", ")}, and ${messages.at(-1)}`);
 
 // find_internal_admin_user_for_write_or_render
-async function findUserForWrite(admin: AdminRequest, includeDeleted: boolean): Promise<{ user: WriteUser } | { refusal: ReturnType<typeof failure> }> {
+export async function findUserForWrite(admin: AdminRequest, includeDeleted: boolean): Promise<{ user: WriteUser } | { refusal: ReturnType<typeof failure> }> {
   if (isBlank(admin.params.user_id)) return { refusal: failure(USER_ID_REQUIRED_MESSAGE, 400) };
   const user = await db.user.findFirst({ where: { ...(includeDeleted ? {} : { deleted_at: null }), external_id: paramToS(admin.params.user_id, SOURCE) }, select: { id: true, external_id: true, email: true } });
   if (user === null) return { refusal: failure("User not found", 404) };

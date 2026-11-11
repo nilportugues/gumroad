@@ -117,7 +117,7 @@ function scrubbedUtf8(plain: Buffer): string {
   }
 }
 
-function decryptedTaxId(ciphertext: Uint8Array | null): string {
+export function decryptedTaxId(ciphertext: Uint8Array | null): string {
   const password = getConfig("STRONGBOX_GENERAL_PASSWORD");
   if (password === undefined) throw new Error("STRONGBOX_GENERAL_PASSWORD is not configured");
   return scrubbedUtf8(strongboxDecrypt(ciphertext, password) ?? Buffer.alloc(0));
