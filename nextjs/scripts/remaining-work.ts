@@ -215,6 +215,8 @@ export function preprocess(source: string, admin: string): string[] {
       continue;
     }
     if (inAuth && /^\s*end$/u.test(line)) inAuth = false;
+    // parseBlock reads `only: [:a]` but not the `%i[a b]` spelling, so those resources got every RESTful action (phantom new/edit routes)
+    line = line.replace(/%i\[([^\]]*)\]/gu, (_m, items: string) => `[${items.split(/\s+/u).filter(Boolean).map((item) => `:${item}`).join(", ")}]`);
     // routes written with `controller:`/`action:` options instead of `to:`
     line = line.replace(/^(\s*\w+ "[^"]*"), controller: "(\w+)", action: "(\w+)"/u, '$1, to: "$2#$3"');
     // a nested path with `to:` that parseBlock reads as a path with no action; both are duplicated or listed in SYNTHETIC
@@ -496,6 +498,8 @@ function flagCount(): number {
 const PARTIAL_HAND_BACKS = [
   "WS-20 `POST /customer_surcharge`: VAT ids (vendor validation), US taxable states and Canadian provinces (TaxJar), commission and renewal lines, Payment Element requests and buyer-currency sellers (Stripe FX) hand back.",
   "WS-20 `GET /offer_codes/compute_discount`: a malformed query hands back. `PurchasesController` actions other than `revoke_access`/`undo_revoke_access` (`change_can_contact`, `refund`, `update`, `resend_receipt`, `confirm`, preorder and subscription charges) hand back. Checkout is the empty-cart page only: there is no purchase path in Node.",
+  "WS-23 payout guards (`nextjs_payouts_guards`): `POST /settings/stripe/disconnect`, `POST /instant_payouts`, `GET /payouts/taxes/:year/:form_type/download`, `POST /payouts/taxes/:year/transaction_report` and `GET /oauth_completions/stripe` answer sign-in, the tax center switch, Pundit refusals, a missing tax form or Stripe account and a missing OAuth session; a disconnect, an instant payout, a tax form that exists, a report that is available and an OAuth session with Stripe data hand back whole (the last has no recorded example: a request spec cannot seed `session[:stripe_connect_data]`).",
+  "WS-20 write guards (`nextjs_checkout_write_guards`): discounts create/update/destroy, upsells create/update, `POST /purchases/:purchase_id/pings` and `PATCH /purchases/:purchase_id/variants/:variant_id` answer the 404 and Pundit refusal; every request that passes hands back whole.",
   "WS-21 processor calls (Stripe, Braintree, PayPal) hand back everywhere; only job guards and refund/dispute reads are ported.",
   "WS-22 tax: TaxJar, `ZipTaxRate` selection, GeoIP and the VAT validators (VIES, Vatstack, IRAS, Revenu Quebec) hand back.",
   "WS-23 payouts page: compliant daily-frequency sellers, US sellers with a seasoned account (Stripe instant eligibility), large sellers with a cached balance blob and PayPal Connect hand back; there is no payout execution in Node.",

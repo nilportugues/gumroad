@@ -67,7 +67,7 @@ function filedAtText(value: unknown): string {
 
 // `tax_form.stripe_account_id || seller.stripe_account&.charge_processor_merchant_id` (an empty string
 // is truthy in Ruby), and whether that account is still one of the seller's live Stripe accounts.
-async function transactionReportAvailable(sellerId: bigint, form: TaxFormRow, formAccountId: string | null): Promise<boolean> {
+export async function transactionReportAvailable(sellerId: bigint, form: TaxFormRow, formAccountId: string | null): Promise<boolean> {
   if (form.tax_form_type !== "us_1099_k") return false;
   const m = (name: string) => column("merchant_accounts", name);
   const alive = await selectRows<{ charge_processor_merchant_id: string | null; connect: number | boolean }>(
