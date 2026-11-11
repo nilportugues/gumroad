@@ -128,6 +128,7 @@ const SYNTHETIC: Route[] = [
     ["POST", "/internal/admin/auth/rotate", "api/internal/admin/auth", "rotate"],
     ["GET", "/bundles/:id/edit/content", "redirects", "redirect"],
     ["GET", "/bundles/:id/edit/share", "redirects", "redirect"],
+    ["GET", "/affiliate_requests/onboarding_form", "redirects", "redirect"],
     ["GET", "/admin/sidekiq", "admin/sidekiq_web", "mount"],
     ["GET", "/admin/features", "admin/flipper_ui", "mount"],
   ].map(([method, path, controller, action]) => ({
@@ -217,7 +218,7 @@ export function preprocess(source: string, admin: string): string[] {
     // routes written with `controller:`/`action:` options instead of `to:`
     line = line.replace(/^(\s*\w+ "[^"]*"), controller: "(\w+)", action: "(\w+)"/u, '$1, to: "$2#$3"');
     // a nested path with `to:` that parseBlock reads as a path with no action; both are duplicated or listed in SYNTHETIC
-    if (/^\s*get "\/:id\/(cancel|confirm)", to: "followers#/u.test(line) || /^\s*get "edit\/(content|share)"/u.test(line)) continue;
+    if (/^\s*get "\/:id\/(cancel|confirm)", to: "followers#/u.test(line) || /^\s*get "edit\/(content|share)"/u.test(line) || /^\s*get :show, to: redirect\("\/affiliates\/onboarding"\)/u.test(line)) continue;
     // redirect targets have no controller: give them one so they count as (trivial) routes
     line = line.replace(/(to:|=>)\s*redirect\b.*$/u, '$1 "/redirects#redirect"');
     line = line.replace(/^(\s*)(get|post|put|patch|delete|match)\s+("[^"]*")\s*=>\s*(.*)$/u, "$1$2 $3, to: $4");
@@ -317,6 +318,7 @@ type Entry = {
   mutation?: boolean;
   inertia?: boolean | string;
   redirect?: unknown;
+  redirectReplace?: unknown;
   hosts?: string;
   methods?: string[];
 };
@@ -328,7 +330,7 @@ function registeredRoutes(): Registered[] {
   return Object.entries(table).map(([key, value]) => {
     const entry: Entry = typeof value === "string" ? { flag: value } : value;
     const method = /^(GET|POST|PUT|PATCH|DELETE)\s+/u.exec(key);
-    const rest = key.replace(/^(GET|POST|PUT|PATCH|DELETE)\s+/u, "").replace(/^(seller|product|api):/u, (_m, scope: string) => (scope === "api" ? "" : ""));
+    const rest = key.replace(/^(GET|POST|PUT|PATCH|DELETE)\s+/u, "").replace(/^(seller|product|api|discover):/u, (_m, scope: string) => (scope === "api" ? "" : ""));
     return {
       methods: entry.methods ?? (method ? [method[1]!] : ["GET"]),
       path: normalizeParams(rest.replace(/^\/api(?=\/(?:v2|internal|mobile)\/)/u, "").replace(/\.(json|txt|xml)$/u, "")),
@@ -416,7 +418,7 @@ function rows(parsed: Parsed): Row[] {
     // with none of these hands back.
     const served =
       hit !== undefined &&
-      (hit.entry.redirect !== undefined ||
+      ((hit.entry.redirect ?? hit.entry.redirectReplace) !== undefined ||
         literals.has(path) ||
         (hit.entry.handler !== undefined && !GENERIC_HANDLERS.has(hit.entry.handler) && new RegExp(`\\b${hit.entry.handler}\\s*:`, "u").test(serverText)));
     const status = hit === undefined ? "not registered" : served ? "native" : "hands back";

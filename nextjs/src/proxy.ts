@@ -6,8 +6,8 @@ import { type NextRequest, NextResponse } from "next/server";
 import { decideRoute } from "@/lib/navigation/proxy/decide";
 import { routeGate, setRouteGate } from "@/lib/navigation/proxy/gate";
 import { compileRouteTable, type RouteTable } from "@/lib/navigation/proxy/route-table";
-import { pageEnvelope, rackRedirect } from "@/server/controllers/application-controller";
-import { HOST_PAGE_PREFIX, INERTIA_PAGE_PATH, MUTATION_PATH, PUBLIC_HANDLER_PREFIX } from "@/server/controllers/inertia-page";
+import { pageEnvelope } from "@/server/controllers/application-controller";
+import { HOST_PAGE_PREFIX, INERTIA_PAGE_PATH, MUTATION_PATH, PUBLIC_HANDLER_PREFIX, REDIRECT_LOCATION_HEADER, REDIRECT_PATH } from "@/server/controllers/inertia-page";
 import { getRequiredConfig } from "@/server/infra/config";
 import { domainConfig } from "@/server/page-props/domain";
 import { PAGES } from "@/server/page-props/pages";
@@ -50,8 +50,8 @@ export async function proxy(request: NextRequest) {
   const viaHandler = () => NextResponse.rewrite(new URL(INERTIA_PAGE_PATH, request.url), { request: { headers: forwarded } });
 
   if (decision.action === "redirect") {
-    const incoming = new Request(new URL(`${request.nextUrl.pathname}${request.nextUrl.search}`, `${request.nextUrl.protocol}//${host}`), { method: request.method, headers: forwarded });
-    return rackRedirect(incoming, decision.location);
+    forwarded.set(REDIRECT_LOCATION_HEADER, decision.location);
+    return NextResponse.rewrite(new URL(REDIRECT_PATH, request.url), { request: { headers: forwarded } });
   }
   if (decision.action === "inertia") return viaHandler();
   if (decision.action === "handler") return NextResponse.rewrite(new URL(`${PUBLIC_HANDLER_PREFIX}/${decision.handler}`, request.url), { request: { headers: forwarded } });

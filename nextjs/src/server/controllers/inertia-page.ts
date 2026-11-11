@@ -18,6 +18,10 @@ export const MUTATION_PATH = "/gr-mutation";
 export const HOST_PAGE_PREFIX = "/gr-host";
 // Where the proxy sends a route that is not a page (robots.txt, the favicon...): server/controllers/public-handlers.ts.
 export const PUBLIC_HANDLER_PREFIX = "/gr-public";
+// Where the proxy sends a router-level redirect, with the target in REDIRECT_LOCATION_HEADER: a response the proxy builds itself
+// would get a body from Next.js, which Rails' redirects do not have.
+export const REDIRECT_PATH = "/gr-redirect";
+export const REDIRECT_LOCATION_HEADER = "x-gr-redirect-location";
 
 async function pageScopeOf(url: URL, headers: Headers): Promise<PageScope> {
   const kind = await hostKindOf(url, headers);
