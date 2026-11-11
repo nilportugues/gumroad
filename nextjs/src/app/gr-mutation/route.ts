@@ -47,6 +47,7 @@ import "@/server/controllers/checkout-upsells";
 import "@/server/controllers/marketing-actions";
 import "@/server/controllers/url-redirects/mutations";
 import "@/server/controllers/payouts-exports";
+import "@/server/controllers/users-controller";
 import { mutationResponse } from "@/server/controllers/mutation";
 
 // GET: the logout and emailed two-factor links, which change state without a form.
