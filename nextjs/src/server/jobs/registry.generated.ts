@@ -2229,7 +2229,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RefreshHighVolumeSellerFeeEligibilityJob": {
     "file": "app/sidekiq/refresh_high_volume_seller_fee_eligibility_job.rb",

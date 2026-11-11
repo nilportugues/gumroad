@@ -1,6 +1,7 @@
 // Handlers for every class in src/server/jobs/ported-jobs.ts, keyed by Ruby class name.
 import type { RetriesExhausted, RetryIn } from "../retry.ts";
 
+import { refreshCustomDomainRoutabilityWorker } from "./refresh-custom-domain-routability-worker.ts";
 import { processPaymentWorker } from "./process-payment-worker.ts";
 import { retryStripeJpAddressResyncsJob } from "./retry-stripe-jp-address-resyncs-job.ts";
 import { syncWatchedUsersJob } from "./sync-watched-users-job.ts";
@@ -167,6 +168,7 @@ import {
 } from "./workflow-jobs.ts";
 
 export const JOB_HANDLERS: Record<string, JobHandler> = {
+  RefreshCustomDomainRoutabilityWorker: refreshCustomDomainRoutabilityWorker,
   ProcessPaymentWorker: processPaymentWorker,
   RetryStripeJpAddressResyncsJob: retryStripeJpAddressResyncsJob,
   SyncWatchedUsersJob: syncWatchedUsersJob,
