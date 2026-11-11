@@ -49,7 +49,7 @@ export function notesParam(raw: unknown): string | null {
   return isBlank(raw) ? null : raw;
 }
 
-function serializeWatchedUser(watched: WatchedUser) {
+export function serializeWatchedUser(watched: WatchedUser) {
   return {
     id: encrypt(watched.id),
     revenue_threshold_cents: Number(watched.revenue_threshold_cents),
@@ -61,7 +61,7 @@ function serializeWatchedUser(watched: WatchedUser) {
   };
 }
 
-const activeWatch = (userId: bigint) =>
+export const activeWatch = (userId: bigint) =>
   db.watchedUser.findFirst({ where: { user_id: userId, deleted_at: null }, orderBy: { id: "asc" } });
 
 defineAdminRoute(

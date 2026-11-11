@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import path from "node:path";
 
+import { Client as ElasticsearchClient } from "@elastic/elasticsearch";
 import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -10,6 +11,7 @@ import { closeAllRedis } from "@/server/infra/redis";
 
 import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
+import { ELASTICSEARCH_HOST, recreateIndex, reindexPurchases, replayIndexName } from "../src/elasticsearch";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
@@ -32,7 +34,14 @@ const REQUEST_DIRS = existsSync(REQUEST_ROOT)
 // The controller specs stub GUMROAD_ADMIN_ID to a fresh user's id, which a replayed server cannot reproduce: the request spec covers the legacy token.
 const LEGACY_TOKEN_CASE = /legacy|configured-bearer-token|rotation-point/u;
 // Examples that change the world from inside the request (a stubbed lookup that approves the record after it was loaded): only Ruby can replay them.
-const MID_REQUEST_RACE_CASE = /after-the-request-loaded|loaded-it|after-request-loads|approved-af-e5f0bf0d|becomes-s-b6572bdb|started-screening-after/u;
+const MID_REQUEST_RACE_CASE =
+  /after-the-request-loaded|loaded-it|after-request-loads|approved-af-e5f0bf0d|becomes-s-b6572bdb|started-screening-after/u;
+// Examples whose figures come from a Ruby stub (Stripe::Account.retrieve, User#sales_cents_total) that a recorded seed cannot carry. The
+// Stripe path is covered in user-info.test.ts from the response bodies the request spec recorded.
+const RUBY_STUB_CASE =
+  /user-info-stripe-|get-info-computes-sales-count-and-total-earnings-formatted|get-info-surfaces-the-stripe-connect-account-id|get-info-makes-at-most-one-stripe-call|get-info-adds-the-view-stripe-account-link/u;
+const USER_INFO_CASE = /get-info|user-info/u;
+const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "-parity";
 const ROUTE_FLAGS = [
   "nextjs_admin_api_auth",
   "nextjs_admin_api_users",
@@ -44,7 +53,8 @@ const ROUTE_FLAGS = [
 ];
 // Requests the port leaves to Rails: "hands a ..." in a request spec, and the controller examples named here (a state in a compliance
 // address, a new watch). The replay asserts they reach the stand-in Rails untouched and write nothing.
-const HANDS_BACK_CASE = /hands-(?:a|an|the|warnings)-|post-watch-(?:creates-a-watched-user-record|user-id-lookup-looks-up|user-id-lookup-prefers)|get-compliance-info-returns-(?:business-kyc-fields|submitted-kyc-fields|the-latest-alive|the-trailing-characters)|post-resolve-records-the-outcome/u;
+const HANDS_BACK_CASE =
+  /hands-(?:a|an|the|warnings)-|post-watch-(?:creates-a-watched-user-record|user-id-lookup-looks-up|user-id-lookup-prefers)|get-compliance-info-returns-(?:business-kyc-fields|submitted-kyc-fields|the-latest-alive|the-trailing-characters)|post-resolve-records-the-outcome/u;
 // Controller examples that run the action a port only guards (the write itself, a Stripe-charged purchase, a social or radar case the read
 // does not reproduce): the port answers them with the hand-back, which the replay asserts the same way. Matched on the example's id.
 const HANDED_CONTROLLER_EXAMPLES = new Set([
@@ -213,7 +223,9 @@ function cursorInstant(fixturePath: string, index: number, ageMinutes: number): 
   const request = loadFixture(fixturePath).exchanges[index]!.request;
   const cursor = new URLSearchParams(request.query ?? "").get("cursor")!;
   const [encoded] = Buffer.from(cursor, "base64url").toString("utf8").split("--");
-  const payload = JSON.parse(JSON.parse(Buffer.from(encoded!, "base64").toString("utf8")) as string) as { created_at: string };
+  const payload = JSON.parse(JSON.parse(Buffer.from(encoded!, "base64").toString("utf8")) as string) as {
+    created_at: string;
+  };
   return Date.parse(payload.created_at) + ageMinutes * 60_000;
 }
 // emails_sent_at is JSON text inside json_data, which the replay's date drift does not rewrite: users-reads.test.ts covers the field.
@@ -241,6 +253,7 @@ const casesIn = (root: string, dirs: string[], fromRequestSpec: boolean) =>
           file.endsWith(".json") &&
           (fromRequestSpec || !LEGACY_TOKEN_CASE.test(file)) &&
           !MID_REQUEST_RACE_CASE.test(file) &&
+          !RUBY_STUB_CASE.test(file) &&
           !EMAIL_REMINDER_CASE.test(file),
       )
       .flatMap((file) => {
@@ -281,6 +294,7 @@ const SERVER_SECRET = loadFixture(cases[0]![1]).secretKeyBase;
 
 describe.skipIf(!url)("WS-17e internal admin API parity", () => {
   let client: PrismaClient;
+  let es: ElasticsearchClient;
   let sql: SqlExecutor;
   let redis: Redis;
   let server: NextServer;
@@ -290,6 +304,7 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
 
   beforeAll(async () => {
     client = new PrismaClient({ datasourceUrl: url });
+    es = new ElasticsearchClient({ node: ELASTICSEARCH_HOST });
     sql = prismaExecutor(client);
     const [hostAndPort = "", db = "0"] = redisHost.split("/");
     const [host = "127.0.0.1", port = "6379"] = hostAndPort.split(":");
@@ -298,7 +313,11 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
       const chunks: Buffer[] = [];
       request.on("data", (chunk: Buffer) => chunks.push(chunk));
       request.on("end", () => {
-        handedBack.push({ method: request.method ?? "", url: request.url ?? "", body: Buffer.concat(chunks).toString("utf8") });
+        handedBack.push({
+          method: request.method ?? "",
+          url: request.url ?? "",
+          body: Buffer.concat(chunks).toString("utf8"),
+        });
         response.writeHead(204).end();
       });
     });
@@ -313,21 +332,39 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
       // Cursors are signed with the recording app's secret_key_base, which every fixture of one checkout carries.
       SECRET_KEY_BASE: SERVER_SECRET ?? "",
       DATABASE_URL: url!,
+      ELASTICSEARCH_HOST,
+      ES_INDEX_SUFFIX,
       REDIS_HOST: redisHost,
       SIDEKIQ_REDIS_HOST: redisHost,
       JOBS_REDIS_URL: `redis://${redisHost}`,
-      ...(strongboxKey && strongboxPassword ? { STRONGBOX_GENERAL: strongboxKey, STRONGBOX_GENERAL_PASSWORD: strongboxPassword } : {}),
+      ...(strongboxKey && strongboxPassword
+        ? { STRONGBOX_GENERAL: strongboxKey, STRONGBOX_GENERAL_PASSWORD: strongboxPassword }
+        : {}),
     });
   }, FIRST_COMPILE_TIMEOUT_MS);
 
   afterAll(async () => {
-    await server?.stop();
-    await new Promise((resolve) => rails?.close(resolve));
+    await server.stop();
+    await new Promise((resolve) => rails.close(resolve));
     await closeAllRedis();
-    await redis?.quit();
-    await client?.$disconnect();
+    await redis.quit();
+    await es.close();
+    await client.$disconnect();
     process.env = saved;
   });
+
+  // The user info sums sales from the purchases index, which the replay rebuilds from the seeded rows.
+  const seeder = (name: string) =>
+    USER_INFO_CASE.test(name)
+      ? {
+          reset: async (entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0]) => {
+            await redisSeeder(redis).reset(entries);
+            const purchases = { model: "Purchase", name: replayIndexName("purchases", ES_INDEX_SUFFIX) } as const;
+            await recreateIndex(es, purchases);
+            await reindexPurchases(es, purchases.name, sql);
+          },
+        }
+      : redisSeeder(redis);
 
   it("finds the fixtures", () => {
     expect(cases.length).toBeGreaterThan(0);
@@ -354,7 +391,12 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
       const pinned = pageAge !== undefined;
       if (handsBack(_name)) {
         handedBack.length = 0;
-        if (pageAge !== undefined) vi.useFakeTimers({ now: cursorInstant(fixturePath, index, pageAge), toFake: ["Date"], shouldAdvanceTime: true });
+        if (pageAge !== undefined)
+          vi.useFakeTimers({
+            now: cursorInstant(fixturePath, index, pageAge),
+            toFake: ["Date"],
+            shouldAdvanceTime: true,
+          });
         const handed = await replayFixtureExchange(fixturePath, index, {
           ...(pinned ? { driftDates: false } : {}),
           sql,
@@ -369,16 +411,23 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
         const request = loadFixture(fixturePath).exchanges[index]!.request;
         expect(handedBack).toHaveLength(1);
         expect(handedBack[0]).toMatchObject({ method: request.method });
-        expect(decodeURIComponent(handedBack[0]!.url.split("?")[0]!)).toBe(decodeURIComponent(request.path.split("?")[0]!));
+        expect(decodeURIComponent(handedBack[0]!.url.split("?")[0]!)).toBe(
+          decodeURIComponent(request.path.split("?")[0]!),
+        );
         // The token's last_used_at is stamped before the action runs; Rails stamps it again.
-        expect(Object.keys(handed.exchanges[0]!.actual.db ?? {}).filter((table) => table !== "admin_api_tokens")).toEqual([]);
+        expect(Object.keys(handed.exchanges[0]!.actual.db).filter((table) => table !== "admin_api_tokens")).toEqual([]);
         return;
       }
-      if (pageAge !== undefined) vi.useFakeTimers({ now: cursorInstant(fixturePath, index, pageAge), toFake: ["Date"], shouldAdvanceTime: true });
+      if (pageAge !== undefined)
+        vi.useFakeTimers({
+          now: cursorInstant(fixturePath, index, pageAge),
+          toFake: ["Date"],
+          shouldAdvanceTime: true,
+        });
       const result = await replayFixtureExchange(fixturePath, index, {
         ...(pinned ? { driftDates: false } : {}),
         sql,
-        redis: redisSeeder(redis),
+        redis: seeder(_name),
         transport: httpTransport(server.baseUrl),
         interceptHttp: false,
         jobs: redisJobs(redis),
@@ -387,6 +436,8 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
           ignore: [
             ...COMPARE.ignore,
             ...(fromRequestSpec ? ["response.cookies._gumroad_app_session_test.value"] : ["response.cookies"]),
+            // The sales totals ask Elasticsearch from the server process, which the replayer cannot observe; the totals are compared in the body.
+            ...(USER_INFO_CASE.test(_name) ? ["http"] : []),
             // The server stamps the token with its own, unpinned clock.
             ...(pinned
               ? [

@@ -9,6 +9,7 @@ import { NotPortedError as PageNotPortedError } from "../../page-props/not-porte
 import { PAGE_URL_HEADER } from "../../page-props/render-state.ts";
 import { forwardToRails, HandBackToRails, processAction } from "../application-controller.ts";
 import { parseBody, parseNestedQuery, type Params } from "../rails-body.ts";
+
 import { dispatchAdmin } from "./registry.ts";
 import "./auth.ts";
 import "./campaigns.ts";
@@ -23,6 +24,7 @@ import "./user-watch.ts";
 import "./purchases.ts";
 import "./purchase-writes.ts";
 import "./users-reads.ts";
+import "./user-info.ts";
 import "./admin-web.ts";
 import "./url-redirects.ts";
 import "./licenses.ts";
@@ -42,7 +44,11 @@ export async function internalAdminResponse(incoming: Request): Promise<Response
   const bytes = new Uint8Array(await incoming.arrayBuffer());
   const url = new URL(target, `${protocol}://${host}`);
   const bodiless = incoming.method === "GET" || incoming.method === "HEAD";
-  const request = new Request(url, { method: incoming.method, headers: incoming.headers, body: bytes.length > 0 && !bodiless ? bytes : undefined });
+  const request = new Request(url, {
+    method: incoming.method,
+    headers: incoming.headers,
+    body: bytes.length > 0 && !bodiless ? bytes : undefined,
+  });
   const contentType = request.headers.get("content-type");
 
   let bodyParams: Params;
@@ -56,7 +62,13 @@ export async function internalAdminResponse(incoming: Request): Promise<Response
 
   return processAction(request, {}, async ({ request: railsReq }) => {
     try {
-      const rendered = await dispatchAdmin({ request: { ...railsReq, method: railsReq.method === "HEAD" ? "GET" : railsReq.method }, url, params, bodyParams, contentType });
+      const rendered = await dispatchAdmin({
+        request: { ...railsReq, method: railsReq.method === "HEAD" ? "GET" : railsReq.method },
+        url,
+        params,
+        bodyParams,
+        contentType,
+      });
       if (rendered === null) throw new HandBackToRails("an internal admin route Node does not serve");
       return rendered;
     } catch (error) {
