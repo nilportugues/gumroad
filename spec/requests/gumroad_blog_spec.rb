@@ -80,4 +80,32 @@ describe "Gumroad blog", type: :request do
       expect(response).to have_http_status(:not_found)
     end
   end
+
+  describe "GET /blog/p" do
+    it "lists the same posts as /blog, newest first", parity: true do
+      create(:audience_post, :published, seller: blog_owner, shown_on_profile: true, name: "Older post", published_at: 80.hours.ago, message: "<p>First paragraph</p>")
+      create(:audience_post, :published, seller: blog_owner, shown_on_profile: true, name: "Newest post", published_at: 90.minutes.ago, message: "<p>Body</p><p>#launch #Design</p>")
+      create(:audience_post, :published, seller: blog_owner, shown_on_profile: false, name: "Hidden post")
+
+      get "/blog/p"
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["posts"].map { _1["subject"] }).to eq(["Newest post", "Older post"])
+    end
+
+    it "answers an Inertia visit with the page as JSON", parity: true do
+      blog_owner
+
+      get "/blog/p", headers: { "X-Inertia" => "true", "X-Requested-With" => "XMLHttpRequest" }
+
+      expect(response).to be_successful
+      expect(response.parsed_body["component"]).to eq("GumroadBlog/Posts/Index")
+    end
+
+    it "is a 404 when the blog owner does not exist", parity: true do
+      get "/blog/p"
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
 end

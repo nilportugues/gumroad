@@ -30,23 +30,24 @@ const visiblePosts = (ownerId: bigint) =>
     Prisma.sql`SELECT ${column("installments", "slug")}, ${column("installments", "name")}, ${column("installments", "published_at")}, ${column("installments", "message")} FROM ${table("installments")} WHERE ${column("installments", "seller_id")} = ${ownerId} AND ${column("installments", "deleted_at")} IS NULL AND ${column("installments", "published_at")} IS NOT NULL AND ${column("installments", "installment_type")} = ${AUDIENCE_TYPE} AND ${column("installments", "flags")} & ${SHOWN_ON_PROFILE_FLAG} > 0 AND ${column("installments", "workflow_id")} IS NULL ORDER BY ${column("installments", "published_at")} DESC`,
   );
 
-export const GUMROAD_BLOG_PAGES: Record<string, PageSpec> = {
-  "/blog": {
-    component: "GumroadBlog/Posts/Index",
-    redirect: async () => ((await blogOwner()) ? null : NOT_FOUND),
-    props: async () => {
-      const owner = (await blogOwner())!;
-      const posts = await visiblePosts(owner.id);
-      return {
-        posts: posts.map((post) => ({
-          slug: post.slug,
-          subject: post.name,
-          published_at: post.published_at.toISOString(),
-          featured_image_url: featuredImageUrl(post.message),
-          message_snippet: messageSnippet(post.message),
-          tags: messageTags(post.message),
-        })),
-      };
-    },
+const INDEX: PageSpec = {
+  component: "GumroadBlog/Posts/Index",
+  redirect: async () => ((await blogOwner()) ? null : NOT_FOUND),
+  props: async () => {
+    const owner = (await blogOwner())!;
+    const posts = await visiblePosts(owner.id);
+    return {
+      posts: posts.map((post) => ({
+        slug: post.slug,
+        subject: post.name,
+        published_at: post.published_at.toISOString(),
+        featured_image_url: featuredImageUrl(post.message),
+        message_snippet: messageSnippet(post.message),
+        tags: messageTags(post.message),
+      })),
+    };
   },
 };
+
+// `root to: "posts#index"` and `resources :posts, only: :index, path: "p"` are the same action.
+export const GUMROAD_BLOG_PAGES: Record<string, PageSpec> = { "/blog": INDEX, "/blog/p": INDEX };
