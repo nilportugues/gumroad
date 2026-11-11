@@ -28,6 +28,11 @@ const WISHLIST_RECOMMENDATION = "wishlist";
 const ITEM_LIST_LIMIT = 20;
 // Wishlist::MINIMUM_SEO_INDEXABLE_PRODUCTS
 const MINIMUM_SEO_INDEXABLE_PRODUCTS = 3;
+// Wishlist `has_flags 1 => :discover_opted_out`
+const DISCOVER_OPTED_OUT = 1n;
+// Product::Layout::PROFILE and DISCOVER
+const PROFILE_LAYOUT = "profile";
+const DISCOVER_LAYOUT = "discover";
 const SCHEMA_ORG_CONTEXT = "https://schema.org";
 
 export type WishlistRow = {
@@ -36,6 +41,7 @@ export type WishlistRow = {
   name: string;
   description: string | null;
   recommendable: boolean | number;
+  flags: bigint | number;
 };
 
 type WishlistProductRow = {
@@ -247,28 +253,54 @@ async function metaDescription(wishlist: WishlistRow, owner: UserRow): Promise<s
   return `${wishlist.name} — a wishlist of ${count} ${count === 1 ? "digital product" : "digital products"} curated by ${name} on Gumroad.`;
 }
 
-// WishlistPresenter#public_props for a visitor with no session and no layout.
+// WishlistPresenter#public_props. `pundit_user`: `userId` is its user, `sellerId` the account it acts on. A `layout` adds the
+// profile or discover navigation, which the caller supplies (`creatorProfile`, `taxonomiesForNav`).
 export async function publicProps(
   wishlist: WishlistRow,
   owner: UserRow,
-  options: { request: PresenterRequest; recommendedBy?: string | null },
+  options: {
+    request: PresenterRequest;
+    recommendedBy?: string | null;
+    pundit?: { userId: bigint | null; sellerId: bigint | null };
+    layout?: string | null;
+    creatorProfile?: () => Promise<unknown>;
+    taxonomiesForNav?: () => Promise<unknown>;
+  },
 ) {
-  const items = await publicItems(wishlist, { ...options, currentSellerId: null, page: 1 });
-  return {
+  const { userId = null, sellerId = null } = options.pundit ?? {};
+  const items = await publicItems(wishlist, { ...options, currentSellerId: sellerId, page: 1 });
+  // WishlistPolicy#update?: `role_owner_for?(seller) && record.user == user`
+  const canEdit = userId !== null && sellerId === userId && wishlist.user_id === userId;
+  const [follower] =
+    sellerId === null
+      ? []
+      : await selectRows(
+          Prisma.sql`SELECT 1 AS one FROM ${table("wishlist_followers")} WHERE ${column("wishlist_followers", "wishlist_id")} = ${wishlist.id} AND ${column("wishlist_followers", "deleted_at")} IS NULL AND ${column("wishlist_followers", "follower_user_id")} = ${sellerId} LIMIT 1`,
+        );
+  const props: Record<string, unknown> = {
     id: encrypt(wishlist.id),
     name: wishlist.name,
     description: wishlist.description,
     url: wishlistUrl(wishlist, owner),
-    user: {
-      name: displayName(owner as unknown as User),
-      profile_url: subdomainWithProtocolOf(owner),
-      avatar_url: await avatarUrl(owner as unknown as User),
-    },
-    following: false,
-    can_follow: true,
-    can_edit: false,
-    discover_opted_out: null,
+    user:
+      owner.id !== sellerId
+        ? {
+            name: displayName(owner as unknown as User),
+            profile_url: subdomainWithProtocolOf(owner),
+            avatar_url: await avatarUrl(owner as unknown as User),
+          }
+        : null,
+    following: follower !== undefined,
+    can_follow: sellerId !== wishlist.user_id,
+    can_edit: canEdit,
+    discover_opted_out: canEdit ? (BigInt(wishlist.flags) & DISCOVER_OPTED_OUT) !== 0n : null,
     checkout_enabled: await checkoutEnabled(wishlist),
     ...items,
   };
+  const layout = options.layout;
+  if (layout != null && layout.trim() !== "") props.layout = layout;
+  if (layout === PROFILE_LAYOUT && options.creatorProfile) props.creator_profile = await options.creatorProfile();
+  else if (layout === DISCOVER_LAYOUT && options.taxonomiesForNav)
+    props.taxonomies_for_nav = await options.taxonomiesForNav();
+  return props;
 }
