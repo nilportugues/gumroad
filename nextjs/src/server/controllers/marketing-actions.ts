@@ -153,6 +153,6 @@ registerMutations(
     run: show,
   },
   { method: "POST", pattern: "/products/:product_id/marketing_actions/:id/approve.json", json: true, run: approve },
-  { method: "POST", pattern: "/products/:product_id/marketing_actions/:id/execute.json", json: true, run: execute },
+  { method: "POST", pattern: "/products/:product_id/marketing_actions/:id/execute.json", json: true, railsOnly: "/params:/products/:id/marketing_actions/:id/execute:POST", run: execute },
   { method: "POST", pattern: "/products/:product_id/marketing_actions/:id/cancel.json", json: true, run: cancelAction },
 );

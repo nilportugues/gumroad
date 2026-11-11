@@ -111,7 +111,8 @@ async function show({ owner, routeParams }: ApiV2Input) {
   return successWithObject("sale", (await saleJson([sale], owner.id, false))[0]);
 }
 
-async function index({ owner, params, request }: ApiV2Input) {
+// Not registered: Rack::Attack's `/api/v2/sales` rule counts requests past page 10 in Rails' Redis, and a Node answer skips that counter.
+export async function index({ owner, params, request }: ApiV2Input) {
   const rawPage = params.page;
   const deprecatedPage = rawPage !== undefined && rawPage !== null;
   let page = 1;
@@ -251,7 +252,6 @@ const toggleAccess = (revoked: boolean) =>
 
 registerApiV2(
   { method: "POST", pattern: "/v2/sales/exports", scopes: ["view_sales"], run: exportSales },
-  { method: "GET", pattern: "/v2/sales", scopes: ["view_sales"], run: index },
   // Rails routes /v2/sales/summary ahead of /v2/sales/:id.
   { method: "GET", pattern: "/v2/sales/summary", scopes: ["view_sales"], run: summary },
   { method: "GET", pattern: "/v2/sales/:id", scopes: ["view_sales"], run: show },

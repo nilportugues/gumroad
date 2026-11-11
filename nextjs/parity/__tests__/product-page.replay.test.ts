@@ -13,6 +13,7 @@ import { closeAllRedis } from "@/server/infra/redis";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { ELASTICSEARCH_HOST, recreateIndex, reindexPurchases, replayIndexName } from "../src/elasticsearch";
 import { type Fixture, type FixtureRequest, loadFixture } from "../src/fixture";
+import { railsOnlyKey } from "../src/rails-only";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
@@ -95,7 +96,8 @@ const RENDERED = new Set(
     .concat(["on-a-product-s-custom-domain-renders-the-product-at-the-root", "signed-in-shows-the-seller-their-own-product-with-the-edit-controls", "signed-in-lists-the-posts-a-profile-section-could-show-in-the-seller-s-edit-controls"]),
 );
 
-// The route gate (hostKindOf) sends a host that no alive seller owns to Rails whole: its catch-all is the 404.
+// The route gate (hostKindOf) sends a host that no alive seller owns to Rails whole: its catch-all is the 404. So does the root of a custom
+// domain (Rack::Attack counts "/"), which railsOnlyKey recognises.
 const GATE_HANDS_BACK = new Set(["product-page-on-a-seller-subdomain-is-a-404-for-a-product-of-a-deleted-seller"]);
 
 // A 301 or 404, and the 302 to a coffee product's own page, are the filters' answers; the rest renders.
@@ -109,7 +111,7 @@ const cases: Case[] = readdirSync(DIR)
     // The cookie's value is the time it was set.
     const affiliate = Object.keys(response.cookies ?? {}).filter((name) => name.startsWith("_gumroad_affiliate_id_"));
     const name = file.replace(/\.json$/, "");
-    return { name, file: path.join(DIR, file), index, served: (served || RENDERED.has(name.replace(/^product-page-/, ""))) && !GATE_HANDS_BACK.has(name), status: response.status, ignore: affiliate.map((name) => `response.cookies.${name}.value`) };
+    return { name, file: path.join(DIR, file), index, served: (served || RENDERED.has(name.replace(/^product-page-/, ""))) && !GATE_HANDS_BACK.has(name) && railsOnlyKey(fixture.exchanges[index]!.request) === null, status: response.status, ignore: affiliate.map((name) => `response.cookies.${name}.value`) };
   });
 
 describe.skipIf(!url)("Product page parity", () => {

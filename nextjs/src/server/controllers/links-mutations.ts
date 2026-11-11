@@ -201,7 +201,7 @@ export async function card(): Promise<ActionResult> {
 registerMutations(
   { method: "GET", pattern: "/l/:id/landing/embed", skipForgeryProtection: true, run: landingIframeContent },
   { method: "GET", pattern: "/l/:id/landing/version", skipForgeryProtection: true, run: landingVersion },
-  { method: "GET", pattern: "/products/search", skipForgeryProtection: true, run: search },
+  { method: "GET", pattern: "/products/search", skipForgeryProtection: true, railsOnly: "products_search/ip", run: search },
   { method: "GET", pattern: "/products/:id/card", skipForgeryProtection: true, run: card },
   { method: "POST", pattern: "/links/:id", json: true, run: guardedAction("update") },
   {

@@ -54,6 +54,8 @@ const deliveryAction = (pattern: string, writesRentalStamp: boolean): MobileActi
 
 export const STREAM = deliveryAction("/mobile/url_redirects/stream/:token/:product_file_id", false);
 export const HLS_PLAYLIST = deliveryAction("/mobile/url_redirects/hls_playlist/:token/:product_file_id/index.m3u8", true);
+// Not registered: Rack::Attack's `mobile_url_redirect_download/token` rule counts each (token, file) download in Rails' Redis, and a Node
+// answer (the refusals above included) skips that counter.
 export const DOWNLOAD = deliveryAction("/mobile/url_redirects/download/:token/:product_file_id", false);
 
-registerMobile(STREAM, HLS_PLAYLIST, DOWNLOAD);
+registerMobile(STREAM, HLS_PLAYLIST);

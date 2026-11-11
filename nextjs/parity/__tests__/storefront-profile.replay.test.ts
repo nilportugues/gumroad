@@ -9,6 +9,7 @@ import { closeAllRedis } from "@/server/infra/redis";
 
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { loadFixture } from "../src/fixture";
+import { withoutRailsOnly } from "../src/rails-only";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
@@ -63,7 +64,7 @@ const COMPARE = {
 // public/404.html. Everything else about the response is compared.
 const hasDebugPageBody = (file: string) => /-is-a-404-/.test(file);
 
-const cases = FIXTURE_DIRS.flatMap((dir) =>
+const allCases = FIXTURE_DIRS.flatMap((dir) =>
   readdirSync(dir)
     .filter((file) => file.endsWith(".json"))
     .map((file) => {
@@ -75,6 +76,9 @@ const cases = FIXTURE_DIRS.flatMap((dir) =>
       ] as const;
     }),
 );
+
+// Rails serves the root of a seller host whole (Rack::Attack counts it); rack-attack-routes.replay.test.ts replays that.
+const cases = withoutRailsOnly(allCases, ([, file, index]) => loadFixture(file).exchanges[index]!.request);
 
 // The affiliate cookie carries its own expiry (now + 30 or 7 days) as its value, which moves with the replay's clock.
 const AFFILIATE_COOKIE_FIXTURE = /affiliate-s-cookie/u;

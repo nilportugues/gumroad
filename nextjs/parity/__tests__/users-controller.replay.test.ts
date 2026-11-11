@@ -10,6 +10,7 @@ import { closeAllRedis } from "@/server/infra/redis";
 
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { loadFixture } from "../src/fixture";
+import { withoutRailsOnly } from "../src/rails-only";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
@@ -38,7 +39,7 @@ const COMPARE = {
   ],
 };
 
-const cases = existsSync(DIR)
+const allCases = existsSync(DIR)
   ? readdirSync(DIR)
       .filter((file) => file.endsWith(".json"))
       .map(
@@ -50,6 +51,9 @@ const cases = existsSync(DIR)
           ] as const,
       )
   : [];
+
+// Rails serves the throttled routes whole; rack-attack-routes.replay.test.ts replays those.
+const cases = withoutRailsOnly(allCases, ([, file, index]) => loadFixture(file).exchanges[index]!.request);
 
 describe.skipIf(!url)("UsersController", () => {
   let client: PrismaClient;

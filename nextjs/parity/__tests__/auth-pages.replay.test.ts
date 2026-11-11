@@ -11,6 +11,7 @@ import { closeAllRedis } from "@/server/infra/redis";
 
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { loadFixture } from "../src/fixture";
+import { withoutRailsOnly } from "../src/rails-only";
 import { inertiaPage } from "../src/http";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
@@ -73,10 +74,13 @@ const COMPARE = {
 };
 
 const files = readdirSync(FIXTURE_DIR).filter((file) => file.endsWith(".json"));
-const cases = files.map((file) => {
+const allCases = files.map((file) => {
   const index = loadFixture(path.join(FIXTURE_DIR, file)).exchanges.length - 1;
   return [`${file.replace(/^authentication-pages-/, "").replace(/\.json$/, "")} (#${index})`, file, index] as const;
 });
+
+// Rails serves /signup whole (Rack::Attack counts it); rack-attack-routes.replay.test.ts replays that.
+const cases = withoutRailsOnly(allCases, ([, file, index]) => loadFixture(path.join(FIXTURE_DIR, file)).exchanges[index]!.request);
 
 describe.skipIf(!url)("Authentication pages parity", () => {
   let client: PrismaClient;
@@ -114,7 +118,7 @@ describe.skipIf(!url)("Authentication pages parity", () => {
   });
 
   it("finds the fixtures", () => {
-    expect(cases.length).toBeGreaterThanOrEqual(50);
+    expect(allCases.length).toBeGreaterThanOrEqual(50);
   });
 
   it.each(cases)(

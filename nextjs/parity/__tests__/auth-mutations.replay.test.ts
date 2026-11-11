@@ -13,6 +13,7 @@ import { closeAllRedis } from "@/server/infra/redis";
 import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { loadFixture, type Fixture } from "../src/fixture";
+import { withoutRailsOnly } from "../src/rails-only";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
@@ -125,7 +126,7 @@ const MAILS = [
   ["sends-the-reset-instructions", "UserSignupMailer", "reset_password_instructions"],
 ] as const;
 
-const cases = SPECS.flatMap((spec) => {
+const allCases = SPECS.flatMap((spec) => {
   const dir = path.join(FIXTURES, spec);
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
@@ -183,6 +184,9 @@ function sameSessions(expected: Record<string, unknown> | null, actual: Record<s
   const got = JSON.stringify(clean(actual));
   if (want !== got) throw new Error(`session differs\nrails: ${want}\nnext:  ${got}`);
 }
+
+// Rails serves the throttled routes whole; rack-attack-routes.replay.test.ts replays those.
+const cases = withoutRailsOnly(allCases, ([, file, index]) => loadFixture(file).exchanges[index]!.request);
 
 describe.skipIf(!url)("mutations of the authentication pages", () => {
   let client: PrismaClient;

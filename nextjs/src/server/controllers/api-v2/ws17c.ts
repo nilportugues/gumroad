@@ -46,10 +46,9 @@ registerApiV2(
   put("/v2/user", users.update, { scopes: EDIT_PROFILE }),
   patch("/v2/user", users.update, { scopes: EDIT_PROFILE }),
   get("/v2/user/custom_html", users.customHtml),
-  put("/v2/user/custom_html", users.updateCustomHtml, { scopes: EDIT_PROFILE }),
-  patch("/v2/user/custom_html", users.updateCustomHtml, { scopes: EDIT_PROFILE }),
+  // PUT and PATCH /v2/user/custom_html and POST /v2/user/preview_custom_html stay in Rails whole: Rack::Attack throttles them (even their
+  // refusals count), and a Node answer skips that counter.
   post("/v2/user/custom_html/edit", users.editCustomHtml, { scopes: EDIT_PROFILE }),
-  post("/v2/user/preview_custom_html", users.previewCustomHtml, { scopes: EDIT_PROFILE }),
   get("/ifttt/v1/status", users.iftttStatus, { anonymous: true }),
   get("/ifttt/v1/user/info", iftttUserInfo),
   post("/ifttt/v1/triggers/sale", users.iftttSaleTrigger),
