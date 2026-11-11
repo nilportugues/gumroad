@@ -2401,7 +2401,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ReindexRecommendableProductsWorker": {
     "file": "app/sidekiq/reindex_recommendable_products_worker.rb",

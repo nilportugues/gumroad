@@ -93,6 +93,7 @@ import {
   refundPurchaseWorker,
   updateUserBalanceStatsCacheWorker,
 } from "./refund-payout-guard-jobs.ts";
+import { regenerateSalesRelatedProductsInfosJob } from "./regenerate-sales-related-products-infos-job.ts";
 import { removeSuspendedAccountFollowsWorker } from "./remove-suspended-account-follows-worker.ts";
 import { blockSuspendedAccountIpWorker, checkPaymentAddressWorker } from "./risk-jobs.ts";
 import { scheduleWorkflowInstallmentJob } from "./schedule-workflow-installment-job.ts";
@@ -255,6 +256,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   RefreshClosedTierDiscoverPricesJob: refreshClosedTierDiscoverPricesJob,
   BackfillPriceCheckerIndexFieldsJob: backfillPriceCheckerIndexFieldsJob,
   DeleteUnusedPublicFilesJob: deleteUnusedPublicFilesJob,
+  RegenerateSalesRelatedProductsInfosJob: regenerateSalesRelatedProductsInfosJob,
   DeleteProductRichContentWorker: deleteProductRichContentWorker,
   RemoveSuspendedAccountFollowsWorker: removeSuspendedAccountFollowsWorker,
   RefundPurchaseWorker: refundPurchaseWorker,
