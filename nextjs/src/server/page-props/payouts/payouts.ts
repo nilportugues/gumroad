@@ -551,11 +551,12 @@ type Facts = Awaited<ReturnType<typeof payoutFacts>>;
 
 type Context = { plan: PayoutsPlan; facts: Facts; ledger: Ledger; merchantAccounts: MerchantAccountRow[] };
 
-async function context(plan: PayoutsPlan, now: Date): Promise<Context> {
+type LedgerPlan = Pick<PayoutsPlan, "seller" | "today" | "frequency" | "dailyFallback" | "activeBank">;
+
+async function buildLedger(plan: LedgerPlan, facts: Facts): Promise<Ledger> {
   const { seller } = plan;
-  const facts = await payoutFacts(seller, now);
   const rail = payoutWeekday({ bankAccountType: plan.activeBank?.type ?? null, payoutsViaPaypal: false });
-  const ledger: Ledger = {
+  return {
     today: plan.today,
     frequency: plan.frequency,
     dailyFallback: plan.dailyFallback,
@@ -565,7 +566,38 @@ async function context(plan: PayoutsPlan, now: Date): Promise<Context> {
     unpaidBalanceCentsUpToDate: (date) => unpaidBalanceCentsUpToDate(seller.id, date),
     paidToday: () => paidOn(seller.id, plan.today),
   };
-  return { plan, facts, ledger, merchantAccounts: await merchantAccountsOf(seller.id) };
+}
+
+async function context(plan: PayoutsPlan, now: Date): Promise<Context> {
+  const { seller } = plan;
+  const facts = await payoutFacts(seller, now);
+  return { plan, facts, ledger: await buildLedger(plan, facts), merchantAccounts: await merchantAccountsOf(seller.id) };
+}
+
+// User#next_payout_date and #formatted_balance_for_next_payout_date, the pair the admin user info shows. A seller below the minimum payout
+// has neither. A daily seller above it is paid by Payouts.is_user_payable(INSTANT), which asks Stripe: not ported.
+export async function nextPayoutForAdmin(
+  seller: Seller,
+  now = new Date(),
+): Promise<{ nextPayoutDate: Date | null; formattedBalance: string | null }> {
+  const stored = jsonDataForAttr(Users.load(seller), "payout_frequency", "weekly");
+  if (!PAYOUT_FREQUENCIES.includes(stored as PayoutFrequency)) throw new NotPortedError("An unknown payout frequency");
+  const facts = await payoutFacts(seller, now);
+  const plan: LedgerPlan = {
+    seller,
+    today: dateOnly(now),
+    frequency: stored as PayoutFrequency,
+    dailyFallback: false,
+    activeBank: await activeBankAccount(seller.id),
+  };
+  const ledger = await buildLedger(plan, facts);
+  if ((await ledger.unpaidBalanceCents()) < ledger.minimumPayoutAmountCents)
+    return { nextPayoutDate: null, formattedBalance: null };
+  if (stored === "daily") throw new NotPortedError("A daily payout schedule (Payouts.is_user_payable)");
+  const date = await nextPayoutDate(ledger);
+  if (date === null) return { nextPayoutDate: null, formattedBalance: null };
+  const cents = await ledger.unpaidBalanceCentsUpToDate(payoutPeriodEndDateForPayoutDate(ledger, date));
+  return { nextPayoutDate: date, formattedBalance: formattedDollarAmount(cents) };
 }
 
 // User#minimum_payout_amount_cents

@@ -329,6 +329,9 @@ function sourceLiterals(): Set<string> {
           /["'`](?:(?:seller|product|api|discover):)?(\/[A-Za-z0-9_:*./()[\]+=-]*)["'`]/gu,
         ))
           found.add(normalizeParams(match[1]!));
+        // Dispatch tables keyed by a regex (`/^\/media_urls\/([^/.]+)(?:\.json)?$/u`) are routes too: read the capture groups as parameters.
+        for (const match of text.matchAll(/\/\^((?:\\\/(?:[\w-]+|\(\[\^\/\.\]\+\)))+)(?:\(\?:\\\.json\)\?)?\$\/u/gu))
+          found.add(match[1]!.replace(/\\\//gu, "/").replace(/\(\[\^\/\.\]\+\)/gu, ":p"));
         const constants = new Map(
           [...text.matchAll(/^(?:export )?const (\w+) = ["'`]([^"'`$]*)["'`]/gmu)].map((match) => [
             match[1]!,

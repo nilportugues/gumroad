@@ -339,7 +339,7 @@ export async function thirdPartyAnalyticsPageProps(context: SellerContext) {
 }
 
 // PingDelivery#as_props
-async function recentPingDeliveries(seller: User) {
+export async function recentPingDeliveries(seller: User) {
   const rows = await db.pingDelivery.findMany({
     where: { user_id: seller.id },
     orderBy: [{ created_at: "desc" }, { id: "desc" }],

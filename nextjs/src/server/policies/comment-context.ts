@@ -12,6 +12,8 @@ export type CommentContextRecord = {
   // The post, for index?
   commentable: { seller_id: number | null } | null;
   purchase: unknown;
+  // Whether `seller.visible_posts_for(...)` includes the post, which needs queries; a caller that computed it passes it.
+  postVisible?: boolean;
 };
 
 // "Allow the seller of the post, and appropriate roles for the seller"
@@ -22,7 +24,7 @@ function sellerRoles(context: SellerContext, commentableSellerId: number | null)
   return roleAdminFor(c) || roleMarketingFor(c);
 }
 
-function viewable(context: SellerContext, sellerId: number | null, purchase: unknown): boolean {
+function viewable(context: SellerContext, sellerId: number | null, purchase: unknown, postVisible?: boolean): boolean {
   if (sellerRoles(context, sellerId)) return true;
   if (purchase !== null)
     throw new NotPortedError(
@@ -30,6 +32,7 @@ function viewable(context: SellerContext, sellerId: number | null, purchase: unk
       "app/policies/comment_context_policy.rb",
     );
   if (sellerId === null) return false;
+  if (postVisible !== undefined) return postVisible;
   throw new NotPortedError(
     "The visibility of a post to a visitor (User#visible_posts_for)",
     "app/policies/comment_context_policy.rb",
@@ -37,9 +40,9 @@ function viewable(context: SellerContext, sellerId: number | null, purchase: unk
 }
 
 const index = (context: SellerContext, record: CommentContextRecord) =>
-  viewable(context, record.commentable!.seller_id, record.purchase);
+  viewable(context, record.commentable!.seller_id, record.purchase, record.postVisible);
 const create = (context: SellerContext, record: CommentContextRecord) =>
-  viewable(context, record.comment!.commentable_seller_id, record.purchase);
+  viewable(context, record.comment!.commentable_seller_id, record.purchase, record.postVisible);
 
 function authoredBy(context: SellerContext, authorId: bigint | null): boolean {
   return context.user !== null && authorId !== null && authorId === context.user.id;
