@@ -17,7 +17,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | --- | ---: | ---: | ---: | ---: | ---: |
 | API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 132 | 0 | 6 | 0 |
 | Mobile API (`/mobile` on the API host) | 64 | 50 | 0 | 14 | 0 |
-| Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 41 | 4 | 37 | 3 |
+| Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 54 | 4 | 24 | 3 |
 | Internal API, Gumroad domain (`/internal`, JSON for the React Router pages) | 23 | 11 | 0 | 12 | 0 |
 
 ## API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain)
@@ -251,9 +251,9 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `POST /internal/admin/purchases/:id/block_buyer` | `Api::Internal::Admin::PurchasesController#block_buyer` | native | `nextjs_admin_api_purchases` | y |
 | `POST /internal/admin/purchases/:id/unblock_buyer` | `Api::Internal::Admin::PurchasesController#unblock_buyer` | native | `nextjs_admin_api_purchases` | y |
 | `POST /internal/admin/purchases/:id/refund_for_fraud` | `Api::Internal::Admin::PurchasesController#refund_for_fraud` | native | `nextjs_admin_api_purchases` | y |
-| `GET /internal/admin/licenses/lookup` | `Api::Internal::Admin::LicensesController#lookup` | not registered | - | n |
-| `GET /internal/admin/sendgrid_emails/check_status` | `Api::Internal::Admin::SendgridEmailsController#check_status` | not registered | - | n |
-| `POST /internal/admin/sendgrid_emails/remove_suppression` | `Api::Internal::Admin::SendgridEmailsController#remove_suppression` | not registered | - | n |
+| `GET /internal/admin/licenses/lookup` | `Api::Internal::Admin::LicensesController#lookup` | native | `nextjs_admin_api_misc` | y |
+| `GET /internal/admin/sendgrid_emails/check_status` | `Api::Internal::Admin::SendgridEmailsController#check_status` | native | `nextjs_admin_api_misc` | y |
+| `POST /internal/admin/sendgrid_emails/remove_suppression` | `Api::Internal::Admin::SendgridEmailsController#remove_suppression` | native | `nextjs_admin_api_misc` | y |
 | `GET /internal/admin/piracy_reports` | `Api::Internal::Admin::PiracyReportsController#index` | native | `nextjs_admin_api_piracy` | n |
 | `GET /internal/admin/piracy_reports/:id` | `Api::Internal::Admin::PiracyReportsController#show` | native | `nextjs_admin_api_piracy` | y |
 | `POST /internal/admin/piracy_reports` | `Api::Internal::Admin::PiracyReportsController#create` | native | `nextjs_admin_api_piracy` | y |
@@ -262,7 +262,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `POST /internal/admin/piracy_reports/:id/counter_notice` | `Api::Internal::Admin::PiracyReportsController#counter_notice` | hands back | `nextjs_admin_api_piracy` | y |
 | `POST /internal/admin/piracy_reports/:id/resolve` | `Api::Internal::Admin::PiracyReportsController#resolve` | hands back | `nextjs_admin_api_piracy` | y |
 | `GET /internal/admin/stranded_buyers/scan` | `Api::Internal::Admin::StrandedBuyersController#scan` | not registered | - | y |
-| `POST /internal/admin/stranded_buyers/recover` | `Api::Internal::Admin::StrandedBuyersController#recover` | not registered | - | y |
+| `POST /internal/admin/stranded_buyers/recover` | `Api::Internal::Admin::StrandedBuyersController#recover` | native | `nextjs_admin_api_misc` | y |
 | `POST /internal/admin/stripe_restraint_notices` | `Api::Internal::Admin::StripeRestraintNoticesController#create` | not registered | - | n |
 | `GET /internal/admin/feature_announcement_campaigns` | `Api::Internal::Admin::FeatureAnnouncementCampaignsController#index` | native | `nextjs_admin_api_campaigns` | n |
 | `GET /internal/admin/feature_announcement_campaigns/:id` | `Api::Internal::Admin::FeatureAnnouncementCampaignsController#show` | native | `nextjs_admin_api_campaigns` | n |
@@ -299,24 +299,24 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `POST /internal/admin/users/update_watch` | `Api::Internal::Admin::UsersController#update_watch` | native | `nextjs_admin_api_users` | y |
 | `POST /internal/admin/users/unwatch` | `Api::Internal::Admin::UsersController#unwatch` | native | `nextjs_admin_api_users` | y |
 | `POST /internal/admin/users/restore_bank_payout_rail` | `Api::Internal::Admin::UsersController#restore_bank_payout_rail` | not registered | - | n |
-| `POST /internal/admin/low_balance_probation_recoveries/preview` | `Api::Internal::Admin::LowBalanceProbationRecoveriesController#preview` | not registered | - | n |
-| `POST /internal/admin/low_balance_probation_recoveries/execute` | `Api::Internal::Admin::LowBalanceProbationRecoveriesController#execute` | not registered | - | n |
+| `POST /internal/admin/low_balance_probation_recoveries/preview` | `Api::Internal::Admin::LowBalanceProbationRecoveriesController#preview` | native | `nextjs_admin_api_misc` | y |
+| `POST /internal/admin/low_balance_probation_recoveries/execute` | `Api::Internal::Admin::LowBalanceProbationRecoveriesController#execute` | native | `nextjs_admin_api_misc` | y |
 | `GET /internal/admin/payouts` | `Api::Internal::Admin::PayoutsController#index` | not registered | - | n |
 | `POST /internal/admin/payouts/pause` | `Api::Internal::Admin::PayoutsController#pause` | not registered | - | n |
 | `POST /internal/admin/payouts/resume` | `Api::Internal::Admin::PayoutsController#resume` | not registered | - | n |
-| `POST /internal/admin/payouts/issue` | `Api::Internal::Admin::PayoutsController#issue` | not registered | - | n |
+| `POST /internal/admin/payouts/issue` | `Api::Internal::Admin::PayoutsController#issue` | native | `nextjs_admin_api_misc` | y |
 | `GET /internal/admin/scheduled_payouts` | `Api::Internal::Admin::ScheduledPayoutsController#index` | not registered | - | n |
-| `POST /internal/admin/scheduled_payouts` | `Api::Internal::Admin::ScheduledPayoutsController#create` | not registered | - | n |
-| `POST /internal/admin/scheduled_payouts/:id/execute` | `Api::Internal::Admin::ScheduledPayoutsController#execute` | not registered | - | n |
-| `POST /internal/admin/scheduled_payouts/:id/cancel` | `Api::Internal::Admin::ScheduledPayoutsController#cancel` | not registered | - | n |
+| `POST /internal/admin/scheduled_payouts` | `Api::Internal::Admin::ScheduledPayoutsController#create` | native | `nextjs_admin_api_misc` | y |
+| `POST /internal/admin/scheduled_payouts/:id/execute` | `Api::Internal::Admin::ScheduledPayoutsController#execute` | native | `nextjs_admin_api_misc` | y |
+| `POST /internal/admin/scheduled_payouts/:id/cancel` | `Api::Internal::Admin::ScheduledPayoutsController#cancel` | native | `nextjs_admin_api_misc` | y |
 | `GET /internal/admin/products` | `Api::Internal::Admin::ProductsController#index` | native | `nextjs_admin_api_products` | y |
 | `GET /internal/admin/products/:id` | `Api::Internal::Admin::ProductsController#show` | native | `nextjs_admin_api_products` | y |
 | `GET /internal/admin/products/:id/files/:file_id/download_url` | `Api::Internal::Admin::ProductsController#file_download` | native | `nextjs_admin_api_products` | y |
 | `POST /internal/admin/products/:id/hold_sales` | `Api::Internal::Admin::ProductsController#hold_sales` | native | `nextjs_admin_api_products` | y |
 | `POST /internal/admin/products/:id/release_sales_hold` | `Api::Internal::Admin::ProductsController#release_sales_hold` | native | `nextjs_admin_api_products` | y |
-| `GET /internal/admin/url_redirects/:id` | `Api::Internal::Admin::UrlRedirectsController#show` | not registered | - | n |
-| `POST /internal/admin/url_redirects/:id/grant_download` | `Api::Internal::Admin::UrlRedirectsController#grant_download` | not registered | - | n |
-| `DELETE /internal/admin/url_redirects/:id/revoke_download` | `Api::Internal::Admin::UrlRedirectsController#revoke_download` | not registered | - | n |
+| `GET /internal/admin/url_redirects/:id` | `Api::Internal::Admin::UrlRedirectsController#show` | native | `nextjs_admin_api_misc` | y |
+| `POST /internal/admin/url_redirects/:id/grant_download` | `Api::Internal::Admin::UrlRedirectsController#grant_download` | native | `nextjs_admin_api_misc` | y |
+| `DELETE /internal/admin/url_redirects/:id/revoke_download` | `Api::Internal::Admin::UrlRedirectsController#revoke_download` | native | `nextjs_admin_api_misc` | y |
 | `POST /internal/grmc/webhook` | `Api::Internal::Grmc::WebhookController#handle` | native | `nextjs_internal_api_host` | y |
 
 Unresolved:
