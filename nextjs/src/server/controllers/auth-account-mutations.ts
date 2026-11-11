@@ -7,6 +7,7 @@
 // link of a signed-out visitor holding only an external id (it redirects through SecureEncryptService, whose output is random).
 import { db } from "../../lib/db.ts";
 import { deviseTokenDigest } from "../auth/devise-token.ts";
+import { railsSessionCookieName } from "../auth/rails-session-config.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
 import { WARDEN_SCOPE_SESSION_KEY } from "../auth/warden.ts";
 import { isBlank } from "../html/text-helper.ts";
@@ -376,7 +377,32 @@ async function emailUnsubscribe(input: MutationInput): Promise<ActionResult> {
   return flashed(DEFAULT_REDIRECT_STATUS, ROOT_PATH, flash);
 }
 
+// POST /mobile/forgot_password on the API host is the same action behind a mobile client that sends no CSRF token, so Rails runs it with a
+// null session: nothing is stored in the flash and the response carries no cookie at all. A request that does carry a session or a token is
+// one Rails would treat differently, and goes to Rails.
+async function mobileForgotPasswordCreate(input: MutationInput): Promise<ActionResult> {
+  const { request, params } = input;
+  if (
+    request.cookies.has(railsSessionCookieName()) ||
+    request.headers.has("x-csrf-token") ||
+    request.headers.has("x-xsrf-token") ||
+    params.authenticity_token !== undefined
+  )
+    throw new HandBackToRails("a mobile request that carries a session or a CSRF token");
+  const result = await forgotPasswordCreate(input);
+  if (!("location" in result)) return result;
+  const { flash: _flash, ...withoutFlash } = result;
+  return withoutFlash;
+}
+
 registerMutations(
+  {
+    method: "POST",
+    pattern: "/mobile/forgot_password",
+    skipForgeryProtection: true,
+    options: { bare: true },
+    run: mobileForgotPasswordCreate,
+  },
   { method: "POST", pattern: "/users/forgot_password", run: forgotPasswordCreate },
   { method: "PUT", pattern: "/users/forgot_password", run: forgotPasswordUpdate },
   { method: "PATCH", pattern: "/users/forgot_password", run: forgotPasswordUpdate },

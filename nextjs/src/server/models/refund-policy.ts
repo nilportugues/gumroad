@@ -13,6 +13,7 @@ import { strippedField, UserFlags } from "./user.ts";
 
 // RefundPolicy::ALLOWED_REFUND_PERIODS_IN_DAYS
 export const ALLOWED_REFUND_PERIODS_IN_DAYS = [0, 7, 14, 30, 183] as const;
+export const DEFAULT_REFUND_PERIOD_IN_DAYS = 30;
 export const MAX_FINE_PRINT_LENGTH = 3_000;
 // SellerRefundPolicy#refund_period_meets_enforcement_minimum
 const ENFORCED_MINIMUM_REFUND_PERIOD_IN_DAYS = 7;

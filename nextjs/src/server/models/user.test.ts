@@ -565,11 +565,23 @@ describe("Users.save on an existing seller", () => {
 describe("Users.create", () => {
   const signup = { email: "new@example.com", encrypted_password: "$2a$hash" };
 
-  it("is refused before any write while GlobalAffiliate is not ported", async () => {
+  it("creates the terms agreements, the Gumroad affiliate and the refund policy in the signup transaction", async () => {
+    setUserCollaborators({ sendDeviseNotification: async () => undefined });
+    db.on(/FROM `users` WHERE `users`.`id` = /u, () => [{ id: 100n, flags: 0n }]);
     const user = Users.build(signup);
     user.ivars.password = "secret-password";
-    await expect(Users.saveBang(user)).rejects.toBeInstanceOf(NotPortedError);
-    expect(db.committed).toEqual([]);
+    user.ivars.new_tos_agreement_ips = ["203.0.113.7"];
+    await Users.saveBang(user);
+
+    const writes = db.committed.filter((write) => write.op === "create" && write.model !== "version");
+    expect(writes.map((write) => write.model)).toEqual(["user", "tosAgreement", "affiliate", "refundPolicy"]);
+    expect(writes[1]!.data).toMatchObject({ user_id: 100, ip: "203.0.113.7" });
+    expect(writes[2]!.data).toMatchObject({
+      affiliate_user_id: 100,
+      affiliate_basis_points: 1000,
+      type: "GlobalAffiliate",
+    });
+    expect(writes[3]!.data).toMatchObject({ seller_id: 100n, max_refund_period_in_days: 30 });
   });
 
   it("inserts the row Rails would, then hands off to the unported collaborators and jobs", async () => {

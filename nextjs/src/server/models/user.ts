@@ -271,14 +271,18 @@ const DEFAULT_COLLABORATORS: UserCollaborators = {
     }
     return out;
   },
-  createGlobalAffiliate: notPorted(
-    "GlobalAffiliate creation (has_one :global_affiliate)",
-    "app/models/user.rb:409 after_create :create_global_affiliate!",
-  ),
-  createRefundPolicy: notPorted(
-    "SellerRefundPolicy creation (has_one :refund_policy)",
-    "app/models/user.rb:410 after_create :create_refund_policy!",
-  ),
+  // Both models import this file, so they load on use.
+  async createGlobalAffiliate(user) {
+    const { GlobalAffiliates, globalAffiliateAttributes } = await import("./global-affiliate.ts");
+    await GlobalAffiliates.createBang(globalAffiliateAttributes(user.get("id")));
+  },
+  async createRefundPolicy(user) {
+    const { DEFAULT_REFUND_PERIOD_IN_DAYS, RefundPolicies } = await import("./refund-policy.ts");
+    await RefundPolicies.createBang({
+      seller_id: user.get("id"),
+      max_refund_period_in_days: DEFAULT_REFUND_PERIOD_IN_DAYS,
+    });
+  },
   // User::AsyncDeviseNotification: every caller runs after the save, where Ruby sends at once.
   sendDeviseNotification: async (user, notification, args) =>
     void (await deliverDeviseNotification(
@@ -1386,6 +1390,16 @@ const base = defineModel<User>({
       run: (r) => void (r.ivars.skip_reconfirmation_in_callback = true),
     },
     ...paperTrail.afterCreate,
+    {
+      // has_many :tos_agreements, autosaved for a new parent: `user.tos_agreements.build(ip:)` before the save.
+      name: "autosave_associated_records_for_tos_agreements",
+      async run(record) {
+        const ips = record.ivars.new_tos_agreement_ips as (string | null)[] | undefined;
+        if (!ips) return;
+        const { TosAgreements } = await import("./tos-agreement.ts");
+        for (const ip of ips) await TosAgreements.createBang({ user_id: Number(record.get("id")), ip });
+      },
+    },
     AUTOSAVE_SELLER_PROFILE,
     { name: "create_global_affiliate!", run: (r, ctx) => collaborators.createGlobalAffiliate(r, ctx) },
     { name: "create_refund_policy!", run: (r, ctx) => collaborators.createRefundPolicy(r, ctx) },

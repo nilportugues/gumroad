@@ -8,7 +8,7 @@ export type Difference = {
 };
 
 export type CompareOptions = {
-  // Paths to skip, dot-separated; `*` matches one segment, `**` any number. Array indexes are
+  // Paths to skip, dot-separated; `*` matches one segment, `prefix*` a segment starting with it, `**` any number. Array indexes are
   // segments too: "db.users.inserted.*.confirmation_token".
   ignore?: string[];
   // Paths whose objects may carry extra keys on the port's side.
@@ -92,7 +92,10 @@ function matches(pattern: string[], path: string[]): boolean {
   const [head, ...rest] = pattern;
   if (head === "**") return path.some((_, i) => matches(rest, path.slice(i))) || matches(rest, []);
   if (path.length === 0) return false;
-  return (head === "*" || head === path[0]) && matches(rest, path.slice(1));
+  // `name_*` matches a segment by prefix: a cookie whose name carries a random id.
+  const segment = path[0]!;
+  const segmentMatches = head === "*" || head === segment || (head!.length > 1 && head!.endsWith("*") && segment.startsWith(head!.slice(0, -1)));
+  return segmentMatches && matches(rest, path.slice(1));
 }
 
 function format(path: string[]): string {

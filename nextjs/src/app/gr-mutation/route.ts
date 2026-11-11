@@ -27,6 +27,7 @@ import "@/server/controllers/confirmations-create";
 import "@/server/controllers/custom-domain-verifications";
 import "@/server/controllers/mobile-pre-authorizations";
 import "@/server/controllers/signup-save-to-library";
+import "@/server/controllers/signup-create";
 import "@/server/controllers/integrations-circle";
 import "@/server/controllers/integrations-zoom";
 import "@/server/controllers/dashboard-json";
