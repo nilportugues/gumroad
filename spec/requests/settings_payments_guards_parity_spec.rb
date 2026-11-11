@@ -209,12 +209,45 @@ describe "Settings::PaymentsController guards", type: :request do
       expect(seller.comments.last.content).to start_with("Compliance country set by team admin")
     end
 
-    it "hands a country that is not text to Rails", parity: true do
+    it "saves a revision with no country for a country that is not text", parity: true do
       log_in(seller)
 
       post_json(set_country_settings_payments_path, country: ["PR"])
 
       expect(response).to have_http_status(:no_content)
+      expect(seller.user_compliance_infos.count).to eq(2)
+      expect(seller.alive_user_compliance_info.country).to be_nil
+    end
+
+    it "saves a revision with no country for a country code the ISO list does not know", parity: true do
+      log_in(seller)
+
+      post_json(set_country_settings_payments_path, country: "ZZ")
+
+      expect(response).to have_http_status(:no_content)
+      expect(seller.alive_user_compliance_info.country).to be_nil
+      expect(seller.reload.currency_type).to eq("usd")
+    end
+
+    it "saves a revision with no country when no country is sent", parity: true do
+      with_compliance_info(country: nil, first_name: "Pat", last_name: "Seller")
+      log_in(seller)
+
+      post_json(set_country_settings_payments_path)
+
+      expect(response).to have_http_status(:no_content)
+      expect(seller.user_compliance_infos.count).to eq(2)
+      expect(seller.alive_user_compliance_info.first_name).to eq("Pat")
+    end
+
+    it "reads a country code in any case", parity: true do
+      log_in(seller)
+
+      post_json(set_country_settings_payments_path, country: "de")
+
+      expect(response).to have_http_status(:no_content)
+      expect(seller.alive_user_compliance_info.country).to eq("Germany")
+      expect(seller.reload.currency_type).to eq("eur")
     end
   end
 

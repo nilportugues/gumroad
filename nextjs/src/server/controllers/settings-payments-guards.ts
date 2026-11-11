@@ -4,8 +4,9 @@
 //
 // Ported:
 //   - #update: the missing-email, Puerto Rico and French overseas department refusals;
-//   - #set_country: the 403s, then a first country written as a new compliance revision (models/user-compliance-info-writes.ts)
-//     with the seller's currency moved to it; JP, a guardian, a minor birthday and open compliance requests are handed back;
+//   - #set_country: the 403s, then a first country (or none, for a code the ISO list does not know or a param that is not text)
+//     written as a new compliance revision (models/user-compliance-info-writes.ts) with the seller's currency moved to it; JP, a
+//     guardian, a minor birthday and open compliance requests are handed back;
 //   - #remove_credit_card: the whole action (no processor call: it clears credit_card_id and saves the seller);
 //   - #paypal_connect: the redirect for missing or foreign PayPal parameters;
 //   - #remediation and #verify_stripe_remediation: the redirects for a seller with no Stripe account (and, for #remediation, a
@@ -146,7 +147,7 @@ const headForbidden: ActionResult = { status: FORBIDDEN, body: "", contentType: 
 async function complianceWriteUnsupported(
   sellerId: bigint,
   current: UserComplianceInfo,
-  countryAlpha2: string,
+  countryAlpha2: string | null,
 ): Promise<string | null> {
   if (countryAlpha2 === JAPAN) return "a Japanese compliance country, which validates the kana fields";
   if (alpha2ByName(current.business_country) === JAPAN)
@@ -162,8 +163,6 @@ async function complianceWriteUnsupported(
 function setCountry(input: MutationInput): Promise<ActionResult> {
   return sellerJsonAction(input, authorizeAs(settingsPaymentsUserPolicy.setCountry), async () => {
     const { country } = input.params;
-    if (country !== undefined && country !== null && typeof country !== "string")
-      throw new HandBackToRails("a country that is not text");
 
     const seller = sellerOf(input);
     const { row, persisted } = await fetchOrBuildComplianceInfo(seller.id);
@@ -172,17 +171,18 @@ function setCountry(input: MutationInput): Promise<ActionResult> {
     if (typeof country === "string" && FRENCH_OVERSEAS_DEPARTMENTS_AS_FRANCE.includes(country))
       return jsonResponse({ error: FRENCH_OVERSEAS_DEPARTMENT_MESSAGE }, FORBIDDEN, true);
 
+    // `ISO3166::Country[param]&.common_name`: a code the list does not know, or a param that is not text, saves a revision
+    // with no country (and so no currency change) and answers 204 like any other.
     const chosen = typeof country === "string" ? countryByAlpha2(country) : null;
-    if (chosen === null) throw new HandBackToRails("a country the ISO 3166 list does not know");
-    const reason = await complianceWriteUnsupported(seller.id, row, chosen.alpha2);
+    const reason = await complianceWriteUnsupported(seller.id, row, chosen?.alpha2 ?? null);
     if (reason !== null) throw new HandBackToRails(reason);
 
     const revision = persisted ? UserComplianceInfos.load(row) : UserComplianceInfos.build({ user_id: row.user_id });
     const user = await findUserBang(seller.id);
     await dupAndSaveBang(revision, async (copy) => {
-      copy.set("country", chosen.common_name);
+      copy.set("country", chosen?.common_name ?? null);
       // Country.new(country_code): the code the stored name resolves back to.
-      const currency = defaultCurrency(alpha2ByName(chosen.common_name));
+      const currency = defaultCurrency(alpha2ByName(chosen?.common_name));
       if (currency !== null && currency !== user.get("currency_type")) {
         user.set("currency_type", currency);
         await Users.saveBang(user);
