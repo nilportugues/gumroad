@@ -8,6 +8,8 @@ import "@/server/controllers/settings-team-mutations";
 import "@/server/controllers/settings-team-invitations";
 import "@/server/controllers/settings-totp-mutations";
 import "@/server/controllers/settings-payments-mutations";
+import "@/server/controllers/settings-guardians-mutations";
+import "@/server/controllers/settings-beneficial-owners";
 import "@/server/controllers/social-callbacks";
 import "@/server/controllers/connections-mutations";
 import "@/server/controllers/oauth-applications-mutations";
