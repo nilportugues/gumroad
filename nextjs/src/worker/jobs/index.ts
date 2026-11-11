@@ -28,6 +28,10 @@ import {
 } from "./delete-old-records-jobs.ts";
 import { deleteOldVersionsRecordsWorker } from "./delete-old-versions-records-worker.ts";
 import { deleteProductFilesArchivesWorker } from "./delete-product-files-archives-worker.ts";
+import { purgeOldDeletedAssetPreviewsWorker } from "./purge-old-deleted-asset-previews-worker.ts";
+import { backfillPriceCheckerIndexFieldsJob } from "./backfill-price-checker-index-fields-job.ts";
+import { refreshClosedTierDiscoverPricesJob } from "./refresh-closed-tier-discover-prices-job.ts";
+import { deleteProductRichContentWorker } from "./delete-product-rich-content-worker.ts";
 import { deleteWishlistProductsJob } from "./delete-wishlist-products-job.ts";
 import { dispatchPendingWorkflowInstallmentScheduleIntentsJob } from "./dispatch-workflow-intents-job.ts";
 import { disputeEvidenceDueSoonReminderJob } from "./dispute-evidence-due-soon-reminder-job.ts";
@@ -245,6 +249,10 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   DeleteExpiredOauthDeviceAuthorizationsJob: deleteExpiredOauthDeviceAuthorizationsJob,
   FlushDeliveredEmailInfosJob: flushDeliveredEmailInfosJob,
   DeleteProductFilesArchivesWorker: deleteProductFilesArchivesWorker,
+  PurgeOldDeletedAssetPreviewsWorker: purgeOldDeletedAssetPreviewsWorker,
+  RefreshClosedTierDiscoverPricesJob: refreshClosedTierDiscoverPricesJob,
+  BackfillPriceCheckerIndexFieldsJob: backfillPriceCheckerIndexFieldsJob,
+  DeleteProductRichContentWorker: deleteProductRichContentWorker,
   RemoveSuspendedAccountFollowsWorker: removeSuspendedAccountFollowsWorker,
   RefundPurchaseWorker: refundPurchaseWorker,
   UpdateUserBalanceStatsCacheWorker: updateUserBalanceStatsCacheWorker,

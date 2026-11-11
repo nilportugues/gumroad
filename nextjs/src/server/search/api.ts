@@ -67,6 +67,12 @@ export function scroll(params: { scrollId: string; scroll: string }): Promise<Es
   return perform({ method: "POST", path: "/_search/scroll", query: { scroll: params.scroll }, body: esJson({ scroll_id: params.scrollId }) });
 }
 
+// `scroll(scroll_id:, scroll:)`: the id is a path segment of a GET with no body, left out when nil.
+export function scrollById(params: { scrollId: string | null; scroll: string }): Promise<EsResponse> {
+  const path = params.scrollId === null ? "/_search/scroll" : `/_search/scroll/${segment(params.scrollId)}`;
+  return perform({ method: "GET", path, query: { scroll: params.scroll } });
+}
+
 export function clearScroll(scrollId: string | null): Promise<EsResponse> {
   return perform({ method: "DELETE", path: scrollId === null ? "/_search/scroll" : `/_search/scroll/${segment(scrollId)}` });
 }

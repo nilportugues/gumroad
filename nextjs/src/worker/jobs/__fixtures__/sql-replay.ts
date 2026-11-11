@@ -52,7 +52,8 @@ function failure(error: { number: number; message: string }): Error {
 
 const prismaModels = new Map(Prisma.dmmf.datamodel.models.map((m) => [m.name.charAt(0).toLowerCase() + m.name.slice(1), m]));
 
-export function sqlReplay(golden: Statement[]) {
+// `parseJsonOf`: tables whose JSON columns the model reads parsed, as Prisma returns them.
+export function sqlReplay(golden: Statement[], options: { parseJsonOf?: string[] } = {}) {
   const log: string[] = [];
   let index = 0;
 
@@ -66,6 +67,16 @@ export function sqlReplay(golden: Statement[]) {
   const rows = (result: StatementResult) =>
     (result.rows ?? []).map((row) => Object.fromEntries((result.fields ?? []).map((field, i) => [field, decode(row[i]!)])));
 
+  // Prisma's raw queries parse a JSON column (mysql2 hands Rails the text, which the golden recorded).
+  const parseJsonColumns = (sql: string, result: Record<string, unknown>[]) => {
+    const name = /^SELECT .*? FROM `([^`]+)`/u.exec(sql)?.[1];
+    if (!name || !options.parseJsonOf?.includes(name)) return result;
+    const model = [...prismaModels.values()].find((m) => (m.dbName ?? m.name) === name);
+    const json = model?.fields.filter((f) => f.type === "Json").map((f) => f.dbName ?? f.name) ?? [];
+    for (const row of result) for (const c of json) if (typeof row[c] === "string") row[c] = JSON.parse(row[c]);
+    return result;
+  };
+
   let begun: boolean | null = null;
   const touch = () => {
     if (begun === false) {
@@ -78,7 +89,8 @@ export function sqlReplay(golden: Statement[]) {
     const raw: SqlClient = {
       $queryRaw: (async (sql: Prisma.Sql) => {
         if (inTransaction) touch();
-        return rows(next(renderSql(sql)));
+        const text = renderSql(sql);
+        return parseJsonColumns(text, rows(next(text)));
       }) as never,
       $executeRaw: (async (sql: Prisma.Sql) => {
         if (inTransaction) touch();

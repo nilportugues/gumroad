@@ -285,7 +285,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "BackfillTaggingsCountOnTagsJob": {
     "file": "app/sidekiq/backfill_taggings_count_on_tags_job.rb",
@@ -832,7 +832,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "DeleteStripeApplePayDomainWorker": {
     "file": "app/sidekiq/delete_stripe_apple_pay_domain_worker.rb",
@@ -1954,7 +1954,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "PushNotificationWorker": {
     "file": "app/sidekiq/push_notification_worker.rb",
@@ -2216,7 +2216,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RefreshCustomDomainRoutabilityWorker": {
     "file": "app/sidekiq/refresh_custom_domain_routability_worker.rb",
