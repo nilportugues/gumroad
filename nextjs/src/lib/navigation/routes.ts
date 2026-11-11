@@ -20,7 +20,17 @@ type RouteOptions = {
 };
 
 // js-routes options that shape the URL instead of becoming query parameters.
-const RESERVED_OPTIONS = new Set(["host", "protocol", "port", "anchor", "format", "params", "subdomain", "trailing_slash", "script_name"]);
+const RESERVED_OPTIONS = new Set([
+  "host",
+  "protocol",
+  "port",
+  "anchor",
+  "format",
+  "params",
+  "subdomain",
+  "trailing_slash",
+  "script_name",
+]);
 
 function toParam(value: Segment | unknown): string {
   if (value && typeof value === "object") {
@@ -39,7 +49,8 @@ function toQuery(params: Record<string, unknown>, prefix?: string): string[] {
     const name = prefix ? `${prefix}[${key}]` : key;
     if (value === undefined) continue;
     if (Array.isArray(value)) {
-      for (const item of value) parts.push(`${encodeURIComponent(`${name}[]`)}=${encodeURIComponent(toParam(item ?? ""))}`);
+      for (const item of value)
+        parts.push(`${encodeURIComponent(`${name}[]`)}=${encodeURIComponent(toParam(item ?? ""))}`);
     } else if (value && typeof value === "object" && !("to_param" in value)) {
       parts.push(...toQuery(value as Record<string, unknown>, name));
     } else {
@@ -59,7 +70,9 @@ export function configureRouteDefaults(protocol: string, host: string) {
 }
 
 function defaultHost() {
-  return defaults.host ?? getConfig("DOMAIN") ?? (typeof window !== "undefined" ? window.location.host : "localhost:3000");
+  return (
+    defaults.host ?? getConfig("DOMAIN") ?? (typeof window !== "undefined" ? window.location.host : "localhost:3000")
+  );
 }
 
 function defaultProtocol() {
@@ -91,7 +104,9 @@ export function buildRoute(spec: string, args: unknown[], absolute: boolean): st
         return "";
       }
       used.add(name);
-      return kind === "*" ? toParam(value).split("/").map(encodeURIComponent).join("/") : encodeURIComponent(toParam(value));
+      return kind === "*"
+        ? toParam(value).split("/").map(encodeURIComponent).join("/")
+        : encodeURIComponent(toParam(value));
     });
     return missing ? null : filled;
   };
@@ -114,8 +129,14 @@ export function buildRoute(spec: string, args: unknown[], absolute: boolean): st
 }
 
 type RouteHelper = (...args: unknown[]) => string;
-const path = (spec: string): RouteHelper => (...args) => buildRoute(spec, args, false);
-const url = (spec: string): RouteHelper => (...args) => buildRoute(spec, args, true);
+const path =
+  (spec: string): RouteHelper =>
+  (...args) =>
+    buildRoute(spec, args, false);
+const url =
+  (spec: string): RouteHelper =>
+  (...args) =>
+    buildRoute(spec, args, true);
 
 // Help center (config/routes.rb `namespace :help_center, path: "help"`).
 export const help_center_root_path = path("/help(.:format)");
@@ -161,9 +182,15 @@ export const sellers_brand_accounts_path = path("/sellers/brand_accounts(.:forma
 export const dashboard_path = path("/dashboard(.:format)");
 
 // Settings pages (WS-56) and the helpers their component graph calls (generated from config/routes.rb).
-export const account_info_integrations_google_calendar_index_path = path("/integrations/google_calendar/account_info(.:format)");
-export const approve_product_marketing_action_path = path("/products/:product_id/marketing_actions/:id/approve.:format");
-export const calendar_list_integrations_google_calendar_index_path = path("/integrations/google_calendar/calendar_list(.:format)");
+export const account_info_integrations_google_calendar_index_path = path(
+  "/integrations/google_calendar/account_info(.:format)",
+);
+export const approve_product_marketing_action_path = path(
+  "/products/:product_id/marketing_actions/:id/approve.:format",
+);
+export const calendar_list_integrations_google_calendar_index_path = path(
+  "/integrations/google_calendar/calendar_list(.:format)",
+);
 export const call_path = path("/calls/:id(.:format)");
 export const cancel_product_marketing_action_path = path("/products/:product_id/marketing_actions/:id/cancel.:format");
 export const change_can_contact_purchase_path = path("/purchases/:id/change_can_contact(.:format)");
@@ -185,13 +212,21 @@ export const customer_emails_path = path("/customers/customer_emails/:purchase_i
 export const customers_paged_path = path("/customers/paged(.:format)");
 export const deactivate_account_path = path("/users/deactivate(.:format)");
 export const events_track_user_action_path = path("/events/track_user_action(.:format)");
-export const execute_product_marketing_action_path = path("/products/:product_id/marketing_actions/:id/execute.:format");
+export const execute_product_marketing_action_path = path(
+  "/products/:product_id/marketing_actions/:id/execute.:format",
+);
 export const follow_user_path = path("/follow(.:format)");
 export const increment_post_views_path = path("/posts/:id/increment_post_views(.:format)");
 export const increment_views_link_path = path("/links/:id/increment_views(.:format)");
-export const internal_product_review_video_approvals_url = url("/internal/product_review_videos/:product_review_video_id/approvals(.:format)");
-export const internal_product_review_video_rejections_url = url("/internal/product_review_videos/:product_review_video_id/rejections(.:format)");
-export const internal_single_customer_email_path = path("/internal/customers/:purchase_id/single_customer_email(.:format)");
+export const internal_product_review_video_approvals_url = url(
+  "/internal/product_review_videos/:product_review_video_id/approvals(.:format)",
+);
+export const internal_product_review_video_rejections_url = url(
+  "/internal/product_review_videos/:product_review_video_id/rejections(.:format)",
+);
+export const internal_single_customer_email_path = path(
+  "/internal/customers/:purchase_id/single_customer_email(.:format)",
+);
 export const join_server_integrations_discord_index_path = path("/integrations/discord/join_server(.:format)");
 export const leave_server_integrations_discord_index_path = path("/integrations/discord/leave_server(.:format)");
 export const license_key_lookup_url = url("/license-key-lookup(.:format)");
@@ -207,15 +242,21 @@ export const oauth_application_path = path("/oauth/applications/:id(.:format)");
 export const oauth_applications_path = path("/oauth/applications(.:format)");
 export const oauth_authorized_application_path = path("/oauth/authorized_applications/:id(.:format)");
 export const oauth_redirect_integrations_discord_index_url = url("/integrations/discord/oauth_redirect(.:format)");
-export const oauth_redirect_integrations_google_calendar_index_url = url("/integrations/google_calendar/oauth_redirect(.:format)");
+export const oauth_redirect_integrations_google_calendar_index_url = url(
+  "/integrations/google_calendar/oauth_redirect(.:format)",
+);
 export const paged_checkout_discounts_path = path("/checkout/discounts/paged(.:format)");
 export const ping_path = path("/ping(.:format)");
 export const product_marketing_actions_path = path("/products/:product_id/marketing_actions.:format");
 export const product_purchases_path = path("/customers/product_purchases/:purchase_id(.:format)");
-export const product_remaining_call_availabilities_path = path("/products/:product_id/remaining_call_availabilities.:format");
+export const product_remaining_call_availabilities_path = path(
+  "/products/:product_id/remaining_call_availabilities.:format",
+);
 export const product_review_path = path("/product_reviews/:id(.:format)");
 export const product_review_response_path = path("/product_review_responses/:id(.:format)");
-export const product_review_video_streaming_urls_path = path("/product_review_videos/:product_review_video_id/streaming_urls(.:format)");
+export const product_review_video_streaming_urls_path = path(
+  "/product_review_videos/:product_review_video_id/streaming_urls(.:format)",
+);
 export const product_review_videos_upload_context_path = path("/product_review_videos/upload_context(.:format)");
 export const product_reviews_path = path("/product_reviews(.:format)");
 export const product_reviews_set_path = path("/product_reviews/set(.:format)");
@@ -231,7 +272,9 @@ export const refund_purchase_path = path("/purchases/:id/refund(.:format)");
 export const regenerate_recovery_codes_settings_totp_path = path("/settings/totp/regenerate_recovery_codes(.:format)");
 export const registration_options_settings_passkeys_path = path("/settings/passkeys/registration_options(.:format)");
 export const resend_confirmation_email_settings_main_path = path("/settings/resend_confirmation_email(.:format)");
-export const resend_invitation_settings_team_invitation_path = path("/settings/team/invitations/:id/resend_invitation.:format");
+export const resend_invitation_settings_team_invitation_path = path(
+  "/settings/team/invitations/:id/resend_invitation.:format",
+);
 export const resend_receipt_purchase_path = path("/purchases/:id/resend_receipt(.:format)");
 export const restore_settings_team_invitation_path = path("/settings/team/invitations/:id/restore.:format");
 export const restore_settings_team_member_path = path("/settings/team/members/:id/restore.:format");
@@ -244,7 +287,9 @@ export const selection_discounts_offer_codes_path = path("/offer_codes/selection
 export const send_for_purchase_path = path("/posts/:id/send_for_purchase/:purchase_id(.:format)");
 export const server_info_integrations_discord_index_path = path("/integrations/discord/server_info(.:format)");
 export const settings_advanced_path = path("/settings/advanced(.:format)");
-export const settings_application_access_tokens_path = path("/settings/applications/:application_id/access_tokens(.:format)");
+export const settings_application_access_tokens_path = path(
+  "/settings/applications/:application_id/access_tokens(.:format)",
+);
 export const settings_authorized_applications_path = path("/settings/authorized_applications(.:format)");
 export const settings_billing_path = path("/settings/billing(.:format)");
 export const settings_main_path = path("/settings(.:format)");
@@ -349,7 +394,9 @@ export const follower_path = path("/followers/:id(.:format)");
 export const followers_path = path("/followers(.:format)");
 export const internal_installment_audience_count_path = path("/internal/installments/:id/audience_count(.:format)");
 export const internal_installment_clicked_urls_path = path("/internal/installments/:id/clicked_urls(.:format)");
-export const internal_installment_non_opener_resend_path = path("/internal/installments/:id/non_opener_resend(.:format)");
+export const internal_installment_non_opener_resend_path = path(
+  "/internal/installments/:id/non_opener_resend(.:format)",
+);
 export const internal_installment_preview_email_path = path("/internal/installments/:id/preview_email(.:format)");
 export const internal_installment_recipient_count_path = path("/internal/installments/recipient_count(.:format)");
 export const internal_installment_remaining_send_path = path("/internal/installments/:id/remaining_send(.:format)");
@@ -404,7 +451,9 @@ export const settings_beneficial_owners_path = path("/settings/beneficial_owners
 export const settings_guardian_path = path("/settings/guardians/:id(.:format)");
 export const settings_guardians_path = path("/settings/guardians(.:format)");
 export const disconnect_settings_stripe_path = path("/settings/stripe/disconnect(.:format)");
-export const opt_in_to_au_backtax_collection_settings_payments_path = path("/settings/payments/opt_in_to_au_backtax_collection(.:format)");
+export const opt_in_to_au_backtax_collection_settings_payments_path = path(
+  "/settings/payments/opt_in_to_au_backtax_collection(.:format)",
+);
 export const remediation_settings_payments_path = path("/settings/payments/remediation(.:format)");
 export const cart_items_count_path = path("/cart_items_count(.:format)");
 export const cart_items_count_url = url("/cart_items_count(.:format)");
@@ -424,7 +473,9 @@ export const internal_agent_messages_stream_path = path("/internal/agent/message
 export const internal_agent_turn_status_path = path("/internal/agent/turns/:client_turn_id(.:format)");
 export const internal_agent_actions_path = path("/internal/agent/actions(.:format)");
 export const internal_agent_action_status_path = path("/internal/agent/actions/status(.:format)");
-export const internal_agent_custom_html_preview_document_path = path("/internal/agent/custom_html_previews/:token(.:format)");
+export const internal_agent_custom_html_preview_document_path = path(
+  "/internal/agent/custom_html_previews/:token(.:format)",
+);
 
 // Agent data layer (WS-75).
 export const internal_agent_conversations_latest_path = path("/internal/agent/conversations/latest(.:format)");
@@ -441,7 +492,9 @@ export const cancel_piracy_report_path = path("/dashboard/piracy_reports/:id/can
 
 // Dispute evidence page (WS-75).
 export const purchase_dispute_evidence_path = path("/purchases/:purchase_id/dispute_evidence(.:format)");
-export const success_purchase_dispute_evidence_path = path("/purchases/:purchase_id/dispute_evidence/success(.:format)");
+export const success_purchase_dispute_evidence_path = path(
+  "/purchases/:purchase_id/dispute_evidence/success(.:format)",
+);
 export const unpublish_link_path = path("/links/:id/unpublish(.:format)");
 export const url_redirect_download_archive_path = path("/zip/:id(.:format)");
 export const url_redirect_download_product_files_path = path("/r/:id/product_files(.:format)");
@@ -452,7 +505,9 @@ export const url_redirect_save_last_content_page_path = path("/r/:id/save_last_c
 export const confirm_redirect_path = path("/confirm-redirect(.:format)");
 export const community_chat_messages_path = path("/communities/:community_id/chat_messages(.:format)");
 export const community_chat_message_path = path("/communities/:community_id/chat_messages/:id(.:format)");
-export const community_last_read_chat_message_path = path("/communities/:community_id/last_read_chat_message(.:format)");
+export const community_last_read_chat_message_path = path(
+  "/communities/:community_id/last_read_chat_message(.:format)",
+);
 export const community_notification_settings_path = path("/communities/:community_id/notification_settings(.:format)");
 export const community_path = path("/communities/:seller_id/:community_id(.:format)");
 export const library_archive_path = path("/library/purchase/:id/archive(.:format)");
@@ -468,7 +523,9 @@ export const download_folder_archive_path = path("/product_files_utility/folder_
 export const download_product_files_path = path("/product_files_utility/product_files/:product_id(.:format)");
 export const dropbox_files_path = path("/dropbox_files(.:format)");
 export const edit_bundle_content_path = path("/bundles/:bundle_id/content/edit(.:format)");
-export const internal_product_existing_product_files_path = path("/internal/products/:product_id/existing_product_files(.:format)");
+export const internal_product_existing_product_files_path = path(
+  "/internal/products/:product_id/existing_product_files(.:format)",
+);
 export const internal_product_product_posts_path = path("/internal/products/:product_id/product_posts(.:format)");
 export const link_asset_preview_path = path("/links/:link_id/asset_previews/:id(.:format)");
 export const link_asset_previews_path = path("/links/:link_id/asset_previews(.:format)");
@@ -495,7 +552,9 @@ export const global_affiliates_product_eligibility_path = path("/global_affiliat
 export const products_affiliated_path = path("/products/affiliated/:id(.:format)");
 export const internal_ai_product_details_generations_path = path("/internal/ai_product_details_generations(.:format)");
 export const links_path = path("/links(.:format)");
-export const settings_dismiss_ai_product_generation_promo_path = path("/settings/dismiss_ai_product_generation_promo(.:format)");
+export const settings_dismiss_ai_product_generation_promo_path = path(
+  "/settings/dismiss_ai_product_generation_promo(.:format)",
+);
 export const analytics_data_by_date_path = path("/analytics/data/by_date(.:format)");
 export const analytics_data_by_state_path = path("/analytics/data/by_state(.:format)");
 export const analytics_data_by_referral_path = path("/analytics/data/by_referral(.:format)");
@@ -508,7 +567,9 @@ export const custom_domain_coffee_url = url("/coffee(.:format)");
 export const edit_link_url = url("/products/:id/edit(.:format)");
 export const sections_link_path = path("/links/:id/sections(.:format)");
 export const checkout_path = path("/checkout(.:format)");
-export const generate_braintree_transient_customer_token_path = path("/braintree/generate_transient_customer_token(.:format)");
+export const generate_braintree_transient_customer_token_path = path(
+  "/braintree/generate_transient_customer_token(.:format)",
+);
 export const stripe_setup_intents_path = path("/stripe/setup_intents(.:format)");
 export const billing_agreement_paypal_path = path("/paypal/billing_agreement(.:format)");
 export const billing_agreement_token_paypal_path = path("/paypal/billing_agreement_token(.:format)");
@@ -532,7 +593,9 @@ export const checkout_return_url = url("/checkout/returns/:id(.:format)");
 export const checkout_upsell_path = path("/checkout/upsells/:id(.:format)");
 export const checkout_upsell_pause_path = path("/checkout/upsells/:upsell_id/pause(.:format)");
 export const collaborators_incoming_path = path("/collaborators/incomings/:id(.:format)");
-export const dashboard_dismiss_getting_started_checklist_path = path("/dashboard/dismiss_getting_started_checklist(.:format)");
+export const dashboard_dismiss_getting_started_checklist_path = path(
+  "/dashboard/dismiss_getting_started_checklist(.:format)",
+);
 export const dashboard_download_tax_form_path = path("/dashboard/download_tax_form(.:format)");
 export const decline_collaborators_incoming_path = path("/collaborators/incomings/:id/decline(.:format)");
 export const disconnect_paypal_path = path("/paypal/disconnect(.:format)");
@@ -546,5 +609,7 @@ export const short_link_path = path("/l/:id(.:format)");
 export const statistics_checkout_upsell_path = path("/checkout/upsells/:id/statistics(.:format)");
 export const subscription_path = path("/subscriptions/:id(.:format)");
 export const unsubscribe_by_user_subscription_path = path("/subscriptions/:id/unsubscribe_by_user(.:format)");
-export const update_purchases_content_bundle_content_path = path("/bundles/:bundle_id/content/update_purchases_content(.:format)");
+export const update_purchases_content_bundle_content_path = path(
+  "/bundles/:bundle_id/content/update_purchases_content(.:format)",
+);
 export const user_subscribe_review_reminders_path = path("/users/subscribe_review_reminders(.:format)");

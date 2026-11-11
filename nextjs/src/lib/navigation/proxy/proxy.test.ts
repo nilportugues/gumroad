@@ -12,7 +12,12 @@ const development = domainConfig({ RAILS_ENV: "development" });
 
 describe("classifyHost", () => {
   it("recognises the app hosts", () => {
-    expect(classifyHost("gumroad.com", production)).toMatchObject({ gumroad: true, discover: true, api: false, sellerSubdomain: null });
+    expect(classifyHost("gumroad.com", production)).toMatchObject({
+      gumroad: true,
+      discover: true,
+      api: false,
+      sellerSubdomain: null,
+    });
     expect(classifyHost("app.gumroad.com", production)).toMatchObject({ gumroad: true, discover: false });
     expect(classifyHost("api.gumroad.com", production)).toMatchObject({ gumroad: false, api: true });
   });
@@ -46,7 +51,11 @@ describe("domainConfig", () => {
     const config = domainConfig({ RAILS_ENV: "staging", CUSTOM_DOMAIN: "pr-1.example.com", BRANCH_DEPLOYMENT: "true" });
     expect(config.domain).toBe("pr-1.example.com");
     expect(config.validRequestHosts).toContain("pr-1.example.com");
-    expect(config.validApiRequestHosts).toEqual(["api.staging.gumroad.com", "api.pr-1.example.com", "pr-1.example.com"]);
+    expect(config.validApiRequestHosts).toEqual([
+      "api.staging.gumroad.com",
+      "api.pr-1.example.com",
+      "pr-1.example.com",
+    ]);
     expect(config.validDiscoverRequestHost).toBe("pr-1.example.com");
   });
 });
@@ -73,34 +82,59 @@ describe("decideRoute", () => {
   const allOn = gate(["nextjs_help_center_category", "nextjs_settings_password"], false);
 
   it("serves a listed route from Next only when its flag is on", async () => {
-    expect(await decideRoute(request("https://gumroad.com/settings/password"), routes, production, allOn)).toMatchObject({ action: "next" });
-    expect(await decideRoute(request("https://gumroad.com/settings/password"), routes, production, gate([], false))).toEqual({ action: "rails" });
+    expect(
+      await decideRoute(request("https://gumroad.com/settings/password"), routes, production, allOn),
+    ).toMatchObject({ action: "next" });
+    expect(
+      await decideRoute(request("https://gumroad.com/settings/password"), routes, production, gate([], false)),
+    ).toEqual({ action: "rails" });
   });
 
   it("sends unlisted paths, other methods and other hosts to Rails", async () => {
-    expect(await decideRoute(request("https://gumroad.com/dashboard"), routes, production, allOn)).toEqual({ action: "rails" });
-    expect(await decideRoute(request("https://gumroad.com/settings/password", { method: "PUT" }), routes, production, allOn)).toEqual({ action: "rails" });
-    expect(await decideRoute(request("https://jane.gumroad.com/settings/password"), routes, production, allOn)).toEqual({ action: "rails" });
+    expect(await decideRoute(request("https://gumroad.com/dashboard"), routes, production, allOn)).toEqual({
+      action: "rails",
+    });
+    expect(
+      await decideRoute(request("https://gumroad.com/settings/password", { method: "PUT" }), routes, production, allOn),
+    ).toEqual({ action: "rails" });
+    expect(await decideRoute(request("https://jane.gumroad.com/settings/password"), routes, production, allOn)).toEqual(
+      { action: "rails" },
+    );
   });
 
   it("leaves the format-suffixed path to Rails, which redirects it", async () => {
-    expect(await decideRoute(request("https://gumroad.com/help/category/x.html"), routes, production, allOn)).toEqual({ action: "rails" });
+    expect(await decideRoute(request("https://gumroad.com/help/category/x.html"), routes, production, allOn)).toEqual({
+      action: "rails",
+    });
   });
 
   it("keeps signed-out-only routes on Rails unless the visitor is known to be signed out", async () => {
     const url = "https://gumroad.com/help/category/316-open-an-account";
     expect(await decideRoute(request(url), routes, production, allOn)).toMatchObject({ action: "next" });
-    expect(await decideRoute(request(url), routes, production, gate(["nextjs_help_center_category"], true))).toEqual({ action: "rails" });
-    expect(await decideRoute(request(url), routes, production, gate(["nextjs_help_center_category"], null))).toEqual({ action: "rails" });
+    expect(await decideRoute(request(url), routes, production, gate(["nextjs_help_center_category"], true))).toEqual({
+      action: "rails",
+    });
+    expect(await decideRoute(request(url), routes, production, gate(["nextjs_help_center_category"], null))).toEqual({
+      action: "rails",
+    });
   });
 
   it("serves Next's own endpoints and assets without a flag", async () => {
-    expect(await decideRoute(request("https://api.gumroad.com/api/health"), routes, production, gate([], null))).toMatchObject({ action: "next" });
-    expect(await decideRoute(request("https://gumroad.com/_next/static/x.js"), routes, production, gate([], null))).toMatchObject({ action: "next" });
+    expect(
+      await decideRoute(request("https://api.gumroad.com/api/health"), routes, production, gate([], null)),
+    ).toMatchObject({ action: "next" });
+    expect(
+      await decideRoute(request("https://gumroad.com/_next/static/x.js"), routes, production, gate([], null)),
+    ).toMatchObject({ action: "next" });
   });
 
   it("forwards Inertia protocol requests to Rails for converted routes that are not Inertia pages", async () => {
-    const decision = await decideRoute(request("https://gumroad.com/settings/password", { headers: { "X-Inertia": "true" } }), routes, production, allOn);
+    const decision = await decideRoute(
+      request("https://gumroad.com/settings/password", { headers: { "X-Inertia": "true" } }),
+      routes,
+      production,
+      allOn,
+    );
     expect(decision).toEqual({ action: "rails" });
   });
 
@@ -113,13 +147,22 @@ describe("decideRoute", () => {
     });
 
     it("stay with Rails while the flag is off or the visitor may be signed in", async () => {
-      expect(await decideRoute(request(url, inertia), routes, production, gate([], false))).toEqual({ action: "rails" });
-      expect(await decideRoute(request(url, inertia), routes, production, gate(["nextjs_help_center_category"], true))).toEqual({ action: "rails" });
+      expect(await decideRoute(request(url, inertia), routes, production, gate([], false))).toEqual({
+        action: "rails",
+      });
+      expect(
+        await decideRoute(request(url, inertia), routes, production, gate(["nextjs_help_center_category"], true)),
+      ).toEqual({ action: "rails" });
     });
   });
 
   it("turns a flight request for a Rails page into a hard navigation", async () => {
-    const decision = await decideRoute(request("https://gumroad.com/dashboard", { headers: { RSC: "1" } }), routes, production, allOn);
+    const decision = await decideRoute(
+      request("https://gumroad.com/dashboard", { headers: { RSC: "1" } }),
+      routes,
+      production,
+      allOn,
+    );
     expect(decision).toEqual({ action: "hard-navigation" });
   });
 });
@@ -133,18 +176,49 @@ describe("a page that also answers format.json", () => {
   const json = { headers: { Accept: "application/json" } };
 
   it("sends a request asking for JSON to the mutation handler", async () => {
-    expect(await decideRoute(request("https://gumroad.com/cart_items_count", json), routes, production, on)).toMatchObject({ action: "mutation" });
+    expect(
+      await decideRoute(request("https://gumroad.com/cart_items_count", json), routes, production, on),
+    ).toMatchObject({ action: "mutation" });
   });
 
   it("serves the page to a browser and answers its Inertia request from Next", async () => {
-    expect(await decideRoute(request("https://gumroad.com/cart_items_count", { headers: { Accept: "text/html,application/xhtml+xml,*/*;q=0.8" } }), routes, production, on)).toMatchObject({ action: "next" });
-    expect(await decideRoute(request("https://gumroad.com/cart_items_count", { headers: { "X-Inertia": "true", Accept: "application/json" } }), routes, production, on)).toMatchObject({ action: "inertia" });
+    expect(
+      await decideRoute(
+        request("https://gumroad.com/cart_items_count", {
+          headers: { Accept: "text/html,application/xhtml+xml,*/*;q=0.8" },
+        }),
+        routes,
+        production,
+        on,
+      ),
+    ).toMatchObject({ action: "next" });
+    expect(
+      await decideRoute(
+        request("https://gumroad.com/cart_items_count", {
+          headers: { "X-Inertia": "true", Accept: "application/json" },
+        }),
+        routes,
+        production,
+        on,
+      ),
+    ).toMatchObject({ action: "inertia" });
   });
 
   it("leaves a request that is not asking for JSON to Rails on a host with no page", async () => {
-    expect(await decideRoute(request("https://seller.gumroad.com/cart_items_count", json), routes, production, on)).toMatchObject({ action: "mutation" });
-    expect(await decideRoute(request("https://seller.gumroad.com/cart_items_count"), routes, production, on)).toEqual({ action: "rails" });
-    expect(await decideRoute(request("https://seller.gumroad.com/cart_items_count", { headers: { "X-Inertia": "true" } }), routes, production, on)).toEqual({ action: "rails" });
+    expect(
+      await decideRoute(request("https://seller.gumroad.com/cart_items_count", json), routes, production, on),
+    ).toMatchObject({ action: "mutation" });
+    expect(await decideRoute(request("https://seller.gumroad.com/cart_items_count"), routes, production, on)).toEqual({
+      action: "rails",
+    });
+    expect(
+      await decideRoute(
+        request("https://seller.gumroad.com/cart_items_count", { headers: { "X-Inertia": "true" } }),
+        routes,
+        production,
+        on,
+      ),
+    ).toEqual({ action: "rails" });
   });
 });
 
@@ -152,33 +226,55 @@ describe("router-level redirects", () => {
   const redirects = compileRouteTable({
     "/users/sign_in": { flag: "nextjs_auth_devise_redirects", redirect: "/login", redirectQuery: "keep" },
     "/analytics": { flag: "nextjs_auth_devise_redirects", redirect: "/dashboard/sales" },
-    "/subscriptions/:id/edit_card": { flag: "nextjs_auth_devise_redirects", redirect: "/subscriptions/%{id}/manage", redirectQuery: "to_query" },
+    "/subscriptions/:id/edit_card": {
+      flag: "nextjs_auth_devise_redirects",
+      redirect: "/subscriptions/%{id}/manage",
+      redirectQuery: "to_query",
+    },
     "discover:/animation(*path)": { flag: "nextjs_auth_devise_redirects", redirectReplace: ["animation", "3d"] },
     "POST /users/sign_in": { flag: "nextjs_auth_login_writes", mutation: true },
   });
   const on = gate(["nextjs_auth_devise_redirects", "nextjs_auth_login_writes"], null);
 
   it("answers a GET with the target and the query string, and leaves other methods to their own route", async () => {
-    expect(await decideRoute(request("https://gumroad.com/users/sign_in?next=%2Fdashboard"), redirects, production, on)).toMatchObject({ action: "redirect", location: "/login?next=%2Fdashboard" });
-    expect(await decideRoute(request("https://gumroad.com/users/sign_in", { method: "POST" }), redirects, production, on)).toMatchObject({ action: "mutation" });
+    expect(
+      await decideRoute(request("https://gumroad.com/users/sign_in?next=%2Fdashboard"), redirects, production, on),
+    ).toMatchObject({ action: "redirect", location: "/login?next=%2Fdashboard" });
+    expect(
+      await decideRoute(request("https://gumroad.com/users/sign_in", { method: "POST" }), redirects, production, on),
+    ).toMatchObject({ action: "mutation" });
   });
 
   it("stays with Rails while the flag is off", async () => {
-    expect(await decideRoute(request("https://gumroad.com/users/sign_in"), redirects, production, gate([], null))).toEqual({ action: "rails" });
+    expect(
+      await decideRoute(request("https://gumroad.com/users/sign_in"), redirects, production, gate([], null)),
+    ).toEqual({ action: "rails" });
   });
 
   it("drops the query string of a plain redirect", async () => {
-    expect(await decideRoute(request("https://gumroad.com/analytics?x=1"), redirects, production, on)).toMatchObject({ action: "redirect", location: "/dashboard/sales" });
+    expect(await decideRoute(request("https://gumroad.com/analytics?x=1"), redirects, production, on)).toMatchObject({
+      action: "redirect",
+      location: "/dashboard/sales",
+    });
   });
 
   it("hands a query it cannot rebuild like to_query back to Rails", async () => {
-    expect(await decideRoute(request("https://gumroad.com/subscriptions/abc/edit_card?b=2&a=1"), redirects, production, on)).toMatchObject({ action: "redirect", location: "/subscriptions/abc/manage?a=1&b=2" });
-    expect(await decideRoute(request("https://gumroad.com/subscriptions/abc/edit_card?a[]=1"), redirects, production, on)).toEqual({ action: "rails" });
+    expect(
+      await decideRoute(request("https://gumroad.com/subscriptions/abc/edit_card?b=2&a=1"), redirects, production, on),
+    ).toMatchObject({ action: "redirect", location: "/subscriptions/abc/manage?a=1&b=2" });
+    expect(
+      await decideRoute(request("https://gumroad.com/subscriptions/abc/edit_card?a[]=1"), redirects, production, on),
+    ).toEqual({ action: "rails" });
   });
 
   it("answers the discover-host redirect on the discover host only", async () => {
-    expect(await decideRoute(request("https://gumroad.com/animation/x?q=1"), redirects, production, on)).toMatchObject({ action: "redirect", location: "/3d/x?q=1" });
-    expect(await decideRoute(request("https://app.gumroad.com/animation/x"), redirects, production, on)).toEqual({ action: "rails" });
+    expect(await decideRoute(request("https://gumroad.com/animation/x?q=1"), redirects, production, on)).toMatchObject({
+      action: "redirect",
+      location: "/3d/x?q=1",
+    });
+    expect(await decideRoute(request("https://app.gumroad.com/animation/x"), redirects, production, on)).toEqual({
+      action: "rails",
+    });
   });
 });
 
@@ -190,13 +286,33 @@ describe("routes on the API host", () => {
   const on = gate(["nextjs_mobile_feature_flags", "nextjs_mobile_devices"], null);
 
   it("serves them on the API host only, for their own method", async () => {
-    expect(await decideRoute(request("https://api.gumroad.com/mobile/feature_flags/x"), apiRoutes, production, on)).toMatchObject({ action: "handler", handler: "mobile" });
-    expect(await decideRoute(request("https://api.gumroad.com/mobile/devices", { method: "POST" }), apiRoutes, production, on)).toMatchObject({ action: "handler", handler: "mobile" });
-    expect(await decideRoute(request("https://api.gumroad.com/mobile/devices"), apiRoutes, production, on)).toEqual({ action: "rails" });
-    expect(await decideRoute(request("https://gumroad.com/mobile/feature_flags/x"), apiRoutes, production, on)).toEqual({ action: "rails" });
+    expect(
+      await decideRoute(request("https://api.gumroad.com/mobile/feature_flags/x"), apiRoutes, production, on),
+    ).toMatchObject({ action: "handler", handler: "mobile" });
+    expect(
+      await decideRoute(
+        request("https://api.gumroad.com/mobile/devices", { method: "POST" }),
+        apiRoutes,
+        production,
+        on,
+      ),
+    ).toMatchObject({ action: "handler", handler: "mobile" });
+    expect(await decideRoute(request("https://api.gumroad.com/mobile/devices"), apiRoutes, production, on)).toEqual({
+      action: "rails",
+    });
+    expect(await decideRoute(request("https://gumroad.com/mobile/feature_flags/x"), apiRoutes, production, on)).toEqual(
+      { action: "rails" },
+    );
   });
 
   it("keeps them on Rails while their flag is off", async () => {
-    expect(await decideRoute(request("https://api.gumroad.com/mobile/feature_flags/x"), apiRoutes, production, gate([], null))).toEqual({ action: "rails" });
+    expect(
+      await decideRoute(
+        request("https://api.gumroad.com/mobile/feature_flags/x"),
+        apiRoutes,
+        production,
+        gate([], null),
+      ),
+    ).toEqual({ action: "rails" });
   });
 });

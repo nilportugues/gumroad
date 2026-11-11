@@ -3,6 +3,8 @@
 // GET visits become Next navigations (the server component reloads the props). Other methods are
 // sent with fetch to whichever app owns the endpoint; while Rails still owns it, the request speaks
 // the Inertia protocol (X-Inertia) and the proxy always sends such requests to Rails.
+import { hasFiles, mergeDataIntoQueryString, objectToFormData } from "./form-data";
+import { isPartialVisit, mergeResponseProps, partialHeaders } from "./partial-reload";
 import type {
   ActiveVisit,
   Errors,
@@ -16,8 +18,6 @@ import type {
   RequestPayload,
   VisitOptions,
 } from "./types";
-import { hasFiles, mergeDataIntoQueryString, objectToFormData } from "./form-data";
-import { isPartialVisit, mergeResponseProps, partialHeaders } from "./partial-reload";
 import { readRemembered, writeRemembered } from "./use-remember";
 
 // What the page-props provider hands the router once it mounts.
@@ -112,7 +112,9 @@ async function finishWithPage(visit: ActiveVisit, options: VisitOptions, page: P
   const errors: Errors = page.props.errors ?? {};
   visit.completed = true;
   if (Object.keys(errors).length > 0) {
-    const scoped = visit.errorBag ? ((errors as Record<string, unknown>)[visit.errorBag] as Errors | undefined) ?? {} : errors;
+    const scoped = visit.errorBag
+      ? (((errors as Record<string, unknown>)[visit.errorBag] as Errors | undefined) ?? {})
+      : errors;
     options.onError?.(scoped);
     fire("error", { visit, errors: scoped });
   } else {
@@ -195,7 +197,8 @@ async function send(visit: ActiveVisit, options: VisitOptions) {
     const here = new URL(window.location.href);
     if (target.pathname === here.pathname && page.component === nav.getPage().component) {
       nav.setPageProps(() => page.props);
-      if (!visit.preserveUrl && target.search !== here.search) window.history.replaceState(window.history.state, "", relativeHref(target));
+      if (!visit.preserveUrl && target.search !== here.search)
+        window.history.replaceState(window.history.state, "", relativeHref(target));
       if (!resolveOption(visit.preserveState, page)) nav.remount();
       await finishWithPage(visit, options, page);
       finish(visit, options);
@@ -302,7 +305,8 @@ async function sendInPlace(visit: ActiveVisit, options: VisitOptions) {
   if (page.scrollProps) nav.setScrollProps((held) => ({ ...held, ...page.scrollProps }));
   if (!visit.preserveUrl) {
     const target = new URL(page.url, window.location.href);
-    if (visit.url.hash && !target.hash && target.pathname + target.search === visit.url.pathname + visit.url.search) target.hash = visit.url.hash;
+    if (visit.url.hash && !target.hash && target.pathname + target.search === visit.url.pathname + visit.url.search)
+      target.hash = visit.url.hash;
     const sameUrl = target.pathname + target.search === window.location.pathname + window.location.search;
     // Next.js syncs usePathname/useSearchParams with native history calls.
     if (visit.replace || sameUrl) window.history.replaceState(window.history.state, "", relativeHref(target));
@@ -332,16 +336,27 @@ type DataVisitOptions = Omit<VisitOptions, "method" | "data">;
 
 export const router = {
   visit,
-  get: (url: string | URL, data: RequestPayload = {}, options: DataVisitOptions = {}) => visit(url, { ...options, method: "get", data }),
-  post: (url: string | URL, data: RequestPayload = {}, options: DataVisitOptions = {}) => visit(url, { preserveState: true, ...options, method: "post", data }),
-  put: (url: string | URL, data: RequestPayload = {}, options: DataVisitOptions = {}) => visit(url, { preserveState: true, ...options, method: "put", data }),
-  patch: (url: string | URL, data: RequestPayload = {}, options: DataVisitOptions = {}) => visit(url, { preserveState: true, ...options, method: "patch", data }),
-  delete: (url: string | URL, options: Omit<VisitOptions, "method"> = {}) => visit(url, { preserveState: true, ...options, method: "delete" }),
+  get: (url: string | URL, data: RequestPayload = {}, options: DataVisitOptions = {}) =>
+    visit(url, { ...options, method: "get", data }),
+  post: (url: string | URL, data: RequestPayload = {}, options: DataVisitOptions = {}) =>
+    visit(url, { preserveState: true, ...options, method: "post", data }),
+  put: (url: string | URL, data: RequestPayload = {}, options: DataVisitOptions = {}) =>
+    visit(url, { preserveState: true, ...options, method: "put", data }),
+  patch: (url: string | URL, data: RequestPayload = {}, options: DataVisitOptions = {}) =>
+    visit(url, { preserveState: true, ...options, method: "patch", data }),
+  delete: (url: string | URL, options: Omit<VisitOptions, "method"> = {}) =>
+    visit(url, { preserveState: true, ...options, method: "delete" }),
 
   // A reload with `only`/`except`/`reset` merges the response into the page (see sendInPlace); any other
   // reload re-renders the server component, at the new URL when `data` changes the query string.
   reload(options: ReloadOptions = {}) {
-    const active = buildVisit(currentHref(), { ...options, preserveScroll: true, preserveState: true, async: true, method: "get" });
+    const active = buildVisit(currentHref(), {
+      ...options,
+      preserveScroll: true,
+      preserveState: true,
+      async: true,
+      method: "get",
+    });
     if (options.onBefore?.(active) === false || !fire("before", { visit: active }, true)) return;
     options.onStart?.(active);
     fire("start", { visit: active });
@@ -354,16 +369,29 @@ export const router = {
   },
 
   // Client-side only visits (no request), as in Inertia 2.1+.
-  replace(params: { url?: string; props?: PageProps | ((props: PageProps) => PageProps); preserveScroll?: boolean; preserveState?: boolean }) {
+  replace(params: {
+    url?: string;
+    props?: PageProps | ((props: PageProps) => PageProps);
+    preserveScroll?: boolean;
+    preserveState?: boolean;
+  }) {
     applyClientVisit(params, "replace");
   },
-  push(params: { url?: string; props?: PageProps | ((props: PageProps) => PageProps); preserveScroll?: boolean; preserveState?: boolean }) {
+  push(params: {
+    url?: string;
+    props?: PageProps | ((props: PageProps) => PageProps);
+    preserveScroll?: boolean;
+    preserveState?: boolean;
+  }) {
     applyClientVisit(params, "push");
   },
   replaceProp(name: string, value: unknown | ((previous: unknown, props: PageProps) => unknown)) {
     requireNavigator().setPageProps((props) => ({
       ...props,
-      [name]: typeof value === "function" ? (value as (previous: unknown, props: PageProps) => unknown)(props[name], props) : value,
+      [name]:
+        typeof value === "function"
+          ? (value as (previous: unknown, props: PageProps) => unknown)(props[name], props)
+          : value,
     }));
   },
 
@@ -399,7 +427,8 @@ function applyClientVisit(
 ) {
   const nav = requireNavigator();
   const { props } = params;
-  if (props !== undefined) nav.setPageProps((current) => (typeof props === "function" ? props(current) : { ...current, ...props }));
+  if (props !== undefined)
+    nav.setPageProps((current) => (typeof props === "function" ? props(current) : { ...current, ...props }));
   if (params.url !== undefined) {
     // Next.js syncs usePathname/useSearchParams with native history calls.
     if (mode === "push") window.history.pushState(window.history.state, "", params.url);

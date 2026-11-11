@@ -45,7 +45,8 @@ function frames(callback: () => void, times = 1) {
 
 export function getScrollableParent(element: HTMLElement | null): HTMLElement | null {
   const hasDimensionConstraint = (maxDimension: string, inlineDimension: string) =>
-    (!!maxDimension && maxDimension !== "none" && maxDimension !== "0px") || (!!inlineDimension && inlineDimension !== "auto" && inlineDimension !== "0");
+    (!!maxDimension && maxDimension !== "none" && maxDimension !== "0px") ||
+    (!!inlineDimension && inlineDimension !== "auto" && inlineDimension !== "0");
   const allowsVerticalScroll = (el: HTMLElement) => {
     const style = window.getComputedStyle(el);
     if (["scroll", "overlay"].includes(style.overflowY)) return true;
@@ -109,13 +110,26 @@ class Queue {
 
 type Remembered = { previousPage: unknown; nextPage: unknown; lastLoadedPage: unknown; requestCount: number };
 
-function createDataManager(options: Omit<InfiniteScrollOptions, "onCompletePreviousRequest" | "onCompleteNextRequest"> & { onBeforeUpdate: () => void; onCompletePreviousRequest: (loaded: unknown) => void; onCompleteNextRequest: (loaded: unknown) => void }) {
+function createDataManager(
+  options: Omit<InfiniteScrollOptions, "onCompletePreviousRequest" | "onCompleteNextRequest"> & {
+    onBeforeUpdate: () => void;
+    onCompletePreviousRequest: (loaded: unknown) => void;
+    onCompleteNextRequest: (loaded: unknown) => void;
+  },
+) {
   const scrollPropOfCurrentPage = (): ScrollPropMetadata => {
     const scrollProp = currentPage().scrollProps?.[options.getPropName()];
     if (scrollProp) return scrollProp;
     throw new Error(`The page object does not contain a scroll prop named "${options.getPropName()}".`);
   };
-  const state = { component: null as string | null, loading: false, previousPage: null as unknown, nextPage: null as unknown, lastLoadedPage: null as unknown, requestCount: 0 };
+  const state = {
+    component: null as string | null,
+    loading: false,
+    previousPage: null as unknown,
+    nextPage: null as unknown,
+    lastLoadedPage: null as unknown,
+    requestCount: 0,
+  };
   const resetState = () => {
     const scrollProp = scrollPropOfCurrentPage();
     state.component = currentPage().component;
@@ -128,7 +142,11 @@ function createDataManager(options: Omit<InfiniteScrollOptions, "onCompletePrevi
   const rememberKey = () => `inertia:infinite-scroll-data:${options.getPropName()}`;
   resetState();
   const remembered = router.restore(rememberKey()) as Remembered | undefined;
-  if (remembered && typeof remembered === "object" && remembered.lastLoadedPage === scrollPropOfCurrentPage().currentPage) {
+  if (
+    remembered &&
+    typeof remembered === "object" &&
+    remembered.lastLoadedPage === scrollPropOfCurrentPage().currentPage
+  ) {
     state.previousPage = remembered.previousPage;
     state.nextPage = remembered.nextPage;
     state.lastLoadedPage = remembered.lastLoadedPage;
@@ -149,7 +167,15 @@ function createDataManager(options: Omit<InfiniteScrollOptions, "onCompletePrevi
     state.lastLoadedPage = scrollProp.currentPage;
     state[key] = scrollProp[key];
     state.requestCount += 1;
-    router.remember({ previousPage: state.previousPage, nextPage: state.nextPage, lastLoadedPage: state.lastLoadedPage, requestCount: state.requestCount }, rememberKey());
+    router.remember(
+      {
+        previousPage: state.previousPage,
+        nextPage: state.nextPage,
+        lastLoadedPage: state.lastLoadedPage,
+        requestCount: state.requestCount,
+      },
+      rememberKey(),
+    );
   };
   const getPageName = () => scrollPropOfCurrentPage().pageName;
 
@@ -199,9 +225,18 @@ function createDataManager(options: Omit<InfiniteScrollOptions, "onCompletePrevi
 
 type PageRange = Record<string, { from: number; to: number }>;
 
-function createElementManager(options: InfiniteScrollOptions & { onItemIntersected: (element: Element) => void; onPreviousTriggered: () => void; onNextTriggered: () => void }) {
+function createElementManager(
+  options: InfiniteScrollOptions & {
+    onItemIntersected: (element: Element) => void;
+    onPreviousTriggered: () => void;
+    onNextTriggered: () => void;
+  },
+) {
   const observers: IntersectionObserver[] = [];
-  const newObserver = (callback: (entry: IntersectionObserverEntry) => void, observerOptions: IntersectionObserverInit = {}) => {
+  const newObserver = (
+    callback: (entry: IntersectionObserverEntry) => void,
+    observerOptions: IntersectionObserverInit = {},
+  ) => {
     const observer = new IntersectionObserver((entries) => {
       for (const entry of entries) if (entry.isIntersecting) callback(entry);
     }, observerOptions);
@@ -217,7 +252,8 @@ function createElementManager(options: InfiniteScrollOptions & { onItemIntersect
   const addedElements = new Set<Element>();
 
   const pageOf = (element: HTMLElement) => element.dataset[INFINITE_SCROLL_PAGE_KEY];
-  const untagged = (element: HTMLElement) => !(INFINITE_SCROLL_PAGE_KEY in element.dataset) && !(INFINITE_SCROLL_IGNORE_KEY in element.dataset);
+  const untagged = (element: HTMLElement) =>
+    !(INFINITE_SCROLL_PAGE_KEY in element.dataset) && !(INFINITE_SCROLL_IGNORE_KEY in element.dataset);
   const rememberKey = () => `inertia:infinite-scroll-elements:${options.getPropName()}`;
 
   const rememberElements = () => {
@@ -286,7 +322,10 @@ function createElementManager(options: InfiniteScrollOptions & { onItemIntersect
       });
       itemsMutationObserver.observe(options.getItemsElement(), { childList: true });
       itemsObserver = newObserver((entry) => options.onItemIntersected(entry.target));
-      const observerOptions = { root: options.getScrollableParent(), rootMargin: `${Math.max(1, options.getTriggerMargin())}px` };
+      const observerOptions = {
+        root: options.getScrollableParent(),
+        rootMargin: `${Math.max(1, options.getTriggerMargin())}px`,
+      };
       startObserver = newObserver(options.onPreviousTriggered, observerOptions);
       endObserver = newObserver(options.onNextTriggered, observerOptions);
     },
@@ -314,7 +353,13 @@ function createElementManager(options: InfiniteScrollOptions & { onItemIntersect
         hasRestoredElements = true;
         if (restoreElements()) return;
       }
-      const untaggedElements = Array.from(options.getItemsElement().querySelectorAll<HTMLElement>(":scope > *:not([data-infinite-scroll-page]):not([data-infinite-scroll-ignore])"));
+      const untaggedElements = Array.from(
+        options
+          .getItemsElement()
+          .querySelectorAll<HTMLElement>(
+            ":scope > *:not([data-infinite-scroll-page]):not([data-infinite-scroll-ignore])",
+          ),
+      );
       untaggedElements.forEach((element) => {
         if (untagged(element)) element.dataset[INFINITE_SCROLL_PAGE_KEY] = String(loadedPage ?? "") || "1";
         itemsObserver.observe(element);
@@ -355,8 +400,20 @@ function createQueryStringManager(options: InfiniteScrollOptions & { getPageName
           }),
       )
       .finally(() => {
-        if (enabled && initialUrl && payloadUrl && initialUrl.href !== payloadUrl.href && initialUrlWasAbsolute !== null) {
-          router.replace({ url: initialUrlWasAbsolute ? payloadUrl.href : `${payloadUrl.pathname}${payloadUrl.search}${payloadUrl.hash}`, preserveScroll: true, preserveState: true });
+        if (
+          enabled &&
+          initialUrl &&
+          payloadUrl &&
+          initialUrl.href !== payloadUrl.href &&
+          initialUrlWasAbsolute !== null
+        ) {
+          router.replace({
+            url: initialUrlWasAbsolute
+              ? payloadUrl.href
+              : `${payloadUrl.pathname}${payloadUrl.search}${payloadUrl.hash}`,
+            preserveScroll: true,
+            preserveState: true,
+          });
         }
         initialUrl = payloadUrl = initialUrlWasAbsolute = null;
       });
@@ -461,8 +518,10 @@ export function useInfiniteScroll(options: InfiniteScrollOptions) {
   };
   manager = {
     ...dataManager,
-    fetchNext: (reloadOptions: ReloadOptions = {}) => dataManager.fetchNext(options.inReverseMode() ? withScrollPreservation(reloadOptions) : reloadOptions),
-    fetchPrevious: (reloadOptions: ReloadOptions = {}) => dataManager.fetchPrevious(!options.inReverseMode() ? withScrollPreservation(reloadOptions) : reloadOptions),
+    fetchNext: (reloadOptions: ReloadOptions = {}) =>
+      dataManager.fetchNext(options.inReverseMode() ? withScrollPreservation(reloadOptions) : reloadOptions),
+    fetchPrevious: (reloadOptions: ReloadOptions = {}) =>
+      dataManager.fetchPrevious(!options.inReverseMode() ? withScrollPreservation(reloadOptions) : reloadOptions),
   };
 
   const removeEventListener = router.on("success", () => frames(elementManager.refreshTriggers, 2));
