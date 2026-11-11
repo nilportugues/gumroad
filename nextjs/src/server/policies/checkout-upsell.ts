@@ -33,4 +33,6 @@ export const checkoutUpsellPolicy = {
   create,
   update,
   destroy: update,
+  pause: update,
+  unpause: update,
 };

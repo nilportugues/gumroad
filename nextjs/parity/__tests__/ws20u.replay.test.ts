@@ -15,14 +15,19 @@ import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
 
-// Replays the WS-20u request specs: Checkout::UpsellsController (the page, paged, statistics, destroy and the refusals). Each fixture is a login
+// Replays the WS-20u request specs: Checkout::UpsellsController (the page, paged, statistics, destroy and the refusals), its pauses
+// and the product picker (Checkout::Upsells::PausesController and ProductsController). Each fixture is a login
 // and a CSRF fetch followed by the request under test, which is the last exchange. A cart item, a sort by purchases and the delete of an
 // upsell with an offer code arrive at a stand-in for Rails and must write nothing.
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
-const SPECS = ["checkout_upsells_signed_in_spec"].filter((dir) => existsSync(path.join(FIXTURES, dir)));
-const ROUTE_FLAGS = "nextjs_checkout_upsells";
+const SPECS = [
+  "checkout_upsells_signed_in_spec",
+  "checkout_upsell_pauses_signed_in_spec",
+  "checkout_upsell_products_spec",
+].filter((dir) => existsSync(path.join(FIXTURES, dir)));
+const ROUTE_FLAGS = "nextjs_checkout_upsells,nextjs_checkout_upsell_products";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
