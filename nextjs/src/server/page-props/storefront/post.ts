@@ -116,9 +116,16 @@ type CommentRow = {
   ancestry_depth: number;
 };
 
-// CommentPresenter#comment_component_props for a visitor who is not signed in (nothing is editable
-// or deletable, no purchase is attached).
-async function commentProps(comment: CommentRow, authors: Map<string, User>) {
+// What CommentContextPolicy#update? and #destroy? answer for a visitor, per comment. The post page serves a signed-out visitor, for
+// whom neither holds.
+export type CommentPermissions = {
+  editable(comment: { author_id: bigint | null }): boolean;
+  deletable(comment: { author_id: bigint | null }): boolean;
+};
+const NO_PERMISSIONS: CommentPermissions = { editable: () => false, deletable: () => false };
+
+// CommentPresenter#comment_component_props (no purchase is attached).
+async function commentProps(comment: CommentRow, authors: Map<string, User>, permissions: CommentPermissions) {
   const author = comment.author_id === null ? undefined : authors.get(String(comment.author_id));
   const content = comment.content ?? "";
   const parentId =
@@ -137,8 +144,8 @@ async function commentProps(comment: CommentRow, authors: Map<string, User>) {
     depth: comment.ancestry_depth,
     created_at: iso8601(comment.created_at),
     created_at_humanized: `${timeAgoInWords(comment.created_at)} ago`,
-    is_editable: false,
-    is_deletable: false,
+    is_editable: permissions.editable(comment),
+    is_deletable: permissions.deletable(comment),
   };
 }
 
@@ -160,7 +167,11 @@ async function assetImagePrefix(): Promise<string> {
 }
 
 // PaginatedCommentsPresenter#result
-async function paginatedComments(post: Installment, page: number) {
+export async function paginatedComments(
+  post: Installment,
+  page: number,
+  permissions: CommentPermissions = NO_PERMISSIONS,
+) {
   const commentable = Prisma.sql`${column("comments", "commentable_type")} = 'Installment' AND ${column("comments", "commentable_id")} = ${post.id} AND ${column("comments", "deleted_at")} IS NULL`;
   const [totalRow] = await selectRows<{ total: bigint }>(
     Prisma.sql`SELECT COUNT(*) AS total FROM ${table("comments")} WHERE ${commentable}`,
@@ -194,7 +205,7 @@ async function paginatedComments(post: Installment, page: number) {
     (await db.user.findMany({ where: { id: { in: authorIds } } })).map((author) => [String(author.id), author]),
   );
   return {
-    comments: await Promise.all(comments.map((comment) => commentProps(comment, authors))),
+    comments: await Promise.all(comments.map((comment) => commentProps(comment, authors, permissions))),
     count,
     pagination: {
       count: Number(roots),

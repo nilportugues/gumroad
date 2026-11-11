@@ -31,9 +31,10 @@ const SPECS = [
   "followers_mutations_signed_in_spec",
   "followers_confirm_link_spec",
   "comments_mutations_signed_in_spec",
+  "comments_index_parity_spec",
 ];
 const ROUTE_FLAGS =
-  "nextjs_emails_writes,nextjs_workflows_writes,nextjs_audience_export,nextjs_followers_writes,nextjs_followers_confirm,nextjs_comments_writes";
+  "nextjs_emails_writes,nextjs_workflows_writes,nextjs_audience_export,nextjs_followers_writes,nextjs_followers_confirm,nextjs_comments_writes,nextjs_comments_index";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
@@ -285,7 +286,10 @@ describe.skipIf(!url)("mutations of the emails and workflows pages", () => {
           const handed = await replayFixtureExchange(fixture, index, options);
           const request = fixture.exchanges[index]!.request;
           expect(handedBack).toHaveLength(1);
-          expect(handedBack[0]).toMatchObject({ method: request.method, url: request.path });
+          expect(handedBack[0]).toMatchObject({
+            method: request.method,
+            url: request.query ? `${request.path}?${request.query}` : request.path,
+          });
           expect(JSON.parse(handedBack[0]!.body || "{}")).toEqual(JSON.parse(request.body || "{}"));
           expect(Object.keys(handed.exchanges[0]!.actual.db ?? {})).toEqual([]);
           return;

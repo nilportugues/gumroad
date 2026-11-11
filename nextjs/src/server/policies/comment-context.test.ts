@@ -58,3 +58,16 @@ describe("CommentContextPolicy without a purchase", () => {
     ).toThrow(NotPortedError);
   });
 });
+
+describe("CommentContextPolicy#index? with a computed visibility", () => {
+  it("answers what the caller computed for a visitor outside the seller roles", () => {
+    const reader = context(user(2), user(3));
+    expect(commentContextPolicy.index(reader, { ...record(null), postVisible: true })).toBe(true);
+    expect(commentContextPolicy.index(reader, { ...record(null), postVisible: false })).toBe(false);
+    expect(commentContextPolicy.index(context(null, null), { ...record(null), postVisible: false })).toBe(false);
+  });
+
+  it("still refuses to judge when the caller computed nothing", () => {
+    expect(() => commentContextPolicy.index(context(user(2), user(3)), record(null))).toThrow(NotPortedError);
+  });
+});
