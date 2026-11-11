@@ -532,6 +532,6 @@ if (import.meta.main) {
     }
   } else {
     writeFileSync(OUTPUT, document);
-    console.log(`wrote ${OUTPUT}`);
+    process.stdout.write(`wrote ${OUTPUT}\n`);
   }
 }

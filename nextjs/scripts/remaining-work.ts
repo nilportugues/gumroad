@@ -838,7 +838,7 @@ function build(): string {
 }
 
 if (import.meta.main && process.argv.includes("--rows")) {
-  for (const row of rows(parseRoutes())) console.log(JSON.stringify(row));
+  for (const row of rows(parseRoutes())) process.stdout.write(`${JSON.stringify(row)}\n`);
 } else if (import.meta.main) {
   const document = build();
   if (process.argv.includes("--stdout")) process.stdout.write(document);
@@ -851,6 +851,6 @@ if (import.meta.main && process.argv.includes("--rows")) {
     }
   } else {
     writeFileSync(OUTPUT, document);
-    console.log(`wrote ${OUTPUT}`);
+    process.stdout.write(`wrote ${OUTPUT}\n`);
   }
 }
