@@ -60,7 +60,7 @@ const regenerateRecoveryCodes = (input: MutationInput) =>
 
 registerMutations(
   { method: "POST", pattern: "/settings/totp", formats: ["json"], run: create },
-  { method: "POST", pattern: "/settings/totp/confirm", formats: ["json"], railsOnly: "/params:/settings/totp/confirm:post", run: confirm },
+  { method: "POST", pattern: "/settings/totp/confirm", formats: ["json"], run: confirm },
   { method: "DELETE", pattern: "/settings/totp", formats: ["json"], run: destroy },
   {
     method: "POST",

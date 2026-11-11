@@ -791,6 +791,18 @@ export function rackRedirect(incoming: Request, location: string, status = 301):
   return new Response(null, { status: response.status, headers: response.headers });
 }
 
+// A router-level redirect is answered after Rack::Attack, which counts it like any other request.
+export async function routerRedirect(incoming: Request, location: string): Promise<Response> {
+  try {
+    const throttled = await countRackAttack(incoming);
+    if (throttled !== null) return throttled;
+  } catch (error) {
+    if (error instanceof HandBackToRails) return forwardToRails(incoming);
+    throw error;
+  }
+  return rackRedirect(incoming, location);
+}
+
 // A response a Rack middleware ahead of the app (Rack::Attack's 429) answers: the envelope of rackRedirect, with a body.
 export function rackResponse(
   incoming: Request,
@@ -885,6 +897,10 @@ export async function pageEnvelope(incoming: Request, options: ActionOptions = {
     return { response: new Response(request.method === "HEAD" ? null : body, { status, headers }) };
   };
   try {
+    // A full page load is counted here, ahead of the chain like processAction does; the proxy takes the count back when it sends the same
+    // request through processAction instead (a redirect or a bare 400).
+    const throttled = await countRackAttack(incoming);
+    if (throttled !== null) return { response: throttled };
     const chain = await beforeActions(request, options, new Date());
     if (halted(chain)) return wrap(chain.headers, chain.status, null);
     const renderState = takeRenderState(chain);

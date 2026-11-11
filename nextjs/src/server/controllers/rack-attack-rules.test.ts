@@ -1,7 +1,35 @@
 import { readFileSync } from "node:fs";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
+// The golden cases are signed out and hold no OAuth token; the examples below set both.
+const stubs = vi.hoisted(() => ({
+  wardenUser: null as { id: bigint } | null,
+  token: null as {
+    resource_owner_id: number;
+    expires_in: number | null;
+    created_at: Date;
+    revoked_at: Date | null;
+  } | null,
+  paidCents: 0,
+}));
+vi.mock("./signed-in-filters.ts", () => ({
+  resolveRequestAuth: () =>
+    Promise.resolve({
+      context: { loggedInUser: stubs.wardenUser },
+      effects: { signedOut: null },
+      authenticatedVia: stubs.wardenUser === null ? null : "session",
+    }),
+}));
+vi.mock("../../lib/db.ts", () => ({
+  db: {
+    oauthAccessToken: { findFirst: () => Promise.resolve(stubs.token) },
+    user: { findUnique: () => Promise.resolve({ id: 7n }) },
+    payment: { aggregate: () => Promise.resolve({ _sum: { amount_cents: BigInt(stubs.paidCents) } }) },
+  },
+}));
+
+import { HandBackToRails } from "./application-controller.ts";
 import { evaluate, normalizePath, RACK_ATTACK_RULES, rackRequest, type RackStore } from "./rack-attack.ts";
 
 // parity/golden/rack-attack-throttles.json comes from rack_attack.rb itself (scripts/golden/rack-attack-throttles.rb): every throttle in
@@ -13,6 +41,7 @@ type Golden = {
     name: string;
     method: string;
     path: string;
+    query?: string;
     authorization?: string | null;
     at: number;
     ip: string;
@@ -68,12 +97,25 @@ describe("golden of rack_attack.rb", () => {
     );
   });
 
-  for (const entry of golden.counts) {
+  // Rack parses a key or value that is not valid UTF-8 without raising and counts nothing; Node's parser does not read it, so it hands the request back.
+  const HANDED_BACK = new Set(["invalid utf-8"]);
+  for (const entry of golden.counts.filter(({ name }) => HANDED_BACK.has(name))) {
+    it(`hands ${entry.name} back to Rails, which counts nothing for it`, () => {
+      expect(Object.keys(entry.keys)).toEqual([]);
+      expect(() => request(`${entry.path}?${entry.query}`)).toThrow(HandBackToRails);
+    });
+  }
+
+  for (const entry of golden.counts.filter(({ name }) => !HANDED_BACK.has(name))) {
     it(`writes the keys and expiries Rack::Attack writes for ${entry.name}`, async () => {
       const store = memoryStore();
       const headers: Record<string, string> = {};
       if (entry.authorization) headers.authorization = entry.authorization;
-      const rack = request(entry.path, { method: entry.method, headers, ip: entry.ip });
+      const rack = request(entry.query === undefined ? entry.path : `${entry.path}?${entry.query}`, {
+        method: entry.method,
+        headers,
+        ip: entry.ip,
+      });
       expect(await run(store, rack, entry.at)).toBeNull();
       expect(Object.fromEntries(store.counts)).toEqual(
         Object.fromEntries(Object.entries(entry.keys).map(([key, { value }]) => [key, value])),
@@ -130,5 +172,73 @@ describe("rules of the API v2 and mobile routes", () => {
     expect(keys).toHaveLength(5);
     for (const key of keys) await store.decrement(key);
     expect([...store.counts.values()]).toEqual([0, 0, 0, 0, 0]);
+  });
+});
+
+describe("rules that read the signed-in user, a token or the params", () => {
+  const writer = (headers: Record<string, string> = { authorization: "Bearer tok" }) =>
+    request("/v2/products/p", { method: "PUT", headers });
+  const names = (store: ReturnType<typeof memoryStore>) =>
+    [...store.counts.keys()].map((key) => key.replace(/^rack::attack:\d+:/u, ""));
+
+  it("counts a product write of a non-VIP token in the ip and token buckets", async () => {
+    stubs.token = { resource_owner_id: 7, expires_in: null, created_at: new Date(), revoked_at: null };
+    stubs.paidCents = 500_000;
+    const store = memoryStore();
+    await run(store, writer());
+    expect(names(store).filter((name) => name.startsWith("/ip:") || name.startsWith("/params:"))).toHaveLength(11);
+    expect(names(store).some((name) => name.startsWith("/vip/"))).toBe(false);
+  });
+
+  it("counts a product write of a creator past the payout threshold in the VIP buckets only", async () => {
+    stubs.token = { resource_owner_id: 7, expires_in: null, created_at: new Date(), revoked_at: null };
+    stubs.paidCents = 500_001;
+    const store = memoryStore();
+    await run(store, writer());
+    expect(names(store)).toHaveLength(11);
+    expect(names(store).every((name) => name.startsWith("/vip/"))).toBe(true);
+  });
+
+  it("treats a revoked token, an unknown token and a missing token as non-VIP", async () => {
+    stubs.paidCents = 600_000;
+    stubs.token = { resource_owner_id: 7, expires_in: null, created_at: new Date(), revoked_at: new Date(0) };
+    const revoked = memoryStore();
+    await run(revoked, writer());
+    stubs.token = null;
+    const unknown = memoryStore();
+    await run(unknown, writer());
+    const missing = memoryStore();
+    await run(missing, writer({}));
+    for (const store of [revoked, unknown, missing])
+      expect(names(store).some((name) => name.startsWith("/vip/"))).toBe(false);
+  });
+
+  it("keys the totp rule on the Warden user, and on nothing when signed out for a passkey rule", async () => {
+    stubs.wardenUser = { id: 42n };
+    const signedIn = memoryStore();
+    await run(signedIn, request("/settings/totp/confirm", { method: "POST" }));
+    await run(signedIn, request("/settings/passkeys", { method: "POST" }));
+    expect(names(signedIn).filter((name) => name.includes(":42"))).toHaveLength(12);
+    stubs.wardenUser = null;
+    const signedOut = memoryStore();
+    await run(signedOut, request("/settings/passkeys", { method: "POST" }));
+    await run(signedOut, request("/products/p/marketing_actions/m/execute.json", { method: "POST" }));
+    expect(names(signedOut)).toEqual([]);
+  });
+
+  it("counts an unparseable request in invalid_params and skips the rules that read params", async () => {
+    const store = memoryStore();
+    await run(store, request(`/follow?seller_id=%zz`, { method: "POST" }));
+    expect(names(store).filter((name) => name.startsWith("invalid_params"))).toHaveLength(7);
+    expect(names(store).some((name) => name.includes("/follow"))).toBe(true);
+    expect(names(store).some((name) => name.startsWith("/ip/params:/follow"))).toBe(false);
+  });
+
+  it("trips invalid_params at the sixth request of a minute", async () => {
+    const store = memoryStore();
+    let tripped = null;
+    for (let index = 0; index < 6; index += 1)
+      tripped = await run(store, request("/anything?a=%", { ip: "203.0.113.5" }));
+    expect(tripped).toEqual({ name: "invalid_params", period: 60, epochTime: NOW });
   });
 });

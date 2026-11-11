@@ -7,23 +7,23 @@ import { compileRouteTable, type RouteTable } from "../../lib/navigation/proxy/r
 
 import { RACK_ATTACK_RULES, RACK_ATTACK_RULE_NAMES } from "./rack-attack.ts";
 
-// config/initializers/rack_attack.rb counts requests in Rails' Redis. A Node answer never reaches that counter, and counting in Node as well would
-// count every request handed back twice, so a route Rack::Attack throttles must stay out of routes.json and be served by Rails whole. This test fails
-// when a routes.json entry matches a throttled path and method without an entry in ALLOWED below that says why it is safe.
+// config/initializers/rack_attack.rb counts requests in Rails' Redis. Node counts what it answers itself (rack-attack.ts, one counter ahead of the
+// action chain, hand-backs un-counted), so a route Rack::Attack throttles may be in routes.json only if Node counts it: a mutation, a handler, a
+// redirect or an Inertia page (processAction and pageEnvelope). This test fails when a routes.json entry matches a throttled path and method and
+// is neither counted in Node nor in ALLOWED below with a reason.
 //
 // RULES mirrors the path and method of every rule in the Ruby file. The path literals are read back from rack_attack.rb, so a rule that
 // is added, removed or re-pathed there fails "mirrors every path rack_attack.rb throttles" until RULES follows. A method condition changed inside an
 // existing rule is not seen; keep RULES honest when editing one. `invalid_params` (every path, but only for params Rack cannot parse) has no path
-// literal and is not modelled.
+// literal; rack-attack-rules.test.ts checks it against the golden.
 
 const nextjsRoot = process.cwd();
 const rackAttack = readFileSync(path.join(nextjsRoot, "..", "config", "initializers", "rack_attack.rb"), "utf8");
 const routeTable = JSON.parse(readFileSync(path.join(nextjsRoot, "routes.json"), "utf8")) as RouteTable;
 
 // The rules Node counts itself (rack-attack.ts) on the same Redis keys, by the literal of rack_attack.rb they come from and the rule names they
-// are (with their /2../6 tiers). A `mutation` route that matches one of these literals is counted before its action runs and un-counted when
-// it is handed back, so Rails and Node together count each request once. A route that is not a mutation (an Inertia page, a handler) is not
-// counted by Node and stays out of routes.json.
+// are (with their /2../6 tiers). A route that matches one of these literals is counted before its action runs (countsInNode) and un-counted
+// when it is handed back, so Rails and Node together count each request once.
 const COUNTED_IN_NODE: Record<string, string[]> = {
   "/login": ["/ip:/login:post"],
   "/login.json": ["/ip:/login.json", "logins/login"],
@@ -63,6 +63,58 @@ const COUNTED_IN_NODE: Record<string, string[]> = {
     "/params:(?-mix:\\A\\/(api\\/)?v2\\/user\\/preview_custom_html(\\.\\w+)?\\z):post",
   ],
   "\\A/(?:api/)?mobile/url_redirects/download/(?<token>[^/]+)/(?<file>[^/.]+)": ["mobile_url_redirect_download/token"],
+  "/": ["/ip:/"],
+  "/api/mobile/purchases/index.json": ["/ip:/api/mobile/purchases/index.json"],
+  "/mobile/purchases/index.json": ["/ip:/mobile/purchases/index.json"],
+  "/discover": ["/ip:/discover"],
+  "/discover_search": ["/ip:/discover_search"],
+  "/purchases": ["/ip:/purchases", "/ip/period:/purchases"],
+  "/stripe/setup_intents": ["/ip:/stripe/setup_intents"],
+  "/settings/credit_card": ["/ip:/settings/credit_card"],
+  "/signup": ["/ip:/signup"],
+  "/signup.json": ["/ip:/signup.json"],
+  "/users/auth/facebook": ["/ip:/users/auth/facebook"],
+  "/sellers/brand_accounts": ["/ip:/sellers/brand_accounts:post"],
+  "/sellers/brand_accounts.json": ["/ip:/sellers/brand_accounts.json:post"],
+  "\\A/help/contact(?:\\.[^/]+)?\\z": ["help_center_contact/ip"],
+  "\\A/oauth/device/code(?:\\.[^/]+)?\\z": ["oauth_device_code/ip"],
+  "\\A/oauth/device(?:\\.[^/]+)?\\z": [
+    "oauth_device_authorization_lookup/ip",
+    "oauth_device_authorization_decision/ip",
+  ],
+  "\\A(?:/oauth/token|/(?:muse|claude|chatgpt)/v1/oauth2/token)(?:\\.[^/]+)?\\z": ["oauth_token/ip"],
+  "\\A/oauth/token(?:\\.[^/]+)?\\z": ["oauth_device_token/ip/device_code"],
+  "/settings/totp/confirm": ["/params:/settings/totp/confirm:post"],
+  "\\A/settings/passkeys/registration_options(?:\\.[^/]+)?\\z": [
+    "/params:/settings/passkeys/registration_options:POST",
+  ],
+  "\\A/settings/passkeys(?:\\.[^/]+)?\\z": ["/params:/settings/passkeys:POST"],
+  "\\A/products/[^/]+/marketing_actions/[^/]+/execute(?:\\.[^/]+)?\\z": [
+    "/params:/products/:id/marketing_actions/:id/execute:POST",
+  ],
+  "\\A/login/passkey/options(?:\\.[^/]+)?\\z": ["/ip:/login/passkey/options:POST"],
+  "\\A/login/passkey(?:\\.[^/]+)?\\z": ["/ip:/login/passkey:POST"],
+  "\\A/[[:alnum:]]+/affiliate_requests\\z": ["/ip:(?-mix:\\A\\/[[:alnum:]]+\\/affiliate_requests\\z):post"],
+  "/internal/ai_product_details_generations": ["/ip/period:/internal/ai_product_details_generations:post"],
+  "\\A/\\.well-known/acme-challenge/": ["/ip/period:(?-mix:\\A\\/\\.well-known\\/acme-challenge\\/)"],
+  "\\A/(api/)?v2/products(\\.\\w+)?\\z": ["/ip:(?-mix:\\A\\/(api\\/)?v2\\/products(\\.\\w+)?\\z):post"],
+  "\\A/(api/)?v2/products/comps(\\.\\w+)?\\z": [
+    "/ip:(?-mix:\\A\\/(api\\/)?v2\\/products\\/comps(\\.\\w+)?\\z):get",
+    "/params:(?-mix:\\A\\/(api\\/)?v2\\/products\\/comps(\\.\\w+)?\\z):get",
+  ],
+  "\\A/(api/)?v2/products/[^/]+(\\.\\w+)?\\z": ["put", "patch"].flatMap((verb) =>
+    ["/ip", "/params", "/vip/ip", "/vip/params"].map(
+      (prefix) => `${prefix}:(?-mix:\\A\\/(api\\/)?v2\\/products\\/[^\\/]+(\\.\\w+)?\\z):${verb}`,
+    ),
+  ),
+  "\\A/(api/)?v2/products/[^/]+/preview_custom_html(\\.\\w+)?\\z": [
+    "/ip:(?-mix:\\A\\/(api\\/)?v2\\/products\\/[^\\/]+\\/preview_custom_html(\\.\\w+)?\\z):post",
+    "/params:(?-mix:\\A\\/(api\\/)?v2\\/products\\/[^\\/]+\\/preview_custom_html(\\.\\w+)?\\z):post",
+  ],
+  "\\A/(api/)?v2/media(\\.\\w+)?\\z": [
+    "/ip:(?-mix:\\A\\/(api\\/)?v2\\/media(\\.\\w+)?\\z):post",
+    "media_uploads/token",
+  ],
 };
 
 const ANY = "any";
@@ -325,10 +377,25 @@ const methodsOf = (rule: Rule, all: readonly string[]) =>
 
 const routes = compileRouteTable(routeTable);
 
-// processAction counts the request (rack-attack.ts); a mutation and every `handler` (api-v2, mobile, public) answer through it.
-const runsThroughProcessAction = (entry: unknown): boolean => {
-  const { mutation, handler } = (entry ?? {}) as { mutation?: boolean; handler?: string };
-  return mutation === true || typeof handler === "string";
+// The counter runs ahead of every way Node answers (rack-attack.ts): processAction for a mutation, a `handler` (api-v2, mobile, public), a redirect
+// and an Inertia visit, and pageEnvelope for a full page load of an `inertia` page. A page marked `inertia: "only"` is Node's for Inertia visits
+// alone, and Rails serves (and counts) its full page loads.
+const countsInNode = (entry: unknown): boolean => {
+  const { mutation, handler, inertia, redirect, redirectReplace } = (entry ?? {}) as {
+    mutation?: boolean;
+    handler?: string;
+    inertia?: boolean | "only";
+    redirect?: string;
+    redirectReplace?: unknown;
+  };
+  return (
+    mutation === true ||
+    typeof handler === "string" ||
+    inertia === true ||
+    inertia === "only" ||
+    typeof redirect === "string" ||
+    redirectReplace !== undefined
+  );
 };
 
 // A route's path with each `:param` filled by a value that cannot collide with a literal, then by the literals a throttle names.
@@ -376,7 +443,7 @@ describe("Rack::Attack throttles", () => {
       ),
   );
   const countedInNode = (hit: { route: string; literal: string }) =>
-    runsThroughProcessAction(routeTable[hit.route]) && (COUNTED_IN_NODE[hit.literal] ?? []).length > 0;
+    countsInNode(routeTable[hit.route]) && (COUNTED_IN_NODE[hit.literal] ?? []).length > 0;
   const allowed = (hit: { route: string; literal: string }) =>
     countedInNode(hit) ||
     ALLOWED.some((entry) => entry.route === hit.route && (entry.rule === "*" || entry.rule === hit.literal));
@@ -421,24 +488,25 @@ describe("Rack::Attack throttles", () => {
   });
 });
 
-// One list per kind of route, so a reviewer sees what each decision covered. Each key was in routes.json before Node learned that a Node
-// answer skips the Rails counter; the generic test above also catches them, but a failure here names the group.
+// One list per kind of route, so a reviewer sees what each decision covered. Each key left routes.json while Node could not count a request it
+// answered; the single counter (rack-attack.ts) brought them back.
 const GROUPS: Record<string, string[]> = {
   "signup (/signup)": ["/signup"],
-  "settings writes (/settings PUT, totp confirm, passkeys)": [
+  "settings writes (totp confirm, passkeys)": [
     "POST /settings/totp/confirm",
     "POST /settings/passkeys",
     "POST /settings/passkeys/registration_options",
   ],
-  "pages (/ on seller hosts, /discover, /purchases)": ["seller:/", "product:/", "/discover", "/purchases"],
+  "pages (/ on seller and product hosts, /discover, /purchases)": ["seller:/", "product:/", "/discover", "/purchases"],
   "ACME challenge": ["seller:/.well-known/acme-challenge/:token", "product:/.well-known/acme-challenge/:token"],
   "marketing actions (per-user rule)": ["POST /products/:product_id/marketing_actions/:id/execute.json"],
 };
 
-describe("routes Rack::Attack throttles stay in Rails", () => {
+describe("routes Rack::Attack throttles are served by Node and counted there", () => {
   for (const [group, keys] of Object.entries(GROUPS)) {
-    it(`leaves ${group} unregistered`, () => {
-      expect(keys.filter((key) => key in routeTable)).toEqual([]);
+    it(`registers ${group} in a way the counter sees`, () => {
+      expect(keys.filter((key) => !(key in routeTable))).toEqual([]);
+      expect(keys.filter((key) => !countsInNode(routeTable[key]))).toEqual([]);
     });
   }
 
