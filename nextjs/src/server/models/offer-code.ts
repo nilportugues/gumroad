@@ -106,18 +106,18 @@ export const matchingTierFor = (tiers: Tier[], ownershipMonths: number): Tier | 
 const star = (name: string) => Prisma.raw(`${quoteName(name)}.*`);
 const IN_PROGRESS = "in_progress";
 // Purchase::NON_GIFT_SUCCESS_STATES
-const NON_GIFT_SUCCESS_STATES = ["preorder_authorization_successful", "successful", "not_charged"];
+export const NON_GIFT_SUCCESS_STATES = ["preorder_authorization_successful", "successful", "not_charged"];
 // Purchase::ALL_SUCCESS_STATES
 const ALL_SUCCESS_STATES = [...NON_GIFT_SUCCESS_STATES, "gift_receiver_purchase_successful"];
 // ChargeProcessor::TIME_TO_COMPLETE_SCA
 const TIME_TO_COMPLETE_SCA_MINUTES = 15;
 
-const states = (list: readonly string[]) =>
+export const states = (list: readonly string[]) =>
   Prisma.sql`${column("purchases", "purchase_state")} IN (${Prisma.join(list, ", ")})`;
-const purchaseFlag = (name: Parameters<typeof PurchaseFlags.isSet>[1], enabled: boolean) =>
+export const purchaseFlag = (name: Parameters<typeof PurchaseFlags.isSet>[1], enabled: boolean) =>
   Prisma.sql`(${PurchaseFlags.condition(name, enabled)})`;
 // Purchase.not_recurring_charge (not_subscription_or_original_purchase)
-const NOT_RECURRING_CHARGE = Prisma.raw(
+export const NOT_RECURRING_CHARGE = Prisma.raw(
   "(purchases.subscription_id IS NULL OR purchases.flags & '4' = '4' OR purchases.flags & '32' = '32')",
 );
 const NOT_FULLY_REFUNDED = Prisma.raw("(purchases.stripe_refunded IS NULL OR purchases.stripe_refunded = 0)");
@@ -129,11 +129,11 @@ const NOT_OWN_PURCHASE = Prisma.raw(
 );
 // OfferCode#qualifying_ownership_purchases
 const QUALIFYING_OWNERSHIP_PURCHASES = Prisma.sql`${states(ALL_SUCCESS_STATES)} AND ${purchaseFlag("is_additional_contribution", false)} AND ${NOT_RECURRING_CHARGE} AND ${purchaseFlag("is_gift_sender_purchase", false)} AND ${NOT_FULLY_REFUNDED} AND ${NOT_CHARGEDBACK_OR_REVERSED} AND ${purchaseFlag("is_access_revoked", false)}`;
-const poc = (name: string) => column("purchase_offer_code_discounts", name);
+export const poc = (name: string) => column("purchase_offer_code_discounts", name);
 const POC_JOIN = Prisma.sql`INNER JOIN ${table("purchase_offer_code_discounts")} ON ${poc("purchase_id")} = ${column("purchases", "id")}`;
 const PAYMENT_INTENT_JOIN = Prisma.sql`LEFT OUTER JOIN ${table("processor_payment_intents")} ON ${column("processor_payment_intents", "purchase_id")} = ${column("purchases", "id")}`;
 // Purchase.offer_code_statistics + .not_is_commission_completion_purchase (counts_towards_offer_code_uses)
-const countsTowardsUses = () =>
+export const countsTowardsUses = () =>
   Prisma.sql`${states(NON_GIFT_SUCCESS_STATES)} AND ${NOT_RECURRING_CHARGE} AND ${purchaseFlag("is_archived_original_subscription_purchase", false)} AND ${purchaseFlag("is_commission_completion_purchase", false)}`;
 // Purchase.completed_once_per_cart_allocation_uses, after the offer_code_id condition
 const completedAllocationUses = () =>
