@@ -1,5 +1,5 @@
 // The read side of the store Agent chat: Api::Internal::AgentConversationsController (latest, action_status, turn_status).
-// The turns themselves (messages, streams, confirmed actions, custom HTML previews) call a language model and stay in Rails.
+// The turns themselves (messages, streams, confirmed actions) call a language model and stay in Rails; the custom HTML previews are in internal-agent-previews.ts.
 import type { AiConversation, AiMessage } from "@prisma/client";
 
 import { db } from "../../lib/db.ts";
@@ -11,7 +11,7 @@ import { NotPortedError } from "../models/user.ts";
 import { NotPortedError as PageNotPortedError } from "../page-props/not-ported.ts";
 import { eligibleForStoreAgent } from "../page-props/signed-in/policy-props.ts";
 import { authorize } from "../policies/authorize.ts";
-import { NotAuthorizedError } from "../policies/seller-context.ts";
+import { NotAuthorizedError, type SellerContext } from "../policies/seller-context.ts";
 import { userPolicy } from "../policies/user.ts";
 import type { JsonValue } from "../search/es-json.ts";
 
@@ -37,7 +37,7 @@ const blank = (value: unknown): boolean =>
   (Array.isArray(value) && value.length === 0) ||
   (typeof value === "object" && !Array.isArray(value) && Object.keys(value as object).length === 0);
 
-async function handingBack<T>(run: () => Promise<T>): Promise<T> {
+export async function handingBack<T>(run: () => Promise<T>): Promise<T> {
   try {
     return await run();
   } catch (error) {
@@ -47,15 +47,18 @@ async function handingBack<T>(run: () => Promise<T>): Promise<T> {
   }
 }
 
+// `authorize current_seller, :use_store_agent?`
+export async function authorizeStoreAgent(context: SellerContext): Promise<void> {
+  authorize(userPolicy.viewStoreAgent, context);
+  if (!(await eligibleForStoreAgent(context.seller!, railsEnv() === "development")))
+    throw new NotAuthorizedError("not allowed to use_store_agent?");
+}
+
 // `authenticate_user!` (e404_json), then `authorize current_seller, :use_store_agent?`
-async function guarded(input: MutationInput, run: () => Promise<ActionResult>): Promise<ActionResult> {
+export async function guarded(input: MutationInput, run: () => Promise<ActionResult>): Promise<ActionResult> {
   if (railsLoggedInUser(input.context) === null) return { ...notFoundJson(), rescued: true };
   if (input.context.currentSeller === null) throw new HandBackToRails("a signed-in request without a current seller");
-  const denied = await authorizeJson(input, async (context) => {
-    authorize(userPolicy.viewStoreAgent, context);
-    if (!(await eligibleForStoreAgent(context.seller!, railsEnv() === "development")))
-      throw new NotAuthorizedError("not allowed to use_store_agent?");
-  });
+  const denied = await authorizeJson(input, authorizeStoreAgent);
   return denied ?? run();
 }
 
