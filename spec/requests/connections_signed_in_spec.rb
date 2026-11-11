@@ -56,14 +56,33 @@ describe "Social connections when signed in", type: :request do
     expect(UserTiktokIdentity.count).to eq(0)
   end
 
-  it "hands unlinking X back to Rails", parity: true do
-    seller.update!(twitter_user_id: "123", twitter_handle: "gumroad")
+  it "unlinks X", parity: true do
+    seller.update!(twitter_user_id: "123", twitter_handle: "gumroad", twitter_oauth_token: "token", twitter_oauth_secret: "secret")
     log_in(seller)
 
     unlink("twitter")
 
     expect(response.parsed_body).to eq("success" => true)
-    expect(seller.reload.twitter_user_id).to be_nil
+    expect(seller.reload.attributes.values_at(*User::SocialTwitter::TWITTER_PROPERTIES)).to eq([nil, nil, nil, nil])
+  end
+
+  it "answers success when X was not linked", parity: true do
+    log_in(seller)
+
+    unlink("twitter")
+
+    expect(response.parsed_body).to eq("success" => true)
+  end
+
+  it "answers the validation message when the account cannot be saved", parity: true do
+    seller.update!(twitter_user_id: "123", twitter_handle: "gumroad")
+    seller.update_columns(name: "x" * 200)
+    log_in(seller)
+
+    unlink("twitter")
+
+    expect(response.parsed_body).to eq("success" => false, "error_message" => "Validation failed: Name Your name is too long. Please try again with a shorter one.")
+    expect(seller.reload.twitter_user_id).to eq("123")
   end
 
   it "refuses a support team member", parity: true do

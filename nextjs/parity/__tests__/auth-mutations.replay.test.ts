@@ -25,7 +25,7 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
-const SPECS = ["auth_mutations_parity_spec", "auth_account_parity_spec", "review_reminders_parity_spec"];
+const SPECS = ["auth_mutations_parity_spec", "auth_account_parity_spec", "review_reminders_parity_spec", "feature_announcements_unsubscribe_parity_spec"];
 const ROUTE_FLAGS = [
   "nextjs_auth_devise_redirects",
   "nextjs_auth_login_writes",
@@ -37,6 +37,7 @@ const ROUTE_FLAGS = [
   "nextjs_users_session_endpoints",
   "nextjs_users_email_unsubscribe",
   "nextjs_review_reminders",
+  "nextjs_feature_announcements_unsubscribe",
 ].join(",");
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";

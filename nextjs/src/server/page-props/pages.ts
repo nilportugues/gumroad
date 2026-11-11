@@ -6,6 +6,7 @@ import * as Routes from "@/lib/navigation/routes";
 
 import type { ActionOptions, Redirected } from "../controllers/application-controller.ts";
 import { LOGIN_OPTIONS, SECURE_REDIRECT_OPTIONS, SIGNUP_OPTIONS, TWO_FACTOR_OPTIONS } from "../controllers/auth-pages.ts";
+import { FEATURE_ANNOUNCEMENT_OPTIONS, unsubscribeProps } from "../controllers/feature-announcements.ts";
 import { REVIEW_REMINDER_OPTIONS, reviewReminderProps } from "../controllers/review-reminders.ts";
 import { loginPageProps, secureRedirectPageProps, signupPageProps, twoFactorPageProps } from "./auth-pages.ts";
 import { BUYER_PAGES } from "./buyer/pages.ts";
@@ -133,6 +134,12 @@ export const PAGES: Record<string, PageSpec> = {
     component: "Users/ReviewReminders/Unsubscribe",
     options: REVIEW_REMINDER_OPTIONS.unsubscribeByToken,
     props: (_, action) => reviewReminderProps(action.state),
+  },
+  // Users::FeatureAnnouncementsController#confirm_unsubscribe (filters in controllers/feature-announcements.ts).
+  "/users/unsubscribe_feature_announcements/:token": {
+    component: "Users/FeatureAnnouncements/Unsubscribe",
+    options: FEATURE_ANNOUNCEMENT_OPTIONS,
+    props: ({ token }) => unsubscribeProps(token!),
   },
   "/secure_url_redirect": { component: "SecureRedirect/New", options: SECURE_REDIRECT_OPTIONS, props: (_, action) => secureRedirectPageProps(action) },
   "/help/category/:slug": {
