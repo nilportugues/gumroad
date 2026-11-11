@@ -71,3 +71,19 @@ export function instantInTimeZoneIso8601(zoneName: string, instant: Date): strin
 
 export const startOfDayIso8601 =(zone: string, year: number, month: number, day: number) => dateInTimeZoneIso8601(zone, year, month, day, 0);
 export const endOfDayIso8601 = (zone: string, year: number, month: number, day: number) => dateInTimeZoneIso8601(zone, year, month, day, END_OF_DAY_SECONDS);
+
+export const isKnownTimeZone = (zoneName: string): boolean => (zones as Record<string, string>)[zoneName] !== undefined;
+
+export type CalendarDate = { year: number; month: number; day: number };
+
+// `instant.in_time_zone(zone).to_date`
+export function calendarDateInTimeZone(zoneName: string, instant: Date): CalendarDate {
+  const identifier = (zones as Record<string, string>)[zoneName];
+  if (identifier === undefined) throw new InvalidTimeZoneError(zoneName);
+  const local = new Date(Math.floor(instant.getTime() / SECOND_MS) * SECOND_MS + offsetAt(identifier, instant.getTime()) * SECOND_MS);
+  return { year: local.getUTCFullYear(), month: local.getUTCMonth() + 1, day: local.getUTCDate() };
+}
+
+// `Date#beginning_of_day` and `Date#end_of_day` under `Time.use_zone(zone)`, as instants. The end of day keeps the 999 ms a whole-second ISO 8601 drops.
+export const startOfDayInstant = (zoneName: string, { year, month, day }: CalendarDate): Date => new Date(Date.parse(startOfDayIso8601(zoneName, year, month, day)));
+export const endOfDayInstant = (zoneName: string, { year, month, day }: CalendarDate): Date => new Date(Date.parse(endOfDayIso8601(zoneName, year, month, day)) + (SECOND_MS - 1));
