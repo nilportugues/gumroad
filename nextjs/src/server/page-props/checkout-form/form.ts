@@ -1,8 +1,8 @@
 // Checkout::FormPresenter#form_props (app/presenters/checkout/form_presenter.rb) for Checkout::FormController#show.
 //
-// The cart item and the card are CheckoutPresenter and ProductPresenter output for the seller's newest product, and a connected
-// PayPal account is fetched live from PayPal. Neither is reproduced, so a seller with a product, or with any merchant account,
-// goes to Rails whole (HandBackToRails). What is served is the seller who has neither: the settings, custom fields and payout facts.
+// The cart item and the card are CheckoutPresenter and ProductPresenter output for the seller's newest product (presenters/checkout-product.ts
+// hands back the products it cannot prove), and a connected PayPal account is fetched live from PayPal, so a seller with any merchant
+// account goes to Rails whole (HandBackToRails).
 import { Prisma, type User } from "@prisma/client";
 
 import { encrypt as externalId } from "../../../lib/obfuscate-ids.ts";
@@ -13,6 +13,11 @@ import { column, selectRows, table } from "../../models/sql.ts";
 import { aliveUserComplianceInfoRow } from "../../models/user-compliance-info.ts";
 import { jsonDataForAttr, UserFlags, Users } from "../../models/user.ts";
 import { roleAdminFor, requireUser, type SellerContext } from "../../policies/seller-context.ts";
+import { LinkFlags } from "../../models/link.ts";
+import { checkoutProduct } from "../../presenters/checkout-product.ts";
+import { findLink } from "../../presenters/product-reads.ts";
+import { cardForWeb } from "../../presenters/product.ts";
+import { NotPortedError } from "../not-ported.ts";
 import { connectAccountFeeInfo } from "../settings/payments.ts";
 import { nativePayoutsSupported } from "../signed-in/data.ts";
 import { activeBankAccount, type ComplianceInfoRow } from "../signed-in/reads.ts";
@@ -112,14 +117,32 @@ function legalEntityCode(info: ComplianceInfoRow): string | null {
   return (info.is_business ? alpha2ByName(info.business_country) : null) ?? alpha2ByName(info.country);
 }
 
+// The seller's products, newest first, and the cart item and card Rails builds from the newest one.
+async function checkoutPreview(seller: User) {
+  // `seller.products.visible.order(created_at: :desc)`
+  const products = await selectRows<{ id: bigint; name: string | null; flags: bigint | number; created_at: Date }>(
+    Prisma.sql`SELECT ${column("links", "id")}, ${column("links", "name")}, ${column("links", "flags")}, ${column("links", "created_at")} FROM ${table("links")} WHERE ${column("links", "user_id")} = ${seller.id} AND ${column("links", "deleted_at")} IS NULL ORDER BY ${column("links", "created_at")} DESC`,
+  );
+  // Rows created in the same second have no defined order, and the first one is the checkout preview.
+  if (products.length > 1 && String(products[0]!.created_at) === String(products[1]!.created_at))
+    throw new NotPortedError("Checkout::FormPresenter#form_props with two newest products created at the same time");
+  const newest = products[0] === undefined ? null : await findLink(products[0].id);
+  return {
+    products,
+    cartItem:
+      newest === null ? null : { ...(await checkoutProduct(newest)), quantity: 1, url_parameters: {}, referrer: "" },
+    cardProduct: newest === null ? null : await cardForWeb(newest.id),
+  };
+}
+
 // Run by the page's guard, after authorization, so a refusal still redirects from Node.
 export async function assertFormSupported(seller: User): Promise<void> {
-  if (
-    await exists(
-      Prisma.sql`SELECT 1 FROM ${table("links")} WHERE ${column("links", "user_id")} = ${seller.id} AND ${column("links", "deleted_at")} IS NULL LIMIT 1`,
-    )
-  ) {
-    throw new HandBackToRails("a seller with products, whose newest one is the checkout preview");
+  // A NotPortedError thrown while the page loads would be a 500, so the preview is built once here to hand the request back instead.
+  try {
+    await checkoutPreview(seller);
+  } catch (error) {
+    if (error instanceof NotPortedError) throw new HandBackToRails(error.message);
+    throw error;
   }
   if (
     await exists(
@@ -149,6 +172,8 @@ export async function formProps(seller: User, context: SellerContext) {
     guardian_id: complianceRow.guardian_id === null ? null : BigInt(complianceRow.guardian_id),
   };
 
+  const { products, cartItem, cardProduct } = await checkoutPreview(seller);
+
   return {
     pages: PAGES,
     user: {
@@ -160,10 +185,14 @@ export async function formProps(seller: User, context: SellerContext) {
       link_disabled: flag("link_disabled"),
       paypal_card_funding_disabled: flag("paypal_card_funding_disabled"),
     },
-    cart_item: null,
+    cart_item: cartItem,
     custom_fields: await customFieldsProps(seller),
-    card_product: null,
-    products: [],
+    card_product: cardProduct,
+    products: products.map((product) => ({
+      id: externalId(product.id),
+      name: product.name,
+      archived: LinkFlags.isSet(product.flags, "archived"),
+    })),
     paypal_connect: await paypalConnect(seller, context, info),
     connect_account_fee_info: await connectAccountFeeInfo(seller),
   };
