@@ -13,7 +13,22 @@ const mocks = vi.hoisted(() => ({
   requestCount: vi.fn(),
   remediate: vi.fn(),
   verify: vi.fn(),
+  findUser: vi.fn(),
+  saveUser: vi.fn(),
+  purchaseCount: vi.fn(),
+  rawQuery: vi.fn(),
+  logAudit: vi.fn(),
 }));
+vi.mock("../models/user.ts", () => ({
+  findUserBang: mocks.findUser,
+  Users: { save: mocks.saveUser, saveBang: mocks.saveUser },
+}));
+vi.mock("../models/user-compliance-info-writes.ts", () => ({
+  birthdayUnderMinimumAge: () => false,
+  dupAndSaveBang: vi.fn(),
+  UserComplianceInfos: { load: vi.fn(), build: vi.fn() },
+}));
+vi.mock("./settings-payments-mutations.ts", () => ({ logPayoutSettingsUpdateByNonOwner: mocks.logAudit }));
 vi.mock("./settings-payments-remediation.ts", () => ({
   remediateStripeAccount: mocks.remediate,
   verifyStripeRemediation: mocks.verify,
@@ -44,7 +59,13 @@ vi.mock("../models/merchant-account.ts", () => ({
   aliveStripeAccountsOf: mocks.stripeAccounts,
   isStripeConnectAccount: (account: { connect?: boolean }) => account.connect === true,
 }));
-vi.mock("../../lib/db.ts", () => ({ db: { userComplianceInfoRequest: { count: mocks.requestCount } } }));
+vi.mock("../../lib/db.ts", () => ({
+  db: {
+    userComplianceInfoRequest: { count: mocks.requestCount },
+    purchase: { count: mocks.purchaseCount },
+    $queryRaw: mocks.rawQuery,
+  },
+}));
 
 await import("./settings-payments-guards.ts");
 
@@ -158,8 +179,19 @@ describe("POST /settings/payments/set_country", () => {
     expect(await run(input({ country: "GP" }))).toEqual({ json: { error: FRENCH_MESSAGE }, status: 403 });
   });
 
-  it("hands a first country to Rails", async () => {
+  it("hands a country the ISO 3166 list does not know to Rails", async () => {
     mocks.complianceInfo.mockResolvedValue({ row: row(null), persisted: false });
+    await expect(run(input({ country: "ZZ" }))).rejects.toThrow(HandBackToRails);
+  });
+
+  it("hands a Japanese country to Rails", async () => {
+    mocks.complianceInfo.mockResolvedValue({ row: row(null), persisted: false });
+    await expect(run(input({ country: "JP" }))).rejects.toThrow(HandBackToRails);
+  });
+
+  it("hands a first country to Rails while the seller has open compliance requests", async () => {
+    mocks.complianceInfo.mockResolvedValue({ row: row(null), persisted: false });
+    mocks.requestCount.mockResolvedValue(1);
     await expect(run(input({ country: "CA" }))).rejects.toThrow(HandBackToRails);
   });
 
@@ -176,8 +208,32 @@ describe("POST /settings/payments/remove_credit_card", () => {
     expect(await run(input())).toEqual({ status: 401 });
   });
 
-  it("hands the removal to Rails", async () => {
-    await expect(run(input())).rejects.toThrow(HandBackToRails);
+  const seller = () => ({ get: () => 3n, set: vi.fn(), errors: { fullMessages: () => ["Name is too long"] } });
+
+  it("answers 400 with the validation errors when the seller no longer saves", async () => {
+    mocks.findUser.mockResolvedValue(seller());
+    mocks.purchaseCount.mockResolvedValue(0);
+    mocks.rawQuery.mockResolvedValue([{ present: 0n }]);
+    mocks.saveUser.mockResolvedValue(false);
+    expect(await run(input())).toEqual({ json: { error: "Name is too long" }, status: 400 });
+    expect(mocks.logAudit).not.toHaveBeenCalled();
+  });
+
+  it("answers 400 without saving while a preorder authorization needs the card", async () => {
+    mocks.findUser.mockResolvedValue(seller());
+    mocks.purchaseCount.mockResolvedValue(1);
+    mocks.saveUser.mockClear();
+    expect((await run(input())) as { status: number }).toMatchObject({ status: 400 });
+    expect(mocks.saveUser).not.toHaveBeenCalled();
+  });
+
+  it("clears the card and notes the change", async () => {
+    mocks.findUser.mockResolvedValue(seller());
+    mocks.purchaseCount.mockResolvedValue(0);
+    mocks.rawQuery.mockResolvedValue([{ present: 0n }]);
+    mocks.saveUser.mockResolvedValue(true);
+    expect(await run(input())).toMatchObject({ status: 204 });
+    expect(mocks.logAudit).toHaveBeenCalledWith(expect.anything(), "Payout settings updated");
   });
 });
 

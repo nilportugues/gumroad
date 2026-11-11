@@ -170,13 +170,43 @@ describe "Settings::PaymentsController guards", type: :request do
       expect(response).to have_http_status(:unauthorized)
     end
 
-    it "hands a first country to Rails", parity: true do
+    it "sets the first country of a seller with no compliance information and moves the currency to it", parity: true do
       log_in(seller)
 
       post_json(set_country_settings_payments_path, country: "CA")
 
       expect(response).to have_http_status(:no_content)
       expect(seller.alive_user_compliance_info.country).to eq("Canada")
+      expect(seller.reload.currency_type).to eq("cad")
+    end
+
+    it "sets a first country whose default currency is the seller's own", parity: true do
+      log_in(seller)
+
+      post_json(set_country_settings_payments_path, country: "US")
+
+      expect(response).to have_http_status(:no_content)
+      expect(seller.alive_user_compliance_info.country).to eq("United States")
+    end
+
+    it "supersedes a revision that has no country", parity: true do
+      with_compliance_info(country: nil, first_name: "Pat", last_name: "Seller", street_address: "1 Main St")
+      log_in(seller)
+
+      post_json(set_country_settings_payments_path, country: "GB")
+
+      expect(response).to have_http_status(:no_content)
+      expect(seller.user_compliance_infos.count).to eq(2)
+      expect(seller.alive_user_compliance_info.first_name).to eq("Pat")
+    end
+
+    it "notes the country on the seller when a team admin sets it", parity: true do
+      as_team_member(:admin)
+
+      post_json(set_country_settings_payments_path, country: "DE")
+
+      expect(response).to have_http_status(:no_content)
+      expect(seller.comments.last.content).to start_with("Compliance country set by team admin")
     end
 
     it "hands a country that is not text to Rails", parity: true do
@@ -197,12 +227,100 @@ describe "Settings::PaymentsController guards", type: :request do
       expect(response).to have_http_status(:unauthorized)
     end
 
-    it "hands the removal to Rails", parity: true do
+    def give_seller_a_card
+      seller.update_columns(credit_card_id: create(:indian_stripe_credit_card).id)
+    end
+
+    def save_purchase(**attributes)
+      purchase = build(:purchase, purchaser: seller, purchase_state: "successful", **attributes)
+      purchase.save!(validate: false)
+      purchase
+    end
+
+    it "clears the saved card", parity: true do
+      give_seller_a_card
       log_in(seller)
 
       post_json(remove_credit_card_settings_payments_path)
 
       expect(response).to have_http_status(:no_content)
+      expect(seller.reload.credit_card_id).to be_nil
+    end
+
+    it "clears the saved card of a seller who has no card", parity: true do
+      log_in(seller)
+
+      post_json(remove_credit_card_settings_payments_path)
+
+      expect(response).to have_http_status(:no_content)
+    end
+
+    it "notes the removal on the seller when a team admin removes the card", parity: true do
+      give_seller_a_card
+      as_team_member(:admin)
+
+      post_json(remove_credit_card_settings_payments_path)
+
+      expect(response).to have_http_status(:no_content)
+      expect(seller.comments.last.content).to start_with("Payout settings updated by team admin")
+    end
+
+    it "keeps the card of a seller with a preorder authorization", parity: true do
+      give_seller_a_card
+      save_purchase(purchase_state: "preorder_authorization_successful")
+      log_in(seller)
+
+      post_json(remove_credit_card_settings_payments_path)
+
+      expect(response).to have_http_status(:bad_request)
+      expect(seller.reload.credit_card_id).not_to be_nil
+    end
+
+    it "keeps the card of a seller with a live paid subscription", parity: true do
+      give_seller_a_card
+      subscription = create(:subscription, user: seller)
+      save_purchase(subscription:, is_original_subscription_purchase: true)
+      log_in(seller)
+
+      post_json(remove_credit_card_settings_payments_path)
+
+      expect(response).to have_http_status(:bad_request)
+      expect(seller.reload.credit_card_id).not_to be_nil
+    end
+
+    it "clears the card of a seller whose only subscription is a test purchase", parity: true do
+      give_seller_a_card
+      subscription = create(:subscription, user: seller)
+      save_purchase(subscription:, is_original_subscription_purchase: true, purchase_state: "test_successful")
+      log_in(seller)
+
+      post_json(remove_credit_card_settings_payments_path)
+
+      expect(response).to have_http_status(:no_content)
+      expect(seller.reload.credit_card_id).to be_nil
+    end
+
+    it "clears the card of a seller whose subscription ended", parity: true do
+      give_seller_a_card
+      subscription = create(:subscription, user: seller)
+      save_purchase(subscription:, is_original_subscription_purchase: true)
+      subscription.update_columns(ended_at: 1.day.ago)
+      log_in(seller)
+
+      post_json(remove_credit_card_settings_payments_path)
+
+      expect(response).to have_http_status(:no_content)
+    end
+
+    it "answers with the validation errors when the seller no longer saves", parity: true do
+      give_seller_a_card
+      seller.update_columns(name: "n" * 101)
+      log_in(seller)
+
+      post_json(remove_credit_card_settings_payments_path)
+
+      expect(response).to have_http_status(:bad_request)
+      expect(seller.reload.credit_card_id).not_to be_nil
     end
   end
 

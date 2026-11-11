@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { closeAllRedis } from "@/server/infra/redis";
 
+import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { loadFixture, type CapturedHttp } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
@@ -35,9 +36,47 @@ const COMPARE = {
     "response.cookies.__profilin",
     "response.cookies.XSRF-TOKEN.value",
     "db.versions",
+    // A seeded row is as old as the replay, so a save may leave the second-granular timestamp as it was.
+    "db.users.updated.*.changes.updated_at",
+    "db.user_compliance_info.updated.*.changes.updated_at",
     "http",
   ],
 };
+
+// A ported job Node enqueues is a BullMQ job wrapping the Sidekiq item; one whose body stays in Ruby goes to Sidekiq's own list.
+function redisJobs(redis: Redis): JobsChannel {
+  type Item = { class: string; args: unknown[]; queue: string; at?: number; created_at?: number };
+  return {
+    async reset() {
+      /* the seeder flushes the database */
+    },
+    async drain(): Promise<RawJob[]> {
+      const items: Item[] = [];
+      for (const key of await redis.keys("bull:*")) {
+        if ((await redis.type(key)) !== "hash") continue;
+        const data = await redis.hget(key, "data");
+        if (data === null) continue;
+        items.push(JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as Item);
+      }
+      for (const key of await redis.keys("queue:*"))
+        for (const raw of await redis.lrange(key, 0, -1)) items.push(JSON.parse(raw) as Item);
+      // Sidekiq keeps a scheduled job's time as the score of its member, not in the item.
+      const scheduled = await redis.zrange("schedule", 0, -1, "WITHSCORES");
+      for (let index = 0; index < scheduled.length; index += 2)
+        items.push({ ...(JSON.parse(scheduled[index]!) as Item), at: Number(scheduled[index + 1]) });
+      // BullMQ and Sidekiq keep no common enqueue order and the clock ties within a millisecond, so jobs compare per record.
+      items.sort(
+        (a, b) => JSON.stringify(a.args).localeCompare(JSON.stringify(b.args)) || a.class.localeCompare(b.class),
+      );
+      return items.map((item) => ({
+        class: item.class,
+        args: item.args,
+        queue: item.queue,
+        ...(item.at === undefined ? {} : { at: item.at }),
+      }));
+    },
+  };
+}
 
 const cases = existsSync(DIR)
   ? readdirSync(DIR)
@@ -132,6 +171,7 @@ describe.skipIf(!url)("Settings::PaymentsController guards", () => {
 
   const replayOptionsFor = (compare: { ignore: string[] }) => ({
     sql,
+    jobs: redisJobs(redis),
     redis: {
       reset: (entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0]) => redisSeeder(redis).reset(entries),
     },
