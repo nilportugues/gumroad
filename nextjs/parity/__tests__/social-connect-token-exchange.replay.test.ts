@@ -201,7 +201,13 @@ describe.skipIf(!url)("Social connect token exchange", () => {
       request: Parameters<typeof reencryptCookies>[0],
       loaded: Parameters<typeof reencryptCookies>[1],
       now: Date,
-    ) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
+    ) =>
+      // The return entry holds the recording's clock; Rails refuses it after 15 minutes, so it is moved to the replay's.
+      reencryptCookies(request, loaded, SECRET_KEY_BASE, now, (session) => {
+        const entry = (session as { social_connect_return?: { created_at?: unknown } }).social_connect_return;
+        if (entry && typeof entry.created_at === "number") entry.created_at = Math.floor(now.getTime() / 1000);
+        return session;
+      }),
     compare: COMPARE,
   });
 

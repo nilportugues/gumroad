@@ -5,8 +5,7 @@ require "spec_helper"
 # The YouTube, Instagram and TikTok connect flows of User::OmniauthCallbacksController that end before a provider is asked for a token (the
 # request phase, the flag-off answer of each strategy, the callback checks that end in the failure action), recorded for the Next.js port
 # (PARITY_RECORD=1) and replayed by nextjs/parity/__tests__/social-connect-omniauth.replay.test.ts, which sends the last request of each example.
-# The OmniAuth middleware runs for real (test_mode off). An example named "hands ..." is one Node leaves to Rails: a callback that carries a code
-# spends it in the exchange, so only Rails can answer it whole.
+# The OmniAuth middleware runs for real (test_mode off). A callback that carries a code is in social_connect_token_exchange_parity_spec.rb.
 describe "Social connect OmniAuth phases", type: :request do
   include Parity::AudienceSignedIn
 
@@ -196,23 +195,6 @@ describe "Social connect OmniAuth phases", type: :request do
           get "/users/auth/#{provider}/callback", params: { error: "Access Denied!<b>", state: }
 
           expect(Event.where(user_id: user.id, event_name: "social_connect_failed", parent_referrer: provider).pluck(:referrer)).to eq(["accessdeniedb"])
-        end
-
-        it "hands a callback that carries a code to Rails", parity: true do
-          Feature.activate_user(:"#{provider}_connect", user)
-          log_in(user)
-          state = begin_flow(provider)
-          stub_request(:post, %r{\Ahttps://(oauth2\.googleapis\.com/token|api\.instagram\.com/oauth/access_token|open\.tiktokapis\.com/v2/oauth/token/)}).to_return(
-            status: 200, headers: { "Content-Type" => "application/json" },
-            body: { access_token: "access-token", token_type: "Bearer", expires_in: 3599, user_id: "1", open_id: "open-1" }.to_json
-          )
-          stub_request(:get, %r{\Ahttps://(www\.googleapis\.com|graph\.instagram\.com|open\.tiktokapis\.com)/}).to_return(
-            status: 200, headers: { "Content-Type" => "application/json" }, body: {}.to_json
-          )
-
-          get "/users/auth/#{provider}/callback", params: { code: "code-1", state: }
-
-          expect(response).to have_http_status(:found)
         end
       end
     end
