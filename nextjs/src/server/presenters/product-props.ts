@@ -353,6 +353,15 @@ function buyPriceCents(row: LinkRow, priced: Priced): number | null {
 const defaultPriceCents = (row: LinkRow, priced: Priced) =>
   priced.purchaseType === "rent_only" ? rentalPriceCents(row, priced) : buyPriceCents(row, priced);
 
+// Product::Prices#price_cents, which is nil for a product without a price.
+export async function listedPriceCents(row: LinkRow): Promise<number | null> {
+  const priced: Priced = {
+    purchaseType: PURCHASE_TYPES[row.purchase_type ?? -1] ?? null,
+    prices: await alivePricesOf(row.id),
+  };
+  return defaultPriceCents(row, priced);
+}
+
 // -------------------------------------------------------------------------------------------------
 // Recurrences (Link#recurrences)
 

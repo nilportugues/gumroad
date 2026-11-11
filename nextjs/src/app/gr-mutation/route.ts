@@ -48,6 +48,7 @@ import "@/server/controllers/comments-mutations";
 import "@/server/controllers/product-editor-json";
 import "@/server/controllers/product-editor-mutations";
 import "@/server/controllers/checkout-upsells";
+import "@/server/controllers/checkout-upsell-products";
 import "@/server/controllers/marketing-actions";
 import "@/server/controllers/url-redirects/mutations";
 import "@/server/controllers/payouts-exports";

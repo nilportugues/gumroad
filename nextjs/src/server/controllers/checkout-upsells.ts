@@ -1,5 +1,6 @@
 // Checkout::UpsellsController (app/controllers/checkout/upsells_controller.rb): #paged, #statistics and #destroy run in Node, and #index
-// as a page (page-props/checkout-pages.ts).
+// as a page (page-props/checkout-pages.ts). Checkout::Upsells::PausesController (pause and unpause) runs in Node too; an upsell that no
+// longer validates is handed back whole, since update! would raise.
 //
 // Handed to Rails: #create and #update (SaveUpsellService builds offer codes and rewrites variants and selected products), #cart_item once it
 // has found the product (CheckoutPresenter#checkout_product), and #destroy of an upsell that has an offer code (OfferCode's save callbacks
@@ -7,6 +8,7 @@
 import { Prisma, type Upsell, type UpsellVariant } from "@prisma/client";
 
 import { decrypt, encrypt } from "../../lib/obfuscate-ids.ts";
+import { RecordInvalid } from "../models/runtime/errors.ts";
 import { castRow, column, selectRows, table } from "../models/sql.ts";
 import { UpsellDeletable, Upsells, UpsellVariantDeletable, UpsellVariants } from "../models/upsell.ts";
 import { NotPortedError } from "../models/user.ts";
@@ -18,14 +20,14 @@ import { PurchaseFlags } from "../search/flags.ts";
 import { HandBackToRails, RoutingError, type ActionResult } from "./application-controller.ts";
 import { sellerJsonAction } from "./json-seller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
-import { authorizeJson, json } from "./seller-json.ts";
+import { authorizeJson, json, noContent } from "./seller-json.ts";
 
 const UPSELLS = "upsells";
 const queryString = (input: MutationInput) => input.url.search.replace(/^\?/u, "");
 
 // `current_seller.upsells.find_by_external_id!(params[:id])`
-async function findUpsell(input: MutationInput, { alive }: { alive: boolean }): Promise<Upsell> {
-  const id = decrypt(input.routeParams.id ?? "");
+async function findUpsell(input: MutationInput, { alive }: { alive: boolean }, param = "id"): Promise<Upsell> {
+  const id = decrypt(input.routeParams[param] ?? "");
   const [row] =
     id === null
       ? []
@@ -151,9 +153,38 @@ async function destroy(input: MutationInput): Promise<ActionResult> {
   );
 }
 
+// `@upsell.update!(paused:)`; `pause?` and `unpause?` are both `update?`.
+async function setPaused(input: MutationInput, paused: boolean): Promise<ActionResult> {
+  return sellerJsonAction(
+    input,
+    () => true,
+    async (context) => {
+      const row = await findUpsell(input, { alive: true }, "upsell_id");
+      const check = paused ? checkoutUpsellPolicy.pause : checkoutUpsellPolicy.unpause;
+      const denied = await authorizeJson(input, () => authorize(check, context, row));
+      if (denied) return denied;
+      try {
+        await Upsells.updateBang(Upsells.load(row), { paused });
+      } catch (error) {
+        // Validations run before the first statement, so Rails can take the request whole.
+        if (error instanceof RecordInvalid) throw new HandBackToRails("an upsell that no longer validates");
+        throw error;
+      }
+      return noContent();
+    },
+  );
+}
+
 registerMutations(
   { method: "GET", pattern: "/checkout/upsells/paged", skipForgeryProtection: true, run: paged },
   { method: "GET", pattern: "/checkout/upsells/cart_item", skipForgeryProtection: true, run: cartItem },
   { method: "GET", pattern: "/checkout/upsells/:id/statistics", skipForgeryProtection: true, run: statistics },
   { method: "DELETE", pattern: "/checkout/upsells/:id", json: true, run: destroy },
+  { method: "POST", pattern: "/checkout/upsells/:upsell_id/pause", json: true, run: (input) => setPaused(input, true) },
+  {
+    method: "DELETE",
+    pattern: "/checkout/upsells/:upsell_id/pause",
+    json: true,
+    run: (input) => setPaused(input, false),
+  },
 );
