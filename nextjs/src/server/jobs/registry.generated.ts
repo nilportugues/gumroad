@@ -383,7 +383,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "CancelPreorderWorker": {
     "file": "app/sidekiq/cancel_preorder_worker.rb",

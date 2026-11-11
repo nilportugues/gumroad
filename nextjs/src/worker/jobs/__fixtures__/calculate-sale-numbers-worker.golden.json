@@ -1,0 +1,940 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "a float sum and an integer cardinality",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "company_page:number_of_creators": {
+          "type": "string",
+          "value": "42",
+          "expires": false
+        },
+        "homepage:total_made": {
+          "type": "string",
+          "value": "1234",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}},\"number_of_creators\":{\"cardinality\":{\"field\":\"seller_id\",\"precision_threshold\":40000}}}}"
+        }
+      ],
+      "job": "CalculateSaleNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": 123456.0
+            },
+            "number_of_creators": {
+              "value": 42
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "an integer sum",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "company_page:number_of_creators": {
+          "type": "string",
+          "value": "7",
+          "expires": false
+        },
+        "homepage:total_made": {
+          "type": "string",
+          "value": "123456",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}},\"number_of_creators\":{\"cardinality\":{\"field\":\"seller_id\",\"precision_threshold\":40000}}}}"
+        }
+      ],
+      "job": "CalculateSaleNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": 12345600
+            },
+            "number_of_creators": {
+              "value": 7
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "a sum under one dollar",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "company_page:number_of_creators": {
+          "type": "string",
+          "value": "1",
+          "expires": false
+        },
+        "homepage:total_made": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}},\"number_of_creators\":{\"cardinality\":{\"field\":\"seller_id\",\"precision_threshold\":40000}}}}"
+        }
+      ],
+      "job": "CalculateSaleNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": 99.0
+            },
+            "number_of_creators": {
+              "value": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "a sum that rounds down to the dollar",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "company_page:number_of_creators": {
+          "type": "string",
+          "value": "3",
+          "expires": false
+        },
+        "homepage:total_made": {
+          "type": "string",
+          "value": "1",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}},\"number_of_creators\":{\"cardinality\":{\"field\":\"seller_id\",\"precision_threshold\":40000}}}}"
+        }
+      ],
+      "job": "CalculateSaleNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": 150.7
+            },
+            "number_of_creators": {
+              "value": 3
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "exactly one dollar",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "company_page:number_of_creators": {
+          "type": "string",
+          "value": "3",
+          "expires": false
+        },
+        "homepage:total_made": {
+          "type": "string",
+          "value": "1",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}},\"number_of_creators\":{\"cardinality\":{\"field\":\"seller_id\",\"precision_threshold\":40000}}}}"
+        }
+      ],
+      "job": "CalculateSaleNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": 100.0
+            },
+            "number_of_creators": {
+              "value": 3
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "a negative sum floors",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "company_page:number_of_creators": {
+          "type": "string",
+          "value": "3",
+          "expires": false
+        },
+        "homepage:total_made": {
+          "type": "string",
+          "value": "-2",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}},\"number_of_creators\":{\"cardinality\":{\"field\":\"seller_id\",\"precision_threshold\":40000}}}}"
+        }
+      ],
+      "job": "CalculateSaleNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": -150.0
+            },
+            "number_of_creators": {
+              "value": 3
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "a small negative sum floors to minus one",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "company_page:number_of_creators": {
+          "type": "string",
+          "value": "3",
+          "expires": false
+        },
+        "homepage:total_made": {
+          "type": "string",
+          "value": "-1",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}},\"number_of_creators\":{\"cardinality\":{\"field\":\"seller_id\",\"precision_threshold\":40000}}}}"
+        }
+      ],
+      "job": "CalculateSaleNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": -1.0
+            },
+            "number_of_creators": {
+              "value": 3
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "nothing sold",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "company_page:number_of_creators": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        },
+        "homepage:total_made": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}},\"number_of_creators\":{\"cardinality\":{\"field\":\"seller_id\",\"precision_threshold\":40000}}}}"
+        }
+      ],
+      "job": "CalculateSaleNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": 0.0
+            },
+            "number_of_creators": {
+              "value": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "a sum just under the safe integer limit",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "company_page:number_of_creators": {
+          "type": "string",
+          "value": "40000",
+          "expires": false
+        },
+        "homepage:total_made": {
+          "type": "string",
+          "value": "90071992547409",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}},\"number_of_creators\":{\"cardinality\":{\"field\":\"seller_id\",\"precision_threshold\":40000}}}}"
+        }
+      ],
+      "job": "CalculateSaleNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": 9007199254740991
+            },
+            "number_of_creators": {
+              "value": 40000
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "a null sum counts as zero",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "company_page:number_of_creators": {
+          "type": "string",
+          "value": "5",
+          "expires": false
+        },
+        "homepage:total_made": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}},\"number_of_creators\":{\"cardinality\":{\"field\":\"seller_id\",\"precision_threshold\":40000}}}}"
+        }
+      ],
+      "job": "CalculateSaleNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": null
+            },
+            "number_of_creators": {
+              "value": 5
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "a float cardinality is stored as Ruby prints it",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "company_page:number_of_creators": {
+          "type": "string",
+          "value": "5.0",
+          "expires": false
+        },
+        "homepage:total_made": {
+          "type": "string",
+          "value": "10",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}},\"number_of_creators\":{\"cardinality\":{\"field\":\"seller_id\",\"precision_threshold\":40000}}}}"
+        }
+      ],
+      "job": "CalculateSaleNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": 1000.0
+            },
+            "number_of_creators": {
+              "value": 5.0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "a fractional cardinality",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "company_page:number_of_creators": {
+          "type": "string",
+          "value": "5.5",
+          "expires": false
+        },
+        "homepage:total_made": {
+          "type": "string",
+          "value": "10",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}},\"number_of_creators\":{\"cardinality\":{\"field\":\"seller_id\",\"precision_threshold\":40000}}}}"
+        }
+      ],
+      "job": "CalculateSaleNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": 1000.0
+            },
+            "number_of_creators": {
+              "value": 5.5
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "a null cardinality is stored empty",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "company_page:number_of_creators": {
+          "type": "string",
+          "value": "",
+          "expires": false
+        },
+        "homepage:total_made": {
+          "type": "string",
+          "value": "10",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}},\"number_of_creators\":{\"cardinality\":{\"field\":\"seller_id\",\"precision_threshold\":40000}}}}"
+        }
+      ],
+      "job": "CalculateSaleNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": 1000.0
+            },
+            "number_of_creators": {
+              "value": null
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "a string cardinality",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "company_page:number_of_creators": {
+          "type": "string",
+          "value": "7",
+          "expires": false
+        },
+        "homepage:total_made": {
+          "type": "string",
+          "value": "10",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}},\"number_of_creators\":{\"cardinality\":{\"field\":\"seller_id\",\"precision_threshold\":40000}}}}"
+        }
+      ],
+      "job": "CalculateSaleNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": 1000.0
+            },
+            "number_of_creators": {
+              "value": "7"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "a cardinality that Ruby prints with an exponent",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "company_page:number_of_creators": {
+          "type": "string",
+          "value": "1.5e+20",
+          "expires": false
+        },
+        "homepage:total_made": {
+          "type": "string",
+          "value": "10",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}},\"number_of_creators\":{\"cardinality\":{\"field\":\"seller_id\",\"precision_threshold\":40000}}}}"
+        }
+      ],
+      "job": "CalculateSaleNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": 1000.0
+            },
+            "number_of_creators": {
+              "value": 1.5e+20
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "a tiny fractional cardinality",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "company_page:number_of_creators": {
+          "type": "string",
+          "value": "1.0e-05",
+          "expires": false
+        },
+        "homepage:total_made": {
+          "type": "string",
+          "value": "10",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}},\"number_of_creators\":{\"cardinality\":{\"field\":\"seller_id\",\"precision_threshold\":40000}}}}"
+        }
+      ],
+      "job": "CalculateSaleNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": 1000.0
+            },
+            "number_of_creators": {
+              "value": 0.00001
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "a sum past 2**53",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "company_page:number_of_creators": {
+          "type": "string",
+          "value": "5",
+          "expires": false
+        },
+        "homepage:total_made": {
+          "type": "string",
+          "value": "1000000000000000000",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}},\"number_of_creators\":{\"cardinality\":{\"field\":\"seller_id\",\"precision_threshold\":40000}}}}"
+        }
+      ],
+      "job": "CalculateSaleNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": 100000000000000000000
+            },
+            "number_of_creators": {
+              "value": 5
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "a string sum",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "company_page:number_of_creators": {
+          "type": "string",
+          "value": "5",
+          "expires": false
+        },
+        "homepage:total_made": {
+          "type": "string",
+          "value": "123",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}},\"number_of_creators\":{\"cardinality\":{\"field\":\"seller_id\",\"precision_threshold\":40000}}}}"
+        }
+      ],
+      "job": "CalculateSaleNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": "12345"
+            },
+            "number_of_creators": {
+              "value": 5
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "an answer without aggregations",
+      "error": {
+        "class": "NoMethodError",
+        "message": "undefined method 'value' for nil"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}},\"number_of_creators\":{\"cardinality\":{\"field\":\"seller_id\",\"precision_threshold\":40000}}}}"
+        }
+      ],
+      "job": "CalculateSaleNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          }
+        }
+      ]
+    },
+    {
+      "name": "an answer without the sum",
+      "error": {
+        "class": "NoMethodError",
+        "message": "undefined method 'value' for nil"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}},\"number_of_creators\":{\"cardinality\":{\"field\":\"seller_id\",\"precision_threshold\":40000}}}}"
+        }
+      ],
+      "job": "CalculateSaleNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "aggregations": {
+            "number_of_creators": {
+              "value": 5
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "a sum aggregation without a value",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "company_page:number_of_creators": {
+          "type": "string",
+          "value": "5",
+          "expires": false
+        },
+        "homepage:total_made": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}},\"number_of_creators\":{\"cardinality\":{\"field\":\"seller_id\",\"precision_threshold\":40000}}}}"
+        }
+      ],
+      "job": "CalculateSaleNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "aggregations": {
+            "total_made": {},
+            "number_of_creators": {
+              "value": 5
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "an answer without the cardinality",
+      "error": {
+        "class": "NoMethodError",
+        "message": "undefined method 'value' for nil"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}},\"number_of_creators\":{\"cardinality\":{\"field\":\"seller_id\",\"precision_threshold\":40000}}}}"
+        }
+      ],
+      "job": "CalculateSaleNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "aggregations": {
+            "total_made": {
+              "value": 100.0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "a cardinality aggregation without a value",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "company_page:number_of_creators": {
+          "type": "string",
+          "value": "",
+          "expires": false
+        },
+        "homepage:total_made": {
+          "type": "string",
+          "value": "1",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}},\"number_of_creators\":{\"cardinality\":{\"field\":\"seller_id\",\"precision_threshold\":40000}}}}"
+        }
+      ],
+      "job": "CalculateSaleNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "aggregations": {
+            "total_made": {
+              "value": 100.0
+            },
+            "number_of_creators": {}
+          }
+        }
+      ]
+    }
+  ]
+}

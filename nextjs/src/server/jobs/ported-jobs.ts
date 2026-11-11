@@ -116,6 +116,7 @@ export const PORTED_JOBS: readonly string[] = [
   "RegenerateSalesRelatedProductsInfosJob",
   "UpdateSalesRelatedProductsInfosJob",
   "UpdateTaxonomyStatsJob",
+  "CalculateSaleNumbersWorker",
   "Radar::AddValueListItemJob",
   "Radar::RemoveValueListItemJob",
   "ExpiringCreditCardMessageWorker",
