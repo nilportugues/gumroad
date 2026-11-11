@@ -751,6 +751,23 @@ export type ProductPageViewerInput = {
 // -------------------------------------------------------------------------------------------------
 // The props
 
+// The options ProductProps#selection_discounts quotes, as the keys of its hash ("" for a product with no options): a tier closed to
+// new buyers cannot be picked and is left out. `rental` is Link#rental's rent_only, or null when the product cannot be rented.
+export async function selectionOptions(row: LinkRow) {
+  const [records, prices] = await Promise.all([optionRecords(row), alivePricesOf(row.id)]);
+  const priced: Priced = { purchaseType: PURCHASE_TYPES[row.purchase_type ?? -1] ?? null, prices };
+  const closeFeature = flag(row, "is_tiered_membership")
+    ? await isFeatureEnabled("close_membership_tier_to_new_buyers", userActor(row.user_id!))
+    : false;
+  const open = records.filter(
+    (record) => !closeFeature || ((Number(record.flags) >> (BASE_VARIANT_CLOSED_FLAG - 1)) & 1) === 0,
+  );
+  return {
+    optionIds: records.length === 0 ? [""] : open.map((record) => externalId(record.id)),
+    rental: rentalPriceCents(row, priced) !== null ? { rent_only: priced.purchaseType === "rent_only" } : null,
+  };
+}
+
 export async function productProps(row: LinkRow, seller: UserRow, viewer: ProductPageViewerInput) {
   const sellerActor = userActor(seller.id);
   if (await isFeatureEnabled("seller_reputation_summary", sellerActor))
