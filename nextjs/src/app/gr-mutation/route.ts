@@ -53,6 +53,7 @@ import "@/server/controllers/product-editor-mutations";
 import "@/server/controllers/checkout-upsells";
 import "@/server/controllers/checkout-upsell-products";
 import "@/server/controllers/marketing-actions";
+import "@/server/controllers/waitlist-emails";
 import "@/server/controllers/url-redirects/mutations";
 import "@/server/controllers/payouts-exports";
 import "@/server/controllers/subscription-magic-links-mutations";
