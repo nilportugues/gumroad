@@ -84,9 +84,10 @@ export async function creatorProfile(seller: Seller, canEdit: boolean) {
 }
 
 // FollowRecaptcha.required?(seller) ? FollowRecaptcha.site_key : nil
-function followRecaptchaSiteKey(seller: Seller): string | null {
-  const compliant = seller.user_risk_state === "compliant";
-  const active = seller.deleted_at === null && !(seller.user_risk_state ?? "").startsWith("suspended");
+export function followRecaptchaSiteKey(seller: { user_risk_state?: unknown; deleted_at: Date | null }): string | null {
+  const riskState = typeof seller.user_risk_state === "string" ? seller.user_risk_state : "";
+  const compliant = riskState === "compliant";
+  const active = seller.deleted_at === null && !riskState.startsWith("suspended");
   if (compliant && active) return null;
   const siteKey = getConfig("RECAPTCHA_FOLLOW_SITE_KEY") ?? getConfig("RECAPTCHA_MONEY_SITE_KEY");
   return present(siteKey) ? siteKey : null;

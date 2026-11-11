@@ -24,6 +24,7 @@ const productPage: PageSpec = {
     const pathCode = params.code;
     const queryCode = typeof query.code === "string" && query.code.trim() !== "" ? query.code : null;
     const code = pathCode && pathCode.trim() !== "" ? pathCode : queryCode;
+    const afterRender: (() => Promise<void>)[] = [];
     const viewer = viewerOf(
       query,
       code,
@@ -38,7 +39,9 @@ const productPage: PageSpec = {
         protocol: action.url.protocol === "https:" ? "https://" : "http://",
       },
     );
-    return buildProductPage(row, seller, viewer, action.meta, action.url.hostname);
+    const page = await buildProductPage(row, seller, { ...viewer, afterRender }, action.meta, action.url.hostname);
+    for (const effect of afterRender) await effect();
+    return page;
   },
 };
 

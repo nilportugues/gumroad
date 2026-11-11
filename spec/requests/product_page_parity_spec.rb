@@ -283,6 +283,26 @@ describe "Product page", type: :request do
       expect(inertia_props_of(response)["product"]["pwyw"]).to be_present
     end
 
+    it "hands a product whose covers are Unsplash photos to Rails", parity: true do
+      product = create(:product, user: seller, name: "Pictured")
+      AssetPreview.create!(link: product, unsplash_url: "https://images.example.com/photo.jpg", guid: "pagecoverone")
+      AssetPreview.create!(link: product, unsplash_url: "https://images.example.com/second.jpg", guid: "pagecovertwo")
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["product"]["main_cover_id"]).to eq("pagecoverone")
+    end
+
+    it "renders the waitlist of an unpublished product to a visitor", parity: true do
+      product = create(:product, user: seller, name: "Coming soon", draft: true, waitlist_enabled: true)
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["product"]["waitlist"]).to include("count" => nil)
+    end
+
     it "renders an unpublished product with a noindex header", parity: true do
       product = create(:product, :unpublished, user: seller, name: "Draft")
 
@@ -557,6 +577,49 @@ describe "Product page", type: :request do
 
       expect(response).to be_successful
       expect(inertia_props_of(response)["product"]["can_edit"]).to eq(true)
+    end
+
+    it "lists the viewer's wishlists with what each holds of the product", parity: true do
+      product = create(:product, user: seller, name: "Wished")
+      holding = create(:wishlist, user: buyer, name: "Holding")
+      create(:wishlist_product, wishlist: holding, product:)
+      create(:wishlist, user: buyer, name: "Empty")
+      create(:wishlist, user: buyer, name: "Gone", deleted_at: 1.day.ago)
+      host! DOMAIN
+      log_in(buyer, token_path: "/help")
+      seller_host!
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["wishlists"].map { _1["name"] }).to eq(%w[Holding Empty])
+    end
+
+    it "shows a buyer whose purchase was refunded the product without a purchase", parity: true do
+      product = create(:product, user: seller, name: "Refunded", price_cents: 0)
+      create(:free_purchase, link: product, purchaser: buyer, email: buyer.email, stripe_refunded: true)
+      host! DOMAIN
+      log_in(buyer, token_path: "/help")
+      seller_host!
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["purchase"]).to be_nil
+    end
+
+    it "counts the waitlist of an unpublished product for the seller", parity: true do
+      product = create(:product, user: seller, name: "Coming soon", draft: true, waitlist_enabled: true)
+      WaitlistEntry.create!(product:, follower: create(:active_follower, user: seller))
+      WaitlistEntry.create!(product:, follower: create(:follower, user: seller, confirmed_at: nil))
+      host! DOMAIN
+      log_in(seller, token_path: "/help")
+      seller_host!
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["product"]["waitlist"]).to include("count" => 1)
     end
 
     it "lists the posts a profile section could show in the seller's edit controls", parity: true do

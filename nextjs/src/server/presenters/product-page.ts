@@ -373,6 +373,10 @@ async function build(
   host: string,
 ) {
   const props = await productProps(row, seller, viewer);
+  // The page head preloads the call calendar through the Vite manifest, which Node does not have.
+  if (row.native_type === "call") throw new NotPortedError("PageMeta::Product vite_asset_path for the call calendar");
+  // The page's og:image and twitter tags and its image preloads come from the first cover.
+  if (props.product.covers.length > 0) throw new NotPortedError("PageMeta::Product image tags for a product with covers");
   await setMeta(meta, row, seller, host, viewer.sellerCustomDomainUrl);
   const storefront = ((BigInt(seller.flags as bigint | number) >> 57n) & 1n) === 1n;
   if (storefront) throw new NotPortedError("ProductPresenter#profile_product_props");

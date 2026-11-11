@@ -125,7 +125,7 @@ excluding rows would only hide work that exists. The one wildcard row, `GET /(*p
 
 | Workstream | Route | Controller | Reason |
 | --- | --- | --- | --- |
-| WS-10 | `GET /profile/products/:id` | `settings/profile/products#show` | `ProductPresenter#product_props` JSON for a non-editable product; the presenter is not ported (WS-12) |
+| WS-10 | `GET /profile/products/:id` | `settings/profile/products#show` | Registered since `ws-pp-product-presenter` (`nextjs_profile_products`, `controllers/profile-products.ts`): `ProductPresenter#product_props` JSON for a non-editable product, minus the hand-backs listed in workstreams.md |
 
 ### Stripe/PayPal (1)
 
@@ -198,6 +198,5 @@ excluding rows would only hide work that exists. The one wildcard row, `GET /(*p
 
 ## Portable but not ported
 
-`GET /profile/products/:id` (`Settings::Profile::ProductsController#show`) is a read-only JSON page, but its body is
-`ProductPresenter#product_props`, which belongs to WS-12 (covers, files, taxonomy, tiers, preorders). It should be ported with that
-presenter, not on its own.
+`GET /profile/products/:id` (`Settings::Profile::ProductsController#show`) is registered now: its body is `productProps` in
+`presenters/product-props.ts`, which hands back what it cannot prove (see the product presenter entry in workstreams.md).
