@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { faradayQuery, humanize } from "./omniauth-phases.ts";
+import { faradayQuery } from "./faraday-query.ts";
+import { humanize } from "./omniauth-phases.ts";
 
 describe("faradayQuery", () => {
   it("sorts the keys and writes a nil value as the bare key", () => {

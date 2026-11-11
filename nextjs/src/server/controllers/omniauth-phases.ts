@@ -25,10 +25,12 @@ import {
   HandBackToRails,
   type Redirected,
 } from "./application-controller.ts";
+import { faradayQuery } from "./faraday-query.ts";
 import { type MutationInput, registerMutations } from "./mutation.ts";
 import { requestFormat } from "./rails-params.ts";
 import { isPresent } from "./rails-request.ts";
 import { resolveRequestAuth } from "./signed-in-filters.ts";
+import { connectAccount, exchangeCode, type SocialProvider } from "./social-connect-exchange.ts";
 
 const PASSTHRU_PROVIDERS = ["twitter", "stripe_connect", "google_oauth2", "youtube", "instagram", "tiktok", "apple"];
 const PASSTHRU_BODY = "Not found. Authentication passthru.";
@@ -236,25 +238,6 @@ const STRATEGIES: Record<string, Strategy> = {
     },
   },
 };
-
-// Faraday::Utils.escape: everything but letters, digits and ". ~ _ -" is percent-encoded byte by byte, and a space is a plus.
-function faradayEscape(value: string): string {
-  return [...Buffer.from(value, "utf8")]
-    .map((byte) => {
-      const char = String.fromCharCode(byte);
-      if (/[a-zA-Z0-9.~_-]/u.test(char)) return char;
-      return char === " " ? "+" : `%${byte.toString(16).toUpperCase().padStart(2, "0")}`;
-    })
-    .join("");
-}
-
-// Faraday's NestedParamsEncoder sorts the keys; a nil value is written as the bare key.
-export function faradayQuery(params: Record<string, string | null>): string {
-  return Object.entries(params)
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .map(([key, value]) => (value === null ? faradayEscape(key) : `${faradayEscape(key)}=${faradayEscape(value)}`))
-    .join("&");
-}
 
 // `OmniAuth.config.full_host`
 function fullHost(): string {
@@ -479,6 +462,36 @@ async function socialFailure(
   };
 }
 
+// A code the strategy exchanges is spent, so every request Rails would answer differently is handed back before the exchange: no code to
+// speak of, and the options of omniauth-google-oauth2's `get_access_token` that change what it sends (an XHR, a redirect URI of its own).
+async function socialConnect(
+  strategy: Strategy,
+  input: MutationInput,
+  omniauthParams: Record<string, unknown>,
+): Promise<ActionResult> {
+  const { chain } = input;
+  const code = stringParam(input, "code");
+  if (code === undefined || !isPresent(code)) throw new HandBackToRails("a callback without a code");
+  if (strategy.name === "youtube") {
+    if (input.request.headers.get("x-requested-with") === "XMLHttpRequest")
+      throw new HandBackToRails("an XHR callback");
+    if (stringParam(input, "redirect_uri") !== undefined)
+      throw new HandBackToRails("a callback that names a redirect URI");
+  }
+  const provider = strategy.name as SocialProvider;
+  const exchanged = await exchangeCode(provider, code, `${fullHost()}${callbackPath(strategy)}`, chain.now);
+  if (!exchanged.ok) return socialFailure(strategy, input, exchanged.type, omniauthParams);
+  const destination = await consumeSocialConnectReturn(chain, omniauthParams);
+  const user = railsLoggedInUser(chain.auth.context);
+  return connectAccount(provider, {
+    userId: user ? user.id : null,
+    token: exchanged.token,
+    uid: exchanged.uid,
+    destination: destination ?? SOCIAL_CONNECTIONS_PATH,
+    now: () => chain.now,
+  });
+}
+
 function callbackPhase(strategy: Strategy) {
   return async (input: MutationInput): Promise<ActionResult> => {
     assertHtml(input);
@@ -499,7 +512,10 @@ function callbackPhase(strategy: Strategy) {
         }
       }
       const failed = callbackFailure(strategy, input);
-      if (failed === null) throw new HandBackToRails("a callback with a code to exchange");
+      if (failed === null) {
+        if (!strategy.social) throw new HandBackToRails("a callback with a code to exchange");
+        return await socialConnect(strategy, input, omniauthParams);
+      }
       if (strategy.social) return await socialFailure(strategy, input, failed.type, omniauthParams);
       return failure(strategy, input, failed.type, failed.reason);
     } catch (error) {
