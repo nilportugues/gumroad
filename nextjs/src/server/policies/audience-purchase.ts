@@ -32,4 +32,13 @@ function undoRevokeAccess(context: SellerContext, record: AccessRecord): boolean
   return update(context) && record.accessRevoked;
 }
 
-export const audiencePurchasePolicy = { update, manageLicense: update, markAsShipped, revokeAccess, undoRevokeAccess };
+export const audiencePurchasePolicy = {
+  update,
+  refund: update,
+  changeCanContact: update,
+  cancelPreorderBySeller: update,
+  manageLicense: update,
+  markAsShipped,
+  revokeAccess,
+  undoRevokeAccess,
+};

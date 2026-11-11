@@ -15,7 +15,7 @@ import { registerMutations, type MutationInput } from "./mutation.ts";
 import { authorizeJson, noContent, notFoundJson } from "./seller-json.ts";
 
 // `Purchase.find_by_external_id(params[:id]) || e404`
-async function setPurchase(externalId: string): Promise<Purchase> {
+export async function setPurchase(externalId: string): Promise<Purchase> {
   const id = decrypt(externalId);
   const [row] =
     id === null

@@ -57,6 +57,7 @@ import "@/server/controllers/users-controller";
 import "@/server/controllers/dispute-evidence-mutations";
 import "@/server/controllers/links-mutations";
 import "@/server/controllers/affiliate-requests-mutations";
+import "@/server/controllers/purchases-controller";
 import { mutationResponse } from "@/server/controllers/mutation";
 
 // GET: the logout and emailed two-factor links, which change state without a form.
