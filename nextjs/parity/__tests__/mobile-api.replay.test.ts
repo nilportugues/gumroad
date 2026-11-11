@@ -30,6 +30,7 @@ const SPECS = [
   "mobile_hand_backs_parity_spec",
   "mobile_purchases_sales_parity_spec",
   "mobile_sales_access_parity_spec",
+  "mobile_sales_actions_parity_spec",
   "mobile_products_subscriptions_parity_spec",
 ].filter((dir) => existsSync(path.join(FIXTURES, dir)));
 const ROUTE_FLAGS = [
