@@ -2,6 +2,7 @@ import type { DomainConfig } from "@/server/page-props/domain";
 
 import type { ProxyRequestInfo, RouteGate } from "./gate";
 import { classifyHost } from "./hosts";
+import { redirectLocation } from "./redirect";
 import { type CompiledRoute, matchRoutes } from "./route-table";
 
 export type RouteDecision =
@@ -55,7 +56,10 @@ export async function decideRoute(
     if (route.signedInOnly && (await gate.isSignedIn(request)) === false) return toRails;
     if (await gate.signsInViaRememberCookie?.(request)) return toRails;
   }
-  if (route.redirect !== null) return { action: "redirect", route, location: `${route.redirect}${request.url.search}` };
+  if (route.redirect !== null || route.redirectReplace !== null) {
+    const location = redirectLocation(route, request.url);
+    return location === null ? toRails : { action: "redirect", route, location };
+  }
   if (route.mutation) return { action: "mutation", route };
   if (route.handler !== null) return { action: "handler", route, handler: route.handler };
   if (isInertiaRequest) return route.inertia ? { action: "inertia", route } : { action: "rails" };

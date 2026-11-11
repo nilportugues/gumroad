@@ -656,17 +656,18 @@ function publicException(request: RailsRequest, status: number): { headers: Head
 // guid is involved, only the Rack middleware around it.
 export function rackRedirect(incoming: Request, location: string, status = 301): Response {
   const request = railsRequest(incoming);
-  const target = redirectLocation(request, location);
-  const escaped = target.replace(/[&<>"']/gu, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
   const response: ControllerResponse = {
     status,
-    headers: new Headers({ location: target, "content-type": "text/html; charset=utf-8" }),
-    body: `<html><body>You are being <a href="${escaped}">redirected</a>.</body></html>`,
+    headers: new Headers({ location: redirectLocation(request, location), "content-type": "text/html; charset=utf-8" }),
+    // Unlike `redirect_to`, the router's redirect has no "You are being redirected" page.
+    body: "",
   };
   applyEtag(request, response);
   applySecureHeaders(request, response.headers);
   applyCorsVary(response.headers);
-  return new Response(request.method === "HEAD" ? null : (response.body as BodyInit), { status: response.status, headers: response.headers });
+  // Something in the Rack stack loads the session of a request that carries one, so the cookie store writes it back (re-encrypted).
+  if (request.cookies.has(railsSessionCookieName())) response.headers.append("set-cookie", sessionCookie(request, loadSession(request), new Date()));
+  return new Response(null, { status: response.status, headers: response.headers });
 }
 
 export async function forwardToRails(request: Request): Promise<Response> {

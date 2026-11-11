@@ -11,6 +11,8 @@ export type HostScope =
   | "product"
   // ApiDomainConstraint: api.gumroad.com (every host in development). The same API routes also live under /api on the Gumroad domain.
   | "api"
+  // DiscoverDomainConstraint: the discover host (gumroad.com; app.gumroad.com is a Gumroad host but not this one).
+  | "discover"
   | "any";
 
 export type RouteEntry = {
@@ -34,8 +36,17 @@ export type RouteEntry = {
   pathGate?: "taxonomy";
   // A route that is not a page: /gr-public/<handler> answers it (server/controllers/public-handlers.ts), whatever the method.
   handler?: string;
-  // A router-level redirect (routes.rb `redirect`): a 301 to this path with the query string kept. No controller runs.
+  // A router-level redirect (routes.rb `redirect`): a 301 to this path. No controller runs. `%{name}` is filled with the path
+  // parameter of that name, escaped as Rails' `escape_path` does. The query string is dropped, as `redirect("/path")` drops it,
+  // unless `redirectQuery` says otherwise.
   redirect?: string;
+  // "keep": the block form that appends `request.query_string`. "to_query": the `redirect(path:)` form, which rebuilds the
+  // query from `query_parameters.to_query` (sorted, re-escaped); a query it cannot rebuild the same way stays with Rails.
+  redirectQuery?: string;
+  // Parameter values that Rails routes ahead of this redirect claim (`/products/new` before `/products/:id`); they stay with Rails.
+  redirectExcept?: Record<string, string[]>;
+  // The target is the request's path and query with the first occurrence of `[from]` replaced by `[to]` (`req.fullpath.sub`).
+  redirectReplace?: string[];
 };
 
 export type RouteTable = Record<string, string | RouteEntry>;
@@ -43,9 +54,9 @@ export type RouteTable = Record<string, string | RouteEntry>;
 // `pattern` is the table key (and the key of the page in pages.ts); `path` is the URL pattern. They differ
 // for a route that only exists on seller or product-domain hosts, whose key is prefixed with the scope
 // ("seller:/affiliates") because the same path can also be a Gumroad-domain page.
-export type CompiledRoute = Required<Omit<RouteEntry, "flag" | "pathGate" | "handler" | "redirect">> & { pathGate: "taxonomy" | null; handler: string | null; redirect: string | null; flag: string | null; pattern: string; path: string; regexp: RegExp };
+export type CompiledRoute = Required<Omit<RouteEntry, "flag" | "pathGate" | "handler" | "redirect" | "redirectQuery" | "redirectReplace" | "redirectExcept">> & { pathGate: "taxonomy" | null; handler: string | null; redirect: string | null; redirectQuery: string | null; redirectReplace: [string, string] | null; redirectExcept: Record<string, string[]>; flag: string | null; pattern: string; path: string; regexp: RegExp };
 
-const SCOPE_PREFIXES: Record<string, HostScope> = { "seller:": "seller", "product:": "product", "api:": "api" };
+const SCOPE_PREFIXES: Record<string, HostScope> = { "seller:": "seller", "product:": "product", "api:": "api", "discover:": "discover" };
 
 // "POST /emails": a route for one HTTP method, the key of a mutation.
 const METHOD_PREFIX = /^(POST|PUT|PATCH|DELETE) /;
@@ -67,6 +78,9 @@ function patternToRegExp(pattern: string): RegExp {
       // `:key([a-zA-Z0-9-]{8,128}).txt`: a constrained parameter followed by a literal suffix, as Rails' `constraints: { key: /.../ }`.
       const constrained = /^:\w+\((.+)\)(.*)$/.exec(segment);
       if (constrained) return `${constrained[1]}${constrained[2]!.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`;
+      // `animation(*path)`: Rails' optional glob right after a literal, so `/animation`, `/animation/x` and `/animationx` all match.
+      const optionalGlob = /^([^(*:]+)\(\*\w+\)$/.exec(segment);
+      if (optionalGlob) return `${optionalGlob[1]!.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}.*`;
       if (segment.startsWith(":")) return "[^/.?]+";
       if (segment.startsWith("*")) return ".+";
       return segment.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -93,6 +107,9 @@ export function compileRouteTable(table: RouteTable): CompiledRoute[] {
       pathGate: entry.pathGate ?? null,
       handler: entry.handler ?? null,
       redirect: entry.redirect ?? null,
+      redirectQuery: entry.redirectQuery ?? null,
+      redirectReplace: entry.redirectReplace ? [entry.redirectReplace[0] ?? "", entry.redirectReplace[1] ?? ""] : null,
+      redirectExcept: entry.redirectExcept ?? {},
     };
   });
 }
@@ -100,6 +117,7 @@ export function compileRouteTable(table: RouteTable): CompiledRoute[] {
 function hostMatches(scope: HostScope, host: HostClassification): boolean {
   if (scope === "any") return true;
   if (scope === "gumroad") return host.gumroad;
+  if (scope === "discover") return host.discover;
   if (scope === "api") return host.api;
   if (scope === "product") return !host.gumroad && host.customDomainLookup !== null;
   return !host.gumroad && (host.sellerSubdomain !== null || host.customDomainLookup !== null);

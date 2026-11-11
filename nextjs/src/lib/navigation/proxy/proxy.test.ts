@@ -126,7 +126,10 @@ describe("decideRoute", () => {
 
 describe("router-level redirects", () => {
   const redirects = compileRouteTable({
-    "/users/sign_in": { flag: "nextjs_auth_devise_redirects", redirect: "/login" },
+    "/users/sign_in": { flag: "nextjs_auth_devise_redirects", redirect: "/login", redirectQuery: "keep" },
+    "/analytics": { flag: "nextjs_auth_devise_redirects", redirect: "/dashboard/sales" },
+    "/subscriptions/:id/edit_card": { flag: "nextjs_auth_devise_redirects", redirect: "/subscriptions/%{id}/manage", redirectQuery: "to_query" },
+    "discover:/animation(*path)": { flag: "nextjs_auth_devise_redirects", redirectReplace: ["animation", "3d"] },
     "POST /users/sign_in": { flag: "nextjs_auth_login_writes", mutation: true },
   });
   const on = gate(["nextjs_auth_devise_redirects", "nextjs_auth_login_writes"], null);
@@ -138,6 +141,20 @@ describe("router-level redirects", () => {
 
   it("stays with Rails while the flag is off", async () => {
     expect(await decideRoute(request("https://gumroad.com/users/sign_in"), redirects, production, gate([], null))).toEqual({ action: "rails" });
+  });
+
+  it("drops the query string of a plain redirect", async () => {
+    expect(await decideRoute(request("https://gumroad.com/analytics?x=1"), redirects, production, on)).toMatchObject({ action: "redirect", location: "/dashboard/sales" });
+  });
+
+  it("hands a query it cannot rebuild like to_query back to Rails", async () => {
+    expect(await decideRoute(request("https://gumroad.com/subscriptions/abc/edit_card?b=2&a=1"), redirects, production, on)).toMatchObject({ action: "redirect", location: "/subscriptions/abc/manage?a=1&b=2" });
+    expect(await decideRoute(request("https://gumroad.com/subscriptions/abc/edit_card?a[]=1"), redirects, production, on)).toEqual({ action: "rails" });
+  });
+
+  it("answers the discover-host redirect on the discover host only", async () => {
+    expect(await decideRoute(request("https://gumroad.com/animation/x?q=1"), redirects, production, on)).toMatchObject({ action: "redirect", location: "/3d/x?q=1" });
+    expect(await decideRoute(request("https://app.gumroad.com/animation/x"), redirects, production, on)).toEqual({ action: "rails" });
   });
 });
 
