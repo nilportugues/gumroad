@@ -35,6 +35,7 @@ import { disputeEvidenceDueSoonReminderJob } from "./dispute-evidence-due-soon-r
 import { elasticsearchIndexerWorker } from "./elasticsearch-indexer-worker.ts";
 import { enqueueMarketingXReconnectEmailJob } from "./enqueue-marketing-x-reconnect-email-job.ts";
 import { expireTranscodedVideosJob } from "./expire-transcoded-videos-job.ts";
+import { expiringCreditCardMessageWorker } from "./expiring-credit-card-message-worker.ts";
 import { flushDeliveredEmailInfosJob } from "./flush-delivered-email-infos-job.ts";
 import { handleSnsAwsConfigEventWorker } from "./handle-sns-aws-config-event-worker.ts";
 import { handleStripeAutodebitForNegativeBalance } from "./handle-stripe-autodebit-job.ts";
@@ -75,6 +76,7 @@ import {
   updatePurchaseHealthcheckThresholdJob,
 } from "./purchase-reads-jobs.ts";
 import { purgeOldDeletedAssetPreviewsWorker } from "./purge-old-deleted-asset-previews-worker.ts";
+import { radarAddValueListItemJob, radarRemoveValueListItemJob } from "./radar-value-list-jobs.ts";
 import { rebuildGmailAbuseFilterJob } from "./rebuild-gmail-abuse-filter-job.ts";
 import { recoverAusBacktaxFromStripeAccountJob } from "./recover-aus-backtax-from-stripe-account-job.ts";
 import { refreshClosedTierDiscoverPricesJob } from "./refresh-closed-tier-discover-prices-job.ts";
@@ -108,9 +110,12 @@ import {
 } from "./search-reindex-jobs.ts";
 import { sellerUpdatesWorker } from "./seller-updates-worker.ts";
 import { sendCommunityChatRecapNotificationsJob } from "./send-community-chat-recap-notifications-job.ts";
+import { sendFeatureAnnouncementCampaignJob } from "./send-feature-announcement-campaign-job.ts";
 import { sendLastPostJob } from "./send-last-post-job.ts";
 import { sendMarketingXReconnectEmailJob } from "./send-marketing-x-reconnect-email-job.ts";
+import { sendPreorderSellerSummaryWorker } from "./send-preorder-seller-summary-worker.ts";
 import { sendPurchaseReceiptJob } from "./send-purchase-receipt-job.ts";
+import { sendWishlistUpdatedEmailsJob } from "./send-wishlist-updated-emails-job.ts";
 import { sendWorkflowInstallmentWorker } from "./send-workflow-installment-worker.ts";
 import {
   createStripeApplePayDomainWorker,
@@ -118,6 +123,7 @@ import {
   deleteStripeApplePayDomainWorker,
   syncStripeBusinessProfileUrlJob,
 } from "./stripe-jobs.ts";
+import { submitToIndexnowJob } from "./submit-to-indexnow-job.ts";
 import {
   chargeDeclinedReminderWorker,
   findSubscriptionsWithMissingChargeWorker,
@@ -261,6 +267,13 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   RegenerateSalesRelatedProductsInfosJob: regenerateSalesRelatedProductsInfosJob,
   UpdateSalesRelatedProductsInfosJob: updateSalesRelatedProductsInfosJob,
   UpdateTaxonomyStatsJob: updateTaxonomyStatsJob,
+  "Radar::AddValueListItemJob": radarAddValueListItemJob,
+  "Radar::RemoveValueListItemJob": radarRemoveValueListItemJob,
+  ExpiringCreditCardMessageWorker: expiringCreditCardMessageWorker,
+  SendWishlistUpdatedEmailsJob: sendWishlistUpdatedEmailsJob,
+  SendFeatureAnnouncementCampaignJob: sendFeatureAnnouncementCampaignJob,
+  SendPreorderSellerSummaryWorker: sendPreorderSellerSummaryWorker,
+  SubmitToIndexnowJob: submitToIndexnowJob,
   DeleteProductRichContentWorker: deleteProductRichContentWorker,
   RemoveSuspendedAccountFollowsWorker: removeSuspendedAccountFollowsWorker,
   RefundPurchaseWorker: refundPurchaseWorker,

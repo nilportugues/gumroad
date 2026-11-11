@@ -1078,7 +1078,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ExportPayoutData": {
     "file": "app/sidekiq/export_payout_data.rb",
@@ -1979,7 +1979,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "Radar::RemoveValueListItemJob": {
     "file": "app/sidekiq/radar/remove_value_list_item_job.rb",
@@ -1992,7 +1992,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "Radar::SyncValueListsJob": {
     "file": "app/sidekiq/radar/sync_value_lists_job.rb",
@@ -2906,7 +2906,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SendFinancesReportWorker": {
     "file": "app/sidekiq/send_finances_report_worker.rb",
@@ -3022,7 +3022,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SendPurchaseReceiptJob": {
     "file": "app/sidekiq/send_purchase_receipt_job.rb",
@@ -3146,7 +3146,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SendWorkflowEmailsToPastCanceledMembersJob": {
     "file": "app/sidekiq/send_workflow_emails_to_past_canceled_members_job.rb",
@@ -3305,7 +3305,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SubtitleFileSizeWorker": {
     "file": "app/sidekiq/subtitle_file_size_worker.rb",
