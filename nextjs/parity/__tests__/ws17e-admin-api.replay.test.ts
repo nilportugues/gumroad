@@ -1,4 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { createServer, type Server } from "node:http";
 import path from "node:path";
 
 import { PrismaClient } from "@prisma/client";
@@ -41,10 +42,16 @@ const ROUTE_FLAGS = [
   "nextjs_admin_api_piracy",
   "nextjs_admin_api_campaigns",
 ];
+// Requests the port leaves to Rails: "hands a ..." in a request spec, and the controller examples named here (a state in a compliance
+// address, a new watch). The replay asserts they reach the stand-in Rails untouched and write nothing.
+const HANDS_BACK_CASE = /hands-a-|post-watch-(?:creates-a-watched-user-record|user-id-lookup-looks-up|user-id-lookup-prefers)|get-compliance-info-returns-(?:business-kyc-fields|submitted-kyc-fields|the-latest-alive|the-trailing-characters)/;
 const API_HOST = "api.test.gumroad.com:31337";
 const FIRST_COMPILE_TIMEOUT_MS = 240_000;
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
 const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1];
+// The compliance info read decrypts the tax ids it shows the last four characters of.
+const strongboxKey = /^STRONGBOX_GENERAL="(.+)"$/m.exec(envTest)?.[1]?.replaceAll("\\n", "\n");
+const strongboxPassword = /^STRONGBOX_GENERAL_PASSWORD="?([^"\n]+)"?$/m.exec(envTest)?.[1];
 
 // Random per request: the plaintext token and its external id, the audit row's request id.
 const COMPARE = {
@@ -89,11 +96,24 @@ function redisJobs(redis: Redis): JobsChannel {
   };
 }
 
-// The cursor of this example is signed, so it cannot move with the replay's clock: it names the second comment's created_at, 2026-11-02
-// 00:21:09 UTC, which is `<now-120m>` only at the instant the spec froze its clock at. Seeding from that instant keeps the third comment
-// (`<now-180m>`) on the next page whatever day the replay runs.
-const CURSOR_PAGE_EXAMPLE = /paginates-comments-with-a-cursor #2/u;
-const CURSOR_PAGE_NOW = Date.parse("2026-11-02T02:21:09Z");
+// A cursor is signed and holds the created_at of the row it follows, so the clock has to stand where it stood when the rows were made:
+// that row's age in minutes after its created_at. Date is pinned to that instant for the examples listed.
+const CURSOR_PAGES: [RegExp, number][] = [
+  [/paginates-comments-with-a-cursor #2/u, 120],
+  [/paginates-affiliates-with-a-cursor #2/u, 120],
+  [/applies-a-granted-cursor-to-the-received-scope.* #2/u, 4320],
+  [/pages-the-affiliates-with-a-signed-cursor #2/u, 120],
+];
+// The cursor is `urlsafe(base64(json_string)--hmac)`.
+function cursorInstant(fixturePath: string, index: number, ageMinutes: number): number {
+  const request = loadFixture(fixturePath).exchanges[index]!.request;
+  const cursor = new URLSearchParams(request.query ?? "").get("cursor")!;
+  const [encoded] = Buffer.from(cursor, "base64url").toString("utf8").split("--");
+  const payload = JSON.parse(JSON.parse(Buffer.from(encoded!, "base64").toString("utf8")) as string) as { created_at: string };
+  return Date.parse(payload.created_at) + ageMinutes * 60_000;
+}
+// emails_sent_at is JSON text inside json_data, which the replay's date drift does not rewrite: users-reads.test.ts covers the field.
+const EMAIL_REMINDER_CASE = /most-recent-email-reminder-timestamp/;
 
 // Only the exchanges of routes routes.json sends to Node are replayed; the rest stay with Rails.
 const SERVED_ROUTES = Object.keys(JSON.parse(readFileSync("routes.json", "utf8")) as Record<string, unknown>)
@@ -115,7 +135,8 @@ const casesIn = (root: string, dirs: string[], fromRequestSpec: boolean) =>
         (file) =>
           file.endsWith(".json") &&
           (fromRequestSpec || !LEGACY_TOKEN_CASE.test(file)) &&
-          !MID_REQUEST_RACE_CASE.test(file),
+          !MID_REQUEST_RACE_CASE.test(file) &&
+          !EMAIL_REMINDER_CASE.test(file),
       )
       .flatMap((file) => {
         const fixturePath = path.join(root, dir, file);
@@ -158,6 +179,8 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
   let sql: SqlExecutor;
   let redis: Redis;
   let server: NextServer;
+  let rails: Server;
+  const handedBack: { method: string; url: string; body: string }[] = [];
   const saved = { ...process.env };
 
   beforeAll(async () => {
@@ -166,23 +189,35 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
     const [hostAndPort = "", db = "0"] = redisHost.split("/");
     const [host = "127.0.0.1", port = "6379"] = hostAndPort.split(":");
     redis = new Redis({ host, port: Number(port), db: Number(db) });
+    rails = createServer((request, response) => {
+      const chunks: Buffer[] = [];
+      request.on("data", (chunk: Buffer) => chunks.push(chunk));
+      request.on("end", () => {
+        handedBack.push({ method: request.method ?? "", url: request.url ?? "", body: Buffer.concat(chunks).toString("utf8") });
+        response.writeHead(204).end();
+      });
+    });
+    await new Promise<void>((resolve) => rails.listen(0, "127.0.0.1", resolve));
+    const railsPort = (rails.address() as { port: number }).port;
     server = await startNextServer({
       RAILS_ENV: "test",
       OBFUSCATE_IDS_CIPHER_KEY: obfuscateKey ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
       NEXTJS_ROUTE_FLAGS: [...ROUTE_FLAGS, "nextjs_admin_impersonate"].join(","),
-      RAILS_ORIGIN: "http://rails.invalid",
+      RAILS_ORIGIN: `http://127.0.0.1:${railsPort}`,
       // Cursors are signed with the recording app's secret_key_base, which every fixture of one checkout carries.
       SECRET_KEY_BASE: SERVER_SECRET ?? "",
       DATABASE_URL: url!,
       REDIS_HOST: redisHost,
       SIDEKIQ_REDIS_HOST: redisHost,
       JOBS_REDIS_URL: `redis://${redisHost}`,
+      ...(strongboxKey && strongboxPassword ? { STRONGBOX_GENERAL: strongboxKey, STRONGBOX_GENERAL_PASSWORD: strongboxPassword } : {}),
     });
   }, FIRST_COMPILE_TIMEOUT_MS);
 
   afterAll(async () => {
     await server?.stop();
+    await new Promise((resolve) => rails?.close(resolve));
     await closeAllRedis();
     await redis?.quit();
     await client?.$disconnect();
@@ -210,8 +245,27 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
   it.each(cases)(
     "%s",
     async (_name, fixturePath, index, fromRequestSpec) => {
-      const pinned = CURSOR_PAGE_EXAMPLE.test(_name);
-      if (pinned) vi.useFakeTimers({ now: CURSOR_PAGE_NOW, toFake: ["Date"], shouldAdvanceTime: true });
+      if (HANDS_BACK_CASE.test(_name)) {
+        handedBack.length = 0;
+        const handed = await replayFixtureExchange(fixturePath, index, {
+          sql,
+          redis: redisSeeder(redis),
+          transport: httpTransport(server.baseUrl),
+          interceptHttp: false,
+          jobs: redisJobs(redis),
+          rewriteRequest: (request) => ({ ...request, headers: withApiHost(request.headers) }),
+        });
+        const request = loadFixture(fixturePath).exchanges[index]!.request;
+        expect(handedBack).toHaveLength(1);
+        expect(handedBack[0]).toMatchObject({ method: request.method });
+        expect(decodeURIComponent(handedBack[0]!.url.split("?")[0]!)).toBe(decodeURIComponent(request.path.split("?")[0]!));
+        // The token's last_used_at is stamped before the action runs; Rails stamps it again.
+        expect(Object.keys(handed.exchanges[0]!.actual.db ?? {}).filter((table) => table !== "admin_api_tokens")).toEqual([]);
+        return;
+      }
+      const pageAge = CURSOR_PAGES.find(([pattern]) => pattern.test(_name))?.[1];
+      const pinned = pageAge !== undefined;
+      if (pageAge !== undefined) vi.useFakeTimers({ now: cursorInstant(fixturePath, index, pageAge), toFake: ["Date"], shouldAdvanceTime: true });
       const result = await replayFixtureExchange(fixturePath, index, {
         ...(pinned ? { driftDates: false } : {}),
         sql,

@@ -38,7 +38,7 @@ type LookedUpUser = { id: bigint; external_id: string | null; user_risk_state: s
 const iso = (time: Date | null) => (time === null ? null : `${time.toISOString().slice(0, 19)}Z`);
 
 // find_internal_admin_user_for_read_or_render
-async function findUserForRead(admin: AdminRequest, includeDeleted: boolean): Promise<{ user: LookedUpUser } | { refusal: ReturnType<typeof failure> }> {
+export async function findUserForRead(admin: AdminRequest, includeDeleted: boolean): Promise<{ user: LookedUpUser } | { refusal: ReturnType<typeof failure> }> {
   const userId = !isBlank(admin.params.user_id) ? admin.params.user_id : !isBlank(admin.params.external_id) ? admin.params.external_id : null;
   if (isBlank(admin.params.email) && userId === null && isBlank(admin.params.username)) return { refusal: failure(LOOKUP_BAD_REQUEST_MESSAGE, 400) };
   const alive = includeDeleted ? {} : { deleted_at: null };
@@ -57,7 +57,7 @@ async function findUserForRead(admin: AdminRequest, includeDeleted: boolean): Pr
   return user === null ? { refusal: failure("User not found", 404) } : { user };
 }
 
-const successPayload = (user: LookedUpUser, payload: Record<string, unknown>) => ({ success: true, user_id: user.external_id, ...payload });
+export const successPayload = (user: LookedUpUser, payload: Record<string, unknown>) => ({ success: true, user_id: user.external_id, ...payload });
 
 function parseCommentTypes(raw: unknown): string[] | ReturnType<typeof failure> {
   const text = paramToS(raw, SOURCE);
