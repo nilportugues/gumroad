@@ -76,6 +76,10 @@ import "@/server/controllers/product-review-set";
 import "@/server/controllers/asset-previews-thumbnails";
 import "@/server/controllers/discover-search-suggestions";
 import "@/server/controllers/test-pings";
+import "@/server/controllers/products-affiliated-mutations";
+import "@/server/controllers/marketing-abandoned-carts";
+import "@/server/controllers/recommended-products";
+import "@/server/controllers/mobile-tracking";
 import { mutationResponse } from "@/server/controllers/mutation";
 
 // GET: the logout and emailed two-factor links, which change state without a form.

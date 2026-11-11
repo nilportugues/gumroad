@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { always, defer, deferMerge, lazy, merge, optional, resolveLazyProps, scroll } from "./lazy-props.ts";
 import { filterPartialProps } from "./load-page.ts";
-import { always, defer, lazy, merge, optional, resolveLazyProps, scroll } from "./lazy-props.ts";
 
 const partial = (only: string[] = [], except: string[] = []) => ({ only, except, reset: [] });
 
@@ -39,6 +39,32 @@ describe("resolveLazyProps", () => {
   });
 });
 
+describe("resolveLazyProps with a deferred merge prop", () => {
+  const props = () => ({ plain: 1, results: deferMerge(() => ["row"]) });
+
+  it("lists it as deferred and as merged on a first load, without calling it", async () => {
+    let called = false;
+    const resolved = await resolveLazyProps({ results: deferMerge(() => (called = true)) }, null);
+    expect(resolved.deferredProps).toEqual({ default: ["results"] });
+    expect(resolved.mergeProps).toEqual(["results"]);
+    expect(called).toBe(false);
+  });
+
+  it("sends it and lists it as merged on a partial reload that asks for it", async () => {
+    const resolved = await resolveLazyProps(props(), partial(["results"]));
+    expect(resolved.props).toEqual({ plain: 1, results: ["row"] });
+    expect(resolved.deferredProps).toEqual({});
+    expect(resolved.mergeProps).toEqual(["results"]);
+  });
+
+  it("leaves it out of the merged props when the partial reload does not ask for it or resets it", async () => {
+    expect((await resolveLazyProps(props(), partial(["plain"]))).mergeProps).toEqual([]);
+    expect((await resolveLazyProps(props(), { only: ["results"], except: [], reset: ["results"] })).mergeProps).toEqual(
+      [],
+    );
+  });
+});
+
 describe("filterPartialProps with always props", () => {
   const headers = new Headers({ "x-inertia-partial-component": "C", "x-inertia-partial-data": "chart" });
 
@@ -50,8 +76,19 @@ describe("filterPartialProps with always props", () => {
 });
 
 describe("scroll props", () => {
-  const metadata = { pageName: "cursor", previousPage: "2026-01-01T00:00:00Z", nextPage: null, currentPage: "2026-02-01T00:00:00Z" };
-  const props = () => ({ other: 1, messages: scroll(() => metadata, () => ["a"]) });
+  const metadata = {
+    pageName: "cursor",
+    previousPage: "2026-01-01T00:00:00Z",
+    nextPage: null,
+    currentPage: "2026-02-01T00:00:00Z",
+  };
+  const props = () => ({
+    other: 1,
+    messages: scroll(
+      () => metadata,
+      () => ["a"],
+    ),
+  });
 
   it("appends and lists the metadata, as InertiaRails.scroll does", async () => {
     const resolved = await resolveLazyProps(props(), null);

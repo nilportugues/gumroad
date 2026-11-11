@@ -2,7 +2,8 @@
 // editor state is proven: a bundle of plain products (no versions, no SKUs) with none of the rows the port does not read
 // (covers, thumbnail, files, public files, an offer code, an installment plan, sales or reviews). A
 // bundle with one goes to Rails whole (HandBackToRails) before anything renders.
-// Bundles/Content/Edit is not ported: its `search_data` is a deferred Elasticsearch result (BundleSearchProductsService).
+// Bundles/Content/Edit answers its first load; its `search_data` is a deferred Elasticsearch result (BundleSearchProductsService)
+// that a partial reload gets from Rails.
 import { Prisma } from "@prisma/client";
 
 import { encrypt as externalId } from "../../../lib/obfuscate-ids.ts";
@@ -12,6 +13,7 @@ import { LinkFlags } from "../../models/link.ts";
 import { column, selectRows, table } from "../../models/sql.ts";
 import { findLink, type LinkRow, type UserRow } from "../../presenters/product-reads.ts";
 import { cardForWeb } from "../../presenters/product.ts";
+import { deferMerge } from "../lazy-props.ts";
 import { NotPortedError } from "../not-ported.ts";
 import {
   accountLevelRefundPolicyEnabled,
@@ -47,7 +49,7 @@ const UNREAD_BY_BUNDLE_PRODUCT_EDITOR = [
 ];
 const UNREAD_BY_SHARE_EDITOR = UNREAD_BY_BUNDLE_PRODUCT_EDITOR.filter((name) => name !== "custom_html");
 
-export type BundleTab = "product" | "share";
+export type BundleTab = "product" | "share" | "content";
 
 // What would make the editor's state something this port does not model; empty when the bundle renders in Node.
 export async function bundleBlockers(bundle: LinkRow, seller: UserRow, tab: BundleTab = "product"): Promise<string[]> {
@@ -208,6 +210,28 @@ export async function bundleEditProductProps({ bundle, seller, now = new Date() 
     refund_policies: await otherProductRefundPolicies(bundle.id, seller.id),
     seller_refund_policy_enabled: await accountLevelRefundPolicyEnabled(seller, now),
     seller_refund_policy: policies.seller,
+  };
+}
+
+// `bundle.user.products.alive.not_archived.not_is_recurring_billing.not_is_bundle.not_call.count`; `where.not(native_type:)` drops a NULL.
+async function selectableProductsCount(sellerId: bigint): Promise<number> {
+  const [row] = await selectRows<Record<string, unknown>>(
+    Prisma.sql`SELECT COUNT(*) FROM ${table("links")} WHERE ${column("links", "user_id")} = ${sellerId} AND ${column("links", "purchase_disabled_at")} IS NULL AND ${column("links", "banned_at")} IS NULL AND ${column("links", "deleted_at")} IS NULL AND ${LinkFlags.condition("archived", false)} AND ${LinkFlags.condition("is_recurring_billing", false)} AND ${LinkFlags.condition("is_bundle", false)} AND ${column("links", "native_type")} != 'call'`,
+  );
+  return Number(Object.values(row ?? {})[0] ?? 0);
+}
+
+// BundlePresenter#edit_content_props, and the deferred `search_data` of Bundles::ContentController#edit.
+export async function bundleEditContentProps({ bundle, seller }: BundleEditInput) {
+  const policies = await refundPolicies(bundle, seller);
+  const { sections: _sections, ...shared } = await sharedProps(bundle, seller, policies.own);
+  return {
+    ...shared,
+    products_count: await selectableProductsCount(seller.id),
+    has_outdated_purchases: LinkFlags.isSet(bundle.flags as bigint, "has_outdated_purchases"),
+    search_data: deferMerge(() => {
+      throw new HandBackToRails();
+    }),
   };
 }
 
