@@ -15,15 +15,15 @@ import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
 
-// Replays spec/requests/products_remaining_call_availabilities_spec.rb: the slots a call product still offers. The spec freezes the clock the
+// Replays spec/requests/affiliate_statistics_signed_in_spec.rb (what an affiliate sold) and spec/requests/products_remaining_call_availabilities_spec.rb: the slots a call product still offers. The spec freezes the clock the
 // day before the US spring-forward change, because the answers hold day boundaries in the seller's zone; the replay moves its own clock and the
 // server's to the same instant. The recorder turns the response times into offsets from now, so they are compared as instants and the offset
 // text is pinned by the rails-time-zone golden instead.
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
-const SPECS = ["products_remaining_call_availabilities_spec"].filter((dir) => existsSync(path.join(FIXTURES, dir)));
-const ROUTE_FLAGS = "nextjs_remaining_call_availabilities";
+const SPECS = ["products_remaining_call_availabilities_spec", "affiliate_statistics_signed_in_spec"].filter((dir) => existsSync(path.join(FIXTURES, dir)));
+const ROUTE_FLAGS = "nextjs_remaining_call_availabilities,nextjs_affiliate_statistics";
 // The instant the spec froze its clock at.
 const PARITY_NOW = Date.parse("2026-03-07T20:00:00Z");
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
@@ -190,7 +190,7 @@ describe.skipIf(!url)("WS-12d parity", () => {
   const replayOptions = (file: string) => {
     const ignore = [...COMPARE.ignore];
     // Rails' debug exception page for a 404 sets the profiler cookie.
-    if (/unknown-permalink|custom-permalink/u.test(file)) ignore.push("response.cookies");
+    if (/unknown-permalink|custom-permalink|unknown-affiliate|another-seller|collaborator-id/u.test(file)) ignore.push("response.cookies");
     return {
       sql,
       redis: redisSeeder(redis),
