@@ -54,6 +54,11 @@ const PARITY_NOW = Date.parse("2026-11-09T23:37:39Z");
 const SUBSCRIPTION_END_NOW = Date.parse("2026-11-10T00:00:00Z");
 const SUBSCRIPTION_END_EXAMPLE = /includes-web-csv-parity-fields-in-the-response/u;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
+// The server's clock is the real clock plus a fixed offset. The worker's fake Date is re-anchored to that same formula before every
+// example: `shouldAdvanceTime` ticks 20ms per timer fire however late the fire is, so on a loaded host it falls behind and the server's
+// `deleted_at` lands past the `<now>` tolerance. performance is not faked, so it reads the real clock.
+const realNow = () => performance.timeOrigin + performance.now();
+let clockOffset = 0;
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
 const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "m").exec(envTest)?.[1];
 
@@ -235,10 +240,11 @@ describe.skipIf(!url)("Api::V2 endpoints of WS-17b", () => {
     await new Promise<void>((resolve) => rails.listen(0, "127.0.0.1", resolve));
     const railsPort = (rails.address() as { port: number }).port;
     const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1];
+    clockOffset = PARITY_NOW - realNow();
     server = await startNextServer({
       RAILS_ENV: "test",
       NODE_OPTIONS: `--require ${path.resolve(import.meta.dirname, "..", "src", "fixed-clock-preload.cjs")}`,
-      PARITY_CLOCK_OFFSET_MS: String(PARITY_NOW - Date.now()),
+      PARITY_CLOCK_OFFSET_MS: String(clockOffset),
       OBFUSCATE_IDS_CIPHER_KEY: obfuscateKey ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: testEnv("OBFUSCATE_IDS_NUMERIC_CIPHER_KEY") ?? "0",
       NEXTJS_ROUTE_FLAGS: Object.values(SPECS)
@@ -257,7 +263,7 @@ describe.skipIf(!url)("Api::V2 endpoints of WS-17b", () => {
       ...(testEnv("AWS_ACCESS_KEY_ID") ? { AWS_ACCESS_KEY_ID: testEnv("AWS_ACCESS_KEY_ID")! } : {}),
       ...(testEnv("AWS_SECRET_ACCESS_KEY") ? { AWS_SECRET_ACCESS_KEY: testEnv("AWS_SECRET_ACCESS_KEY")! } : {}),
     });
-    vi.useFakeTimers({ now: PARITY_NOW, toFake: ["Date"], shouldAdvanceTime: true });
+    vi.useFakeTimers({ now: realNow() + clockOffset, toFake: ["Date"], shouldAdvanceTime: true });
   }, FIRST_COMPILE_TIMEOUT_MS);
 
   afterAll(async () => {
@@ -317,7 +323,7 @@ describe.skipIf(!url)("Api::V2 endpoints of WS-17b", () => {
     "%s",
     async (_name, file, index) => {
       const subscriptionEnd = SUBSCRIPTION_END_EXAMPLE.test(_name);
-      const resumeAt = Date.now();
+      vi.setSystemTime(realNow() + clockOffset);
       if (subscriptionEnd) vi.setSystemTime(SUBSCRIPTION_END_NOW);
       try {
         const fixture = loadFixture(file);
@@ -349,8 +355,6 @@ describe.skipIf(!url)("Api::V2 endpoints of WS-17b", () => {
           .slice(-30)
           .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
-      } finally {
-        if (subscriptionEnd) vi.setSystemTime(resumeAt + (Date.now() - SUBSCRIPTION_END_NOW));
       }
     },
     FIRST_COMPILE_TIMEOUT_MS,
