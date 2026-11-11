@@ -11,7 +11,15 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { closeAllRedis } from "@/server/infra/redis";
 
 import { prismaExecutor, type SqlExecutor } from "../src/db";
-import { ELASTICSEARCH_HOST, recreateIndex, reindexPurchases, replayIndexName } from "../src/elasticsearch";
+import {
+  bulkIndex,
+  ELASTICSEARCH_HOST,
+  recreateIndex,
+  reindexProducts,
+  reindexPurchases,
+  replayIndexName,
+  seededDocuments,
+} from "../src/elasticsearch";
 import { type Fixture, type FixtureRequest, loadFixture } from "../src/fixture";
 import { railsOnlyKey } from "../src/rails-only";
 import { startNextServer, type NextServer } from "../src/next-server";
@@ -92,6 +100,20 @@ const RENDERED = new Set(
     "does-not-credit-a-collaborator-who-opted-out-of-the-co-creator-credit-on-every-produc-f4bbdea1",
     "does-not-credit-a-collaborator-who-opted-out-of-the-co-creator-credit-on-this-product",
     "does-not-credit-a-collaborator-whose-invitation-is-still-pending",
+    "renders-a-product-whose-covers-are-unsplash-photos",
+    "renders-an-ebook-whose-cover-is-an-unsplash-photo",
+    "renders-a-call-product",
+    "renders-the-iframe-layout-for-embeds",
+    "renders-the-iframe-layout-for-an-overlay",
+    "renders-the-iframe-layout-of-a-call-product",
+    "renders-the-profile-layout",
+    "renders-the-profile-layout-with-an-offer-code-and-the-bundle-s-product-links",
+    "prefers-the-layout-over-embed",
+    "renders-the-standard-page-for-an-unknown-layout",
+    "with-the-discover-layout-renders-the-taxonomy-path-and-the-navigation",
+    "with-the-discover-layout-renders-a-product-without-a-taxonomy",
+    "with-the-discover-layout-answers-the-search-box-s-autocomplete-request-with-the-sugge-b0c7b45c",
+    "with-the-discover-layout-renders-a-storefront-seller-s-product-without-the-catalogue",
   ]
     .map((name) => `on-a-seller-subdomain-${name}`)
     .concat(["on-a-product-s-custom-domain-renders-the-product-at-the-root", "signed-in-shows-the-seller-their-own-product-with-the-edit-controls", "signed-in-lists-the-posts-a-profile-section-could-show-in-the-seller-s-edit-controls", "signed-in-lists-the-viewer-s-wishlists-with-what-each-holds-of-the-product", "signed-in-shows-a-buyer-whose-purchase-was-refunded-the-product-without-a-purchase", "signed-in-counts-the-waitlist-of-an-unpublished-product-for-the-seller"]),
@@ -195,6 +217,13 @@ describe.skipIf(!url)("Product page parity", () => {
               }
             }
             await reindexPurchases(es, purchases.name, sql);
+            // The discover layout's autocomplete searches products and reads the visitor's page views.
+            const products = { model: "Link", name: replayIndexName("products", ES_INDEX_SUFFIX) } as const;
+            await recreateIndex(es, products);
+            await reindexProducts(es, products.name, sql);
+            const views = { model: "ProductPageView", name: replayIndexName("product_page_views", ES_INDEX_SUFFIX) } as const;
+            await recreateIndex(es, views);
+            await bulkIndex(es, views.name, seededDocuments(exchange as never, "ProductPageView", now).map((body) => ({ body })));
           },
         },
         transport: httpTransport(server.baseUrl),

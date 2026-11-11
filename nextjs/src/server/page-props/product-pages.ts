@@ -6,15 +6,25 @@ import { railsLoggedInUser } from "../auth/resolve.ts";
 import { PRODUCT_PAGE_OPTIONS } from "../controllers/product-page.ts";
 import { parseQuery } from "../controllers/rails-query.ts";
 import { loadSellerContext } from "../policies/seller-context.ts";
-import { buildProductPage, guidOf, sellerCustomDomainUrl, viewerOf } from "../presenters/product-page.ts";
+import {
+  buildProductPage,
+  guidOf,
+  PRODUCT_PAGE_COMPONENTS,
+  productPageKind,
+  sellerCustomDomainUrl,
+  setProductPageMeta,
+  viewerOf,
+} from "../presenters/product-page.ts";
 import { findLink, findUserById } from "../presenters/product-reads.ts";
 
 import { remoteIp } from "./audience/events.ts";
 import { aliveCartProductCount } from "./checkout/checkout.ts";
+import { autocompleteResults, isAutocompleteOnlyRequest } from "./discover/discover.ts";
 import type { PageSpec } from "./pages.ts";
 
+// LinksController#show: `layout`, `embed` and `overlay` pick the Inertia component.
 const productPage: PageSpec = {
-  component: "Products/Show",
+  component: (action) => PRODUCT_PAGE_COMPONENTS[productPageKind(parseQuery(action.url.search.replace(/^\?/u, "")))],
   mobileAppWebView: true,
   buyerCurrencyFooter: true,
   options: PRODUCT_PAGE_OPTIONS,
@@ -25,6 +35,22 @@ const productPage: PageSpec = {
     const pathCode = params.code;
     const queryCode = typeof query.code === "string" && query.code.trim() !== "" ? query.code : null;
     const code = pathCode && pathCode.trim() !== "" ? pathCode : queryCode;
+    const kind = productPageKind(query);
+    // The discover layout's search box asks for its suggestions alone; Rails answers before it builds the product.
+    if (kind === "discover" && isAutocompleteOnlyRequest(action.headers)) {
+      await setProductPageMeta(
+        action.meta,
+        row,
+        seller,
+        action.url.hostname,
+        sellerCustomDomainUrl(action.state.user_custom_domain === "1", action.url.host),
+      );
+      const user = railsLoggedInUser(action.context);
+      const guid = guidOf(action.headers.get("cookie"));
+      return {
+        autocomplete_results: await autocompleteResults({ query: query.query as never }, user, guid),
+      };
+    }
     const afterRender: (() => Promise<void>)[] = [];
     const viewer = viewerOf(
       query,
@@ -40,7 +66,14 @@ const productPage: PageSpec = {
         protocol: action.url.protocol === "https:" ? "https://" : "http://",
       },
     );
-    const page = await buildProductPage(row, seller, { ...viewer, afterRender }, action.meta, action.url.hostname);
+    const page = await buildProductPage(
+      row,
+      seller,
+      { ...viewer, afterRender },
+      action.meta,
+      action.url.hostname,
+      kind,
+    );
     for (const effect of afterRender) await effect();
     return page;
   },

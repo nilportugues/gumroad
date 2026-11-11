@@ -54,7 +54,8 @@ import { CUSTOMERS_PAGES } from "./customers/pages.ts";
 type Params = Record<string, string>;
 
 export type PageSpec = {
-  component: string;
+  // A function picks the component from the request (LinksController#show renders one of four product pages).
+  component: string | ((action: ActionContext) => string | Promise<string>);
   // Redirects Rails sends before it renders: before_actions and rescue_from. `rescued` skips the
   // after_actions, as it does for a halted chain and for a rescued exception.
   // May look things up (a record that must exist) and answer `NOT_FOUND` for `e404`, which the

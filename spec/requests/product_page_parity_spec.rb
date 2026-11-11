@@ -283,7 +283,7 @@ describe "Product page", type: :request do
       expect(inertia_props_of(response)["product"]["pwyw"]).to be_present
     end
 
-    it "hands a product whose covers are Unsplash photos to Rails", parity: true do
+    it "renders a product whose covers are Unsplash photos", parity: true do
       product = create(:product, user: seller, name: "Pictured")
       AssetPreview.create!(link: product, unsplash_url: "https://images.example.com/photo.jpg", guid: "pagecoverone")
       AssetPreview.create!(link: product, unsplash_url: "https://images.example.com/second.jpg", guid: "pagecovertwo")
@@ -292,6 +292,17 @@ describe "Product page", type: :request do
 
       expect(response).to be_successful
       expect(inertia_props_of(response)["product"]["main_cover_id"]).to eq("pagecoverone")
+      expect(response.body).to include("summary_large_image")
+    end
+
+    it "renders an ebook whose cover is an Unsplash photo", parity: true do
+      product = create(:product_with_pdf_file, user: seller, name: "Pictured ebook", price_cents: 500, native_type: Link::NATIVE_TYPE_EBOOK)
+      AssetPreview.create!(link: product, unsplash_url: "https://images.example.com/book.jpg", guid: "pagebookcover")
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to be_successful
+      expect(response.body).to include("https://images.example.com/book.jpg")
     end
 
     it "renders the waitlist of an unpublished product to a visitor", parity: true do
@@ -502,10 +513,120 @@ describe "Product page", type: :request do
       expect(response).to be_successful
     end
 
+    it "renders the iframe layout for an overlay", parity: true do
+      product = create(:product, user: seller)
+
+      get "/l/#{product.unique_permalink}?overlay=true"
+
+      expect(response).to be_successful
+    end
+
+    it "renders the iframe layout of a call product", parity: true do
+      product = create(:call_product, :available_for_a_year, user: seller, name: "Call")
+
+      get "/l/#{product.unique_permalink}?embed=true"
+
+      expect(response).to be_successful
+    end
+
     it "renders the profile layout", parity: true do
       product = create(:product, user: seller)
 
       get "/l/#{product.unique_permalink}?layout=profile"
+
+      expect(response).to be_successful
+    end
+
+    it "renders the profile layout with an offer code and the bundle's product links", parity: true do
+      product = create(:product, :bundle, user: seller)
+
+      get "/l/#{product.unique_permalink}/sxsw?layout=profile&recommended_by=library"
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["product"]["bundle_products"].first["url"]).to include("layout=profile")
+    end
+
+    it "prefers the layout over embed", parity: true do
+      product = create(:product, user: seller)
+
+      get "/l/#{product.unique_permalink}?layout=profile&embed=true"
+
+      expect(response).to be_successful
+    end
+
+    it "renders the standard page for an unknown layout", parity: true do
+      product = create(:product, user: seller)
+
+      get "/l/#{product.unique_permalink}?layout=something"
+
+      expect(response).to be_successful
+    end
+
+    describe "with the discover layout" do
+      before do
+        root = Taxonomy.create!(slug: "3d")
+        modeling = Taxonomy.create!(slug: "3d-modeling", parent: root)
+        [root, modeling].each { |record| TaxonomyStat.create!(taxonomy: record, recent_sales_count: record.id) }
+      end
+
+      it "renders the taxonomy path and the navigation", parity: true do
+        product = create(:product, user: seller, taxonomy: Taxonomy.find_by!(slug: "3d-modeling"))
+
+        get "/l/#{product.unique_permalink}?layout=discover"
+
+        expect(response).to be_successful
+        expect(inertia_props_of(response)["taxonomy_path"]).to eq("3d/3d-modeling")
+      end
+
+      it "renders a product without a taxonomy", parity: true do
+        product = create(:product, user: seller)
+
+        get "/l/#{product.unique_permalink}?layout=discover"
+
+        expect(response).to be_successful
+        expect(inertia_props_of(response)["taxonomy_path"]).to be_nil
+      end
+
+      it "answers the search box's autocomplete request with the suggestions alone", parity: true do
+        product = create(:product, user: seller)
+
+        get "/l/#{product.unique_permalink}?layout=discover&query=blender", headers: {
+          "X-Inertia" => "true", "X-Requested-With" => "XMLHttpRequest",
+          "X-Inertia-Partial-Component" => "Products/Discover/Show", "X-Inertia-Partial-Data" => "autocomplete_results"
+        }
+
+        expect(response).to be_successful
+        expect(response.parsed_body["props"].keys).to include("autocomplete_results")
+      end
+
+      it "hands a visitor with a cart to Rails", parity: true do
+        product = create(:product, user: seller)
+        visitor = create(:user)
+        create(:cart_product, cart: create(:cart, user: visitor), product: create(:product))
+        host! DOMAIN
+        log_in(visitor, token_path: "/help")
+        seller_host!
+
+        get "/l/#{product.unique_permalink}?layout=discover"
+
+        expect(response).to be_successful
+      end
+
+      it "renders a storefront seller's product without the catalogue", parity: true do
+        seller.update!(product_page_storefront_enabled: true)
+        product = create(:product, user: seller)
+
+        get "/l/#{product.unique_permalink}?layout=discover"
+
+        expect(response).to be_successful
+      end
+    end
+
+    it "hands a visitor of a storefront seller to Rails", parity: true do
+      seller.update!(product_page_storefront_enabled: true)
+      product = create(:product, user: seller)
+
+      get "/l/#{product.unique_permalink}"
 
       expect(response).to be_successful
     end

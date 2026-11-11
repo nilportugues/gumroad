@@ -1,5 +1,5 @@
 // LinksController#show at the root of a product's own domain.
-import ProductsShow from "@/app/(app)/l/ProductsShow";
+import ProductsPage from "@/app/(app)/l/ProductsPage";
 import { InertiaShell } from "@/app/(app)/_shell/InertiaShell";
 import { renderPage } from "@/server/page-props/render-page";
 
@@ -8,7 +8,7 @@ export default async function Page() {
 
   return (
     <InertiaShell page={page} layout="loggedInUser" clientOnly>
-      <ProductsShow />
+      <ProductsPage component={page.component} />
     </InertiaShell>
   );
 }

@@ -140,7 +140,7 @@ async function requestUrl(path: string, requestHeaders: Headers, config: DomainC
 }
 
 export async function loadPage(
-  component: string,
+  componentOf: string | ((action: ActionContext) => string | Promise<string>),
   action: (action: ActionContext) => Promise<Record<string, unknown>> | Record<string, unknown>,
   { url, mobileAppWebView = false, buyerCurrencyFooter = false, analyticsEnabled, renderState }: LoadPageOptions,
 ): Promise<InertiaPage> {
@@ -155,7 +155,7 @@ export async function loadPage(
   const request = { headers: requestHeaders, url: await requestUrl(fullpath, requestHeaders, config) };
 
   await applicationMetaTags(meta, { context, config, csrfToken, ports, analyticsEnabled });
-  const actionProps = await action({
+  const actionContext: ActionContext = {
     context,
     config,
     meta,
@@ -164,7 +164,10 @@ export async function loadPage(
     urlOptions: defaultUrlOptions(request.url, config),
     state: state?.pageState ?? {},
     renderState: state,
-  });
+  };
+  // A page whose component depends on the request (Products/{Iframe,Profile,Discover}/Show) names it from the action context.
+  const component = typeof componentOf === "string" ? componentOf : await componentOf(actionContext);
+  const actionProps = await action(actionContext);
   const {
     props: pageProps,
     mergeProps,
