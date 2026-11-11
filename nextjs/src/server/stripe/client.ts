@@ -8,6 +8,8 @@ import https from "node:https";
 import os from "node:os";
 import { gunzipSync, inflateSync } from "node:zlib";
 
+import { PARITY_ORIGINAL_URL_HEADER } from "../infra/outbound-http.ts";
+import { railsEnv } from "../infra/rails-env.ts";
 import { rubyInspect } from "../models/concerns/ruby-values.ts";
 import { encodeParameters, objectsToIds, type StripeParams } from "./encode.ts";
 import { stripeConfigFromEnv, type StripeConfig } from "./config.ts";
@@ -91,7 +93,10 @@ const NETWORK_MESSAGES: Record<NetworkError["kind"], string> = {
 const BINDINGS_VERSION = "gumroad-nextjs";
 
 function generalApiError(status: number, body: string): APIError {
-  return new APIError(`Invalid response object from API: ${rubyInspect(body)} (HTTP response code was ${status})`, { httpStatus: status, httpBody: body });
+  return new APIError(`Invalid response object from API: ${rubyInspect(body)} (HTTP response code was ${status})`, {
+    httpStatus: status,
+    httpBody: body,
+  });
 }
 
 const OAUTH_ERRORS: Record<string, typeof OAuthError> = {
@@ -127,7 +132,9 @@ function errorFromResponse(response: TransportResponse): StripeError {
   switch (response.status) {
     case 400:
     case 404:
-      return error.type === "idempotency_error" ? new IdempotencyError(message, options) : new InvalidRequestError(message, param, options);
+      return error.type === "idempotency_error"
+        ? new IdempotencyError(message, options)
+        : new InvalidRequestError(message, param, options);
     case 401:
       return new AuthenticationError(message, options);
     case 402:
@@ -224,7 +231,8 @@ export class StripeClient {
       headers["X-Stripe-Client-Telemetry"] = JSON.stringify({ last_request_metrics: this.lastRequestMetrics });
     }
     // Only safe to retry a post or delete with an idempotency key.
-    if ((method === "post" || method === "delete") && this.config.maxNetworkRetries > 0) headers["Idempotency-Key"] = randomUUID();
+    if ((method === "post" || method === "delete") && this.config.maxNetworkRetries > 0)
+      headers["Idempotency-Key"] = randomUUID();
     headers["Stripe-Version"] = this.config.apiVersion;
     headers["X-Stripe-Client-User-Agent"] = clientUserAgent();
     // Net::HTTP's defaults, so Stripe sees the same negotiation.
@@ -236,7 +244,12 @@ export class StripeClient {
     return headers;
   }
 
-  async request(method: HttpMethod, path: string, params: StripeParams = {}, opts: RequestOptions = {}): Promise<StripeResponse> {
+  async request(
+    method: HttpMethod,
+    path: string,
+    params: StripeParams = {},
+    opts: RequestOptions = {},
+  ): Promise<StripeResponse> {
     if (path.includes("?")) throw new Error("Pass query parameters as params, not in the path");
     const apiKey = opts.apiKey ?? this.config.apiKey;
     checkApiKey(apiKey);
@@ -287,7 +300,12 @@ export class StripeClient {
     } catch {
       throw generalApiError(response.status, response.body);
     }
-    return { data, status: response.status, headers: response.headers, requestId: response.headers["request-id"] ?? null };
+    return {
+      data,
+      status: response.status,
+      headers: response.headers,
+      requestId: response.headers["request-id"] ?? null,
+    };
   }
 }
 
@@ -305,8 +323,18 @@ const ERRNO_MESSAGES: Record<string, string> = {
 
 // Net::HTTP over node:http(s): open_timeout until the socket connects, read_timeout while waiting
 // on the response.
-export const nodeTransport: Transport = (request) =>
+export const nodeTransport: Transport = (original) =>
   new Promise((resolve, reject) => {
+    // A parity replay answers the recorded calls from a local stand-in (see infra/outbound-http.ts), which gets the real URL in a header.
+    const standIn = process.env.OUTBOUND_HTTP_STAND_IN;
+    const standingIn = standIn !== undefined && standIn !== "" && railsEnv() === "test";
+    const request = standingIn
+      ? {
+          ...original,
+          url: new URL(original.url.slice(new URL(original.url).origin.length), standIn).href,
+          headers: { ...original.headers, [PARITY_ORIGINAL_URL_HEADER]: original.url },
+        }
+      : original;
     const target = new URL(request.url);
     const hostPort = `${target.hostname}:${target.port || (target.protocol === "https:" ? 443 : 80)}`;
     const fail = (error: NetworkError) => {
@@ -329,19 +357,35 @@ export const nodeTransport: Transport = (request) =>
     let openTimer: NodeJS.Timeout | undefined;
     req.on("socket", (socket) => {
       if ((socket as { connecting?: boolean }).connecting) {
-        openTimer = setTimeout(() => fail(new NetworkError("open_timeout", `Failed to open TCP connection to ${hostPort} (execution expired)`)), request.openTimeoutMs);
+        openTimer = setTimeout(
+          () =>
+            fail(new NetworkError("open_timeout", `Failed to open TCP connection to ${hostPort} (execution expired)`)),
+          request.openTimeoutMs,
+        );
         socket.once("connect", () => clearTimeout(openTimer));
       }
     });
-    req.setTimeout(request.readTimeoutMs, () => fail(new NetworkError("read_timeout", "Net::ReadTimeout with #<TCPSocket:(closed)>")));
+    req.setTimeout(request.readTimeoutMs, () =>
+      fail(new NetworkError("read_timeout", "Net::ReadTimeout with #<TCPSocket:(closed)>")),
+    );
     req.on("error", (error: NodeJS.ErrnoException) => {
       clearTimeout(openTimer);
       if (error instanceof NetworkError) return;
       const code = error.code ?? "";
       if (ERRNO_MESSAGES[code]) {
-        reject(new NetworkError("connection", `Failed to open TCP connection to ${hostPort} (${ERRNO_MESSAGES[code]} - connect(2) for "${target.hostname}" port ${target.port})`));
+        reject(
+          new NetworkError(
+            "connection",
+            `Failed to open TCP connection to ${hostPort} (${ERRNO_MESSAGES[code]} - connect(2) for "${target.hostname}" port ${target.port})`,
+          ),
+        );
       } else if (code === "ENOTFOUND" || code === "EAI_AGAIN") {
-        reject(new NetworkError("connection", `Failed to open TCP connection to ${hostPort} (getaddrinfo: Name or service not known)`));
+        reject(
+          new NetworkError(
+            "connection",
+            `Failed to open TCP connection to ${hostPort} (getaddrinfo: Name or service not known)`,
+          ),
+        );
       } else if (code === "ECONNRESET") {
         reject(new NetworkError("connection", "Connection reset by peer"));
       } else if (code.startsWith("ERR_TLS") || code.startsWith("CERT_") || code.includes("SSL")) {
@@ -362,7 +406,8 @@ export const nodeTransport: Transport = (request) =>
         else if (encoding === "deflate") raw = inflateSync(raw);
         const responseHeaders: Record<string, string> = {};
         for (const [name, value] of Object.entries(res.headers)) {
-          if (value !== undefined) responseHeaders[name.toLowerCase()] = Array.isArray(value) ? value.join(", ") : value;
+          if (value !== undefined)
+            responseHeaders[name.toLowerCase()] = Array.isArray(value) ? value.join(", ") : value;
         }
         resolve({ status: res.statusCode ?? 0, headers: responseHeaders, body: raw.toString("utf8") });
       });

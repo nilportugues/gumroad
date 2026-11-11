@@ -11,6 +11,12 @@ const mocks = vi.hoisted(() => ({
   aliveInfo: vi.fn(),
   stripeAccounts: vi.fn(),
   requestCount: vi.fn(),
+  remediate: vi.fn(),
+  verify: vi.fn(),
+}));
+vi.mock("./settings-payments-remediation.ts", () => ({
+  remediateStripeAccount: mocks.remediate,
+  verifyStripeRemediation: mocks.verify,
 }));
 
 vi.mock("./mutation.ts", () => ({
@@ -229,15 +235,22 @@ describe("GET /settings/payments/remediation", () => {
     expect(await run(input())).toEqual({ status: 302, location: "/settings/payments" });
   });
 
-  it("hands a rejected account with an open request to Rails", async () => {
-    mocks.stripeAccounts.mockResolvedValue([account("rejected.listed")]);
+  it("reads a rejected account with an open request at Stripe, knowing the seller has a request", async () => {
+    const rejected = account("rejected.listed");
+    mocks.stripeAccounts.mockResolvedValue([rejected]);
     mocks.requestCount.mockResolvedValue(1);
-    await expect(run(input())).rejects.toThrow(HandBackToRails);
+    mocks.remediate.mockResolvedValue({ status: 302, location: "https://connect.stripe.com/link" });
+    expect(await run(input())).toEqual({ status: 302, location: "https://connect.stripe.com/link" });
+    expect(mocks.remediate).toHaveBeenCalledWith(expect.anything(), rejected, true);
   });
 
-  it("hands an account in good standing to Rails", async () => {
-    mocks.stripeAccounts.mockResolvedValue([account(null)]);
-    await expect(run(input())).rejects.toThrow(HandBackToRails);
+  it("reads an account in good standing at Stripe", async () => {
+    const standing = account(null);
+    mocks.stripeAccounts.mockResolvedValue([standing]);
+    mocks.requestCount.mockResolvedValue(0);
+    mocks.remediate.mockResolvedValue({ status: 302, location: "/settings/payments" });
+    await run(input());
+    expect(mocks.remediate).toHaveBeenCalledWith(expect.anything(), standing, false);
   });
 });
 
@@ -248,8 +261,16 @@ describe("GET /settings/payments/verify_stripe_remediation", () => {
     expect(await run(input())).toEqual({ status: 302, location: "/settings/payments" });
   });
 
-  it("hands a seller with a Stripe account to Rails", async () => {
-    mocks.stripeAccounts.mockResolvedValue([{ json_data: null }]);
-    await expect(run(input())).rejects.toThrow(HandBackToRails);
+  it("checks a seller with a Stripe account against Stripe, counting the requests it would mark as provided", async () => {
+    const stripe = { json_data: null };
+    mocks.stripeAccounts.mockResolvedValue([stripe]);
+    mocks.verify.mockImplementation(async (_input, _account, pending: () => Promise<boolean>) => ({
+      status: 302,
+      location: "/settings/payments",
+      flash: { pending: String(await pending()) },
+    }));
+    mocks.requestCount.mockResolvedValue(2);
+    expect(await run(input())).toEqual({ status: 302, location: "/settings/payments", flash: { pending: "true" } });
+    expect(mocks.requestCount).toHaveBeenCalledWith({ where: { user_id: 3, state: "requested" } });
   });
 });

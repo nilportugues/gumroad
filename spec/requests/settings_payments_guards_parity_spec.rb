@@ -289,27 +289,166 @@ describe "Settings::PaymentsController guards", type: :request do
       expect(response).to redirect_to(dashboard_path)
     end
 
-    it "hands a rejected account with an open request to Rails", parity: true do
-      create(:merchant_account, user: seller, country: "US", json_data: { "stripe_disabled_reason" => "rejected.listed" })
-      create(:user_compliance_info_request, user: seller, field_needed: UserComplianceInfoFields::Individual::STRIPE_IDENTITY_DOCUMENT_ID, state: "requested")
-      allow(Stripe::AccountLink).to receive(:create).and_return(double(url: "https://connect.stripe.com/setup/e/acct_parity/remediation"))
-      allow(Stripe::Account).to receive(:retrieve).and_return({ "requirements" => { "currently_due" => ["individual.id_number"] } })
-      log_in(seller)
+    context "with a Stripe account" do
+      let(:stripe_account_id) { "acct_remediation" }
+      let(:link_url) { "https://connect.stripe.com/setup/e/acct_remediation/parity" }
 
-      get remediation_settings_payments_path
+      before { create(:merchant_account, user: seller, country: "US", charge_processor_merchant_id: stripe_account_id) }
 
-      expect(response).to redirect_to("https://connect.stripe.com/setup/e/acct_parity/remediation")
-    end
+      def stripe_account_json(requirements: {}, **account)
+        { id: stripe_account_id, object: "account", charges_enabled: true, payouts_enabled: true, requirements: }.merge(account)
+      end
 
-    it "hands an account in good standing to Rails", parity: true do
-      create(:merchant_account, user: seller, country: "US")
-      allow(Stripe::AccountLink).to receive(:create).and_return(double(url: "https://connect.stripe.com/setup/e/acct_parity/remediation"))
-      allow(Stripe::Account).to receive(:retrieve).and_return({ "requirements" => { "currently_due" => ["individual.id_number"] } })
-      log_in(seller)
+      def stub_stripe_account(**attributes)
+        stub_request(:get, "https://api.stripe.com/v1/accounts/#{stripe_account_id}")
+          .to_return(status: 200, body: stripe_account_json(**attributes).to_json, headers: { "Content-Type" => "application/json" })
+      end
 
-      get remediation_settings_payments_path
+      def stub_account_link(status: 200, body: { object: "account_link", url: link_url })
+        stub_request(:post, "https://api.stripe.com/v1/account_links")
+          .to_return(status:, body: body.to_json, headers: { "Content-Type" => "application/json" })
+      end
 
-      expect(response).to redirect_to("https://connect.stripe.com/setup/e/acct_parity/remediation")
+      it "sends a seller whose account has information due to a Stripe account update link", parity: true do
+        stub_stripe_account(requirements: { currently_due: ["individual.id_number"] })
+        stub_account_link
+        log_in(seller)
+
+        get remediation_settings_payments_path
+
+        expect(response).to redirect_to(link_url)
+      end
+
+      it "sends a seller with a verification document due to a Stripe onboarding link", parity: true do
+        stub_stripe_account(requirements: { currently_due: ["individual.verification.document"], past_due: [] })
+        stub_account_link
+        log_in(seller)
+
+        get remediation_settings_payments_path
+
+        expect(response).to redirect_to(link_url)
+      end
+
+      it "sends a seller with only future requirements due to a link", parity: true do
+        stub_stripe_account(future_requirements: { eventually_due: ["business_profile.url"] })
+        stub_account_link
+        log_in(seller)
+
+        get remediation_settings_payments_path
+
+        expect(response).to redirect_to(link_url)
+      end
+
+      it "offers a link to a seller whose review Stripe has left without a way out", parity: true do
+        stub_stripe_account(charges_enabled: false, requirements: { pending_verification: ["individual.dob.day"], errors: [], current_deadline: nil })
+        stub_account_link
+        log_in(seller)
+
+        get remediation_settings_payments_path
+
+        expect(response).to redirect_to(link_url)
+      end
+
+      it "skips the open requirements check for a seller with a pending request of their own", parity: true do
+        create(:user_compliance_info_request, user: seller, field_needed: UserComplianceInfoFields::Individual::STRIPE_IDENTITY_DOCUMENT_ID, state: "requested")
+        stub_stripe_account
+        stub_account_link
+        log_in(seller)
+
+        get remediation_settings_payments_path
+
+        expect(response).to redirect_to(link_url)
+      end
+
+      it "tells a seller with nothing open at Stripe that they are all set", parity: true do
+        stub_stripe_account
+        log_in(seller)
+
+        get remediation_settings_payments_path
+
+        expect(response).to redirect_to(settings_payments_path)
+        expect(flash[:notice]).to eq("Thanks! You're all set.")
+      end
+
+      it "treats a review that is still running as nothing to submit", parity: true do
+        stub_stripe_account(requirements: { pending_verification: ["individual.dob.day"], current_deadline: nil }, payouts_enabled: true)
+        log_in(seller)
+
+        get remediation_settings_payments_path
+
+        expect(response).to redirect_to(settings_payments_path)
+        expect(flash[:notice]).to eq("Thanks! You're all set.")
+      end
+
+      it "tells a seller whose payouts Stripe paused that there is nothing to submit", parity: true do
+        seller.update!(payouts_paused_internally: true, payouts_paused_by: User::PAYOUT_PAUSE_SOURCE_STRIPE)
+        stub_stripe_account
+        log_in(seller)
+
+        get remediation_settings_payments_path
+
+        expect(response).to redirect_to(settings_payments_path)
+        expect(flash[:alert]).to eq("Stripe has paused payouts on your account and hasn't told us what it needs. There's nothing for you to submit right now.")
+      end
+
+      it "treats an account Stripe refuses to read as having nothing open", parity: true do
+        stub_request(:get, "https://api.stripe.com/v1/accounts/#{stripe_account_id}")
+          .to_return(status: 400, body: { error: { type: "invalid_request_error", message: "No such account: '#{stripe_account_id}'", code: "resource_missing" } }.to_json, headers: { "Content-Type" => "application/json" })
+        log_in(seller)
+
+        get remediation_settings_payments_path
+
+        expect(response).to redirect_to(settings_payments_path)
+        expect(flash[:notice]).to eq("Thanks! You're all set.")
+      end
+
+      it "falls back to the update link when the account cannot be read again for the link type", parity: true do
+        create(:user_compliance_info_request, user: seller, field_needed: UserComplianceInfoFields::Individual::STRIPE_IDENTITY_DOCUMENT_ID, state: "requested")
+        stub_request(:get, "https://api.stripe.com/v1/accounts/#{stripe_account_id}")
+          .to_return(status: 400, body: { error: { type: "invalid_request_error", message: "No such account", code: "resource_missing" } }.to_json, headers: { "Content-Type" => "application/json" })
+        stub_account_link
+        log_in(seller)
+
+        get remediation_settings_payments_path
+
+        expect(response).to redirect_to(link_url)
+      end
+
+      it "sends a seller whose account Stripe rejected back to the payments page", parity: true do
+        seller.stripe_account.update!(stripe_disabled_reason: "rejected.listed")
+        create(:user_compliance_info_request, user: seller, field_needed: UserComplianceInfoFields::Individual::STRIPE_IDENTITY_DOCUMENT_ID, state: "requested")
+        stub_stripe_account
+        stub_account_link(status: 400, body: { error: { type: "invalid_request_error", message: "An account link cannot be created for this account because the account has been rejected." } })
+        log_in(seller)
+
+        get remediation_settings_payments_path
+
+        expect(response).to redirect_to(settings_payments_path)
+        expect(flash[:alert]).to be_nil
+      end
+
+      it "tells a seller that the verification page could not be opened", parity: true do
+        seller.stripe_account.update!(stripe_disabled_reason: "requirements.past_due")
+        stub_stripe_account(requirements: { currently_due: ["individual.id_number"] })
+        stub_account_link(status: 400, body: { error: { type: "invalid_request_error", message: "Something else went wrong" } })
+        log_in(seller)
+
+        get remediation_settings_payments_path
+
+        expect(response).to redirect_to(settings_payments_path)
+        expect(flash[:alert]).to eq("We couldn't open the verification page. Please contact support.")
+      end
+
+      it "hands a link Stripe refuses for an account with no recorded disabled reason to Rails", parity: true do
+        stub_stripe_account(requirements: { currently_due: ["individual.id_number"], disabled_reason: "rejected.fraud" })
+        stub_account_link(status: 400, body: { error: { type: "invalid_request_error", message: "An account link cannot be created for this account because the account has been rejected." } })
+        log_in(seller)
+
+        get remediation_settings_payments_path
+
+        expect(response).to redirect_to(settings_payments_path)
+        expect(seller.stripe_account.reload.stripe_disabled_reason).to eq("rejected.fraud")
+      end
     end
   end
 
@@ -331,14 +470,72 @@ describe "Settings::PaymentsController guards", type: :request do
       expect(response).to redirect_to(dashboard_path)
     end
 
-    it "hands a seller with a Stripe account to Rails", parity: true do
-      create(:merchant_account, user: seller, country: "US")
-      allow(Stripe::Account).to receive(:retrieve).and_return({ "requirements" => { "currently_due" => ["individual.id_number"] } })
-      log_in(seller)
+    context "with a Stripe account" do
+      let(:stripe_account_id) { "acct_remediation" }
 
-      get verify_stripe_remediation_settings_payments_path
+      before { create(:merchant_account, user: seller, country: "US", charge_processor_merchant_id: stripe_account_id) }
 
-      expect(response).to redirect_to(settings_payments_path)
+      def stub_stripe_account(**account)
+        stub_request(:get, "https://api.stripe.com/v1/accounts/#{stripe_account_id}")
+          .to_return(status: 200, body: { id: stripe_account_id, object: "account", charges_enabled: true, payouts_enabled: true, requirements: {} }.merge(account).to_json, headers: { "Content-Type" => "application/json" })
+      end
+
+      def create_pending_request
+        create(:user_compliance_info_request, user: seller, field_needed: UserComplianceInfoFields::Individual::STRIPE_IDENTITY_DOCUMENT_ID, state: "requested")
+      end
+
+      it "sends a seller whose account still has information due back to the payments page", parity: true do
+        create_pending_request
+        stub_stripe_account(requirements: { currently_due: ["individual.id_number"] })
+        log_in(seller)
+
+        get verify_stripe_remediation_settings_payments_path
+
+        expect(response).to redirect_to(settings_payments_path)
+        expect(flash[:notice]).to be_nil
+        expect(seller.user_compliance_info_requests.requested.count).to eq(1)
+      end
+
+      it "tells a seller with nothing open that they are all set", parity: true do
+        stub_stripe_account
+        log_in(seller)
+
+        get verify_stripe_remediation_settings_payments_path
+
+        expect(response).to redirect_to(settings_payments_path)
+        expect(flash[:notice]).to eq("Thanks! You're all set.")
+      end
+
+      it "tells a seller whose review is still running that Stripe is reviewing", parity: true do
+        stub_stripe_account(charges_enabled: false, requirements: { pending_verification: ["individual.dob.day"], errors: [], current_deadline: nil })
+        log_in(seller)
+
+        get verify_stripe_remediation_settings_payments_path
+
+        expect(response).to redirect_to(settings_payments_path)
+        expect(flash[:info]).to eq("Stripe is still reviewing your account. There's nothing more for you to submit right now.")
+      end
+
+      it "leaves the all set notice off while only eventual requirements are open", parity: true do
+        stub_stripe_account(requirements: { eventually_due: ["business_profile.url"] })
+        log_in(seller)
+
+        get verify_stripe_remediation_settings_payments_path
+
+        expect(response).to redirect_to(settings_payments_path)
+        expect(flash[:notice]).to be_nil
+      end
+
+      it "hands a seller with requests Stripe no longer asks for to Rails", parity: true do
+        create_pending_request
+        stub_stripe_account
+        log_in(seller)
+
+        get verify_stripe_remediation_settings_payments_path
+
+        expect(response).to redirect_to(settings_payments_path)
+        expect(seller.user_compliance_info_requests.requested.count).to eq(0)
+      end
     end
   end
 end

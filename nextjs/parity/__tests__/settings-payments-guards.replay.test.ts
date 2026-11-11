@@ -9,13 +9,14 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { closeAllRedis } from "@/server/infra/redis";
 
 import { prismaExecutor, type SqlExecutor } from "../src/db";
-import { loadFixture } from "../src/fixture";
+import { loadFixture, type CapturedHttp } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
 
 // Replays spec/requests/settings_payments_guards_parity_spec.rb: the last exchange of each fixture is sent to `next dev` with
-// nextjs_settings_payments_guards on; a stand-in Rails receives whatever Node hands back.
+// nextjs_settings_payments_guards on; a stand-in Rails receives whatever Node hands back, and a stand-in Stripe answers the recorded
+// calls (OUTBOUND_HTTP_STAND_IN), whose method, URL, form body and order must be the ones Rails made.
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const DIR = path.join("parity/fixtures/requests", "settings_payments_guards_parity_spec");
@@ -57,7 +58,10 @@ describe.skipIf(!url)("Settings::PaymentsController guards", () => {
   let redis: Redis;
   let server: NextServer;
   let rails: Server;
+  let standIn: Server;
   const handedBack: { method: string; url: string; body: string }[] = [];
+  const recorded: CapturedHttp[] = [];
+  const received: { method: string; url: string; contentType: string | undefined; body: string }[] = [];
   const saved = { ...process.env };
 
   beforeAll(async () => {
@@ -80,12 +84,31 @@ describe.skipIf(!url)("Settings::PaymentsController guards", () => {
     });
     await new Promise<void>((resolve) => rails.listen(0, "127.0.0.1", resolve));
     const railsPort = (rails.address() as { port: number }).port;
+    standIn = createServer((request, response) => {
+      const chunks: Buffer[] = [];
+      request.on("data", (chunk: Buffer) => chunks.push(chunk));
+      request.on("end", () => {
+        received.push({
+          method: request.method ?? "",
+          url: String(request.headers["x-parity-original-url"] ?? request.url),
+          contentType: request.headers["content-type"],
+          body: Buffer.concat(chunks).toString("utf8"),
+        });
+        const answer = recorded.shift()?.response;
+        if (answer === undefined) return void response.writeHead(599).end("parity: no recorded answer left");
+        response.writeHead(answer.status ?? 200, answer.contentType ? { "content-type": answer.contentType } : {});
+        response.end(answer.body ?? "");
+      });
+    });
+    await new Promise<void>((resolve) => standIn.listen(0, "127.0.0.1", resolve));
     server = await startNextServer({
       RAILS_ENV: "test",
       OBFUSCATE_IDS_CIPHER_KEY: /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1] ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
       NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS,
       RAILS_ORIGIN: `http://127.0.0.1:${railsPort}`,
+      OUTBOUND_HTTP_STAND_IN: `http://127.0.0.1:${(standIn.address() as { port: number }).port}`,
+      STRIPE_API_KEY: "sk_test_parity",
       SECRET_KEY_BASE,
       DATABASE_URL: url!,
       REDIS_HOST: redisHost,
@@ -125,6 +148,7 @@ describe.skipIf(!url)("Settings::PaymentsController guards", () => {
   afterAll(async () => {
     await server.stop();
     rails.close();
+    standIn.close();
     await closeAllRedis();
     await redis.quit();
     await client.$disconnect();
@@ -149,6 +173,8 @@ describe.skipIf(!url)("Settings::PaymentsController guards", () => {
     async (name, file, index) => {
       try {
         const fixture = loadFixture(file);
+        recorded.splice(0, recorded.length, ...fixture.exchanges[index]!.http);
+        received.length = 0;
         // Whatever Node cannot prove goes to Rails whole, before its first write.
         if (name.includes("-hands-")) {
           handedBack.length = 0;
@@ -167,6 +193,16 @@ describe.skipIf(!url)("Settings::PaymentsController guards", () => {
           return;
         }
         assertParity(await replayFixtureExchange(fixture, index, replayOptions(file)));
+        // The port made the calls Rails made: the same method, URL, content type and form body, in the same order.
+        expect(
+          received.map(({ method, url: original, body }) => ({ method, url: original.replace(/\?$/u, ""), body })),
+        ).toEqual(
+          fixture.exchanges[index]!.http.map((call) => ({
+            method: call.method,
+            url: call.url.replace(/\?$/u, ""),
+            body: call.body ?? "",
+          })),
+        );
       } catch (error) {
         const logs = server
           .output()
