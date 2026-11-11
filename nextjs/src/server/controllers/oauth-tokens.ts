@@ -1,5 +1,6 @@
 // Oauth::TokensController (app/controllers/oauth/tokens_controller.rb over Doorkeeper::TokensController, doorkeeper 5.7.1): POST
-// /oauth/revoke, /oauth/introspect and the token endpoint, which the MCP connectors, IFTTT and Notion alias.
+// /oauth/revoke, /oauth/introspect and the IFTTT and Notion token endpoints (/oauth/token and the MCP connector aliases stay in Rails,
+// see TOKEN_PATHS).
 //
 // Revoke and introspect run in full. The token endpoint answers what fails before a credential is issued: a grant type Doorkeeper
 // does not offer, an authorization_code request that is missing its code or redirect URI or whose client or grant is wrong, and a
@@ -294,12 +295,10 @@ async function introspect(input: MutationInput): Promise<ActionResult> {
   );
 }
 
-const TOKEN_PATHS = [
-  "/oauth/token",
-  ...["muse", "claude", "chatgpt"].map((client) => `/${client}/v1/oauth2/token`),
-  "/ifttt/v1/oauth2/token",
-  "/notion/oauth2/token",
-];
+// Not /oauth/token or the muse, claude and chatgpt aliases: Rack::Attack's `oauth_token/ip` rule (3000 a minute per IP, plus backoff
+// tiers) counts them in Rails' Redis. A Node answer would skip that counter, and counting here as well would double-count every
+// request handed back, so those four stay in Rails whole. IFTTT and Notion have no throttle in rack_attack.rb.
+const TOKEN_PATHS = ["/ifttt/v1/oauth2/token", "/notion/oauth2/token"];
 
 // An ActionController::API controller: no guid or CSRF token, no CSRF check.
 const OPTIONS = { options: { bare: true, metal: true }, skipForgeryProtection: true } as const;
