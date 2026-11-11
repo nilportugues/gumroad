@@ -53,6 +53,7 @@ import "@/server/controllers/payouts-exports";
 import "@/server/controllers/subscription-magic-links-mutations";
 import "@/server/controllers/users-controller";
 import "@/server/controllers/dispute-evidence-mutations";
+import "@/server/controllers/links-mutations";
 import { mutationResponse } from "@/server/controllers/mutation";
 
 // GET: the logout and emailed two-factor links, which change state without a form.
