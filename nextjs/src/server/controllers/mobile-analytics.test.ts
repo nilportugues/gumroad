@@ -3,10 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HandBackToRails } from "./application-controller.ts";
 import type { MobileAction, MobileAuth, MobileInput } from "./mobile-api.ts";
 
-const { actions, search, purchasesJson } = vi.hoisted(() => ({
+const { actions, search, purchasesJson, countProducts, productIds } = vi.hoisted(() => ({
   actions: [] as MobileAction[],
   search: vi.fn(),
   purchasesJson: vi.fn(),
+  countProducts: vi.fn(),
+  productIds: vi.fn(),
 }));
 
 vi.mock("./mobile-api.ts", async (original) => ({
@@ -22,6 +24,11 @@ vi.mock("../search/purchase-search.ts", () => ({
   },
 }));
 vi.mock("../presenters/mobile-serializer-reads.ts", () => ({ creatorAppPurchasesJson: purchasesJson }));
+
+vi.mock("../page-props/analytics/seller-analytics.ts", () => ({
+  countProductsForCreatorAnalytics: countProducts,
+  productIdsForCreatorAnalytics: productIds,
+}));
 
 await import("./mobile-analytics.ts");
 
@@ -84,6 +91,61 @@ describe("GET /mobile/analytics/data_by_date", () => {
     async (params) => {
       await expect(run(input(params), auth)).rejects.toBeInstanceOf(HandBackToRails);
       expect(search).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe("GET /mobile/analytics/products", () => {
+  const products = actions.find((action) => action.pattern === "/mobile/analytics/products")!.run;
+
+  beforeEach(() => {
+    countProducts.mockReset().mockResolvedValue(45);
+    productIds.mockReset().mockResolvedValue([9n, 8n]);
+  });
+
+  it("answers the integer ids with Pagy's metadata", async () => {
+    const result = body(await products(input({ page: "2" }), auth));
+
+    expect(result).toEqual({
+      products: [{ id: 9 }, { id: 8 }],
+      meta: { pagination: { count: 45, items: 20, page: 2, pages: 3, prev: 1, next: 3, last: 3 } },
+    });
+    expect(productIds).toHaveBeenCalledWith(7n, 20, 20);
+  });
+
+  it("reads the page size from items", async () => {
+    await products(input({ items: "5" }), auth);
+
+    expect(productIds).toHaveBeenCalledWith(7n, 5, 0);
+  });
+
+  it("answers a single empty page when the seller has no products", async () => {
+    countProducts.mockResolvedValue(0);
+    productIds.mockResolvedValue([]);
+
+    expect(body(await products(input({}), auth)).meta.pagination).toEqual({
+      count: 0,
+      items: 20,
+      page: 1,
+      pages: 1,
+      prev: null,
+      next: null,
+      last: 1,
+    });
+  });
+
+  it("renders the Pagy overflow as a 400", async () => {
+    const result = (await products(input({ page: "4" }), auth)) as { status: number; body: string };
+
+    expect(result.status).toBe(400);
+    expect(body(result)).toEqual({ error: { message: "expected :page in 1..3; got 4" } });
+    expect(productIds).not.toHaveBeenCalled();
+  });
+
+  it.each([[{ page: "0" }], [{ items: "0" }], [{ items: "" }], [{ page: "x" }], [{ items: ["1"] }]])(
+    "hands %j to Rails, which raises or casts it itself",
+    async (params) => {
+      await expect(products(input(params), auth)).rejects.toBeInstanceOf(HandBackToRails);
     },
   );
 });

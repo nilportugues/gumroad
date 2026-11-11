@@ -16,7 +16,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | Namespace | Routes | Native | Hands back | Not registered | Unresolved |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 78 | 0 | 60 | 0 |
-| Mobile API (`/mobile` on the API host) | 64 | 38 | 0 | 26 | 0 |
+| Mobile API (`/mobile` on the API host) | 64 | 39 | 0 | 25 | 0 |
 | Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 17 | 0 | 65 | 3 |
 | Internal API, Gumroad domain (`/internal`, JSON for the React Router pages) | 23 | 11 | 0 | 12 | 0 |
 
@@ -215,7 +215,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `GET /mobile/analytics/by_date` | `Api::Mobile::AnalyticsController#by_date` | native | `nextjs_mobile_analytics` | y |
 | `GET /mobile/analytics/by_state` | `Api::Mobile::AnalyticsController#by_state` | native | `nextjs_mobile_analytics` | y |
 | `GET /mobile/analytics/by_referral` | `Api::Mobile::AnalyticsController#by_referral` | native | `nextjs_mobile_analytics` | y |
-| `GET /mobile/analytics/products` | `Api::Mobile::AnalyticsController#products` | not registered | - | n |
+| `GET /mobile/analytics/products` | `Api::Mobile::AnalyticsController#products` | native | `nextjs_mobile_analytics` | y |
 | `GET /mobile/products` | `Api::Mobile::ProductsController#index` | native | `nextjs_mobile_products` | y |
 | `DELETE /mobile/products/:id` | `Api::Mobile::ProductsController#destroy` | not registered | - | y |
 | `GET /mobile/agent/meta` | `Api::Mobile::AgentController#meta` | native | `nextjs_mobile_agent_meta` | n |

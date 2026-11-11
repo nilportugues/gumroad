@@ -135,6 +135,62 @@ describe "Mobile API analytics", type: :request, elasticsearch_wait_for_refresh:
     end
   end
 
+  describe "products" do
+    # Newest first: the sold-then-archived and sold-then-deleted products stay, the unsold archived and deleted ones go.
+    let!(:old_sold_archived) { create(:product, user: seller, name: "Old archived", archived: true) }
+    let!(:old_unsold_archived) { create(:product, user: seller, name: "Unsold archived", archived: true) }
+    let!(:old_sold_deleted) { create(:product, user: seller, name: "Old deleted", deleted_at: 2.days.ago) }
+    let!(:old_unsold_deleted) { create(:product, user: seller, name: "Unsold deleted", deleted_at: 2.days.ago) }
+    let!(:live) { create(:product, user: seller, name: "Live") }
+
+    before do
+      create(:product, name: "Someone else's")
+      sell(old_sold_archived, days_ago: 3)
+      sell(old_sold_deleted, days_ago: 3)
+      sell(live, days_ago: 3, price_cents: 100).update_column(:purchase_state, "failed")
+    end
+
+    def fetch_products(params = {})
+      get "/mobile/analytics/products", params: auth(seller, scopes: "creator_api").merge(params)
+    end
+
+    it "lists the seller's products newest first", parity: true do
+      fetch_products
+
+      expect(response.parsed_body["products"].size).to eq(3)
+    end
+
+    it "pages with the items param", parity: true do
+      fetch_products(items: "2", page: "2")
+
+      expect(response.parsed_body["meta"]["pagination"]).to include("page" => 2, "pages" => 2, "prev" => 1, "next" => nil)
+    end
+
+    it "answers the first of several pages", parity: true do
+      fetch_products(items: "1")
+
+      expect(response.parsed_body["meta"]["pagination"]).to include("count" => 3, "pages" => 3, "next" => 2)
+    end
+
+    it "refuses a page past the last one", parity: true do
+      fetch_products(page: "9")
+
+      expect(response).to have_http_status(:bad_request)
+    end
+
+    it "lists nothing for a seller without products", parity: true do
+      get "/mobile/analytics/products", params: auth(create(:user), scopes: "creator_api")
+
+      expect(response.parsed_body["products"]).to eq([])
+    end
+
+    it "refuses a token without the creator_api scope", parity: true do
+      get "/mobile/analytics/products", params: auth(seller)
+
+      expect(response).to have_http_status(:forbidden)
+    end
+  end
+
   describe "by_date" do
     it "answers the trailing thirty days by day", parity: true do
       fetch("by_date")
