@@ -40,7 +40,7 @@ const IMMEDIATE_EVENTS = new Set([
 ]);
 
 // config/initializers/paypal.rb
-const restEndpoint = (): string =>
+export const restEndpoint = (): string =>
   railsEnv() === "production" ? "https://api.paypal.com" : "https://api.sandbox.paypal.com";
 
 export const paypalEventDelaySeconds = (eventType: unknown): number | null =>
