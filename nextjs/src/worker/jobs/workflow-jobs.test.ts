@@ -72,6 +72,11 @@ const sequentialUuid = () => {
   return () => `00000000-0000-4000-8000-${String(++seq).padStart(12, "0")}`;
 };
 
+// The golden recorded this case with an empty rule-version cache; the worker would otherwise dial the default
+// 127.0.0.1:6379, which nothing here provides. A client that rejects every call takes the worker's own
+// "cache unreadable, use the rule's version" path without a connection attempt.
+const unreachableRedis = recordingSidekiqRedis().redis;
+
 const handlers = (c: Case): Record<string, JobHandler> => {
   const now = () => new Date(Math.round(c.case_now * 1000));
   return {
@@ -79,7 +84,7 @@ const handlers = (c: Case): Record<string, JobHandler> => {
     ScheduleAffiliateWorkflowJobsJob: scheduleAffiliateWorkflowJobsJobWith({ now, uuid: sequentialUuid(), logError: () => {} }),
     UpdateInstallmentEventsCountCacheWorker: updateInstallmentEventsCountCacheWorker,
     FlushInstallmentDeliveredDeltasJob: flushInstallmentDeliveredDeltasJobWith({ now }, { redis: () => realRedis! }),
-    SendWorkflowInstallmentRescheduleJob: sendWorkflowInstallmentRescheduleJobWith({ now }),
+    SendWorkflowInstallmentRescheduleJob: sendWorkflowInstallmentRescheduleJobWith({ now }, { redis: () => unreachableRedis }),
     SetSubscriptionAsDeactivatedWorker: setSubscriptionAsDeactivatedWorkerWith({ now }, { featureActive: featureActive(c.redis_before) }),
   };
 };
