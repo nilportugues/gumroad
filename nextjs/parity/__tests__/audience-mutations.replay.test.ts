@@ -23,8 +23,8 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
-const SPECS = ["emails_mutations_signed_in_spec", "workflows_mutations_signed_in_spec", "followers_mutations_signed_in_spec", "followers_confirm_link_spec"];
-const ROUTE_FLAGS = "nextjs_emails_writes,nextjs_workflows_writes,nextjs_followers_writes,nextjs_followers_confirm";
+const SPECS = ["emails_mutations_signed_in_spec", "workflows_mutations_signed_in_spec", "followers_mutations_signed_in_spec", "followers_confirm_link_spec", "comments_mutations_signed_in_spec"];
+const ROUTE_FLAGS = "nextjs_emails_writes,nextjs_workflows_writes,nextjs_followers_writes,nextjs_followers_confirm,nextjs_comments_writes";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
@@ -83,6 +83,7 @@ const COMPARE = {
     "db.workflows.updated.*.changes.updated_at",
     "db.installment_rules.updated.*.changes.updated_at",
     "db.followers.updated.*.changes.updated_at",
+    "db.comments.updated.*.changes.updated_at",
     // The row is the seed's: stamped with the replay's clock, where the recording's request came seconds after the factory.
     "db.audience_members.deleted.*.created_at",
     "db.audience_members.deleted.*.updated_at",
