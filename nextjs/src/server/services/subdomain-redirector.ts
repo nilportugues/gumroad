@@ -35,7 +35,7 @@ export function setSubdomainRedirectorDepsForTesting(next: Partial<SubdomainRedi
 class RedisReadError extends Error {}
 
 // String#strip: leading and trailing whitespace and NUL.
-const strip = (value: string) => value.replace(/^[\0\t\n\v\f\r ]+|[\0\t\n\v\f\r ]+$/g, "");
+const strip = (value: string) => value.replace(/^[\0\t\n\v\f\r ]+|[\0\t\n\v\f\r ]+$/gu, "");
 
 // A Map, as Marshal loads a Ruby Hash, so a fresh parse and a cache hit look the same.
 export function parseRedirectConfig(config: string | null, protectedHosts: string[]): Map<string, string> {

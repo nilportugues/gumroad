@@ -62,7 +62,7 @@ export async function hasValidPayoutInfo(user: { id: bigint; payment_address: st
     if (paypalConnected) throw new NotPortedError("User#paypal_payout_email from a PayPal Connect account's details");
     return false;
   }
-  if (!isValidEmailFormat(email) || !/^[\x00-\x7f]*$/.test(email)) return false;
+  if (!isValidEmailFormat(email) || !/^[\x00-\x7f]*$/u.test(email)) return false;
   return paypalConnected || (await legalEntityName(user.id)) !== "";
 }
 async function stripeInfoValid(userId: bigint, accounts: MerchantAccount[]): Promise<boolean> {
@@ -83,5 +83,5 @@ async function legalEntityName(userId: bigint): Promise<string> {
   );
   if (!row) return "";
   if (Number(row.is_business) === 1) return (row.business_name ?? "").trim();
-  return `${row.first_name ?? ""} ${row.last_name ?? ""}`.replace(/ {2,}/g, " ").trim();
+  return `${row.first_name ?? ""} ${row.last_name ?? ""}`.replace(/ {2,}/gu, " ").trim();
 }

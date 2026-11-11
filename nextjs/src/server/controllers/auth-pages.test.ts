@@ -61,7 +61,7 @@ describe("LoginsController#new filters", () => {
       passkey_login_options: Record<string, unknown>;
     };
     expect(options).toEqual({
-      challenge: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
+      challenge: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/u),
       timeout: 120_000,
       extensions: {},
       allowCredentials: [],

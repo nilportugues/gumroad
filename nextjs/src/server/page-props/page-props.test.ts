@@ -38,7 +38,7 @@ describe("InertiaRails::MetaTag port", () => {
     expect(new MetaTag({ charset: "utf-8" }).headKey).toBe("meta-charset");
     expect(new MetaTag({ tag_name: "link", rel: "canonical", href: "/x", head_key: "canonical" }).headKey).toBe("canonical");
     // md5("href=/opensearch.xml&rel=search&title=Gumroad&type=application/opensearchdescription+xml")[0, 8]
-    expect(new MetaTag({ tag_name: "link", rel: "search", href: "/opensearch.xml", type: "application/opensearchdescription+xml", title: "Gumroad" }).headKey).toMatch(/^link-[0-9a-f]{8}$/);
+    expect(new MetaTag({ tag_name: "link", rel: "search", href: "/opensearch.xml", type: "application/opensearchdescription+xml", title: "Gumroad" }).headKey).toMatch(/^link-[0-9a-f]{8}$/u);
   });
 
   it("serialises camelCased keys and drops blank values", () => {
@@ -74,7 +74,7 @@ describe("CSRF token masking", () => {
     const second = formAuthenticityToken(session);
     expect(first).not.toBe(second);
     expect(unmaskToken(first)).toEqual(unmaskToken(second));
-    expect(first).toMatch(/^[A-Za-z0-9_-]{86}$/);
+    expect(first).toMatch(/^[A-Za-z0-9_-]{86}$/u);
   });
 });
 
@@ -162,7 +162,7 @@ describe("help center", () => {
 
     expect(props.category).toMatchObject({ title: "Open an account", slug: "316-open-an-account" });
     expect(props.category.articles).toHaveLength(10);
-    expect(props.category.articles[0]?.url).toMatch(/^\/help\/article\/[\w-]+$/);
+    expect(props.category.articles[0]?.url).toMatch(/^\/help\/article\/[\w-]+$/u);
     expect(props.sidebar_categories.every((sidebar) => sidebar.url.startsWith("/help/category/"))).toBe(true);
     expect(props.sidebar_categories.map((sidebar) => sidebar.title)).toContain("Open an account");
     expect(props.sidebar_categories.map((sidebar) => sidebar.title)).not.toContain("Before you buy");

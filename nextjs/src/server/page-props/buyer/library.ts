@@ -72,7 +72,7 @@ export function rubySplitComma(value: string): string[] {
 }
 
 // Integer("12abc") style `to_i`: leading digits, else 0.
-const rubyToI = (value: string) => Number.parseInt(/^\s*[+-]?\d+/.exec(value)?.[0] ?? "0", 10) || 0;
+const rubyToI = (value: string) => Number.parseInt(/^\s*[+-]?\d+/u.exec(value)?.[0] ?? "0", 10) || 0;
 
 // `bundle_ids.filter_map { Link.from_external_id(_1) }`
 const bundleLinkIds = (bundleIds: string[]) => bundleIds.flatMap((id) => decrypt(id) ?? []);
@@ -355,7 +355,7 @@ export async function libraryProps(user: User, params: LibraryParams) {
   }
   if (params.query !== "") {
     // sanitize_sql_like escapes backslash, percent and underscore with a backslash.
-    const like = `%${params.query.replace(/[\\%_]/g, "\\$&")}%`;
+    const like = `%${params.query.replace(/[\\%_]/gu, "\\$&")}%`;
     joinLink();
     joins = Prisma.sql`${joins} INNER JOIN ${table("users")} ON ${column("users", "id")} = ${column(LINKS, "user_id")}`;
     conditions.push(

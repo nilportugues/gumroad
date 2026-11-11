@@ -73,7 +73,7 @@ const SHOW_OPTIONS: ActionOptions = {
   }),
 };
 
-const query = (action: ActionContext, name: string) => queryParam({ queryString: action.url.search.replace(/^\?/, "") } as RailsRequest, name);
+const query = (action: ActionContext, name: string) => queryParam({ queryString: action.url.search.replace(/^\?/u, "") } as RailsRequest, name);
 
 async function indexProps(action: ActionContext) {
   // The controller declares set_default_page_title again, which moves it to the end of the chain.

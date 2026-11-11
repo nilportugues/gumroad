@@ -30,7 +30,7 @@ const FLAG_FROM_SEO = 2 ** 6;
 const FLAG_TRUE_VALUES = ["1", "t", "T", "true", "TRUE", "on", "ON"];
 // ActiveModel::Type::Boolean::FALSE_VALUES
 const BOOLEAN_FALSE_VALUES = ["0", "f", "F", "false", "FALSE", "off", "OFF"];
-const SEO_REFERRER = /(google|bing|yahoo|yandex|duckduckgo)(\.[a-z]{2,3})(\.[a-z]{2})?$/i;
+const SEO_REFERRER = /(google|bing|yahoo|yandex|duckduckgo)(\.[a-z]{2,3})(\.[a-z]{2})?$/iu;
 
 // Referrer.extract_domain
 export function referrerDomain(url: string | null): string {
@@ -54,14 +54,14 @@ export function referrerDomain(url: string | null): string {
 // ActionDispatch::RemoteIp with the default trusted proxies. REMOTE_ADDR is the socket peer, which Next
 // copies into X-Forwarded-For when the request has none.
 const TRUSTED_PROXIES = [
-  /^127\./,
-  /^::1$/,
-  /^f[cd][0-9a-f]{2}:/i,
-  /^10\./,
-  /^172\.(1[6-9]|2\d|3[01])\./,
-  /^192\.168\./,
-  /^169\.254\./,
-  /^fe[89ab][0-9a-f]:/i,
+  /^127\./u,
+  /^::1$/u,
+  /^f[cd][0-9a-f]{2}:/iu,
+  /^10\./u,
+  /^172\.(1[6-9]|2\d|3[01])\./u,
+  /^192\.168\./u,
+  /^169\.254\./u,
+  /^fe[89ab][0-9a-f]:/iu,
 ];
 export function remoteIp(headers: Headers): string | null {
   const forwarded = (headers.get("x-forwarded-for") ?? "")
@@ -105,7 +105,7 @@ export async function createUserEvent(
 ): Promise<number | null> {
   if (context.impersonatedUser) return null;
   const user = railsLoggedInUser(context);
-  const query: QuerySource = { queryString: url.search.replace(/^\?/, "") };
+  const query: QuerySource = { queryString: url.search.replace(/^\?/u, "") };
 
   const ip = remoteIp(headers);
   const geo = geoIpLookup(ip);

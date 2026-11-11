@@ -62,7 +62,7 @@ export async function readSchema(sql: SqlExecutor): Promise<Schema> {
     ORDER BY c.TABLE_NAME, c.ORDINAL_POSITION`);
   const schema: Schema = {};
   for (const { t, c, d, k, x } of rows as { t: string; c: string; d: string; k: string; x: string }[]) {
-    if (/GENERATED/i.test(x ?? "")) generatedColumns.add(`${t}.${c}`);
+    if (/GENERATED/iu.test(x ?? "")) generatedColumns.add(`${t}.${c}`);
     if (IGNORED_TABLES.has(t)) continue;
     const table = (schema[t] ??= { columns: [], primaryKey: [] });
     table.columns.push([c, d.toLowerCase()]);

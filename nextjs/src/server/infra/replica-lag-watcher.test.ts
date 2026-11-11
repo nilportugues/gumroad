@@ -66,7 +66,7 @@ describe("ReplicaLagWatcher", () => {
   });
 
   it("refuses a host that is not replicating, or reports no lag", async () => {
-    await expect(harness({ p: ["missing"] }).watcher.watch()).rejects.toThrow(/p is in REPLICAS_HOSTS but is not replicating/);
+    await expect(harness({ p: ["missing"] }).watcher.watch()).rejects.toThrow(/p is in REPLICAS_HOSTS but is not replicating/u);
     await expect(harness({ r: [null] }).watcher.watch()).rejects.toThrow("r lag = null. Is this replica available and replicating?");
   });
 

@@ -28,7 +28,7 @@ const FIRST_COMPILE_TIMEOUT_MS = 180_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const HANDED_BACK_STATUS = 218;
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
-const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1];
+const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1];
 const numericKey = "0";
 const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "-parity-ws77";
 
@@ -108,11 +108,11 @@ const cases: Case[] = readdirSync(DIR)
     const fixture = loadFixture(path.join(DIR, file));
     const index = fixture.exchanges.length - 1;
     const response = fixture.exchanges[index]!.response;
-    const served = response.status === 301 || response.status === 404 || (response.status === 302 && /\/coffee(\?|$)/.test(response.location ?? ""));
+    const served = response.status === 301 || response.status === 404 || (response.status === 302 && /\/coffee(\?|$)/u.test(response.location ?? ""));
     // The cookie's value is the time it was set.
     const affiliate = Object.keys(response.cookies ?? {}).filter((name) => name.startsWith("_gumroad_affiliate_id_"));
-    const name = file.replace(/\.json$/, "");
-    return { name, file: path.join(DIR, file), index, served: (served || RENDERED.has(name.replace(/^product-page-/, ""))) && !GATE_HANDS_BACK.has(name) && railsOnlyKey(fixture.exchanges[index]!.request) === null, status: response.status, ignore: affiliate.map((name) => `response.cookies.${name}.value`) };
+    const name = file.replace(/\.json$/u, "");
+    return { name, file: path.join(DIR, file), index, served: (served || RENDERED.has(name.replace(/^product-page-/u, ""))) && !GATE_HANDS_BACK.has(name) && railsOnlyKey(fixture.exchanges[index]!.request) === null, status: response.status, ignore: affiliate.map((name) => `response.cookies.${name}.value`) };
   });
 
 describe.skipIf(!url)("Product page parity", () => {
@@ -147,7 +147,7 @@ describe.skipIf(!url)("Product page parity", () => {
       RAILS_ORIGIN: `http://127.0.0.1:${(rails.address() as AddressInfo).port}`,
       SECRET_KEY_BASE,
       // The keys the test environment of the recording configured (.env.test).
-      ...(envTest.match(/^(STRIPE_PUBLIC_KEY_TEST|RECAPTCHA_MONEY_SITE_KEY)=(.+)$/gm) ?? []).reduce<Record<string, string>>((env, line) => {
+      ...(envTest.match(/^(STRIPE_PUBLIC_KEY_TEST|RECAPTCHA_MONEY_SITE_KEY)=(.+)$/gmu) ?? []).reduce<Record<string, string>>((env, line) => {
         const [name, ...value] = line.split("=");
         return { ...env, [name!]: value.join("=") };
       }, {}),
@@ -190,7 +190,7 @@ describe.skipIf(!url)("Product page parity", () => {
                 await recreateIndex(es, purchases);
                 break;
               } catch (error) {
-                if (attempt >= 30 || !/index_not_found/.test(String(error))) throw error;
+                if (attempt >= 30 || !/index_not_found/u.test(String(error))) throw error;
                 await new Promise((resolve) => setTimeout(resolve, 1000));
               }
             }
@@ -212,7 +212,7 @@ describe.skipIf(!url)("Product page parity", () => {
       try {
         assertParity(result);
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => /error|Error|at /.test(line)).slice(-25).join("\n");
+        const logs = server.output().split("\n").filter((line) => /error|Error|at /u.test(line)).slice(-25).join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
     },

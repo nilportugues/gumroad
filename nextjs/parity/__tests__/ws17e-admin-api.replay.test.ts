@@ -27,12 +27,12 @@ const CONTROLLER_DIRS = (process.env.WS17E_SPECS?.split(",") ?? readdirSync(CONT
   existsSync(path.join(CONTROLLER_ROOT, dir)),
 );
 const REQUEST_DIRS = existsSync(REQUEST_ROOT)
-  ? readdirSync(REQUEST_ROOT).filter((dir) => /^admin_.*_parity_spec$/.test(dir))
+  ? readdirSync(REQUEST_ROOT).filter((dir) => /^admin_.*_parity_spec$/u.test(dir))
   : [];
 // The controller specs stub GUMROAD_ADMIN_ID to a fresh user's id, which a replayed server cannot reproduce: the request spec covers the legacy token.
-const LEGACY_TOKEN_CASE = /legacy|configured-bearer-token|rotation-point/;
+const LEGACY_TOKEN_CASE = /legacy|configured-bearer-token|rotation-point/u;
 // Examples that change the world from inside the request (a stubbed lookup that approves the record after it was loaded): only Ruby can replay them.
-const MID_REQUEST_RACE_CASE = /after-the-request-loaded|loaded-it|after-request-loads|approved-af-e5f0bf0d|becomes-s-b6572bdb|started-screening-after/;
+const MID_REQUEST_RACE_CASE = /after-the-request-loaded|loaded-it|after-request-loads|approved-af-e5f0bf0d|becomes-s-b6572bdb|started-screening-after/u;
 const ROUTE_FLAGS = [
   "nextjs_admin_api_auth",
   "nextjs_admin_api_users",
@@ -44,7 +44,7 @@ const ROUTE_FLAGS = [
 ];
 // Requests the port leaves to Rails: "hands a ..." in a request spec, and the controller examples named here (a state in a compliance
 // address, a new watch). The replay asserts they reach the stand-in Rails untouched and write nothing.
-const HANDS_BACK_CASE = /hands-(?:a|an|the|warnings)-|post-watch-(?:creates-a-watched-user-record|user-id-lookup-looks-up|user-id-lookup-prefers)|get-compliance-info-returns-(?:business-kyc-fields|submitted-kyc-fields|the-latest-alive|the-trailing-characters)|post-resolve-records-the-outcome/;
+const HANDS_BACK_CASE = /hands-(?:a|an|the|warnings)-|post-watch-(?:creates-a-watched-user-record|user-id-lookup-looks-up|user-id-lookup-prefers)|get-compliance-info-returns-(?:business-kyc-fields|submitted-kyc-fields|the-latest-alive|the-trailing-characters)|post-resolve-records-the-outcome/u;
 // Controller examples that run the action a port only guards (the write itself, a Stripe-charged purchase, a social or radar case the read
 // does not reproduce): the port answers them with the hand-back, which the replay asserts the same way. Matched on the example's id.
 const HANDED_CONTROLLER_EXAMPLES = new Set([
@@ -143,10 +143,10 @@ const handsBack = (name: string) =>
 const API_HOST = "api.test.gumroad.com:31337";
 const FIRST_COMPILE_TIMEOUT_MS = 240_000;
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
-const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1];
+const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1];
 // The compliance info read decrypts the tax ids it shows the last four characters of.
-const strongboxKey = /^STRONGBOX_GENERAL="(.+)"$/m.exec(envTest)?.[1]?.replaceAll("\\n", "\n");
-const strongboxPassword = /^STRONGBOX_GENERAL_PASSWORD="?([^"\n]+)"?$/m.exec(envTest)?.[1];
+const strongboxKey = /^STRONGBOX_GENERAL="(.+)"$/mu.exec(envTest)?.[1]?.replaceAll("\\n", "\n");
+const strongboxPassword = /^STRONGBOX_GENERAL_PASSWORD="?([^"\n]+)"?$/mu.exec(envTest)?.[1];
 
 // Random per request: the plaintext token and its external id, the audit row's request id.
 const COMPARE = {
@@ -218,17 +218,17 @@ function cursorInstant(fixturePath: string, index: number, ageMinutes: number): 
 }
 // emails_sent_at is JSON text inside json_data, which the replay's date drift does not rewrite: users-reads.test.ts covers the field.
 // The counter-notice example sends an absolute received_on that the notice window (sent_at - 1 day to tomorrow) outgrows within days.
-const EMAIL_REMINDER_CASE = /most-recent-email-reminder-timestamp|post-counter-notice-records-the-counter-notice/;
+const EMAIL_REMINDER_CASE = /most-recent-email-reminder-timestamp|post-counter-notice-records-the-counter-notice/u;
 
 // Only the exchanges of routes routes.json sends to Node are replayed; the rest stay with Rails.
 const SERVED_ROUTES = Object.keys(JSON.parse(readFileSync("routes.json", "utf8")) as Record<string, unknown>)
-  .filter((key) => /^((GET|POST|PUT|PATCH|DELETE) )?api:\/internal\/admin\//.test(key))
+  .filter((key) => /^((GET|POST|PUT|PATCH|DELETE) )?api:\/internal\/admin\//u.test(key))
   .map((key) => {
-    const [method, route] = (/^[A-Z]+ /.test(key) ? [key.split(" ")[0]!, key.split(" ")[1]!] : ["GET", key]) as [
+    const [method, route] = (/^[A-Z]+ /u.test(key) ? [key.split(" ")[0]!, key.split(" ")[1]!] : ["GET", key]) as [
       string,
       string,
     ];
-    return { method, regexp: new RegExp(`^${route.replace(/^api:/, "").replace(/:[a-z_]+/g, "[^/.?]+")}$`) };
+    return { method, regexp: new RegExp(`^${route.replace(/^api:/u, "").replace(/:[a-z_]+/gu, "[^/.?]+")}$`) };
   })
   .map(({ method, regexp }) => ({ method, regexp }));
 const served = (method: string, requestPath: string) =>
@@ -250,7 +250,7 @@ const casesIn = (root: string, dirs: string[], fromRequestSpec: boolean) =>
             ? []
             : [
                 [
-                  `${dir.replace(/_spec$/, "")}: ${file.replace(/\.json$/, "")} #${index + 1}`,
+                  `${dir.replace(/_spec$/u, "")}: ${file.replace(/\.json$/u, "")} #${index + 1}`,
                   fixturePath,
                   index,
                   fromRequestSpec,
@@ -262,14 +262,14 @@ const casesIn = (root: string, dirs: string[], fromRequestSpec: boolean) =>
 // Admin::BaseController's web entry points: recorded after a real login, on the Gumroad host.
 const WEB_ROOT = "parity/fixtures/requests";
 const WEB_DIRS = ["admin_impersonate_parity_spec"].filter((dir) => existsSync(path.join(WEB_ROOT, dir)));
-const WEB_SERVED = /^\/admin\/(impersonate|unimpersonate|redirect_to_stripe_dashboard)$/;
+const WEB_SERVED = /^\/admin\/(impersonate|unimpersonate|redirect_to_stripe_dashboard)$/u;
 const webCases = WEB_DIRS.flatMap((dir) =>
   readdirSync(path.join(WEB_ROOT, dir))
     .filter((file) => file.endsWith(".json"))
     .map((file) => {
       const fixturePath = path.join(WEB_ROOT, dir, file);
       return [
-        `${dir.replace(/_spec$/, "")}: ${file.replace(/\.json$/, "")}`,
+        `${dir.replace(/_spec$/u, "")}: ${file.replace(/\.json$/u, "")}`,
         fixturePath,
         loadFixture(fixturePath).exchanges.length - 1,
       ] as const;
@@ -407,7 +407,7 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
         const logs = server
           .output()
           .split("\n")
-          .filter((line) => !/built-in version of this loader|^\s*$/.test(line))
+          .filter((line) => !/built-in version of this loader|^\s*$/u.test(line))
           .slice(-40)
           .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
@@ -441,7 +441,7 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
         const logs = server
           .output()
           .split("\n")
-          .filter((line) => !/built-in version of this loader|^\s*$/.test(line))
+          .filter((line) => !/built-in version of this loader|^\s*$/u.test(line))
           .slice(-40)
           .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);

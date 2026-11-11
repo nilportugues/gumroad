@@ -16,8 +16,8 @@ const column = (testCase: Case) => (testCase.ciphertext === null ? null : Buffer
 
 beforeAll(() => {
   // The key of the test environment, committed in .env.test.
-  process.env.STRONGBOX_GENERAL = /^STRONGBOX_GENERAL="(.+)"$/m.exec(envTest)![1]!.replaceAll("\\n", "\n");
-  process.env.STRONGBOX_GENERAL_PASSWORD = /^STRONGBOX_GENERAL_PASSWORD="?([^"\n]+)"?$/m.exec(envTest)![1];
+  process.env.STRONGBOX_GENERAL = /^STRONGBOX_GENERAL="(.+)"$/mu.exec(envTest)![1]!.replaceAll("\\n", "\n");
+  process.env.STRONGBOX_GENERAL_PASSWORD = /^STRONGBOX_GENERAL_PASSWORD="?([^"\n]+)"?$/mu.exec(envTest)![1];
 });
 
 afterAll(() => {

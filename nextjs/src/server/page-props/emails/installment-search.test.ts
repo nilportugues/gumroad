@@ -52,7 +52,7 @@ describe("installment search", () => {
 
       expect(result).toEqual({ ids: recorded.ids, total: recorded.total });
       expect(sent[0]!.method).toBe("POST");
-      expect(sent[0]!.path).toMatch(/\/_search$/);
+      expect(sent[0]!.path).toMatch(/\/_search$/u);
     },
   );
 });

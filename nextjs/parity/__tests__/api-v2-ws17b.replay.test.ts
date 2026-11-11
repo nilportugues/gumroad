@@ -35,14 +35,14 @@ const SPECS: Record<string, { flag: string; methods: string[]; exclude?: RegExp;
   sales_controller_spec: {
     flag: "nextjs_api_v2_sales",
     methods: ["POST", "GET"],
-    include: /resend-receipt|get-show/,
+    include: /resend-receipt|get-show/u,
   },
   upsells_controller_spec: { flag: "nextjs_api_v2_upsells", methods: ["GET"] },
   licenses_controller_spec: { flag: "nextjs_api_v2_licenses", methods: ["POST", "PUT"] },
   subscribers_controller_spec: { flag: "nextjs_api_v2_subscribers", methods: ["GET"] },
   earnings_controller_spec: { flag: "nextjs_api_v2_tax", methods: ["GET"] },
   // #download builds the PDF from Stripe or S3.
-  tax_forms_controller_spec: { flag: "nextjs_api_v2_tax", methods: ["GET"], exclude: /-get-download-|-download-/ },
+  tax_forms_controller_spec: { flag: "nextjs_api_v2_tax", methods: ["GET"], exclude: /-get-download-|-download-/u },
 };
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 // Both clocks are pinned (no date drifting) so the replay does not age. This is the instant the specs froze their clock at (it decides the
@@ -195,7 +195,11 @@ const cases = Object.keys(SPECS).flatMap((spec) => {
       .filter((file) => file.endsWith(".json"))
       .map(
         (file) =>
-          [`${spec}: ${file.replace(/\.json$/, "")}`, path.join(dir, file), loadFixture(path.join(dir, file))] as const,
+          [
+            `${spec}: ${file.replace(/\.json$/u, "")}`,
+            path.join(dir, file),
+            loadFixture(path.join(dir, file)),
+          ] as const,
       )
       // A shared example of a write action (`authorized oauth v1 api method`) calls it with `get`, which no route allows.
       .filter(([name]) => !SPECS[spec]!.exclude?.test(name) && (SPECS[spec]!.include?.test(name) ?? true))
@@ -225,7 +229,7 @@ describe.skipIf(!url)("Api::V2 endpoints of WS-17b", () => {
 
   beforeAll(async () => {
     // The page keys of the recorded requests are rebuilt in this process (see pageKeyAtReplayTime).
-    process.env.OBFUSCATE_IDS_CIPHER_KEY = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1] ?? "";
+    process.env.OBFUSCATE_IDS_CIPHER_KEY = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1] ?? "";
     process.env.OBFUSCATE_IDS_NUMERIC_CIPHER_KEY = testEnv("OBFUSCATE_IDS_NUMERIC_CIPHER_KEY") ?? "0";
     client = new PrismaClient({ datasourceUrl: url });
     sql = prismaExecutor(client);
@@ -239,7 +243,7 @@ describe.skipIf(!url)("Api::V2 endpoints of WS-17b", () => {
     });
     await new Promise<void>((resolve) => rails.listen(0, "127.0.0.1", resolve));
     const railsPort = (rails.address() as { port: number }).port;
-    const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1];
+    const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1];
     clockOffset = PARITY_NOW - realNow();
     server = await startNextServer({
       RAILS_ENV: "test",

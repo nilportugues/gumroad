@@ -402,11 +402,11 @@ async function recurrencesProps(row: LinkRow, prices: PriceRow[]) {
 
 // ActionController::Base.helpers.simple_format for text with no markup to sanitize.
 function simpleFormat(text: string): string {
-  if (/[<>&]/.test(text)) throw new NotPortedError("simple_format over a refund policy's fine print with markup");
+  if (/[<>&]/u.test(text)) throw new NotPortedError("simple_format over a refund policy's fine print with markup");
   const paragraphs = text
-    .replace(/\r\n?/g, "\n")
-    .split(/\n\n+/)
-    .map((paragraph) => paragraph.replace(/([^\n]\n)(?=[^\n])/g, "$1<br />"));
+    .replace(/\r\n?/gu, "\n")
+    .split(/\n\n+/u)
+    .map((paragraph) => paragraph.replace(/([^\n]\n)(?=[^\n])/gu, "$1<br />"));
   return paragraphs.map((paragraph) => `<p>${paragraph}</p>`).join("\n\n") || "<p></p>";
 }
 

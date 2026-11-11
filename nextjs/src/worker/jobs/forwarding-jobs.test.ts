@@ -32,13 +32,13 @@ describe("SyncStripeBusinessProfileUrlWorker", () => {
 
   it("rejects the arities Ruby rejects", async () => {
     const { redis } = recordingSidekiqRedis();
-    await expect(syncStripeBusinessProfileUrlWorker([], contextFor(goldenRuntime(redis)))).rejects.toThrow(/wrong number of arguments/);
-    await expect(syncStripeBusinessProfileUrlWorker([1, "a", "b"], contextFor(goldenRuntime(redis)))).rejects.toThrow(/wrong number of arguments/);
+    await expect(syncStripeBusinessProfileUrlWorker([], contextFor(goldenRuntime(redis)))).rejects.toThrow(/wrong number of arguments/u);
+    await expect(syncStripeBusinessProfileUrlWorker([1, "a", "b"], contextFor(goldenRuntime(redis)))).rejects.toThrow(/wrong number of arguments/u);
   });
 });
 
 const url = process.env.JOBS_REDIS_URL;
-if (url && /\/0$|^[^/]*\/\/[^/]+$/.test(url)) throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
+if (url && /\/0$|^[^/]*\/\/[^/]+$/u.test(url)) throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
 
 describe.skipIf(!url)("EnqueueMarketingXReconnectEmailJob against Redis", () => {
   let redis: Redis;

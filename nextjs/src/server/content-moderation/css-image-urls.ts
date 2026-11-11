@@ -57,7 +57,7 @@ export function cssReferencesAllLocal(css: string): boolean {
       case "string":
       case "bad_string":
         if (depth > 0 && !value.startsWith("#")) return false;
-        if (/^[a-z][a-z0-9+.-]*:/i.test(value)) return false;
+        if (/^[a-z][a-z0-9+.-]*:/iu.test(value)) return false;
         break;
       case "at_keyword":
         if ((token.value ?? "").toLowerCase() === "import") return false;
@@ -86,7 +86,7 @@ export function cssImageUrls(document: HtmlDocument): string[] {
   for (const property of properties) {
     if (property.name.startsWith("--")) {
       customValues.set(property.name, [...(customValues.get(property.name) ?? []), property.children]);
-    } else if (IMAGE_CSS_PROPERTIES.includes(property.name.toLowerCase().replace(/^-[a-z]+-/, ""))) {
+    } else if (IMAGE_CSS_PROPERTIES.includes(property.name.toLowerCase().replace(/^-[a-z]+-/u, ""))) {
       urls.push(...cssUrlValues(property.children));
       referenced.push(...cssVarReferences(property.children));
     }

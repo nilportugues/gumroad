@@ -35,7 +35,7 @@ import {
 } from "./workflows.ts";
 
 const seller = (context: { currentSeller: User | null }) => context.currentSeller!;
-const queryOf = (url: URL) => ({ queryString: url.search.replace(/^\?/, "") });
+const queryOf = (url: URL) => ({ queryString: url.search.replace(/^\?/u, "") });
 
 const utmLinksIndex: PageSpec = {
   component: "UtmLinks/Index",

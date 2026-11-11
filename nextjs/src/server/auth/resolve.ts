@@ -94,7 +94,7 @@ async function authenticate(cookies: CookieSource, secrets: RailsCookieSecrets, 
 async function findImpersonatedUser(currentUser: User, store: AuthStore): Promise<User | null> {
   if (!UserFlags.isSet(currentUser.flags, "is_team_member")) return null;
   const id = await store.impersonatedUserId(currentUser.id);
-  if (id === null || !/^\d+$/.test(id)) return null;
+  if (id === null || !/^\d+$/u.test(id)) return null;
   return store.findAliveUserById(BigInt(id));
 }
 
@@ -124,6 +124,6 @@ async function resolveCurrentSeller(
 
 function toId(value: unknown): bigint | null {
   if (typeof value === "number" && Number.isSafeInteger(value) && value > 0) return BigInt(value);
-  if (typeof value === "string" && /^[1-9]\d*$/.test(value)) return BigInt(value);
+  if (typeof value === "string" && /^[1-9]\d*$/u.test(value)) return BigInt(value);
   return null;
 }

@@ -27,7 +27,7 @@ const FIXTURE_DIRS = [
 const ROUTE_FLAGS = "nextjs_help_center_category,nextjs_help_center_articles";
 const FIRST_COMPILE_TIMEOUT_MS = 180_000;
 // The recorded specs ran with the repo's .env.test, which the Next.js server does not load.
-const stripeKey = /^STRIPE_PUBLIC_KEY_TEST=(.+)$/m.exec(readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8"))?.[1];
+const stripeKey = /^STRIPE_PUBLIC_KEY_TEST=(.+)$/mu.exec(readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8"))?.[1];
 
 // A controller spec bypasses the Rack stack, so what the recorder saw differs from a served response:
 //  - the session cookie and XSRF-TOKEN (set by middleware / inertia_rails' after_action) are not recorded;
@@ -112,10 +112,10 @@ describe.skipIf(!url)("HelpCenter parity", () => {
         redirect: "manual",
       });
     // Next.js prepends its own RSC cache keys to Vary on every App Router response.
-    const NEXT_VARY = /^(rsc|next-router-[a-z-]+|accept-encoding)$/i;
+    const NEXT_VARY = /^(rsc|next-router-[a-z-]+|accept-encoding)$/iu;
     const railsVary = (response: Response) =>
       (response.headers.get("vary") ?? "")
-        .split(/,\s*/)
+        .split(/,\s*/u)
         .filter((token) => !NEXT_VARY.test(token))
         .join(", ");
     const cookieNames = (response: Response) => response.headers.getSetCookie().map((cookie) => cookie.split("=")[0]);
@@ -130,7 +130,7 @@ describe.skipIf(!url)("HelpCenter parity", () => {
       expect(response.headers.get("x-gr")).toBe("DEV");
       expect(response.headers.get("x-revision")).toBe("no-revision");
       expect(response.headers.get("cache-control")).toBe("max-age=0, private, must-revalidate");
-      expect(response.headers.get("etag")).toMatch(/^W\/"[0-9a-f]{32}"$/);
+      expect(response.headers.get("etag")).toMatch(/^W\/"[0-9a-f]{32}"$/u);
       expect(cookieNames(response).sort()).toEqual(["XSRF-TOKEN", "_gumroad_app_session_test", "_gumroad_guid"]);
 
       const text = await response.text();
@@ -139,7 +139,7 @@ describe.skipIf(!url)("HelpCenter parity", () => {
       expect(page).toMatchObject({ component: "HelpCenter/Articles/Show", url: `${ARTICLE}?a=1`, version: null, encryptHistory: false, clearHistory: false });
       expect(Object.keys(page.props).slice(0, 3)).toEqual(["errors", "design_settings", "domain_settings"]);
       // ActiveSupport escapes HTML in JSON, so the body is safe to embed.
-      expect(text).not.toMatch(/[<>&]/);
+      expect(text).not.toMatch(/[<>&]/u);
     });
 
     it("carries the same page as the HTML response", async () => {

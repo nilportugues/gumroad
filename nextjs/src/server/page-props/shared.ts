@@ -35,13 +35,13 @@ export function publicAssetUrl(config: DomainConfig, directory: "images" | "font
 export function preferredLanguages(header: string | null): string[] {
   try {
     return (header ?? "")
-      .replace(/\s+/g, "")
+      .replace(/\s+/gu, "")
       .split(",")
       .filter((entry) => entry !== "")
       .map((entry) => {
         const [tag = "", quality] = entry.split(";q=");
-        if (!/^[a-z\-0-9]+|\*$/i.test(tag)) throw new Error("Not correctly formatted");
-        const locale = tag.toLowerCase().replace(/-[a-z0-9]+$/i, (territory) => territory.toUpperCase());
+        if (!/^[a-z\-0-9]+|\*$/iu.test(tag)) throw new Error("Not correctly formatted");
+        const locale = tag.toLowerCase().replace(/-[a-z0-9]+$/iu, (territory) => territory.toUpperCase());
         return { locale: locale === "*" ? null : locale, quality: quality === undefined ? 1 : Number.parseFloat(quality) || 0 };
       })
       .sort((left, right) => right.quality - left.quality)
@@ -55,7 +55,7 @@ export function preferredLanguages(header: string | null): string[] {
 export function isMobile(mobileParam: unknown, userAgent: string | null): boolean {
   // Ruby truthiness: an empty string still counts as set.
   if (mobileParam !== undefined && mobileParam !== null && mobileParam !== false) return mobileParam === "1";
-  return userAgent !== null && userAgent !== "" && /Mobile|webOS/.test(userAgent);
+  return userAgent !== null && userAgent !== "" && /Mobile|webOS/u.test(userAgent);
 }
 
 export type RequestInfo = { headers: Headers; url: URL };

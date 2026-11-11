@@ -4,7 +4,7 @@ import { parseHtmlDocument } from "./libxml2-parser.ts";
 import { type FragmentNode, type HtmlNode, serializeChildren } from "./libxml2-tree.ts";
 
 // Ruby's /^\s*?<body/i: `^` matches after every "\n" (not "\r"), and \s is ASCII whitespace.
-const BODY_AT_LINE_START = /[ \t\r\n\f\v]*<body/iy;
+const BODY_AT_LINE_START = /[ \t\r\n\f\v]*<body/iyu;
 function startsLineWithBody(input: string): boolean {
   const lineStarts = [0];
   for (let i = input.indexOf("\n"); i !== -1; i = input.indexOf("\n", i + 1)) lineStarts.push(i + 1);

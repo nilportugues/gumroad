@@ -82,10 +82,10 @@ const SINGLE_SIZE = `(?:${RE_LENGTH_OR_PERCENTAGE}|auto|cover|contain|initial|in
 const RE_BACKGROUND_POSITION = new RegExp(`${SINGLE_POSITION}${S}+${SINGLE_POSITION}|${SINGLE_POSITION}`, "i");
 const RE_BACKGROUND_SIZE = new RegExp(`${S}*/${S}*(${SINGLE_SIZE}${S}+${SINGLE_SIZE}|${SINGLE_SIZE})`, "i");
 const FONT_UNITS_RX =
-  /((x+-)*small|medium|larger*|auto|inherit|([0-9]+|[0-9]*\.[0-9]+)(e[mx]+|px|[cm]+m|p[tc+]|in|%)*)/i;
+  /((x+-)*small|medium|larger*|auto|inherit|([0-9]+|[0-9]*\.[0-9]+)(e[mx]+|px|[cm]+m|p[tc+]|in|%)*)/iu;
 
 const NON_ID_ATTRIBUTES_AND_PSEUDO_CLASSES_RX =
-  /(?:\.\w+)|\[(?:\w+)|(?::(?:link|visited|active|hover|focus|lang|target|enabled|disabled|checked|indeterminate|root|nth-child|nth-last-child|nth-of-type|nth-last-of-type|first-child|last-child|first-of-type|last-of-type|only-child|only-of-type|empty|contains))/gi;
+  /(?:\.\w+)|\[(?:\w+)|(?::(?:link|visited|active|hover|focus|lang|target|enabled|disabled|checked|indeterminate|root|nth-child|nth-last-child|nth-of-type|nth-last-of-type|first-child|last-child|first-of-type|last-of-type|only-child|only-of-type|empty|contains))/giu;
 const ELEMENTS_AND_PSEUDO_ELEMENTS_RX = new RegExp(
   `(?:(?:${BOL}|[ \\t\\n\\v\\f\\r+>~]+)\\w+|:{1,2}(?:after|before|first-letter|first-line|selection))`,
   "gi",
@@ -260,7 +260,7 @@ const WHITESPACE_REPLACEMENT = "___SPACE___";
 
 // RE_FUNCTIONS, `name(...)` where every nested "(" is itself preceded by a name character. Onigmo
 // recursion (\g<0>) has no JavaScript equivalent, so the match is done by hand.
-const isFunctionNameChar = (c: string | undefined) => c !== undefined && /[a-z0-9-]/i.test(c);
+const isFunctionNameChar = (c: string | undefined) => c !== undefined && /[a-z0-9-]/iu.test(c);
 
 function matchFunctionParens(value: string, open: number): number | null {
   let j = open + 1;
@@ -453,16 +453,16 @@ export class RuleSet {
     ]);
     const value = declaration.value.replace(new RegExp(`/${S}+`, "g"), "/");
     let inFonts = false;
-    const scan = /"(?:[^\n]*[^"\n])"|'(?:[^\n]*[^'\n])'|(?:\w[^ ,]+)/g;
+    const scan = /"(?:[^\n]*[^"\n])"|'(?:[^\n]*[^'\n])'|(?:\w[^ ,]+)/gu;
     for (const match of value.matchAll(scan)) {
       const m = strip(match[0]).replace(new RegExp(`;${EOL}`, "g"), "");
       if (inFonts) {
         fontProps.set("font-family", fontProps.has("font-family") ? `${fontProps.get("font-family")}, ${m}` : m);
-      } else if (/normal|inherit/i.test(m)) {
+      } else if (/normal|inherit/iu.test(m)) {
         for (const prop of FONT_WEIGHT_PROPERTIES) if (!fontProps.get(prop)) fontProps.set(prop, m);
-      } else if (/italic|oblique/i.test(m)) {
+      } else if (/italic|oblique/iu.test(m)) {
         fontProps.set("font-style", m);
-      } else if (/small-caps/i.test(m)) {
+      } else if (/small-caps/iu.test(m)) {
         fontProps.set("font-variant", m);
       } else if (new RegExp(`[1-9]00${EOL}|bold|bolder|lighter`, "i").test(m)) {
         fontProps.set("font-weight", m);
@@ -647,7 +647,7 @@ export function mergeRuleSets(ruleSets: RuleSet[]): RuleSet {
 // ---------------------------------------------------------------------------------------------
 // Parser
 
-const RULESET_TOKENIZER_RX = /[ \t\n\v\f\r]+|\\{2,}|\\?[{}\t\n\v\f\r "]|[()]|[^\n][^ \t\n\v\f\r"{}()\\]*/y;
+const RULESET_TOKENIZER_RX = /[ \t\n\v\f\r]+|\\{2,}|\\?[{}\t\n\v\f\r "]|[()]|[^\n][^ \t\n\v\f\r"{}()\\]*/uy;
 const RE_AT_IMPORT_RULE = new RegExp(
   `@import${S}*(?:url${S}*)?(?:\\()?(?:${S}*)["']?([^'"\\t\\n\\v\\f\\r )]*)["']?\\)?([\\w\\t\\n\\v\\f\\r ,^\\]()]*)\\)?[;\\n]?`,
   "g",
@@ -661,7 +661,7 @@ export class CssParser {
   // Parser#add_block! as premailer calls it: no base_uri or base_dir, so @import rules are only
   // stripped, never followed.
   addBlock(block: string): void {
-    let css = block.replace(/\/\*[\s\S]*?\*\//g, "").replace(/<!--|-->/g, "");
+    let css = block.replace(/\/\*[\s\S]*?\*\//gu, "").replace(/<!--|-->/gu, "");
     css = css.replace(new RegExp(`${BOL}${S}+${EOL}`, "g"), "");
     css = css.replace(RE_AT_IMPORT_RULE, "");
     this.parseBlockIntoRuleSets(css, ["all"]);
@@ -745,7 +745,7 @@ export class CssParser {
           currentSelectors = "";
           currentDeclarations = "";
         }
-      } else if (/@media/i.test(token)) {
+      } else if (/@media/iu.test(token)) {
         inAtMediaRule = true;
         currentMediaQueries = [];
       } else if (inAtMediaRule) {
@@ -765,7 +765,7 @@ export class CssParser {
           else if (token === ")") currentMediaQuery = currentMediaQuery.replace(new RegExp(` ?${EOL}`), token);
           else currentMediaQuery += `${token} `;
         }
-      } else if (inCharset || /@charset/i.test(token)) {
+      } else if (inCharset || /@charset/iu.test(token)) {
         inCharset = !token.includes(";");
       } else if (!inString && token.includes("}")) {
         if (inMediaBlock) {

@@ -25,7 +25,7 @@ if (process.env.NEXTJS_ROUTE_FLAGS === undefined) setRouteGate(railsRouteGate);
 // Rails' request.host: the last X-Forwarded-Host entry wins over Host.
 function originalHost(request: NextRequest): string {
   const forwarded = request.headers.get("x-forwarded-host");
-  return (forwarded ? forwarded.split(/,\s?/).at(-1) : request.headers.get("host")) ?? request.nextUrl.host;
+  return (forwarded ? forwarded.split(/,\s?/u).at(-1) : request.headers.get("host")) ?? request.nextUrl.host;
 }
 
 export async function proxy(request: NextRequest) {

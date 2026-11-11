@@ -118,19 +118,19 @@ function clearAll(store: Store): void {
 
 // --- mysql2_proxy routing (active_record_proxy_adapters 0.11.1 PrimaryReplicaProxy) -----------------
 // Ruby's \A is ^ and \Z is (?=\n?$) here; neither regexp uses /m, so `.` stops at a newline.
-const PRIMARY_MATCHERS = [/^\s*select.+for update(?=\n?$)/i, /select.+lock in share mode(?=\n?$)/i, /^\s*select.+(nextval|currval|lastval|get_lock|release_lock|pg_advisory_lock|pg_advisory_unlock)\(/i];
-const CTE_MATCHER = /^\s*WITH\s+(\S+\s+AS\s+\(\s?[\s\S]*\))/i;
-const REPLICA_MATCHERS = [/^\s*(select)\s/i, /^\s*WITH\s+(\S+\s+AS\s+\(\s?[\s\S]*\))\s*select/i];
-const ALL_MATCHER = /^\s*set\s/i;
-const SKIP_ALL_MATCHER = /^\s*set\s+local\s/i;
+const PRIMARY_MATCHERS = [/^\s*select.+for update(?=\n?$)/iu, /select.+lock in share mode(?=\n?$)/iu, /^\s*select.+(nextval|currval|lastval|get_lock|release_lock|pg_advisory_lock|pg_advisory_unlock)\(/iu];
+const CTE_MATCHER = /^\s*WITH\s+(\S+\s+AS\s+\(\s?[\s\S]*\))/iu;
+const REPLICA_MATCHERS = [/^\s*(select)\s/iu, /^\s*WITH\s+(\S+\s+AS\s+\(\s?[\s\S]*\))\s*select/iu];
+const ALL_MATCHER = /^\s*set\s/iu;
+const SKIP_ALL_MATCHER = /^\s*set\s+local\s/iu;
 const WRITE_MATCHERS = [
-  /(^|\s+?)BEGIN/i,
-  /(^|\s+?)COMMIT/i,
-  /(^|\s+?)ROLLBACK/i,
-  /(^|\s+?)(INSERT\s+?INTO\s+?\S+?)/i,
-  /(^|\s+?)UPDATE\s+?\S+?/i,
-  /(^|\s+?)DELETE\s+?FROM\s+?\S+?/i,
-  /(^|\s+?)DROP\s/i,
+  /(^|\s+?)BEGIN/iu,
+  /(^|\s+?)COMMIT/iu,
+  /(^|\s+?)ROLLBACK/iu,
+  /(^|\s+?)(INSERT\s+?INTO\s+?\S+?)/iu,
+  /(^|\s+?)UPDATE\s+?\S+?/iu,
+  /(^|\s+?)DELETE\s+?FROM\s+?\S+?/iu,
+  /(^|\s+?)DROP\s/iu,
 ];
 const isWriteStatement = (text: string) => WRITE_MATCHERS.some((m) => m.test(text));
 
@@ -169,7 +169,7 @@ function textOf(sql: SqlText): string {
 }
 
 // QueryCache#select_all skips a relation with `lock`, whose clause Arel always puts last.
-const LOCKING_READ = /\b(FOR UPDATE|FOR SHARE|LOCK IN SHARE MODE)(\s+(NOWAIT|SKIP LOCKED))?\s*$/i;
+const LOCKING_READ = /\b(FOR UPDATE|FOR SHARE|LOCK IN SHARE MODE)(\s+(NOWAIT|SKIP LOCKED))?\s*$/iu;
 
 // ActiveRecord::Result#dup copies the rows; the cached ones stay untouched by the caller.
 function copyRows(rows: Rows): Rows {

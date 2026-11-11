@@ -59,7 +59,7 @@ export const safeDecode = (value: string) => {
   }
 };
 
-const MAGIC_LINK_PATH = /^\/subscriptions\/([^/.]+)\/magic_link\/new$/;
+const MAGIC_LINK_PATH = /^\/subscriptions\/([^/.]+)\/magic_link\/new$/u;
 
 // Subscriptions::MagicLinksController#fetch_subscription
 async function magicLinkFilters(chain: Chain): Promise<FilterOutcome> {

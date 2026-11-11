@@ -116,11 +116,11 @@ export async function replayExchange(
 export function withResolvedDates(request: FixtureRequest, now: Date): FixtureRequest {
   if (!request.query?.includes("<today") && !request.query?.includes("<now")) return request;
   const query = request.query
-    .replace(/<today(?:[+-]\d+d)?>/g, (token) => resolveDateToken(token, now)?.toISOString().slice(0, 10) ?? token)
+    .replace(/<today(?:[+-]\d+d)?>/gu, (token) => resolveDateToken(token, now)?.toISOString().slice(0, 10) ?? token)
     // A UTC time (`cursor=2025-03-01T10%3A00%3A00Z`), written the way a client encodes it.
-    .replace(/<now(?:[+-]\d+[smh])?>/g, (token) => {
+    .replace(/<now(?:[+-]\d+[smh])?>/gu, (token) => {
       const time = resolveTimeToken(token, now);
-      return time ? encodeURIComponent(time.toISOString().replace(/\.\d{3}Z$/, "Z")) : token;
+      return time ? encodeURIComponent(time.toISOString().replace(/\.\d{3}Z$/u, "Z")) : token;
     });
   return { ...request, query };
 }

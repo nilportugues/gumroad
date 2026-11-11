@@ -76,7 +76,7 @@ export async function assertBundleEditSupported(bundle: LinkRow, seller: UserRow
 }
 
 // `created_at.iso8601`: second precision, UTC (config.time_zone is unset).
-const iso8601 = (date: Date) => date.toISOString().replace(/\.\d{3}Z$/, "Z");
+const iso8601 = (date: Date) => date.toISOString().replace(/\.\d{3}Z$/u, "Z");
 
 // Port of BundlePresenter.bundle_product for a member without versions: `variants` is nil and the card is the canonical one.
 async function bundleProduct(member: LinkRow, quantity: number) {

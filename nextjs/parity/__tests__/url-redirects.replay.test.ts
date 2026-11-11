@@ -155,7 +155,7 @@ const cases = SPECS.flatMap((spec) => {
     .map(
       (file) =>
         [
-          `${spec}: ${file.replace(/\.json$/, "")}`,
+          `${spec}: ${file.replace(/\.json$/u, "")}`,
           path.join(dir, file),
           loadFixture(path.join(dir, file)).exchanges.length - 1,
         ] as const,
@@ -201,7 +201,7 @@ describe.skipIf(!url)("url redirect delivery", () => {
     });
     await new Promise<void>((resolve) => rails.listen(0, "127.0.0.1", resolve));
     const railsPort = (rails.address() as { port: number }).port;
-    const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1];
+    const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1];
     clockOffset = PARITY_NOW - realNow();
     server = await startNextServer({
       RAILS_ENV: "test",

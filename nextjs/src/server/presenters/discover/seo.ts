@@ -48,7 +48,7 @@ export function canonicalUrl(params: SearchParams): string {
 }
 
 // ActionView number_with_delimiter on an integer
-export const numberWithDelimiter = (value: number): string => String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+export const numberWithDelimiter = (value: number): string => String(value).replace(/\B(?=(\d{3})+(?!\d))/gu, ",");
 
 // Array#to_sentence (en)
 function toSentence(words: string[]): string {
@@ -59,7 +59,7 @@ function toSentence(words: string[]): string {
 
 // String#% with named references
 function format(template: string, options: Record<string, string>): string {
-  return template.replace(/%\{(\w+)\}/g, (_, name: string) => options[name] ?? "");
+  return template.replace(/%\{(\w+)\}/gu, (_, name: string) => options[name] ?? "");
 }
 
 // Discover::TagPageMetaPresenter#fetch_discover_meta
@@ -69,7 +69,7 @@ function fetchDiscoverMeta(section: "titles" | "descriptions", key: string, opti
   return format(value, options);
 }
 
-const firstTagKey = (tags: string[]) => tags[0]!.replace(/\s+/g, " ").trim().replaceAll(" ", "-").toLowerCase();
+const firstTagKey = (tags: string[]) => tags[0]!.replace(/\s+/gu, " ").trim().replaceAll(" ", "-").toLowerCase();
 
 export function tagPageTitle(tags: string[]): string {
   const fallback = fetchDiscoverMeta("titles", "default", { tags: tags.join(", ") });

@@ -24,13 +24,13 @@ const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES_ROOT = "parity/fixtures/requests";
 const SPEC_DIRS = ["public_files_parity_spec", "public_data_parity_spec", "sellers_switch_parity_spec"].filter((dir) => existsSync(path.join(FIXTURES_ROOT, dir)));
-const NOT_REPLAYED = /github-stars/;
+const NOT_REPLAYED = /github-stars/u;
 const ROUTE_FLAGS = ["nextjs_robots", "nextjs_llms", "nextjs_crossdomain", "nextjs_favicon", "nextjs_indexnow_key", "nextjs_acme_challenge", "nextjs_public_lookup_data", "nextjs_embedded_analytics_js", "nextjs_public_working_webhook", "nextjs_sellers_switch"];
 const INDEXNOW_KEY = "AbCd-1234-EfGh-5678";
 const FIRST_COMPILE_TIMEOUT_MS = 240_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
-const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1];
+const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1];
 
 const COMPARE = {
   ignore: [
@@ -76,28 +76,28 @@ const allCases = SPEC_DIRS.flatMap((dir) =>
     .filter((file) => file.endsWith(".json") && !NOT_REPLAYED.test(file))
     .map((file) => {
       const fixturePath = path.join(FIXTURES_ROOT, dir, file);
-      return [file.replace(/\.json$/, ""), fixturePath, loadFixture(fixturePath).exchanges.length - 1] as const;
+      return [file.replace(/\.json$/u, ""), fixturePath, loadFixture(fixturePath).exchanges.length - 1] as const;
     }),
 );
 
-const VIEW_TOKEN_CASE = /a-view-token-for-the-referring-page/;
+const VIEW_TOKEN_CASE = /a-view-token-for-the-referring-page/u;
 
 // The script embeds the view token Link#analytics_view_token mints: for this product and referrer, valid for ten minutes.
 function assertViewToken(script: string) {
-  const token = /var token = "([^"]+)";/.exec(script)?.[1];
+  const token = /var token = "([^"]+)";/u.exec(script)?.[1];
   expect(token).toBeTruthy();
   process.env.SECRET_KEY_BASE = SECRET_KEY_BASE;
   const payload = railsMessageVerifierVerified("product_analytics_view", token!, "external_landing_page_view") as Record<string, unknown>;
   expect(payload).toMatchObject({ source_url: "https://landing.example/post" });
   expect(typeof payload.product_id).toBe("number");
-  expect(String(payload.event_id)).toMatch(/^[0-9a-f-]{36}$/);
+  expect(String(payload.event_id)).toMatch(/^[0-9a-f-]{36}$/u);
   expect(railsMessageVerifierVerified("product_analytics_view", token!, "external_landing_page_view", new Date(Date.now() + 11 * 60_000))).toBeNull();
 }
 
 // CustomerMailer.grouped_receipt(purchases.ids[, recommendations:]).deliver_later(queue: "critical") for a lookup that found purchases.
 function assertMailJobs(name: string, body: unknown) {
   const success = (body as { success?: boolean } | undefined)?.success === true;
-  if (!/charge-data-|license-key-lookup-data-/.test(name) || /paypal/.test(name)) return;
+  if (!/charge-data-|license-key-lookup-data-/u.test(name) || /paypal/u.test(name)) return;
   expect(mailJobs).toHaveLength(success ? 1 : 0);
   if (!success) return;
   const [job] = mailJobs;
@@ -107,8 +107,8 @@ function assertMailJobs(name: string, body: unknown) {
   const ids = params.args[0] as number[];
   expect(ids.length).toBeGreaterThan(0);
   expect([...ids].sort((a, b) => a - b)).toEqual(ids);
-  expect(params.args).toHaveLength(/license/.test(name) ? 2 : 1);
-  if (/license/.test(name)) expect(params.args[1]).toMatchObject({ recommendations: !/narrows-to-the-product/.test(name) });
+  expect(params.args).toHaveLength(/license/u.test(name) ? 2 : 1);
+  if (/license/u.test(name)) expect(params.args[1]).toMatchObject({ recommendations: !/narrows-to-the-product/u.test(name) });
 }
 
 // Rails serves the throttled routes whole; rack-attack-routes.replay.test.ts replays those.
@@ -179,7 +179,7 @@ describe.skipIf(!url)("WS-11 public files parity", () => {
         if (VIEW_TOKEN_CASE.test(_name)) assertViewToken(String(result.exchanges[0]!.actual.response.body ?? ""));
         assertMailJobs(_name, loadFixture(fixturePath).exchanges[index]!.response.json);
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => !/built-in version of this loader|^\s*$/.test(line)).slice(-40).join("\n");
+        const logs = server.output().split("\n").filter((line) => !/built-in version of this loader|^\s*$/u.test(line)).slice(-40).join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
     },

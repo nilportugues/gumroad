@@ -17,7 +17,7 @@ export function rackEscape(value: string): string {
   return Array.from(Buffer.from(value, "utf8"))
     .map((byte) => {
       const char = String.fromCharCode(byte);
-      if (/[*\-._0-9A-Za-z]/.test(char)) return char;
+      if (/[*\-._0-9A-Za-z]/u.test(char)) return char;
       if (char === " ") return "+";
       return `%${byte.toString(16).toUpperCase().padStart(2, "0")}`;
     })
@@ -40,7 +40,7 @@ export function setCookieHeader(name: string, cookie: RackCookie): string {
 // values are unescaped ("+" is a space), and a pair without "=" reads as nil.
 export function requestCookies(header: string | null): Map<string, string | null> {
   const cookies = new Map<string, string | null>();
-  for (const pair of (header ?? "").split(/; */)) {
+  for (const pair of (header ?? "").split(/; */u)) {
     if (pair === "") continue;
     const index = pair.indexOf("=");
     const name = index === -1 ? pair : pair.slice(0, index);

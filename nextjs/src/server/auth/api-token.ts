@@ -24,8 +24,8 @@ const present = (value: unknown): value is string => typeof value === "string" &
 // Doorkeeper::OAuth::Token.from_request over config.access_token_methods, in order; the first
 // method that yields a present value wins.
 function tokenFromRequest(request: ApiRequest): string | null {
-  const bearer = /^Bearer /i.exec(request.authorization ?? "");
-  const fromHeader = bearer ? (request.authorization ?? "").replace(/^Bearer /i, "") : null;
+  const bearer = /^Bearer /iu.exec(request.authorization ?? "");
+  const fromHeader = bearer ? (request.authorization ?? "").replace(/^Bearer /iu, "") : null;
   for (const candidate of [fromHeader, request.parameters.access_token, request.parameters.bearer_token]) {
     if (present(candidate)) return candidate;
     if (candidate !== null && candidate !== undefined && typeof candidate !== "string")
@@ -104,7 +104,7 @@ const accessible = (token: OauthAccessToken, now: Date) => !expired(token, now) 
 
 // Doorkeeper::Models::Scopes#includes_scope?
 const includesScope = (token: OauthAccessToken, required: string[]) => {
-  const held = (token.scopes ?? "").split(/\s+/).filter(Boolean);
+  const held = (token.scopes ?? "").split(/\s+/u).filter(Boolean);
   return required.length === 0 || required.some((scope) => held.includes(scope));
 };
 

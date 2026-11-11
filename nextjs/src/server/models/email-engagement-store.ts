@@ -40,7 +40,7 @@ async function call(operation: string, payload: unknown): Promise<Record<string,
   if (!storage.accessKeyId || !storage.secretAccessKey) throw new NotPortedError("DynamoDB access without AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY (instance role credentials)");
   const endpoint = new URL(getConfig("DYNAMODB_ENDPOINT", `https://dynamodb.${storage.region}.amazonaws.com`));
   const body = JSON.stringify(payload);
-  const amzDate = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+  const amzDate = new Date().toISOString().replace(/[-:]/gu, "").replace(/\.\d{3}Z$/u, "Z");
   const date = amzDate.slice(0, 8);
   const target = `DynamoDB_20120810.${operation}`;
   const headers = { "content-type": "application/x-amz-json-1.0", host: endpoint.host, "x-amz-date": amzDate, "x-amz-target": target };

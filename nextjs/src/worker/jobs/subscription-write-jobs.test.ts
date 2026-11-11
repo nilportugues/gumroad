@@ -73,7 +73,7 @@ const takesLocks = (redis: RedisSnapshot) => Object.keys(redis).some((key) => ke
 const withoutSetup = (redis: RedisSnapshot, before: RedisSnapshot) => Object.fromEntries(Object.entries(redis).filter(([key, entry]) => JSON.stringify(before[key]) !== JSON.stringify(entry)));
 
 const url = process.env.JOBS_REDIS_URL;
-if (url && /\/0$|^[^/]*\/\/[^/]+$/.test(url)) throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
+if (url && /\/0$|^[^/]*\/\/[^/]+$/u.test(url)) throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
 let realRedis: Redis | undefined;
 beforeAll(() => {
   if (url) realRedis = new Redis(url);

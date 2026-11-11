@@ -67,7 +67,7 @@ export function mergeDataIntoQueryString(method: Method, url: URL, data: Request
 
   const replaced = new Set(Object.keys(data));
   const kept = url.search
-    .replace(/^\?/, "")
+    .replace(/^\?/u, "")
     .split("&")
     .filter((pair) => pair !== "" && !replaced.has(topLevelKey(decodeURIComponent(pair.split("=", 1)[0] ?? "")) ?? ""));
   const added = toQueryString(data as Record<string, unknown>);

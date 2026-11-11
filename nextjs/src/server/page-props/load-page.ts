@@ -133,7 +133,7 @@ export function partialRequest(component: string, requestHeaders: Headers): Part
 
 async function requestUrl(path: string, requestHeaders: Headers, config: DomainConfig): Promise<URL> {
   const host =
-    requestHeaders.get("x-forwarded-host")?.split(/,\s?/).at(-1) ?? requestHeaders.get("host") ?? config.domain;
+    requestHeaders.get("x-forwarded-host")?.split(/,\s?/u).at(-1) ?? requestHeaders.get("host") ?? config.domain;
   const protocol = requestHeaders.get("x-forwarded-proto") ?? config.protocol;
   return new URL(path, `${protocol}://${host}`);
 }

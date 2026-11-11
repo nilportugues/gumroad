@@ -145,7 +145,7 @@ describe.skipIf(!url)("replay against MySQL", () => {
     const result = await replayFixture(fixture, { sql, transport: followHandler(jobs, { touchSeller: false }), jobs });
 
     expect(result.exchanges[0]!.differences.map((difference) => difference.path)).toEqual(["db.parity_test_users"]);
-    expect(() => assertParity(result)).toThrow(/db\.parity_test_users {2}missing in next/);
+    expect(() => assertParity(result)).toThrow(/db\.parity_test_users {2}missing in next/u);
   });
 
   it("replays the real /api/health route handler in-process", async () => {

@@ -63,7 +63,7 @@ export type CompiledRoute = Required<Omit<RouteEntry, "flag" | "pathGate" | "han
 const SCOPE_PREFIXES: Record<string, HostScope> = { "seller:": "seller", "product:": "product", "api:": "api", "discover:": "discover" };
 
 // "POST /emails": a route for one HTTP method, the key of a mutation.
-const METHOD_PREFIX = /^(POST|PUT|PATCH|DELETE) /;
+const METHOD_PREFIX = /^(POST|PUT|PATCH|DELETE) /u;
 
 export function splitScopedPattern(key: string): { scope: HostScope | null; path: string } {
   key = key.replace(METHOD_PREFIX, "");
@@ -80,14 +80,14 @@ function patternToRegExp(pattern: string): RegExp {
     .split("/")
     .map((segment) => {
       // `:key([a-zA-Z0-9-]{8,128}).txt`: a constrained parameter followed by a literal suffix, as Rails' `constraints: { key: /.../ }`.
-      const constrained = /^:\w+\((.+)\)(.*)$/.exec(segment);
-      if (constrained) return `${constrained[1]}${constrained[2]!.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`;
+      const constrained = /^:\w+\((.+)\)(.*)$/u.exec(segment);
+      if (constrained) return `${constrained[1]}${constrained[2]!.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}`;
       // `animation(*path)`: Rails' optional glob right after a literal, so `/animation`, `/animation/x` and `/animationx` all match.
-      const optionalGlob = /^([^(*:]+)\(\*\w+\)$/.exec(segment);
-      if (optionalGlob) return `${optionalGlob[1]!.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}.*`;
+      const optionalGlob = /^([^(*:]+)\(\*\w+\)$/u.exec(segment);
+      if (optionalGlob) return `${optionalGlob[1]!.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}.*`;
       if (segment.startsWith(":")) return "[^/.?]+";
       if (segment.startsWith("*")) return ".+";
-      return segment.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return segment.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
     })
     .join("/");
   return new RegExp(`^${source}$`);

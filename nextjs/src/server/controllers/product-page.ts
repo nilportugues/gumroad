@@ -36,7 +36,7 @@ const AFFILIATE_COOKIE_NAME_PREFIX = "_gumroad_affiliate_id_";
 // Affiliate::AFFILIATE_COOKIE_LIFETIME_DAYS
 const AFFILIATE_COOKIE_LIFETIME_DAYS = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
-const SHOW_PATH = /^\/l\/([^/.?]+)(?:\/([^/.?]+))?$/;
+const SHOW_PATH = /^\/l\/([^/.?]+)(?:\/([^/.?]+))?$/u;
 const COFFEE_PATH = "/coffee";
 
 const present = (value: string | null | undefined): value is string => value != null && value.trim() !== "";
@@ -44,7 +44,7 @@ const star = (name: string) => Prisma.raw(`\`${name}\`.*`);
 
 // String#to_i
 const rubyToI = (value: string) => {
-  const match = /^\s*[+-]?\d+(?:_\d+)*/.exec(value);
+  const match = /^\s*[+-]?\d+(?:_\d+)*/u.exec(value);
   return match ? Number(match[0].replaceAll("_", "")) : 0;
 };
 
@@ -132,8 +132,8 @@ async function setAffiliateCookie(chain: Chain, query: Query): Promise<void> {
 
 // url_for adds DOMAIN's port to a host given without one; production has none.
 function withDefaultPort(host: string): string {
-  const port = /:(\d+)$/.exec(domainConfig(process.env).domain)?.[1];
-  return port && !/:\d+$/.test(host) ? `${host}:${port}` : host;
+  const port = /:(\d+)$/u.exec(domainConfig(process.env).domain)?.[1];
+  return port && !/:\d+$/u.test(host) ? `${host}:${port}` : host;
 }
 
 async function pageExists(productId: bigint): Promise<boolean> {
@@ -145,7 +145,7 @@ async function pageExists(productId: bigint): Promise<boolean> {
 
 // Journey::Router::Utils.escape_segment: unreserved characters and sub-delimiters stay.
 const escapeSegment = (value: string) =>
-  encodeURIComponent(value).replace(/%(21|24|26|27|28|29|2A|2B|2C|3A|3B|3D|40)/g, (_, hex: string) =>
+  encodeURIComponent(value).replace(/%(21|24|26|27|28|29|2A|2B|2C|3A|3B|3D|40)/gu, (_, hex: string) =>
     String.fromCharCode(Number.parseInt(hex, 16)),
   );
 
@@ -221,7 +221,9 @@ export async function productPageFilters(chain: Chain): Promise<FilterOutcome> {
     const targetHost = !isUserCustomDomain && present(subdomain) ? subdomain : request.host;
     const permalink = linkFields.generalPermalink(product)!;
     if (targetHost !== request.host || permalink !== id) {
-      const base = /^https?:\/\//.test(targetHost) ? targetHost : `${config.protocol}://${withDefaultPort(targetHost)}`;
+      const base = /^https?:\/\//u.test(targetHost)
+        ? targetHost
+        : `${config.protocol}://${withDefaultPort(targetHost)}`;
       // short_link_offer_code_url when params[:code] is present (path or query), else short_link_url; the raw
       // query string rides along unchanged.
       const location = `${base}/l/${escapeSegment(permalink)}${present(code) ? `/${escapeSegment(code)}` : ""}${request.queryString === "" ? "" : `?${request.queryString}`}`;

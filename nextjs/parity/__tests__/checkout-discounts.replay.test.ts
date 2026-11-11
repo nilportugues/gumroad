@@ -25,7 +25,7 @@ const ROUTE_FLAGS = "nextjs_checkout_discounts,nextjs_checkout_discounts_json";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
-const stripeKey = /^STRIPE_PUBLIC_KEY_TEST=(.+)$/m.exec(envTest)?.[1];
+const stripeKey = /^STRIPE_PUBLIC_KEY_TEST=(.+)$/mu.exec(envTest)?.[1];
 const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "m").exec(envTest)?.[1];
 
 const COMPARE = {
@@ -51,9 +51,9 @@ const COMPARE = {
   ],
 };
 
-const NEXT_VARY = /(?:rsc|next-router-state-tree|next-router-prefetch|next-router-segment-prefetch)(?:, )?/g;
+const NEXT_VARY = /(?:rsc|next-router-state-tree|next-router-prefetch|next-router-segment-prefetch)(?:, )?/gu;
 const withoutNextVary = (vary: unknown) => (typeof vary === "string" ? vary.replace(NEXT_VARY, "") : vary);
-const HANDED_BACK = /hands-a-|through-rails/;
+const HANDED_BACK = /hands-a-|through-rails/u;
 
 const cases = SPECS.flatMap((spec) => {
   const dir = path.join(FIXTURES, spec);
@@ -63,7 +63,7 @@ const cases = SPECS.flatMap((spec) => {
     .map(
       (file) =>
         [
-          `${spec}: ${file.replace(/\.json$/, "")}`,
+          `${spec}: ${file.replace(/\.json$/u, "")}`,
           path.join(dir, file),
           loadFixture(path.join(dir, file)).exchanges.length - 1,
         ] as const,
@@ -170,7 +170,7 @@ describe.skipIf(!url)("checkout discounts", () => {
       const warmed = new Set<string>();
       for (const [, file, index] of cases) {
         const request = loadFixture(file).exchanges.at(index)!.request;
-        const route = `${request.method} ${request.path.replace(/[?].*/, "")}`;
+        const route = `${request.method} ${request.path.replace(/[?].*/u, "")}`;
         if (warmed.has(route)) continue;
         warmed.add(route);
         await replayFixtureExchange(file, index, options()).catch(() => undefined);

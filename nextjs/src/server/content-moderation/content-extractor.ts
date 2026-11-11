@@ -17,7 +17,7 @@ export const MAX_PAGE_SVG_TEXT_LENGTH = 5_000;
 export const MAX_PAGE_IMAGE_URLS = 25;
 
 // Ruby's /\s/ on a string is ASCII whitespace only, unlike JavaScript's.
-const RUBY_WHITESPACE = /[ \t\r\n\f\v]/;
+const RUBY_WHITESPACE = /[ \t\r\n\f\v]/u;
 
 // Cuts at the last whitespace at or before `max` characters (code points, as Ruby counts them).
 export function truncateOnBoundary(text: string, max: number): string {
@@ -49,7 +49,7 @@ export function parseDataUrl(url: string): ParsedDataUrl | null {
 
   const header = url.slice(0, comma);
   const payload = url.slice(comma + 1);
-  const parameters = rubySplit(header.replace(/^data:/i, ""), ";").map((part) => part.trim().toLowerCase());
+  const parameters = rubySplit(header.replace(/^data:/iu, ""), ";").map((part) => part.trim().toLowerCase());
   const base64 = parameters.length > 1 && parameters[parameters.length - 1] === "base64";
   return { contentType: parameters[0] ?? "", base64, payload };
 }
@@ -65,7 +65,7 @@ export function decodeDataUrlPayload(parsed: ParsedDataUrl): Buffer {
     const byte = bytes[index]!;
     if (byte === 0x25 && index + 2 < bytes.length) {
       const hex = bytes.toString("latin1", index + 1, index + 3);
-      if (/^[0-9a-fA-F]{2}$/.test(hex)) {
+      if (/^[0-9a-fA-F]{2}$/u.test(hex)) {
         out.push(parseInt(hex, 16));
         index += 2;
         continue;
@@ -80,10 +80,10 @@ export function decodeDataUrlPayload(parsed: ParsedDataUrl): Buffer {
 // before something that looks like the start of a new candidate.
 export function srcsetUrls(value: string): string[] {
   const urls: string[] = [];
-  for (const candidate of value.split(/,(?=\s*(?:https?:|data:|[^\s,]*\/))/)) {
+  for (const candidate of value.split(/,(?=\s*(?:https?:|data:|[^\s,]*\/))/u)) {
     const trimmed = rubyStrip(candidate);
     if (trimmed === "") continue;
-    const first = trimmed.split(/\s+/)[0];
+    const first = trimmed.split(/\s+/u)[0];
     if (first) urls.push(first);
   }
   return urls;
@@ -126,7 +126,7 @@ export function stripSellerFirstPartyUrls(text: string, hosts: readonly string[]
   if (hosts.length === 0) return text;
 
   // Case-sensitive scheme, as the Ruby URI pattern is.
-  return text.replace(/https?:\/\/[^\s<>"']+/g, (url) => {
+  return text.replace(/https?:\/\/[^\s<>"']+/gu, (url) => {
     const parts = splitHttpUrl(url);
     if (parts === null || parts.host === null || !hosts.includes(parts.host)) return url;
 
@@ -144,12 +144,12 @@ export function stripSellerFirstPartyUrls(text: string, hosts: readonly string[]
 // `subdomain` may carry a port in dev and test, and the lookup must ignore it.
 export function normalizeHost(value: string): string | null {
   const withScheme = value.includes("//") ? value.slice(value.indexOf("//") + 2) : value;
-  const host = authorityHost(withScheme.split(/[/?#]/)[0] ?? "");
+  const host = authorityHost(withScheme.split(/[/?#]/u)[0] ?? "");
   return host === null || host === "" ? null : host.toLowerCase();
 }
 
 function splitHttpUrl(url: string): { host: string | null; path: string; query: string; fragment: string } | null {
-  const match = /^https?:\/\/([^/?#]*)([^?#]*)(?:\?([^#]*))?(?:#(.*))?$/i.exec(url);
+  const match = /^https?:\/\/([^/?#]*)([^?#]*)(?:\?([^#]*))?(?:#(.*))?$/iu.exec(url);
   if (match === null) return null;
 
   const host = authorityHost(match[1] ?? "");

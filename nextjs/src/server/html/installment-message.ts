@@ -30,7 +30,7 @@ export function truncateAtSeparator(text: string, length: number, separator: str
 export function messageSnippet(message: string | null): string {
   if (isBlank(message)) return "";
   // `Hello<br/>World` becomes `Hello World`.
-  const spaced = message!.split(/<\/p>|<br\s*\/?>/i).join(" ");
+  const spaced = message!.split(/<\/p>|<br\s*\/?>/iu).join(" ");
   return truncateAtSeparator(squish(stripTags(spaced)), SNIPPET_LENGTH, " ");
 }
 
@@ -47,11 +47,11 @@ const WORD = "[\\p{L}\\p{M}\\p{Nd}\\p{Pc}]";
 // ActiveSupport's String#titleize over String#underscore and #humanize, with no custom inflections.
 export function titleize(word: string): string {
   const underscored = word
-    .replace(/([A-Z\d]+)([A-Z][a-z])/g, "$1_$2")
-    .replace(/([a-z\d])([A-Z])/g, "$1_$2")
+    .replace(/([A-Z\d]+)([A-Z][a-z])/gu, "$1_$2")
+    .replace(/([a-z\d])([A-Z])/gu, "$1_$2")
     .replaceAll("-", "_")
     .toLowerCase();
-  let human = underscored.replace(/^_+/, "").replace(/_id$/, "").replaceAll("_", " ");
+  let human = underscored.replace(/^_+/u, "").replace(/_id$/u, "").replaceAll("_", " ");
   // Onigmo's \w and \b are Unicode-aware on UTF-8 strings; JavaScript's are ASCII-only.
   human = human.replace(new RegExp(`^${WORD}`, "u"), (match) => match.toUpperCase());
   return human.replace(new RegExp(`(?<!${WORD})(?<!${WORD}['’\`()])[a-z]`, "gu"), (match) => match.toUpperCase());
@@ -67,7 +67,7 @@ export function messageTags(message: string | null): string[] {
   if (isBlank(message)) return [];
   const last = html4Fragment(message!).children.filter(isElement).at(-1);
   if (last?.name !== "p") return [];
-  const tags = textContent(last).split(/[ \t\n\v\f\r]+/).filter((tag) => tag !== "");
+  const tags = textContent(last).split(/[ \t\n\v\f\r]+/u).filter((tag) => tag !== "");
   if (!tags.every((tag) => tag.startsWith("#"))) return [];
   return [...new Set(tags.map(normalizeTag))];
 }

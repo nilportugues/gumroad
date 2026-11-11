@@ -16,7 +16,7 @@ const DATA_DIR = path.join(process.cwd(), "..", "app", "models", "help_center");
 
 // ActiveHash::Enum `enum_accessor :title` constant naming.
 export function enumConstant(title: string): string {
-  return title.replace(/\W+/g, "_").replace(/^_|_$/g, "").toUpperCase();
+  return title.replace(/\W+/gu, "_").replace(/^_|_$/gu, "").toUpperCase();
 }
 
 function loadYaml<T>(file: string, erb: (source: string) => string = (source) => source): T[] {
@@ -31,7 +31,7 @@ export function helpCenterData() {
   const idsByConstant = new Map(categories.map((category) => [enumConstant(category.title), category.id]));
   // articles.yml is ERB; its only tags are `<%= HelpCenter::Category::CONSTANT.id %>`.
   const articles = loadYaml<HelpCenterArticle>("articles.yml", (source) =>
-    source.replace(/<%=\s*HelpCenter::Category::(\w+)\.id\s*%>/g, (_, constant: string) => {
+    source.replace(/<%=\s*HelpCenter::Category::(\w+)\.id\s*%>/gu, (_, constant: string) => {
       const id = idsByConstant.get(constant);
       if (id === undefined) throw new Error(`Unknown help center category constant ${constant}`);
       return String(id);

@@ -201,7 +201,7 @@ const allCases = SPECS.flatMap((spec) => {
     .map(
       (file) =>
         [
-          `${spec.replace(/_parity_spec$/, "")}: ${file.replace(/\.json$/, "")}`,
+          `${spec.replace(/_parity_spec$/u, "")}: ${file.replace(/\.json$/u, "")}`,
           path.join(dir, file),
           loadFixture(path.join(dir, file)).exchanges.length - 1,
         ] as const,
@@ -243,7 +243,7 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
     const railsPort = (rails.address() as { port: number }).port;
     server = await startNextServer({
       RAILS_ENV: "test",
-      OBFUSCATE_IDS_CIPHER_KEY: /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1] ?? "",
+      OBFUSCATE_IDS_CIPHER_KEY: /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1] ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
       NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS,
       OPENAI_APPS_CHALLENGE_TOKEN: "challenge-token-123",
@@ -358,13 +358,13 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
         if (paginates) {
           // The key is the created_at of the tenth email, which the factory stamped relative to the recording's clock.
           const body = result.exchanges[0]!.actual.response.json as { next_page_key: string; next_page_url: string };
-          expect(body.next_page_key).toMatch(/^\d{20}-\d+$/);
+          expect(body.next_page_key).toMatch(/^\d{20}-\d+$/u);
           expect(body.next_page_url).toBe(`/v2/emails?page_key=${body.next_page_key}&type=draft`);
         }
         if (rotates) {
           const serial = (result.exchanges[0]!.actual.db as { licenses: { updated: { changes: { serial: [string, string] } }[] } }).licenses
             .updated[0]!.changes.serial[1];
-          expect(serial).toMatch(/^[0-9A-F]{8}(-[0-9A-F]{8}){3}$/);
+          expect(serial).toMatch(/^[0-9A-F]{8}(-[0-9A-F]{8}){3}$/u);
           const purchase = (result.exchanges[0]!.actual.response.json as { purchase?: { license_key: string } }).purchase;
           if (purchase) expect(purchase.license_key).toBe(serial);
         }
@@ -372,8 +372,8 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
           const inserted = (
             result.exchanges[0]!.actual.db as { utm_links: { inserted: { permalink: string; browser_guid: string }[] } }
           ).utm_links.inserted[0]!;
-          expect(inserted.permalink).toMatch(/^[a-z0-9]{8}$/);
-          expect(inserted.browser_guid).toMatch(/^[0-9a-f-]{36}$/);
+          expect(inserted.permalink).toMatch(/^[a-z0-9]{8}$/u);
+          expect(inserted.browser_guid).toMatch(/^[0-9a-f-]{36}$/u);
           expect(
             (result.exchanges[0]!.actual.response.json as { utm_link: { short_url: string } }).utm_link.short_url,
           ).toMatch(new RegExp(`/u/${inserted.permalink}$`));

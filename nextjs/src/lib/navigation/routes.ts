@@ -81,7 +81,7 @@ function defaultProtocol() {
 
 // `spec` is the Rails route pattern, e.g. "/help/category/:slug(.:format)".
 export function buildRoute(spec: string, args: unknown[], absolute: boolean): string {
-  const required = [...spec.replace(/\([^)]*\)/g, "").matchAll(/[:*](\w+)/g)].map((m) => m[1] as string);
+  const required = [...spec.replace(/\([^)]*\)/gu, "").matchAll(/[:*](\w+)/gu)].map((m) => m[1] as string);
   const last = args[args.length - 1];
   const hasOptions = args.length > required.length && last !== null && typeof last === "object";
   const options: RouteOptions = hasOptions ? { ...(last as RouteOptions) } : {};
@@ -97,7 +97,7 @@ export function buildRoute(spec: string, args: unknown[], absolute: boolean): st
   const used = new Set<string>();
   const fill = (pattern: string): string | null => {
     let missing = false;
-    const filled = pattern.replace(/([:*])(\w+)/g, (_, kind: string, name: string) => {
+    const filled = pattern.replace(/([:*])(\w+)/gu, (_, kind: string, name: string) => {
       const value = values[name];
       if (value === undefined || value === null || value === "") {
         missing = true;
@@ -111,7 +111,7 @@ export function buildRoute(spec: string, args: unknown[], absolute: boolean): st
     return missing ? null : filled;
   };
   // Optional groups are dropped unless every parameter inside them is given.
-  const path = spec.replace(/\(([^()]*)\)/g, (_, group: string) => fill(group) ?? "");
+  const path = spec.replace(/\(([^()]*)\)/gu, (_, group: string) => fill(group) ?? "");
   const resolved = fill(path) ?? path;
 
   const query: Record<string, unknown> = {};

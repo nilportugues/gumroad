@@ -24,8 +24,8 @@ const WARM_PATHS = ["/api", "/ping", "/charge", "/license-key-lookup", "/widgets
 const FIRST_COMPILE_TIMEOUT_MS = 180_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
-const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1];
-const stripeKey = /^STRIPE_PUBLIC_KEY_TEST=(.+)$/m.exec(envTest)?.[1];
+const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1];
+const stripeKey = /^STRIPE_PUBLIC_KEY_TEST=(.+)$/mu.exec(envTest)?.[1];
 
 // Next.js owns what it renders and caches: Vite asset preloads, `vary`, and the per-response random
 // values (CSP nonce, masked CSRF tokens).
@@ -60,14 +60,14 @@ const COMPARE = {
 
 // The test environment renders a 404 as Rails' exception debug page; production (and Next.js) render
 // public/404.html. Everything else about the response is compared.
-const hasDebugPageBody = (file: string) => /-is-a-404-/.test(file);
+const hasDebugPageBody = (file: string) => /-is-a-404-/u.test(file);
 
 const cases = FIXTURE_DIRS.flatMap((dir) =>
   readdirSync(dir)
     .filter((file) => file.endsWith(".json"))
     .map((file) => {
       const exchanges = loadFixture(path.join(dir, file)).exchanges;
-      return [`${path.basename(dir)}/${file.replace(/\.json$/, "")}`, path.join(dir, file), exchanges.length - 1] as const;
+      return [`${path.basename(dir)}/${file.replace(/\.json$/u, "")}`, path.join(dir, file), exchanges.length - 1] as const;
     }),
 );
 
@@ -132,7 +132,7 @@ describe.skipIf(!url)("WS-55 public pages parity", () => {
       try {
         assertParity(result);
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => /error|Error|at /.test(line)).slice(-25).join("\n");
+        const logs = server.output().split("\n").filter((line) => /error|Error|at /u.test(line)).slice(-25).join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
     },

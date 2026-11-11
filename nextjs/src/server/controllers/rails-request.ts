@@ -22,15 +22,15 @@ export function railsRequest(request: Request): RailsRequest {
   const url = new URL(request.url);
   // raw_host_with_port: the last X-Forwarded-Host entry wins over Host.
   const forwarded = request.headers.get("x-forwarded-host");
-  const rawHost = (forwarded ? forwarded.split(/,\s?/).at(-1) : request.headers.get("host")) ?? url.host;
-  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(/,\s?/)[0];
+  const rawHost = (forwarded ? forwarded.split(/,\s?/u).at(-1) : request.headers.get("host")) ?? url.host;
+  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(/,\s?/u)[0];
   const protocol = `${forwardedProto ?? url.protocol.replace(":", "")}://` === "https://" ? "https://" : "http://";
-  const host = rawHost.replace(/:\d+$/, "");
-  const port = /:(\d+)$/.exec(rawHost)?.[1];
+  const host = rawHost.replace(/:\d+$/u, "");
+  const port = /:(\d+)$/u.exec(rawHost)?.[1];
   return {
     method: request.method,
     path: url.pathname,
-    queryString: url.search.replace(/^\?/, ""),
+    queryString: url.search.replace(/^\?/u, ""),
     headers: request.headers,
     host,
     hostWithPort: port && port !== STANDARD_PORTS[protocol] ? `${host}:${port}` : host,

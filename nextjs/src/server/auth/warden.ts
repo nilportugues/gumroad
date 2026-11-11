@@ -63,7 +63,7 @@ export function rememberCookieValid(user: RememberableUser, cookie: RememberCook
 // Time.at(float) for "1700000000.123456"; Time.parse for the JSON timestamps older Devise wrote.
 function parseGeneratedAt(value: unknown): number | null {
   if (typeof value !== "string") return null;
-  if (/^\d+\.\d+$/.test(value)) return Number(value) * 1000;
+  if (/^\d+\.\d+$/u.test(value)) return Number(value) * 1000;
   const parsed = Date.parse(value);
   return Number.isNaN(parsed) ? null : parsed;
 }
@@ -81,13 +81,13 @@ export function monthsBefore(now: Date, months: number): Date {
 
 function toId(value: unknown): bigint | null {
   if (typeof value === "number" && Number.isSafeInteger(value) && value > 0) return BigInt(value);
-  if (typeof value === "string" && /^[1-9]\d*$/.test(value)) return BigInt(value);
+  if (typeof value === "string" && /^[1-9]\d*$/u.test(value)) return BigInt(value);
   return null;
 }
 
 function toInteger(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return Math.trunc(value);
-  if (typeof value === "string" && /^-?\d+/.test(value)) return parseInt(value, 10);
+  if (typeof value === "string" && /^-?\d+/u.test(value)) return parseInt(value, 10);
   return null;
 }
 

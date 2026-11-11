@@ -120,7 +120,7 @@ const allCases = SPECS.flatMap((spec) => {
     .map(
       (file) =>
         [
-          `${spec}: ${file.replace(/\.json$/, "")}`,
+          `${spec}: ${file.replace(/\.json$/u, "")}`,
           path.join(dir, file),
           loadFixture(path.join(dir, file)).exchanges.length - 1,
         ] as const,
@@ -160,7 +160,7 @@ describe.skipIf(!url)("PurchasesController guards", () => {
     });
     await new Promise<void>((resolve) => rails.listen(0, "127.0.0.1", resolve));
     const railsPort = (rails.address() as { port: number }).port;
-    const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1];
+    const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1];
     server = await startNextServer({
       RAILS_ENV: "test",
       OBFUSCATE_IDS_CIPHER_KEY: obfuscateKey ?? "",
@@ -243,7 +243,7 @@ describe.skipIf(!url)("PurchasesController guards", () => {
         const expected = fixture.exchanges[index]!;
         expected.jobs = [...(expected.jobs ?? [])].sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
         const { file: _file, ...options } = replayOptions(file, _name);
-        if (/hands-(a|the)-/.test(_name)) {
+        if (/hands-(a|the)-/u.test(_name)) {
           // Whatever Node cannot prove goes to Rails whole, before its first write.
           handedBack.length = 0;
           const handed = await replayFixtureExchange(fixture, index, options);

@@ -59,7 +59,7 @@ async function fetchPost(slug: string): Promise<{ post: Installment; seller: Use
   return { post, seller };
 }
 
-const SELLER_POST_PATH = /^\/p\/([^/.?]+)$/;
+const SELLER_POST_PATH = /^\/p\/([^/.?]+)$/u;
 
 async function sellerPostFilters(chain: Chain): Promise<FilterOutcome> {
   requireHtmlPage(chain);
@@ -71,7 +71,7 @@ async function sellerPostFilters(chain: Chain): Promise<FilterOutcome> {
   return { state: { post_id: post.id, seller_id: String(seller.id) } };
 }
 
-const BLOG_POST_PATH = /^\/blog\/p\/([^/.?]+)$/;
+const BLOG_POST_PATH = /^\/blog\/p\/([^/.?]+)$/u;
 
 // GumroadBlog::PostsPolicy#show? for a visitor who is not signed in.
 const blogPostShown = (post: Installment) =>

@@ -86,7 +86,7 @@ export function requestParams(path: string, queryString: string): Params {
   if (path !== DISCOVER_INDEX_PATH) {
     let decoded: string;
     try {
-      decoded = decodeURIComponent(path.replace(/^\//, ""));
+      decoded = decodeURIComponent(path.replace(/^\//u, ""));
     } catch {
       throw new HandBackToRails();
     }
@@ -311,7 +311,7 @@ export function setMetaTags(
     titleParts.push(tagPageTitle(tags ?? []));
   } else if (rubyPresent(params.tags)) {
     titleParts.push(
-      (tags ?? String(params.tags).split(",")).map((tag) => tag.trim().replace(/[-\s]+/g, " ")).join(", "),
+      (tags ?? String(params.tags).split(",")).map((tag) => tag.trim().replace(/[-\s]+/gu, " ")).join(", "),
     );
   }
   if (rubyPresent(params.taxonomy)) titleParts.push(String(params.taxonomy).split("/").map(taxonomyLabel).join(" » "));

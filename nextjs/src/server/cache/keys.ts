@@ -12,7 +12,7 @@ export type CacheName = CacheKeyPart | CacheKeyPart[];
 
 // ActiveSupport::Cache::MAX_KEY_SIZE, MemCacheStore's default :max_key_size.
 export const MAX_KEY_SIZE = 250;
-const ESCAPE_KEY_CHARS = /[\x00-\x20%\x7f-\xff]/g;
+const ESCAPE_KEY_CHARS = /[\x00-\x20%\x7f-\xff]/gu;
 
 // ActiveSupport::Digest.hexdigest with load_defaults 8.1's hash_digest_class (SHA256).
 export function activeSupportHexdigest(value: string | Buffer): string {

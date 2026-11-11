@@ -473,7 +473,7 @@ async function accountStatusDetails(
         seller.id,
       );
       if (present(errorMessage)) {
-        complianceActions.push({ message: `${errorMessage.trim().replace(/[.!?]+$/, "")}.`, href: null });
+        complianceActions.push({ message: `${errorMessage.trim().replace(/[.!?]+$/u, "")}.`, href: null });
         continue;
       }
       missing.push(

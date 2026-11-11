@@ -60,7 +60,7 @@ const cases = readdirSync(DIR)
   .filter((file) => file.endsWith(".json"))
   .map((file) => {
     const fixturePath = path.join(DIR, file);
-    const name = file.replace(/\.json$/, "").replace(/^checkout-page-/, "");
+    const name = file.replace(/\.json$/u, "").replace(/^checkout-page-/u, "");
     return { name, fixturePath, index: loadFixture(fixturePath).exchanges.length - 1, handedBack: name.startsWith("handed-back-to-rails") };
   });
 
@@ -148,7 +148,7 @@ describe.skipIf(!url)("Checkout page parity", () => {
       try {
         assertParity(result);
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => /error|Error|at /.test(line)).slice(-25).join("\n");
+        const logs = server.output().split("\n").filter((line) => /error|Error|at /u.test(line)).slice(-25).join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
     },

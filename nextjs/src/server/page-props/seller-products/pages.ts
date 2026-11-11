@@ -27,7 +27,7 @@ import { sellerGuard } from "../audience/seller-guard.ts";
 import { assertEditSupported, editProps } from "./edit.ts";
 
 const seller = (context: { currentSeller: User | null }) => context.currentSeller!;
-const queryOf = (url: URL) => ({ queryString: url.search.replace(/^\?/, "") });
+const queryOf = (url: URL) => ({ queryString: url.search.replace(/^\?/u, "") });
 const queryOfChain = (chain: { request: { queryString: string } }) => ({ queryString: chain.request.queryString });
 
 function dashboardProps(archived: boolean): PageSpec["props"] {
@@ -73,7 +73,7 @@ const productsAffiliated: PageSpec = {
   props: async (_, { context, meta, url }) => {
     meta.set({ title: "Products" });
     const sellerContext = await loadSellerContext(context);
-    return affiliatedProductsProps(seller(context), sellerContext, affiliatedParams(url.search.replace(/^\?/, "")), canRemoveAffiliations(sellerContext));
+    return affiliatedProductsProps(seller(context), sellerContext, affiliatedParams(url.search.replace(/^\?/u, "")), canRemoveAffiliations(sellerContext));
   },
 };
 

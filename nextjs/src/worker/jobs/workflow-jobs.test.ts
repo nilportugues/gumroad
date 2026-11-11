@@ -47,7 +47,7 @@ const golden = parseRubyJson(
 ) as unknown as { cases: Case[] };
 
 const url = process.env.JOBS_REDIS_URL;
-if (url && /\/0$|^[^/]*\/\/[^/]+$/.test(url))
+if (url && /\/0$|^[^/]*\/\/[^/]+$/u.test(url))
   throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
 let realRedis: Redis | undefined;
 // The key scripts/golden/workflow-jobs.rb runs under: the variant external ids in its seeds depend on it.

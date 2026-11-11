@@ -7,7 +7,7 @@ import { crc32 } from "node:zlib";
 export type MemcachedServer = { name: string; host: string; port: number; weight: number };
 
 const POINTS_PER_SERVER = 160;
-const SERVER_CONFIG = /^(\[([\da-fA-F:]+)\]|[^:]+)(?::(\d+))?(?::(\d+))?$/;
+const SERVER_CONFIG = /^(\[([\da-fA-F:]+)\]|[^:]+)(?::(\d+))?(?::(\d+))?$/u;
 
 // Dalli::Protocol::ServerConfigParser for "host[:port[:weight]]" (no memcached:// URIs, no
 // unix sockets).

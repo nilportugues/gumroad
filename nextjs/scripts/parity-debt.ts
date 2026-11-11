@@ -21,13 +21,13 @@ type Node = { indent: number; kind: string; part: Part | null; tagged: boolean }
 type Example = { spec: string; line: number; name: string; dynamic: boolean; shared: boolean; regex: RegExp };
 
 const GROUP =
-  /^(\s*)(?:RSpec\.)?(describe|context|feature|shared_examples|shared_examples_for|shared_context|it_behaves_like|it_should_behave_like|include_examples|include_context|it|specify|example|scenario)\b[\s(]*(.*)$/;
+  /^(\s*)(?:RSpec\.)?(describe|context|feature|shared_examples|shared_examples_for|shared_context|it_behaves_like|it_should_behave_like|include_examples|include_context|it|specify|example|scenario)\b[\s(]*(.*)$/u;
 const EXAMPLE_KINDS = ["it", "specify", "example", "scenario"];
 
 function readDescription(rest: string): Part | null {
   const quote = rest[0];
   if (quote !== '"' && quote !== "'") {
-    const constant = /^([A-Z][\w:]*)/.exec(rest);
+    const constant = /^([A-Z][\w:]*)/u.exec(rest);
     return constant ? { text: constant[1] ?? "", module: true, dynamic: false } : null;
   }
   let text = "";
@@ -56,12 +56,12 @@ function readDescription(rest: string): Part | null {
 function fullDescription(parts: Part[]): string {
   return parts.reduce((name, part, i) => {
     if (i === 0) return part.text;
-    return name + (parts[i - 1]?.module && /^(#|::|\.)/.test(part.text) ? "" : " ") + part.text;
+    return name + (parts[i - 1]?.module && /^(#|::|\.)/u.test(part.text) ? "" : " ") + part.text;
   }, "");
 }
 
 function toRegex(name: string): RegExp {
-  const escaped = name.split(HOLE).map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const escaped = name.split(HOLE).map((s) => s.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"));
   return new RegExp(`^${escaped.join(".+?")}$`, "s");
 }
 
@@ -77,7 +77,7 @@ function parseSpec(path: string, spec: string): Example[] {
       const indent = ws.length;
       while (stack.length > 0 && (stack.at(-1)?.indent ?? 0) >= indent) stack.pop();
       const part = readDescription(rest.trimStart());
-      const tagged = /\bparity:\s*true\b/.test(text);
+      const tagged = /\bparity:\s*true\b/u.test(text);
       if (EXAMPLE_KINDS.includes(kind)) {
         if (!tagged && !stack.some((n) => n.tagged)) return;
         const parts = [...stack.map((n) => n.part), part].filter((p): p is Part => p !== null);
@@ -119,7 +119,7 @@ function main() {
     .filter((path) => path.includes(filter));
   const report: Record<string, { tagged: number; recorded: number; missing: Example[]; unresolved: Example[] }> = {};
   for (const spec of specs) {
-    if (!/parity:\s*true/.test(readFileSync(join(repoRoot, spec), "utf8"))) continue;
+    if (!/parity:\s*true/u.test(readFileSync(join(repoRoot, spec), "utf8"))) continue;
     const recorded = fixtures.get(spec) ?? [];
     const examples = parseSpec(join(repoRoot, spec), spec);
     const missing: Example[] = [];

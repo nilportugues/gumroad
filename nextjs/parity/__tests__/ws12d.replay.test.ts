@@ -115,7 +115,7 @@ const cases = SPECS.flatMap((spec) => {
     .map(
       (file) =>
         [
-          `${spec.replace(/_spec$/, "")}: ${file.replace(/\.json$/, "")}`,
+          `${spec.replace(/_spec$/u, "")}: ${file.replace(/\.json$/u, "")}`,
           path.join(dir, file),
           loadFixture(path.join(dir, file)).exchanges.length - 1,
         ] as const,
@@ -157,7 +157,7 @@ describe.skipIf(!url)("WS-12d parity", () => {
       RAILS_ENV: "test",
       NODE_OPTIONS: `--require ${path.resolve(import.meta.dirname, "..", "src", "fixed-clock-preload.cjs")}`,
       PARITY_CLOCK_OFFSET_MS: String(clockOffset),
-      OBFUSCATE_IDS_CIPHER_KEY: /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1] ?? "",
+      OBFUSCATE_IDS_CIPHER_KEY: /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1] ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
       ...(secureIdKey
         ? {

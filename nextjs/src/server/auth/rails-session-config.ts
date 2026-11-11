@@ -44,9 +44,9 @@ export function railsSessionCookieName({ railsEnv: env, branchDeployment, domain
 // tld_length. Undefined means a host-only cookie, as Rails sends for IPs and single-label hosts.
 export function railsSessionCookieDomain(host: string, env: RailsEnv = railsEnv()): string | undefined {
   if (env.railsEnv === "staging" && env.branchDeployment && env.domain) return `.${env.domain}`;
-  const hostname = host.replace(/:\d+$/, "");
+  const hostname = host.replace(/:\d+$/u, "");
   const labels = hostname.split(".");
-  if (/^[\d.]+$/.test(hostname) || labels.includes("") || labels.length === 1) return undefined;
+  if (/^[\d.]+$/u.test(hostname) || labels.includes("") || labels.length === 1) return undefined;
   const tldLength = env.railsEnv === "staging" ? STAGING_TLD_LENGTH : DEFAULT_TLD_LENGTH;
   return labels.length >= tldLength ? labels.slice(-tldLength).join(".") : undefined;
 }

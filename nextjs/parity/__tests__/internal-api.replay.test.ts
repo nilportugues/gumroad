@@ -83,7 +83,7 @@ const cases = SPECS.flatMap((spec) => {
     .map(
       (file) =>
         [
-          file.replace(/\.json$/, ""),
+          file.replace(/\.json$/u, ""),
           path.join(dir, file),
           loadFixture(path.join(dir, file)).exchanges.length - 1,
         ] as const,
@@ -284,7 +284,7 @@ describe.skipIf(!url)("Api::Internal endpoints", () => {
       return typeof signature === "string" && !stale
         ? {
             ...rewritten,
-            headers: { ...rewritten.headers, "grmc-signature": signature.replace(/^t=\d+/, `t=${Date.now()}`) },
+            headers: { ...rewritten.headers, "grmc-signature": signature.replace(/^t=\d+/u, `t=${Date.now()}`) },
           }
         : rewritten;
     },
@@ -304,7 +304,7 @@ describe.skipIf(!url)("Api::Internal endpoints", () => {
         const request = loadFixture(file).exchanges.at(index)!.request;
         // Rails.cache is the server's own memory: a replay of the home page numbers would fill it for the cases after it.
         if (request.path === HOME_PAGE_NUMBERS) continue;
-        const route = `${request.method} ${request.path.replace(/\/[^/]*(?==\/|$)/g, "/:id").replace(/[?].*/, "")}`;
+        const route = `${request.method} ${request.path.replace(/\/[^/]*(?==\/|$)/gu, "/:id").replace(/[?].*/u, "")}`;
         if (warmed.has(route)) continue;
         warmed.add(route);
         currentCase = name;

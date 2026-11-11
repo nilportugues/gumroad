@@ -29,7 +29,7 @@ const RECOMMENDED_PRODUCTS_PROP = "recommended_products";
 function browserGuid(chain: Chain): string | null {
   const sent = chain.request.cookies.get(GUID_COOKIE);
   if (sent !== undefined) return sent;
-  return chain.guid ? (/^_gumroad_guid=([^;]+)/.exec(chain.guid)?.[1] ?? null) : null;
+  return chain.guid ? (/^_gumroad_guid=([^;]+)/u.exec(chain.guid)?.[1] ?? null) : null;
 }
 
 type CartLoginRow = { id: bigint; browser_guid: string | null; user_id: bigint | null; user_email: string | null };

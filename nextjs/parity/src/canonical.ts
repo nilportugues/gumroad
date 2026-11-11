@@ -18,9 +18,9 @@ export function cookieValue(name: string, value: string): string {
   return VOLATILE_COOKIES.has(name) ? VOLATILE_VALUE : value;
 }
 
-const ISO_TIME = /\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})/g;
-const TIME_TOKEN = /^<now(?:([+-])(\d+)([smh]))?>$/;
-const DATE_TOKEN = /^<today(?:([+-])(\d+)d)?>$/;
+const ISO_TIME = /\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})/gu;
+const TIME_TOKEN = /^<now(?:([+-])(\d+)([smh]))?>$/u;
+const DATE_TOKEN = /^<today(?:([+-])(\d+)d)?>$/u;
 const UNIT_SECONDS = { s: 1, m: 60, h: 3600 } as const;
 
 export function quoteIdentifier(name: string): string {
@@ -86,7 +86,7 @@ function utcMidnight(time: Date): number {
 
 // Rails writes UTC into DATETIME columns; "0000-00-00 ..." and other junk stay raw.
 export function parseDbTime(raw: string): Date | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?$/.exec(raw);
+  const match = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?$/u.exec(raw);
   if (!match) return null;
   const [, y, mo, d, h, mi, s, fraction = ""] = match;
   const ms = Number(fraction.padEnd(3, "0").slice(0, 3));
@@ -95,7 +95,7 @@ export function parseDbTime(raw: string): Date | null {
 }
 
 function parseDate(raw: string): Date | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(raw);
   if (!match) return null;
   const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
   return date.getUTCDate() === Number(match[3]) ? date : null;
@@ -121,7 +121,7 @@ export function resolveDateToken(token: string, now: Date): Date | null {
 export function string(value: string, now: Date): string {
   return value.replace(ISO_TIME, (match) => {
     // Ruby's Time.iso8601 accepts "+0000"; Date only parses "+00:00".
-    const time = new Date(match.replace(/([+-]\d{2})(\d{2})$/, "$1:$2"));
+    const time = new Date(match.replace(/([+-]\d{2})(\d{2})$/u, "$1:$2"));
     return Number.isNaN(time.getTime()) ? match : timeToken(time, now);
   });
 }
@@ -158,7 +158,7 @@ function utcOffset(name: string, now: Date): number | null {
   } catch {
     return null;
   }
-  const match = /^GMT(?:([+-])(\d{2}):(\d{2}))?$/.exec(part ?? "");
+  const match = /^GMT(?:([+-])(\d{2}):(\d{2}))?$/u.exec(part ?? "");
   if (!match) return null;
   if (!match[1]) return 0;
   const seconds = Number(match[2]) * 3600 + Number(match[3]) * 60;
@@ -172,7 +172,7 @@ export function parseJson(text: string): Json {
       typeof value === "number" &&
       !Number.isSafeInteger(value) &&
       context?.source &&
-      /^-?\d+$/.test(context.source)
+      /^-?\d+$/u.test(context.source)
     ) {
       return { $big: context.source };
     }

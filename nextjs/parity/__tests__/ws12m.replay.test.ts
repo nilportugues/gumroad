@@ -108,7 +108,7 @@ const allCases = SPECS.flatMap((spec) => {
     .map((file) => {
       const fixture = loadFixture(path.join(dir, file));
       return [
-        `${spec.replace(/_spec$/, "")}: ${file.replace(/\.json$/, "")}`,
+        `${spec.replace(/_spec$/u, "")}: ${file.replace(/\.json$/u, "")}`,
         path.join(dir, file),
         fixture.exchanges.length - 1,
         fixture.exchanges.at(-1)!.request,
@@ -158,7 +158,7 @@ describe.skipIf(!url)("WS-12m parity", () => {
     const secureIdKey = testEnv("SECURE_EXTERNAL_ID__KEYS__1");
     server = await startNextServer({
       RAILS_ENV: "test",
-      OBFUSCATE_IDS_CIPHER_KEY: /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1] ?? "",
+      OBFUSCATE_IDS_CIPHER_KEY: /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1] ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
       ...(secureIdKey
         ? {

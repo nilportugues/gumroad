@@ -51,16 +51,16 @@ const COMPARE = {
   ],
 };
 
-const NEXT_VARY = /(?:rsc|next-router-state-tree|next-router-prefetch|next-router-segment-prefetch)(?:, )?/g;
+const NEXT_VARY = /(?:rsc|next-router-state-tree|next-router-prefetch|next-router-segment-prefetch)(?:, )?/gu;
 const withoutNextVary = (vary: unknown) => (typeof vary === "string" ? vary.replace(NEXT_VARY, "") : vary);
-const HANDED_BACK = /hands-a-|through-rails/;
+const HANDED_BACK = /hands-a-|through-rails/u;
 
 const cases = SPECS.flatMap((spec) => {
   const dir = path.join(FIXTURES, spec);
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
     .filter((file) => file.endsWith(".json"))
-    .map((file) => [`${spec}: ${file.replace(/\.json$/, "")}`, path.join(dir, file), loadFixture(path.join(dir, file)).exchanges.length - 1] as const);
+    .map((file) => [`${spec}: ${file.replace(/\.json$/u, "")}`, path.join(dir, file), loadFixture(path.join(dir, file)).exchanges.length - 1] as const);
 });
 
 describe.skipIf(!url)("wishlists mutations", () => {

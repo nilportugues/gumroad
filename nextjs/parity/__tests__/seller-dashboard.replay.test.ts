@@ -26,8 +26,8 @@ const ROUTE_FLAGS = ["nextjs_collaborators", "nextjs_tax_center", "nextjs_affili
 const FIRST_COMPILE_TIMEOUT_MS = 240_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
-const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1];
-const stripeKey = /^STRIPE_PUBLIC_KEY_TEST=(.+)$/m.exec(envTest)?.[1];
+const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1];
+const stripeKey = /^STRIPE_PUBLIC_KEY_TEST=(.+)$/mu.exec(envTest)?.[1];
 
 // Next.js owns what it renders and caches: Vite asset preloads, `vary`, and the per-response random
 // values (CSP nonce, masked CSRF tokens).
@@ -64,7 +64,7 @@ const cases = SPEC_DIRS.flatMap((dir) =>
     .filter((file) => file.endsWith(".json"))
     .map((file) => {
       const fixturePath = path.join(FIXTURES_ROOT, dir, file);
-      return [`${dir.replace(/^seller_dashboard_|_signed_in_spec$/g, "")}: ${file.replace(/\.json$/, "")}`, fixturePath, loadFixture(fixturePath).exchanges.length - 1] as const;
+      return [`${dir.replace(/^seller_dashboard_|_signed_in_spec$/gu, "")}: ${file.replace(/\.json$/u, "")}`, fixturePath, loadFixture(fixturePath).exchanges.length - 1] as const;
     }),
 );
 
@@ -120,7 +120,7 @@ describe.skipIf(!url)("Seller dashboard parity when signed in", () => {
       try {
         assertParity(result);
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => /error|Error|at /.test(line)).slice(-25).join("\n");
+        const logs = server.output().split("\n").filter((line) => /error|Error|at /u.test(line)).slice(-25).join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
     },

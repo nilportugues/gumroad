@@ -28,7 +28,7 @@ const ANALYTICS_META_KEYS = [
 ];
 
 // params[name] for a flat query key; a bracketed one was handed back to Rails by the filters.
-const queryValue = (action: ActionContext, name: string) => queryParam({ queryString: action.url.search.replace(/^\?/, "") } as RailsRequest, name);
+const queryValue = (action: ActionContext, name: string) => queryParam({ queryString: action.url.search.replace(/^\?/u, "") } as RailsRequest, name);
 
 const mobileApp = (action: ActionContext) => isPresent(requestCookies(action.headers.get("cookie")).get(MOBILE_APP_COOKIE));
 
@@ -90,7 +90,7 @@ async function signupStats(): Promise<[string | null | undefined, string | null 
 
 // String#to_i (nil.to_i is 0): optional sign, then digits with single underscores between them.
 export function rubyToI(value: string | null | undefined): number {
-  const match = /^\s*([+-]?\d+(?:_\d+)*)/.exec(value ?? "");
+  const match = /^\s*([+-]?\d+(?:_\d+)*)/u.exec(value ?? "");
   return match ? Number(match[1]!.replaceAll("_", "")) : 0;
 }
 

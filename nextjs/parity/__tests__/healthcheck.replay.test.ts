@@ -61,20 +61,20 @@ const stagingBranch = (register: HealthcheckDeps["registerApplePayDomain"]): Par
 const SETUPS: [RegExp, Setup][] = [
   // The critical and default shared examples share a description, so the default queue's recording
   // is the one kept; the queue doubles answer the limit -1/+1 for it and 0 elsewhere.
-  [/Sidekiq queues .*queue queues returns HTTP success/, async () => sizes(0, 299_999, 0)],
-  [/Sidekiq queues .*queue queues returns HTTP service_unavailable/, async () => sizes(0, 300_001, 0)],
-  [/retry set .*returns HTTP success/, async () => sizes(0, 0, 19_999)],
-  [/retry set .*returns HTTP service_unavailable/, async () => sizes(0, 0, 20_001)],
+  [/Sidekiq queues .*queue queues returns HTTP success/u, async () => sizes(0, 299_999, 0)],
+  [/Sidekiq queues .*queue queues returns HTTP service_unavailable/u, async () => sizes(0, 300_001, 0)],
+  [/retry set .*returns HTTP success/u, async () => sizes(0, 0, 19_999)],
+  [/retry set .*returns HTTP service_unavailable/u, async () => sizes(0, 0, 20_001)],
   [
-    /'payouts' when a payout batch is in flight/,
+    /'payouts' when a payout batch is in flight/u,
     async (r) => void (await r.zadd(REDIS_KEYS.payoutBatchInFlight, nowSeconds(), "job-token")),
   ],
   [
-    /'payouts' when the only entries are older/,
+    /'payouts' when the only entries are older/u,
     async (r) => void (await r.zadd(REDIS_KEYS.payoutBatchInFlight, staleScore(3), "dead-job-token")),
   ],
   [
-    /'payouts' when a stale entry sits alongside/,
+    /'payouts' when a stale entry sits alongside/u,
     async (r) =>
       void (await r.zadd(
         REDIS_KEYS.payoutBatchInFlight,
@@ -85,15 +85,15 @@ const SETUPS: [RegExp, Setup][] = [
       )),
   ],
   [
-    /'long_running_jobs' when a long-running job is in flight/,
+    /'long_running_jobs' when a long-running job is in flight/u,
     async (r) => void (await r.zadd(REDIS_KEYS.longRunningJobsInFlight, nowSeconds(), "job-token")),
   ],
   [
-    /'long_running_jobs' when the only entries are older/,
+    /'long_running_jobs' when the only entries are older/u,
     async (r) => void (await r.zadd(REDIS_KEYS.longRunningJobsInFlight, staleScore(6), "dead-job-token")),
   ],
   [
-    /'long_running_jobs' when a stale entry sits alongside/,
+    /'long_running_jobs' when a stale entry sits alongside/u,
     async (r) =>
       void (await r.zadd(
         REDIS_KEYS.longRunningJobsInFlight,
@@ -104,28 +104,28 @@ const SETUPS: [RegExp, Setup][] = [
       )),
   ],
   [
-    /'paypal_balance' when PayPal topup is not needed/,
+    /'paypal_balance' when PayPal topup is not needed/u,
     async (r) => void (await r.set(REDIS_KEYS.paypalTopupNeeded, "false")),
   ],
   [
-    /'paypal_balance' when PayPal topup is needed/,
+    /'paypal_balance' when PayPal topup is needed/u,
     async (r) => void (await r.set(REDIS_KEYS.paypalTopupNeeded, "true")),
   ],
   [
-    /'stripe_balance' when Stripe topup is not needed/,
+    /'stripe_balance' when Stripe topup is not needed/u,
     async (r) => void (await r.set(REDIS_KEYS.stripeBalanceTopupNeeded, "false")),
   ],
   [
-    /'stripe_balance' when Stripe topup is needed/,
+    /'stripe_balance' when Stripe topup is needed/u,
     async (r) => void (await r.set(REDIS_KEYS.stripeBalanceTopupNeeded, "true")),
   ],
   [
-    /reports an active registration/,
+    /reports an active registration/u,
     async () =>
       stagingBranch(async () => ({ active: true, message: "Apple Pay on my-branch.apps.staging.gumroad.org: active" })),
   ],
   [
-    /reports an inactive registration/,
+    /reports an inactive registration/u,
     async () =>
       stagingBranch(async () => ({
         active: false,
@@ -133,7 +133,7 @@ const SETUPS: [RegExp, Setup][] = [
       })),
   ],
   [
-    /reports Stripe errors/,
+    /reports Stripe errors/u,
     async () =>
       stagingBranch(async () => {
         throw new InvalidRequestError("verification failed", null);
@@ -141,7 +141,7 @@ const SETUPS: [RegExp, Setup][] = [
   ],
   // The spec asserts these never touch Redis, the cache or the database.
   [
-    /'index' answers without (reading Redis|checking out)/,
+    /'index' answers without (reading Redis|checking out)/u,
     async () => ({
       redis: () => {
         throw new Error("index read Redis");

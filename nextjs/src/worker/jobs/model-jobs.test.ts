@@ -94,7 +94,7 @@ const rubyRegistry: Record<string, JobDefinition> = Object.fromEntries(
 const takesLocks = (c: ModelJobCase) => Object.keys(c.redis).some((key) => key.startsWith("uniquejobs"));
 
 const url = process.env.JOBS_REDIS_URL;
-if (url && /\/0$|^[^/]*\/\/[^/]+$/.test(url))
+if (url && /\/0$|^[^/]*\/\/[^/]+$/u.test(url))
   throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
 let realRedis: Redis | undefined;
 beforeAll(() => {

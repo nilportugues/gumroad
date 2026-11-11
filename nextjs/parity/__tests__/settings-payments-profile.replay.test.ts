@@ -24,12 +24,12 @@ const ROUTE_FLAGS = ["nextjs_settings_payments", "nextjs_settings_profile", "nex
 const FIRST_COMPILE_TIMEOUT_MS = 240_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
-const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1];
-const stripeKey = /^STRIPE_PUBLIC_KEY_TEST=(.+)$/m.exec(envTest)?.[1];
+const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1];
+const stripeKey = /^STRIPE_PUBLIC_KEY_TEST=(.+)$/mu.exec(envTest)?.[1];
 // The test-only RSA key the specs' Strongbox columns are encrypted with (committed in .env.test).
-const strongboxKey = /^STRONGBOX_GENERAL="(.+)"$/m.exec(envTest)?.[1]?.replaceAll("\\n", "\n");
-const recaptchaKey = /^RECAPTCHA_MONEY_SITE_KEY=(.+)$/m.exec(envTest)?.[1];
-const strongboxPassword = /^STRONGBOX_GENERAL_PASSWORD="?([^"\n]+)"?$/m.exec(envTest)?.[1];
+const strongboxKey = /^STRONGBOX_GENERAL="(.+)"$/mu.exec(envTest)?.[1]?.replaceAll("\\n", "\n");
+const recaptchaKey = /^RECAPTCHA_MONEY_SITE_KEY=(.+)$/mu.exec(envTest)?.[1];
+const strongboxPassword = /^STRONGBOX_GENERAL_PASSWORD="?([^"\n]+)"?$/mu.exec(envTest)?.[1];
 
 const COMPARE = {
   ignore: [
@@ -78,7 +78,7 @@ function freshSocialConnectReturn(session: unknown, now: Date): unknown {
 }
 
 const files = readdirSync(FIXTURE_DIR).filter((file) => file.endsWith(".json"));
-const cases = files.map((file) => [file.replace(/^payments-profile-and-application-settings-when-signed-in-/, "").replace(/\.json$/, ""), file] as const);
+const cases = files.map((file) => [file.replace(/^payments-profile-and-application-settings-when-signed-in-/u, "").replace(/\.json$/u, ""), file] as const);
 
 describe.skipIf(!url)("Payments, profile and application settings parity when signed in", () => {
   let client: PrismaClient;
@@ -137,7 +137,7 @@ describe.skipIf(!url)("Payments, profile and application settings parity when si
       try {
         assertParity(result);
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => /error|Error|at /.test(line)).slice(-25).join("\n");
+        const logs = server.output().split("\n").filter((line) => /error|Error|at /u.test(line)).slice(-25).join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
     },

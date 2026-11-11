@@ -24,16 +24,16 @@ export type HostClassification = {
   customDomainLookup: string[] | null;
 };
 
-const hostOnly = (hostWithPort: string) => hostWithPort.replace(/:\d+$/, "");
+const hostOnly = (hostWithPort: string) => hostWithPort.replace(/:\d+$/u, "");
 
 export function sellerSubdomain(hostname: string, config: DomainConfig): HostClassification["sellerSubdomain"] {
   // Rails strips the port from ROOT_DOMAIN in development and test, since request.host has none.
   const domain = config.railsEnv === "development" || config.railsEnv === "test" ? hostOnly(config.rootDomain) : config.rootDomain;
   if (!new RegExp(`^${USERNAME_PATTERN}.${domain}$`).test(hostname)) return null;
   const subdomain = hostname.split(".", 2)[0] ?? "";
-  if (/^[0-9]+$/.test(subdomain)) return { externalId: subdomain };
+  if (/^[0-9]+$/u.test(subdomain)) return { externalId: subdomain };
   // Usernames store underscores; subdomains spell them with hyphens.
-  return { username: subdomain.replace(/-/g, "_") };
+  return { username: subdomain.replace(/-/gu, "_") };
 }
 
 export function customDomainLookup(hostname: string): string[] | null {

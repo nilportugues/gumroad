@@ -14,7 +14,7 @@ import { createJobsRuntime } from "./runtime.ts";
 import { type JsonValue, parseRubyJson, RubyFloat } from "./sidekiq/ruby-json.ts";
 
 const url = process.env.JOBS_REDIS_URL;
-if (url && /\/0$|^[^/]*\/\/[^/]+$/.test(url)) throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
+if (url && /\/0$|^[^/]*\/\/[^/]+$/u.test(url)) throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
 
 type Snapshot = Record<string, { type: string; value?: JsonValue; messages?: string[]; expires: boolean }>;
 type Case = {

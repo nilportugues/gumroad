@@ -93,7 +93,7 @@ export function rubyFloatToS(value: number): string {
     const [mantissa, exponent] = value.toExponential().split("e");
     const digits = mantissa!.includes(".") ? mantissa! : `${mantissa}.0`;
     const sign = exponent!.startsWith("-") ? "-" : "+";
-    const magnitudeDigits = exponent!.replace(/^[-+]/, "").padStart(2, "0");
+    const magnitudeDigits = exponent!.replace(/^[-+]/u, "").padStart(2, "0");
     return `${digits}e${sign}${magnitudeDigits}`;
   }
   const plain = String(value);

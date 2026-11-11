@@ -32,7 +32,7 @@ describe("Redis URLs match the Rails initializers", () => {
 
   it("requires RACK_ATTACK_REDIS_HOST like ENV.fetch", () => {
     delete process.env.RACK_ATTACK_REDIS_HOST;
-    expect(() => redisUrl("rackAttack")).toThrow(/RACK_ATTACK_REDIS_HOST/);
+    expect(() => redisUrl("rackAttack")).toThrow(/RACK_ATTACK_REDIS_HOST/u);
   });
 
   it("selects the database from the host string and connects lazily", () => {

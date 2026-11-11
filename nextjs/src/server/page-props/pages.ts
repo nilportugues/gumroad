@@ -258,7 +258,7 @@ export function matchPagePath(
           // Rails reads a trailing `.ext` as the format, so a glob never spans one.
           return "([^.?]+)";
         }
-        if (!segment.startsWith(":")) return segment.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        if (!segment.startsWith(":")) return segment.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
         names.push(segment.slice(1));
         return "([^/.?]+)";
       })

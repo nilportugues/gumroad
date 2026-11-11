@@ -212,7 +212,7 @@ export function utmLinkProps(seller: User, link: UtmLinkRow, resolved: Targets):
     title: link.title,
     short_url: shortUrl(link.permalink),
     utm_url: utmUrl(seller, link, resolved),
-    created_at: link.created_at.toISOString().replace(/\.\d{3}Z$/, "Z"),
+    created_at: link.created_at.toISOString().replace(/\.\d{3}Z$/u, "Z"),
     source: link.utm_source,
     medium: link.utm_medium,
     campaign: link.utm_campaign,
