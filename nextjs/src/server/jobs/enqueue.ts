@@ -52,7 +52,9 @@ export async function addToBullmq(runtime: JobsRuntime, definition: JobDefinitio
 export async function enqueueWith(runtime: JobsRuntime, jobClass: string, args: JsonValue[], options: EnqueueOptions = {}): Promise<string | null> {
   const { className, definition } = resolveJobClass(jobClass, runtime.registry);
   const now = runtime.now();
-  const at = options.at ? rubyTimeToF(options.at) : options.delaySeconds !== undefined ? now + options.delaySeconds : undefined;
+  const requestedAt = options.at ? rubyTimeToF(options.at) : options.delaySeconds !== undefined ? now + options.delaySeconds : undefined;
+  // Sidekiq's perform_in/perform_at write "at" only for a time after now; an earlier one is pushed straight to the queue.
+  const at = requestedAt !== undefined && requestedAt > now ? requestedAt : undefined;
   const item = buildSidekiqItem({
     className,
     definition,
@@ -60,7 +62,7 @@ export async function enqueueWith(runtime: JobsRuntime, jobClass: string, args: 
     jid: runtime.newJid(),
     now,
     ...(options.queue === undefined ? {} : { queue: options.queue }),
-    ...(at === undefined ? {} : { at, scheduled: true }),
+    ...(requestedAt === undefined ? {} : { ...(at === undefined ? {} : { at }), scheduled: true }),
     ...(options.set === undefined ? {} : { set: options.set }),
   });
 

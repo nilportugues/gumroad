@@ -1,12 +1,6 @@
 // Handlers for every class in src/server/jobs/ported-jobs.ts, keyed by Ruby class name.
 import type { RetriesExhausted, RetryIn } from "../retry.ts";
 
-import { refreshCustomDomainRoutabilityWorker } from "./refresh-custom-domain-routability-worker.ts";
-import { processPaymentWorker } from "./process-payment-worker.ts";
-import { retryStripeJpAddressResyncsJob } from "./retry-stripe-jp-address-resyncs-job.ts";
-import { syncWatchedUsersJob } from "./sync-watched-users-job.ts";
-import { recordOrderChargeOutcomeJob } from "./record-order-charge-outcome-job.ts";
-import { orderReviewReminderJob } from "./order-review-reminder-job.ts";
 import { alertOnRetiredManagedAccountActivityJob } from "./alert-on-retired-managed-account-activity-job.ts";
 import { alertOnZeroBuyerCurrencyWalletPurchasesJob } from "./alert-on-zero-buyer-currency-wallet-purchases-job.ts";
 import { backfillOrphanedShownProductsInProfileSectionsJob } from "./backfill-orphaned-shown-products-in-profile-sections-job.ts";
@@ -29,6 +23,7 @@ import {
   forceFinishLongRunningCommunityChatRecapRunsJob,
   triggerCommunityChatRecapRunJob,
 } from "./community-chat-recap-jobs.ts";
+import { customDomainsVerificationWorker } from "./custom-domains-verification-worker.ts";
 import { deleteExpiredOauthDeviceAuthorizationsJob } from "./delete-expired-oauth-device-authorizations-job.ts";
 import {
   deleteOldPingDeliveriesJob,
@@ -59,6 +54,7 @@ import {
 } from "./lift-platform-stripe-pause-job.ts";
 import { logResendEventJob } from "./log-resend-event-job.ts";
 import { logSendgridEventWorker } from "./log-sendgrid-event-worker.ts";
+import { orderReviewReminderJob } from "./order-review-reminder-job.ts";
 import {
   executeScheduledPayoutsJob,
   failAbandonedPurchaseWorker,
@@ -70,6 +66,7 @@ import {
   updatePayoutStatusWorker,
 } from "./payment-processor-jobs.ts";
 import { blockEmailDomainsWorker, blockObjectWorker, unblockObjectWorker } from "./platform-block-jobs.ts";
+import { processPaymentWorker } from "./process-payment-worker.ts";
 import {
   refreshMerchantAccountProductsRecommendationEligibilityJob,
   refreshUserProductsRecommendationEligibilityJob,
@@ -89,8 +86,11 @@ import { purgeOldDeletedAssetPreviewsWorker } from "./purge-old-deleted-asset-pr
 import { radarSyncValueListsJob } from "./radar-sync-value-lists-job.ts";
 import { radarAddValueListItemJob, radarRemoveValueListItemJob } from "./radar-value-list-jobs.ts";
 import { rebuildGmailAbuseFilterJob } from "./rebuild-gmail-abuse-filter-job.ts";
+import { recordOrderChargeOutcomeJob } from "./record-order-charge-outcome-job.ts";
+import { recordProductFileMissingFromStorageJob } from "./record-product-file-missing-from-storage-job.ts";
 import { recoverAusBacktaxFromStripeAccountJob } from "./recover-aus-backtax-from-stripe-account-job.ts";
 import { refreshClosedTierDiscoverPricesJob } from "./refresh-closed-tier-discover-prices-job.ts";
+import { refreshCustomDomainRoutabilityWorker } from "./refresh-custom-domain-routability-worker.ts";
 import { refreshHighVolumeSellerFeeEligibilityJob } from "./refresh-high-volume-seller-fee-eligibility-job.ts";
 import {
   createMissingDisputeEvidenceJob,
@@ -107,7 +107,14 @@ import {
   updateUserBalanceStatsCacheWorker,
 } from "./refund-payout-guard-jobs.ts";
 import { regenerateSalesRelatedProductsInfosJob } from "./regenerate-sales-related-products-infos-job.ts";
+import {
+  reindexSellerOfferCodesJob,
+  reindexSellerOfferCodesJobRetriesExhausted,
+  reindexSellerOfferCodesRecoveryJob,
+  reindexSellerOfferCodesRecoveryJobRetriesExhausted,
+} from "./reindex-seller-offer-codes-job.ts";
 import { removeSuspendedAccountFollowsWorker } from "./remove-suspended-account-follows-worker.ts";
+import { retryStripeJpAddressResyncsJob } from "./retry-stripe-jp-address-resyncs-job.ts";
 import { blockSuspendedAccountIpWorker, checkPaymentAddressWorker } from "./risk-jobs.ts";
 import { scheduleWorkflowInstallmentJob } from "./schedule-workflow-installment-job.ts";
 import {
@@ -153,6 +160,7 @@ import {
 import { subtitleFileSizeWorker } from "./subtitle-file-size-worker.ts";
 import { suspendAccountsWithPaymentAddressWorker, suspendUsersWorker } from "./suspend-jobs.ts";
 import { syncStripeBusinessProfileUrlWorker } from "./sync-stripe-business-profile-url-worker.ts";
+import { syncWatchedUsersJob } from "./sync-watched-users-job.ts";
 import type { JobHandler } from "./types.ts";
 import { updateCachedSalesRelatedProductsInfosJob } from "./update-cached-sales-related-products-infos-job.ts";
 import { updateCurrenciesWorker } from "./update-currencies-worker.ts";
@@ -312,6 +320,10 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   CacheProductDataWorker: cacheProductDataWorker,
   BackfillOrphanedShownProductsInProfileSectionsJob: backfillOrphanedShownProductsInProfileSectionsJob,
   RefreshHighVolumeSellerFeeEligibilityJob: refreshHighVolumeSellerFeeEligibilityJob,
+  ReindexSellerOfferCodesJob: reindexSellerOfferCodesJob,
+  ReindexSellerOfferCodesRecoveryJob: reindexSellerOfferCodesRecoveryJob,
+  CustomDomainsVerificationWorker: customDomainsVerificationWorker,
+  RecordProductFileMissingFromStorageJob: recordProductFileMissingFromStorageJob,
 };
 
 // `sidekiq_retry_in` and `sidekiq_retries_exhausted` blocks of ported jobs, keyed by Ruby class name.
@@ -323,4 +335,6 @@ export const JOB_RETRY_IN: Record<string, RetryIn> = {
 export const JOB_RETRIES_EXHAUSTED: Record<string, RetriesExhausted> = {
   CreateStripeApplePayDomainWorker: createStripeApplePayDomainWorkerRetriesExhausted,
   LiftPlatformStripePauseJob: liftPlatformStripePauseJobRetriesExhausted,
+  ReindexSellerOfferCodesJob: reindexSellerOfferCodesJobRetriesExhausted,
+  ReindexSellerOfferCodesRecoveryJob: reindexSellerOfferCodesRecoveryJobRetriesExhausted,
 };

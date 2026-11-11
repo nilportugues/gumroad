@@ -676,7 +676,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "DeactivateIntegrationsWorker": {
     "file": "app/sidekiq/deactivate_integrations_worker.rb",
@@ -2078,7 +2078,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RecordSocialScoreShadowEvaluationsJob": {
     "file": "app/sidekiq/record_social_score_shadow_evaluations_job.rb",
@@ -2426,7 +2426,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": true,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ReindexSellerOfferCodesRecoveryJob": {
     "file": "app/sidekiq/reindex_seller_offer_codes_recovery_job.rb",
@@ -2438,7 +2438,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": true,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ReindexSubscriptionCurrentEmailWorker": {
     "file": "app/sidekiq/reindex_subscription_current_email_worker.rb",
