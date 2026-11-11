@@ -148,7 +148,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "AlertSellersOfUndeliveredReceiptsJob": {
     "file": "app/sidekiq/alert_sellers_of_undelivered_receipts_job.rb",
@@ -1767,7 +1767,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "PayoutUsersWorker": {
     "file": "app/sidekiq/payout_users_worker.rb",
@@ -1907,7 +1907,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ProcessPurchaseEarlyFraudWarningJob": {
     "file": "app/sidekiq/process_purchase_early_fraud_warning_job.rb",
@@ -2065,7 +2065,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RecordProductFileMissingFromStorageJob": {
     "file": "app/sidekiq/record_product_file_missing_from_storage_job.rb",
@@ -2229,7 +2229,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RefreshHighVolumeSellerFeeEligibilityJob": {
     "file": "app/sidekiq/refresh_high_volume_seller_fee_eligibility_job.rb",
@@ -2669,7 +2669,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "recurringLockMaxAttempt": 3600,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RetryStripeRejectedPayoutSetupForSellerJob": {
     "file": "app/sidekiq/retry_stripe_rejected_payout_setup_for_seller_job.rb",
@@ -3425,7 +3425,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "TaxFormTransactionReportJob": {
     "file": "app/sidekiq/tax_form_transaction_report_job.rb",

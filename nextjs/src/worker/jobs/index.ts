@@ -1,7 +1,14 @@
 // Handlers for every class in src/server/jobs/ported-jobs.ts, keyed by Ruby class name.
 import type { RetriesExhausted, RetryIn } from "../retry.ts";
 
+import { refreshCustomDomainRoutabilityWorker } from "./refresh-custom-domain-routability-worker.ts";
+import { processPaymentWorker } from "./process-payment-worker.ts";
+import { retryStripeJpAddressResyncsJob } from "./retry-stripe-jp-address-resyncs-job.ts";
+import { syncWatchedUsersJob } from "./sync-watched-users-job.ts";
+import { recordOrderChargeOutcomeJob } from "./record-order-charge-outcome-job.ts";
+import { orderReviewReminderJob } from "./order-review-reminder-job.ts";
 import { alertOnRetiredManagedAccountActivityJob } from "./alert-on-retired-managed-account-activity-job.ts";
+import { alertOnZeroBuyerCurrencyWalletPurchasesJob } from "./alert-on-zero-buyer-currency-wallet-purchases-job.ts";
 import { backfillOrphanedShownProductsInProfileSectionsJob } from "./backfill-orphaned-shown-products-in-profile-sections-job.ts";
 import { backfillPriceCheckerIndexFieldsJob } from "./backfill-price-checker-index-fields-job.ts";
 import { backfillTaggingsCountOnTagsJob } from "./backfill-taggings-count-on-tags-job.ts";
@@ -165,7 +172,14 @@ import {
 } from "./workflow-jobs.ts";
 
 export const JOB_HANDLERS: Record<string, JobHandler> = {
+  RefreshCustomDomainRoutabilityWorker: refreshCustomDomainRoutabilityWorker,
+  ProcessPaymentWorker: processPaymentWorker,
+  RetryStripeJpAddressResyncsJob: retryStripeJpAddressResyncsJob,
+  SyncWatchedUsersJob: syncWatchedUsersJob,
+  RecordOrderChargeOutcomeJob: recordOrderChargeOutcomeJob,
+  OrderReviewReminderJob: orderReviewReminderJob,
   AlertOnRetiredManagedAccountActivityJob: alertOnRetiredManagedAccountActivityJob,
+  AlertOnZeroBuyerCurrencyWalletPurchasesJob: alertOnZeroBuyerCurrencyWalletPurchasesJob,
   "Radar::SyncValueListsJob": radarSyncValueListsJob,
   AlertOnStalledAbandonedCartEmailsJob: alertOnStalledAbandonedCartEmailsJob,
   BackfillMerchantAccountRecommendationEligibilityJob: backfillMerchantAccountRecommendationEligibilityJob,
