@@ -26,6 +26,7 @@ const FIXTURES = "parity/fixtures/requests/api/v2";
 const WS17C_SPEC_DIRS = [
   "users",
   "utm_links",
+  "marketing_actions",
   "emails",
   "workflows",
   "pages",
@@ -269,7 +270,7 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
         expected.jobs = [...(expected.jobs ?? [])]
           .filter((job) => !LOCKED_JOBS.has(job.class) && !FALLBACK_JOBS.has(job.class))
           .sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
-        if (name.includes("hands-back")) {
+        if (name.includes("hands-back") || /-hands-an?-/u.test(name)) {
           handedBack.length = 0;
           const handed = await replayFixtureExchange(fixture, index, replayOptions());
           expect(handedBack).toHaveLength(1);
