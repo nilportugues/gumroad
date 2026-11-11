@@ -26,7 +26,7 @@ import { NotPortedError } from "../not-ported.ts";
 import PAYMENTS_DATA from "../settings/payments-data.generated.json" with { type: "json" };
 import { payoutFacts } from "../settings/payments.ts";
 
-import { emptyBalanceDestinationUnseasoned } from "./instant-payout-eligibility.ts";
+import { emptyBalanceDestinationSeasoned } from "./instant-payout-eligibility.ts";
 import {
   addDays,
   currentPayoutEndDate,
@@ -344,12 +344,18 @@ export type PayoutsPlan = {
   pastPayments: { payment: PaymentRow; bank: BankAccountRow | null }[];
   processingPayments: { payment: PaymentRow; bank: BankAccountRow | null }[];
   activeBank: BankAccountRow | null;
+  // `eligible_for_instant_payouts? && !active_bank_account&.supports_instant_payouts?`, served only where the second is true.
+  showInstantPayoutsNotice: boolean;
   frequency: PayoutFrequency;
   // Stored as daily, scheduled as weekly (see planPayouts).
   dailyFallback: boolean;
   // A cacheable seller whose blob is missing: the page computes live and enqueues UpdateUserBalanceStatsCacheWorker.
   refreshBalanceStatsCache: boolean;
+  // The blob's two periods, when one exists: Rails serves them as stored, however stale, and still enqueues the refresh.
+  cached: CachedPeriods | null;
 };
+
+type CachedPeriods = { next: Record<string, unknown> | null; processing: Record<string, unknown>[] };
 
 const completedDisplayable = (userId: bigint) =>
   Prisma.sql`FROM payments WHERE payments.user_id = ${userId} AND payments.state = 'completed' AND payments.created_at >= ${OLDEST_DISPLAYABLE}`;
@@ -386,55 +392,98 @@ export async function balanceStatsCacheApplies(userId: bigint): Promise<boolean>
   }
 }
 
-// UserBalanceStatsService#read_cache: a blob that is absent, unparseable or JSON null is a miss, and so is an unreadable Redis.
-export async function balanceStatsCacheHit(userId: bigint): Promise<boolean> {
+// UserBalanceStatsService#read_cache: a blob that is absent, unparseable or JSON null/false is a miss (null here), and so is an
+// unreadable Redis.
+export async function readBalanceStatsBlob(userId: bigint): Promise<unknown> {
   try {
     const data = await getRedis("main").get(balanceStatsCacheKey(userId));
-    if (data === null) return false;
+    if (data === null) return null;
     const parsed: unknown = JSON.parse(data);
-    return parsed !== null && parsed !== false;
+    return parsed === false ? null : parsed;
   } catch {
-    return false;
+    return null;
   }
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+// `cached.slice(:next_payout_period_data, :processing_payout_periods_data)` and what the presenter then does with each key.
+// A blob that makes Rails raise (no processing list, a period that is not a hash) is served by Rails.
+function cachedPeriods(blob: unknown): CachedPeriods {
+  if (!isRecord(blob)) throw new HandBackToRails();
+  const next = blob.next_payout_period_data ?? null;
+  const processing = blob.processing_payout_periods_data;
+  if ((next !== null && !isRecord(next)) || !Array.isArray(processing) || !processing.every(isRecord))
+    throw new HandBackToRails();
+  return { next, processing };
+}
+
+// User#eligible_for_instant_payouts?. Stripe-held balances add a second candidate destination
+// (StripePayoutProcessor.destination_merchant_account(user, held)) that is not ported, so they hand back.
+async function eligibleForInstantPayouts(
+  seller: Seller,
+  facts: Awaited<ReturnType<typeof payoutFacts>>,
+  compliant: boolean,
+  today: Date,
+  now: Date,
+): Promise<boolean> {
+  if (
+    !compliant ||
+    UserFlags.isSet(seller.flags, "payouts_paused_internally") ||
+    UserFlags.isSet(seller.flags, "payouts_paused_by_user")
+  )
+    return false;
+  const completed = await one(
+    Prisma.sql`SELECT payments.id FROM payments WHERE payments.user_id = ${seller.id} AND payments.state = 'completed' LIMIT 1`,
+  );
+  if (completed === null || facts.legalEntityCountry !== "US") return false;
+
+  try {
+    for (const balance of await unpaidBalancesUpToDate(seller.id, today)) {
+      const account =
+        balance.merchant_account_id === null ? null : await merchantAccountById(balance.merchant_account_id);
+      if (account !== null && holderOfFunds(account) === "stripe") throw new HandBackToRails();
+    }
+  } catch (error) {
+    if (error instanceof NotPortedError) throw new HandBackToRails();
+    throw error;
+  }
+  return emptyBalanceDestinationSeasoned(
+    seller.id,
+    {
+      connectRoutingActive: facts.stripeConnectRoutingActive,
+      connect: facts.connectAccount,
+      standard: facts.stripeAccount,
+    },
+    now,
+  );
 }
 
 export async function planPayouts(seller: Seller, pageParam: string | null, now = new Date()): Promise<PayoutsPlan> {
   const record = Users.load(seller);
   const storedFrequency = jsonDataForAttr(record, "payout_frequency", "weekly");
   if (!PAYOUT_FREQUENCIES.includes(storedFrequency as PayoutFrequency)) throw new HandBackToRails();
-  // Payouts.is_user_payable(INSTANT) is false for a seller that is not compliant, before it reads anything else,
-  // so a daily schedule falls back to the weekly cycle (get_initial_payout_date). Any other daily seller hands back.
   const compliant = seller.user_risk_state === "compliant";
-  if (storedFrequency === "daily" && compliant) throw new HandBackToRails();
+  // A daily schedule pays only while Payouts.is_user_payable(INSTANT) holds, which needs instant_payouts_supported?. A
+  // seller who could be supported hands back below (Stripe is asked), so any daily seller that gets that far is not
+  // payable instantly and falls back to the weekly cycle (get_initial_payout_date).
   const frequency = storedFrequency === "daily" ? "weekly" : storedFrequency;
-  // A cached blob is served as is by Rails and a job refreshes it; only a miss (computed live, job enqueued) is ported.
   const refreshBalanceStatsCache = await balanceStatsCacheApplies(seller.id);
-  if (refreshBalanceStatsCache && (await balanceStatsCacheHit(seller.id))) throw new HandBackToRails();
+  const blob = refreshBalanceStatsCache ? await readBalanceStatsBlob(seller.id) : null;
+  const cached = blob === null ? null : cachedPeriods(blob);
 
   const facts = await payoutFacts(seller, now);
-  // User#eligible_for_instant_payouts? asks Stripe about the bank account once the account is seasoned.
-  const paused =
-    UserFlags.isSet(seller.flags, "payouts_paused_internally") ||
-    UserFlags.isSet(seller.flags, "payouts_paused_by_user");
+  const activeBank = await activeBankAccount(seller.id);
+  const eligibleForInstant = await eligibleForInstantPayouts(seller, facts, compliant, dateOnly(now), now);
+  // BankAccount#supports_instant_payouts? is false without both Stripe ids, and asks Stripe otherwise.
   if (
-    compliant &&
-    !paused &&
-    facts.legalEntityCountry === "US" &&
-    (await one(
-      Prisma.sql`SELECT payments.id FROM payments WHERE payments.user_id = ${seller.id} AND payments.state = 'completed' LIMIT 1`,
-    )) !== null
-  ) {
-    const unseasoned = await emptyBalanceDestinationUnseasoned(
-      seller.id,
-      {
-        connectRoutingActive: facts.stripeConnectRoutingActive,
-        connect: facts.connectAccount,
-        standard: facts.stripeAccount,
-      },
-      now,
-    );
-    if (!unseasoned) throw new HandBackToRails();
-  }
+    eligibleForInstant &&
+    activeBank &&
+    present(activeBank.stripe_connect_account_id) &&
+    present(activeBank.stripe_bank_account_id)
+  )
+    throw new HandBackToRails();
 
   const count = await sumOf(Prisma.sql`SELECT COUNT(*) AS value ${completedDisplayable(seller.id)}`);
   const pageNumber = validatedPageNumber(rubyToI(pageParam), count);
@@ -463,10 +512,12 @@ export async function planPayouts(seller: Seller, pageParam: string | null, now 
     pages,
     pastPayments: await withBank(past),
     processingPayments: await withBank(processing),
-    activeBank: await activeBankAccount(seller.id),
+    activeBank,
+    showInstantPayoutsNotice: eligibleForInstant,
     frequency: frequency as PayoutFrequency,
     dailyFallback: storedFrequency === "daily",
     refreshBalanceStatsCache,
+    cached,
   };
 
   // Everything the props would throw NotPortedError for: Rails serves those requests.
@@ -811,6 +862,10 @@ export function payoutsProps(plan: PayoutsPlan, now = new Date()): PayoutsProps 
   return {
     next: async () => {
       await refreshCache();
+      // `payout_periods[:next_payout_period_data]&.merge(stripe_connect_routing_active: ...)`
+      if (plan.cached) {
+        return plan.cached.next && { ...plan.cached.next, stripe_connect_routing_active: await connectRouting() };
+      }
       // UserBalanceStatsService#next_payout_period_data: none while a standard payout is still processing.
       const pending = await one(
         Prisma.sql`SELECT payments.id FROM payments WHERE payments.user_id = ${seller.id} AND payments.state = 'processing' AND (JSON_UNQUOTE(JSON_EXTRACT(payments.json_data, '$.type')) != ${INSTANT_TYPE} OR JSON_EXTRACT(payments.json_data, '$.type') IS NULL) LIMIT 1`,
@@ -821,6 +876,10 @@ export function payoutsProps(plan: PayoutsPlan, now = new Date()): PayoutsProps 
     },
     processing: async () => {
       await refreshCache();
+      if (plan.cached) {
+        const routing = await connectRouting();
+        return plan.cached.processing.map((item) => ({ ...item, stripe_connect_routing_active: routing }));
+      }
       const result: Period[] = [];
       for (const { payment, bank } of plan.processingPayments) {
         const data = await period(await oldPayoutPeriodData(await ctx(), payment, bank), false);
@@ -839,7 +898,7 @@ export function payoutsProps(plan: PayoutsPlan, now = new Date()): PayoutsProps 
       payouts_paused_by: (await ctx()).facts.payoutsPausedBySource,
       payout_reserve_percent: (await ctx()).facts.chargebackRateReserveActive ? RESERVE_PERCENT : null,
       instant_payout: null,
-      show_instant_payouts_notice: false,
+      show_instant_payouts_notice: plan.showInstantPayoutsNotice,
       tax_center_enabled: await taxCenterEnabled(seller.id),
       pagination: { pages: plan.pages, page: plan.pageNumber },
       scheduled_payout: await scheduledPayoutProps(seller),

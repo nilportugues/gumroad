@@ -1,6 +1,6 @@
 // The database half of User#eligible_for_instant_payouts? (app/models/user.rb): the seasoning of the payout
 // destination account. Whether an eligible seller's bank account supports instant payouts is a Stripe call
-// (BankAccount#supports_instant_payouts?), so the Payouts page only serves a seller this proves ineligible.
+// (BankAccount#supports_instant_payouts?) unless the bank account carries no Stripe ids, which the Payouts page checks.
 import { Prisma } from "@prisma/client";
 
 import { ago } from "../../models/concerns/ruby-time.ts";
@@ -42,11 +42,12 @@ const stripeAccountsOf = (userId: bigint) =>
     Prisma.sql`SELECT ${Prisma.raw("`merchant_accounts`.*")} FROM ${table("merchant_accounts")} WHERE ${column("merchant_accounts", "user_id")} = ${userId} AND ${column("merchant_accounts", "charge_processor_id")} = 'stripe'`,
   );
 
-// `destination_merchant_account(user, [])` is one of the two accounts #stripe_accounts_seasoned_for_instant_payouts?
-// requires to be seasoned (the other depends on the balances Stripe holds), so an unseasoned one makes the seller
-// ineligible whatever the other is. `connect` and `standard` are the seller's alive Stripe Connect and Gumroad-managed
-// accounts; the Connect one wins when the seller routes through Stripe Connect.
-export async function emptyBalanceDestinationUnseasoned(
+// `StripePayoutProcessor.destination_merchant_account(user, [])`, the destination while Stripe holds none of the seller's
+// payable balances, then User#stripe_accounts_seasoned_for_instant_payouts?: it must exist, be active (the alive
+// accounts passed in are) and be seasoned. `connect` and `standard` are the seller's alive Stripe Connect and
+// Gumroad-managed accounts; the Connect one wins when the seller routes through Stripe Connect. Sellers whose balances
+// Stripe holds have a second candidate destination and are the caller's to hand back.
+export async function emptyBalanceDestinationSeasoned(
   userId: bigint,
   destinations: {
     connectRoutingActive: boolean;
@@ -59,5 +60,5 @@ export async function emptyBalanceDestinationUnseasoned(
     destinations.connectRoutingActive ? destinations.connect : destinations.standard
   ) as SeasoningRow | null;
   if (destination === null) return false;
-  return !seasonedForInstantPayouts(destination, await stripeAccountsOf(userId), now);
+  return seasonedForInstantPayouts(destination, await stripeAccountsOf(userId), now);
 }

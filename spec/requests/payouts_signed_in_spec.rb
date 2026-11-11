@@ -339,6 +339,169 @@ describe "Payouts page when signed in", type: :request do
       expect(props["next_payout_period_data"]).to include("status" => "payable", "payout_cents" => 12_000)
       expect(UpdateUserBalanceStatsCacheWorker.jobs).to be_empty
     end
+
+    describe "with a cached blob" do
+      let(:blob_key) { "balance_stats_for_user_#{seller.id}_v2" }
+
+      it "serves the next period from the blob, not from the ledger, and queues the refresh", parity: true do
+        UserBalanceStatsService.new(user: seller).write_cache
+        balance(amount_cents: 3_000, days_ago: 21)
+
+        visit_payouts
+
+        expect(response).to be_successful
+        expect(props["next_payout_period_data"]).to include("status" => "payable", "payout_cents" => 12_000, "stripe_connect_routing_active" => false)
+        expect(UpdateUserBalanceStatsCacheWorker.jobs.map { _1["args"] }).to eq([[seller.id]])
+      end
+
+      it "serves a processing payout from the blob and no next period", parity: true do
+        payment = create(
+          :payment, user: seller, amount_cents: 4_000, processor: PayoutProcessorType::STRIPE, currency: Currency::USD,
+                    bank_account: seller.active_bank_account, stripe_transfer_id: "tr_cached", stripe_connect_account_id: "acct_cached",
+                    created_at: 1.day.ago, payout_period_end_date: Date.current - 10
+        )
+        UserBalanceStatsService.new(user: seller).write_cache
+        payment.update_columns(amount_cents: 4_500)
+
+        visit_payouts
+
+        expect(props["next_payout_period_data"]).to be_nil
+        expect(props["processing_payout_periods_data"].map { _1["payout_cents"] }).to eq([4_000])
+      end
+
+      it "computes the periods live when the blob cannot be parsed", parity: true do
+        $redis.set(blob_key, "{not json")
+
+        visit_payouts
+
+        expect(props["next_payout_period_data"]).to include("status" => "payable", "payout_cents" => 12_000)
+        expect(UpdateUserBalanceStatsCacheWorker.jobs.map { _1["args"] }).to eq([[seller.id]])
+      end
+    end
+  end
+
+  describe "instant payout eligibility" do
+    let(:account) { create(:merchant_account, user: seller, created_at: 90.days.ago) }
+    let(:bank) { create(:ach_account, user: seller) }
+
+    before do
+      seller.update_columns(user_risk_state: "compliant")
+      create(:user_compliance_info, user: seller)
+      account
+      bank
+      completed_payment(days_ago: 30, bank_account: bank)
+      balance(amount_cents: 12_000)
+    end
+
+    it "offers the instant payout notice to a seller with a seasoned account and a bank account Stripe has not matched", parity: true do
+      visit_payouts
+
+      expect(props).to include("show_instant_payouts_notice" => true, "instant_payout" => nil)
+      expect(props["next_payout_period_data"]).to include("status" => "payable", "payout_cents" => 12_000)
+    end
+
+    it "offers the notice to a seller paid through PayPal", parity: true do
+      bank.mark_deleted!
+      seller.update!(payment_address: "payouts-seller@example.com")
+
+      visit_payouts
+
+      expect(props).to include("show_instant_payouts_notice" => true, "instant_payout" => nil)
+    end
+
+    it "seasons a new account off an older retired one of the same kind", parity: true do
+      account.update_columns(created_at: 1.day.ago)
+      create(:merchant_account, user: seller, created_at: 90.days.ago, charge_processor_alive_at: 90.days.ago, charge_processor_deleted_at: 30.days.ago, deleted_at: 30.days.ago)
+
+      visit_payouts
+
+      expect(props["show_instant_payouts_notice"]).to eq(true)
+    end
+
+    it "withholds the notice from a seller that is not compliant", parity: true do
+      seller.update_columns(user_risk_state: "not_reviewed")
+
+      visit_payouts
+
+      expect(props["show_instant_payouts_notice"]).to eq(false)
+    end
+
+    it "withholds the notice while the account is too new", parity: true do
+      account.update_columns(created_at: 1.day.ago)
+
+      visit_payouts
+
+      expect(props["show_instant_payouts_notice"]).to eq(false)
+    end
+
+    it "withholds the notice from a seller with no payout account", parity: true do
+      account.update_columns(deleted_at: Time.current)
+
+      visit_payouts
+
+      expect(props["show_instant_payouts_notice"]).to eq(false)
+    end
+
+    it "withholds the notice while payouts are paused", parity: true do
+      seller.update!(payouts_paused_by_user: true)
+
+      visit_payouts
+
+      expect(props["show_instant_payouts_notice"]).to eq(false)
+    end
+  end
+
+  describe "daily payout frequency" do
+    before do
+      seller.update_columns(user_risk_state: "compliant")
+      seller.payout_frequency = User::PayoutSchedule::DAILY
+      seller.save!(validate: false)
+      balance(amount_cents: 12_000)
+    end
+
+    it "falls back to the weekly cycle for a seller that is not compliant", parity: true do
+      seller.update_columns(user_risk_state: "not_reviewed")
+
+      visit_payouts
+
+      expect(props["next_payout_period_data"]).to include("is_current_period" => true)
+    end
+
+    it "falls back to the weekly cycle for a compliant seller outside the United States", parity: true do
+      create(:user_compliance_info, user: seller, country: "Singapore")
+
+      visit_payouts
+
+      expect(props["next_payout_period_data"]).to include("status" => "payable", "payout_cents" => 12_000)
+    end
+
+    it "falls back to the weekly cycle for a compliant seller whose payouts are paused", parity: true do
+      seller.update!(payouts_paused_by_user: true)
+
+      visit_payouts
+
+      expect(props["payouts_status"]).to eq("paused")
+    end
+
+    it "falls back to the weekly cycle for a seller whose balance is below the instant minimum", parity: true do
+      Balance.where(user: seller).update_all(amount_cents: 99)
+
+      visit_payouts
+
+      expect(props["next_payout_period_data"]).to include("status" => "not_payable")
+    end
+
+    it "falls back to the weekly cycle for a seasoned US seller whose bank account Stripe has not matched", parity: true do
+      create(:user_compliance_info, user: seller)
+      create(:merchant_account, user: seller, created_at: 90.days.ago)
+      bank = create(:ach_account, user: seller)
+      completed_payment(days_ago: 30, bank_account: bank)
+
+      visit_payouts
+
+      expect(props["next_payout_period_data"]).to include("status" => "payable", "payout_cents" => 12_000)
+      expect(props["show_instant_payouts_notice"]).to eq(true)
+    end
   end
 
   describe "team members" do

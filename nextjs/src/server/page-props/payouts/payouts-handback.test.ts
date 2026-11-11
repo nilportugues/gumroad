@@ -50,10 +50,66 @@ describe.skipIf(!url)("planPayouts hands back what it cannot prove", () => {
     expect(plan.pastPayments).toHaveLength(1);
   });
 
-  it("hands back a US seller with a completed payout: Stripe is asked about instant payouts", async () => {
-    await expect(
-      planPayouts(await seller({ country: "United States", completedPayout: true }), null, NOW),
-    ).rejects.toBeInstanceOf(HandBackToRails);
+  describe("a US seller with a completed payout", () => {
+    const account = (created: string) =>
+      db.$executeRawUnsafe(
+        `INSERT INTO merchant_accounts (user_id, charge_processor_id, charge_processor_merchant_id, charge_processor_alive_at, created_at, updated_at) VALUES (${USER_ID}, 'stripe', 'acct_handback', '${created}', '${created}', '${created}')`,
+      );
+    const bank = (ids: { connect?: string; external?: string }) =>
+      db.$executeRawUnsafe(
+        `INSERT INTO bank_accounts (user_id, type, stripe_connect_account_id, stripe_bank_account_id, created_at, updated_at) VALUES (${USER_ID}, 'AchAccount', ${ids.connect ? `'${ids.connect}'` : "NULL"}, ${ids.external ? `'${ids.external}'` : "NULL"}, NOW(), NOW())`,
+      );
+    const balance = (merchantAccountId: string) =>
+      db.$executeRawUnsafe(
+        `INSERT INTO balances (user_id, merchant_account_id, date, amount_cents, state, created_at, updated_at) VALUES (${USER_ID}, ${merchantAccountId}, '2026-03-01', 500, 'unpaid', NOW(), NOW())`,
+      );
+    const user = () => seller({ country: "United States", completedPayout: true });
+    afterEach(async () => {
+      await db.$executeRawUnsafe(`DELETE FROM merchant_accounts WHERE user_id = ${USER_ID}`);
+      await db.$executeRawUnsafe(`DELETE FROM bank_accounts WHERE user_id = ${USER_ID}`);
+      await db.$executeRawUnsafe(`DELETE FROM balances WHERE user_id = ${USER_ID}`);
+    });
+
+    it("is not eligible without a payout account", async () => {
+      expect((await planPayouts(await user(), null, NOW)).showInstantPayoutsNotice).toBe(false);
+    });
+
+    it("is eligible with a seasoned account and no bank account", async () => {
+      const seller = await user();
+      await account("2026-01-01");
+      expect((await planPayouts(seller, null, NOW)).showInstantPayoutsNotice).toBe(true);
+    });
+
+    it("is eligible with a seasoned account and a bank account missing either Stripe id", async () => {
+      for (const ids of [{}, { connect: "acct_1" }, { external: "ba_1" }]) {
+        const seller = await user();
+        await account("2026-01-01");
+        await bank(ids);
+        expect((await planPayouts(seller, null, NOW)).showInstantPayoutsNotice, JSON.stringify(ids)).toBe(true);
+        await db.$executeRawUnsafe(`DELETE FROM bank_accounts WHERE user_id = ${USER_ID}`);
+      }
+    });
+
+    it("hands back a seasoned account whose bank account carries both Stripe ids: Stripe is asked", async () => {
+      const seller = await user();
+      await account("2026-01-01");
+      await bank({ connect: "acct_1", external: "ba_1" });
+      await expect(planPayouts(seller, null, NOW)).rejects.toBeInstanceOf(HandBackToRails);
+    });
+
+    it("serves an unseasoned account whose bank account carries both Stripe ids", async () => {
+      const seller = await user();
+      await account("2026-03-01");
+      await bank({ connect: "acct_1", external: "ba_1" });
+      expect((await planPayouts(seller, null, NOW)).showInstantPayoutsNotice).toBe(false);
+    });
+
+    it("hands back a seller whose unpaid balance Stripe holds: a second destination is possible", async () => {
+      const seller = await user();
+      await account("2026-01-01");
+      await balance(`(SELECT id FROM merchant_accounts WHERE user_id = ${USER_ID} LIMIT 1)`);
+      await expect(planPayouts(seller, null, NOW)).rejects.toBeInstanceOf(HandBackToRails);
+    });
   });
 
   it("serves a US seller that has not been paid yet", async () => {
@@ -61,10 +117,30 @@ describe.skipIf(!url)("planPayouts hands back what it cannot prove", () => {
     expect(plan.pastPayments).toEqual([]);
   });
 
-  it("hands back daily payouts of a compliant seller", async () => {
-    await expect(planPayouts(await seller({ json: '{"payout_frequency":"daily"}' }), null, NOW)).rejects.toBeInstanceOf(
-      HandBackToRails,
+  it("serves daily payouts of a compliant seller who cannot be paid instantly on the weekly schedule", async () => {
+    const plan = await planPayouts(await seller({ json: '{"payout_frequency":"daily"}' }), null, NOW);
+    expect(plan.dailyFallback).toBe(true);
+    expect(plan.frequency).toBe("weekly");
+  });
+
+  it("hands back daily payouts of a compliant seller whose bank account Stripe may support instantly", async () => {
+    const user = await seller({
+      country: "United States",
+      completedPayout: true,
+      json: '{"payout_frequency":"daily"}',
+    });
+    await db.$executeRawUnsafe(
+      `INSERT INTO merchant_accounts (user_id, charge_processor_id, charge_processor_merchant_id, charge_processor_alive_at, created_at, updated_at) VALUES (${USER_ID}, 'stripe', 'acct_handback', '2026-01-01', '2026-01-01', '2026-01-01')`,
     );
+    await db.$executeRawUnsafe(
+      `INSERT INTO bank_accounts (user_id, type, stripe_connect_account_id, stripe_bank_account_id, created_at, updated_at) VALUES (${USER_ID}, 'AchAccount', 'acct_1', 'ba_1', NOW(), NOW())`,
+    );
+    try {
+      await expect(planPayouts(user, null, NOW)).rejects.toBeInstanceOf(HandBackToRails);
+    } finally {
+      await db.$executeRawUnsafe(`DELETE FROM merchant_accounts WHERE user_id = ${USER_ID}`);
+      await db.$executeRawUnsafe(`DELETE FROM bank_accounts WHERE user_id = ${USER_ID}`);
+    }
   });
 
   it("serves daily payouts of a seller that is not compliant on the weekly schedule", async () => {
@@ -122,13 +198,45 @@ describe.skipIf(!url)("planPayouts hands back what it cannot prove", () => {
     };
     afterEach(cleanUp);
 
-    it("hands back a seller whose blob is cached", async () => {
+    it("serves the two periods of a cached blob as stored", async () => {
+      const user = await cacheable();
+      await redis().set(
+        balanceStatsCacheKey(USER_ID),
+        JSON.stringify({
+          generated_at: "2026-03-04T11:00:00Z",
+          next_payout_period_data: { status: "payable", payout_cents: 1 },
+          processing_payout_periods_data: [{ payout_cents: 2 }],
+        }),
+      );
+      const plan = await planPayouts(user, null, NOW);
+      expect(plan.refreshBalanceStatsCache).toBe(true);
+      expect(plan.cached).toEqual({ next: { status: "payable", payout_cents: 1 }, processing: [{ payout_cents: 2 }] });
+    });
+
+    it("serves a blob whose next period is null", async () => {
       const user = await cacheable();
       await redis().set(
         balanceStatsCacheKey(USER_ID),
         JSON.stringify({ next_payout_period_data: null, processing_payout_periods_data: [] }),
       );
-      await expect(planPayouts(user, null, NOW)).rejects.toBeInstanceOf(HandBackToRails);
+      expect((await planPayouts(user, null, NOW)).cached).toEqual({ next: null, processing: [] });
+    });
+
+    it("hands back a blob Rails would raise on", async () => {
+      const user = await cacheable();
+      const key = balanceStatsCacheKey(USER_ID);
+      for (const blob of [
+        { next_payout_period_data: null },
+        { next_payout_period_data: false, processing_payout_periods_data: [] },
+        { next_payout_period_data: null, processing_payout_periods_data: {} },
+        { next_payout_period_data: null, processing_payout_periods_data: ["x"] },
+        [],
+        "text",
+        true,
+      ]) {
+        await redis().set(key, JSON.stringify(blob));
+        await expect(planPayouts(user, null, NOW), JSON.stringify(blob)).rejects.toBeInstanceOf(HandBackToRails);
+      }
     });
 
     it("computes live and plans the refresh job when the blob is missing", async () => {
@@ -138,7 +246,7 @@ describe.skipIf(!url)("planPayouts hands back what it cannot prove", () => {
 
     it("reads an unparseable or null blob as a miss", async () => {
       const user = await cacheable();
-      for (const blob of ["{not json", "null", ""]) {
+      for (const blob of ["{not json", "null", "false", ""]) {
         await redis().set(balanceStatsCacheKey(USER_ID), blob);
         expect((await planPayouts(user, null, NOW)).refreshBalanceStatsCache, blob).toBe(true);
       }
