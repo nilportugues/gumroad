@@ -191,7 +191,54 @@ describe "Checkout upsells when signed in", type: :request do
     end
 
     describe "cart_item" do
-      it "hands a cart item to Rails", parity: true do
+      it "answers the cart item of a product", parity: true do
+        seller.update!(display_offer_code_field: true, tipping_enabled: true)
+        create(:custom_field, seller:, name: "Phone", global: true, required: true)
+        create(:universal_offer_code, user: seller)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response).to have_http_status(:ok)
+        expect(response.parsed_body).to include("price" => 1000, "quantity" => nil, "force_new_subscription" => false)
+        expect(response.parsed_body["product"]).to include("name" => "Base product", "has_offer_codes" => true, "has_tipping_enabled" => true, "cross_sells" => [])
+      end
+
+      it "answers the first available option of a product with versions", parity: true do
+        versions = create(:product_with_digital_versions, user: seller, name: "Versions", created_at: Time.utc(2025, 1, 1))
+
+        get cart_item_checkout_upsells_path(product_id: versions.external_id), headers: accept_json
+
+        expect(response).to have_http_status(:ok)
+        expect(response.parsed_body["option_id"]).to be_present
+      end
+
+      it "hands a membership cart item to Rails", parity: true do
+        membership = create(:membership_product_with_preset_tiered_pricing, user: seller, name: "Club", created_at: Time.utc(2025, 1, 1))
+
+        get cart_item_checkout_upsells_path(product_id: membership.external_id), headers: accept_json
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "hands a physical product cart item to Rails", parity: true do
+        poster = create(:physical_product, user: seller, name: "Poster", created_at: Time.utc(2025, 1, 1))
+
+        get cart_item_checkout_upsells_path(product_id: poster.external_id), headers: accept_json
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "hands an upsell product cart item to Rails", parity: true do
+        create(:upsell, seller:, product:, name: "Pro")
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "hands a cross-sell product cart item to Rails", parity: true do
+        create(:upsell, seller:, product: create(:product, user: seller, name: "Extra"), name: "Add", cross_sell: true, selected_products: [product])
+
         get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
 
         expect(response).to have_http_status(:ok)

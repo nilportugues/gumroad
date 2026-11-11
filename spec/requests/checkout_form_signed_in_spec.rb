@@ -5,9 +5,9 @@ require "spec_helper"
 # The checkout form settings page (Checkout::FormController) when signed in, recorded for the Next.js port (PARITY_RECORD=1)
 # and replayed by nextjs/parity/__tests__/checkout-form.replay.test.ts, which sends the last request of each example.
 #
-# The page's cart item is CheckoutPresenter output for the seller's newest product, and a connected PayPal account is
-# fetched live from PayPal, so those pages are "hands a ..." examples: the replay asserts Node passed the request to Rails
-# untouched and wrote nothing.
+# The page's cart item is CheckoutPresenter output for the seller's newest product. Node serves it for a plain product; a physical
+# product, a membership, an upsell or cross-sell, and a connected PayPal account (fetched live from PayPal) are "hands a ..." examples:
+# the replay asserts Node passed the request to Rails untouched and wrote nothing.
 describe "Checkout form settings when signed in", type: :request do
   include Parity::AudienceSignedIn
 
@@ -137,23 +137,116 @@ describe "Checkout form settings when signed in", type: :request do
       expect(inertia_props_of(response)["paypal_connect"]).to include("show_paypal_connect" => true)
     end
 
-    it "hands a seller with products to Rails", parity: true do
-      create(:product, user: seller, name: "Design course")
+    it "previews checkout with the seller's product", parity: true do
+      create(:product, user: seller, name: "Design course", price_cents: 1500, created_at: Time.utc(2025, 1, 2))
       log_in(seller)
 
       get checkout_form_path
 
       expect(response).to be_successful
-      expect(inertia_props_of(response)["cart_item"]).to be_present
+      props = inertia_props_of(response)
+      expect(props["cart_item"]["product"]).to include("name" => "Design course", "price_cents" => 1500, "cross_sells" => [], "upsell" => nil)
+      expect(props["card_product"]).to include("name" => "Design course", "price_cents" => 1500)
     end
 
-    it "hands a seller with an archived product to Rails", parity: true do
+    it "previews the newest product and lists them all, archived ones included", parity: true do
+      create(:product, user: seller, name: "Old course", archived: true, created_at: Time.utc(2025, 1, 1))
+      create(:product, user: seller, name: "New course", price_cents: 700, created_at: Time.utc(2025, 3, 1))
+      log_in(seller)
+
+      get checkout_form_path
+
+      props = inertia_props_of(response)
+      expect(props["cart_item"]["product"]["name"]).to eq("New course")
+      expect(props["products"].map { _1.slice("name", "archived") }).to eq([{ "name" => "New course", "archived" => false }, { "name" => "Old course", "archived" => true }])
+    end
+
+    it "previews a lone archived product", parity: true do
       create(:product, user: seller, name: "Old course", archived: true)
       log_in(seller)
 
       get checkout_form_path
 
       expect(inertia_props_of(response)["products"]).to eq([{ "id" => Link.last.external_id, "name" => "Old course", "archived" => true }])
+    end
+
+    it "carries the seller's settings, custom fields and offer codes into the cart item", parity: true do
+      seller.update!(display_offer_code_field: true, tipping_enabled: true, gifting_disabled: true, link_disabled: true, paypal_card_funding_disabled: true)
+      product = create(:product, user: seller, name: "Workshop", price_cents: 2500, customizable_price: true, suggested_price_cents: 3000, quantity_enabled: true, max_purchase_count: 10, created_at: Time.utc(2025, 1, 2))
+      create(:custom_field, seller:, name: "Phone", global: true, required: true)
+      create(:custom_field, seller:, name: "Company", products: [product], required: false)
+      create(:custom_field, seller:, name: "After the sale", is_post_purchase: true, global: true)
+      create(:offer_code, user: seller, products: [product], code: "SAVE")
+      log_in(seller)
+
+      get checkout_form_path
+
+      cart_product = inertia_props_of(response)["cart_item"]["product"]
+      expect(cart_product).to include("has_offer_codes" => true, "has_tipping_enabled" => true, "can_gift" => false, "link_disabled" => true, "paypal_card_funding_disabled" => true,
+                                      "is_quantity_enabled" => true, "pwyw" => { "suggested_price_cents" => 3000 })
+      expect(cart_product["custom_fields"].map { _1["name"] }).to eq(%w[Phone Company])
+    end
+
+    it "previews a product with options and a universal offer code", parity: true do
+      seller.update!(display_offer_code_field: true)
+      create(:product_with_digital_versions, user: seller, name: "Versions", created_at: Time.utc(2025, 1, 2))
+      create(:universal_offer_code, user: seller)
+      log_in(seller)
+
+      get checkout_form_path
+
+      cart_item = inertia_props_of(response)["cart_item"]
+      expect(cart_item["product"]["has_offer_codes"]).to eq(true)
+      expect(cart_item["option_id"]).to be_present
+    end
+
+    it "hands a seller with a physical product to Rails", parity: true do
+      create(:physical_product, user: seller, name: "Poster", created_at: Time.utc(2025, 1, 2))
+      log_in(seller)
+
+      get checkout_form_path
+
+      expect(inertia_props_of(response)["cart_item"]["product"]).to include("require_shipping" => true)
+    end
+
+    it "hands a seller with a membership to Rails", parity: true do
+      create(:membership_product_with_preset_tiered_pricing, user: seller, name: "Club", created_at: Time.utc(2025, 1, 2))
+      log_in(seller)
+
+      get checkout_form_path
+
+      expect(inertia_props_of(response)["cart_item"]["product"]["is_tiered_membership"]).to eq(true)
+    end
+
+    it "hands a seller whose product has an upsell to Rails", parity: true do
+      product = create(:product, user: seller, name: "Base", created_at: Time.utc(2025, 1, 2))
+      create(:upsell, seller:, product:, name: "Pro")
+      log_in(seller)
+
+      get checkout_form_path
+
+      expect(inertia_props_of(response)["cart_item"]["product"]["upsell"]).to be_present
+    end
+
+    it "hands a seller whose product has a cross-sell to Rails", parity: true do
+      product = create(:product, user: seller, name: "Base", created_at: Time.utc(2025, 1, 2))
+      offered = create(:product, user: seller, name: "Extra", created_at: Time.utc(2025, 1, 1))
+      create(:upsell, seller:, product: offered, name: "Add", cross_sell: true, selected_products: [product])
+      log_in(seller)
+
+      get checkout_form_path
+
+      expect(inertia_props_of(response)["cart_item"]["product"]["cross_sells"]).to be_present
+    end
+
+    it "hands a seller whose newest products share a creation time to Rails", parity: true do
+      create(:product, user: seller, name: "One", created_at: Time.utc(2025, 1, 2))
+      create(:product, user: seller, name: "Two", created_at: Time.utc(2025, 1, 2))
+      log_in(seller)
+
+      get checkout_form_path
+
+      expect(response).to be_successful
     end
 
     it "hands a seller with a connected PayPal account to Rails", parity: true do

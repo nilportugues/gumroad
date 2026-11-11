@@ -947,3 +947,21 @@ export async function productProps(row: LinkRow, seller: UserRow, viewer: Produc
     wishlists,
   };
 }
+
+// The pieces CheckoutPresenter#checkout_product reuses from ProductProps.
+export { analyticsData, pppDetails, recurrencesProps, TRIAL_UNITS };
+
+// Link#rental
+export async function rentalProps(row: LinkRow): Promise<{ price_cents: number; rent_only: boolean } | null> {
+  const priced: Priced = {
+    purchaseType: PURCHASE_TYPES[row.purchase_type ?? -1] ?? null,
+    prices: await alivePricesOf(row.id),
+  };
+  const price = rentalPriceCents(row, priced);
+  return price === null ? null : { price_cents: price, rent_only: priced.purchaseType === "rent_only" };
+}
+
+// Link#recurrences
+export async function linkRecurrences(row: LinkRow) {
+  return recurrencesProps(row, await alivePricesOf(row.id));
+}

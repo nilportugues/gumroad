@@ -2,8 +2,10 @@
 // as a page (page-props/checkout-pages.ts). Checkout::Upsells::PausesController (pause and unpause) runs in Node too; an upsell that no
 // longer validates is handed back whole, since update! would raise.
 //
-// Handed to Rails: #create and #update (SaveUpsellService builds offer codes and rewrites variants and selected products), #cart_item once it
-// has found the product (CheckoutPresenter#checkout_product), and #destroy of an upsell that has an offer code (OfferCode's save callbacks
+// #cart_item runs in Node through presenters/checkout-product.ts, which hands back what it cannot prove (upsells, cross-sells, bundles,
+// physical products, memberships, PPP).
+//
+// Handed to Rails: #create and #update (SaveUpsellService builds offer codes and rewrites variants and selected products), and #destroy of an upsell that has an offer code (OfferCode's save callbacks
 // reindex products and clear caches). A sort by revenue or uses, a page past the last and a non-text parameter hand back as well.
 import { Prisma, type Upsell, type UpsellVariant } from "@prisma/client";
 
@@ -12,6 +14,8 @@ import { RecordInvalid } from "../models/runtime/errors.ts";
 import { castRow, column, selectRows, table } from "../models/sql.ts";
 import { UpsellDeletable, Upsells, UpsellVariantDeletable, UpsellVariants } from "../models/upsell.ts";
 import { NotPortedError } from "../models/user.ts";
+import { checkoutProduct } from "../presenters/checkout-product.ts";
+import { findLink } from "../presenters/product-reads.ts";
 import { fetchUpsells, listParams } from "../page-props/checkout/upsells.ts";
 import { authorize } from "../policies/authorize.ts";
 import { checkoutUpsellPolicy } from "../policies/checkout-upsell.ts";
@@ -114,7 +118,9 @@ async function cartItem(input: MutationInput): Promise<ActionResult> {
               Prisma.sql`SELECT ${column("links", "id")} FROM ${table("links")} WHERE ${column("links", "user_id")} = ${input.context.currentSeller!.id} AND ${column("links", "id")} = ${id} LIMIT 1`,
             );
       if (product === undefined) throw new RoutingError("Not Found");
-      throw new HandBackToRails("the cart item is built by CheckoutPresenter#checkout_product");
+      const row = await findLink(product.id);
+      // Rails passes the first tier of a membership as the option; checkoutProduct hands a membership back.
+      return json(await checkoutProduct(row!));
     },
     { paramsRead: true },
   );
