@@ -71,3 +71,29 @@ describe("PUT /v2/products/:link_id/variant_categories/:id", () => {
     expect(JSON.parse(String(rendered.body)).variant_category.title).toBe("0");
   });
 });
+
+describe("version writes", () => {
+  const variants = "/v2/products/:link_id/variant_categories/:variant_category_id/variants";
+  const destroy = (variant: { deleted_at: Date | null }) => run("DELETE", `${variants}/:id`, {}, { variant });
+
+  it("answers a delete of a version that is already deleted with success and no write", async () => {
+    mocks.db.$transaction.mockClear();
+    const rendered = await destroy({ deleted_at: new Date() });
+
+    expect(rendered.status).toBe(200);
+    expect(JSON.parse(String(rendered.body))).toMatchObject({ success: true });
+    expect(mocks.db.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("hands the delete of a live version back to Rails", async () => {
+    await expect(destroy({ deleted_at: null })).rejects.toThrow("deleting a live version");
+  });
+
+  it("hands a create back to Rails", async () => {
+    await expect(run("POST", variants, { name: "Large" }, {})).rejects.toThrow("saving a version");
+  });
+
+  it.each(["PATCH", "PUT"])("hands a %s update back to Rails", async (method) => {
+    await expect(run(method, `${variants}/:id`, { name: "Large" }, {})).rejects.toThrow("saving a version");
+  });
+});
