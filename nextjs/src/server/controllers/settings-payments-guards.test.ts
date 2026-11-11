@@ -18,14 +18,30 @@ const mocks = vi.hoisted(() => ({
   purchaseCount: vi.fn(),
   rawQuery: vi.fn(),
   logAudit: vi.fn(),
+  dupAndSave: vi.fn(),
+  paypalConnect: vi.fn(),
+  facts: vi.fn(),
+  bankCount: vi.fn(),
+  setFlag: vi.fn(),
+  setJson: vi.fn(),
+  createTos: vi.fn(),
+}));
+vi.mock("../models/paypal-merchant-account-connect.ts", () => ({ updatePaypalMerchantAccount: mocks.paypalConnect }));
+vi.mock("../models/tos-agreement.ts", () => ({ TosAgreements: { createBang: mocks.createTos } }));
+vi.mock("../page-props/settings/payments.ts", () => ({ payoutFacts: mocks.facts }));
+vi.mock("./mutation.ts", () => ({
+  registerMutations: (...registered: MutationSpec[]) => void mocks.specs.push(...registered),
+  remoteIp: () => "127.0.0.1",
 }));
 vi.mock("../models/user.ts", () => ({
   findUserBang: mocks.findUser,
+  setFlag: mocks.setFlag,
+  setJsonDataForAttr: mocks.setJson,
   Users: { save: mocks.saveUser, saveBang: mocks.saveUser },
 }));
 vi.mock("../models/user-compliance-info-writes.ts", () => ({
   birthdayUnderMinimumAge: () => false,
-  dupAndSaveBang: vi.fn(),
+  dupAndSaveBang: mocks.dupAndSave,
   UserComplianceInfos: { load: vi.fn(), build: vi.fn() },
 }));
 vi.mock("./settings-payments-mutations.ts", () => ({ logPayoutSettingsUpdateByNonOwner: mocks.logAudit }));
@@ -34,9 +50,6 @@ vi.mock("./settings-payments-remediation.ts", () => ({
   verifyStripeRemediation: mocks.verify,
 }));
 
-vi.mock("./mutation.ts", () => ({
-  registerMutations: (...registered: MutationSpec[]) => void mocks.specs.push(...registered),
-}));
 vi.mock("../page-props/domain.ts", () => ({ domainConfig: () => ({}) }));
 vi.mock("../page-props/settings/guard.ts", () => ({
   settingsGuard: () => async () => mocks.guardRedirect(),
@@ -63,6 +76,7 @@ vi.mock("../../lib/db.ts", () => ({
   db: {
     userComplianceInfoRequest: { count: mocks.requestCount },
     purchase: { count: mocks.purchaseCount },
+    bankAccount: { count: mocks.bankCount },
     $queryRaw: mocks.rawQuery,
   },
 }));
@@ -96,6 +110,8 @@ beforeEach(() => {
   mocks.aliveInfo.mockResolvedValue(row("US"));
   mocks.stripeAccounts.mockResolvedValue([]);
   mocks.requestCount.mockResolvedValue(0);
+  mocks.bankCount.mockResolvedValue(0);
+  mocks.facts.mockResolvedValue({ stripeAccount: { id: 1 }, minimumPayoutThresholdCents: 1000 });
 });
 
 describe("PUT /settings/payments", () => {
@@ -154,6 +170,64 @@ describe("PUT /settings/payments", () => {
   it("hands a save that passes every guard to Rails", async () => {
     await expect(run(input({ user: { country: "US", zip_code: "94107" } }))).rejects.toThrow(HandBackToRails);
   });
+
+  describe("with payout preferences only", () => {
+    const saved = { status: 303, location: "/settings/payments", flash: { notice: "Thanks! You're all set." } };
+
+    beforeEach(() => {
+      mocks.findUser.mockResolvedValue({ errors: { fullMessages: () => ["Payout frequency must be daily"] } });
+      mocks.saveUser.mockResolvedValue(true);
+    });
+
+    it("records the terms acceptance, writes the preferences and notes the save", async () => {
+      expect(
+        await run(input({ payout_frequency: "monthly", payouts_paused_by_user: true, payout_threshold_cents: "5000" })),
+      ).toEqual(saved);
+      expect(mocks.createTos).toHaveBeenCalledWith({ user_id: 3, ip: "127.0.0.1" });
+      expect(mocks.setJson).toHaveBeenCalledWith(expect.anything(), "payout_frequency", "monthly");
+      expect(mocks.setJson).toHaveBeenCalledWith(expect.anything(), "payout_threshold_cents", "5000");
+      expect(mocks.setFlag).toHaveBeenCalledWith(expect.anything(), "payouts_paused_by_user", true);
+      expect(mocks.logAudit).toHaveBeenCalledWith(expect.anything(), "Payout settings updated");
+    });
+
+    it("answers a save of nothing without writing the seller", async () => {
+      expect(await run(input({}))).toEqual(saved);
+      expect(mocks.createTos).toHaveBeenCalled();
+      expect(mocks.saveUser).not.toHaveBeenCalled();
+    });
+
+    it("refuses a threshold under the minimum after recording the terms acceptance", async () => {
+      expect(await run(input({ payout_threshold_cents: 999 }))).toEqual(
+        refusal("Your payout threshold must be greater than the minimum payout amount"),
+      );
+      expect(mocks.createTos).toHaveBeenCalled();
+      expect(mocks.saveUser).not.toHaveBeenCalled();
+    });
+
+    it("refuses with the first validation message when the seller does not save", async () => {
+      mocks.saveUser.mockResolvedValue(false);
+      expect(await run(input({ payout_frequency: "hourly" }))).toEqual(refusal("Payout frequency must be daily"));
+      expect(mocks.logAudit).not.toHaveBeenCalled();
+    });
+
+    it("hands a seller with a bank account and no Stripe account to Rails before any write", async () => {
+      mocks.facts.mockResolvedValue({ stripeAccount: null, minimumPayoutThresholdCents: 1000 });
+      mocks.bankCount.mockResolvedValue(1);
+      await expect(run(input({ payout_frequency: "monthly" }))).rejects.toThrow(HandBackToRails);
+      expect(mocks.createTos).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["a payment address", { payment_address: "a@example.com" }],
+      ["a card", { card: { token: "x" } }],
+      ["a threshold with a fraction", { payout_threshold_cents: "10.5" }],
+      ["a switch that is not a boolean", { payouts_paused_by_user: "true" }],
+      ["a frequency that is not text", { payout_frequency: 3 }],
+    ])("hands %s to Rails before any write", async (_name, params) => {
+      await expect(run(input(params))).rejects.toThrow(HandBackToRails);
+      expect(mocks.createTos).not.toHaveBeenCalled();
+    });
+  });
 });
 
 describe("POST /settings/payments/set_country", () => {
@@ -179,9 +253,16 @@ describe("POST /settings/payments/set_country", () => {
     expect(await run(input({ country: "GP" }))).toEqual({ json: { error: FRENCH_MESSAGE }, status: 403 });
   });
 
-  it("hands a country the ISO 3166 list does not know to Rails", async () => {
+  it("saves a revision with no country for a country the ISO 3166 list does not know", async () => {
     mocks.complianceInfo.mockResolvedValue({ row: row(null), persisted: false });
-    await expect(run(input({ country: "ZZ" }))).rejects.toThrow(HandBackToRails);
+    const copy = { set: vi.fn() };
+    mocks.dupAndSave.mockImplementation(async (_revision: unknown, edit: (copy: unknown) => Promise<void>) =>
+      edit(copy),
+    );
+    mocks.findUser.mockResolvedValue({ get: () => "usd", set: vi.fn() });
+    expect(await run(input({ country: "ZZ" }))).toMatchObject({ status: 204 });
+    expect(copy.set).toHaveBeenCalledWith("country", null);
+    expect(mocks.saveUser).not.toHaveBeenCalled();
   });
 
   it("hands a Japanese country to Rails", async () => {
@@ -195,8 +276,15 @@ describe("POST /settings/payments/set_country", () => {
     await expect(run(input({ country: "CA" }))).rejects.toThrow(HandBackToRails);
   });
 
-  it("hands a country that is not text to Rails", async () => {
-    await expect(run(input({ country: ["PR"] }))).rejects.toThrow(HandBackToRails);
+  it("saves a revision with no country for a country that is not text", async () => {
+    mocks.complianceInfo.mockResolvedValue({ row: row(null), persisted: false });
+    const copy = { set: vi.fn() };
+    mocks.dupAndSave.mockImplementation(async (_revision: unknown, edit: (copy: unknown) => Promise<void>) =>
+      edit(copy),
+    );
+    mocks.findUser.mockResolvedValue({ get: () => "usd", set: vi.fn() });
+    expect(await run(input({ country: ["PR"] }))).toMatchObject({ status: 204 });
+    expect(copy.set).toHaveBeenCalledWith("country", null);
   });
 });
 
@@ -257,8 +345,30 @@ describe("GET /settings/payments/paypal_connect", () => {
     expect(await run(input({ merchantIdInPayPal: "PP1", merchantId: "zzz-1" }))).toEqual(error);
   });
 
-  it("hands a matching merchant id to Rails", async () => {
-    await expect(run(input({ merchantIdInPayPal: "PP1", merchantId: "abc123-1" }))).rejects.toThrow(HandBackToRails);
+  it("links the merchant account and flashes what the manager answers", async () => {
+    mocks.paypalConnect.mockResolvedValue("linked");
+    expect(
+      await run(input({ merchantIdInPayPal: "PP1", merchantId: "abc123-1", permissionsGranted: "true", extra: "x" })),
+    ).toEqual({ status: 302, location: "/checkout/form", flash: { notice: "linked" } });
+    expect(mocks.paypalConnect).toHaveBeenCalledWith(expect.objectContaining({ id: 3n }), "PP1", {
+      merchantId: "abc123-1",
+      permissionsGranted: "true",
+    });
+    expect(mocks.logAudit).toHaveBeenCalledWith(expect.anything(), "PayPal account connection updated");
+  });
+
+  it("sets no flash when the manager answers nothing", async () => {
+    mocks.paypalConnect.mockResolvedValue(null);
+    expect(await run(input({ merchantIdInPayPal: "PP1", merchantId: "abc123-1" }))).toEqual({
+      status: 302,
+      location: "/checkout/form",
+    });
+  });
+
+  it("hands a meta parameter that is not text to Rails", async () => {
+    await expect(
+      run(input({ merchantIdInPayPal: "PP1", merchantId: "abc123-1", accountStatus: ["a"] })),
+    ).rejects.toThrow(HandBackToRails);
   });
 
   it("hands a parameter that is not text to Rails", async () => {

@@ -27,6 +27,16 @@ const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
 const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "mu").exec(envTest)?.[1];
 
+// Examples after which PaypalMerchantAccountManager queues MerchantRegistrationMailer#paypal_account_updated for the seller.
+const ACCOUNT_UPDATED_MAIL = [
+  "of-the-seller-connects-",
+  "of-the-seller-takes-th",
+  "of-the-seller-removes-",
+  "of-the-seller-brings-b",
+  "of-the-seller-leaves-a",
+  "of-the-seller-notes-th",
+];
+
 const COMPARE = {
   ignore: [
     "response.headers.x-original-headers-class",
@@ -39,27 +49,33 @@ const COMPARE = {
     // A seeded row is as old as the replay, so a save may leave the second-granular timestamp as it was.
     "db.users.updated.*.changes.updated_at",
     "db.user_compliance_info.updated.*.changes.updated_at",
+    "db.merchant_accounts.updated.*.changes.updated_at",
     "http",
   ],
 };
 
 // A ported job Node enqueues is a BullMQ job wrapping the Sidekiq item; one whose body stays in Ruby goes to Sidekiq's own list.
+type Item = { class: string; args: unknown[]; queue: string; at?: number; created_at?: number; wrapped?: string };
+// The mail the request queued: the request spec's test adapter keeps it out of the fixture, so the test asserts it by name.
+let mailJobs: Item[] = [];
+
 function redisJobs(redis: Redis): JobsChannel {
-  type Item = { class: string; args: unknown[]; queue: string; at?: number; created_at?: number };
   return {
     async reset() {
       /* the seeder flushes the database */
     },
     async drain(): Promise<RawJob[]> {
       const items: Item[] = [];
+      mailJobs = [];
+      const keep = (item: Item) => void (item.wrapped === "MailDeliveryJob" ? mailJobs.push(item) : items.push(item));
       for (const key of await redis.keys("bull:*")) {
         if ((await redis.type(key)) !== "hash") continue;
         const data = await redis.hget(key, "data");
         if (data === null) continue;
-        items.push(JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as Item);
+        keep(JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as Item);
       }
       for (const key of await redis.keys("queue:*"))
-        for (const raw of await redis.lrange(key, 0, -1)) items.push(JSON.parse(raw) as Item);
+        for (const raw of await redis.lrange(key, 0, -1)) keep(JSON.parse(raw) as Item);
       // Sidekiq keeps a scheduled job's time as the score of its member, not in the item.
       const scheduled = await redis.zrange("schedule", 0, -1, "WITHSCORES");
       for (let index = 0; index < scheduled.length; index += 2)
@@ -148,6 +164,9 @@ describe.skipIf(!url)("Settings::PaymentsController guards", () => {
       RAILS_ORIGIN: `http://127.0.0.1:${railsPort}`,
       OUTBOUND_HTTP_STAND_IN: `http://127.0.0.1:${(standIn.address() as { port: number }).port}`,
       STRIPE_API_KEY: "sk_test_parity",
+      PAYPAL_PARTNER_CLIENT_ID: testEnv("PAYPAL_PARTNER_CLIENT_ID") ?? "",
+      PAYPAL_PARTNER_CLIENT_SECRET: "parity-paypal-partner-client-secret",
+      PAYPAL_PARTNER_MERCHANT_ID: testEnv("PAYPAL_PARTNER_MERCHANT_ID") ?? "",
       SECRET_KEY_BASE,
       DATABASE_URL: url!,
       REDIS_HOST: redisHost,
@@ -233,15 +252,44 @@ describe.skipIf(!url)("Settings::PaymentsController guards", () => {
           return;
         }
         assertParity(await replayFixtureExchange(fixture, index, replayOptions(file)));
+        const expectedMail = ACCOUNT_UPDATED_MAIL.some((fragment) => name.includes(fragment));
+        expect(mailJobs).toHaveLength(expectedMail ? 1 : 0);
+        if (expectedMail) {
+          expect(mailJobs[0]!.queue).toBe("default");
+          const wrapped = (mailJobs[0]!.args as { job_class: string; queue_name: string; arguments: unknown[] }[])[0]!;
+          expect(wrapped).toMatchObject({ job_class: "MailDeliveryJob", queue_name: "default" });
+          const [mailer, method, delivery, params] = wrapped.arguments as [
+            string,
+            string,
+            string,
+            { args: number[]; _aj_ruby2_keywords: string[] },
+          ];
+          expect([mailer, method, delivery]).toEqual([
+            "MerchantRegistrationMailer",
+            "paypal_account_updated",
+            "deliver_now",
+          ]);
+          expect(params._aj_ruby2_keywords).toEqual(["args"]);
+          expect(params.args).toHaveLength(1);
+        }
         // The port made the calls Rails made: the same method, URL, content type and form body, in the same order.
+        // Compared as text so a mismatch prints both lists in full.
         expect(
-          received.map(({ method, url: original, body }) => ({ method, url: original.replace(/\?$/u, ""), body })),
+          JSON.stringify(
+            received.map(({ method, url: original, body }) => ({ method, url: original.replace(/\?$/u, ""), body })),
+            null,
+            1,
+          ),
         ).toEqual(
-          fixture.exchanges[index]!.http.map((call) => ({
-            method: call.method,
-            url: call.url.replace(/\?$/u, ""),
-            body: call.body ?? "",
-          })),
+          JSON.stringify(
+            fixture.exchanges[index]!.http.map((call) => ({
+              method: call.method,
+              url: call.url.replace(/\?$/u, ""),
+              body: call.body ?? "",
+            })),
+            null,
+            1,
+          ),
         );
       } catch (error) {
         const logs = server
