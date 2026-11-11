@@ -96,7 +96,15 @@ describe.skipIf(!url)("HomeController#features_md", () => {
     "%s",
     async (name, fixturePath, index) => {
       handedBack.length = 0;
-      const options = { sql, redis: redisSeeder(redis), transport: httpTransport(server.baseUrl), interceptHttp: false, compare: COMPARE };
+      const options = {
+        sql,
+        redis: redisSeeder(redis),
+        transport: httpTransport(server.baseUrl),
+        interceptHttp: false,
+        // features.md prints "Last updated: <today>".
+        driftAlso: ["body" as const],
+        compare: COMPARE,
+      };
       try {
         const result = await replayFixtureExchange(fixturePath, index, options);
         if (name.includes("hands-a-")) {
@@ -110,7 +118,12 @@ describe.skipIf(!url)("HomeController#features_md", () => {
         expect(handedBack).toHaveLength(0);
         assertParity(result);
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => !/built-in version of this loader|^\s*$/.test(line)).slice(-40).join("\n");
+        const logs = server
+          .output()
+          .split("\n")
+          .filter((line) => !/built-in version of this loader|^\s*$/.test(line))
+          .slice(-40)
+          .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
     },

@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { validPassword } from "@/server/auth/devise-password";
 import { deriveRailsCookieSecrets, readEncryptedCookie, readSignedCookie } from "@/server/auth/rails-cookies";
 import { closeAllRedis } from "@/server/infra/redis";
+import { decryptSecureExternalId, secureExternalId } from "@/server/models/secure-external-id";
 
 import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
@@ -26,7 +27,12 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
-const SPECS = ["auth_mutations_parity_spec", "auth_account_parity_spec", "review_reminders_parity_spec", "feature_announcements_unsubscribe_parity_spec"];
+const SPECS = [
+  "auth_mutations_parity_spec",
+  "auth_account_parity_spec",
+  "review_reminders_parity_spec",
+  "feature_announcements_unsubscribe_parity_spec",
+];
 const ROUTE_FLAGS = [
   "nextjs_auth_devise_redirects",
   "nextjs_auth_login_writes",
@@ -43,6 +49,10 @@ const ROUTE_FLAGS = [
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
+const UNSUBSCRIBE_PATH = /^\/users\/unsubscribe\/([^/]+)$/;
+const UNSUBSCRIBE_SCOPE = "email_unsubscribe";
+// auth_account_parity_spec mints the link with expires_at: 2.days.from_now.
+const UNSUBSCRIBE_LINK_LIFETIME_MS = 2 * 86_400_000;
 const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "m").exec(envTest)?.[1];
 // Session keys that differ by construction: the session id is random, the CSRF token is Rails'.
 const SESSION_IGNORED = new Set(["session_id", "_csrf_token"]);
@@ -140,6 +150,23 @@ const allCases = SPECS.flatMap((spec) => {
         ] as const,
     );
 });
+
+// The recorded link dies two days after the recording, and the replay's clock is not the recording's. The same user gets a link
+// minted now, so the handler still has to decrypt it, check the scope and find the user.
+function renewUnsubscribeLink(request: Parameters<typeof reencryptCookies>[0], loaded: Fixture, now: Date) {
+  const token = UNSUBSCRIBE_PATH.exec(request.path)?.[1];
+  if (token === undefined || loaded.recordedOn === undefined) return request;
+  for (const name of ["SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION", "SECURE_EXTERNAL_ID__KEYS__1"]) {
+    const value = testEnv(name);
+    if (value !== undefined) process.env[name] = value;
+  }
+  const id = decryptSecureExternalId("User", token, UNSUBSCRIBE_SCOPE, new Date(`${loaded.recordedOn}T00:00:00Z`));
+  if (id === null) return request;
+  const renewed = secureExternalId("User", BigInt(id), UNSUBSCRIBE_SCOPE, {
+    expiresAt: new Date(now.getTime() + UNSUBSCRIBE_LINK_LIFETIME_MS),
+  });
+  return { ...request, path: `/users/unsubscribe/${renewed}` };
+}
 
 function decryptedSession(
   secretKeyBase: string,
@@ -265,7 +292,7 @@ describe.skipIf(!url)("mutations of the authentication pages", () => {
       loaded: Parameters<typeof reencryptCookies>[1],
       now: Date,
     ) => {
-      const rewritten = reencryptCookies(request, loaded, SECRET_KEY_BASE, now);
+      const rewritten = renewUnsubscribeLink(reencryptCookies(request, loaded, SECRET_KEY_BASE, now), loaded, now);
       return { ...rewritten, headers: { ...rewritten.headers, "x-forwarded-for": rewritten.remoteIp ?? "127.0.0.1" } };
     },
     compare: COMPARE,

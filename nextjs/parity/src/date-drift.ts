@@ -135,7 +135,14 @@ function shiftObject(value: Record<string, Json>, days: number, recordedOn?: str
 }
 
 // The fixture with the inertia props (and the JSON of an X-Inertia visit) of one exchange moved to today.
-export function withDriftedDates(fixture: Fixture, index: number, now = new Date()): Fixture {
+// `also` names the parts a spec's date lands in besides the props: rows the application stamps with its own day, or a plain-text
+// body. Only spelled-out dates move there: an ISO date in a row is as likely a constant the app pins (a statement version).
+export function withDriftedDates(
+  fixture: Fixture,
+  index: number,
+  now = new Date(),
+  also: readonly ("db" | "body")[] = [],
+): Fixture {
   if (!fixture.recordedOn) return fixture;
   const days = daysBetween(fixture.recordedOn, now);
   const exchanges = fixture.exchanges.map((exchange, i) => {
@@ -152,8 +159,14 @@ export function withDriftedDates(fixture: Fixture, index: number, now = new Date
               fixture.recordedOn,
             ) as unknown as typeof exchange.jobs,
           }),
+      ...(also.includes("db")
+        ? { db: shiftOrdinalDates(exchange.db as unknown as Json, days) as unknown as typeof exchange.db }
+        : {}),
       response: {
         ...response,
+        ...(also.includes("body") && response.body !== undefined
+          ? { body: shiftOrdinalDates(response.body, days) as string }
+          : {}),
         ...(response.inertia === undefined
           ? {}
           : { inertia: shiftOrdinalDates(response.inertia, days, fixture.recordedOn) }),

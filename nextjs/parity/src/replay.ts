@@ -65,6 +65,8 @@ export type ReplayOptions = {
   interceptHttp?: boolean;
   // False when the replay runs on the recording's own day (a pinned clock): the recorded strings need no moving.
   driftDates?: boolean;
+  // Where else the recorded strings carry a date the application printed from its own clock: written rows, a text body.
+  driftAlso?: ("db" | "body")[];
   // The instant the seed's tokens resolve against, for a request that carries a literal date the rows are measured
   // against. The request and the port still run on the replay's clock.
   seedClock?: Date;
@@ -160,7 +162,10 @@ export async function replayFixtureExchange(
     ...(loaded.sessionCookie ? { sessionCookie: loaded.sessionCookie } : {}),
   };
   // The seed is resolved against the replay's clock; the recorded strings are moved by the days since the recording.
-  const drifted = options.driftDates === false ? expected : withDriftedDates(loaded, index).exchanges[index]!;
+  const drifted =
+    options.driftDates === false
+      ? expected
+      : withDriftedDates(loaded, index, new Date(), options.driftAlso).exchanges[index]!;
   return {
     fixture: loaded,
     exchanges: [{ expected: drifted, actual, differences: compareExchange(drifted, actual, compareOptions) }],
