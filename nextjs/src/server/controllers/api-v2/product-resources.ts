@@ -1,10 +1,12 @@
 // Api::V2::SkusController, VariantCategoriesController, VariantsController, CustomFieldsController and ProductBuildsController: the
-// reads. The writes live in product-resource-writes.ts.
+// reads, and the checks of the build deploy and promote. The writes live in product-resource-writes.ts.
 import type { BaseVariant, Link } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
+import { storageConfig } from "../../infra/storage.ts";
 import { hasEditorContent } from "../../models/rich-content.ts";
-import { type ApiV2Input, EDIT_PRODUCTS_SCOPES, errorWithObject, loadProduct, PUBLIC_READ_SCOPES, registerApiV2, renderResponse, successWithObject } from "./base.ts";
+import { HandBackToRails } from "../application-controller.ts";
+import { type ApiV2Input, EDIT_PRODUCTS_SCOPES, errorWithObject, loadProduct, present, PUBLIC_READ_SCOPES, registerApiV2, renderResponse, successWithObject } from "./base.ts";
 import {
   aliveVariantCategories,
   aliveVariants,
@@ -178,6 +180,30 @@ registerApiV2(
     run: async (input) => renderResponse(true, { builds: (await db.productBuild.findMany({ where: { product_id: productOf(input).id }, orderBy: { number: "asc" } })).map(productBuildJson) }),
   },
   { method: "GET", pattern: "/v2/products/:link_id/builds/:id", scopes: EDIT_PRODUCTS_SCOPES, before: loadBuild, run: async (input) => renderResponse(true, { build: productBuildJson(input.state.build) }) },
+  // #deploy copies the seller's upload inside S3 under the product lock and #promote swaps the live file, rewrites the rich content and
+  // enqueues the unpack job; Rails takes both once the checks below pass.
+  { method: "POST", pattern: "/v2/products/:link_id/builds/deploy", scopes: EDIT_PRODUCTS_SCOPES, before: loadProduct("link_id"), run: deployBuild },
+  {
+    method: "POST",
+    pattern: "/v2/products/:link_id/builds/:id/promote",
+    scopes: EDIT_PRODUCTS_SCOPES,
+    before: loadBuild,
+    async run() {
+      throw new HandBackToRails("a build promotion");
+    },
+  },
 );
+
+async function deployBuild(input: ApiV2Input) {
+  const url = input.params.url;
+  if (typeof url !== "string" || !present(url)) return renderResponse(false, { message: "url is required." });
+  const sellerPrefix = `${storageConfig().s3BaseUrl}attachments/${input.owner.external_id}/`;
+  if (!url.startsWith(sellerPrefix) || url.includes("..") || /%2f/iu.test(url) || !url.endsWith(".zip")) {
+    return renderResponse(false, { message: "url must be a .zip you uploaded with POST /v2/files/presign and /v2/files/complete." });
+  }
+  const existing = await db.productBuild.findFirst({ where: { product_id: productOf(input).id, source_url: url }, orderBy: { id: "asc" } });
+  if (existing) return renderResponse(true, { build: productBuildJson(existing) });
+  throw new HandBackToRails("a build deployed from an upload in S3");
+}
 
 export { findVariantCategory, loadVariant, loadVariantCategory, productCustomFields };

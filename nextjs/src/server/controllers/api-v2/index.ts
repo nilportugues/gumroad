@@ -9,6 +9,7 @@ import "./offer-codes.ts";
 import "./upsells.ts";
 import "./resource-subscriptions.ts";
 import "./tax.ts";
+import "./thumbnails.ts";
 import "./sales.ts";
 import "./payouts.ts";
 import "./media.ts";

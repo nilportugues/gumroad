@@ -1,10 +1,12 @@
-// Api::V2::ResourceSubscriptionsController#index and #destroy (app/controllers/api/v2/resource_subscriptions_controller.rb).
-// #create resolves the post URL's host through DNS (SsrfFilter's reserved ranges) and #test_event delivers an HTTP request; both stay in Rails.
+// Api::V2::ResourceSubscriptionsController (app/controllers/api/v2/resource_subscriptions_controller.rb): #index and #destroy, and the 404 of
+// #test_event. #create resolves the post URL's host through DNS (SsrfFilter's reserved ranges) and #test_event delivers an HTTP request, so
+// Rails takes both whole.
 import { Prisma, type ResourceSubscription } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
 import { encrypt } from "../../../lib/obfuscate-ids.ts";
 import { castRow, column, execute, selectRows, table } from "../../models/sql.ts";
+import { HandBackToRails } from "../application-controller.ts";
 import { errorWithObject, fromExternalId, registerApiV2, renderResponse, successWithObject } from "./base.ts";
 
 const RESOURCE_SUBSCRIPTIONS = "resource_subscriptions";
@@ -47,6 +49,25 @@ registerApiV2(
       const now = new Date(Math.floor(Date.now() / 1000) * 1000);
       await execute(Prisma.sql`UPDATE ${table(RESOURCE_SUBSCRIPTIONS)} SET ${column(RESOURCE_SUBSCRIPTIONS, "deleted_at")} = ${now}, ${column(RESOURCE_SUBSCRIPTIONS, "updated_at")} = ${now} WHERE ${column(RESOURCE_SUBSCRIPTIONS, "id")} = ${found.id}`);
       return successWithObject("resource_subscription", null);
+    },
+  },
+  {
+    method: "PUT",
+    pattern: "/v2/resource_subscriptions",
+    scopes: ["view_sales"],
+    async run() {
+      throw new HandBackToRails("a resource subscription whose post URL is resolved through DNS");
+    },
+  },
+  {
+    method: "POST",
+    pattern: "/v2/resource_subscriptions/:id/test_event",
+    scopes: ["view_sales"],
+    async run({ owner, routeParams, token }) {
+      const id = fromExternalId(routeParams.id);
+      const found = id === null ? null : await db.resourceSubscription.findFirst({ where: { id, user_id: Number(owner.id), deleted_at: null, oauth_application_id: Number(token.application_id) } });
+      if (found === null) return errorWithObject("resource_subscription");
+      throw new HandBackToRails("a test event delivered to the subscription's post URL");
     },
   },
 );

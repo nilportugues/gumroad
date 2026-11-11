@@ -267,6 +267,9 @@ fixture or golden that covers the behaviour, or with the covering check not run.
    creation are not ported. The public API `licenses#verify|enable|disable|decrement_uses_count|rotate` run in
    Node for a plain purchase (`nextjs_api_v2_licenses`, 71 request-spec fixtures replayed by `api-v2-ws17c.replay`);
    the 53 `controllers/api/v2/licenses_controller_spec` fixtures still have no replay.
+   The N-Z v2 writes (`offer_codes`, `upsells`, `resource_subscriptions#create|test_event`, `thumbnails`, `product_builds#deploy|promote`,
+   `tax_forms#download`) answer only their guards in Node; the writes hand back whole (`*_writes_parity_spec`, `thumbnails_parity_spec`,
+   `tax_forms_download_parity_spec`), so the Rails side of those is proven only by the Rails specs.
 7. **Everything above the line is replay-unverified.** Step 0 below replays all 1,759 existing fixtures. Until
    then treat even "proven by replay" in `workstreams.md` as unconfirmed here.
 
