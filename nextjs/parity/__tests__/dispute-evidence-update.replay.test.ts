@@ -33,7 +33,7 @@ const PARITY_NOW = Date.parse("2026-11-09T23:00:00Z");
 const realNow = () => performance.timeOrigin + performance.now();
 let clockOffset = 0;
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
-const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "m").exec(envTest)?.[1];
+const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "mu").exec(envTest)?.[1];
 const secureIdVersion = testEnv("SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION");
 const secureIdKey = testEnv("SECURE_EXTERNAL_ID__KEYS__1");
 

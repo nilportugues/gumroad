@@ -12,7 +12,7 @@ import { acquireClientLock } from "./unique-lock.ts";
 export class UniqueJobConflictError extends Error {}
 
 // ActiveSupport's Object#to_json with escape_html_entities_in_json (the Rails default).
-const HTML_UNSAFE = new RegExp("[<>&\\u2028\\u2029]", "g");
+const HTML_UNSAFE = new RegExp("[<>&\\u2028\\u2029]", "gu");
 function activeSupportJson(value: JsonValue): string {
   return dumpRubyJson(value).replace(HTML_UNSAFE, (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`);
 }

@@ -29,7 +29,7 @@ const hostOnly = (hostWithPort: string) => hostWithPort.replace(/:\d+$/u, "");
 export function sellerSubdomain(hostname: string, config: DomainConfig): HostClassification["sellerSubdomain"] {
   // Rails strips the port from ROOT_DOMAIN in development and test, since request.host has none.
   const domain = config.railsEnv === "development" || config.railsEnv === "test" ? hostOnly(config.rootDomain) : config.rootDomain;
-  if (!new RegExp(`^${USERNAME_PATTERN}.${domain}$`).test(hostname)) return null;
+  if (!new RegExp(`^${USERNAME_PATTERN}.${domain}$`, "u").test(hostname)) return null;
   const subdomain = hostname.split(".", 2)[0] ?? "";
   if (/^[0-9]+$/u.test(subdomain)) return { externalId: subdomain };
   // Usernames store underscores; subdomains spell them with hyphens.
@@ -46,7 +46,7 @@ export function customDomainLookup(hostname: string): string[] | null {
 // `hostname` is request.host: no port.
 export function classifyHost(hostname: string, config: DomainConfig): HostClassification {
   return {
-    thirdPartyAnalytics: new RegExp(config.thirdPartyAnalyticsDomain).test(hostname),
+    thirdPartyAnalytics: new RegExp(config.thirdPartyAnalyticsDomain, "u").test(hostname),
     discover: hostname === config.validDiscoverRequestHost,
     api: config.railsEnv === "development" || config.validApiRequestHosts.includes(hostname),
     gumroad: config.validRequestHosts.includes(hostname),

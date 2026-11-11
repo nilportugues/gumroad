@@ -36,7 +36,7 @@ const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "-parity";
 const DYNAMODB_ENDPOINT = process.env.DYNAMODB_ENDPOINT ?? "http://localhost:8012";
 const DYNAMODB_TABLE_PREFIX = process.env.DYNAMODB_TABLE_PREFIX ?? "ws17d_";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
-const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "m").exec(envTest)?.[1];
+const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "mu").exec(envTest)?.[1];
 
 const COMPARE = {
   ignore: [

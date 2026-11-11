@@ -1,6 +1,6 @@
 // Port of the css_parser gem 1.22.0 (Parser, RuleSet, CssParser.merge and the regexps), as premailer
 // 1.29 drives it. Regexps are translated from Onigmo: Ruby's \s, ^, $ and \Z are spelled out (see
-// ruby.ts), and the patterns that use \w carry no `u` flag so \w stays ASCII, as in Ruby.
+// ruby.ts). `u` is set for the lint rule only; under `iu`, \w and \b also take U+017F and U+212A, which Ruby's ASCII \w does not.
 // premailer.test.ts replays every rule of a real email stylesheet against the gem's output.
 import { BOL, END_Z, EOL, scanCount, sliceBang, split, strip, WS } from "./ruby.ts";
 
@@ -8,7 +8,7 @@ const S = WS;
 
 function possibleValues(...values: string[]): RegExp {
   // css_parser builds these from a double-quoted Ruby string, where "\s" is a literal space.
-  return new RegExp(`([ ]*${BOL})?(${values.join("|")})([ ]*${EOL})?`, "i");
+  return new RegExp(`([ ]*${BOL})?(${values.join("|")})([ ]*${EOL})?`, "iu");
 }
 
 const NAMED_COLOURS = (
@@ -35,18 +35,18 @@ const RE_COLOUR_HEX = `${S}*#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})\\b`;
 const RE_COLOUR_NAMED = `${S}*\\b(${NAMED_COLOURS.join("|")})\\b`;
 export const RE_COLOUR = new RegExp(
   `(?:${RE_COLOUR_NUMERIC})|(?:${RE_COLOUR_NUMERIC_ALPHA})|(?:${RE_COLOUR_HEX})|(?:${RE_COLOUR_NAMED})`,
-  "i",
+  "iu",
 );
 
 const RE_INHERIT = possibleValues("inherit");
 const URI_RX = `url\\(("([^"]*)"|'([^']*)'|([^)]*))\\)`;
-const URI_RX_OR_NONE = new RegExp(`(?:${URI_RX})|(?:none)`, "i");
+const URI_RX_OR_NONE = new RegExp(`(?:${URI_RX})|(?:none)`, "iu");
 const RE_GRADIENT = `[-a-z]*gradient\\([-a-z0-9 .,#%()]*\\)`;
-const RE_IMAGE = new RegExp(`(?:${URI_RX})|(?:${RE_GRADIENT})|(?:none)`, "i");
-const IMPORTANT_IN_PROPERTY_RX = new RegExp(`${S}*!important\\b${S}*`, "i");
+const RE_IMAGE = new RegExp(`(?:${URI_RX})|(?:${RE_GRADIENT})|(?:none)`, "iu");
+const IMPORTANT_IN_PROPERTY_RX = new RegExp(`${S}*!important\\b${S}*`, "iu");
 const RE_INSIDE_OUTSIDE = possibleValues("inside", "outside");
 const RE_SCROLL_FIXED = possibleValues("scroll", "fixed");
-const RE_REPEAT = possibleValues("repeat(\\-x|\\-y)*|no\\-repeat");
+const RE_REPEAT = possibleValues("repeat(-x|-y)*|no-repeat");
 const RE_LIST_STYLE_TYPE = possibleValues(
   "disc",
   "circle",
@@ -71,16 +71,16 @@ const RE_LIST_STYLE_TYPE = possibleValues(
   "none",
 );
 const BOX_MODEL_UNITS_RX = `(auto|inherit|0|(-*([0-9]+|[0-9]*\\.[0-9]+)(rem|vw|vh|vm|vmin|vmax|e[mx]+|px|[cm]+m|p[tc+]|in|%)))(?:[ \\t\\n\\v\\f\\r;]|${END_Z})`;
-const RE_BORDER_UNITS = new RegExp(`(?:${BOX_MODEL_UNITS_RX})|(?:(thin|medium|thick))`, "i");
+const RE_BORDER_UNITS = new RegExp(`(?:${BOX_MODEL_UNITS_RX})|(?:(thin|medium|thick))`, "iu");
 const RE_BORDER_STYLE = new RegExp(
   `(${S}*${BOL})?(none|hidden|dotted|dashed|solid|double|dot-dash|dot-dot-dash|wave|groove|ridge|inset|outset)(${S}*${EOL})?`,
-  "i",
+  "iu",
 );
-const RE_LENGTH_OR_PERCENTAGE = `([\\-]*(([0-9]*\\.[0-9]+)|[0-9]+)(e[mx]+|px|[cm]+m|p[tc+]|in|\\%))`;
+const RE_LENGTH_OR_PERCENTAGE = `([\\-]*(([0-9]*\\.[0-9]+)|[0-9]+)(e[mx]+|px|[cm]+m|p[tc+]|in|%))`;
 const SINGLE_POSITION = `(?:${RE_LENGTH_OR_PERCENTAGE}|left|center|right|top|bottom)`;
 const SINGLE_SIZE = `(?:${RE_LENGTH_OR_PERCENTAGE}|auto|cover|contain|initial|inherit)`;
-const RE_BACKGROUND_POSITION = new RegExp(`${SINGLE_POSITION}${S}+${SINGLE_POSITION}|${SINGLE_POSITION}`, "i");
-const RE_BACKGROUND_SIZE = new RegExp(`${S}*/${S}*(${SINGLE_SIZE}${S}+${SINGLE_SIZE}|${SINGLE_SIZE})`, "i");
+const RE_BACKGROUND_POSITION = new RegExp(`${SINGLE_POSITION}${S}+${SINGLE_POSITION}|${SINGLE_POSITION}`, "iu");
+const RE_BACKGROUND_SIZE = new RegExp(`${S}*/${S}*(${SINGLE_SIZE}${S}+${SINGLE_SIZE}|${SINGLE_SIZE})`, "iu");
 const FONT_UNITS_RX =
   /((x+-)*small|medium|larger*|auto|inherit|([0-9]+|[0-9]*\.[0-9]+)(e[mx]+|px|[cm]+m|p[tc+]|in|%)*)/iu;
 
@@ -88,7 +88,7 @@ const NON_ID_ATTRIBUTES_AND_PSEUDO_CLASSES_RX =
   /(?:\.\w+)|\[(?:\w+)|(?::(?:link|visited|active|hover|focus|lang|target|enabled|disabled|checked|indeterminate|root|nth-child|nth-last-child|nth-of-type|nth-last-of-type|first-child|last-child|first-of-type|last-of-type|only-child|only-of-type|empty|contains))/giu;
 const ELEMENTS_AND_PSEUDO_ELEMENTS_RX = new RegExp(
   `(?:(?:${BOL}|[ \\t\\n\\v\\f\\r+>~]+)\\w+|:{1,2}(?:after|before|first-letter|first-line|selection))`,
-  "gi",
+  "giu",
 );
 
 export class CssArgumentError extends Error {
@@ -107,7 +107,7 @@ export function calculateSpecificity(selector: string): number {
 }
 
 export function sanitizeMediaQuery(raw: string | null | undefined): string {
-  const mq = strip(String(raw ?? "").replace(new RegExp(`${S}+`, "g"), " "));
+  const mq = strip(String(raw ?? "").replace(new RegExp(`${S}+`, "gu"), " "));
   return mq === "" ? "all" : mq;
 }
 
@@ -125,7 +125,7 @@ export class DeclarationValue {
 
   // Value#value=
   setValue(raw: string): void {
-    const holder = { value: String(raw).replace(new RegExp(`${S}*;${S}*${END_Z}`), "") };
+    const holder = { value: String(raw).replace(new RegExp(`${S}*;${S}*${END_Z}`, "u"), "") };
     this.important = sliceBang(holder, IMPORTANT_IN_PROPERTY_RX) !== null;
     const value = strip(holder.value);
     if (value === "") throw new CssArgumentError("value is empty");
@@ -228,7 +228,7 @@ export class Declarations {
     let out = "";
     for (const [property, value] of this.map)
       out += `${property}: ${value.value}${value.important ? " !important" : ""}; `;
-    out = out.replace(new RegExp(`${BOL}[ \\t\\n\\v\\f\\r^({)]+|[\\n\\r\\f\\t]*|${S}+${EOL}`, "g"), "");
+    out = out.replace(new RegExp(`${BOL}[ \\t\\n\\v\\f\\r^({)]+|[\\n\\r\\f\\t]*|${S}+${EOL}`, "gu"), "");
     return strip(out);
   }
 }
@@ -303,8 +303,8 @@ function replaceFunctions(value: string, replace: (match: string) => string): st
 }
 
 function splitValuePreservingFunctionWhitespace(value: string): string[] {
-  const replaced = replaceFunctions(value, (c) => c.replace(new RegExp(`${S}+`, "g"), WHITESPACE_REPLACEMENT));
-  return split(strip(replaced), new RegExp(`${S}+`)).map((c) => c.replaceAll(WHITESPACE_REPLACEMENT, " "));
+  const replaced = replaceFunctions(value, (c) => c.replace(new RegExp(`${S}+`, "gu"), WHITESPACE_REPLACEMENT));
+  return split(strip(replaced), new RegExp(`${S}+`, "u")).map((c) => c.replaceAll(WHITESPACE_REPLACEMENT, " "));
 }
 
 function unmatchedOpenParenthesis(text: string): boolean {
@@ -374,7 +374,7 @@ export class RuleSet {
       const repeat = sliceBang(holder, RE_REPEAT);
       const color = sliceBang(holder, RE_COLOUR);
       const sizeMatch = sliceBang(holder, RE_BACKGROUND_SIZE);
-      const size = sizeMatch === null ? null : sizeMatch.replace(new RegExp(`${BOL}${S}*/${S}*`), "");
+      const size = sizeMatch === null ? null : sizeMatch.replace(new RegExp(`${BOL}${S}*/${S}*`, "u"), "");
       const position = sliceBang(holder, RE_BACKGROUND_POSITION);
       replacement = [
         ["background-image", image],
@@ -412,8 +412,8 @@ export class RuleSet {
     for (const [property, [top, right, bottom, left]] of DIMENSIONS) {
       const declaration = this.declarations.get(property);
       if (!declaration) continue;
-      const value = declaration.value.replace(new RegExp(RE_COLOUR.source, "gi"), (c) =>
-        c.replace(new RegExp(`(${S}*,${S}*)`, "g"), ","),
+      const value = declaration.value.replace(new RegExp(RE_COLOUR.source, "giu"), (c) =>
+        c.replace(new RegExp(`(${S}*,${S}*)`, "gu"), ","),
       );
       const matches = splitValuePreservingFunctionWhitespace(value);
       let values: string[];
@@ -451,11 +451,11 @@ export class RuleSet {
       ["font-size", "normal"],
       ["line-height", "normal"],
     ]);
-    const value = declaration.value.replace(new RegExp(`/${S}+`, "g"), "/");
+    const value = declaration.value.replace(new RegExp(`/${S}+`, "gu"), "/");
     let inFonts = false;
     const scan = /"(?:[^\n]*[^"\n])"|'(?:[^\n]*[^'\n])'|(?:\w[^ ,]+)/gu;
     for (const match of value.matchAll(scan)) {
-      const m = strip(match[0]).replace(new RegExp(`;${EOL}`, "g"), "");
+      const m = strip(match[0]).replace(new RegExp(`;${EOL}`, "gu"), "");
       if (inFonts) {
         fontProps.set("font-family", fontProps.has("font-family") ? `${fontProps.get("font-family")}, ${m}` : m);
       } else if (/normal|inherit/iu.test(m)) {
@@ -464,7 +464,7 @@ export class RuleSet {
         fontProps.set("font-style", m);
       } else if (/small-caps/iu.test(m)) {
         fontProps.set("font-variant", m);
-      } else if (new RegExp(`[1-9]00${EOL}|bold|bolder|lighter`, "i").test(m)) {
+      } else if (new RegExp(`[1-9]00${EOL}|bold|bolder|lighter`, "iu").test(m)) {
         fontProps.set("font-weight", m);
       } else if (FONT_UNITS_RX.test(m)) {
         if (m.includes("/")) {
@@ -536,7 +536,7 @@ export class RuleSet {
     for (const property of BORDER_STYLE_PROPERTIES) {
       const declaration = this.declarations.get(property);
       if (!declaration || declaration.important) continue;
-      if (new RegExp(S).test(strip(declaration.value.replace(new RegExp(`,${S}`, "g"), ",")))) continue;
+      if (new RegExp(S, "u").test(strip(declaration.value.replace(new RegExp(`,${S}`, "gu"), ",")))) continue;
       values.push(declaration.value);
     }
     if (values.length !== BORDER_STYLE_PROPERTIES.length) return;
@@ -574,7 +574,7 @@ export class RuleSet {
     const lineHeight = this.declarations.get("line-height")!.value;
     if (lineHeight !== "normal") newValue += `/${lineHeight}`;
     newValue += ` ${this.declarations.get("font-family")!.value}`;
-    this.declarations.set("font", newValue.replace(new RegExp(`${S}+`, "g"), " "));
+    this.declarations.set("font", newValue.replace(new RegExp(`${S}+`, "gu"), " "));
     for (const prop of FONT_STYLE_PROPERTIES) this.declarations.delete(prop);
   }
 
@@ -601,7 +601,7 @@ export class RuleSet {
 
 // RuleSet#parse_selectors!: selectors.split(',') with Ruby's trailing-empty-field rule.
 function rubySplitComma(selectors: string): string[] {
-  return split(selectors, ",").map((s) => strip(s.replace(new RegExp(`${S}+`, "g"), " ")));
+  return split(selectors, ",").map((s) => strip(s.replace(new RegExp(`${S}+`, "gu"), " ")));
 }
 
 function computeDimensionsShorthand(
@@ -638,7 +638,10 @@ export function mergeRuleSets(ruleSets: RuleSet[]): RuleSet {
   const merged = new RuleSet();
   for (const [property, details] of properties) {
     const value = strip(details.value);
-    merged.set(strip(property), details.important ? `${value.replace(new RegExp(`;${END_Z}`), "")}!important` : value);
+    merged.set(
+      strip(property),
+      details.important ? `${value.replace(new RegExp(`;${END_Z}`, "u"), "")}!important` : value,
+    );
   }
   merged.createShorthand();
   return merged;
@@ -650,7 +653,7 @@ export function mergeRuleSets(ruleSets: RuleSet[]): RuleSet {
 const RULESET_TOKENIZER_RX = /[ \t\n\v\f\r]+|\\{2,}|\\?[{}\t\n\v\f\r "]|[()]|[^\n][^ \t\n\v\f\r"{}()\\]*/uy;
 const RE_AT_IMPORT_RULE = new RegExp(
   `@import${S}*(?:url${S}*)?(?:\\()?(?:${S}*)["']?([^'"\\t\\n\\v\\f\\r )]*)["']?\\)?([\\w\\t\\n\\v\\f\\r ,^\\]()]*)\\)?[;\\n]?`,
-  "g",
+  "gu",
 );
 
 export type CssRule = { mediaTypes: string[]; rules: RuleSet };
@@ -662,7 +665,7 @@ export class CssParser {
   // stripped, never followed.
   addBlock(block: string): void {
     let css = block.replace(/\/\*[\s\S]*?\*\//gu, "").replace(/<!--|-->/gu, "");
-    css = css.replace(new RegExp(`${BOL}${S}+${EOL}`, "g"), "");
+    css = css.replace(new RegExp(`${BOL}${S}+${EOL}`, "gu"), "");
     css = css.replace(RE_AT_IMPORT_RULE, "");
     this.parseBlockIntoRuleSets(css, ["all"]);
   }
@@ -739,7 +742,7 @@ export class CssParser {
         }
         currentDeclarations += token;
         if (!inString && token.includes("}")) {
-          currentDeclarations = strip(currentDeclarations.replace(new RegExp(`\\}${S}*${EOL}`, "g"), ""));
+          currentDeclarations = strip(currentDeclarations.replace(new RegExp(`\\}${S}*${EOL}`, "gu"), ""));
           inDeclarations -= 1;
           if (currentDeclarations !== "") this.addRule(currentSelectors, currentDeclarations, currentMediaQueries);
           currentSelectors = "";
@@ -762,7 +765,7 @@ export class CssParser {
         } else {
           token = strip(token);
           if (token === "(") currentMediaQuery += token;
-          else if (token === ")") currentMediaQuery = currentMediaQuery.replace(new RegExp(` ?${EOL}`), token);
+          else if (token === ")") currentMediaQuery = currentMediaQuery.replace(new RegExp(` ?${EOL}`, "u"), token);
           else currentMediaQuery += `${token} `;
         }
       } else if (inCharset || /@charset/iu.test(token)) {

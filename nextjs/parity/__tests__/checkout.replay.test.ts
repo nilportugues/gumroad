@@ -31,7 +31,7 @@ const ES_INDEX_SUFFIX = "-ws78";
 const REPLAY_PURCHASE_INDEX = `purchases${ES_INDEX_SUFFIX}`;
 const GEOIP_FIXTURE = path.join(process.cwd(), "src/server/infra/__fixtures__/GeoLite2-City-Test.mmdb");
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
-const fromEnvTest = (name: string) => new RegExp(`^${name}=(.+)$`, "m").exec(envTest)?.[1];
+const fromEnvTest = (name: string) => new RegExp(`^${name}=(.+)$`, "mu").exec(envTest)?.[1];
 
 const COMPARE = {
   ignore: [

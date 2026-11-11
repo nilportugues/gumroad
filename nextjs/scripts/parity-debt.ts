@@ -62,7 +62,7 @@ function fullDescription(parts: Part[]): string {
 
 function toRegex(name: string): RegExp {
   const escaped = name.split(HOLE).map((s) => s.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"));
-  return new RegExp(`^${escaped.join(".+?")}$`, "s");
+  return new RegExp(`^${escaped.join(".+?")}$`, "su");
 }
 
 function parseSpec(path: string, spec: string): Example[] {

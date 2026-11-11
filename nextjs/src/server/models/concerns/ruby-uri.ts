@@ -43,11 +43,13 @@ const RFC3986_URI = new RegExp(
     `(?://(?:(?<userinfo>${USERINFO})@)?(?<host>${HOST})(?::(?<port>\\d*))?(?<abempty>(?:/${SEG}*)?)` +
     `|(?<absolute>/(?:(?!/)${SEG}+)?)|(?<rootless>(?!/)${SEG}+)|(?<empty>))` +
     `(?:\\?(?<query>[^#]*))?(?:#(?<fragment>${FRAGMENT}))?$`,
+  "u",
 );
 const RFC3986_RELATIVE_REF = new RegExp(
   `^(?://(?:(?<userinfo>${USERINFO})@)?(?<host>(?:${HOST})(?<!/))?(?::(?<port>\\d*))?(?<abempty>(?:/${SEG}*)?)` +
     `|(?<absolute>/${SEG}*)|(?<noscheme>${SEG_NC}+(?:/${SEG}*)?)|(?<empty>))` +
     `(?:\\?(?<query>[^#]*))?(?:#(?<fragment>${FRAGMENT}))?$`,
+  "u",
 );
 
 export type RubyUri = { scheme: string | null; host: string | null };

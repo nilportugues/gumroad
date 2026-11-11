@@ -130,7 +130,7 @@ export function safeRedirectPath(
 
   const url = escapedUri(path);
   if (url.path === null) throw new HandBackToRails();
-  const subdomainHost = url.host !== null && new RegExp(`.*\\.${rootDomain.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}$`).test(url.host);
+  const subdomainHost = url.host !== null && new RegExp(`.*\\.${rootDomain.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}$`, "u").test(url.host);
   if ((allowSubdomainHost && subdomainHost) || url.host === request.host) return path;
 
   let relative = url.path.replace(/^\/+/u, "/");

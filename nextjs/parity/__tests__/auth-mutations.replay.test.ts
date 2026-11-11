@@ -53,7 +53,7 @@ const UNSUBSCRIBE_PATH = /^\/users\/unsubscribe\/([^/]+)$/u;
 const UNSUBSCRIBE_SCOPE = "email_unsubscribe";
 // auth_account_parity_spec mints the link with expires_at: 2.days.from_now.
 const UNSUBSCRIBE_LINK_LIFETIME_MS = 2 * 86_400_000;
-const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "m").exec(envTest)?.[1];
+const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "mu").exec(envTest)?.[1];
 // Session keys that differ by construction: the session id is random, the CSRF token is Rails'.
 const SESSION_IGNORED = new Set(["session_id", "_csrf_token"]);
 const SECONDS_TOLERANCE = 30;

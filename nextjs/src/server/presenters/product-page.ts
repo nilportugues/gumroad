@@ -347,7 +347,7 @@ async function pagePriceCents(row: LinkRow): Promise<number | null> {
 }
 
 function guidOf(cookieHeader: string | null): string | null {
-  const match = new RegExp(`(?:^|;\\s*)${GUID_COOKIE}=([^;]*)`).exec(cookieHeader ?? "");
+  const match = new RegExp(`(?:^|;\\s*)${GUID_COOKIE}=([^;]*)`, "u").exec(cookieHeader ?? "");
   return match?.[1] && match[1] !== "" ? decodeURIComponent(match[1]) : null;
 }
 

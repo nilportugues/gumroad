@@ -90,7 +90,7 @@ function patternToRegExp(pattern: string): RegExp {
       return segment.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
     })
     .join("/");
-  return new RegExp(`^${source}$`);
+  return new RegExp(`^${source}$`, "u");
 }
 
 export function compileRouteTable(table: RouteTable): CompiledRoute[] {
