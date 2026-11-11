@@ -7,10 +7,10 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 | Measure | Done | Total | Share |
 | --- | ---: | ---: | ---: |
-| Routes served natively (counted, static check) | 533 | 1052 | 50.7% |
-| Routes registered in routes.json (counted; upper bound, adds the 28 listed under "hands back") | 561 | 1052 | 53.3% |
-| Routes weighted by difficulty (counted routes, estimated weights) | 907 | 2015 | 45.0% |
-| Same, registered in routes.json (upper bound) | 959 | 2015 | 47.6% |
+| Routes served natively (counted, static check) | 557 | 1052 | 52.9% |
+| Routes registered in routes.json (counted; upper bound, adds the 32 listed under "hands back") | 589 | 1052 | 56.0% |
+| Routes weighted by difficulty (counted routes, estimated weights) | 968 | 2015 | 48.0% |
+| Same, registered in routes.json (upper bound) | 1032 | 2015 | 51.2% |
 | Rails Inertia pages with Node props (counted, string match) | 95 | 114 | 83.3% |
 | Sidekiq job classes running in Node (counted) | 114 | 296 | 38.5% |
 
@@ -28,8 +28,8 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 - The route share counts endpoints, and an endpoint is one row whether it is a health check or a purchase. The weighted share corrects that only as far as my weights are right.
 - Neither number measures the code under the routes. A route is counted native as soon as Node serves its common path, while its hard branches (see "Known partial hand-backs") still go to Rails. The shares therefore overstate how much of the work is finished, most for checkout, payouts, and the mobile and MCP APIs.
-- Code volume cross-check (counted, not a completion measure): Node has 101,547 non-test lines under `src/server` and `src/worker`; Rails has 197,057 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
-- 217 distinct rollout flags gate the routes in routes.json; none is enabled in production.
+- Code volume cross-check (counted, not a completion measure): Node has 102,964 non-test lines under `src/server` and `src/worker`; Rails has 197,057 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
+- 223 distinct rollout flags gate the routes in routes.json; none is enabled in production.
 
 ## By workstream
 
@@ -38,18 +38,18 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 | Redirect-only routes (no controller) | 42 | 42 | 0 | 0 | 100.0% | 42 | 42 | 100.0% |
 | WS-10 Settings and account | 196 | 75 | 15 | 106 | 38.3% | 309 | 114 | 36.9% |
 | WS-11 Help, pages, blog, profiles | 71 | 40 | 0 | 31 | 56.3% | 80 | 44 | 55.0% |
-| WS-12 Products and bundles | 159 | 62 | 5 | 92 | 39.0% | 233 | 84 | 36.1% |
+| WS-12 Products and bundles | 159 | 72 | 5 | 82 | 45.3% | 233 | 100 | 42.9% |
 | WS-13 Audience, emails, workflows | 59 | 45 | 0 | 14 | 76.3% | 118 | 90 | 76.3% |
 | WS-14 Discover and search | 4 | 2 | 0 | 2 | 50.0% | 5 | 2 | 40.0% |
 | WS-15 Analytics and exports | 23 | 14 | 0 | 9 | 60.9% | 26 | 15 | 57.7% |
 | WS-16 Library and content delivery | 39 | 36 | 1 | 2 | 92.3% | 51 | 48 | 94.1% |
 | WS-17 Public and mobile API | 199 | 141 | 0 | 58 | 70.9% | 359 | 246 | 68.5% |
-| WS-18 Admin | 86 | 25 | 0 | 61 | 29.1% | 254 | 70 | 27.6% |
+| WS-18 Admin | 86 | 38 | 4 | 44 | 44.2% | 254 | 112 | 44.1% |
 | WS-19 AI, MCP and moderation | 36 | 22 | 7 | 7 | 61.1% | 108 | 66 | 61.1% |
-| WS-20 Checkout and orders | 89 | 21 | 0 | 68 | 23.6% | 276 | 64 | 23.2% |
+| WS-20 Checkout and orders | 89 | 22 | 0 | 67 | 24.7% | 276 | 67 | 24.3% |
 | WS-21 Payment processors | 8 | 0 | 0 | 8 | 0.0% | 32 | 0 | 0.0% |
 | WS-23 Balances and payouts | 41 | 8 | 0 | 33 | 19.5% | 122 | 22 | 18.0% |
-| **All** | 1052 | 533 | 28 | 491 | 50.7% | 2015 | 907 | 45.0% |
+| **All** | 1052 | 557 | 32 | 463 | 52.9% | 2015 | 968 | 48.0% |
 
 ## Sensitivity to the weights
 
@@ -57,19 +57,19 @@ The weights are the soft part of this inventory, so here is the headline under o
 
 | Scheme | Native weight | Total weight | Share |
 | --- | ---: | ---: | ---: |
-| Every route counts 1 (the plain route share) | 533 | 1052 | 50.7% |
-| Verb only: GET 1, other verbs 2 | 726 | 1525 | 47.6% |
-| Rubric weights 1 to 4 (the headline) | 907 | 2015 | 45.0% |
-| Rubric weights doubled per step: 1, 2, 4, 8 | 1010 | 2386 | 42.3% |
+| Every route counts 1 (the plain route share) | 557 | 1052 | 52.9% |
+| Verb only: GET 1, other verbs 2 | 766 | 1525 | 50.2% |
+| Rubric weights 1 to 4 (the headline) | 968 | 2015 | 48.0% |
+| Rubric weights doubled per step: 1, 2, 4, 8 | 1094 | 2386 | 45.9% |
 
 ## By weight
 
 | Weight | Routes | Native | Native % |
 | ---: | ---: | ---: | ---: |
-| 1 | 410 | 258 | 62.9% |
-| 2 | 346 | 178 | 51.4% |
-| 3 | 271 | 95 | 35.1% |
-| 4 | 25 | 2 | 8.0% |
+| 1 | 410 | 262 | 63.9% |
+| 2 | 346 | 184 | 53.2% |
+| 3 | 271 | 106 | 39.1% |
+| 4 | 25 | 5 | 20.0% |
 
 ## By controller
 
@@ -79,29 +79,27 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | `PurchasesController` | WS-20 Checkout and orders | 18 | 2 | 0 | 16 | 3/4 (57) | 51 |
 | `Api::Internal::Admin::UsersController` | WS-18 Admin | 26 | 10 | 0 | 16 | 3 (78) | 48 |
-| `Api::Internal::Admin::PurchasesController` | WS-18 Admin | 12 | 0 | 0 | 12 | 3/4 (39) | 39 |
 | `ForeignWebhooksController` | WS-21 Payment processors | 8 | 0 | 0 | 8 | 4 (32) | 32 |
 | `Api::V2::McpController` | WS-19 AI, MCP and moderation | 17 | 7 | 7 | 3 | 3 (51) | 30 |
 | `Settings::PaymentsController` | WS-23 Balances and payouts | 12 | 2 | 0 | 10 | 3 (36) | 30 |
 | `Settings::BeneficialOwnersController` | WS-23 Balances and payouts | 7 | 0 | 0 | 7 | 3 (21) | 21 |
 | `Settings::GuardiansController` | WS-23 Balances and payouts | 7 | 0 | 0 | 7 | 3 (21) | 21 |
 | `OrdersController` | WS-20 Checkout and orders | 5 | 0 | 0 | 5 | 4 (20) | 20 |
-| `LinksController` | WS-12 Products and bundles | 27 | 15 | 0 | 12 | 1/2 (39) | 19 |
-| `Api::Internal::Admin::PiracyReportsController` | WS-18 Admin | 7 | 1 | 0 | 6 | 3 (21) | 18 |
 | `Checkout::DiscountsController` | WS-20 Checkout and orders | 9 | 3 | 0 | 6 | 3 (27) | 18 |
 | `Api::Internal::Admin::ProductsController` | WS-18 Admin | 5 | 0 | 0 | 5 | 3 (15) | 15 |
 | `Checkout::UpsellsController` | WS-20 Checkout and orders | 10 | 5 | 0 | 5 | 3 (30) | 15 |
 | `Purchases::DisputeEvidenceController` | WS-20 Checkout and orders | 7 | 2 | 0 | 5 | 3 (21) | 15 |
-| `Subscriptions::MagicLinksController` | WS-20 Checkout and orders | 6 | 1 | 0 | 5 | 3 (18) | 15 |
 | `UsersController` | WS-10 Settings and account | 18 | 5 | 1 | 12 | 1/2 (20) | 15 |
 | `Api::Internal::Admin::PayoutsController` | WS-18 Admin | 4 | 0 | 0 | 4 | 3/4 (13) | 13 |
 | `Api::Internal::Admin::ScheduledPayoutsController` | WS-18 Admin | 4 | 0 | 0 | 4 | 3/4 (13) | 13 |
+| `Api::Internal::Admin::PiracyReportsController` | WS-18 Admin | 7 | 3 | 4 | 0 | 3 (21) | 12 |
 | `Checkout::FormController` | WS-20 Checkout and orders | 6 | 2 | 0 | 4 | 3 (18) | 12 |
 | `CommunitiesController` | WS-13 Audience, emails, workflows | 8 | 2 | 0 | 6 | 2 (16) | 12 |
 | `Integrations::DiscordController` | WS-10 Settings and account | 4 | 0 | 0 | 4 | 3 (12) | 12 |
 | `PaypalController` | WS-20 Checkout and orders | 4 | 0 | 0 | 4 | 3 (12) | 12 |
 | `Settings::BillingController` | WS-23 Balances and payouts | 6 | 2 | 0 | 4 | 3 (18) | 12 |
 | `Settings::PasskeysController` | WS-10 Settings and account | 8 | 0 | 0 | 8 | 1/2 (12) | 12 |
+| `Subscriptions::MagicLinksController` | WS-20 Checkout and orders | 6 | 2 | 0 | 4 | 3 (18) | 12 |
 | `Api::V2::LinksController` | WS-17 Public and mobile API | 12 | 6 | 0 | 6 | 1/2 (20) | 11 |
 | `HomeController` | WS-11 Help, pages, blog, profiles | 12 | 1 | 0 | 11 | 1 (12) | 11 |
 | `Api::V2::LicensesController` | WS-17 Public and mobile API | 5 | 0 | 0 | 5 | 2 (10) | 10 |
@@ -168,6 +166,7 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `ThumbnailsController` | WS-12 Products and bundles | 2 | 0 | 0 | 2 | 2 (4) | 4 |
 | `Api::Internal::Admin::FeatureAnnouncementCampaignsController` | WS-18 Admin | 8 | 7 | 0 | 1 | 3 (24) | 3 |
 | `Api::Internal::Admin::LicensesController` | WS-18 Admin | 1 | 0 | 0 | 1 | 3 (3) | 3 |
+| `Api::Internal::Admin::PurchasesController` | WS-18 Admin | 12 | 11 | 0 | 1 | 3/4 (39) | 3 |
 | `Api::Internal::Admin::StripeRestraintNoticesController` | WS-18 Admin | 1 | 0 | 0 | 1 | 3 (3) | 3 |
 | `Api::Internal::AgentCustomHtmlPreviewsController` | WS-17 Public and mobile API | 2 | 0 | 0 | 2 | 1/2 (3) | 3 |
 | `Api::Mobile::CommissionsController` | WS-17 Public and mobile API | 1 | 0 | 0 | 1 | 3 (3) | 3 |
@@ -177,6 +176,7 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `Checkout::ReturnsController` | WS-20 Checkout and orders | 1 | 0 | 0 | 1 | 3 (3) | 3 |
 | `ConfirmationsController` | WS-10 Settings and account | 3 | 1 | 0 | 2 | 1/2 (4) | 3 |
 | `CustomDomain::VerificationsController` | WS-10 Settings and account | 1 | 0 | 0 | 1 | 3 (3) | 3 |
+| `LinksController` | WS-12 Products and bundles | 27 | 25 | 0 | 2 | 1/2 (39) | 3 |
 | `McpConnectorsController` | WS-11 Help, pages, blog, profiles | 3 | 0 | 0 | 3 | 1 (3) | 3 |
 | `OauthCompletionsController` | WS-23 Balances and payouts | 1 | 0 | 0 | 1 | 3 (3) | 3 |
 | `Oauth::DeviceAuthorizationsController` | WS-10 Settings and account | 2 | 0 | 0 | 2 | 1/2 (3) | 3 |
@@ -353,6 +353,10 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 
 ## Routes that hand back (listed in routes.json, no Node code found)
 
+- `POST /internal/admin/piracy_reports/:id/start_screening` (`Api::Internal::Admin::PiracyReportsController#start_screening`)
+- `POST /internal/admin/piracy_reports/:id/screen` (`Api::Internal::Admin::PiracyReportsController#screen`)
+- `POST /internal/admin/piracy_reports/:id/counter_notice` (`Api::Internal::Admin::PiracyReportsController#counter_notice`)
+- `POST /internal/admin/piracy_reports/:id/resolve` (`Api::Internal::Admin::PiracyReportsController#resolve`)
 - `GET /muse/v1/status` (`Api::V2::McpController#status`)
 - `GET /muse/v1/oauth2/authorize(.:format)` (`Oauth::AuthorizationsController#new`)
 - `POST /muse/v1/oauth2/token(.:format)` (`Oauth::TokensController#create`)

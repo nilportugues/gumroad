@@ -125,6 +125,39 @@ function queryString(options: Record<string, string>): string {
   return parts.length === 0 ? "" : `?${parts.join("&")}`;
 }
 
+export type ShownProduct = {
+  product: LinkRow;
+  seller: UserRow;
+  productByCustomDomain: LinkRow | null;
+  isUserCustomDomain: boolean;
+  domainSeller: UserRow | null;
+};
+
+// LinksController#fetch_product_for_show: the product of the custom domain the request came in on, else the `:id` permalink within the
+// seller the host names. Raises the 404 of an unknown product.
+export async function fetchProductForShow(requestHost: string, id: string | null): Promise<ShownProduct> {
+  const config = domainConfig(process.env);
+  const host = classifyHost(requestHost, config);
+  const custom = await customDomainByHost(requestHost);
+  const customProduct = custom?.product_id != null ? await findLink(custom.product_id) : null;
+  let productByCustomDomain: LinkRow | null = null;
+  if (customProduct && present(linkFields.generalPermalink(customProduct))) {
+    productByCustomDomain = await fetchLeniently(linkFields.generalPermalink(customProduct)!, customProduct.user_id);
+  }
+  // UserCustomDomainRequestService.valid?
+  const isUserCustomDomain = !host.gumroad && requestHost !== config.validDiscoverRequestHost && customProduct === null;
+  const domainSeller = await userByDomain(requestHost);
+
+  let product = productByCustomDomain;
+  if (product === null) {
+    if (!present(id)) throw new RoutingError("Not Found");
+    product = await fetchLeniently(id, domainSeller?.id ?? null);
+    if (product === null) throw new RoutingError("Not Found");
+  }
+  const seller = (await findUserById(product.user_id!))!;
+  return { product, seller, productByCustomDomain, isUserCustomDomain, domainSeller };
+}
+
 export async function productPageFilters(chain: Chain): Promise<FilterOutcome> {
   const { request } = chain;
   // Nested params and an explicit format change what `params` holds; Rails serves them.
@@ -140,25 +173,7 @@ export async function productPageFilters(chain: Chain): Promise<FilterOutcome> {
   if (query.code !== undefined && typeof query.code !== "string") throw new HandBackToRails();
   const code = present(pathCode) ? pathCode : present(queryCode) ? queryCode : null;
 
-  // fetch_product_for_show
-  const host = classifyHost(request.host, config);
-  const custom = await customDomainByHost(request.host);
-  const customProduct = custom?.product_id != null ? await findLink(custom.product_id) : null;
-  let productByCustomDomain: LinkRow | null = null;
-  if (customProduct && present(linkFields.generalPermalink(customProduct))) {
-    productByCustomDomain = await fetchLeniently(linkFields.generalPermalink(customProduct)!, customProduct.user_id);
-  }
-  // UserCustomDomainRequestService.valid?
-  const isUserCustomDomain = !host.gumroad && request.host !== config.validDiscoverRequestHost && customProduct === null;
-  const domainSeller = await userByDomain(request.host);
-
-  let product = productByCustomDomain;
-  if (product === null) {
-    if (!present(id)) throw new RoutingError("Not Found");
-    product = await fetchLeniently(id, domainSeller?.id ?? null);
-    if (product === null) throw new RoutingError("Not Found");
-  }
-  const seller = (await findUserById(product.user_id!))!;
+  const { product, seller, productByCustomDomain, isUserCustomDomain, domainSeller } = await fetchProductForShow(request.host, id);
 
   // check_banned, ensure_seller_is_not_deleted
   if (product.banned_at !== null) throw new RoutingError("Not Found");

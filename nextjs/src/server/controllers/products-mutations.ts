@@ -83,8 +83,9 @@ export async function find(
   input: MutationInput,
   access: "ownership" | "access",
   authorization: (context: SellerContext, product: Link, collaborating: ReadonlySet<bigint>) => void,
+  { requireAccountEmail = true }: { requireAccountEmail?: boolean } = {},
 ): Promise<Found> {
-  const halted = accountEmailRequired(input);
+  const halted = requireAccountEmail ? accountEmailRequired(input) : null;
   if (halted) return { halt: halted };
   const seller = input.context.currentSeller!;
   const permalink = permalinkParam(input);
