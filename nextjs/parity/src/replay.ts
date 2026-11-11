@@ -72,6 +72,9 @@ export type ReplayOptions = {
   // The instant the seed's tokens resolve against, for a request that carries a literal date the rows are measured
   // against. The request and the port still run on the replay's clock.
   seedClock?: Date;
+  // Runs once the database is seeded and before the request is sent: where a stand-in outbound server takes the baseline it
+  // measures writes against.
+  beforeRequest?: () => void | Promise<void>;
 };
 
 export async function replayExchange(
@@ -92,6 +95,7 @@ export async function replayExchange(
   const before = await dump(sql, schema, await nonEmptyTables(sql, schema));
   await jobs?.reset();
   await mails?.reset();
+  await options.beforeRequest?.();
 
   const interceptor = interceptHttp ? interceptFetch(exchange.http, now) : undefined;
   let response: Response;

@@ -16,6 +16,7 @@ import { authorize } from "../policies/authorize.ts";
 import { HandBackToRails, RoutingError, type ActionResult } from "./application-controller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { setPurchase } from "./purchase-access-writes.ts";
+import { refundPurchase } from "./purchase-refund.ts";
 import { authorizeJson, notFoundJson } from "./seller-json.ts";
 
 const UNSUBSCRIBE_SCOPE = "unsubscribe";
@@ -55,15 +56,6 @@ function sellerPurchaseAction(query: Policy, reason: string) {
     if (denied) return denied;
     throw new HandBackToRails(reason);
   };
-}
-
-// `authorize [:audience, Purchase]`: the action looks the purchase up itself.
-async function refund(input: MutationInput): Promise<ActionResult> {
-  if (railsLoggedInUser(input.context) === null || input.context.currentSeller === null)
-    throw new HandBackToRails("a signed-out request");
-  const denied = await authorizeJson(input, (context) => authorize(audiencePurchasePolicy.refund, context));
-  if (denied) return denied;
-  throw new HandBackToRails("a refund, which moves money through the processor");
 }
 
 // ----- the buyer's and the visitor's actions
@@ -129,7 +121,7 @@ registerMutations(
     json: true,
     run: sellerPurchaseAction(audiencePurchasePolicy.cancelPreorderBySeller, "a preorder cancellation"),
   },
-  { method: "PUT", pattern: "/purchases/:id/refund", json: true, run: refund },
+  { method: "PUT", pattern: "/purchases/:id/refund", json: true, run: refundPurchase },
   {
     method: "GET",
     pattern: "/purchases/:id/receipt",

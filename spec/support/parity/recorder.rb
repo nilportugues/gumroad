@@ -33,6 +33,18 @@ module Parity
     # queues and counters the port does not read.
     REDIS_SEEDED_TYPES = %w[string hash set].freeze
 
+    # Request headers an outbound call is recorded with; the rest carry API keys or per-attempt noise (user agent, telemetry).
+    # A value shaped like a UUID is a random per-attempt key and records as `<uuid>`; a derived key (a Stripe idempotency key
+    # built from a record id) is the contract and stays verbatim. Credentials record as a short digest: a call made with another
+    # key still differs, and the fixture does not hold the key.
+    HTTP_HEADERS_KEPT = %w[idempotency-key stripe-account paypal-request-id authorization].freeze
+    HTTP_HEADERS_HASHED = %w[authorization].freeze
+    UUID_PATTERN = /\A\h{8}-\h{4}-\h{4}-\h{4}-\h{12}\z/
+    CREDENTIAL_DIGEST_LENGTH = 16
+
+    # `INSERT INTO t`, `UPDATE t`, `DELETE FROM t`, possibly behind a leading comment.
+    WRITE_STATEMENT = /\A\s*(?:\/\*.*?\*\/\s*)*(INSERT|UPDATE|DELETE|REPLACE)\s+(?:IGNORE\s+)?(?:INTO\s+|FROM\s+)?`?(\w+)`?/mi
+
     ACTIVE_JOB_WRAPPERS = %w[
       Sidekiq::ActiveJob::Wrapper ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper
     ].freeze
@@ -67,6 +79,7 @@ module Parity
         # the call in fake mode.
         Sidekiq::Client.prepend(SidekiqHook) if defined?(Sidekiq::Client)
         ActionMailer::Base.register_observer(MailObserver) if defined?(ActionMailer::Base)
+        ActiveSupport::Notifications.subscribe("sql.active_record") { |*, payload| Recorder.current&.record_sql(payload) }
         if defined?(WebMock)
           WebMock.after_request { |signature, response| Recorder.current&.record_http(signature, response) }
         end
@@ -108,6 +121,7 @@ module Parity
       @jobs = []
       @mails = []
       @http = []
+      @timeline = []
       begin
         result = yield
       ensure
@@ -128,12 +142,17 @@ module Parity
         "jobs" => @jobs.map { job_json(_1, now) },
         "mails" => @mails.map { mail_json(_1, now) },
         "http" => @http.map { |signature, response| http_json(signature, response, now) },
+        # Order only means something against an outbound call; without one it would be noise in every fixture.
+        "timeline" => (@timeline if @http.any?),
       }.compact
       result
     end
 
     def record_job(payload)
-      @jobs << payload.deep_dup if @capturing
+      return unless @capturing
+
+      @jobs << payload.deep_dup
+      @timeline << { "type" => "job", "index" => @jobs.size - 1 }
     end
 
     def record_mail(message)
@@ -141,7 +160,20 @@ module Parity
     end
 
     def record_http(signature, response)
-      @http << [signature, response] if @capturing
+      return unless @capturing
+
+      @http << [signature, response]
+      @timeline << { "type" => "http", "index" => @http.size - 1 }
+    end
+
+    # One event per INSERT, UPDATE or DELETE the request runs, in order among its outbound calls and enqueued jobs (the
+    # other events point into `http` and `jobs` by index). Reads and transaction control are not events, and the recorder's
+    # own snapshots run outside the capture.
+    def record_sql(payload)
+      return unless @capturing && payload[:name] != "SCHEMA"
+
+      match = WRITE_STATEMENT.match(payload[:sql].to_s)
+      @timeline << { "type" => "db", "op" => match[1].downcase, "table" => match[2] } if match
     end
 
     def write!
@@ -408,7 +440,21 @@ module Parity
         message.decoded if !message.multipart? && message.mime_type == mime_type
       end
 
-      # Only content-type is kept from request headers: the rest carry API keys.
+      def http_headers_json(request_headers)
+        HTTP_HEADERS_KEPT.filter_map do |name|
+          value = Array(request_headers[name]).join(", ").presence
+          next unless value
+
+          value =
+            if HTTP_HEADERS_HASHED.include?(name) then "sha256:#{Digest::SHA256.hexdigest(value)[0, CREDENTIAL_DIGEST_LENGTH]}"
+            elsif value.match?(UUID_PATTERN) then "<uuid>"
+            else value
+            end
+          [name, value]
+        end.to_h.presence
+      end
+
+      # Request headers are limited to HTTP_HEADERS_KEPT; the rest carry API keys.
       def http_json(signature, response, now)
         uri = signature.uri.dup
         uri.port = nil if uri.port == uri.default_port
@@ -418,6 +464,7 @@ module Parity
           "method" => signature.method.to_s.upcase,
           "url" => uri.to_s,
           "contentType" => request_headers["content-type"],
+          "headers" => http_headers_json(request_headers),
           "body" => signature.body.presence,
           "response" => {
             "status" => Array(response&.status).first,

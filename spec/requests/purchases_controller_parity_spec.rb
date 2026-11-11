@@ -156,7 +156,7 @@ describe "Purchases controller guards", type: :request do
   end
 
   describe "refunding a purchase" do
-    it "hands the refund of a purchase that does not exist to Rails", parity: true do
+    it "answers 404 for the refund of a purchase that does not exist", parity: true do
       log_in(seller)
 
       send_json(:put, "/purchases/nosuchpurchase/refund", { amount: "1.00" })

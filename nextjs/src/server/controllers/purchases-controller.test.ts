@@ -105,11 +105,6 @@ describe.each([
 describe("PUT /purchases/:id/refund", () => {
   const action = find("PUT", "/purchases/:id/refund");
 
-  it("hands a refund by an authorized member back to Rails without looking the purchase up", async () => {
-    await expect(action.run(input())).rejects.toThrow(/refund/u);
-    expect(selectRows).not.toHaveBeenCalled();
-  });
-
   it("answers 401 for a team member who cannot refund", async () => {
     loadSellerContext.mockResolvedValue(accountant);
     expect(status(await action.run(input()))).toBe(401);
