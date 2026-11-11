@@ -1,6 +1,7 @@
 // Handlers for every class in src/server/jobs/ported-jobs.ts, keyed by Ruby class name.
 import type { RetriesExhausted, RetryIn } from "../retry.ts";
 
+import { alertOnRetiredManagedAccountActivityJob } from "./alert-on-retired-managed-account-activity-job.ts";
 import { backfillOrphanedShownProductsInProfileSectionsJob } from "./backfill-orphaned-shown-products-in-profile-sections-job.ts";
 import { backfillPriceCheckerIndexFieldsJob } from "./backfill-price-checker-index-fields-job.ts";
 import { backfillTaggingsCountOnTagsJob } from "./backfill-taggings-count-on-tags-job.ts";
@@ -76,6 +77,7 @@ import {
   updatePurchaseHealthcheckThresholdJob,
 } from "./purchase-reads-jobs.ts";
 import { purgeOldDeletedAssetPreviewsWorker } from "./purge-old-deleted-asset-previews-worker.ts";
+import { radarSyncValueListsJob } from "./radar-sync-value-lists-job.ts";
 import { radarAddValueListItemJob, radarRemoveValueListItemJob } from "./radar-value-list-jobs.ts";
 import { rebuildGmailAbuseFilterJob } from "./rebuild-gmail-abuse-filter-job.ts";
 import { recoverAusBacktaxFromStripeAccountJob } from "./recover-aus-backtax-from-stripe-account-job.ts";
@@ -113,6 +115,7 @@ import { sendCommunityChatRecapNotificationsJob } from "./send-community-chat-re
 import { sendFeatureAnnouncementCampaignJob } from "./send-feature-announcement-campaign-job.ts";
 import { sendLastPostJob } from "./send-last-post-job.ts";
 import { sendMarketingXReconnectEmailJob } from "./send-marketing-x-reconnect-email-job.ts";
+import { sendPaymentReminderWorker } from "./send-payment-reminder-worker.ts";
 import { sendPreorderSellerSummaryWorker } from "./send-preorder-seller-summary-worker.ts";
 import { sendPurchaseReceiptJob } from "./send-purchase-receipt-job.ts";
 import { sendWishlistUpdatedEmailsJob } from "./send-wishlist-updated-emails-job.ts";
@@ -158,6 +161,8 @@ import {
 } from "./workflow-jobs.ts";
 
 export const JOB_HANDLERS: Record<string, JobHandler> = {
+  AlertOnRetiredManagedAccountActivityJob: alertOnRetiredManagedAccountActivityJob,
+  "Radar::SyncValueListsJob": radarSyncValueListsJob,
   AlertOnStalledAbandonedCartEmailsJob: alertOnStalledAbandonedCartEmailsJob,
   BackfillMerchantAccountRecommendationEligibilityJob: backfillMerchantAccountRecommendationEligibilityJob,
   BlockEmailDomainsWorker: blockEmailDomainsWorker,
@@ -271,6 +276,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   "Radar::RemoveValueListItemJob": radarRemoveValueListItemJob,
   ExpiringCreditCardMessageWorker: expiringCreditCardMessageWorker,
   SendWishlistUpdatedEmailsJob: sendWishlistUpdatedEmailsJob,
+  SendPaymentReminderWorker: sendPaymentReminderWorker,
   SendFeatureAnnouncementCampaignJob: sendFeatureAnnouncementCampaignJob,
   SendPreorderSellerSummaryWorker: sendPreorderSellerSummaryWorker,
   SubmitToIndexnowJob: submitToIndexnowJob,

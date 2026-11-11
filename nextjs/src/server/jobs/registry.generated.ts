@@ -73,7 +73,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "AlertOnStaleBlocksHoldingEstablishedBuyersJob": {
     "file": "app/sidekiq/alert_on_stale_blocks_holding_established_buyers_job.rb",
@@ -2004,7 +2004,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RebuildGmailAbuseFilterJob": {
     "file": "app/sidekiq/rebuild_gmail_abuse_filter_job.rb",
@@ -2970,7 +2970,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SendPaypalTopupNotificationJob": {
     "file": "app/sidekiq/send_paypal_topup_notification_job.rb",
