@@ -355,7 +355,7 @@ async function resendToken(chain: Chain, user: UserRecord): Promise<void> {
 }
 
 registerMutations(
-  { method: "POST", pattern: "/login", options: LOGIN_OPTIONS, railsOnly: "/ip:/login:post", run: loginCreate },
+  { method: "POST", pattern: "/login", options: LOGIN_OPTIONS, run: loginCreate },
   { method: "POST", pattern: "/users/sign_in", options: LOGIN_OPTIONS, run: loginCreate },
   { method: "DELETE", pattern: "/logout", options: LOGOUT_OPTIONS, run: logout },
   { method: "GET", pattern: "/logout", options: LOGOUT_OPTIONS, skipForgeryProtection: true, run: logout },

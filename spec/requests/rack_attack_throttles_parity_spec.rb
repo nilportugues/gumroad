@@ -28,6 +28,20 @@ describe "Rack::Attack throttles", type: :request do
     Rack::Attack.reset!
   end
 
+  # The login, signup and settings rules are registered only when Rails.env.production? (rack_attack.rb). The initializer runs once at boot, so
+  # the example loads it again with the environment stubbed as production and puts the throttles back afterwards.
+  def with_production_throttles
+    registered = Rack::Attack.throttles.dup
+    allow(Rails).to receive(:env).and_return(ActiveSupport::StringInquirer.new("production"))
+    %i[GROUPED_RECEIPT_LOOKUP_PATHS PASSWORD_RESET_PATH].each { |name| Rack::Attack.send(:remove_const, name) }
+    load Rails.root.join("config/initializers/rack_attack.rb")
+    allow(Rails).to receive(:env).and_call_original
+    Rack::Attack.cache.store.flushdb
+    yield
+  ensure
+    Rack::Attack.throttles.replace(registered)
+  end
+
   def expect_throttled
     expect(response).to have_http_status(:too_many_requests)
     expect(response.body).to eq("Retry later\n")
@@ -93,6 +107,112 @@ describe "Rack::Attack throttles", type: :request do
     get "/#{seller.username}/landing/products", params: { offset: 0, limit: 10 }, headers: ip_headers
 
     expect_throttled
+  end
+
+  # Node serves the comment and chat writes of a signed-in user only: a signed-out request goes to Rails whole.
+  def settings_params(user)
+    { user: { email: user.email, username: user.username, enable_payment_email: true, locale: "en", timezone: "Pacific Time (US & Canada)", currency_type: "usd",
+              purchasing_power_parity_enabled: false, purchasing_power_parity_excluded_product_ids: [], product_level_support_emails: [],
+              seller_refund_policy: { max_refund_period_in_days: 30, fine_print: "" } } }.to_json
+  end
+
+  def inertia_headers
+    { "X-Inertia" => "true", "X-Requested-With" => "XMLHttpRequest", "Accept" => "text/html, application/xhtml+xml", "Content-Type" => "application/json" }
+  end
+
+  def sign_in_and_get_token(on_host: DOMAIN)
+    log_in(create(:user))
+    token = csrf_token
+    host! on_host
+    token
+  end
+
+  it "answers the sixth comment on a post from an address with 429", parity: true do
+    token = sign_in_and_get_token(on_host: seller.subdomain)
+    5.times do
+      post "/posts/nosuchpost/comments", params: { comment: { content: "Hello" } }.to_json, headers: json_headers.merge(ip_headers, "X-CSRF-Token" => token)
+      expect(response).not_to have_http_status(:too_many_requests)
+    end
+
+    post "/posts/nosuchpost/comments", params: { comment: { content: "Hello" } }.to_json, headers: json_headers.merge(ip_headers, "X-CSRF-Token" => token)
+
+    expect_throttled
+  end
+
+  it "answers the sixth comment edit on a post from an address with 429", parity: true do
+    token = sign_in_and_get_token(on_host: seller.subdomain)
+    5.times do
+      put "/posts/nosuchpost/comments/nosuchcomment", params: { comment: { content: "Hello" } }.to_json, headers: json_headers.merge(ip_headers, "X-CSRF-Token" => token)
+      expect(response).not_to have_http_status(:too_many_requests)
+    end
+
+    put "/posts/nosuchpost/comments/nosuchcomment", params: { comment: { content: "Hello" } }.to_json, headers: json_headers.merge(ip_headers, "X-CSRF-Token" => token)
+
+    expect_throttled
+  end
+
+  # Sixty recorded requests take most of the 60-second window, so the clock stays put.
+  it "answers the sixty-first chat message of an address in one community with 429", parity: true do
+    token = sign_in_and_get_token
+    freeze_time do
+      60.times do
+        post "/communities/nosuchcommunity/chat_messages", params: { community_chat_message: { content: "Hello" } }.to_json, headers: inertia_headers.merge(ip_headers, "X-CSRF-Token" => token)
+        expect(response).not_to have_http_status(:too_many_requests)
+      end
+
+      post "/communities/nosuchcommunity/chat_messages", params: { community_chat_message: { content: "Hello" } }.to_json, headers: inertia_headers.merge(ip_headers, "X-CSRF-Token" => token)
+
+      expect_throttled
+    end
+  end
+
+  # 300 recorded requests take longer than the 60-second window, so the clock stays put.
+  it "answers the three-hundred-and-first product search of an address with 429", parity: true do
+    freeze_time do
+      300.times do
+        get "/products/search", params: { user_id: "nosuchuser" }, headers: ip_headers
+        expect(response).not_to have_http_status(:too_many_requests)
+      end
+
+      get "/products/search", params: { user_id: "nosuchuser" }, headers: ip_headers
+
+      expect_throttled
+    end
+  end
+
+  describe "production-only rules" do
+    let(:login_headers) { { "Accept" => "application/json", "Content-Type" => "application/json" } }
+
+    it "answers the fourth login attempt from an address with 429", parity: true do
+      token = csrf_token
+      with_production_throttles do
+        3.times do
+          post "/login", params: { authenticity_token: token, user: { login_identifier: "nobody@example.com", password: "whatever-1" } }, headers: ip_headers
+          expect(response).to have_http_status(:see_other)
+        end
+
+        post "/login", params: { authenticity_token: token, user: { login_identifier: "nobody@example.com", password: "whatever-1" } }, headers: ip_headers
+
+        expect_throttled
+      end
+    end
+
+    it "answers the fourth settings save from an address with 429", parity: true do
+      user = create(:user, password: "a-long-password-1")
+      log_in(user)
+      token = csrf_token
+      headers = inertia_headers.merge(ip_headers, "X-CSRF-Token" => token, "Referer" => "http://#{DOMAIN}/settings")
+      with_production_throttles do
+        3.times do
+          put "/settings", params: settings_params(user), headers: headers
+          expect(response).not_to have_http_status(:too_many_requests)
+        end
+
+        put "/settings", params: settings_params(user), headers: headers
+
+        expect_throttled
+      end
+    end
   end
 
   it "does not count a request from localhost", parity: true do

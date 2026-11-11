@@ -219,7 +219,41 @@ function groupedReceiptRecipient(request: RackRequest): string | null {
 }
 
 // Listed in the order rack_attack.rb defines them, which is the order Rack::Attack counts in.
+// The `user[login]` that `throttle("logins/login")` keys on. Ruby's `String#[]` and `Array#[]` answer something else for a `user` that is not a
+// hash, and a non-string login interpolates differently.
+function loginParam(request: RackRequest): string | null {
+  if (request.path !== "/login.json" || request.method !== "POST") return null;
+  const user = rackParams(request).user;
+  if (user === undefined || user === null) return null;
+  if (!isHash(user)) throw new HandBackToRails("a login throttle parameter that is not a hash");
+  const login = user.login;
+  if (login === undefined || login === null) return null;
+  if (typeof login !== "string") throw new HandBackToRails("a login throttle parameter that is not a string");
+  // `.presence`: a blank string is no key.
+  return /^[\t\n\v\f\r ]*$/u.test(login) ? null : login;
+}
+
+const PRODUCTION_PATH_RULES = [
+  ["/ip:/login:post", "/login", "POST"],
+  ["/ip:/login.json", "/login.json", null],
+  ["/ip:/signup", "/signup", null],
+  ["/ip:/signup.json", "/signup.json", null],
+] as const;
+
 const RULES: Throttle[] = [
+  ...productionOnly(
+    PRODUCTION_PATH_RULES.flatMap(([name, path, method]) =>
+      backoff(
+        name,
+        3,
+        20,
+        5,
+        memoized((request) =>
+          request.path === path && (method === null || request.method === method) ? request.remoteIp : null,
+        ),
+      ),
+    ),
+  ),
   ...productionOnly(
     backoff(
       "/ip:/follow:post",
@@ -230,6 +264,15 @@ const RULES: Throttle[] = [
     ),
   ),
   ...productionOnly(backoff("/ip:/follow_from_embed_form", 3, 20, 5, memoized(exactPathIp("/follow_from_embed_form")))),
+  ...productionOnly(
+    backoff(
+      "/ip:/settings:put",
+      3,
+      20,
+      5,
+      memoized((request) => (request.method === "PUT" && request.path === "/settings" ? request.remoteIp : null)),
+    ),
+  ),
   ...backoff("/ip:/discover", 60, 30, 5, memoized(exactPathIp("/discover"))),
   ...backoff("/ip:/offer_codes/compute_discount", 60, 30, 5, memoized(exactPathIp("/offer_codes/compute_discount"))),
   ...backoff(
@@ -345,6 +388,8 @@ const RULES: Throttle[] = [
     discriminator: (request) =>
       request.path.endsWith("/v2/sales") && pageNumber(rackParams(request).page) > 10 ? request.remoteIp : null,
   },
+  // A plain `throttle`, no tiers: it stops a botnet rotating addresses against one account.
+  { name: "logins/login", limit: 3, period: 20, discriminator: loginParam },
   ...backoff("/ip:(?-mix:\\A\\/posts\\/.+\\/comments\\z):post", 5, 60, 5, memoized(ipRule(COMMENTS_PATH, "POST"))),
   ...backoff("/ip:(?-mix:\\A\\/posts\\/.+\\/comments\\/.+\\z):put", 5, 60, 5, memoized(ipRule(COMMENT_PATH, "PUT"))),
   ...backoff(
@@ -416,6 +461,11 @@ const RULES: Throttle[] = [
 export const RACK_ATTACK_RULES: readonly Throttle[] = RULES;
 export const RACK_ATTACK_RULE_NAMES: readonly string[] = RULES.map((rule) => rule.name);
 
+// The rules a request is counted in: the production-only ones count outside production when the replay of a recording made with them asks.
+function activeRules(): readonly Throttle[] {
+  return productionRulesOn() ? RULES : RULES.filter((rule) => rule.productionOnly !== true);
+}
+
 const counted = new WeakMap<Request, string[]>();
 
 function jsonBody(bytes: Uint8Array): unknown {
@@ -467,14 +517,13 @@ export function rackRequest(request: Request, bytes: Uint8Array): RackRequest {
 export async function evaluate(
   request: RackRequest,
   store: RackStore = redisStore,
-  rules: readonly Throttle[] = RULES,
+  rules: readonly Throttle[] = activeRules(),
   now: () => number = () => Math.floor(Date.now() / 1000),
   // Filled as rules are counted, so a rule that throws still leaves the earlier counts to be taken back.
   keys: string[] = [],
 ): Promise<Throttled | null> {
   if (LOCALHOST_ADDRESSES.has(request.remoteIp)) return null;
   for (const rule of rules) {
-    if (rule.productionOnly && !productionRulesOn()) continue;
     const raw = await rule.discriminator(request);
     if (raw === null) continue;
     // Without a client address the rules cannot key the request the way Rails does.
@@ -504,7 +553,7 @@ export async function countRackAttack(request: Request): Promise<Response | null
   const keys: string[] = [];
   counted.set(request, keys);
   const rack = rackRequest(request, await bodyBytes(request));
-  const throttled = await evaluate(rack, redisStore, RULES, undefined, keys);
+  const throttled = await evaluate(rack, redisStore, activeRules(), undefined, keys);
   if (throttled === null) return null;
   const retryAfter = throttled.period - (throttled.epochTime % throttled.period);
   return rackResponse(
