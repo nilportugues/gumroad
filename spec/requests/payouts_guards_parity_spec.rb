@@ -52,18 +52,89 @@ describe "Payout guards", type: :request do
       expect(response.parsed_body["error"]).to include("Support")
     end
 
-    it "hands a disconnect by the owner to Rails", parity: true do
-      allow(StripeMerchantAccountManager).to receive(:disconnect).and_return(false)
-      log_in(seller)
+    context "with a connected Stripe account" do
+      let!(:connected) { create(:merchant_account_stripe_connect, user: seller) }
 
-      post_json disconnect_settings_stripe_path
+      before do
+        create(:user_compliance_info, user: seller)
+        Feature.activate_user(:merchant_migration, seller)
+        seller.update_attribute(:check_merchant_account_is_linked, true)
+      end
 
-      expect(response.parsed_body).to eq("success" => false)
+      def managed_account(merchant_id)
+        create(:merchant_account, user: seller, charge_processor_merchant_id: merchant_id, charge_processor_alive_at: nil,
+                                  charge_processor_deleted_at: 3.days.ago, deleted_at: 3.days.ago)
+      end
+
+      it "disconnects the account for the owner", parity: true do
+        log_in(seller)
+
+        post_json disconnect_settings_stripe_path
+
+        expect(response.parsed_body).to eq("success" => true)
+        expect(connected.reload).to have_attributes(charge_processor_alive_at: nil, charge_processor_verified_at: nil)
+        expect(connected.deleted_at).to be_present
+        expect(seller.reload.check_merchant_account_is_linked).to be(false)
+      end
+
+      it "queues a recommendability refresh when the seller has no other payout method", parity: true do
+        seller.update_columns(payment_address: "")
+        log_in(seller)
+
+        post_json disconnect_settings_stripe_path
+
+        expect(response.parsed_body).to eq("success" => true)
+        expect(RefreshMerchantAccountProductsRecommendationEligibilityJob.jobs.map { _1["args"] }).to eq([[seller.id]])
+      end
+
+      it "leaves an audit note when an admin team member disconnects", parity: true do
+        member = as_team_member(:admin)
+
+        post_json disconnect_settings_stripe_path
+
+        expect(response.parsed_body).to eq("success" => true)
+        expect(seller.comments.last).to have_attributes(author_id: member.id, content: "Stripe account disconnected by team admin #{member.email}")
+      end
+
+      it "reactivates the managed account that holds an unpaid balance", parity: true do
+        managed = managed_account("acct_managedbalance")
+        create(:balance, user: seller, merchant_account: managed)
+        log_in(seller)
+
+        post_json disconnect_settings_stripe_path
+
+        expect(response.parsed_body).to eq("success" => true)
+        expect(managed.reload).to have_attributes(deleted_at: nil, charge_processor_deleted_at: nil)
+        expect(managed.charge_processor_alive_at).to be_present
+      end
+
+      it "reactivates the managed account of the active bank account", parity: true do
+        managed = managed_account("acct_managedbank")
+        create(:ach_account, user: seller, stripe_connect_account_id: managed.charge_processor_merchant_id)
+        log_in(seller)
+
+        post_json disconnect_settings_stripe_path
+
+        expect(response.parsed_body).to eq("success" => true)
+        expect(managed.reload.deleted_at).to be_nil
+      end
+
+      it "leaves a managed account retired by adoption retired", parity: true do
+        managed = managed_account("acct_managedretired")
+        managed.update!(retired_by_adoption_at: 2.days.ago.iso8601)
+        create(:balance, user: seller, merchant_account: managed)
+        log_in(seller)
+
+        post_json disconnect_settings_stripe_path
+
+        expect(response.parsed_body).to eq("success" => true)
+        expect(managed.reload.deleted_at).to be_present
+      end
     end
 
-    it "hands a disconnect by an admin team member to Rails", parity: true do
+    it "hands a disconnect of a seller with no Stripe account to Rails", parity: true do
       allow(StripeMerchantAccountManager).to receive(:disconnect).and_return(false)
-      as_team_member(:admin)
+      log_in(seller)
 
       post_json disconnect_settings_stripe_path
 
