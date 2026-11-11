@@ -2,6 +2,7 @@
 // asks it for the slots a buyer can still book. Reads only.
 import { Prisma } from "@prisma/client";
 
+import { railsLoggedInUser } from "../auth/resolve.ts";
 import {
   calendarDateInTimeZone,
   type CalendarDate,
@@ -13,13 +14,8 @@ import {
 import { column, selectRows, table } from "../models/sql.ts";
 import { PurchaseFlags } from "../search/flags.ts";
 
-import {
-  type ActionContext,
-  type ActionResult,
-  HandBackToRails,
-  processAction,
-  RoutingError,
-} from "./application-controller.ts";
+import { type ActionResult, HandBackToRails, processAction, RoutingError } from "./application-controller.ts";
+import { registerMutations, type MutationInput } from "./mutation.ts";
 import { json } from "./seller-json.ts";
 
 const NATIVE_TYPE_CALL = "call";
@@ -151,7 +147,7 @@ async function bookedCalls(
 
 const toInterval = (row: BookingRow): Interval => ({ start: row.start_time.getTime(), end: row.end_time.getTime() });
 
-async function index(_action: ActionContext, routeParams: Record<string, string>): Promise<ActionResult> {
+async function index(routeParams: Record<string, string>): Promise<ActionResult> {
   const permalink = routeParams.product_id ?? "";
   // `Link.find_by(unique_permalink:)`: a deleted product answers too.
   const [product] =
@@ -212,5 +208,34 @@ async function index(_action: ActionContext, routeParams: Record<string, string>
 export const remainingCallAvailabilitiesResponse = (
   incoming: Request,
   params: Promise<Record<string, string>>,
-): Promise<Response> =>
-  params.then((routeParams) => processAction(incoming, {}, (action) => index(action, routeParams)));
+): Promise<Response> => params.then((routeParams) => processAction(incoming, {}, () => index(routeParams)));
+
+// `resources :remaining_call_availabilities` on a seller's or custom domain's host (UserCustomDomainConstraint) names seven actions,
+// the controller defines `index`: the rest raise AbstractController::ActionNotFound before any filter runs.
+const SELLER_PATH = "/products/:product_id/remaining_call_availabilities.json";
+const MEMBER_PATH = "/products/:product_id/remaining_call_availabilities/:id([A-Za-z0-9_=-]+).json";
+
+// Node's chain seeds a signed-in seller's dashboard nav items before the action; Rails raises before its filters, so it would not.
+function actionNotFound({ context }: MutationInput): Promise<ActionResult> {
+  if (railsLoggedInUser(context))
+    throw new HandBackToRails("a signed-in visitor, whose nav items Rails does not seed here");
+  return Promise.reject(new RoutingError("Not Found"));
+}
+
+const notFound = (method: string, pattern: string) => ({
+  method,
+  pattern,
+  skipForgeryProtection: true,
+  run: actionNotFound,
+});
+
+registerMutations(
+  { method: "GET", pattern: SELLER_PATH, skipForgeryProtection: true, run: ({ routeParams }) => index(routeParams) },
+  notFound("POST", SELLER_PATH),
+  notFound("GET", "/products/:product_id/remaining_call_availabilities/new.json"),
+  notFound("GET", `/products/:product_id/remaining_call_availabilities/:id([A-Za-z0-9_=-]+)/edit.json`),
+  notFound("GET", MEMBER_PATH),
+  notFound("PATCH", MEMBER_PATH),
+  notFound("PUT", MEMBER_PATH),
+  notFound("DELETE", MEMBER_PATH),
+);
