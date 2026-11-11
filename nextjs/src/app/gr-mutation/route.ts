@@ -29,6 +29,7 @@ import "@/server/controllers/mobile-pre-authorizations";
 import "@/server/controllers/signup-save-to-library";
 import "@/server/controllers/integrations-circle";
 import "@/server/controllers/integrations-zoom";
+import "@/server/controllers/seller-plan";
 import "@/server/controllers/integrations-google-calendar";
 import "@/server/controllers/integrations-discord-server-info";
 import "@/server/controllers/dashboard-json";
