@@ -1,9 +1,8 @@
 // Bodies of the pure-read tools of app/services/mcp/server.rb: get_account, list_payouts, get_customers and get_sales_totals.
 // Every other tool still runs in Rails (toolBody returns undefined for it). A call whose token lacks the tool's scope also
 // stays in Rails, which owns the 403 scope challenge and the batch variant of that error. So do these sub-cases:
-// get_customers with a date in an ISO 8601 form other than YYYY-MM-DD, a whole-number days_to_convert or a query timeout;
-// get_sales_totals with a country, day, week or month breakdown (tzinfo transitions, Compliance::Countries); and a
-// product_id that does not resolve (Rails answers with a tool-level error result).
+// get_customers with a date in an ISO 8601 form other than YYYY-MM-DD, a whole-number days_to_convert or a query timeout,
+// and get_sales_totals with a country, day, week or month breakdown (tzinfo transitions, Compliance::Countries).
 import { Prisma } from "@prisma/client";
 import type { OauthAccessToken, User } from "@prisma/client";
 
@@ -50,6 +49,9 @@ export class ToolRpcError extends Error {
     super(message);
   }
 }
+
+// An Mcp::Server::ToolError: a tool-level failure, answered as a result with `isError` rather than a JSON-RPC error.
+export class ToolError extends Error {}
 
 export type PayoutRow = {
   id: bigint;
@@ -417,7 +419,7 @@ async function getSalesTotals(args: Hash, context: ToolContext): Promise<Hash> {
   let productId: bigint | null = null;
   if (isPresent(args.product_id)) {
     productId = await readers.findProductId(sellerId, args.product_id);
-    if (productId === null) throw new HandBackToRails("a product_id that does not resolve");
+    if (productId === null) throw new ToolError("The product was not found.");
   }
   const rows = await readers.byProduct({
     sellerId,

@@ -6,6 +6,7 @@ import { HandBackToRails } from "../controllers/application-controller.ts";
 import { RpcSession } from "./server.ts";
 import {
   toolBody,
+  ToolError,
   ToolRpcError,
   type CustomerReader,
   type PayoutReader,
@@ -467,10 +468,22 @@ describe("get_sales_totals", () => {
     expect(salesTotals.byProduct).toHaveBeenCalledWith(expect.objectContaining({ productId: 42n }));
   });
 
-  it("hands back a product_id that does not resolve", async () => {
-    await expect(
-      toolBody("get_sales_totals", { product_id: "nope" }, totalsContext(totalsReader())),
-    ).rejects.toBeInstanceOf(HandBackToRails);
+  it("fails with the tool error Rails raises for a product_id that does not resolve", async () => {
+    const salesTotals = totalsReader();
+
+    await expect(toolBody("get_sales_totals", { product_id: "nope" }, totalsContext(salesTotals))).rejects.toEqual(
+      new ToolError("The product was not found."),
+    );
+    expect(salesTotals.byProduct).not.toHaveBeenCalled();
+  });
+
+  it("ignores a blank product_id", async () => {
+    const salesTotals = totalsReader();
+
+    await toolBody("get_sales_totals", { product_id: "  " }, totalsContext(salesTotals));
+
+    expect(salesTotals.findProductId).not.toHaveBeenCalled();
+    expect(salesTotals.byProduct).toHaveBeenCalledWith(expect.objectContaining({ productId: null }));
   });
 
   it.each(["country", "day", "week", "month"])("hands back the %s breakdown", async (breakdown) => {
@@ -534,6 +547,21 @@ describe("tools/call through the session", () => {
     const reply = await session("account").handle(call("list_payouts", { limit: 99 }));
 
     expect(reply).toMatchObject({ error: { code: -32602, message: "limit must be between 1 and 50" } });
+  });
+
+  it("answers a tool error as an error result, not a JSON-RPC error", async () => {
+    const salesTotals = totalsReader();
+    const reply = await new RpcSession(
+      { protocolVersion: null, method: null, name: null },
+      () => Promise.resolve(false),
+      totalsContext(salesTotals),
+    ).handle(call("get_sales_totals", { product_id: "nope" }));
+
+    expect(reply).toEqual({
+      jsonrpc: "2.0",
+      id: 1,
+      result: { content: [{ type: "text", text: "The product was not found." }], isError: true },
+    });
   });
 
   it("still hands back a tool that is not ported", async () => {

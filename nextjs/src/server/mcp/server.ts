@@ -16,7 +16,7 @@ import {
   VERSION_META_KEY,
 } from "./constants.ts";
 import { protocolBucket } from "./protocol-telemetry.ts";
-import { toolBody, ToolRpcError, type ToolContext } from "./tool-bodies.ts";
+import { toolBody, ToolError, ToolRpcError, type ToolContext } from "./tool-bodies.ts";
 import { findTool, TOOLS, toolArgumentError } from "./tools.ts";
 
 const TRANSPORT_ERROR_CODES = [HEADER_MISMATCH, UNSUPPORTED_PROTOCOL_VERSION];
@@ -280,6 +280,7 @@ export class RpcSession {
       payload = await toolBody(name, args, this.tools);
     } catch (error) {
       if (error instanceof ToolRpcError) throw new McpError(error.message, error.code);
+      if (error instanceof ToolError) return { content: [{ type: "text", text: error.message }], isError: true };
       throw error;
     }
     if (payload === undefined) throw new HandBackToRails("an MCP tool call");
