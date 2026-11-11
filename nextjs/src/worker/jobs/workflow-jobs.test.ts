@@ -11,11 +11,26 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { evaluateFeature, parseGateValues } from "../../server/infra/flipper.ts";
 import { createJobsRuntime } from "../../server/jobs/runtime.ts";
 import { parseRubyJson, RubyFloat, type JsonValue } from "../../server/jobs/sidekiq/ruby-json.ts";
-import { asSidekiqJob, contextFor, recordingSidekiqRedis, rubyRuntimeRegistry, sequentialJids, snapshotRedis, type RedisSnapshot } from "./__fixtures__/golden.ts";
+
+import {
+  asSidekiqJob,
+  contextFor,
+  recordingSidekiqRedis,
+  rubyRuntimeRegistry,
+  sequentialJids,
+  snapshotRedis,
+  type RedisSnapshot,
+} from "./__fixtures__/golden.ts";
 import { sqlReplay, type Statement } from "./__fixtures__/sql-replay.ts";
 import { setSubscriptionAsDeactivatedWorkerWith } from "./subscription-write-jobs.ts";
 import type { JobHandler } from "./types.ts";
-import { flushInstallmentDeliveredDeltasJobWith, scheduleAffiliateWorkflowJobsJobWith, scheduleWorkflowEmailsWorkerWith, sendWorkflowInstallmentRescheduleJobWith, updateInstallmentEventsCountCacheWorker } from "./workflow-jobs.ts";
+import {
+  flushInstallmentDeliveredDeltasJobWith,
+  scheduleAffiliateWorkflowJobsJobWith,
+  scheduleWorkflowEmailsWorkerWith,
+  sendWorkflowInstallmentRescheduleJobWith,
+  updateInstallmentEventsCountCacheWorker,
+} from "./workflow-jobs.ts";
 
 type Case = {
   name: string;
@@ -27,13 +42,19 @@ type Case = {
   redis: RedisSnapshot;
   redis_before?: RedisSnapshot;
 };
-const golden = parseRubyJson(readFileSync(new URL("./__fixtures__/workflow-jobs.golden.json", import.meta.url), "utf8")) as unknown as { cases: Case[] };
+const golden = parseRubyJson(
+  readFileSync(new URL("./__fixtures__/workflow-jobs.golden.json", import.meta.url), "utf8"),
+) as unknown as { cases: Case[] };
 
 const url = process.env.JOBS_REDIS_URL;
-if (url && /\/0$|^[^/]*\/\/[^/]+$/.test(url)) throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
+if (url && /\/0$|^[^/]*\/\/[^/]+$/.test(url))
+  throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
 let realRedis: Redis | undefined;
 // The key scripts/golden/workflow-jobs.rb runs under: the variant external ids in its seeds depend on it.
-const savedKeys = { cipher: process.env.OBFUSCATE_IDS_CIPHER_KEY, numeric: process.env.OBFUSCATE_IDS_NUMERIC_CIPHER_KEY };
+const savedKeys = {
+  cipher: process.env.OBFUSCATE_IDS_CIPHER_KEY,
+  numeric: process.env.OBFUSCATE_IDS_NUMERIC_CIPHER_KEY,
+};
 beforeAll(() => {
   process.env.OBFUSCATE_IDS_CIPHER_KEY = "ws51-golden-obfuscate-key";
   process.env.OBFUSCATE_IDS_NUMERIC_CIPHER_KEY = "123456789";
@@ -56,15 +77,15 @@ async function restore(redis: Redis, before: RedisSnapshot) {
     if (entry.type === "string") {
       if (entry.expires) await redis.set(key, String(entry.value), "EX", 172_800);
       else await redis.set(key, String(entry.value));
-    }
-    else if (entry.type === "set") await redis.sadd(key, ...(entry.value as string[]));
+    } else if (entry.type === "set") await redis.sadd(key, ...(entry.value as string[]));
   }
 }
 
-const featureActive = (before: RedisSnapshot | undefined) => async (name: string, actor: string | { flipperId: string } | null) => {
-  const doc = (before?.[name]?.value ?? {}) as Record<string, string>;
-  return evaluateFeature(name, parseGateValues(doc), actor);
-};
+const featureActive =
+  (before: RedisSnapshot | undefined) => async (name: string, actor: string | { flipperId: string } | null) => {
+    const doc = (before?.[name]?.value ?? {}) as Record<string, string>;
+    return evaluateFeature(name, parseGateValues(doc), actor);
+  };
 
 // SecureRandom.uuid as the generator stubs it.
 const sequentialUuid = () => {
@@ -81,36 +102,60 @@ const handlers = (c: Case): Record<string, JobHandler> => {
   const now = () => new Date(Math.round(c.case_now * 1000));
   return {
     ScheduleWorkflowEmailsWorker: scheduleWorkflowEmailsWorkerWith({ now }),
-    ScheduleAffiliateWorkflowJobsJob: scheduleAffiliateWorkflowJobsJobWith({ now, uuid: sequentialUuid(), logError: () => {} }),
+    ScheduleAffiliateWorkflowJobsJob: scheduleAffiliateWorkflowJobsJobWith({
+      now,
+      uuid: sequentialUuid(),
+      logError: () => {},
+    }),
     UpdateInstallmentEventsCountCacheWorker: updateInstallmentEventsCountCacheWorker,
     FlushInstallmentDeliveredDeltasJob: flushInstallmentDeliveredDeltasJobWith({ now }, { redis: () => realRedis! }),
-    SendWorkflowInstallmentRescheduleJob: sendWorkflowInstallmentRescheduleJobWith({ now }, { redis: () => unreachableRedis }),
-    SetSubscriptionAsDeactivatedWorker: setSubscriptionAsDeactivatedWorkerWith({ now }, { featureActive: featureActive(c.redis_before) }),
+    SendWorkflowInstallmentRescheduleJob: sendWorkflowInstallmentRescheduleJobWith(
+      { now },
+      { redis: () => unreachableRedis },
+    ),
+    SetSubscriptionAsDeactivatedWorker: setSubscriptionAsDeactivatedWorkerWith(
+      { now },
+      { featureActive: featureActive(c.redis_before) },
+    ),
   };
 };
 
 const handsBack = (_c: Case) => false;
 
 const isWorkflowRead = (statement: Statement) => statement.sql.startsWith("SELECT `workflows`.*");
-const WORKFLOWS_SQL = "SELECT `workflows`.* FROM `workflows` WHERE `workflows`.`seller_id` = 1 AND `workflows`.`deleted_at` IS NULL AND `workflows`.`workflow_type` IN ('seller', 'product', 'variant')";
+const WORKFLOWS_SQL =
+  "SELECT `workflows`.* FROM `workflows` WHERE `workflows`.`seller_id` = 1 AND `workflows`.`deleted_at` IS NULL AND `workflows`.`workflow_type` IN ('seller', 'product', 'variant')";
 
 // Node reads the seller's workflows of a cancelled subscription before the job's first write, where Rails
 // reads them after the commit (so that a workflow it cannot judge hands the job back untouched). Rails
 // never gets that far when the save raises: the read is then answered with no workflows.
 function nodeStatements(c: Case): Statement[] {
   const statements = [...c.statements];
-  if (c.job !== "SetSubscriptionAsDeactivatedWorker" || c.statements.length < 2 || c.name.includes("failed rather than")) return statements;
+  if (
+    c.job !== "SetSubscriptionAsDeactivatedWorker" ||
+    c.statements.length < 2 ||
+    c.name.includes("failed rather than")
+  )
+    return statements;
   const read = statements.findIndex(isWorkflowRead);
-  const [workflowRead] = read === -1 ? [{ sql: WORKFLOWS_SQL, result: { fields: [], rows: [] } }] : statements.splice(read, 1);
+  const [workflowRead] =
+    read === -1 ? [{ sql: WORKFLOWS_SQL, result: { fields: [], rows: [] } }] : statements.splice(read, 1);
   statements.splice(1, 0, workflowRead!);
   return statements;
 }
 
-const withoutJobIds = (value: unknown) => JSON.stringify(value, (_key, v) => (v instanceof RubyFloat ? v.value : v)).replace(/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}/gu, "JOB_ID");
-const needsRealRedis = (c: Case) => c.job === "FlushInstallmentDeliveredDeltasJob" || Object.keys(c.redis).some((key) => key.startsWith("uniquejobs"));
+const withoutJobIds = (value: unknown) =>
+  JSON.stringify(value, (_key, v) => (v instanceof RubyFloat ? v.value : v)).replace(
+    /[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}/gu,
+    "JOB_ID",
+  );
+const needsRealRedis = (c: Case) =>
+  c.job === "FlushInstallmentDeliveredDeltasJob" || Object.keys(c.redis).some((key) => key.startsWith("uniquejobs"));
 // What the case's own writes left, without the Flipper documents and seeded keys its setup put there.
 const withoutSetup = (redis: RedisSnapshot, before: RedisSnapshot | undefined) =>
-  Object.fromEntries(Object.entries(redis).filter(([key, entry]) => JSON.stringify(before?.[key]) !== JSON.stringify(entry)));
+  Object.fromEntries(
+    Object.entries(redis).filter(([key, entry]) => JSON.stringify(before?.[key]) !== JSON.stringify(entry)),
+  );
 
 describe("workflow and installment jobs", () => {
   for (const c of golden.cases) {
@@ -127,7 +172,13 @@ describe("workflow and installment jobs", () => {
         sidekiqRedis = recording.redis;
         snapshot = async () => recording.snapshot();
       }
-      const runtime = createJobsRuntime({ sidekiqRedis, bullmqRedis: sidekiqRedis, registry: rubyRuntimeRegistry(), now: () => c.case_now, newJid: sequentialJids() });
+      const runtime = createJobsRuntime({
+        sidekiqRedis,
+        bullmqRedis: sidekiqRedis,
+        registry: rubyRuntimeRegistry(),
+        now: () => c.case_now,
+        newJid: sequentialJids(),
+      });
       let error: unknown = null;
       try {
         await asSidekiqJob(() => handlers(c)[c.job]!(c.args, contextFor(runtime)), c.case_now);

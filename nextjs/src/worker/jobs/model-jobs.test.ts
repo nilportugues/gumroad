@@ -15,24 +15,50 @@ vi.mock("../../server/models/concerns/job-runtime.ts", async (importOriginal) =>
     dropped.has(jobClass) ? Promise.resolve(null) : original.performAsync(jobClass, args, options);
   return { ...original, performAsync };
 });
-const DROPPED_PUSHES: Record<string, string[]> = { "an enqueue that is dropped releases the claim": ["ScheduleWorkflowInstallmentJob"] };
+const DROPPED_PUSHES: Record<string, string[]> = {
+  "an enqueue that is dropped releases the claim": ["ScheduleWorkflowInstallmentJob"],
+};
 
-import { createJobsRuntime } from "../../server/jobs/runtime.ts";
-import { JOB_REGISTRY } from "../../server/jobs/registry.generated.ts";
 import type { JobDefinition } from "../../server/jobs/registry-types.ts";
-import { asSidekiqJob, contextFor, recordingSidekiqRedis, sequentialJids, snapshotRedis, type RedisSnapshot } from "./__fixtures__/golden.ts";
-import { goldenNow, modelJobsGolden, sqlReplay, type ModelJobCase } from "./__fixtures__/sql-replay.ts";
-import { deleteOldPingDeliveriesJobWith, deleteOldProcessedStripeEventsJobWith, deleteOldSentEmailInfoRecordsJobWith } from "./delete-old-records-jobs.ts";
-import { deleteExpiredProductCachedValuesWorkerWith, deleteOldUnusedEventsWorkerWith, deleteProcessedWorkflowInstallmentScheduleIntentsJobWith } from "./batched-cleanup-jobs.ts";
-import { alertOnStalledAbandonedCartEmailsJobWith, bigDecimalToS, buildTaxRateCacheWorkerWith, recoverAusBacktaxesFromStripeAccountsJobWith } from "./scheduled-check-jobs.ts";
-import { blockEmailDomainsWorkerWith, blockObjectWorkerWith, unblockObjectWorkerWith } from "./platform-block-jobs.ts";
-import { forceFinishLongRunningCommunityChatRecapRunsJobWith, triggerCommunityChatRecapRunJobWith } from "./community-chat-recap-jobs.ts";
-import { expireStampedPdfsJobWith, updateLargeSellersSalesCountJobWith } from "./large-seller-and-stamped-pdf-jobs.ts";
-import { recalculateRecentWishlistFollowerCountJobWith } from "./wishlist-jobs.ts";
-import { dispatchPendingWorkflowInstallmentScheduleIntentsJobWith } from "./dispatch-workflow-intents-job.ts";
+import { JOB_REGISTRY } from "../../server/jobs/registry.generated.ts";
+import { createJobsRuntime } from "../../server/jobs/runtime.ts";
 import { isAdult } from "../../server/models/concerns/adult-keyword-detector.ts";
+
+import {
+  asSidekiqJob,
+  contextFor,
+  recordingSidekiqRedis,
+  sequentialJids,
+  snapshotRedis,
+  type RedisSnapshot,
+} from "./__fixtures__/golden.ts";
+import { goldenNow, modelJobsGolden, sqlReplay, type ModelJobCase } from "./__fixtures__/sql-replay.ts";
+import {
+  deleteExpiredProductCachedValuesWorkerWith,
+  deleteOldUnusedEventsWorkerWith,
+  deleteProcessedWorkflowInstallmentScheduleIntentsJobWith,
+} from "./batched-cleanup-jobs.ts";
+import {
+  forceFinishLongRunningCommunityChatRecapRunsJobWith,
+  triggerCommunityChatRecapRunJobWith,
+} from "./community-chat-recap-jobs.ts";
+import {
+  deleteOldPingDeliveriesJobWith,
+  deleteOldProcessedStripeEventsJobWith,
+  deleteOldSentEmailInfoRecordsJobWith,
+} from "./delete-old-records-jobs.ts";
+import { dispatchPendingWorkflowInstallmentScheduleIntentsJobWith } from "./dispatch-workflow-intents-job.ts";
+import { expireStampedPdfsJobWith, updateLargeSellersSalesCountJobWith } from "./large-seller-and-stamped-pdf-jobs.ts";
+import { blockEmailDomainsWorkerWith, blockObjectWorkerWith, unblockObjectWorkerWith } from "./platform-block-jobs.ts";
+import {
+  alertOnStalledAbandonedCartEmailsJobWith,
+  bigDecimalToS,
+  buildTaxRateCacheWorkerWith,
+  recoverAusBacktaxesFromStripeAccountsJobWith,
+} from "./scheduled-check-jobs.ts";
 import type { JobDeps } from "./support/job-deps.ts";
 import type { JobHandler } from "./types.ts";
+import { recalculateRecentWishlistFollowerCountJobWith } from "./wishlist-jobs.ts";
 
 type Extra = { redisSet: (key: string, value: string) => Promise<void>; logError: (message: string) => void };
 type Factory = (deps: JobDeps & Extra) => JobHandler;
@@ -41,7 +67,8 @@ const PORTS: Record<string, Factory> = {
   DeleteOldSentEmailInfoRecordsJob: (deps) => deleteOldSentEmailInfoRecordsJobWith(deps),
   DeleteOldPingDeliveriesJob: (deps) => deleteOldPingDeliveriesJobWith(deps),
   DeleteOldProcessedStripeEventsJob: (deps) => deleteOldProcessedStripeEventsJobWith(deps),
-  DeleteProcessedWorkflowInstallmentScheduleIntentsJob: (deps) => deleteProcessedWorkflowInstallmentScheduleIntentsJobWith(deps),
+  DeleteProcessedWorkflowInstallmentScheduleIntentsJob: (deps) =>
+    deleteProcessedWorkflowInstallmentScheduleIntentsJobWith(deps),
   DeleteExpiredProductCachedValuesWorker: (deps) => deleteExpiredProductCachedValuesWorkerWith(deps),
   DeleteOldUnusedEventsWorker: (deps) => deleteOldUnusedEventsWorkerWith(deps),
   RecoverAusBacktaxesFromStripeAccountsJob: (deps) => recoverAusBacktaxesFromStripeAccountsJobWith(deps),
@@ -55,7 +82,8 @@ const PORTS: Record<string, Factory> = {
   UpdateLargeSellersSalesCountJob: (deps) => updateLargeSellersSalesCountJobWith(deps),
   ExpireStampedPdfsJob: (deps) => expireStampedPdfsJobWith(deps),
   RecalculateRecentWishlistFollowerCountJob: (deps) => recalculateRecentWishlistFollowerCountJobWith(deps),
-  DispatchPendingWorkflowInstallmentScheduleIntentsJob: (deps) => dispatchPendingWorkflowInstallmentScheduleIntentsJobWith(deps),
+  DispatchPendingWorkflowInstallmentScheduleIntentsJob: (deps) =>
+    dispatchPendingWorkflowInstallmentScheduleIntentsJobWith(deps),
 };
 
 // The golden ran with every job in Ruby, so enqueues here go to Sidekiq whatever the registry says.
@@ -66,7 +94,8 @@ const rubyRegistry: Record<string, JobDefinition> = Object.fromEntries(
 const takesLocks = (c: ModelJobCase) => Object.keys(c.redis).some((key) => key.startsWith("uniquejobs"));
 
 const url = process.env.JOBS_REDIS_URL;
-if (url && /\/0$|^[^/]*\/\/[^/]+$/.test(url)) throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
+if (url && /\/0$|^[^/]*\/\/[^/]+$/.test(url))
+  throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
 let realRedis: Redis | undefined;
 beforeAll(() => {
   if (url) realRedis = new Redis(url);
@@ -90,7 +119,13 @@ async function replay(name: string, c: ModelJobCase) {
     sidekiqRedis = recording.redis;
     snapshot = async () => recording.snapshot();
   }
-  const runtime = createJobsRuntime({ sidekiqRedis, bullmqRedis: sidekiqRedis, registry: rubyRegistry, now: () => modelJobsGolden.now, newJid: sequentialJids() });
+  const runtime = createJobsRuntime({
+    sidekiqRedis,
+    bullmqRedis: sidekiqRedis,
+    registry: rubyRegistry,
+    now: () => modelJobsGolden.now,
+    newJid: sequentialJids(),
+  });
   const namespaceWrites: [string, string][] = [];
   let uuid = 0;
   const handler = PORTS[name]!({

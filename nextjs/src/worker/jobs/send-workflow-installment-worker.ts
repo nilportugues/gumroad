@@ -6,23 +6,37 @@
 // Handed back to Rails, before the job's first write: a reschedule whose filters or reference time Node does not read (see
 // installment-reschedule.ts).
 import { Prisma, type InstallmentRule, type User } from "@prisma/client";
+import type { Installment } from "@prisma/client";
 import type { Redis } from "ioredis";
 
+import { getRedis } from "../../server/infra/redis.ts";
 import { beforeSideEffects, HandBackToRuby } from "../../server/jobs/hand-back.ts";
 import type { JsonValue } from "../../server/jobs/sidekiq/ruby-json.ts";
-import { getRedis } from "../../server/infra/redis.ts";
-import { cachedVersionState, cacheVersionBang } from "../../server/models/installment-rule.ts";
 import { InstallmentPost } from "../../server/models/installment-post.ts";
-import { currentRecipientReferenceTime, recipientMatchesCurrentAudience, rescheduleWithCurrentRule, type RecipientIds } from "../../server/models/installment-reschedule.ts";
-import { retiredFor, sendInstallmentFromWorkflowForAffiliateUser, sendInstallmentFromWorkflowForFollower, sendInstallmentFromWorkflowForMemberCancellation, sendInstallmentFromWorkflowForPurchase, defaultSendDeps, type SendDeps } from "../../server/models/installment-send.ts";
+import {
+  currentRecipientReferenceTime,
+  recipientMatchesCurrentAudience,
+  rescheduleWithCurrentRule,
+  type RecipientIds,
+} from "../../server/models/installment-reschedule.ts";
+import { cachedVersionState, cacheVersionBang } from "../../server/models/installment-rule.ts";
+import {
+  retiredFor,
+  sendInstallmentFromWorkflowForAffiliateUser,
+  sendInstallmentFromWorkflowForFollower,
+  sendInstallmentFromWorkflowForMemberCancellation,
+  sendInstallmentFromWorkflowForPurchase,
+  defaultSendDeps,
+  type SendDeps,
+} from "../../server/models/installment-send.ts";
 import { defaultPostEmailDeps, type PostEmailDeps } from "../../server/models/post-email-api.ts";
 import { findOneBy, recordIdFrom } from "../../server/models/row-reads.ts";
 import { connectedTo } from "../../server/models/runtime/query-cache.ts";
 import { transaction } from "../../server/models/runtime/transaction.ts";
 import { castRow, column, selectRows, table } from "../../server/models/sql.ts";
 import { NotPortedError, RISK_STATES } from "../../server/models/user.ts";
+
 import { type JobDeps, modelJob } from "./support/job-deps.ts";
-import type { Installment } from "@prisma/client";
 
 export class RuleNotCommittedError extends Error {
   constructor() {
@@ -77,25 +91,53 @@ async function currentRuleVersion(installmentId: bigint, redis: Redis): Promise<
 
 async function findInstallmentAndRule(installmentId: bigint): Promise<[Installment | null, InstallmentRule | null]> {
   const installment = await findOneBy<Installment>("Installment", "id", installmentId, true);
-  return [installment, installment === null ? null : await findOneBy<InstallmentRule>("InstallmentRule", "installment_id", installment.id)];
+  return [
+    installment,
+    installment === null ? null : await findOneBy<InstallmentRule>("InstallmentRule", "installment_id", installment.id),
+  ];
 }
 
-const isSuspended = (seller: User) => (RISK_STATES.SUSPENDED as readonly (string | null)[]).includes(seller.user_risk_state);
+const isSuspended = (seller: User) =>
+  (RISK_STATES.SUSPENDED as readonly (string | null)[]).includes(seller.user_risk_state);
 
-export const sendWorkflowInstallmentWorkerWith = (overrides: Partial<JobDeps> = {}, send: Partial<PostEmailDeps> & { subscriptionDeps?: SendDeps["subscriptionDeps"] } = {}) =>
+export const sendWorkflowInstallmentWorkerWith = (
+  overrides: Partial<JobDeps> = {},
+  send: Partial<PostEmailDeps> & { subscriptionDeps?: SendDeps["subscriptionDeps"] } = {},
+) =>
   modelJob({ min: 4, max: 7 }, async (args, deps) => {
-    const [installmentIdArg, versionArg, purchaseId, followerId, affiliateUserId = null, subscriptionId = null, referenceTimeArg = null] = args;
+    const [
+      installmentIdArg,
+      versionArg,
+      purchaseId,
+      followerId,
+      affiliateUserId = null,
+      subscriptionId = null,
+      referenceTimeArg = null,
+    ] = args;
     const recipientIds = [purchaseId, followerId, affiliateUserId, subscriptionId];
     const rescheduleReferenceTime = recipientIds.filter(present).length === 1 ? referenceTimeArg : null;
-    if (rescheduleReferenceTime !== null && rescheduleReferenceTime !== undefined && typeof rescheduleReferenceTime !== "string") {
-      throw new HandBackToRuby(`a reschedule reference time that is not a String (${JSON.stringify(rescheduleReferenceTime)})`);
+    if (
+      rescheduleReferenceTime !== null &&
+      rescheduleReferenceTime !== undefined &&
+      typeof rescheduleReferenceTime !== "string"
+    ) {
+      throw new HandBackToRuby(
+        `a reschedule reference time that is not a String (${JSON.stringify(rescheduleReferenceTime)})`,
+      );
     }
     let reference: string | null = rescheduleReferenceTime ?? null;
-    const sendDeps: SendDeps = { ...defaultSendDeps({ ...defaultPostEmailDeps(), now: deps.now, ...send }), ...(send.subscriptionDeps ? { subscriptionDeps: send.subscriptionDeps } : {}) };
+    const sendDeps: SendDeps = {
+      ...defaultSendDeps({ ...defaultPostEmailDeps(), now: deps.now, ...send }),
+      ...(send.subscriptionDeps ? { subscriptionDeps: send.subscriptionDeps } : {}),
+    };
 
     const { installmentId, version } = await beforeSideEffects(async () => {
       const id = recordIdFrom(installmentIdArg, "Installment.find_by");
-      if (typeof versionArg !== "number") throw new NotPortedError(`a rule version that is not an Integer (${JSON.stringify(versionArg)})`, "send_workflow_installment_worker.rb");
+      if (typeof versionArg !== "number")
+        throw new NotPortedError(
+          `a rule version that is not an Integer (${JSON.stringify(versionArg)})`,
+          "send_workflow_installment_worker.rb",
+        );
       return { installmentId: id, version: versionArg };
     });
     const expectedRuleVersion = await currentRuleVersion(installmentId, send.redis?.() ?? getRedis("main"));
@@ -149,17 +191,35 @@ export const sendWorkflowInstallmentWorkerWith = (overrides: Partial<JobDeps> = 
         }
       }
       if (present(reference)) {
-        if (!(await beforeSideEffects(() => recipientMatchesCurrentAudience(post, ids, reference!, rescheduleDeps)))) return;
+        if (!(await beforeSideEffects(() => recipientMatchesCurrentAudience(post, ids, reference!, rescheduleDeps))))
+          return;
       }
 
       if (present(purchaseId) && !present(followerId) && !present(affiliateUserId) && !present(subscriptionId)) {
-        await sendInstallmentFromWorkflowForPurchase(post, recordIdFrom(purchaseId, "Purchase.find"), reference, sendDeps);
+        await sendInstallmentFromWorkflowForPurchase(
+          post,
+          recordIdFrom(purchaseId, "Purchase.find"),
+          reference,
+          sendDeps,
+        );
       } else if (present(followerId) && !present(purchaseId) && !present(affiliateUserId) && !present(subscriptionId)) {
-        await sendInstallmentFromWorkflowForFollower(post, Number(recordIdFrom(followerId, "Follower.find_by")), sendDeps);
+        await sendInstallmentFromWorkflowForFollower(
+          post,
+          Number(recordIdFrom(followerId, "Follower.find_by")),
+          sendDeps,
+        );
       } else if (present(affiliateUserId) && !present(purchaseId) && !present(followerId) && !present(subscriptionId)) {
-        await sendInstallmentFromWorkflowForAffiliateUser(post, recordIdFrom(affiliateUserId, "User.find_by"), sendDeps);
+        await sendInstallmentFromWorkflowForAffiliateUser(
+          post,
+          recordIdFrom(affiliateUserId, "User.find_by"),
+          sendDeps,
+        );
       } else if (present(subscriptionId) && !present(purchaseId) && !present(followerId) && !present(affiliateUserId)) {
-        await sendInstallmentFromWorkflowForMemberCancellation(post, recordIdFrom(subscriptionId, "Subscription.find"), sendDeps);
+        await sendInstallmentFromWorkflowForMemberCancellation(
+          post,
+          recordIdFrom(subscriptionId, "Subscription.find"),
+          sendDeps,
+        );
       } else {
         // Exactly one recipient id is expected; anything else is logged and sends nothing.
         sendDeps.log(

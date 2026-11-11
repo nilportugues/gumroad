@@ -9,19 +9,37 @@
 // cannot compute (a purchasing-power-parity price, Stripe Connect routing) throws
 // NotPortedError before the job's first write, which hands the job to Rails.
 // Golden: __fixtures__/subscription-reminder-jobs.golden.json (scripts/golden/subscription-reminder-jobs.rb).
-import { Prisma, type BasePrice, type Link, type PaymentOption, type Purchase, type Subscription, type User } from "@prisma/client";
+import {
+  Prisma,
+  type BasePrice,
+  type Link,
+  type PaymentOption,
+  type Purchase,
+  type Subscription,
+  type User,
+} from "@prisma/client";
 
 import { beforeSideEffects, HandBackToRuby } from "../../server/jobs/hand-back.ts";
 import type { JsonValue } from "../../server/jobs/sidekiq/ruby-json.ts";
 import { deliverLater } from "../../server/mail/active-job.ts";
 import { mailRoute } from "../../server/mail/delivery.ts";
+import {
+  autoInvoiceEligible,
+  findByPurchaseOrCharge,
+  findChargeOrNil,
+  findPurchaseOrNil,
+} from "../../server/models/charge.ts";
 import { performAsync } from "../../server/models/concerns/job-runtime.ts";
 import { advance } from "../../server/models/concerns/ruby-time.ts";
-import { autoInvoiceEligible, findByPurchaseOrCharge, findChargeOrNil, findPurchaseOrNil } from "../../server/models/charge.ts";
 import { allowsReviewToBeCounted, PURCHASES } from "../../server/models/purchase.ts";
 import { findById, findByIdBang, findOneBy, recordIdFrom } from "../../server/models/row-reads.ts";
 import { connectedTo, uncached } from "../../server/models/runtime/query-cache.ts";
-import { ensureMailerUniqueness, mailerKeyDigest, sentEmailKeyExists, setSentEmailKey } from "../../server/models/sent-email-info.ts";
+import {
+  ensureMailerUniqueness,
+  mailerKeyDigest,
+  sentEmailKeyExists,
+  setSentEmailKey,
+} from "../../server/models/sent-email-info.ts";
 import { castRow, columnIn, findInBatches, quoteName, selectRows, table, column } from "../../server/models/sql.ts";
 import {
   defaultSubscriptionDeps,
@@ -34,6 +52,7 @@ import {
   type SubscriptionDeps,
 } from "../../server/models/subscription.ts";
 import { NotPortedError, RISK_STATES, UserFlags } from "../../server/models/user.ts";
+
 import { type JobDeps, modelJob } from "./support/job-deps.ts";
 import type { JobContext } from "./types.ts";
 
@@ -44,23 +63,34 @@ export type SubscriptionJobDeps = Pick<SubscriptionDeps, "featureActive">;
 
 // A job argument that doubles as a mail argument and part of a SentEmailInfo digest keeps its type.
 function mailerArgument(value: JsonValue): string | number | boolean | null {
-  if (value === null || typeof value === "string" || typeof value === "boolean" || Number.isSafeInteger(value)) return value as string | number | boolean | null;
+  if (value === null || typeof value === "string" || typeof value === "boolean" || Number.isSafeInteger(value))
+    return value as string | number | boolean | null;
   throw new NotPortedError(`a ${typeof value} mail argument`, "the argument's Ruby #inspect is not ported");
 }
 
 const subscriptionRecord = (row: Subscription, deps: JobDeps, extras: Partial<SubscriptionJobDeps>) =>
-  new SubscriptionRecord(row, { now: deps.now, featureActive: extras.featureActive ?? defaultSubscriptionDeps.featureActive });
+  new SubscriptionRecord(row, {
+    now: deps.now,
+    featureActive: extras.featureActive ?? defaultSubscriptionDeps.featureActive,
+  });
 
 async function findSubscription(argument: JsonValue): Promise<Subscription> {
   return findByIdBang<Subscription>("Subscription", recordIdFrom(argument, "Subscription.find"));
 }
 
 async function deliverReminder(context: JobContext, method: string, argument: JsonValue): Promise<void> {
-  await deliverLater(context.runtime, { mailer: CUSTOMER_LOW_PRIORITY_MAILER, method, args: [mailerArgument(argument)], queue: LOW_QUEUE }, mailRoute(CUSTOMER_LOW_PRIORITY_MAILER, method));
+  await deliverLater(
+    context.runtime,
+    { mailer: CUSTOMER_LOW_PRIORITY_MAILER, method, args: [mailerArgument(argument)], queue: LOW_QUEUE },
+    mailRoute(CUSTOMER_LOW_PRIORITY_MAILER, method),
+  );
 }
 
 // FreeTrialExpiringReminderWorker
-export const freeTrialExpiringReminderWorkerWith = (overrides: Partial<JobDeps> = {}, extras: Partial<SubscriptionJobDeps> = {}) =>
+export const freeTrialExpiringReminderWorkerWith = (
+  overrides: Partial<JobDeps> = {},
+  extras: Partial<SubscriptionJobDeps> = {},
+) =>
   modelJob({ min: 1 }, async (args, deps, context) => {
     const subscriptionId = args[0]!;
     // The whole body reads the primary: a cold replica can lack the preceding worker's marker.
@@ -70,10 +100,17 @@ export const freeTrialExpiringReminderWorkerWith = (overrides: Partial<JobDeps> 
         const remind =
           subscription.alive(false) &&
           subscription.inFreeTrial() &&
-          !(subscription.renewalDisabledDueToIndianCardMandate && (await subscription.indiaCardMandateReliabilityEnabled())) &&
+          !(
+            subscription.renewalDisabledDueToIndianCardMandate &&
+            (await subscription.indiaCardMandateReliabilityEnabled())
+          ) &&
           !subscription.isTestSubscription;
         if (!remind) return null;
-        const key = mailerKeyDigest(CUSTOMER_LOW_PRIORITY_MAILER, "free_trial_expiring_soon", mailerArgument(subscriptionId));
+        const key = mailerKeyDigest(
+          CUSTOMER_LOW_PRIORITY_MAILER,
+          "free_trial_expiring_soon",
+          mailerArgument(subscriptionId),
+        );
         return (await sentEmailKeyExists(key)) ? null : key;
       });
       if (digest === null) return;
@@ -84,13 +121,24 @@ export const freeTrialExpiringReminderWorkerWith = (overrides: Partial<JobDeps> 
   })(overrides);
 
 // ChargeDeclinedReminderWorker
-export const chargeDeclinedReminderWorkerWith = (overrides: Partial<JobDeps> = {}, extras: Partial<SubscriptionJobDeps> = {}) =>
+export const chargeDeclinedReminderWorkerWith = (
+  overrides: Partial<JobDeps> = {},
+  extras: Partial<SubscriptionJobDeps> = {},
+) =>
   modelJob({ min: 1 }, async (args, deps, context) => {
     const subscriptionId = args[0]!;
     const remind = await beforeSideEffects(async () => {
       const subscription = subscriptionRecord(await findSubscription(subscriptionId), deps, extras);
-      if ((await subscription.indiaCardMandateReliabilityEnabled()) && subscription.renewalDisabledDueToIndianCardMandate) return false;
-      return !(!subscription.alive(false) || subscription.isTestSubscription || !(await subscription.overdueForCharge()));
+      if (
+        (await subscription.indiaCardMandateReliabilityEnabled()) &&
+        subscription.renewalDisabledDueToIndianCardMandate
+      )
+        return false;
+      return !(
+        !subscription.alive(false) ||
+        subscription.isTestSubscription ||
+        !(await subscription.overdueForCharge())
+      );
     });
     if (remind) await deliverReminder(context, "subscription_card_declined_warning", subscriptionId);
   })(overrides);
@@ -112,7 +160,10 @@ async function advanceDue(subscription: SubscriptionRecord): Promise<boolean> {
 }
 
 // RecurringChargeReminderWorker
-export const recurringChargeReminderWorkerWith = (overrides: Partial<JobDeps> = {}, extras: Partial<SubscriptionJobDeps> = {}) =>
+export const recurringChargeReminderWorkerWith = (
+  overrides: Partial<JobDeps> = {},
+  extras: Partial<SubscriptionJobDeps> = {},
+) =>
   modelJob({ min: 1, max: 2 }, async (args, deps, context) => {
     const [subscriptionId, kind] = args as [JsonValue, JsonValue | undefined];
     const plan = await beforeSideEffects(async () => {
@@ -121,7 +172,8 @@ export const recurringChargeReminderWorkerWith = (overrides: Partial<JobDeps> = 
         !subscription.alive(false) ||
         subscription.inFreeTrial() ||
         (await subscription.chargesCompleted()) ||
-        (subscription.renewalDisabledDueToIndianCardMandate && (await subscription.indiaCardMandateReliabilityEnabled())) ||
+        (subscription.renewalDisabledDueToIndianCardMandate &&
+          (await subscription.indiaCardMandateReliabilityEnabled())) ||
         !(await subscription.sendRenewalReminders());
       if (skip) return "none" as const;
       if (kind !== ADVANCE) {
@@ -141,13 +193,24 @@ export const recurringChargeReminderWorkerWith = (overrides: Partial<JobDeps> = 
     await connectedTo("writing", async () => {
       const subscription = plan;
       const digest = await beforeSideEffects(async () =>
-        mailerKeyDigest(CUSTOMER_LOW_PRIORITY_MAILER, "subscription_renewal_reminder", Number(subscription.id), ADVANCE, Math.floor((await subscription.endTimeOfSubscription()).getTime() / 1000)),
+        mailerKeyDigest(
+          CUSTOMER_LOW_PRIORITY_MAILER,
+          "subscription_renewal_reminder",
+          Number(subscription.id),
+          ADVANCE,
+          Math.floor((await subscription.endTimeOfSubscription()).getTime() / 1000),
+        ),
       );
       if (await sentEmailKeyExists(digest)) return;
 
       await deliverLater(
         context.runtime,
-        { mailer: CUSTOMER_LOW_PRIORITY_MAILER, method: "subscription_renewal_reminder", args: [Number(subscription.id)], queue: LOW_QUEUE },
+        {
+          mailer: CUSTOMER_LOW_PRIORITY_MAILER,
+          method: "subscription_renewal_reminder",
+          args: [Number(subscription.id)],
+          queue: LOW_QUEUE,
+        },
         mailRoute(CUSTOMER_LOW_PRIORITY_MAILER, "subscription_renewal_reminder"),
       );
       await setSentEmailKey(digest, deps.now);
@@ -220,7 +283,11 @@ const idList = (values: readonly (bigint | number | null)[]): (bigint | number)[
 
 // `includes(...)` of a belongs_to: one statement for the distinct keys (skipped when there are none),
 // answered rows by id.
-async function preloadBy<R extends { id: bigint | number }>(model: "Link" | "User" | "PaymentOption" | "BasePrice", tableName: string, ids: (bigint | number)[]): Promise<Map<string, R>> {
+async function preloadBy<R extends { id: bigint | number }>(
+  model: "Link" | "User" | "PaymentOption" | "BasePrice",
+  tableName: string,
+  ids: (bigint | number)[],
+): Promise<Map<string, R>> {
   if (ids.length === 0) return new Map();
   const rows = await selectRows(
     Prisma.sql`SELECT ${Prisma.raw(`${quoteName(tableName)}.*`)} FROM ${table(tableName)} WHERE ${columnIn(tableName, "id", ids)}`,
@@ -228,16 +295,24 @@ async function preloadBy<R extends { id: bigint | number }>(model: "Link" | "Use
   return new Map(rows.map((row) => castRow<R>(model, row)).map((record) => [String(record.id), record]));
 }
 
-export const findSubscriptionsWithMissingChargeWorkerWith = (overrides: Partial<JobDeps> = {}, extras: Partial<SubscriptionJobDeps> = {}) =>
+export const findSubscriptionsWithMissingChargeWorkerWith = (
+  overrides: Partial<JobDeps> = {},
+  extras: Partial<SubscriptionJobDeps> = {},
+) =>
   modelJob({ min: 0, max: 1 }, async (args, deps) => {
     const batchNumber = args[0] ?? null;
     if (batchNumber === null) {
-      for (let i = 0; i < BATCHES; i++) await performAsync(FIND_MISSING_CHARGE_JOB, [i], { delaySeconds: i * BATCHES_SCHEDULE_MARGIN_IN_MINUTES * 60 });
+      for (let i = 0; i < BATCHES; i++)
+        await performAsync(FIND_MISSING_CHARGE_JOB, [i], { delaySeconds: i * BATCHES_SCHEDULE_MARGIN_IN_MINUTES * 60 });
       return;
     }
     // `subscriptions.id % 10 = ?` quotes the number as a String.
     await beforeSideEffects(() => {
-      if (typeof batchNumber !== "number" || !Number.isSafeInteger(batchNumber)) throw new NotPortedError(`perform(${JSON.stringify(batchNumber)})`, "find_subscriptions_with_missing_charge_worker.rb:15");
+      if (typeof batchNumber !== "number" || !Number.isSafeInteger(batchNumber))
+        throw new NotPortedError(
+          `perform(${JSON.stringify(batchNumber)})`,
+          "find_subscriptions_with_missing_charge_worker.rb:15",
+        );
     });
 
     // RecurringChargeWorker is queued once a batch has been judged. Node holds the pushes until the
@@ -267,7 +342,11 @@ export const findSubscriptionsWithMissingChargeWorkerWith = (overrides: Partial<
   })(overrides);
 
 // One `find_in_batches` batch: the ids of the subscriptions to charge again.
-async function judgeBatch(rows: Record<string, unknown>[], deps: JobDeps, extras: Partial<SubscriptionJobDeps>): Promise<number[]> {
+async function judgeBatch(
+  rows: Record<string, unknown>[],
+  deps: JobDeps,
+  extras: Partial<SubscriptionJobDeps>,
+): Promise<number[]> {
   const batch = rows.map((row) => castRow<Subscription>("Subscription", row));
 
   // `includes(link: :user)` skips the query cache with the batch load.
@@ -297,18 +376,27 @@ async function judgeBatch(rows: Record<string, unknown>[], deps: JobDeps, extras
   // `Subscription.where(id: ids).includes(:original_purchase)`
   const priced = await beforeSideEffects(async () => {
     const ids = kept.map((subscription) => subscription.id);
-    const subscriptions = (await selectRows(Prisma.sql`SELECT ${Prisma.raw(`${quoteName(SUBSCRIPTIONS)}.*`)} FROM ${table(SUBSCRIPTIONS)} WHERE ${columnIn(SUBSCRIPTIONS, "id", ids)}`)).map((row) =>
-      castRow<Subscription>("Subscription", row),
-    );
+    const subscriptions = (
+      await selectRows(
+        Prisma.sql`SELECT ${Prisma.raw(`${quoteName(SUBSCRIPTIONS)}.*`)} FROM ${table(SUBSCRIPTIONS)} WHERE ${columnIn(SUBSCRIPTIONS, "id", ids)}`,
+      )
+    ).map((row) => castRow<Subscription>("Subscription", row));
     const originals = (
       await selectRows(
-        Prisma.sql`SELECT ${Prisma.raw(`${quoteName(PURCHASES)}.*`)} FROM ${table(PURCHASES)} WHERE ${purchaseFlagScope("is_original_subscription_purchase", true)} AND ${purchaseFlagScope("is_archived_original_subscription_purchase", false)} AND ${columnIn(PURCHASES, "subscription_id", subscriptions.map((subscription) => subscription.id))}`,
+        Prisma.sql`SELECT ${Prisma.raw(`${quoteName(PURCHASES)}.*`)} FROM ${table(PURCHASES)} WHERE ${purchaseFlagScope("is_original_subscription_purchase", true)} AND ${purchaseFlagScope("is_archived_original_subscription_purchase", false)} AND ${columnIn(
+          PURCHASES,
+          "subscription_id",
+          subscriptions.map((subscription) => subscription.id),
+        )}`,
       )
     ).map((row) => castRow<Purchase>("Purchase", row));
     const result: Subscription[] = [];
     for (const subscription of subscriptions) {
       const record = subscriptionRecord(subscription, deps, extras);
-      record.preload("original_purchase", originals.find((purchase) => purchase.subscription_id === subscription.id) ?? null);
+      record.preload(
+        "original_purchase",
+        originals.find((purchase) => purchase.subscription_id === subscription.id) ?? null,
+      );
       if ((await record.currentSubscriptionPriceCents()) !== 0) result.push(subscription);
     }
     return result;
@@ -319,31 +407,53 @@ async function judgeBatch(rows: Record<string, unknown>[], deps: JobDeps, extras
   // `Subscription.includes(:last_successful_purchase, last_payment_option: :price).where(id: ids)`
   return beforeSideEffects(async () => {
     const ids = kept.map((subscription) => subscription.id);
-    const subscriptions = (await selectRows(Prisma.sql`SELECT ${Prisma.raw(`${quoteName(SUBSCRIPTIONS)}.*`)} FROM ${table(SUBSCRIPTIONS)} WHERE ${columnIn(SUBSCRIPTIONS, "id", ids)}`)).map((row) =>
-      castRow<Subscription>("Subscription", row),
-    );
+    const subscriptions = (
+      await selectRows(
+        Prisma.sql`SELECT ${Prisma.raw(`${quoteName(SUBSCRIPTIONS)}.*`)} FROM ${table(SUBSCRIPTIONS)} WHERE ${columnIn(SUBSCRIPTIONS, "id", ids)}`,
+      )
+    ).map((row) => castRow<Subscription>("Subscription", row));
     const successful = (
       await selectRows(
-        Prisma.sql`SELECT ${Prisma.raw(`${quoteName(PURCHASES)}.*`)} FROM ${table(PURCHASES)} WHERE ${column(PURCHASES, "purchase_state")} = ${"successful"} AND ${columnIn(PURCHASES, "subscription_id", subscriptions.map((subscription) => subscription.id))} ORDER BY ${column(PURCHASES, "created_at")} DESC`,
+        Prisma.sql`SELECT ${Prisma.raw(`${quoteName(PURCHASES)}.*`)} FROM ${table(PURCHASES)} WHERE ${column(PURCHASES, "purchase_state")} = ${"successful"} AND ${columnIn(
+          PURCHASES,
+          "subscription_id",
+          subscriptions.map((subscription) => subscription.id),
+        )} ORDER BY ${column(PURCHASES, "created_at")} DESC`,
       )
     ).map((row) => castRow<Purchase>("Purchase", row));
-    const options = await preloadBy<PaymentOption>("PaymentOption", "payment_options", idList(subscriptions.map((subscription) => subscription.last_payment_option_id)));
-    const prices = await preloadBy<BasePrice>("BasePrice", "prices", idList([...options.values()].map((option) => option.price_id)));
+    const options = await preloadBy<PaymentOption>(
+      "PaymentOption",
+      "payment_options",
+      idList(subscriptions.map((subscription) => subscription.last_payment_option_id)),
+    );
+    const prices = await preloadBy<BasePrice>(
+      "BasePrice",
+      "prices",
+      idList([...options.values()].map((option) => option.price_id)),
+    );
 
     const result: number[] = [];
     for (const subscription of subscriptions) {
       const record = subscriptionRecord(subscription, deps, extras);
       const lastSuccessful = successful.find((purchase) => purchase.subscription_id === subscription.id) ?? null;
-      const option = subscription.last_payment_option_id === null ? null : (options.get(String(subscription.last_payment_option_id)) ?? null);
+      const option =
+        subscription.last_payment_option_id === null
+          ? null
+          : (options.get(String(subscription.last_payment_option_id)) ?? null);
       record.preload("last_payment_option", option);
-      if (option !== null) record.preload(`price:${String(option.id)}`, option.price_id === null ? null : (prices.get(String(option.price_id)) ?? null));
+      if (option !== null)
+        record.preload(
+          `price:${String(option.id)}`,
+          option.price_id === null ? null : (prices.get(String(option.price_id)) ?? null),
+        );
 
       // A hold may have no paid period to be overdue from, and nothing else rechecks its mandate.
       if (record.indianCardMandateHeld()) {
         result.push(Number(subscription.id));
         continue;
       }
-      if (lastSuccessful === null || (await record.secondsOverdueForCharge()) < SUSPECTED_MISSING_AFTER_SECONDS) continue;
+      if (lastSuccessful === null || (await record.secondsOverdueForCharge()) < SUSPECTED_MISSING_AFTER_SECONDS)
+        continue;
       result.push(Number(subscription.id));
     }
     return result;
