@@ -9,28 +9,47 @@ import type { SidekiqItem } from "../jobs/sidekiq/item.ts";
 import type { JsonValue } from "../jobs/sidekiq/ruby-json.ts";
 import { markCustomerEmailSent } from "../models/email-info.ts";
 import { selectRows } from "../models/sql.ts";
+
 import { MAIL_RETRY_ON, type MailJobRoute, pushMailDeliveryItem, retryMailDeliveryItem } from "./active-job.ts";
 import type { MailerDeps } from "./application-mailer.ts";
 import { composeMail, type ComposedMail, type RenderedMail } from "./compose.ts";
 import { defaultDeliveryMethodOptions } from "./mailer-info.ts";
+import { notifySellerOfNewComment } from "./mailers/comment-mailer.ts";
+import { communityChatRecapNotification } from "./mailers/community-chat-recap-mailer.ts";
+import { marketingXReconnect } from "./mailers/creator-mailer.ts";
+import {
+  filesReadyForDownload,
+  partialRefund,
+  paypalPurchaseFailed,
+  refund,
+  subscriptionMagicLink,
+} from "./mailers/customer-mailer.ts";
+import { notify as internalNotification } from "./mailers/internal-notification-mailer.ts";
+import { receiverSignedUp } from "./mailers/invite-mailer.ts";
+import { receipt } from "./mailers/receipt-mailer.ts";
+import { invite as teamInvite } from "./mailers/team-mailer.ts";
+import { authenticationToken } from "./mailers/two-factor-authentication-mailer.ts";
+import {
+  confirmationInstructions,
+  type DeviseMailOptions,
+  emailChanged,
+  type SignupMailUser,
+} from "./mailers/user-signup-mailer.ts";
 import { MimeNotPortedError } from "./mime.ts";
 import { UnsupportedHtmlError } from "./premailer/html.ts";
 import { UnsupportedSelectorError } from "./premailer/selector.ts";
-import { deserializeArgument, GlobalIdRef, MailArgumentNotPortedError, RubyHash, RubySymbol, type RubyValue } from "./ruby-value.ts";
+import {
+  deserializeArgument,
+  GlobalIdRef,
+  MailArgumentNotPortedError,
+  RubyHash,
+  RubySymbol,
+  type RubyValue,
+} from "./ruby-value.ts";
+import { sendSmtp, SmtpError, type SmtpSettings } from "./smtp.ts";
 import { StylesheetNotPortedError } from "./stylesheet.ts";
 import { ViewHelperNotPortedError } from "./view-helpers.ts";
 import { MailViewNotPortedError } from "./views.ts";
-import { notifySellerOfNewComment } from "./mailers/comment-mailer.ts";
-import { communityChatRecapNotification } from "./mailers/community-chat-recap-mailer.ts";
-import { notify as internalNotification } from "./mailers/internal-notification-mailer.ts";
-import { marketingXReconnect } from "./mailers/creator-mailer.ts";
-import { filesReadyForDownload, partialRefund, paypalPurchaseFailed, refund, subscriptionMagicLink } from "./mailers/customer-mailer.ts";
-import { receipt } from "./mailers/receipt-mailer.ts";
-import { invite as teamInvite } from "./mailers/team-mailer.ts";
-import { receiverSignedUp } from "./mailers/invite-mailer.ts";
-import { authenticationToken } from "./mailers/two-factor-authentication-mailer.ts";
-import { confirmationInstructions, type DeviseMailOptions, emailChanged, type SignupMailUser } from "./mailers/user-signup-mailer.ts";
-import { sendSmtp, SmtpError, type SmtpSettings } from "./smtp.ts";
 
 export class MailJobArgumentsError extends Error {}
 
@@ -43,11 +62,21 @@ async function locateUser(argument: RubyValue | undefined): Promise<SignupMailUs
   const gid = argument instanceof GlobalIdRef ? argument.gid : "";
   const match = /^gid:\/\/gumroad\/User\/(\d+)$/u.exec(gid);
   if (!match) throw new MailJobArgumentsError(`GlobalID not ported: ${gid}`);
-  const [row] = await selectRows<{ email: string | null; unconfirmed_email: string | null; confirmation_token: string | null; external_id: string | null }>(
+  const [row] = await selectRows<{
+    email: string | null;
+    unconfirmed_email: string | null;
+    confirmation_token: string | null;
+    external_id: string | null;
+  }>(
     Prisma.sql`SELECT email, unconfirmed_email, confirmation_token, external_id FROM users WHERE id = ${BigInt(match[1]!)} LIMIT 1`,
   );
   if (!row) throw new MailJobArgumentsError(`Couldn't find User with 'id'=${match[1]}`);
-  return { email: row.email ?? "", unconfirmedEmail: row.unconfirmed_email, confirmationToken: row.confirmation_token, externalId: row.external_id ?? "" };
+  return {
+    email: row.email ?? "",
+    unconfirmedEmail: row.unconfirmed_email,
+    confirmationToken: row.confirmation_token,
+    externalId: row.external_id ?? "",
+  };
 }
 
 // Devise's opts: a symbol-keyed hash whose only key is :to.
@@ -56,7 +85,8 @@ function deviseOptions(argument: RubyValue | undefined): DeviseMailOptions {
   if (!(argument instanceof RubyHash)) throw new MailJobArgumentsError("Devise options not ported");
   const options: DeviseMailOptions = {};
   for (const [key, value] of argument.entries) {
-    if (!(key instanceof RubySymbol) || key.name !== "to" || (value !== null && typeof value !== "string")) throw new MailJobArgumentsError(`mailer option ${String(key)} not ported`);
+    if (!(key instanceof RubySymbol) || key.name !== "to" || (value !== null && typeof value !== "string"))
+      throw new MailJobArgumentsError(`mailer option ${String(key)} not ported`);
     options.to = value;
   }
   return options;
@@ -79,7 +109,8 @@ function keywords(args: RubyValue[], names: string[]): Record<string, RubyValue>
   if (args.length !== 1 || !(hash instanceof RubyHash)) throw new MailJobArgumentsError("expected keyword arguments");
   const out: Record<string, RubyValue> = {};
   for (const [key, value] of hash.entries) {
-    if (!(key instanceof RubySymbol) || !names.includes(key.name)) throw new MailJobArgumentsError(`unknown keyword ${String(key)}`);
+    if (!(key instanceof RubySymbol) || !names.includes(key.name))
+      throw new MailJobArgumentsError(`unknown keyword ${String(key)}`);
     out[key.name] = value;
   }
   return out;
@@ -92,7 +123,8 @@ function twoFactorArguments(args: RubyValue[]): [number | bigint, string | null]
   if (rest.length > 0) throw new MailJobArgumentsError("arity");
   if (options === undefined) return [integerArgument(userId), null];
   const { email_provider: provider = null } = keywords([options], ["email_provider"]);
-  if (provider !== null && typeof provider !== "string") throw new MailJobArgumentsError(`email_provider ${JSON.stringify(provider)} not ported`);
+  if (provider !== null && typeof provider !== "string")
+    throw new MailJobArgumentsError(`email_provider ${JSON.stringify(provider)} not ported`);
   return [integerArgument(userId), provider];
 }
 
@@ -100,26 +132,50 @@ function twoFactorArguments(args: RubyValue[]): [number | bigint, string | null]
 const NODE_MAILERS: Record<string, Record<string, MailerMethod>> = {
   CommentMailer: {
     notify_seller_of_new_comment: (args, deps) =>
-      args.length === 1 ? notifySellerOfNewComment(integerArgument(args[0]), deps) : Promise.reject(new MailJobArgumentsError("arity")),
+      args.length === 1
+        ? notifySellerOfNewComment(integerArgument(args[0]), deps)
+        : Promise.reject(new MailJobArgumentsError("arity")),
   },
   CommunityChatRecapMailer: {
     community_chat_recap_notification: ([userId, sellerId, recapIds, ...rest], deps) => {
       if (rest.length > 0 || !Array.isArray(recapIds)) return Promise.reject(new MailJobArgumentsError("arity"));
-      return communityChatRecapNotification(integerArgument(userId), integerArgument(sellerId), recapIds.map(integerArgument), deps);
+      return communityChatRecapNotification(
+        integerArgument(userId),
+        integerArgument(sellerId),
+        recapIds.map(integerArgument),
+        deps,
+      );
     },
   },
   CreatorMailer: {
-    marketing_x_reconnect: (args, deps) => marketingXReconnect(integerArgument(keywords(args, ["marketing_action_id"]).marketing_action_id), deps),
+    marketing_x_reconnect: (args, deps) =>
+      marketingXReconnect(integerArgument(keywords(args, ["marketing_action_id"]).marketing_action_id), deps),
   },
   CustomerMailer: {
     refund: (args, deps) => {
       const [email, linkId, purchaseId, ...rest] = args;
       if (rest.length > 0 || args.length < 3) return Promise.reject(new MailJobArgumentsError("arity"));
-      return refund(optionalString(email), integerArgument(linkId), purchaseId === null ? null : integerArgument(purchaseId), args, deps);
+      return refund(
+        optionalString(email),
+        integerArgument(linkId),
+        purchaseId === null ? null : integerArgument(purchaseId),
+        args,
+        deps,
+      );
     },
     partial_refund: (args, deps) => {
-      const [email, linkId, purchaseId, refundAmountCentsUsd, refundType, presentmentCents = null, presentmentCurrency = null, ...rest] = args;
-      if (rest.length > 0 || args.length < 5 || typeof refundType !== "string") return Promise.reject(new MailJobArgumentsError("arity"));
+      const [
+        email,
+        linkId,
+        purchaseId,
+        refundAmountCentsUsd,
+        refundType,
+        presentmentCents = null,
+        presentmentCurrency = null,
+        ...rest
+      ] = args;
+      if (rest.length > 0 || args.length < 5 || typeof refundType !== "string")
+        return Promise.reject(new MailJobArgumentsError("arity"));
       return partialRefund(
         {
           email: optionalString(email),
@@ -135,22 +191,32 @@ const NODE_MAILERS: Record<string, Record<string, MailerMethod>> = {
       );
     },
     receipt: (args, deps) => receipt(args, deps),
-    files_ready_for_download: (args, deps) => (args.length === 1 ? filesReadyForDownload(integerArgument(args[0]), args, deps) : Promise.reject(new MailJobArgumentsError("arity"))),
+    files_ready_for_download: (args, deps) =>
+      args.length === 1
+        ? filesReadyForDownload(integerArgument(args[0]), args, deps)
+        : Promise.reject(new MailJobArgumentsError("arity")),
     subscription_magic_link: (args, deps) => {
       const [subscriptionId, email, ...rest] = args;
       if (rest.length > 0 || typeof email !== "string") return Promise.reject(new MailJobArgumentsError("arity"));
       return subscriptionMagicLink(integerArgument(subscriptionId), email, args, deps);
     },
-    paypal_purchase_failed: (args, deps) => (args.length === 1 ? paypalPurchaseFailed(integerArgument(args[0]), args, deps) : Promise.reject(new MailJobArgumentsError("arity"))),
+    paypal_purchase_failed: (args, deps) =>
+      args.length === 1
+        ? paypalPurchaseFailed(integerArgument(args[0]), args, deps)
+        : Promise.reject(new MailJobArgumentsError("arity")),
   },
   InternalNotificationMailer: {
     notify: (args, deps) => internalNotification(args, deps),
   },
   InviteMailer: {
-    receiver_signed_up: (args, deps) => (args.length === 1 ? receiverSignedUp(integerArgument(args[0]), deps) : Promise.reject(new MailJobArgumentsError("arity"))),
+    receiver_signed_up: (args, deps) =>
+      args.length === 1
+        ? receiverSignedUp(integerArgument(args[0]), deps)
+        : Promise.reject(new MailJobArgumentsError("arity")),
   },
   TeamMailer: {
-    invite: (args, deps) => (args.length === 1 ? teamInvite(args, deps) : Promise.reject(new MailJobArgumentsError("arity"))),
+    invite: (args, deps) =>
+      args.length === 1 ? teamInvite(args, deps) : Promise.reject(new MailJobArgumentsError("arity")),
   },
   TwoFactorAuthenticationMailer: {
     authentication_token: (args, deps) => {
@@ -159,7 +225,8 @@ const NODE_MAILERS: Record<string, Record<string, MailerMethod>> = {
     },
   },
   UserSignupMailer: {
-    confirmation_instructions: async ([user, token, options]) => confirmationInstructions(await locateUser(user), token as string, deviseOptions(options)),
+    confirmation_instructions: async ([user, token, options]) =>
+      confirmationInstructions(await locateUser(user), token as string, deviseOptions(options)),
     email_changed: async ([user, options]) => emailChanged(await locateUser(user), deviseOptions(options)),
   },
 };
@@ -178,7 +245,12 @@ export function mailRoute(mailer: string, method: string): MailJobRoute {
   return NODE_MAILERS[mailer]?.[method] ? "node" : "ruby";
 }
 
-export function renderNodeMailer(mailer: string, method: string, args: RubyValue[], deps: MailerDeps = {}): Promise<RenderedMail | null> {
+export function renderNodeMailer(
+  mailer: string,
+  method: string,
+  args: RubyValue[],
+  deps: MailerDeps = {},
+): Promise<RenderedMail | null> {
   const render = NODE_MAILERS[mailer]?.[method];
   if (!render) throw new MailJobArgumentsError(`${mailer}#${method} is not ported`);
   return render(args, deps);
@@ -188,7 +260,13 @@ export function renderNodeMailer(mailer: string, method: string, args: RubyValue
 // message's delivery_method_options merged over them. mailRoute keeps other environments on Rails.
 function smtpSettings(mail: ComposedMail): SmtpSettings {
   const options = mail.smtp ?? defaultDeliveryMethodOptions("gumroad");
-  return { address: options.address, port: 587, domain: options.domain, userName: options.user_name, password: options.password ?? "" };
+  return {
+    address: options.address,
+    port: 587,
+    domain: options.domain,
+    userName: options.user_name,
+    password: options.password ?? "",
+  };
 }
 
 export type MailDeliveryDeps = {
@@ -209,12 +287,26 @@ const defaultDeps: MailDeliveryDeps = {
 const RESCUED: readonly string[] = ["Net::SMTPAuthenticationError", "Net::SMTPSyntaxError", "Net::SMTPFatalError"];
 
 // Input the port cannot reproduce exactly; Rails renders those.
-const NOT_PORTED = [MailJobArgumentsError, MailArgumentNotPortedError, MailViewNotPortedError, ViewHelperNotPortedError, MimeNotPortedError, StylesheetNotPortedError, UnsupportedHtmlError, UnsupportedSelectorError];
+const NOT_PORTED = [
+  MailJobArgumentsError,
+  MailArgumentNotPortedError,
+  MailViewNotPortedError,
+  ViewHelperNotPortedError,
+  MimeNotPortedError,
+  StylesheetNotPortedError,
+  UnsupportedHtmlError,
+  UnsupportedSelectorError,
+];
 export const isNotPorted = (error: unknown) => NOT_PORTED.some((type) => error instanceof type);
 
 // Render and compose: undefined when the method sends nothing, null when Mail would refuse the
 // blank To (RescueSmtpErrors logs that).
-export async function composeNodeMail(mailer: string, method: string, args: RubyValue[], deps: MailerDeps = {}): Promise<ComposedMail | null | undefined> {
+export async function composeNodeMail(
+  mailer: string,
+  method: string,
+  args: RubyValue[],
+  deps: MailerDeps = {},
+): Promise<ComposedMail | null | undefined> {
   const rendered = await renderNodeMailer(mailer, method, args, deps);
   return rendered === null ? undefined : composeMail(rendered);
 }
@@ -223,12 +315,16 @@ export async function composeNodeMail(mailer: string, method: string, args: Ruby
 // whose headers name a purchase.
 async function deliveredEmail(mail: ComposedMail, now: () => Date): Promise<void> {
   const ids = mail.recordIds;
-  if (ids?.purchaseId != null && ids.emailName !== undefined) await markCustomerEmailSent(ids.purchaseId, ids.emailName, now());
+  if (ids?.purchaseId != null && ids.emailName !== undefined)
+    await markCustomerEmailSent(ids.purchaseId, ids.emailName, now());
 }
 
 // `deliver_now` of an already composed message: true when Mail returned the message, false when
 // RescueSmtpErrors swallowed the failure. Retryable SMTP errors propagate.
-export async function sendComposed(mail: ComposedMail | null, deps: Pick<MailDeliveryDeps, "send" | "log"> & { now?: () => Date }): Promise<boolean> {
+export async function sendComposed(
+  mail: ComposedMail | null,
+  deps: Pick<MailDeliveryDeps, "send" | "log"> & { now?: () => Date },
+): Promise<boolean> {
   if (mail === null) {
     deps.log(`Mailer Error: #<ArgumentError: SMTP To address may not be blank: ${JSON.stringify([])}>`);
     return false;
@@ -250,10 +346,15 @@ export const defaultMailDeliveryDeps = defaultDeps;
 
 // Runs one MailDeliveryJob wrapper item. A mailer method Node has not ported is handed back to
 // Sidekiq unchanged (same jid), so Rails delivers it.
-export async function performMailDelivery(runtime: JobsRuntime, item: SidekiqItem, deps: MailDeliveryDeps = defaultDeps): Promise<void> {
+export async function performMailDelivery(
+  runtime: JobsRuntime,
+  item: SidekiqItem,
+  deps: MailDeliveryDeps = defaultDeps,
+): Promise<void> {
   const job = (item.args as Record<string, JsonValue>[])[0]!;
   const [mailer, method, deliveryMethod, params] = job.arguments as [string, string, string, Record<string, JsonValue>];
-  if (!NODE_MAILERS[mailer]?.[method] || deliveryMethod !== "deliver_now") return pushMailDeliveryItem(runtime, item, "ruby");
+  if (!NODE_MAILERS[mailer]?.[method] || deliveryMethod !== "deliver_now")
+    return pushMailDeliveryItem(runtime, item, "ruby");
 
   let mail: ComposedMail | null | undefined;
   try {
@@ -268,7 +369,11 @@ export async function performMailDelivery(runtime: JobsRuntime, item: SidekiqIte
     await sendComposed(mail, deps);
   } catch (error) {
     if (!(error instanceof SmtpError) || !MAIL_RETRY_ON.includes(error.rubyClass)) throw error;
-    const retry = retryMailDeliveryItem(item, { jid: runtime.newJid(), now: runtime.now(), ...(deps.random ? { random: deps.random } : {}) });
+    const retry = retryMailDeliveryItem(item, {
+      jid: runtime.newJid(),
+      now: runtime.now(),
+      ...(deps.random ? { random: deps.random } : {}),
+    });
     if (!retry) throw error;
     await pushMailDeliveryItem(runtime, retry, mailRoute(mailer, method));
   }

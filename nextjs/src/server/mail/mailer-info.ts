@@ -7,6 +7,7 @@ import { getConfig } from "../infra/config.ts";
 import { isFeatureEnabled } from "../infra/flipper.ts";
 import { railsEnv, type RailsEnv } from "../infra/rails-env.ts";
 import { getRedis } from "../infra/redis.ts";
+
 import { inspect, MailArgumentNotPortedError, type RubyValue } from "./ruby-value.ts";
 
 export const EMAIL_PROVIDER_SENDGRID = "sendgrid";
@@ -21,21 +22,39 @@ export type MailerLevel = "level_1" | "level_2";
 
 // MailerInfo::FIELD_NAMES
 const FIELD_NAMES = [
-  "email_provider", "environment", "category", "mailer_class", "mailer_method", "mailer_args",
-  "purchase_id", "charge_id", "workflow_ids", "post_id", "follower_id", "affiliate_id",
+  "email_provider",
+  "environment",
+  "category",
+  "mailer_class",
+  "mailer_method",
+  "mailer_args",
+  "purchase_id",
+  "charge_id",
+  "workflow_ids",
+  "post_id",
+  "follower_id",
+  "affiliate_id",
 ] as const;
 export type MailerInfoField = (typeof FIELD_NAMES)[number];
 
 export function headerName(name: MailerInfoField): string {
   if (!FIELD_NAMES.includes(name)) throw new Error(`Invalid header field: ${name}`);
-  return `X-GUM-${name.split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join("-")}`;
+  return `X-GUM-${name
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join("-")}`;
 }
 
 // --- config/initializers/mailer.rb -------------------------------------------------------------------
 
 // config/domain.rb's default_email_domain.
 export function defaultEmailDomain(env: RailsEnv = railsEnv()): string {
-  return { production: "gumroad.com", staging: "staging.gumroad.com", development: "staging.gumroad.com", test: "test.gumroad.com" }[env];
+  return {
+    production: "gumroad.com",
+    staging: "staging.gumroad.com",
+    development: "staging.gumroad.com",
+    test: "test.gumroad.com",
+  }[env];
 }
 
 export function mailDomains(env: RailsEnv = railsEnv()): Record<MailDomain, string> {
@@ -48,7 +67,9 @@ export function mailDomains(env: RailsEnv = railsEnv()): Record<MailDomain, stri
     creators: production
       ? getConfig("CREATOR_CONTACTING_CUSTOMERS_MAIL_DOMAIN_PROD", "creators.gumroad.com")
       : getConfig("CREATOR_CONTACTING_CUSTOMERS_MAIL_DOMAIN_DEV", "staging.creators.gumroad.com"),
-    customers: production ? getConfig("CUSTOMERS_MAIL_DOMAIN_PROD", "customers.gumroad.com") : getConfig("CUSTOMERS_MAIL_DOMAIN_DEV", "staging.customers.gumroad.com"),
+    customers: production
+      ? getConfig("CUSTOMERS_MAIL_DOMAIN_PROD", "customers.gumroad.com")
+      : getConfig("CUSTOMERS_MAIL_DOMAIN_DEV", "staging.customers.gumroad.com"),
   };
 }
 
@@ -81,7 +102,12 @@ export function emailCredentials(provider: EmailProvider, domain: MailDomain): D
   const domains = mailDomains();
   const username = provider === EMAIL_PROVIDER_SENDGRID ? "apikey" : "resend";
   const address = provider === EMAIL_PROVIDER_SENDGRID ? sendgridSmtpAddress() : resendSmtpAddress();
-  const credentials: DomainCredentials = { address, username, password: getConfig(keys[domain]), domain: domains[domain] };
+  const credentials: DomainCredentials = {
+    address,
+    username,
+    password: getConfig(keys[domain]),
+    domain: domains[domain],
+  };
   if (domain === "customers") {
     credentials.levels = {
       level_1: { username, password: getConfig(keys.customers), domain: domains.customers },
@@ -92,20 +118,32 @@ export function emailCredentials(provider: EmailProvider, domain: MailDomain): D
 }
 
 // The delivery_method_options a mailer passes: merged over config.action_mailer.smtp_settings.
-export type DeliveryMethodOptions = { address: string; domain: string; user_name: string; password: string | undefined };
+export type DeliveryMethodOptions = {
+  address: string;
+  domain: string;
+  user_name: string;
+  password: string | undefined;
+};
 
 // MailerInfo::DeliveryMethod.options
-export function deliveryMethodOptions(domain: MailDomain, emailProvider: EmailProvider, sellerMailerLevel?: MailerLevel): DeliveryMethodOptions {
+export function deliveryMethodOptions(
+  domain: MailDomain,
+  emailProvider: EmailProvider,
+  sellerMailerLevel?: MailerLevel,
+): DeliveryMethodOptions {
   if (!MAIL_DOMAINS.includes(domain)) throw new Error(`Invalid domain: ${String(domain)}`);
-  if (sellerMailerLevel !== undefined && domain !== "customers") throw new Error("Seller is only allowed for customers domain");
+  if (sellerMailerLevel !== undefined && domain !== "customers")
+    throw new Error("Seller is only allowed for customers domain");
   const credentials = emailCredentials(emailProvider, domain);
   const level = sellerMailerLevel === undefined ? credentials : credentials.levels![sellerMailerLevel];
   return { address: credentials.address, domain: level.domain, user_name: level.username, password: level.password };
 }
 
-export const defaultDeliveryMethodOptions = (domain: MailDomain) => deliveryMethodOptions(domain, EMAIL_PROVIDER_SENDGRID);
+export const defaultDeliveryMethodOptions = (domain: MailDomain) =>
+  deliveryMethodOptions(domain, EMAIL_PROVIDER_SENDGRID);
 
-export const isResend = (settings: { address?: string } | null | undefined) => settings?.address !== undefined && settings.address === resendSmtpAddress();
+export const isResend = (settings: { address?: string } | null | undefined) =>
+  settings?.address !== undefined && settings.address === resendSmtpAddress();
 
 // MailerInfo::DeliveryMethod.sendgrid_equivalent_options
 export function sendgridEquivalentOptions(settings: Partial<DeliveryMethodOptions>): DeliveryMethodOptions | null {
@@ -114,15 +152,35 @@ export function sendgridEquivalentOptions(settings: Partial<DeliveryMethodOption
   if (domainKey === undefined) return null;
   const level2Password = emailCredentials(EMAIL_PROVIDER_RESEND, domainKey).levels?.level_2.password;
   const sendgrid = emailCredentials(EMAIL_PROVIDER_SENDGRID, domainKey);
-  const credentials = level2Password !== undefined && settings.password === level2Password ? sendgrid.levels!.level_2 : sendgrid;
-  return { address: sendgrid.address, domain: credentials.domain, user_name: credentials.username, password: credentials.password };
+  const credentials =
+    level2Password !== undefined && settings.password === level2Password ? sendgrid.levels!.level_2 : sendgrid;
+  return {
+    address: sendgrid.address,
+    domain: credentials.domain,
+    user_name: credentials.username,
+    password: credentials.password,
+  };
 }
 
 // MailerInfo::UNITED_INTERNET_RECIPIENT_DOMAINS
-const UNITED_INTERNET_RECIPIENT_DOMAINS = ["web.de", "gmx.de", "gmx.net", "gmx.com", "gmx.at", "gmx.ch", "gmx.us", "gmx.fr", "gmx.es", "gmx.co.uk", "mail.com"];
+const UNITED_INTERNET_RECIPIENT_DOMAINS = [
+  "web.de",
+  "gmx.de",
+  "gmx.net",
+  "gmx.com",
+  "gmx.at",
+  "gmx.ch",
+  "gmx.us",
+  "gmx.fr",
+  "gmx.es",
+  "gmx.co.uk",
+  "mail.com",
+];
 
 // MailerInfo.force_sendgrid_for_recipients?
-export function forceSendgridForRecipients(recipients: string | null | undefined | (string | null | undefined)[]): boolean {
+export function forceSendgridForRecipients(
+  recipients: string | null | undefined | (string | null | undefined)[],
+): boolean {
   const list = Array.isArray(recipients) ? recipients : [recipients];
   return list.some((recipient) => {
     if (recipient === null || recipient === undefined) return false;
@@ -173,7 +231,10 @@ export function rubyToI(value: string | null): number {
 }
 
 // MailerInfo::Router.determine_email_provider
-export async function determineEmailProvider(domain: MailDomain, deps: RouterDeps = defaultRouterDeps()): Promise<EmailProvider> {
+export async function determineEmailProvider(
+  domain: MailDomain,
+  deps: RouterDeps = defaultRouterDeps(),
+): Promise<EmailProvider> {
   if (!MAIL_DOMAINS.includes(domain)) throw new Error(`Invalid domain: ${String(domain)}`);
   if (!(await deps.featureActive("resend"))) return EMAIL_PROVIDER_SENDGRID;
   if (await deps.featureActive("force_resend")) return EMAIL_PROVIDER_RESEND;
@@ -199,7 +260,9 @@ export async function randomDeliveryMethodOptions(
   options: { to?: string | null | (string | null)[]; sellerMailerLevel?: MailerLevel } = {},
   deps?: RouterDeps,
 ): Promise<DeliveryMethodOptions> {
-  const provider = forceSendgridForRecipients(options.to) ? EMAIL_PROVIDER_SENDGRID : await determineEmailProvider(domain, deps);
+  const provider = forceSendgridForRecipients(options.to)
+    ? EMAIL_PROVIDER_SENDGRID
+    : await determineEmailProvider(domain, deps);
   return deliveryMethodOptions(domain, provider, options.sellerMailerLevel);
 }
 
@@ -225,7 +288,8 @@ export function encryptHeader(value: string, randomIv: RandomIv = defaultRandomI
 
 export function decryptHeader(value: string): string {
   const [version, iv, encrypted] = value.split(":");
-  if (version !== "v1") throw new Error(`Unknown key version: ${Number.parseInt(version!.replace(/^v/u, ""), 10) || 0}`);
+  if (version !== "v1")
+    throw new Error(`Unknown key version: ${Number.parseInt(version!.replace(/^v/u, ""), 10) || 0}`);
   const decipher = createDecipheriv("aes-256-cbc", headerKey(), Buffer.from(iv!, "base64"));
   return Buffer.concat([decipher.update(Buffer.from(encrypted!, "base64")), decipher.final()]).toString("utf8");
 }
@@ -242,11 +306,16 @@ const CUSTOMER_RECORD_METHODS = ["receipt", "preorder_receipt", "abandoned_cart"
 // ids into Resend's headers, which needs no lookup.
 const INSTALLMENT_MAILER_CLASS = "CreatorContactingCustomersMailer";
 const isResendInstallment = (mailerClass: string, mailerMethod: string, emailProvider: EmailProvider) =>
-  emailProvider === EMAIL_PROVIDER_RESEND && mailerClass === INSTALLMENT_MAILER_CLASS && RECORD_MAILER_METHODS.includes(mailerMethod);
+  emailProvider === EMAIL_PROVIDER_RESEND &&
+  mailerClass === INSTALLMENT_MAILER_CLASS &&
+  RECORD_MAILER_METHODS.includes(mailerMethod);
 
 function checkNoRecordIds(mailerClass: string, mailerMethod: string, emailProvider: EmailProvider): void {
   if (isResendInstallment(mailerClass, mailerMethod, emailProvider)) return;
-  if ((mailerClass === "CustomerMailer" && CUSTOMER_RECORD_METHODS.includes(mailerMethod)) || RECORD_MAILER_METHODS.includes(mailerMethod)) {
+  if (
+    (mailerClass === "CustomerMailer" && CUSTOMER_RECORD_METHODS.includes(mailerMethod)) ||
+    RECORD_MAILER_METHODS.includes(mailerMethod)
+  ) {
     throw new MailArgumentNotPortedError(`MailerInfo record ids for ${mailerClass}#${mailerMethod}`);
   }
 }
@@ -258,16 +327,30 @@ function truncatedMailerArgs(args: RubyValue[]): RubyValue[] {
 
 // ActiveSupport's JSON encoding of a string: the json gem's escapes, then the HTML-safe ones.
 function jsonString(value: string): string {
-  return JSON.stringify(value).replace(/[<>&\u2028\u2029]/gu, (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`);
+  return JSON.stringify(value).replace(
+    /[<>&\u2028\u2029]/gu,
+    (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`,
+  );
 }
 
 export type MailerHeaders = [string, string][];
 
 // HeaderBuilder#determine_receipt_record_ids for a receipt the mailer has already looked up: the purchase or
 // the charge it normalises to, neither when the mail names none.
-export type ReceiptRecordIds = { purchaseId?: number | bigint | null; chargeId?: number | bigint | null; emailName?: string };
+export type ReceiptRecordIds = {
+  purchaseId?: number | bigint | null;
+  chargeId?: number | bigint | null;
+  emailName?: string;
+};
 
-export function buildHeaders(input: { mailerClass: string; mailerMethod: string; mailerArgs: RubyValue[]; emailProvider: EmailProvider; randomIv?: RandomIv; recordIds?: ReceiptRecordIds }): MailerHeaders {
+export function buildHeaders(input: {
+  mailerClass: string;
+  mailerMethod: string;
+  mailerArgs: RubyValue[];
+  emailProvider: EmailProvider;
+  randomIv?: RandomIv;
+  recordIds?: ReceiptRecordIds;
+}): MailerHeaders {
   const { mailerClass, mailerMethod, emailProvider } = input;
   if (!input.recordIds) checkNoRecordIds(mailerClass, mailerMethod, emailProvider);
   const recordFields: [MailerInfoField, string][] = [];
@@ -276,7 +359,10 @@ export function buildHeaders(input: { mailerClass: string; mailerMethod: string;
   const args = inspect(truncatedMailerArgs(input.mailerArgs));
   const env = railsEnv();
   if (emailProvider === EMAIL_PROVIDER_RESEND) {
-    const category = `[${[mailerClass, mailerMethod === "" ? null : `${mailerClass}.${mailerMethod}`].filter((c) => c !== null).map((c) => jsonString(c!)).join(",")}]`;
+    const category = `[${[mailerClass, mailerMethod === "" ? null : `${mailerClass}.${mailerMethod}`]
+      .filter((c) => c !== null)
+      .map((c) => jsonString(c!))
+      .join(",")}]`;
     const fields: [MailerInfoField, string][] = [
       ["environment", env],
       ["mailer_class", mailerClass],
@@ -287,10 +373,17 @@ export function buildHeaders(input: { mailerClass: string; mailerMethod: string;
     ];
     if (isResendInstallment(mailerClass, mailerMethod, emailProvider)) {
       const [recipientId, postId] = input.mailerArgs;
-      const recipientField = { purchase_installment: "purchase_id", follower_installment: "follower_id", direct_affiliate_installment: "affiliate_id" }[mailerMethod] as MailerInfoField;
+      const recipientField = {
+        purchase_installment: "purchase_id",
+        follower_installment: "follower_id",
+        direct_affiliate_installment: "affiliate_id",
+      }[mailerMethod] as MailerInfoField;
       fields.push([recipientField, String(recipientId)], ["post_id", String(postId)]);
     }
-    return [...fields.map(([field, value]): [string, string] => [headerName(field), encryptHeader(value, input.randomIv)]), [headerName("email_provider"), EMAIL_PROVIDER_RESEND]];
+    return [
+      ...fields.map(([field, value]): [string, string] => [headerName(field), encryptHeader(value, input.randomIv)]),
+      [headerName("email_provider"), EMAIL_PROVIDER_RESEND],
+    ];
   }
   const smtpApi =
     `{"environment":${jsonString(env)},"category":[${jsonString(mailerClass)},${jsonString(`${mailerClass}.${mailerMethod}`)}],` +

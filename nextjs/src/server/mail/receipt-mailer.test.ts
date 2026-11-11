@@ -6,21 +6,41 @@ import { readFileSync } from "node:fs";
 
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
-import { setEsSender, type EsRequest } from "../search/transport.ts";
 import { sqlReplay } from "../../worker/jobs/__fixtures__/sql-replay.ts";
+import type { Statement } from "../../worker/jobs/__fixtures__/sql-replay.ts";
+import type { JsonValue } from "../jobs/sidekiq/ruby-json.ts";
 import { SIDEKIQ_EXECUTOR, withExecutor } from "../models/runtime/query-cache.ts";
-import { goldenRouter, identityOf, type MessageCase, useGoldenEnvironment } from "./__fixtures__/application-mailer-golden.ts";
+import { setEsSender, type EsRequest } from "../search/transport.ts";
+
+import {
+  goldenRouter,
+  identityOf,
+  type MessageCase,
+  useGoldenEnvironment,
+} from "./__fixtures__/application-mailer-golden.ts";
 import { composeMail } from "./compose.ts";
 import { composeNodeMail, isNotPorted, renderNodeMailer } from "./delivery.ts";
 import type { MailerLevel } from "./mailer-info.ts";
 import { deserializeArgument } from "./ruby-value.ts";
-import type { JsonValue } from "../jobs/sidekiq/ruby-json.ts";
-import type { Statement } from "../../worker/jobs/__fixtures__/sql-replay.ts";
 
 type EsExchange = { method: string; path: string; body: string; status: number; response: Record<string, unknown> };
-type ReceiptCase = MessageCase & { mailer_level?: { via: string; level: MailerLevel }; ivs: string[]; delivery_statements: Statement[]; es: EsExchange[] };
-type ErrorCase = { name: string; mailer: string; method: string; job_args: JsonValue[]; statements: Statement[]; error: { class: string; message: string } };
-const golden = JSON.parse(readFileSync(new URL("__fixtures__/receipt-mailer.golden.json", import.meta.url), "utf8")) as {
+type ReceiptCase = MessageCase & {
+  mailer_level?: { via: string; level: MailerLevel };
+  ivs: string[];
+  delivery_statements: Statement[];
+  es: EsExchange[];
+};
+type ErrorCase = {
+  name: string;
+  mailer: string;
+  method: string;
+  job_args: JsonValue[];
+  statements: Statement[];
+  error: { class: string; message: string };
+};
+const golden = JSON.parse(
+  readFileSync(new URL("__fixtures__/receipt-mailer.golden.json", import.meta.url), "utf8"),
+) as {
   now: string;
   secrets: Record<string, string>;
   cases: { messages: ReceiptCase[]; errors: ErrorCase[]; refused: ReceiptCase[] };
@@ -103,7 +123,12 @@ describe("CustomerMailer#receipt", () => {
       sqlReplay(c.statements);
       replayEs(c.es);
       const refusal = await withExecutor(
-        () => composeNodeMail(c.mailer, c.method, c.job_args.map(deserializeArgument), { router: goldenRouter({ features: [], redis: {}, rands: [] }), mailerLevel: async () => "level_1", randomIv: recordedIvs(c.ivs) }),
+        () =>
+          composeNodeMail(c.mailer, c.method, c.job_args.map(deserializeArgument), {
+            router: goldenRouter({ features: [], redis: {}, rands: [] }),
+            mailerLevel: async () => "level_1",
+            randomIv: recordedIvs(c.ivs),
+          }),
         SIDEKIQ_EXECUTOR,
       ).then(
         () => null,
@@ -116,7 +141,15 @@ describe("CustomerMailer#receipt", () => {
   for (const c of golden.cases.errors) {
     it(`fails ${c.method} (${c.name}) with Rails' error`, async () => {
       const replay = sqlReplay(c.statements);
-      await expect(withExecutor(() => renderNodeMailer(c.mailer, c.method, c.job_args.map(deserializeArgument), { mailerLevel: async () => "level_1" }), SIDEKIQ_EXECUTOR)).rejects.toThrow(c.error.message);
+      await expect(
+        withExecutor(
+          () =>
+            renderNodeMailer(c.mailer, c.method, c.job_args.map(deserializeArgument), {
+              mailerLevel: async () => "level_1",
+            }),
+          SIDEKIQ_EXECUTOR,
+        ),
+      ).rejects.toThrow(c.error.message);
       expect(replay.log).toEqual(replay.expected);
     });
   }
