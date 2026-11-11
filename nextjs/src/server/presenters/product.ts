@@ -272,9 +272,10 @@ export async function authorBylineProps(
 // -------------------------------------------------------------------------------------------------
 // Buyer currency (CurrencyHelper#buyer_currency_display_props)
 
-export async function buyerCurrencyDisplayProps(row: LinkRow, seller: UserRow) {
+// With no IP, GeoIp.lookup finds no country, so no buyer currency is detected and these defaults stand for any seller.
+export function defaultBuyerCurrencyProps(row: LinkRow) {
   const productCurrency = link.currency(row);
-  const defaults = {
+  return {
     product_id: link.externalId(row),
     buyer_currency_shown: productCurrency,
     product_currency: productCurrency,
@@ -282,6 +283,10 @@ export async function buyerCurrencyDisplayProps(row: LinkRow, seller: UserRow) {
     rate: null,
     display_mode: "default",
   };
+}
+
+export async function buyerCurrencyDisplayProps(row: LinkRow, seller: UserRow) {
+  const defaults = defaultBuyerCurrencyProps(row);
   const disabled = jsonDataForAttr(
     Users.load(castRow<User>("User", seller as never)),
     "disable_buyer_local_currency",

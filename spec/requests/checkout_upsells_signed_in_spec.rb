@@ -212,36 +212,495 @@ describe "Checkout upsells when signed in", type: :request do
         expect(response.parsed_body["option_id"]).to be_present
       end
 
-      it "hands a membership cart item to Rails", parity: true do
+      it "answers the first tier of a membership with its price and recurrence", parity: true do
         membership = create(:membership_product_with_preset_tiered_pricing, user: seller, name: "Club", created_at: Time.utc(2025, 1, 1))
 
         get cart_item_checkout_upsells_path(product_id: membership.external_id), headers: accept_json
 
         expect(response).to have_http_status(:ok)
+        expect(response.parsed_body).to include("price" => 300, "recurrence" => "monthly", "option_id" => membership.alive_variants.first.external_id)
+        expect(response.parsed_body["product"]).to include("is_tiered_membership" => true, "has_tipping_enabled" => false)
       end
 
-      it "hands a physical product cart item to Rails", parity: true do
+      it "prices a membership at its default recurrence", parity: true do
+        membership = create(:membership_product_with_preset_tiered_pricing, user: seller, name: "Club", subscription_duration: :yearly, created_at: Time.utc(2025, 1, 1),
+                                                                            recurrence_price_values: [
+                                                                              { monthly: { enabled: true, price: 3 }, yearly: { enabled: true, price: 30 } },
+                                                                              { monthly: { enabled: true, price: 5 }, yearly: { enabled: true, price: 50 } },
+                                                                            ])
+
+        get cart_item_checkout_upsells_path(product_id: membership.external_id), headers: accept_json
+
+        expect(response.parsed_body).to include("price" => 3000, "recurrence" => "yearly")
+        expect(response.parsed_body["product"]["recurrences"]["enabled"].map { _1["recurrence"] }).to eq(%w[monthly yearly])
+      end
+
+      it "falls back to the shortest recurrence when the default one is not priced", parity: true do
+        membership = create(:membership_product_with_preset_tiered_pricing, user: seller, name: "Club", created_at: Time.utc(2025, 1, 1),
+                                                                            recurrence_price_values: [
+                                                                              { monthly: { enabled: true, price: 3 }, yearly: { enabled: true, price: 30 }, quarterly: { enabled: true, price: 9 } },
+                                                                              { monthly: { enabled: true, price: 5 }, yearly: { enabled: true, price: 50 }, quarterly: { enabled: true, price: 15 } },
+                                                                            ])
+        membership.alive_variants.first.prices.where(recurrence: "monthly").update_all(deleted_at: Time.utc(2025, 1, 2))
+
+        get cart_item_checkout_upsells_path(product_id: membership.external_id), headers: accept_json
+
+        expect(response.parsed_body).to include("recurrence" => "quarterly", "price" => 900)
+      end
+
+      it "skips a first tier that is closed to new buyers", parity: true do
+        Feature.activate_user(:close_membership_tier_to_new_buyers, seller)
+        membership = create(:membership_product_with_preset_tiered_pricing, user: seller, name: "Club", created_at: Time.utc(2025, 1, 1))
+        first, second = membership.alive_variants.to_a
+        first.update!(closed_to_new_purchases: true)
+
+        get cart_item_checkout_upsells_path(product_id: membership.external_id), headers: accept_json
+
+        expect(response.parsed_body).to include("option_id" => second.external_id, "price" => 500)
+        expect(response.parsed_body["product"]["options"].first["quantity_left"]).to eq(0)
+      end
+
+      it "answers a membership with a free trial", parity: true do
+        membership = create(:membership_product_with_preset_tiered_pricing, :with_free_trial_enabled, user: seller, name: "Trial club", created_at: Time.utc(2025, 1, 1))
+
+        get cart_item_checkout_upsells_path(product_id: membership.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["free_trial"]).to eq("duration" => { "unit" => "week", "amount" => 1 })
+      end
+
+      it "answers a legacy subscription at its default recurrence", parity: true do
+        subscription = create(:subscription_product, user: seller, name: "Legacy", price_cents: 700, created_at: Time.utc(2025, 1, 1))
+
+        get cart_item_checkout_upsells_path(product_id: subscription.external_id), headers: accept_json
+
+        expect(response.parsed_body).to include("price" => 700, "recurrence" => "monthly")
+        expect(response.parsed_body["product"]).to include("is_legacy_subscription" => true, "has_tipping_enabled" => false)
+      end
+
+      it "answers a legacy subscription with versions on its first available one", parity: true do
+        subscription = create(:subscription_product_with_versions, user: seller, name: "Legacy versions", price_cents: 700, created_at: Time.utc(2025, 1, 1))
+
+        get cart_item_checkout_upsells_path(product_id: subscription.external_id), headers: accept_json
+
+        expect(response.parsed_body["option_id"]).to eq(subscription.alive_variants.first.external_id)
+      end
+
+      it "answers a physical product that ships nowhere yet", parity: true do
         poster = create(:physical_product, user: seller, name: "Poster", created_at: Time.utc(2025, 1, 1))
+        poster.shipping_destinations.delete_all
+
+        get cart_item_checkout_upsells_path(product_id: poster.external_id), headers: accept_json
+
+        expect(response).to have_http_status(:ok)
+        expect(response.parsed_body["product"]).to include("shippable_country_codes" => [], "ships_nowhere" => true, "require_shipping" => true)
+      end
+
+      it "lists the countries a physical product ships to, in destination order", parity: true do
+        poster = create(:physical_product, user: seller, name: "Poster", created_at: Time.utc(2025, 1, 1))
+        poster.shipping_destinations.delete_all
+        create(:shipping_destination, link: poster, country_code: "US")
+        create(:shipping_destination, link: poster, country_code: "FR")
+        create(:shipping_destination, link: poster, country_code: "JP", deleted_at: Time.utc(2025, 1, 2))
+
+        get cart_item_checkout_upsells_path(product_id: poster.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]).to include("shippable_country_codes" => %w[US FR], "ships_nowhere" => false)
+      end
+
+      it "expands a continent destination and drops the countries excluded from it", parity: true do
+        poster = create(:physical_product, user: seller, name: "Poster", created_at: Time.utc(2025, 1, 1))
+        poster.shipping_destinations.delete_all
+        create(:shipping_destination, link: poster, country_code: "US")
+        create(:shipping_destination, link: poster, country_code: "EUROPE", is_virtual_country: true)
+        create(:shipping_destination, link: poster, country_code: "ASIA", is_virtual_country: true, deleted_at: Time.utc(2025, 1, 2))
+        %w[FR DE].each { ShippingExclusion.create!(product: poster, country_code: _1) }
+
+        get cart_item_checkout_upsells_path(product_id: poster.external_id), headers: accept_json
+
+        codes = response.parsed_body["product"]["shippable_country_codes"]
+        expect(codes.first).to eq("US")
+        expect(codes).to include("GB", "IT")
+        expect(codes).not_to include("FR", "DE", "JP")
+      end
+
+      it "expands an elsewhere destination to every selectable country", parity: true do
+        poster = create(:physical_product, user: seller, name: "Poster", created_at: Time.utc(2025, 1, 1))
+        ShippingExclusion.create!(product: poster, country_code: "FR")
+
+        get cart_item_checkout_upsells_path(product_id: poster.external_id), headers: accept_json
+
+        codes = response.parsed_body["product"]["shippable_country_codes"]
+        expect(codes).to include("US", "JP")
+        expect(codes).not_to include("FR", "SY")
+      end
+
+      it "keeps only the supported countries while physical shipping is restricted", parity: true do
+        Feature.activate(:physical_shipping_us_ca_uk_only)
+        poster = create(:physical_product, user: seller, name: "Poster", created_at: Time.utc(2025, 1, 1))
+
+        get cart_item_checkout_upsells_path(product_id: poster.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["shippable_country_codes"]).to match_array(%w[US CA GB])
+      end
+
+      it "answers a physical product with versions", parity: true do
+        poster = create(:physical_product, user: seller, name: "Poster", created_at: Time.utc(2025, 1, 1))
+        poster.shipping_destinations.delete_all
+        create(:shipping_destination, link: poster, country_code: "US")
+        category = create(:variant_category, link: poster, title: "Size")
+        create(:variant, variant_category: category, name: "Small")
 
         get cart_item_checkout_upsells_path(product_id: poster.external_id), headers: accept_json
 
         expect(response).to have_http_status(:ok)
       end
 
-      it "hands an upsell product cart item to Rails", parity: true do
-        create(:upsell, seller:, product:, name: "Pro")
+      it "answers the upsell of a product", parity: true do
+        create(:upsell, seller:, product:, name: "Pro", text: "Go Pro", description: "Get <b>more</b> at https://example.com/pro <script>alert(1)</script>")
 
         get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
 
         expect(response).to have_http_status(:ok)
+        expect(response.parsed_body["product"]["upsell"]).to include("text" => "Go Pro")
       end
 
-      it "hands a cross-sell product cart item to Rails", parity: true do
-        create(:upsell, seller:, product: create(:product, user: seller, name: "Extra"), name: "Add", cross_sell: true, selected_products: [product])
+      it "answers the upsell of a product with no text or description", parity: true do
+        create(:upsell, seller:, product:, name: "Pro", text: nil, description: nil)
 
         get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
 
+        expect(response.parsed_body["product"]["upsell"]).to include("text" => "", "description" => "")
+      end
+
+      it "leaves out a paused upsell", parity: true do
+        create(:upsell, seller:, product:, name: "Pro", paused: true)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["upsell"]).to be_nil
+      end
+
+      it "offers the upgraded version of each option of an upsell", parity: true do
+        versions = create(:product_with_digital_versions, user: seller, name: "Versions", created_at: Time.utc(2025, 1, 1))
+        first, second = versions.alive_variants.to_a
+        sold_out = create(:variant, variant_category: versions.variant_categories_alive.first, name: "Sold out", max_purchase_count: 1)
+        sold_out.update_columns(sales_count_for_inventory_cache: 1)
+        upsell = create(:upsell, seller:, product: versions, name: "Upgrade")
+        create(:upsell_variant, upsell:, selected_variant: first, offered_variant: second)
+        create(:upsell_variant, upsell:, selected_variant: second, offered_variant: sold_out)
+
+        get cart_item_checkout_upsells_path(product_id: versions.external_id), headers: accept_json
+
+        options = response.parsed_body["product"]["options"]
+        expect(options.map { _1["upsell_offered_variant_id"] }).to eq([second.external_id, nil, nil])
+      end
+
+      it "ignores a deleted upsell variant", parity: true do
+        versions = create(:product_with_digital_versions, user: seller, name: "Versions", created_at: Time.utc(2025, 1, 1))
+        first, second = versions.alive_variants.to_a
+        upsell = create(:upsell, seller:, product: versions, name: "Upgrade")
+        create(:upsell_variant, upsell:, selected_variant: first, offered_variant: second, deleted_at: Time.utc(2025, 1, 2))
+
+        get cart_item_checkout_upsells_path(product_id: versions.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["options"].map { _1["upsell_offered_variant_id"] }).to eq([nil, nil])
+      end
+
+      it "lists the cross-sells of a product with their offered product and discount", parity: true do
+        extra = create(:product, user: seller, name: "Extra", price_cents: 500, created_at: Time.utc(2025, 1, 3))
+        code = create(:offer_code, user: seller, products: [extra], amount_cents: nil, amount_percentage: 20, code: "XSELL")
+        create(:upsell, seller:, product: extra, name: "Add", cross_sell: true, selected_products: [product], replace_selected_products: true, offer_code: code,
+                        text: "Add the extra", description: "A <i>great</i> companion")
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        cross_sell = response.parsed_body["product"]["cross_sells"].sole
+        expect(cross_sell).to include("replace_selected_products" => true, "text" => "Add the extra", "ratings" => { "count" => 0, "average" => 0.0 })
+        expect(cross_sell["offered_product"]["product"]["name"]).to eq("Extra")
+        expect(cross_sell["discount"]).to include("type" => "percent", "percents" => 20)
+      end
+
+      it "leaves out the discount of an existing-customers cross-sell code", parity: true do
+        extra = create(:product, user: seller, name: "Extra", price_cents: 500, created_at: Time.utc(2025, 1, 3))
+        code = create(:offer_code, user: seller, products: [extra], amount_cents: nil, amount_percentage: 20, code: "LOYAL", existing_customers_only: true, ownership_products: [product])
+        create(:upsell, seller:, product: extra, name: "Add", cross_sell: true, universal: true, offer_code: code)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["cross_sells"].sole["discount"]).to be_nil
+      end
+
+      it "shows ratings on a cross-sell whose product displays reviews", parity: true do
+        extra = create(:product, user: seller, name: "Extra", created_at: Time.utc(2025, 1, 3), display_product_reviews: true)
+        create(:product_review_stat, link: extra, reviews_count: 2, ratings_of_four_count: 1, ratings_of_five_count: 1, average_rating: 4.5)
+        create(:upsell, seller:, product: extra, name: "Add", cross_sell: true, universal: true)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["cross_sells"].sole["ratings"]).to eq("count" => 2, "average" => 4.5)
+      end
+
+      it "lists a universal cross-sell and one selecting the product, in order", parity: true do
+        one = create(:product, user: seller, name: "One", created_at: Time.utc(2025, 1, 3))
+        two = create(:product, user: seller, name: "Two", created_at: Time.utc(2025, 1, 4))
+        create(:upsell, seller:, product: one, name: "First", cross_sell: true, universal: true)
+        create(:upsell, seller:, product: two, name: "Second", cross_sell: true, selected_products: [product])
+        create(:upsell, seller:, product: two, name: "Elsewhere", cross_sell: true, selected_products: [one])
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["cross_sells"].map { _1["offered_product"]["product"]["name"] }).to eq(%w[One Two])
+      end
+
+      it "leaves out cross-sells that are paused, deleted, or whose product is gone or sold out", parity: true do
+        paused = create(:product, user: seller, name: "Paused", created_at: Time.utc(2025, 1, 3))
+        gone = create(:product, user: seller, name: "Gone", created_at: Time.utc(2025, 1, 4))
+        sold_out = create(:product, user: seller, name: "Sold out", created_at: Time.utc(2025, 1, 5), max_purchase_count: 1)
+        sold_out.update_columns(sales_count_for_inventory_cache: 1)
+        shown = create(:product, user: seller, name: "Shown", created_at: Time.utc(2025, 1, 6))
+        create(:upsell, seller:, product: paused, name: "Paused", cross_sell: true, universal: true, paused: true)
+        create(:upsell, seller:, product: gone, name: "Gone", cross_sell: true, universal: true)
+        create(:upsell, seller:, product: sold_out, name: "Sold out", cross_sell: true, universal: true)
+        create(:upsell, seller:, product: shown, name: "Shown", cross_sell: true, universal: true)
+        create(:upsell, seller:, product: shown, name: "Deleted", cross_sell: true, universal: true, deleted_at: Time.utc(2025, 1, 7))
+        gone.update_columns(deleted_at: Time.utc(2025, 1, 8))
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["cross_sells"].map { _1["offered_product"]["product"]["name"] }).to eq(%w[Shown])
+      end
+
+      it "skips a cross-sell whose fixed version is sold out", parity: true do
+        versions = create(:product_with_digital_versions, user: seller, name: "Versions", created_at: Time.utc(2025, 1, 3))
+        first, second = versions.alive_variants.to_a
+        second.update_columns(max_purchase_count: 1, sales_count_for_inventory_cache: 1)
+        create(:upsell, seller:, product: versions, name: "First", cross_sell: true, universal: true, variant: first)
+        create(:upsell, seller:, product: versions, name: "Second", cross_sell: true, universal: true, variant: second)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        offered = response.parsed_body["product"]["cross_sells"].sole["offered_product"]
+        expect(offered["option_id"]).to eq(first.external_id)
+      end
+
+      it "matches the offered version to the selected one by name", parity: true do
+        selected = create(:product, user: seller, name: "Selected", created_at: Time.utc(2025, 1, 2))
+        category = create(:variant_category, title: "Size", link: selected)
+        create(:variant, variant_category: category, name: "Large")
+        offered = create(:product, user: seller, name: "Offered", created_at: Time.utc(2025, 1, 3))
+        offered_category = create(:variant_category, title: "Size", link: offered)
+        create(:variant, variant_category: offered_category, name: "Small")
+        large = create(:variant, variant_category: offered_category, name: "Large")
+        create(:upsell, seller:, product: offered, name: "Match", cross_sell: true, universal: true, variant: offered.alive_variants.first, offer_matching_version: true)
+
+        get cart_item_checkout_upsells_path(product_id: selected.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["cross_sells"].sole["offered_product"]["option_id"]).to eq(large.external_id)
+      end
+
+      it "answers the products of a bundle", parity: true do
+        bundle = create(:product, :bundle, user: seller, price_cents: 1500, created_at: Time.utc(2025, 1, 1))
+        bundle.bundle_products.first.update!(quantity: 3, position: 2)
+        bundle.bundle_products.last.update!(position: 1)
+        create(:custom_field, seller:, name: "Phone", products: [bundle.bundle_products.first.product])
+
+        get cart_item_checkout_upsells_path(product_id: bundle.external_id), headers: accept_json
+
         expect(response).to have_http_status(:ok)
+        listed = response.parsed_body["product"]["bundle_products"]
+        expect(listed.map { _1["name"] }).to eq(["Bundle Product 2", "Bundle Product 1"])
+        expect(listed.last).to include("quantity" => 3)
+        expect(listed.last["custom_fields"].map { _1["name"] }).to eq(["Phone"])
+      end
+
+      it "answers a bundle with a versioned product and without a deleted one", parity: true do
+        bundle = create(:product, :bundle, user: seller, created_at: Time.utc(2025, 1, 1))
+        versioned = create(:product_with_digital_versions, user: seller, name: "Versioned")
+        removed = create(:product, user: seller, name: "Removed")
+        create(:bundle_product, bundle:, product: versioned, variant: versioned.alive_variants.first)
+        create(:bundle_product, bundle:, product: removed, deleted_at: Time.utc(2025, 1, 5))
+
+        get cart_item_checkout_upsells_path(product_id: bundle.external_id), headers: accept_json
+
+        listed = response.parsed_body["product"]["bundle_products"]
+        expect(listed.map { _1["name"] }).to include("Versioned")
+        expect(listed.map { _1["name"] }).not_to include("Removed")
+        expect(listed.find { _1["name"] == "Versioned" }["variant"]).to include("name" => "Untitled 1")
+      end
+
+      it "asks for shipping when a bundled product ships", parity: true do
+        bundle = create(:product, :bundle, user: seller, created_at: Time.utc(2025, 1, 1))
+        create(:bundle_product, bundle:, product: create(:physical_product, user: seller, name: "Poster"))
+
+        get cart_item_checkout_upsells_path(product_id: bundle.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["require_shipping"]).to eq(true)
+      end
+
+      it "answers a buy-and-rent product at its buy price with the rental price beside it", parity: true do
+        product.update!(purchase_type: :buy_and_rent, rental_price_cents: 300)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body).to include("price" => 1000, "rent" => false)
+        expect(response.parsed_body["product"]["rental"]).to eq("price_cents" => 300, "rent_only" => false)
+      end
+
+      it "answers a product of a seller with purchasing power parity on at its price", parity: true do
+        seller.update!(purchasing_power_parity_enabled: true, purchasing_power_parity_limit: 40)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body).to include("price" => 1000)
+        expect(response.parsed_body["product"]["ppp_details"]).to be_nil
+      end
+
+      it "raises a price below the currency minimum for a seller with purchasing power parity on", parity: true do
+        seller.update!(purchasing_power_parity_enabled: true, purchasing_power_parity_limit: 40)
+        product.prices.update_all(price_cents: 50)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body).to include("price" => 99)
+      end
+
+      it "leaves a free product free for a seller with purchasing power parity on", parity: true do
+        seller.update!(purchasing_power_parity_enabled: true, purchasing_power_parity_limit: 40)
+        product.prices.update_all(price_cents: 0)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body).to include("price" => 0)
+      end
+
+      it "keeps a price below the minimum when the product opts out of purchasing power parity", parity: true do
+        seller.update!(purchasing_power_parity_enabled: true, purchasing_power_parity_limit: 40)
+        product.update!(purchasing_power_parity_disabled: true)
+        product.prices.update_all(price_cents: 50)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body).to include("price" => 50)
+      end
+
+      it "raises a yen price below the minimum for a seller with purchasing power parity on", parity: true do
+        seller.update!(purchasing_power_parity_enabled: true, purchasing_power_parity_limit: 40)
+        yen = create(:product, user: seller, name: "Yen", price_currency_type: "jpy", price_cents: 150, created_at: Time.utc(2025, 1, 2))
+        yen.prices.update_all(price_cents: 20)
+
+        get cart_item_checkout_upsells_path(product_id: yen.external_id), headers: accept_json
+
+        expect(response.parsed_body).to include("price" => 99)
+      end
+
+      it "offers native PayPal to a seller with a connected PayPal account", parity: true do
+        create(:user_compliance_info, user: seller, country: "United States")
+        create(:merchant_account_paypal, user: seller)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["supports_paypal"]).to eq("native")
+      end
+
+      it "offers Braintree PayPal to a seller in a country PayPal Connect does not cover", parity: true do
+        Feature.deactivate(:disable_braintree_sales)
+        create(:user_compliance_info, user: seller, country: "India")
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["supports_paypal"]).to eq("braintree")
+      end
+
+      it "offers no PayPal to a connect-enabled seller without a connected account", parity: true do
+        create(:user_compliance_info, user: seller, country: "United States")
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["supports_paypal"]).to be_nil
+      end
+
+      it "ignores a PayPal account whose charge processor was deleted", parity: true do
+        Feature.deactivate(:disable_braintree_sales)
+        create(:user_compliance_info, user: seller, country: "India")
+        create(:merchant_account_paypal, user: seller, charge_processor_deleted_at: Time.utc(2025, 1, 2))
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["supports_paypal"]).to eq("braintree")
+      end
+
+      it "still offers native PayPal when PayPal sales are disabled for the seller", parity: true do
+        create(:merchant_account_paypal, user: seller)
+        seller.update!(disable_paypal_sales: true)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["supports_paypal"]).to eq("native")
+      end
+
+      it "offers no PayPal while PayPal sales are disabled everywhere", parity: true do
+        Feature.activate(:disable_paypal_sales)
+        create(:merchant_account_paypal, user: seller)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["supports_paypal"]).to be_nil
+      end
+
+      it "offers no PayPal to an adult product while adult PayPal Connect sales are disabled", parity: true do
+        Feature.activate(:disable_nsfw_paypal_connect_sales)
+        create(:merchant_account_paypal, user: seller)
+        product.update!(is_adult: true)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["supports_paypal"]).to be_nil
+      end
+
+      it "offers no PayPal to a seller whose bio has adult keywords while adult PayPal Connect sales are disabled", parity: true do
+        Feature.activate(:disable_nsfw_paypal_connect_sales)
+        seller.update!(bio: "An nsfw store")
+        create(:merchant_account_paypal, user: seller)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["supports_paypal"]).to be_nil
+      end
+
+      it "offers Braintree PayPal when PayPal Connect sales are disabled and the seller has a connected account", parity: true do
+        Feature.activate(:disable_paypal_connect_sales)
+        create(:user_compliance_info, user: seller, country: "United States")
+        create(:merchant_account_paypal, user: seller)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["supports_paypal"]).to eq("braintree")
+      end
+
+      it "offers no PayPal on a membership when PayPal Connect sales are disabled", parity: true do
+        Feature.activate(:disable_paypal_connect_sales)
+        membership = create(:membership_product_with_preset_tiered_pricing, user: seller, name: "Club", created_at: Time.utc(2025, 1, 1))
+
+        get cart_item_checkout_upsells_path(product_id: membership.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["supports_paypal"]).to be_nil
+      end
+
+      it "shows the product currency to a seller using buyer local currency", parity: true do
+        Feature.activate_user(:buyer_local_currency, seller)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["buyer_currency_display"]).to include("buyer_currency_shown" => "usd", "display_mode" => "default", "rate" => nil)
+      end
+
+      it "answers a rent-only product at its rental price", parity: true do
+        product.update!(purchase_type: :rent_only, rental_price_cents: 300)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body).to include("price" => 300, "rent" => false)
+        expect(response.parsed_body["product"]).to include("price_cents" => 300, "rental" => { "price_cents" => 300, "rent_only" => true })
       end
 
       it "answers not found for another seller's product", parity: true do

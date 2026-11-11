@@ -200,54 +200,128 @@ describe "Checkout form settings when signed in", type: :request do
       expect(cart_item["option_id"]).to be_present
     end
 
-    it "hands a seller with a physical product to Rails", parity: true do
-      create(:physical_product, user: seller, name: "Poster", created_at: Time.utc(2025, 1, 2))
+    it "previews a physical product with the countries it ships to", parity: true do
+      poster = create(:physical_product, user: seller, name: "Poster", created_at: Time.utc(2025, 1, 2))
+      poster.shipping_destinations.delete_all
+      create(:shipping_destination, link: poster, country_code: "US")
+      create(:shipping_destination, link: poster, country_code: "NORTH AMERICA", is_virtual_country: true)
+      ShippingExclusion.create!(product: poster, country_code: "MX")
       log_in(seller)
 
       get checkout_form_path
 
-      expect(inertia_props_of(response)["cart_item"]["product"]).to include("require_shipping" => true)
+      product = inertia_props_of(response)["cart_item"]["product"]
+      expect(product).to include("require_shipping" => true, "ships_nowhere" => false)
+      expect(product["shippable_country_codes"]).to include("US", "CA")
+      expect(product["shippable_country_codes"]).not_to include("MX")
     end
 
-    it "hands a seller with a membership to Rails", parity: true do
+    it "previews a physical product that ships nowhere yet", parity: true do
+      create(:physical_product, user: seller, name: "Poster", created_at: Time.utc(2025, 1, 2)).shipping_destinations.delete_all
+      log_in(seller)
+
+      get checkout_form_path
+
+      expect(inertia_props_of(response)["cart_item"]["product"]).to include("require_shipping" => true, "ships_nowhere" => true)
+    end
+
+    it "previews the first available tier of the seller's membership", parity: true do
       create(:membership_product_with_preset_tiered_pricing, user: seller, name: "Club", created_at: Time.utc(2025, 1, 2))
       log_in(seller)
 
       get checkout_form_path
 
-      expect(inertia_props_of(response)["cart_item"]["product"]["is_tiered_membership"]).to eq(true)
+      cart_item = inertia_props_of(response)["cart_item"]
+      expect(cart_item["product"]["is_tiered_membership"]).to eq(true)
+      expect(cart_item).to include("price" => 300, "recurrence" => "monthly")
     end
 
-    it "hands a seller whose product has an upsell to Rails", parity: true do
-      product = create(:product, user: seller, name: "Base", created_at: Time.utc(2025, 1, 2))
-      create(:upsell, seller:, product:, name: "Pro")
+    it "previews a product of a seller with purchasing power parity on", parity: true do
+      seller.update!(purchasing_power_parity_enabled: true, purchasing_power_parity_limit: 40)
+      create(:product, user: seller, name: "Cheap", price_cents: 150, created_at: Time.utc(2025, 1, 2))
       log_in(seller)
 
       get checkout_form_path
 
-      expect(inertia_props_of(response)["cart_item"]["product"]["upsell"]).to be_present
+      expect(inertia_props_of(response)["cart_item"]).to include("price" => 150)
+      expect(inertia_props_of(response)["cart_item"]["product"]["ppp_details"]).to be_nil
     end
 
-    it "hands a seller whose product has a cross-sell to Rails", parity: true do
-      product = create(:product, user: seller, name: "Base", created_at: Time.utc(2025, 1, 2))
-      offered = create(:product, user: seller, name: "Extra", created_at: Time.utc(2025, 1, 1))
-      create(:upsell, seller:, product: offered, name: "Add", cross_sell: true, selected_products: [product])
+    it "previews a rental product", parity: true do
+      create(:product, user: seller, name: "Film", price_cents: 1500, purchase_type: :buy_and_rent, rental_price_cents: 400, created_at: Time.utc(2025, 1, 2))
       log_in(seller)
 
       get checkout_form_path
 
-      expect(inertia_props_of(response)["cart_item"]["product"]["cross_sells"]).to be_present
+      expect(inertia_props_of(response)["cart_item"]["product"]["rental"]).to eq("price_cents" => 400, "rent_only" => false)
     end
 
-    it "hands a seller whose newest products share a creation time to Rails", parity: true do
+    it "previews a legacy subscription", parity: true do
+      create(:subscription_product, user: seller, name: "Legacy", price_cents: 700, created_at: Time.utc(2025, 1, 2))
+      log_in(seller)
+
+      get checkout_form_path
+
+      expect(inertia_props_of(response)["cart_item"]).to include("price" => 700, "recurrence" => "monthly")
+    end
+
+    it "previews the upsell of the seller's product", parity: true do
+      product = create(:product, user: seller, name: "Base", created_at: Time.utc(2025, 1, 2))
+      create(:upsell, seller:, product:, name: "Pro", text: "Go Pro", description: "See https://example.com/pro")
+      log_in(seller)
+
+      get checkout_form_path
+
+      expect(inertia_props_of(response)["cart_item"]["product"]["upsell"]).to include("text" => "Go Pro")
+    end
+
+    it "previews the cross-sells of the seller's product", parity: true do
+      product = create(:product, user: seller, name: "Base", created_at: Time.utc(2025, 1, 2))
+      offered = create(:product, user: seller, name: "Extra", price_cents: 500, created_at: Time.utc(2025, 1, 1))
+      code = create(:offer_code, user: seller, products: [offered], amount_cents: nil, amount_percentage: 20, code: "XSELL")
+      create(:upsell, seller:, product: offered, name: "Add", cross_sell: true, selected_products: [product], offer_code: code)
+      log_in(seller)
+
+      get checkout_form_path
+
+      cross_sell = inertia_props_of(response)["cart_item"]["product"]["cross_sells"].sole
+      expect(cross_sell["offered_product"]["product"]["name"]).to eq("Extra")
+      expect(cross_sell["discount"]).to include("percents" => 20)
+    end
+
+    it "previews a bundle with its products", parity: true do
+      bundle = create(:product, :bundle, user: seller, price_cents: 1500, created_at: Time.utc(2025, 3, 1))
+      bundle.bundle_products.each_with_index { |bundle_product, index| bundle_product.product.update_columns(created_at: Time.utc(2025, 1, 1 + index)) }
+      log_in(seller)
+
+      get checkout_form_path
+
+      expect(inertia_props_of(response)["cart_item"]["product"]["bundle_products"].map { _1["name"] }).to eq(["Bundle Product 1", "Bundle Product 2"])
+    end
+
+    it "previews whichever of two products created in the same second the database lists first", parity: true do
       create(:product, user: seller, name: "One", created_at: Time.utc(2025, 1, 2))
       create(:product, user: seller, name: "Two", created_at: Time.utc(2025, 1, 2))
       log_in(seller)
 
       get checkout_form_path
 
-      expect(response).to be_successful
+      props = inertia_props_of(response)
+      expect(props["cart_item"]["product"]["name"]).to eq(props["products"].first["name"])
     end
+
+    it "lists three products created in the same second, and the older one after them", parity: true do
+      create(:product, user: seller, name: "Old", created_at: Time.utc(2025, 1, 1))
+      %w[Gamma Alpha Beta].each { create(:product, user: seller, name: _1, created_at: Time.utc(2025, 1, 2)) }
+      log_in(seller)
+
+      get checkout_form_path
+
+      props = inertia_props_of(response)
+      expect(props["products"].last["name"]).to eq("Old")
+      expect(props["cart_item"]["product"]["name"]).to eq(props["products"].first["name"])
+    end
+
 
     it "hands a seller with a connected PayPal account to Rails", parity: true do
       create(:merchant_account_paypal, user: seller)

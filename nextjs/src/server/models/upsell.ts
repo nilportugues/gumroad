@@ -19,22 +19,24 @@ import { castRow, column, selectRows, table } from "./sql.ts";
 import { NotPortedError } from "./user.ts";
 
 export const UPSELLS = "upsells";
-// has_flags 1 => :replace_selected_products, 2 => :is_content_upsell, 4 => :offer_matching_version
 const REPLACE_SELECTED_PRODUCTS = 1;
 export const IS_CONTENT_UPSELL = 2;
-const OFFER_MATCHING_VERSION = 4;
+// has_flags 1 => :replace_selected_products, 2 => :is_content_upsell, 4 => :offer_matching_version; the keys are bit positions, so the last is 8.
+const OFFER_MATCHING_VERSION = 8;
 const iso8601 = (time: Date | null) => (time === null ? null : `${time.toISOString().slice(0, 19)}Z`);
 
 type NamedRow = { id: bigint | number; name: string | null };
 
 // OfferCode#configured_discount_for_display, which is OfferCode#discount until the code is tiered.
-async function discountForDisplay(upsell: Upsell) {
+// With `anonymous`, OfferCode#discount_for_display(buyer: nil): an existing-customers code has nothing to show.
+export async function discountForDisplay(upsell: Pick<Upsell, "offer_code_id">, anonymous = false) {
   if (upsell.offer_code_id === null) return null;
   const [row] = await selectRows(
     Prisma.sql`SELECT ${table("offer_codes")}.* FROM ${table("offer_codes")} WHERE ${column("offer_codes", "id")} = ${upsell.offer_code_id} LIMIT 1`,
   );
   if (row === undefined) return null;
   const code = castRow<OfferCode>("OfferCode", row);
+  if (anonymous && code.existing_customers_only) return null;
   const record = new OfferCodeRecord(code);
   const cents = code.amount_percentage == null;
   const json: Record<string, unknown> = {
