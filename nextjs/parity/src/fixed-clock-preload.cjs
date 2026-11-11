@@ -1,6 +1,7 @@
 // Preloaded into the server a replay boots (NODE_OPTIONS=--require): moves its clock by PARITY_CLOCK_OFFSET_MS so
 // it reads the instant a fixture was recorded at (the Rails spec froze time there). The clock keeps running.
-const offset = Number(process.env.PARITY_CLOCK_OFFSET_MS ?? 0);
+// Whole milliseconds: the test computes the offset from performance.timeOrigin, which is fractional, and a fractional Date.now() breaks BigInt(Date.now()).
+const offset = Math.round(Number(process.env.PARITY_CLOCK_OFFSET_MS ?? 0));
 
 if (offset !== 0) {
   const RealDate = Date;

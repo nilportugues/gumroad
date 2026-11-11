@@ -316,7 +316,7 @@ describe.skipIf(!url)("url redirect delivery", () => {
           ...(fixture.sessionCookie ? { sessionCookie: fixture.sessionCookie } : {}),
         });
         if (differences.length > 0) throw new Error(`${fixture.example}\n${formatDifferences(differences)}`);
-        if (_name.includes("send-to-kindle-queues-the-file")) {
+        if (name.includes("send-to-kindle-queues-the-file")) {
           expect(mailJobs).toHaveLength(1);
           const wrapped = (mailJobs[0]!.args as { job_class: string; queue_name: string; arguments: unknown[] }[])[0]!;
           expect(wrapped).toMatchObject({ job_class: "MailDeliveryJob", queue_name: "critical" });
