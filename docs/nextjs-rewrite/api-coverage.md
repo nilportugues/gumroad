@@ -17,7 +17,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | --- | ---: | ---: | ---: | ---: | ---: |
 | API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 128 | 0 | 10 | 0 |
 | Mobile API (`/mobile` on the API host) | 64 | 62 | 0 | 2 | 0 |
-| Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 77 | 4 | 1 | 3 |
+| Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 78 | 4 | 0 | 3 |
 | Internal API, Gumroad domain (`/internal`, JSON for the React Router pages) | 23 | 20 | 0 | 3 | 0 |
 
 ## API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain)
@@ -273,7 +273,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `POST /internal/admin/feature_announcement_campaigns/:id/approve` | `Api::Internal::Admin::FeatureAnnouncementCampaignsController#approve` | native | `nextjs_admin_api_campaigns` | n |
 | `POST /internal/admin/feature_announcement_campaigns/:id/deliver` | `Api::Internal::Admin::FeatureAnnouncementCampaignsController#deliver` | native | `nextjs_admin_api_campaigns` | n |
 | `POST /internal/admin/feature_announcement_campaigns/:id/cancel` | `Api::Internal::Admin::FeatureAnnouncementCampaignsController#cancel` | native | `nextjs_admin_api_campaigns` | n |
-| `GET /internal/admin/users/info` | `Api::Internal::Admin::UsersController#info` | not registered | - | n |
+| `GET /internal/admin/users/info` | `Api::Internal::Admin::UsersController#info` | native | `nextjs_admin_api_users` | y |
 | `GET /internal/admin/users/affiliates` | `Api::Internal::Admin::UsersController#affiliates` | native | `nextjs_admin_api_users` | y |
 | `GET /internal/admin/users/comments` | `Api::Internal::Admin::UsersController#comments` | native | `nextjs_admin_api_users` | n |
 | `GET /internal/admin/users/compliance_info` | `Api::Internal::Admin::UsersController#compliance_info` | native | `nextjs_admin_api_users` | y |
