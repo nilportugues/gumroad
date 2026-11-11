@@ -30,6 +30,7 @@ import {
   processAction,
   type Rendered,
 } from "./application-controller.ts";
+import { discordHandlers } from "./discord.ts";
 import { impersonate, redirectToStripeDashboard } from "./internal-admin/admin-web.ts";
 import { internalAdminResponse } from "./internal-admin/index.ts";
 import { internalResponse } from "./internal-api.ts";
@@ -321,6 +322,9 @@ const HANDLERS: Record<string, Handler> = {
     run: (request, _url, action) => computeDiscount(request, railsLoggedInUser(action.context)),
   },
   url_redirects: { run: (_request, _url, action) => urlRedirectsAction(action) },
+  discord_oauth_redirect: { run: (request) => discordHandlers.discord_oauth_redirect(request) },
+  discord_join_server: { run: (request, _url, action) => discordHandlers.discord_join_server(request, action) },
+  discord_leave_server: { run: (request, _url, action) => discordHandlers.discord_leave_server(request, action) },
 };
 
 export async function publicHandlerResponse(incoming: Request, name: string): Promise<Response> {
