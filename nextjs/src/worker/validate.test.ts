@@ -11,8 +11,8 @@ describe("validatePortedJobs", () => {
 
   it("refuses a job whose sidekiq_retries_exhausted hook has no Node counterpart", () => {
     // Still Ruby-owned, so the runtime check fires too; the hook check is the one under test.
-    expect(() => validatePortedJobs(["ReindexSellerOfferCodesRecoveryJob"], { ReindexSellerOfferCodesRecoveryJob: async () => {} })).toThrow(
-      /ReindexSellerOfferCodesRecoveryJob defines sidekiq_retries_exhausted; port it into JOB_RETRIES_EXHAUSTED/u,
+    expect(() => validatePortedJobs(["RefreshAffiliateEarningsJob"], { RefreshAffiliateEarningsJob: async () => {} })).toThrow(
+      /RefreshAffiliateEarningsJob defines sidekiq_retries_exhausted; port it into JOB_RETRIES_EXHAUSTED/u,
     );
   });
 });
