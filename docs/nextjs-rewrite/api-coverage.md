@@ -15,7 +15,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 
 | Namespace | Routes | Native | Hands back | Not registered | Unresolved |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 105 | 0 | 33 | 0 |
+| API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 122 | 0 | 16 | 0 |
 | Mobile API (`/mobile` on the API host) | 64 | 50 | 0 | 14 | 0 |
 | Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 41 | 4 | 37 | 3 |
 | Internal API, Gumroad domain (`/internal`, JSON for the React Router pages) | 23 | 11 | 0 | 12 | 0 |
@@ -60,8 +60,8 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `PUT /v2/refund_policy` | `Api::V2::RefundPoliciesController#update` | native | `nextjs_api_v2_products` | y |
 | `GET /v2/offer_codes` | `Api::V2::OfferCodesController#index` | native | `nextjs_api_v2_offer_codes` | y |
 | `GET /v2/offer_codes/:id` | `Api::V2::OfferCodesController#show` | native | `nextjs_api_v2_offer_codes` | y |
-| `PATCH /v2/offer_codes/:id` | `Api::V2::OfferCodesController#update` | not registered | - | n |
-| `PUT /v2/offer_codes/:id` | `Api::V2::OfferCodesController#update` | not registered | - | y |
+| `PATCH /v2/offer_codes/:id` | `Api::V2::OfferCodesController#update` | native | `nextjs_api_v2_offer_codes` | y |
+| `PUT /v2/offer_codes/:id` | `Api::V2::OfferCodesController#update` | native | `nextjs_api_v2_offer_codes` | y |
 | `GET /v2/products` | `Api::V2::LinksController#index` | native | `nextjs_api_v2_products` | y |
 | `GET /v2/products/:id` | `Api::V2::LinksController#show` | native | `nextjs_api_v2_products` | y |
 | `PATCH /v2/products/:id` | `Api::V2::LinksController#update` | not registered | - | n |
@@ -75,11 +75,11 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `PUT /v2/products/:link_id/custom_fields/:id` | `Api::V2::CustomFieldsController#update` | native | `nextjs_api_v2_products` | y |
 | `DELETE /v2/products/:link_id/custom_fields/:id` | `Api::V2::CustomFieldsController#destroy` | native | `nextjs_api_v2_products` | y |
 | `GET /v2/products/:link_id/offer_codes` | `Api::V2::OfferCodesController#index` | native | `nextjs_api_v2_offer_codes` | y |
-| `POST /v2/products/:link_id/offer_codes` | `Api::V2::OfferCodesController#create` | not registered | - | y |
+| `POST /v2/products/:link_id/offer_codes` | `Api::V2::OfferCodesController#create` | native | `nextjs_api_v2_offer_codes` | y |
 | `GET /v2/products/:link_id/offer_codes/:id` | `Api::V2::OfferCodesController#show` | native | `nextjs_api_v2_offer_codes` | y |
-| `PATCH /v2/products/:link_id/offer_codes/:id` | `Api::V2::OfferCodesController#update` | not registered | - | n |
-| `PUT /v2/products/:link_id/offer_codes/:id` | `Api::V2::OfferCodesController#update` | not registered | - | y |
-| `DELETE /v2/products/:link_id/offer_codes/:id` | `Api::V2::OfferCodesController#destroy` | not registered | - | n |
+| `PATCH /v2/products/:link_id/offer_codes/:id` | `Api::V2::OfferCodesController#update` | native | `nextjs_api_v2_offer_codes` | y |
+| `PUT /v2/products/:link_id/offer_codes/:id` | `Api::V2::OfferCodesController#update` | native | `nextjs_api_v2_offer_codes` | y |
+| `DELETE /v2/products/:link_id/offer_codes/:id` | `Api::V2::OfferCodesController#destroy` | native | `nextjs_api_v2_offer_codes` | y |
 | `GET /v2/products/:link_id/variant_categories` | `Api::V2::VariantCategoriesController#index` | native | `nextjs_api_v2_products` | y |
 | `POST /v2/products/:link_id/variant_categories` | `Api::V2::VariantCategoriesController#create` | native | `nextjs_api_v2_products` | y |
 | `GET /v2/products/:link_id/variant_categories/:id` | `Api::V2::VariantCategoriesController#show` | native | `nextjs_api_v2_products` | y |
@@ -96,12 +96,12 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `GET /v2/products/:link_id/subscribers` | `Api::V2::SubscribersController#index` | native | `nextjs_api_v2_subscribers` | y |
 | `GET /v2/products/:link_id/builds` | `Api::V2::ProductBuildsController#index` | native | `nextjs_api_v2_products` | y |
 | `GET /v2/products/:link_id/builds/:id` | `Api::V2::ProductBuildsController#show` | native | `nextjs_api_v2_products` | y |
-| `POST /v2/products/:link_id/builds/deploy` | `Api::V2::ProductBuildsController#deploy` | not registered | - | n |
-| `POST /v2/products/:link_id/builds/:id/promote` | `Api::V2::ProductBuildsController#promote` | not registered | - | n |
+| `POST /v2/products/:link_id/builds/deploy` | `Api::V2::ProductBuildsController#deploy` | native | `nextjs_api_v2_products` | y |
+| `POST /v2/products/:link_id/builds/:id/promote` | `Api::V2::ProductBuildsController#promote` | native | `nextjs_api_v2_products` | y |
 | `GET /v2/products/:link_id/reviews` | `Api::V2::ProductReviewsController#index` | native | `nextjs_api_v2_product_reviews` | y |
 | `PUT /v2/products/:link_id/bundle_contents` | `Api::V2::BundleContentsController#update` | not registered | - | n |
-| `POST /v2/products/:link_id/thumbnail` | `Api::V2::ThumbnailsController#create` | not registered | - | n |
-| `DELETE /v2/products/:link_id/thumbnail` | `Api::V2::ThumbnailsController#destroy` | not registered | - | n |
+| `POST /v2/products/:link_id/thumbnail` | `Api::V2::ThumbnailsController#create` | native | `nextjs_api_v2_products` | y |
+| `DELETE /v2/products/:link_id/thumbnail` | `Api::V2::ThumbnailsController#destroy` | native | `nextjs_api_v2_products` | y |
 | `POST /v2/products/:link_id/covers` | `Api::V2::CoversController#create` | not registered | - | n |
 | `DELETE /v2/products/:link_id/covers/:id` | `Api::V2::CoversController#destroy` | not registered | - | n |
 | `PUT /v2/products/:id/disable` | `Api::V2::LinksController#disable` | native | `nextjs_api_v2_products` | y |
@@ -118,10 +118,10 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `POST /v2/marketing_actions/:id/cancel` | `Api::V2::MarketingActionsController#cancel` | native | `nextjs_api_v2_marketing_actions` | y |
 | `GET /v2/upsells` | `Api::V2::UpsellsController#index` | native | `nextjs_api_v2_upsells` | y |
 | `GET /v2/upsells/:id` | `Api::V2::UpsellsController#show` | native | `nextjs_api_v2_upsells` | y |
-| `POST /v2/upsells` | `Api::V2::UpsellsController#create` | not registered | - | n |
-| `PATCH /v2/upsells/:id` | `Api::V2::UpsellsController#update` | not registered | - | n |
-| `PUT /v2/upsells/:id` | `Api::V2::UpsellsController#update` | not registered | - | n |
-| `DELETE /v2/upsells/:id` | `Api::V2::UpsellsController#destroy` | not registered | - | n |
+| `POST /v2/upsells` | `Api::V2::UpsellsController#create` | native | `nextjs_api_v2_upsells` | y |
+| `PATCH /v2/upsells/:id` | `Api::V2::UpsellsController#update` | native | `nextjs_api_v2_upsells` | y |
+| `PUT /v2/upsells/:id` | `Api::V2::UpsellsController#update` | native | `nextjs_api_v2_upsells` | y |
+| `DELETE /v2/upsells/:id` | `Api::V2::UpsellsController#destroy` | native | `nextjs_api_v2_upsells` | y |
 | `GET /v2/utm_links` | `Api::V2::UtmLinksController#index` | native | `nextjs_api_v2_utm_links` | y |
 | `GET /v2/utm_links/:id` | `Api::V2::UtmLinksController#show` | native | `nextjs_api_v2_utm_links` | y |
 | `POST /v2/utm_links` | `Api::V2::UtmLinksController#create` | native | `nextjs_api_v2_utm_links` | y |
@@ -155,12 +155,12 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `GET /v2/payouts/:id` | `Api::V2::PayoutsController#show` | native | `nextjs_api_v2_payouts` | y |
 | `GET /v2/payouts/upcoming` | `Api::V2::PayoutsController#upcoming` | native | `nextjs_api_v2_payouts` | n |
 | `GET /v2/subscribers/:id` | `Api::V2::SubscribersController#show` | native | `nextjs_api_v2_subscribers` | y |
-| `PUT /v2/resource_subscriptions` | `Api::V2::ResourceSubscriptionsController#create` | not registered | - | y |
+| `PUT /v2/resource_subscriptions` | `Api::V2::ResourceSubscriptionsController#create` | native | `nextjs_api_v2_resource_subscriptions` | y |
 | `DELETE /v2/resource_subscriptions/:id` | `Api::V2::ResourceSubscriptionsController#destroy` | native | `nextjs_api_v2_resource_subscriptions` | y |
 | `GET /v2/resource_subscriptions` | `Api::V2::ResourceSubscriptionsController#index` | native | `nextjs_api_v2_resource_subscriptions` | y |
-| `POST /v2/resource_subscriptions/:id/test_event` | `Api::V2::ResourceSubscriptionsController#test_event` | not registered | - | n |
+| `POST /v2/resource_subscriptions/:id/test_event` | `Api::V2::ResourceSubscriptionsController#test_event` | native | `nextjs_api_v2_resource_subscriptions` | y |
 | `GET /v2/tax_forms` | `Api::V2::TaxFormsController#index` | native | `nextjs_api_v2_tax` | y |
-| `GET /v2/tax_forms/:year/:tax_form_type/download` | `Api::V2::TaxFormsController#download` | not registered | - | n |
+| `GET /v2/tax_forms/:year/:tax_form_type/download` | `Api::V2::TaxFormsController#download` | native | `nextjs_api_v2_tax` | y |
 | `GET /v2/earnings` | `Api::V2::EarningsController#show` | native | `nextjs_api_v2_tax` | y |
 
 ## Mobile API (`/mobile` on the API host)

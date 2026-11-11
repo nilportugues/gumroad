@@ -104,6 +104,15 @@ export const errorWithCreatingObject = (objectName: string, object: { errors: st
 
 export const error400 = (output = "Invalid request."): Rendered => json({ status: 400, error: output }, 400);
 
+// Object#present? for a parsed parameter.
+export function present(value: unknown): boolean {
+  if (value === undefined || value === null || value === false) return false;
+  if (typeof value === "string") return !/^[\s\u0085\u180e]*$/u.test(value);
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "object") return Object.keys(value).length > 0;
+  return true;
+}
+
 // Array#to_sentence
 export function toSentence(items: string[]): string {
   if (items.length <= 1) return items.join("");
