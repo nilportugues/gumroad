@@ -212,12 +212,77 @@ describe "Checkout upsells when signed in", type: :request do
         expect(response.parsed_body["option_id"]).to be_present
       end
 
-      it "hands a membership cart item to Rails", parity: true do
+      it "answers the first tier of a membership with its price and recurrence", parity: true do
         membership = create(:membership_product_with_preset_tiered_pricing, user: seller, name: "Club", created_at: Time.utc(2025, 1, 1))
 
         get cart_item_checkout_upsells_path(product_id: membership.external_id), headers: accept_json
 
         expect(response).to have_http_status(:ok)
+        expect(response.parsed_body).to include("price" => 300, "recurrence" => "monthly", "option_id" => membership.alive_variants.first.external_id)
+        expect(response.parsed_body["product"]).to include("is_tiered_membership" => true, "has_tipping_enabled" => false)
+      end
+
+      it "prices a membership at its default recurrence", parity: true do
+        membership = create(:membership_product_with_preset_tiered_pricing, user: seller, name: "Club", subscription_duration: :yearly, created_at: Time.utc(2025, 1, 1),
+                                                                            recurrence_price_values: [
+                                                                              { monthly: { enabled: true, price: 3 }, yearly: { enabled: true, price: 30 } },
+                                                                              { monthly: { enabled: true, price: 5 }, yearly: { enabled: true, price: 50 } },
+                                                                            ])
+
+        get cart_item_checkout_upsells_path(product_id: membership.external_id), headers: accept_json
+
+        expect(response.parsed_body).to include("price" => 3000, "recurrence" => "yearly")
+        expect(response.parsed_body["product"]["recurrences"]["enabled"].map { _1["recurrence"] }).to eq(%w[monthly yearly])
+      end
+
+      it "falls back to the shortest recurrence when the default one is not priced", parity: true do
+        membership = create(:membership_product_with_preset_tiered_pricing, user: seller, name: "Club", created_at: Time.utc(2025, 1, 1),
+                                                                            recurrence_price_values: [
+                                                                              { monthly: { enabled: true, price: 3 }, yearly: { enabled: true, price: 30 }, quarterly: { enabled: true, price: 9 } },
+                                                                              { monthly: { enabled: true, price: 5 }, yearly: { enabled: true, price: 50 }, quarterly: { enabled: true, price: 15 } },
+                                                                            ])
+        membership.alive_variants.first.prices.where(recurrence: "monthly").update_all(deleted_at: Time.utc(2025, 1, 2))
+
+        get cart_item_checkout_upsells_path(product_id: membership.external_id), headers: accept_json
+
+        expect(response.parsed_body).to include("recurrence" => "quarterly", "price" => 900)
+      end
+
+      it "skips a first tier that is closed to new buyers", parity: true do
+        Feature.activate_user(:close_membership_tier_to_new_buyers, seller)
+        membership = create(:membership_product_with_preset_tiered_pricing, user: seller, name: "Club", created_at: Time.utc(2025, 1, 1))
+        first, second = membership.alive_variants.to_a
+        first.update!(closed_to_new_purchases: true)
+
+        get cart_item_checkout_upsells_path(product_id: membership.external_id), headers: accept_json
+
+        expect(response.parsed_body).to include("option_id" => second.external_id, "price" => 500)
+        expect(response.parsed_body["product"]["options"].first["quantity_left"]).to eq(0)
+      end
+
+      it "answers a membership with a free trial", parity: true do
+        membership = create(:membership_product_with_preset_tiered_pricing, :with_free_trial_enabled, user: seller, name: "Trial club", created_at: Time.utc(2025, 1, 1))
+
+        get cart_item_checkout_upsells_path(product_id: membership.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["free_trial"]).to eq("duration" => { "unit" => "week", "amount" => 1 })
+      end
+
+      it "answers a legacy subscription at its default recurrence", parity: true do
+        subscription = create(:subscription_product, user: seller, name: "Legacy", price_cents: 700, created_at: Time.utc(2025, 1, 1))
+
+        get cart_item_checkout_upsells_path(product_id: subscription.external_id), headers: accept_json
+
+        expect(response.parsed_body).to include("price" => 700, "recurrence" => "monthly")
+        expect(response.parsed_body["product"]).to include("is_legacy_subscription" => true, "has_tipping_enabled" => false)
+      end
+
+      it "answers a legacy subscription with versions on its first available one", parity: true do
+        subscription = create(:subscription_product_with_versions, user: seller, name: "Legacy versions", price_cents: 700, created_at: Time.utc(2025, 1, 1))
+
+        get cart_item_checkout_upsells_path(product_id: subscription.external_id), headers: accept_json
+
+        expect(response.parsed_body["option_id"]).to eq(subscription.alive_variants.first.external_id)
       end
 
       it "hands a physical product cart item to Rails", parity: true do

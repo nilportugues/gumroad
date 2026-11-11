@@ -7,7 +7,7 @@
 // seller on buyer-local currency.
 import { Prisma, type User } from "@prisma/client";
 
-import { encrypt as externalId } from "../../lib/obfuscate-ids.ts";
+import { decrypt, encrypt as externalId } from "../../lib/obfuscate-ids.ts";
 import { autoLink } from "../html/rinku.ts";
 import { sanitize } from "../html/sanitizer.ts";
 import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
@@ -32,18 +32,30 @@ import {
   listedPriceCents,
   pppDetails,
   quantityLeft,
+  RECURRENCE_MONTHS,
   remainingForSaleCount,
   rentalProps,
   reviewSummary,
+  subscriptionDuration,
   TRIAL_UNITS,
   type VariantRow,
 } from "./product-props.ts";
-import { bit, findLink, findUserById, type LinkRow, type UserRow } from "./product-reads.ts";
+import {
+  alivePrices,
+  bit,
+  findLink,
+  findUserById,
+  type LinkRow,
+  type PriceRow,
+  type UserRow,
+} from "./product-reads.ts";
 import { buyerCurrencyDisplayProps, longUrl, subdomainWithProtocol } from "./product.ts";
 // PaypalMerchantAccountManager::COUNTRY_CODES_NOT_SUPPORTED_BY_PCP
 const PCP_UNSUPPORTED_COUNTRY_CODES = ["DZ", "BR", "CN", "EG", "IN", "IL", "JP", "FM", "MA", "TR"];
 const NATIVE_TYPE_COFFEE = "coffee";
 const BUY_ONLY = 0;
+const RENTAL_PRICE_FLAG = 1;
+const decryptId = (external: string) => BigInt(decrypt(external)!);
 
 const flag = (row: LinkRow, name: Parameters<typeof LinkFlags.isSet>[1]) =>
   LinkFlags.isSet(row.flags as bigint | number, name);
@@ -117,7 +129,7 @@ async function hasOfferCodes(row: LinkRow, seller: UserRow): Promise<boolean> {
   );
 }
 
-type CartParams = { option?: string | null };
+type CartParams = { option?: string | null; recurrence?: string | null };
 type CheckoutRequest = {
   // Link#cart_item(params)
   cartParams?: CartParams;
@@ -148,14 +160,7 @@ const offerDescription = (description: string | null) => autoLink(sanitize(descr
 // BaseVariant#available?
 async function variantAvailable(product: LinkRow, variant: VariantRow): Promise<boolean> {
   if (variant.deleted_at != null) return false;
-  const closedFlag = ((Number(variant.flags) >> (BASE_VARIANT_CLOSED_FLAG - 1)) & 1) === 1;
-  if (
-    closedFlag &&
-    variant.type === "Variant" &&
-    flag(product, "is_tiered_membership") &&
-    (await isFeatureEnabled("close_membership_tier_to_new_buyers", userActor(product.user_id!)))
-  )
-    return false;
+  if (await closedToNewBuyers(product, variant)) return false;
   if (variant.max_purchase_count === null) return true;
   return quantityLeft(variant)! > 0;
 }
@@ -219,18 +224,64 @@ async function offeredVariantFor(upsell: OfferRow, offered: LinkRow, selectedOpt
   return versions.find((version) => displayed(version) === selectedOptionName) ?? fixed;
 }
 
-// Link#cart_item(params) for a product that is not a membership.
+// BaseVariant#closed_to_new_buyers?
+async function closedToNewBuyers(product: LinkRow, variant: VariantRow): Promise<boolean> {
+  const closedFlag = ((Number(variant.flags) >> (BASE_VARIANT_CLOSED_FLAG - 1)) & 1) === 1;
+  return (
+    closedFlag &&
+    variant.type === "Variant" &&
+    flag(product, "is_tiered_membership") &&
+    (await isFeatureEnabled("close_membership_tier_to_new_buyers", userActor(product.user_id!)))
+  );
+}
+
+// `prices.is_buy.alive` of a tier, or of the product itself.
+async function buyPrices(row: LinkRow, variant: VariantRow | null): Promise<PriceRow[]> {
+  const prices =
+    variant === null
+      ? await alivePrices(row.id)
+      : await selectRows<PriceRow>(
+          Prisma.sql`SELECT ${table("prices")}.* FROM ${table("prices")} WHERE ${column("prices", "variant_id")} = ${variant.id} AND ${column("prices", "deleted_at")} IS NULL ORDER BY ${column("prices", "id")} ASC`,
+        );
+  return prices.filter((price) => !bit(price.flags, RENTAL_PRICE_FLAG));
+}
+
+// Link#cart_item(params) for a buy-only product, a legacy subscription or a membership.
 async function cartItem(row: LinkRow, options: Awaited<ReturnType<typeof linkOptions>>, params: CartParams) {
-  if (flag(row, "is_recurring_billing") || flag(row, "is_tiered_membership"))
-    throw new NotPortedError("Link#cart_item for a membership (tier prices and recurrences)");
-  const requested = options.find((o) => o.id === params.option);
+  const tiered = flag(row, "is_tiered_membership");
+  let requested = options.find((o) => o.id === params.option) ?? null;
+  // A closed tier reports quantity 0, but selecting it here would add a zero-quantity item.
+  if (requested !== null && tiered) {
+    const tier = await findVariant(decryptId(requested.id));
+    if (tier !== null && (await closedToNewBuyers(row, tier))) requested = null;
+  }
   const option =
     requested ?? (row.native_type !== NATIVE_TYPE_COFFEE ? (options.find((o) => o.quantity_left !== 0) ?? null) : null);
-  const listed = (await listedPriceCents(row)) ?? 0;
+  const variant = option === null ? null : await findVariant(decryptId(option.id));
+  const tier = variant !== null && variant.type === "Variant" ? variant : null;
+  let recurrence: PriceRow | null = null;
+  if (flag(row, "is_recurring_billing")) {
+    const prices = (await buyPrices(row, tiered ? tier : null)).filter(
+      (price) => RECURRENCE_MONTHS[price.recurrence ?? ""] !== undefined,
+    );
+    const defaultRecurrence = (await alivePrices(row.id)).find(
+      (price) => price.recurrence === (subscriptionDuration(row) ?? ""),
+    )?.recurrence;
+    recurrence =
+      prices.find((price) => price.recurrence === params.recurrence) ??
+      prices.find((price) => price.recurrence === defaultRecurrence) ??
+      prices.reduce<PriceRow | null>(
+        (min, price) =>
+          min === null || RECURRENCE_MONTHS[price.recurrence!]! < RECURRENCE_MONTHS[min.recurrence!]! ? price : min,
+        null,
+      );
+  }
+  const listed = recurrence?.price_cents ?? (await listedPriceCents(row)) ?? 0;
   return {
     option,
     rental: false,
-    // [customizable ? params[:price].to_i : 0, price_cents.to_i + price_difference_cents].max
+    recurrence: recurrence?.recurrence ?? null,
+    // [customizable ? params[:price].to_i : 0, (recurrence&.price_cents || price_cents.to_i) + price_difference_cents].max
     price: Math.max(0, listed + (option?.price_difference_cents ?? 0)),
   };
 }
@@ -383,7 +434,7 @@ export async function checkoutProduct(row: LinkRow, request: CheckoutRequest = {
     price: item.price,
     option_id: item.option?.id ?? null,
     rent: item.rental,
-    recurrence: null,
+    recurrence: item.recurrence,
     quantity: null,
     call_start_time: null,
     pay_in_installments: false,
@@ -411,4 +462,15 @@ async function installmentPlan(row: LinkRow) {
 // Link#purchasing_power_parity_enabled?
 async function pppEnabled(row: LinkRow, seller: UserRow): Promise<boolean> {
   return !flag(row, "purchasing_power_parity_disabled") && sellerFlag(seller, "purchasing_power_parity_enabled");
+}
+
+// Checkout::UpsellsController#cart_item: a membership is added on its first tier, `alive_variants.first` (lowest id).
+export async function upsellsCartItem(row: LinkRow) {
+  if (!flag(row, "is_tiered_membership")) return checkoutProduct(row);
+  const [tier] = await selectRows<{ id: bigint }>(
+    Prisma.sql`SELECT ${column("base_variants", "id")} FROM ${table("base_variants")} INNER JOIN ${table("variant_categories")} ON ${column("variant_categories", "id")} = ${column("base_variants", "variant_category_id")} WHERE ${column("variant_categories", "link_id")} = ${row.id} AND ${column("variant_categories", "deleted_at")} IS NULL AND ${column("base_variants", "type")} = 'Variant' AND ${column("base_variants", "deleted_at")} IS NULL ORDER BY ${column("base_variants", "id")} ASC LIMIT 1`,
+  );
+  if (tier === undefined)
+    throw new NotPortedError("Checkout::UpsellsController#cart_item for a membership with no tier");
+  return checkoutProduct(row, { cartParams: { option: externalId(tier.id) } });
 }

@@ -209,13 +209,24 @@ describe "Checkout form settings when signed in", type: :request do
       expect(inertia_props_of(response)["cart_item"]["product"]).to include("require_shipping" => true)
     end
 
-    it "hands a seller with a membership to Rails", parity: true do
+    it "previews the first available tier of the seller's membership", parity: true do
       create(:membership_product_with_preset_tiered_pricing, user: seller, name: "Club", created_at: Time.utc(2025, 1, 2))
       log_in(seller)
 
       get checkout_form_path
 
-      expect(inertia_props_of(response)["cart_item"]["product"]["is_tiered_membership"]).to eq(true)
+      cart_item = inertia_props_of(response)["cart_item"]
+      expect(cart_item["product"]["is_tiered_membership"]).to eq(true)
+      expect(cart_item).to include("price" => 300, "recurrence" => "monthly")
+    end
+
+    it "previews a legacy subscription", parity: true do
+      create(:subscription_product, user: seller, name: "Legacy", price_cents: 700, created_at: Time.utc(2025, 1, 2))
+      log_in(seller)
+
+      get checkout_form_path
+
+      expect(inertia_props_of(response)["cart_item"]).to include("price" => 700, "recurrence" => "monthly")
     end
 
     it "previews the upsell of the seller's product", parity: true do

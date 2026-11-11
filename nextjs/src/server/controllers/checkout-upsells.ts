@@ -2,8 +2,8 @@
 // as a page (page-props/checkout-pages.ts). Checkout::Upsells::PausesController (pause and unpause) runs in Node too; an upsell that no
 // longer validates is handed back whole, since update! would raise.
 //
-// #cart_item runs in Node through presenters/checkout-product.ts, which hands back what it cannot prove (upsells, cross-sells, bundles,
-// physical products, memberships, PPP).
+// #cart_item runs in Node through presenters/checkout-product.ts, which hands back what it cannot prove (rentals,
+// physical products, PPP, merchant accounts).
 //
 // Handed to Rails: #create and #update (SaveUpsellService builds offer codes and rewrites variants and selected products), and #destroy of an upsell that has an offer code (OfferCode's save callbacks
 // reindex products and clear caches). A sort by revenue or uses, a page past the last and a non-text parameter hand back as well.
@@ -14,7 +14,7 @@ import { RecordInvalid } from "../models/runtime/errors.ts";
 import { castRow, column, selectRows, table } from "../models/sql.ts";
 import { UpsellDeletable, Upsells, UpsellVariantDeletable, UpsellVariants } from "../models/upsell.ts";
 import { NotPortedError } from "../models/user.ts";
-import { checkoutProduct } from "../presenters/checkout-product.ts";
+import { upsellsCartItem } from "../presenters/checkout-product.ts";
 import { findLink } from "../presenters/product-reads.ts";
 import { fetchUpsells, listParams } from "../page-props/checkout/upsells.ts";
 import { authorize } from "../policies/authorize.ts";
@@ -119,8 +119,8 @@ async function cartItem(input: MutationInput): Promise<ActionResult> {
             );
       if (product === undefined) throw new RoutingError("Not Found");
       const row = await findLink(product.id);
-      // Rails passes the first tier of a membership as the option; checkoutProduct hands a membership back.
-      return json(await checkoutProduct(row!));
+      // A product the presenter cannot prove throws NotPortedError, which the action turns into a hand back.
+      return json(await upsellsCartItem(row!));
     },
     { paramsRead: true },
   );

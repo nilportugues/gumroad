@@ -955,7 +955,9 @@ export {
   BASE_VARIANT_CLOSED_FLAG,
   pppDetails,
   quantityLeft,
+  RECURRENCE_MONTHS,
   recurrencesProps,
+  subscriptionDuration,
   TRIAL_UNITS,
   type VariantRow,
 };
