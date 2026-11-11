@@ -122,14 +122,147 @@ describe "Settings::PaymentsController guards", type: :request do
       expect(response).to have_http_status(:no_content)
     end
 
-    it "hands a save that passes the guards to Rails", parity: true do
+    it "hands a save that carries compliance information to Rails", parity: true do
       with_compliance_info
       log_in(seller)
 
-      save_settings(:put, payout_frequency: "weekly")
+      save_settings(:put, user: { first_name: "Pat" })
 
       expect(response).to have_http_status(:see_other)
-      expect(seller.reload.payout_frequency).to eq("weekly")
+      expect(seller.alive_user_compliance_info.first_name).to eq("Pat")
+    end
+
+    it "notes a payout preferences save on the seller when a team admin makes it", parity: true do
+      with_compliance_info
+      as_team_member(:admin)
+
+      save_settings(:put, payout_frequency: "monthly")
+
+      expect(response).to have_http_status(:see_other)
+      expect(seller.comments.last.content).to start_with("Payout settings updated by team admin")
+    end
+
+    context "with payout preferences only" do
+      before do
+        with_compliance_info
+        log_in(seller)
+      end
+
+      it "saves the payout frequency", parity: true do
+        save_settings(:put, payout_frequency: "monthly")
+
+        expect(response).to have_http_status(:see_other)
+        expect(flash[:notice]).to eq("Thanks! You're all set.")
+        expect(seller.reload.payout_frequency).to eq("monthly")
+      end
+
+      it "saves through PATCH", parity: true do
+        save_settings(:patch, payout_frequency: "quarterly")
+
+        expect(response).to have_http_status(:see_other)
+        expect(seller.reload.payout_frequency).to eq("quarterly")
+      end
+
+      it "pauses payouts", parity: true do
+        save_settings(:put, payouts_paused_by_user: true)
+
+        expect(response).to have_http_status(:see_other)
+        expect(seller.reload.payouts_paused_by_user?).to be(true)
+      end
+
+      it "resumes paused payouts", parity: true do
+        seller.update!(payouts_paused_by_user: true)
+
+        save_settings(:put, payouts_paused_by_user: false)
+
+        expect(response).to have_http_status(:see_other)
+        expect(seller.reload.payouts_paused_by_user?).to be(false)
+      end
+
+      it "saves the buyer currency switches", parity: true do
+        save_settings(:put, disable_buyer_local_currency: true, disable_buyer_currency_rounding: true)
+
+        expect(response).to have_http_status(:see_other)
+        expect(seller.reload.disable_buyer_local_currency).to be(true)
+        expect(seller.disable_buyer_currency_rounding).to be(true)
+      end
+
+      it "saves a payout threshold sent as a number", parity: true do
+        save_settings(:put, payout_threshold_cents: 25_000)
+
+        expect(response).to have_http_status(:see_other)
+        expect(seller.reload.payout_threshold_cents).to eq(25_000)
+      end
+
+      it "saves a payout threshold sent as text", parity: true do
+        save_settings(:put, payout_threshold_cents: "27500", payout_frequency: "weekly")
+
+        expect(response).to have_http_status(:see_other)
+        expect(seller.reload.payout_threshold_cents).to eq("27500")
+      end
+
+      it "refuses a payout threshold under the minimum", parity: true do
+        save_settings(:put, payout_threshold_cents: 1, payouts_paused_by_user: true)
+
+        expect(response).to redirect_to(settings_payments_path)
+        expect(seller.reload.payouts_paused_by_user?).to be(false)
+      end
+
+      it "refuses a payout frequency that is not offered", parity: true do
+        save_settings(:put, payout_frequency: "hourly")
+
+        expect(response).to redirect_to(settings_payments_path)
+        expect(seller.reload.payout_frequency).to eq("weekly")
+      end
+
+      it "answers a save of nothing like any other", parity: true do
+        save_settings(:put, {})
+
+        expect(response).to have_http_status(:see_other)
+        expect(flash[:notice]).to eq("Thanks! You're all set.")
+      end
+
+      it "hands a threshold that is not an integer to Rails", parity: true do
+        save_settings(:put, payout_threshold_cents: "7500.5")
+
+        expect(response).to have_http_status(:see_other)
+      end
+
+      it "hands a payment address to Rails", parity: true do
+        save_settings(:put, payment_address: "seller@example.com", payout_frequency: "monthly")
+
+        expect(response).to have_http_status(:see_other)
+      end
+
+      it "hands a seller with an active bank account to Rails, which creates the Stripe account", parity: true do
+        create(:ach_account, user: seller)
+        stub_request(:post, "https://api.stripe.com/v1/accounts")
+          .to_return(status: 400, body: { error: { type: "invalid_request_error", message: "Invalid request." } }.to_json, headers: { "Content-Type" => "application/json" })
+
+        save_settings(:put, payout_frequency: "monthly")
+
+        expect(response).to redirect_to(settings_payments_path)
+        expect(a_request(:post, "https://api.stripe.com/v1/accounts")).to have_been_made.once
+      end
+
+      it "saves for a seller who has a bank account and a Stripe account, which creates nothing", parity: true do
+        create(:ach_account, user: seller)
+        create(:merchant_account, user: seller, country: "US")
+
+        save_settings(:put, payout_frequency: "monthly")
+
+        expect(response).to have_http_status(:see_other)
+        expect(seller.reload.payout_frequency).to eq("monthly")
+        expect(a_request(:post, "https://api.stripe.com/v1/accounts")).not_to have_been_made
+      end
+
+      it "hands a seller with a stored military ZIP code to Rails", parity: true do
+        seller.alive_user_compliance_info.update_columns(zip_code: "09001")
+
+        save_settings(:put, payout_frequency: "monthly")
+
+        expect(response).to have_http_status(:see_other)
+      end
     end
   end
 

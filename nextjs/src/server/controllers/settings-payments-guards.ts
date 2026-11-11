@@ -29,15 +29,18 @@ import {
   jsonAttr,
   legalEntityCountryCode,
 } from "../models/user-compliance-info.ts";
-import { findUserBang, Users } from "../models/user.ts";
+import { TosAgreements } from "../models/tos-agreement.ts";
+import { findUserBang, setFlag, setJsonDataForAttr, Users } from "../models/user.ts";
 import { domainConfig } from "../page-props/domain.ts";
 import { settingsGuard } from "../page-props/settings/guard.ts";
+import { payoutFacts } from "../page-props/settings/payments.ts";
 import type { SellerContext } from "../policies/seller-context.ts";
 import { settingsPaymentsUserPolicy } from "../policies/settings/payments-user.ts";
+import { identifyStateCode } from "../tax/us-zip-codes.ts";
 
 import { HandBackToRails, type ActionResult, type Redirected } from "./application-controller.ts";
 import { jsonResponse, sellerJsonAction } from "./json-seller.ts";
-import { registerMutations, type MutationInput } from "./mutation.ts";
+import { registerMutations, remoteIp, type MutationInput } from "./mutation.ts";
 import { logPayoutSettingsUpdateByNonOwner } from "./settings-payments-mutations.ts";
 import {
   remediateStripeAccount,
@@ -134,9 +137,91 @@ async function update(input: MutationInput): Promise<ActionResult> {
     );
   if (attemptedFrenchTerritory) return refusal(FRENCH_OVERSEAS_DEPARTMENT_MESSAGE);
 
-  throw new HandBackToRails(
-    "a payments settings save, which writes compliance information, payout methods and Stripe accounts",
-  );
+  return savePayoutPreferences(input, current);
+}
+
+const SEE_OTHER = 303;
+const MILITARY_STATES = ["AA", "AE", "AP"];
+const THRESHOLD_TOO_LOW_MESSAGE = "Your payout threshold must be greater than the minimum payout amount";
+const SWITCH_PREFERENCES: readonly string[] = [
+  "payouts_paused_by_user",
+  "disable_buyer_local_currency",
+  "disable_buyer_currency_rounding",
+];
+const DIGITS = /^\d{1,15}$/u;
+
+type PayoutPreferences = Record<string, boolean | string | number>;
+
+// The params of a save that only changes payout preferences, or null for anything else. Values are limited to the JSON types the
+// page sends and whose Rails casts are plain: a switch as a boolean, a frequency as text, a threshold as an integer or digits
+// (json_data keeps the writer's value uncast, so a threshold is stored as sent).
+function payoutPreferencesOnly(params: Record<string, unknown>): PayoutPreferences | null {
+  const preferences: PayoutPreferences = {};
+  for (const [key, value] of Object.entries(params)) {
+    if (key === "user" && (value === null || value === undefined)) continue;
+    if (SWITCH_PREFERENCES.includes(key) && typeof value === "boolean") preferences[key] = value;
+    else if (key === "payout_frequency" && typeof value === "string") preferences[key] = value;
+    else if (key === "payout_threshold_cents" && typeof value === "number" && Number.isSafeInteger(value))
+      preferences[key] = value;
+    else if (key === "payout_threshold_cents" && typeof value === "string" && DIGITS.test(value))
+      preferences[key] = value;
+    else return null;
+  }
+  return preferences;
+}
+
+// stored_military_zip_field: a US address in AA, AE or AP, which makes Rails run the save inside a transaction (the refusals below
+// then `return` out of its block).
+function storedMilitaryZip(current: UserComplianceInfo): boolean {
+  const fields: [string | null, string | null][] = current.is_business
+    ? [
+        [current.business_zip_code, isBlank(current.business_country) ? countryCode(current) : businessCountryCode(current)],
+        [current.zip_code, countryCode(current)],
+      ]
+    : [[current.zip_code, countryCode(current)]];
+  return fields.some(([zip, code]) => code === "US" && MILITARY_STATES.includes(identifyStateCode(zip) ?? ""));
+}
+
+// The tail of #update for a request that carries payout preferences and nothing else: no payout method and no compliance
+// information, so UpdatePayoutMethod and UpdateUserComplianceInfo have nothing to do. Every save first records a TosAgreement with
+// the request's IP, even one that is then refused; what follows is the minimum threshold check and
+// `current_seller.update(payout_preference_params)`. Anything else is handed back before the first write, and so is a seller the
+// save would give a Stripe account (an active bank account and no managed account yet).
+async function savePayoutPreferences(input: MutationInput, current: UserComplianceInfo): Promise<ActionResult> {
+  const preferences = payoutPreferencesOnly(input.params);
+  if (preferences === null)
+    throw new HandBackToRails(
+      "a payments settings save, which writes compliance information, payout methods and Stripe accounts",
+    );
+
+  const seller = sellerOf(input);
+  const facts = await payoutFacts(seller);
+  if (facts.stripeAccount === null && storedMilitaryZip(current))
+    throw new HandBackToRails("a stored military ZIP code, which wraps the save in a transaction");
+
+  if (
+    facts.stripeAccount === null &&
+    (await db.bankAccount.count({ where: { user_id: Number(seller.id), deleted_at: null } })) > 0
+  )
+    throw new HandBackToRails("an active bank account, which gets a Stripe account created from the save");
+
+  await TosAgreements.createBang({ user_id: Number(seller.id), ip: remoteIp(input.request) });
+
+  const threshold = preferences.payout_threshold_cents;
+  if (threshold !== undefined && Number(threshold) < facts.minimumPayoutThresholdCents)
+    return refusal(THRESHOLD_TOO_LOW_MESSAGE);
+
+  if (Object.keys(preferences).length > 0) {
+    const user = await findUserBang(seller.id);
+    for (const [key, value] of Object.entries(preferences)) {
+      if (key === "payouts_paused_by_user") setFlag(user, "payouts_paused_by_user", value === true);
+      else setJsonDataForAttr(user, key, value);
+    }
+    if (!(await Users.save(user))) return refusal(user.errors.fullMessages()[0] ?? "");
+    await logPayoutSettingsUpdateByNonOwner(input, "Payout settings updated");
+  }
+
+  return { status: SEE_OTHER, location: PAYMENTS_PATH, flash: { notice: ALL_SET_MESSAGE } };
 }
 
 // `head :forbidden` answers the request format's bare content type.
