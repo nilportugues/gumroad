@@ -164,7 +164,11 @@ function resolveConditionals(lines: string[]): string[] {
     }
     const indent = indentOf(line);
     let elseAt = end;
-    for (let j = i + 1; j < end; j++) if (indentOf(lines[j]!) === indent && /^\s*(else|elsif)\b/u.test(lines[j]!)) { elseAt = j; break; }
+    for (let j = i + 1; j < end; j++)
+      if (indentOf(lines[j]!) === indent && /^\s*(else|elsif)\b/u.test(lines[j]!)) {
+        elseAt = j;
+        break;
+      }
     out.push(...resolveConditionals(lines.slice(i + 1, elseAt)));
     i = end;
   }
@@ -222,34 +226,60 @@ export function preprocess(source: string, admin: string): string[] {
     }
     if (inAuth && /^\s*end$/u.test(line)) inAuth = false;
     // parseBlock reads `only: [:a]` but not the `%i[a b]` spelling, so those resources got every RESTful action (phantom new/edit routes)
-    line = line.replace(/%i\[([^\]]*)\]/gu, (_m, items: string) => `[${items.split(/\s+/u).filter(Boolean).map((item) => `:${item}`).join(", ")}]`);
+    line = line.replace(
+      /%i\[([^\]]*)\]/gu,
+      (_m, items: string) =>
+        `[${items
+          .split(/\s+/u)
+          .filter(Boolean)
+          .map((item) => `:${item}`)
+          .join(", ")}]`,
+    );
     // routes written with `controller:`/`action:` options instead of `to:`
     line = line.replace(/^(\s*\w+ "[^"]*"), controller: "(\w+)", action: "(\w+)"/u, '$1, to: "$2#$3"');
     // a nested path with `to:` that parseBlock reads as a path with no action; both are duplicated or listed in SYNTHETIC
-    if (/^\s*get "\/:id\/(cancel|confirm)", to: "followers#/u.test(line) || /^\s*get "edit\/(content|share)"/u.test(line) || /^\s*get :show, to: redirect\("\/affiliates\/onboarding"\)/u.test(line)) continue;
+    if (
+      /^\s*get "\/:id\/(cancel|confirm)", to: "followers#/u.test(line) ||
+      /^\s*get "edit\/(content|share)"/u.test(line) ||
+      /^\s*get :show, to: redirect\("\/affiliates\/onboarding"\)/u.test(line)
+    )
+      continue;
     // redirect targets have no controller: give them one so they count as (trivial) routes
     line = line.replace(/(to:|=>)\s*redirect\b.*$/u, '$1 "/redirects#redirect"');
     line = line.replace(/^(\s*)(get|post|put|patch|delete|match)\s+("[^"]*")\s*=>\s*(.*)$/u, "$1$2 $3, to: $4");
     line = line.replace(/^(\s*)(get|post|put|patch|delete|match)\s+(:\w+)\s*=>\s*(.*)$/u, "$1$2 $3, to: $4");
     line = line.replace(/^(\s*)root to: (.*)$/u, '$1get "/", to: $2');
-    line = line.replace(/^(\s*)resources? "(\w+)"/u, (_m, ws: string) => `${ws}${_m.trim().startsWith("resource ") ? "resource" : "resources"} :${/"(\w+)"/u.exec(_m)![1]}`);
+    line = line.replace(
+      /^(\s*)resources? "(\w+)"/u,
+      (_m, ws: string) =>
+        `${ws}${_m.trim().startsWith("resource ") ? "resource" : "resources"} :${/"(\w+)"/u.exec(_m)![1]}`,
+    );
     // `namespace :x, path: "p"` and `scope path: "p", module: :m` keep their path in an option the parser does not read
     line = line.replace(/^(\s*)namespace :(\w+), path: "([^"]*)" do$/u, '$1scope "$3", module: "$2" do');
-    line = line.replace(/^(\s*)scope (?!")(.*)\bpath: "([^"]*)"(.*) do$/u, (m, ws: string, before: string, path: string, after: string) => {
-      const module = /module: (?::(\w+)|"(\w+)")/u.exec(`${before}${after}`);
-      return `${ws}scope "${path}"${module ? `, module: "${module[1] ?? module[2]}"` : ""} do`;
-    });
+    line = line.replace(
+      /^(\s*)scope (?!")(.*)\bpath: "([^"]*)"(.*) do$/u,
+      (m, ws: string, before: string, path: string, after: string) => {
+        const module = /module: (?::(\w+)|"(\w+)")/u.exec(`${before}${after}`);
+        return `${ws}scope "${path}"${module ? `, module: "${module[1] ?? module[2]}"` : ""} do`;
+      },
+    );
     line = line.replace(/^(\s*)resource :settings, only: \[\] do$/u, '$1scope "settings" do');
     line = line.replace(/^(\s*)scope (?:format|module): .* do$/u, (m, ws: string) => {
       const module = /module: (?::(\w+)|"(\w+)")/u.exec(m);
       return module ? `${ws}scope module: "${module[1] ?? module[2]}" do` : `${ws}scope do`;
     });
     // `resource :payments` pluralizes to `paymentses` in parseBlock; Rails keeps `payments`
-    line = line.replace(/^(\s*)resource :(\w+s)(,|\s+do|$)(?!.*controller:)/u, (_m, ws: string, name: string, tail: string) => `${ws}resource :${name}, controller: :${name}${tail === "," ? "," : tail}`);
+    line = line.replace(
+      /^(\s*)resource :(\w+s)(,|\s+do|$)(?!.*controller:)/u,
+      (_m, ws: string, name: string, tail: string) =>
+        `${ws}resource :${name}, controller: :${name}${tail === "," ? "," : tail}`,
+    );
     // constraints and conditionals are transparent: both branches count, duplicates collapse later
     if (/^\s*constraints\b.*\bdo\s*$/u.test(line)) line = line.replace(/^(\s*)constraints\b.*$/u, "$1scope do");
-    else if (/^\s*(if|unless)\b/u.test(line) && !/\bdo\s*$/u.test(line)) line = line.replace(/^(\s*)(if|unless)\b.*$/u, "$1scope do");
-    else if (/^\s*(else|elsif\b.*)$/u.test(line)) line = `${/^\s*/u.exec(line)![0]}end\n${/^\s*/u.exec(line)![0]}scope do`;
+    else if (/^\s*(if|unless)\b/u.test(line) && !/\bdo\s*$/u.test(line))
+      line = line.replace(/^(\s*)(if|unless)\b.*$/u, "$1scope do");
+    else if (/^\s*(else|elsif\b.*)$/u.test(line))
+      line = `${/^\s*/u.exec(line)![0]}end\n${/^\s*/u.exec(line)![0]}scope do`;
     out.push(...line.split("\n"));
   }
   return out;
@@ -295,10 +325,15 @@ function sourceLiterals(): Set<string> {
       else if ((full.endsWith(".ts") || full.endsWith(".tsx")) && !full.endsWith(".test.ts")) {
         const text = readFileSync(full, "utf8");
         // A route key may carry the host scope Rails' constraints give it: `seller:/subscribe`.
-        for (const match of text.matchAll(/["'`](?:(?:seller|product|api|discover):)?(\/[A-Za-z0-9_:*./()[\]+=-]*)["'`]/gu))
+        for (const match of text.matchAll(
+          /["'`](?:(?:seller|product|api|discover):)?(\/[A-Za-z0-9_:*./()[\]+=-]*)["'`]/gu,
+        ))
           found.add(normalizeParams(match[1]!));
         const constants = new Map(
-          [...text.matchAll(/^(?:export )?const (\w+) = ["'`]([^"'`$]*)["'`]/gmu)].map((match) => [match[1]!, match[2]!]),
+          [...text.matchAll(/^(?:export )?const (\w+) = ["'`]([^"'`$]*)["'`]/gmu)].map((match) => [
+            match[1]!,
+            match[2]!,
+          ]),
         );
         for (const match of text.matchAll(/`([^`\s]*\$\{[^`\s]*)`/gu)) {
           const resolved = match[1]!
@@ -309,7 +344,13 @@ function sourceLiterals(): Set<string> {
           // `/${x}` alone would match every one-segment route.
           if (segments.length > 1 && !segments.some((part) => /[A-Za-z0-9]/u.test(part))) continue;
           if (segments.length === 1) found.add(segments[0]!);
-          else templatePatterns.push(new RegExp(`^${segments.map((part) => part.replace(/[.*+?^$|()[\]{}\\]/gu, "\\$&")).join("[^/]+")}$`, "u"));
+          else
+            templatePatterns.push(
+              new RegExp(
+                `^${segments.map((part) => part.replace(/[.*+?^$|()[\]{}\\]/gu, "\\$&")).join("[^/]+")}$`,
+                "u",
+              ),
+            );
         }
       }
     }
@@ -321,7 +362,11 @@ function sourceLiterals(): Set<string> {
       const full = join(dir, name);
       if (statSync(full).isDirectory()) {
         if (/^\(.*\)$/u.test(name)) walkApp(full, segments);
-        else walkApp(full, [...segments, /^\[(\.\.\.)?(\w+)\]$/u.test(name) ? (name.startsWith("[...") ? "*p" : ":p") : name]);
+        else
+          walkApp(full, [
+            ...segments,
+            /^\[(\.\.\.)?(\w+)\]$/u.test(name) ? (name.startsWith("[...") ? "*p" : ":p") : name,
+          ]);
       } else if (name === "page.tsx" || name === "route.ts") found.add(`/${segments.join("/")}`);
     }
   };
@@ -359,10 +404,14 @@ function registeredRoutes(): Registered[] {
   return Object.entries(table).map(([key, value]) => {
     const entry: Entry = typeof value === "string" ? { flag: value } : value;
     const method = /^(GET|POST|PUT|PATCH|DELETE)\s+/u.exec(key);
-    const rest = key.replace(/^(GET|POST|PUT|PATCH|DELETE)\s+/u, "").replace(/^(seller|product|api|discover):/u, (_m, scope: string) => (scope === "api" ? "" : ""));
+    const rest = key
+      .replace(/^(GET|POST|PUT|PATCH|DELETE)\s+/u, "")
+      .replace(/^(seller|product|api|discover):/u, (_m, scope: string) => (scope === "api" ? "" : ""));
     return {
       methods: entry.methods ?? (method ? [method[1]!] : ["GET"]),
-      path: normalizeParams(rest.replace(/^\/api(?=\/(?:v2|internal|mobile)\/)/u, "").replace(/\.(json|txt|xml)$/u, "")),
+      path: normalizeParams(
+        rest.replace(/^\/api(?=\/(?:v2|internal|mobile)\/)/u, "").replace(/\.(json|txt|xml)$/u, ""),
+      ),
       entry,
     };
   });
@@ -378,7 +427,11 @@ const CONTROLLER_RULES: Rule[] = [
   { match: /^redirects$/u, workstream: "Redirect-only routes (no controller)", floor: 1 },
   { match: /^foreign_webhooks$/u, workstream: "WS-21 Payment processors", floor: 4 },
   { match: /^instant_payouts$/u, workstream: "WS-23 Balances and payouts", floor: 4 },
-  { match: /^(connections|integrations\/|user_pages|seller_plan|instagram_callbacks|tiktok_callbacks|custom_domain\/)/u, workstream: "WS-10 Settings and account", floor: 1 },
+  {
+    match: /^(connections|integrations\/|user_pages|seller_plan|instagram_callbacks|tiktok_callbacks|custom_domain\/)/u,
+    workstream: "WS-10 Settings and account",
+    floor: 1,
+  },
   { match: /^(piracy_reports|purchase_custom_fields)$/u, workstream: "WS-12 Products and bundles", floor: 1 },
   { match: /^(comments|shipments)$/u, workstream: "WS-13 Audience, emails, workflows", floor: 2 },
   { match: /^(public|acme_challenges|test)$/u, workstream: "WS-11 Help, pages, blog, profiles", floor: 1 },
@@ -386,36 +439,87 @@ const CONTROLLER_RULES: Rule[] = [
   { match: /^balance$/u, workstream: "WS-23 Balances and payouts", floor: 1 },
   { match: /^api\/internal\/admin\//u, workstream: "WS-18 Admin", floor: 3 },
   { match: /^admin\//u, workstream: "WS-18 Admin", floor: 1 },
-  { match: /^api\/mobile\/(sales|purchases|subscriptions|preorders|commissions)/u, workstream: "WS-17 Public and mobile API", floor: 3 },
-  { match: /^api\/v2\/(sales|payouts|licenses|subscribers|resource_subscriptions)/u, workstream: "WS-17 Public and mobile API", floor: 2 },
-  { match: /^api\/v2\/(mcp|emails|marketing_actions|files|direct_uploads)/u, workstream: "WS-19 AI, MCP and moderation", floor: 3 },
+  {
+    match: /^api\/mobile\/(sales|purchases|subscriptions|preorders|commissions)/u,
+    workstream: "WS-17 Public and mobile API",
+    floor: 3,
+  },
+  {
+    match: /^api\/v2\/(sales|payouts|licenses|subscribers|resource_subscriptions)/u,
+    workstream: "WS-17 Public and mobile API",
+    floor: 2,
+  },
+  {
+    match: /^api\/v2\/(mcp|emails|marketing_actions|files|direct_uploads)/u,
+    workstream: "WS-19 AI, MCP and moderation",
+    floor: 3,
+  },
   { match: /^api\/(v2|mobile|internal)\//u, workstream: "WS-17 Public and mobile API", floor: 1 },
   { match: /^api\//u, workstream: "WS-17 Public and mobile API", floor: 1 },
-  { match: /^(orders|checkout|customer_surcharge|braintree|paypal|stripe|offer_codes|events)\b/u, workstream: "WS-20 Checkout and orders", floor: 3 },
+  {
+    match: /^(orders|checkout|customer_surcharge|braintree|paypal|stripe|offer_codes|events)\b/u,
+    workstream: "WS-20 Checkout and orders",
+    floor: 3,
+  },
   { match: /^purchases\b/u, workstream: "WS-20 Checkout and orders", floor: 3 },
-  { match: /^(settings\/payments|settings\/stripe|settings\/billing|settings\/beneficial_owners|settings\/guardians|payouts|balances|oauth_completions|tax_center)\b/u, workstream: "WS-23 Balances and payouts", floor: 3 },
-  { match: /^(settings|user|users|logins|signup|confirmations|two_factor_authentication|sellers|oauth|doorkeeper)\b/u, workstream: "WS-10 Settings and account", floor: 1 },
-  { match: /^(help_center|gumroad_blog|home|pages|profile_sections|github_stars|favicons|robots|llms|indexnow_keys|mcp_connectors|gumclaw|embedded_javascripts|redirects|third_party_analytics|application|healthcheck|test_pings)\b/u, workstream: "WS-11 Help, pages, blog, profiles", floor: 1 },
-  { match: /^(links|products|bundles|collaborators|affiliate|affiliates|global_affiliates|tags|product_|asset_previews|thumbnails|recommended_products|wishlists|reviews|product_reviews|offer_code|upsells|variant|custom_fields|cart_items_count|licenses|calls|commissions|review_videos)/u, workstream: "WS-12 Products and bundles", floor: 1 },
-  { match: /^(followers|installments|posts|workflows|emails|audience|imported_customers|utm_link|affiliate_requests|communities|community)/u, workstream: "WS-13 Audience, emails, workflows", floor: 2 },
+  {
+    match:
+      /^(settings\/payments|settings\/stripe|settings\/billing|settings\/beneficial_owners|settings\/guardians|payouts|balances|oauth_completions|tax_center)\b/u,
+    workstream: "WS-23 Balances and payouts",
+    floor: 3,
+  },
+  {
+    match: /^(settings|user|users|logins|signup|confirmations|two_factor_authentication|sellers|oauth|doorkeeper)\b/u,
+    workstream: "WS-10 Settings and account",
+    floor: 1,
+  },
+  {
+    match:
+      /^(help_center|gumroad_blog|home|pages|profile_sections|github_stars|favicons|robots|llms|indexnow_keys|mcp_connectors|gumclaw|embedded_javascripts|redirects|third_party_analytics|application|healthcheck|test_pings)\b/u,
+    workstream: "WS-11 Help, pages, blog, profiles",
+    floor: 1,
+  },
+  {
+    match:
+      /^(links|products|bundles|collaborators|affiliate|affiliates|global_affiliates|tags|product_|asset_previews|thumbnails|recommended_products|wishlists|reviews|product_reviews|offer_code|upsells|variant|custom_fields|cart_items_count|licenses|calls|commissions|review_videos)/u,
+    workstream: "WS-12 Products and bundles",
+    floor: 1,
+  },
+  {
+    match:
+      /^(followers|installments|posts|workflows|emails|audience|imported_customers|utm_link|affiliate_requests|communities|community)/u,
+    workstream: "WS-13 Audience, emails, workflows",
+    floor: 2,
+  },
   { match: /^(discover|search)/u, workstream: "WS-14 Discover and search", floor: 1 },
-  { match: /^(analytics|dashboard|customers|exports|churn|sales)/u, workstream: "WS-15 Analytics and exports", floor: 1 },
-  { match: /^(library|url_redirects|dropbox_files|s3_utility|zip|media_|consumption|direct_upload)/u, workstream: "WS-16 Library and content delivery", floor: 1 },
+  {
+    match: /^(analytics|dashboard|customers|exports|churn|sales)/u,
+    workstream: "WS-15 Analytics and exports",
+    floor: 1,
+  },
+  {
+    match: /^(library|url_redirects|dropbox_files|s3_utility|zip|media_|consumption|direct_upload)/u,
+    workstream: "WS-16 Library and content delivery",
+    floor: 1,
+  },
   { match: /^(subscriptions|preorders)/u, workstream: "WS-20 Checkout and orders", floor: 3 },
   { match: /^(agent|ai|mcp)/u, workstream: "WS-19 AI, MCP and moderation", floor: 3 },
 ];
 const FALLBACK_WORKSTREAM = "Unassigned (no rule matched)";
 
 // Per action overrides of the floor: money leaves the building or a refund/charge is created.
-const MONEY_ACTIONS = /^(refund|refund_taxes|refund_for_fraud|refund_all_for_fraud|refund_balance|charge_preorder|complete|issue|execute|add_credit|create_comment_and_refund|finalize|confirm|prepare|payout|pay)$/u;
-const MONEY_CONTROLLERS = /^(orders|purchases|api\/internal\/admin\/(payouts|purchases|scheduled_payouts)|api\/v2\/sales|checkout|api\/mobile\/(purchases|sales))$/u;
+const MONEY_ACTIONS =
+  /^(refund|refund_taxes|refund_for_fraud|refund_all_for_fraud|refund_balance|charge_preorder|complete|issue|execute|add_credit|create_comment_and_refund|finalize|confirm|prepare|payout|pay)$/u;
+const MONEY_CONTROLLERS =
+  /^(orders|purchases|api\/internal\/admin\/(payouts|purchases|scheduled_payouts)|api\/v2\/sales|checkout|api\/mobile\/(purchases|sales))$/u;
 
 function classify(route: Route): { workstream: string; weight: number } {
   const rule = CONTROLLER_RULES.find((candidate) => candidate.match.test(route.controller));
   const verbBase = route.method === "GET" ? 1 : 2;
   let weight = Math.max(verbBase, rule?.floor ?? 1);
   if (MONEY_ACTIONS.test(route.action) && MONEY_CONTROLLERS.test(route.controller)) weight = 4;
-  if (route.controller === "orders" || route.controller === "customer_surcharge") weight = Math.max(weight, route.method === "GET" ? 3 : 4);
+  if (route.controller === "orders" || route.controller === "customer_surcharge")
+    weight = Math.max(weight, route.method === "GET" ? 3 : 4);
   if (/^(integrations\/|custom_domain\/)/u.test(route.controller)) weight = Math.max(weight, 3);
   if (/^(redirects)$/u.test(route.controller)) weight = 1;
   return { workstream: rule?.workstream ?? FALLBACK_WORKSTREAM, weight };
@@ -450,7 +554,9 @@ function rows(parsed: Parsed): Row[] {
       ((hit.entry.redirect ?? hit.entry.redirectReplace) !== undefined ||
         literals.has(path) ||
         templatePatterns.some((pattern) => pattern.test(path)) ||
-        (hit.entry.handler !== undefined && !GENERIC_HANDLERS.has(hit.entry.handler) && new RegExp(`\\b${hit.entry.handler}\\s*:`, "u").test(serverText)));
+        (hit.entry.handler !== undefined &&
+          !GENERIC_HANDLERS.has(hit.entry.handler) &&
+          new RegExp(`\\b${hit.entry.handler}\\s*:`, "u").test(serverText)));
     const status = hit === undefined ? "not registered" : served ? "native" : "hands back";
     return { ...route, status, ...classify(route) };
   });
@@ -469,7 +575,9 @@ function pageStatus() {
       const full = join(dir, name);
       if (statSync(full).isDirectory()) walk(full);
       else if (name.endsWith(".rb"))
-        for (const match of readFileSync(full, "utf8").matchAll(/(?:render inertia: |inertia_render |inertia: )"([A-Za-z0-9_/]+)"/gu))
+        for (const match of readFileSync(full, "utf8").matchAll(
+          /(?:render inertia: |inertia_render |inertia: )"([A-Za-z0-9_/]+)"/gu,
+        ))
           railsPages.add(match[1]!);
     }
   };
@@ -480,12 +588,17 @@ function pageStatus() {
       const full = join(dir, name);
       if (statSync(full).isDirectory()) walkNode(full);
       else if (name.endsWith(".ts") && !name.endsWith(".test.ts"))
-        for (const match of readFileSync(full, "utf8").matchAll(/"([A-Z][A-Za-z]+(?:\/[A-Za-z0-9_]+)+)"/gu)) nodeLiterals.add(match[1]!);
+        for (const match of readFileSync(full, "utf8").matchAll(/"([A-Z][A-Za-z]+(?:\/[A-Za-z0-9_]+)+)"/gu))
+          nodeLiterals.add(match[1]!);
     }
   };
   walkNode(SERVER_DIR);
   const sorted = [...railsPages].sort();
-  return { total: sorted.length, ported: sorted.filter((page) => nodeLiterals.has(page)), missing: sorted.filter((page) => !nodeLiterals.has(page)) };
+  return {
+    total: sorted.length,
+    ported: sorted.filter((page) => nodeLiterals.has(page)),
+    missing: sorted.filter((page) => !nodeLiterals.has(page)),
+  };
 }
 
 function jobStatus() {
@@ -507,8 +620,14 @@ function countLines(dir: string, keep: (name: string, full: string) => boolean):
 
 function codeVolume() {
   const node =
-    countLines(SERVER_DIR, (name, full) => name.endsWith(".ts") && !name.endsWith(".test.ts") && !name.includes(".generated.") && !full.includes("__fixtures__")) +
-    countLines(join(repoRoot, "nextjs/src/worker"), (name) => name.endsWith(".ts") && !name.endsWith(".test.ts"));
+    countLines(
+      SERVER_DIR,
+      (name, full) =>
+        name.endsWith(".ts") &&
+        !name.endsWith(".test.ts") &&
+        !name.includes(".generated.") &&
+        !full.includes("__fixtures__"),
+    ) + countLines(join(repoRoot, "nextjs/src/worker"), (name) => name.endsWith(".ts") && !name.endsWith(".test.ts"));
   const ruby = ["models", "controllers", "services", "sidekiq", "business", "presenters"].reduce(
     (total, dir) => total + countLines(join(repoRoot, "app", dir), (name) => name.endsWith(".rb")),
     0,
@@ -518,7 +637,11 @@ function codeVolume() {
 
 function flagCount(): number {
   const table = JSON.parse(readFileSync(ROUTES_JSON, "utf8")) as Record<string, Entry | string>;
-  return new Set(Object.values(table).map((entry) => (typeof entry === "string" ? entry : entry.flag)).filter(Boolean)).size;
+  return new Set(
+    Object.values(table)
+      .map((entry) => (typeof entry === "string" ? entry : entry.flag))
+      .filter(Boolean),
+  ).size;
 }
 
 // Written by hand from workstreams.md "Open items" and the stream rows, parity-debt.md section 4 and parity-tasks.md (state of 2026-11-10).
@@ -590,13 +713,13 @@ function build(): string {
     "- native: `nextjs/routes.json` lists the route for that method and path, and Node has code for the path: a literal pattern in `src/server` or an App Router `page.tsx`/`route.ts` for it. It is a static test (api-coverage.md uses the same idea for its three namespaces, without the App Router and one-off handler checks): a native route can still hand individual requests back at runtime (see the partial hand-backs below).",
     "- hands back: routes.json lists the route but no Node code for the path was found. not registered: no routes.json entry, so Rails serves it.",
     "- Difficulty weight (estimated, not counted): 1 read-only DB; 2 DB writes; 3 external service (Stripe, PayPal, S3, Elasticsearch, mail, Sidekiq enqueue, LLM, DNS); 4 money movement or a complex multi-model flow. The default is the verb (GET 1, other verbs 2), raised to the floor of the controller's rule (`CONTROLLER_RULES` in the script) and to 4 for money actions (`MONEY_ACTIONS`). The weights and the controller-to-workstream mapping are my judgement from reading the controllers; change a rule and rerun to see the effect.",
-    "- Inertia pages: the component names Rails renders (`render inertia: \"X/Y\"`) against the same names appearing as string literals under `src/server`. A page that only appears in a hand-back list still matches, so this overstates.",
+    '- Inertia pages: the component names Rails renders (`render inertia: "X/Y"`) against the same names appearing as string literals under `src/server`. A page that only appears in a hand-back list still matches, so this overstates.',
     "- Jobs: `runtime` of each class in `registry.generated.ts`. Many Node jobs hand individual runs back to Ruby, so this overstates too.",
     "",
     "## How to read the percentages",
     "",
     "- The route share counts endpoints, and an endpoint is one row whether it is a health check or a purchase. The weighted share corrects that only as far as my weights are right.",
-    "- Neither number measures the code under the routes. A route is counted native as soon as Node serves its common path, while its hard branches (see \"Known partial hand-backs\") still go to Rails. The shares therefore overstate how much of the work is finished, most for checkout, payouts, and the mobile and MCP APIs.",
+    '- Neither number measures the code under the routes. A route is counted native as soon as Node serves its common path, while its hard branches (see "Known partial hand-backs") still go to Rails. The shares therefore overstate how much of the work is finished, most for checkout, payouts, and the mobile and MCP APIs.',
     `- Code volume cross-check (counted, not a completion measure): Node has ${volume.node.toLocaleString("en-US")} non-test lines under \`src/server\` and \`src/worker\`; Rails has ${volume.ruby.toLocaleString("en-US")} lines in \`app/{models,controllers,services,sidekiq,business,presenters}\`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).`,
     `- ${flagCount()} distinct rollout flags gate the routes in routes.json; none is enabled in production.`,
     "",
@@ -629,14 +752,10 @@ function build(): string {
     ["Rubric weights doubled per step: 1, 2, 4, 8", (row) => 2 ** (row.weight - 1)],
   ];
   for (const [name, weigh] of schemes)
-    out.push(`| ${name} | ${sumBy(native, weigh)} | ${sumBy(all, weigh)} | ${pct(sumBy(native, weigh), sumBy(all, weigh))} |`);
-  out.push(
-    "",
-    "## By weight",
-    "",
-    "| Weight | Routes | Native | Native % |",
-    "| ---: | ---: | ---: | ---: |",
-  );
+    out.push(
+      `| ${name} | ${sumBy(native, weigh)} | ${sumBy(all, weigh)} | ${pct(sumBy(native, weigh), sumBy(all, weigh))} |`,
+    );
+  out.push("", "## By weight", "", "| Weight | Routes | Native | Native % |", "| ---: | ---: | ---: | ---: |");
   for (const weight of [1, 2, 3, 4]) {
     const mine = all.filter((row) => row.weight === weight);
     const done = mine.filter((row) => row.status === "native");
@@ -672,19 +791,41 @@ function build(): string {
   out.push("", "## Routes that hand back (listed in routes.json, no Node code found)", "");
   const handBacks = all.filter((row) => row.status === "hands back");
   if (handBacks.length === 0) out.push("None.");
-  for (const row of handBacks) out.push(`- \`${row.method} ${row.path}\` (\`${classOf(row.controller)}#${row.action}\`)`);
+  for (const row of handBacks)
+    out.push(`- \`${row.method} ${row.path}\` (\`${classOf(row.controller)}#${row.action}\`)`);
 
   const railsKeys = new Set(parsed.routes.map((route) => `${route.method} ${normalizeParams(route.path)}`));
-  const orphans = registeredRoutes().filter((entry) => !entry.methods.some((method) => railsKeys.has(`${method === "PUT" ? "PATCH" : method} ${entry.path}`)));
-  out.push("", "## routes.json entries that match no parsed Rails route", "", "A diagnostic for the matcher: each is either a path the parser or the matcher missed (it would understate the native share) or a stale entry.", "");
+  const orphans = registeredRoutes().filter(
+    (entry) => !entry.methods.some((method) => railsKeys.has(`${method === "PUT" ? "PATCH" : method} ${entry.path}`)),
+  );
+  out.push(
+    "",
+    "## routes.json entries that match no parsed Rails route",
+    "",
+    "A diagnostic for the matcher: each is either a path the parser or the matcher missed (it would understate the native share) or a stale entry.",
+    "",
+  );
   if (orphans.length === 0) out.push("None.");
   for (const orphan of orphans) out.push(`- \`${orphan.methods.join("|")} ${orphan.path}\` (\`${orphan.entry.flag}\`)`);
 
   out.push("", "## Rails Inertia pages without Node props", "");
   for (const page of pages.missing) out.push(`- \`${page}\``);
-  out.push("", "## Known partial hand-backs (inside routes counted as native)", "", "Copied by hand from workstreams.md, parity-debt.md and parity-tasks.md as of 2026-11-10; not recomputed by the script and not in any percentage.", "");
+  out.push(
+    "",
+    "## Known partial hand-backs (inside routes counted as native)",
+    "",
+    "Copied by hand from workstreams.md, parity-debt.md and parity-tasks.md as of 2026-11-10; not recomputed by the script and not in any percentage.",
+    "",
+  );
   for (const item of PARTIAL_HAND_BACKS) out.push(`- ${item}`);
-  out.push("", "## Frontend and pages", "", `- Inertia pages Rails renders: ${pages.total}. With Node props: ${pages.ported.length} (${pct(pages.ported.length, pages.total)}), counted by name; the ${pages.missing.length} under "Rails Inertia pages without Node props" are the unported ones.`, "- The React page components are not rewritten: they are reused unchanged from `app/javascript` through the Inertia compatibility layer, so there is no per-component port to count until WS-41. Porting a page means its props, route and guards, which is what the page count measures.", "");
+  out.push(
+    "",
+    "## Frontend and pages",
+    "",
+    `- Inertia pages Rails renders: ${pages.total}. With Node props: ${pages.ported.length} (${pct(pages.ported.length, pages.total)}), counted by name; the ${pages.missing.length} under "Rails Inertia pages without Node props" are the unported ones.`,
+    "- The React page components are not rewritten: they are reused unchanged from `app/javascript` through the Inertia compatibility layer, so there is no per-component port to count until WS-41. Porting a page means its props, route and guards, which is what the page count measures.",
+    "",
+  );
   out.push("## Non-code items (unweighted, not in any percentage)", "");
   for (const item of NON_CODE_ITEMS) out.push(`- ${item}`);
   out.push("");
@@ -703,7 +844,9 @@ if (import.meta.main && process.argv.includes("--rows")) {
   if (process.argv.includes("--stdout")) process.stdout.write(document);
   else if (process.argv.includes("--check")) {
     if (!existsSync(OUTPUT) || readFileSync(OUTPUT, "utf8") !== document) {
-      console.error("docs/nextjs-rewrite/remaining-work.md is stale; run `node scripts/remaining-work.ts` from nextjs/");
+      console.error(
+        "docs/nextjs-rewrite/remaining-work.md is stale; run `node scripts/remaining-work.ts` from nextjs/",
+      );
       process.exit(1);
     }
   } else {
