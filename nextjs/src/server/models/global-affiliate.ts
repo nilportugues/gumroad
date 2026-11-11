@@ -25,7 +25,9 @@ export const GlobalAffiliates = defineModel<Affiliate>({
     {
       name: "set_affiliate_basis_points",
       unless: (r) => r.persisted,
-      run: (r) => void r.set("affiliate_basis_points", GLOBAL_AFFILIATE_BASIS_POINTS),
+      run: (r) => {
+        r.set("affiliate_basis_points", GLOBAL_AFFILIATE_BASIS_POINTS);
+      },
     },
   ],
   validations: [

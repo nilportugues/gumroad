@@ -16,7 +16,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | Namespace | Routes | Native | Hands back | Not registered | Unresolved |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 132 | 0 | 6 | 0 |
-| Mobile API (`/mobile` on the API host) | 64 | 63 | 0 | 1 | 0 |
+| Mobile API (`/mobile` on the API host) | 64 | 64 | 0 | 0 | 0 |
 | Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 78 | 4 | 0 | 3 |
 | Internal API, Gumroad domain (`/internal`, JSON for the React Router pages) | 23 | 22 | 0 | 1 | 0 |
 
@@ -167,7 +167,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 
 | Route | Ruby controller#action | Status | Flag | Fixture |
 | --- | --- | --- | --- | --- |
-| `POST /mobile/forgot_password` | `User::PasswordsController#create` | not registered | - | n |
+| `POST /mobile/forgot_password` | `User::PasswordsController#create` | native | `nextjs_mobile_forgot_password` | y |
 | `GET /mobile/purchases/index` | `Api::Mobile::PurchasesController#index` | native | `nextjs_mobile_purchases` | y |
 | `GET /mobile/purchases/search` | `Api::Mobile::PurchasesController#search` | native | `nextjs_mobile_purchases` | y |
 | `GET /mobile/purchases/purchase_attributes/:id` | `Api::Mobile::PurchasesController#purchase_attributes` | native | `nextjs_mobile_purchases` | y |
