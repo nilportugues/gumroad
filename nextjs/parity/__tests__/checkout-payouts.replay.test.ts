@@ -23,6 +23,9 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 // the replay's clock, so the recorded strings are moved by the days since the recording (withDriftedDates).
 // The dates of the upcoming payout follow the weekday, not the day, so those two fields are left out here and
 // payout-schedule.test.ts pins them against the real module.
+//
+// A page served from the cached balance-stats blob prints the dates the blob holds (generated when the spec ran), so its
+// recorded strings stay put: drifting them would move them off the blob the replay seeds verbatim.
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES_ROOT = "parity/fixtures/requests";
@@ -36,6 +39,7 @@ const RAILS_PURCHASE_INDEX = "purchase-test";
 // A lane sets PARITY_ES_INDEX_SUFFIX so its replay does not recreate the index another lane is reading.
 const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "";
 const REPLAY_PURCHASE_INDEX = `purchases${ES_INDEX_SUFFIX}`;
+const SERVED_FROM_THE_BLOB = ["-with-a-cached-blob-serves-a-processing-payout-from-t-"];
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
 const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1];
@@ -174,6 +178,7 @@ describe.skipIf(!url)("Checkout, subscription and payouts parity", () => {
         jobs: redisJobs(redis),
         transport: httpTransport(server.baseUrl),
         interceptHttp: false,
+        driftDates: !SERVED_FROM_THE_BLOB.some((fragment) => fixturePath.includes(fragment)),
         rewriteRequest: (request, fixture, now) => reencryptCookies(request, fixture, SECRET_KEY_BASE, now),
         compare: COMPARE,
       });

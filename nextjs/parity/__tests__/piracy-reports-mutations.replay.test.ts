@@ -35,6 +35,8 @@ const COMPARE = {
     "response.cookies.XSRF-TOKEN.value",
     "db.versions",
     "http",
+    // The digest hashes the notice text, whose signing date is the day the application ran: the text is compared, drifted.
+    "db.piracy_reports.updated.*.changes.notice_digest",
   ],
 };
 
@@ -114,6 +116,8 @@ describe.skipIf(!url)("PiracyReportsController writes", () => {
     },
     transport: httpTransport(server.baseUrl),
     interceptHttp: false,
+    // "Signed: /s/ Jane Doe, <date>" is written to the row on the day of the replay.
+    driftAlso: ["db" as const],
     rewriteRequest: (
       request: Parameters<typeof reencryptCookies>[0],
       loaded: Parameters<typeof reencryptCookies>[1],
