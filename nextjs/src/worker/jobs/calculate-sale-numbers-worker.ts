@@ -19,7 +19,7 @@ const CENTS_PER_DOLLAR = 100n;
 type SaleNumbersRedis = { set(key: string, value: string): Promise<unknown> };
 export type CalculateSaleNumbersDeps = { redis: () => SaleNumbersRedis };
 
-class RubyNoMethodError extends Error {
+export class RubyNoMethodError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "NoMethodError";
@@ -27,7 +27,10 @@ class RubyNoMethodError extends Error {
 }
 
 // `aggregations.<name>.value`: a missing aggregation is nil and fails on `.value`; a missing value is nil.
-function aggregationValue(aggregations: Record<string, unknown> | undefined, name: string): JsonValue | undefined {
+export function aggregationValue(
+  aggregations: Record<string, unknown> | undefined,
+  name: string,
+): JsonValue | undefined {
   const aggregation = aggregations?.[name];
   if (aggregation === undefined || aggregation === null)
     throw new RubyNoMethodError("undefined method 'value' for nil");

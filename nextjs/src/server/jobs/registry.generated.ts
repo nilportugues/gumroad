@@ -371,7 +371,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "CalculateSaleNumbersWorker": {
     "file": "app/sidekiq/calculate_sale_numbers_worker.rb",

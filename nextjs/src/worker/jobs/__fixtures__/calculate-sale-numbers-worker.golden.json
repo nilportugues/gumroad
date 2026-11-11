@@ -303,6 +303,49 @@
       ]
     },
     {
+      "name": "a fractional negative sum truncates before it floors",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "company_page:number_of_creators": {
+          "type": "string",
+          "value": "3",
+          "expires": false
+        },
+        "homepage:total_made": {
+          "type": "string",
+          "value": "-1",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}},\"number_of_creators\":{\"cardinality\":{\"field\":\"seller_id\",\"precision_threshold\":40000}}}}"
+        }
+      ],
+      "job": "CalculateSaleNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": -100.5
+            },
+            "number_of_creators": {
+              "value": 3
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "nothing sold",
       "error": null,
       "statements": [],

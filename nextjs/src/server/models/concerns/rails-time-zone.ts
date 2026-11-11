@@ -76,6 +76,17 @@ export const isKnownTimeZone = (zoneName: string): boolean => (zones as Record<s
 
 export type CalendarDate = { year: number; month: number; day: number };
 
+// An ActiveSupport::TimeWithZone as search filters serialise it: the offset-bearing `iso8601` string Rails writes into the request
+// body, on the instant it names.
+export class ZonedInstant extends Date {
+  readonly iso8601: string;
+
+  constructor(iso8601: string) {
+    super(Date.parse(iso8601));
+    this.iso8601 = iso8601;
+  }
+}
+
 // `instant.in_time_zone(zone).to_date`
 export function calendarDateInTimeZone(zoneName: string, instant: Date): CalendarDate {
   const identifier = (zones as Record<string, string>)[zoneName];

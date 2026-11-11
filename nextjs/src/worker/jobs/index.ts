@@ -11,6 +11,8 @@ import {
   deleteProcessedWorkflowInstallmentScheduleIntentsJob,
 } from "./batched-cleanup-jobs.ts";
 import { cacheProductDataWorker } from "./cache-product-data-worker.ts";
+import { calculatePayoutNumbersWorker } from "./calculate-payout-numbers-worker.ts";
+import { calculateSaleNumbersWorker } from "./calculate-sale-numbers-worker.ts";
 import {
   contentModerationAdminCommentJob,
   detectLegalEntityCountryDriftJob,
@@ -149,7 +151,6 @@ import { updatePurchasingPowerParityFactorsWorker } from "./update-purchasing-po
 import { updateSalesRelatedProductsInfosJob } from "./update-sales-related-products-infos-job.ts";
 import { updateSellerRefundEligibilityJob } from "./update-seller-refund-eligibility-job.ts";
 import { updateTaxonomyStatsJob } from "./update-taxonomy-stats-job.ts";
-import { calculateSaleNumbersWorker } from "./calculate-sale-numbers-worker.ts";
 import { updateUtmLinkStatsJob } from "./update-utm-link-stats-job.ts";
 import { warmSellerReputationSummaryJob } from "./warm-seller-reputation-summary-job.ts";
 import { recalculateRecentWishlistFollowerCountJob } from "./wishlist-jobs.ts";
@@ -274,6 +275,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   UpdateSalesRelatedProductsInfosJob: updateSalesRelatedProductsInfosJob,
   UpdateTaxonomyStatsJob: updateTaxonomyStatsJob,
   CalculateSaleNumbersWorker: calculateSaleNumbersWorker,
+  CalculatePayoutNumbersWorker: calculatePayoutNumbersWorker,
   "Radar::AddValueListItemJob": radarAddValueListItemJob,
   "Radar::RemoveValueListItemJob": radarRemoveValueListItemJob,
   ExpiringCreditCardMessageWorker: expiringCreditCardMessageWorker,

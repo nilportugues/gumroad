@@ -3,6 +3,7 @@
 // sends to the purchases index. The body is a plain Hash in Ruby (no DSL): `query.bool` takes its keys
 // in the order the build touches them, then the native params follow. Proven by purchase-search.golden.json.
 import { indexName } from "../infra/elasticsearch.ts";
+import { ZonedInstant } from "../models/concerns/rails-time-zone.ts";
 import { search } from "./api.ts";
 import { type JsonValue, timeAsJson } from "./es-json.ts";
 import { arrayWrap, isHash, isNil, type Params, present, RubyError, rubyStrip, truthy } from "./ruby-params.ts";
@@ -26,9 +27,10 @@ const asJson = (value: unknown): JsonValue => value as JsonValue;
 const idOf = (value: unknown): unknown => (isHash(value) && "id" in value ? value.id : value);
 const ids = (value: unknown): JsonValue => arrayWrap(value).map((entry) => asJson(idOf(entry))) as JsonValue;
 
-// Time#iso8601 for a UTC time.
+// Time#iso8601 for a UTC time, or the string a TimeWithZone carries.
 function iso8601(value: unknown): string {
   if (!(value instanceof Date)) throw new RubyError("NoMethodError", "undefined method 'iso8601' for a non-Time value");
+  if (value instanceof ZonedInstant) return value.iso8601;
   return `${timeAsJson(value)}`;
 }
 
