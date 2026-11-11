@@ -33,12 +33,14 @@ const SPECS = [
   "review_reminders_parity_spec",
   "feature_announcements_unsubscribe_parity_spec",
   "signup_create_parity_spec",
+  "mobile_forgot_password_parity_spec",
 ];
 const ROUTE_FLAGS = [
   "nextjs_auth_devise_redirects",
   "nextjs_auth_login_writes",
   "nextjs_auth_logout",
   "nextjs_auth_signup_writes",
+  "nextjs_mobile_forgot_password",
   "nextjs_auth_two_factor_writes",
   "nextjs_auth_passwords",
   "nextjs_auth_confirmations",
@@ -151,6 +153,7 @@ const MAILS = [
   ["switches-to-email", "TwoFactorAuthenticationMailer", "authentication_token"],
   ["asks-for-two-factor-authentication-first", "TwoFactorAuthenticationMailer", "authentication_token"],
   ["sends-the-reset-instructions", "UserSignupMailer", "reset_password_instructions"],
+  ["mobile-forgot-password-accepts-a-json-body", "UserSignupMailer", "reset_password_instructions"],
   ["signup-create-a-new-account", "UserSignupMailer", "confirmation_instructions"],
 ] as const;
 
