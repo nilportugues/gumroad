@@ -1907,7 +1907,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ProcessPurchaseEarlyFraudWarningJob": {
     "file": "app/sidekiq/process_purchase_early_fraud_warning_job.rb",
