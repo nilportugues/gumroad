@@ -13,12 +13,12 @@ import { geoIpLookup } from "../infra/geo-ip.ts";
 import { LinkFlags } from "../models/link.ts";
 import { getFactor } from "../models/purchasing-power-parity.ts";
 import { column, selectRows, table } from "../models/sql.ts";
+import { sellerReputationProps } from "../models/user-reputation-summary.ts";
 import { isFlagSet, tiktokPixelId, Users } from "../models/user.ts";
 import { thumbnailUrl } from "../page-props/buyer/products.ts";
 import { NotPortedError } from "../page-props/not-ported.ts";
 import { collaboratingProductIds, linkPolicy } from "../policies/link.ts";
 import type { SellerContext } from "../policies/seller-context.ts";
-import { sellerReputationProps } from "../models/user-reputation-summary.ts";
 import { PurchaseSearchService } from "../search/purchase-search.ts";
 
 import { bestOfferCodeResult, defaultOfferCodes, saleLabel } from "./best-offer-code.ts";

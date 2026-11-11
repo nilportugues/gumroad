@@ -9,8 +9,8 @@ import { Prisma, type User } from "@prisma/client";
 
 import { encrypt as externalId } from "../../lib/obfuscate-ids.ts";
 import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
-import { getRate, rubyStringToF, isCurrencyTypeSingleUnit } from "../models/concerns/currency-helper.ts";
 import { alpha2ByName } from "../models/compliance-countries.ts";
+import { getRate, rubyStringToF, isCurrencyTypeSingleUnit } from "../models/concerns/currency-helper.ts";
 import { CustomFieldFlags } from "../models/custom-field.ts";
 import { LinkFlags } from "../models/link.ts";
 import { column, selectRows, table } from "../models/sql.ts";
@@ -28,8 +28,8 @@ import {
   remainingForSaleCount,
   rentalProps,
   TRIAL_UNITS,
+  listedPriceCents,
 } from "./product-props.ts";
-import { listedPriceCents } from "./product-props.ts";
 import { findUserById, type LinkRow, type UserRow } from "./product-reads.ts";
 import { buyerCurrencyDisplayProps, longUrl, subdomainWithProtocol } from "./product.ts";
 

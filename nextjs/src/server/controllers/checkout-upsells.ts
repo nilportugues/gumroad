@@ -14,11 +14,11 @@ import { RecordInvalid } from "../models/runtime/errors.ts";
 import { castRow, column, selectRows, table } from "../models/sql.ts";
 import { UpsellDeletable, Upsells, UpsellVariantDeletable, UpsellVariants } from "../models/upsell.ts";
 import { NotPortedError } from "../models/user.ts";
-import { checkoutProduct } from "../presenters/checkout-product.ts";
-import { findLink } from "../presenters/product-reads.ts";
 import { fetchUpsells, listParams } from "../page-props/checkout/upsells.ts";
 import { authorize } from "../policies/authorize.ts";
 import { checkoutUpsellPolicy } from "../policies/checkout-upsell.ts";
+import { checkoutProduct } from "../presenters/checkout-product.ts";
+import { findLink } from "../presenters/product-reads.ts";
 import { PurchaseFlags } from "../search/flags.ts";
 
 import { HandBackToRails, RoutingError, type ActionResult } from "./application-controller.ts";
