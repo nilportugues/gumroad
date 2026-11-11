@@ -18,6 +18,7 @@ import { isMobile } from "../shared.ts";
 import { rackParam, type QuerySource } from "./support.ts";
 
 const EVENTS = "events";
+const SIGNUP_EVENTS = "signup_events";
 const DEFAULT_REFERRER = "direct";
 const REFERRER_MAX_LENGTH = 190;
 const REFERRER_DOMAIN_FOR_GUMROAD_RECOMMENDED_PRODUCTS = "recommended_by_gumroad";
@@ -86,6 +87,8 @@ export type EventSource = {
   params?: Record<string, unknown>;
   // `@product`: the event carries its id and price (ProductsController-style actions that fetch one).
   product?: { id: bigint | number; price_cents: number | null };
+  // SignupEvent: the `signup_events` table, for the account the request just created (it is not yet the signed-in user of `context`).
+  signup?: { userId: bigint | number };
 };
 
 // FlagShihTzu::TRUE_VALUES, which also holds true and 1 for a value that came from a JSON body.
@@ -101,7 +104,7 @@ const isBlankString = (value: unknown): boolean => typeof value === "string" && 
 // Events#create_user_event(name): nothing while impersonating.
 export async function createUserEvent(
   name: string,
-  { context, headers, url, state, params, product }: EventSource,
+  { context, headers, url, state, params, product, signup }: EventSource,
 ): Promise<number | null> {
   if (context.impersonatedUser) return null;
   const user = railsLoggedInUser(context);
@@ -150,7 +153,7 @@ export async function createUserEvent(
     visit_id: visitId,
     ip_address: ip,
     event_name: name,
-    user_id: user?.id ?? null,
+    user_id: signup ? signup.userId : (user?.id ?? null),
     link_id: product?.id ?? null,
     created_at: now,
     updated_at: now,
@@ -174,9 +177,10 @@ export async function createUserEvent(
     price_cents: product?.price_cents ?? null,
   };
   const names = Object.keys(values);
+  const eventsTable = signup ? SIGNUP_EVENTS : EVENTS;
   return transaction(async () => {
     await execute(
-      Prisma.sql`INSERT INTO ${table(EVENTS)} (${Prisma.join(names.map((name) => column(EVENTS, name)))}) VALUES (${Prisma.join(names.map((name) => values[name]))})`,
+      Prisma.sql`INSERT INTO ${table(eventsTable)} (${Prisma.join(names.map((name) => column(eventsTable, name)))}) VALUES (${Prisma.join(names.map((name) => values[name]))})`,
     );
     const [row] = await selectRows<{ id: bigint }>(Prisma.sql`SELECT LAST_INSERT_ID() AS ${Prisma.raw("`id`")}`);
     return Number(row!.id);

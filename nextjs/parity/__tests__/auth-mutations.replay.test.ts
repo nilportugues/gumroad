@@ -32,11 +32,13 @@ const SPECS = [
   "auth_account_parity_spec",
   "review_reminders_parity_spec",
   "feature_announcements_unsubscribe_parity_spec",
+  "signup_create_parity_spec",
 ];
 const ROUTE_FLAGS = [
   "nextjs_auth_devise_redirects",
   "nextjs_auth_login_writes",
   "nextjs_auth_logout",
+  "nextjs_auth_signup_writes",
   "nextjs_auth_two_factor_writes",
   "nextjs_auth_passwords",
   "nextjs_auth_confirmations",
@@ -125,6 +127,16 @@ const COMPARE = {
     "db.users.updated.*.changes.reset_password_token",
     "db.users.updated.*.changes.encrypted_password",
     "db.users.updated.*.changes.updated_at",
+    // A new account: random tokens and the bcrypt hash (checked below), and the sign-in time stamped a moment after the insert.
+    "db.users.inserted.*.encrypted_password",
+    "db.users.inserted.*.confirmation_token",
+    "db.users.inserted.*.external_id",
+    "db.users.inserted.*.otp_secret_key",
+    // The two-factor cookie's name carries a hash of the new account's random external id (its payload is compared below).
+    "response.cookies._gumroad_two_factor_*",
+    // The recording sent no User-Agent; the replay's client sends its own.
+    "db.signup_events.inserted.*.browser",
+    "db.signup_events.inserted.*.browser_fingerprint",
     "db.seller_profiles.inserted.*.created_at",
     "db.seller_profiles.inserted.*.updated_at",
     "jobs.*.at",
@@ -139,6 +151,7 @@ const MAILS = [
   ["switches-to-email", "TwoFactorAuthenticationMailer", "authentication_token"],
   ["asks-for-two-factor-authentication-first", "TwoFactorAuthenticationMailer", "authentication_token"],
   ["sends-the-reset-instructions", "UserSignupMailer", "reset_password_instructions"],
+  ["signup-create-a-new-account", "UserSignupMailer", "confirmation_instructions"],
 ] as const;
 
 const allCases = SPECS.flatMap((spec) => {
@@ -325,6 +338,7 @@ describe.skipIf(!url)("mutations of the authentication pages", () => {
         cases.find(([name]) => name.includes("signs-in-with-an-email")) ?? cases[0]!,
         cases.find(([name]) => name.includes("signs-out-with-delete")) ?? cases[0]!,
         cases.find(([name]) => name.includes("signs-in-with-the-token")) ?? cases[0]!,
+        cases.find(([name]) => name.includes("signup-create-a-new-account")) ?? cases[0]!,
       ]) {
         const { file: _file, ...options } = replayOptions(file);
         await replayFixtureExchange(file, index, options).catch(() => undefined);
@@ -392,13 +406,28 @@ describe.skipIf(!url)("mutations of the authentication pages", () => {
           expect(await validPassword(row.encrypted_password, "a-new-long-password-2")).toBe(true);
           expect(row.encrypted_password!.startsWith("$2a$04$")).toBe(true);
         }
+        // A new account: Node's bcrypt hash verifies like Rails' and the confirmation mail carries the raw token stored on the row.
+        if (name.includes("signup-create-a-new-account")) {
+          const row = (await client.user.findFirst({
+            select: { encrypted_password: true, confirmation_token: true },
+          }))!;
+          expect(await validPassword(row.encrypted_password, "a-long-signup-password")).toBe(true);
+          expect(row.encrypted_password!.startsWith("$2a$04$")).toBe(true);
+          expect(row.confirmation_token).toMatch(/^[A-Za-z0-9_-]{20}$/u);
+          expect(JSON.stringify(mailJobs[0]!.args)).toContain(row.confirmation_token!);
+        }
         // The cookies the harness cannot compare by value, decrypted.
         const secrets = {
           rails: deriveRailsCookieSecrets(fixture.secretKeyBase ?? SECRET_KEY_BASE),
           node: deriveRailsCookieSecrets(SECRET_KEY_BASE),
         };
         for (const [cookieName, railsCookie] of Object.entries(expected.response.cookies ?? {})) {
-          const nodeCookie = actual.response.cookies?.[cookieName];
+          // A new account's cookie name carries a hash of its random external id: it is the one two-factor cookie of the response.
+          const nodeName =
+            cookieName.startsWith("_gumroad_two_factor_") && !actual.response.cookies?.[cookieName]
+              ? Object.keys(actual.response.cookies ?? {}).find((candidate) => candidate.startsWith("_gumroad_two_factor_"))
+              : cookieName;
+          const nodeCookie = nodeName === undefined ? undefined : actual.response.cookies?.[nodeName];
           if (cookieName.startsWith("_gumroad_two_factor_")) {
             const wantValue = readEncryptedCookie(
               secrets.rails,
@@ -408,11 +437,12 @@ describe.skipIf(!url)("mutations of the authentication pages", () => {
             ) as string;
             const gotValue = readEncryptedCookie(
               secrets.node,
-              cookieName,
+              nodeName!,
               nodeCookie?.value as string,
               new Date(0),
             ) as string;
             expect(gotValue.split(",")[0]).toBe(wantValue.split(",")[0]);
+            expect({ ...nodeCookie, value: undefined }).toEqual({ ...railsCookie, value: undefined });
           }
           if (cookieName === "remember_user_token" && railsCookie.value) {
             const wantValue = readSignedCookie(

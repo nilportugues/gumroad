@@ -87,14 +87,14 @@ function clientIp(input: MutationInput): string {
 
 // The Devise `prepend_before_action :require_no_authentication` of LoginsController#create: a signed-in visitor is sent where a login
 // would have sent them, which depends on `params[:next]` and the referrer; the port leaves it to Rails.
-async function requireSignedOut(chain: Chain): Promise<Redirected | null> {
+export async function requireSignedOut(chain: Chain): Promise<Redirected | null> {
   if (chain.auth.context.loggedInUser || chain.auth.effects.signedOut)
     throw new HandBackToRails("a signed-in visitor posting the login form");
   return null;
 }
 
 // ApplicationController#login_path_for
-async function loginPathFor(chain: Chain, userId: bigint, params: Record<string, unknown>): Promise<string> {
+export async function loginPathFor(chain: Chain, userId: bigint, params: Record<string, unknown>): Promise<string> {
   const next = stringParam(params.next);
   let final: string;
   if (next !== null && !isBlank(next)) final = cgiUnescape(next);
@@ -130,7 +130,7 @@ const loginError = (message: string): Redirected => ({
 });
 
 // Devise's activatable hook refuses an account whose address is unconfirmed, and confirmation is Devise's to apply.
-function assertConfirmed(user: UserRecord): void {
+export function assertConfirmed(user: UserRecord): void {
   if (isBlank(user.get("provider")) && !isConfirmed(user) && !isBlank(user.get("email")))
     throw new HandBackToRails("an unconfirmed account");
 }
