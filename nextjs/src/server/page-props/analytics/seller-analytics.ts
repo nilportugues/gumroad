@@ -12,15 +12,29 @@ const CHARGED_SUCCESS_STATES = ["preorder_authorization_successful", "successful
 export type AnalyticsProduct = { id: bigint; name: string | null; unique_permalink: string | null; deleted_at: Date | null; flags: bigint };
 
 // User#products_for_creator_analytics: products deleted or archived without any successful sale are omitted.
+const creatorAnalyticsProducts = (sellerId: bigint) => Prisma.sql`${column("links", "user_id")} = ${sellerId}
+      AND (EXISTS (SELECT 1 FROM ${table("purchases")} WHERE ${column("purchases", "purchase_state")} IN (${Prisma.join(CHARGED_SUCCESS_STATES)}) AND purchases.link_id = links.id)
+        OR (${column("links", "deleted_at")} IS NULL AND ${LinkFlags.condition("archived", false)}))`;
+
 // Newest first.
 export async function productsForCreatorAnalytics(sellerId: bigint): Promise<AnalyticsProduct[]> {
   return await selectRows<AnalyticsProduct>(
     Prisma.sql`SELECT ${column("links", "id")}, ${column("links", "name")}, ${column("links", "unique_permalink")}, ${column("links", "deleted_at")}, ${column("links", "flags")} FROM ${table("links")}
-      WHERE ${column("links", "user_id")} = ${sellerId}
-      AND (EXISTS (SELECT 1 FROM ${table("purchases")} WHERE ${column("purchases", "purchase_state")} IN (${Prisma.join(CHARGED_SUCCESS_STATES)}) AND purchases.link_id = links.id)
-        OR (${column("links", "deleted_at")} IS NULL AND ${LinkFlags.condition("archived", false)}))
+      WHERE ${creatorAnalyticsProducts(sellerId)}
       ORDER BY ${column("links", "id")} DESC`,
   );
+}
+
+export async function countProductsForCreatorAnalytics(sellerId: bigint): Promise<number> {
+  const [row] = await selectRows<{ count: bigint }>(Prisma.sql`SELECT COUNT(*) AS count FROM ${table("links")} WHERE ${creatorAnalyticsProducts(sellerId)}`);
+  return Number(row?.count ?? 0);
+}
+
+export async function productIdsForCreatorAnalytics(sellerId: bigint, limit: number, offset: number): Promise<bigint[]> {
+  const rows = await selectRows<{ id: bigint }>(
+    Prisma.sql`SELECT ${column("links", "id")} FROM ${table("links")} WHERE ${creatorAnalyticsProducts(sellerId)} ORDER BY ${column("links", "id")} DESC LIMIT ${limit} OFFSET ${offset}`,
+  );
+  return rows.map((row) => BigInt(row.id));
 }
 
 // User#first_sale_created_at_for_analytics: the earliest successful, authorized-preorder or concluded-preorder sale.

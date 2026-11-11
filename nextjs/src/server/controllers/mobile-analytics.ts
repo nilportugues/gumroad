@@ -1,9 +1,10 @@
-// Api::Mobile::AnalyticsController: the creator app's sales charts. `data_by_date` (it serializes the seller's purchases for the creator
-// app) and `products` (`Link#as_json(original: true)`) stay in Rails.
+// Api::Mobile::AnalyticsController: the creator app's sales charts. In `data_by_date` a purchase the creator-app serializer does not reproduce throws NotPortedError, which hands the request to Rails.
 /* eslint-disable @typescript-eslint/no-explicit-any -- the days are JSON documents, as in the caching proxy */
 import { formattedDollarAmount } from "../models/concerns/currency-helper.ts";
+import { creatorAppPurchasesJson } from "../presenters/mobile-serializer-reads.ts";
 import { CreatorAnalyticsCachingProxy } from "../page-props/analytics/caching-proxy.ts";
 import { CreatorAnalyticsWeb } from "../page-props/analytics/creator-analytics-web.ts";
+import { countProductsForCreatorAnalytics, productIdsForCreatorAnalytics } from "../page-props/analytics/seller-analytics.ts";
 import { addDays, civilDateInZone, dayStartIso, timezoneId, TimeZoneNotPortedError } from "../search/civil-time.ts";
 import { MAX_HOURLY_DATE_RANGE_DAYS, CHARGED_SALES_SEARCH_OPTIONS } from "../search/creator-analytics-sales.ts";
 import { RubyFloat } from "../search/es-json.ts";
@@ -13,6 +14,8 @@ import { registerMobile, renderJson, type MobileAuth, type MobileInput } from ".
 
 const CREATOR_API_SCOPES = ["creator_api"];
 const MAX_BY_REFERRAL_DATE_RANGE_DAYS = 365;
+// SellerMobileAnalyticsService::SALES_LIMIT
+const SALES_LIMIT = 300;
 const BAD_REQUEST = 400;
 // GUMROAD_STARTED_DATE
 const GUMROAD_STARTED_DATE = "2011-04-04";
@@ -20,6 +23,9 @@ const GUMROAD_STARTED_DATE = "2011-04-04";
 const DATE_RANGE_OFFSETS: Record<string, number> = { "1d": 0, "1w": 6, "1m": 29, "1y": 364 };
 const DEFAULT_RANGE_OFFSET = 29;
 const DAYS_PER_WEEK = 7;
+// Pagy::DEFAULT[:limit]
+const PAGY_DEFAULT_LIMIT = 20;
+const DIGITS = /^\d{1,9}$/u;
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/u;
 
 type Day = Record<string, any>;
@@ -156,10 +162,14 @@ const BEGINNING_OF: Record<string, (today: string) => string> = {
   year: (today) => `${today.slice(0, 5)}01-01`,
 };
 
-async function revenueFor(owner: MobileAuth["owner"], range: string) {
+// `purchases` adds the newest SALES_LIMIT charged sales (narrowed by `query`) and `salesCount` their total, as `data_by_date` asks for both.
+async function sellerMobileAnalytics(
+  owner: MobileAuth["owner"],
+  range: string,
+  fields: { salesCount?: boolean; purchases?: { query: string | null } } = {},
+) {
   const iana = timezoneId(owner.timezone);
-  const since = new Date(dayStartIso(BEGINNING_OF[range]!(civilDateInZone(Date.now(), iana)), iana));
-  const result = await new PurchaseSearchService({
+  const options: Record<string, unknown> = {
     ...CHARGED_SALES_SEARCH_OPTIONS,
     seller: owner.id,
     exclude_refunded: false,
@@ -173,12 +183,40 @@ async function revenueFor(owner: MobileAuth["owner"], range: string) {
         aggs: { price_cents_total: { sum: { field: "price_cents" } }, amount_refunded_cents_total: { sum: { field: "amount_refunded_cents" } } },
       },
     },
-    track_total_hits: false,
-    created_on_or_after: since,
-  } as never).process();
+    track_total_hits: fields.salesCount === true,
+  };
+  if (fields.purchases) {
+    options.size = SALES_LIMIT;
+    options.sort = [{ created_at: { order: "desc" } }, { id: { order: "desc" } }];
+    if (fields.purchases.query) options.seller_query = fields.purchases.query;
+  }
+  if (range !== "all") {
+    // `raise "Invalid range"` is a 500 in Rails, whose answer is not Node's to give.
+    const beginning = BEGINNING_OF[range];
+    if (!beginning) throw new HandBackToRails("a range Ruby rejects");
+    options.created_on_or_after = new Date(dayStartIso(beginning(civilDateInZone(Date.now(), iana)), iana));
+  }
+  const result = await new PurchaseSearchService(options as never).process();
   const aggregations = result.response.aggregations as Record<string, any>;
   const revenue = aggregations.price_cents_total.value - aggregations.amount_refunded_cents_total.value - aggregations.chargedback_agg.price_cents_total.value + aggregations.chargedback_agg.amount_refunded_cents_total.value;
-  return { revenue: new RubyFloat(revenue), formatted_revenue: formattedDollarAmount(Math.round(revenue)) };
+  const data: Record<string, unknown> = { revenue: new RubyFloat(revenue), formatted_revenue: formattedDollarAmount(Math.round(revenue)) };
+  if (fields.salesCount) data.sales_count = result.total;
+  if (fields.purchases) data.purchases = await creatorAppPurchasesJson(result.ids.map((id) => BigInt(id)));
+  return data;
+}
+
+const revenueFor = (owner: MobileAuth["owner"], range: string) => sellerMobileAnalytics(owner, range);
+
+async function dataByDate(input: MobileInput, auth: MobileAuth | null): Promise<ActionResult> {
+  const { range, query } = input.params;
+  if (typeof range !== "string") throw new HandBackToRails("a range that is not a string");
+  if (query !== undefined && query !== null && typeof query !== "string") throw new HandBackToRails("a query that is not a string");
+  try {
+    return renderJson(await sellerMobileAnalytics(auth!.owner, range, { salesCount: true, purchases: { query: query ?? null } }));
+  } catch (error) {
+    if (error instanceof TimeZoneNotPortedError) throw new HandBackToRails(error.message);
+    throw error;
+  }
 }
 
 async function revenueTotals(_input: MobileInput, auth: MobileAuth | null): Promise<ActionResult> {
@@ -193,7 +231,33 @@ async function revenueTotals(_input: MobileInput, auth: MobileAuth | null): Prom
   }
 }
 
+// Pagy's `params[name].to_i` for plain digits; absent is the default, anything else is Ruby's (0 and "" raise there).
+function pagyParam(value: unknown, fallback: number, name: string): number {
+  if (value === undefined) return fallback;
+  if (typeof value === "string" && DIGITS.test(value) && Number(value) >= 1) return Number(value);
+  throw new HandBackToRails(`a ${name} Node does not cast`);
+}
+
+// `pagy(products_for_creator_analytics, limit_max: nil, limit_param: :items)` with `Link#as_json(original: true, only: [:id])`, which is
+// the row's integer id.
+async function products(input: MobileInput, auth: MobileAuth | null): Promise<ActionResult> {
+  const sellerId = BigInt(auth!.owner.id);
+  const page = pagyParam(input.params.page, 1, "page");
+  const items = pagyParam(input.params.items, PAGY_DEFAULT_LIMIT, "items");
+  const count = await countProductsForCreatorAnalytics(sellerId);
+  const pages = Math.max(Math.ceil(count / items), 1);
+  // Api::Mobile::BaseController rescues Pagy::VariableError (config/initializers/pagy.rb sets overflow to :exception)
+  if (page > pages) return { ...renderJson({ error: { message: `expected :page in 1..${pages}; got ${page}` } }, BAD_REQUEST), rescued: true };
+  const ids = await productIdsForCreatorAnalytics(sellerId, items, (page - 1) * items);
+  return renderJson({
+    products: ids.map((id) => ({ id: Number(id) })),
+    meta: { pagination: { count, items, page, pages, prev: page > 1 ? page - 1 : null, next: page < pages ? page + 1 : null, last: pages } },
+  });
+}
+
 registerMobile(
+  { method: "GET", pattern: "/mobile/analytics/products", scopes: CREATOR_API_SCOPES, run: products },
+  { method: "GET", pattern: "/mobile/analytics/data_by_date", scopes: CREATOR_API_SCOPES, run: dataByDate },
   { method: "GET", pattern: "/mobile/analytics/by_date", scopes: CREATOR_API_SCOPES, run: byDate },
   { method: "GET", pattern: "/mobile/analytics/by_state", scopes: CREATOR_API_SCOPES, run: byState },
   { method: "GET", pattern: "/mobile/analytics/by_referral", scopes: CREATOR_API_SCOPES, run: byReferral },
