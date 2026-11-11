@@ -240,7 +240,7 @@ async function destroy(input: MutationInput): Promise<ActionResult> {
 }
 
 registerMutations(
-  { method: "POST", pattern: "/posts/:post_id/comments", formats: ["json"], railsOnly: "/ip:comments:post", run: create },
-  { method: "PUT", pattern: "/posts/:post_id/comments/:id", formats: ["json"], railsOnly: "/ip:comments:put", run: update },
+  { method: "POST", pattern: "/posts/:post_id/comments", formats: ["json"], run: create },
+  { method: "PUT", pattern: "/posts/:post_id/comments/:id", formats: ["json"], run: update },
   { method: "DELETE", pattern: "/posts/:post_id/comments/:id", formats: ["json"], run: destroy },
 );

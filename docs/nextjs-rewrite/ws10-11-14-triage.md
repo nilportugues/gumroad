@@ -2,8 +2,8 @@
 
 Every route that `node scripts/remaining-work.ts` still lists as "not registered" in WS-10, WS-11 and WS-14 (plus the one redirect-only
 row, `GET /purchases`), checked against the Rails controller and `config/initializers/rack_attack.rb`, not against earlier notes. A throttled
-route is never registered natively: Rack::Attack's counters live in Rails' Redis, so a Node answer would skip them
-(`rack-attack-throttles.test.ts` fails if one is registered). Where a route has several reasons the row names the first that applies, in the
+route is registered natively only when Node counts its rule (`rack-attack.ts`, the same Redis keys and limits; `rack-attack-throttles.test.ts` fails
+if a route matches a rule that is not modelled). Where a route has several reasons the row names the first that applies, in the
 order throttled, mail, Stripe, external provider, S3, host, layout.
 
 ## What changed in this pass
@@ -143,7 +143,7 @@ excluding rows would only hide work that exists. The one wildcard row, `GET /(*p
 | WS-10 | `GET /integrations/google_calendar/account_info` | `integrations/google_calendar#account_info` | Google OAuth/Calendar API call |
 | WS-10 | `GET /integrations/google_calendar/calendar_list` | `integrations/google_calendar#calendar_list` | Google OAuth/Calendar API call |
 | WS-10 | `GET /integrations/google_calendar/oauth_redirect` | `integrations/google_calendar#oauth_redirect` | Google OAuth/Calendar API call |
-| WS-10 | `POST /custom_domain/verify` | `custom_domain/verifications#create` | `CustomDomainVerificationService` resolves DNS |
+| WS-10 | `POST /custom_domain/verify` | `custom_domain/verifications#create` | ported (`custom-domain-verifications.ts`, DNS through `node:dns`); a `product_id` hands back |
 
 ### S3/Active Storage (1)
 
@@ -161,7 +161,7 @@ excluding rows would only hide work that exists. The one wildcard row, `GET /(*p
 
 | Workstream | Route | Controller | Reason |
 | --- | --- | --- | --- |
-| WS-10 | `POST /users/confirmation` | `confirmations#create` | Devise `resend_confirmation_instructions` mails the user (no rack_attack rule) |
+| WS-10 | `POST /users/confirmation` | `confirmations#create` | ported (`confirmations-create.ts`): the job is enqueued from Node; the ERB `new` view branches hand back |
 
 ### External provider (OmniAuth): 11 of 28 ported, 17 left
 

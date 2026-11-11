@@ -23,6 +23,8 @@ import "@/server/controllers/oauth-tokens";
 import "@/server/controllers/oauth-authorizations";
 import "@/server/controllers/omniauth-failure";
 import "@/server/controllers/omniauth-phases";
+import "@/server/controllers/confirmations-create";
+import "@/server/controllers/custom-domain-verifications";
 import "@/server/controllers/mobile-pre-authorizations";
 import "@/server/controllers/signup-save-to-library";
 import "@/server/controllers/integrations-circle";

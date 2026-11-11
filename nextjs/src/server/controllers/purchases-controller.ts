@@ -153,7 +153,7 @@ registerMutations(
     pattern: "/purchases/:id/subscribe",
     run: publicPurchaseAction("a resubscribe, which writes every purchase of the buyer"),
   },
-  { method: "POST", pattern: "/purchases/:id/resend_receipt", json: true, railsOnly: "/ip:resend_receipt", run: publicPurchaseAction("a receipt mail") },
+  { method: "POST", pattern: "/purchases/:id/resend_receipt", json: true, run: publicPurchaseAction("a receipt mail") },
   { method: "GET", pattern: "/purchases/:id/unsubscribe", skipForgeryProtection: true, run: unsubscribe },
   { method: "POST", pattern: "/purchases/:id/confirm", json: true, run: confirm },
   { method: "POST", pattern: "/preorders/:id/charge_preorder", json: true, run: chargePreorder },

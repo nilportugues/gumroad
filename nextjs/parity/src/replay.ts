@@ -42,6 +42,8 @@ export function httpTransport(baseUrl: string): Transport {
     const target = new URL(`${source.pathname}${source.search}`, baseUrl);
     const headers = new Headers(request.headers);
     headers.set("x-forwarded-host", source.host);
+    // Behind Rails' load balancer every request carries the client address; the recordings came from 127.0.0.1.
+    if (!headers.has("x-forwarded-for")) headers.set("x-forwarded-for", "127.0.0.1");
     const body = request.body ? await request.arrayBuffer() : undefined;
     return realFetch(target, { method: request.method, headers, body, redirect: "manual" });
   };
