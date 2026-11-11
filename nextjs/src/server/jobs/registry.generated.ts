@@ -2906,7 +2906,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SendFinancesReportWorker": {
     "file": "app/sidekiq/send_finances_report_worker.rb",

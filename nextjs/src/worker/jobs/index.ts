@@ -108,6 +108,7 @@ import {
 } from "./search-reindex-jobs.ts";
 import { sellerUpdatesWorker } from "./seller-updates-worker.ts";
 import { sendCommunityChatRecapNotificationsJob } from "./send-community-chat-recap-notifications-job.ts";
+import { sendFeatureAnnouncementCampaignJob } from "./send-feature-announcement-campaign-job.ts";
 import { sendLastPostJob } from "./send-last-post-job.ts";
 import { sendMarketingXReconnectEmailJob } from "./send-marketing-x-reconnect-email-job.ts";
 import { sendPreorderSellerSummaryWorker } from "./send-preorder-seller-summary-worker.ts";
@@ -263,6 +264,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   RegenerateSalesRelatedProductsInfosJob: regenerateSalesRelatedProductsInfosJob,
   UpdateSalesRelatedProductsInfosJob: updateSalesRelatedProductsInfosJob,
   UpdateTaxonomyStatsJob: updateTaxonomyStatsJob,
+  SendFeatureAnnouncementCampaignJob: sendFeatureAnnouncementCampaignJob,
   SendPreorderSellerSummaryWorker: sendPreorderSellerSummaryWorker,
   SubmitToIndexnowJob: submitToIndexnowJob,
   DeleteProductRichContentWorker: deleteProductRichContentWorker,
