@@ -13,7 +13,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ActivateIntegrationsWorker": {
     "file": "app/sidekiq/activate_integrations_worker.rb",

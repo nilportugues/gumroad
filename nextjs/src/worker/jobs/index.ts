@@ -2,9 +2,6 @@
 import type { RetriesExhausted, RetryIn } from "../retry.ts";
 
 import { backfillOrphanedShownProductsInProfileSectionsJob } from "./backfill-orphaned-shown-products-in-profile-sections-job.ts";
-import { deleteOldVersionsRecordsWorker } from "./delete-old-versions-records-worker.ts";
-import { deleteProductFilesArchivesWorker } from "./delete-product-files-archives-worker.ts";
-import { purgeOldDeletedAssetPreviewsWorker } from "./purge-old-deleted-asset-previews-worker.ts";
 import { backfillPriceCheckerIndexFieldsJob } from "./backfill-price-checker-index-fields-job.ts";
 import { backfillTaggingsCountOnTagsJob } from "./backfill-taggings-count-on-tags-job.ts";
 import {
@@ -28,7 +25,10 @@ import {
   deleteOldProcessedStripeEventsJob,
   deleteOldSentEmailInfoRecordsJob,
 } from "./delete-old-records-jobs.ts";
+import { deleteOldVersionsRecordsWorker } from "./delete-old-versions-records-worker.ts";
+import { deleteProductFilesArchivesWorker } from "./delete-product-files-archives-worker.ts";
 import { deleteProductRichContentWorker } from "./delete-product-rich-content-worker.ts";
+import { deleteUnusedPublicFilesJob } from "./delete-unused-public-files-job.ts";
 import { deleteWishlistProductsJob } from "./delete-wishlist-products-job.ts";
 import { dispatchPendingWorkflowInstallmentScheduleIntentsJob } from "./dispatch-workflow-intents-job.ts";
 import { disputeEvidenceDueSoonReminderJob } from "./dispute-evidence-due-soon-reminder-job.ts";
@@ -74,6 +74,7 @@ import {
   syncStuckPurchasesJob,
   updatePurchaseHealthcheckThresholdJob,
 } from "./purchase-reads-jobs.ts";
+import { purgeOldDeletedAssetPreviewsWorker } from "./purge-old-deleted-asset-previews-worker.ts";
 import { rebuildGmailAbuseFilterJob } from "./rebuild-gmail-abuse-filter-job.ts";
 import { recoverAusBacktaxFromStripeAccountJob } from "./recover-aus-backtax-from-stripe-account-job.ts";
 import { refreshClosedTierDiscoverPricesJob } from "./refresh-closed-tier-discover-prices-job.ts";
@@ -253,6 +254,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   PurgeOldDeletedAssetPreviewsWorker: purgeOldDeletedAssetPreviewsWorker,
   RefreshClosedTierDiscoverPricesJob: refreshClosedTierDiscoverPricesJob,
   BackfillPriceCheckerIndexFieldsJob: backfillPriceCheckerIndexFieldsJob,
+  DeleteUnusedPublicFilesJob: deleteUnusedPublicFilesJob,
   DeleteProductRichContentWorker: deleteProductRichContentWorker,
   RemoveSuspendedAccountFollowsWorker: removeSuspendedAccountFollowsWorker,
   RefundPurchaseWorker: refundPurchaseWorker,

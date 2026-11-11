@@ -112,6 +112,7 @@ export const PORTED_JOBS: readonly string[] = [
   "PurgeOldDeletedAssetPreviewsWorker",
   "RefreshClosedTierDiscoverPricesJob",
   "BackfillPriceCheckerIndexFieldsJob",
+  "DeleteUnusedPublicFilesJob",
   "DeleteProductRichContentWorker",
   "RemoveSuspendedAccountFollowsWorker",
   "RefundPurchaseWorker",
