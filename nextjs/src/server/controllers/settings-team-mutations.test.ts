@@ -2,14 +2,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Errors, RecordInvalid } from "../models/runtime/errors.ts";
 
+import { HandBackToRails } from "./application-controller.ts";
 import type { MutationInput, MutationSpec } from "./mutation.ts";
 
-const { specs, sellerMembershipById, updateBang, markUndeletedBang } = vi.hoisted(() => ({
-  specs: [] as MutationSpec[],
-  sellerMembershipById: vi.fn(),
-  updateBang: vi.fn(),
-  markUndeletedBang: vi.fn(),
-}));
+const { specs, sellerMembershipById, updateBang, markUndeletedBang, teamMemberInfos, markDeletedBang } = vi.hoisted(
+  () => ({
+    specs: [] as MutationSpec[],
+    teamMemberInfos: vi.fn(),
+    markDeletedBang: vi.fn(),
+    sellerMembershipById: vi.fn(),
+    updateBang: vi.fn(),
+    markUndeletedBang: vi.fn(),
+  }),
+);
 
 vi.mock("./mutation.ts", () => ({
   registerMutations: (...registered: MutationSpec[]) => void specs.push(...registered),
@@ -21,11 +26,13 @@ vi.mock("./json-seller.ts", async (original) => ({
 vi.mock("../models/team-membership.ts", () => ({
   sellerMembershipById,
   TeamMemberships: { updateBang },
-  TeamMembershipDeletable: { markUndeletedBang, markDeletedBang: vi.fn() },
+  TeamMembershipDeletable: { markUndeletedBang, markDeletedBang },
 }));
 vi.mock("../policies/settings/team-membership.ts", () => ({
   settingsTeamMembershipPolicy: { update: () => true, destroy: () => true, restore: () => true },
 }));
+vi.mock("../page-props/settings/presenter.ts", () => ({ teamMemberInfos }));
+vi.mock("../policies/settings/team-user.ts", () => ({ settingsTeamUserPolicy: { show: () => true } }));
 vi.mock("../../lib/obfuscate-ids.ts", () => ({ decrypt: () => 5 }));
 
 await import("./settings-team-mutations.ts");
@@ -50,6 +57,34 @@ beforeEach(() => {
   sellerMembershipById.mockReset().mockResolvedValue({ attributes: {} });
   updateBang.mockReset();
   markUndeletedBang.mockReset();
+  markDeletedBang.mockReset();
+  teamMemberInfos.mockReset();
+});
+
+describe("GET /settings/team/members.json", () => {
+  it("answers the member infos of the seller's team", async () => {
+    teamMemberInfos.mockResolvedValue([{ type: "owner" }]);
+
+    const result = (await find("GET", "/settings/team/members.json").run(input({}))) as {
+      status: number;
+      body: string;
+    };
+
+    expect(result.status).toBe(200);
+    expect(JSON.parse(result.body)).toEqual({ success: true, member_infos: [{ type: "owner" }] });
+  });
+});
+
+describe("DELETE /settings/team/members/:id", () => {
+  const destroy = find("DELETE", MEMBER);
+
+  it("hands the removal of a member of the Gumroad account to Rails before writing", async () => {
+    const gumroad = input({});
+    (gumroad.context.currentSeller as { email: string }).email = "hi@example.com";
+
+    await expect(destroy.run(gumroad)).rejects.toBeInstanceOf(HandBackToRails);
+    expect(markDeletedBang).not.toHaveBeenCalled();
+  });
 });
 
 describe("PUT /settings/team/members/:id", () => {
@@ -71,6 +106,11 @@ describe("PUT /settings/team/members/:id", () => {
 
     await expect(update.run(input({ team_membership: { role } }))).rejects.toBeInstanceOf(RecordInvalid);
     expect(updateBang).toHaveBeenCalledWith(expect.anything(), { role: saved });
+  });
+
+  it("hands a request without a team_membership hash to Rails before writing", async () => {
+    await expect(update.run(input({}))).rejects.toBeInstanceOf(HandBackToRails);
+    expect(updateBang).not.toHaveBeenCalled();
   });
 
   it("changes nothing for an array role, which permit drops", async () => {
