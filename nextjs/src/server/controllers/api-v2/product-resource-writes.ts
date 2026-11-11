@@ -122,10 +122,12 @@ async function updateCustomField(input: ApiV2Input) {
 // ---------------------------------------------------------------------------------------------------------------------
 // Api::V2::VariantCategoriesController
 
-// `params.permit(:title)`: a scalar title. Rails casts a number to its string; anything else is dropped or unpermitted.
+// `params.permit(:title)`: a scalar title. A JSON boolean is permitted and the varchar column casts it to "1"/"0". A number stays in Rails
+// (the parsed body cannot tell 5 from 5.0, and Rails keeps the difference); anything else is dropped or unpermitted.
 function permittedTitle(params: Record<string, unknown>): { given: boolean; title: string | null } {
   if (!("title" in params)) return { given: false, title: null };
   const title = params.title;
+  if (typeof title === "boolean") return { given: true, title: title ? "1" : "0" };
   if (title === null || typeof title === "string") return { given: true, title };
   throw new NotPortedError("a variant category title that is not a string");
 }
