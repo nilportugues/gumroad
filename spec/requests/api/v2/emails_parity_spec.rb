@@ -161,6 +161,45 @@ describe "API v2 emails", type: :request do
       post "/v2/emails/#{create(:audience_installment, seller:, name: "Draft", message: "<p>Hello</p>").external_id}/schedule", params: { to_be_published_at: "2099-01-01T12:00:00Z" }, headers:
     end
 
+    describe "scheduling with a time zone" do
+      let(:draft) { create(:audience_installment, seller:, name: "Draft", message: "<p>Hello</p>") }
+
+      def schedule(time) = post("/v2/emails/#{draft.external_id}/schedule", params: { to_be_published_at: time }, headers:)
+
+      it "schedules at a positive UTC offset", parity: true do
+        schedule "2099-06-01T12:00:00+02:00"
+      end
+
+      it "schedules at a negative UTC offset", parity: true do
+        schedule "2099-06-01T12:00:00-05:00"
+      end
+
+      it "reads a time without an offset in the seller's time zone", parity: true do
+        seller.update!(timezone: "Eastern Time (US & Canada)")
+        schedule "2099-06-01T12:00:00"
+      end
+
+      it "rejects a month that does not exist", parity: true do
+        schedule "2099-13-01T12:00:00"
+      end
+
+      it "rejects an hour that does not exist at an offset", parity: true do
+        schedule "2099-06-01T25:00:00+02:00"
+      end
+
+      it "hands back text that is not an ISO 8601 time", parity: true do
+        schedule "tomorrow-ish"
+      end
+
+      it "hands back an offset without a colon", parity: true do
+        schedule "2099-06-01T12:00:00+0200"
+      end
+
+      it "hands back fractional seconds", parity: true do
+        schedule "2099-06-01T12:00:00.500Z"
+      end
+    end
+
     it "refuses an email that was already sent", parity: true do
       email = create(:audience_installment, :published, seller:, name: "Sent")
       create(:post_email_blast, post: email, seller:)
