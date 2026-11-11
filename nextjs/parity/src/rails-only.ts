@@ -11,8 +11,6 @@ import { compileRouteTable } from "@/lib/navigation/proxy/route-table";
 // and rack-attack-routes.replay.test.ts proves the request reaches Rails whole.
 export const RAILS_ONLY_KEYS = [
   "/signup",
-  "POST /login",
-  "PUT /settings",
   "POST /settings/totp/confirm",
   "POST /settings/passkeys/registration_options",
   "POST /settings/passkeys",

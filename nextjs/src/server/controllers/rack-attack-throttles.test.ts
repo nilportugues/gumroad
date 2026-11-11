@@ -25,6 +25,9 @@ const routeTable = JSON.parse(readFileSync(path.join(nextjsRoot, "routes.json"),
 // it is handed back, so Rails and Node together count each request once. A route that is not a mutation (an Inertia page, a handler) is not
 // counted by Node and stays out of routes.json.
 const COUNTED_IN_NODE: Record<string, string[]> = {
+  "/login": ["/ip:/login:post"],
+  "/login.json": ["/ip:/login.json", "logins/login"],
+  "/settings": ["/ip:/settings:put"],
   "/two-factor": ["/params:/two-factor:post"],
   "/two-factor/resend_authentication_token": ["/params:/two-factor/resend_authentication_token:post"],
   "/two-factor/verify": ["/params:/two-factor/verify"],
@@ -397,9 +400,8 @@ describe("Rack::Attack throttles", () => {
 // One list per kind of route, so a reviewer sees what each decision covered. Each key was in routes.json before Node learned that a Node
 // answer skips the Rails counter; the generic test above also catches them, but a failure here names the group.
 const GROUPS: Record<string, string[]> = {
-  "login and signup (/login, /signup)": ["POST /login", "/signup"],
+  "signup (/signup)": ["/signup"],
   "settings writes (/settings PUT, totp confirm, passkeys)": [
-    "PUT /settings",
     "POST /settings/totp/confirm",
     "POST /settings/passkeys",
     "POST /settings/passkeys/registration_options",
@@ -432,6 +434,11 @@ describe("routes Rack::Attack throttles stay in Rails", () => {
       expect(keys.filter((key) => key in routeTable)).toEqual([]);
     });
   }
+
+  it("serves the login and settings saves from Node, which counts their production-only rules", () => {
+    for (const key of ["POST /login", "PUT /settings"])
+      expect((routeTable[key] as { mutation?: boolean }).mutation, key).toBe(true);
+  });
 
   it("keeps the unthrottled methods of a partly throttled path", () => {
     // Rack::Attack compares the method exactly: PATCH /settings, PUT and PATCH /users/forgot_password, DELETE and POST-less

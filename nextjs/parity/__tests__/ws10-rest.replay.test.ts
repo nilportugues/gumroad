@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
+import type { AddressInfo } from "node:net";
 import path from "node:path";
 
 import { PrismaClient } from "@prisma/client";
@@ -11,7 +12,7 @@ import { railsCookieSecrets } from "@/server/auth/rails-session-config";
 import { closeAllRedis } from "@/server/infra/redis";
 
 import { prismaExecutor, type SqlExecutor } from "../src/db";
-import { loadFixture } from "../src/fixture";
+import { loadFixture, type CapturedHttp } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
 import type { JobsChannel, RawJob } from "../src/channels";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
@@ -26,6 +27,7 @@ const DIRS = [
   "confirmations_create_parity_spec",
   "custom_domain_verifications_parity_spec",
   "rack_attack_throttles_parity_spec",
+  "integrations_zoom_parity_spec",
 ].map((spec) => path.join("parity/fixtures/requests", spec));
 const ROUTE_FLAGS = [
   "nextjs_auth_confirmations",
@@ -34,14 +36,22 @@ const ROUTE_FLAGS = [
   "nextjs_purchases_public_guards",
   "nextjs_auth_two_factor_writes",
   "nextjs_users_profile_routes",
+  "nextjs_auth_login_writes",
+  "nextjs_settings_main_writes",
+  "nextjs_comments_writes",
+  "nextjs_communities_writes",
+  "nextjs_links_search",
+  "nextjs_integrations_zoom",
 ].join(",");
 const RACK_SEQUENCE = "rack-attack-throttles-";
+const BULK_REPEAT_MINIMUM = 100;
 // Rack::Attack counts per window of 20, 60 and 64 seconds; a sequence starts where none of them is about to turn over.
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-async function alignToWindow(): Promise<void> {
+// A sequence that needs most of a minute (the 301 searches) has to start with the minute.
+async function alignToWindow(wholeMinute = false): Promise<void> {
   for (;;) {
     const now = Math.floor(Date.now() / 1000);
-    if (now % 20 < 12 && now % 60 < 45 && now % 64 < 50) return;
+    if (wholeMinute ? now % 60 < 2 : now % 20 < 12 && now % 60 < 45 && now % 64 < 50) return;
     await sleep(500);
   }
 }
@@ -113,6 +123,10 @@ describe.skipIf(!url)("WS-10 remaining ports", () => {
   let rackRedis: Redis;
   let server: NextServer;
   let rails: Server;
+  // Answers the provider calls the recording saw, in order, and keeps what Node sent to compare.
+  let standIn: Server;
+  const recorded: CapturedHttp[] = [];
+  const received: { method: string; url: string; contentType: string | undefined; body: string }[] = [];
   const handedBack: { method: string; url: string; body: string }[] = [];
   const saved = { ...process.env };
 
@@ -139,13 +153,33 @@ describe.skipIf(!url)("WS-10 remaining ports", () => {
       });
     });
     await new Promise<void>((resolve) => rails.listen(0, "127.0.0.1", resolve));
+    standIn = createServer((request, response) => {
+      const chunks: Buffer[] = [];
+      request.on("data", (chunk: Buffer) => chunks.push(chunk));
+      request.on("end", () => {
+        received.push({
+          method: request.method ?? "",
+          url: String(request.headers["x-parity-original-url"] ?? request.url),
+          contentType: request.headers["content-type"],
+          body: Buffer.concat(chunks).toString("utf8"),
+        });
+        const answer = recorded.shift()?.response;
+        if (answer === undefined) return void response.writeHead(599).end("parity: no recorded answer left");
+        response.writeHead(answer.status ?? 200, answer.contentType ? { "content-type": answer.contentType } : {});
+        response.end(answer.body ?? "");
+      });
+    });
+    await new Promise<void>((resolve) => standIn.listen(0, "127.0.0.1", resolve));
     const railsPort = (rails.address() as { port: number }).port;
     server = await startNextServer({
       RAILS_ENV: "test",
+      // The recording of the production-only rules registered them in a test-environment Rails.
+      RACK_ATTACK_PRODUCTION_RULES: "1",
       OBFUSCATE_IDS_CIPHER_KEY: /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1] ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
       NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS,
       RAILS_ORIGIN: `http://127.0.0.1:${railsPort}`,
+      OUTBOUND_HTTP_STAND_IN: `http://127.0.0.1:${(standIn.address() as AddressInfo).port}`,
       SECRET_KEY_BASE,
       DATABASE_URL: url!,
       REDIS_HOST: redisHost,
@@ -192,6 +226,7 @@ describe.skipIf(!url)("WS-10 remaining ports", () => {
   afterAll(async () => {
     await server.stop();
     rails.close();
+    await new Promise((resolve) => standIn.close(resolve));
     await closeAllRedis();
     await redis.quit();
     await rackRedis.quit();
@@ -235,7 +270,7 @@ describe.skipIf(!url)("WS-10 remaining ports", () => {
           // The first request to a route compiles it, which can outlast a window: warm up, then start the sequence on a fresh one.
           const warmUp = fixture.exchanges.findIndex((exchange) => !exchange.request.path.startsWith("/help"));
           await replayFixtureExchange(fixture, warmUp, replayOptions()).catch(() => undefined);
-          await alignToWindow();
+          await alignToWindow(path.basename(name).includes("product-search"));
           await rackRedis.flushdb();
           const sequenceIgnore = [
             ...COMPARE.ignore,
@@ -245,9 +280,40 @@ describe.skipIf(!url)("WS-10 remaining ports", () => {
             "db.users.updated.*.changes.reset_password_sent_at",
             "db.users.updated.*.changes.updated_at",
           ];
-          const first = fixture.exchanges.findIndex((exchange) => !exchange.request.path.startsWith("/help"));
+          // The login that signs the example in is proven by auth-mutations.replay.test.ts; its remember cookie expires a month from the clock.
+          const signsIn = (exchange: (typeof fixture.exchanges)[number]) =>
+            !path.basename(name).includes("login-attempt") &&
+            exchange.request.method === "POST" &&
+            exchange.request.path === "/login";
+          const first = fixture.exchanges.findIndex(
+            (exchange) => !exchange.request.path.startsWith("/help") && !signsIn(exchange),
+          );
           let throttled = 0;
+          // 301 identical requests do not fit a 60-second window when each one is seeded and compared: the ones between the first and the
+          // last are only sent (they carry no cookie), so the counter sees them all.
+          const requestOf = (at: number) => JSON.stringify(fixture.exchanges[at]!.request);
+          const lastAt = fixture.exchanges.length - 1;
+          const isBulkRepeat = (at: number) =>
+            at > first && at < lastAt && requestOf(at) === requestOf(at - 1) && requestOf(at) === requestOf(at + 1);
+          const bulk = fixture.exchanges.filter((_, at) => isBulkRepeat(at)).length >= BULK_REPEAT_MINIMUM;
           for (let at = first; at < fixture.exchanges.length; at += 1) {
+            if (signsIn(fixture.exchanges[at]!)) continue;
+            if (bulk && isBulkRepeat(at)) {
+              const { request: sent } = fixture.exchanges[at]!;
+              const headers = new Headers(sent.headers as Record<string, string>);
+              headers.set("x-forwarded-host", String(sent.headers.host));
+              headers.set("x-forwarded-for", String(sent.headers["cf-connecting-ip"] ?? "127.0.0.1"));
+              const bulkResponse = await fetch(
+                new URL(`${sent.path}${sent.query ? `?${sent.query}` : ""}`, server.baseUrl),
+                {
+                  method: sent.method,
+                  headers,
+                  redirect: "manual",
+                },
+              );
+              expect(bulkResponse.status).not.toBe(429);
+              continue;
+            }
             // Rails answers a missing record with its debug page in the test environment; Node answers the production body.
             const notFound = fixture.exchanges[at]!.response.status === 404;
             const options = {
@@ -273,8 +339,26 @@ describe.skipIf(!url)("WS-10 remaining ports", () => {
           expect(throttled).toBe(path.basename(name).includes("does-not-count") ? 0 : 1);
           return;
         }
+        recorded.splice(0, recorded.length, ...fixture.exchanges[index]!.http);
+        received.length = 0;
         const replayed = await replayFixtureExchange(fixture, index, optionsFor(name));
         assertParity(replayed);
+        // The port made the provider calls Rails made: the same method, URL, content type and body, in the same order.
+        expect(
+          received.map(({ method, url: original, contentType, body }) => ({
+            method,
+            url: original,
+            contentType,
+            body,
+          })),
+        ).toEqual(
+          fixture.exchanges[index]!.http.map((call) => ({
+            method: call.method,
+            url: call.url,
+            contentType: call.contentType ?? received[fixture.exchanges[index]!.http.indexOf(call)]?.contentType,
+            body: call.body ?? "",
+          })),
+        );
         // The session cookie's value is skipped by the comparison, so the flash it carries is read back from both sides.
         const sessionName = fixture.sessionCookie!;
         const flashOf = (cookies: Record<string, { value?: unknown }> | undefined) => {

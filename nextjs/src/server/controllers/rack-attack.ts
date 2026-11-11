@@ -5,6 +5,7 @@
 //
 // Rack::Attack runs every rule in declaration order and stops at the first one over its limit, so a tripped rule leaves the later ones uncounted.
 import { db } from "../../lib/db.ts";
+import { railsEnv } from "../infra/rails-env.ts";
 import { getRedis } from "../infra/redis.ts";
 import { isValidEmailFormat } from "../models/user.ts";
 
@@ -34,6 +35,8 @@ export type RackRequest = {
 
 export type Throttle = {
   name: string;
+  // rack_attack.rb registers it only when Rails.env.production?.
+  productionOnly?: boolean;
   limit: number;
   period: number;
   discriminator(request: RackRequest): Promise<string | null> | string | null;
@@ -64,15 +67,17 @@ function backoff(
   period: number,
   maxLevel: number,
   discriminator: Throttle["discriminator"],
+  productionOnly = false,
 ): Throttle[] {
   const rpm = (requests / period) * SECONDS_PER_MINUTE;
-  const tiers: Throttle[] = [{ name, limit: requests, period, discriminator }];
+  const tiers: Throttle[] = [{ name, limit: requests, period, discriminator, productionOnly }];
   for (let level = 2; level <= maxLevel; level += 1)
     tiers.push({
       name: `${name}/${level}`,
       limit: rpm * level,
       period: EXPONENTIAL_BACKOFF_BASE ** level,
       discriminator,
+      productionOnly,
     });
   return tiers;
 }
@@ -135,7 +140,39 @@ const ipRule =
   (request) =>
     request.method === method && path.test(request.path) ? `${request.path}:${request.remoteIp}` : null;
 
+// throttle_by_ip with a string path keys on the ip alone.
+const ipPathRule =
+  (path: string, method: string | null): Throttle["discriminator"] =>
+  (request) =>
+    request.path === path && (method === null || request.method === method) ? request.remoteIp : null;
+
+const PRODUCTION_IP_RULES = [
+  ["/ip:/login:post", "/login", "POST"],
+  ["/ip:/login.json", "/login.json", null],
+  ["/ip:/signup", "/signup", null],
+  ["/ip:/signup.json", "/signup.json", null],
+  ["/ip:/settings:put", "/settings", "PUT"],
+] as const;
+
+// The `user[login]` that `throttle("logins/login")` keys on. Ruby's `String#[]` and `Array#[]` answer something else for a `user` that is
+// not a hash, and a non-string login interpolates differently.
+function loginParam(request: RackRequest): string | null {
+  if (request.path !== "/login.json" || request.method !== "POST") return null;
+  const user = rackParams(request).user;
+  if (user === undefined || user === null) return null;
+  if (!isHash(user)) throw new HandBackToRails("a login throttle parameter that is not a hash");
+  const login = user.login;
+  if (login === undefined || login === null) return null;
+  if (typeof login !== "string") throw new HandBackToRails("a login throttle parameter that is not a string");
+  // `.presence`: a blank string is no key.
+  return /^[\t\n\v\f\r ]*$/u.test(login) ? null : login;
+}
+
 const RULES: Throttle[] = [
+  // Production only, and ahead of every other rule: 9 requests a minute per address, five tiers.
+  ...PRODUCTION_IP_RULES.flatMap(([name, path, method]) =>
+    backoff(name, 3, 20, 5, memoized(ipPathRule(path, method)), true),
+  ),
   ...backoff(
     "/ip/params:(?-mix:\\A\\/(?:[^\\/]+\\/)?landing\\/products\\z):get",
     30,
@@ -189,6 +226,8 @@ const RULES: Throttle[] = [
       PASSWORD_RESET_PATH.test(request.path) && request.method === "POST" ? passwordResetRecipient(request) : null,
     ),
   ),
+  // A plain `throttle`, no tiers: it stops a botnet rotating addresses against one account.
+  { name: "logins/login", limit: 3, period: 20, discriminator: loginParam },
   ...backoff("/ip:(?-mix:\\A\\/posts\\/.+\\/comments\\z):post", 5, 60, 5, memoized(ipRule(COMMENTS_PATH, "POST"))),
   ...backoff("/ip:(?-mix:\\A\\/posts\\/.+\\/comments\\/.+\\z):put", 5, 60, 5, memoized(ipRule(COMMENT_PATH, "PUT"))),
   ...backoff(
@@ -210,6 +249,12 @@ const RULES: Throttle[] = [
 // The rules of RULES by name, for the guard test.
 export const RACK_ATTACK_RULES: readonly Throttle[] = RULES;
 export const RACK_ATTACK_RULE_NAMES: readonly string[] = RULES.map((rule) => rule.name);
+
+// RACK_ATTACK_PRODUCTION_RULES=1 registers the production-only rules outside production, for the parity replays of a recording made with them.
+function activeRules(): readonly Throttle[] {
+  const production = railsEnv() === "production" || process.env.RACK_ATTACK_PRODUCTION_RULES === "1";
+  return production ? RULES : RULES.filter((rule) => rule.productionOnly !== true);
+}
 
 const counted = new WeakMap<Request, string[]>();
 
@@ -243,7 +288,7 @@ export function rackRequest(request: Request, bytes: Uint8Array): RackRequest {
 export async function evaluate(
   request: RackRequest,
   store: RackStore = redisStore,
-  rules: readonly Throttle[] = RULES,
+  rules: readonly Throttle[] = activeRules(),
   now: () => number = () => Math.floor(Date.now() / 1000),
   // Filled as rules are counted, so a rule that throws still leaves the earlier counts to be taken back.
   keys: string[] = [],
@@ -270,7 +315,7 @@ export async function countRackAttack(request: Request, bytes: Uint8Array): Prom
   const rack = rackRequest(request, bytes);
   // Without a client address the rules cannot key the request the way Rails does.
   if (rack.remoteIp === "") throw new HandBackToRails("a request with no client address");
-  const throttled = await evaluate(rack, redisStore, RULES, undefined, keys);
+  const throttled = await evaluate(rack, redisStore, activeRules(), undefined, keys);
   if (throttled === null) return null;
   const retryAfter = throttled.period - (throttled.epochTime % throttled.period);
   return rackResponse(
