@@ -49,6 +49,8 @@ export type MutationSpec = {
   // The controller's `skip_before_action :verify_authenticity_token`: no CSRF check, and no format check either (a webhook has no
   // Pundit to answer 401 JSON).
   skipForgeryProtection?: boolean;
+  // The action reads request.raw_post itself (a webhook): `params` is left empty and no body is parsed or refused here.
+  rawBody?: boolean;
   // Formats the action answers like Rails does. Pundit's 401 JSON is what the default (html only) leaves to Rails.
   formats?: ("html" | "json" | "any")[];
   // "any": the action answers every format itself (a public JSON endpoint with no Pundit in the way).
@@ -128,7 +130,7 @@ export async function mutationResponse(incoming: Request): Promise<Response> {
 
   let params: Params;
   try {
-    params = requestParams(url, request.headers.get("content-type"), bytes);
+    params = candidate.rawBody ? {} : requestParams(url, request.headers.get("content-type"), bytes);
     // Pundit answers 401 JSON to a request that is not HTML.
     if (!candidate.skipForgeryProtection) {
       const formats = candidate.formats ?? [candidate.json ? "json" : "html"];
