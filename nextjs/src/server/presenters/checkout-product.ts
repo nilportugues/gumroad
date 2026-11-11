@@ -10,15 +10,15 @@ import { Prisma, type User } from "@prisma/client";
 import { decrypt, encrypt as externalId } from "../../lib/obfuscate-ids.ts";
 import { autoLink } from "../html/rinku.ts";
 import { sanitize } from "../html/sanitizer.ts";
+import { CONTINENT_SHIPPING_COUNTRIES } from "../infra/continent-shipping-countries.ts";
 import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
-import { getRate, rubyStringToF, isCurrencyTypeSingleUnit } from "../models/concerns/currency-helper.ts";
 import { alpha2ByName, COUNTRIES, isBlockedCountry } from "../models/compliance-countries.ts";
 import { isAdult } from "../models/concerns/adult-keyword-detector.ts";
-import { CONTINENT_SHIPPING_COUNTRIES } from "../infra/continent-shipping-countries.ts";
+import { getRate, rubyStringToF, isCurrencyTypeSingleUnit } from "../models/concerns/currency-helper.ts";
 import { CustomFieldFlags } from "../models/custom-field.ts";
 import { LinkFlags } from "../models/link.ts";
-import { column, selectRows, table } from "../models/sql.ts";
 import { currencyMinPrice } from "../models/purchase-pricing.ts";
+import { column, selectRows, table } from "../models/sql.ts";
 import { discountForDisplay } from "../models/upsell.ts";
 import { aliveUserComplianceInfoRow } from "../models/user-compliance-info.ts";
 import { UserFlags } from "../models/user.ts";
@@ -61,10 +61,9 @@ const NATIVE_TYPE_COFFEE = "coffee";
 const RENTAL_PRICE_FLAG = 1;
 const decryptId = (external: string) => BigInt(decrypt(external)!);
 
-const flag = (row: LinkRow, name: Parameters<typeof LinkFlags.isSet>[1]) =>
-  LinkFlags.isSet(row.flags as bigint | number, name);
+const flag = (row: LinkRow, name: Parameters<typeof LinkFlags.isSet>[1]) => LinkFlags.isSet(row.flags, name);
 const sellerFlag = (seller: UserRow, name: Parameters<typeof UserFlags.isSet>[1]) =>
-  UserFlags.isSet(seller.flags as bigint | number, name);
+  UserFlags.isSet(seller.flags, name);
 const present = (value: string | null | undefined): value is string => value != null && value.trim() !== "";
 
 async function exists(sql: Prisma.Sql): Promise<boolean> {
@@ -307,7 +306,7 @@ async function cartItem(
   const listed = recurrence?.price_cents ?? (await listedPriceCents(row)) ?? 0;
   // [customizable ? params[:price].to_i : 0, (recurrence&.price_cents || price_cents.to_i) + price_difference_cents].max
   let price = Math.max(0, listed + (option?.price_difference_cents ?? 0));
-  if ((await pppEnabled(row, seller)) && price !== 0 && price < currencyMinPrice(row)) price = currencyMinPrice(row);
+  if (pppEnabled(row, seller) && price !== 0 && price < currencyMinPrice(row)) price = currencyMinPrice(row);
   return { option, rental: false, recurrence: recurrence?.recurrence ?? null, price };
 }
 
@@ -417,7 +416,9 @@ async function shippableCountryCodes(row: LinkRow): Promise<string[]> {
 
 // CheckoutPresenter#checkout_product with `logged_in_user: nil, ip: nil` and no params.
 export async function checkoutProduct(row: LinkRow, request: CheckoutRequest = {}) {
-  const { cartParams = {}, includeCrossSells = true } = request;
+  const { cartParams = {}, includeCrossSells = true, arrival = false } = request;
+  // Rails signs a restart_intent token (random issued_at, message verifier) for a recurring product being added
+  if (arrival && flag(row, "is_recurring_billing")) throw new NotPortedError("Checkout::RestartIntentToken.issue");
   const seller = (await findUserById(row.user_id!))!;
 
   const shippableCountries = await shippableCountryCodes(row);
@@ -536,7 +537,7 @@ async function installmentPlan(row: LinkRow) {
 }
 
 // Link#purchasing_power_parity_enabled?
-async function pppEnabled(row: LinkRow, seller: UserRow): Promise<boolean> {
+function pppEnabled(row: LinkRow, seller: UserRow): boolean {
   return !flag(row, "purchasing_power_parity_disabled") && sellerFlag(seller, "purchasing_power_parity_enabled");
 }
 
