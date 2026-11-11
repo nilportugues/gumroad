@@ -15,7 +15,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 
 | Namespace | Routes | Native | Hands back | Not registered | Unresolved |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 81 | 0 | 57 | 0 |
+| API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 86 | 0 | 52 | 0 |
 | Mobile API (`/mobile` on the API host) | 64 | 39 | 0 | 25 | 0 |
 | Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 23 | 0 | 59 | 3 |
 | Internal API, Gumroad domain (`/internal`, JSON for the React Router pages) | 23 | 11 | 0 | 12 | 0 |
@@ -62,13 +62,13 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `GET /v2/offer_codes/:id` | `Api::V2::OfferCodesController#show` | native | `nextjs_api_v2_offer_codes` | y |
 | `PATCH /v2/offer_codes/:id` | `Api::V2::OfferCodesController#update` | not registered | - | n |
 | `PUT /v2/offer_codes/:id` | `Api::V2::OfferCodesController#update` | not registered | - | y |
-| `GET /v2/products` | `Api::V2::LinksController#index` | not registered | - | n |
-| `GET /v2/products/:id` | `Api::V2::LinksController#show` | not registered | - | n |
+| `GET /v2/products` | `Api::V2::LinksController#index` | native | `nextjs_api_v2_products` | y |
+| `GET /v2/products/:id` | `Api::V2::LinksController#show` | native | `nextjs_api_v2_products` | y |
 | `PATCH /v2/products/:id` | `Api::V2::LinksController#update` | not registered | - | n |
 | `PUT /v2/products/:id` | `Api::V2::LinksController#update` | not registered | - | n |
 | `POST /v2/products` | `Api::V2::LinksController#create` | not registered | - | n |
-| `DELETE /v2/products/:id` | `Api::V2::LinksController#destroy` | not registered | - | n |
-| `GET /v2/products/comps` | `Api::V2::LinksController#comps` | not registered | - | n |
+| `DELETE /v2/products/:id` | `Api::V2::LinksController#destroy` | native | `nextjs_api_v2_products` | y |
+| `GET /v2/products/comps` | `Api::V2::LinksController#comps` | not registered | - | y |
 | `GET /v2/products/:link_id/custom_fields` | `Api::V2::CustomFieldsController#index` | native | `nextjs_api_v2_products` | y |
 | `POST /v2/products/:link_id/custom_fields` | `Api::V2::CustomFieldsController#create` | native | `nextjs_api_v2_products` | y |
 | `PATCH /v2/products/:link_id/custom_fields/:id` | `Api::V2::CustomFieldsController#update` | native | `nextjs_api_v2_products` | y |
@@ -104,12 +104,12 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `DELETE /v2/products/:link_id/thumbnail` | `Api::V2::ThumbnailsController#destroy` | not registered | - | n |
 | `POST /v2/products/:link_id/covers` | `Api::V2::CoversController#create` | not registered | - | n |
 | `DELETE /v2/products/:link_id/covers/:id` | `Api::V2::CoversController#destroy` | not registered | - | n |
-| `PUT /v2/products/:id/disable` | `Api::V2::LinksController#disable` | not registered | - | n |
-| `PUT /v2/products/:id/enable` | `Api::V2::LinksController#enable` | not registered | - | n |
+| `PUT /v2/products/:id/disable` | `Api::V2::LinksController#disable` | native | `nextjs_api_v2_products` | y |
+| `PUT /v2/products/:id/enable` | `Api::V2::LinksController#enable` | not registered | - | y |
 | `POST /v2/products/:id/preview_custom_html` | `Api::V2::LinksController#preview_custom_html` | not registered | - | n |
 | `GET /v2/products/:id/custom_html` | `Api::V2::LinksController#custom_html` | native | `nextjs_api_v2_products` | y |
 | `POST /v2/products/:id/custom_html/edit` | `Api::V2::LinksController#edit_custom_html` | not registered | - | n |
-| `PUT /v2/products/:id/sections` | `Api::V2::LinksController#update_sections` | not registered | - | n |
+| `PUT /v2/products/:id/sections` | `Api::V2::LinksController#update_sections` | native | `nextjs_api_v2_products` | y |
 | `GET /v2/products/:product_id/marketing/recommendations` | `Api::V2::MarketingActionsController#recommendations` | not registered | - | n |
 | `POST /v2/products/:product_id/marketing_actions` | `Api::V2::MarketingActionsController#create` | not registered | - | n |
 | `GET /v2/marketing_actions/:id` | `Api::V2::MarketingActionsController#show` | not registered | - | n |

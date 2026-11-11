@@ -126,6 +126,29 @@ export async function schedulePublicFilesForDeletion(
   );
 }
 
+// Link#delete!
+export async function deleteProductBang(sellerId: bigint, product: LinkRecord): Promise<void> {
+  const id = product.get("id");
+  await assertProfileSectionsEditable(sellerId, id);
+  const now = startedAt();
+  await LinkDeletable.markDeletedBang(product, { now });
+  await clearFeaturedProductSections(sellerId, id, now);
+  await removeFromProfileSections(sellerId, id, now);
+  const customDomain = await aliveCustomDomainOfProduct(id);
+  if (customDomain !== null) await CustomDomainDeletable.markDeletedBang(customDomain, { now });
+  await schedulePublicFilesForDeletion(id);
+  // Subscription.active: not a test subscription, not failed or ended, not cancelled before now
+  const [active] = await selectRows(
+    Prisma.sql`SELECT 1 FROM ${table("subscriptions")} WHERE ${column("subscriptions", "link_id")} = ${id} AND ${SubscriptionFlags.condition("is_test_subscription", false)} AND ${column("subscriptions", "failed_at")} IS NULL AND ${column("subscriptions", "ended_at")} IS NULL AND (${column("subscriptions", "cancelled_at")} IS NULL OR ${column("subscriptions", "cancelled_at")} > ${now()}) LIMIT 1`,
+  );
+  const delayed = { delaySeconds: DELETE_JOBS_DELAY_SECONDS };
+  if (active) await performAsync("CancelSubscriptionsForProductWorker", [id], delayed);
+  await performAsync("DeleteProductFilesWorker", [id], delayed);
+  await performAsync("DeleteProductRichContentWorker", [id], delayed);
+  await performAsync("DeleteProductFilesArchivesWorker", [id, null], delayed);
+  await performAsync("DeleteWishlistProductsJob", [id], delayed);
+}
+
 registerMutations(
   {
     method: "DELETE",
@@ -134,26 +157,7 @@ registerMutations(
     async run(input) {
       const found = await find(input, "ownership", (context) => authorize(linkPolicy.destroy, context));
       if (found.halt) return found.halt;
-      await assertProfileSectionsEditable(found.seller.id, found.product.get("id"));
-      const now = startedAt();
-      const product = found.product;
-      const id = product.get("id");
-      await LinkDeletable.markDeletedBang(product, { now });
-      await clearFeaturedProductSections(found.seller.id, id, now);
-      await removeFromProfileSections(found.seller.id, id, now);
-      const customDomain = await aliveCustomDomainOfProduct(id);
-      if (customDomain !== null) await CustomDomainDeletable.markDeletedBang(customDomain, { now });
-      await schedulePublicFilesForDeletion(id);
-      // Subscription.active: not a test subscription, not failed or ended, not cancelled before now
-      const [active] = await selectRows(
-        Prisma.sql`SELECT 1 FROM ${table("subscriptions")} WHERE ${column("subscriptions", "link_id")} = ${id} AND ${SubscriptionFlags.condition("is_test_subscription", false)} AND ${column("subscriptions", "failed_at")} IS NULL AND ${column("subscriptions", "ended_at")} IS NULL AND (${column("subscriptions", "cancelled_at")} IS NULL OR ${column("subscriptions", "cancelled_at")} > ${now()}) LIMIT 1`,
-      );
-      const delayed = { delaySeconds: DELETE_JOBS_DELAY_SECONDS };
-      if (active) await performAsync("CancelSubscriptionsForProductWorker", [id], delayed);
-      await performAsync("DeleteProductFilesWorker", [id], delayed);
-      await performAsync("DeleteProductRichContentWorker", [id], delayed);
-      await performAsync("DeleteProductFilesArchivesWorker", [id, null], delayed);
-      await performAsync("DeleteWishlistProductsJob", [id], delayed);
+      await deleteProductBang(found.seller.id, found.product);
       return json({ success: true });
     },
   },

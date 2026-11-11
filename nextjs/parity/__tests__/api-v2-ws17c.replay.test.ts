@@ -33,6 +33,7 @@ const WS17C_SPEC_DIRS = [
   "mcp",
   "payouts_media",
   "sales_exports",
+  "links",
 ].map((name) => `${name}_parity_spec`);
 const SPECS = existsSync(FIXTURES)
   ? readdirSync(FIXTURES).filter(
@@ -54,6 +55,7 @@ const ROUTE_FLAGS = [
   "media",
   "payouts",
   "sales",
+  "products",
 ]
   .map((name) => `nextjs_api_v2_${name}`)
   .join(",");
@@ -116,6 +118,16 @@ function redisJobs(redis: Redis): JobsChannel {
             ...(item.at === undefined ? {} : { at: item.at }),
           });
         }
+      }
+      // A delayed job that still runs in Ruby goes to Sidekiq's `schedule` set.
+      for (const raw of await redis.zrange("schedule", "0", "-1")) {
+        const item = JSON.parse(raw) as { class: string; args: unknown[]; queue: string; at?: number };
+        jobs.push({
+          class: item.class,
+          args: item.args,
+          queue: item.queue,
+          ...(item.at === undefined ? {} : { at: item.at }),
+        });
       }
       return jobs
         .filter((job) => !LOCKED_JOBS.has(job.class) && !FALLBACK_JOBS.has(job.class))
