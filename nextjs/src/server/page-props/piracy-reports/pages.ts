@@ -40,7 +40,7 @@ const iso8601 = (value: Date) => value.toISOString().replace(/\.\d+Z$/u, "Z");
 const isoDate = (value: Date) => value.toISOString().slice(0, 10);
 
 // Link#long_url
-function longUrl(product: Link, owner: User): string {
+export function longUrl(product: Link, owner: User): string {
   const config = domainConfig(process.env);
   const host = userSubdomainWithProtocol(owner) ?? `${config.protocol}://${config.domain}`;
   const permalink = product.custom_permalink !== null && !isBlank(product.custom_permalink) ? product.custom_permalink : (product.unique_permalink ?? "");
@@ -61,7 +61,7 @@ async function authorizeAsync(query: (context: SellerContext) => boolean | Promi
 }
 
 // PiracyReports::Eligibility#errors
-async function eligibilityErrors(seller: User, product: Link): Promise<string[]> {
+export async function eligibilityErrors(seller: User, product: Link): Promise<string[]> {
   const errors: string[] = [];
   const suspended = (RISK_STATES.SUSPENDED as readonly (string | null)[]).includes(seller.user_risk_state);
   const skipSalesChecks = await feature(SKIP_SALES_CHECKS_FLAG, seller);
