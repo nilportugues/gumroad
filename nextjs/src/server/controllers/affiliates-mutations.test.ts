@@ -1,0 +1,203 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { HandBackToRails, RoutingError } from "./application-controller.ts";
+import type { MutationInput, MutationSpec } from "./mutation.ts";
+
+const mocks = vi.hoisted(() => ({
+  specs: [] as MutationSpec[],
+  findFirst: vi.fn(),
+  selectRows: vi.fn(),
+  findDirectAffiliate: vi.fn(),
+  guardRedirect: vi.fn(),
+  allowed: vi.fn(),
+  isSet: vi.fn(),
+}));
+
+vi.mock("./mutation.ts", () => ({
+  registerMutations: (...registered: MutationSpec[]) => void mocks.specs.push(...registered),
+}));
+vi.mock("./users-controller.ts", () => ({ requireHtml: vi.fn() }));
+vi.mock("../../lib/db.ts", () => ({ db: { user: { findFirst: mocks.findFirst } } }));
+vi.mock("../../lib/obfuscate-ids.ts", () => ({
+  decrypt: (id: string) => (id === "unknown" ? null : 7),
+  decryptNumeric: (id: number) => id,
+}));
+vi.mock("../models/sql.ts", () => ({
+  selectRows: mocks.selectRows,
+  column: () => "",
+  table: () => "",
+}));
+vi.mock("../models/user.ts", () => ({ UserFlags: { isSet: mocks.isSet } }));
+vi.mock("../page-props/dashboard/affiliates.ts", () => ({ findDirectAffiliate: mocks.findDirectAffiliate }));
+vi.mock("../page-props/domain.ts", () => ({ domainConfig: () => ({}) }));
+vi.mock("../policies/direct-affiliate.ts", () => ({
+  directAffiliatePolicy: {
+    create: () => mocks.allowed(),
+    update: () => mocks.allowed(),
+    destroy: () => mocks.allowed(),
+  },
+}));
+vi.mock("../page-props/audience/seller-guard.ts", () => ({
+  sellerGuard: async (_input: unknown, step: (context: unknown) => unknown) => {
+    if (mocks.guardRedirect()) return mocks.guardRedirect();
+    await step({ seller: { id: 3n } });
+    return null;
+  },
+}));
+
+await import("./affiliates-mutations.ts");
+
+const find = (method: string, pattern: string) =>
+  mocks.specs.find((spec) => spec.method === method && spec.pattern === pattern)!.run;
+const create = find("POST", "/affiliates");
+const update = find("PATCH", "/affiliates/:id");
+const destroy = find("DELETE", "/affiliates/:id");
+const subscribe = find("GET", "/affiliates/:id/subscribe_posts");
+
+const product = { id: 11, enabled: true, fee_percent: 10 };
+const affiliate = (overrides: Record<string, unknown> = {}) => ({
+  email: "ada@example.com",
+  apply_to_all_products: false,
+  fee_percent: null,
+  products: [product],
+  ...overrides,
+});
+const call = (run: MutationSpec["run"], body: unknown, id = "abc") =>
+  run({
+    params: { affiliate: body },
+    routeParams: { id },
+    context: { currentSeller: { id: 3n } },
+    url: new URL("https://example.com/"),
+  } as unknown as MutationInput);
+
+const refusal = (location: string, message: string) => ({
+  status: 302,
+  location,
+  inertiaErrors: { base: [message] },
+});
+
+beforeEach(() => {
+  vi.resetAllMocks();
+  mocks.allowed.mockReturnValue(true);
+  mocks.findFirst.mockResolvedValue({ id: 9n, flags: 0n });
+  mocks.isSet.mockReturnValue(false);
+  mocks.findDirectAffiliate.mockResolvedValue({ id: 5 });
+  mocks.selectRows.mockResolvedValueOnce([{ id: 11 }]).mockResolvedValue([]);
+});
+
+describe("POST /affiliates", () => {
+  it("returns the sign-in redirect for a signed-out visitor", async () => {
+    mocks.guardRedirect.mockReturnValue({ status: 302, location: "/login" });
+    expect(await call(create, affiliate())).toEqual({ status: 302, location: "/login" });
+  });
+
+  it("refuses a blank email", async () => {
+    expect(await call(create, affiliate({ email: " " }))).toEqual(
+      refusal("/affiliates/new", "Invalid affiliate parameters"),
+    );
+  });
+
+  it("refuses all products without a fee", async () => {
+    expect(await call(create, affiliate({ apply_to_all_products: true, fee_percent: "" }))).toEqual(
+      refusal("/affiliates/new", "Invalid affiliate parameters"),
+    );
+  });
+
+  it("refuses an enabled product without a fee", async () => {
+    expect(await call(create, affiliate({ products: [{ ...product, fee_percent: "" }] }))).toEqual(
+      refusal("/affiliates/new", "Invalid affiliate parameters"),
+    );
+  });
+
+  it("refuses an email without an account", async () => {
+    mocks.findFirst.mockResolvedValue(null);
+    expect(await call(create, affiliate())).toEqual(
+      refusal("/affiliates/new", "The affiliate has not created a Gumroad account with this email address."),
+    );
+  });
+
+  it("refuses the acting seller", async () => {
+    mocks.findFirst.mockResolvedValue({ id: 3n, flags: 0n });
+    expect(await call(create, affiliate())).toEqual(
+      refusal("/affiliates/new", "You found you. Good job. You can't be your own affiliate though."),
+    );
+  });
+
+  it("refuses an account that opted out", async () => {
+    mocks.isSet.mockReturnValue(true);
+    expect(await call(create, affiliate())).toEqual(
+      refusal("/affiliates/new", "This user has disabled being added as an affiliate."),
+    );
+  });
+
+  it("refuses when no product is enabled", async () => {
+    expect(await call(create, affiliate({ products: [{ ...product, enabled: false }] }))).toEqual(
+      refusal("/affiliates/new", "Please enable at least one product."),
+    );
+  });
+
+  it("refuses an affiliate the seller already has", async () => {
+    mocks.selectRows.mockReset();
+    mocks.selectRows.mockResolvedValueOnce([{ id: 11 }]).mockResolvedValueOnce([{ id: 2 }]);
+    expect(await call(create, affiliate())).toEqual(refusal("/affiliates/new", "This affiliate already exists."));
+  });
+
+  it("hands a valid affiliate to Rails", async () => {
+    await expect(call(create, affiliate())).rejects.toBeInstanceOf(HandBackToRails);
+  });
+
+  it("hands a seller's missing product to Rails, which raises on it", async () => {
+    mocks.selectRows.mockReset();
+    mocks.selectRows.mockResolvedValue([]);
+    await expect(call(create, affiliate())).rejects.toBeInstanceOf(HandBackToRails);
+  });
+
+  it("hands a missing affiliate parameter to Rails", async () => {
+    await expect(call(create, undefined)).rejects.toBeInstanceOf(HandBackToRails);
+  });
+
+  it("hands a flag that is a string to Rails", async () => {
+    await expect(call(create, affiliate({ apply_to_all_products: "false" }))).rejects.toBeInstanceOf(HandBackToRails);
+  });
+});
+
+describe("PATCH /affiliates/:id", () => {
+  it("answers 404 for an affiliate the seller does not have", async () => {
+    mocks.findDirectAffiliate.mockResolvedValue(null);
+    await expect(call(update, affiliate())).rejects.toBeInstanceOf(RoutingError);
+  });
+
+  it("sends a refusal to the edit page with the database id", async () => {
+    expect(await call(update, affiliate({ email: "" }))).toEqual(
+      refusal("/affiliates/5/edit", "Invalid affiliate parameters"),
+    );
+  });
+
+  it("leaves the edited affiliate out of the already-exists check", async () => {
+    await expect(call(update, affiliate())).rejects.toBeInstanceOf(HandBackToRails);
+  });
+});
+
+describe("DELETE /affiliates/:id", () => {
+  it("answers 404 for an id that does not decode", async () => {
+    await expect(call(destroy, undefined, "unknown")).rejects.toBeInstanceOf(RoutingError);
+  });
+
+  it("hands the removal of the seller's affiliate to Rails", async () => {
+    await expect(call(destroy, undefined)).rejects.toBeInstanceOf(HandBackToRails);
+  });
+});
+
+describe("GET /affiliates/:id/subscribe_posts", () => {
+  it("answers 404 for an affiliate nobody has", async () => {
+    mocks.selectRows.mockReset();
+    mocks.selectRows.mockResolvedValue([]);
+    await expect(call(subscribe, undefined)).rejects.toBeInstanceOf(RoutingError);
+  });
+
+  it("hands the change of a known affiliate to Rails", async () => {
+    mocks.selectRows.mockReset();
+    mocks.selectRows.mockResolvedValue([{ id: 7 }]);
+    await expect(call(subscribe, undefined)).rejects.toBeInstanceOf(HandBackToRails);
+  });
+});
