@@ -17,7 +17,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | --- | ---: | ---: | ---: | ---: | ---: |
 | API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 128 | 0 | 10 | 0 |
 | Mobile API (`/mobile` on the API host) | 64 | 62 | 0 | 2 | 0 |
-| Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 54 | 4 | 24 | 3 |
+| Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 77 | 4 | 1 | 3 |
 | Internal API, Gumroad domain (`/internal`, JSON for the React Router pages) | 23 | 20 | 0 | 3 | 0 |
 
 ## API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain)
@@ -243,7 +243,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `GET /internal/admin/purchases/search` | `Api::Internal::Admin::PurchasesController#search` | native | `nextjs_admin_api_purchases` | y |
 | `GET /internal/admin/purchases/lookup` | `Api::Internal::Admin::PurchasesController#lookup` | native | `nextjs_admin_api_purchases` | y |
 | `POST /internal/admin/purchases/resend_all_receipts` | `Api::Internal::Admin::PurchasesController#resend_all_receipts` | native | `nextjs_admin_api_purchases` | y |
-| `POST /internal/admin/purchases/reassign` | `Api::Internal::Admin::PurchasesController#reassign` | not registered | - | n |
+| `POST /internal/admin/purchases/reassign` | `Api::Internal::Admin::PurchasesController#reassign` | native | `nextjs_admin_api_purchases` | y |
 | `POST /internal/admin/purchases/:id/refund` | `Api::Internal::Admin::PurchasesController#refund` | native | `nextjs_admin_api_purchases` | y |
 | `POST /internal/admin/purchases/:id/resend_receipt` | `Api::Internal::Admin::PurchasesController#resend_receipt` | native | `nextjs_admin_api_purchases` | y |
 | `POST /internal/admin/purchases/:id/refund_taxes` | `Api::Internal::Admin::PurchasesController#refund_taxes` | native | `nextjs_admin_api_purchases` | y |
@@ -261,15 +261,15 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `POST /internal/admin/piracy_reports/:id/screen` | `Api::Internal::Admin::PiracyReportsController#screen` | hands back | `nextjs_admin_api_piracy` | y |
 | `POST /internal/admin/piracy_reports/:id/counter_notice` | `Api::Internal::Admin::PiracyReportsController#counter_notice` | hands back | `nextjs_admin_api_piracy` | y |
 | `POST /internal/admin/piracy_reports/:id/resolve` | `Api::Internal::Admin::PiracyReportsController#resolve` | hands back | `nextjs_admin_api_piracy` | y |
-| `GET /internal/admin/stranded_buyers/scan` | `Api::Internal::Admin::StrandedBuyersController#scan` | not registered | - | y |
+| `GET /internal/admin/stranded_buyers/scan` | `Api::Internal::Admin::StrandedBuyersController#scan` | native | `nextjs_admin_api_misc` | y |
 | `POST /internal/admin/stranded_buyers/recover` | `Api::Internal::Admin::StrandedBuyersController#recover` | native | `nextjs_admin_api_misc` | y |
-| `POST /internal/admin/stripe_restraint_notices` | `Api::Internal::Admin::StripeRestraintNoticesController#create` | not registered | - | n |
+| `POST /internal/admin/stripe_restraint_notices` | `Api::Internal::Admin::StripeRestraintNoticesController#create` | native | `nextjs_admin_api_misc` | y |
 | `GET /internal/admin/feature_announcement_campaigns` | `Api::Internal::Admin::FeatureAnnouncementCampaignsController#index` | native | `nextjs_admin_api_campaigns` | n |
 | `GET /internal/admin/feature_announcement_campaigns/:id` | `Api::Internal::Admin::FeatureAnnouncementCampaignsController#show` | native | `nextjs_admin_api_campaigns` | n |
 | `POST /internal/admin/feature_announcement_campaigns` | `Api::Internal::Admin::FeatureAnnouncementCampaignsController#create` | native | `nextjs_admin_api_campaigns` | n |
 | `PATCH /internal/admin/feature_announcement_campaigns/:id` | `Api::Internal::Admin::FeatureAnnouncementCampaignsController#update` | native | `nextjs_admin_api_campaigns` | n |
 | `PUT /internal/admin/feature_announcement_campaigns/:id` | `Api::Internal::Admin::FeatureAnnouncementCampaignsController#update` | native | `nextjs_admin_api_campaigns` | n |
-| `GET /internal/admin/feature_announcement_campaigns/:id/preview` | `Api::Internal::Admin::FeatureAnnouncementCampaignsController#preview` | not registered | - | n |
+| `GET /internal/admin/feature_announcement_campaigns/:id/preview` | `Api::Internal::Admin::FeatureAnnouncementCampaignsController#preview` | native | `nextjs_admin_api_campaigns` | y |
 | `POST /internal/admin/feature_announcement_campaigns/:id/approve` | `Api::Internal::Admin::FeatureAnnouncementCampaignsController#approve` | native | `nextjs_admin_api_campaigns` | n |
 | `POST /internal/admin/feature_announcement_campaigns/:id/deliver` | `Api::Internal::Admin::FeatureAnnouncementCampaignsController#deliver` | native | `nextjs_admin_api_campaigns` | n |
 | `POST /internal/admin/feature_announcement_campaigns/:id/cancel` | `Api::Internal::Admin::FeatureAnnouncementCampaignsController#cancel` | native | `nextjs_admin_api_campaigns` | n |
@@ -277,35 +277,35 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `GET /internal/admin/users/affiliates` | `Api::Internal::Admin::UsersController#affiliates` | native | `nextjs_admin_api_users` | y |
 | `GET /internal/admin/users/comments` | `Api::Internal::Admin::UsersController#comments` | native | `nextjs_admin_api_users` | n |
 | `GET /internal/admin/users/compliance_info` | `Api::Internal::Admin::UsersController#compliance_info` | native | `nextjs_admin_api_users` | y |
-| `GET /internal/admin/users/purchases` | `Api::Internal::Admin::UsersController#purchases` | not registered | - | n |
-| `GET /internal/admin/users/radar_stats` | `Api::Internal::Admin::UsersController#radar_stats` | not registered | - | n |
-| `GET /internal/admin/users/related` | `Api::Internal::Admin::UsersController#related` | not registered | - | n |
-| `GET /internal/admin/users/social_connections` | `Api::Internal::Admin::UsersController#social_connections` | not registered | - | n |
+| `GET /internal/admin/users/purchases` | `Api::Internal::Admin::UsersController#purchases` | native | `nextjs_admin_api_users` | y |
+| `GET /internal/admin/users/radar_stats` | `Api::Internal::Admin::UsersController#radar_stats` | native | `nextjs_admin_api_users` | y |
+| `GET /internal/admin/users/related` | `Api::Internal::Admin::UsersController#related` | native | `nextjs_admin_api_users` | y |
+| `GET /internal/admin/users/social_connections` | `Api::Internal::Admin::UsersController#social_connections` | native | `nextjs_admin_api_users` | y |
 | `GET /internal/admin/users/suspension` | `Api::Internal::Admin::UsersController#suspension` | native | `nextjs_admin_api_users` | n |
 | `GET /internal/admin/users/unpaid_balance` | `Api::Internal::Admin::UsersController#unpaid_balance` | native | `nextjs_admin_api_users` | y |
 | `GET /internal/admin/users/credits` | `Api::Internal::Admin::UsersController#credits` | native | `nextjs_admin_api_users` | n |
-| `POST /internal/admin/users/reset_password` | `Api::Internal::Admin::UsersController#reset_password` | not registered | - | n |
-| `POST /internal/admin/users/update_email` | `Api::Internal::Admin::UsersController#update_email` | not registered | - | n |
-| `POST /internal/admin/users/two_factor_authentication` | `Api::Internal::Admin::UsersController#two_factor_authentication` | not registered | - | n |
+| `POST /internal/admin/users/reset_password` | `Api::Internal::Admin::UsersController#reset_password` | native | `nextjs_admin_api_users` | y |
+| `POST /internal/admin/users/update_email` | `Api::Internal::Admin::UsersController#update_email` | native | `nextjs_admin_api_users` | y |
+| `POST /internal/admin/users/two_factor_authentication` | `Api::Internal::Admin::UsersController#two_factor_authentication` | native | `nextjs_admin_api_users` | y |
 | `POST /internal/admin/users/create_comment` | `Api::Internal::Admin::UsersController#create_comment` | native | `nextjs_admin_api_users` | n |
-| `POST /internal/admin/users/mark_compliant` | `Api::Internal::Admin::UsersController#mark_compliant` | not registered | - | n |
-| `POST /internal/admin/users/suspend_for_fraud` | `Api::Internal::Admin::UsersController#suspend_for_fraud` | not registered | - | n |
-| `POST /internal/admin/users/suspend_for_tos_violation` | `Api::Internal::Admin::UsersController#suspend_for_tos_violation` | not registered | - | n |
-| `POST /internal/admin/users/flag_for_tos_violation` | `Api::Internal::Admin::UsersController#flag_for_tos_violation` | not registered | - | n |
-| `POST /internal/admin/users/refund_all_for_fraud` | `Api::Internal::Admin::UsersController#refund_all_for_fraud` | not registered | - | n |
-| `POST /internal/admin/users/refund_balance` | `Api::Internal::Admin::UsersController#refund_balance` | not registered | - | n |
-| `POST /internal/admin/users/add_credit` | `Api::Internal::Admin::UsersController#add_credit` | not registered | - | n |
+| `POST /internal/admin/users/mark_compliant` | `Api::Internal::Admin::UsersController#mark_compliant` | native | `nextjs_admin_api_users` | y |
+| `POST /internal/admin/users/suspend_for_fraud` | `Api::Internal::Admin::UsersController#suspend_for_fraud` | native | `nextjs_admin_api_users` | y |
+| `POST /internal/admin/users/suspend_for_tos_violation` | `Api::Internal::Admin::UsersController#suspend_for_tos_violation` | native | `nextjs_admin_api_users` | y |
+| `POST /internal/admin/users/flag_for_tos_violation` | `Api::Internal::Admin::UsersController#flag_for_tos_violation` | native | `nextjs_admin_api_users` | y |
+| `POST /internal/admin/users/refund_all_for_fraud` | `Api::Internal::Admin::UsersController#refund_all_for_fraud` | native | `nextjs_admin_api_users` | y |
+| `POST /internal/admin/users/refund_balance` | `Api::Internal::Admin::UsersController#refund_balance` | native | `nextjs_admin_api_users` | y |
+| `POST /internal/admin/users/add_credit` | `Api::Internal::Admin::UsersController#add_credit` | native | `nextjs_admin_api_users` | y |
 | `POST /internal/admin/users/watch` | `Api::Internal::Admin::UsersController#watch` | native | `nextjs_admin_api_users` | y |
 | `POST /internal/admin/users/update_watch` | `Api::Internal::Admin::UsersController#update_watch` | native | `nextjs_admin_api_users` | y |
 | `POST /internal/admin/users/unwatch` | `Api::Internal::Admin::UsersController#unwatch` | native | `nextjs_admin_api_users` | y |
-| `POST /internal/admin/users/restore_bank_payout_rail` | `Api::Internal::Admin::UsersController#restore_bank_payout_rail` | not registered | - | n |
+| `POST /internal/admin/users/restore_bank_payout_rail` | `Api::Internal::Admin::UsersController#restore_bank_payout_rail` | native | `nextjs_admin_api_users` | y |
 | `POST /internal/admin/low_balance_probation_recoveries/preview` | `Api::Internal::Admin::LowBalanceProbationRecoveriesController#preview` | native | `nextjs_admin_api_misc` | y |
 | `POST /internal/admin/low_balance_probation_recoveries/execute` | `Api::Internal::Admin::LowBalanceProbationRecoveriesController#execute` | native | `nextjs_admin_api_misc` | y |
-| `GET /internal/admin/payouts` | `Api::Internal::Admin::PayoutsController#index` | not registered | - | n |
-| `POST /internal/admin/payouts/pause` | `Api::Internal::Admin::PayoutsController#pause` | not registered | - | n |
-| `POST /internal/admin/payouts/resume` | `Api::Internal::Admin::PayoutsController#resume` | not registered | - | n |
+| `GET /internal/admin/payouts` | `Api::Internal::Admin::PayoutsController#index` | native | `nextjs_admin_api_misc` | y |
+| `POST /internal/admin/payouts/pause` | `Api::Internal::Admin::PayoutsController#pause` | native | `nextjs_admin_api_misc` | y |
+| `POST /internal/admin/payouts/resume` | `Api::Internal::Admin::PayoutsController#resume` | native | `nextjs_admin_api_misc` | y |
 | `POST /internal/admin/payouts/issue` | `Api::Internal::Admin::PayoutsController#issue` | native | `nextjs_admin_api_misc` | y |
-| `GET /internal/admin/scheduled_payouts` | `Api::Internal::Admin::ScheduledPayoutsController#index` | not registered | - | n |
+| `GET /internal/admin/scheduled_payouts` | `Api::Internal::Admin::ScheduledPayoutsController#index` | native | `nextjs_admin_api_misc` | y |
 | `POST /internal/admin/scheduled_payouts` | `Api::Internal::Admin::ScheduledPayoutsController#create` | native | `nextjs_admin_api_misc` | y |
 | `POST /internal/admin/scheduled_payouts/:id/execute` | `Api::Internal::Admin::ScheduledPayoutsController#execute` | native | `nextjs_admin_api_misc` | y |
 | `POST /internal/admin/scheduled_payouts/:id/cancel` | `Api::Internal::Admin::ScheduledPayoutsController#cancel` | native | `nextjs_admin_api_misc` | y |

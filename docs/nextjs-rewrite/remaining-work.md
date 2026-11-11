@@ -7,10 +7,10 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 | Measure | Done | Total | Share |
 | --- | ---: | ---: | ---: |
-| Routes served natively (counted, static check) | 771 | 978 | 78.8% |
-| Routes registered in routes.json (counted; upper bound, adds the 5 listed under "hands back") | 776 | 978 | 79.3% |
-| Routes weighted by difficulty (counted routes, estimated weights) | 1450 | 1857 | 78.1% |
-| Same, registered in routes.json (upper bound) | 1455 | 1857 | 78.4% |
+| Routes served natively (counted, static check) | 794 | 978 | 81.2% |
+| Routes registered in routes.json (counted; upper bound, adds the 5 listed under "hands back") | 799 | 978 | 81.7% |
+| Routes weighted by difficulty (counted routes, estimated weights) | 1519 | 1857 | 81.8% |
+| Same, registered in routes.json (upper bound) | 1524 | 1857 | 82.1% |
 | Rails Inertia pages with Node props (counted, string match) | 101 | 114 | 88.6% |
 | Sidekiq job classes running in Node (counted) | 114 | 296 | 38.5% |
 
@@ -28,7 +28,7 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 - The route share counts endpoints, and an endpoint is one row whether it is a health check or a purchase. The weighted share corrects that only as far as my weights are right.
 - Neither number measures the code under the routes. A route is counted native as soon as Node serves its common path, while its hard branches (see "Known partial hand-backs") still go to Rails. The shares therefore overstate how much of the work is finished, most for checkout, payouts, and the mobile and MCP APIs.
-- Code volume cross-check (counted, not a completion measure): Node has 118,825 non-test lines under `src/server` and `src/worker`; Rails has 197,057 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
+- Code volume cross-check (counted, not a completion measure): Node has 120,113 non-test lines under `src/server` and `src/worker`; Rails has 197,057 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
 - 283 distinct rollout flags gate the routes in routes.json; none is enabled in production.
 
 ## By workstream
@@ -44,12 +44,12 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 | WS-15 Analytics and exports | 23 | 20 | 0 | 3 | 87.0% | 26 | 21 | 80.8% |
 | WS-16 Library and content delivery | 39 | 38 | 1 | 0 | 97.4% | 51 | 50 | 98.0% |
 | WS-17 Public and mobile API | 199 | 187 | 0 | 12 | 94.0% | 359 | 338 | 94.2% |
-| WS-18 Admin | 86 | 60 | 0 | 26 | 69.8% | 254 | 180 | 70.9% |
+| WS-18 Admin | 86 | 83 | 0 | 3 | 96.5% | 254 | 249 | 98.0% |
 | WS-19 AI, MCP and moderation | 36 | 33 | 0 | 3 | 91.7% | 108 | 99 | 91.7% |
 | WS-20 Checkout and orders | 71 | 51 | 0 | 20 | 71.8% | 222 | 157 | 70.7% |
 | WS-21 Payment processors | 8 | 0 | 0 | 8 | 0.0% | 32 | 0 | 0.0% |
 | WS-23 Balances and payouts | 25 | 25 | 0 | 0 | 100.0% | 74 | 74 | 100.0% |
-| **All** | 978 | 771 | 5 | 202 | 78.8% | 1857 | 1450 | 78.1% |
+| **All** | 978 | 794 | 5 | 179 | 81.2% | 1857 | 1519 | 81.8% |
 
 ## Sensitivity to the weights
 
@@ -57,10 +57,10 @@ The weights are the soft part of this inventory, so here is the headline under o
 
 | Scheme | Native weight | Total weight | Share |
 | --- | ---: | ---: | ---: |
-| Every route counts 1 (the plain route share) | 771 | 978 | 78.8% |
-| Verb only: GET 1, other verbs 2 | 1117 | 1427 | 78.3% |
-| Rubric weights 1 to 4 (the headline) | 1450 | 1857 | 78.1% |
-| Rubric weights doubled per step: 1, 2, 4, 8 | 1686 | 2194 | 76.8% |
+| Every route counts 1 (the plain route share) | 794 | 978 | 81.2% |
+| Verb only: GET 1, other verbs 2 | 1155 | 1427 | 80.9% |
+| Rubric weights 1 to 4 (the headline) | 1519 | 1857 | 81.8% |
+| Rubric weights doubled per step: 1, 2, 4, 8 | 1778 | 2194 | 81.0% |
 
 ## By weight
 
@@ -68,7 +68,7 @@ The weights are the soft part of this inventory, so here is the headline under o
 | ---: | ---: | ---: | ---: |
 | 1 | 386 | 304 | 78.8% |
 | 2 | 330 | 267 | 80.9% |
-| 3 | 237 | 188 | 79.3% |
+| 3 | 237 | 211 | 89.0% |
 | 4 | 25 | 12 | 48.0% |
 
 ## By controller
@@ -77,7 +77,6 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 
 | Controller | Workstream | Routes | Native | Hands back | Not registered | Weight | Remaining weight |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `Api::Internal::Admin::UsersController` | WS-18 Admin | 26 | 10 | 0 | 16 | 3 (78) | 48 |
 | `User::OmniauthCallbacksController` | WS-10 Settings and account | 30 | 2 | 0 | 28 | 1/2 (45) | 42 |
 | `ForeignWebhooksController` | WS-21 Payment processors | 8 | 0 | 0 | 8 | 4 (32) | 32 |
 | `OrdersController` | WS-20 Checkout and orders | 5 | 0 | 0 | 5 | 4 (20) | 20 |
@@ -85,7 +84,6 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `HomeController` | WS-11 Help, pages, blog, profiles | 12 | 1 | 0 | 11 | 1 (12) | 11 |
 | `TwoFactorAuthenticationController` | WS-10 Settings and account | 7 | 1 | 0 | 6 | 1/2 (12) | 11 |
 | `Products::RemainingCallAvailabilitiesController` | WS-12 Products and bundles | 7 | 0 | 1 | 6 | 1/2 (10) | 10 |
-| `Api::Internal::Admin::PayoutsController` | WS-18 Admin | 4 | 1 | 0 | 3 | 3/4 (13) | 9 |
 | `Api::V2::McpController` | WS-19 AI, MCP and moderation | 17 | 14 | 0 | 3 | 3 (51) | 9 |
 | `Integrations::GoogleCalendarController` | WS-10 Settings and account | 3 | 0 | 0 | 3 | 3 (9) | 9 |
 | `PurchasesController` | WS-20 Checkout and orders | 18 | 15 | 0 | 3 | 3/4 (57) | 9 |
@@ -105,11 +103,7 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `PublicController` | WS-11 Help, pages, blog, profiles | 11 | 7 | 0 | 4 | 1/2 (12) | 4 |
 | `Settings::PasskeysController` | WS-10 Settings and account | 4 | 2 | 0 | 2 | 2 (8) | 4 |
 | `User::PasswordsController` | WS-10 Settings and account | 5 | 3 | 0 | 2 | 1/2 (8) | 4 |
-| `Api::Internal::Admin::FeatureAnnouncementCampaignsController` | WS-18 Admin | 8 | 7 | 0 | 1 | 3 (24) | 3 |
-| `Api::Internal::Admin::PurchasesController` | WS-18 Admin | 12 | 11 | 0 | 1 | 3/4 (39) | 3 |
-| `Api::Internal::Admin::ScheduledPayoutsController` | WS-18 Admin | 4 | 3 | 0 | 1 | 3/4 (13) | 3 |
-| `Api::Internal::Admin::StrandedBuyersController` | WS-18 Admin | 2 | 1 | 0 | 1 | 3 (6) | 3 |
-| `Api::Internal::Admin::StripeRestraintNoticesController` | WS-18 Admin | 1 | 0 | 0 | 1 | 3 (3) | 3 |
+| `Api::Internal::Admin::UsersController` | WS-18 Admin | 26 | 25 | 0 | 1 | 3 (78) | 3 |
 | `Api::Internal::AgentCustomHtmlPreviewsController` | WS-17 Public and mobile API | 2 | 0 | 0 | 2 | 1/2 (3) | 3 |
 | `CheckoutController` | WS-20 Checkout and orders | 2 | 1 | 0 | 1 | 3 (6) | 3 |
 | `Checkout::ReturnsController` | WS-20 Checkout and orders | 1 | 0 | 0 | 1 | 3 (3) | 3 |
@@ -166,11 +160,17 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `AgentController` | WS-19 AI, MCP and moderation | 1 | 1 | 0 | 0 | 3 (3) | 0 |
 | `AnalyticsController` | WS-15 Analytics and exports | 4 | 4 | 0 | 0 | 1 (4) | 0 |
 | `Api::Internal::Admin::AuthController` | WS-18 Admin | 3 | 3 | 0 | 0 | 3 (9) | 0 |
+| `Api::Internal::Admin::FeatureAnnouncementCampaignsController` | WS-18 Admin | 8 | 8 | 0 | 0 | 3 (24) | 0 |
 | `Api::Internal::Admin::LicensesController` | WS-18 Admin | 1 | 1 | 0 | 0 | 3 (3) | 0 |
 | `Api::Internal::Admin::LowBalanceProbationRecoveriesController` | WS-18 Admin | 2 | 2 | 0 | 0 | 3 (6) | 0 |
+| `Api::Internal::Admin::PayoutsController` | WS-18 Admin | 4 | 4 | 0 | 0 | 3/4 (13) | 0 |
 | `Api::Internal::Admin::PiracyReportsController` | WS-18 Admin | 7 | 7 | 0 | 0 | 3 (21) | 0 |
 | `Api::Internal::Admin::ProductsController` | WS-18 Admin | 5 | 5 | 0 | 0 | 3 (15) | 0 |
+| `Api::Internal::Admin::PurchasesController` | WS-18 Admin | 12 | 12 | 0 | 0 | 3/4 (39) | 0 |
+| `Api::Internal::Admin::ScheduledPayoutsController` | WS-18 Admin | 4 | 4 | 0 | 0 | 3/4 (13) | 0 |
 | `Api::Internal::Admin::SendgridEmailsController` | WS-18 Admin | 2 | 2 | 0 | 0 | 3 (6) | 0 |
+| `Api::Internal::Admin::StrandedBuyersController` | WS-18 Admin | 2 | 2 | 0 | 0 | 3 (6) | 0 |
+| `Api::Internal::Admin::StripeRestraintNoticesController` | WS-18 Admin | 1 | 1 | 0 | 0 | 3 (3) | 0 |
 | `Api::Internal::Admin::UrlRedirectsController` | WS-18 Admin | 3 | 3 | 0 | 0 | 3 (9) | 0 |
 | `Api::Internal::Admin::WhoamiController` | WS-18 Admin | 1 | 1 | 0 | 0 | 3 (3) | 0 |
 | `Api::Internal::AgentConversationsController` | WS-17 Public and mobile API | 3 | 3 | 0 | 0 | 1 (3) | 0 |
