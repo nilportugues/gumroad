@@ -14,7 +14,8 @@ export type ThrottleRule = {
   kind: "ip" | "ip_for_period" | "ip_and_params";
   // Ruby's Regexp#source of a regexp path, or the literal path. The rule name embeds Regexp#to_s of it.
   path: { regexpSource: string } | { literal: string };
-  method: "get" | "post" | "put" | "patch" | "delete";
+  // Absent: every method counts, and the name has no method suffix.
+  method?: "get" | "post" | "put" | "patch" | "delete";
   requests: number;
   periodSeconds: number;
   maxLevel?: number;
@@ -30,7 +31,7 @@ type Tier = { name: string; limit: number; period: number };
 export function throttleName(rule: ThrottleRule): string {
   const prefix = { ip: "/ip", ip_for_period: "/ip/period", ip_and_params: "/ip/params" }[rule.kind];
   const path = "literal" in rule.path ? rule.path.literal : `(?-mix:${rule.path.regexpSource})`;
-  return `${prefix}:${path}:${rule.method}`;
+  return rule.method === undefined ? `${prefix}:${path}` : `${prefix}:${path}:${rule.method}`;
 }
 
 // `throttle_with_exponential_backoff`: the base window, then a window of 8**level seconds at rpm * level requests for each further level.
@@ -87,7 +88,8 @@ export async function throttleRequest(
 ): Promise<ThrottleOutcome> {
   if (isLocalhost(input.ip)) return { throttled: false };
   for (const rule of rules) {
-    if (input.method.toLowerCase() !== rule.method || !pathMatches(rule, input.pathname)) continue;
+    if ((rule.method !== undefined && input.method.toLowerCase() !== rule.method) || !pathMatches(rule, input.pathname))
+      continue;
     if (rule.productionOnly && railsEnv() !== "production") continue;
     const identifier =
       rule.param === undefined ? input.ip : `${input.ip}:${String(rule.param(input.params ?? {}) ?? "")}`;

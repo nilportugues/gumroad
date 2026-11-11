@@ -4,7 +4,7 @@
 // Refused with NotPortedError rather than approximated: a follow that leaves the old newsletter of a seller with a
 // FeatureAnnouncementNewsletterCutover row (record_feature_announcements_opt_out), a follow that would become active under
 // such a seller (newsletter_not_retired), and an audience member row that is locked by another writer
-// (RefreshAudienceMemberJob fallback). Creating a follower, changing an email, and `schedule_workflow_jobs` are not ported.
+// (RefreshAudienceMemberJob fallback). Changing the email of a saved follower and `schedule_workflow_jobs` are not ported.
 import { randomUUID } from "node:crypto";
 
 import { Prisma, type Follower } from "@prisma/client";
@@ -107,7 +107,9 @@ const updateAudienceMemberDetails: Callback<Follower> = {
   name: "update_audience_member_details",
   async run(record) {
     if (!record.savedChanges.confirmed_at && !record.savedChanges.email) return;
-    if (record.savedChanges.email)
+    // `previously_new_record?`: a created follower has nothing under an earlier email to remove.
+    const created = record.savedChanges.created_at !== undefined;
+    if (record.savedChanges.email && !created)
       throw new NotPortedError("Changing the email of a follower", "app/models/concerns/follower/audience_member.rb");
     try {
       if (!shouldBeAudienceMember(record)) return await removeFromAudienceMemberDetails(record, record.get("email")!);
@@ -156,6 +158,16 @@ export const Followers = defineModel<Follower>({
       run(record) {
         if (record.get("confirmed_at") !== null && record.get("deleted_at") !== null)
           record.errors.add("base", "Can't be both confirmed and deleted");
+      },
+    },
+    {
+      name: "double_follow_validation",
+      if: (record) => record.newRecord,
+      async run(record) {
+        const rows = await selectRows<unknown>(
+          Prisma.sql`SELECT 1 AS one FROM ${table(FOLLOWERS)} WHERE ${column(FOLLOWERS, "followed_id")} = ${record.get("followed_id")} AND ${column(FOLLOWERS, "email")} = ${record.get("email")} LIMIT 1`,
+        );
+        if (rows.length > 0) record.errors.add("base", "You are already following this creator.");
       },
     },
     {

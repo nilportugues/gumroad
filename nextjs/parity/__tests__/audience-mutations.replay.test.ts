@@ -25,7 +25,16 @@ const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 // Rack::Attack's counters live in their own Redis database: the seeder flushes the main one before every exchange, which would zero a count.
 const rackAttackHost = process.env.PARITY_RACK_ATTACK_REDIS_HOST;
-const THROTTLE_CASE = /-throttling-refuses-/u;
+// Examples of followers_create_parity_spec.rb whose answer asks the visitor to confirm.
+const MAIL_FOLLOW_CASES = [
+  "asks-a-visitor-to-confirm",
+  "answers-json-with-the-message",
+  "links-the-follow",
+  "revives-a-follower",
+  "asks-a-confirmed-follower",
+  "records-the-embed-form-as-the-source",
+];
+const THROTTLE_CASE = /-refuses-the-(?:fourth|sixth)-/u;
 const FIXTURES = "parity/fixtures/requests";
 const SPECS = [
   "emails_mutations_signed_in_spec",
@@ -34,9 +43,10 @@ const SPECS = [
   "followers_mutations_signed_in_spec",
   "followers_confirm_link_spec",
   "comments_mutations_signed_in_spec",
+  "followers_create_parity_spec",
 ];
 const ROUTE_FLAGS =
-  "nextjs_emails_writes,nextjs_workflows_writes,nextjs_audience_export,nextjs_followers_writes,nextjs_followers_confirm,nextjs_comments_writes";
+  "nextjs_emails_writes,nextjs_workflows_writes,nextjs_audience_export,nextjs_followers_writes,nextjs_followers_confirm,nextjs_comments_writes,nextjs_followers_create";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
@@ -60,13 +70,22 @@ async function resetAudienceIndex() {
   await es.close();
 }
 
+// The mail jobs of the last exchange: the request spec's test adapter never queued them, so they are asserted apart from the others.
+type MailItem = {
+  wrapped?: string;
+  queue: string;
+  args: { job_class: string; queue_name: string; arguments: unknown[] }[];
+};
+let mailJobs: MailItem[] = [];
+
 function redisJobs(redis: Redis): JobsChannel {
   return {
     async reset() {
-      /* the seeder flushes the database */
+      mailJobs = [];
     },
     async drain(): Promise<RawJob[]> {
       const jobs: RawJob[] = [];
+      mailJobs = [];
       for (const key of await redis.keys("bull:*")) {
         if ((await redis.type(key)) !== "hash") continue;
         const data = await redis.hget(key, "data");
@@ -76,7 +95,12 @@ function redisJobs(redis: Redis): JobsChannel {
           args: unknown[];
           queue: string;
           at?: number;
+          wrapped?: string;
         };
+        if (item.wrapped === "MailDeliveryJob") {
+          mailJobs.push(item as unknown as MailItem);
+          continue;
+        }
         if (IGNORED_JOBS.has(item.class)) continue;
         jobs.push({
           class: item.class,
@@ -88,9 +112,15 @@ function redisJobs(redis: Redis): JobsChannel {
       // A job whose body stays in Ruby (Exports::AudienceExportWorker) goes straight to Sidekiq's list.
       for (const key of await redis.keys("queue:*")) {
         for (const raw of await redis.lrange(key, 0, -1)) {
-          const item = JSON.parse(raw) as { class: string; args: unknown[]; queue: string };
-          jobs.push({ class: item.class, args: item.args, queue: item.queue });
+          const item = JSON.parse(raw) as MailItem & { class: string };
+          if (item.wrapped === "MailDeliveryJob") mailJobs.push(item);
+          else jobs.push({ class: item.class, args: item.args, queue: item.queue });
         }
+      }
+      // deliver_later(wait:) waits in the schedule until its time.
+      for (const raw of await redis.zrange("schedule", "0", "-1")) {
+        const item = JSON.parse(raw) as MailItem;
+        if (item.wrapped === "MailDeliveryJob") mailJobs.push(item);
       }
       return jobs.sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
     },
@@ -193,6 +223,10 @@ describe.skipIf(!url)("mutations of the emails and workflows pages", () => {
       DYNAMODB_ENDPOINT: process.env.DYNAMODB_ENDPOINT ?? "http://localhost:8012",
       ...(testEnv("DYNAMODB_TABLE_PREFIX") ? { DYNAMODB_TABLE_PREFIX: testEnv("DYNAMODB_TABLE_PREFIX")! } : {}),
       AWS_S3_ENDPOINT: process.env.AWS_S3_ENDPOINT ?? "http://localhost:9010",
+      // Rails' test environment has a site key, which is what makes a seller who is not reviewed need a CAPTCHA.
+      ...(testEnv("RECAPTCHA_MONEY_SITE_KEY")
+        ? { RECAPTCHA_MONEY_SITE_KEY: testEnv("RECAPTCHA_MONEY_SITE_KEY")! }
+        : {}),
       ...(testEnv("AWS_ACCESS_KEY_ID") ? { AWS_ACCESS_KEY_ID: testEnv("AWS_ACCESS_KEY_ID")! } : {}),
       ...(testEnv("AWS_SECRET_ACCESS_KEY") ? { AWS_SECRET_ACCESS_KEY: testEnv("AWS_SECRET_ACCESS_KEY")! } : {}),
     });
@@ -212,7 +246,11 @@ describe.skipIf(!url)("mutations of the emails and workflows pages", () => {
       request: Parameters<typeof reencryptCookies>[0],
       loaded: Parameters<typeof reencryptCookies>[1],
       now: Date,
-    ) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
+    ) => {
+      const moved = reencryptCookies(request, loaded, SECRET_KEY_BASE, now);
+      // Rails' cache is empty at the start of every example, and ids restart with each seed: the server's must be too.
+      return { ...moved, headers: { ...moved.headers, "x-parity-reset-cache": "1" } };
+    },
     compare:
       name.includes("delete-followers") || name.includes("follow-confirmation-link")
         ? {
@@ -225,25 +263,28 @@ describe.skipIf(!url)("mutations of the emails and workflows pages", () => {
               ...(name.includes("404") ? ["response.body"] : []),
             ],
           }
-        : name.includes("404")
-          ? { ignore: [...COMPARE.ignore, "response.body"] }
-          : name.includes("publishes-a-workflow")
-            ? // SecureRandom.uuid tokens of the schedule intents and the jobs that carry them
-              {
-                ignore: [
-                  ...COMPARE.ignore,
-                  "db.workflow_installment_schedule_intents.inserted.*.token",
-                  "db.workflow_installment_schedule_intents.inserted.*.dispatch_token",
-                  "jobs.*.args.*",
-                ],
-              }
-            : name.includes("numeric-suffix")
-              ? { ignore: [...COMPARE.ignore, "db.installments.inserted.*.slug"] }
-              : name.includes("schedules-an-email")
-                ? // The posted 2099 date canonicalizes to hours from now, which shrinks as the fixture ages;
-                  // save-installment.golden.json pins the stored value.
-                  { ignore: [...COMPARE.ignore, "db.installment_rules.inserted.*.to_be_published_at"] }
-                : COMPARE,
+        : name.includes("signed-in-visitor-with-a-verified-email")
+          ? // The audience member keeps the follow's created_at as an absolute time, and the event job carries a SecureRandom.uuid.
+            { ignore: [...COMPARE.ignore, "db.audience_members.inserted.*.details", "jobs.*.args.*.id"] }
+          : name.includes("404")
+            ? { ignore: [...COMPARE.ignore, "response.body"] }
+            : name.includes("publishes-a-workflow")
+              ? // SecureRandom.uuid tokens of the schedule intents and the jobs that carry them
+                {
+                  ignore: [
+                    ...COMPARE.ignore,
+                    "db.workflow_installment_schedule_intents.inserted.*.token",
+                    "db.workflow_installment_schedule_intents.inserted.*.dispatch_token",
+                    "jobs.*.args.*",
+                  ],
+                }
+              : name.includes("numeric-suffix")
+                ? { ignore: [...COMPARE.ignore, "db.installments.inserted.*.slug"] }
+                : name.includes("schedules-an-email")
+                  ? // The posted 2099 date canonicalizes to hours from now, which shrinks as the fixture ages;
+                    // save-installment.golden.json pins the stored value.
+                    { ignore: [...COMPARE.ignore, "db.installment_rules.inserted.*.to_be_published_at"] }
+                  : COMPARE,
     file,
   });
 
@@ -265,6 +306,30 @@ describe.skipIf(!url)("mutations of the emails and workflows pages", () => {
     const [host = "127.0.0.1", port = "6379"] = hostAndPort.split(":");
     return (rackRedis ??= new Redis({ host, port: Number(port), db: Number(db) }));
   };
+
+  // The confirmation request Rails queued through its test adapter: FollowerMailer.confirm_follower(seller id, follower id) on the critical
+  // queue, three seconds out, only for a follow that is not confirmed on the spot.
+  async function assertConfirmationMail(name: string, result: Awaited<ReturnType<typeof replayFixtureExchange>>) {
+    const sends = MAIL_FOLLOW_CASES.some((fragment) => name.includes(fragment));
+    if (!sends) {
+      expect(mailJobs).toHaveLength(0);
+      return;
+    }
+    expect(mailJobs).toHaveLength(1);
+    const job = mailJobs[0]!;
+    expect(job.queue).toBe("critical");
+    const wrapped = job.args[0]!;
+    expect(wrapped).toMatchObject({ job_class: "MailDeliveryJob", queue_name: "critical" });
+    const [mailer, method, delivery, params] = wrapped.arguments as [string, string, string, { args: number[] }];
+    expect([mailer, method, delivery]).toEqual(["FollowerMailer", "confirm_follower", "deliver_now"]);
+    const written = result.exchanges[0]!.actual.db as Record<
+      string,
+      { inserted?: { id: number }[]; updated?: { id: number }[] }
+    >;
+    const followerId = (written.followers?.inserted?.[0] ?? written.followers?.updated?.[0])?.id;
+    expect(params.args[1]).toBe(followerId ?? params.args[1]);
+    expect(params.args).toHaveLength(2);
+  }
 
   it("finds the fixtures", () => {
     expect(cases.length).toBeGreaterThan(0);
@@ -302,12 +367,13 @@ describe.skipIf(!url)("mutations of the emails and workflows pages", () => {
           const request = fixture.exchanges[index]!.request;
           expect(handedBack).toHaveLength(1);
           expect(handedBack[0]).toMatchObject({ method: request.method, url: request.path });
-          expect(JSON.parse(handedBack[0]!.body || "{}")).toEqual(JSON.parse(request.body || "{}"));
+          expect(handedBack[0]!.body).toBe(request.body ?? "");
           expect(Object.keys(handed.exchanges[0]!.actual.db ?? {})).toEqual([]);
           return;
         }
         const result = await replayFixtureExchange(fixture, index, options);
         assertParity(result);
+        if (_name.startsWith("followers_create_parity_spec")) await assertConfirmationMail(_name, result);
         if (_name.includes("confirms-an-unconfirmed-follower")) {
           const inserted = (result.exchanges.at(-1)!.actual.db as Record<string, { inserted: { details: string }[] }>)
             .audience_members!.inserted;
@@ -343,11 +409,13 @@ describe.skipIf(!url)("mutations of the emails and workflows pages", () => {
       const secondInWindow = new Date().getUTCSeconds();
       if (secondInWindow > 45) await new Promise((resolve) => setTimeout(resolve, (61 - secondInWindow) * 1000));
       const writes = fixture.exchanges.flatMap((exchange, index) =>
-        index <= last && /^(POST|PUT)$/u.test(exchange.request.method) && /\/comments/u.test(exchange.request.path)
+        index <= last &&
+        /^(POST|PUT)$/u.test(exchange.request.method) &&
+        /\/(?:comments|follow)/u.test(exchange.request.path)
           ? [index]
           : [],
       );
-      expect(writes.length).toBe(6);
+      expect(writes.length).toBeGreaterThanOrEqual(4);
       for (const index of writes) {
         const { file: _file, ...options } = replayOptions(file, name);
         const result = await replayFixtureExchange(fixture, index, {

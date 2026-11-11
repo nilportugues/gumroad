@@ -190,25 +190,48 @@ const RULES: Rule[] = [
   { source: ["\\A/(api/)?v2/media(\\.\\w+)?\\z"], methods: ["POST"], samples: ["/v2/media", "/api/v2/media"] },
 ];
 
-// The call in rack_attack.rb that a ThrottleRule ports: same helper, path, method, limit and period.
+// The statement in rack_attack.rb that a ThrottleRule ports: same helper, path, method, limit, period and backoff depth. A statement runs on
+// while a line ends in a comma.
 function assertMirrors(rule: ThrottleRule): void {
-  if (!("regexpSource" in rule.path)) throw new Error("literal paths are checked by hand");
-  const helper = rule.kind === "ip" ? "throttle_by_ip" : "throttle_by_ip_for_period";
-  const escaped = rule.path.regexpSource.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  const call = new RegExp(
-    `${helper} path: /${escaped}/,\\s+method: :${rule.method},\\s+requests: ${rule.requests},\\s+period: ${rule.periodSeconds}\\.seconds`,
-    "u",
+  const helper = {
+    ip: "throttle_by_ip",
+    ip_for_period: "throttle_by_ip_for_period",
+    ip_and_params: "throttle_by_ip_and_params",
+  }[rule.kind];
+  const pathSource = "regexpSource" in rule.path ? `/${rule.path.regexpSource}/` : `"${rule.path.literal}"`;
+  const lines = rackAttack.split("\n");
+  const start = lines.findIndex((line) => line.includes(`${helper} path: ${pathSource}`));
+  expect(start, `${helper} path: ${pathSource}`).toBeGreaterThanOrEqual(0);
+  let end = start;
+  while (lines[end]!.replace(/#.*$/u, "").trimEnd().endsWith(",")) end++;
+  const statement = lines
+    .slice(start, end + 1)
+    .join(" ")
+    .replace(/#.*$/u, "");
+  expect(/requests: (\d+)/u.exec(statement)?.[1]).toBe(String(rule.requests));
+  expect(/period: (\d+)\.seconds/u.exec(statement)?.[1]).toBe(String(rule.periodSeconds));
+  expect(/method: :(\w+)/u.exec(statement)?.[1]).toBe(rule.method);
+  // throttle_by_ip_and_params fixes max_level at 6 inside the helper.
+  const written = /max_level: (\d+)/u.exec(statement)?.[1];
+  expect(written === undefined ? undefined : Number(written)).toBe(
+    rule.kind === "ip_and_params" ? undefined : rule.maxLevel,
   );
-  expect(rackAttack).toMatch(call);
+  if (rule.kind === "ip_and_params")
+    expect(rackAttack).toMatch(/def self\.throttle_by_ip_and_params[\s\S]*?max_level: 6/u);
+
+  if (rule.productionOnly) {
+    const before = lines.slice(0, start).join("\n");
+    expect(before.lastIndexOf("if Rails.env.production?")).toBeGreaterThan(before.lastIndexOf("\n  end\n"));
+  }
 }
 
-const throttledInNode = (name: string, rule: string, key: keyof typeof THROTTLE_RULES) => ({
+const throttledInNode = (name: string, rule: string, ...keys: (keyof typeof THROTTLE_RULES)[]) => ({
   route: name,
   rule,
   reason:
     "Node counts the rule in the same Redis keys (src/server/infra/rack-attack.ts) and uncounts a request it hands back to Rails, so the bucket is incremented once",
   check: () => {
-    assertMirrors(THROTTLE_RULES[key]);
+    for (const key of keys) assertMirrors(THROTTLE_RULES[key]);
     expect(
       readFileSync(path.join(nextjsRoot, "src/server/controllers/mutation.ts"), "utf8"),
       "mutation.ts counts before it serves",
@@ -218,6 +241,8 @@ const throttledInNode = (name: string, rule: string, key: keyof typeof THROTTLE_
 
 // Throttled, matched by a Node route, and still safe. Every entry must still match something, and say why the counter is not skipped.
 const ALLOWED: { route: string; rule: string; reason: string; check?: () => void }[] = [
+  throttledInNode("POST /follow", "/follow", "followIp", "followIpAndSeller"),
+  throttledInNode("POST /follow_from_embed_form", "/follow_from_embed_form", "followEmbedIp", "followEmbedIpAndSeller"),
   throttledInNode("POST seller:/posts/:post_id/comments", "\\A/posts/.+/comments\\z", "commentCreate"),
   throttledInNode("PUT seller:/posts/:post_id/comments/:id", "\\A/posts/.+/comments/.+\\z", "commentUpdate"),
   throttledInNode(

@@ -24,4 +24,37 @@ export const THROTTLE_RULES = {
     requests: 60,
     periodSeconds: 60,
   },
+  // Inside `if Rails.env.production?`.
+  followIp: {
+    kind: "ip",
+    path: { literal: "/follow" },
+    method: "post",
+    requests: 3,
+    periodSeconds: 20,
+    productionOnly: true,
+  },
+  followIpAndSeller: {
+    kind: "ip_and_params",
+    path: { literal: "/follow" },
+    method: "post",
+    requests: 3,
+    periodSeconds: 60,
+    maxLevel: 6,
+    param: (params) => params.seller_id,
+  },
+  followEmbedIp: {
+    kind: "ip",
+    path: { literal: "/follow_from_embed_form" },
+    requests: 3,
+    periodSeconds: 20,
+    productionOnly: true,
+  },
+  followEmbedIpAndSeller: {
+    kind: "ip_and_params",
+    path: { literal: "/follow_from_embed_form" },
+    requests: 3,
+    periodSeconds: 60,
+    maxLevel: 6,
+    param: (params) => params.seller_id,
+  },
 } as const satisfies Record<string, ThrottleRule>;

@@ -17,6 +17,8 @@ import { NotPortedError } from "../models/user.ts";
 import { NotPortedError as PageNotPortedError } from "../page-props/not-ported.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
 import { randomUUID } from "node:crypto";
+import { railsEnv } from "../infra/rails-env.ts";
+import { resetRailsCacheForTesting } from "../cache/rails-cache.ts";
 import { throttleIdentity, throttleRequest, withThrottleScope, type ThrottleRule } from "../infra/rack-attack.ts";
 
 export { MUTATION_PATH };
@@ -124,6 +126,8 @@ export function mutationResponse(incoming: Request): Promise<Response> {
 }
 
 async function serveMutation(incoming: Request): Promise<Response> {
+  // The replay harness seeds each example into an empty database, so a cache entry keyed by a row id must not outlive it.
+  if (railsEnv() === "test" && incoming.headers.has("x-parity-reset-cache")) resetRailsCacheForTesting();
   const target = incoming.headers.get(PAGE_URL_HEADER);
   if (target === null) return new Response(null, { status: 404 });
   const host = incoming.headers.get("x-forwarded-host") ?? incoming.headers.get("host") ?? "localhost";
@@ -140,7 +144,9 @@ async function serveMutation(incoming: Request): Promise<Response> {
   try {
     params = candidate.rawBody ? {} : requestParams(url, request.headers.get("content-type"), bytes);
     if (candidate.throttles !== undefined) {
-      const outcome = await throttleRequest(candidate.throttles, { pathname: url.pathname, method: request.method, ip: throttleIdentity(request.headers, remoteIp(railsRequest(request))), params });
+      // Rack::Request#params parses the query and form bodies only: a JSON body is Rails' to read, not Rack::Attack's.
+      const rackParams = /json/iu.test(request.headers.get("content-type") ?? "") ? requestParams(url, null, new Uint8Array()) : params;
+      const outcome = await throttleRequest(candidate.throttles, { pathname: url.pathname, method: request.method, ip: throttleIdentity(request.headers, remoteIp(railsRequest(request))), params: rackParams });
       if (outcome.throttled) return throttledRailsResponse(request, outcome.retryAfter);
     }
     // Pundit answers 401 JSON to a request that is not HTML.
