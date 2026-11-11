@@ -228,7 +228,7 @@ const SERVED_ROUTES = Object.keys(JSON.parse(readFileSync("routes.json", "utf8")
       string,
       string,
     ];
-    return { method, regexp: new RegExp(`^${route.replace(/^api:/u, "").replace(/:[a-z_]+/gu, "[^/.?]+")}$`) };
+    return { method, regexp: new RegExp(`^${route.replace(/^api:/u, "").replace(/:[a-z_]+/gu, "[^/.?]+")}$`, "u") };
   })
   .map(({ method, regexp }) => ({ method, regexp }));
 const served = (method: string, requestPath: string) =>

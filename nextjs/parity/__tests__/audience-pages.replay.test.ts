@@ -63,7 +63,7 @@ const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
 const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1];
 const stripeKey = /^STRIPE_PUBLIC_KEY_TEST=(.+)$/mu.exec(envTest)?.[1];
-const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "m").exec(envTest)?.[1];
+const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "mu").exec(envTest)?.[1];
 const dynamoPrefix = testEnv("DYNAMODB_TABLE_PREFIX");
 const awsAccessKeyId = testEnv("AWS_ACCESS_KEY_ID");
 const awsSecretAccessKey = testEnv("AWS_SECRET_ACCESS_KEY");

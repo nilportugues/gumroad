@@ -126,7 +126,7 @@ class Evaluator {
       default: {
         const constant = CONSTANT_SOURCES[name];
         if (!constant) throw new Error(`Unsupported ERB expression: ${this.source}`);
-        const match = new RegExp(`${constant.name}\\s*=\\s*(\\d+)`).exec(readFileSync(constant.file, "utf8"));
+        const match = new RegExp(`${constant.name}\\s*=\\s*(\\d+)`, "u").exec(readFileSync(constant.file, "utf8"));
         if (!match) throw new Error(`Cannot read ${name}`);
         return Number(match[1]);
       }

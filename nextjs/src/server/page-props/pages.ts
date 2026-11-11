@@ -263,7 +263,7 @@ export function matchPagePath(
         return "([^/.?]+)";
       })
       .join("/");
-    const match = new RegExp(`^${source}$`).exec(pathname);
+    const match = new RegExp(`^${source}$`, "u").exec(pathname);
     if (match)
       return { pattern, params: Object.fromEntries(names.map((name, i) => [name, decodeSegment(match[i + 1]!)])) };
   }

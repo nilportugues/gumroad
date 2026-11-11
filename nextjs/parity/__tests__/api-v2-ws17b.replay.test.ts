@@ -60,7 +60,7 @@ const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const realNow = () => performance.timeOrigin + performance.now();
 let clockOffset = 0;
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
-const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "m").exec(envTest)?.[1];
+const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "mu").exec(envTest)?.[1];
 
 const jobKey = (job: { class: string; args: unknown; queue?: string }) =>
   `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;

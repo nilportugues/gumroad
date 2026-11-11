@@ -79,7 +79,7 @@ const ROUTE_FLAGS = [
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
-const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "m").exec(envTest)?.[1];
+const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "mu").exec(envTest)?.[1];
 
 // `lock: :until_executed`: the Rails run holds the lock the seller's factory took before the request, so a write of the seller never pushes it again.
 const LOCKED_JOBS = new Set(["GenerateSubscribePreviewJob"]);
@@ -376,7 +376,7 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
           expect(inserted.browser_guid).toMatch(/^[0-9a-f-]{36}$/u);
           expect(
             (result.exchanges[0]!.actual.response.json as { utm_link: { short_url: string } }).utm_link.short_url,
-          ).toMatch(new RegExp(`/u/${inserted.permalink}$`));
+          ).toMatch(new RegExp(`/u/${inserted.permalink}$`, "u"));
         }
       } catch (error) {
         const logs = server
