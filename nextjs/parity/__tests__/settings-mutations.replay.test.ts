@@ -12,7 +12,7 @@ import { closeAllRedis } from "@/server/infra/redis";
 import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { ELASTICSEARCH_HOST, recreateIndex, reindexPurchases, replayIndexName } from "../src/elasticsearch";
-import { loadFixture } from "../src/fixture";
+import { loadFixture, type CapturedExchange, type Exchange } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
@@ -34,6 +34,18 @@ const ROUTE_FLAGS =
   "nextjs_settings_third_party_analytics_writes,nextjs_settings_advanced_writes,nextjs_settings_billing_writes,nextjs_settings_dismiss_ai_promo_writes,nextjs_settings_team_members_writes,nextjs_settings_payments_backtax_writes,nextjs_settings_team_invitations_writes,nextjs_settings_totp_writes";
 const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "-settings";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
+// Example name fragment, sends in the throttle's set and how long ago they were made (spec/requests/settings_team_invitations_signed_in_spec.rb).
+const THROTTLE_FILLS = [
+  ["refuses-past-the-hourly-allowance", 10, 150],
+  ["refuses-past-the-daily-allowance", 50, 7230],
+] as const;
+const EXPIRY_DAYS = 7;
+// Example name fragment, and the email of the invitation the enqueued TeamMailer.invite names.
+const MAIL_CASES: Record<string, string> = {
+  "creates-the-invitation-expiring": "new@example.com",
+  "does-not-count-invitations-against": "new@example.com",
+  "extends-the-expiry-and-enqueues": "invitee@example.com",
+};
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
 const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "m").exec(envTest)?.[1];
@@ -59,23 +71,29 @@ function withoutLockedRepeats<T extends { class: string; args: unknown; queue?: 
 const jobKey = (job: { class: string; args: unknown; queue?: string }) =>
   `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
 
+type SidekiqItem = { class: string; args: unknown[]; queue: string; at?: number; wrapped?: string };
+
+// A request spec's ActiveJob adapter is the test one, so Rails' mail deliveries are not in the fixtures: the replay reads Node's back and
+// asserts them separately.
+let mailJobs: SidekiqItem[] = [];
+
 function redisJobs(redis: Redis): JobsChannel {
   return {
     async reset() {
-      /* the seeder flushes the database */
+      mailJobs = [];
     },
     async drain(): Promise<RawJob[]> {
       const jobs: RawJob[] = [];
+      mailJobs = [];
       for (const key of await redis.keys("bull:*")) {
         if ((await redis.type(key)) !== "hash") continue;
         const data = await redis.hget(key, "data");
         if (data === null) continue;
-        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as {
-          class: string;
-          args: unknown[];
-          queue: string;
-          at?: number;
-        };
+        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as SidekiqItem;
+        if (item.wrapped === "MailDeliveryJob") {
+          mailJobs.push(item);
+          continue;
+        }
         if (IGNORED_JOBS.has(item.class)) continue;
         jobs.push({
           class: item.class,
@@ -87,8 +105,9 @@ function redisJobs(redis: Redis): JobsChannel {
       // Jobs of a class Ruby still runs sit in Sidekiq's own lists and schedule.
       for (const key of await redis.keys("queue:*")) {
         for (const raw of await redis.lrange(key, 0, -1)) {
-          const item = JSON.parse(raw) as { class: string; args: unknown[]; queue: string };
-          if (!IGNORED_JOBS.has(item.class)) jobs.push({ class: item.class, args: item.args, queue: item.queue });
+          const item = JSON.parse(raw) as SidekiqItem;
+          if (item.wrapped === "MailDeliveryJob") mailJobs.push(item);
+          else if (!IGNORED_JOBS.has(item.class)) jobs.push({ class: item.class, args: item.args, queue: item.queue });
         }
       }
       for (const raw of await redis.zrange("schedule", "0", "-1")) {
@@ -121,6 +140,13 @@ const COMPARE = {
     "db.blocked_customer_objects.updated.*.changes.updated_at",
     "db.billing_details.updated.*.changes.updated_at",
     "db.team_memberships.updated.*.changes.updated_at",
+    // An invitation expires at the end of the day a week out: the recorded offset from the request depends on the hour it was
+    // recorded at. assertSend checks the day and the microseconds.
+    "db.team_invitations.inserted.*.expires_at",
+    "db.team_invitations.updated.*.changes.expires_at",
+    // The throttle's clock is Redis': assertSend checks the header equals the body and sits in the window the fill implies.
+    "response.headers.retry-after",
+    "response.json.retry_after",
     // Delayed jobs are scheduled seconds ahead of the clock, which the replay normalizes to the nearest bucket.
     "jobs.*.at",
     "http",
@@ -204,6 +230,7 @@ describe.skipIf(!url)("mutations of the settings pages", () => {
       async reset(entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0], exchange?: unknown) {
         await redisSeeder(redis).reset(entries);
         if (!exchange) return;
+        await seedSendThrottle(name, exchange as Exchange);
         // The AI promo's eligibility sums the seller's sales in Elasticsearch.
         const purchases = { model: "Purchase", name: replayIndexName("purchases", ES_INDEX_SUFFIX) } as const;
         await recreateIndex(es, purchases);
@@ -223,6 +250,20 @@ describe.skipIf(!url)("mutations of the settings pages", () => {
     file,
   });
 
+  // The send throttle is a sorted set, which a recording does not hold: refill what the example's setup put there.
+  async function seedSendThrottle(name: string, exchange: Exchange) {
+    const fill = THROTTLE_FILLS.find(([fragment]) => name.includes(fragment));
+    if (!fill) return;
+    const [, count, secondsAgo] = fill;
+    const seller = exchange.seed.tables.users?.rows.find((row) => row.username === "teaminvites");
+    for (let index = 0; index < count; index++)
+      await redis.zadd(
+        `team_invitation_send_throttle:${String(seller!.id)}`,
+        Date.now() / 1000 - secondsAgo,
+        `send${index}`,
+      );
+  }
+
   afterAll(async () => {
     await server?.stop();
     rails?.close();
@@ -232,6 +273,46 @@ describe.skipIf(!url)("mutations of the settings pages", () => {
     await client?.$disconnect();
     process.env = saved;
   });
+
+  // What the comparison skips for a send: the mail job (class, queue and arguments), the expiry and the throttle's retry time.
+  async function assertSend(name: string, actual: CapturedExchange) {
+    if (!name.startsWith("settings_team_invitations_signed_in_spec")) return;
+    const mailEmail = Object.entries(MAIL_CASES).find(([fragment]) => name.includes(fragment))?.[1];
+    if (mailEmail === undefined) {
+      expect(mailJobs).toHaveLength(0);
+    } else {
+      expect(mailJobs).toHaveLength(1);
+      const job = mailJobs[0]!;
+      expect(job.queue).toBe("default");
+      const wrapped = (job.args as { job_class: string; queue_name: string; arguments: unknown[] }[])[0]!;
+      expect(wrapped).toMatchObject({ job_class: "MailDeliveryJob", queue_name: "default" });
+      const [mailer, method, delivery, params] = wrapped.arguments as [
+        string,
+        string,
+        string,
+        { args: { _aj_globalid: string }[]; _aj_ruby2_keywords: string[] },
+      ];
+      expect([mailer, method, delivery]).toEqual(["TeamMailer", "invite", "deliver_now"]);
+      expect(params._aj_ruby2_keywords).toEqual(["args"]);
+      expect(params.args).toHaveLength(1);
+      const id = /^gid:\/\/gumroad\/TeamInvitation\/(\d+)$/u.exec(params.args[0]!._aj_globalid)?.[1];
+      const row = await client.teamInvitation.findUniqueOrThrow({ where: { id: BigInt(id!) } });
+      expect(row.email).toBe(mailEmail);
+      const expected = new Date(Date.now() + EXPIRY_DAYS * 86_400_000);
+      expect(row.expires_at.toISOString().slice(0, 10)).toBe(expected.toISOString().slice(0, 10));
+      // The datetime(6) column keeps the end of the day as Ruby wrote it.
+      const [stored] = await client.$queryRaw<
+        { expires_at: string }[]
+      >`SELECT CAST(expires_at AS CHAR) AS expires_at FROM team_invitations WHERE id = ${BigInt(id!)}`;
+      expect(stored!.expires_at).toMatch(/ 23:59:59\.999999$/u);
+    }
+    if (!/refuses-past-the-/u.test(name)) return;
+    const retryAfter = (actual.response.json as { retry_after: number }).retry_after;
+    expect(actual.response.headers["retry-after"]).toBe(String(retryAfter));
+    const [low, high] = name.includes("hourly") ? [3400, 3500] : [79_000, 79_200];
+    expect(retryAfter).toBeGreaterThanOrEqual(low);
+    expect(retryAfter).toBeLessThanOrEqual(high);
+  }
 
   it("finds the fixtures", () => {
     expect(cases.length).toBeGreaterThan(0);
@@ -280,6 +361,7 @@ describe.skipIf(!url)("mutations of the settings pages", () => {
         }
         const result = await replayFixtureExchange(fixture, index, options);
         assertParity(result);
+        await assertSend(_name, result.exchanges[0]!.actual);
       } catch (error) {
         const logs = server
           .output()

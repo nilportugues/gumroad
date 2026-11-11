@@ -1,17 +1,26 @@
 // Settings::Team::InvitationsController (app/controllers/settings/team/invitations_controller.rb): #update, #destroy and #restore, the
 // refusals that come before a send in #create and #resend_invitation, and #accept up to the point where it joins the team.
 //
-// Handed to Rails before the first write: everything that would send an invitation (the seller's row lock, the unreviewed cap, the
-// Redis send throttle and its burst report, the save and TeamMailer.invite), the join of #accept (switch_seller_account, the
-// membership and TeamMailer.invitation_accepted), and an invitation email that passes EMAIL_REGEX but is not a bare dot-atom
-// mailbox, which Mail::AddressList has to parse.
+// Handed to Rails before the first write: the join of #accept (switch_seller_account, the membership and
+// TeamMailer.invitation_accepted), and an invitation email that passes EMAIL_REGEX but is not a bare dot-atom mailbox, which
+// Mail::AddressList has to parse.
 import type { TeamInvitation } from "@prisma/client";
 
 import * as Routes from "@/lib/navigation/routes";
 
 import { decrypt } from "../../lib/obfuscate-ids.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
+import { afterCommitEverywhere } from "../models/concerns/job-runtime.ts";
 import type { ModelRecord } from "../models/runtime/record.ts";
+import {
+  checkSendThrottle,
+  deliverInvite,
+  invitationExpiry,
+  invitationLimitMessage,
+  reportInvitationBurst,
+  UNREVIEWED_TOTAL_LIMIT,
+  unreviewedLimitReached,
+} from "../models/team-invitation-throttle.ts";
 import {
   invitationById,
   isAccepted,
@@ -19,10 +28,11 @@ import {
   isExpired,
   matchesOwnerEmail,
   sellerInvitationById,
+  singleMailboxEmail,
   TeamInvitationDeletable,
   TeamInvitations,
 } from "../models/team-invitation.ts";
-import { findUser, isAccountActive, isConfirmed, isValidEmailFormat, Users } from "../models/user.ts";
+import { findUser, isAccountActive, isConfirmed, Users, type UserRecord } from "../models/user.ts";
 import { notAllowedMessage } from "../page-props/settings/guard.ts";
 import { NotAuthorizedError, loadSellerContext, type SellerContext } from "../policies/seller-context.ts";
 import { settingsTeamInvitationPolicy } from "../policies/settings/team-invitation.ts";
@@ -36,8 +46,10 @@ const NOT_FOUND = 404;
 const FORBIDDEN = 403;
 const UNAUTHORIZED = 401;
 const UNPROCESSABLE = 422;
+const TOO_MANY_REQUESTS = 429;
 const FOUND = 302;
 const INACTIVE_SENDER_MESSAGE = "Your account can't send team invitations right now.";
+const UNREVIEWED_LIMIT_MESSAGE = `New accounts can have up to ${UNREVIEWED_TOTAL_LIMIT} team invitations while the account is being reviewed. Please contact support if you need more.`;
 const INVALID_LINK_MESSAGE = "Invitation link is invalid. Please contact the account owner.";
 // The constraint Rails' default `:id` segment gives an external id, and the `.json` the team routes require (`format: :json`).
 const INVITATION = "/settings/team/invitations/:id([A-Za-z0-9_=-]+).json";
@@ -92,12 +104,12 @@ function authorized(
 }
 
 // `refuse_inactive_sender`: suspension does not log the seller out.
+const inactiveSender = (paramsRead: boolean) =>
+  jsonResponse({ success: false, error_message: INACTIVE_SENDER_MESSAGE }, FORBIDDEN, paramsRead);
+
 function refusal(input: MutationInput, paramsRead: boolean): ActionResult | null {
   if (isAccountActive(Users.load(input.context.currentSeller!))) return null;
-  return {
-    ...jsonResponse({ success: false, error_message: INACTIVE_SENDER_MESSAGE }, FORBIDDEN, paramsRead),
-    rescued: true,
-  };
+  return { ...inactiveSender(paramsRead), rescued: true };
 }
 
 // `set_team_invitation` (`current_seller.team_invitations.find_by_external_id(params[:id]) || e404_json`).
@@ -148,21 +160,41 @@ const restoreInvitation = (input: MutationInput) =>
     (await TeamInvitationDeletable.markUndeleted(invitation)) ? success() : failure(invitation),
   );
 
-// An invalid email is the one refusal of #resend_invitation that precedes the throttle; a valid one sends.
+// `throttle_invitation_sends`: the 429 for a restricted seller, whose burst is reported once; null once a send is reserved.
+async function throttleSends(seller: UserRecord): Promise<ActionResult | null> {
+  const restriction = await checkSendThrottle(seller.get("id"));
+  if (restriction === null) return null;
+  const refused: ActionResult = {
+    ...jsonResponse(
+      {
+        error: invitationLimitMessage(restriction.window, restriction.limit, restriction.retry_after),
+        retry_after: restriction.retry_after,
+      },
+      TOO_MANY_REQUESTS,
+      true,
+    ),
+    headers: { "Retry-After": String(restriction.retry_after) },
+  };
+  await reportInvitationBurst(seller, restriction);
+  return refused;
+}
+
 const resendInvitation = (input: MutationInput) =>
   invitationAction(
     input,
     { refuseInactive: true, query: settingsTeamInvitationPolicy.resendInvitation },
-    (invitation) => {
-      if (!isValidEmailFormat(invitation.get("email")))
-        return Promise.resolve(
-          jsonResponse({ success: false, error_message: "Email is invalid" }, UNPROCESSABLE, true),
-        );
-      throw new HandBackToRails("resending a team invitation, which sends mail");
+    async (invitation) => {
+      // Throws NotPortedError for a mailbox only Mail can read, handing the request back before the throttle reserves a send.
+      if (!singleMailboxEmail(invitation.get("email")))
+        return jsonResponse({ success: false, error_message: "Email is invalid" }, UNPROCESSABLE, true);
+      const throttled = await throttleSends(Users.load(input.context.currentSeller!));
+      if (throttled) return throttled;
+      if (!(await TeamInvitations.update(invitation, { expires_at: invitationExpiry() }))) return failure(invitation);
+      await deliverInvite(invitation.get("id"));
+      return success();
     },
   );
 
-// Whatever #create does after `team_invitation.valid?` takes the seller's lock and sends, so only the validation failure is answered.
 const createInvitation = (input: MutationInput) =>
   sellerJsonAction(
     input,
@@ -175,9 +207,27 @@ const createInvitation = (input: MutationInput) =>
         seller_id: input.context.currentSeller!.id,
         email: email ?? null,
         role: role ?? null,
+        expires_at: invitationExpiry(),
       } as Partial<TeamInvitation>);
-      if (await TeamInvitations.valid(invitation)) throw new HandBackToRails("sending a team invitation");
-      return failure(invitation);
+      if (!(await TeamInvitations.valid(invitation))) return failure(invitation);
+
+      // The unreviewed cap counts the seller's invitations and then inserts one, so both run under the seller's row lock.
+      // Suspension is read again under it because it does not roll back a request already in flight.
+      const seller = Users.load(input.context.currentSeller!);
+      return Users.withLock(seller, async (): Promise<ActionResult> => {
+        if (!isAccountActive(seller)) return inactiveSender(true);
+        if (await unreviewedLimitReached(seller)) {
+          await reportInvitationBurst(seller, { window: "account", limit: UNREVIEWED_TOTAL_LIMIT });
+          // Shaped like a validation failure so the settings page shows the message instead of its generic error.
+          return jsonResponse({ success: false, error_message: UNREVIEWED_LIMIT_MESSAGE }, 200, true);
+        }
+        const throttled = await throttleSends(seller);
+        if (throttled) return throttled;
+        if (!(await TeamInvitations.save(invitation))) return failure(invitation);
+        // ActiveJob's Sidekiq adapter enqueues once the transaction has committed.
+        await afterCommitEverywhere(() => deliverInvite(invitation.get("id")));
+        return success();
+      });
     },
   );
 
