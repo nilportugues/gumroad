@@ -265,8 +265,8 @@ fixture or golden that covers the behaviour, or with the covering check not run.
    not been run; `ws12b.replay.test.ts` and `mobile-api.replay.test.ts` cover them. `Licenses` writes a
    PaperTrail version (`disabled_at`, `serial`) that the replay cannot compare (above). `License#rotate!`, license
    creation are not ported. The public API `licenses#verify|enable|disable|decrement_uses_count|rotate` run in
-   Node for a plain purchase (`nextjs_api_v2_licenses`, 71 request-spec fixtures replayed by `api-v2-ws17c.replay`);
-   the 53 `controllers/api/v2/licenses_controller_spec` fixtures still have no replay.
+   Node for a plain purchase (`nextjs_api_v2_licenses`, 71 request-spec fixtures replayed by `api-v2-ws17c.replay`;
+   the 53 `controllers/api/v2/licenses_controller_spec` fixtures, 61 exchanges, replay in `api-v2-ws17b.replay` and all pass).
    The N-Z v2 writes (`offer_codes`, `upsells`, `resource_subscriptions#create|test_event`, `thumbnails`, `product_builds#deploy|promote`,
    `tax_forms#download`) answer only their guards in Node; the writes hand back whole (`*_writes_parity_spec`, `thumbnails_parity_spec`,
    `tax_forms_download_parity_spec`), so the Rails side of those is proven only by the Rails specs.
