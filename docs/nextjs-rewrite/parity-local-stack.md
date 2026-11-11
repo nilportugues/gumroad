@@ -41,6 +41,8 @@ ELASTICSEARCH_HOST=http://<es-ip>:9200 AWS_S3_ENDPOINT=http://localhost:9010 DYN
 npx vitest run --config parity/vitest.config.ts parity/__tests__/<file>
 ```
 
+Replays that count Rack::Attack buckets (`audience-mutations.replay`) also need `PARITY_RACK_ATTACK_REDIS_HOST=<redis-ip>:6379/<db>`, a database of their own that the test flushes.
+
 ## Traps that cost time
 
 - The purchase factories charge a card through Stripe and fail with "We couldn't charge your card". Specs that only

@@ -5,6 +5,7 @@
 //
 // Rack::Attack runs every rule in declaration order and stops at the first one over its limit, so a tripped rule leaves the later ones uncounted.
 import { db } from "../../lib/db.ts";
+import { railsEnv } from "../infra/rails-env.ts";
 import { getRedis } from "../infra/redis.ts";
 import { isValidEmailFormat } from "../models/user.ts";
 
@@ -39,7 +40,13 @@ export type Throttle = {
   limit: number;
   period: number;
   discriminator(request: RackRequest): Promise<string | null> | string | null;
+  // Inside `if Rails.env.production?` in rack_attack.rb.
+  productionOnly?: boolean;
 };
+
+// Staging and test skip these rules in Rails; RACK_ATTACK_PRODUCTION_RULES=1 turns them on to prove them against a recording.
+const productionRulesOn = () => railsEnv() === "production" || process.env.RACK_ATTACK_PRODUCTION_RULES === "1";
+const productionOnly = (rules: Throttle[]): Throttle[] => rules.map((rule) => ({ ...rule, productionOnly: true }));
 
 export type Throttled = { name: string; period: number; epochTime: number };
 
@@ -195,6 +202,16 @@ const API_V2_TOKEN_MAX_LEVEL = 6;
 
 // Listed in the order rack_attack.rb defines them, which is the order Rack::Attack counts in.
 const RULES: Throttle[] = [
+  ...productionOnly(
+    backoff(
+      "/ip:/follow:post",
+      3,
+      20,
+      5,
+      memoized((request) => (request.method === "POST" && request.path === "/follow" ? request.remoteIp : null)),
+    ),
+  ),
+  ...productionOnly(backoff("/ip:/follow_from_embed_form", 3, 20, 5, memoized(exactPathIp("/follow_from_embed_form")))),
   ...backoff("/ip:/discover", 60, 30, 5, memoized(exactPathIp("/discover"))),
   ...backoff(
     "mobile_url_redirect_download/token",
@@ -214,6 +231,28 @@ const RULES: Throttle[] = [
     5,
     memoized((request) =>
       MCP_REGISTRATION_PATH.test(request.path) && request.method === "POST" ? request.remoteIp : null,
+    ),
+  ),
+  ...backoff(
+    "/ip/params:/follow:post",
+    3,
+    60,
+    6,
+    memoized((request) =>
+      request.method === "POST" && request.path === "/follow"
+        ? `${request.remoteIp}:${interpolate(rackParams(request).seller_id)}`
+        : null,
+    ),
+  ),
+  ...backoff(
+    "/ip/params:/follow_from_embed_form",
+    3,
+    60,
+    6,
+    memoized((request) =>
+      request.path === "/follow_from_embed_form"
+        ? `${request.remoteIp}:${interpolate(rackParams(request).seller_id)}`
+        : null,
     ),
   ),
   ...backoff(
@@ -406,6 +445,7 @@ export async function evaluate(
 ): Promise<Throttled | null> {
   if (LOCALHOST_ADDRESSES.has(request.remoteIp)) return null;
   for (const rule of rules) {
+    if (rule.productionOnly && !productionRulesOn()) continue;
     const raw = await rule.discriminator(request);
     if (raw === null) continue;
     // Without a client address the rules cannot key the request the way Rails does.

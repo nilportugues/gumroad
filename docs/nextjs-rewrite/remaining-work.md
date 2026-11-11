@@ -7,10 +7,10 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 | Measure | Done | Total | Share |
 | --- | ---: | ---: | ---: |
-| Routes served natively (counted, static check) | 840 | 978 | 85.9% |
-| Routes registered in routes.json (counted; upper bound, adds the 7 listed under "hands back") | 847 | 978 | 86.6% |
-| Routes weighted by difficulty (counted routes, estimated weights) | 1616 | 1857 | 87.0% |
-| Same, registered in routes.json (upper bound) | 1623 | 1857 | 87.4% |
+| Routes served natively (counted, static check) | 842 | 978 | 86.1% |
+| Routes registered in routes.json (counted; upper bound, adds the 7 listed under "hands back") | 849 | 978 | 86.8% |
+| Routes weighted by difficulty (counted routes, estimated weights) | 1620 | 1857 | 87.2% |
+| Same, registered in routes.json (upper bound) | 1627 | 1857 | 87.6% |
 | Rails Inertia pages with Node props (counted, string match) | 102 | 114 | 89.5% |
 | Sidekiq job classes running in Node (counted) | 125 | 296 | 42.2% |
 
@@ -28,8 +28,8 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 - The route share counts endpoints, and an endpoint is one row whether it is a health check or a purchase. The weighted share corrects that only as far as my weights are right.
 - Neither number measures the code under the routes. A route is counted native as soon as Node serves its common path, while its hard branches (see "Known partial hand-backs") still go to Rails. The shares therefore overstate how much of the work is finished, most for checkout, payouts, and the mobile and MCP APIs.
-- Code volume cross-check (counted, not a completion measure): Node has 124,686 non-test lines under `src/server` and `src/worker`; Rails has 197,057 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
-- 292 distinct rollout flags gate the routes in routes.json; none is enabled in production.
+- Code volume cross-check (counted, not a completion measure): Node has 124,958 non-test lines under `src/server` and `src/worker`; Rails has 197,057 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
+- 293 distinct rollout flags gate the routes in routes.json; none is enabled in production.
 
 ## By workstream
 
@@ -39,7 +39,7 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 | WS-10 Settings and account | 180 | 135 | 2 | 43 | 75.0% | 291 | 207 | 71.1% |
 | WS-11 Help, pages, blog, profiles | 71 | 42 | 0 | 29 | 59.2% | 80 | 50 | 62.5% |
 | WS-12 Products and bundles | 141 | 113 | 4 | 24 | 80.1% | 207 | 170 | 82.1% |
-| WS-13 Audience, emails, workflows | 53 | 50 | 0 | 3 | 94.3% | 106 | 100 | 94.3% |
+| WS-13 Audience, emails, workflows | 53 | 52 | 0 | 1 | 98.1% | 106 | 104 | 98.1% |
 | WS-14 Discover and search | 4 | 3 | 0 | 1 | 75.0% | 5 | 4 | 80.0% |
 | WS-15 Analytics and exports | 23 | 23 | 0 | 0 | 100.0% | 26 | 26 | 100.0% |
 | WS-16 Library and content delivery | 39 | 38 | 1 | 0 | 97.4% | 51 | 50 | 98.0% |
@@ -49,7 +49,7 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 | WS-20 Checkout and orders | 71 | 52 | 0 | 19 | 73.2% | 222 | 160 | 72.1% |
 | WS-21 Payment processors | 8 | 8 | 0 | 0 | 100.0% | 32 | 32 | 100.0% |
 | WS-23 Balances and payouts | 25 | 25 | 0 | 0 | 100.0% | 74 | 74 | 100.0% |
-| **All** | 978 | 840 | 7 | 131 | 85.9% | 1857 | 1616 | 87.0% |
+| **All** | 978 | 842 | 7 | 129 | 86.1% | 1857 | 1620 | 87.2% |
 
 ## Sensitivity to the weights
 
@@ -57,17 +57,17 @@ The weights are the soft part of this inventory, so here is the headline under o
 
 | Scheme | Native weight | Total weight | Share |
 | --- | ---: | ---: | ---: |
-| Every route counts 1 (the plain route share) | 840 | 978 | 85.9% |
-| Verb only: GET 1, other verbs 2 | 1230 | 1427 | 86.2% |
-| Rubric weights 1 to 4 (the headline) | 1616 | 1857 | 87.0% |
-| Rubric weights doubled per step: 1, 2, 4, 8 | 1912 | 2194 | 87.1% |
+| Every route counts 1 (the plain route share) | 842 | 978 | 86.1% |
+| Verb only: GET 1, other verbs 2 | 1234 | 1427 | 86.5% |
+| Rubric weights 1 to 4 (the headline) | 1620 | 1857 | 87.2% |
+| Rubric weights doubled per step: 1, 2, 4, 8 | 1916 | 2194 | 87.3% |
 
 ## By weight
 
 | Weight | Routes | Native | Native % |
 | ---: | ---: | ---: | ---: |
 | 1 | 386 | 320 | 82.9% |
-| 2 | 330 | 284 | 86.1% |
+| 2 | 330 | 286 | 86.7% |
 | 3 | 237 | 216 | 91.1% |
 | 4 | 25 | 20 | 80.0% |
 
@@ -91,7 +91,6 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `SubscriptionsController` | WS-20 Checkout and orders | 3 | 1 | 0 | 2 | 3 (9) | 6 |
 | `CommissionsController` | WS-12 Products and bundles | 2 | 0 | 0 | 2 | 2 (4) | 4 |
 | `EmbeddedJavascriptsController` | WS-11 Help, pages, blog, profiles | 5 | 1 | 0 | 4 | 1 (5) | 4 |
-| `FollowersController` | WS-13 Audience, emails, workflows | 7 | 5 | 0 | 2 | 2 (14) | 4 |
 | `LinksController` | WS-12 Products and bundles | 27 | 24 | 0 | 3 | 1/2 (39) | 4 |
 | `Logins::PasskeysController` | WS-10 Settings and account | 2 | 0 | 0 | 2 | 2 (4) | 4 |
 | `PublicController` | WS-11 Help, pages, blog, profiles | 11 | 7 | 0 | 4 | 1/2 (12) | 4 |
@@ -263,6 +262,7 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `EmailsController` | WS-13 Audience, emails, workflows | 9 | 9 | 0 | 0 | 2 (18) | 0 |
 | `EventsController` | WS-20 Checkout and orders | 1 | 1 | 0 | 0 | 3 (3) | 0 |
 | `FaviconsController` | WS-11 Help, pages, blog, profiles | 1 | 1 | 0 | 0 | 1 (1) | 0 |
+| `FollowersController` | WS-13 Audience, emails, workflows | 7 | 7 | 0 | 0 | 2 (14) | 0 |
 | `ForeignWebhooksController` | WS-21 Payment processors | 8 | 8 | 0 | 0 | 4 (32) | 0 |
 | `GithubStarsController` | WS-11 Help, pages, blog, profiles | 1 | 1 | 0 | 0 | 1 (1) | 0 |
 | `GumroadBlog::PostsController` | WS-11 Help, pages, blog, profiles | 3 | 3 | 0 | 0 | 1 (3) | 0 |

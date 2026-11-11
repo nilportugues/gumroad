@@ -17,6 +17,8 @@ import { NotPortedError } from "../models/user.ts";
 import { NotPortedError as PageNotPortedError } from "../page-props/not-ported.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
 import { randomUUID } from "node:crypto";
+import { railsEnv } from "../infra/rails-env.ts";
+import { resetRailsCacheForTesting } from "../cache/rails-cache.ts";
 
 export { MUTATION_PATH };
 
@@ -116,6 +118,8 @@ export function remoteIp(request: RailsRequest): string | null {
 }
 
 export async function mutationResponse(incoming: Request): Promise<Response> {
+  // The replay harness seeds each example into an empty database, so a cache entry keyed by a row id must not outlive it.
+  if (railsEnv() === "test" && incoming.headers.has("x-parity-reset-cache")) resetRailsCacheForTesting();
   const target = incoming.headers.get(PAGE_URL_HEADER);
   if (target === null) return new Response(null, { status: 404 });
   const host = incoming.headers.get("x-forwarded-host") ?? incoming.headers.get("host") ?? "localhost";

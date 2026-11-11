@@ -40,6 +40,8 @@ const COUNTED_IN_NODE: Record<string, string[]> = {
   "\\A/posts/.+/comments\\z": ["/ip:(?-mix:\\A\\/posts\\/.+\\/comments\\z):post"],
   "\\A/posts/.+/comments/.+\\z": ["/ip:(?-mix:\\A\\/posts\\/.+\\/comments\\/.+\\z):put"],
   "\\A/(?:[^/]+/)?landing/products\\z": ["/ip/params:(?-mix:\\A\\/(?:[^\\/]+\\/)?landing\\/products\\z):get"],
+  "/follow": ["/ip:/follow:post", "/ip/params:/follow:post"],
+  "/follow_from_embed_form": ["/ip:/follow_from_embed_form", "/ip/params:/follow_from_embed_form"],
   // Served by an api-v2 or mobile handler, which also runs through processAction.
   "\\A/(?:muse|claude|chatgpt)/v1/oauth2/register(?:\\.[^/]+)?\\z": ["oauth_dynamic_registration/ip"],
   "ends_with:/v2/sales": ["/api/v2/sales"],
