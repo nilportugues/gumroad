@@ -35,6 +35,8 @@ import "@/server/controllers/wishlist-items-mutations";
 import "@/server/controllers/post-views-mutations";
 import "@/server/controllers/posts-redirect";
 import "@/server/controllers/profile-sections-mutations";
+import "@/server/controllers/followers-mutations";
+import "@/server/controllers/comments-mutations";
 import "@/server/controllers/product-editor-json";
 import "@/server/controllers/product-editor-mutations";
 import "@/server/controllers/url-redirects/mutations";
