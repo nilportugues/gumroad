@@ -1,5 +1,9 @@
 // CheckoutController#show and the subscription management page. Registered in ./pages.ts.
 import { railsLoggedInUser } from "../auth/resolve.ts";
+import { authorize } from "../policies/authorize.ts";
+import { checkoutUpsellPolicy } from "../policies/checkout-upsell.ts";
+import { sellerGuard } from "./audience/seller-guard.ts";
+import { listParams, upsellsPageProps } from "./checkout/upsells.ts";
 import { CHECKOUT_OPTIONS } from "../controllers/checkout-pages.ts";
 import { MANAGE_OPTIONS } from "../controllers/subscription-pages.ts";
 import { remoteIp } from "./audience/events.ts";
@@ -10,6 +14,18 @@ import type { PageSpec } from "./pages.ts";
 import { sellerFontsCssSource } from "./settings/profile.ts";
 
 export const CHECKOUT_PAGES: Record<string, PageSpec> = {
+  // Checkout::UpsellsController#index. A page or sort Pagy and Upsell.sorted_by read differently is handed back by the guard.
+  "/checkout/upsells": {
+    component: "Checkout/Upsells/Index",
+    guard: (info) =>
+      sellerGuard(info, (context) => authorize(checkoutUpsellPolicy.index, context), {
+        afterAuthorize: async (context) => void (await upsellsPageProps(context.seller!.id, listParams(info.url.search.replace(/^\?/u, "")))),
+      }),
+    props: (_, { context, meta, url }) => {
+      meta.set({ title: "Upsells" });
+      return upsellsPageProps(context.currentSeller!.id, listParams(url.search.replace(/^\?/u, "")));
+    },
+  },
   // The filter has handed back everything with a product in it, so the cart holds nothing.
   "/checkout": {
     component: "Checkout/Show",
