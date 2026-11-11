@@ -76,6 +76,7 @@ import {
   updatePurchaseHealthcheckThresholdJob,
 } from "./purchase-reads-jobs.ts";
 import { purgeOldDeletedAssetPreviewsWorker } from "./purge-old-deleted-asset-previews-worker.ts";
+import { radarSyncValueListsJob } from "./radar-sync-value-lists-job.ts";
 import { radarAddValueListItemJob, radarRemoveValueListItemJob } from "./radar-value-list-jobs.ts";
 import { rebuildGmailAbuseFilterJob } from "./rebuild-gmail-abuse-filter-job.ts";
 import { recoverAusBacktaxFromStripeAccountJob } from "./recover-aus-backtax-from-stripe-account-job.ts";
@@ -159,6 +160,7 @@ import {
 } from "./workflow-jobs.ts";
 
 export const JOB_HANDLERS: Record<string, JobHandler> = {
+  "Radar::SyncValueListsJob": radarSyncValueListsJob,
   AlertOnStalledAbandonedCartEmailsJob: alertOnStalledAbandonedCartEmailsJob,
   BackfillMerchantAccountRecommendationEligibilityJob: backfillMerchantAccountRecommendationEligibilityJob,
   BlockEmailDomainsWorker: blockEmailDomainsWorker,

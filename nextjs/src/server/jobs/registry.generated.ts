@@ -2004,7 +2004,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RebuildGmailAbuseFilterJob": {
     "file": "app/sidekiq/rebuild_gmail_abuse_filter_job.rb",

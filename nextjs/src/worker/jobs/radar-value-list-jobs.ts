@@ -19,11 +19,11 @@ import { modelJob } from "./support/job-deps.ts";
 
 const BLOCKED_EMAILS_LIST = "gumroad_blocked_emails";
 const BLOCKED_CARDS_LIST = "gumroad_blocked_cards";
-const STRIPE_FINGERPRINT_PATTERN = /^[A-Za-z0-9]+$/u;
-const PLATFORM_BLOCKS = "platform_blocks";
+export const STRIPE_FINGERPRINT_PATTERN = /^[A-Za-z0-9]+$/u;
+export const PLATFORM_BLOCKS = "platform_blocks";
 
-type ListConfig = { listAlias: string; name: string; itemType: string };
-const LIST_FOR_TYPE: Record<string, ListConfig> = {
+export type ListConfig = { listAlias: string; name: string; itemType: string };
+export const LIST_FOR_TYPE: Record<string, ListConfig> = {
   [PLATFORM_BLOCK_TYPES.email]: { listAlias: BLOCKED_EMAILS_LIST, name: "Gumroad Blocked Emails", itemType: "email" },
   [PLATFORM_BLOCK_TYPES.charge_processor_fingerprint]: {
     listAlias: BLOCKED_CARDS_LIST,
@@ -33,11 +33,11 @@ const LIST_FOR_TYPE: Record<string, ListConfig> = {
 };
 
 // Every non-production environment shares one Stripe test account, so the sync runs there only when asked for.
-const syncEnabled = () => railsEnv() === "production" || getConfig("ENABLE_RADAR_VALUE_LIST_SYNC") !== undefined;
+export const syncEnabled = () => railsEnv() === "production" || getConfig("ENABLE_RADAR_VALUE_LIST_SYNC") !== undefined;
 
 const includesAlreadyExists = (error: InvalidRequestError) => error.message.includes("already exists");
 
-async function findOrCreateList({ listAlias, name, itemType }: ListConfig): Promise<{ id: string }> {
+export async function findOrCreateList({ listAlias, name, itemType }: ListConfig): Promise<{ id: string }> {
   const [existing] = (await RadarValueList.list({ alias: listAlias, limit: 1 })).data;
   if (existing) return existing;
 
@@ -51,7 +51,7 @@ async function findOrCreateList({ listAlias, name, itemType }: ListConfig): Prom
   }
 }
 
-async function addItemToList(valueListId: string, value: string): Promise<void> {
+export async function addItemToList(valueListId: string, value: string): Promise<void> {
   try {
     await RadarValueListItem.create({ value_list: valueListId, value });
   } catch (error) {
@@ -60,7 +60,7 @@ async function addItemToList(valueListId: string, value: string): Promise<void> 
   }
 }
 
-async function removeItemFromList(valueListId: string, value: string): Promise<void> {
+export async function removeItemFromList(valueListId: string, value: string): Promise<void> {
   try {
     const items = await RadarValueListItem.list({ value_list: valueListId, value });
     for (const item of items.data) await RadarValueListItem.delete(item.id);
