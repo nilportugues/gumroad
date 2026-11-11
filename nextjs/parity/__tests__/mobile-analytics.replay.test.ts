@@ -5,7 +5,7 @@ import path from "node:path";
 import { Client as ElasticsearchClient } from "@elastic/elasticsearch";
 import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { closeAllRedis } from "@/server/infra/redis";
 
@@ -31,6 +31,11 @@ const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests/api/mobile";
 const SPECS = ["mobile_analytics_parity_spec"];
 const PARITY_NOW = Date.UTC(2026, 10, 2, 15, 0, 0);
+// The server's clock is the real clock plus a fixed offset. The worker's fake Date is re-anchored to that same formula before every
+// example: `shouldAdvanceTime` ticks 20ms per timer fire however late the fire is, so on a loaded host it falls behind the server.
+// performance is not faked, so it reads the real clock.
+const realNow = () => performance.timeOrigin + performance.now();
+let clockOffset = 0;
 const ROUTE_FLAGS = "nextjs_mobile_analytics";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
@@ -102,11 +107,11 @@ describe.skipIf(!url)("mobile analytics parity", () => {
     const [hostAndPort = "", db = "0"] = redisHost.split("/");
     const [host = "127.0.0.1", port = "6379"] = hostAndPort.split(":");
     redis = new Redis({ host, port: Number(port), db: Number(db) });
-    const offset = PARITY_NOW - Date.now();
+    clockOffset = PARITY_NOW - realNow();
     server = await startNextServer({
       RAILS_ENV: "test",
       NODE_OPTIONS: `--require ${path.resolve(import.meta.dirname, "..", "src", "fixed-clock-preload.cjs")}`,
-      PARITY_CLOCK_OFFSET_MS: String(offset),
+      PARITY_CLOCK_OFFSET_MS: String(clockOffset),
       OBFUSCATE_IDS_CIPHER_KEY: obfuscateKey ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
       MOBILE_TOKEN: testEnv("MOBILE_TOKEN") ?? "",
@@ -125,8 +130,12 @@ describe.skipIf(!url)("mobile analytics parity", () => {
       ...(awsSecretAccessKey ? { AWS_SECRET_ACCESS_KEY: awsSecretAccessKey } : {}),
     });
     // Only Date moves, and it keeps running from the frozen instant.
-    vi.useFakeTimers({ now: PARITY_NOW, toFake: ["Date"], shouldAdvanceTime: true });
+    vi.useFakeTimers({ now: realNow() + clockOffset, toFake: ["Date"], shouldAdvanceTime: true });
   }, FIRST_COMPILE_TIMEOUT_MS);
+
+  beforeEach(() => {
+    vi.setSystemTime(realNow() + clockOffset);
+  });
 
   afterAll(async () => {
     vi.useRealTimers();

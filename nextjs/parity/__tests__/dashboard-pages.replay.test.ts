@@ -5,7 +5,7 @@ import path from "node:path";
 import { Client as ElasticsearchClient } from "@elastic/elasticsearch";
 import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { closeAllRedis } from "@/server/infra/redis";
 import { cumulativeFractions, fractionAt } from "@/server/page-props/analytics/hourly-sales-curve";
@@ -35,6 +35,11 @@ const FIXTURES = "parity/fixtures/requests";
 // Day-by-day series and "Today" labels move with the request's day, so the replay and the server both run on the day the
 // fixtures were recorded, at the hour of the recording (late enough that the seeded "hours ago" sales fall on the same days).
 const PARITY_NOW = Date.parse("2026-11-09T23:00:00Z");
+// The server's clock is the real clock plus a fixed offset. The worker's fake Date is re-anchored to that same formula before every
+// example: `shouldAdvanceTime` ticks 20ms per timer fire however late the fire is, so on a loaded host it falls behind the server.
+// performance is not faked, so it reads the real clock.
+const realNow = () => performance.timeOrigin + performance.now();
+let clockOffset = 0;
 const SPECS = [
   "audience_dashboard_signed_in_spec",
   "seller_payment_details_signed_in_spec",
@@ -142,11 +147,11 @@ describe.skipIf(!url)("seller dashboards parity when signed in", () => {
     const [hostAndPort = "", db = "0"] = redisHost.split("/");
     const [host = "127.0.0.1", port = "6379"] = hostAndPort.split(":");
     redis = new Redis({ host, port: Number(port), db: Number(db) });
-    const offset = PARITY_NOW - Date.now();
+    clockOffset = PARITY_NOW - realNow();
     server = await startNextServer({
       RAILS_ENV: "test",
       NODE_OPTIONS: `--require ${path.resolve(import.meta.dirname, "..", "src", "fixed-clock-preload.cjs")}`,
-      PARITY_CLOCK_OFFSET_MS: String(offset),
+      PARITY_CLOCK_OFFSET_MS: String(clockOffset),
       OBFUSCATE_IDS_CIPHER_KEY: obfuscateKey ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
       ...(stripeKey ? { STRIPE_PUBLIC_KEY_TEST: stripeKey } : {}),
@@ -163,8 +168,12 @@ describe.skipIf(!url)("seller dashboards parity when signed in", () => {
       ...(awsAccessKeyId ? { AWS_ACCESS_KEY_ID: awsAccessKeyId } : {}),
       ...(awsSecretAccessKey ? { AWS_SECRET_ACCESS_KEY: awsSecretAccessKey } : {}),
     });
-    vi.useFakeTimers({ now: PARITY_NOW, toFake: ["Date"], shouldAdvanceTime: true });
+    vi.useFakeTimers({ now: realNow() + clockOffset, toFake: ["Date"], shouldAdvanceTime: true });
   }, FIRST_COMPILE_TIMEOUT_MS);
+
+  beforeEach(() => {
+    vi.setSystemTime(realNow() + clockOffset);
+  });
 
   afterAll(async () => {
     vi.useRealTimers();
