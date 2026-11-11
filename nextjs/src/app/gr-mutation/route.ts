@@ -33,6 +33,7 @@ import "@/server/controllers/utm-links-mutations";
 import "@/server/controllers/wishlist-items-mutations";
 import "@/server/controllers/post-views-mutations";
 import "@/server/controllers/posts-redirect";
+import "@/server/controllers/followers-mutations";
 import "@/server/controllers/product-editor-json";
 import "@/server/controllers/product-editor-mutations";
 import "@/server/controllers/url-redirects/mutations";
