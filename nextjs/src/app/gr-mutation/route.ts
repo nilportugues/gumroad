@@ -4,6 +4,7 @@ import "@/server/controllers/emails-mutations";
 import "@/server/controllers/workflows-mutations";
 import "@/server/controllers/products-mutations";
 import "@/server/controllers/settings-mutations";
+import "@/server/controllers/settings-main-mutations";
 import "@/server/controllers/settings-team-mutations";
 import "@/server/controllers/settings-team-invitations";
 import "@/server/controllers/settings-totp-mutations";
