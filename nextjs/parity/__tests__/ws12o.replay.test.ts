@@ -20,10 +20,14 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
-const SPECS = ["products_affiliated_destroy_parity_spec", "marketing_abandoned_carts_parity_spec"].filter((dir) =>
-  existsSync(path.join(FIXTURES, dir)),
-);
-const ROUTE_FLAGS = "nextjs_products_affiliated_destroy_guards,nextjs_marketing_abandoned_cart_guards";
+const SPECS = [
+  "products_affiliated_destroy_parity_spec",
+  "marketing_abandoned_carts_parity_spec",
+  "recommended_products_parity_spec",
+  "mobile_tracking_parity_spec",
+].filter((dir) => existsSync(path.join(FIXTURES, dir)));
+const ROUTE_FLAGS =
+  "nextjs_products_affiliated_destroy_guards,nextjs_marketing_abandoned_cart_guards,nextjs_recommended_products,nextjs_mobile_tracking";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
