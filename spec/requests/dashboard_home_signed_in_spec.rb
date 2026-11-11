@@ -241,4 +241,25 @@ describe "Dashboard home when signed in", type: :request, elasticsearch_wait_for
 
     expect(inertia_props_of(response).dig("creator_home", "name")).to eq("Alexandra")
   end
+
+  it "shows the verification error Stripe returned for the seller's account", parity: true do
+    create(:merchant_account, user: seller)
+    create(:user_compliance_info_request, user: seller, field_needed: UserComplianceInfoFields::Individual::STRIPE_IDENTITY_DOCUMENT_ID, state: "requested", verification_error: { "code" => "verification_document_name_missing" })
+    log_in(seller)
+
+    get dashboard_path
+
+    expect(inertia_props_of(response).dig("creator_home", "stripe_verification_message")).to eq("The uploaded document is missing the name. Please upload another document that contains the name.")
+  end
+
+  it "shows the message of the last requested field that carries a verification error", parity: true do
+    create(:merchant_account, user: seller)
+    create(:user_compliance_info_request, user: seller, field_needed: UserComplianceInfoFields::Individual::STRIPE_IDENTITY_DOCUMENT_ID, state: "requested", verification_error: { "code" => "verification_document_fraudulent" })
+    create(:user_compliance_info_request, user: seller, field_needed: UserComplianceInfoFields::Individual::TAX_ID, state: "requested", verification_error: { "code" => "verification_failed_other", "message" => "Stripe could not verify this number!" })
+    log_in(seller)
+
+    get dashboard_path
+
+    expect(inertia_props_of(response).dig("creator_home", "stripe_verification_message")).to eq("Stripe could not verify this number!")
+  end
 end
