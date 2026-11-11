@@ -219,7 +219,7 @@ function gumroadDomains(): string[] {
 }
 
 // PiracyReport.gumroad_hosted?: a seller's custom domain is hosted by Gumroad too.
-async function gumroadHosted(host: string): Promise<boolean> {
+export async function gumroadHosted(host: string): Promise<boolean> {
   const normalized = normalizedHost(host);
   if (gumroadDomains().some((domain) => normalized === domain || normalized.endsWith(`.${domain}`))) return true;
   return (await db.customDomain.count({ where: { deleted_at: null, domain: { in: [normalized, `www.${normalized}`] } } })) > 0;

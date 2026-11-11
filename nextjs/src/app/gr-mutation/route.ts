@@ -12,6 +12,7 @@ import "@/server/controllers/settings-passkeys-mutations";
 import "@/server/controllers/settings-payments-mutations";
 import "@/server/controllers/settings-payments-guards";
 import "@/server/controllers/settings-guardians-mutations";
+import "@/server/controllers/piracy-reports-mutations";
 import "@/server/controllers/settings-beneficial-owners";
 import "@/server/controllers/social-callbacks";
 import "@/server/controllers/connections-mutations";

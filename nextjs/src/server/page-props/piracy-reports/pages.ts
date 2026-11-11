@@ -1,4 +1,4 @@
-// PiracyReportsController#index, #new and #show (GET renders; sign, cancel and create stay in Rails).
+// PiracyReportsController#index, #new and #show (GET renders); the writes are in controllers/piracy-reports-mutations.ts.
 import type { Link, PiracyReport, User } from "@prisma/client";
 
 import * as Routes from "@/lib/navigation/routes";
@@ -20,17 +20,17 @@ import type { PageSpec } from "../pages.ts";
 import { eligibleForStoreAgent } from "../signed-in/policy-props.ts";
 import { railsEnv } from "../../infra/rails-env.ts";
 
-const MONTHLY_LIMIT = 5;
+export const MONTHLY_LIMIT = 5;
 const MIN_SUCCESSFUL_SALES = 1;
-const SIGNATURE_STATEMENT_VERSION = "2026-10-07";
-const SIGNATURE_CONFIRMATIONS: [string, string][] = [
+export const SIGNATURE_STATEMENT_VERSION = "2026-10-07";
+export const SIGNATURE_CONFIRMATIONS: [string, string][] = [
   ["details_shared", "The notice shows my legal name and email address. The site can share the notice with the person who posted the page, and the notice may be published, for example on Lumen."],
   ["own_statements", "I have read this notice, and I make its statements myself, including the statement under penalty of perjury."],
   ["misrepresentation_liability", "If I knowingly misrepresent that this page infringes my work, I can be liable for damages, costs and attorneys' fees under 17 U.S.C. § 512(f)."],
   ["fair_use_considered", "I considered whether the page could be a licensed use or a fair use of my work, such as a review, a commentary or a short excerpt."],
   ["authorize_gumroad", "I authorize Gumroad to send this notice by email for me, and to put my typed name on it as my signature."],
 ];
-const CANCELLABLE_STATES = ["requested", "screening", "awaiting_signature", "signed"];
+export const CANCELLABLE_STATES = ["requested", "screening", "awaiting_signature", "signed"];
 const SKIP_SALES_CHECKS_FLAG = "piracy_reports_skip_sales_checks";
 
 const feature = (name: string, seller: User) => isFeatureEnabled(name, userActor(seller.id));
@@ -48,13 +48,13 @@ export function longUrl(product: Link, owner: User): string {
 }
 
 // PiracyReportPolicy#create? (also #new?)
-const policyCreate = async (context: SellerContext) => {
+export const policyCreate = async (context: SellerContext) => {
   const c = requireUser(context);
   return roleAdminFor(c) && (await feature("piracy_reports", c.seller!));
 };
 
 // PiracyReportPolicy#index? and #show? (the record always belongs to the seller: it was looked up through them).
-const policyAdmin = (context: SellerContext) => roleAdminFor(requireUser(context));
+export const policyAdmin = (context: SellerContext) => roleAdminFor(requireUser(context));
 
 async function authorizeAsync(query: (context: SellerContext) => boolean | Promise<boolean>, context: SellerContext): Promise<void> {
   if (!(await query(context))) throw new NotAuthorizedError();
@@ -103,22 +103,22 @@ async function archivedProductsCount(seller: User): Promise<number> {
 
 const seller = (context: { currentSeller: User | null }) => context.currentSeller!;
 
-const productsRedirect = (alert: string) => ({ status: 302, location: Routes.products_path(), flash: { alert }, rescued: true }) as const;
+export const productsRedirect = (alert: string) => ({ status: 302, location: Routes.products_path(), flash: { alert }, rescued: true }) as const;
 
 // set_product: the seller's alive product by unique permalink, else back to the products list.
-async function findProduct(owner: User, permalink: string | null): Promise<Link | null> {
+export async function findProduct(owner: User, permalink: string | null): Promise<Link | null> {
   return db.link.findFirst({ where: { user_id: owner.id, unique_permalink: permalink ?? "", purchase_disabled_at: null, banned_at: null, deleted_at: null } });
 }
 
 const productIdParam = (url: URL) => url.searchParams.getAll("product_id").at(-1) ?? null;
 
-async function findReport(owner: User, externalId: string): Promise<PiracyReport | null> {
+export async function findReport(owner: User, externalId: string): Promise<PiracyReport | null> {
   return db.piracyReport.findFirst({ where: { external_id: externalId, seller_id: owner.id } });
 }
 
 // Sellers::BaseController runs authenticate_user! and require_account_email ahead of the page's own
 // before_actions; authorization comes last, in the action.
-async function guard(info: GuardInput, lookup: (context: SellerContext) => Promise<ReturnType<typeof productsRedirect> | null>, query: (context: SellerContext) => boolean | Promise<boolean>) {
+export async function guard(info: GuardInput, lookup: (context: SellerContext) => Promise<ReturnType<typeof productsRedirect> | null>, query: (context: SellerContext) => boolean | Promise<boolean>) {
   let missing: ReturnType<typeof productsRedirect> | null = null;
   const halted = await sellerGuard(info, async (context) => {
     missing = await lookup(context);
