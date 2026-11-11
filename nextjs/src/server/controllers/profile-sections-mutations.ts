@@ -21,8 +21,8 @@ import { authorizeJson, json as sellerJson, noContent, UNPROCESSABLE_ENTITY } fr
 const SECTIONS = "seller_profile_sections";
 // SellerProfileSection's `hide_header` is the second `has_flags` entry.
 const HIDE_HEADER_FLAG = 2n;
-const BASE_CLASS = "SellerProfileSection";
-const RUBY_CONSTANT = /^[A-Za-z_]\w*$/u;
+export const BASE_CLASS = "SellerProfileSection";
+export const RUBY_CONSTANT = /^[A-Za-z_]\w*$/u;
 
 // ProfileSectionPolicy::UPDATE_ATTRIBUTES, and CREATE_ATTRIBUTES' `type` and `product_id`.
 const STRING_KEYS = ["header", "default_product_sort", "button_label", "featured_product_id"];
@@ -33,10 +33,10 @@ const COMMON_KEYS = ["header", "hide_header", "product_id"];
 // Only an implicit `head :no_content` leaves Vary without Accept: the actions that render JSON keep it.
 const json = (value: unknown, status = 200) => ({ ...sellerJson(value, status), paramsRead: false });
 
-const unsupported = (what: string) => new NotPortedError(what, "app/controllers/profile_sections_controller.rb");
+export const unsupported = (what: string) => new NotPortedError(what, "app/controllers/profile_sections_controller.rb");
 
 // `params.permit(...)`: a key whose value has the wrong shape is dropped by Rails, which here is a request to leave to it.
-function permitted(params: Params, create: boolean): Params {
+export function permitted(params: Params, create: boolean): Params {
   const out: Params = {};
   const take = (key: string, accepts: (value: unknown) => boolean) => {
     if (!(key in params)) return;
@@ -56,14 +56,14 @@ function permitted(params: Params, create: boolean): Params {
 }
 
 // String#blank?
-const blank = (value: unknown) => value === null || (typeof value === "string" && /^\p{White_Space}*$/u.test(value));
+export const blank = (value: unknown) => value === null || (typeof value === "string" && /^\p{White_Space}*$/u.test(value));
 
 // SaveService#decrypt_ids: an id that does not decrypt becomes nil, which the schema then refuses.
 const decryptedList = (value: unknown) => (value as string[]).map((item) => decrypt(item));
 const decryptedId = (value: unknown) => (typeof value === "string" && value.trim() !== "" ? decrypt(value) : value);
 
 // Writes the permitted attributes onto the record the way `section.update!` / `create!` assign them, then SaveService#derive_hide_header.
-function assign(
+export function assign(
   record: ModelRecord<SellerProfileSection>,
   section: { rubyClass: string; keys: readonly string[] },
   attributes: Params,
@@ -117,25 +117,37 @@ async function findSection(input: MutationInput) {
   return section;
 }
 
-async function create(input: MutationInput): Promise<ActionResult> {
-  const denied = await guard(input, profileSectionPolicy.create);
-  if (denied) return denied;
-  const attributes = permitted(input.params, true);
+// `ActiveRecord::SubclassNotFound` from SaveService#create!, which the batched profile editor shares: the caller answers it.
+export class InvalidSectionType extends Error {}
+
+export async function createSection(sellerId: bigint | number, attributes: Params) {
   const type = attributes.type;
   if (typeof type !== "string" || blank(type) || type === BASE_CLASS || type.includes("::"))
     throw unsupported("a section without a usable type");
-  // `ActiveRecord::SubclassNotFound`: a name that is no subclass of SellerProfileSection, whether or not it is a constant at all.
+  // A name that is no subclass of SellerProfileSection, whether or not it is a constant at all.
   if (!SECTION_KINDS.has(type)) {
     if (!RUBY_CONSTANT.test(type)) throw unsupported("a type that is not a constant name");
-    return json({ error: "Invalid section type" }, UNPROCESSABLE_ENTITY);
+    throw new InvalidSectionType();
   }
   if (type === "SellerProfileRichTextSection") throw unsupported("a rich text section");
 
   const model = sectionModelFor(type);
-  const record = model.build({ seller_id: input.context.currentSeller!.id, type, json_data: {} } as never);
+  const record = model.build({ seller_id: sellerId, type, json_data: {} } as never);
   assign(record, SECTION_KINDS.get(type)!, attributes);
   await model.saveBang(record);
-  return json({ id: encrypt(record.get("id")) });
+  return record.get("id");
+}
+
+async function create(input: MutationInput): Promise<ActionResult> {
+  const denied = await guard(input, profileSectionPolicy.create);
+  if (denied) return denied;
+  try {
+    const id = await createSection(input.context.currentSeller!.id, permitted(input.params, true));
+    return json({ id: encrypt(id) });
+  } catch (error) {
+    if (error instanceof InvalidSectionType) return json({ error: "Invalid section type" }, UNPROCESSABLE_ENTITY);
+    throw error;
+  }
 }
 
 async function update(input: MutationInput): Promise<ActionResult> {

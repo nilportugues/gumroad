@@ -719,6 +719,11 @@ export async function sellerProfile(record: UserRecord): Promise<SellerProfileRe
   return profile;
 }
 
+// `association(:seller_profile).target = profile`, as User#with_locked_seller_profile does: later callbacks read this instance's saved changes.
+export function setSellerProfileTarget(record: UserRecord, profile: SellerProfileRecord): void {
+  associations(record).set("seller_profile", { foreignKey: record.get("id"), row: profile });
+}
+
 const PROFILE_PREVIEW_PROPERTIES = ["font", "background_color", "highlight_color"];
 
 async function sellerProfileStyleSaved(record: UserRecord): Promise<boolean> {
