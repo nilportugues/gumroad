@@ -245,7 +245,9 @@ export function defineModel<R extends Row>(def: ModelDefinition<R>) {
 
   // Persistence#touch with no names: updated_at alone is written, the change is applied at once (Dirty#_touch_row) and
   // after_touch runs inside the transaction. A touch that would set other pending changes aside is not ported.
-  async function touch(record: ModelRecord<R>, options: { now?: () => Date } = {}): Promise<boolean> {
+  // `deferred` is `touch_later`, which a `belongs_to touch: true` parent gets: recorded in golden to leave the attributes in column order,
+  // where a direct touch lists updated_at first.
+  async function touch(record: ModelRecord<R>, options: { now?: () => Date; deferred?: boolean } = {}): Promise<boolean> {
     if (!record.persisted) throw new Error(`cannot touch on a new or destroyed record object`);
     const now = options.now ?? (() => new Date());
     const columns = getFields().filter((f) => UPDATE_TIMESTAMP_COLUMNS.includes(f.name));
@@ -254,6 +256,7 @@ export function defineModel<R extends Row>(def: ModelDefinition<R>) {
       async (tx) => {
         const p = participant(record, "update");
         const current = now();
+        if (options.deferred) record.materializeAll();
         for (const f of columns) record.set(f.name, timestampFor(current, f.datetimePrecision) as R[keyof R & string]);
         const touched = columns.map((f) => f.name);
         if (record.changedAttributeNames().some((name) => !touched.includes(name))) {

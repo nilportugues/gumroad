@@ -1954,7 +1954,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "PushNotificationWorker": {
     "file": "app/sidekiq/push_notification_worker.rb",
