@@ -11,6 +11,7 @@ import { closeAllRedis } from "@/server/infra/redis";
 
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { loadFixture } from "../src/fixture";
+import { withoutRailsOnly } from "../src/rails-only";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import type { JobsChannel, RawJob } from "../src/channels";
@@ -70,7 +71,7 @@ function redisJobs(redis: Redis): JobsChannel {
   };
 }
 
-const cases = SPEC_DIRS.flatMap((dir) =>
+const allCases = SPEC_DIRS.flatMap((dir) =>
   readdirSync(path.join(FIXTURES_ROOT, dir))
     .filter((file) => file.endsWith(".json") && !NOT_REPLAYED.test(file))
     .map((file) => {
@@ -109,6 +110,9 @@ function assertMailJobs(name: string, body: unknown) {
   expect(params.args).toHaveLength(/license/.test(name) ? 2 : 1);
   if (/license/.test(name)) expect(params.args[1]).toMatchObject({ recommendations: !/narrows-to-the-product/.test(name) });
 }
+
+// Rails serves the throttled routes whole; rack-attack-routes.replay.test.ts replays those.
+const cases = withoutRailsOnly(allCases, ([, file, index]) => loadFixture(file).exchanges[index]!.request);
 
 describe.skipIf(!url)("WS-11 public files parity", () => {
   let client: PrismaClient;

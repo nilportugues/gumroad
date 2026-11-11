@@ -30,11 +30,12 @@ const SPECS: Record<string, { flag: string; methods: string[]; exclude?: RegExp;
   product_reviews_controller_spec: { flag: "nextjs_api_v2_product_reviews", methods: ["GET"] },
   offer_codes_controller_spec: { flag: "nextjs_api_v2_offer_codes", methods: ["GET"] },
   resource_subscriptions_controller_spec: { flag: "nextjs_api_v2_resource_subscriptions", methods: ["GET", "DELETE"] },
-  // WS-17g: #index and #show render Purchase#as_json(version: 2); the writes, #summary and #export are not served yet.
+  // WS-17g: #show renders Purchase#as_json(version: 2); the writes, #summary and #export are not served yet. #index stays in Rails whole:
+  // Rack::Attack counts the requests past page 10 in its Redis, and a Node answer would skip that counter.
   sales_controller_spec: {
     flag: "nextjs_api_v2_sales",
     methods: ["POST", "GET"],
-    include: /resend-receipt|get-index|get-show/,
+    include: /resend-receipt|get-show/,
   },
   upsells_controller_spec: { flag: "nextjs_api_v2_upsells", methods: ["GET"] },
   licenses_controller_spec: { flag: "nextjs_api_v2_licenses", methods: ["POST", "PUT"] },

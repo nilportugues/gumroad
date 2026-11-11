@@ -52,6 +52,9 @@ export type MutationSpec = {
   // Formats the action answers like Rails does. Pundit's 401 JSON is what the default (html only) leaves to Rails.
   formats?: ("html" | "json" | "any")[];
   // "any": the action answers every format itself (a public JSON endpoint with no Pundit in the way).
+  // The Rack::Attack rule (config/initializers/rack_attack.rb) that counts this route in Rails' Redis. A Node answer would skip that counter, so
+  // the route is not in routes.json and, were a request to arrive anyway, Rails takes it whole.
+  railsOnly?: string;
   run(input: MutationInput): Promise<ActionResult>;
 };
 
@@ -120,7 +123,7 @@ export async function mutationResponse(incoming: Request): Promise<Response> {
   const request = new Request(url, { method: incoming.method, headers: incoming.headers, body: bytes.length > 0 ? bytes : undefined });
 
   const spec = REGISTRY.map((candidate) => ({ candidate, routeParams: candidate.method === request.method ? matchPattern(candidate.pattern, url.pathname) : null })).find(({ routeParams }) => routeParams !== null);
-  if (spec === undefined) return forwardToRails(request);
+  if (spec === undefined || spec.candidate.railsOnly !== undefined) return forwardToRails(request);
   const { candidate, routeParams } = spec;
 
   let params: Params;

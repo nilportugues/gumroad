@@ -12,6 +12,7 @@ import { closeAllRedis } from "@/server/infra/redis";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { ELASTICSEARCH_HOST, recreateIndex, reindexProducts, replayIndexName } from "../src/elasticsearch";
 import { loadFixture } from "../src/fixture";
+import { withoutRailsOnly } from "../src/rails-only";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
@@ -55,9 +56,12 @@ const COMPARE = {
   ],
 };
 
-const cases = readdirSync(FIXTURE_DIR)
+const allCases = readdirSync(FIXTURE_DIR)
   .filter((file) => file.endsWith(".json"))
   .map((file) => [file.replace(/\.json$/, ""), path.join(FIXTURE_DIR, file), loadFixture(path.join(FIXTURE_DIR, file)).exchanges.length - 1] as const);
+
+// Rails serves the throttled routes whole; rack-attack-routes.replay.test.ts replays those.
+const cases = withoutRailsOnly(allCases, ([, file, index]) => loadFixture(file).exchanges[index]!.request);
 
 describe.skipIf(!url)("storefront profile products parity", () => {
   let rails: Server;
@@ -143,7 +147,7 @@ describe.skipIf(!url)("storefront profile products parity", () => {
   }, FIRST_COMPILE_TIMEOUT_MS * 2);
 
   it("finds the fixtures", () => {
-    expect(cases.length).toBeGreaterThan(0);
+    expect(allCases.length).toBeGreaterThan(0);
   });
 
   it.each(cases)(

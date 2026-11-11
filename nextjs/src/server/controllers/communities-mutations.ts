@@ -114,6 +114,7 @@ registerMutations(
   {
     method: "POST",
     pattern: "/communities/:community_id/chat_messages",
+    railsOnly: "/ip/period:chat_messages",
     run: async (input) => {
       let params: { content?: string } = {};
       const { denied, loaded } = await guarded(input, {});

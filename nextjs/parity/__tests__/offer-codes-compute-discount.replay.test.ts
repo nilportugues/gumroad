@@ -11,6 +11,7 @@ import { closeAllRedis } from "@/server/infra/redis";
 
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { loadFixture } from "../src/fixture";
+import { withoutRailsOnly } from "../src/rails-only";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { redisSeeder } from "../src/session";
@@ -36,7 +37,7 @@ const COMPARE = {
   ],
 };
 
-const cases = readdirSync(DIR)
+const allCases = readdirSync(DIR)
   .filter((file) => file.endsWith(".json"))
   .map((file) => {
     const fixturePath = path.join(DIR, file);
@@ -46,6 +47,9 @@ const cases = readdirSync(DIR)
       loadFixture(fixturePath).exchanges.length - 1,
     ] as const;
   });
+
+// Rails serves the throttled routes whole; rack-attack-routes.replay.test.ts replays those.
+const cases = withoutRailsOnly(allCases, ([, file, index]) => loadFixture(file).exchanges[index]!.request);
 
 describe.skipIf(!url)("Offer codes compute_discount parity", () => {
   let client: PrismaClient;
@@ -85,7 +89,7 @@ describe.skipIf(!url)("Offer codes compute_discount parity", () => {
   });
 
   it("finds the fixtures", () => {
-    expect(cases).toHaveLength(35);
+    expect(allCases).toHaveLength(35);
   });
 
   it.each(cases)(
