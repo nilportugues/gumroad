@@ -21,6 +21,8 @@ import { db } from "../../lib/db.ts";
 import { alpha2ByName, countryByAlpha2, isBlank } from "../models/compliance-countries.ts";
 import { defaultCurrency } from "../models/country-currency.ts";
 import { aliveStripeAccountsOf, isStripeConnectAccount } from "../models/merchant-account.ts";
+import { updatePaypalMerchantAccount } from "../models/paypal-merchant-account-connect.ts";
+import { TosAgreements } from "../models/tos-agreement.ts";
 import { birthdayUnderMinimumAge, dupAndSaveBang, UserComplianceInfos } from "../models/user-compliance-info-writes.ts";
 import {
   aliveUserComplianceInfoRow,
@@ -30,8 +32,6 @@ import {
   jsonAttr,
   legalEntityCountryCode,
 } from "../models/user-compliance-info.ts";
-import { updatePaypalMerchantAccount } from "../models/paypal-merchant-account-connect.ts";
-import { TosAgreements } from "../models/tos-agreement.ts";
 import { findUserBang, setFlag, setJsonDataForAttr, Users } from "../models/user.ts";
 import { domainConfig } from "../page-props/domain.ts";
 import { settingsGuard } from "../page-props/settings/guard.ts";
@@ -185,7 +185,10 @@ function payoutPreferencesOnly(params: Record<string, unknown>): PayoutPreferenc
 function storedMilitaryZip(current: UserComplianceInfo): boolean {
   const fields: [string | null, string | null][] = current.is_business
     ? [
-        [current.business_zip_code, isBlank(current.business_country) ? countryCode(current) : businessCountryCode(current)],
+        [
+          current.business_zip_code,
+          isBlank(current.business_country) ? countryCode(current) : businessCountryCode(current),
+        ],
         [current.zip_code, countryCode(current)],
       ]
     : [[current.zip_code, countryCode(current)]];

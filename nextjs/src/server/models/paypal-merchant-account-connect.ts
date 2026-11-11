@@ -54,7 +54,8 @@ const isObject = (value: unknown): value is Details =>
 // Ruby truthiness: only nil and false are falsy.
 const truthy = (value: unknown): boolean => value !== null && value !== undefined && value !== false;
 // Array.wrap
-const wrap = (value: unknown): unknown[] => (value === null || value === undefined ? [] : Array.isArray(value) ? value : [value]);
+const wrap = (value: unknown): unknown[] =>
+  value === null || value === undefined ? [] : Array.isArray(value) ? value : [value];
 
 // `user.paypal_connect_allowed?`, i.e. `has_payout_information?`.
 async function paypalConnectAllowed(seller: User): Promise<boolean> {
