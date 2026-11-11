@@ -88,6 +88,10 @@ export async function customFieldDescriptors(row: LinkRow, seller: UserRow) {
   const own = await selectRows<FieldRow>(
     Prisma.sql`${select} INNER JOIN ${table("custom_fields_products")} ON ${column("custom_fields_products", "custom_field_id")} = ${column("custom_fields", "id")} WHERE ${column("custom_fields_products", "product_id")} = ${row.id} AND ${notPostPurchase} ORDER BY ${column("custom_fields_products", "id")} ASC`,
   );
+  // `product_checkout_custom_fields` is a habtm read with no ORDER BY: MySQL answers in join-row order or in field id order, depending on
+  // the plan, and the two only agree when the fields were linked in id order.
+  if (own.some((field, index) => index > 0 && field.id < own[index - 1]!.id))
+    throw new NotPortedError("a product whose custom fields were linked against their ids");
   return [...global, ...own].map((field) => ({
     id: externalId(field.id),
     type: field.field_type,

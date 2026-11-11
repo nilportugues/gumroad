@@ -42,8 +42,10 @@ async function customFieldsProps(seller: User) {
   );
   const props = [];
   for (const field of fields) {
-    const products = await selectRows<{ product_id: bigint }>(
-      Prisma.sql`SELECT ${column("custom_fields_products", "product_id")} FROM ${table("custom_fields_products")} INNER JOIN ${table("links")} ON ${column("links", "id")} = ${column("custom_fields_products", "product_id")} WHERE ${column("custom_fields_products", "custom_field_id")} = ${field.id} ORDER BY ${column("custom_fields_products", "id")} ASC`,
+    // `field.products` is a habtm read with no ORDER BY: MySQL walks `links` by id on small tables and the join rows by id on large ones.
+    // assertFormSupported hands the request back unless the two agree, so id order is the order.
+    const products = await selectRows<{ id: bigint }>(
+      Prisma.sql`SELECT ${table("links")}.* FROM ${table("links")} INNER JOIN ${table("custom_fields_products")} ON ${column("links", "id")} = ${column("custom_fields_products", "product_id")} WHERE ${column("custom_fields_products", "custom_field_id")} = ${field.id} ORDER BY ${column("links", "id")} ASC`,
     );
     props.push({
       id: externalId(field.id),
@@ -52,7 +54,7 @@ async function customFieldsProps(seller: User) {
       required: bool(field.required),
       global: bool(field.global),
       collect_per_product: CustomFieldFlags.isSet(field.flags, "collect_per_product"),
-      products: products.map((row) => externalId(row.product_id)),
+      products: products.map((row) => externalId(row.id)),
     });
   }
   return props;
@@ -89,13 +91,13 @@ export async function assertFormSupported(seller: User): Promise<void> {
     throw error;
   }
   await assertPaypalAccountSupported(seller);
-  // The habtm read joins links with no order of its own; two rows would make the order a guess.
+  // A listed field linked to a later product before an earlier one: its products' order depends on the plan MySQL picks.
   if (
     await exists(
-      Prisma.sql`SELECT 1 FROM ${table("custom_fields")} INNER JOIN ${table("custom_fields_products")} ON ${column("custom_fields_products", "custom_field_id")} = ${column("custom_fields", "id")} INNER JOIN ${table("links")} ON ${column("links", "id")} = ${column("custom_fields_products", "product_id")} WHERE ${column("custom_fields", "seller_id")} = ${seller.id} GROUP BY ${column("custom_fields", "id")} HAVING COUNT(*) > 1 LIMIT 1`,
+      Prisma.sql`SELECT 1 FROM ${table("custom_fields")} INNER JOIN ${Prisma.raw("`custom_fields_products` `earlier`")} ON ${column("earlier", "custom_field_id")} = ${column("custom_fields", "id")} INNER JOIN ${Prisma.raw("`custom_fields_products` `later`")} ON ${column("later", "custom_field_id")} = ${column("custom_fields", "id")} AND ${column("later", "id")} > ${column("earlier", "id")} AND ${column("later", "product_id")} < ${column("earlier", "product_id")} INNER JOIN ${Prisma.raw("`links` `earlier_link`")} ON ${column("earlier_link", "id")} = ${column("earlier", "product_id")} INNER JOIN ${Prisma.raw("`links` `later_link`")} ON ${column("later_link", "id")} = ${column("later", "product_id")} WHERE ${column("custom_fields", "seller_id")} = ${seller.id} AND ${CustomFieldFlags.condition("is_post_purchase", false)} LIMIT 1`,
     )
   ) {
-    throw new HandBackToRails("a custom field with several products");
+    throw new HandBackToRails("a custom field linked to its products against their ids");
   }
 }
 

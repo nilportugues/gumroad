@@ -24,7 +24,11 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
-const SPECS = ["checkout_form_signed_in_spec", "checkout_form_paypal_connect_parity_spec"];
+const SPECS = [
+  "checkout_form_signed_in_spec",
+  "checkout_form_paypal_connect_parity_spec",
+  "checkout_form_custom_fields_parity_spec",
+];
 const ROUTE_FLAGS = ["nextjs_checkout_form", "nextjs_checkout_form_writes"].join(",");
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
