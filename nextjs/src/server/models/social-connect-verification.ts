@@ -104,7 +104,7 @@ export function toI(value: unknown): bigint {
 }
 
 // `value.presence&.to_i`
-const presentToI = (value: unknown): bigint | null => {
+export const presentToI = (value: unknown): bigint | null => {
   const present = presence(value);
   return present === null ? null : toI(present);
 };
@@ -159,7 +159,7 @@ export function parseIso8601(value: unknown): Date | null {
   return time;
 }
 
-type Attributes = {
+export type Attributes = {
   handle: string | null;
   account_created_at: Date | null;
   follower_count: bigint | null;
@@ -168,7 +168,7 @@ type Attributes = {
 };
 
 // A string column keeps a string as is; the numbers a provider sends as a handle are stored as their digits.
-function stringColumn(value: unknown): string | null {
+export function stringColumn(value: unknown): string | null {
   if (value === null || value === undefined) return null;
   if (typeof value === "string") return value;
   if (typeof value === "number" && Number.isInteger(value)) return String(value);
@@ -177,12 +177,13 @@ function stringColumn(value: unknown): string | null {
 
 // SocialConnectVerification.record!: the same identity refreshes in place, a different one supersedes the live row so the old uid
 // keeps vetoing, and a reconnect revives the matching prior row.
-async function record(
+export async function record(
   userId: bigint,
   platform: string,
   uid: string,
   attributes: Attributes,
   now: () => Date,
+  recordFunnelConnected = true,
 ): Promise<ModelRecord<SocialConnectVerification>> {
   return transaction(async () => {
     // User.lock.find: a fresh row, so the caller's dirty User never matters.
@@ -216,7 +217,7 @@ async function record(
       { uid, superseded_at: null, last_verified_at: now(), ...attributes },
       { now },
     );
-    await recordSocialConnectEvent({ userId, stage: "connected", provider: platform, surface: "omniauth", now });
+    if (recordFunnelConnected) await recordSocialConnectEvent({ userId, stage: "connected", provider: platform, surface: "omniauth", now });
     return verification;
   });
 }
@@ -287,7 +288,7 @@ function tiktokHandle(profile: Hash): unknown {
 }
 
 // Object#to_s for a value out of JSON (nil is the empty string); a hash or array has Ruby's inspect form, which no id takes.
-function rubyToS(value: unknown): string {
+export function rubyToS(value: unknown): string {
   if (value === null || value === undefined) return "";
   if (typeof value === "object") throw new RubyError("NotPorted", "an id that is a hash or an array");
   return String(value);

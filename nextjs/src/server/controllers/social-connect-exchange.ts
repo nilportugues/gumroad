@@ -53,9 +53,9 @@ type Hash = Record<string, unknown>;
 const isHash = (value: unknown): value is Hash => value !== null && typeof value === "object" && !Array.isArray(value);
 
 // OAuth2::Error: a refused request, an answer that is no token. The strategy ends it in `fail!(:invalid_credentials)`.
-class OAuth2Error extends Error {}
+export class OAuth2Error extends Error {}
 // A failure of the strategy itself, `fail!(message)` or a named kind.
-class StrategyFailure extends Error {
+export class StrategyFailure extends Error {
   constructor(readonly type: string) {
     super(type);
   }
@@ -118,7 +118,7 @@ function snaky(value: unknown): unknown {
 }
 
 // OAuth2::Response#parsed: undefined where no parser applies (the response is not a hash then).
-function oauthParsed(contentType: string, text: string): unknown {
+export function oauthParsed(contentType: string, text: string): unknown {
   const type = (contentType.split(";")[0] ?? "").trim().toLowerCase();
   if (OAUTH_JSON.has(type)) return snaky(parseJson(text));
   if (type === FORM) {
@@ -195,7 +195,7 @@ async function send(url: string, init: RequestInit, timeoutMs: number): Promise<
 
 // OAuth2::Client#request: a refused answer raises OAuth2::Error (after reading `error` out of the body, which a body that is not valid
 // JSON under a JSON content type fails on first).
-async function oauthRequest(url: string, init: RequestInit): Promise<Answer> {
+export async function oauthRequest(url: string, init: RequestInit): Promise<Answer> {
   const answer = await send(url, init, OAUTH_TIMEOUT_MS);
   if (REDIRECTING.has(answer.status)) throw new NotPorted("a redirect from a provider's OAuth2 endpoint");
   if (answer.status >= HTTP_ERROR_MINIMUM && answer.status < HTTP_ERROR_LIMIT) {
@@ -213,7 +213,7 @@ const TOKEN_KEYS = ["access_token", "id_token", "token"] as const;
 const truthy = (value: unknown) => value !== null && value !== undefined && value !== false;
 
 // OAuth2::AccessToken.from_hash and #initialize.
-function accessTokenFrom(hash: Hash, now: Date): AccessToken {
+export function accessTokenFrom(hash: Hash, now: Date): AccessToken {
   const fresh = new Map(Object.entries(hash));
   const key = TOKEN_KEYS.find((candidate) => fresh.has(candidate));
   const token = key === undefined ? undefined : fresh.get(key);

@@ -113,7 +113,12 @@ export async function signedRequest(signing: Signing & { form?: Pair[] }): Promi
     Authorization: authorizationHeader({ ...signing, formParams: signing.form }),
     "User-Agent": OAUTH_USER_AGENT,
   };
-  const init: RequestInit = { method: signing.method, headers, redirect: "manual", signal: AbortSignal.timeout(TIMEOUT_MS) };
+  const init: RequestInit = {
+    method: signing.method,
+    headers,
+    redirect: "manual",
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  };
   if (signing.form !== undefined) {
     headers["Content-Type"] = "application/x-www-form-urlencoded";
     init.body = normalize(signing.form);
