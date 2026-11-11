@@ -35,6 +35,7 @@ import { NotPortedError } from "../page-props/not-ported.ts";
 import { esJson } from "../search/es-json.ts";
 import { redirectUrlFor } from "../services/subdomain-redirector.ts";
 
+import { uncountRackAttack } from "./rack-attack.ts";
 import { setCookieHeader } from "./rack-cookies.ts";
 import { isPresent, queryParam, type RailsRequest, railsRequest } from "./rails-request.ts";
 import {
@@ -786,7 +787,26 @@ export function rackRedirect(incoming: Request, location: string, status = 301):
   return new Response(null, { status: response.status, headers: response.headers });
 }
 
+// A response a Rack middleware ahead of the app (Rack::Attack's 429) answers: the envelope of rackRedirect, with a body.
+export function rackResponse(
+  incoming: Request,
+  status: number,
+  headers: Record<string, string>,
+  body: string,
+): Response {
+  const request = railsRequest(incoming);
+  const response: ControllerResponse = { status, headers: new Headers(headers), body };
+  applyEtag(request, response);
+  applySecureHeaders(request, response.headers);
+  applyCorsVary(response.headers);
+  if (request.cookies.has(railsSessionCookieName()))
+    response.headers.append("set-cookie", sessionCookie(request, loadSession(request), new Date()));
+  return new Response(request.method === "HEAD" ? null : body, { status, headers: response.headers });
+}
+
 export async function forwardToRails(request: Request): Promise<Response> {
+  // Rails' Rack::Attack counts the request again, so Node's own count (rack-attack.ts) is taken back first.
+  await uncountRackAttack(request);
   const source = new URL(request.url);
   const target = new URL(`${source.pathname}${source.search}`, getRequiredConfig("RAILS_ORIGIN"));
   const headers = new Headers(request.headers);

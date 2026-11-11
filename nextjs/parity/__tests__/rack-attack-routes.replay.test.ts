@@ -30,8 +30,6 @@ const envTest = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "mu").e
 const ROUTE_FLAGS = [
   "nextjs_auth_signup",
   "nextjs_auth_login_writes",
-  "nextjs_auth_two_factor_writes",
-  "nextjs_auth_passwords",
   "nextjs_settings_main_writes",
   "nextjs_settings_totp_writes",
   "nextjs_settings_passkeys_writes",
@@ -39,17 +37,12 @@ const ROUTE_FLAGS = [
   "nextjs_product_page",
   "nextjs_discover",
   "nextjs_route_redirects",
-  "nextjs_users_profile_routes",
-  "nextjs_links_search",
   "nextjs_public_lookup_data",
   "nextjs_checkout_offer_codes",
   "nextjs_mobile_url_redirect_delivery",
   "nextjs_acme_challenge",
   "nextjs_api_v2_sales",
   "nextjs_api_v2_user",
-  "nextjs_purchases_public_guards",
-  "nextjs_communities_writes",
-  "nextjs_comments_writes",
   "nextjs_marketing_actions",
 ].join(",");
 
@@ -60,34 +53,6 @@ const CASES = [
     "requests/auth_pages_parity_spec/authentication-pages-get-signup-renders-the-signup-page-with-the-platform-stats",
   ],
   ["POST /login", "requests/auth_mutations_parity_spec/authentication-mutations-post-login-signs-in-with-a-username"],
-  [
-    "POST /two-factor",
-    "requests/auth_mutations_parity_spec/authentication-mutations-two-factor-authentication-signs-in-with-the-token",
-  ],
-  [
-    "POST /two-factor/resend_authentication_token",
-    "requests/auth_mutations_parity_spec/authentication-mutations-two-factor-authentication-resends-the-token",
-  ],
-  [
-    "POST /two-factor/switch_to_email",
-    "requests/auth_mutations_parity_spec/authentication-mutations-two-factor-authentication-switches-to-email",
-  ],
-  [
-    "POST /two-factor/switch_to_recovery",
-    "requests/auth_mutations_parity_spec/authentication-mutations-two-factor-authentication-switches-to-a-recovery-code",
-  ],
-  [
-    "POST /two-factor/switch_to_authenticator",
-    "requests/auth_mutations_parity_spec/authentication-mutations-two-factor-authentication-switches-to-the-authenticator",
-  ],
-  [
-    "/two-factor/verify",
-    "requests/auth_mutations_parity_spec/authentication-mutations-two-factor-authentication-verifies-a-token-from-the-emailed-link",
-  ],
-  [
-    "POST /users/forgot_password",
-    "requests/auth_account_parity_spec/account-authentication-endpoints-post-users-forgot-password-sends-the-reset-instructions",
-  ],
   [
     "PUT /settings",
     "requests/settings_main_signed_in_spec/settings-main-when-signed-in-update-saves-the-switches-the-locale-the-time-zone-and-the-currency",
@@ -112,18 +77,6 @@ const CASES = [
   [
     "/purchases",
     "requests/route_redirects_parity_spec/route-redirects-on-the-gumroad-domain-answers-purchases-with-a-301-to-library",
-  ],
-  [
-    "seller:/landing/products",
-    "requests/users_controller_parity_spec/userscontroller-get-landing-embed-and-landing-products-answers-an-empty-not-found-to-the-products-slice-on-the-seller-s-3e999c56",
-  ],
-  [
-    "/:username/landing/products",
-    "requests/users_controller_parity_spec/userscontroller-get-landing-embed-and-landing-products-answers-an-empty-not-found-to-the-products-slice-of-a-seller-with-4a3d1c1b",
-  ],
-  [
-    "/products/search",
-    "requests/links_controller_parity_spec/links-controller-guards-the-products-search-answers-an-empty-page-when-no-section-is-named",
   ],
   [
     "/charge_data",
@@ -160,22 +113,6 @@ const CASES = [
   [
     "POST api:/v2/user/preview_custom_html",
     "requests/api/v2/users_parity_spec/api-v2-user-custom-html-requires-custom-html-for-a-preview",
-  ],
-  [
-    "POST /purchases/:id/resend_receipt",
-    "requests/purchases_controller_parity_spec/purchases-controller-guards-resending-a-receipt-answers-404-for-a-purchase-that-does-not-exist",
-  ],
-  [
-    "POST /communities/:community_id/chat_messages",
-    "requests/communities_mutations_signed_in_spec/communities-mutations-when-signed-in-chat-messages-posts-a-message-as-the-seller",
-  ],
-  [
-    "POST seller:/posts/:post_id/comments",
-    "requests/comments_mutations_signed_in_spec/post-comments-mutations-when-signed-in-post-posts-post-id-comments-adds-a-root-comment-of-the-seller",
-  ],
-  [
-    "PUT seller:/posts/:post_id/comments/:id",
-    "requests/comments_mutations_signed_in_spec/post-comments-mutations-when-signed-in-put-posts-post-id-comments-id-lets-the-author-edit-their-comment",
   ],
   [
     "POST /products/:product_id/marketing_actions/:id/execute.json",

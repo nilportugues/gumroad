@@ -12,6 +12,12 @@ vi.mock("./application-controller.ts", async (original) => ({
   processAction: mocks.processAction,
 }));
 
+// The counter itself is covered by rack-attack.test.ts; here no rule applies.
+vi.mock("./rack-attack.ts", () => ({
+  countRackAttack: vi.fn().mockResolvedValue(null),
+  uncountRackAttack: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { PAGE_URL_HEADER } from "../page-props/render-state.ts";
 
 import { mutationResponse, registerMutations } from "./mutation.ts";

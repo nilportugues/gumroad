@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 
 import { compileRouteTable, type RouteTable } from "../../lib/navigation/proxy/route-table.ts";
 
+import { RACK_ATTACK_RULES, RACK_ATTACK_RULE_NAMES } from "./rack-attack.ts";
+
 // config/initializers/rack_attack.rb counts requests in Rails' Redis. A Node answer never reaches that counter, and counting in Node as well would
 // count every request handed back twice, so a route Rack::Attack throttles must stay out of routes.json and be served by Rails whole. This test fails
 // when a routes.json entry matches a throttled path and method without an entry in ALLOWED below that says why it is safe.
@@ -17,6 +19,28 @@ import { compileRouteTable, type RouteTable } from "../../lib/navigation/proxy/r
 const nextjsRoot = process.cwd();
 const rackAttack = readFileSync(path.join(nextjsRoot, "..", "config", "initializers", "rack_attack.rb"), "utf8");
 const routeTable = JSON.parse(readFileSync(path.join(nextjsRoot, "routes.json"), "utf8")) as RouteTable;
+
+// The rules Node counts itself (rack-attack.ts) on the same Redis keys, by the literal of rack_attack.rb they come from and the rule names they
+// are (with their /2../6 tiers). A `mutation` route that matches one of these literals is counted before its action runs and un-counted when
+// it is handed back, so Rails and Node together count each request once. A route that is not a mutation (an Inertia page, a handler) is not
+// counted by Node and stays out of routes.json.
+const COUNTED_IN_NODE: Record<string, string[]> = {
+  "/two-factor": ["/params:/two-factor:post"],
+  "/two-factor/resend_authentication_token": ["/params:/two-factor/resend_authentication_token:post"],
+  "/two-factor/verify": ["/params:/two-factor/verify"],
+  "/two-factor/switch_to_email": ["/params:/two-factor/switch_to_email:post"],
+  "/two-factor/switch_to_recovery": ["/params:/two-factor/switch_to_recovery:post"],
+  "/two-factor/switch_to_authenticator": ["/params:/two-factor/switch_to_authenticator:post"],
+  "\\A/(?:users|mobile)/forgot_password(?:\\.[^/]+)?\\z": ["password_reset/ip", "password_reset/email"],
+  "\\A/products/search(?:\\.[^/]+)?\\z": ["products_search/ip"],
+  "\\A/(purchases|service_charges)/.+/resend_receipt\\z": [
+    "/ip:(?-mix:\\A\\/(purchases|service_charges)\\/.+\\/resend_receipt\\z):post",
+  ],
+  "\\A/communities/[^/]+/chat_messages\\z": ["/ip/period:(?-mix:\\A\\/communities\\/[^\\/]+\\/chat_messages\\z):post"],
+  "\\A/posts/.+/comments\\z": ["/ip:(?-mix:\\A\\/posts\\/.+\\/comments\\z):post"],
+  "\\A/posts/.+/comments/.+\\z": ["/ip:(?-mix:\\A\\/posts\\/.+\\/comments\\/.+\\z):put"],
+  "\\A/(?:[^/]+/)?landing/products\\z": ["/ip/params:(?-mix:\\A\\/(?:[^\\/]+\\/)?landing\\/products\\z):get"],
+};
 
 const ANY = "any";
 type Methods = typeof ANY | readonly string[];
@@ -322,7 +346,11 @@ describe("Rack::Attack throttles", () => {
         ),
       ),
   );
+  const countedInNode = (hit: { route: string; literal: string }) =>
+    (routeTable[hit.route] as { mutation?: boolean } | undefined)?.mutation === true &&
+    (COUNTED_IN_NODE[hit.literal] ?? []).length > 0;
   const allowed = (hit: { route: string; literal: string }) =>
+    countedInNode(hit) ||
     ALLOWED.some((entry) => entry.route === hit.route && (entry.rule === "*" || entry.rule === hit.literal));
 
   it("keeps routes.json free of throttled paths unless a reason allows them", () => {
@@ -333,6 +361,25 @@ describe("Rack::Attack throttles", () => {
           `${hit.route.startsWith(`${hit.method} `) ? "" : `${hit.method} `}${hit.route} matches ${hit.literal} (${hit.probe})`,
       );
     expect(unexplained).toEqual([]);
+  });
+
+  it("counts in Node only rules that rack-attack.ts defines, with every backoff tier", () => {
+    for (const [literal, names] of Object.entries(COUNTED_IN_NODE)) {
+      expect(
+        throttles.some((throttle) => throttle.literal === literal),
+        literal,
+      ).toBe(true);
+      for (const name of names) expect(RACK_ATTACK_RULE_NAMES, `${literal}: ${name}`).toContain(name);
+    }
+  });
+
+  it("defines each rule with the name, limit and period Rails registers", () => {
+    // Regenerate with: Rack::Attack.configuration.throttles.map { |name, t| [name, t.limit.to_f, t.period] } (RAILS_ENV=test).
+    const golden = JSON.parse(
+      readFileSync(path.join(nextjsRoot, "parity/golden/rack-attack-throttles.json"), "utf8"),
+    ) as [string, number, number][];
+    for (const rule of RACK_ATTACK_RULES)
+      expect(golden, rule.name).toContainEqual([rule.name, rule.limit, rule.period]);
   });
 
   it("lists only allowed routes that still match a throttle", () => {
@@ -351,30 +398,13 @@ describe("Rack::Attack throttles", () => {
 // answer skips the Rails counter; the generic test above also catches them, but a failure here names the group.
 const GROUPS: Record<string, string[]> = {
   "login and signup (/login, /signup)": ["POST /login", "/signup"],
-  "two-factor (per-user rules)": [
-    "POST /two-factor",
-    "POST /two-factor/resend_authentication_token",
-    "POST /two-factor/switch_to_email",
-    "POST /two-factor/switch_to_recovery",
-    "POST /two-factor/switch_to_authenticator",
-    "/two-factor/verify",
-  ],
-  "password reset (password_reset/ip, password_reset/email)": ["POST /users/forgot_password"],
   "settings writes (/settings PUT, totp confirm, passkeys)": [
     "PUT /settings",
     "POST /settings/totp/confirm",
     "POST /settings/passkeys",
     "POST /settings/passkeys/registration_options",
   ],
-  "pages (/ on seller hosts, /discover, /purchases, landing/products, products/search)": [
-    "seller:/",
-    "product:/",
-    "/discover",
-    "/purchases",
-    "/:username/landing/products",
-    "seller:/landing/products",
-    "/products/search",
-  ],
+  "pages (/ on seller hosts, /discover, /purchases)": ["seller:/", "product:/", "/discover", "/purchases"],
   "checkout lookups (grouped receipt, compute_discount)": [
     "/charge_data",
     "/license_key_lookup_data",
@@ -393,13 +423,7 @@ const GROUPS: Record<string, string[]> = {
     "POST api:/v2/user/preview_custom_html",
     "POST /api/v2/user/preview_custom_html",
   ],
-  "buyer and community writes (resend_receipt, comments, chat messages, marketing execute)": [
-    "POST /purchases/:id/resend_receipt",
-    "POST seller:/posts/:post_id/comments",
-    "PUT seller:/posts/:post_id/comments/:id",
-    "POST /communities/:community_id/chat_messages",
-    "POST /products/:product_id/marketing_actions/:id/execute.json",
-  ],
+  "marketing actions (per-user rule)": ["POST /products/:product_id/marketing_actions/:id/execute.json"],
 };
 
 describe("routes Rack::Attack throttles stay in Rails", () => {

@@ -21,10 +21,30 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 // last exchange of each fixture is sent to `next dev` with their flags on; a stand-in Rails receives whatever Node hands back.
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
-const DIRS = ["confirmations_create_parity_spec", "custom_domain_verifications_parity_spec"].map((spec) =>
-  path.join("parity/fixtures/requests", spec),
-);
-const ROUTE_FLAGS = ["nextjs_auth_confirmations", "nextjs_custom_domain_verify"].join(",");
+const rackAttackHost = process.env.PARITY_RACK_ATTACK_REDIS_HOST ?? redisHost;
+const DIRS = [
+  "confirmations_create_parity_spec",
+  "custom_domain_verifications_parity_spec",
+  "rack_attack_throttles_parity_spec",
+].map((spec) => path.join("parity/fixtures/requests", spec));
+const ROUTE_FLAGS = [
+  "nextjs_auth_confirmations",
+  "nextjs_custom_domain_verify",
+  "nextjs_auth_passwords",
+  "nextjs_purchases_public_guards",
+  "nextjs_auth_two_factor_writes",
+  "nextjs_users_profile_routes",
+].join(",");
+const RACK_SEQUENCE = "rack-attack-throttles-";
+// Rack::Attack counts per window of 20, 60 and 64 seconds; a sequence starts where none of them is about to turn over.
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+async function alignToWindow(): Promise<void> {
+  for (;;) {
+    const now = Math.floor(Date.now() / 1000);
+    if (now % 20 < 12 && now % 60 < 45 && now % 64 < 50) return;
+    await sleep(500);
+  }
+}
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
@@ -45,6 +65,8 @@ const COMPARE = {
 
 // The recorded request carries no scheme, so a Location Rails built over HTTPS (the examples that need the secure cookie) replays as HTTP.
 const HTTPS_LOCATION = "mobile-pre-authorization-get-oauth-mobile-pre-authorization-new-";
+
+const MAIL_WRAPPER = "ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper";
 
 function redisJobs(redis: Redis): JobsChannel {
   return {
@@ -88,6 +110,7 @@ describe.skipIf(!url)("WS-10 remaining ports", () => {
   let client: PrismaClient;
   let sql: SqlExecutor;
   let redis: Redis;
+  let rackRedis: Redis;
   let server: NextServer;
   let rails: Server;
   const handedBack: { method: string; url: string; body: string }[] = [];
@@ -100,6 +123,9 @@ describe.skipIf(!url)("WS-10 remaining ports", () => {
     const [hostAndPort = "", db = "0"] = redisHost.split("/");
     const [host = "127.0.0.1", port = "6379"] = hostAndPort.split(":");
     redis = new Redis({ host, port: Number(port), db: Number(db) });
+    const [rackAddress = "", rackDb = "0"] = rackAttackHost.split("/");
+    const [rackHostName = "127.0.0.1", rackPort = "6379"] = rackAddress.split(":");
+    rackRedis = new Redis({ host: rackHostName, port: Number(rackPort), db: Number(rackDb) });
     rails = createServer((request, response) => {
       const chunks: Buffer[] = [];
       request.on("data", (chunk: Buffer) => chunks.push(chunk));
@@ -124,7 +150,7 @@ describe.skipIf(!url)("WS-10 remaining ports", () => {
       DATABASE_URL: url!,
       REDIS_HOST: redisHost,
       SIDEKIQ_REDIS_HOST: redisHost,
-      RACK_ATTACK_REDIS_HOST: redisHost,
+      RACK_ATTACK_REDIS_HOST: rackAttackHost,
       DYNAMODB_ENDPOINT: process.env.DYNAMODB_ENDPOINT ?? "http://localhost:8012",
       ...(testEnv("DEVISE_SECRET_KEY") ? { DEVISE_SECRET_KEY: testEnv("DEVISE_SECRET_KEY")! } : {}),
       ...(testEnv("SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION")
@@ -168,6 +194,7 @@ describe.skipIf(!url)("WS-10 remaining ports", () => {
     rails.close();
     await closeAllRedis();
     await redis.quit();
+    await rackRedis.quit();
     await client.$disconnect();
     process.env = saved;
   });
@@ -201,6 +228,49 @@ describe.skipIf(!url)("WS-10 remaining ports", () => {
             url: request.query ? `${request.path}?${request.query}` : request.path,
           });
           expect(Object.keys(handed.exchanges[0]!.actual.db)).toEqual([]);
+          return;
+        }
+        if (path.basename(name).startsWith(RACK_SEQUENCE)) {
+          // Every request of the example in order: the counters live in Redis between them, and the one over the limit answers 429.
+          // The first request to a route compiles it, which can outlast a window: warm up, then start the sequence on a fresh one.
+          const warmUp = fixture.exchanges.findIndex((exchange) => !exchange.request.path.startsWith("/help"));
+          await replayFixtureExchange(fixture, warmUp, replayOptions()).catch(() => undefined);
+          await alignToWindow();
+          await rackRedis.flushdb();
+          const sequenceIgnore = [
+            ...COMPARE.ignore,
+            "response.headers.retry-after",
+            // A reset mail's token is random and stamped with the clock of the replay; the mail job is not in the fixture (test adapter).
+            "db.users.updated.*.changes.reset_password_token",
+            "db.users.updated.*.changes.reset_password_sent_at",
+            "db.users.updated.*.changes.updated_at",
+          ];
+          const first = fixture.exchanges.findIndex((exchange) => !exchange.request.path.startsWith("/help"));
+          let throttled = 0;
+          for (let at = first; at < fixture.exchanges.length; at += 1) {
+            // Rails answers a missing record with its debug page in the test environment; Node answers the production body.
+            const notFound = fixture.exchanges[at]!.response.status === 404;
+            const options = {
+              ...replayOptions(),
+              compare: {
+                ignore: [
+                  ...sequenceIgnore,
+                  ...(notFound ? ["response.body", "response.json", "response.headers.content-type"] : []),
+                ],
+              },
+            };
+            const replayed = await replayFixtureExchange(fixture, at, options);
+            assertParity(replayed);
+            const { expected, actual } = replayed.exchanges[0]!;
+            if (expected.response.status === 429) {
+              throttled += 1;
+              const wait = Number(actual.response.headers["retry-after"]);
+              expect(wait).toBeGreaterThanOrEqual(1);
+              expect(wait).toBeLessThanOrEqual(64);
+              expect(actual.response.body).toBe("Retry later\n");
+            } else expect(actual.response.status).not.toBe(429);
+          }
+          expect(throttled).toBe(path.basename(name).includes("does-not-count") ? 0 : 1);
           return;
         }
         const replayed = await replayFixtureExchange(fixture, index, optionsFor(name));

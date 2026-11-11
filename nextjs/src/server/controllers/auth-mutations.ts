@@ -364,7 +364,7 @@ registerMutations(
     method: "POST",
     pattern: "/two-factor",
     options: TWO_FACTOR_OPTIONS,
-    railsOnly: "/params:/two-factor:post",
+   
     run: (input) => twoFactor(input, (user) => verifyAuthTokenAndRedirect(input, user)),
   },
   {
@@ -372,14 +372,14 @@ registerMutations(
     pattern: "/two-factor/verify",
     options: TWO_FACTOR_OPTIONS,
     skipForgeryProtection: true,
-    railsOnly: "/params:/two-factor/verify",
+   
     run: (input) => twoFactor(input, (user) => verifyAuthTokenAndRedirect(input, user)),
   },
   {
     method: "POST",
     pattern: "/two-factor/resend_authentication_token",
     options: TWO_FACTOR_OPTIONS,
-    railsOnly: "/params:/two-factor/resend_authentication_token:post",
+   
     run: (input) =>
       twoFactor(input, async (user) => {
         if (twoFactorMethod(input.chain) !== "email")
@@ -392,7 +392,7 @@ registerMutations(
     method: "POST",
     pattern: "/two-factor/switch_to_email",
     options: TWO_FACTOR_OPTIONS,
-    railsOnly: "/params:/two-factor/switch_to_email:post",
+   
     run: (input) =>
       twoFactor(input, async (user) => {
         input.chain.session.data[TWO_FACTOR_METHOD_SESSION_KEY] = "email";
@@ -404,7 +404,7 @@ registerMutations(
     method: "POST",
     pattern: "/two-factor/switch_to_recovery",
     options: TWO_FACTOR_OPTIONS,
-    railsOnly: "/params:/two-factor/switch_to_recovery:post",
+   
     run: (input) =>
       twoFactor(input, async () => {
         input.chain.session.data[TWO_FACTOR_METHOD_SESSION_KEY] = "recovery";
@@ -415,7 +415,7 @@ registerMutations(
     method: "POST",
     pattern: "/two-factor/switch_to_authenticator",
     options: TWO_FACTOR_OPTIONS,
-    railsOnly: "/params:/two-factor/switch_to_authenticator:post",
+   
     run: (input) =>
       twoFactor(input, async () => {
         input.chain.session.data[TWO_FACTOR_METHOD_SESSION_KEY] = "totp";

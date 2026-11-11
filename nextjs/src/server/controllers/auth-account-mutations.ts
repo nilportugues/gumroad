@@ -377,7 +377,7 @@ async function emailUnsubscribe(input: MutationInput): Promise<ActionResult> {
 }
 
 registerMutations(
-  { method: "POST", pattern: "/users/forgot_password", railsOnly: "password_reset/ip", run: forgotPasswordCreate },
+  { method: "POST", pattern: "/users/forgot_password", run: forgotPasswordCreate },
   { method: "PUT", pattern: "/users/forgot_password", run: forgotPasswordUpdate },
   { method: "PATCH", pattern: "/users/forgot_password", run: forgotPasswordUpdate },
   { method: "GET", pattern: "/users/confirmation", skipForgeryProtection: true, run: confirmationShow },
