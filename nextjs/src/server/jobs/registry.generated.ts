@@ -2065,7 +2065,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RecordProductFileMissingFromStorageJob": {
     "file": "app/sidekiq/record_product_file_missing_from_storage_job.rb",
