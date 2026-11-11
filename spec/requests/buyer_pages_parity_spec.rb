@@ -330,6 +330,32 @@ describe "Buyer pages", type: :request do
         expect(inertia_props_of(response)["results"].size).to eq(1)
       end
 
+      it "serves the library at the read path", parity: true do
+        library_purchase(link: create(:product, name: "Read path product"))
+        log_in(buyer)
+
+        get "/read"
+
+        expect(response).to be_successful
+        expect(inertia_props_of(response)["results"].size).to eq(1)
+      end
+
+      it "answers an Inertia visit to the read path with the page as JSON", parity: true do
+        library_purchase
+        log_in(buyer)
+
+        inertia_visit "/read"
+
+        expect(response).to be_successful
+        expect(response.parsed_body["component"]).to eq("Library/Index")
+      end
+
+      it "sends a signed-out visitor from the read path to the login page", parity: true do
+        get "/read"
+
+        expect(response).to redirect_to(login_path(next: "/read"))
+      end
+
       it "answers an Inertia visit with the page as JSON", parity: true do
         library_purchase
         log_in(buyer)

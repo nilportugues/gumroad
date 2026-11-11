@@ -434,6 +434,21 @@ describe "Url redirect delivery", type: :request do
     end
   end
 
+  describe "GET /r/:id/check_purchaser" do
+    it "answers 404 for an unknown token", parity: true do
+      get url_redirect_check_purchaser_path("nope")
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "hands a change purchaser form to Rails", parity: true do
+      get url_redirect_check_purchaser_path(token)
+
+      expect(response).to be_successful
+      expect(response.body).to include("This product belongs to a different Gumroad account.")
+    end
+  end
+
   describe "POST /r/:id/change_purchaser" do
     before { pdf }
 

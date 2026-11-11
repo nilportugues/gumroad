@@ -55,6 +55,12 @@ async function saveLastContentPage(input: MutationInput): Promise<ActionResult> 
   return json({ success: true });
 }
 
+// UrlRedirectsController#check_purchaser renders an ERB form, so only fetch_url_redirect's 404 is answered here.
+async function checkPurchaser(input: MutationInput): Promise<ActionResult> {
+  await loadRedirect(requireParam(input));
+  throw new HandBackToRails("the change purchaser form, an ERB view");
+}
+
 async function confirm(input: MutationInput): Promise<ActionResult> {
   const loaded = await loadRedirect(text(input.params.id) ?? "");
   const { redirect, purchase } = loaded;
@@ -115,6 +121,7 @@ async function changePurchaserAction(input: MutationInput): Promise<ActionResult
 const SKIP_SUSPENSION_CHECK: ActionOptions = { skip: ["check_suspended"] };
 
 registerMutations(
+  { method: "GET", pattern: "/r/:id/check_purchaser", skipForgeryProtection: true, run: checkPurchaser },
   { method: "POST", pattern: "/r/:id/save_last_content_page", formats: ["any"], run: saveLastContentPage },
   { method: "POST", pattern: "/r/:id/send_to_kindle", formats: ["any"], run: sendToKindle },
   { method: "POST", pattern: "/confirm-redirect", options: SKIP_SUSPENSION_CHECK, run: confirm },
