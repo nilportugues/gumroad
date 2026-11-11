@@ -188,6 +188,12 @@ export function subdomainWithProtocol(user: Pick<UserRow, "username">): string |
   return `${config.protocol}://${user.username.replaceAll("_", "-")}.${config.rootDomain}`;
 }
 
+// User#profile_url(recommended_by:): URI#query= on a URL without a path, so no slash before the query.
+export function profileUrl(seller: Pick<UserRow, "username">, recommendedBy: string | null): string | null {
+  const base = subdomainWithProtocol(seller);
+  return base !== null && present(recommendedBy) ? `${base}${queryString({ recommended_by: recommendedBy })}` : base;
+}
+
 // Link#long_url
 export function longUrl(
   row: LinkRow,

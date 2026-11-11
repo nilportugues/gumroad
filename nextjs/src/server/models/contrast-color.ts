@@ -5,14 +5,18 @@ export const BLACK = "#000000";
 export const WCAG_AA_NORMAL_TEXT = 4.5;
 const APCA_TIE_BAND = 10.0;
 
-
 type Rgb = number[];
 
 // ContrastColor.parse: [r, g, b], or null when the value is not a hex colour.
 export function parse(hexColor: unknown): Rgb | null {
-  const value = String(hexColor ?? "").trim() // Ruby strips JavaScript's String#trim set;
-  if (/^#[0-9a-f]{6}$/iu.test(value) && !value.includes("\n")) return [value.slice(1, 3), value.slice(3, 5), value.slice(5, 7)].map((c) => parseInt(c, 16));
-  if (/^#[0-9a-f]{3}$/iu.test(value)) return value.slice(1).split("").map((c) => parseInt(c + c, 16));
+  const value = String(hexColor ?? "").trim(); // Ruby strips JavaScript's String#trim set;
+  if (/^#[0-9a-f]{6}$/iu.test(value) && !value.includes("\n"))
+    return [value.slice(1, 3), value.slice(3, 5), value.slice(5, 7)].map((c) => parseInt(c, 16));
+  if (/^#[0-9a-f]{3}$/iu.test(value))
+    return value
+      .slice(1)
+      .split("")
+      .map((c) => parseInt(c + c, 16));
   return null;
 }
 
@@ -89,7 +93,10 @@ export function accessibleAccent(hexColor: unknown): { accent: string; text: str
   let whiteText = Math.abs(apcaLc(white, rgb)) > Math.abs(apcaLc(black, rgb));
   let displayShift = brightnessShiftFor(rgb, whiteText);
   const otherShift = brightnessShiftFor(rgb, !whiteText);
-  if (otherShift < displayShift && Math.abs(Math.abs(apcaLc(white, rgb)) - Math.abs(apcaLc(black, rgb))) <= APCA_TIE_BAND) {
+  if (
+    otherShift < displayShift &&
+    Math.abs(Math.abs(apcaLc(white, rgb)) - Math.abs(apcaLc(black, rgb))) <= APCA_TIE_BAND
+  ) {
     whiteText = !whiteText;
     displayShift = otherShift;
   }
@@ -102,4 +109,27 @@ export function ratioBetween(hexColor: unknown, otherHexColor: unknown): number 
   const b = parse(otherHexColor);
   if (a === null || b === null) return null;
   return contrastRatio(relativeLuminance(a), relativeLuminance(b));
+}
+
+const WCAG_AA_NON_TEXT = 3.0;
+const INDICATOR_VISIBILITY_FLOOR = 1.5;
+const BACKGROUND_LUMINANCE_MIDPOINT = 0.2159;
+
+// ContrastColor.visible_indicator: the seller's colour untouched unless it has vanished into its background.
+export function visibleIndicator(hexColor: unknown, backgroundHex: unknown): string {
+  const rgb = parse(hexColor);
+  const background = parse(backgroundHex);
+  if (rgb === null || background === null) return BLACK;
+  const ratio = (candidate: Rgb) => contrastRatio(relativeLuminance(candidate), relativeLuminance(background));
+  if (ratio(rgb) >= INDICATOR_VISIBILITY_FLOOR) return toHex(rgb);
+
+  const whiteText = relativeLuminance(background) > BACKGROUND_LUMINANCE_MIDPOINT;
+  let low = 0;
+  let high = 255;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (ratio(shiftBrightness(rgb, whiteText, middle)) >= WCAG_AA_NON_TEXT) high = middle;
+    else low = middle + 1;
+  }
+  return toHex(shiftBrightness(rgb, whiteText, low));
 }

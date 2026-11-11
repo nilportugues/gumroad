@@ -12,6 +12,7 @@ import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
 import { geoIpLookup } from "../infra/geo-ip.ts";
 import { LinkFlags } from "../models/link.ts";
 import { getFactor } from "../models/purchasing-power-parity.ts";
+import { currencyMinPrice } from "../models/purchase-pricing.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { sellerReputationProps } from "../models/user-reputation-summary.ts";
 import { isFlagSet, tiktokPixelId, Users } from "../models/user.ts";
@@ -472,7 +473,7 @@ async function pppDetails(row: LinkRow, seller: UserRow, ip: string | null) {
     seller as unknown as { purchasing_power_parity_limit: number | null },
   );
   if (factor >= 1) return null;
-  throw new NotPortedError("Link#ppp_details with a country factor below 1");
+  return { country: geo.countryName, factor, minimum_price: currencyMinPrice(row) };
 }
 
 function sellerFlagBitByName(seller: UserRow, name: string): boolean {

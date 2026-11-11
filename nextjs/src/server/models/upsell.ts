@@ -29,7 +29,13 @@ type NamedRow = { id: bigint | number; name: string | null };
 
 // OfferCode#configured_discount_for_display, which is OfferCode#discount until the code is tiered.
 // With `anonymous`, OfferCode#discount_for_display(buyer: nil): an existing-customers code has nothing to show.
-export async function discountForDisplay(upsell: Pick<Upsell, "offer_code_id">, anonymous = false) {
+// With `buyerPresent`, OfferCode#evaluate_for_buyer, which is the same discount until the code looks at the buyer's purchases
+// (an existing-customers or tiered code); those are handed back.
+export async function discountForDisplay(
+  upsell: Pick<Upsell, "offer_code_id">,
+  anonymous = false,
+  buyerPresent = false,
+) {
   if (upsell.offer_code_id === null) return null;
   const [row] = await selectRows(
     Prisma.sql`SELECT ${table("offer_codes")}.* FROM ${table("offer_codes")} WHERE ${column("offer_codes", "id")} = ${upsell.offer_code_id} LIMIT 1`,
@@ -37,6 +43,8 @@ export async function discountForDisplay(upsell: Pick<Upsell, "offer_code_id">, 
   if (row === undefined) return null;
   const code = castRow<OfferCode>("OfferCode", row);
   if (anonymous && code.existing_customers_only) return null;
+  if (buyerPresent && (code.existing_customers_only || tiersOf(code.ownership_duration_tiers).length > 0))
+    throw new NotPortedError("An offer code that depends on the buyer's purchases", "OfferCode#evaluate_for_buyer");
   const record = new OfferCodeRecord(code);
   const cents = code.amount_percentage == null;
   const json: Record<string, unknown> = {

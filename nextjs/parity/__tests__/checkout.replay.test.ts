@@ -126,7 +126,7 @@ describe.skipIf(!url)("Checkout page parity", () => {
 
   it("finds the fixtures", () => {
     expect(cases.filter((c) => !c.handedBack).length).toBeGreaterThan(25);
-    expect(cases.filter((c) => c.handedBack).length).toBe(5);
+    expect(cases.filter((c) => c.handedBack).length).toBe(4);
   });
 
   it.each(cases.map((c) => [c.name, c] as const))(

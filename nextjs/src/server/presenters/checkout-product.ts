@@ -9,6 +9,7 @@ import { Prisma, type User } from "@prisma/client";
 import { decrypt, encrypt as externalId } from "../../lib/obfuscate-ids.ts";
 import { autoLink } from "../html/rinku.ts";
 import { sanitize } from "../html/sanitizer.ts";
+import { detectedBuyerCurrency } from "../infra/buyer-currency-countries.ts";
 import { CONTINENT_SHIPPING_COUNTRIES } from "../infra/continent-shipping-countries.ts";
 import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
 import { alpha2ByName, COUNTRIES, isBlockedCountry } from "../models/compliance-countries.ts";
@@ -52,12 +53,14 @@ import {
   type PriceRow,
   type UserRow,
 } from "./product-reads.ts";
-import { defaultBuyerCurrencyProps, longUrl, subdomainWithProtocol } from "./product.ts";
+import { buyerCurrencyDisplayProps, defaultBuyerCurrencyProps, longUrl, profileUrl } from "./product.ts";
 // PaypalMerchantAccountManager::COUNTRY_CODES_NOT_SUPPORTED_BY_PCP
 const PCP_UNSUPPORTED_COUNTRY_CODES = ["DZ", "BR", "CN", "EG", "IN", "IL", "JP", "FM", "MA", "TR"];
 // PaypalMerchantAccountManager::COUNTRY_CODES_WITH_GRANDFATHERED_PCP
 const GRANDFATHERED_PCP_COUNTRY_CODES = ["CN"];
 const NATIVE_TYPE_COFFEE = "coffee";
+const NATIVE_TYPE_CALL = "call";
+const PURCHASE_TYPES = ["buy_only", "rent_only", "buy_and_rent"] as const;
 const RENTAL_PRICE_FLAG = 1;
 const decryptId = (external: string) => BigInt(decrypt(external)!);
 
@@ -155,10 +158,33 @@ async function hasOfferCodes(row: LinkRow, seller: UserRow): Promise<boolean> {
   );
 }
 
-type CartParams = { option?: string | null; recurrence?: string | null };
+// The params Link#cart_item reads, already cast the way it reads them (`!!params[:rent]`, `params[:price].to_i`).
+export type CartParams = {
+  option?: string | null;
+  recurrence?: string | null;
+  price?: number;
+  rent?: boolean;
+  quantity?: number | null;
+  callStartTime?: string | null;
+  payInInstallments?: boolean;
+  forceNewSubscription?: boolean;
+};
+
+// The request params CheckoutPresenter#checkout_product echoes back or reads itself.
+export type CheckoutParams = {
+  affiliateId?: string | null;
+  recommendedBy?: string | null;
+  recommenderModelName?: string | null;
+  acceptedOfferId?: string | null;
+};
+
 type CheckoutRequest = {
   // Link#cart_item(params)
   cartParams?: CartParams;
+  // `logged_in_user` and `ip`; the upsell and form callers have neither
+  buyerId?: bigint | null;
+  ip?: string | null;
+  params?: CheckoutParams;
   // `include_cross_sells:`; an offered product never carries its own
   includeCrossSells?: boolean;
   // `arrival:`: a cross-sell's offered product is one the buyer is adding right now
@@ -213,8 +239,35 @@ function availableCrossSells(row: LinkRow): Promise<OfferRow[]> {
   );
 }
 
+// CheckoutPresenter#purchased_variant_ids_for: the variant each of the buyer's purchases of the product was made with (null for none).
+// `variant_attributes.first` has no order, so a purchase with several variants is handed back.
+async function purchasedVariantIds(buyerId: bigint, productId: bigint): Promise<Set<string | null>> {
+  const purchases = await selectRows<{ id: bigint }>(
+    Prisma.sql`SELECT ${column("purchases", "id")} FROM ${table("purchases")} WHERE ${column("purchases", "purchaser_id")} = ${buyerId} AND ${column("purchases", "link_id")} = ${productId} ORDER BY ${column("purchases", "id")} ASC`,
+  );
+  const ids = new Set<string | null>();
+  for (const purchase of purchases) {
+    const variants = await selectRows<{ base_variant_id: bigint }>(
+      Prisma.sql`SELECT ${column("base_variants_purchases", "base_variant_id")} FROM ${table("base_variants_purchases")} WHERE ${column("base_variants_purchases", "purchase_id")} = ${purchase.id} ORDER BY ${column("base_variants_purchases", "id")} ASC`,
+    );
+    if (variants.length > 1) throw new NotPortedError("a purchase made with several variants");
+    ids.add(variants[0] === undefined ? null : String(variants[0].base_variant_id));
+  }
+  return ids;
+}
+
+// CheckoutPresenter#already_purchased?
+async function alreadyPurchased(buyerId: bigint | null, productId: bigint, variantId: bigint | null): Promise<boolean> {
+  if (buyerId === null) return false;
+  return (await purchasedVariantIds(buyerId, productId)).has(variantId === null ? null : String(variantId));
+}
+
 // The offered variant of each option of the product, from its upsell's live upsell variants (`already_purchased?` is false without a buyer).
-async function upsellOfferedVariantIds(row: LinkRow, upsell: OfferRow | null): Promise<Map<string, string>> {
+async function upsellOfferedVariantIds(
+  row: LinkRow,
+  upsell: OfferRow | null,
+  buyerId: bigint | null,
+): Promise<Map<string, string>> {
   const offered = new Map<string, string>();
   if (upsell === null) return offered;
   const pairs = await selectRows<{ selected_variant_id: bigint; offered_variant_id: bigint }>(
@@ -228,6 +281,9 @@ async function upsellOfferedVariantIds(row: LinkRow, upsell: OfferRow | null): P
     decided.add(selectedId);
     const variant = await findVariant(pair.offered_variant_id);
     if (variant === null) throw new NotPortedError("UpsellVariant without an offered variant");
+    // `product.upsell.seller == logged_in_user || !already_purchased?(product, offered_variant)`, then `offered_variant.available?`
+    const buyerIsSeller = buyerId !== null && upsell.seller_id === buyerId;
+    if (!buyerIsSeller && (await alreadyPurchased(buyerId, row.id, variant.id))) continue;
     if (await variantAvailable(row, variant)) offered.set(selectedId, externalId(variant.id));
   }
   return offered;
@@ -272,7 +328,7 @@ async function buyPrices(row: LinkRow, variant: VariantRow | null): Promise<Pric
   return prices.filter((price) => !bit(price.flags, RENTAL_PRICE_FLAG));
 }
 
-// Link#cart_item(params) for a buy-only product, a legacy subscription or a membership.
+// Link#cart_item(params)
 async function cartItem(
   row: LinkRow,
   seller: UserRow,
@@ -280,6 +336,7 @@ async function cartItem(
   params: CartParams,
 ) {
   const tiered = flag(row, "is_tiered_membership");
+  const rental = Boolean(params.rent) && PURCHASE_TYPES[row.purchase_type ?? -1] !== "buy_only";
   let requested = options.find((o) => o.id === params.option) ?? null;
   // A closed tier reports quantity 0, but selecting it here would add a zero-quantity item.
   if (requested !== null && tiered) {
@@ -307,11 +364,21 @@ async function cartItem(
         null,
       );
   }
-  const listed = recurrence?.price_cents ?? (await listedPriceCents(row)) ?? 0;
-  // [customizable ? params[:price].to_i : 0, (recurrence&.price_cents || price_cents.to_i) + price_difference_cents].max
-  let price = Math.max(0, listed + (option?.price_difference_cents ?? 0));
+  const listed = rental ? ((await rentalProps(row))?.price_cents ?? 0) : ((await listedPriceCents(row)) ?? 0);
+  const named = row.customizable_price || (tier !== null && Boolean(tier.customizable_price)) ? (params.price ?? 0) : 0;
+  // [named, (recurrence&.price_cents || (rental ? rental_price_cents : price_cents).to_i) + price_difference_cents].max
+  let price = Math.max(named, (recurrence?.price_cents ?? listed) + (option?.price_difference_cents ?? 0));
   if (pppEnabled(row, seller) && price !== 0 && price < currencyMinPrice(row)) price = currencyMinPrice(row);
-  return { option, rental: false, recurrence: recurrence?.recurrence ?? null, price };
+  return {
+    option,
+    rental,
+    recurrence: recurrence?.recurrence ?? null,
+    price,
+    payInInstallments: Boolean(params.payInInstallments) && (await installmentPlan(row)) !== null,
+    quantity: params.quantity ?? null,
+    callStartTime: row.native_type === NATIVE_TYPE_CALL ? (params.callStartTime ?? null) : null,
+    forceNewSubscription: Boolean(params.forceNewSubscription) && flag(row, "is_recurring_billing"),
+  };
 }
 
 async function bundleProductProps(bundleProducts: Awaited<ReturnType<typeof aliveBundleProducts>>) {
@@ -334,7 +401,12 @@ async function bundleProductProps(bundleProducts: Awaited<ReturnType<typeof aliv
 
 // The cross-sells CheckoutPresenter#checkout_product lists for a buyer who has bought nothing, which keeps every one whose product and
 // offered variant can still be sold.
-async function crossSellProps(row: LinkRow, selectedOptionName: string | null): Promise<Record<string, unknown>[]> {
+async function crossSellProps(
+  row: LinkRow,
+  selectedOptionName: string | null,
+  buyerId: bigint | null,
+  ip: string | null,
+): Promise<Record<string, unknown>[]> {
   const props = [];
   for (const crossSell of await availableCrossSells(row)) {
     const offered = await findLink(crossSell.product_id);
@@ -344,7 +416,8 @@ async function crossSellProps(row: LinkRow, selectedOptionName: string | null): 
     if (
       offered.deleted_at !== null ||
       (remaining !== null && remaining <= 0) ||
-      (offeredVariant !== null && !(await variantAvailable(offered, offeredVariant)))
+      (offeredVariant !== null && !(await variantAvailable(offered, offeredVariant))) ||
+      (crossSell.seller_id !== buyerId && (await alreadyPurchased(buyerId, offered.id, offeredVariant?.id ?? null)))
     )
       continue;
     props.push({
@@ -356,8 +429,10 @@ async function crossSellProps(row: LinkRow, selectedOptionName: string | null): 
         cartParams: { option: offeredVariant === null ? null : externalId(offeredVariant.id) },
         includeCrossSells: false,
         arrival: true,
+        buyerId,
+        ip,
       }),
-      discount: await discountForDisplay(crossSell, true),
+      discount: await discountForDisplay(crossSell, buyerId === null, buyerId !== null),
       ratings: flag(offered, "display_product_reviews") ? await reviewSummary(offered) : null,
     });
   }
@@ -418,14 +493,45 @@ async function shippableCountryCodes(row: LinkRow): Promise<string[]> {
     : shippable;
 }
 
-// CheckoutPresenter#checkout_product with `logged_in_user: nil, ip: nil` and no params.
+// CheckoutPresenter#buyer_currency_display_props: the product's own currency unless the seller opted in to buyer-local currency
+// and the visitor's country uses another.
+async function buyerCurrencyProps(row: LinkRow, seller: UserRow, ip: string | null) {
+  const defaults = defaultBuyerCurrencyProps(row);
+  const detected = detectedBuyerCurrency(ip);
+  if (detected === null || detected === defaults.product_currency) return defaults;
+  return buyerCurrencyDisplayProps(row, seller);
+}
+
+// The accepted offer of `?accepted_offer_id=`: `Upsell.available_to_customers.where(product:).find_by_external_id`.
+async function acceptedOfferRow(row: LinkRow, externalOfferId: string | null | undefined): Promise<OfferRow | null> {
+  if (externalOfferId === undefined || externalOfferId === null) return null;
+  const id = decrypt(externalOfferId);
+  if (id === null) return null;
+  const [upsell] = await selectRows<OfferRow>(
+    Prisma.sql`SELECT ${upsellColumns} FROM ${table("upsells")} WHERE ${column("upsells", "product_id")} = ${row.id} AND ${column("upsells", "deleted_at")} IS NULL AND ${column("upsells", "paused")} = 0 AND ${column("upsells", "id")} = ${BigInt(id)} LIMIT 1`,
+  );
+  return upsell ?? null;
+}
+
+// CheckoutPresenter#checkout_product. The form and upsell callers have no buyer and no params (`logged_in_user: nil, ip: nil`).
 export async function checkoutProduct(row: LinkRow, request: CheckoutRequest = {}) {
-  const { cartParams = {}, includeCrossSells = true, arrival = false } = request;
+  const {
+    cartParams = {},
+    includeCrossSells = true,
+    arrival = false,
+    buyerId = null,
+    ip = null,
+    params = {},
+  } = request;
   const seller = (await findUserById(row.user_id!))!;
+  const recommendedBy = params.recommendedBy ?? null;
+  const acceptedOffer = await acceptedOfferRow(row, params.acceptedOfferId);
+  const acceptedVariant =
+    acceptedOffer?.variant_id === null || acceptedOffer === null ? null : await findVariant(acceptedOffer.variant_id);
 
   const shippableCountries = await shippableCountryCodes(row);
   const upsell = await availableUpsell(row);
-  const offeredVariantIds = await upsellOfferedVariantIds(row, upsell);
+  const offeredVariantIds = await upsellOfferedVariantIds(row, upsell, buyerId);
   const bundleProducts = await aliveBundleProducts(row.id);
   const options = await linkOptions(row);
   const item = await cartItem(row, seller, options, cartParams);
@@ -434,9 +540,9 @@ export async function checkoutProduct(row: LinkRow, request: CheckoutRequest = {
     await thumbnailUrl(row.id),
   ];
   const currency = String(row.price_currency_type);
-  const profileUrl = subdomainWithProtocol(seller);
+  const profileUrlWithReferrer = profileUrl(seller, recommendedBy);
   const price = await listedPriceCents(row);
-  const buyerCurrencyDisplay = defaultBuyerCurrencyProps(row);
+  const buyerCurrencyDisplay = await buyerCurrencyProps(row, seller, ip);
   const rate = rubyStringToF(await getRate(currency)) / (isCurrencyTypeSingleUnit(currency) ? 100 : 1);
   const tiered = flag(row, "is_tiered_membership");
   const recurring = flag(row, "is_recurring_billing");
@@ -448,7 +554,7 @@ export async function checkoutProduct(row: LinkRow, request: CheckoutRequest = {
     creator: present(seller.username)
       ? {
           name: seller.name ?? seller.username,
-          profile_url: profileUrl,
+          profile_url: profileUrlWithReferrer,
           avatar_url: creatorAvatar,
           id: seller.external_id,
         }
@@ -503,7 +609,7 @@ export async function checkoutProduct(row: LinkRow, request: CheckoutRequest = {
       recurrences: await linkRecurrences(row),
       can_gift: !preorder && !sellerFlag(seller, "gifting_disabled"),
       options: productOptions,
-      ppp_details: await pppDetails(row, seller, null),
+      ppp_details: await pppDetails(row, seller, ip),
       upsell: upsell
         ? { id: externalId(upsell.id), text: upsell.text ?? "", description: offerDescription(upsell.description) }
         : null,
@@ -511,24 +617,30 @@ export async function checkoutProduct(row: LinkRow, request: CheckoutRequest = {
       bundle_products: await bundleProductProps(bundleProducts),
     },
     price: item.price,
-    option_id: item.option?.id ?? null,
+    option_id: acceptedVariant === null ? (item.option?.id ?? null) : externalId(acceptedVariant.id),
     rent: item.rental,
     recurrence: item.recurrence,
-    quantity: null,
-    call_start_time: null,
-    pay_in_installments: false,
-    force_new_subscription: false,
-    affiliate_id: null,
-    recommended_by: null,
-    recommender_model_name: null,
-    accepted_offer: null,
+    quantity: item.quantity,
+    call_start_time: item.callStartTime,
+    pay_in_installments: item.payInInstallments,
+    force_new_subscription: buyerId !== null && item.forceNewSubscription,
+    affiliate_id: params.affiliateId ?? null,
+    recommended_by: recommendedBy,
+    recommender_model_name: params.recommenderModelName ?? null,
+    accepted_offer:
+      acceptedOffer === null
+        ? null
+        : {
+            id: externalId(acceptedOffer.id),
+            variant_id: acceptedVariant === null ? null : externalId(acceptedVariant.id),
+            discount: await discountForDisplay(acceptedOffer, buyerId === null, buyerId !== null),
+          },
   };
-  // The callers have no buyer (`logged_in_user: nil`), so the token is a guest's.
   if (arrival && flag(row, "is_recurring_billing"))
-    Object.assign(value, { restart_intent: issueRestartIntentToken(row.id, null) });
+    Object.assign(value, { restart_intent: issueRestartIntentToken(row.id, buyerId) });
   if (includeCrossSells) {
     const selectedName = productOptions.find((option) => option.id === value.option_id)?.name ?? null;
-    value.product.cross_sells = await crossSellProps(row, selectedName);
+    value.product.cross_sells = await crossSellProps(row, selectedName, buyerId, ip);
   }
   return value;
 }
