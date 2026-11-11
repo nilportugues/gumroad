@@ -5,30 +5,51 @@ import * as Routes from "@/lib/navigation/routes";
 
 import { db } from "../../../lib/db.ts";
 import { RoutingError } from "../../controllers/application-controller.ts";
-import { domainConfig } from "../domain.ts";
 import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
+import { railsEnv } from "../../infra/rails-env.ts";
 import { isBlank } from "../../models/compliance-countries.ts";
-import { aliveUserComplianceInfoRow, legalEntityName } from "../../models/user-compliance-info.ts";
 import { LinkFlags } from "../../models/link.ts";
+import { aliveUserComplianceInfoRow, legalEntityName } from "../../models/user-compliance-info.ts";
 import { RISK_STATES } from "../../models/user.ts";
-import { loadSellerContext, NotAuthorizedError, requireUser, roleAdminFor, type SellerContext } from "../../policies/seller-context.ts";
+import {
+  loadSellerContext,
+  NotAuthorizedError,
+  requireUser,
+  roleAdminFor,
+  type SellerContext,
+} from "../../policies/seller-context.ts";
 import { MIN_SALES_CENTS_VALUE_FOR_STORE_AGENT } from "../../search/purchase-sales.ts";
 import { sellerGuard } from "../audience/seller-guard.ts";
 import { userSubdomainWithProtocol } from "../audience/support.ts";
+import { domainConfig } from "../domain.ts";
 import type { GuardInput } from "../guards.ts";
 import type { PageSpec } from "../pages.ts";
 import { eligibleForStoreAgent } from "../signed-in/policy-props.ts";
-import { railsEnv } from "../../infra/rails-env.ts";
 
 export const MONTHLY_LIMIT = 5;
 const MIN_SUCCESSFUL_SALES = 1;
 export const SIGNATURE_STATEMENT_VERSION = "2026-10-07";
 export const SIGNATURE_CONFIRMATIONS: [string, string][] = [
-  ["details_shared", "The notice shows my legal name and email address. The site can share the notice with the person who posted the page, and the notice may be published, for example on Lumen."],
-  ["own_statements", "I have read this notice, and I make its statements myself, including the statement under penalty of perjury."],
-  ["misrepresentation_liability", "If I knowingly misrepresent that this page infringes my work, I can be liable for damages, costs and attorneys' fees under 17 U.S.C. § 512(f)."],
-  ["fair_use_considered", "I considered whether the page could be a licensed use or a fair use of my work, such as a review, a commentary or a short excerpt."],
-  ["authorize_gumroad", "I authorize Gumroad to send this notice by email for me, and to put my typed name on it as my signature."],
+  [
+    "details_shared",
+    "The notice shows my legal name and email address. The site can share the notice with the person who posted the page, and the notice may be published, for example on Lumen.",
+  ],
+  [
+    "own_statements",
+    "I have read this notice, and I make its statements myself, including the statement under penalty of perjury.",
+  ],
+  [
+    "misrepresentation_liability",
+    "If I knowingly misrepresent that this page infringes my work, I can be liable for damages, costs and attorneys' fees under 17 U.S.C. § 512(f).",
+  ],
+  [
+    "fair_use_considered",
+    "I considered whether the page could be a licensed use or a fair use of my work, such as a review, a commentary or a short excerpt.",
+  ],
+  [
+    "authorize_gumroad",
+    "I authorize Gumroad to send this notice by email for me, and to put my typed name on it as my signature.",
+  ],
 ];
 export const CANCELLABLE_STATES = ["requested", "screening", "awaiting_signature", "signed"];
 const SKIP_SALES_CHECKS_FLAG = "piracy_reports_skip_sales_checks";
@@ -43,7 +64,10 @@ const isoDate = (value: Date) => value.toISOString().slice(0, 10);
 export function longUrl(product: Link, owner: User): string {
   const config = domainConfig(process.env);
   const host = userSubdomainWithProtocol(owner) ?? `${config.protocol}://${config.domain}`;
-  const permalink = product.custom_permalink !== null && !isBlank(product.custom_permalink) ? product.custom_permalink : (product.unique_permalink ?? "");
+  const permalink =
+    product.custom_permalink !== null && !isBlank(product.custom_permalink)
+      ? product.custom_permalink
+      : (product.unique_permalink ?? "");
   return `${host}/l/${encodeURIComponent(permalink)}`;
 }
 
@@ -56,7 +80,10 @@ export const policyCreate = async (context: SellerContext) => {
 // PiracyReportPolicy#index? and #show? (the record always belongs to the seller: it was looked up through them).
 export const policyAdmin = (context: SellerContext) => roleAdminFor(requireUser(context));
 
-async function authorizeAsync(query: (context: SellerContext) => boolean | Promise<boolean>, context: SellerContext): Promise<void> {
+async function authorizeAsync(
+  query: (context: SellerContext) => boolean | Promise<boolean>,
+  context: SellerContext,
+): Promise<void> {
   if (!(await query(context))) throw new NotAuthorizedError();
 }
 
@@ -69,15 +96,20 @@ export async function eligibilityErrors(seller: User, product: Link): Promise<st
   if (suspended) errors.push("The seller's account is suspended");
   if (!suspended && !skipSalesChecks && !(await eligibleForStoreAgent(seller, railsEnv() === "development"))) {
     // MoneyFormatter.format(..., :usd, no_cents_if_whole: true, symbol: true)
-    errors.push(`Piracy reports unlock with the Agent: confirm your email, complete a payout and reach $${MIN_SALES_CENTS_VALUE_FOR_STORE_AGENT / 100} in sales`);
+    errors.push(
+      `Piracy reports unlock with the Agent: confirm your email, complete a payout and reach $${MIN_SALES_CENTS_VALUE_FOR_STORE_AGENT / 100} in sales`,
+    );
   }
   const info = await aliveUserComplianceInfoRow(seller.id);
   const legalName = info ? legalEntityName(info) : null;
-  if (legalName === null || isBlank(legalName)) errors.push("The seller's payout record has no legal name to print in the notice");
+  if (legalName === null || isBlank(legalName))
+    errors.push("The seller's payout record has no legal name to print in the notice");
   if (product.user_id !== seller.id) errors.push("The product does not belong to the seller");
-  if (!(product.deleted_at === null && product.purchase_disabled_at === null && !product.draft)) errors.push("The product is not published");
+  if (!(product.deleted_at === null && product.purchase_disabled_at === null && !product.draft))
+    errors.push("The product is not published");
   if (await hasConfirmedCollaborator(product.id)) errors.push("The product has a collaborator");
-  if (!skipSalesChecks && !((await successfulSalesCount(product.id)) >= MIN_SUCCESSFUL_SALES)) errors.push("The product has no successful sales");
+  if (!skipSalesChecks && !((await successfulSalesCount(product.id)) >= MIN_SUCCESSFUL_SALES))
+    errors.push("The product has no successful sales");
   return errors;
 }
 
@@ -97,17 +129,28 @@ async function successfulSalesCount(productId: bigint): Promise<number> {
 }
 
 async function archivedProductsCount(seller: User): Promise<number> {
-  const rows = await db.$queryRaw<{ count: bigint }[]>`SELECT COUNT(*) AS count FROM links WHERE user_id = ${seller.id} AND deleted_at IS NULL AND ${LinkFlags.condition("archived")}`;
+  const rows = await db.$queryRaw<
+    { count: bigint }[]
+  >`SELECT COUNT(*) AS count FROM links WHERE user_id = ${seller.id} AND deleted_at IS NULL AND ${LinkFlags.condition("archived")}`;
   return Number(rows[0]?.count ?? 0);
 }
 
 const seller = (context: { currentSeller: User | null }) => context.currentSeller!;
 
-export const productsRedirect = (alert: string) => ({ status: 302, location: Routes.products_path(), flash: { alert }, rescued: true }) as const;
+export const productsRedirect = (alert: string) =>
+  ({ status: 302, location: Routes.products_path(), flash: { alert }, rescued: true }) as const;
 
 // set_product: the seller's alive product by unique permalink, else back to the products list.
 export async function findProduct(owner: User, permalink: string | null): Promise<Link | null> {
-  return db.link.findFirst({ where: { user_id: owner.id, unique_permalink: permalink ?? "", purchase_disabled_at: null, banned_at: null, deleted_at: null } });
+  return db.link.findFirst({
+    where: {
+      user_id: owner.id,
+      unique_permalink: permalink ?? "",
+      purchase_disabled_at: null,
+      banned_at: null,
+      deleted_at: null,
+    },
+  });
 }
 
 const productIdParam = (url: URL) => url.searchParams.getAll("product_id").at(-1) ?? null;
@@ -118,7 +161,11 @@ export async function findReport(owner: User, externalId: string): Promise<Pirac
 
 // Sellers::BaseController runs authenticate_user! and require_account_email ahead of the page's own
 // before_actions; authorization comes last, in the action.
-export async function guard(info: GuardInput, lookup: (context: SellerContext) => Promise<ReturnType<typeof productsRedirect> | null>, query: (context: SellerContext) => boolean | Promise<boolean>) {
+export async function guard(
+  info: GuardInput,
+  lookup: (context: SellerContext) => Promise<ReturnType<typeof productsRedirect> | null>,
+  query: (context: SellerContext) => boolean | Promise<boolean>,
+) {
   let missing: ReturnType<typeof productsRedirect> | null = null;
   const halted = await sellerGuard(info, async (context) => {
     missing = await lookup(context);
@@ -129,7 +176,10 @@ export async function guard(info: GuardInput, lookup: (context: SellerContext) =
 }
 
 function history(report: PiracyReport) {
-  const screened = (report.screening_verdict === "pass" || report.screening_verdict === "fail") && report.state !== "screening" ? report.screened_at : null;
+  const screened =
+    (report.screening_verdict === "pass" || report.screening_verdict === "fail") && report.state !== "screening"
+      ? report.screened_at
+      : null;
   const events: [string, Date | null][] = [
     ["filed", report.created_at],
     [report.state === "declined" ? "declined" : "confirmed", screened],
@@ -140,7 +190,9 @@ function history(report: PiracyReport) {
     ["resolved", report.state === "resolved" ? report.resolved_at : null],
     ["closed", report.state === "cancelled" ? report.updated_at : null],
   ];
-  return events.flatMap(([event, at]) => (at ? [{ event, at: event === "counter_notice" ? isoDate(at) : iso8601(at) }] : []));
+  return events.flatMap(([event, at]) =>
+    at ? [{ event, at: event === "counter_notice" ? isoDate(at) : iso8601(at) }] : [],
+  );
 }
 
 // PiracyReport#restoration_window: weekdays only, 10 and 14 business days after the counter-notice.
@@ -164,7 +216,11 @@ export const PIRACY_REPORT_PAGES: Record<string, PageSpec> = {
     props: async (_, { context }) => {
       const owner = seller(context);
       const reports = await db.piracyReport.findMany({ where: { seller_id: owner.id }, orderBy: { id: "desc" } });
-      const products = new Map((await db.link.findMany({ where: { id: { in: [...new Set(reports.map((report) => report.product_id))] } } })).map((product) => [product.id, product]));
+      const products = new Map(
+        (
+          await db.link.findMany({ where: { id: { in: [...new Set(reports.map((report) => report.product_id))] } } })
+        ).map((product) => [product.id, product]),
+      );
       return {
         archived_tab_visible: (await archivedProductsCount(owner)) > 0,
         can_report: await policyCreate(await loadSellerContext(context)),
@@ -184,7 +240,8 @@ export const PIRACY_REPORT_PAGES: Record<string, PageSpec> = {
     guard: (info) =>
       guard(
         info,
-        async (context) => ((await findProduct(context.seller!, productIdParam(info.url))) ? null : productsRedirect("Product not found")),
+        async (context) =>
+          (await findProduct(context.seller!, productIdParam(info.url))) ? null : productsRedirect("Product not found"),
         policyCreate,
       ),
     props: async (_, { context, url }) => {
@@ -194,7 +251,9 @@ export const PIRACY_REPORT_PAGES: Record<string, PageSpec> = {
       return {
         product: { id: product.unique_permalink, name: product.name, url: longUrl(product, owner) },
         eligibility_errors: await eligibilityErrors(owner, product),
-        reports_this_month: await db.piracyReport.count({ where: { seller_id: owner.id, created_at: { gte: startOfMonth } } }),
+        reports_this_month: await db.piracyReport.count({
+          where: { seller_id: owner.id, created_at: { gte: startOfMonth } },
+        }),
         monthly_limit: MONTHLY_LIMIT,
       };
     },
@@ -204,7 +263,8 @@ export const PIRACY_REPORT_PAGES: Record<string, PageSpec> = {
     guard: (info) =>
       guard(
         info,
-        async (context) => ((await findReport(context.seller!, info.params.id!)) ? null : productsRedirect("Report not found")),
+        async (context) =>
+          (await findReport(context.seller!, info.params.id!)) ? null : productsRedirect("Report not found"),
         policyAdmin,
       ),
     props: async (params, { context }) => {
@@ -226,12 +286,16 @@ export const PIRACY_REPORT_PAGES: Record<string, PageSpec> = {
           sent_at: report.sent_at && iso8601(report.sent_at),
           recipient_name: report.recipient_name,
           restoration_window: restorationWindow(report),
-          waiting_on_person: report.state === "screening" && report.screening_verdict !== null && report.screening_verdict !== "",
+          waiting_on_person:
+            report.state === "screening" && report.screening_verdict !== null && report.screening_verdict !== "",
           history: history(report),
           counter_notice_received_on: report.counter_notice_received_on && isoDate(report.counter_notice_received_on),
           outcome: report.outcome,
         },
-        product: { name: product.name, url: longUrl(product, (await db.user.findUnique({ where: { id: product.user_id ?? -1n } }))!) },
+        product: {
+          name: product.name,
+          url: longUrl(product, (await db.user.findUnique({ where: { id: product.user_id ?? -1n } }))!),
+        },
         confirmations: SIGNATURE_CONFIRMATIONS.map(([key, text]) => ({ key, text })),
         confirmations_version: SIGNATURE_STATEMENT_VERSION,
         monthly_limit: MONTHLY_LIMIT,

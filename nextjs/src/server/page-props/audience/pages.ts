@@ -4,20 +4,35 @@
 import type { User } from "@prisma/client";
 
 import { RoutingError } from "../../controllers/application-controller.ts";
-import { authorize } from "../../policies/authorize.ts";
 import { audienceFollowerPolicy } from "../../policies/audience-follower.ts";
+import { authorize } from "../../policies/authorize.ts";
 import { loadSellerContext, type SellerContext } from "../../policies/seller-context.ts";
+import { utmLinkPolicy } from "../../policies/utm-link.ts";
 import { workflowPolicy } from "../../policies/workflow.ts";
 import type { GuardInput } from "../guards.ts";
-import { findWorkflowByExternalId, workflowFormContext, workflowLinkBelongsToSeller, workflowPropsFor, workflowsIndexProps } from "./workflows.ts";
-import { utmLinkPolicy } from "../../policies/utm-link.ts";
-import type { PageSpec } from "../pages.ts";
 import { lazy, merge, optional } from "../lazy-props.ts";
+import type { PageSpec } from "../pages.ts";
+
 import { createUserEvent } from "./events.ts";
 import { followersParams, pagedFollowers, totalCount } from "./followers.ts";
 import { sellerGuard } from "./seller-guard.ts";
-import { generateUniquePermalink, editPageProps, findUtmLinkByExternalId, indexParams, newPageProps, paginatedUtmLinks, utmLinksStats } from "./utm-links.ts";
 import { rackParam, stringParam } from "./support.ts";
+import {
+  generateUniquePermalink,
+  editPageProps,
+  findUtmLinkByExternalId,
+  indexParams,
+  newPageProps,
+  paginatedUtmLinks,
+  utmLinksStats,
+} from "./utm-links.ts";
+import {
+  findWorkflowByExternalId,
+  workflowFormContext,
+  workflowLinkBelongsToSeller,
+  workflowPropsFor,
+  workflowsIndexProps,
+} from "./workflows.ts";
 
 const seller = (context: { currentSeller: User | null }) => context.currentSeller!;
 const queryOf = (url: URL) => ({ queryString: url.search.replace(/^\?/, "") });
@@ -76,10 +91,12 @@ const utmLinksEdit: PageSpec = {
 // FollowersController < ApplicationController: it authenticates itself and has no account email filter.
 const followersIndex: PageSpec = {
   component: "Followers/Index",
-  guard: (info) => sellerGuard(info, (context) => authorize(audienceFollowerPolicy.index, context), { requireAccountEmail: false }),
+  guard: (info) =>
+    sellerGuard(info, (context) => authorize(audienceFollowerPolicy.index, context), { requireAccountEmail: false }),
   props: async (_, { context, meta, url, headers, renderState }) => {
     // Load more and search are partial reloads of a page the seller already viewed.
-    if (!headers.has("x-inertia-partial-component")) await createUserEvent("followers_view", { context, headers, url, state: renderState });
+    if (!headers.has("x-inertia-partial-component"))
+      await createUserEvent("followers_view", { context, headers, url, state: renderState });
     meta.set({ title: "Subscribers" });
     meta.set({ property: "og:title", content: "Posts" });
 
@@ -97,15 +114,14 @@ const followersIndex: PageSpec = {
 
 // WorkflowsController and Workflows::EmailsController: `set_workflow` (404, also for a product the
 // seller does not own), then `authorize @workflow`.
-const workflowGuard =
-  (workflowParam: string, query: (context: SellerContext) => boolean) =>
-  (info: GuardInput) =>
-    sellerGuard(info, async (context) => {
-      const params = info.params;
-      const workflow = await findWorkflowByExternalId(context.seller!, params[workflowParam]!);
-      if (!workflow || !(await workflowLinkBelongsToSeller(context.seller!, workflow))) throw new RoutingError("Not Found");
-      authorize(query, context);
-    });
+const workflowGuard = (workflowParam: string, query: (context: SellerContext) => boolean) => (info: GuardInput) =>
+  sellerGuard(info, async (context) => {
+    const params = info.params;
+    const workflow = await findWorkflowByExternalId(context.seller!, params[workflowParam]!);
+    if (!workflow || !(await workflowLinkBelongsToSeller(context.seller!, workflow)))
+      throw new RoutingError("Not Found");
+    authorize(query, context);
+  });
 
 const workflowsIndex: PageSpec = {
   component: "Workflows/Index",

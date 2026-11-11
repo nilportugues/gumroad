@@ -3,17 +3,25 @@
 import { Prisma, type Installment, type InstallmentRule, type User, type Workflow } from "@prisma/client";
 
 import { decrypt } from "../../../lib/obfuscate-ids.ts";
-import { hasCompletedPayment, madeSaleWithConnectOrPaypalAccount } from "../signed-in/reads.ts";
 import { storageConfig } from "../../infra/storage.ts";
+import { column, selectRows, table } from "../../models/sql.ts";
 import { isFlagSet, isSuspended, Users } from "../../models/user.ts";
 import { parseJsonData, filterValue } from "../../models/with-filtering.ts";
-import { column, selectRows, table } from "../../models/sql.ts";
-import { engagementOf, flagSet, preloadEngagement, workflowInstallmentProps, type InstallmentContext } from "./installments.ts";
-import { currencySymbol, jsonFilters } from "./filters.ts";
 import { NotPortedError } from "../not-ported.ts";
-import { externalId, present, userUsername } from "./support.ts";
+import { hasCompletedPayment, madeSaleWithConnectOrPaypalAccount } from "../signed-in/reads.ts";
+import SIGNED_IN_DATA from "../signed-in/signed-in-data.generated.json" with { type: "json" };
+
 import DATA from "./audience-data.generated.json" with { type: "json" };
+import { currencySymbol, jsonFilters } from "./filters.ts";
+import {
+  engagementOf,
+  flagSet,
+  preloadEngagement,
+  workflowInstallmentProps,
+  type InstallmentContext,
+} from "./installments.ts";
 import { creatorsFromEmailAddress, fromAddressWithName, gumroadAddress } from "./mail-addresses.ts";
+import { externalId, present, userUsername } from "./support.ts";
 import { productsForFilterBox, affiliateProductsForFilterBox, type FilterProduct } from "./user-presenter.ts";
 
 const WORKFLOWS = "workflows";
@@ -24,11 +32,16 @@ const WORKFLOW_FLAG_SEND_TO_PAST_CUSTOMERS = 1;
 
 // ActiveSupport::TimeZone[zone].now.strftime("%Z")
 export function timeZoneAbbreviation(timezone: string | null, now = new Date()): string {
-  const entry = (DATA.timeZones as Record<string, { standard: string | null; daylight: string | null }>)[timezone ?? ""];
+  const entry = (DATA.timeZones as Record<string, { standard: string | null; daylight: string | null }>)[
+    timezone ?? ""
+  ];
   const iana = TIME_ZONE_IDENTIFIERS.get(timezone ?? "");
   if (!entry || !iana) throw new NotPortedError(`the time zone ${JSON.stringify(timezone)}`);
   const offset = (date: Date) => {
-    const part = new Intl.DateTimeFormat("en-US", { timeZone: iana, timeZoneName: "longOffset" }).formatToParts(date).find((p) => p.type === "timeZoneName")?.value ?? "GMT";
+    const part =
+      new Intl.DateTimeFormat("en-US", { timeZone: iana, timeZoneName: "longOffset" })
+        .formatToParts(date)
+        .find((p) => p.type === "timeZoneName")?.value ?? "GMT";
     const match = /GMT(?:([+-])(\d{2}):(\d{2}))?/.exec(part);
     return match?.[1] ? (match[1] === "-" ? -1 : 1) * (Number(match[2]) * 60 + Number(match[3])) : 0;
   };
@@ -37,7 +50,6 @@ export function timeZoneAbbreviation(timezone: string | null, now = new Date()):
   return offset(now) > standardOffset ? (entry.daylight ?? entry.standard ?? "") : (entry.standard ?? "");
 }
 
-import SIGNED_IN_DATA from "../signed-in/signed-in-data.generated.json" with { type: "json" };
 const TIME_ZONE_IDENTIFIERS = new Map(Object.entries(SIGNED_IN_DATA.timeZones as Record<string, string>));
 
 type WorkflowLink = { id: number; name: string; unique_permalink: string; user_id: number };
@@ -62,18 +74,24 @@ export async function workflowLinkBelongsToSeller(seller: User, workflow: Workfl
 
 async function linkOf(workflow: Workflow): Promise<WorkflowLink | null> {
   if (workflow.link_id === null) return null;
-  const [row] = await selectRows<WorkflowLink>(Prisma.sql`SELECT * FROM ${table("links")} WHERE ${column("links", "id")} = ${workflow.link_id} LIMIT 1`);
+  const [row] = await selectRows<WorkflowLink>(
+    Prisma.sql`SELECT * FROM ${table("links")} WHERE ${column("links", "id")} = ${workflow.link_id} LIMIT 1`,
+  );
   return row ?? null;
 }
 
 async function baseVariantOf(workflow: Workflow): Promise<VariantRow | null> {
   if (workflow.base_variant_id === null) return null;
-  const [row] = await selectRows<VariantRow>(Prisma.sql`SELECT * FROM ${table("base_variants")} WHERE ${column("base_variants", "id")} = ${workflow.base_variant_id} LIMIT 1`);
+  const [row] = await selectRows<VariantRow>(
+    Prisma.sql`SELECT * FROM ${table("base_variants")} WHERE ${column("base_variants", "id")} = ${workflow.base_variant_id} LIMIT 1`,
+  );
   return row ?? null;
 }
 
 // `workflow.alive_installments_in_delivery_order`
-async function installmentsInDeliveryOrder(workflow: Workflow): Promise<{ installment: Installment; rule: InstallmentRule | null }[]> {
+async function installmentsInDeliveryOrder(
+  workflow: Workflow,
+): Promise<{ installment: Installment; rule: InstallmentRule | null }[]> {
   const installments = await selectRows<Installment>(
     Prisma.sql`SELECT ${table(INSTALLMENTS)}.* FROM ${table(INSTALLMENTS)} INNER JOIN ${table(RULES)} ON ${column(RULES, "installment_id")} = ${column(INSTALLMENTS, "id")} WHERE ${column(INSTALLMENTS, "workflow_id")} = ${workflow.id} AND ${column(INSTALLMENTS, "deleted_at")} IS NULL ORDER BY ${column(RULES, "delayed_delivery_time")} ASC, ${column(INSTALLMENTS, "id")} ASC`,
   );
@@ -81,14 +99,22 @@ async function installmentsInDeliveryOrder(workflow: Workflow): Promise<{ instal
   const rules = await selectRows<InstallmentRule>(
     Prisma.sql`SELECT * FROM ${table(RULES)} WHERE ${column(RULES, "installment_id")} IN (${Prisma.join(installments.map((installment) => installment.id))})`,
   );
-  return installments.map((installment) => ({ installment, rule: rules.find((rule) => rule.installment_id === installment.id) ?? null }));
+  return installments.map((installment) => ({
+    installment,
+    rule: rules.find((rule) => rule.installment_id === installment.id) ?? null,
+  }));
 }
 
 type LoadedWorkflow = {
   workflow: Workflow;
   link: WorkflowLink | null;
   baseVariant: VariantRow | null;
-  installments: { installment: Installment; rule: InstallmentRule | null; link: WorkflowLink | null; variant: VariantRow | null }[];
+  installments: {
+    installment: Installment;
+    rule: InstallmentRule | null;
+    link: WorkflowLink | null;
+    variant: VariantRow | null;
+  }[];
 };
 
 async function load(workflow: Workflow): Promise<LoadedWorkflow> {
@@ -105,7 +131,9 @@ async function load(workflow: Workflow): Promise<LoadedWorkflow> {
     if (installment.installment_type === "product" || installment.installment_type === "variant") {
       if (installment.link_id !== null) {
         if (!links.has(installment.link_id)) {
-          const [row] = await selectRows<WorkflowLink>(Prisma.sql`SELECT * FROM ${table("links")} WHERE ${column("links", "id")} = ${installment.link_id} LIMIT 1`);
+          const [row] = await selectRows<WorkflowLink>(
+            Prisma.sql`SELECT * FROM ${table("links")} WHERE ${column("links", "id")} = ${installment.link_id} LIMIT 1`,
+          );
           links.set(installment.link_id, row ?? null);
         }
         installmentLink = links.get(installment.link_id) ?? null;
@@ -113,7 +141,9 @@ async function load(workflow: Workflow): Promise<LoadedWorkflow> {
     }
     if (installment.installment_type === "variant" && installment.base_variant_id !== null) {
       if (!variants.has(installment.base_variant_id)) {
-        const [row] = await selectRows<VariantRow>(Prisma.sql`SELECT * FROM ${table("base_variants")} WHERE ${column("base_variants", "id")} = ${installment.base_variant_id} LIMIT 1`);
+        const [row] = await selectRows<VariantRow>(
+          Prisma.sql`SELECT * FROM ${table("base_variants")} WHERE ${column("base_variants", "id")} = ${installment.base_variant_id} LIMIT 1`,
+        );
         variants.set(installment.base_variant_id, row ?? null);
       }
       variant = variants.get(installment.base_variant_id) ?? null;
@@ -124,10 +154,17 @@ async function load(workflow: Workflow): Promise<LoadedWorkflow> {
 }
 
 // WorkflowPresenter#workflow_props
-async function workflowProps(seller: User, loaded: LoadedWorkflow, engagement: Map<number, Awaited<ReturnType<typeof engagementOf>>>): Promise<Record<string, unknown>> {
+async function workflowProps(
+  seller: User,
+  loaded: LoadedWorkflow,
+  engagement: Map<number, Awaited<ReturnType<typeof engagementOf>>>,
+): Promise<Record<string, unknown>> {
   const { workflow, link, baseVariant } = loaded;
   const type = workflow.workflow_type;
-  if (type === "abandoned_cart") throw new NotPortedError("WorkflowPresenter#workflow_props for an abandoned cart workflow (product thumbnails and seller avatar)");
+  if (type === "abandoned_cart")
+    throw new NotPortedError(
+      "WorkflowPresenter#workflow_props for an abandoned cart workflow (product thumbnails and seller avatar)",
+    );
   const json = parseJsonData(workflow.json_data);
   const subject = { jsonData: () => json };
   const workflowTrigger = filterValue(subject, "workflow_trigger") as string | null;
@@ -157,7 +194,9 @@ async function workflowProps(seller: User, loaded: LoadedWorkflow, engagement: M
       permalink: installmentLink?.unique_permalink ?? null,
       variantExternalId: variant ? externalId(variant.id) : null,
     };
-    (props.installments as unknown[]).push(await workflowInstallmentProps({ seller, installment, context, workflowTrigger }));
+    (props.installments as unknown[]).push(
+      await workflowInstallmentProps({ seller, installment, context, workflowTrigger }),
+    );
   }
   Object.assign(props, jsonFilters(subject, seller));
   if (type === "product" || type === "variant") {
@@ -174,7 +213,9 @@ export async function workflowsIndexProps(seller: User) {
   );
   const loaded = [];
   for (const row of rows) loaded.push(await load(row));
-  const engagement = await preloadEngagement(loaded.flatMap((entry) => entry.installments.map((installment) => installment.installment)));
+  const engagement = await preloadEngagement(
+    loaded.flatMap((entry) => entry.installments.map((installment) => installment.installment)),
+  );
   return { workflows: await Promise.all(loaded.map((entry) => workflowProps(seller, entry, engagement))) };
 }
 
@@ -192,7 +233,13 @@ async function eligibleForAbandonedCartWorkflows(seller: User): Promise<boolean>
 }
 
 const variantOptions = (product: FilterProduct, label: (name: string | null) => string) =>
-  product.variants.map((variant) => ({ id: externalId(variant.id), label: label(variant.name), product_permalink: product.unique_permalink, archived: product.archived, type: "variant" }));
+  product.variants.map((variant) => ({
+    id: externalId(variant.id),
+    label: label(variant.name),
+    product_permalink: product.unique_permalink,
+    archived: product.archived,
+    type: "variant",
+  }));
 
 // WorkflowPresenter#workflow_form_context_props
 export async function workflowFormContext(seller: User) {
@@ -201,10 +248,22 @@ export async function workflowFormContext(seller: User) {
   const storage = storageConfig();
   return {
     products_and_variant_options: products.flatMap((product) => [
-      { id: product.unique_permalink, label: product.name, product_permalink: product.unique_permalink, archived: product.archived, type: "product" },
+      {
+        id: product.unique_permalink,
+        label: product.name,
+        product_permalink: product.unique_permalink,
+        archived: product.archived,
+        type: "product",
+      },
       ...variantOptions(product, (name) => `${product.name} — ${name}`),
     ]),
-    affiliate_product_options: affiliateProducts.map((product) => ({ id: product.unique_permalink, label: product.name, product_permalink: product.unique_permalink, archived: product.archived, type: "product" })),
+    affiliate_product_options: affiliateProducts.map((product) => ({
+      id: product.unique_permalink,
+      label: product.name,
+      product_permalink: product.unique_permalink,
+      archived: product.archived,
+      type: "product",
+    })),
     timezone: timeZoneAbbreviation(seller.timezone),
     currency_symbol: currencySymbol(seller),
     countries: [USA, ...(DATA.countries as string[]).filter((name) => name !== USA)],

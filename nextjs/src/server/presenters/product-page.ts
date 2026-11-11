@@ -1,37 +1,65 @@
 // The part of LinksController#show that renders Products/Show. The port serves the pages it can prove and
 // hands every other request back to Rails (HandBackToRails), so no visitor gets a guess: `assertRenderable`
 // builds the page once in the filter chain and turns a NotPortedError into the hand back.
+import { Prisma } from "@prisma/client";
+import type { User } from "@prisma/client";
+
+import { encrypt } from "../../lib/obfuscate-ids.ts";
+import { railsLoggedInUser } from "../auth/resolve.ts";
 import { HandBackToRails } from "../controllers/application-controller.ts";
 import type { Chain } from "../controllers/application-controller.ts";
 import type { Query } from "../controllers/rails-query.ts";
-import { railsLoggedInUser } from "../auth/resolve.ts";
-import { loadSellerContext, type SellerContext } from "../policies/seller-context.ts";
-import { settingsProfilePolicy } from "../policies/settings/profile.ts";
-import { NotPortedError } from "../page-props/not-ported.ts";
-import { domainConfig, assetHost } from "../page-props/domain.ts";
-import { remoteIp } from "../page-props/audience/events.ts";
-import { Prisma } from "@prisma/client";
+import { cachedRate, getUsdCents, rubyStringToF, unitScalingFactor } from "../models/concerns/currency-helper.ts";
 import { customStyles, withDefaults } from "../models/seller-profile-styles.ts";
 import { sellerProfile as loadSellerProfile, Users } from "../models/user.ts";
+import { remoteIp } from "../page-props/audience/events.ts";
+import { domainConfig, assetHost } from "../page-props/domain.ts";
+import { NotPortedError } from "../page-props/not-ported.ts";
+import { loadSellerContext, type SellerContext } from "../policies/seller-context.ts";
+import { settingsProfilePolicy } from "../policies/settings/profile.ts";
 import { column, selectRows, table } from "../models/sql.ts";
+
 import { plaintextDescription, htmlSafeDescription, squish } from "./description.ts";
+import {
+  closedMembershipForNewBuyers,
+  jsonData,
+  minimumOfferPriceCents,
+  productProps,
+  remainingForSaleCount,
+  reviewSummary,
+  type ProductPageViewerInput,
+} from "./product-props.ts";
 import { customDomainByHost, type LinkRow, type UserRow } from "./product-reads.ts";
-import { cachedRate, getUsdCents, rubyStringToF, unitScalingFactor } from "../models/concerns/currency-helper.ts";
-import { encrypt } from "../../lib/obfuscate-ids.ts";
 import { longUrl } from "./product.ts";
-import { closedMembershipForNewBuyers, jsonData, minimumOfferPriceCents, productProps, remainingForSaleCount, reviewSummary, type ProductPageViewerInput } from "./product-props.ts";
+
 import { creatorProfile, visiblePosts } from "../page-props/settings/profile.ts";
 import { setFaviconMetaTags } from "../page-props/storefront/post.ts";
 import { setHostMeta } from "../page-props/storefront/post-pages.ts";
 import type { MetaTagBuilder } from "../page-props/meta-tags.ts";
-import type { User } from "@prisma/client";
 
-export type RenderContext = { chain: Chain; product: LinkRow; seller: UserRow; query: Query; code: string | null; isUserCustomDomain: boolean };
+export type RenderContext = {
+  chain: Chain;
+  product: LinkRow;
+  seller: UserRow;
+  query: Query;
+  code: string | null;
+  isUserCustomDomain: boolean;
+};
 
 const SNIPPET_MAX_LENGTH = 160;
 const SNIPPET_OMISSION = "...";
 const SNIPPET_TRAILING_PUNCTUATION = /[.,;:!?…]+$/u;
-const UNSUPPORTED_PARAMS = ["layout", "embed", "overlay", "wanted", "purchase_id", "purchase_email_digest", "offer_code", "debug", "currency"];
+const UNSUPPORTED_PARAMS = [
+  "layout",
+  "embed",
+  "overlay",
+  "wanted",
+  "purchase_id",
+  "purchase_email_digest",
+  "offer_code",
+  "debug",
+  "currency",
+];
 const DISCOVER_RECOMMENDERS = ["search", "discover"];
 const GUID_COOKIE = "_gumroad_guid";
 
@@ -57,8 +85,18 @@ export function snippetTruncate(input: string, length = SNIPPET_MAX_LENGTH): str
 
 const stripTags = (html: string) => html.replace(/<[^>]*>/g, "");
 
-function viewerOf(query: Query, code: string | null, user: User | null, context: SellerContext | null, ip: string | null, guid: string | null, sellerCustomDomainUrl: string | null, request: { host: string; hostWithPort: string; protocol: string }): ProductPageViewerInput {
-  const text = (name: string) => (typeof query[name] === "string" && query[name] !== "" ? (query[name] as string) : null);
+function viewerOf(
+  query: Query,
+  code: string | null,
+  user: User | null,
+  context: SellerContext | null,
+  ip: string | null,
+  guid: string | null,
+  sellerCustomDomainUrl: string | null,
+  request: { host: string; hostWithPort: string; protocol: string },
+): ProductPageViewerInput {
+  const text = (name: string) =>
+    typeof query[name] === "string" && query[name] !== "" ? (query[name] as string) : null;
   return {
     user,
     context,
@@ -81,13 +119,23 @@ export function sellerCustomDomainUrl(isUserCustomDomain: boolean, hostWithPort:
 }
 
 // The meta tags of PageMeta::Product#set_product_page_meta, prepare_product_page and the action's favicon.
-async function setMeta(meta: MetaTagBuilder, row: LinkRow, seller: UserRow, host: string, customDomainUrl: string | null) {
+async function setMeta(
+  meta: MetaTagBuilder,
+  row: LinkRow,
+  seller: UserRow,
+  host: string,
+  customDomainUrl: string | null,
+) {
   await setHostMeta(meta, seller as unknown as User);
   meta.set({ title: row.name });
   const html = htmlSafeDescription(row.description);
-  const description = snippetTruncate(present(row.description) ? plaintextDescription(row.description) : "Available on Gumroad");
+  const description = snippetTruncate(
+    present(row.description) ? plaintextDescription(row.description) : "Available on Gumroad",
+  );
   const onOwnCustomDomain = (await customDomainByHost(host))?.user_id === row.user_id;
-  const canonicalUrl = longUrl(row, seller, { host: onOwnCustomDomain && customDomainUrl ? customDomainUrl.replace(/\/$/, "") : null });
+  const canonicalUrl = longUrl(row, seller, {
+    host: onOwnCustomDomain && customDomainUrl ? customDomainUrl.replace(/\/$/, "") : null,
+  });
 
   meta.set({ name: "description", content: description });
   meta.set({ property: "gr:page:type", content: "product" });
@@ -98,7 +146,10 @@ async function setMeta(meta: MetaTagBuilder, row: LinkRow, seller: UserRow, host
   const pagePrice = await pagePriceCents(row);
   if (pagePrice !== null && present(currency)) {
     // (price_cents / unit_scaling_factor(currency).to_f).round(2)
-    meta.set({ property: "product:price:amount", content: Math.round((pagePrice / unitScalingFactor(currency)) * 100) / 100 });
+    meta.set({
+      property: "product:price:amount",
+      content: Math.round((pagePrice / unitScalingFactor(currency)) * 100) / 100,
+    });
     meta.set({ property: "product:price:currency", content: currency.toUpperCase() });
   }
   meta.set({ property: "og:title", content: row.name });
@@ -108,8 +159,12 @@ async function setMeta(meta: MetaTagBuilder, row: LinkRow, seller: UserRow, host
   meta.set({ property: "twitter:title", content: row.name });
   meta.set({ property: "twitter:card", content: "summary" });
   meta.set({ property: "twitter:domain", content: "Gumroad" });
-  meta.set({ property: "twitter:description", content: description.length > 200 ? `${description.slice(0, 197)}...` : description });
-  if (present(seller.twitter_handle as string)) meta.set({ property: "twitter:creator", content: `@${seller.twitter_handle}` });
+  meta.set({
+    property: "twitter:description",
+    content: description.length > 200 ? `${description.slice(0, 197)}...` : description,
+  });
+  if (present(seller.twitter_handle as string))
+    meta.set({ property: "twitter:creator", content: `@${seller.twitter_handle}` });
   meta.set({ tag_name: "link", rel: "canonical", href: canonicalUrl, head_key: "canonical" });
 
   const summary = (await customSummary(row)) ?? (html ? stripTags(html) : null);
@@ -151,9 +206,20 @@ async function setMeta(meta: MetaTagBuilder, row: LinkRow, seller: UserRow, host
           offers,
         };
   if (displaysReviews && stats.count > 0) {
-    data.aggregateRating = { "@type": "AggregateRating", ratingValue: Math.round(stats.average * 10) / 10, reviewCount: stats.count, bestRating: 5, worstRating: 1 };
+    data.aggregateRating = {
+      "@type": "AggregateRating",
+      ratingValue: Math.round(stats.average * 10) / 10,
+      reviewCount: stats.count,
+      bestRating: 5,
+      worstRating: 1,
+    };
   }
-  meta.set({ tag_name: "script", type: "application/ld+json", inner_content: Object.fromEntries(Object.entries(data).filter(([, value]) => value !== null)), head_key: "structured-data" });
+  meta.set({
+    tag_name: "script",
+    type: "application/ld+json",
+    inner_content: Object.fromEntries(Object.entries(data).filter(([, value]) => value !== null)),
+    head_key: "structured-data",
+  });
 
   const profile = await loadSellerProfile(Users.load(seller as unknown as User));
   const styles = customStyles(
@@ -167,7 +233,15 @@ async function setMeta(meta: MetaTagBuilder, row: LinkRow, seller: UserRow, host
   );
   meta.set({ tag_name: "style", inner_content: styles, head_key: "custom_styles" });
   if (profile.get("font") === "ABC Favorit") {
-    meta.set({ tag_name: "link", rel: "preload", href: `${assetHost(domainConfig(process.env)) ?? ""}/fonts/ABCFavorit-Regular.woff2`, as: "font", type: "font/woff2", crossorigin: "anonymous", head_key: "default_font_preload" });
+    meta.set({
+      tag_name: "link",
+      rel: "preload",
+      href: `${assetHost(domainConfig(process.env)) ?? ""}/fonts/ABCFavorit-Regular.woff2`,
+      as: "font",
+      type: "font/woff2",
+      crossorigin: "anonymous",
+      head_key: "default_font_preload",
+    });
   }
   await setFaviconMetaTags(meta, seller as unknown as User);
 }
@@ -187,7 +261,11 @@ export async function usdOfferPriceCents(currency: string | null, cents: number 
 
 // Product::StructuredData#build_offer_data: a USD amount when the conversion worked, else the product's own currency
 // and amount; a blank currency drops both.
-export function offerPrice(currency: string | null, priceCents: number | null, usdCents: number | null): { priceCurrency: string | undefined; price: number | undefined } {
+export function offerPrice(
+  currency: string | null,
+  priceCents: number | null,
+  usdCents: number | null,
+): { priceCurrency: string | undefined; price: number | undefined } {
   const displayCents = usdCents ?? priceCents;
   const code = usdCents === null ? (currency ?? "").toUpperCase() : "USD";
   if (!present(code)) return { priceCurrency: undefined, price: undefined };
@@ -206,7 +284,11 @@ async function bookFiles(row: LinkRow): Promise<BookFile[]> {
 // Product::StructuredData#build_book_work_examples
 export function bookWorkExamples(name: string | null, files: BookFile[]): Record<string, unknown>[] {
   return files.map((file) => {
-    const example: Record<string, unknown> = { "@type": "Book", bookFormat: "EBook", name: `${name} (${(file.filetype ?? "").toUpperCase()})` };
+    const example: Record<string, unknown> = {
+      "@type": "Book",
+      bookFormat: "EBook",
+      name: `${name} (${(file.filetype ?? "").toUpperCase()})`,
+    };
     if (present(file.isbn)) example.isbn = file.isbn;
     return example;
   });
@@ -243,7 +325,12 @@ async function customSummary(row: LinkRow): Promise<string | null> {
 
 // Link#price_cents (Product::Prices#default_price_cents)
 async function pagePriceCents(row: LinkRow): Promise<number | null> {
-  const prices = await selectRows<{ price_cents: number; recurrence: string | null; currency: string | null; flags: number }>(
+  const prices = await selectRows<{
+    price_cents: number;
+    recurrence: string | null;
+    currency: string | null;
+    flags: number;
+  }>(
     Prisma.sql`SELECT price_cents, recurrence, currency, flags FROM ${table("prices")} WHERE ${column("prices", "link_id")} = ${row.id} AND ${column("prices", "deleted_at")} IS NULL AND ${column("prices", "currency")} = ${row.price_currency_type} ORDER BY ${column("prices", "id")} ASC`,
   );
   const types = ["buy_only", "rent_only", "buy_and_rent"];
@@ -254,7 +341,8 @@ async function pagePriceCents(row: LinkRow): Promise<number | null> {
   let relevant = prices.filter((price) => !isRental(price));
   const durations = ["monthly", "yearly", "quarterly", "biannually", "every_two_years"];
   const duration = durations[row.subscription_duration ?? -1];
-  if (((BigInt(row.flags as bigint | number) >> 1n) & 1n) === 1n && duration) relevant = relevant.filter((price) => price.recurrence === duration);
+  if (((BigInt(row.flags as bigint | number) >> 1n) & 1n) === 1n && duration)
+    relevant = relevant.filter((price) => price.recurrence === duration);
   return relevant.at(-1)?.price_cents ?? null;
 }
 
@@ -270,10 +358,20 @@ async function editingProps(seller: UserRow) {
   const products = await selectRows<{ id: bigint; name: string | null }>(
     Prisma.sql`SELECT ${column("links", "id")}, ${column("links", "name")} FROM ${table("links")} WHERE ${column("links", "user_id")} = ${seller.id} AND ${column("links", "purchase_disabled_at")} IS NULL AND ${column("links", "banned_at")} IS NULL AND ${column("links", "deleted_at")} IS NULL AND (${column("links", "flags")} & ${archived}) = 0 ORDER BY ${column("links", "id")} ASC`,
   );
-  return { products: products.map((product) => ({ id: encrypt(product.id), name: product.name })), posts: await visiblePosts(seller), wishlist_options: [] };
+  return {
+    products: products.map((product) => ({ id: encrypt(product.id), name: product.name })),
+    posts: await visiblePosts(seller),
+    wishlist_options: [],
+  };
 }
 
-async function build(row: LinkRow, seller: UserRow, viewer: ProductPageViewerInput, meta: MetaTagBuilder, host: string) {
+async function build(
+  row: LinkRow,
+  seller: UserRow,
+  viewer: ProductPageViewerInput,
+  meta: MetaTagBuilder,
+  host: string,
+) {
   const props = await productProps(row, seller, viewer);
   await setMeta(meta, row, seller, host, viewer.sellerCustomDomainUrl);
   const storefront = ((BigInt(seller.flags as bigint | number) >> 57n) & 1n) === 1n;
@@ -292,7 +390,10 @@ async function build(row: LinkRow, seller: UserRow, viewer: ProductPageViewerInp
     ...props,
     currency_code: viewer.user?.currency_type || "usd",
     show_ratings_filter: !!hasReviews,
-    creator_profile: await creatorProfile(seller as unknown as Parameters<typeof creatorProfile>[0], !!viewer.context?.user && viewer.context.seller?.id === seller.id && settingsProfilePolicy.update(viewer.context)),
+    creator_profile: await creatorProfile(
+      seller as unknown as Parameters<typeof creatorProfile>[0],
+      !!viewer.context?.user && viewer.context.seller?.id === seller.id && settingsProfilePolicy.update(viewer.context),
+    ),
     sections: [],
     main_section_index: Number(data?.main_section_index ?? 0) || 0,
     ...(editing ? await editingProps(seller) : {}),
@@ -302,13 +403,30 @@ async function build(row: LinkRow, seller: UserRow, viewer: ProductPageViewerInp
 export async function assertRenderable(context: RenderContext): Promise<void> {
   const { chain, product, seller, query, code } = context;
   for (const name of UNSUPPORTED_PARAMS) if (name in query) throw new HandBackToRails();
-  if (typeof query.recommended_by === "string" && DISCOVER_RECOMMENDERS.includes(query.recommended_by)) throw new HandBackToRails();
+  if (typeof query.recommended_by === "string" && DISCOVER_RECOMMENDERS.includes(query.recommended_by))
+    throw new HandBackToRails();
   try {
     const user = railsLoggedInUser(chain.auth.context);
-    const viewer = viewerOf(query, code, user, user ? await loadSellerContext(chain.auth.context) : null, remoteIp(chain.request.headers), chain.request.cookies.get(GUID_COOKIE) ?? null, sellerCustomDomainUrl(context.isUserCustomDomain, chain.request.hostWithPort), chain.request);
-    await build(product, seller, viewer, new (await import("../page-props/meta-tags.ts")).MetaTagBuilder(), chain.request.host);
+    const viewer = viewerOf(
+      query,
+      code,
+      user,
+      user ? await loadSellerContext(chain.auth.context) : null,
+      remoteIp(chain.request.headers),
+      chain.request.cookies.get(GUID_COOKIE) ?? null,
+      sellerCustomDomainUrl(context.isUserCustomDomain, chain.request.hostWithPort),
+      chain.request,
+    );
+    await build(
+      product,
+      seller,
+      viewer,
+      new (await import("../page-props/meta-tags.ts")).MetaTagBuilder(),
+      chain.request.host,
+    );
     // set_noindex_header if !@product.alive?
-    if (product.purchase_disabled_at !== null || product.banned_at !== null || product.deleted_at !== null) chain.headers.set("x-robots-tag", "noindex");
+    if (product.purchase_disabled_at !== null || product.banned_at !== null || product.deleted_at !== null)
+      chain.headers.set("x-robots-tag", "noindex");
   } catch (error) {
     if (error instanceof NotPortedError) {
       if (process.env.PRODUCT_PAGE_DEBUG) console.error(`product page handed back: ${error.message}`);

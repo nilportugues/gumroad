@@ -5,20 +5,22 @@
 // Goldens: __fixtures__/product-presenter.golden.json, written by spec/presenters/product_presenter_golden_spec.rb
 // from the real presenter over one database (seeded by product.test.ts).
 import { Prisma } from "@prisma/client";
+import type { User } from "@prisma/client";
 
-import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
-import { rubyRound } from "../models/concerns/ruby-numeric.ts";
-import { toQuery, type Query } from "../controllers/rails-query.ts";
-import { castRow, column, selectRows, table } from "../models/sql.ts";
-import { domainConfig } from "../page-props/domain.ts";
-import { avatarUrl, displayName } from "../page-props/signed-in/presenters.ts";
-import { thumbnailOrCoverUrl } from "../page-props/buyer/products.ts";
-import { NotPortedError } from "../page-props/not-ported.ts";
 import { encrypt } from "../../lib/obfuscate-ids.ts";
-import { jsonDataForAttr, Users } from "../models/user.ts";
-import { plaintextDescription, RUBY_SPACE } from "./description.ts";
+import { toQuery, type Query } from "../controllers/rails-query.ts";
+import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
 import { toHash } from "../models/concerns/json-data.ts";
+import { rubyRound } from "../models/concerns/ruby-numeric.ts";
 import { rubyJsonParse } from "../models/concerns/serialized-columns.ts";
+import { castRow, column, selectRows, table } from "../models/sql.ts";
+import { jsonDataForAttr, Users } from "../models/user.ts";
+import { thumbnailOrCoverUrl } from "../page-props/buyer/products.ts";
+import { domainConfig } from "../page-props/domain.ts";
+import { NotPortedError } from "../page-props/not-ported.ts";
+import { avatarUrl, displayName } from "../page-props/signed-in/presenters.ts";
+
+import { plaintextDescription, RUBY_SPACE } from "./description.ts";
 import {
   alivePrices,
   bit,
@@ -31,19 +33,31 @@ import {
   userByDomain,
   type UserRow,
 } from "./product-reads.ts";
-import type { User } from "@prisma/client";
 
 export const DESCRIPTION_MAX_LENGTH = 100;
 const PURCHASE_TYPES = ["buy_only", "rent_only", "buy_and_rent"] as const;
 const SUBSCRIPTION_DURATIONS = ["monthly", "yearly", "quarterly", "biannually", "every_two_years"] as const;
 // Link flag positions (models/link.ts LinkFlags).
-const FLAG = { is_recurring_billing: 2, is_tiered_membership: 19, is_bundle: 26, display_product_reviews: 17, customizable_flag: 0 } as const;
+const FLAG = {
+  is_recurring_billing: 2,
+  is_tiered_membership: 19,
+  is_bundle: 26,
+  display_product_reviews: 17,
+  customizable_flag: 0,
+} as const;
 const OMISSION = "...";
 // [[:punct:][:space:]]+\z: Onigmo's Unicode punctuation also covers the ASCII symbols below.
 const TRAILING_PUNCT_OR_SPACE = new RegExp(`(?:[\\p{P}$+<=>^\`|~]|${RUBY_SPACE})+$`, "u");
 
 // The request fields a card reads: ActionDispatch::Request#host, #host_with_port, #protocol.
-export type PresenterRequest = { host: string; hostWithPort: string; protocol: string; remoteIp: string; params: Record<string, string>; cookies: Map<string, string | null> };
+export type PresenterRequest = {
+  host: string;
+  hostWithPort: string;
+  protocol: string;
+  remoteIp: string;
+  params: Record<string, string>;
+  cookies: Map<string, string | null>;
+};
 
 export type CardOptions = {
   request?: PresenterRequest | null;
@@ -102,30 +116,45 @@ function buyPriceCents(product: PricedProduct): number | null {
   if (type !== "buy_only" && type !== "buy_and_rent") return null;
   let relevant = pricesForCurrency(product.prices, product.link).filter((price) => !isRental(price));
   const duration = link.subscriptionDuration(product.link);
-  if (link.isRecurring(product.link) && duration !== null) relevant = relevant.filter((price) => price.recurrence === duration);
+  if (link.isRecurring(product.link) && duration !== null)
+    relevant = relevant.filter((price) => price.recurrence === duration);
   return relevant.at(-1)?.price_cents ?? null;
 }
 
 // Product::Prices#default_price_cents
-const defaultPriceCents = (product: PricedProduct) => (link.purchaseType(product.link) === "rent_only" ? rentalPriceCents(product) : buyPriceCents(product));
+const defaultPriceCents = (product: PricedProduct) =>
+  link.purchaseType(product.link) === "rent_only" ? rentalPriceCents(product) : buyPriceCents(product);
 
 // Product::Prices#display_price_cents (not tiered)
-const displayPriceCents = (product: PricedProduct) => product.tierPrice ?? (defaultPriceCents(product) ?? 0) + (product.priceDifference ?? 0);
+const displayPriceCents = (product: PricedProduct) =>
+  product.tierPrice ?? (defaultPriceCents(product) ?? 0) + (product.priceDifference ?? 0);
 
 async function pricedProduct(row: LinkRow): Promise<PricedProduct> {
   if (link.isTiered(row)) {
     const { lowestTierPriceCents } = await import("./product-props.ts");
-    return { link: row, prices: await alivePrices(row.id), priceDifference: null, tierPrice: await lowestTierPriceCents(row, true) };
+    return {
+      link: row,
+      prices: await alivePrices(row.id),
+      priceDifference: null,
+      tierPrice: await lowestTierPriceCents(row, true),
+    };
   }
   const variants = await currentBaseVariants(row.id);
-  const differences = variants.map((variant) => variant.price_difference_cents).filter((cents): cents is number => cents !== null);
-  return { link: row, prices: await alivePrices(row.id), priceDifference: differences.length === 0 ? null : Math.min(...differences) };
+  const differences = variants
+    .map((variant) => variant.price_difference_cents)
+    .filter((cents): cents is number => cents !== null);
+  return {
+    link: row,
+    prices: await alivePrices(row.id),
+    priceDifference: differences.length === 0 ? null : Math.min(...differences),
+  };
 }
 
 // Link#effective_default_offer_code is nil: no default offer code and no seller-wide sale. A discounted card
 // price needs OfferCode#applicable?, usage limits and variant scopes (Product::Prices#discounted_price_cents).
 async function assertNoDefaultDiscount(row: LinkRow): Promise<void> {
-  if (row.default_offer_code_id !== null) throw new NotPortedError("Product::Prices#discounted_price_cents with a default offer code");
+  if (row.default_offer_code_id !== null)
+    throw new NotPortedError("Product::Prices#discounted_price_cents with a default offer code");
   const [sale] = await selectRows(
     Prisma.sql`SELECT 1 FROM ${table("offer_codes")} WHERE ${column("offer_codes", "user_id")} = ${row.user_id} AND ${column("offer_codes", "deleted_at")} IS NULL AND ${column("offer_codes", "universal")} = TRUE AND ${column("offer_codes", "auto_apply")} = TRUE LIMIT 1`,
   );
@@ -160,7 +189,20 @@ export function subdomainWithProtocol(user: Pick<UserRow, "username">): string |
 }
 
 // Link#long_url
-export function longUrl(row: LinkRow, seller: UserRow, options: { recommendedBy?: string | null; recommenderModelName?: string | null; layout?: string | null; affiliateId?: string | null; query?: string | null; code?: string | null; autocomplete?: boolean; host?: string | null } = {}): string {
+export function longUrl(
+  row: LinkRow,
+  seller: UserRow,
+  options: {
+    recommendedBy?: string | null;
+    recommenderModelName?: string | null;
+    layout?: string | null;
+    affiliateId?: string | null;
+    query?: string | null;
+    code?: string | null;
+    autocomplete?: boolean;
+    host?: string | null;
+  } = {},
+): string {
   const config = domainConfig(process.env);
   const host = options.host ?? subdomainWithProtocol(seller) ?? `${config.protocol}://${config.domain}`;
   const query = queryString({
@@ -176,26 +218,45 @@ export function longUrl(row: LinkRow, seller: UserRow, options: { recommendedBy?
 }
 
 // ProductsHelper#url_for_product_page
-async function urlForProductPage(row: LinkRow, seller: UserRow, request: PresenterRequest | null | undefined, options: CardOptions): Promise<string> {
+async function urlForProductPage(
+  row: LinkRow,
+  seller: UserRow,
+  request: PresenterRequest | null | undefined,
+  options: CardOptions,
+): Promise<string> {
   const code = present(options.offerCode) ? options.offerCode : null;
   if (request && (await userByDomain(request.host))?.id === seller.id) {
-    return `${request.protocol}${request.hostWithPort}/l/${encodeURIComponent(link.generalPermalink(row)!)}${queryString({
-      code,
-      recommended_by: options.recommendedBy,
-      recommender_model_name: options.recommenderModelName,
-      layout: options.target,
-      affiliate_id: options.affiliateId,
-      query: options.query,
-    })}`;
+    return `${request.protocol}${request.hostWithPort}/l/${encodeURIComponent(link.generalPermalink(row)!)}${queryString(
+      {
+        code,
+        recommended_by: options.recommendedBy,
+        recommender_model_name: options.recommenderModelName,
+        layout: options.target,
+        affiliate_id: options.affiliateId,
+        query: options.query,
+      },
+    )}`;
   }
-  return longUrl(row, seller, { code, recommendedBy: options.recommendedBy, recommenderModelName: options.recommenderModelName, layout: options.target, affiliateId: options.affiliateId });
+  return longUrl(row, seller, {
+    code,
+    recommendedBy: options.recommendedBy,
+    recommenderModelName: options.recommenderModelName,
+    layout: options.target,
+    affiliateId: options.affiliateId,
+  });
 }
 
 // -------------------------------------------------------------------------------------------------
 // Seller
 
 // UserPresenter#author_byline_props
-export async function authorBylineProps(seller: UserRow, { recommendedBy = null, customDomainUrl = null }: { recommendedBy?: string | null; customDomainUrl?: string | null } = {}) {
+export async function authorBylineProps(
+  seller: UserRow,
+  {
+    recommendedBy = null,
+    customDomainUrl = null,
+  }: { recommendedBy?: string | null; customDomainUrl?: string | null } = {},
+) {
   if (!present(seller.username)) return null;
   const base = customDomainUrl ?? subdomainWithProtocol(seller)!;
   return {
@@ -213,11 +274,25 @@ export async function authorBylineProps(seller: UserRow, { recommendedBy = null,
 
 export async function buyerCurrencyDisplayProps(row: LinkRow, seller: UserRow) {
   const productCurrency = link.currency(row);
-  const defaults = { product_id: link.externalId(row), buyer_currency_shown: productCurrency, product_currency: productCurrency, buyer_local_price_cents: null, rate: null, display_mode: "default" };
-  const disabled = jsonDataForAttr(Users.load(castRow<User>("User", seller as never)), "disable_buyer_local_currency", false);
-  const optedIn = !(disabled === true || disabled === "true" || disabled === 1 || disabled === "1") && (await isFeatureEnabled("buyer_local_currency", userActor(seller.id)));
+  const defaults = {
+    product_id: link.externalId(row),
+    buyer_currency_shown: productCurrency,
+    product_currency: productCurrency,
+    buyer_local_price_cents: null,
+    rate: null,
+    display_mode: "default",
+  };
+  const disabled = jsonDataForAttr(
+    Users.load(castRow<User>("User", seller as never)),
+    "disable_buyer_local_currency",
+    false,
+  );
+  const optedIn =
+    !(disabled === true || disabled === "true" || disabled === 1 || disabled === "1") &&
+    (await isFeatureEnabled("buyer_local_currency", userActor(seller.id)));
   // Exchange rates, the currency cookie and IP detection decide the rest.
-  if (optedIn) throw new NotPortedError("CurrencyHelper#buyer_currency_display_props for a seller using buyer local currency");
+  if (optedIn)
+    throw new NotPortedError("CurrencyHelper#buyer_currency_display_props for a seller using buyer local currency");
   return defaults;
 }
 
@@ -228,13 +303,25 @@ function truncateDescription(text: string, maxLength: number): string {
   const chars = Array.from(text);
   if (chars.length <= maxLength) return text;
   // text[0, max - 3].sub(/[[:punct:][:space:]]+\z/, "")
-  const kept = chars.slice(0, maxLength - OMISSION.length).join("").replace(TRAILING_PUNCT_OR_SPACE, "");
+  const kept = chars
+    .slice(0, maxLength - OMISSION.length)
+    .join("")
+    .replace(TRAILING_PUNCT_OR_SPACE, "");
   return kept + OMISSION;
 }
 
 // ProductPresenter.card_for_web
-export async function cardForWeb(productId: bigint | number, options: CardOptions = {}): Promise<Record<string, unknown>> {
-  const { request = null, showSeller = true, computeDescription = true, computeInventory = true, descriptionMaxLength = DESCRIPTION_MAX_LENGTH } = options;
+export async function cardForWeb(
+  productId: bigint | number,
+  options: CardOptions = {},
+): Promise<Record<string, unknown>> {
+  const {
+    request = null,
+    showSeller = true,
+    computeDescription = true,
+    computeInventory = true,
+    descriptionMaxLength = DESCRIPTION_MAX_LENGTH,
+  } = options;
   const row = await findLink(productId);
   if (!row) throw new Error(`Couldn't find Link with 'id'=${String(productId)}`);
   const seller = (await findUserById(row.user_id!))!;
@@ -252,7 +339,9 @@ export async function cardForWeb(productId: bigint | number, options: CardOption
     permalink: row.unique_permalink,
     name: row.name,
     seller: showSeller ? await authorBylineProps(seller, { recommendedBy: options.recommendedBy }) : null,
-    ratings: link.displaysReviews(row) ? { count: stat?.reviews_count ?? 0, average: stat?.average_rating ?? 0.0 } : null,
+    ratings: link.displaysReviews(row)
+      ? { count: stat?.reviews_count ?? 0, average: stat?.average_rating ?? 0.0 }
+      : null,
     thumbnail_url: await thumbnailOrCoverUrl(row.id),
     native_type: row.native_type,
     quantity_remaining: computeInventory ? await remainingForSaleCount(row) : null,
@@ -266,10 +355,19 @@ export async function cardForWeb(productId: bigint | number, options: CardOption
     recurrence: defaultRecurrence?.recurrence ?? null,
   };
 
-  if (computeDescription) props.description = truncateDescription(plaintextDescription(row.description), descriptionMaxLength);
+  if (computeDescription)
+    props.description = truncateDescription(plaintextDescription(row.description), descriptionMaxLength);
   return props;
 }
 
 export { urlForProductPage };
-export { hash as jsonDataHash, rubyRound, remainingForSaleCount, displayPriceCents, pricedProduct, assertNoDefaultDiscount, present };
+export {
+  hash as jsonDataHash,
+  rubyRound,
+  remainingForSaleCount,
+  displayPriceCents,
+  pricedProduct,
+  assertNoDefaultDiscount,
+  present,
+};
 export type { PricedProduct };

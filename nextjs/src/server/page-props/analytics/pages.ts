@@ -3,22 +3,24 @@
 import type { User } from "@prisma/client";
 
 import { setCookieHeader } from "../../controllers/rack-cookies.ts";
+import { createLargeSellerIfWarranted } from "../../models/large-seller.ts";
 import { authorize } from "../../policies/authorize.ts";
 import { analyticsPolicy, audiencePolicy, churnPolicy } from "../../policies/seller-analytics.ts";
-import { sellerGuard } from "../audience/seller-guard.ts";
 import { checkPaymentDetails } from "../audience/payment-requirements.ts";
+import { sellerGuard } from "../audience/seller-guard.ts";
 import { always, defer } from "../lazy-props.ts";
 import type { PageSpec } from "../pages.ts";
+
 import { audienceData, audienceRange, totalFollowerCount } from "./audience.ts";
 import { churnData, churnParams } from "./churn.ts";
-import { createLargeSellerIfWarranted } from "../../models/large-seller.ts";
 import { analyticsPageProps } from "./sales.ts";
 
 const seller = (context: { currentSeller: User | null }) => context.currentSeller!;
 const queryOf = (url: URL) => ({ queryString: url.search.replace(/^\?/, "") });
 
 // DashboardPreference#set_dashboard_preference_to_audience / _to_sales: `cookies[:last_viewed_dashboard] = ...`
-const dashboardPreference = (value: "audience" | "sales") => setCookieHeader("last_viewed_dashboard", { value, path: "/", sameSite: "lax" });
+const dashboardPreference = (value: "audience" | "sales") =>
+  setCookieHeader("last_viewed_dashboard", { value, path: "/", sameSite: "lax" });
 
 const audienceIndex: PageSpec = {
   component: "Audience/Index",

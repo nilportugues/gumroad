@@ -2,8 +2,8 @@
 // the settings pages. The payments page is not ported (see ./pages.ts).
 import type { OauthApplication, TeamInvitation, TeamMembership, User } from "@prisma/client";
 
-import { decrypt as decryptExternalId, encrypt as externalId, encryptNumeric } from "../../../lib/obfuscate-ids.ts";
 import { db } from "../../../lib/db.ts";
+import { decrypt as decryptExternalId, encrypt as externalId, encryptNumeric } from "../../../lib/obfuscate-ids.ts";
 import { isConfiguredService, publicStorageUrl } from "../../infra/active-storage.ts";
 import { cdnUrlFor } from "../../infra/cdn-url.ts";
 import { getConfig } from "../../infra/config.ts";
@@ -11,6 +11,7 @@ import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
 import { formattedDollarAmount } from "../../models/concerns/currency-helper.ts";
 import { LinkFlags } from "../../models/link.ts";
 import { formEmail, jsonDataForAttr, unpaidBalanceCents, UserFlags, Users } from "../../models/user.ts";
+import type { SellerContext } from "../../policies/seller-context.ts";
 import { settingsAdvancedUserPolicy } from "../../policies/settings/advanced-user.ts";
 import { settingsAuthorizedApplicationsOauthApplicationPolicy } from "../../policies/settings/authorized-applications-oauth-application.ts";
 import { settingsBillingPolicy } from "../../policies/settings/billing.ts";
@@ -23,11 +24,11 @@ import { settingsTeamMembershipPolicy } from "../../policies/settings/team-membe
 import { settingsTeamUserPolicy } from "../../policies/settings/team-user.ts";
 import { settingsThirdPartyAnalyticsUserPolicy } from "../../policies/settings/third-party-analytics-user.ts";
 import { userPolicy } from "../../policies/user.ts";
-import type { SellerContext } from "../../policies/seller-context.ts";
 import { assetHost, domainConfig } from "../domain.ts";
 import { NotPortedError } from "../not-ported.ts";
-import { aliveComplianceInfo, blobById } from "../signed-in/reads.ts";
 import { avatarUrl, displayName } from "../signed-in/presenters.ts";
+import { aliveComplianceInfo, blobById } from "../signed-in/reads.ts";
+
 import DATA from "./settings-data.generated.json" with { type: "json" };
 
 const DEFAULT_IOS_APP_ID = "916819108";
@@ -59,11 +60,15 @@ const iso8601 = (date: Date) => date.toISOString().replace(/\.\d{3}Z$/, "Z");
 
 // OauthApplication#icon_url: cdn_url_for(file.url), the blob's own public URL.
 export async function iconUrl(application: OauthApplication): Promise<string | null> {
-  const attachment = await db.activeStorageAttachment.findFirst({ where: { record_type: "OauthApplication", record_id: application.id, name: "file" }, select: { blob_id: true } });
+  const attachment = await db.activeStorageAttachment.findFirst({
+    where: { record_type: "OauthApplication", record_id: application.id, name: "file" },
+    select: { blob_id: true },
+  });
   if (!attachment) return null;
   const blob = await blobById(attachment.blob_id);
   if (blob === null) throw new NotPortedError("OauthApplication#icon_url for an attachment whose blob row is missing");
-  if (!isConfiguredService(blob.service_name)) throw new NotPortedError(`Active Storage service ${JSON.stringify(blob.service_name)}`);
+  if (!isConfiguredService(blob.service_name))
+    throw new NotPortedError(`Active Storage service ${JSON.stringify(blob.service_name)}`);
   return cdnUrlFor(publicStorageUrl(blob.key)) ?? null;
 }
 
@@ -86,14 +91,23 @@ export async function applicationProps(context: SellerContext, application: Oaut
 export async function findOwnedApplication(seller: User, external: string): Promise<OauthApplication | null> {
   const id = decryptExternalId(external);
   if (id === null) return null;
-  return db.oauthApplication.findFirst({ where: { id, owner_id: Number(seller.id), owner_type: "User", deleted_at: null } });
+  return db.oauthApplication.findFirst({
+    where: { id, owner_id: Number(seller.id), owner_type: "User", deleted_at: null },
+  });
 }
 
 // OauthApplication.alive.authorized_for(seller): applications holding a not revoked token of the seller.
 async function authorizedApplications(seller: User): Promise<OauthApplication[]> {
-  const tokens = await db.oauthAccessToken.findMany({ where: { resource_owner_id: Number(seller.id), revoked_at: null }, select: { application_id: true }, distinct: ["application_id"] });
+  const tokens = await db.oauthAccessToken.findMany({
+    where: { resource_owner_id: Number(seller.id), revoked_at: null },
+    select: { application_id: true },
+    distinct: ["application_id"],
+  });
   if (tokens.length === 0) return [];
-  return db.oauthApplication.findMany({ where: { deleted_at: null, id: { in: tokens.map((token) => token.application_id) } }, orderBy: { id: "asc" } });
+  return db.oauthApplication.findMany({
+    where: { deleted_at: null, id: { in: tokens.map((token) => token.application_id) } },
+    orderBy: { id: "asc" },
+  });
 }
 
 // SettingsPresenter#pages
@@ -104,7 +118,12 @@ export async function settingsPages(context: SellerContext): Promise<Pages> {
     ["team", () => settingsTeamUserPolicy.show(context)],
     ["payments", () => settingsPaymentsUserPolicy.show(context, seller)],
     ["billing", () => settingsBillingPolicy.show(context)],
-    ["authorized_applications", async () => settingsAuthorizedApplicationsOauthApplicationPolicy.index(context) && (await authorizedApplications(seller)).length > 0],
+    [
+      "authorized_applications",
+      async () =>
+        settingsAuthorizedApplicationsOauthApplicationPolicy.index(context) &&
+        (await authorizedApplications(seller)).length > 0,
+    ],
     ["password", () => settingsPasswordUserPolicy.show(context)],
     ["social_connections", () => settingsSocialConnectionsPolicy.show(context)],
     ["third_party_analytics", () => settingsThirdPartyAnalyticsUserPolicy.show(context)],
@@ -122,7 +141,9 @@ const featureActive = (name: string, seller: User) => isFeatureEnabled(name, use
 async function refundPolicySettingsEditable(seller: User, now: Date): Promise<boolean> {
   if (UserFlags.isSet(seller.flags, "refund_policy_enforced")) return false;
   if (await isFeatureEnabled("seller_refund_policy_disabled_for_all")) return false;
-  const delayed = (await featureActive("account_level_refund_policy_delayed_for_sellers", seller)) && now.getTime() <= LAST_ALLOWED_TIME_FOR_PRODUCT_LEVEL_REFUND_POLICY;
+  const delayed =
+    (await featureActive("account_level_refund_policy_delayed_for_sellers", seller)) &&
+    now.getTime() <= LAST_ALLOWED_TIME_FOR_PRODUCT_LEVEL_REFUND_POLICY;
   if (delayed) return false;
   return UserFlags.isSet(seller.flags, "refund_policy_enabled");
 }
@@ -130,8 +151,13 @@ async function refundPolicySettingsEditable(seller: User, now: Date): Promise<bo
 // SettingsPresenter#seller_refund_policy
 async function sellerRefundPolicy(seller: User, now: Date) {
   const enforced = UserFlags.isSet(seller.flags, "refund_policy_enforced");
-  const periods = Object.keys(ALLOWED_REFUND_PERIODS_IN_DAYS).map(Number).filter((period) => !(enforced && period === NO_REFUNDS_PERIOD));
-  const policy = await db.refundPolicy.findFirst({ where: { seller_id: seller.id, product_id: null }, orderBy: { id: "asc" } });
+  const periods = Object.keys(ALLOWED_REFUND_PERIODS_IN_DAYS)
+    .map(Number)
+    .filter((period) => !(enforced && period === NO_REFUNDS_PERIOD));
+  const policy = await db.refundPolicy.findFirst({
+    where: { seller_id: seller.id, product_id: null },
+    orderBy: { id: "asc" },
+  });
   if (!policy) throw new TypeError("undefined method 'max_refund_period_in_days' for nil");
   return {
     editable: await refundPolicySettingsEditable(seller, now),
@@ -145,7 +171,11 @@ async function sellerRefundPolicy(seller: User, now: Date) {
 
 // User#product_level_support_emails
 async function productLevelSupportEmails(seller: User) {
-  const links = await db.link.findMany({ where: { user_id: seller.id, support_email: { not: null } }, select: { id: true, support_email: true }, orderBy: { id: "asc" } });
+  const links = await db.link.findMany({
+    where: { user_id: seller.id, support_email: { not: null } },
+    select: { id: true, support_email: true },
+    orderBy: { id: "asc" },
+  });
   const grouped = new Map<string, string[]>();
   for (const link of links) {
     const ids = grouped.get(link.support_email!) ?? [];
@@ -159,7 +189,11 @@ export async function mainProps(context: SellerContext, now = new Date()) {
   const seller = context.seller!;
   const [pages, products, complianceInfo, announcements] = [
     await settingsPages(context),
-    await db.link.findMany({ where: { user_id: seller.id, deleted_at: null }, select: { id: true, name: true, flags: true }, orderBy: { id: "asc" } }),
+    await db.link.findMany({
+      where: { user_id: seller.id, deleted_at: null },
+      select: { id: true, name: true, flags: true },
+      orderBy: { id: "asc" },
+    }),
     await aliveComplianceInfo(seller.id),
     await db.featureAnnouncementSubscription.findFirst({ where: { user_id: seller.id } }),
   ];
@@ -184,13 +218,19 @@ export async function mainProps(context: SellerContext, now = new Date()) {
       compliance_country: complianceInfo?.country ?? null,
       purchasing_power_parity_enabled: flag("purchasing_power_parity_enabled"),
       purchasing_power_parity_limit: seller.purchasing_power_parity_limit,
-      purchasing_power_parity_payment_verification_disabled: flag("purchasing_power_parity_payment_verification_disabled"),
+      purchasing_power_parity_payment_verification_disabled: flag(
+        "purchasing_power_parity_payment_verification_disabled",
+      ),
       products: products.map((product) => ({ id: externalId(product.id), name: product.name })),
-      purchasing_power_parity_excluded_product_ids: products.filter((product) => LinkFlags.isSet(product.flags, "purchasing_power_parity_disabled")).map((product) => externalId(product.id)),
+      purchasing_power_parity_excluded_product_ids: products
+        .filter((product) => LinkFlags.isSet(product.flags, "purchasing_power_parity_disabled"))
+        .map((product) => externalId(product.id)),
       enable_payment_email: flag("enable_payment_email"),
       enable_payment_push_notification: flag("enable_payment_push_notification"),
       enable_recurring_subscription_charge_email: flag("enable_recurring_subscription_charge_email"),
-      enable_recurring_subscription_charge_push_notification: flag("enable_recurring_subscription_charge_push_notification"),
+      enable_recurring_subscription_charge_push_notification: flag(
+        "enable_recurring_subscription_charge_push_notification",
+      ),
       enable_free_downloads_email: flag("enable_free_downloads_email"),
       enable_free_downloads_push_notification: flag("enable_free_downloads_push_notification"),
       announcement_notification_enabled: flag("announcement_notification_enabled"),
@@ -208,7 +248,10 @@ export async function mainProps(context: SellerContext, now = new Date()) {
 
 export async function passwordProps(context: SellerContext) {
   const seller = context.seller!;
-  const credentials = await db.webauthnCredential.findMany({ where: { user_id: seller.id }, orderBy: [{ created_at: "asc" }, { id: "asc" }] });
+  const credentials = await db.webauthnCredential.findMany({
+    where: { user_id: seller.id },
+    orderBy: [{ created_at: "asc" }, { id: "asc" }],
+  });
   const totp = await db.totpCredential.findFirst({ where: { user_id: seller.id } });
   return {
     require_old_password: !present(seller.provider),
@@ -226,7 +269,14 @@ export async function passwordProps(context: SellerContext) {
 export async function socialConnectionsProps(context: SellerContext) {
   const seller = context.seller!;
   const [awaitingReconnect, youtube, instagram, tiktok] = [
-    await db.marketingAction.findFirst({ where: { user_id: seller.id, error_code: "x_write_permission_missing", status: { notIn: ["posted", "failed", "cancelled"] } }, select: { id: true } }),
+    await db.marketingAction.findFirst({
+      where: {
+        user_id: seller.id,
+        error_code: "x_write_permission_missing",
+        status: { notIn: ["posted", "failed", "cancelled"] },
+      },
+      select: { id: true },
+    }),
     await db.userYoutubeIdentity.findFirst({ where: { user_id: seller.id } }),
     await db.userInstagramIdentity.findFirst({ where: { user_id: seller.id } }),
     await db.userTiktokIdentity.findFirst({ where: { user_id: seller.id } }),
@@ -251,10 +301,21 @@ export async function socialConnectionsProps(context: SellerContext) {
 export async function thirdPartyAnalyticsPageProps(context: SellerContext) {
   const seller = context.seller!;
   const record = Users.load(seller);
-  const snippets = await db.thirdPartyAnalytic.findMany({ where: { user_id: Number(seller.id), deleted_at: null }, orderBy: { id: "asc" } });
+  const snippets = await db.thirdPartyAnalytic.findMany({
+    where: { user_id: Number(seller.id), deleted_at: null },
+    orderBy: { id: "asc" },
+  });
   const linkIds = snippets.flatMap((snippet) => (snippet.link_id === null ? [] : [BigInt(snippet.link_id)]));
-  const permalinks = new Map((await db.link.findMany({ where: { id: { in: linkIds } }, select: { id: true, unique_permalink: true } })).map((link) => [link.id, link.unique_permalink]));
-  const products = await db.link.findMany({ where: { user_id: seller.id, purchase_disabled_at: null, banned_at: null, deleted_at: null }, select: { unique_permalink: true, name: true }, orderBy: { id: "asc" } });
+  const permalinks = new Map(
+    (await db.link.findMany({ where: { id: { in: linkIds } }, select: { id: true, unique_permalink: true } })).map(
+      (link) => [link.id, link.unique_permalink],
+    ),
+  );
+  const products = await db.link.findMany({
+    where: { user_id: seller.id, purchase_disabled_at: null, banned_at: null, deleted_at: null },
+    select: { unique_permalink: true, name: true },
+    orderBy: { id: "asc" },
+  });
   const flag = (name: Parameters<typeof UserFlags.isSet>[1]) => UserFlags.isSet(seller.flags, name);
   return {
     third_party_analytics: {
@@ -279,19 +340,34 @@ export async function thirdPartyAnalyticsPageProps(context: SellerContext) {
 
 // PingDelivery#as_props
 async function recentPingDeliveries(seller: User) {
-  const rows = await db.pingDelivery.findMany({ where: { user_id: seller.id }, orderBy: [{ created_at: "desc" }, { id: "desc" }], take: MAX_RECENT_PING_DELIVERIES });
+  const rows = await db.pingDelivery.findMany({
+    where: { user_id: seller.id },
+    orderBy: [{ created_at: "desc" }, { id: "desc" }],
+    take: MAX_RECENT_PING_DELIVERIES,
+  });
   const purchases = new Map<bigint, bigint>();
   for (const row of rows) if (row.purchase_id !== null) purchases.set(row.purchase_id, row.purchase_id);
-  const purchaseIds = await db.purchase.findMany({ where: { id: { in: [...purchases.keys()] } }, select: { id: true } });
+  const purchaseIds = await db.purchase.findMany({
+    where: { id: { in: [...purchases.keys()] } },
+    select: { id: true },
+  });
   const existing = new Set(purchaseIds.map((purchase) => purchase.id));
   return rows.map((row) => ({
     id: Number(row.id),
     resource_name: row.resource_name,
-    sale_id: row.purchase_id !== null && existing.has(row.purchase_id) ? String(encryptNumeric(Number(row.purchase_id))) : null,
+    sale_id:
+      row.purchase_id !== null && existing.has(row.purchase_id)
+        ? String(encryptNumeric(Number(row.purchase_id)))
+        : null,
     subscription_id: row.subscription_id === null ? null : Number(row.subscription_id),
     post_url: row.post_url,
     attempt: row.attempt,
-    outcome: row.response_code != null ? `HTTP ${row.response_code}` : present(row.error_class) ? row.error_class : "No response",
+    outcome:
+      row.response_code != null
+        ? `HTTP ${row.response_code}`
+        : present(row.error_class)
+          ? row.error_class
+          : "No response",
     succeeded: row.succeeded,
     created_at: row.created_at.toISOString(),
   }));
@@ -299,10 +375,21 @@ async function recentPingDeliveries(seller: User) {
 
 export async function advancedProps(context: SellerContext) {
   const seller = context.seller!;
-  const customDomain = await db.customDomain.findFirst({ where: { user_id: Number(seller.id), deleted_at: null }, orderBy: { id: "asc" } });
-  if (customDomain?.state === "unverified") throw new NotPortedError("CustomDomainVerificationService (DNS lookups for an unverified custom domain)");
-  const blocked = await db.blockedCustomerObject.findMany({ where: { seller_id: seller.id, object_type: "email", blocked_at: { not: null } }, select: { object_value: true }, orderBy: { id: "asc" } });
-  const applications = await db.oauthApplication.findMany({ where: { owner_id: Number(seller.id), owner_type: "User", deleted_at: null }, orderBy: { id: "asc" } });
+  const customDomain = await db.customDomain.findFirst({
+    where: { user_id: Number(seller.id), deleted_at: null },
+    orderBy: { id: "asc" },
+  });
+  if (customDomain?.state === "unverified")
+    throw new NotPortedError("CustomDomainVerificationService (DNS lookups for an unverified custom domain)");
+  const blocked = await db.blockedCustomerObject.findMany({
+    where: { seller_id: seller.id, object_type: "email", blocked_at: { not: null } },
+    select: { object_value: true },
+    orderBy: { id: "asc" },
+  });
+  const applications = await db.oauthApplication.findMany({
+    where: { owner_id: Number(seller.id), owner_type: "User", deleted_at: null },
+    orderBy: { id: "asc" },
+  });
   const balance = await unpaidBalanceCents(Users.load(seller), db);
   return {
     settings_pages: await settingsPages(context),
@@ -311,7 +398,13 @@ export async function advancedProps(context: SellerContext) {
     blocked_customer_emails: blocked.map((object) => object.object_value).join("\n"),
     custom_domain_verification_status: null,
     custom_domain_name: customDomain?.domain || "",
-    applications: await Promise.all(applications.map(async (application) => ({ id: externalId(application.id), name: application.name, icon_url: await iconUrl(application) }))),
+    applications: await Promise.all(
+      applications.map(async (application) => ({
+        id: externalId(application.id),
+        name: application.name,
+        icon_url: await iconUrl(application),
+      })),
+    ),
     allow_deactivation: userPolicy.deactivate(context),
     formatted_balance_to_forfeit_on_account_deletion: balance > 0n ? formattedDollarAmount(balance) : null,
     recent_ping_deliveries: await recentPingDeliveries(seller),
@@ -346,11 +439,20 @@ export async function authorizedApplicationsProps(context: SellerContext, now = 
   const applications = await authorizedApplications(seller);
   const grants = new Map<number, { created_at: Date; scopes: string }>();
   for (const application of applications) {
-    const grant = await db.oauthAccessGrant.findFirst({ where: { application_id: application.id, resource_owner_id: Number(seller.id) }, orderBy: [{ created_at: "asc" }, { id: "asc" }] });
+    const grant = await db.oauthAccessGrant.findFirst({
+      where: { application_id: application.id, resource_owner_id: Number(seller.id) },
+      orderBy: [{ created_at: "asc" }, { id: "asc" }],
+    });
     if (grant) grants.set(application.id, grant);
   }
-  const valid = applications.filter((application) => grants.has(application.id)).sort((a, b) => grants.get(a.id)!.created_at.getTime() - grants.get(b.id)!.created_at.getTime());
-  const liveScopes = await liveScopesByApplication(seller, valid.map((application) => application.id), now);
+  const valid = applications
+    .filter((application) => grants.has(application.id))
+    .sort((a, b) => grants.get(a.id)!.created_at.getTime() - grants.get(b.id)!.created_at.getTime());
+  const liveScopes = await liveScopesByApplication(
+    seller,
+    valid.map((application) => application.id),
+    now,
+  );
   return {
     settings_pages: await settingsPages(context),
     authorized_applications: await Promise.all(
@@ -367,14 +469,22 @@ export async function authorizedApplicationsProps(context: SellerContext, now = 
 }
 
 // SettingsPresenter#live_scopes_by_application: the union of the scopes of the seller's unexpired tokens.
-async function liveScopesByApplication(seller: User, applicationIds: number[], now: Date): Promise<Map<number, string[]>> {
+async function liveScopesByApplication(
+  seller: User,
+  applicationIds: number[],
+  now: Date,
+): Promise<Map<number, string[]>> {
   const result = new Map<number, string[]>();
   if (applicationIds.length === 0) return result;
-  const tokens = await db.oauthAccessToken.findMany({ where: { resource_owner_id: Number(seller.id), revoked_at: null, application_id: { in: applicationIds } }, orderBy: { id: "asc" } });
+  const tokens = await db.oauthAccessToken.findMany({
+    where: { resource_owner_id: Number(seller.id), revoked_at: null, application_id: { in: applicationIds } },
+    orderBy: { id: "asc" },
+  });
   for (const token of tokens) {
     if (token.expires_in !== null && token.created_at.getTime() + token.expires_in * 1000 <= now.getTime()) continue;
     const scopes = result.get(token.application_id) ?? [];
-    for (const scope of (token.scopes ?? "").split(/\s+/).filter(Boolean)) if (!scopes.includes(scope)) scopes.push(scope);
+    for (const scope of (token.scopes ?? "").split(/\s+/).filter(Boolean))
+      if (!scopes.includes(scope)) scopes.push(scope);
     if (scopes.length > 0) result.set(token.application_id, scopes);
   }
   return result;
@@ -387,9 +497,21 @@ const roleOptions = (roles: readonly string[], current: string, canChange: boole
 export async function teamMemberInfos(context: SellerContext, now = new Date()) {
   const seller = context.seller!;
   const defaultAvatar = `${assetHost(domainConfig(process.env)) ?? ""}/images/${DEFAULT_AVATAR}`;
-  const memberships = (await db.teamMembership.findMany({ where: { seller_id: seller.id, deleted_at: null }, orderBy: [{ created_at: "desc" }, { id: "desc" }] })).filter((membership) => membership.role !== "owner");
-  const invitations = await db.teamInvitation.findMany({ where: { seller_id: seller.id, deleted_at: null }, orderBy: [{ created_at: "desc" }, { id: "desc" }] });
-  const members = new Map((await db.user.findMany({ where: { id: { in: memberships.map((membership) => membership.user_id) } } })).map((member) => [member.id, member]));
+  const memberships = (
+    await db.teamMembership.findMany({
+      where: { seller_id: seller.id, deleted_at: null },
+      orderBy: [{ created_at: "desc" }, { id: "desc" }],
+    })
+  ).filter((membership) => membership.role !== "owner");
+  const invitations = await db.teamInvitation.findMany({
+    where: { seller_id: seller.id, deleted_at: null },
+    orderBy: [{ created_at: "desc" }, { id: "desc" }],
+  });
+  const members = new Map(
+    (await db.user.findMany({ where: { id: { in: memberships.map((membership) => membership.user_id) } } })).map(
+      (member) => [member.id, member],
+    ),
+  );
 
   const infos: Record<string, unknown>[] = [
     {
@@ -404,7 +526,8 @@ export async function teamMemberInfos(context: SellerContext, now = new Date()) 
       leave_team_option: null,
     },
   ];
-  for (const membership of memberships) infos.push(await membershipInfo(context, membership, members.get(membership.user_id)!));
+  for (const membership of memberships)
+    infos.push(await membershipInfo(context, membership, members.get(membership.user_id)!));
   for (const invitation of invitations) infos.push(invitationInfo(context, invitation, defaultAvatar, now));
   return infos;
 }
@@ -415,7 +538,8 @@ async function membershipInfo(context: SellerContext, membership: TeamMembership
   const isSelf = member.id === context.user!.id;
   const options: { id: string; label: string }[] = roleOptions(roles, membership.role, canChangeRole);
   // build_remove_from_team_option: a member sees "leave team" instead of "remove from team".
-  if (!isSelf && settingsTeamMembershipPolicy.destroy(context, membership)) options.push({ id: "remove_from_team", label: "Remove from team" });
+  if (!isSelf && settingsTeamMembershipPolicy.destroy(context, membership))
+    options.push({ id: "remove_from_team", label: "Remove from team" });
   return {
     type: TYPE_MEMBERSHIP,
     id: externalId(membership.id),
@@ -425,14 +549,23 @@ async function membershipInfo(context: SellerContext, membership: TeamMembership
     avatar_url: await avatarUrl(member),
     is_expired: false,
     options,
-    leave_team_option: isSelf && settingsTeamMembershipPolicy.destroy(context, membership) ? { id: "leave_team", label: "Leave team" } : null,
+    leave_team_option:
+      isSelf && settingsTeamMembershipPolicy.destroy(context, membership)
+        ? { id: "leave_team", label: "Leave team" }
+        : null,
   };
 }
 
 function invitationInfo(context: SellerContext, invitation: TeamInvitation, defaultAvatar: string, now: Date) {
-  const options: { id: string; label: string }[] = roleOptions(TEAM_ROLES_WITHOUT_OWNER, invitation.role, settingsTeamInvitationPolicy.update(context));
-  if (settingsTeamInvitationPolicy.resendInvitation(context)) options.push({ id: "resend_invitation", label: "Resend invitation" });
-  if (settingsTeamInvitationPolicy.destroy(context)) options.push({ id: "remove_from_team", label: "Remove from team" });
+  const options: { id: string; label: string }[] = roleOptions(
+    TEAM_ROLES_WITHOUT_OWNER,
+    invitation.role,
+    settingsTeamInvitationPolicy.update(context),
+  );
+  if (settingsTeamInvitationPolicy.resendInvitation(context))
+    options.push({ id: "resend_invitation", label: "Resend invitation" });
+  if (settingsTeamInvitationPolicy.destroy(context))
+    options.push({ id: "remove_from_team", label: "Remove from team" });
   return {
     type: TYPE_INVITATION,
     id: externalId(invitation.id),

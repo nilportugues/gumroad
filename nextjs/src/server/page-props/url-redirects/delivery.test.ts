@@ -38,17 +38,29 @@ const gateInput = (overrides: Record<string, unknown> = {}) => ({
 
 function chain(path: string, options: { query?: string; accept?: string; signedIn?: boolean } = {}) {
   return {
-    request: { method: "GET", path, queryString: options.query ?? "", headers: new Headers({ accept: options.accept ?? "text/html" }), cookies: new Map() },
+    request: {
+      method: "GET",
+      path,
+      queryString: options.query ?? "",
+      headers: new Headers({ accept: options.accept ?? "text/html" }),
+      cookies: new Map(),
+    },
     now: new Date("2026-03-01T12:00:00Z"),
     headers: new Headers(),
-    auth: { context: { loggedInUser: options.signedIn ? { id: 7n } : null, currentSeller: null, impersonatedUser: null }, effects: {} },
+    auth: {
+      context: { loggedInUser: options.signedIn ? { id: 7n } : null, currentSeller: null, impersonatedUser: null },
+      effects: {},
+    },
     afterCookies: [] as string[],
   } as unknown as Chain;
 }
 
 const arrange = (input: Record<string, unknown>, loaded: Record<string, unknown> = {}) => {
   mocks.load.mockResolvedValue({ redirect: { token: "tok123" }, purchase: { id: 5n }, ...loaded });
-  mocks.buildGateInput.mockImplementation(async (_chain, _loaded, { destination }: { destination: string }) => ({ gate: gateInput({ ...input, destination }), viewer: null }));
+  mocks.buildGateInput.mockImplementation(async (_chain, _loaded, { destination }: { destination: string }) => ({
+    gate: gateInput({ ...input, destination }),
+    viewer: null,
+  }));
 };
 
 beforeEach(() => {
@@ -73,22 +85,35 @@ describe("deliveryFilters", () => {
     ["subtitle_file_vtt", "/r/tok123/abc/def/captions.vtt"],
   ] as const)("sends the confirm page the %s action as its destination", async (action, path) => {
     arrange({ hasBeenSeen: true, path }, {});
-    await expect(deliveryFilters(action)(chain(path))).resolves.toEqual({ halt: { status: 302, location: `/confirm?destination=${action}&id=tok123`, rescued: true } });
-    expect(mocks.buildGateInput).toHaveBeenCalledWith(expect.anything(), expect.anything(), { destination: action, isPoll: false });
+    await expect(deliveryFilters(action)(chain(path))).resolves.toEqual({
+      halt: { status: 302, location: `/confirm?destination=${action}&id=tok123`, rescued: true },
+    });
+    expect(mocks.buildGateInput).toHaveBeenCalledWith(expect.anything(), expect.anything(), {
+      destination: action,
+      isPoll: false,
+    });
   });
 
   it("redirects an expired rental, revoked access and an inactive membership to their pages", async () => {
     arrange({ purchase: purchaseFacts({ rentalExpired: true }) });
-    await expect(deliveryFilters("show")(chain("/r/tok123"))).resolves.toMatchObject({ halt: { location: "/r/tok123/rental_expired" } });
+    await expect(deliveryFilters("show")(chain("/r/tok123"))).resolves.toMatchObject({
+      halt: { location: "/r/tok123/rental_expired" },
+    });
     arrange({ purchase: purchaseFacts({ accessRevoked: true }) });
-    await expect(deliveryFilters("stream")(chain("/s/tok123"))).resolves.toMatchObject({ halt: { location: "/r/tok123/expired" } });
+    await expect(deliveryFilters("stream")(chain("/s/tok123"))).resolves.toMatchObject({
+      halt: { location: "/r/tok123/expired" },
+    });
     arrange({ purchase: purchaseFacts({ membershipInactive: true }) });
-    await expect(deliveryFilters("download_archive")(chain("/zip/tok123"))).resolves.toMatchObject({ halt: { location: "/r/tok123/membership_inactive" } });
+    await expect(deliveryFilters("download_archive")(chain("/zip/tok123"))).resolves.toMatchObject({
+      halt: { location: "/r/tok123/membership_inactive" },
+    });
   });
 
   it("sends a signed-in stranger to the purchaser check with the delivery path", async () => {
     arrange({ viewer: { id: 9n, isTeamMember: false }, path: "/s/tok123" });
-    await expect(deliveryFilters("stream")(chain("/s/tok123", { signedIn: true }))).resolves.toMatchObject({ halt: { location: "/r/tok123/check_purchaser?next=%2Fs%2Ftok123" } });
+    await expect(deliveryFilters("stream")(chain("/s/tok123", { signedIn: true }))).resolves.toMatchObject({
+      halt: { location: "/r/tok123/check_purchaser?next=%2Fs%2Ftok123" },
+    });
   });
 
   it("answers 404 for a withdrawn purchase", async () => {
@@ -98,24 +123,34 @@ describe("deliveryFilters", () => {
 
   it("hands back a 404 whose page depends on a non-HTML format", async () => {
     arrange({ purchase: purchaseFacts({ withdrawn: true }) });
-    await expect(deliveryFilters("download_product_files")(chain("/r/tok123/product_files", { accept: "application/json" }))).rejects.toBeInstanceOf(HandBackToRails);
+    await expect(
+      deliveryFilters("download_product_files")(chain("/r/tok123/product_files", { accept: "application/json" })),
+    ).rejects.toBeInstanceOf(HandBackToRails);
   });
 
   it("answers 404 for an unknown token", async () => {
     mocks.load.mockRejectedValue(new RoutingError("Not Found"));
-    await expect(deliveryFilters("hls_playlist")(chain("/r/tok123/abc/index.m3u8"))).rejects.toBeInstanceOf(RoutingError);
+    await expect(deliveryFilters("hls_playlist")(chain("/r/tok123/abc/index.m3u8"))).rejects.toBeInstanceOf(
+      RoutingError,
+    );
   });
 
   it("hands back the mobile app token sign-in", async () => {
-    await expect(deliveryFilters("show")(chain("/r/tok123", { query: "access_token=abc" }))).rejects.toBeInstanceOf(HandBackToRails);
+    await expect(deliveryFilters("show")(chain("/r/tok123", { query: "access_token=abc" }))).rejects.toBeInstanceOf(
+      HandBackToRails,
+    );
     expect(mocks.buildGateInput).not.toHaveBeenCalled();
   });
 
   describe("read", () => {
     it("redirects a refused read to the home page when signed out and the library when signed in", async () => {
       arrange({ purchase: purchaseFacts({ withdrawn: true }) });
-      await expect(deliveryFilters("read")(chain("/read/tok123"))).resolves.toEqual({ halt: { status: 302, location: "/", rescued: true } });
-      await expect(deliveryFilters("read")(chain("/read/tok123/abc", { signedIn: true }))).resolves.toEqual({ halt: { status: 302, location: "/library", rescued: true } });
+      await expect(deliveryFilters("read")(chain("/read/tok123"))).resolves.toEqual({
+        halt: { status: 302, location: "/", rescued: true },
+      });
+      await expect(deliveryFilters("read")(chain("/read/tok123/abc", { signedIn: true }))).resolves.toEqual({
+        halt: { status: 302, location: "/library", rescued: true },
+      });
     });
 
     it("redirects an unknown token the same way", async () => {
@@ -125,7 +160,9 @@ describe("deliveryFilters", () => {
 
     it("keeps the confirm and expiry redirects", async () => {
       arrange({ purchase: purchaseFacts({ accessRevoked: true }) });
-      await expect(deliveryFilters("read")(chain("/read/tok123"))).resolves.toMatchObject({ halt: { location: "/r/tok123/expired" } });
+      await expect(deliveryFilters("read")(chain("/read/tok123"))).resolves.toMatchObject({
+        halt: { location: "/r/tok123/expired" },
+      });
     });
   });
 
@@ -148,16 +185,22 @@ describe("deliveryFilters", () => {
 
     it("answers 404 for a test purchase to anyone but its buyer or a team member", async () => {
       arrange({ purchase: purchaseFacts({ isTestPurchase: true }), viewer: { id: 9n, isTeamMember: false } });
-      await expect(deliveryFilters("smil")(chain("/r/tok123/abc/stream.smil", { signedIn: true }))).rejects.toBeInstanceOf(RoutingError);
+      await expect(
+        deliveryFilters("smil")(chain("/r/tok123/abc/stream.smil", { signedIn: true })),
+      ).rejects.toBeInstanceOf(RoutingError);
       arrange({ purchase: purchaseFacts({ isTestPurchase: true }), viewer: null });
       await expect(deliveryFilters("smil")(chain("/r/tok123/abc/stream.smil"))).rejects.toBeInstanceOf(RoutingError);
     });
 
     it("hands back a test purchase opened by its buyer or a team member", async () => {
       arrange({ purchase: purchaseFacts({ isTestPurchase: true }), viewer: { id: 7n, isTeamMember: false } });
-      await expect(deliveryFilters("smil")(chain("/r/tok123/abc/stream.smil", { signedIn: true }))).rejects.toBeInstanceOf(HandBackToRails);
+      await expect(
+        deliveryFilters("smil")(chain("/r/tok123/abc/stream.smil", { signedIn: true })),
+      ).rejects.toBeInstanceOf(HandBackToRails);
       arrange({ purchase: purchaseFacts({ isTestPurchase: true }), viewer: { id: 9n, isTeamMember: true } });
-      await expect(deliveryFilters("smil")(chain("/r/tok123/abc/stream.smil", { signedIn: true }))).rejects.toBeInstanceOf(HandBackToRails);
+      await expect(
+        deliveryFilters("smil")(chain("/r/tok123/abc/stream.smil", { signedIn: true })),
+      ).rejects.toBeInstanceOf(HandBackToRails);
     });
   });
 });

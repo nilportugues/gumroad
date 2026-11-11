@@ -9,6 +9,7 @@ import { nameOrUsername, subdomainWithProtocol, username, Users } from "../model
 import { pagePolicy } from "../policies/page.ts";
 import { loadSellerContext } from "../policies/seller-context.ts";
 import { squish } from "../search/plaintext.ts";
+
 import type { PageGuard } from "./guards.ts";
 import { NotPortedError } from "./not-ported.ts";
 import { matchPagePath, type PageSpec } from "./pages.ts";
@@ -19,7 +20,14 @@ const SEO_MAX_LENGTHS = { title: 70, description: 320 };
 // Pages::ProfileData::MAX_ITEMS
 const PRODUCTS_PAGE_LIMIT = 100;
 
-type SlugRow = { slug: string | null; title: string | null; content: string | null; custom_html: string | null; seo_title: string | null; seo_description: string | null };
+type SlugRow = {
+  slug: string | null;
+  title: string | null;
+  content: string | null;
+  custom_html: string | null;
+  seo_title: string | null;
+  seo_description: string | null;
+};
 
 const present = (value: string | null | undefined): value is string => value != null && value.trim() !== "";
 
@@ -86,28 +94,30 @@ function profileMetaDescription(bio: string | null, name: string | null): string
 // The before_actions between `authenticate_user!` (signed-out visitors never reach this: the routes are
 // signedInOnly) and the render: RequireAccountEmail, set_page, then `authorize :page` in the action and
 // PunditAuthorization#user_not_authorized for a refusal.
-const pagesGuard = (query: "index" | "new" | "edit"): PageGuard => async (input) => {
-  const context = await loadSellerContext(input.context);
-  if (!context.user) throw new NotPortedError("authenticate_user! for a signed-out visitor");
+const pagesGuard =
+  (query: "index" | "new" | "edit"): PageGuard =>
+  async (input) => {
+    const context = await loadSellerContext(input.context);
+    if (!context.user) throw new NotPortedError("authenticate_user! for a signed-out visitor");
 
-  const { user } = context;
-  if (!present(user.email) && !present(user.unconfirmed_email) && input.context.impersonatedUser === null) {
-    return { status: 302, location: "/settings", rescued: true, flash: { warning: ADD_EMAIL_MESSAGE } };
-  }
+    const { user } = context;
+    if (!present(user.email) && !present(user.unconfirmed_email) && input.context.impersonatedUser === null) {
+      return { status: 302, location: "/settings", rescued: true, flash: { warning: ADD_EMAIL_MESSAGE } };
+    }
 
-  const slug = matchPagePath(input.url.pathname)?.params.slug;
-  if (query === "edit" && slug !== "profile") {
-    const found = (await sluggedPages(context.seller!.id)).some((page) => page.slug === slug);
-    if (!found) return { status: 302, location: "/pages", rescued: true };
-  }
+    const slug = matchPagePath(input.url.pathname)?.params.slug;
+    if (query === "edit" && slug !== "profile") {
+      const found = (await sluggedPages(context.seller!.id)).some((page) => page.slug === slug);
+      if (!found) return { status: 302, location: "/pages", rescued: true };
+    }
 
-  if (!pagePolicy[query](context)) {
-    // `params["account_switched"]` is truthy for any value, an empty one included.
-    const flash = input.url.searchParams.has("account_switched") ? undefined : { alert: notAllowedMessage(context) };
-    return { status: 302, location: Routes.dashboard_url(input.urlOptions), rescued: true, ...(flash && { flash }) };
-  }
-  return null;
-};
+    if (!pagePolicy[query](context)) {
+      // `params["account_switched"]` is truthy for any value, an empty one included.
+      const flash = input.url.searchParams.has("account_switched") ? undefined : { alert: notAllowedMessage(context) };
+      return { status: 302, location: Routes.dashboard_url(input.urlOptions), rescued: true, ...(flash && { flash }) };
+    }
+    return null;
+  };
 
 export const SELLER_PAGES: Record<string, PageSpec> = {
   "/pages": {
@@ -135,7 +145,16 @@ export const SELLER_PAGES: Record<string, PageSpec> = {
       const record = Users.load(context.currentSeller!);
       const sellerName = nameOrUsername(record);
       return {
-        page: { slug: null, title: "", content: "", custom_html: false, seo_title: "", seo_description: "", default_seo_title: sellerName, default_seo_description: null },
+        page: {
+          slug: null,
+          title: "",
+          content: "",
+          custom_html: false,
+          seo_title: "",
+          seo_description: "",
+          default_seo_title: sellerName,
+          default_seo_description: null,
+        },
         is_profile: false,
         is_new: true,
         username: username(record) ?? "",

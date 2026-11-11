@@ -6,16 +6,21 @@ import type { Link, Purchase, Subscription, UrlRedirect, User } from "@prisma/cl
 
 import { db } from "../../../lib/db.ts";
 import { encrypt } from "../../../lib/obfuscate-ids.ts";
-import { HandBackToRails, RoutingError, type Chain, type FilterOutcome } from "../../controllers/application-controller.ts";
+import {
+  HandBackToRails,
+  RoutingError,
+  type Chain,
+  type FilterOutcome,
+} from "../../controllers/application-controller.ts";
+import { requireHtml } from "../../controllers/buyer-pages.ts";
 import { assertFlatQuery } from "../../controllers/rails-params.ts";
 import { isPresent, queryParam } from "../../controllers/rails-request.ts";
 import { SubscriptionFlags } from "../../models/subscription.ts";
-import { PurchaseFlags } from "../../search/flags.ts";
-import { domainConfig } from "../domain.ts";
-import { emailDigest, raterAccountName } from "../buyer/reviews.ts";
-import { requireHtml } from "../../controllers/buyer-pages.ts";
 import { UserFlags } from "../../models/user.ts";
+import { PurchaseFlags } from "../../search/flags.ts";
+import { emailDigest, raterAccountName } from "../buyer/reviews.ts";
 import { productLongUrl } from "../buyer/users.ts";
+import { domainConfig } from "../domain.ts";
 
 export const CONTENT_UNAVAILABILITY_REASON_CODES = {
   inactive_membership: "inactive_membership",
@@ -64,32 +69,77 @@ export async function load(token: string): Promise<Loaded> {
   if (!redirect) throw new RoutingError("Not Found");
   if (redirect.installment_id !== null || redirect.imported_customer_id !== null) throw new HandBackToRails();
 
-  const purchase = redirect.purchase_id === null ? null : await db.purchase.findUnique({ where: { id: redirect.purchase_id } });
+  const purchase =
+    redirect.purchase_id === null ? null : await db.purchase.findUnique({ where: { id: redirect.purchase_id } });
   const productId = purchase ? purchase.link_id : redirect.link_id;
   const product = productId === null ? null : await db.link.findUnique({ where: { id: productId } });
-  if (!purchase) return { redirect, purchase, product, seller: null, purchaser: null, subscription: null, receiptPurchase: null, variantId: null, successfulCharges: 0 };
+  if (!purchase)
+    return {
+      redirect,
+      purchase,
+      product,
+      seller: null,
+      purchaser: null,
+      subscription: null,
+      receiptPurchase: null,
+      variantId: null,
+      successfulCharges: 0,
+    };
 
-  if (PurchaseFlags.isSet(purchase.flags, "is_bundle_product_purchase") || PurchaseFlags.isSet(purchase.flags, "is_gift_sender_purchase")) throw new HandBackToRails();
+  if (
+    PurchaseFlags.isSet(purchase.flags, "is_bundle_product_purchase") ||
+    PurchaseFlags.isSet(purchase.flags, "is_gift_sender_purchase")
+  )
+    throw new HandBackToRails();
 
   const seller = purchase.seller_id === null ? null : await db.user.findUnique({ where: { id: purchase.seller_id } });
-  const purchaser = purchase.purchaser_id === null ? null : await db.user.findUnique({ where: { id: purchase.purchaser_id } });
-  const subscription = purchase.subscription_id === null ? null : await db.subscription.findUnique({ where: { id: purchase.subscription_id } });
+  const purchaser =
+    purchase.purchaser_id === null ? null : await db.user.findUnique({ where: { id: purchase.purchaser_id } });
+  const subscription =
+    purchase.subscription_id === null
+      ? null
+      : await db.subscription.findUnique({ where: { id: purchase.subscription_id } });
 
   const reviewPurchaseIds = [purchase.id];
   if (subscription) {
-    const originals = await db.purchase.findMany({ where: { subscription_id: subscription.id }, select: { id: true, flags: true } });
-    for (const original of originals) if (PurchaseFlags.isSet(original.flags, "is_original_subscription_purchase")) reviewPurchaseIds.push(original.id);
+    const originals = await db.purchase.findMany({
+      where: { subscription_id: subscription.id },
+      select: { id: true, flags: true },
+    });
+    for (const original of originals)
+      if (PurchaseFlags.isSet(original.flags, "is_original_subscription_purchase")) reviewPurchaseIds.push(original.id);
   }
-  if ((await db.productReview.count({ where: { purchase_id: { in: reviewPurchaseIds } } })) > 0) throw new HandBackToRails();
+  if ((await db.productReview.count({ where: { purchase_id: { in: reviewPurchaseIds } } })) > 0)
+    throw new HandBackToRails();
   if ((await db.call.count({ where: { purchase_id: purchase.id } })) > 0) throw new HandBackToRails();
-  const postPurchaseFields = await db.purchaseCustomField.findMany({ where: { purchase_id: purchase.id, custom_field_id: { not: null } }, select: { flags: true } });
+  const postPurchaseFields = await db.purchaseCustomField.findMany({
+    where: { purchase_id: purchase.id, custom_field_id: { not: null } },
+    select: { flags: true },
+  });
   if (postPurchaseFields.some((field) => (field.flags & 1n) !== 0n)) throw new HandBackToRails();
 
   const successfulCharges = subscription
-    ? await db.purchase.count({ where: { subscription_id: subscription.id, purchase_state: SubscriptionFlags.isSet(subscription.flags, "is_test_subscription") ? "test_successful" : "successful" } })
+    ? await db.purchase.count({
+        where: {
+          subscription_id: subscription.id,
+          purchase_state: SubscriptionFlags.isSet(subscription.flags, "is_test_subscription")
+            ? "test_successful"
+            : "successful",
+        },
+      })
     : 0;
 
-  return { redirect, purchase, product, seller, purchaser, subscription, receiptPurchase: await receiptPurchaseOf(purchase, subscription), variantId: await purchasedVariantId(purchase), successfulCharges };
+  return {
+    redirect,
+    purchase,
+    product,
+    seller,
+    purchaser,
+    subscription,
+    receiptPurchase: await receiptPurchaseOf(purchase, subscription),
+    variantId: await purchasedVariantId(purchase),
+    successfulCharges,
+  };
 }
 
 // Purchase#receipt_purchase (bundle products were handed back above): a membership's latest charge that
@@ -106,7 +156,9 @@ async function receiptPurchaseOf(purchase: Purchase, subscription: Subscription 
     },
     orderBy: { succeeded_at: "desc" },
   });
-  const candidate = candidates.find((row) => row.chargeback_date === null || PurchaseFlags.isSet(row.flags, "chargeback_reversed"));
+  const candidate = candidates.find(
+    (row) => row.chargeback_date === null || PurchaseFlags.isSet(row.flags, "chargeback_reversed"),
+  );
   if (!candidate || candidate.id === purchase.id) return purchase;
   if (PurchaseFlags.isSet(candidate.flags, "is_gift_sender_purchase")) return purchase;
   return candidate.email === purchase.email ? candidate : purchase;
@@ -134,7 +186,8 @@ export function unavailableFilters(page: UnavailablePage) {
     // The state travels in a request header, so the props reload the records from the token.
     if (page === "confirm") {
       chain.headers.set("x-robots-tag", "noindex");
-      if (!present(queryParam(chain.request, "destination")) && (await hasRichContent(loaded))) throw new HandBackToRails();
+      if (!present(queryParam(chain.request, "destination")) && (await hasRichContent(loaded)))
+        throw new HandBackToRails();
     }
     return { state: {} };
   };
@@ -144,17 +197,33 @@ export function unavailableFilters(page: UnavailablePage) {
 // completed commission, is left to Rails.
 export async function hasRichContent({ product, purchase }: Loaded): Promise<boolean> {
   if (!product) return false;
-  const categories = await db.variantCategory.findMany({ where: { link_id: Number(product.id) }, select: { id: true } });
-  const variants = await db.baseVariant.findMany({ where: { variant_category_id: { in: categories.map((category) => category.id) } }, select: { id: true } });
+  const categories = await db.variantCategory.findMany({
+    where: { link_id: Number(product.id) },
+    select: { id: true },
+  });
+  const variants = await db.baseVariant.findMany({
+    where: { variant_category_id: { in: categories.map((category) => category.id) } },
+    select: { id: true },
+  });
   const rows = await db.richContent.count({
     where: {
       deleted_at: null,
-      OR: [{ entity_type: "Link", entity_id: product.id }, { entity_type: { in: ["Variant", "BaseVariant"] }, entity_id: { in: variants.map((variant) => BigInt(variant.id)) } }],
+      OR: [
+        { entity_type: "Link", entity_id: product.id },
+        {
+          entity_type: { in: ["Variant", "BaseVariant"] },
+          entity_id: { in: variants.map((variant) => BigInt(variant.id)) },
+        },
+      ],
     },
   });
   if (rows > 0) return true;
   if (!purchase) return false;
-  return (await db.commission.count({ where: { OR: [{ deposit_purchase_id: purchase.id }, { completion_purchase_id: purchase.id }] } })) > 0;
+  return (
+    (await db.commission.count({
+      where: { OR: [{ deposit_purchase_id: purchase.id }, { completion_purchase_id: purchase.id }] },
+    })) > 0
+  );
 }
 
 // Purchase#claim_by_seller?
@@ -176,7 +245,9 @@ function hasInvoice(receipt: Purchase): boolean {
 // Purchase::Reviews#allows_review? (`allows_reviews(permit_recurring_charges: true)`).
 function allowsReview(purchase: Purchase): boolean {
   const flag = (name: Parameters<typeof PurchaseFlags.isSet>[1]) => PurchaseFlags.isSet(purchase.flags, name);
-  let allowed = ["successful", "gift_receiver_purchase_successful", "not_charged"].includes(purchase.purchase_state ?? "");
+  let allowed = ["successful", "gift_receiver_purchase_successful", "not_charged"].includes(
+    purchase.purchase_state ?? "",
+  );
   allowed &&= !flag("should_exclude_product_review");
   allowed &&= !(purchase.purchase_state === "not_charged" && !flag("is_free_trial_purchase"));
   allowed &&= !flag("is_gift_sender_purchase");
@@ -190,7 +261,13 @@ function allowsReview(purchase: Purchase): boolean {
 
 function membershipProps({ subscription, successfulCharges }: Loaded, now: Date) {
   if (!subscription) return null;
-  const { cancelled_at: cancelledAt, failed_at: failedAt, ended_at: endedAt, charge_occurrence_count: occurrences, free_trial_ends_at: trialEndsAt } = subscription;
+  const {
+    cancelled_at: cancelledAt,
+    failed_at: failedAt,
+    ended_at: endedAt,
+    charge_occurrence_count: occurrences,
+    free_trial_ends_at: trialEndsAt,
+  } = subscription;
   const aliveWithoutPending = failedAt === null && endedAt === null && cancelledAt === null;
   const installmentPlan = SubscriptionFlags.isSet(subscription.flags, "is_installment_plan");
   // cancelled?(treat_pending_cancellation_as_live: false) && !cancelled_by_buyer?
@@ -252,13 +329,20 @@ export function layoutProps(loaded: Loaded, emailConfirmationRequired: boolean, 
 export async function unavailablePageProps(
   page: UnavailablePage,
   token: string,
-  { loggedInUser, display, destination, email, now }: { loggedInUser: User | null; display: string | null; destination: string | null; email: string | null; now: Date },
+  {
+    loggedInUser,
+    display,
+    destination,
+    email,
+    now,
+  }: { loggedInUser: User | null; display: string | null; destination: string | null; email: string | null; now: Date },
 ) {
   const loaded = await load(token);
   const { purchase, purchaser } = loaded;
 
   let addToLibraryOption = "none";
-  if (purchase && !purchaser && !claimBySeller(loaded, loggedInUser)) addToLibraryOption = loggedInUser ? "add_to_library_button" : "signup_form";
+  if (purchase && !purchaser && !claimBySeller(loaded, loggedInUser))
+    addToLibraryOption = loggedInUser ? "add_to_library_button" : "signup_form";
 
   const reasonCode: ReasonCode | null =
     page === "confirm"

@@ -1,17 +1,18 @@
 // EmailsController#index, #published, #scheduled, #drafts, #new and #edit (GET renders only).
 import type { Installment, User } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
+import { decrypt } from "../../../lib/obfuscate-ids.ts";
 import { RoutingError } from "../../controllers/application-controller.ts";
+import { column, selectRows, table } from "../../models/sql.ts";
 import { authorize } from "../../policies/authorize.ts";
 import { installmentPolicy } from "../../policies/installment.ts";
-import { decrypt } from "../../../lib/obfuscate-ids.ts";
-import { column, selectRows, table } from "../../models/sql.ts";
-import { Prisma } from "@prisma/client";
 import { createUserEvent } from "../audience/events.ts";
 import { sellerGuard } from "../audience/seller-guard.ts";
 import { present, stringParam } from "../audience/support.ts";
 import { lazy, merge } from "../lazy-props.ts";
 import type { PageSpec } from "../pages.ts";
+
 import {
   emailsListParams,
   findInstallmentByExternalId,
@@ -33,7 +34,8 @@ const listPage = (component: string, type: InstallmentListType): PageSpec => ({
   props: async (_, { context, meta, url, headers, renderState }) => {
     meta.set({ title: "Emails" });
     // Load more and search are partial reloads of a page the seller already viewed.
-    if (!headers.has("x-inertia-partial-component")) await createUserEvent("emails_view", { context, headers, url, state: renderState });
+    if (!headers.has("x-inertia-partial-component"))
+      await createUserEvent("emails_view", { context, headers, url, state: renderState });
     const props = await paginatedInstallmentsProps(seller(context), type, emailsListParams(queryOf(url)));
     return {
       installments: merge(() => props.installments),
@@ -79,9 +81,14 @@ const emailsNew: PageSpec = {
       // not_workflow_installment
       reference = found && found.workflow_id === null ? found : null;
     }
-    const installment = reference ? (({ external_id: _removed, ...rest }) => rest)(await installmentPropsFor(seller(context), reference)) : null;
+    const installment = reference
+      ? (({ external_id: _removed, ...rest }) => rest)(await installmentPropsFor(seller(context), reference))
+      : null;
     return {
-      context: await installmentFormContext(seller(context), { notClickedPostId: notClickedPostIdOf(reference), fromTab }),
+      context: await installmentFormContext(seller(context), {
+        notClickedPostId: notClickedPostIdOf(reference),
+        fromTab,
+      }),
       installment,
       single_customer_recipient: await singleCustomerRecipient(seller(context), purchaseId),
     };
@@ -112,7 +119,10 @@ const emailsEdit: PageSpec = {
     meta.set({ title: "Emails" });
     const installment = (await findInstallmentByExternalId(seller(context), params.id!))!;
     return {
-      context: await installmentFormContext(seller(context), { notClickedPostId: notClickedPostIdOf(installment), fromTab: null }),
+      context: await installmentFormContext(seller(context), {
+        notClickedPostId: notClickedPostIdOf(installment),
+        fromTab: null,
+      }),
       installment: await installmentPropsFor(seller(context), installment),
     };
   },
