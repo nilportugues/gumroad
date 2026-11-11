@@ -73,7 +73,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "AlertOnStaleBlocksHoldingEstablishedBuyersJob": {
     "file": "app/sidekiq/alert_on_stale_blocks_holding_established_buyers_job.rb",
