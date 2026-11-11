@@ -6,6 +6,7 @@ import "@/server/controllers/products-mutations";
 import "@/server/controllers/settings-mutations";
 import "@/server/controllers/settings-team-mutations";
 import "@/server/controllers/settings-team-invitations";
+import "@/server/controllers/settings-totp-mutations";
 import "@/server/controllers/settings-payments-mutations";
 import "@/server/controllers/social-callbacks";
 import "@/server/controllers/connections-mutations";
