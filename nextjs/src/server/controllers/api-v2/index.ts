@@ -16,3 +16,5 @@ import "./subscribers.ts";
 import "./ws17c.ts";
 import "./links.ts";
 import "./licenses.ts";
+import "./files.ts";
+import "./product-bundle-covers.ts";

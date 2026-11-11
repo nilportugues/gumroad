@@ -43,20 +43,21 @@ export type ApiV2Route = {
   // "/v2/products/:link_id/custom_fields"; the `/api` prefix is matched as well.
   pattern: string;
   // doorkeeper_authorize!(*scopes): any one of them, with `account` always accepted.
-  scopes: string[];
+  // A function when the controller picks the scope from the request (DirectUploadsController#authorize_upload_scope!).
+  scopes: string[] | ((params: Params) => string[]);
   // before_actions that render: a Rendered halts the request (and skips the after_action).
   before?(input: ApiV2Input): Promise<Rendered | undefined | void>;
   // WS-17c: an action with no `doorkeeper_authorize!` (token and owner are null for it), a `require_oauth_scope!` straight after the
   // authorization, a controller's own `doorkeeper_unauthorized_render_options`, `skip_before_action :verify_authenticity_token` (the
   // request keeps its session), and `prepend_before_action`s that answer ahead of the whole chain (they may throw HandBackToRails).
   anonymous?: boolean;
-  requireScope?: string[];
+  requireScope?: string[] | ((params: Params) => string[] | undefined);
   unauthorized?(headers: Record<string, string>): Rendered;
   keepSession?: boolean;
   // The action reads the JSON body itself (`request.raw_post`), so a body that is an array or a scalar is not a hand-back.
   rawJsonBody?: boolean;
   preAuth?(input: Pick<ApiV2Input, "request" | "url" | "params" | "rawBody">): void | Promise<void>;
-  run(input: ApiV2Input): Promise<ActionResult>;
+  run(input: ApiV2Input): ActionResult | Promise<ActionResult>;
 };
 
 const REGISTRY: ApiV2Route[] = [];
@@ -169,13 +170,14 @@ export async function apiV2Response(incoming: Request): Promise<Response> {
       let owner: User | null = null;
       if (!route.anonymous) {
         token = await doorkeeperToken({ authorization: railsReq.headers.get("authorization"), parameters: params, path: railsReq.path });
-        const authorized = await doorkeeperAuthorize(token, route.scopes, { apiV2: true });
+        const authorized = await doorkeeperAuthorize(token, typeof route.scopes === "function" ? route.scopes(params) : route.scopes, { apiV2: true });
         if (!authorized.ok) {
           if (authorized.status === 401 && route.unauthorized) return { ...route.unauthorized(authorized.headers), rescued: true, paramsRead: true };
           return { status: authorized.status, body: "", contentType: "text/html", headers: authorized.headers, rescued: true, paramsRead: true };
         }
-        if (route.requireScope) {
-          const refusal = requireOauthScope(token, route.requireScope);
+        const requiredScope = typeof route.requireScope === "function" ? route.requireScope(params) : route.requireScope;
+        if (requiredScope) {
+          const refusal = requireOauthScope(token, requiredScope);
           if (refusal) return { status: refusal.status, body: JSON.stringify(refusal.body), contentType: "application/json; charset=utf-8", rescued: true, paramsRead: true };
         }
         owner = (await currentApiUser(token))!;
