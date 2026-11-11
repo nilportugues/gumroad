@@ -92,10 +92,6 @@ describe("registration", () => {
       expect(find(method, pattern).scopes).toEqual(["mobile_api"]);
     }
   });
-
-  it("leaves sales#update to Rails", () => {
-    expect(actions.some((action) => action.method !== "GET" && action.pattern.startsWith("/mobile/sales"))).toBe(false);
-  });
 });
 
 describe("GET /mobile/purchases/index", () => {
@@ -335,9 +331,10 @@ describe("GET /mobile/sales/:id", () => {
     await expect(run(input({ id: "9" }), authFor())).rejects.toThrow();
   });
 
-  it("hands the blob_url collection route to Rails", async () => {
-    await expect(run(input({ id: "blob_url" }), authFor())).rejects.toThrow();
-    expect(selectRows).not.toHaveBeenCalled();
+  it("answers the blob_url collection route as blob_url, not as a sale id", async () => {
+    selectRows.mockResolvedValue([]);
+    const result = await run(input({ id: "blob_url", key: "missing" }), authFor());
+    expect(body(result)).toEqual({ success: false, message: "Could not find file" });
   });
 });
 

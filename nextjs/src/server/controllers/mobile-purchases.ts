@@ -3,8 +3,7 @@
 // Served here: the unconfirmed-account 403, the 404 for a purchase that is not the caller's, the empty lists, sales#index rows
 // whose Purchase#as_json(creator_app_api: true) is ported (presenters/mobile-serializers.ts: USD, no recurrence), and
 // purchase_attributes of a plain purchase (no url redirect, preorder, subscription, refund or review) whose seller and product have no
-// post. Everything else (the rest of purchase_attributes, a non-empty library page, sales#show, every write: archive, unarchive,
-// destroy, sales#update) goes to Rails whole, because UrlRedirect#product_json_data, Preorder#mobile_json_data and the posts of
+// post. Everything else (the rest of purchase_attributes, a non-empty library page, sales#show, archive, unarchive, destroy) goes to Rails whole, because UrlRedirect#product_json_data, Preorder#mobile_json_data and the posts of
 // the product-updates preloader are not ported.
 import { Prisma } from "@prisma/client";
 
@@ -23,6 +22,7 @@ import { PurchaseSearchService } from "../search/purchase-search.ts";
 
 import { HandBackToRails } from "./application-controller.ts";
 import { fetchError, FORBIDDEN, registerMobile, renderJson, type MobileAuth, type MobileInput } from "./mobile-api.ts";
+import { blobUrl } from "./mobile-sales-actions.ts";
 
 const MOBILE_API_SCOPES = ["mobile_api"];
 const DEFAULT_SEARCH_RESULTS_SIZE = 10;
@@ -225,7 +225,7 @@ async function salesIndex(input: MobileInput, auth: MobileAuth | null) {
 // before_action :fetch_purchase: current_resource_owner.sales.find_by_external_id
 async function salesShow(input: MobileInput, auth: MobileAuth | null) {
   // `get :blob_url` on the collection is drawn before the member route, so it is not a sale id.
-  if (input.params.id === "blob_url") throw new HandBackToRails("the blob_url collection route");
+  if (input.params.id === "blob_url") return blobUrl(input, auth);
   const id = typeof input.params.id === "string" ? decrypt(input.params.id) : null;
   const rows =
     id === null
