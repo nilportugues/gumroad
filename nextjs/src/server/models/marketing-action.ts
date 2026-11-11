@@ -35,6 +35,9 @@ export const MAX_COPY_LENGTH = MAX_POST_LENGTH - X_URL_LENGTH - 2;
 const ACTION_CHANNELS = ["x", "instagram", "youtube", "tiktok", "email", "abandoned_cart"];
 // The Marketing::Channel::ALL entries with `live: true`.
 const LIVE_CHANNELS = new Set(["x", "email"]);
+// Marketing::Channel::ALL.key?
+export const isMarketingChannel = (channel: string): boolean =>
+  ACTION_CHANNELS.includes(channel) && channel !== "abandoned_cart";
 export const isLiveChannel = (channel: string): boolean => LIVE_CHANNELS.has(channel);
 
 const OPEN_STATUSES = ["recommended", "approved"];
@@ -61,6 +64,25 @@ export async function findMarketingAction(productId: bigint, id: number | null):
     Prisma.sql`SELECT ${Prisma.raw("`marketing_actions`.*")} FROM ${table("marketing_actions")} WHERE ${column("marketing_actions", "link_id")} = ${productId} AND ${column("marketing_actions", "id")} = ${id} LIMIT 1`,
   );
   return row ? MarketingActions.load(row as unknown as MarketingAction) : null;
+}
+
+// `Marketing::Action.where(user:).find_by_external_id`
+export async function findMarketingActionForUser(
+  userId: bigint,
+  id: number | null,
+): Promise<MarketingActionRecord | null> {
+  if (id === null) return null;
+  const [row] = await selectRows(
+    Prisma.sql`SELECT ${Prisma.raw("`marketing_actions`.*")} FROM ${table("marketing_actions")} WHERE ${column("marketing_actions", "user_id")} = ${userId} AND ${column("marketing_actions", "id")} = ${id} LIMIT 1`,
+  );
+  return row ? MarketingActions.load(row as unknown as MarketingAction) : null;
+}
+
+export async function twitterHandleOf(userId: bigint | number): Promise<string | null> {
+  const [owner] = await selectRows<{ twitter_handle: string | null }>(
+    Prisma.sql`SELECT ${column("users", "twitter_handle")} FROM ${table("users")} WHERE ${column("users", "id")} = ${userId} LIMIT 1`,
+  );
+  return owner?.twitter_handle ?? null;
 }
 
 // Marketing::Eligibility.enabled_for?: the seller's frozen holdout assignment, then the `auto_marketing` flag. A seller without an
@@ -125,15 +147,13 @@ export async function marketingActionJson(action: MarketingActionRecord): Promis
     if (link !== undefined) shortUrl = `${shortDomainWithProtocol()}/u/${link.permalink}`;
   }
   const postText = [copy, shortUrl].filter((part) => part !== null).join("\n\n");
-  const [owner] = await selectRows<{ twitter_handle: string | null }>(
-    Prisma.sql`SELECT ${column("users", "twitter_handle")} FROM ${table("users")} WHERE ${column("users", "id")} = ${action.get("user_id")} LIMIT 1`,
-  );
+  const twitterHandle = await twitterHandleOf(action.get("user_id"));
   const idempotencyKey = action.get("idempotency_key");
   return {
     id: externalId(action.get("id")),
     idempotency_key: createHash("sha256").update(idempotencyKey).digest("hex"),
     confirmation_token: createHash("sha256")
-      .update(esJson([idempotencyKey, postText, owner?.twitter_handle ?? null]))
+      .update(esJson([idempotencyKey, postText, twitterHandle]))
       .digest("hex"),
     channel: action.get("channel"),
     status: action.get("status"),

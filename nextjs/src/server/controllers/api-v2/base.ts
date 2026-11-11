@@ -184,7 +184,8 @@ export async function apiV2Response(incoming: Request): Promise<Response> {
       const halted = await route.before?.(input);
       if (halted) return { ...halted, rescued: true };
       const result = await route.run(input);
-      if (owner) await markCliUser(railsReq, owner);
+      // A rescue_from handler skips the after_action, like a halting before_action.
+      if (owner && !result.rescued) await markCliUser(railsReq, owner);
       return result;
     } catch (error) {
       // A NotPortedError is thrown before the first write of its transaction, so Rails can take the request whole.

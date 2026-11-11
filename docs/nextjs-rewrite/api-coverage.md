@@ -15,7 +15,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 
 | Namespace | Routes | Native | Hands back | Not registered | Unresolved |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 81 | 0 | 57 | 0 |
+| API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 87 | 0 | 51 | 0 |
 | Mobile API (`/mobile` on the API host) | 64 | 39 | 0 | 25 | 0 |
 | Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 23 | 0 | 59 | 3 |
 | Internal API, Gumroad domain (`/internal`, JSON for the React Router pages) | 23 | 11 | 0 | 12 | 0 |
@@ -110,12 +110,12 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `GET /v2/products/:id/custom_html` | `Api::V2::LinksController#custom_html` | native | `nextjs_api_v2_products` | y |
 | `POST /v2/products/:id/custom_html/edit` | `Api::V2::LinksController#edit_custom_html` | not registered | - | n |
 | `PUT /v2/products/:id/sections` | `Api::V2::LinksController#update_sections` | not registered | - | n |
-| `GET /v2/products/:product_id/marketing/recommendations` | `Api::V2::MarketingActionsController#recommendations` | not registered | - | n |
-| `POST /v2/products/:product_id/marketing_actions` | `Api::V2::MarketingActionsController#create` | not registered | - | n |
-| `GET /v2/marketing_actions/:id` | `Api::V2::MarketingActionsController#show` | not registered | - | n |
-| `POST /v2/marketing_actions/:id/approve` | `Api::V2::MarketingActionsController#approve` | not registered | - | n |
-| `POST /v2/marketing_actions/:id/execute` | `Api::V2::MarketingActionsController#execute` | not registered | - | n |
-| `POST /v2/marketing_actions/:id/cancel` | `Api::V2::MarketingActionsController#cancel` | not registered | - | n |
+| `GET /v2/products/:product_id/marketing/recommendations` | `Api::V2::MarketingActionsController#recommendations` | native | `nextjs_api_v2_marketing_actions` | y |
+| `POST /v2/products/:product_id/marketing_actions` | `Api::V2::MarketingActionsController#create` | native | `nextjs_api_v2_marketing_actions` | y |
+| `GET /v2/marketing_actions/:id` | `Api::V2::MarketingActionsController#show` | native | `nextjs_api_v2_marketing_actions` | y |
+| `POST /v2/marketing_actions/:id/approve` | `Api::V2::MarketingActionsController#approve` | native | `nextjs_api_v2_marketing_actions` | y |
+| `POST /v2/marketing_actions/:id/execute` | `Api::V2::MarketingActionsController#execute` | native | `nextjs_api_v2_marketing_actions` | y |
+| `POST /v2/marketing_actions/:id/cancel` | `Api::V2::MarketingActionsController#cancel` | native | `nextjs_api_v2_marketing_actions` | y |
 | `GET /v2/upsells` | `Api::V2::UpsellsController#index` | native | `nextjs_api_v2_upsells` | y |
 | `GET /v2/upsells/:id` | `Api::V2::UpsellsController#show` | native | `nextjs_api_v2_upsells` | y |
 | `POST /v2/upsells` | `Api::V2::UpsellsController#create` | not registered | - | n |

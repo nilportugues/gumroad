@@ -3,6 +3,7 @@
 import { PUBLIC_READ_SCOPES, registerApiV2, type ApiV2Route } from "./base.ts";
 import * as emails from "./ws17c-emails.ts";
 import * as helpArticles from "./ws17c-help-articles.ts";
+import * as marketingActions from "./ws17c-marketing-actions.ts";
 import * as mcp from "./ws17c-mcp.ts";
 import * as pages from "./ws17c-pages.ts";
 import * as users from "./ws17c-users.ts";
@@ -12,6 +13,7 @@ import * as workflows from "./ws17c-workflows.ts";
 const EDIT_EMAILS = ["edit_emails"];
 const EDIT_PRODUCTS = ["edit_products"];
 const EDIT_PROFILE = ["edit_profile"];
+const MARKETING = { scopes: EDIT_EMAILS, requireScope: EDIT_EMAILS };
 
 type Spec = Omit<ApiV2Route, "method" | "pattern" | "scopes" | "run"> & { scopes?: string[] };
 const route = (method: string) => (pattern: string, run: ApiV2Route["run"], spec: Spec = {}): ApiV2Route => ({ method, pattern, scopes: PUBLIC_READ_SCOPES, run, ...spec });
@@ -74,6 +76,13 @@ registerApiV2(
   get("/v2/workflows/:id", workflows.show, { scopes: EDIT_EMAILS }),
   post("/v2/workflows/:workflow_id/emails", workflows.createEmail, { scopes: EDIT_EMAILS }),
   put("/v2/workflows/:workflow_id/emails/:email_id", workflows.updateEmail, { scopes: EDIT_EMAILS }),
+
+  get("/v2/products/:product_id/marketing/recommendations", marketingActions.recommendations, { ...MARKETING, before: marketingActions.fetchMarketingProduct }),
+  post("/v2/products/:product_id/marketing_actions", marketingActions.create, { ...MARKETING, before: marketingActions.fetchMarketingProduct }),
+  get("/v2/marketing_actions/:id", marketingActions.show, { ...MARKETING, before: marketingActions.beforeShow }),
+  post("/v2/marketing_actions/:id/approve", marketingActions.approve, { ...MARKETING, before: marketingActions.beforeApproveOrExecute }),
+  post("/v2/marketing_actions/:id/execute", marketingActions.execute, { ...MARKETING, before: marketingActions.beforeApproveOrExecute }),
+  post("/v2/marketing_actions/:id/cancel", marketingActions.cancelAction, { ...MARKETING, before: marketingActions.beforeCancel }),
 
   get("/v2/pages", pages.index),
   get("/v2/pages/:id", pages.show),
