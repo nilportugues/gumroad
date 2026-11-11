@@ -31,7 +31,7 @@ after it.
 | Class | Rows |
 | --- | --- |
 | Throttled (Rack::Attack) | 35 |
-| External provider (OmniAuth) | 28 |
+| External provider (OmniAuth) | 17 (11 of 28 ported, see below) |
 | ERB layout page | 21 |
 | External provider API | 7 |
 | Stripe/PayPal | 1 |
@@ -163,38 +163,24 @@ excluding rows would only hide work that exists. The one wildcard row, `GET /(*p
 | --- | --- | --- | --- |
 | WS-10 | `POST /users/confirmation` | `confirmations#create` | Devise `resend_confirmation_instructions` mails the user (no rack_attack rule) |
 
-### External provider (OmniAuth) (28)
+### External provider (OmniAuth): 11 of 28 ported, 17 left
 
-| Workstream | Route | Controller | Reason |
-| --- | --- | --- | --- |
-| WS-10 | `GET /users/auth/twitter` | `user/omniauth_callbacks#passthru` | OmniAuth middleware redirects to the provider and `/callback` exchanges its code for a token over HTTP; the sign-in that follows creates users and sessions |
-| WS-10 | `POST /users/auth/twitter` | `user/omniauth_callbacks#passthru` | OmniAuth middleware redirects to the provider and `/callback` exchanges its code for a token over HTTP; the sign-in that follows creates users and sessions |
-| WS-10 | `GET /users/auth/twitter/callback` | `user/omniauth_callbacks#twitter` | OmniAuth middleware redirects to the provider and `/callback` exchanges its code for a token over HTTP; the sign-in that follows creates users and sessions |
-| WS-10 | `POST /users/auth/twitter/callback` | `user/omniauth_callbacks#twitter` | OmniAuth middleware redirects to the provider and `/callback` exchanges its code for a token over HTTP; the sign-in that follows creates users and sessions |
-| WS-10 | `GET /users/auth/stripe_connect` | `user/omniauth_callbacks#passthru` | OmniAuth middleware redirects to the provider and `/callback` exchanges its code for a token over HTTP; the sign-in that follows creates users and sessions |
-| WS-10 | `POST /users/auth/stripe_connect` | `user/omniauth_callbacks#passthru` | OmniAuth middleware redirects to the provider and `/callback` exchanges its code for a token over HTTP; the sign-in that follows creates users and sessions |
-| WS-10 | `GET /users/auth/stripe_connect/callback` | `user/omniauth_callbacks#stripe_connect` | OmniAuth middleware redirects to the provider and `/callback` exchanges its code for a token over HTTP; the sign-in that follows creates users and sessions |
-| WS-10 | `POST /users/auth/stripe_connect/callback` | `user/omniauth_callbacks#stripe_connect` | OmniAuth middleware redirects to the provider and `/callback` exchanges its code for a token over HTTP; the sign-in that follows creates users and sessions |
-| WS-10 | `GET /users/auth/google_oauth2` | `user/omniauth_callbacks#passthru` | OmniAuth middleware redirects to the provider and `/callback` exchanges its code for a token over HTTP; the sign-in that follows creates users and sessions |
-| WS-10 | `POST /users/auth/google_oauth2` | `user/omniauth_callbacks#passthru` | OmniAuth middleware redirects to the provider and `/callback` exchanges its code for a token over HTTP; the sign-in that follows creates users and sessions |
-| WS-10 | `GET /users/auth/google_oauth2/callback` | `user/omniauth_callbacks#google_oauth2` | OmniAuth middleware redirects to the provider and `/callback` exchanges its code for a token over HTTP; the sign-in that follows creates users and sessions |
-| WS-10 | `POST /users/auth/google_oauth2/callback` | `user/omniauth_callbacks#google_oauth2` | OmniAuth middleware redirects to the provider and `/callback` exchanges its code for a token over HTTP; the sign-in that follows creates users and sessions |
-| WS-10 | `GET /users/auth/youtube` | `user/omniauth_callbacks#passthru` | OmniAuth middleware redirects to the provider and `/callback` exchanges its code for a token over HTTP; the sign-in that follows creates users and sessions |
-| WS-10 | `POST /users/auth/youtube` | `user/omniauth_callbacks#passthru` | OmniAuth middleware redirects to the provider and `/callback` exchanges its code for a token over HTTP; the sign-in that follows creates users and sessions |
-| WS-10 | `GET /users/auth/youtube/callback` | `user/omniauth_callbacks#youtube` | OmniAuth middleware redirects to the provider and `/callback` exchanges its code for a token over HTTP; the sign-in that follows creates users and sessions |
-| WS-10 | `POST /users/auth/youtube/callback` | `user/omniauth_callbacks#youtube` | OmniAuth middleware redirects to the provider and `/callback` exchanges its code for a token over HTTP; the sign-in that follows creates users and sessions |
-| WS-10 | `GET /users/auth/instagram` | `user/omniauth_callbacks#passthru` | OmniAuth middleware redirects to the provider and `/callback` exchanges its code for a token over HTTP; the sign-in that follows creates users and sessions |
-| WS-10 | `POST /users/auth/instagram` | `user/omniauth_callbacks#passthru` | OmniAuth middleware redirects to the provider and `/callback` exchanges its code for a token over HTTP; the sign-in that follows creates users and sessions |
-| WS-10 | `GET /users/auth/instagram/callback` | `user/omniauth_callbacks#instagram` | OmniAuth middleware redirects to the provider and `/callback` exchanges its code for a token over HTTP; the sign-in that follows creates users and sessions |
-| WS-10 | `POST /users/auth/instagram/callback` | `user/omniauth_callbacks#instagram` | OmniAuth middleware redirects to the provider and `/callback` exchanges its code for a token over HTTP; the sign-in that follows creates users and sessions |
-| WS-10 | `GET /users/auth/tiktok` | `user/omniauth_callbacks#passthru` | OmniAuth middleware redirects to the provider and `/callback` exchanges its code for a token over HTTP; the sign-in that follows creates users and sessions |
-| WS-10 | `POST /users/auth/tiktok` | `user/omniauth_callbacks#passthru` | OmniAuth middleware redirects to the provider and `/callback` exchanges its code for a token over HTTP; the sign-in that follows creates users and sessions |
-| WS-10 | `GET /users/auth/tiktok/callback` | `user/omniauth_callbacks#tiktok` | OmniAuth middleware redirects to the provider and `/callback` exchanges its code for a token over HTTP; the sign-in that follows creates users and sessions |
-| WS-10 | `POST /users/auth/tiktok/callback` | `user/omniauth_callbacks#tiktok` | OmniAuth middleware redirects to the provider and `/callback` exchanges its code for a token over HTTP; the sign-in that follows creates users and sessions |
-| WS-10 | `GET /users/auth/apple` | `user/omniauth_callbacks#passthru` | OmniAuth middleware redirects to the provider and `/callback` exchanges its code for a token over HTTP; the sign-in that follows creates users and sessions |
-| WS-10 | `POST /users/auth/apple` | `user/omniauth_callbacks#passthru` | OmniAuth middleware redirects to the provider and `/callback` exchanges its code for a token over HTTP; the sign-in that follows creates users and sessions |
-| WS-10 | `GET /users/auth/apple/callback` | `user/omniauth_callbacks#apple` | OmniAuth middleware redirects to the provider and `/callback` exchanges its code for a token over HTTP; the sign-in that follows creates users and sessions |
-| WS-10 | `POST /users/auth/apple/callback` | `user/omniauth_callbacks#apple` | OmniAuth middleware redirects to the provider and `/callback` exchanges its code for a token over HTTP; the sign-in that follows creates users and sessions |
+`nextjs_omniauth_phases` (`controllers/omniauth-phases.ts`, 28 examples in `omniauth_phases_parity_spec.rb`, replayed by `omniauth-phases.replay.test.ts`
+against the real OmniAuth middleware, provider HTTP stubbed with WebMock) serves the parts that need no answer from a provider:
+
+- `GET /users/auth/:provider` for all seven providers: Devise's passthru 404.
+- `POST /users/auth/{google_oauth2,stripe_connect}`: the request phase (random state, `omniauth.*` session keys, the redirect to the provider).
+- `GET /users/auth/{google_oauth2,stripe_connect}/callback` up to the token exchange: the CSRF state check, the provider's `error` parameter, and the
+  failure action's redirect (`/users/sign_in` with Devise's flash, or `/settings/payments` with the provider's `error_description`).
+
+A callback that carries a code **hands back to Rails whole, before the provider is asked anything** (pinned by `hands ...` examples with the recorded
+token, userinfo and Stripe account calls). The exchange spends the one-time code, so Node cannot try and fall back: whatever follows it (sign in,
+`User.find_or_create_for_google_oauth2` creating a user and fetching its avatar, `Stripe::Account.retrieve`, the Stripe Connect session data) has to be
+complete in Node before that callback can be flipped. That is the open debt, with user creation from the signup port as its first blocker.
+
+Left in Rails (17 rows): every Twitter route (OAuth 1: the request phase calls Twitter for a request token), the POST and callback routes of YouTube,
+Instagram and TikTok (funnel events, Flipper flags, `SocialConnectReturn`), the POST request phase and POST callback of Apple (SameSite=None signed
+cookie, an ES256 client secret from the Apple key, a form-post callback that skips CSRF), and `POST /users/auth/*/callback` of Google and Stripe Connect.
 
 ## Portable but not ported
 
