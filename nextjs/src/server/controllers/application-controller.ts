@@ -105,6 +105,9 @@ export type ActionOptions = {
   // `request.session_options[:skip] = true` plus `skip_before_action :set_gumroad_guid` (RobotsController): the visitor is
   // anonymous, and the response carries no session, guid or XSRF-TOKEN cookie.
   bare?: boolean;
+  // With `bare`: an ActionController::API controller. No ApplicationController filter runs and the session carries nothing but its
+  // session_id, but the session middleware still answers with the session cookie.
+  metal?: boolean;
   // A controller whose own `mask_token` shadows the CSRF one (AcmeChallengesController#mask_token) writes this as the
   // XSRF-TOKEN cookie instead of the masked token. The cookie value is raw bytes, written the way Rack escapes them.
   xsrfCookieBytes?: (globalToken: Buffer) => Buffer;
@@ -297,6 +300,7 @@ export type Chain = {
   pageState: Record<string, unknown>;
   afterCookies: string[];
   bare?: boolean;
+  metal?: boolean;
   xsrfCookieBytes?: (globalToken: Buffer) => Buffer;
 };
 
@@ -353,7 +357,7 @@ export async function beforeActions(request: RailsRequest, options: ActionOption
   // Devise's rememberable strategy signs the visitor in by writing the session and the tracked
   // sign-in fields, which is Rails' to do: the proxy sends such requests there.
   if (auth.authenticatedVia === "remember_cookie") throw new NotPortedError("Devise's remember-cookie sign-in");
-  const chain: Chain = { request, now, headers, session, csrfToken, guid: null, auth, cookies: [], sessionCleared: false, pageState: {}, afterCookies: options.afterCookies ?? [], bare: options.bare ?? false, xsrfCookieBytes: options.xsrfCookieBytes };
+  const chain: Chain = { request, now, headers, session, csrfToken, guid: null, auth, cookies: [], sessionCleared: false, pageState: {}, afterCookies: options.afterCookies ?? [], bare: options.bare ?? false, metal: options.metal ?? false, xsrfCookieBytes: options.xsrfCookieBytes };
 
   if (options.prepended) {
     const redirect = await options.prepended(chain);
@@ -391,7 +395,7 @@ export async function beforeActions(request: RailsRequest, options: ActionOption
   if (!railsLoggedInUser(auth.context) && !options.bare) setSignupReferrer(request, session, config.rootDomain);
   if (!options.skip?.includes("check_suspended") && suspendedWriteRequest(auth, request)) return refuseSuspendedWrite(chain);
   if (!options.bare) chain.guid = gumroadGuidCookie(request, now);
-  if (!RECOMMENDER_MODELS.includes(session.data.recommender_model_name as string)) {
+  if (!options.metal && !RECOMMENDER_MODELS.includes(session.data.recommender_model_name as string)) {
     session.data.recommender_model_name = RECOMMENDER_MODELS[Math.floor(Math.random() * RECOMMENDER_MODELS.length)];
   }
   if (options.filters) {
@@ -488,9 +492,9 @@ const xsrfCookie = (chain: Chain) => {
   return setCookieHeader(XSRF_TOKEN_COOKIE, { value: formAuthenticityToken(chain.csrfToken), path: "/", sameSite: "lax" });
 };
 
-function commitSession({ request, headers, session, csrfToken, now, sessionCleared, bare }: Chain): void {
-  if (bare) return;
-  if (!sessionCleared) session.data._csrf_token = csrfToken;
+function commitSession({ request, headers, session, csrfToken, now, sessionCleared, bare, metal }: Chain): void {
+  if (bare && !metal) return;
+  if (!sessionCleared && !bare) session.data._csrf_token = csrfToken;
   headers.append("set-cookie", sessionCookie(request, session, now));
 }
 
