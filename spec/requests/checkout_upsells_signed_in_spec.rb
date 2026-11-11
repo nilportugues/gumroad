@@ -228,20 +228,186 @@ describe "Checkout upsells when signed in", type: :request do
         expect(response).to have_http_status(:ok)
       end
 
-      it "hands an upsell product cart item to Rails", parity: true do
-        create(:upsell, seller:, product:, name: "Pro")
+      it "answers the upsell of a product", parity: true do
+        create(:upsell, seller:, product:, name: "Pro", text: "Go Pro", description: "Get <b>more</b> at https://example.com/pro <script>alert(1)</script>")
 
         get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
 
         expect(response).to have_http_status(:ok)
+        expect(response.parsed_body["product"]["upsell"]).to include("text" => "Go Pro")
       end
 
-      it "hands a cross-sell product cart item to Rails", parity: true do
-        create(:upsell, seller:, product: create(:product, user: seller, name: "Extra"), name: "Add", cross_sell: true, selected_products: [product])
+      it "answers the upsell of a product with no text or description", parity: true do
+        create(:upsell, seller:, product:, name: "Pro", text: nil, description: nil)
 
         get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
 
+        expect(response.parsed_body["product"]["upsell"]).to include("text" => "", "description" => "")
+      end
+
+      it "leaves out a paused upsell", parity: true do
+        create(:upsell, seller:, product:, name: "Pro", paused: true)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["upsell"]).to be_nil
+      end
+
+      it "offers the upgraded version of each option of an upsell", parity: true do
+        versions = create(:product_with_digital_versions, user: seller, name: "Versions", created_at: Time.utc(2025, 1, 1))
+        first, second = versions.alive_variants.to_a
+        sold_out = create(:variant, variant_category: versions.variant_categories_alive.first, name: "Sold out", max_purchase_count: 1)
+        sold_out.update_columns(sales_count_for_inventory_cache: 1)
+        upsell = create(:upsell, seller:, product: versions, name: "Upgrade")
+        create(:upsell_variant, upsell:, selected_variant: first, offered_variant: second)
+        create(:upsell_variant, upsell:, selected_variant: second, offered_variant: sold_out)
+
+        get cart_item_checkout_upsells_path(product_id: versions.external_id), headers: accept_json
+
+        options = response.parsed_body["product"]["options"]
+        expect(options.map { _1["upsell_offered_variant_id"] }).to eq([second.external_id, nil, nil])
+      end
+
+      it "ignores a deleted upsell variant", parity: true do
+        versions = create(:product_with_digital_versions, user: seller, name: "Versions", created_at: Time.utc(2025, 1, 1))
+        first, second = versions.alive_variants.to_a
+        upsell = create(:upsell, seller:, product: versions, name: "Upgrade")
+        create(:upsell_variant, upsell:, selected_variant: first, offered_variant: second, deleted_at: Time.utc(2025, 1, 2))
+
+        get cart_item_checkout_upsells_path(product_id: versions.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["options"].map { _1["upsell_offered_variant_id"] }).to eq([nil, nil])
+      end
+
+      it "lists the cross-sells of a product with their offered product and discount", parity: true do
+        extra = create(:product, user: seller, name: "Extra", price_cents: 500, created_at: Time.utc(2025, 1, 3))
+        code = create(:offer_code, user: seller, products: [extra], amount_cents: nil, amount_percentage: 20, code: "XSELL")
+        create(:upsell, seller:, product: extra, name: "Add", cross_sell: true, selected_products: [product], replace_selected_products: true, offer_code: code,
+                        text: "Add the extra", description: "A <i>great</i> companion")
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        cross_sell = response.parsed_body["product"]["cross_sells"].sole
+        expect(cross_sell).to include("replace_selected_products" => true, "text" => "Add the extra", "ratings" => { "count" => 0, "average" => 0.0 })
+        expect(cross_sell["offered_product"]["product"]["name"]).to eq("Extra")
+        expect(cross_sell["discount"]).to include("type" => "percent", "percents" => 20)
+      end
+
+      it "leaves out the discount of an existing-customers cross-sell code", parity: true do
+        extra = create(:product, user: seller, name: "Extra", price_cents: 500, created_at: Time.utc(2025, 1, 3))
+        code = create(:offer_code, user: seller, products: [extra], amount_cents: nil, amount_percentage: 20, code: "LOYAL", existing_customers_only: true, ownership_products: [product])
+        create(:upsell, seller:, product: extra, name: "Add", cross_sell: true, universal: true, offer_code: code)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["cross_sells"].sole["discount"]).to be_nil
+      end
+
+      it "shows ratings on a cross-sell whose product displays reviews", parity: true do
+        extra = create(:product, user: seller, name: "Extra", created_at: Time.utc(2025, 1, 3), display_product_reviews: true)
+        create(:product_review_stat, link: extra, reviews_count: 2, ratings_of_four_count: 1, ratings_of_five_count: 1, average_rating: 4.5)
+        create(:upsell, seller:, product: extra, name: "Add", cross_sell: true, universal: true)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["cross_sells"].sole["ratings"]).to eq("count" => 2, "average" => 4.5)
+      end
+
+      it "lists a universal cross-sell and one selecting the product, in order", parity: true do
+        one = create(:product, user: seller, name: "One", created_at: Time.utc(2025, 1, 3))
+        two = create(:product, user: seller, name: "Two", created_at: Time.utc(2025, 1, 4))
+        create(:upsell, seller:, product: one, name: "First", cross_sell: true, universal: true)
+        create(:upsell, seller:, product: two, name: "Second", cross_sell: true, selected_products: [product])
+        create(:upsell, seller:, product: two, name: "Elsewhere", cross_sell: true, selected_products: [one])
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["cross_sells"].map { _1["offered_product"]["product"]["name"] }).to eq(%w[One Two])
+      end
+
+      it "leaves out cross-sells that are paused, deleted, or whose product is gone or sold out", parity: true do
+        paused = create(:product, user: seller, name: "Paused", created_at: Time.utc(2025, 1, 3))
+        gone = create(:product, user: seller, name: "Gone", created_at: Time.utc(2025, 1, 4))
+        sold_out = create(:product, user: seller, name: "Sold out", created_at: Time.utc(2025, 1, 5), max_purchase_count: 1)
+        sold_out.update_columns(sales_count_for_inventory_cache: 1)
+        shown = create(:product, user: seller, name: "Shown", created_at: Time.utc(2025, 1, 6))
+        create(:upsell, seller:, product: paused, name: "Paused", cross_sell: true, universal: true, paused: true)
+        create(:upsell, seller:, product: gone, name: "Gone", cross_sell: true, universal: true)
+        create(:upsell, seller:, product: sold_out, name: "Sold out", cross_sell: true, universal: true)
+        create(:upsell, seller:, product: shown, name: "Shown", cross_sell: true, universal: true)
+        create(:upsell, seller:, product: shown, name: "Deleted", cross_sell: true, universal: true, deleted_at: Time.utc(2025, 1, 7))
+        gone.update_columns(deleted_at: Time.utc(2025, 1, 8))
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["cross_sells"].map { _1["offered_product"]["product"]["name"] }).to eq(%w[Shown])
+      end
+
+      it "skips a cross-sell whose fixed version is sold out", parity: true do
+        versions = create(:product_with_digital_versions, user: seller, name: "Versions", created_at: Time.utc(2025, 1, 3))
+        first, second = versions.alive_variants.to_a
+        second.update_columns(max_purchase_count: 1, sales_count_for_inventory_cache: 1)
+        create(:upsell, seller:, product: versions, name: "First", cross_sell: true, universal: true, variant: first)
+        create(:upsell, seller:, product: versions, name: "Second", cross_sell: true, universal: true, variant: second)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        offered = response.parsed_body["product"]["cross_sells"].sole["offered_product"]
+        expect(offered["option_id"]).to eq(first.external_id)
+      end
+
+      it "matches the offered version to the selected one by name", parity: true do
+        selected = create(:product, user: seller, name: "Selected", created_at: Time.utc(2025, 1, 2))
+        category = create(:variant_category, title: "Size", link: selected)
+        create(:variant, variant_category: category, name: "Large")
+        offered = create(:product, user: seller, name: "Offered", created_at: Time.utc(2025, 1, 3))
+        offered_category = create(:variant_category, title: "Size", link: offered)
+        create(:variant, variant_category: offered_category, name: "Small")
+        large = create(:variant, variant_category: offered_category, name: "Large")
+        create(:upsell, seller:, product: offered, name: "Match", cross_sell: true, universal: true, variant: offered.alive_variants.first, offer_matching_version: true)
+
+        get cart_item_checkout_upsells_path(product_id: selected.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["cross_sells"].sole["offered_product"]["option_id"]).to eq(large.external_id)
+      end
+
+      it "answers the products of a bundle", parity: true do
+        bundle = create(:product, :bundle, user: seller, price_cents: 1500, created_at: Time.utc(2025, 1, 1))
+        bundle.bundle_products.first.update!(quantity: 3, position: 2)
+        bundle.bundle_products.last.update!(position: 1)
+        create(:custom_field, seller:, name: "Phone", products: [bundle.bundle_products.first.product])
+
+        get cart_item_checkout_upsells_path(product_id: bundle.external_id), headers: accept_json
+
         expect(response).to have_http_status(:ok)
+        listed = response.parsed_body["product"]["bundle_products"]
+        expect(listed.map { _1["name"] }).to eq(["Bundle Product 2", "Bundle Product 1"])
+        expect(listed.last).to include("quantity" => 3)
+        expect(listed.last["custom_fields"].map { _1["name"] }).to eq(["Phone"])
+      end
+
+      it "answers a bundle with a versioned product and without a deleted one", parity: true do
+        bundle = create(:product, :bundle, user: seller, created_at: Time.utc(2025, 1, 1))
+        versioned = create(:product_with_digital_versions, user: seller, name: "Versioned")
+        removed = create(:product, user: seller, name: "Removed")
+        create(:bundle_product, bundle:, product: versioned, variant: versioned.alive_variants.first)
+        create(:bundle_product, bundle:, product: removed, deleted_at: Time.utc(2025, 1, 5))
+
+        get cart_item_checkout_upsells_path(product_id: bundle.external_id), headers: accept_json
+
+        listed = response.parsed_body["product"]["bundle_products"]
+        expect(listed.map { _1["name"] }).to include("Versioned")
+        expect(listed.map { _1["name"] }).not_to include("Removed")
+        expect(listed.find { _1["name"] == "Versioned" }["variant"]).to include("name" => "Untitled 1")
+      end
+
+      it "asks for shipping when a bundled product ships", parity: true do
+        bundle = create(:product, :bundle, user: seller, created_at: Time.utc(2025, 1, 1))
+        create(:bundle_product, bundle:, product: create(:physical_product, user: seller, name: "Poster"))
+
+        get cart_item_checkout_upsells_path(product_id: bundle.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["require_shipping"]).to eq(true)
       end
 
       it "answers not found for another seller's product", parity: true do

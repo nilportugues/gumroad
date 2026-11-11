@@ -949,7 +949,16 @@ export async function productProps(row: LinkRow, seller: UserRow, viewer: Produc
 }
 
 // The pieces CheckoutPresenter#checkout_product reuses from ProductProps.
-export { analyticsData, pppDetails, recurrencesProps, TRIAL_UNITS };
+export {
+  aliveBundleProducts,
+  analyticsData,
+  BASE_VARIANT_CLOSED_FLAG,
+  pppDetails,
+  quantityLeft,
+  recurrencesProps,
+  TRIAL_UNITS,
+  type VariantRow,
+};
 
 // Link#rental
 export async function rentalProps(row: LinkRow): Promise<{ price_cents: number; rent_only: boolean } | null> {

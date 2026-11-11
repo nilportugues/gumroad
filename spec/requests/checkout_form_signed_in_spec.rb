@@ -218,25 +218,38 @@ describe "Checkout form settings when signed in", type: :request do
       expect(inertia_props_of(response)["cart_item"]["product"]["is_tiered_membership"]).to eq(true)
     end
 
-    it "hands a seller whose product has an upsell to Rails", parity: true do
+    it "previews the upsell of the seller's product", parity: true do
       product = create(:product, user: seller, name: "Base", created_at: Time.utc(2025, 1, 2))
-      create(:upsell, seller:, product:, name: "Pro")
+      create(:upsell, seller:, product:, name: "Pro", text: "Go Pro", description: "See https://example.com/pro")
       log_in(seller)
 
       get checkout_form_path
 
-      expect(inertia_props_of(response)["cart_item"]["product"]["upsell"]).to be_present
+      expect(inertia_props_of(response)["cart_item"]["product"]["upsell"]).to include("text" => "Go Pro")
     end
 
-    it "hands a seller whose product has a cross-sell to Rails", parity: true do
+    it "previews the cross-sells of the seller's product", parity: true do
       product = create(:product, user: seller, name: "Base", created_at: Time.utc(2025, 1, 2))
-      offered = create(:product, user: seller, name: "Extra", created_at: Time.utc(2025, 1, 1))
-      create(:upsell, seller:, product: offered, name: "Add", cross_sell: true, selected_products: [product])
+      offered = create(:product, user: seller, name: "Extra", price_cents: 500, created_at: Time.utc(2025, 1, 1))
+      code = create(:offer_code, user: seller, products: [offered], amount_cents: nil, amount_percentage: 20, code: "XSELL")
+      create(:upsell, seller:, product: offered, name: "Add", cross_sell: true, selected_products: [product], offer_code: code)
       log_in(seller)
 
       get checkout_form_path
 
-      expect(inertia_props_of(response)["cart_item"]["product"]["cross_sells"]).to be_present
+      cross_sell = inertia_props_of(response)["cart_item"]["product"]["cross_sells"].sole
+      expect(cross_sell["offered_product"]["product"]["name"]).to eq("Extra")
+      expect(cross_sell["discount"]).to include("percents" => 20)
+    end
+
+    it "previews a bundle with its products", parity: true do
+      bundle = create(:product, :bundle, user: seller, price_cents: 1500, created_at: Time.utc(2025, 3, 1))
+      bundle.bundle_products.each_with_index { |bundle_product, index| bundle_product.product.update_columns(created_at: Time.utc(2025, 1, 1 + index)) }
+      log_in(seller)
+
+      get checkout_form_path
+
+      expect(inertia_props_of(response)["cart_item"]["product"]["bundle_products"].map { _1["name"] }).to eq(["Bundle Product 1", "Bundle Product 2"])
     end
 
     it "hands a seller whose newest products share a creation time to Rails", parity: true do

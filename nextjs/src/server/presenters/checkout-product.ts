@@ -2,18 +2,21 @@
 // buyer: Checkout::FormPresenter#form_props and Checkout::UpsellsController#cart_item (`logged_in_user: nil, ip: nil`, empty params).
 //
 // What Rails derives from the Stripe/PayPal lanes, a signed URL, a random token or a variant of the product this port does not read
-// throws NotPortedError, so the caller hands the request back before anything is sent: upsells and cross-sells, bundles, physical
-// products (shippable countries), memberships (tier prices, restart token), PPP, a seller with a merchant account, an uploaded
-// thumbnail or avatar, and a seller on buyer-local currency.
+// throws NotPortedError, so the caller hands the request back before anything is sent: memberships (tier prices, restart token),
+// rentals, physical products (shippable countries), PPP, a seller with a merchant account, an uploaded thumbnail or avatar, and a
+// seller on buyer-local currency.
 import { Prisma, type User } from "@prisma/client";
 
 import { encrypt as externalId } from "../../lib/obfuscate-ids.ts";
+import { autoLink } from "../html/rinku.ts";
+import { sanitize } from "../html/sanitizer.ts";
 import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
 import { getRate, rubyStringToF, isCurrencyTypeSingleUnit } from "../models/concerns/currency-helper.ts";
 import { alpha2ByName } from "../models/compliance-countries.ts";
 import { CustomFieldFlags } from "../models/custom-field.ts";
 import { LinkFlags } from "../models/link.ts";
 import { column, selectRows, table } from "../models/sql.ts";
+import { discountForDisplay } from "../models/upsell.ts";
 import { aliveUserComplianceInfoRow } from "../models/user-compliance-info.ts";
 import { UserFlags } from "../models/user.ts";
 import { thumbnailUrl } from "../page-props/buyer/products.ts";
@@ -21,18 +24,22 @@ import { NotPortedError } from "../page-props/not-ported.ts";
 import { avatarUrl } from "../page-props/signed-in/presenters.ts";
 
 import {
+  aliveBundleProducts,
   analyticsData,
+  BASE_VARIANT_CLOSED_FLAG,
   linkOptions,
   linkRecurrences,
+  listedPriceCents,
   pppDetails,
+  quantityLeft,
   remainingForSaleCount,
   rentalProps,
+  reviewSummary,
   TRIAL_UNITS,
+  type VariantRow,
 } from "./product-props.ts";
-import { listedPriceCents } from "./product-props.ts";
-import { findUserById, type LinkRow, type UserRow } from "./product-reads.ts";
+import { bit, findLink, findUserById, type LinkRow, type UserRow } from "./product-reads.ts";
 import { buyerCurrencyDisplayProps, longUrl, subdomainWithProtocol } from "./product.ts";
-
 // PaypalMerchantAccountManager::COUNTRY_CODES_NOT_SUPPORTED_BY_PCP
 const PCP_UNSUPPORTED_COUNTRY_CODES = ["DZ", "BR", "CN", "EG", "IN", "IL", "JP", "FM", "MA", "TR"];
 const NATIVE_TYPE_COFFEE = "coffee";
@@ -110,32 +117,115 @@ async function hasOfferCodes(row: LinkRow, seller: UserRow): Promise<boolean> {
   );
 }
 
-async function assertNothingOffered(row: LinkRow): Promise<void> {
+type CartParams = { option?: string | null };
+type CheckoutRequest = {
+  // Link#cart_item(params)
+  cartParams?: CartParams;
+  // `include_cross_sells:`; an offered product never carries its own
+  includeCrossSells?: boolean;
+  // `arrival:`: a cross-sell's offered product is one the buyer is adding right now
+  arrival?: boolean;
+};
+
+type OfferRow = {
+  id: bigint;
+  seller_id: bigint;
+  product_id: bigint;
+  variant_id: bigint | null;
+  offer_code_id: bigint | null;
+  text: string | null;
+  description: string | null;
+  flags: bigint | number;
+};
+const REPLACE_SELECTED_PRODUCTS = 1;
+const OFFER_MATCHING_VERSION = 4;
+const upsellColumns = Prisma.sql`${table("upsells")}.*`;
+const AUTO_LINK_ATTRS = 'target="_blank" rel="noopener"';
+
+// Rinku.auto_link(sanitize(description).to_s, :all, 'target="_blank" rel="noopener"')
+const offerDescription = (description: string | null) => autoLink(sanitize(description ?? ""), AUTO_LINK_ATTRS);
+
+// BaseVariant#available?
+async function variantAvailable(product: LinkRow, variant: VariantRow): Promise<boolean> {
+  if (variant.deleted_at != null) return false;
+  const closedFlag = ((Number(variant.flags) >> (BASE_VARIANT_CLOSED_FLAG - 1)) & 1) === 1;
   if (
-    await exists(
-      Prisma.sql`SELECT 1 FROM ${table("upsells")} WHERE ${column("upsells", "product_id")} = ${row.id} AND ${column("upsells", "cross_sell")} = 0 AND ${column("upsells", "deleted_at")} IS NULL AND ${column("upsells", "paused")} = 0 LIMIT 1`,
-    )
+    closedFlag &&
+    variant.type === "Variant" &&
+    flag(product, "is_tiered_membership") &&
+    (await isFeatureEnabled("close_membership_tier_to_new_buyers", userActor(product.user_id!)))
   )
-    throw new NotPortedError("CheckoutPresenter#checkout_product for a product with an upsell");
-  if (
-    await exists(
-      Prisma.sql`SELECT 1 FROM ${table("upsells")} WHERE ${column("upsells", "seller_id")} = ${row.user_id} AND ${column("upsells", "cross_sell")} = 1 AND ${column("upsells", "deleted_at")} IS NULL AND ${column("upsells", "paused")} = 0 AND (${column("upsells", "universal")} = 1 OR EXISTS (SELECT 1 FROM ${table("upsells_selected_products")} WHERE ${column("upsells_selected_products", "upsell_id")} = ${column("upsells", "id")} AND ${column("upsells_selected_products", "selected_product_id")} = ${row.id})) LIMIT 1`,
-    )
-  )
-    throw new NotPortedError("CheckoutPresenter#checkout_product for a product with a cross-sell");
-  if (
-    await exists(
-      Prisma.sql`SELECT 1 FROM ${table("bundle_products")} WHERE ${column("bundle_products", "bundle_id")} = ${row.id} AND ${column("bundle_products", "deleted_at")} IS NULL LIMIT 1`,
-    )
-  )
-    throw new NotPortedError("CheckoutPresenter#checkout_product for a bundle");
+    return false;
+  if (variant.max_purchase_count === null) return true;
+  return quantityLeft(variant)! > 0;
 }
 
-// Link#cart_item(params) with empty params, for a product that is not a membership.
-async function cartItem(row: LinkRow, options: Awaited<ReturnType<typeof linkOptions>>) {
+async function findVariant(id: bigint): Promise<VariantRow | null> {
+  const [variant] = await selectRows<VariantRow>(
+    Prisma.sql`SELECT ${table("base_variants")}.* FROM ${table("base_variants")} WHERE ${column("base_variants", "id")} = ${id} LIMIT 1`,
+  );
+  return variant ?? null;
+}
+
+// Link#available_upsell: the product's one upsell that is alive and not paused.
+async function availableUpsell(row: LinkRow): Promise<OfferRow | null> {
+  const [upsell] = await selectRows<OfferRow>(
+    Prisma.sql`SELECT ${upsellColumns} FROM ${table("upsells")} WHERE ${column("upsells", "product_id")} = ${row.id} AND ${column("upsells", "cross_sell")} = 0 AND ${column("upsells", "deleted_at")} IS NULL AND ${column("upsells", "paused")} = 0 LIMIT 1`,
+  );
+  return upsell ?? null;
+}
+
+// Link#available_cross_sells: the seller's live cross-sells that cover every product or select this one. The association has no order.
+function availableCrossSells(row: LinkRow): Promise<OfferRow[]> {
+  return selectRows<OfferRow>(
+    Prisma.sql`SELECT ${upsellColumns} FROM ${table("upsells")} WHERE ${column("upsells", "seller_id")} = ${row.user_id} AND ${column("upsells", "cross_sell")} = 1 AND ${column("upsells", "deleted_at")} IS NULL AND ${column("upsells", "paused")} = 0 AND (${column("upsells", "universal")} = 1 OR EXISTS (SELECT 1 FROM ${table("upsells_selected_products")} WHERE ${column("upsells_selected_products", "upsell_id")} = ${column("upsells", "id")} AND ${column("upsells_selected_products", "selected_product_id")} = ${row.id})) ORDER BY ${column("upsells", "id")} ASC`,
+  );
+}
+
+// The offered variant of each option of the product, from its upsell's live upsell variants (`already_purchased?` is false without a buyer).
+async function upsellOfferedVariantIds(row: LinkRow, upsell: OfferRow | null): Promise<Map<string, string>> {
+  const offered = new Map<string, string>();
+  if (upsell === null) return offered;
+  const pairs = await selectRows<{ selected_variant_id: bigint; offered_variant_id: bigint }>(
+    Prisma.sql`SELECT ${column("upsell_variants", "selected_variant_id")}, ${column("upsell_variants", "offered_variant_id")} FROM ${table("upsell_variants")} WHERE ${column("upsell_variants", "upsell_id")} = ${upsell.id} AND ${column("upsell_variants", "deleted_at")} IS NULL ORDER BY ${column("upsell_variants", "id")} ASC`,
+  );
+  const decided = new Set<string>();
+  for (const pair of pairs) {
+    const selectedId = externalId(pair.selected_variant_id);
+    // `find` takes the first upsell variant of the option, whether or not its offered variant is available.
+    if (decided.has(selectedId)) continue;
+    decided.add(selectedId);
+    const variant = await findVariant(pair.offered_variant_id);
+    if (variant === null) throw new NotPortedError("UpsellVariant without an offered variant");
+    if (await variantAvailable(row, variant)) offered.set(selectedId, externalId(variant.id));
+  }
+  return offered;
+}
+
+// Upsell#offered_variant_for: with `offer_matching_version`, the offered product's version named like the one selected, else the fixed variant.
+async function offeredVariantFor(upsell: OfferRow, offered: LinkRow, selectedOptionName: string | null) {
+  const fixed = upsell.variant_id === null ? null : await findVariant(upsell.variant_id);
+  if (!bit(upsell.flags, OFFER_MATCHING_VERSION) || !present(selectedOptionName)) return fixed;
+  const skus = flag(offered, "skus_enabled");
+  const versions = skus
+    ? await selectRows<VariantRow>(
+        Prisma.sql`SELECT ${table("base_variants")}.* FROM ${table("base_variants")} WHERE ${column("base_variants", "type")} = 'Sku' AND ${column("base_variants", "link_id")} = ${offered.id} AND ${column("base_variants", "deleted_at")} IS NULL AND (${column("base_variants", "flags")} & 1) = 0 ORDER BY ${column("base_variants", "id")} ASC`,
+      )
+    : await selectRows<VariantRow>(
+        Prisma.sql`SELECT ${table("base_variants")}.* FROM ${table("base_variants")} WHERE ${column("base_variants", "type")} = 'Variant' AND ${column("base_variants", "deleted_at")} IS NULL AND ${column("base_variants", "variant_category_id")} = (SELECT ${column("variant_categories", "id")} FROM ${table("variant_categories")} WHERE ${column("variant_categories", "link_id")} = ${offered.id} AND ${column("variant_categories", "deleted_at")} IS NULL ORDER BY ${column("variant_categories", "id")} ASC LIMIT 1) ORDER BY ${column("base_variants", "id")} ASC`,
+      );
+  // Mirrors Link#options: a placeholder version is shown under the product's name.
+  const displayed = (version: VariantRow) => (!skus && version.name === "Untitled" ? offered.name : version.name);
+  return versions.find((version) => displayed(version) === selectedOptionName) ?? fixed;
+}
+
+// Link#cart_item(params) for a product that is not a membership.
+async function cartItem(row: LinkRow, options: Awaited<ReturnType<typeof linkOptions>>, params: CartParams) {
   if (flag(row, "is_recurring_billing") || flag(row, "is_tiered_membership"))
     throw new NotPortedError("Link#cart_item for a membership (tier prices and recurrences)");
-  const option = row.native_type !== NATIVE_TYPE_COFFEE ? (options.find((o) => o.quantity_left !== 0) ?? null) : null;
+  const requested = options.find((o) => o.id === params.option);
+  const option =
+    requested ?? (row.native_type !== NATIVE_TYPE_COFFEE ? (options.find((o) => o.quantity_left !== 0) ?? null) : null);
   const listed = (await listedPriceCents(row)) ?? 0;
   return {
     option,
@@ -145,16 +235,70 @@ async function cartItem(row: LinkRow, options: Awaited<ReturnType<typeof linkOpt
   };
 }
 
-export async function checkoutProduct(row: LinkRow) {
+async function bundleProductProps(bundleProducts: Awaited<ReturnType<typeof aliveBundleProducts>>) {
+  const props = [];
+  for (const { quantity, product, variant } of bundleProducts) {
+    const owner = (await findUserById(product.user_id!))!;
+    props.push({
+      product_id: externalId(product.id),
+      name: product.name,
+      native_type: product.native_type,
+      thumbnail_url: await thumbnailUrl(product.id),
+      url: longUrl(product, owner),
+      quantity,
+      variant: variant ? { id: externalId(variant.id), name: variant.name } : null,
+      custom_fields: await customFieldDescriptors(product, owner),
+    });
+  }
+  return props;
+}
+
+// The cross-sells CheckoutPresenter#checkout_product lists for a buyer who has bought nothing, which keeps every one whose product and
+// offered variant can still be sold.
+async function crossSellProps(row: LinkRow, selectedOptionName: string | null): Promise<Record<string, unknown>[]> {
+  const props = [];
+  for (const crossSell of await availableCrossSells(row)) {
+    const offered = await findLink(crossSell.product_id);
+    if (offered === null) throw new NotPortedError("Upsell without a product");
+    const offeredVariant = await offeredVariantFor(crossSell, offered, selectedOptionName);
+    const remaining = await remainingForSaleCount(offered);
+    if (
+      offered.deleted_at !== null ||
+      (remaining !== null && remaining <= 0) ||
+      (offeredVariant !== null && !(await variantAvailable(offered, offeredVariant)))
+    )
+      continue;
+    props.push({
+      id: externalId(crossSell.id),
+      replace_selected_products: bit(crossSell.flags, REPLACE_SELECTED_PRODUCTS),
+      text: crossSell.text ?? "",
+      description: offerDescription(crossSell.description),
+      offered_product: await checkoutProduct(offered, {
+        cartParams: { option: offeredVariant === null ? null : externalId(offeredVariant.id) },
+        includeCrossSells: false,
+        arrival: true,
+      }),
+      discount: await discountForDisplay(crossSell, true),
+      ratings: flag(offered, "display_product_reviews") ? await reviewSummary(offered) : null,
+    });
+  }
+  return props;
+}
+
+// CheckoutPresenter#checkout_product with `logged_in_user: nil, ip: nil` and no params.
+export async function checkoutProduct(row: LinkRow, request: CheckoutRequest = {}) {
+  const { cartParams = {}, includeCrossSells = true } = request;
   const seller = (await findUserById(row.user_id!))!;
   if (row.purchase_type !== BUY_ONLY && row.purchase_type !== null)
     throw new NotPortedError("Link#cart_item for a rental product");
   if (flag(row, "is_physical")) throw new NotPortedError("Link#shippable_country_codes for a physical product");
   if (await pppEnabled(row, seller)) throw new NotPortedError("Link#cart_item with purchasing power parity on");
-  await assertNothingOffered(row);
 
+  const upsell = await availableUpsell(row);
+  const offeredVariantIds = await upsellOfferedVariantIds(row, upsell);
+  const bundleProducts = await aliveBundleProducts(row.id);
   const options = await linkOptions(row);
-  const item = await cartItem(row, options);
+  const item = await cartItem(row, options, cartParams);
   const [creatorAvatar, thumbnail] = [
     present(seller.username) ? await avatarUrl(seller as unknown as User) : null,
     await thumbnailUrl(row.id),
@@ -195,7 +339,11 @@ export async function checkoutProduct(row: LinkRow) {
     shippable_country_codes: [] as string[],
     ships_nowhere: false,
   };
-  return {
+  const productOptions = options.map((option) => ({
+    ...option,
+    upsell_offered_variant_id: offeredVariantIds.get(option.id) ?? null,
+  }));
+  const value = {
     product: {
       ...common,
       id: externalId(row.id),
@@ -215,19 +363,22 @@ export async function checkoutProduct(row: LinkRow) {
             },
           }
         : null,
-      cross_sells: [],
+      cross_sells: [] as Record<string, unknown>[],
       has_offer_codes: await hasOfferCodes(row, seller),
       has_tipping_enabled: sellerFlag(seller, "tipping_enabled") && !tiered && !recurring,
-      require_shipping: Boolean(row.require_shipping),
+      require_shipping:
+        Boolean(row.require_shipping) || bundleProducts.some(({ product }) => Boolean(product.require_shipping)),
       analytics: analyticsData(seller),
       rental,
       recurrences: await linkRecurrences(row),
       can_gift: !preorder && !sellerFlag(seller, "gifting_disabled"),
-      options: options.map((option) => ({ ...option, upsell_offered_variant_id: null })),
+      options: productOptions,
       ppp_details: await pppDetails(row, seller, null),
-      upsell: null,
+      upsell: upsell
+        ? { id: externalId(upsell.id), text: upsell.text ?? "", description: offerDescription(upsell.description) }
+        : null,
       archived: flag(row, "archived"),
-      bundle_products: [],
+      bundle_products: await bundleProductProps(bundleProducts),
     },
     price: item.price,
     option_id: item.option?.id ?? null,
@@ -242,6 +393,11 @@ export async function checkoutProduct(row: LinkRow) {
     recommender_model_name: null,
     accepted_offer: null,
   };
+  if (includeCrossSells) {
+    const selectedName = productOptions.find((option) => option.id === value.option_id)?.name ?? null;
+    value.product.cross_sells = await crossSellProps(row, selectedName);
+  }
+  return value;
 }
 
 // Link#installment_plan
