@@ -12,6 +12,7 @@ import "@/server/controllers/social-callbacks";
 import "@/server/controllers/connections-mutations";
 import "@/server/controllers/oauth-applications-mutations";
 import "@/server/controllers/oauth-tokens";
+import "@/server/controllers/oauth-authorizations";
 import "@/server/controllers/dashboard-json";
 import "@/server/controllers/audience-mutations";
 import "@/server/controllers/events-mutations";

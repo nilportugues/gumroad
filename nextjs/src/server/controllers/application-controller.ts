@@ -58,7 +58,7 @@ export type Rendered = { status: number; body: string | Uint8Array; contentType:
 // redirect_to from the action. `rescued`: from a rescue_from handler, which skips the after_actions.
 // `flash`: what the action put in flash[:alert] and friends before redirecting.
 // `cookies`: the Set-Cookie lines the action wrote to the cookie jar, after the session's.
-export type Redirected = { status: number; location: string; rescued?: boolean; flash?: Record<string, string>; inertiaErrors?: Record<string, unknown>; cookies?: string[] };
+export type Redirected = { status: number; location: string; headers?: Record<string, string>; rescued?: boolean; flash?: Record<string, string>; inertiaErrors?: Record<string, unknown>; cookies?: string[] };
 // inertia_rails' middleware swapping the response for a bare 409 when the client's asset version is
 // stale. The controller still ran, so its cookies (written by ActionDispatch::Cookies, outside that
 // middleware) and the session survive; the headers it set do not. `rescued`: the controller halted
@@ -522,6 +522,7 @@ export function afterActions(chain: Chain, result: ActionResult): ControllerResp
     }
     headers.set("location", redirectLocation(request, result.location));
     headers.set("content-type", "text/html; charset=utf-8");
+    for (const [name, value] of Object.entries(result.headers ?? {})) headers.set(name, value);
   } else {
     if (result.contentType !== "") headers.set("content-type", result.contentType);
     for (const [name, value] of Object.entries(result.headers ?? {})) headers.set(name, value);
