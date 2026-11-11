@@ -1002,6 +1002,21 @@ async function chargebackRatePayoutReserveAvailable(facts: Facts): Promise<boole
 
 export type { Seller, MerchantAccount };
 
+// FeeInfoPresenter#connect_account_fee_info for the seller, which the checkout form repeats.
+export async function connectAccountFeeInfo(seller: User) {
+  const info = await fetchOrBuildComplianceInfo(seller.id);
+  const facts: Facts = {
+    seller,
+    record: Users.load(seller),
+    info,
+    aliveInfo: info.persisted ? info.row : null,
+    now: new Date(),
+    bankAccount: null,
+    stripeAccounts: [],
+  };
+  return (await feeInfo(facts)).connect_account_fee_info;
+}
+
 // What the Payouts page reads through the rules above (User#has_stripe_account_connected?,
 // #minimum_payout_threshold_cents, #stripe_account, #payouts_paused_by_source and the chargeback reserve).
 export async function payoutFacts(seller: User, now = new Date()) {
