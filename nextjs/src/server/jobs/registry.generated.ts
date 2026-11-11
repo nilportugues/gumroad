@@ -3425,7 +3425,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "TaxFormTransactionReportJob": {
     "file": "app/sidekiq/tax_form_transaction_report_job.rb",

@@ -85,7 +85,12 @@ export function affiliateCreditAggs(userId: number): JsonValue {
 
 // PurchaseSearchService.own_affiliate_credit_cents: each credit's sum is truncated on its own.
 export const ownAffiliateCreditCents = (result: Aggregations, measure: string) =>
-  AFFILIATE_CREDIT_PREFIXES.reduce((sum, prefix) => sum + Math.trunc(aggregationValue(result[`${prefix}_${measure}_own`]?.total?.value, `${prefix}_${measure}_own`)), 0);
+  AFFILIATE_CREDIT_PREFIXES.reduce((sum, prefix) => {
+    const aggregation = result[`${prefix}_${measure}_own`];
+    // `aggregations.<name>.total.value`: a missing aggregation fails on `total`, a missing total on `value`.
+    if (aggregation === undefined) throw new TypeError("undefined method 'total' for nil");
+    return sum + Math.trunc(aggregationValue(aggregation.total?.value, `${prefix}_${measure}_own`));
+  }, 0);
 
 // User#revenue_as_affiliate
 async function revenueAsAffiliate(userId: bigint, after: string | null): Promise<number> {
