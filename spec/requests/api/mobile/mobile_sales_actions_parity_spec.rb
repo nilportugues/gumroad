@@ -247,7 +247,7 @@ describe "Mobile API sales actions", type: :request, elasticsearch_wait_for_refr
       expect(response.parsed_body).to include("success")
     end
 
-    it "hands a refund to Rails", parity: true do
+    it "answers 404 for a refund of a refunded sale", parity: true do
       sale.update_column(:stripe_refunded, true)
 
       patch "/mobile/sales/#{sale.external_id}/refund", params: auth(seller).merge(amount: "1.00")

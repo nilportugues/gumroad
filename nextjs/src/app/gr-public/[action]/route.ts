@@ -13,6 +13,7 @@ import "@/server/controllers/mobile-products";
 import "@/server/controllers/mobile-subscriptions";
 import "@/server/controllers/mobile-preorders";
 import "@/server/controllers/mobile-installments";
+import "@/server/controllers/mobile-seller-writes";
 import { publicHandlerResponse } from "@/server/controllers/public-handlers";
 
 type Context = { params: Promise<{ action: string }> };

@@ -16,7 +16,7 @@ import { userPolicy } from "../policies/user.ts";
 import type { JsonValue } from "../search/es-json.ts";
 import { HandBackToRails, type ActionResult } from "./application-controller.ts";
 import { json, jsonAction } from "./json-actions.ts";
-import type { MutationInput } from "./mutation.ts";
+import { registerMutations, type MutationInput } from "./mutation.ts";
 import { authorizeJson, notFoundJson } from "./seller-json.ts";
 
 // AgentConversationPersistence
@@ -65,10 +65,13 @@ function assertNothingToReconcile(metadata: Metadata): void {
   if (!blank(metadata.proposed_action) && metadata.action_status === ACTION_STATUS_EXECUTING) throw new NotPortedError("a proposal whose execution is still marked as running", SOURCE);
 }
 
-// agent_message_props
-function messageProps(message: AiMessage): JsonValue {
+const ACTION_STATUS_UNKNOWN = "unknown";
+
+// agent_message_props. The mobile reads (`hide_executing_action: true`) swap a claimed action's card for a canned reply; that text is not ported.
+function messageProps(message: AiMessage, hideExecutingAction = false): JsonValue {
   const metadata = metadataOf(message);
   assertNothingToReconcile(metadata);
+  if (hideExecutingAction && (metadata.action_status === ACTION_STATUS_EXECUTING || metadata.action_status === ACTION_STATUS_UNKNOWN)) throw new NotPortedError("a claimed action hidden from older mobile clients", SOURCE);
   const props: Record<string, JsonValue> = {};
   for (const [key, value] of [["role", message.role], ["content", message.content], ["proposed_action", metadata.proposed_action], ["objects", metadata.objects], ["action_status", metadata.action_status]] as const) {
     if (value !== null && value !== undefined) props[key] = value;
@@ -79,19 +82,32 @@ function messageProps(message: AiMessage): JsonValue {
 
 const aliveConversation = (sellerId: bigint) => ({ seller_id: sellerId, deleted_at: null });
 
+// The seller's latest conversation, as the web (AgentConversationsController#latest) and mobile (AgentController#latest_conversation) reads render it.
+export async function latestConversation(sellerId: bigint, hideExecutingAction: boolean): Promise<ActionResult> {
+  const conversation: AiConversation | null = await db.aiConversation.findFirst({
+    where: aliveConversation(sellerId),
+    orderBy: [{ updated_at: "desc" }, { id: "desc" }],
+  });
+  if (conversation === null) return json({ success: true, conversation: null });
+  // `ai_messages.last(100)`: the newest hundred, oldest first
+  const newest = await db.aiMessage.findMany({
+    where: { ai_conversation_id: conversation.id },
+    orderBy: [{ created_at: "desc" }, { id: "desc" }],
+    take: HISTORY_MAX_MESSAGES,
+  });
+  return json({
+    success: true,
+    conversation: {
+      id: encrypt(conversation.id),
+      title: conversation.title,
+      messages: newest.reverse().map((message) => messageProps(message, hideExecutingAction)),
+    },
+  });
+}
+
 // AgentConversationsController#latest
 export const agentConversationsLatest = (request: Request) =>
-  jsonAction(request, {}, {}, (input) =>
-    handingBack(() =>
-      guarded(input, async () => {
-        const conversation: AiConversation | null = await db.aiConversation.findFirst({ where: aliveConversation(input.context.currentSeller!.id), orderBy: [{ updated_at: "desc" }, { id: "desc" }] });
-        if (conversation === null) return json({ success: true, conversation: null });
-        // `ai_messages.last(100)`: the newest hundred, oldest first
-        const newest = await db.aiMessage.findMany({ where: { ai_conversation_id: conversation.id }, orderBy: [{ created_at: "desc" }, { id: "desc" }], take: HISTORY_MAX_MESSAGES });
-        return json({ success: true, conversation: { id: encrypt(conversation.id), title: conversation.title, messages: newest.reverse().map(messageProps) } });
-      }),
-    ),
-  );
+  jsonAction(request, {}, {}, (input) => handingBack(() => guarded(input, () => latestConversation(input.context.currentSeller!.id, false))));
 
 // AgentConversationsController#action_status
 export const agentActionStatus = (request: Request) =>
@@ -114,26 +130,63 @@ export const agentActionStatus = (request: Request) =>
     ),
   );
 
+// The recovery read of a streamed turn, as the web (AgentConversationsController#turn_status) and mobile (AgentController#turn_status) reads render it.
+export async function turnStatus(
+  sellerId: bigint,
+  turnId: string,
+  hideExecutingAction: boolean,
+): Promise<ActionResult> {
+  if (!CLIENT_TURN_ID_FORMAT.test(turnId)) return json({ success: false, error: "Invalid turn id." }, BAD_REQUEST);
+  const message = await db.aiMessage.findFirst({
+    where: {
+      role: "assistant",
+      created_at: { gte: new Date(Date.now() - AGENT_TURN_LOOKUP_WINDOW_MS) },
+      ai_conversation: aliveConversation(sellerId),
+      metadata: { path: "$.client_turn_id", equals: turnId },
+    },
+    orderBy: [{ created_at: "desc" }, { id: "desc" }],
+  });
+  if (message !== null)
+    return json({
+      success: true,
+      status: "persisted",
+      conversation_id: encrypt(message.ai_conversation_id),
+      message: messageProps(message, hideExecutingAction),
+    });
+  const marker = await getRedis("main").get(`agent_turn_status:${sellerId}:${turnId}`);
+  return json({ success: true, status: marker === "in_progress" || marker === "failed" ? marker : "unknown" });
+}
+
 // AgentConversationsController#turn_status
 export const agentTurnStatus = (request: Request, routeParams: Record<string, string>) =>
   jsonAction(request, routeParams, {}, (input) =>
     handingBack(() =>
-      guarded(input, async () => {
-        const turnId = input.routeParams.client_turn_id!;
-        if (!CLIENT_TURN_ID_FORMAT.test(turnId)) return json({ success: false, error: "Invalid turn id." }, BAD_REQUEST);
-        const sellerId = input.context.currentSeller!.id;
-        const message = await db.aiMessage.findFirst({
-          where: {
-            role: "assistant",
-            created_at: { gte: new Date(Date.now() - AGENT_TURN_LOOKUP_WINDOW_MS) },
-            ai_conversation: aliveConversation(sellerId),
-            metadata: { path: "$.client_turn_id", equals: turnId },
-          },
-          orderBy: [{ created_at: "desc" }, { id: "desc" }],
-        });
-        if (message !== null) return json({ success: true, status: "persisted", conversation_id: encrypt(message.ai_conversation_id), message: messageProps(message) });
-        const marker = await getRedis("main").get(`agent_turn_status:${sellerId}:${turnId}`);
-        return json({ success: true, status: marker === "in_progress" || marker === "failed" ? marker : "unknown" });
-      }),
+      guarded(input, () => turnStatus(input.context.currentSeller!.id, input.routeParams.client_turn_id!, false)),
     ),
   );
+
+
+// AgentMessagesController#create and #execute, AgentMessageStreamsController#create: `authenticate_user!` and `authorize_store_agent`, then
+// the Redis-counted `throttle_agent_requests`, which a Node answer would skip. Every request past the gates is Rails'.
+const handedBackTurn = (what: string) => (input: MutationInput) =>
+  handingBack(() =>
+    guarded(input, () => {
+      throw new HandBackToRails(what);
+    }),
+  );
+
+registerMutations(
+  { method: "POST", pattern: "/internal/agent/messages", formats: ["any"], run: handedBackTurn("an agent turn") },
+  {
+    method: "POST",
+    pattern: "/internal/agent/messages/stream",
+    formats: ["any"],
+    run: handedBackTurn("a streamed agent turn"),
+  },
+  {
+    method: "POST",
+    pattern: "/internal/agent/actions",
+    formats: ["any"],
+    run: handedBackTurn("a confirmed agent action"),
+  },
+);

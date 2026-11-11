@@ -25,7 +25,7 @@ import { NotPortedError } from "../models/user.ts";
 import { NotPortedError as PageNotPortedError } from "../page-props/not-ported.ts";
 import { authorize } from "../policies/authorize.ts";
 import { installmentPolicy } from "../policies/installment.ts";
-import { collaboratingProductIds } from "../policies/link.ts";
+import { collaboratingProductIds, linkPolicy } from "../policies/link.ts";
 import { productReviewVideoPolicy } from "../policies/product-review-video.ts";
 import { loadSellerContext } from "../policies/seller-context.ts";
 import type { JsonValue } from "../search/es-json.ts";
@@ -43,6 +43,8 @@ import { authorizeJson, notFoundJson } from "./seller-json.ts";
 
 const UNAUTHORIZED = 401;
 const UNPROCESSABLE_ENTITY = 422;
+const BAD_REQUEST = 400;
+const NOT_FOUND = 404;
 
 // A port that cannot prove an answer hands the request back whole; these actions only read before they answer.
 async function handingBack<T>(run: () => Promise<T>): Promise<T> {
@@ -343,24 +345,51 @@ async function resendableToNonOpeners(post: InstallmentPost): Promise<boolean> {
   return !(Number(row?.expired ?? 0) > 0 && Number(row?.reached ?? 0) === 0);
 }
 
-// Api::Internal::Installments::NonOpenerResendsController#create. The preview (#show) counts recipients under a time budget and stays in Rails.
+// `before_action :set_installment` (an unresolvable post is a 404 that halts the chain) and `authorize @installment, :resend_to_non_openers?`.
+async function resendableInstallment(
+  input: MutationInput,
+): Promise<{ post: InstallmentPost } | { halt: ActionResult }> {
+  const refused = requireSignedIn(input);
+  if (refused) return { halt: refused };
+  const row = await findSellerInstallment(input.context.currentSeller!.id, input.routeParams.id!);
+  const post = row === null ? null : new InstallmentPost(row);
+  if (post === null || !(await resendableToNonOpeners(post))) return { halt: { ...notFoundJson(), rescued: true } };
+  const denied = await authorizeJson(input, (context) => authorize(installmentPolicy.resendToNonOpeners, context));
+  return denied ? { halt: denied } : { post };
+}
+
+// Api::Internal::Installments::NonOpenerResendsController#show counts the recipients under a time budget of a few hundred milliseconds
+// from the audience tables: Node answers its gates and Rails the count.
+export const nonOpenerResendPreview = (request: Request, routeParams: Record<string, string>) =>
+  jsonAction(request, routeParams, {}, (input) =>
+    handingBack(async () => {
+      const resolved = await resendableInstallment(input);
+      if ("halt" in resolved) return resolved.halt;
+      throw new HandBackToRails("the recipient count of a non-opener resend");
+    }),
+  );
+
+// Api::Internal::Installments::NonOpenerResendsController#create.
 async function nonOpenerResend(input: MutationInput): Promise<ActionResult> {
   return handingBack(async () => {
-    const refused = requireSignedIn(input);
-    if (refused) return refused;
-    const row = await findSellerInstallment(input.context.currentSeller!.id, input.routeParams.id!);
-    const post = row === null ? null : new InstallmentPost(row);
-    // set_installment is a before_action: its 404 halts the chain.
-    if (post === null || !(await resendableToNonOpeners(post))) return { ...notFoundJson(), rescued: true };
-    const denied = await authorizeJson(input, (context) => authorize(installmentPolicy.resendToNonOpeners, context));
-    if (denied) return denied;
+    const resolved = await resendableInstallment(input);
+    if ("halt" in resolved) return resolved.halt;
+    const { post } = resolved;
 
-    const unprocessable = (error: string): { halt: ActionResult } => ({ halt: json({ success: false, error }, UNPROCESSABLE_ENTITY) });
+    const unprocessable = (error: string): { halt: ActionResult } => ({
+      halt: json({ success: false, error }, UNPROCESSABLE_ENTITY),
+    });
     const created = await transaction(async () => {
-      await selectRows(Prisma.sql`SELECT ${Prisma.raw("`installments`.*")} FROM ${table("installments")} WHERE ${column("installments", "id")} = ${post.id} LIMIT 1 FOR UPDATE`);
-      if (await resendLimitReached(post.id)) return unprocessable(`You can resend to non-openers up to ${MAX_RESENDS} times per email.`);
-      if (await recentlyResent(post.id, new Date())) return unprocessable("You can only resend to non-openers once every 24 hours.");
-      return { blast: await createBlast(post, { requested_at: new Date(), recipient_filter: RECIPIENT_FILTER_UNOPENED }) };
+      await selectRows(
+        Prisma.sql`SELECT ${Prisma.raw("`installments`.*")} FROM ${table("installments")} WHERE ${column("installments", "id")} = ${post.id} LIMIT 1 FOR UPDATE`,
+      );
+      if (await resendLimitReached(post.id))
+        return unprocessable(`You can resend to non-openers up to ${MAX_RESENDS} times per email.`);
+      if (await recentlyResent(post.id, new Date()))
+        return unprocessable("You can only resend to non-openers once every 24 hours.");
+      return {
+        blast: await createBlast(post, { requested_at: new Date(), recipient_filter: RECIPIENT_FILTER_UNOPENED }),
+      };
     });
     if ("halt" in created) return created.halt;
     // Who receives it is worked out by the job: for a large audience that takes minutes.
@@ -394,9 +423,112 @@ async function reviewVideoDecision(input: MutationInput, action: VideoAction): P
   return { ...head(200), contentType: "application/json" };
 }
 
+// ---- Previews and sends that mail, write a blast or attach a blob: Node answers the gates, Rails the rest
+
+// Api::Internal::Installments::PreviewEmailsController#create mails the preview to the signed-in user.
+const previewEmail = (input: MutationInput) =>
+  handingBack(() =>
+    withSellerInstallment(input, installmentPolicy.preview, () => {
+      throw new HandBackToRails("a preview email");
+    }),
+  );
+
+const NOT_WAITING_ON_RECIPIENTS = "This email is not waiting on any recipients.";
+
+// Api::Internal::Installments::RemainingSendsController#create. A post with no regular blast has nothing to resume or restart; every
+// other state claims a Redis marker and enqueues the send.
+async function remainingSend(input: MutationInput): Promise<ActionResult> {
+  return handingBack(async () => {
+    const refused = requireSignedIn(input);
+    if (refused) return refused;
+    const row = await findSellerInstallment(input.context.currentSeller!.id, input.routeParams.id!);
+    // set_installment: `alive.published.not_workflow_installment`
+    if (row === null || row.published_at === null || row.workflow_id !== null)
+      return { ...notFoundJson(), rescued: true };
+    const denied = await authorizeJson(input, (context) => authorize(installmentPolicy.sendToRemaining, context));
+    if (denied) return denied;
+    // `latest_regular_blast`: blasts that are not resends to non-openers
+    const [regular] = await selectRows<{ total: bigint | number }>(
+      Prisma.sql`SELECT COUNT(*) AS total FROM ${table("post_email_blasts")} WHERE ${column("post_email_blasts", "post_id")} = ${row.id} AND (${column("post_email_blasts", "recipient_filter")} IS NULL OR ${column("post_email_blasts", "recipient_filter")} != ${RECIPIENT_FILTER_UNOPENED})`,
+    );
+    if (Number(regular?.total ?? 0) === 0)
+      return json({ success: false, error: NOT_WAITING_ON_RECIPIENTS }, UNPROCESSABLE_ENTITY);
+    throw new HandBackToRails("a send to the remaining recipients");
+  });
+}
+
+// Api::Internal::Customers::SingleCustomerEmailsController#create. `authorize Installment, :create?` runs before the lookup answers
+// (a RecordNotFound is rescued into the same authorization), and the email itself is built, sent and cached under a Redis lock.
+async function singleCustomerEmail(input: MutationInput): Promise<ActionResult> {
+  return handingBack(async () => {
+    const refused = requireSignedIn(input);
+    if (refused) return refused;
+    const denied = await authorizeJson(input, (context) => authorize(installmentPolicy.create, context));
+    if (denied) return denied;
+    // `current_seller.sales.find_by_external_id!`
+    const id = decrypt(input.routeParams.purchase_id!);
+    const found =
+      id !== null &&
+      (
+        await selectRows(
+          Prisma.sql`SELECT 1 FROM ${table("purchases")} WHERE ${column("purchases", "id")} = ${BigInt(id)} AND ${column("purchases", "seller_id")} = ${input.context.currentSeller!.id} LIMIT 1`,
+        )
+      ).length > 0;
+    if (!found) return json({ success: false, message: "Customer not found." }, NOT_FOUND);
+    throw new HandBackToRails("an email to one customer");
+  });
+}
+
+// Api::Internal::ReceiptPreviewsController#show renders the receipt template and inlines its CSS.
+export const receiptPreview = (request: Request, routeParams: Record<string, string>) =>
+  jsonAction(request, routeParams, {}, (input) =>
+    handingBack(async () => {
+      const refused = requireSignedIn(input);
+      if (refused) return refused;
+      const product = await fetchProductByUniquePermalink(input);
+      if (product.user_id === null || BigInt(product.user_id) !== BigInt(input.context.currentSeller!.id))
+        throw new RoutingError("Not Found");
+      throw new HandBackToRails("the receipt of a product");
+    }),
+  );
+
+// Api::Internal::ProductPublicFilesController#create attaches a blob found by its signed id, which only Rails can verify.
+async function productPublicFile(input: MutationInput): Promise<ActionResult> {
+  return handingBack(async () => {
+    const refused = requireSignedIn(input);
+    if (refused) return refused;
+    // fetch_product_and_enforce_ownership: `Link.find_by_external_id(params[:product_id])`, then `e404` unless it is the seller's
+    const given = input.params.product_id;
+    if (given !== undefined && given !== null && typeof given !== "string")
+      throw new HandBackToRails("a product_id that is not text");
+    const id = typeof given === "string" ? decrypt(given) : null;
+    const [product] =
+      id === null
+        ? []
+        : await selectRows<{ user_id: bigint | null }>(
+            Prisma.sql`SELECT ${column("links", "user_id")} FROM ${table("links")} WHERE ${column("links", "id")} = ${BigInt(id)} LIMIT 1`,
+          );
+    if (
+      product === undefined ||
+      product.user_id === null ||
+      BigInt(product.user_id) !== BigInt(input.context.currentSeller!.id)
+    )
+      throw new RoutingError("Not Found");
+    const denied = await authorizeJson(input, (context) => authorize(linkPolicy.create, context));
+    if (denied) return denied;
+    if (typeof input.params.signed_blob_id !== "string")
+      return json({ success: false, error: "Invalid signed_blob_id." }, BAD_REQUEST);
+    throw new HandBackToRails("a public file attached from a signed blob");
+  });
+}
+
 registerMutations(
   { method: "POST", pattern: "/internal/grmc/webhook", skipForgeryProtection: true, run: grmcWebhook },
   { method: "POST", pattern: "/internal/installments/:id/non_opener_resend", formats: ["any"], run: nonOpenerResend },
+  { method: "POST", pattern: "/internal/installments/:id/preview_email", formats: ["any"], run: previewEmail },
+  { method: "POST", pattern: "/internal/installments/:id/remaining_send", formats: ["any"], run: remainingSend },
+  { method: "POST", pattern: "/internal/customers/:purchase_id/single_customer_email", formats: ["any"], run: singleCustomerEmail },
+  { method: "POST", pattern: "/internal/product_public_files", formats: ["any"], run: productPublicFile },
   { method: "POST", pattern: "/internal/product_review_videos/:product_review_video_id/approvals", formats: ["any"], run: (input) => reviewVideoDecision(input, "approve") },
   { method: "POST", pattern: "/internal/product_review_videos/:product_review_video_id/rejections", formats: ["any"], run: (input) => reviewVideoDecision(input, "reject") },
 );
@@ -414,6 +546,8 @@ const GET_ROUTES: GetRoute[] = [
   { pattern: "/internal/installments/recipient_count", run: (request) => installmentRecipientCount(request) },
   { pattern: "/internal/installments/:id/audience_count", run: installmentAudienceCount },
   { pattern: "/internal/installments/:id/clicked_urls", run: installmentClickedUrls },
+  { pattern: "/internal/installments/:id/non_opener_resend", run: nonOpenerResendPreview },
+  { pattern: "/internal/products/:product_id/receipt_preview", run: receiptPreview },
   { pattern: "/internal/products/:product_id/existing_product_files", run: existingProductFiles },
   { pattern: "/internal/products/:product_id/product_posts", run: productPosts },
   { pattern: "/internal/agent/conversations/latest", run: (request) => agentConversationsLatest(request) },
