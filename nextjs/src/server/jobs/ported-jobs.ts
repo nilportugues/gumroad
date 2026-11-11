@@ -114,6 +114,7 @@ export const PORTED_JOBS: readonly string[] = [
   "BackfillPriceCheckerIndexFieldsJob",
   "DeleteUnusedPublicFilesJob",
   "RegenerateSalesRelatedProductsInfosJob",
+  "UpdateSalesRelatedProductsInfosJob",
   "DeleteProductRichContentWorker",
   "RemoveSuspendedAccountFollowsWorker",
   "RefundPurchaseWorker",

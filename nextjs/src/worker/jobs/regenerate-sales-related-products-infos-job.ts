@@ -6,7 +6,8 @@ import { Prisma, type Link } from "@prisma/client";
 
 import { HandBackToRuby } from "../../server/jobs/hand-back.ts";
 import { findByIdBang } from "../../server/models/row-reads.ts";
-import { column, columnIn, execute, quoteName, selectRows, table } from "../../server/models/sql.ts";
+import { COUNTED_PURCHASES } from "../../server/models/sales-related-products-info.ts";
+import { column, columnIn, execute, selectRows, table } from "../../server/models/sql.ts";
 
 import { modelJob } from "./support/job-deps.ts";
 
@@ -16,16 +17,6 @@ const DEFAULT_EMAIL_LIMIT = 5_000;
 const DEFAULT_RELATIONSHIPS_LIMIT = 1_000;
 const DEFAULT_INSERT_BATCH_SIZE = 10;
 const IN_BATCHES_SIZE = 1_000;
-// Purchase.flag_mapping["flags"]: chargeback_reversed and is_gift_receiver_purchase
-const CHARGEBACK_REVERSED = 512;
-const IS_GIFT_RECEIVER_PURCHASE = 32;
-
-// `Purchase.successful_or_preorder_authorization_successful_and_not_refunded_or_chargedback`, as Rails writes it
-// (the chargeback flag bit is quoted by the `where` string's bind, the gift receiver bit is Arel's).
-const COUNTED_PURCHASES = Prisma.raw(
-  `${quoteName(PURCHASES)}.${quoteName("purchase_state")} IN ('successful', 'preorder_authorization_successful', 'gift_receiver_purchase_successful') AND (purchases.stripe_refunded IS NULL OR purchases.stripe_refunded = 0) AND (purchases.chargeback_date IS NULL OR (purchases.chargeback_date IS NOT NULL AND purchases.flags & '${CHARGEBACK_REVERSED}' != 0)) AND ((${quoteName(PURCHASES)}.${quoteName("flags")} & ${IS_GIFT_RECEIVER_PURCHASE} = 0))`,
-);
-
 function integerArg(value: unknown, what: string, min: bigint): bigint {
   const integer =
     typeof value === "bigint" ? value : typeof value === "number" && Number.isSafeInteger(value) ? BigInt(value) : null;

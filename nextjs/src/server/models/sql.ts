@@ -51,10 +51,14 @@ export async function findInBatches<T extends Row>(
   const id = column(tableName, "id");
   let after: unknown = null;
   for (;;) {
-    const conditions = [where, after === null ? null : Prisma.sql`${id} > ${after}`].filter((c): c is Prisma.Sql => c !== null);
+    const conditions = [where, after === null ? null : Prisma.sql`${id} > ${after}`].filter(
+      (c): c is Prisma.Sql => c !== null,
+    );
     const clause = conditions.length === 0 ? Prisma.empty : Prisma.sql` WHERE ${Prisma.join(conditions, " AND ")}`;
     const rows = await uncached(() =>
-      selectRows<T>(Prisma.sql`SELECT ${select ?? Prisma.raw(`${quoteName(tableName)}.*`)} FROM ${table(tableName)}${joins ? Prisma.sql` ${joins}` : Prisma.empty}${clause} ORDER BY ${id} ASC LIMIT ${Prisma.raw(String(batchSize))}`),
+      selectRows<T>(
+        Prisma.sql`SELECT ${select ?? Prisma.raw(`${quoteName(tableName)}.*`)} FROM ${table(tableName)}${joins ? Prisma.sql` ${joins}` : Prisma.empty}${clause} ORDER BY ${id} ASC LIMIT ${Prisma.raw(String(batchSize))}`,
+      ),
     );
     if (rows.length === 0) return;
     await each(rows);
@@ -90,7 +94,11 @@ function typesFor(model: Prisma.ModelName): Map<string, FieldType> {
   if (!types) {
     const dmmf = Prisma.dmmf.datamodel.models.find((m) => m.name === model);
     if (!dmmf) throw new Error(`Unknown Prisma model ${model}`);
-    types = new Map(dmmf.fields.filter((f) => f.kind === "scalar" || f.kind === "enum").map((f) => [f.dbName ?? f.name, { type: f.type }]));
+    types = new Map(
+      dmmf.fields
+        .filter((f) => f.kind === "scalar" || f.kind === "enum")
+        .map((f) => [f.dbName ?? f.name, { type: f.type }]),
+    );
     fieldTypes.set(model, types);
   }
   return types;
@@ -139,8 +147,17 @@ export function castRow<R extends Row>(model: Prisma.ModelName, row: Row): R {
 // ActiveRecord::RecordNotUnique: MySQL error 1062, which Prisma reports as P2002 on typed writes.
 // ActiveRecord::LockWaitTimeout (ER_LOCK_WAIT_TIMEOUT).
 export function isLockWaitTimeout(error: unknown): boolean {
-  if (error instanceof Prisma.PrismaClientKnownRequestError) return error.code === "P2010" && String(error.meta?.code) === "1205";
+  if (error instanceof Prisma.PrismaClientKnownRequestError)
+    return error.code === "P2010" && String(error.meta?.code) === "1205";
   return error instanceof Error && "errno" in error && (error as { errno: unknown }).errno === 1205;
+}
+
+// ActiveRecord::Deadlocked (ER_LOCK_DEADLOCK); Prisma reports a deadlock inside an interactive transaction as P2034.
+export function isDeadlocked(error: unknown): boolean {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    return error.code === "P2034" || (error.code === "P2010" && String(error.meta?.code) === "1213");
+  }
+  return error instanceof Error && "errno" in error && (error as { errno: unknown }).errno === 1213;
 }
 
 export function isRecordNotUnique(error: unknown): boolean {

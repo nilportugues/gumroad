@@ -137,6 +137,7 @@ import type { JobHandler } from "./types.ts";
 import { updateCachedSalesRelatedProductsInfosJob } from "./update-cached-sales-related-products-infos-job.ts";
 import { updateCurrenciesWorker } from "./update-currencies-worker.ts";
 import { updatePurchasingPowerParityFactorsWorker } from "./update-purchasing-power-parity-factors-worker.ts";
+import { updateSalesRelatedProductsInfosJob } from "./update-sales-related-products-infos-job.ts";
 import { updateSellerRefundEligibilityJob } from "./update-seller-refund-eligibility-job.ts";
 import { updateUtmLinkStatsJob } from "./update-utm-link-stats-job.ts";
 import { warmSellerReputationSummaryJob } from "./warm-seller-reputation-summary-job.ts";
@@ -257,6 +258,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   BackfillPriceCheckerIndexFieldsJob: backfillPriceCheckerIndexFieldsJob,
   DeleteUnusedPublicFilesJob: deleteUnusedPublicFilesJob,
   RegenerateSalesRelatedProductsInfosJob: regenerateSalesRelatedProductsInfosJob,
+  UpdateSalesRelatedProductsInfosJob: updateSalesRelatedProductsInfosJob,
   DeleteProductRichContentWorker: deleteProductRichContentWorker,
   RemoveSuspendedAccountFollowsWorker: removeSuspendedAccountFollowsWorker,
   RefundPurchaseWorker: refundPurchaseWorker,

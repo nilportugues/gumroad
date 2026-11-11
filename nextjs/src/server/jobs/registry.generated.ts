@@ -3666,7 +3666,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "UpdateSellerRefundEligibilityJob": {
     "file": "app/sidekiq/update_seller_refund_eligibility_job.rb",
