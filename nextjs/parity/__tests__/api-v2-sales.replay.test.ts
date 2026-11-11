@@ -5,7 +5,7 @@ import path from "node:path";
 import { Client as ElasticsearchClient } from "@elastic/elasticsearch";
 import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { closeAllRedis } from "@/server/infra/redis";
 
@@ -27,6 +27,11 @@ const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const SPEC = "sales_parity_spec";
 const FIXTURES = path.join("parity/fixtures/requests/api/v2", SPEC);
 const PARITY_NOW = Date.UTC(2026, 10, 2, 15, 0, 0);
+// The server's clock is the real clock plus a fixed offset. The worker's fake Date is re-anchored to that same formula before every
+// example: `shouldAdvanceTime` ticks 20ms per timer fire however late the fire is, so on a loaded host it falls behind the server.
+// performance is not faked, so it reads the real clock.
+const realNow = () => performance.timeOrigin + performance.now();
+let clockOffset = 0;
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "-parity";
@@ -126,10 +131,11 @@ describe.skipIf(!url)("API v2 sales parity", () => {
     });
     await new Promise<void>((resolve) => rails.listen(0, "127.0.0.1", resolve));
     const railsPort = (rails.address() as { port: number }).port;
+    clockOffset = PARITY_NOW - realNow();
     server = await startNextServer({
       RAILS_ENV: "test",
       NODE_OPTIONS: `--require ${path.resolve(import.meta.dirname, "..", "src", "fixed-clock-preload.cjs")}`,
-      PARITY_CLOCK_OFFSET_MS: String(PARITY_NOW - Date.now()),
+      PARITY_CLOCK_OFFSET_MS: String(clockOffset),
       OBFUSCATE_IDS_CIPHER_KEY: /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1] ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
       NEXTJS_ROUTE_FLAGS: "nextjs_api_v2_sales",
@@ -149,8 +155,12 @@ describe.skipIf(!url)("API v2 sales parity", () => {
       ...(testEnv("AWS_SECRET_ACCESS_KEY") ? { AWS_SECRET_ACCESS_KEY: testEnv("AWS_SECRET_ACCESS_KEY")! } : {}),
     });
     // Only Date moves, and it keeps running from the frozen instant.
-    vi.useFakeTimers({ now: PARITY_NOW, toFake: ["Date"], shouldAdvanceTime: true });
+    vi.useFakeTimers({ now: realNow() + clockOffset, toFake: ["Date"], shouldAdvanceTime: true });
   }, FIRST_COMPILE_TIMEOUT_MS);
+
+  beforeEach(() => {
+    vi.setSystemTime(realNow() + clockOffset);
+  });
 
   afterAll(async () => {
     vi.useRealTimers();

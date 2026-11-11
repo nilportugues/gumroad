@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { closeAllRedis } from "@/server/infra/redis";
 
@@ -26,6 +26,11 @@ const SPECS = ["products_remaining_call_availabilities_spec", "affiliate_statist
 const ROUTE_FLAGS = "nextjs_remaining_call_availabilities,nextjs_affiliate_statistics,nextjs_product_reviews";
 // The instant the spec froze its clock at.
 const PARITY_NOW = Date.parse("2026-03-07T20:00:00Z");
+// The server's clock is the real clock plus a fixed offset. The worker's fake Date is re-anchored to that same formula before every
+// example: `shouldAdvanceTime` ticks 20ms per timer fire however late the fire is, so on a loaded host it falls behind the server.
+// performance is not faked, so it reads the real clock.
+const realNow = () => performance.timeOrigin + performance.now();
+let clockOffset = 0;
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
@@ -147,11 +152,11 @@ describe.skipIf(!url)("WS-12d parity", () => {
     await new Promise<void>((resolve) => rails.listen(0, "127.0.0.1", resolve));
     const railsPort = (rails.address() as { port: number }).port;
     const secureIdKey = testEnv("SECURE_EXTERNAL_ID__KEYS__1");
-    const offset = PARITY_NOW - Date.now();
+    clockOffset = PARITY_NOW - realNow();
     server = await startNextServer({
       RAILS_ENV: "test",
       NODE_OPTIONS: `--require ${path.resolve(import.meta.dirname, "..", "src", "fixed-clock-preload.cjs")}`,
-      PARITY_CLOCK_OFFSET_MS: String(offset),
+      PARITY_CLOCK_OFFSET_MS: String(clockOffset),
       OBFUSCATE_IDS_CIPHER_KEY: /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/m.exec(envTest)?.[1] ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
       ...(secureIdKey
@@ -174,8 +179,12 @@ describe.skipIf(!url)("WS-12d parity", () => {
       ...(testEnv("AWS_ACCESS_KEY_ID") ? { AWS_ACCESS_KEY_ID: testEnv("AWS_ACCESS_KEY_ID")! } : {}),
       ...(testEnv("AWS_SECRET_ACCESS_KEY") ? { AWS_SECRET_ACCESS_KEY: testEnv("AWS_SECRET_ACCESS_KEY")! } : {}),
     });
-    vi.useFakeTimers({ now: PARITY_NOW, toFake: ["Date"], shouldAdvanceTime: true });
+    vi.useFakeTimers({ now: realNow() + clockOffset, toFake: ["Date"], shouldAdvanceTime: true });
   }, FIRST_COMPILE_TIMEOUT_MS);
+
+  beforeEach(() => {
+    vi.setSystemTime(realNow() + clockOffset);
+  });
 
   afterAll(async () => {
     vi.useRealTimers();
