@@ -131,4 +131,5 @@ export const PORTED_JOBS: readonly string[] = [
   "SendPaymentReminderWorker",
   "Radar::SyncValueListsJob",
   "AlertOnRetiredManagedAccountActivityJob",
+  "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
 ];

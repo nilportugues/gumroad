@@ -148,7 +148,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "AlertSellersOfUndeliveredReceiptsJob": {
     "file": "app/sidekiq/alert_sellers_of_undelivered_receipts_job.rb",

@@ -1,0 +1,2758 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "no feature is set",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "redis_before": {},
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "no feature is set and a throttle from an earlier alert",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "redis_before": {
+        "buyer_currency_wallet_presentment_zero:alerted_at": {
+          "type": "string",
+          "value": "1",
+          "expires": true
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "only the payment element feature is on",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "only the wallets feature is on",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets"
+          ],
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "a feature enabled then disabled",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "both features on and no purchase ever",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' AND (purchases.created_at >= '2026-11-03 12:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `purchases`.`created_at` FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' ORDER BY `purchases`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "created_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "buyer_currency_wallet_presentment_zero:alerted_at": {
+          "type": "string",
+          "value": "1793795445",
+          "expires": true
+        },
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "queue:default": {
+          "type": "list",
+          "value": [
+            "{\"retry\":9,\"queue\":\"default\",\"backtrace\":true,\"args\":[\"agent_reports\",\"Buyer-currency wallet purchases at zero\",\"No buyer-currency wallet purchase with a non-USD presentment row has ever been recorded while the buyer-currency wallet lane is fully enabled.\\n\\nExpected baseline before the Aug 16 regression was about 370–420 wallet purchases with presentment rows per day. Check antiwork/gumroad-private#2326 and the payment_element_wallets plus buyer_currency_wallets flags before closing the incident.\"],\"class\":\"InternalNotificationWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "default"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "both features at 100 percent of actors",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' AND (purchases.created_at >= '2026-11-03 12:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `purchases`.`created_at` FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' ORDER BY `purchases`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "created_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "buyer_currency_wallet_presentment_zero:alerted_at": {
+          "type": "string",
+          "value": "1793795445",
+          "expires": true
+        },
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "percentage_of_actors": "100"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "percentage_of_actors": "100"
+          },
+          "expires": false
+        },
+        "queue:default": {
+          "type": "list",
+          "value": [
+            "{\"retry\":9,\"queue\":\"default\",\"backtrace\":true,\"args\":[\"agent_reports\",\"Buyer-currency wallet purchases at zero\",\"No buyer-currency wallet purchase with a non-USD presentment row has ever been recorded while the buyer-currency wallet lane is fully enabled.\\n\\nExpected baseline before the Aug 16 regression was about 370–420 wallet purchases with presentment rows per day. Check antiwork/gumroad-private#2326 and the payment_element_wallets plus buyer_currency_wallets flags before closing the incident.\"],\"class\":\"InternalNotificationWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "default"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "percentage_of_actors": "100"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "percentage_of_actors": "100"
+          },
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "one feature on and the other at 100 percent of actors",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' AND (purchases.created_at >= '2026-11-03 12:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `purchases`.`created_at` FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' ORDER BY `purchases`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "created_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "buyer_currency_wallet_presentment_zero:alerted_at": {
+          "type": "string",
+          "value": "1793795445",
+          "expires": true
+        },
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "percentage_of_actors": "100"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "queue:default": {
+          "type": "list",
+          "value": [
+            "{\"retry\":9,\"queue\":\"default\",\"backtrace\":true,\"args\":[\"agent_reports\",\"Buyer-currency wallet purchases at zero\",\"No buyer-currency wallet purchase with a non-USD presentment row has ever been recorded while the buyer-currency wallet lane is fully enabled.\\n\\nExpected baseline before the Aug 16 regression was about 370–420 wallet purchases with presentment rows per day. Check antiwork/gumroad-private#2326 and the payment_element_wallets plus buyer_currency_wallets flags before closing the incident.\"],\"class\":\"InternalNotificationWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "default"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "percentage_of_actors": "100"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "one feature at 99 percent of actors",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "percentage_of_actors": "99"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "percentage_of_actors": "99"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "a feature at 50 percent of actors",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "percentage_of_actors": "50"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "percentage_of_actors": "50"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "both features at 100 percent of time",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' AND (purchases.created_at >= '2026-11-03 12:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `purchases`.`created_at` FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' ORDER BY `purchases`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "created_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "buyer_currency_wallet_presentment_zero:alerted_at": {
+          "type": "string",
+          "value": "1793795445",
+          "expires": true
+        },
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "percentage_of_time": "100"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "percentage_of_time": "100"
+          },
+          "expires": false
+        },
+        "queue:default": {
+          "type": "list",
+          "value": [
+            "{\"retry\":9,\"queue\":\"default\",\"backtrace\":true,\"args\":[\"agent_reports\",\"Buyer-currency wallet purchases at zero\",\"No buyer-currency wallet purchase with a non-USD presentment row has ever been recorded while the buyer-currency wallet lane is fully enabled.\\n\\nExpected baseline before the Aug 16 regression was about 370–420 wallet purchases with presentment rows per day. Check antiwork/gumroad-private#2326 and the payment_element_wallets plus buyer_currency_wallets flags before closing the incident.\"],\"class\":\"InternalNotificationWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "default"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "percentage_of_time": "100"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "percentage_of_time": "100"
+          },
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "a feature at 0 percent of time",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "percentage_of_time": "0"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "percentage_of_time": "0"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "a feature at 99.9 percent of actors reads as 99",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "percentage_of_actors": "99.9"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "percentage_of_actors": "99.9"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "a feature with an actor gate and a 100 percent actors gate",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' AND (purchases.created_at >= '2026-11-03 12:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `purchases`.`created_at` FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' ORDER BY `purchases`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "created_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "buyer_currency_wallet_presentment_zero:alerted_at": {
+          "type": "string",
+          "value": "1793795445",
+          "expires": true
+        },
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "percentage_of_actors": "100",
+            "actors/User;5": "1"
+          },
+          "expires": false
+        },
+        "queue:default": {
+          "type": "list",
+          "value": [
+            "{\"retry\":9,\"queue\":\"default\",\"backtrace\":true,\"args\":[\"agent_reports\",\"Buyer-currency wallet purchases at zero\",\"No buyer-currency wallet purchase with a non-USD presentment row has ever been recorded while the buyer-currency wallet lane is fully enabled.\\n\\nExpected baseline before the Aug 16 regression was about 370–420 wallet purchases with presentment rows per day. Check antiwork/gumroad-private#2326 and the payment_element_wallets plus buyer_currency_wallets flags before closing the incident.\"],\"class\":\"InternalNotificationWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "default"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "percentage_of_actors": "100",
+            "actors/User;5": "1"
+          },
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "both features on and a counted purchase an hour ago",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' AND (purchases.created_at >= '2026-11-03 12:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "a recent purchase resets an earlier throttle",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' AND (purchases.created_at >= '2026-11-03 12:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "buyer_currency_wallet_presentment_zero:alerted_at": {
+          "type": "string",
+          "value": "5",
+          "expires": true
+        },
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "a counted purchase just inside the window",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' AND (purchases.created_at >= '2026-11-03 12:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "a counted purchase exactly 24 hours ago",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' AND (purchases.created_at >= '2026-11-03 12:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `purchases`.`created_at` FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' ORDER BY `purchases`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "created_at"
+            ],
+            "rows": [
+              [
+                {
+                  "$time": "2026-11-03T12:30:45.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "buyer_currency_wallet_presentment_zero:alerted_at": {
+          "type": "string",
+          "value": "1793795445",
+          "expires": true
+        },
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "queue:default": {
+          "type": "list",
+          "value": [
+            "{\"retry\":9,\"queue\":\"default\",\"backtrace\":true,\"args\":[\"agent_reports\",\"Buyer-currency wallet purchases at zero\",\"No buyer-currency wallet purchase with a non-USD presentment row has been recorded in 24 hours while the buyer-currency wallet lane is fully enabled. The last one was at 2026-11-03 12:30 UTC.\\n\\nExpected baseline before the Aug 16 regression was about 370–420 wallet purchases with presentment rows per day. Check antiwork/gumroad-private#2326 and the payment_element_wallets plus buyer_currency_wallets flags before closing the incident.\"],\"class\":\"InternalNotificationWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "default"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "a counted purchase 25 hours ago",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' AND (purchases.created_at >= '2026-11-03 12:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `purchases`.`created_at` FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' ORDER BY `purchases`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "created_at"
+            ],
+            "rows": [
+              [
+                {
+                  "$time": "2026-11-03T11:30:45.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "buyer_currency_wallet_presentment_zero:alerted_at": {
+          "type": "string",
+          "value": "1793795445",
+          "expires": true
+        },
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "queue:default": {
+          "type": "list",
+          "value": [
+            "{\"retry\":9,\"queue\":\"default\",\"backtrace\":true,\"args\":[\"agent_reports\",\"Buyer-currency wallet purchases at zero\",\"No buyer-currency wallet purchase with a non-USD presentment row has been recorded in 25 hours while the buyer-currency wallet lane is fully enabled. The last one was at 2026-11-03 11:30 UTC.\\n\\nExpected baseline before the Aug 16 regression was about 370–420 wallet purchases with presentment rows per day. Check antiwork/gumroad-private#2326 and the payment_element_wallets plus buyer_currency_wallets flags before closing the incident.\"],\"class\":\"InternalNotificationWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "default"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "a counted purchase 25 hours ago with a live throttle",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' AND (purchases.created_at >= '2026-11-03 12:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "buyer_currency_wallet_presentment_zero:alerted_at": {
+          "type": "string",
+          "value": "7",
+          "expires": true
+        },
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "buyer_currency_wallet_presentment_zero:alerted_at": {
+          "type": "string",
+          "value": "7",
+          "expires": true
+        },
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "a counted purchase 25 hours ago with a throttle that never expires",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' AND (purchases.created_at >= '2026-11-03 12:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "buyer_currency_wallet_presentment_zero:alerted_at": {
+          "type": "string",
+          "value": "7",
+          "expires": false
+        },
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "buyer_currency_wallet_presentment_zero:alerted_at": {
+          "type": "string",
+          "value": "7",
+          "expires": false
+        },
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "a counted purchase 48 hours and 59 minutes ago",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' AND (purchases.created_at >= '2026-11-03 12:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `purchases`.`created_at` FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' ORDER BY `purchases`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "created_at"
+            ],
+            "rows": [
+              [
+                {
+                  "$time": "2026-11-02T11:31:45.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "buyer_currency_wallet_presentment_zero:alerted_at": {
+          "type": "string",
+          "value": "1793795445",
+          "expires": true
+        },
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "queue:default": {
+          "type": "list",
+          "value": [
+            "{\"retry\":9,\"queue\":\"default\",\"backtrace\":true,\"args\":[\"agent_reports\",\"Buyer-currency wallet purchases at zero\",\"No buyer-currency wallet purchase with a non-USD presentment row has been recorded in 48 hours while the buyer-currency wallet lane is fully enabled. The last one was at 2026-11-02 11:31 UTC.\\n\\nExpected baseline before the Aug 16 regression was about 370–420 wallet purchases with presentment rows per day. Check antiwork/gumroad-private#2326 and the payment_element_wallets plus buyer_currency_wallets flags before closing the incident.\"],\"class\":\"InternalNotificationWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "default"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "a google pay purchase 30 hours ago",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' AND (purchases.created_at >= '2026-11-03 12:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `purchases`.`created_at` FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' ORDER BY `purchases`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "created_at"
+            ],
+            "rows": [
+              [
+                {
+                  "$time": "2026-11-03T06:30:45.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "buyer_currency_wallet_presentment_zero:alerted_at": {
+          "type": "string",
+          "value": "1793795445",
+          "expires": true
+        },
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "queue:default": {
+          "type": "list",
+          "value": [
+            "{\"retry\":9,\"queue\":\"default\",\"backtrace\":true,\"args\":[\"agent_reports\",\"Buyer-currency wallet purchases at zero\",\"No buyer-currency wallet purchase with a non-USD presentment row has been recorded in 30 hours while the buyer-currency wallet lane is fully enabled. The last one was at 2026-11-03 06:30 UTC.\\n\\nExpected baseline before the Aug 16 regression was about 370–420 wallet purchases with presentment rows per day. Check antiwork/gumroad-private#2326 and the payment_element_wallets plus buyer_currency_wallets flags before closing the incident.\"],\"class\":\"InternalNotificationWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "default"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "a non wallet purchase an hour ago does not count",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' AND (purchases.created_at >= '2026-11-03 12:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `purchases`.`created_at` FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' ORDER BY `purchases`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "created_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "buyer_currency_wallet_presentment_zero:alerted_at": {
+          "type": "string",
+          "value": "1793795445",
+          "expires": true
+        },
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "queue:default": {
+          "type": "list",
+          "value": [
+            "{\"retry\":9,\"queue\":\"default\",\"backtrace\":true,\"args\":[\"agent_reports\",\"Buyer-currency wallet purchases at zero\",\"No buyer-currency wallet purchase with a non-USD presentment row has ever been recorded while the buyer-currency wallet lane is fully enabled.\\n\\nExpected baseline before the Aug 16 regression was about 370–420 wallet purchases with presentment rows per day. Check antiwork/gumroad-private#2326 and the payment_element_wallets plus buyer_currency_wallets flags before closing the incident.\"],\"class\":\"InternalNotificationWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "default"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "a usd presentment an hour ago does not count",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' AND (purchases.created_at >= '2026-11-03 12:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `purchases`.`created_at` FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' ORDER BY `purchases`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "created_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "buyer_currency_wallet_presentment_zero:alerted_at": {
+          "type": "string",
+          "value": "1793795445",
+          "expires": true
+        },
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "queue:default": {
+          "type": "list",
+          "value": [
+            "{\"retry\":9,\"queue\":\"default\",\"backtrace\":true,\"args\":[\"agent_reports\",\"Buyer-currency wallet purchases at zero\",\"No buyer-currency wallet purchase with a non-USD presentment row has ever been recorded while the buyer-currency wallet lane is fully enabled.\\n\\nExpected baseline before the Aug 16 regression was about 370–420 wallet purchases with presentment rows per day. Check antiwork/gumroad-private#2326 and the payment_element_wallets plus buyer_currency_wallets flags before closing the incident.\"],\"class\":\"InternalNotificationWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "default"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "an uppercase usd presentment an hour ago",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' AND (purchases.created_at >= '2026-11-03 12:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `purchases`.`created_at` FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' ORDER BY `purchases`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "created_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "buyer_currency_wallet_presentment_zero:alerted_at": {
+          "type": "string",
+          "value": "1793795445",
+          "expires": true
+        },
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "queue:default": {
+          "type": "list",
+          "value": [
+            "{\"retry\":9,\"queue\":\"default\",\"backtrace\":true,\"args\":[\"agent_reports\",\"Buyer-currency wallet purchases at zero\",\"No buyer-currency wallet purchase with a non-USD presentment row has ever been recorded while the buyer-currency wallet lane is fully enabled.\\n\\nExpected baseline before the Aug 16 regression was about 370–420 wallet purchases with presentment rows per day. Check antiwork/gumroad-private#2326 and the payment_element_wallets plus buyer_currency_wallets flags before closing the incident.\"],\"class\":\"InternalNotificationWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "default"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "a failed purchase an hour ago does not count",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' AND (purchases.created_at >= '2026-11-03 12:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `purchases`.`created_at` FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' ORDER BY `purchases`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "created_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "buyer_currency_wallet_presentment_zero:alerted_at": {
+          "type": "string",
+          "value": "1793795445",
+          "expires": true
+        },
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "queue:default": {
+          "type": "list",
+          "value": [
+            "{\"retry\":9,\"queue\":\"default\",\"backtrace\":true,\"args\":[\"agent_reports\",\"Buyer-currency wallet purchases at zero\",\"No buyer-currency wallet purchase with a non-USD presentment row has ever been recorded while the buyer-currency wallet lane is fully enabled.\\n\\nExpected baseline before the Aug 16 regression was about 370–420 wallet purchases with presentment rows per day. Check antiwork/gumroad-private#2326 and the payment_element_wallets plus buyer_currency_wallets flags before closing the incident.\"],\"class\":\"InternalNotificationWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "default"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "a purchase with a presentment and no wallet type",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' AND (purchases.created_at >= '2026-11-03 12:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `purchases`.`created_at` FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' ORDER BY `purchases`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "created_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "buyer_currency_wallet_presentment_zero:alerted_at": {
+          "type": "string",
+          "value": "1793795445",
+          "expires": true
+        },
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "queue:default": {
+          "type": "list",
+          "value": [
+            "{\"retry\":9,\"queue\":\"default\",\"backtrace\":true,\"args\":[\"agent_reports\",\"Buyer-currency wallet purchases at zero\",\"No buyer-currency wallet purchase with a non-USD presentment row has ever been recorded while the buyer-currency wallet lane is fully enabled.\\n\\nExpected baseline before the Aug 16 regression was about 370–420 wallet purchases with presentment rows per day. Check antiwork/gumroad-private#2326 and the payment_element_wallets plus buyer_currency_wallets flags before closing the incident.\"],\"class\":\"InternalNotificationWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "default"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "a purchase with a wallet type and no presentment",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' AND (purchases.created_at >= '2026-11-03 12:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `purchases`.`created_at` FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' ORDER BY `purchases`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "created_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "buyer_currency_wallet_presentment_zero:alerted_at": {
+          "type": "string",
+          "value": "1793795445",
+          "expires": true
+        },
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "queue:default": {
+          "type": "list",
+          "value": [
+            "{\"retry\":9,\"queue\":\"default\",\"backtrace\":true,\"args\":[\"agent_reports\",\"Buyer-currency wallet purchases at zero\",\"No buyer-currency wallet purchase with a non-USD presentment row has ever been recorded while the buyer-currency wallet lane is fully enabled.\\n\\nExpected baseline before the Aug 16 regression was about 370–420 wallet purchases with presentment rows per day. Check antiwork/gumroad-private#2326 and the payment_element_wallets plus buyer_currency_wallets flags before closing the incident.\"],\"class\":\"InternalNotificationWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "default"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "the newest id decides the last purchase time",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' AND (purchases.created_at >= '2026-11-03 12:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `purchases`.`created_at` FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' ORDER BY `purchases`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "created_at"
+            ],
+            "rows": [
+              [
+                {
+                  "$time": "2026-11-02T10:30:45.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "buyer_currency_wallet_presentment_zero:alerted_at": {
+          "type": "string",
+          "value": "1793795445",
+          "expires": true
+        },
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "queue:default": {
+          "type": "list",
+          "value": [
+            "{\"retry\":9,\"queue\":\"default\",\"backtrace\":true,\"args\":[\"agent_reports\",\"Buyer-currency wallet purchases at zero\",\"No buyer-currency wallet purchase with a non-USD presentment row has been recorded in 50 hours while the buyer-currency wallet lane is fully enabled. The last one was at 2026-11-02 10:30 UTC.\\n\\nExpected baseline before the Aug 16 regression was about 370–420 wallet purchases with presentment rows per day. Check antiwork/gumroad-private#2326 and the payment_element_wallets plus buyer_currency_wallets flags before closing the incident.\"],\"class\":\"InternalNotificationWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "default"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "an older purchase with a newer id",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' AND (purchases.created_at >= '2026-11-03 12:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `purchases`.`created_at` FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' ORDER BY `purchases`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "created_at"
+            ],
+            "rows": [
+              [
+                {
+                  "$time": "2026-11-02T00:30:45.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "buyer_currency_wallet_presentment_zero:alerted_at": {
+          "type": "string",
+          "value": "1793795445",
+          "expires": true
+        },
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "queue:default": {
+          "type": "list",
+          "value": [
+            "{\"retry\":9,\"queue\":\"default\",\"backtrace\":true,\"args\":[\"agent_reports\",\"Buyer-currency wallet purchases at zero\",\"No buyer-currency wallet purchase with a non-USD presentment row has been recorded in 60 hours while the buyer-currency wallet lane is fully enabled. The last one was at 2026-11-02 00:30 UTC.\\n\\nExpected baseline before the Aug 16 regression was about 370–420 wallet purchases with presentment rows per day. Check antiwork/gumroad-private#2326 and the payment_element_wallets plus buyer_currency_wallets flags before closing the incident.\"],\"class\":\"InternalNotificationWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "default"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "a recent purchase among old ones",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' AND (purchases.created_at >= '2026-11-03 12:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "a purchase created in the future",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' AND (purchases.created_at >= '2026-11-03 12:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "the push fails after the throttle is claimed",
+      "error": {
+        "class": "RuntimeError",
+        "message": "push failed"
+      },
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' AND (purchases.created_at >= '2026-11-03 12:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `purchases`.`created_at` FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' ORDER BY `purchases`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "created_at"
+            ],
+            "rows": [
+              [
+                {
+                  "$time": "2026-11-03T06:30:45.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "the push fails with no purchase ever",
+      "error": {
+        "class": "RuntimeError",
+        "message": "push failed"
+      },
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' AND (purchases.created_at >= '2026-11-03 12:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `purchases`.`created_at` FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' ORDER BY `purchases`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "created_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    },
+    {
+      "name": "the push fails while the throttle is already held",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `purchases` INNER JOIN `purchase_presentments` ON `purchase_presentments`.`purchase_id` = `purchases`.`id` INNER JOIN `purchase_wallet_types` ON `purchase_wallet_types`.`purchase_id` = `purchases`.`id` WHERE `purchases`.`purchase_state` = 'successful' AND `purchase_wallet_types`.`wallet_type` IN ('apple_pay', 'google_pay') AND `purchase_presentments`.`presentment_currency` != 'usd' AND (purchases.created_at >= '2026-11-03 12:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "buyer_currency_wallet_presentment_zero:alerted_at": {
+          "type": "string",
+          "value": "7",
+          "expires": true
+        },
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "buyer_currency_wallet_presentment_zero:alerted_at": {
+          "type": "string",
+          "value": "7",
+          "expires": true
+        },
+        "buyer_currency_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "buyer_currency_wallets",
+            "payment_element_wallets"
+          ],
+          "expires": false
+        },
+        "payment_element_wallets": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+      "args": []
+    }
+  ]
+}
