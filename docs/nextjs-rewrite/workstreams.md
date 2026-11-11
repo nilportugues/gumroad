@@ -254,6 +254,19 @@ Port the 303 job bodies into the Node worker designed in WS-05, queue by queue s
 A job moves when its enqueuers are already in Node or still enqueue the same wire format (they do, by
 design). `critical` (receipts) moves last.
 
+**Standing fallback stream.** WS-30 runs continuously, not only in phase 3. Whenever a route workstream would conflict with
+one already running (same controller, same `routes.json` block, same lane) or is blocked (money, mail, signed tokens, an
+unported presenter), a free worktree picks up the next Sidekiq job here instead of idling.
+
+- **Order:** `low` first, then `default`; `critical` stays last. Take a job whose enqueuers already live in Node or enqueue the
+  same wire format. `remaining-work.md` lists the classes still `runtime: ruby`; many Node jobs hand individual runs back to
+  Ruby, so look at the hand-backs before counting a job as done.
+- **Parity proof:** record the job's inputs and effects from Rails (DB row diff, jobs pushed, mails, external calls) with
+  `parity: true`, replay them against the Node job, and keep a "hands a ..." example for each run it gives back. A job that
+  sends mail, calls Stripe/PayPal, writes to S3 or moves money keeps handing that part back before any write.
+- **Conflicts:** jobs live in `src/worker/jobs` and the generated `registry.generated.ts`, so they rarely touch the files route
+  ports edit; regenerate the registry and `remaining-work.md` rather than merging them by hand.
+
 ### WS-40 Removal
 
 When `routes.json` covers every route and no job is left in Ruby: switch Prisma Migrate on with a
