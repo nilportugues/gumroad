@@ -111,4 +111,83 @@ describe "Public lookup data", type: :request do
       expect(response.parsed_body).to eq("success" => false)
     end
   end
+
+  # Rack::Attack counts these endpoints per client address (3 requests in 20 seconds, then the backoff tiers) and, for the two that email
+  # a receipt to an address, per recipient (6 in a minute, shared by both). Node counts in the same Redis keys. The earlier requests of a
+  # window are added to the counter directly; ws11-public.replay.test.ts adds the same count in Node's Redis before the last request. The
+  # clock is frozen so the window cannot end mid-example.
+  describe "the Rack::Attack throttle" do
+    let(:client) { "203.0.113.7" }
+    let(:frozen_at) { Time.at(1_800_000_001).utc }
+
+    before do
+      Rack::Attack.cache.store.flushdb
+      travel_to(frozen_at)
+    end
+
+    after do
+      travel_back
+      Rack::Attack.cache.store.flushdb
+    end
+
+    def count_requests(times, name, period, id = client)
+      times.times { Rack::Attack.cache.count("#{name}:#{id}", period) }
+    end
+
+    def lookup(path, params = { email: }, headers = { "CF-Connecting-IP" => client })
+      get path, params:, headers:
+    end
+
+    it "answers the third lookup of an address", parity: true do
+      count_requests(2, "/ip:/charge_data", 20)
+
+      lookup("/charge_data")
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body).to eq("success" => true)
+    end
+
+    it "answers 429 to the fourth charge lookup of an address", parity: true do
+      count_requests(3, "/ip:/charge_data", 20)
+
+      lookup("/charge_data")
+
+      expect(response).to have_http_status(:too_many_requests)
+      expect(response.body).to eq("Retry later\n")
+      expect(response.headers["Retry-After"]).to eq((20 - (frozen_at.to_i % 20)).to_s)
+    end
+
+    it "answers 429 to the fourth paypal lookup of an address", parity: true do
+      count_requests(3, "/ip:/paypal_charge_data", 20)
+
+      lookup("/paypal_charge_data", { invoice_id: purchase.external_id })
+
+      expect(response).to have_http_status(:too_many_requests)
+    end
+
+    it "answers 429 once an email has six lookups across both endpoints", parity: true do
+      count_requests(6, "/params:grouped_receipt:email", 60, email)
+
+      lookup("/license_key_lookup_data")
+
+      expect(response).to have_http_status(:too_many_requests)
+    end
+
+    it "counts an email in any case and with spaces in one budget", parity: true do
+      count_requests(6, "/params:grouped_receipt:email", 60, email)
+
+      lookup("/charge_data", { email: "  BUYER@Example.com " })
+
+      expect(response).to have_http_status(:too_many_requests)
+    end
+
+    it "does not count a blank email", parity: true do
+      count_requests(6, "/params:grouped_receipt:email", 60, email)
+
+      lookup("/charge_data", { email: "" })
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body).to eq("success" => false)
+    end
+  end
 end

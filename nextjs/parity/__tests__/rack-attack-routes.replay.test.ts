@@ -41,7 +41,6 @@ const ROUTE_FLAGS = [
   "nextjs_route_redirects",
   "nextjs_users_profile_routes",
   "nextjs_links_search",
-  "nextjs_public_lookup_data",
   "nextjs_mobile_url_redirect_delivery",
   "nextjs_acme_challenge",
   "nextjs_api_v2_sales",
@@ -123,18 +122,6 @@ const CASES = [
   [
     "/products/search",
     "requests/links_controller_parity_spec/links-controller-guards-the-products-search-answers-an-empty-page-when-no-section-is-named",
-  ],
-  [
-    "/charge_data",
-    "requests/public_data_parity_spec/public-lookup-data-get-charge-data-reports-failure-for-an-address-with-no-purchases",
-  ],
-  [
-    "/license_key_lookup_data",
-    "requests/public_data_parity_spec/public-lookup-data-get-license-key-lookup-data-reports-failure-for-an-address-with-no-purchases",
-  ],
-  [
-    "/paypal_charge_data",
-    "requests/public_data_parity_spec/public-lookup-data-get-paypal-charge-data-reports-failure-for-an-unknown-invoice",
   ],
   [
     "/mobile/url_redirects/download/:token/:product_file_id",

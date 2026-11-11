@@ -35,6 +35,7 @@ const { forwardToRails } = await import("./application-controller.ts");
 
 const AT = 1_800_000_001_000;
 const headers = (ip: string) => new Headers({ "cf-connecting-ip": ip });
+const req = (ip: string, path = "/p") => new Request(`http://example.com${path}`, { headers: headers(ip) });
 
 beforeEach(() => {
   store.clear();
@@ -77,7 +78,7 @@ describe("countThrottles", () => {
   const tiers = throttleByIp("/p", 2, 30, 2);
 
   it("increments Rack::Attack's key of the window with the window's remaining time plus one as expiry", async () => {
-    await countThrottles(headers("203.0.113.7"), tiers);
+    await countThrottles(req("203.0.113.7"), tiers);
 
     const key = `rack::attack:${Math.trunc(1_800_000_001 / 30)}:/ip:/p:203.0.113.7`;
     expect(store.get(key)).toBe(1);
@@ -85,9 +86,9 @@ describe("countThrottles", () => {
   });
 
   it("answers 429 with the remaining window once the limit is passed and leaves the later tiers uncounted", async () => {
-    await countThrottles(headers("203.0.113.7"), tiers);
-    await countThrottles(headers("203.0.113.7"), tiers);
-    const third = await countThrottles(headers("203.0.113.7"), tiers);
+    await countThrottles(req("203.0.113.7"), tiers);
+    await countThrottles(req("203.0.113.7"), tiers);
+    const third = await countThrottles(req("203.0.113.7"), tiers);
 
     expect(third.response?.status).toBe(429);
     expect(third.response?.headers.get("retry-after")).toBe(String(30 - (1_800_000_001 % 30)));
@@ -96,13 +97,13 @@ describe("countThrottles", () => {
   });
 
   it("lowercases the discriminator", async () => {
-    await countThrottles(headers("2001:DB8::1"), tiers);
+    await countThrottles(req("2001:DB8::1"), tiers);
 
     expect([...store.keys()][0]).toContain("2001:db8::1");
   });
 
   it("does not count a loopback client", async () => {
-    const counted = await countThrottles(headers("127.0.0.1"), tiers);
+    const counted = await countThrottles(req("127.0.0.1"), tiers);
 
     expect(counted.response).toBeNull();
     expect(store.size).toBe(0);

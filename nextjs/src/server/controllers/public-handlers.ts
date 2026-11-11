@@ -1,8 +1,8 @@
 // The small public endpoints that are not pages: RobotsController, LlmsController, FaviconsController,
 // IndexnowKeysController, PublicController#crossdomain, GithubStarsController and HomeController#features_md. routes.json marks them with a `handler`; the
 // proxy rewrites them to /gr-public/<handler> (app/gr-public/[action]/route.ts), which lands here.
-// Not here: the ACME challenge and the ported but unrouted charge_data, license_key_lookup_data and paypal_charge_data (public-data.ts).
-// Rack::Attack throttles them in Rails' Redis, and a Node answer would skip that counter; compute_discount counts it (rack-attack.ts).
+// Not here: the ACME challenge. Rack::Attack throttles the lookups (charge_data, license_key_lookup_data, paypal_charge_data) and
+// compute_discount in Rails' Redis; rack-attack.ts counts them there before they answer.
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -39,7 +39,8 @@ import { internalAdminResponse } from "./internal-admin/index.ts";
 import { internalResponse } from "./internal-api.ts";
 import { mobileResponse } from "./mobile-api.ts";
 import { computeDiscount } from "./offer-codes.ts";
-import { throttled, throttleByIp, type Tier } from "./rack-attack.ts";
+import { chargeData, licenseKeyLookupData, paypalChargeData } from "./public-data.ts";
+import { groupedReceiptThrottles, throttled, throttleByIp, type Tier } from "./rack-attack.ts";
 import { assertFlatQuery } from "./rails-params.ts";
 import { queryParam, type RailsRequest, railsRequest } from "./rails-request.ts";
 import { urlRedirectsAction } from "./url-redirects/deliveries.ts";
@@ -292,6 +293,22 @@ const HANDLERS: Record<string, Handler> = {
   analytics_js: { run: (request) => analyticsScript(request) },
   admin_impersonate: { run: (request, url, action) => impersonate(request, url, action) },
   admin_stripe_dashboard: { run: (request, url, action) => redirectToStripeDashboard(request, url, action) },
+  // GROUPED_RECEIPT_LOOKUP_PATHS
+  charge_data: {
+    options: { optOutOfCsp: true },
+    throttles: groupedReceiptThrottles("/charge_data"),
+    run: (request) => chargeData(request),
+  },
+  license_key_lookup_data: {
+    options: { optOutOfCsp: true },
+    throttles: groupedReceiptThrottles("/license_key_lookup_data"),
+    run: (request) => licenseKeyLookupData(request),
+  },
+  paypal_charge_data: {
+    options: { optOutOfCsp: true },
+    throttles: groupedReceiptThrottles("/paypal_charge_data"),
+    run: (request) => paypalChargeData(request),
+  },
   // OfferCodesController#compute_discount
   compute_discount: {
     // throttle_by_ip path: "/offer_codes/compute_discount", requests: 60, period: 30.seconds

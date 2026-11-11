@@ -188,6 +188,19 @@ const RULES: Rule[] = [
   { source: ["\\A/(api/)?v2/media(\\.\\w+)?\\z"], methods: ["POST"], samples: ["/v2/media", "/api/v2/media"] },
 ];
 
+const GROUPED_REASON =
+  "public-handlers.ts counts the route in Rack::Attack's own Redis keys (controllers/rack-attack.ts groupedReceiptThrottles: `/ip:<path>`, 3 in 20 seconds, and the shared per-recipient email budget) before it answers, uncounts a request it hands back, and answers 429 past the limit";
+const groupedCheck = (route: string) => () => {
+  expect(rackAttack).toContain("%w[/charge_data /license_key_lookup_data /paypal_charge_data]");
+  expect(rackAttack).toMatch(
+    /throttle_with_exponential_backoff\(name: "\/ip:#\{path\}", requests: 3, period: 20\.seconds\)/u,
+  );
+  expect(rackAttack).toMatch(/name: "\/params:grouped_receipt:email", requests: 6, period: 60\.seconds, max_level: 6/u);
+  expect(readFileSync(path.join(nextjsRoot, "src/server/controllers/public-handlers.ts"), "utf8")).toContain(
+    `groupedReceiptThrottles("${route}")`,
+  );
+};
+
 // Throttled, matched by a Node route, and still safe. Every entry must still match something, and say why the counter is not skipped.
 const ALLOWED: { route: string; rule: string; reason: string; check?: () => void }[] = [
   {
@@ -216,6 +229,24 @@ const ALLOWED: { route: string; rule: string; reason: string; check?: () => void
       expect(
         (routeTable["/products/:id"] as unknown as { redirectExcept: { id: string[] } }).redirectExcept.id,
       ).toContain("search"),
+  },
+  {
+    route: "/charge_data",
+    rule: "grouped:/charge_data",
+    reason: GROUPED_REASON,
+    check: groupedCheck("/charge_data"),
+  },
+  {
+    route: "/license_key_lookup_data",
+    rule: "grouped:/license_key_lookup_data",
+    reason: GROUPED_REASON,
+    check: groupedCheck("/license_key_lookup_data"),
+  },
+  {
+    route: "/paypal_charge_data",
+    rule: "grouped:/paypal_charge_data",
+    reason: GROUPED_REASON,
+    check: groupedCheck("/paypal_charge_data"),
   },
   {
     route: "/offer_codes/compute_discount",
@@ -389,7 +420,6 @@ const GROUPS: Record<string, string[]> = {
     "seller:/landing/products",
     "/products/search",
   ],
-  "checkout lookups (grouped receipt)": ["/charge_data", "/license_key_lookup_data", "/paypal_charge_data"],
   "mobile download token": ["/mobile/url_redirects/download/:token/:product_file_id"],
   "ACME challenge": ["seller:/.well-known/acme-challenge/:token", "product:/.well-known/acme-challenge/:token"],
   "API v2 (sales index past page 10, user custom HTML writes and previews)": [

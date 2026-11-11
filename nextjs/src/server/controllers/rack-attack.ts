@@ -4,17 +4,33 @@ import { getRedis } from "../infra/redis.ts";
 import { secureHeaders } from "../infra/secure-headers.ts";
 import { remoteIp } from "../page-props/audience/events.ts";
 
-import { forwarded } from "./application-controller.ts";
+import { forwarded, forwardToRails, HandBackToRails } from "./application-controller.ts";
+import { parseQuery } from "./rails-query.ts";
 
-export type Tier = { name: string; limit: number; period: number };
+// `discriminator` is the throttle block's value: the client address unless a rule keys on something else, and null when the rule does not apply
+// to the request. It may throw HandBackToRails for a shape Rack's parameter parser reads differently.
+export type Tier = {
+  name: string;
+  limit: number;
+  period: number;
+  discriminator?: (incoming: Request, ip: string) => string | null;
+};
 
 // `throttle_with_exponential_backoff`: the base window, then `rpm * level` requests per `8 ** level` seconds for each level up to `maxLevel`.
-export function exponentialBackoff(name: string, requests: number, period: number, maxLevel: number): Tier[] {
+export function exponentialBackoff(
+  name: string,
+  requests: number,
+  period: number,
+  maxLevel: number,
+  discriminator?: Tier["discriminator"],
+): Tier[] {
   const requestsPerMinute = (requests / period) * 60;
-  const tiers: Tier[] = [{ name, limit: requests, period }];
+  const tiers: Tier[] = [{ name, limit: requests, period, discriminator }];
   for (let level = 2; level <= maxLevel; level += 1)
-    tiers.push({ name: `${name}/${level}`, limit: requestsPerMinute * level, period: 8 ** level });
-  return tiers;
+    tiers.push({ name: `${name}/${level}`, limit: requestsPerMinute * level, period: 8 ** level, discriminator });
+  return tiers.map((tier) =>
+    tier.discriminator === undefined ? { name: tier.name, limit: tier.limit, period: tier.period } : tier,
+  );
 }
 
 // `throttle_by_ip path:, requests:, period:` (no `method`): `/ip:<path>`, keyed by Request#remote_ip.
@@ -40,8 +56,8 @@ export type Counted = { response: Response | null; uncount(): Promise<void> };
 
 // Rack::Attack#call for the throttles of one route: each tier is counted in order and the first one past its limit answers 429
 // (`throttled?` is `any?`, so the later tiers are not counted for that request).
-export async function countThrottles(headers: Headers, tiers: Tier[]): Promise<Counted> {
-  const ip = clientIp(headers);
+export async function countThrottles(incoming: Request, tiers: Tier[]): Promise<Counted> {
+  const ip = clientIp(incoming.headers);
   if (localhost(ip)) return { response: null, uncount: async () => undefined };
 
   const redis = getRedis("rackAttack");
@@ -55,8 +71,16 @@ export async function countThrottles(headers: Headers, tiers: Tier[]): Promise<C
         .catch(() => undefined);
   };
   for (const tier of tiers) {
+    let discriminator: string | null;
+    try {
+      discriminator = tier.discriminator === undefined ? ip : tier.discriminator(incoming, ip);
+    } catch (error) {
+      await uncount();
+      throw error;
+    }
+    if (discriminator === null) continue;
     const epoch = Math.trunc(Date.now() / 1000);
-    const key = unprefixedKey(tier, ip, epoch);
+    const key = unprefixedKey(tier, discriminator, epoch);
     // Cache#key_and_expiry: one second past the end of the window.
     const expiresIn = tier.period - (epoch % tier.period) + 1;
     let count = 1;
@@ -73,9 +97,11 @@ export async function countThrottles(headers: Headers, tiers: Tier[]): Promise<C
       return {
         response: new Response("Retry later\n", {
           status: 429,
-          // The middleware answers outside the controller, so only the SecureHeaders middleware's non-CSP headers are on it.
+          // The middleware answers outside the controller: the SecureHeaders non-CSP headers, Rack::Cors' Vary and no cache.
           headers: {
             ...secureHeaders({ optOutOfCsp: true }),
+            "cache-control": "no-cache",
+            vary: "Origin",
             "content-type": "text/plain",
             "retry-after": String(retryAfter),
           },
@@ -89,9 +115,35 @@ export async function countThrottles(headers: Headers, tiers: Tier[]): Promise<C
 
 // Runs `respond` behind the throttles. A response that was handed to Rails (`forwardToRails`) is uncounted.
 export async function throttled(incoming: Request, tiers: Tier[], respond: () => Promise<Response>): Promise<Response> {
-  const counted = await countThrottles(incoming.headers, tiers);
+  let counted: Counted;
+  try {
+    counted = await countThrottles(incoming, tiers);
+  } catch (error) {
+    if (error instanceof HandBackToRails) return forwardToRails(incoming);
+    throw error;
+  }
   if (counted.response !== null) return counted.response;
   const response = await respond();
   if (forwarded(incoming)) await counted.uncount();
   return response;
+}
+
+// GROUPED_RECEIPT_LOOKUP_PATHS: `/ip:<path>` (3 in 20 seconds) for each, and one per-recipient budget shared by the first two (6 in a minute,
+// to level 6), keyed on the stripped, downcased `email` parameter, nothing when it is blank. A parameter that is not a plain string reads
+// differently in Rack than in the port, so the request goes to Rails.
+const GROUPED_RECEIPT_EMAIL_PATHS = new Set(["/charge_data", "/license_key_lookup_data"]);
+const emailParam = (incoming: Request): string | null => {
+  const email = parseQuery(new URL(incoming.url).search.replace(/^\?/u, "")).email;
+  if (email === undefined) return null;
+  if (typeof email !== "string") throw new HandBackToRails("an email parameter that is not a plain string");
+  return email.trim().toLowerCase() === "" ? null : email.trim().toLowerCase();
+};
+
+export function groupedReceiptThrottles(path: string): Tier[] {
+  return [
+    ...exponentialBackoff(`/ip:${path}`, 3, 20, 5),
+    ...(GROUPED_RECEIPT_EMAIL_PATHS.has(path)
+      ? exponentialBackoff("/params:grouped_receipt:email", 6, 60, 6, emailParam)
+      : []),
+  ];
 }
