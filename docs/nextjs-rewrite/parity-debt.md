@@ -10,13 +10,13 @@
 
 | | Count |
 | --- | ---: |
-| Spec files containing `parity: true` | 103 |
-| Examples tagged `parity: true` | 1,945 |
-| Of those, with a fixture | 1,945 |
+| Spec files containing `parity: true` | 104 |
+| Examples tagged `parity: true` | 1,987 |
+| Of those, with a fixture | 1,987 |
 | Of those, without a fixture | 0 |
-| Fixture files (incl. `PARITY_RECORD=all` controller specs) | 2,759 |
-| Replay test files | 51 (59 test files in the parity run) |
-| Replay result | 59 files, 2,758 tests passed, 12 skipped, 0 failed |
+| Fixture files (incl. `PARITY_RECORD=all` controller specs) | 2,801 |
+| Replay test files | 52 (60 test files in the parity run) |
+| Replay result | 60 files, 2,802 tests passed, 12 skipped, 0 failed |
 
 ## Tooling
 

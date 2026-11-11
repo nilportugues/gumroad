@@ -33,6 +33,7 @@ import { STOREFRONT_PAGES } from "./storefront/pages.ts";
 import { PRODUCT_PAGES } from "./product-pages.ts";
 import { PAYOUTS_PAGES } from "./payouts/pages.ts";
 import { CHECKOUT_PAGES } from "./checkout-pages.ts";
+import { CHECKOUT_FORM_PAGES } from "./checkout-form/pages.ts";
 import { AGENT_PAGES } from "./agent/pages.ts";
 import { SELLER_PRODUCTS_PAGES } from "./seller-products/pages.ts";
 import { BUNDLES_PAGES } from "./bundles/pages.ts";
@@ -159,6 +160,7 @@ export const PAGES: Record<string, PageSpec> = {
   ...PRODUCT_PAGES,
   ...PAYOUTS_PAGES,
   ...CHECKOUT_PAGES,
+  ...CHECKOUT_FORM_PAGES,
   ...DISPUTE_EVIDENCE_PAGES,
   ...PIRACY_REPORT_PAGES,
   ...AGENT_PAGES,
