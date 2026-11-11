@@ -35,6 +35,7 @@ import { disputeEvidenceDueSoonReminderJob } from "./dispute-evidence-due-soon-r
 import { elasticsearchIndexerWorker } from "./elasticsearch-indexer-worker.ts";
 import { enqueueMarketingXReconnectEmailJob } from "./enqueue-marketing-x-reconnect-email-job.ts";
 import { expireTranscodedVideosJob } from "./expire-transcoded-videos-job.ts";
+import { expiringCreditCardMessageWorker } from "./expiring-credit-card-message-worker.ts";
 import { flushDeliveredEmailInfosJob } from "./flush-delivered-email-infos-job.ts";
 import { handleSnsAwsConfigEventWorker } from "./handle-sns-aws-config-event-worker.ts";
 import { handleStripeAutodebitForNegativeBalance } from "./handle-stripe-autodebit-job.ts";
@@ -265,6 +266,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   RegenerateSalesRelatedProductsInfosJob: regenerateSalesRelatedProductsInfosJob,
   UpdateSalesRelatedProductsInfosJob: updateSalesRelatedProductsInfosJob,
   UpdateTaxonomyStatsJob: updateTaxonomyStatsJob,
+  ExpiringCreditCardMessageWorker: expiringCreditCardMessageWorker,
   SendWishlistUpdatedEmailsJob: sendWishlistUpdatedEmailsJob,
   SendFeatureAnnouncementCampaignJob: sendFeatureAnnouncementCampaignJob,
   SendPreorderSellerSummaryWorker: sendPreorderSellerSummaryWorker,
