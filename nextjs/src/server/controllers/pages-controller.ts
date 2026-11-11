@@ -3,15 +3,16 @@
 //
 // Ported: the RequireAccountEmail and `set_page` redirects, the policy refusals, the validation errors of #create and #update for a
 // page whose title and content are both blank (moderation returns before it calls the service), #update of the profile entry
-// when it has nothing to write, #destroy of the profile entry, and the 404 of #preview and #products for a profile with no
-// custom HTML or a page that is not the profile.
-// Handed to Rails whole, before any write: a save that passes validation (HTML sanitizing, content moderation, the slug), the
-// removal of a page, any change to the profile entry, and the rendered preview and catalogue slices.
+// when it has nothing to write, #destroy (the row and the touch of the seller; the profile entry has nothing to delete), and the
+// 404 of #preview and #products for a profile with no custom HTML or a page that is not the profile.
+// Handed to Rails whole, before any write: a save that passes validation (HTML sanitizing, content moderation, the slug), any
+// change to the profile entry, and the rendered preview and catalogue slices.
 import { Prisma } from "@prisma/client";
 
 import { isBlank } from "../models/compliance-countries.ts";
-import { column, selectRows, table } from "../models/sql.ts";
-import { rubyStrip } from "../models/user.ts";
+import { transaction } from "../models/runtime/transaction.ts";
+import { column, execute, selectRows, table } from "../models/sql.ts";
+import { rubyStrip, Users } from "../models/user.ts";
 import { sellerGuard } from "../page-props/audience/seller-guard.ts";
 import { domainConfig } from "../page-props/domain.ts";
 import { authorize } from "../policies/authorize.ts";
@@ -24,6 +25,7 @@ import { registerMutations, type MutationInput } from "./mutation.ts";
 import { requireHtml } from "./users-controller.ts";
 
 const FOUND = 302;
+const SEE_OTHER = 303;
 const NOT_FOUND = 404;
 const PAGES_PATH = "/pages";
 const NEW_PAGE_PATH = "/pages/new";
@@ -34,7 +36,7 @@ const MAX_SEO_DESCRIPTION_LENGTH = 320;
 
 type Hash = Record<string, unknown>;
 
-type PageRow = { custom_html: string | null };
+type PageRow = { id: bigint; custom_html: string | null };
 
 const guardInput = (input: MutationInput) => ({
   context: input.context,
@@ -47,7 +49,7 @@ const guardInput = (input: MutationInput) => ({
 // `current_seller.pages.find_by(slug:)`
 async function slugged(sellerId: bigint, slug: string): Promise<PageRow | null> {
   const [row] = await selectRows<PageRow>(
-    Prisma.sql`SELECT ${column("pages", "custom_html")} FROM ${table("pages")} WHERE ${column("pages", "pageable_type")} = 'User' AND ${column("pages", "pageable_id")} = ${sellerId} AND ${column("pages", "slug")} = ${slug} LIMIT 1`,
+    Prisma.sql`SELECT ${column("pages", "id")}, ${column("pages", "custom_html")} FROM ${table("pages")} WHERE ${column("pages", "pageable_type")} = 'User' AND ${column("pages", "pageable_id")} = ${sellerId} AND ${column("pages", "slug")} = ${slug} LIMIT 1`,
   );
   return row ?? null;
 }
@@ -55,7 +57,7 @@ async function slugged(sellerId: bigint, slug: string): Promise<PageRow | null> 
 // `current_seller.custom_html`: the root page of the seller.
 async function profileCustomHtml(sellerId: bigint): Promise<string | null> {
   const [row] = await selectRows<PageRow>(
-    Prisma.sql`SELECT ${column("pages", "custom_html")} FROM ${table("pages")} WHERE ${column("pages", "pageable_type")} = 'User' AND ${column("pages", "pageable_id")} = ${sellerId} AND ${column("pages", "slug")} IS NULL LIMIT 1`,
+    Prisma.sql`SELECT ${column("pages", "id")}, ${column("pages", "custom_html")} FROM ${table("pages")} WHERE ${column("pages", "pageable_type")} = 'User' AND ${column("pages", "pageable_id")} = ${sellerId} AND ${column("pages", "slug")} IS NULL LIMIT 1`,
   );
   return row?.custom_html ?? null;
 }
@@ -171,7 +173,13 @@ async function destroy(input: MutationInput): Promise<ActionResult> {
   const result = await guarded(input, pagePolicy.destroy, input.routeParams.slug ?? "");
   if ("redirect" in result) return result.redirect;
   if (result.found.profile) return { status: FOUND, location: PAGES_PATH };
-  throw new HandBackToRails("the removal of a page, which deletes it and touches the seller");
+  // `@page.destroy!`, then `belongs_to :pageable, touch: true` touches the seller, which writes its paper_trail version.
+  const seller = input.context.currentSeller!;
+  await transaction(async () => {
+    await execute(Prisma.sql`DELETE FROM ${table("pages")} WHERE ${column("pages", "id")} = ${result.found.page!.id}`);
+    await Users.touch(Users.load(seller), { deferred: true });
+  });
+  return { status: SEE_OTHER, location: PAGES_PATH, flash: { notice: "Page deleted!" } };
 }
 
 const headNotFound: ActionResult = { status: NOT_FOUND, body: "", contentType: "text/html", paramsRead: true };
