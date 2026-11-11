@@ -1017,6 +1017,29 @@ export async function connectAccountFeeInfo(seller: User) {
   return (await feeInfo(facts)).connect_account_fee_info;
 }
 
+// Settings::GuardiansController#ensure_guardian_required: a seller paid through a non-Brazilian Connect account never needs a guardian,
+// and without an alive compliance revision there is nothing to require one.
+export async function legalGuardianRequired(seller: User, now = new Date()): Promise<boolean> {
+  const info = await fetchOrBuildComplianceInfo(seller.id);
+  if (!info.persisted) return false;
+  const facts: Facts = {
+    seller,
+    record: Users.load(seller),
+    info,
+    aliveInfo: info.row,
+    now,
+    bankAccount: null,
+    stripeAccounts: await aliveStripeAccountsOf(seller.id),
+  };
+  const connect = stripeConnectAccount(facts);
+  if ((await hasStripeAccountConnected(facts)) && connect && connect.country !== "BR") return false;
+  const code = countryCode(info.row);
+  return (
+    underLegalGuardianAge(info.row, C.guardianRequiredBelowAge, now) &&
+    (C.guardianSupportedCountryCodes as string[]).includes(code ?? "")
+  );
+}
+
 // What the Payouts page reads through the rules above (User#has_stripe_account_connected?,
 // #minimum_payout_threshold_cents, #stripe_account, #payouts_paused_by_source and the chargeback reserve).
 export async function payoutFacts(seller: User, now = new Date()) {
