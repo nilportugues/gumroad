@@ -26,7 +26,7 @@ const UPSELLS = "upsells";
 const queryString = (input: MutationInput) => input.url.search.replace(/^\?/u, "");
 
 // `current_seller.upsells.find_by_external_id!(params[:id])`
-async function findUpsell(input: MutationInput, { alive }: { alive: boolean }, param = "id"): Promise<Upsell> {
+export async function findUpsell(input: MutationInput, { alive }: { alive: boolean }, param = "id"): Promise<Upsell> {
   const id = decrypt(input.routeParams[param] ?? "");
   const [row] =
     id === null
