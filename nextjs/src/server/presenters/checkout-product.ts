@@ -13,6 +13,7 @@ import { sanitize } from "../html/sanitizer.ts";
 import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
 import { getRate, rubyStringToF, isCurrencyTypeSingleUnit } from "../models/concerns/currency-helper.ts";
 import { alpha2ByName, COUNTRIES, isBlockedCountry } from "../models/compliance-countries.ts";
+import { isAdult } from "../models/concerns/adult-keyword-detector.ts";
 import { CONTINENT_SHIPPING_COUNTRIES } from "../infra/continent-shipping-countries.ts";
 import { CustomFieldFlags } from "../models/custom-field.ts";
 import { LinkFlags } from "../models/link.ts";
@@ -51,9 +52,11 @@ import {
   type PriceRow,
   type UserRow,
 } from "./product-reads.ts";
-import { buyerCurrencyDisplayProps, longUrl, subdomainWithProtocol } from "./product.ts";
+import { defaultBuyerCurrencyProps, longUrl, subdomainWithProtocol } from "./product.ts";
 // PaypalMerchantAccountManager::COUNTRY_CODES_NOT_SUPPORTED_BY_PCP
 const PCP_UNSUPPORTED_COUNTRY_CODES = ["DZ", "BR", "CN", "EG", "IN", "IL", "JP", "FM", "MA", "TR"];
+// PaypalMerchantAccountManager::COUNTRY_CODES_WITH_GRANDFATHERED_PCP
+const GRANDFATHERED_PCP_COUNTRY_CODES = ["CN"];
 const NATIVE_TYPE_COFFEE = "coffee";
 const RENTAL_PRICE_FLAG = 1;
 const decryptId = (external: string) => BigInt(decrypt(external)!);
@@ -95,27 +98,46 @@ export async function customFieldDescriptors(row: LinkRow, seller: UserRow) {
   }));
 }
 
-// CheckoutPresenter#supports_paypal for a seller with no merchant account, so `native_paypal_payment_enabled?` is false and
-// `pay_with_paypal_enabled?` depends on the seller alone.
-async function supportsPaypal(seller: UserRow): Promise<"braintree" | null> {
-  if (await isFeatureEnabled("disable_paypal_sales")) return null;
-  if (await isFeatureEnabled("disable_nsfw_paypal_connect_sales"))
-    throw new NotPortedError("CheckoutPresenter#supports_paypal with disable_nsfw_paypal_connect_sales on");
-  if (await isFeatureEnabled("disable_paypal_connect_sales"))
-    throw new NotPortedError("CheckoutPresenter#supports_paypal with disable_paypal_connect_sales on");
-  if (
-    await exists(
-      Prisma.sql`SELECT 1 FROM ${table("merchant_accounts")} WHERE ${column("merchant_accounts", "user_id")} = ${seller.id} LIMIT 1`,
-    )
-  )
-    throw new NotPortedError("CheckoutPresenter#supports_paypal for a seller with a merchant account");
-  // User#pay_with_paypal_enabled?
-  if (sellerFlag(seller, "disable_paypal_sales")) return null;
+// `merchant_accounts.alive.charge_processor_alive.paypal`, which is also what User#merchant_account("paypal") finds
+// (a PayPal account can always accept charges).
+const livePaypalAccount = (seller: UserRow) =>
+  exists(
+    Prisma.sql`SELECT 1 FROM ${table("merchant_accounts")} WHERE ${column("merchant_accounts", "user_id")} = ${seller.id} AND ${column("merchant_accounts", "deleted_at")} IS NULL AND ${column("merchant_accounts", "charge_processor_alive_at")} IS NOT NULL AND ${column("merchant_accounts", "charge_processor_deleted_at")} IS NULL AND ${column("merchant_accounts", "charge_processor_id")} = 'paypal' LIMIT 1`,
+  );
+
+// User#paypal_connect_enabled?
+async function paypalConnectEnabled(seller: UserRow): Promise<boolean> {
   const info = await aliveUserComplianceInfoRow(seller.id);
-  const connectEnabled = info !== null && !PCP_UNSUPPORTED_COUNTRY_CODES.includes(alpha2ByName(info.country) ?? "");
-  // With PayPal Connect on, only a connected merchant account enables PayPal, and this seller has none.
-  if (connectEnabled) return null;
-  return (await isFeatureEnabled("disable_braintree_sales", userActor(seller.id))) ? null : "braintree";
+  if (info === null) return false;
+  const country = alpha2ByName(info.country) ?? "";
+  if (!PCP_UNSUPPORTED_COUNTRY_CODES.includes(country)) return true;
+  return GRANDFATHERED_PCP_COUNTRY_CODES.includes(country) && (await livePaypalAccount(seller));
+}
+
+// User#pay_with_paypal_enabled?
+async function payWithPaypalEnabled(seller: UserRow): Promise<boolean> {
+  if (sellerFlag(seller, "disable_paypal_sales")) return false;
+  if (!(await paypalConnectEnabled(seller)))
+    return !(await isFeatureEnabled("disable_braintree_sales", userActor(seller.id)));
+  return livePaypalAccount(seller);
+}
+
+// Link#rated_as_adult?
+const ratedAsAdult = (row: LinkRow, seller: UserRow) =>
+  flag(row, "is_adult") ||
+  sellerFlag(seller, "all_adult_products") ||
+  [row.name, row.description, seller.name, seller.username, seller.bio as string | null].some((text) => isAdult(text));
+
+// CheckoutPresenter#supports_paypal
+async function supportsPaypal(row: LinkRow, seller: UserRow): Promise<"native" | "braintree" | null> {
+  if (await isFeatureEnabled("disable_paypal_sales")) return null;
+  if ((await isFeatureEnabled("disable_nsfw_paypal_connect_sales")) && ratedAsAdult(row, seller)) return null;
+  if (await isFeatureEnabled("disable_paypal_connect_sales")) {
+    if (flag(row, "is_recurring_billing") || !(await payWithPaypalEnabled(seller))) return null;
+    return "braintree";
+  }
+  if (await livePaypalAccount(seller)) return "native";
+  return (await payWithPaypalEnabled(seller)) ? "braintree" : null;
 }
 
 // Link#has_offer_codes?
@@ -411,7 +433,7 @@ export async function checkoutProduct(row: LinkRow, request: CheckoutRequest = {
   const currency = String(row.price_currency_type);
   const profileUrl = subdomainWithProtocol(seller);
   const price = await listedPriceCents(row);
-  const buyerCurrencyDisplay = await buyerCurrencyDisplayProps(row, seller);
+  const buyerCurrencyDisplay = defaultBuyerCurrencyProps(row);
   const rate = rubyStringToF(await getRate(currency)) / (isCurrencyTypeSingleUnit(currency) ? 100 : 1);
   const tiered = flag(row, "is_tiered_membership");
   const recurring = flag(row, "is_recurring_billing");
@@ -431,7 +453,7 @@ export async function checkoutProduct(row: LinkRow, request: CheckoutRequest = {
     currency_code: currency.toLowerCase(),
     price_cents: price,
     buyer_currency_display: buyerCurrencyDisplay,
-    supports_paypal: await supportsPaypal(seller),
+    supports_paypal: await supportsPaypal(row, seller),
     paypal_card_funding_disabled: sellerFlag(seller, "paypal_card_funding_disabled"),
     link_disabled: sellerFlag(seller, "link_disabled"),
     custom_fields: await customFieldDescriptors(row, seller),

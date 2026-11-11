@@ -593,6 +593,107 @@ describe "Checkout upsells when signed in", type: :request do
         expect(response.parsed_body).to include("price" => 99)
       end
 
+      it "offers native PayPal to a seller with a connected PayPal account", parity: true do
+        create(:user_compliance_info, user: seller, country: "United States")
+        create(:merchant_account_paypal, user: seller)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["supports_paypal"]).to eq("native")
+      end
+
+      it "offers Braintree PayPal to a seller in a country PayPal Connect does not cover", parity: true do
+        Feature.deactivate(:disable_braintree_sales)
+        create(:user_compliance_info, user: seller, country: "India")
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["supports_paypal"]).to eq("braintree")
+      end
+
+      it "offers no PayPal to a connect-enabled seller without a connected account", parity: true do
+        create(:user_compliance_info, user: seller, country: "United States")
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["supports_paypal"]).to be_nil
+      end
+
+      it "ignores a PayPal account whose charge processor was deleted", parity: true do
+        Feature.deactivate(:disable_braintree_sales)
+        create(:user_compliance_info, user: seller, country: "India")
+        create(:merchant_account_paypal, user: seller, charge_processor_deleted_at: Time.utc(2025, 1, 2))
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["supports_paypal"]).to eq("braintree")
+      end
+
+      it "still offers native PayPal when PayPal sales are disabled for the seller", parity: true do
+        create(:merchant_account_paypal, user: seller)
+        seller.update!(disable_paypal_sales: true)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["supports_paypal"]).to eq("native")
+      end
+
+      it "offers no PayPal while PayPal sales are disabled everywhere", parity: true do
+        Feature.activate(:disable_paypal_sales)
+        create(:merchant_account_paypal, user: seller)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["supports_paypal"]).to be_nil
+      end
+
+      it "offers no PayPal to an adult product while adult PayPal Connect sales are disabled", parity: true do
+        Feature.activate(:disable_nsfw_paypal_connect_sales)
+        create(:merchant_account_paypal, user: seller)
+        product.update!(is_adult: true)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["supports_paypal"]).to be_nil
+      end
+
+      it "offers no PayPal to a seller whose bio has adult keywords while adult PayPal Connect sales are disabled", parity: true do
+        Feature.activate(:disable_nsfw_paypal_connect_sales)
+        seller.update!(bio: "An nsfw store")
+        create(:merchant_account_paypal, user: seller)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["supports_paypal"]).to be_nil
+      end
+
+      it "offers Braintree PayPal when PayPal Connect sales are disabled and the seller has a connected account", parity: true do
+        Feature.activate(:disable_paypal_connect_sales)
+        create(:user_compliance_info, user: seller, country: "United States")
+        create(:merchant_account_paypal, user: seller)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["supports_paypal"]).to eq("braintree")
+      end
+
+      it "offers no PayPal on a membership when PayPal Connect sales are disabled", parity: true do
+        Feature.activate(:disable_paypal_connect_sales)
+        membership = create(:membership_product_with_preset_tiered_pricing, user: seller, name: "Club", created_at: Time.utc(2025, 1, 1))
+
+        get cart_item_checkout_upsells_path(product_id: membership.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["supports_paypal"]).to be_nil
+      end
+
+      it "shows the product currency to a seller using buyer local currency", parity: true do
+        Feature.activate_user(:buyer_local_currency, seller)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body["product"]["buyer_currency_display"]).to include("buyer_currency_shown" => "usd", "display_mode" => "default", "rate" => nil)
+      end
+
       it "answers a rent-only product at its rental price", parity: true do
         product.update!(purchase_type: :rent_only, rental_price_cents: 300)
 
