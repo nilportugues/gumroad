@@ -37,7 +37,7 @@ export async function applicable(code: OfferCodeRecord, product: LinkRow): Promi
 }
 
 // Link#find_offer_code(code:)
-async function findOfferCode(product: LinkRow, code: string): Promise<OfferCodeRecord | null> {
+export async function findOfferCode(product: LinkRow, code: string): Promise<OfferCodeRecord | null> {
   const [own] = await selectRows<Record<string, unknown>>(
     Prisma.sql`SELECT ${star("offer_codes")} FROM ${table("offer_codes")} INNER JOIN ${table("offer_codes_products")} ON ${column("offer_codes", "id")} = ${column("offer_codes_products", "offer_code_id")} WHERE ${column("offer_codes_products", "product_id")} = ${product.id} AND ${column("offer_codes", "deleted_at")} IS NULL AND ${column("offer_codes", "code")} = ${code} ORDER BY ${column("offer_codes", "id")} ASC LIMIT 1`,
   );

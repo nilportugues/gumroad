@@ -7,10 +7,10 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 | Measure | Done | Total | Share |
 | --- | ---: | ---: | ---: |
-| Routes served natively (counted, static check) | 767 | 978 | 78.4% |
-| Routes registered in routes.json (counted; upper bound, adds the 5 listed under "hands back") | 772 | 978 | 78.9% |
-| Routes weighted by difficulty (counted routes, estimated weights) | 1438 | 1857 | 77.4% |
-| Same, registered in routes.json (upper bound) | 1443 | 1857 | 77.7% |
+| Routes served natively (counted, static check) | 771 | 978 | 78.8% |
+| Routes registered in routes.json (counted; upper bound, adds the 5 listed under "hands back") | 776 | 978 | 79.3% |
+| Routes weighted by difficulty (counted routes, estimated weights) | 1450 | 1857 | 78.1% |
+| Same, registered in routes.json (upper bound) | 1455 | 1857 | 78.4% |
 | Rails Inertia pages with Node props (counted, string match) | 101 | 114 | 88.6% |
 | Sidekiq job classes running in Node (counted) | 114 | 296 | 38.5% |
 
@@ -28,8 +28,8 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 - The route share counts endpoints, and an endpoint is one row whether it is a health check or a purchase. The weighted share corrects that only as far as my weights are right.
 - Neither number measures the code under the routes. A route is counted native as soon as Node serves its common path, while its hard branches (see "Known partial hand-backs") still go to Rails. The shares therefore overstate how much of the work is finished, most for checkout, payouts, and the mobile and MCP APIs.
-- Code volume cross-check (counted, not a completion measure): Node has 111,273 non-test lines under `src/server` and `src/worker`; Rails has 197,057 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
-- 280 distinct rollout flags gate the routes in routes.json; none is enabled in production.
+- Code volume cross-check (counted, not a completion measure): Node has 111,570 non-test lines under `src/server` and `src/worker`; Rails has 197,057 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
+- 283 distinct rollout flags gate the routes in routes.json; none is enabled in production.
 
 ## By workstream
 
@@ -46,10 +46,10 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 | WS-17 Public and mobile API | 199 | 187 | 0 | 12 | 94.0% | 359 | 338 | 94.2% |
 | WS-18 Admin | 86 | 60 | 0 | 26 | 69.8% | 254 | 180 | 70.9% |
 | WS-19 AI, MCP and moderation | 36 | 33 | 0 | 3 | 91.7% | 108 | 99 | 91.7% |
-| WS-20 Checkout and orders | 71 | 47 | 0 | 24 | 66.2% | 222 | 145 | 65.3% |
+| WS-20 Checkout and orders | 71 | 51 | 0 | 20 | 71.8% | 222 | 157 | 70.7% |
 | WS-21 Payment processors | 8 | 0 | 0 | 8 | 0.0% | 32 | 0 | 0.0% |
 | WS-23 Balances and payouts | 25 | 25 | 0 | 0 | 100.0% | 74 | 74 | 100.0% |
-| **All** | 978 | 767 | 5 | 206 | 78.4% | 1857 | 1438 | 77.4% |
+| **All** | 978 | 771 | 5 | 202 | 78.8% | 1857 | 1450 | 78.1% |
 
 ## Sensitivity to the weights
 
@@ -57,10 +57,10 @@ The weights are the soft part of this inventory, so here is the headline under o
 
 | Scheme | Native weight | Total weight | Share |
 | --- | ---: | ---: | ---: |
-| Every route counts 1 (the plain route share) | 767 | 978 | 78.4% |
-| Verb only: GET 1, other verbs 2 | 1113 | 1427 | 78.0% |
-| Rubric weights 1 to 4 (the headline) | 1438 | 1857 | 77.4% |
-| Rubric weights doubled per step: 1, 2, 4, 8 | 1670 | 2194 | 76.1% |
+| Every route counts 1 (the plain route share) | 771 | 978 | 78.8% |
+| Verb only: GET 1, other verbs 2 | 1117 | 1427 | 78.3% |
+| Rubric weights 1 to 4 (the headline) | 1450 | 1857 | 78.1% |
+| Rubric weights doubled per step: 1, 2, 4, 8 | 1686 | 2194 | 76.8% |
 
 ## By weight
 
@@ -68,7 +68,7 @@ The weights are the soft part of this inventory, so here is the headline under o
 | ---: | ---: | ---: | ---: |
 | 1 | 386 | 304 | 78.8% |
 | 2 | 330 | 267 | 80.9% |
-| 3 | 237 | 184 | 77.6% |
+| 3 | 237 | 188 | 79.3% |
 | 4 | 25 | 12 | 48.0% |
 
 ## By controller
@@ -82,19 +82,18 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `ForeignWebhooksController` | WS-21 Payment processors | 8 | 0 | 0 | 8 | 4 (32) | 32 |
 | `OrdersController` | WS-20 Checkout and orders | 5 | 0 | 0 | 5 | 4 (20) | 20 |
 | `PaypalController` | WS-20 Checkout and orders | 4 | 0 | 0 | 4 | 3 (12) | 12 |
-| `PurchasesController` | WS-20 Checkout and orders | 18 | 14 | 0 | 4 | 3/4 (57) | 12 |
 | `HomeController` | WS-11 Help, pages, blog, profiles | 12 | 1 | 0 | 11 | 1 (12) | 11 |
 | `TwoFactorAuthenticationController` | WS-10 Settings and account | 7 | 1 | 0 | 6 | 1/2 (12) | 11 |
 | `Products::RemainingCallAvailabilitiesController` | WS-12 Products and bundles | 7 | 0 | 1 | 6 | 1/2 (10) | 10 |
 | `Api::Internal::Admin::PayoutsController` | WS-18 Admin | 4 | 1 | 0 | 3 | 3/4 (13) | 9 |
 | `Api::V2::McpController` | WS-19 AI, MCP and moderation | 17 | 14 | 0 | 3 | 3 (51) | 9 |
 | `Integrations::GoogleCalendarController` | WS-10 Settings and account | 3 | 0 | 0 | 3 | 3 (9) | 9 |
+| `PurchasesController` | WS-20 Checkout and orders | 18 | 15 | 0 | 3 | 3/4 (57) | 9 |
 | `Oauth::TokensController` | WS-10 Settings and account | 8 | 4 | 0 | 4 | 2 (16) | 8 |
 | `Api::V2::LinksController` | WS-17 Public and mobile API | 12 | 8 | 0 | 4 | 1/2 (20) | 7 |
 | `BraintreeController` | WS-20 Checkout and orders | 2 | 0 | 0 | 2 | 3 (6) | 6 |
 | `CommentsController` | WS-13 Audience, emails, workflows | 4 | 1 | 0 | 3 | 2 (8) | 6 |
 | `Integrations::ZoomController` | WS-10 Settings and account | 2 | 0 | 0 | 2 | 3 (6) | 6 |
-| `OfferCodesController` | WS-20 Checkout and orders | 2 | 0 | 0 | 2 | 3 (6) | 6 |
 | `SubscriptionsController` | WS-20 Checkout and orders | 3 | 1 | 0 | 2 | 3 (9) | 6 |
 | `CustomersController` | WS-15 Analytics and exports | 11 | 8 | 0 | 3 | 1/2 (13) | 5 |
 | `LinksController` | WS-12 Products and bundles | 27 | 23 | 0 | 4 | 1/2 (39) | 5 |
@@ -119,11 +118,10 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `Integrations::DiscordController` | WS-10 Settings and account | 4 | 3 | 0 | 1 | 3 (12) | 3 |
 | `McpConnectorsController` | WS-11 Help, pages, blog, profiles | 3 | 0 | 0 | 3 | 1 (3) | 3 |
 | `Oauth::DeviceAuthorizationsController` | WS-10 Settings and account | 2 | 0 | 0 | 2 | 1/2 (3) | 3 |
+| `OfferCodesController` | WS-20 Checkout and orders | 2 | 1 | 0 | 1 | 3 (6) | 3 |
 | `ProductBuildPlayerFilesController` | WS-12 Products and bundles | 2 | 0 | 0 | 2 | 1/2 (3) | 3 |
 | `ProductFilesUtilityController` | WS-12 Products and bundles | 3 | 0 | 0 | 3 | 1 (3) | 3 |
 | `Products::BuildsController` | WS-12 Products and bundles | 2 | 0 | 1 | 1 | 1/2 (3) | 3 |
-| `Purchases::InvoicesController` | WS-20 Checkout and orders | 4 | 3 | 0 | 1 | 3 (12) | 3 |
-| `Purchases::ProductController` | WS-20 Checkout and orders | 1 | 0 | 0 | 1 | 3 (3) | 3 |
 | `SignupController` | WS-10 Settings and account | 3 | 1 | 0 | 2 | 1/2 (5) | 3 |
 | `Stripe::SetupIntentsController` | WS-20 Checkout and orders | 1 | 0 | 0 | 1 | 3 (3) | 3 |
 | `UsersController` | WS-10 Settings and account | 18 | 15 | 0 | 3 | 1/2 (20) | 3 |
@@ -308,7 +306,9 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `ProfileSectionsController` | WS-11 Help, pages, blog, profiles | 3 | 3 | 0 | 0 | 2 (6) | 0 |
 | `PurchaseCustomFieldsController` | WS-12 Products and bundles | 1 | 1 | 0 | 0 | 2 (2) | 0 |
 | `Purchases::DisputeEvidenceController` | WS-20 Checkout and orders | 3 | 3 | 0 | 0 | 3 (9) | 0 |
+| `Purchases::InvoicesController` | WS-20 Checkout and orders | 4 | 4 | 0 | 0 | 3 (12) | 0 |
 | `Purchases::PingsController` | WS-20 Checkout and orders | 1 | 1 | 0 | 0 | 3 (3) | 0 |
+| `Purchases::ProductController` | WS-20 Checkout and orders | 1 | 1 | 0 | 0 | 3 (3) | 0 |
 | `Purchases::VariantsController` | WS-20 Checkout and orders | 1 | 1 | 0 | 0 | 3 (3) | 0 |
 | `RecommendedProductsController` | WS-12 Products and bundles | 1 | 1 | 0 | 0 | 1 (1) | 0 |
 | `ReviewsController` | WS-12 Products and bundles | 1 | 1 | 0 | 0 | 1 (1) | 0 |

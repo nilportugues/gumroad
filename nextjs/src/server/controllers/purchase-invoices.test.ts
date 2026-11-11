@@ -147,3 +147,36 @@ describe("Purchases::InvoicesController#create", () => {
     await expect(call(create, { email: EMAIL, address_fields })).rejects.toBeInstanceOf(HandBackToRails);
   });
 });
+
+describe("Purchases::InvoicesController#new", () => {
+  const newForm = find("GET", "/purchases/:purchase_id/invoice/new");
+  const visit = (params: Record<string, unknown>, accept = "text/html") =>
+    newForm({
+      params,
+      routeParams: { purchase_id: "5" },
+      request: { headers: new Headers({ accept }) },
+    } as unknown as MutationInput);
+
+  it("sends a wrong email to the confirm page with the noindex header", async () => {
+    expect(await visit({ email: "other@example.com" })).toEqual({
+      status: 302,
+      location: "/purchases/5/invoice/confirm",
+      flash: { alert: "Incorrect email address. Please try again." },
+      rescued: true,
+      headers: { "x-robots-tag": "noindex" },
+    });
+  });
+
+  it("answers 404 for a purchase that does not exist", async () => {
+    selectRows.mockResolvedValue([]);
+    await expect(visit({ email: EMAIL })).rejects.toBeInstanceOf(RoutingError);
+  });
+
+  it("hands back the form of a purchase whose email was confirmed", async () => {
+    await expect(visit({ email: EMAIL })).rejects.toBeInstanceOf(HandBackToRails);
+  });
+
+  it("hands back a request that does not ask for HTML", async () => {
+    await expect(visit({ email: EMAIL }, "application/json")).rejects.toBeInstanceOf(HandBackToRails);
+  });
+});
