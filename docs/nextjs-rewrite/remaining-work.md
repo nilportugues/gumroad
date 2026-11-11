@@ -103,7 +103,7 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `Api::V2::LinksController` | WS-17 Public and mobile API | 12 | 6 | 0 | 6 | 1/2 (20) | 11 |
 | `HomeController` | WS-11 Help, pages, blog, profiles | 12 | 1 | 0 | 11 | 1 (12) | 11 |
 | `Api::V2::LicensesController` | WS-17 Public and mobile API | 5 | 0 | 0 | 5 | 2 (10) | 10 |
-| `CustomersController` | WS-15 Analytics and exports | 11 | 3 | 0 | 8 | 1/2 (13) | 10 |
+| `CustomersController` | WS-15 Analytics and exports | 11 | 8 | 0 | 3 | 1/2 (13) | 5 |
 | `Products::RemainingCallAvailabilitiesController` | WS-12 Products and bundles | 7 | 0 | 1 | 6 | 1/2 (10) | 10 |
 | `Settings::MainController` | WS-10 Settings and account | 7 | 1 | 0 | 6 | 1/2 (11) | 10 |
 | `Settings::Team::MembersController` | WS-10 Settings and account | 8 | 1 | 2 | 5 | 1/2 (12) | 10 |
@@ -397,7 +397,6 @@ A diagnostic for the matcher: each is either a path the parser or the matcher mi
 - `Bundles/Content/Edit`
 - `Checkout/Returns/Pending`
 - `Collaborators/Incomings/Index`
-- `Customers/Show`
 - `Followers/Cancel`
 - `Followers/FromEmbedForm`
 - `Products/CartItemsCount`

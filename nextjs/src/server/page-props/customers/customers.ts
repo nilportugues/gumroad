@@ -72,9 +72,9 @@ const COMMON_REFERRERS_NAMES: Record<string, string> = {
 };
 const REFERRER_NAMES = new Map(Object.entries(COMMON_REFERRERS_NAMES));
 
-type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+export type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 const present = (value: unknown): value is string => typeof value === "string" && value.trim() !== "";
-const num = (value: unknown): number => Number(value);
+export const num = (value: unknown): number => Number(value);
 const exists = async (statement: Prisma.Sql) => (await selectRows(statement)).length > 0;
 
 // String#to_i
@@ -465,6 +465,30 @@ export async function utmLinkReadings(
   return readings;
 }
 
+// usd_cents_to_currency converts the refundable amount at the rate stored on the sale; without one it would ask Redis.
+export function assertRefundableReadable(purchase: Row): void {
+  if (
+    purchase.displayed_price_currency_type !== "usd" &&
+    !(
+      typeof purchase.displayed_price_currency_type === "string" &&
+      purchase.displayed_price_currency_type in KNOWN_CURRENCIES &&
+      PLAIN_RATE.test(String(purchase.rate_converted_to_usd ?? "").trim())
+    )
+  )
+    throw new HandBackToRails();
+}
+
+// Purchase#amount_refunded_cents: the sum of the effective refunds, by purchase id.
+export async function refundedCentsOf(purchaseIds: unknown[]): Promise<Map<string, number>> {
+  const refundedCents = new Map<string, number>();
+  for (const refund of await rowsBy("refunds", "purchase_id", purchaseIds)) {
+    if (!refundIsEffective(refund)) continue;
+    const key = String(refund.purchase_id);
+    refundedCents.set(key, (refundedCents.get(key) ?? 0) + num(refund.amount_cents ?? 0));
+  }
+  return refundedCents;
+}
+
 // Purchase.where(id: ids).in_order_of(:id, ids) with the associations CustomerPresenter reads, after handing back what it cannot.
 async function load(ids: string[], seller: User): Promise<Loaded> {
   const rows = await rowsBy("purchases", "id", ids);
@@ -474,18 +498,8 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
 
   const links = byId(await rowsBy("links", "id", [...new Set(purchases.map((purchase) => purchase.link_id))]));
   for (const purchase of purchases) {
-    // usd_cents_to_currency converts the refundable amount at the rate stored on the sale; without one it would ask Redis.
-    if (
-      purchase.displayed_price_currency_type !== "usd" &&
-      !(
-        typeof purchase.displayed_price_currency_type === "string" &&
-        purchase.displayed_price_currency_type in KNOWN_CURRENCIES &&
-        PLAIN_RATE.test(String(purchase.rate_converted_to_usd ?? "").trim())
-      )
-    )
-      throw new HandBackToRails();
-    const flags = (name: Parameters<typeof PurchaseFlags.isSet>[1]) => PurchaseFlags.isSet(purchase.flags, name);
-    if (flags("is_installment_payment")) throw new HandBackToRails();
+    assertRefundableReadable(purchase);
+    if (PurchaseFlags.isSet(purchase.flags, "is_installment_payment")) throw new HandBackToRails();
   }
   const commissions = await commissionReadings(purchases);
 
@@ -547,12 +561,7 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
   const upsellNames = await upsellNamesFor(purchaseIds);
   const utmLinks = await utmLinkReadings(purchaseIds, seller);
 
-  const refundedCents = new Map<string, number>();
-  for (const refund of await rowsBy("refunds", "purchase_id", purchaseIds)) {
-    if (!refundIsEffective(refund)) continue;
-    const key = String(refund.purchase_id);
-    refundedCents.set(key, (refundedCents.get(key) ?? 0) + num(refund.amount_cents ?? 0));
-  }
+  const refundedCents = await refundedCentsOf(purchaseIds);
 
   const senderIds = purchases
     .filter((purchase) => PurchaseFlags.isSet(purchase.flags, "is_gift_sender_purchase"))
@@ -1209,7 +1218,8 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
               BigInt(link.user_id),
             ),
     utm_link: loaded.utmLinks.get(id) ?? null,
-    download_count: link.native_type === "coffee" ? null : (loaded.urlRedirects.get(id)?.uses ?? 0),
+    download_count:
+      flags("is_bundle_purchase") || link.native_type === "coffee" ? null : (loaded.urlRedirects.get(id)?.uses ?? 0),
   };
 }
 
@@ -1280,10 +1290,27 @@ async function hasSuccessfulSales(productId: bigint | number): Promise<boolean> 
 }
 
 // User#audience_types includes :customers: any audience member that is a customer.
-const hasCustomerAudience = (sellerId: bigint) =>
+export const hasCustomerAudience = (sellerId: bigint) =>
   exists(
     Prisma.sql`SELECT 1 FROM ${table("audience_members")} WHERE ${column("audience_members", "seller_id")} = ${sellerId} AND ${column("audience_members", "customer")} = ${true} LIMIT 1`,
   );
+
+// Compliance::Countries.for_select.map(&:last)
+export const countryNames = () =>
+  COUNTRIES.filter((country) => !isBlockedCountry(country.alpha2) && country.alpha2 !== "SY")
+    .map((country) => country.common_name)
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+
+// `CustomerPresenter.new(purchase:).customer(pundit_user:)` for purchases that did not come out of the sales search.
+export async function customersOfPurchases(context: SellerContext, ids: string[]) {
+  const seller = context.seller!;
+  const loaded = await load(ids, seller);
+  const sellerUsername = present(seller.username) ? seller.username : seller.external_id!;
+  const customers = [];
+  for (const purchase of loaded.purchases)
+    customers.push(await customerJson(purchase, { seller, sellerUsername, sellerContext: context, loaded }));
+  return customers;
+}
 
 export async function customersProps(context: SellerContext, params: CustomersParams) {
   const seller = context.seller!;
@@ -1306,9 +1333,7 @@ export async function customersProps(context: SellerContext, params: CustomersPa
     count: total,
     products: await productsForFilterBox(seller),
     currency_type: seller.currency_type,
-    countries: COUNTRIES.filter((country) => !isBlockedCountry(country.alpha2) && country.alpha2 !== "SY")
-      .map((country) => country.common_name)
-      .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
+    countries: countryNames(),
     can_ping: await canPingSales(seller),
     show_refund_fee_notice: !UserFlags.isSet(seller.flags, "refund_fee_notice_shown"),
     license_uses_filter_enabled: await isFeatureEnabled("license_uses_sales_filter", userActor(seller.id)),

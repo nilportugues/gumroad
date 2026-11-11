@@ -172,7 +172,7 @@ function neverReachedAnyone(blasts: Blast[]): boolean {
 }
 
 // Installment#full_url
-function fullUrl(seller: User, installment: Installment): string | null {
+export function fullUrl(seller: User, installment: Installment): string | null {
   if (installment.slug === null || installment.slug === "") return null;
   const host = userSubdomainWithProtocol(seller);
   if (host) return `${host}/p/${installment.slug}`;
