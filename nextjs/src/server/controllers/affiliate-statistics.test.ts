@@ -1,10 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import { encryptNumeric } from "../../lib/obfuscate-ids.ts";
 
 import { statisticsBody } from "./affiliate-statistics.ts";
 
 describe("statisticsBody", () => {
+  beforeAll(() => {
+    process.env.OBFUSCATE_IDS_CIPHER_KEY = "affiliate-statistics-test-key";
+    process.env.OBFUSCATE_IDS_NUMERIC_CIPHER_KEY = "12345";
+  });
+
   it("answers zero volume and no products for an affiliate without sales", () => {
     expect(statisticsBody([])).toBe('{"total_volume_cents":0,"products":{}}');
   });
