@@ -47,17 +47,17 @@ const iso8601Micros = (date: Date) => date.toISOString().replace(/\.(\d{3})Z$/u,
 const toJson = (value: unknown) =>
   JSON.stringify(value).replaceAll("\u2028", "\\u2028").replaceAll("\u2029", "\\u2029");
 
-type Tab = { name: string; sections: unknown[] };
+export type Tab = { name: string; sections: unknown[] };
 
 // seller_profile.json_data["tabs"]
-function storedTabs(jsonData: unknown): Tab[] {
+export function storedTabs(jsonData: unknown): Tab[] {
   const data = typeof jsonData === "string" ? (present(jsonData) ? (JSON.parse(jsonData) as unknown) : null) : jsonData;
   if (data === null || typeof data !== "object" || Array.isArray(data)) return [];
   return ((data as { tabs?: Tab[] | null }).tabs ?? []) as Tab[];
 }
 
 // SellerProfile#layout_version
-function layoutVersion(tabs: Tab[], sectionUpdatedAt: Date | null): string {
+export function layoutVersion(tabs: Tab[], sectionUpdatedAt: Date | null): string {
   const layout = tabs.map((tab) => [tab.name, tab.sections ?? []]);
   const payload = toJson([layout, sectionUpdatedAt ? iso8601Micros(sectionUpdatedAt) : null]);
   if (/[<>&]/u.test(payload)) throw new NotPortedError("SellerProfile#layout_version for tab names with HTML entities");

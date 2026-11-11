@@ -2,8 +2,8 @@
 // building the default one `User#seller_profile` falls back to, and inserting it when the user is
 // saved again (has_one autosave). Validations and callbacks are in seller_profile.rb's order.
 //
-// Not ported: `validate :validate_json_data` (a JSON schema validator), so saving a profile with
-// json_data is refused; the page/section methods and custom_styles.
+// `validate :validate_json_data` is checked against lib/json_schemas/seller_profile.json, but JSON::Validator's messages are not
+// reproduced, so a profile whose json_data breaks the schema is refused. Not ported: the page/section methods and custom_styles.
 import { Prisma, type SellerProfile } from "@prisma/client";
 
 import { railsCache } from "../cache/rails-cache.ts";
@@ -13,6 +13,7 @@ import { defineModel, type Callback } from "./runtime/define-model.ts";
 import type { ModelRecord } from "./runtime/record.ts";
 import { isBlank, validatesInclusionOf, validatesLengthOf } from "./runtime/validators.ts";
 import { castRow, column, selectRows, table } from "./sql.ts";
+import { NotPortedError } from "./user.ts";
 
 export type SellerProfileRecord = ModelRecord<SellerProfile>;
 
@@ -48,6 +49,18 @@ function hexColor(attribute: "background_color" | "highlight_color"): Callback<S
   };
 }
 
+// lib/json_schemas/seller_profile.json: `tabs` is required and the only key; each tab is exactly a string `name` and a `sections` list of unique integers.
+export function jsonDataValid(value: unknown): boolean {
+  const isHash = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
+  const data = typeof value === "string" ? (JSON.parse(value) as unknown) : value;
+  if (!isHash(data) || Object.keys(data).length !== 1 || !Array.isArray(data.tabs)) return false;
+  return data.tabs.every((tab) => {
+    if (!isHash(tab) || Object.keys(tab).length !== 2 || typeof tab.name !== "string" || !Array.isArray(tab.sections)) return false;
+    const ids = tab.sections.map((id) => (typeof id === "bigint" ? Number(id) : id));
+    return ids.every((id) => Number.isInteger(id)) && new Set(ids).size === ids.length;
+  });
+}
+
 const seller = { name: "seller", foreignKey: "seller_id", targetTable: "users", targetModel: "User" } as const;
 
 export const SellerProfiles = defineModel<SellerProfile>({
@@ -73,8 +86,9 @@ export const SellerProfiles = defineModel<SellerProfile>({
     {
       name: "validate :validate_json_data",
       if: (record) => !isBlank(record.get("json_data")),
-      run() {
-        throw new Error("SellerProfile#validate_json_data (JSON::Validator over lib/json_schemas/seller_profile.json) is not ported to Node yet");
+      run(record) {
+        if (!jsonDataValid(record.get("json_data")))
+          throw new NotPortedError("a seller profile whose json_data breaks its schema", "app/models/seller_profile.rb");
       },
     },
     validatesLengthOf<SellerProfile>(["seo_title"], { maximum: MAX_SEO_TITLE_LENGTH }),
@@ -113,9 +127,9 @@ export function buildSellerProfile(sellerId: bigint): SellerProfileRecord {
 
 // `has_one :seller_profile, foreign_key: :seller_id`, as loaded (after_initialize applies the same
 // defaults to a stored row whose columns are NULL).
-export async function findSellerProfile(sellerId: unknown): Promise<SellerProfileRecord | null> {
+export async function findSellerProfile(sellerId: unknown, options: { lock?: boolean } = {}): Promise<SellerProfileRecord | null> {
   const [row] = await selectRows(
-    Prisma.sql`SELECT ${Prisma.raw("`seller_profiles`.*")} FROM ${table("seller_profiles")} WHERE ${column("seller_profiles", "seller_id")} = ${sellerId} LIMIT 1`,
+    Prisma.sql`SELECT ${Prisma.raw("`seller_profiles`.*")} FROM ${table("seller_profiles")} WHERE ${column("seller_profiles", "seller_id")} = ${sellerId} LIMIT 1${options.lock ? Prisma.raw(" FOR UPDATE") : Prisma.empty}`,
   );
   if (!row) return null;
   const record = SellerProfiles.load(castRow<SellerProfile>("SellerProfile", row));
