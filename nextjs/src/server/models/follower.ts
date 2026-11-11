@@ -235,6 +235,23 @@ export function markDeletedBang(record: FollowerRecord) {
   return softDeletion.markDeletedBang(record);
 }
 
+// Follower#confirm!(schedule_workflow: false): `schedule_workflow_jobs` is left to the caller, which checks for the workflows first.
+export async function confirmBang(record: FollowerRecord): Promise<void> {
+  if (record.get("confirmed_at") !== null) return;
+  // Time.current.change(usec: 0)
+  record.set("confirmed_at", new Date(Math.floor(Date.now() / 1000) * 1000));
+  record.set("deleted_at", null);
+  await Followers.saveBang(record);
+}
+
+// `user.workflows.alive.follower_or_audience_type.present?`: what makes `confirm!` schedule workflow emails.
+export async function hasFollowerWorkflows(sellerId: number): Promise<boolean> {
+  const rows = await selectRows<unknown>(
+    Prisma.sql`SELECT 1 AS one FROM ${table("workflows")} WHERE ${column("workflows", "seller_id")} = ${sellerId} AND ${column("workflows", "deleted_at")} IS NULL AND ${column("workflows", "workflow_type")} IN ('follower', 'audience') LIMIT 1`,
+  );
+  return rows.length > 0;
+}
+
 // `Follower.find_by_external_id(id)`
 export async function findByExternalId(externalId: string): Promise<FollowerRecord | null> {
   const id = decrypt(externalId);
