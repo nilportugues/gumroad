@@ -2,18 +2,19 @@
 // #dismiss_getting_started_checklist. Sellers::BaseController's filters, then the action's `authorize :dashboard`.
 import { Prisma } from "@prisma/client";
 
+import { indexName } from "../infra/elasticsearch.ts";
 import { formattedDollarAmount } from "../models/concerns/currency-helper.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { findUserBang, setFlag, Users } from "../models/user.ts";
 import { dashboardPolicy } from "../policies/dashboard.ts";
-import { CHARGED_SALES_SEARCH_OPTIONS } from "../search/creator-analytics-sales.ts";
-import { PurchaseSearchService } from "../search/purchase-search.ts";
 import { search } from "../search/api.ts";
-import { indexName } from "../infra/elasticsearch.ts";
+import { CHARGED_SALES_SEARCH_OPTIONS } from "../search/creator-analytics-sales.ts";
 import type { JsonValue } from "../search/es-json.ts";
+import { PurchaseSearchService } from "../search/purchase-search.ts";
+
 import { type ActionContext, type ActionOptions, type ActionResult, processAction } from "./application-controller.ts";
-import { registerMutations } from "./mutation.ts";
 import { jsonResponse, type JsonSellerPolicy, sellerJsonAction } from "./json-seller.ts";
+import { registerMutations } from "./mutation.ts";
 
 // Purchase::NON_GIFT_SUCCESS_STATES
 const NON_GIFT_SUCCESS_STATES = ["preorder_authorization_successful", "successful", "not_charged"];
@@ -72,15 +73,26 @@ async function grossSalesCentsTotal(sellerId: bigint): Promise<number> {
     seller: Number(sellerId),
     recommended: null,
     size: 0,
-    aggs: { price_cents_total: { sum: { field: "price_cents" } }, amount_refunded_cents_total: { sum: { field: "amount_refunded_cents" } } },
+    aggs: {
+      price_cents_total: { sum: { field: "price_cents" } },
+      amount_refunded_cents_total: { sum: { field: "amount_refunded_cents" } },
+    },
   });
-  return aggregationValue(result.response, "price_cents_total") - aggregationValue(result.response, "amount_refunded_cents_total");
+  return (
+    aggregationValue(result.response, "price_cents_total") -
+    aggregationValue(result.response, "amount_refunded_cents_total")
+  );
 }
 
 async function activeMembersCount(sellerId: bigint): Promise<number> {
   const productIds = await membershipProductIds(sellerId);
   if (productIds.length === 0) return 0;
-  const result = await PurchaseSearchService.process({ ...ACTIVE_SALES_SEARCH_OPTIONS, product: productIds.map(Number), size: 0, track_total_hits: true });
+  const result = await PurchaseSearchService.process({
+    ...ACTIVE_SALES_SEARCH_OPTIONS,
+    product: productIds.map(Number),
+    size: 0,
+    track_total_hits: true,
+  });
   return result.total ?? 0;
 }
 
@@ -114,12 +126,16 @@ export const DASHBOARD_JSON_OPTIONS: ActionOptions = {};
 export function dashboardCounterResponse(name: DashboardCounter) {
   return (incoming: Request): Promise<Response> =>
     processAction(incoming, DASHBOARD_JSON_OPTIONS, (action: ActionContext) =>
-      sellerJsonAction(action, dashboardPolicy[name] as JsonSellerPolicy, async () => jsonResponse({ success: true, value: await counters[name](action.context.currentSeller!.id) })),
+      sellerJsonAction(action, dashboardPolicy[name] as JsonSellerPolicy, async () =>
+        jsonResponse({ success: true, value: await counters[name](action.context.currentSeller!.id) }),
+      ),
     );
 }
 
 // `current_seller.update!(has_dismissed_getting_started_checklist: true)`, then `head :ok`.
-async function dismissGettingStartedChecklist(action: Pick<ActionContext, "context" | "request">): Promise<ActionResult> {
+async function dismissGettingStartedChecklist(
+  action: Pick<ActionContext, "context" | "request">,
+): Promise<ActionResult> {
   return sellerJsonAction(action, dashboardPolicy.dismissGettingStartedChecklist, async () => {
     const seller = await findUserBang(action.context.currentSeller!.id);
     setFlag(seller, "has_dismissed_getting_started_checklist", true);
@@ -128,7 +144,6 @@ async function dismissGettingStartedChecklist(action: Pick<ActionContext, "conte
     return { status: 200, body: "", contentType: "application/json", paramsRead: true };
   });
 }
-
 
 registerMutations({
   method: "POST",

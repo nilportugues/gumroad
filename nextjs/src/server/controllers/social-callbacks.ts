@@ -3,13 +3,14 @@
 import { Prisma } from "@prisma/client";
 
 import { execute, column, table } from "../models/sql.ts";
+import { domainConfig } from "../page-props/domain.ts";
+import { defaultUrlOptions } from "../page-props/load-page.ts";
+import { esJson } from "../search/es-json.ts";
 import { InstagramSignedRequest, isBlank } from "../services/instagram-signed-request.ts";
 import { TiktokWebhook } from "../services/tiktok-webhook.ts";
+
 import { HandBackToRails, type ActionOptions, type ActionResult, type Rendered } from "./application-controller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
-import { esJson } from "../search/es-json.ts";
-import { defaultUrlOptions } from "../page-props/load-page.ts";
-import { domainConfig } from "../page-props/domain.ts";
 
 const BAD_REQUEST = 400;
 const NOT_FOUND = 404;
@@ -80,7 +81,12 @@ registerMutations(
       );
       await deleteWhere("user_instagram_identities", "instagram_user_id", userId);
       const confirmationCode = signedRequest.confirmationCode(userId);
-      return { status: OK, body: esJson({ url: dataDeletionStatusUrl(input, confirmationCode), confirmation_code: confirmationCode }), contentType: JSON_TYPE, paramsRead: true };
+      return {
+        status: OK,
+        body: esJson({ url: dataDeletionStatusUrl(input, confirmationCode), confirmation_code: confirmationCode }),
+        contentType: JSON_TYPE,
+        paramsRead: true,
+      };
     },
   },
   {
@@ -105,5 +111,10 @@ registerMutations(
 // InstagramCallbacksController#data_deletion_status: stateless, any valid confirmation code means the deletion is done.
 export function instagramDataDeletionStatus(confirmationCode: string): ActionResult {
   if (!new InstagramSignedRequest().validConfirmationCode(confirmationCode)) return head(NOT_FOUND);
-  return { status: OK, body: "Instagram data deletion completed.", contentType: "text/plain; charset=utf-8", paramsRead: true };
+  return {
+    status: OK,
+    body: "Instagram data deletion completed.",
+    contentType: "text/plain; charset=utf-8",
+    paramsRead: true,
+  };
 }

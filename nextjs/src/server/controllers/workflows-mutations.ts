@@ -6,15 +6,22 @@ import { Prisma, type Link, type Workflow } from "@prisma/client";
 import * as Routes from "@/lib/navigation/routes";
 
 import { decrypt, encrypt } from "../../lib/obfuscate-ids.ts";
-import { PRODUCT_TYPE, VARIANT_TYPE } from "../models/with-filtering.ts";
-import { castRow, column, selectRows, table } from "../models/sql.ts";
 import type { ModelRecord } from "../models/runtime/record.ts";
-import { findVisibleProduct, manageWorkflow, permitWorkflow, SAVE_AND_PUBLISH_ACTION, SAVE_AND_UNPUBLISH_ACTION } from "../models/workflow-manage.ts";
+import { castRow, column, selectRows, table } from "../models/sql.ts";
+import { PRODUCT_TYPE, VARIANT_TYPE } from "../models/with-filtering.ts";
+import {
+  findVisibleProduct,
+  manageWorkflow,
+  permitWorkflow,
+  SAVE_AND_PUBLISH_ACTION,
+  SAVE_AND_UNPUBLISH_ACTION,
+} from "../models/workflow-manage.ts";
 import { markDeletedBang, Workflows } from "../models/workflow-writes.ts";
-import { domainConfig } from "../page-props/domain.ts";
 import { sellerGuard } from "../page-props/audience/seller-guard.ts";
+import { domainConfig } from "../page-props/domain.ts";
 import { authorize, type PolicyQuery } from "../policies/authorize.ts";
 import { workflowPolicy } from "../policies/workflow.ts";
+
 import { HandBackToRails, RoutingError, type ActionResult } from "./application-controller.ts";
 import { railsSegment, registerMutations, type MutationInput } from "./mutation.ts";
 
@@ -40,7 +47,9 @@ async function setWorkflow(sellerId: bigint, id: string): Promise<ModelRecord<Wo
   const workflow = Workflows.load(castRow<Workflow>("Workflow", row));
   const type = workflow.get("workflow_type");
   if (type === PRODUCT_TYPE || type === VARIANT_TYPE) {
-    const [link] = await selectRows<Link>(Prisma.sql`SELECT ${Prisma.raw("`links`.*")} FROM ${table("links")} WHERE ${column("links", "id")} = ${workflow.get("link_id")} LIMIT 1`);
+    const [link] = await selectRows<Link>(
+      Prisma.sql`SELECT ${Prisma.raw("`links`.*")} FROM ${table("links")} WHERE ${column("links", "id")} = ${workflow.get("link_id")} LIMIT 1`,
+    );
     if (!link) throw new TypeError("undefined method 'user' for nil");
     if (link.user_id !== sellerId) throw new RoutingError("Not Found");
   }
@@ -49,10 +58,20 @@ async function setWorkflow(sellerId: bigint, id: string): Promise<ModelRecord<Wo
 
 // Sellers::BaseController's filters, then the controller's: `set_workflow` and `authorize_workflow` (update and destroy), the product of a
 // product or variant workflow (create and update), and for create the action's own `authorize Workflow`.
-async function guarded(input: MutationInput, policy: PolicyQuery, steps: { find: boolean; product: boolean }): Promise<{ denied: ActionResult | null; loaded: Loaded }> {
+async function guarded(
+  input: MutationInput,
+  policy: PolicyQuery,
+  steps: { find: boolean; product: boolean },
+): Promise<{ denied: ActionResult | null; loaded: Loaded }> {
   const loaded: Loaded = { workflow: null, product: null, params: {} };
   const denied = await sellerGuard(
-    { context: input.context, config: domainConfig(process.env), url: input.url, params: input.routeParams, urlOptions: input.urlOptions },
+    {
+      context: input.context,
+      config: domainConfig(process.env),
+      url: input.url,
+      params: input.routeParams,
+      urlOptions: input.urlOptions,
+    },
     async (sellerContext) => {
       const seller = sellerContext.seller!;
       if (steps.find) {
@@ -75,21 +94,45 @@ async function guarded(input: MutationInput, policy: PolicyQuery, steps: { find:
 }
 
 async function manage(input: MutationInput, loaded: Loaded): Promise<ActionResult> {
-  const result = await manageWorkflow({ seller: input.context.currentSeller!, params: loaded.params, product: loaded.product, workflow: loaded.workflow });
+  const result = await manageWorkflow({
+    seller: input.context.currentSeller!,
+    params: loaded.params,
+    product: loaded.product,
+    workflow: loaded.workflow,
+  });
   const workflow = result.workflow;
   if (result.ok) {
     const action = loaded.params.save_action_name;
     const notice =
-      loaded.workflow === null ? FLASH_CHANGES_SAVED : action === SAVE_AND_PUBLISH_ACTION ? FLASH_WORKFLOW_PUBLISHED : action === SAVE_AND_UNPUBLISH_ACTION ? FLASH_WORKFLOW_UNPUBLISHED : FLASH_CHANGES_SAVED;
-    return { status: SEE_OTHER, location: `/workflows/${railsSegment(encrypt(workflow.get("id")))}/emails`, flash: { notice } };
+      loaded.workflow === null
+        ? FLASH_CHANGES_SAVED
+        : action === SAVE_AND_PUBLISH_ACTION
+          ? FLASH_WORKFLOW_PUBLISHED
+          : action === SAVE_AND_UNPUBLISH_ACTION
+            ? FLASH_WORKFLOW_UNPUBLISHED
+            : FLASH_CHANGES_SAVED;
+    return {
+      status: SEE_OTHER,
+      location: `/workflows/${railsSegment(encrypt(workflow.get("id")))}/emails`,
+      flash: { notice },
+    };
   }
-  const location = loaded.workflow === null ? Routes.new_workflow_path() : `/workflows/${railsSegment(encrypt(workflow.get("id")))}/edit`;
+  const location =
+    loaded.workflow === null
+      ? Routes.new_workflow_path()
+      : `/workflows/${railsSegment(encrypt(workflow.get("id")))}/edit`;
   return { status: FOUND, location, flash: { alert: result.error ?? "" }, inertiaErrors: { base: [result.error] } };
 }
 
 async function updateEmails(input: MutationInput): Promise<ActionResult> {
   const denied = await sellerGuard(
-    { context: input.context, config: domainConfig(process.env), url: input.url, params: input.routeParams, urlOptions: input.urlOptions },
+    {
+      context: input.context,
+      config: domainConfig(process.env),
+      url: input.url,
+      params: input.routeParams,
+      urlOptions: input.urlOptions,
+    },
     async (sellerContext) => {
       // `@workflow.link.user` raises NoMethodError in Rails for a workflow whose product row is gone.
       await setWorkflow(sellerContext.seller!.id, input.routeParams.workflow_id!).catch((error: unknown) => {

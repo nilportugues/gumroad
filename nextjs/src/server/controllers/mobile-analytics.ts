@@ -1,14 +1,18 @@
 // Api::Mobile::AnalyticsController: the creator app's sales charts. In `data_by_date` a purchase the creator-app serializer does not reproduce throws NotPortedError, which hands the request to Rails.
 /* eslint-disable @typescript-eslint/no-explicit-any -- the days are JSON documents, as in the caching proxy */
 import { formattedDollarAmount } from "../models/concerns/currency-helper.ts";
-import { creatorAppPurchasesJson } from "../presenters/mobile-serializer-reads.ts";
 import { CreatorAnalyticsCachingProxy } from "../page-props/analytics/caching-proxy.ts";
 import { CreatorAnalyticsWeb } from "../page-props/analytics/creator-analytics-web.ts";
-import { countProductsForCreatorAnalytics, productIdsForCreatorAnalytics } from "../page-props/analytics/seller-analytics.ts";
+import {
+  countProductsForCreatorAnalytics,
+  productIdsForCreatorAnalytics,
+} from "../page-props/analytics/seller-analytics.ts";
+import { creatorAppPurchasesJson } from "../presenters/mobile-serializer-reads.ts";
 import { addDays, civilDateInZone, dayStartIso, timezoneId, TimeZoneNotPortedError } from "../search/civil-time.ts";
 import { MAX_HOURLY_DATE_RANGE_DAYS, CHARGED_SALES_SEARCH_OPTIONS } from "../search/creator-analytics-sales.ts";
 import { RubyFloat } from "../search/es-json.ts";
 import { PurchaseSearchService } from "../search/purchase-search.ts";
+
 import { HandBackToRails, type ActionResult } from "./application-controller.ts";
 import { registerMobile, renderJson, type MobileAuth, type MobileInput } from "./mobile-api.ts";
 
@@ -35,7 +39,8 @@ function parseDate(value: unknown): string {
   const match = typeof value === "string" ? ISO_DATE.exec(value) : null;
   if (!match) throw new HandBackToRails("a date Node does not parse");
   const probe = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
-  if (probe.getUTCMonth() !== Number(match[2]) - 1 || probe.getUTCDate() !== Number(match[3])) throw new HandBackToRails("an impossible date");
+  if (probe.getUTCMonth() !== Number(match[2]) - 1 || probe.getUTCDate() !== Number(match[3]))
+    throw new HandBackToRails("an impossible date");
   return value as string;
 }
 
@@ -50,7 +55,8 @@ function dateRange(params: MobileInput["params"], timezone: string | null): { st
     if (offset === undefined) throw new HandBackToRails("an unknown date_range");
     return { startDate: addDays(today, -offset), endDate: today };
   }
-  if (params.start_date && params.end_date) return { startDate: parseDate(params.start_date), endDate: parseDate(params.end_date) };
+  if (params.start_date && params.end_date)
+    return { startDate: parseDate(params.start_date), endDate: parseDate(params.end_date) };
   return { startDate: addDays(today, -DEFAULT_RANGE_OFFSET), endDate: today };
 }
 
@@ -61,7 +67,8 @@ const rangeDates = (first: string, last: string): string[] => {
 };
 
 // CachingProxy::Formatters::Helpers#dates_and_months_to_days: the day label, with the year of its month unless asked to leave it out.
-const daysOf = (datesAndMonths: Day[], withoutYears: boolean) => datesAndMonths.map((entry) => (withoutYears ? entry.date : `${entry.date} ${/(\d{4})$/u.exec(entry.month)![1]}`));
+const daysOf = (datesAndMonths: Day[], withoutYears: boolean) =>
+  datesAndMonths.map((entry) => (withoutYears ? entry.date : `${entry.date} ${/(\d{4})$/u.exec(entry.month)![1]}`));
 const monthsOf = (datesAndMonths: Day[]) => [...new Set(datesAndMonths.map((entry) => entry.month as string))];
 
 // ByDate#group_date_data_by_day and #group_date_data_by_month
@@ -70,9 +77,12 @@ function groupDateData(data: Day, by: "day" | "month"): Day {
   const monthsCount = data.dates_and_months.at(-1).month_index + 1;
   const permalinks = Object.keys(data.by_date.views);
   const grouped: Day = { views: {}, sales: {}, totals: {} };
-  for (const type of ["views", "sales", "totals"]) for (const permalink of permalinks) grouped[type][permalink] = new Array(monthsCount).fill(0);
+  for (const type of ["views", "sales", "totals"])
+    for (const permalink of permalinks) grouped[type][permalink] = new Array(monthsCount).fill(0);
   (data.dates_and_months as Day[]).forEach((entry, index) => {
-    for (const type of ["views", "sales", "totals"]) for (const permalink of permalinks) grouped[type][permalink][entry.month_index] += data.by_date[type][permalink][index];
+    for (const type of ["views", "sales", "totals"])
+      for (const permalink of permalinks)
+        grouped[type][permalink][entry.month_index] += data.by_date[type][permalink][index];
   });
   return { dates: monthsOf(data.dates_and_months), by_date: grouped };
 }
@@ -86,11 +96,16 @@ function groupReferralData(data: Day, by: "day" | "month"): Day {
   for (const type of types) {
     grouped[type] = {};
     for (const [permalink, referrers] of Object.entries<Day>(data.by_referral[type])) {
-      grouped[type][permalink] = Object.fromEntries(Object.keys(referrers).map((referrer) => [referrer, new Array(monthsCount).fill(0)]));
+      grouped[type][permalink] = Object.fromEntries(
+        Object.keys(referrers).map((referrer) => [referrer, new Array(monthsCount).fill(0)]),
+      );
     }
   }
   (data.dates_and_months as Day[]).forEach((entry, index) => {
-    for (const type of types) for (const [permalink, referrers] of Object.entries<Day>(data.by_referral[type])) for (const referrer of Object.keys(referrers)) grouped[type][permalink][referrer][entry.month_index] += referrers[referrer][index];
+    for (const type of types)
+      for (const [permalink, referrers] of Object.entries<Day>(data.by_referral[type]))
+        for (const referrer of Object.keys(referrers))
+          grouped[type][permalink][referrer][entry.month_index] += referrers[referrer][index];
   });
   return { dates: monthsOf(data.dates_and_months), by_referral: grouped };
 }
@@ -111,9 +126,17 @@ async function byDate(input: MobileInput, auth: MobileAuth | null): Promise<Acti
     if (input.params.group_by === "hour") {
       if (endDate < startDate) return renderJson({ error: "Invalid date range." }, BAD_REQUEST);
       if ((Date.parse(endDate) - Date.parse(startDate)) / 86_400_000 > MAX_HOURLY_DATE_RANGE_DAYS) {
-        return renderJson({ error: `Date range cannot exceed ${MAX_HOURLY_DATE_RANGE_DAYS} days for the hourly interval.` }, BAD_REQUEST);
+        return renderJson(
+          { error: `Date range cannot exceed ${MAX_HOURLY_DATE_RANGE_DAYS} days for the hourly interval.` },
+          BAD_REQUEST,
+        );
       }
-      const hourly = (await new CreatorAnalyticsWeb(owner, rangeDates(startDate, endDate), null, "hour").byDate()) as Day;
+      const hourly = (await new CreatorAnalyticsWeb(
+        owner,
+        rangeDates(startDate, endDate),
+        null,
+        "hour",
+      ).byDate()) as Day;
       data = { dates: hourly.dates_and_months.map((entry: Day) => entry.date), by_date: hourly.by_date };
     } else {
       const raw = (await new CreatorAnalyticsCachingProxy(owner).dataForDates(startDate, endDate, "date")) as Day;
@@ -142,7 +165,8 @@ async function byReferral(input: MobileInput, auth: MobileAuth | null): Promise<
   let { startDate } = dateRange(input.params, owner.timezone);
   const { endDate } = dateRange(input.params, owner.timezone);
   // clamp_date_range_for_by_referral
-  if ((Date.parse(endDate) - Date.parse(startDate)) / 86_400_000 > MAX_BY_REFERRAL_DATE_RANGE_DAYS) startDate = addDays(endDate, -MAX_BY_REFERRAL_DATE_RANGE_DAYS);
+  if ((Date.parse(endDate) - Date.parse(startDate)) / 86_400_000 > MAX_BY_REFERRAL_DATE_RANGE_DAYS)
+    startDate = addDays(endDate, -MAX_BY_REFERRAL_DATE_RANGE_DAYS);
   const grouping = groupBy(input.params);
   try {
     const raw = (await new CreatorAnalyticsCachingProxy(owner).dataForDates(startDate, endDate, "referral")) as Day;
@@ -180,7 +204,10 @@ async function sellerMobileAnalytics(
       amount_refunded_cents_total: { sum: { field: "amount_refunded_cents" } },
       chargedback_agg: {
         filter: { term: { not_chargedback_or_chargedback_reversed: false } },
-        aggs: { price_cents_total: { sum: { field: "price_cents" } }, amount_refunded_cents_total: { sum: { field: "amount_refunded_cents" } } },
+        aggs: {
+          price_cents_total: { sum: { field: "price_cents" } },
+          amount_refunded_cents_total: { sum: { field: "amount_refunded_cents" } },
+        },
       },
     },
     track_total_hits: fields.salesCount === true,
@@ -198,8 +225,15 @@ async function sellerMobileAnalytics(
   }
   const result = await new PurchaseSearchService(options as never).process();
   const aggregations = result.response.aggregations as Record<string, any>;
-  const revenue = aggregations.price_cents_total.value - aggregations.amount_refunded_cents_total.value - aggregations.chargedback_agg.price_cents_total.value + aggregations.chargedback_agg.amount_refunded_cents_total.value;
-  const data: Record<string, unknown> = { revenue: new RubyFloat(revenue), formatted_revenue: formattedDollarAmount(Math.round(revenue)) };
+  const revenue =
+    aggregations.price_cents_total.value -
+    aggregations.amount_refunded_cents_total.value -
+    aggregations.chargedback_agg.price_cents_total.value +
+    aggregations.chargedback_agg.amount_refunded_cents_total.value;
+  const data: Record<string, unknown> = {
+    revenue: new RubyFloat(revenue),
+    formatted_revenue: formattedDollarAmount(Math.round(revenue)),
+  };
   if (fields.salesCount) data.sales_count = result.total;
   if (fields.purchases) data.purchases = await creatorAppPurchasesJson(result.ids.map((id) => BigInt(id)));
   return data;
@@ -210,9 +244,12 @@ const revenueFor = (owner: MobileAuth["owner"], range: string) => sellerMobileAn
 async function dataByDate(input: MobileInput, auth: MobileAuth | null): Promise<ActionResult> {
   const { range, query } = input.params;
   if (typeof range !== "string") throw new HandBackToRails("a range that is not a string");
-  if (query !== undefined && query !== null && typeof query !== "string") throw new HandBackToRails("a query that is not a string");
+  if (query !== undefined && query !== null && typeof query !== "string")
+    throw new HandBackToRails("a query that is not a string");
   try {
-    return renderJson(await sellerMobileAnalytics(auth!.owner, range, { salesCount: true, purchases: { query: query ?? null } }));
+    return renderJson(
+      await sellerMobileAnalytics(auth!.owner, range, { salesCount: true, purchases: { query: query ?? null } }),
+    );
   } catch (error) {
     if (error instanceof TimeZoneNotPortedError) throw new HandBackToRails(error.message);
     throw error;
@@ -247,11 +284,25 @@ async function products(input: MobileInput, auth: MobileAuth | null): Promise<Ac
   const count = await countProductsForCreatorAnalytics(sellerId);
   const pages = Math.max(Math.ceil(count / items), 1);
   // Api::Mobile::BaseController rescues Pagy::VariableError (config/initializers/pagy.rb sets overflow to :exception)
-  if (page > pages) return { ...renderJson({ error: { message: `expected :page in 1..${pages}; got ${page}` } }, BAD_REQUEST), rescued: true };
+  if (page > pages)
+    return {
+      ...renderJson({ error: { message: `expected :page in 1..${pages}; got ${page}` } }, BAD_REQUEST),
+      rescued: true,
+    };
   const ids = await productIdsForCreatorAnalytics(sellerId, items, (page - 1) * items);
   return renderJson({
     products: ids.map((id) => ({ id: Number(id) })),
-    meta: { pagination: { count, items, page, pages, prev: page > 1 ? page - 1 : null, next: page < pages ? page + 1 : null, last: pages } },
+    meta: {
+      pagination: {
+        count,
+        items,
+        page,
+        pages,
+        prev: page > 1 ? page - 1 : null,
+        next: page < pages ? page + 1 : null,
+        last: pages,
+      },
+    },
   });
 }
 

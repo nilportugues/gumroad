@@ -14,27 +14,29 @@ import path from "node:path";
 
 import type { RequestContext } from "../auth/context.ts";
 import { readEncryptedCookie, writeEncryptedCookie } from "../auth/rails-cookies.ts";
-import { railsLoggedInUser, type ResolvedAuth } from "../auth/resolve.ts";
-import { prismaAuthStore } from "../auth/store.ts";
 import {
   railsCookieSecrets,
   railsSessionCookieName,
   railsSessionCookieOptions,
   railsSessionExpiresAt,
 } from "../auth/rails-session-config.ts";
+import { railsLoggedInUser, type ResolvedAuth } from "../auth/resolve.ts";
+import { prismaAuthStore } from "../auth/store.ts";
 import { getConfig, getRequiredConfig } from "../infra/config.ts";
 import { notifyError } from "../infra/error-reporting.ts";
-import { RecordInvalid } from "../models/runtime/errors.ts";
 import { railsEnv, railsRoot } from "../infra/rails-env.ts";
 import { secureHeaders } from "../infra/secure-headers.ts";
+import { advance } from "../models/concerns/ruby-time.ts";
+import { rubyUriParse } from "../models/concerns/ruby-uri.ts";
+import { RecordInvalid } from "../models/runtime/errors.ts";
 import { formAuthenticityToken, globalCsrfToken } from "../page-props/csrf.ts";
 import { domainConfig } from "../page-props/domain.ts";
-import { rubyUriParse } from "../models/concerns/ruby-uri.ts";
-import { advance } from "../models/concerns/ruby-time.ts";
-import { redirectUrlFor } from "../services/subdomain-redirector.ts";
 import { NotPortedError } from "../page-props/not-ported.ts";
 import { esJson } from "../search/es-json.ts";
+import { redirectUrlFor } from "../services/subdomain-redirector.ts";
+
 import { setCookieHeader } from "./rack-cookies.ts";
+import { isPresent, queryParam, type RailsRequest, railsRequest } from "./rails-request.ts";
 import {
   CURRENT_SELLER_COOKIE_NAME,
   dashboardNavRequest,
@@ -48,17 +50,33 @@ import {
   SIGN_OUT_FLASH,
   suspendedWriteRequest,
 } from "./signed-in-filters.ts";
-import { isPresent, queryParam, type RailsRequest, railsRequest } from "./rails-request.ts";
 
 // `inertia`: rendered by inertia_rails, which appends X-Inertia to Vary. `rescued`: a before_action
 // halted with it, so the after_actions (XSRF-TOKEN) did not run. `paramsRead`: the controller read
 // params, so Request#should_apply_vary_header? no longer adds Vary: Accept.
 // `cookies`: Set-Cookie lines the action wrote to the cookie jar. An empty `contentType` is a response with none (`head :no_content`).
-export type Rendered = { status: number; body: string | Uint8Array; contentType: string; cookies?: string[]; inertia?: boolean; headers?: Record<string, string>; rescued?: boolean; paramsRead?: boolean };
+export type Rendered = {
+  status: number;
+  body: string | Uint8Array;
+  contentType: string;
+  cookies?: string[];
+  inertia?: boolean;
+  headers?: Record<string, string>;
+  rescued?: boolean;
+  paramsRead?: boolean;
+};
 // redirect_to from the action. `rescued`: from a rescue_from handler, which skips the after_actions.
 // `flash`: what the action put in flash[:alert] and friends before redirecting.
 // `cookies`: the Set-Cookie lines the action wrote to the cookie jar, after the session's.
-export type Redirected = { status: number; location: string; headers?: Record<string, string>; rescued?: boolean; flash?: Record<string, string>; inertiaErrors?: Record<string, unknown>; cookies?: string[] };
+export type Redirected = {
+  status: number;
+  location: string;
+  headers?: Record<string, string>;
+  rescued?: boolean;
+  flash?: Record<string, string>;
+  inertiaErrors?: Record<string, unknown>;
+  cookies?: string[];
+};
 // inertia_rails' middleware swapping the response for a bare 409 when the client's asset version is
 // stale. The controller still ran, so its cookies (written by ActionDispatch::Cookies, outside that
 // middleware) and the session survive; the headers it set do not. `rescued`: the controller halted
@@ -189,7 +207,10 @@ function loadSession(request: RailsRequest): Session {
   const name = railsSessionCookieName();
   const raw = request.cookies.get(name) ?? undefined;
   const decoded = raw ? readEncryptedCookie(railsCookieSecrets(), name, raw) : null;
-  const data = decoded !== null && typeof decoded === "object" && !Array.isArray(decoded) ? { ...(decoded as Record<string, unknown>) } : {};
+  const data =
+    decoded !== null && typeof decoded === "object" && !Array.isArray(decoded)
+      ? { ...(decoded as Record<string, unknown>) }
+      : {};
   data.session_id ??= randomBytes(16).toString("hex");
   return { data };
 }
@@ -304,10 +325,15 @@ export type Chain = {
   xsrfCookieBytes?: (globalToken: Buffer) => Buffer;
 };
 
-const isHash = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
+const isHash = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
 
 const stringEntries = (value: unknown): Record<string, string> =>
-  isHash(value) ? Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === "string")) : {};
+  isHash(value)
+    ? Object.fromEntries(
+        Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+      )
+    : {};
 
 // Rendering an Inertia page reads session["flash"] (every key is marked for discard when it loads,
 // so commit_flash writes it back as nil) and session[:inertia_errors], which InertiaRails::Middleware
@@ -344,33 +370,68 @@ function peekState(chain: Chain): Pick<RenderState, "mobileParam" | "signupRefer
 
 // The filters ApplicationController runs before the action. Returns the response when one of them
 // halts the chain (redirect_to_custom_subdomain).
-export async function beforeActions(request: RailsRequest, options: ActionOptions, now: Date): Promise<Chain | ControllerResponse> {
+export async function beforeActions(
+  request: RailsRequest,
+  options: ActionOptions,
+  now: Date,
+): Promise<Chain | ControllerResponse> {
   const config = domainConfig(process.env);
   const headers = new Headers(debugHeaders());
   const session = loadSession(request);
   // set_csrf_meta_tags: form_authenticity_token reads the session's token or mints one.
   const csrfToken =
-    typeof session.data._csrf_token === "string" ? session.data._csrf_token : randomBytes(AUTHENTICITY_TOKEN_LENGTH).toString("base64url");
+    typeof session.data._csrf_token === "string"
+      ? session.data._csrf_token
+      : randomBytes(AUTHENTICITY_TOKEN_LENGTH).toString("base64url");
   const auth: ResolvedAuth = options.bare
-    ? { context: { loggedInUser: null, currentSeller: null, impersonatedUser: null }, effects: { signOut: false, signedOut: null, clearCurrentSeller: false }, authenticatedVia: null }
+    ? {
+        context: { loggedInUser: null, currentSeller: null, impersonatedUser: null },
+        effects: { signOut: false, signedOut: null, clearCurrentSeller: false },
+        authenticatedVia: null,
+      }
     : await resolveRequestAuth(request, now);
   // Devise's rememberable strategy signs the visitor in by writing the session and the tracked
   // sign-in fields, which is Rails' to do: the proxy sends such requests there.
   if (auth.authenticatedVia === "remember_cookie") throw new NotPortedError("Devise's remember-cookie sign-in");
-  const chain: Chain = { request, now, headers, session, csrfToken, guid: null, auth, cookies: [], sessionCleared: false, pageState: {}, afterCookies: options.afterCookies ?? [], bare: options.bare ?? false, metal: options.metal ?? false, xsrfCookieBytes: options.xsrfCookieBytes };
+  const chain: Chain = {
+    request,
+    now,
+    headers,
+    session,
+    csrfToken,
+    guid: null,
+    auth,
+    cookies: [],
+    sessionCleared: false,
+    pageState: {},
+    afterCookies: options.afterCookies ?? [],
+    bare: options.bare ?? false,
+    metal: options.metal ?? false,
+    xsrfCookieBytes: options.xsrfCookieBytes,
+  };
 
   if (options.prepended) {
     const redirect = await options.prepended(chain);
-    if (redirect) return "forceRefresh" in redirect ? afterActions(chain, redirect) : haltWithoutDebugHeaders(chain, redirect);
+    if (redirect)
+      return "forceRefresh" in redirect ? afterActions(chain, redirect) : haltWithoutDebugHeaders(chain, redirect);
   }
 
   // verify_current_seller, then seed_dashboard_nav_items.
-  if (auth.effects.clearCurrentSeller) chain.cookies.push(deleteCookieHeader(CURRENT_SELLER_COOKIE_NAME, { domain: allDomain(request.host) }));
+  if (auth.effects.clearCurrentSeller)
+    chain.cookies.push(deleteCookieHeader(CURRENT_SELLER_COOKIE_NAME, { domain: allDomain(request.host) }));
   // A session about to be ended still sees these filters first.
   const { loggedInUser, currentSeller, impersonatedUser } = auth.effects.signedOut
-    ? { loggedInUser: auth.effects.signedOut.user, currentSeller: auth.effects.signedOut.seller, impersonatedUser: auth.effects.signedOut.impersonating ? auth.effects.signedOut.user : null }
+    ? {
+        loggedInUser: auth.effects.signedOut.user,
+        currentSeller: auth.effects.signedOut.seller,
+        impersonatedUser: auth.effects.signedOut.impersonating ? auth.effects.signedOut.user : null,
+      }
     : auth.context;
-  if (loggedInUser && currentSeller && dashboardNavRequest(request, config.validRequestHosts, impersonatedUser !== null)) {
+  if (
+    loggedInUser &&
+    currentSeller &&
+    dashboardNavRequest(request, config.validRequestHosts, impersonatedUser !== null)
+  ) {
     await seedDashboardNavItems(loggedInUser, currentSeller);
   }
 
@@ -393,7 +454,8 @@ export async function beforeActions(request: RailsRequest, options: ActionOption
   }
 
   if (!railsLoggedInUser(auth.context) && !options.bare) setSignupReferrer(request, session, config.rootDomain);
-  if (!options.skip?.includes("check_suspended") && suspendedWriteRequest(auth, request)) return refuseSuspendedWrite(chain);
+  if (!options.skip?.includes("check_suspended") && suspendedWriteRequest(auth, request))
+    return refuseSuspendedWrite(chain);
   if (!options.bare) chain.guid = gumroadGuidCookie(request, now);
   if (!options.metal && !RECOMMENDER_MODELS.includes(session.data.recommender_model_name as string)) {
     session.data.recommender_model_name = RECOMMENDER_MODELS[Math.floor(Math.random() * RECOMMENDER_MODELS.length)];
@@ -408,7 +470,10 @@ export async function beforeActions(request: RailsRequest, options: ActionOption
 
 // A redirect from a filter that runs before debug_headers: the session cookie and nothing else.
 function haltWithoutDebugHeaders(chain: Chain, redirect: Redirected): ControllerResponse {
-  const headers = new Headers({ location: redirectLocation(chain.request, redirect.location), "content-type": "text/html; charset=utf-8" });
+  const headers = new Headers({
+    location: redirectLocation(chain.request, redirect.location),
+    "content-type": "text/html; charset=utf-8",
+  });
   commitSession({ ...chain, headers });
   for (const cookie of chain.cookies) headers.append("set-cookie", cookie);
   return { status: redirect.status, headers, body: "" };
@@ -418,7 +483,8 @@ function haltWithoutDebugHeaders(chain: Chain, redirect: Redirected): Controller
 export async function signOut(chain: Chain): Promise<void> {
   const { request, session } = chain;
   await prismaAuthStore.forgetRememberedLogins(chain.auth.effects.signedOut!.user.id, chain.now);
-  if (deletesCookie(request, REMEMBER_COOKIE_NAME)) chain.cookies.push(deleteCookieHeader(REMEMBER_COOKIE_NAME, { domain: allDomain(request.host), httpOnly: true }));
+  if (deletesCookie(request, REMEMBER_COOKIE_NAME))
+    chain.cookies.push(deleteCookieHeader(REMEMBER_COOKIE_NAME, { domain: allDomain(request.host), httpOnly: true }));
   session.data = { session_id: session.data.session_id };
   chain.sessionCleared = true;
 }
@@ -471,7 +537,8 @@ function refuseSuspendedWrite(chain: Chain): ControllerResponse {
     headers.set("location", redirectLocation(request, allowedReferrer(request) ?? "/"));
     headers.set("content-type", "text/html; charset=utf-8");
     // InertiaRails::Middleware: a redirect after PUT, PATCH or DELETE must be followed with GET.
-    const inertiaRedirect = request.headers.get("x-inertia") !== null && ["PUT", "PATCH", "DELETE"].includes(request.method);
+    const inertiaRedirect =
+      request.headers.get("x-inertia") !== null && ["PUT", "PATCH", "DELETE"].includes(request.method);
     response = { status: inertiaRedirect ? 303 : 302, headers, body: "" };
   }
   commitSession(chain);
@@ -485,11 +552,21 @@ const xsrfCookie = (chain: Chain) => {
   if (chain.xsrfCookieBytes) {
     // Rack escapes the bytes (URI.encode_www_form_component); the cookie value is not valid UTF-8, so it cannot go through setCookieHeader.
     const value = Array.from(chain.xsrfCookieBytes(globalCsrfToken(chain.csrfToken)))
-      .map((byte) => (/[*\-._0-9A-Za-z]/.test(String.fromCharCode(byte)) ? String.fromCharCode(byte) : byte === 0x20 ? "+" : `%${byte.toString(16).toUpperCase().padStart(2, "0")}`))
+      .map((byte) =>
+        /[*\-._0-9A-Za-z]/.test(String.fromCharCode(byte))
+          ? String.fromCharCode(byte)
+          : byte === 0x20
+            ? "+"
+            : `%${byte.toString(16).toUpperCase().padStart(2, "0")}`,
+      )
       .join("");
     return `${XSRF_TOKEN_COOKIE}=${value}; path=/; samesite=lax`;
   }
-  return setCookieHeader(XSRF_TOKEN_COOKIE, { value: formAuthenticityToken(chain.csrfToken), path: "/", sameSite: "lax" });
+  return setCookieHeader(XSRF_TOKEN_COOKIE, {
+    value: formAuthenticityToken(chain.csrfToken),
+    path: "/",
+    sameSite: "lax",
+  });
 };
 
 function commitSession({ request, headers, session, csrfToken, now, sessionCleared, bare, metal }: Chain): void {
@@ -528,7 +605,10 @@ export function afterActions(chain: Chain, result: ActionResult): ControllerResp
     for (const [name, value] of Object.entries(result.headers ?? {})) headers.set(name, value);
     // Vary: Accept is only added while the request's params were never read (Request#should_apply_vary_header?),
     // and an Inertia action always reads params[:slug] or the filters' query params.
-    const vary = [!result.inertia && !result.paramsRead && shouldApplyVaryHeader(request) ? "Accept" : null, result.inertia ? "X-Inertia" : null]
+    const vary = [
+      !result.inertia && !result.paramsRead && shouldApplyVaryHeader(request) ? "Accept" : null,
+      result.inertia ? "X-Inertia" : null,
+    ]
       .filter(Boolean)
       .join(", ");
     if (vary) headers.set("vary", vary);
@@ -543,7 +623,11 @@ export function afterActions(chain: Chain, result: ActionResult): ControllerResp
   for (const cookie of chain.cookies) headers.append("set-cookie", cookie);
   for (const cookie of ("cookies" in result ? result.cookies : undefined) ?? []) headers.append("set-cookie", cookie);
   // InertiaRails::Middleware: a redirect after PUT, PATCH or DELETE must be followed with GET.
-  const inertiaRedirect = "location" in result && request.headers.get("x-inertia") !== null && ["PUT", "PATCH", "DELETE"].includes(request.method) && [301, 302].includes(result.status);
+  const inertiaRedirect =
+    "location" in result &&
+    request.headers.get("x-inertia") !== null &&
+    ["PUT", "PATCH", "DELETE"].includes(request.method) &&
+    [301, 302].includes(result.status);
   return { status: inertiaRedirect ? 303 : result.status, headers, body: "location" in result ? "" : result.body };
 }
 
@@ -566,7 +650,13 @@ async function runChain(
 ): Promise<ControllerResponse> {
   const chain = await beforeActions(request, options, now);
   if (halted(chain)) return chain;
-  const result = await action({ request, context: chain.auth.context, takeRenderState: () => takeRenderState(chain), peekState: () => peekState(chain), chain });
+  const result = await action({
+    request,
+    context: chain.auth.context,
+    takeRenderState: () => takeRenderState(chain),
+    peekState: () => peekState(chain),
+    chain,
+  });
   const response = afterActions(chain, result);
   await promoteVisit(chain, response.status);
   return response;
@@ -576,14 +666,24 @@ async function runChain(
 function applyEtag(request: RailsRequest, response: ControllerResponse): void {
   let digest: string | null = null;
   // Rack::ETag skips only a Cache-Control that says no-cache; an `expires_in` response is tagged too.
-  if ((response.status === 200 || response.status === 201) && !response.headers.get("cache-control")?.includes("no-cache") && response.body !== "") {
+  if (
+    (response.status === 200 || response.status === 201) &&
+    !response.headers.get("cache-control")?.includes("no-cache") &&
+    response.body !== ""
+  ) {
     digest = createHash("sha256").update(response.body).digest("hex").slice(0, ETAG_DIGEST_LENGTH);
     response.headers.set("etag", `W/"${digest}"`);
   }
-  if (!response.headers.has("cache-control")) response.headers.set("cache-control", digest ? ETAG_CACHE_CONTROL : NO_ETAG_CACHE_CONTROL);
+  if (!response.headers.has("cache-control"))
+    response.headers.set("cache-control", digest ? ETAG_CACHE_CONTROL : NO_ETAG_CACHE_CONTROL);
 
   const noneMatch = request.headers.get("if-none-match");
-  if ((request.method === "GET" || request.method === "HEAD") && response.status === 200 && noneMatch !== null && response.headers.get("etag") === noneMatch) {
+  if (
+    (request.method === "GET" || request.method === "HEAD") &&
+    response.status === 200 &&
+    noneMatch !== null &&
+    response.headers.get("etag") === noneMatch
+  ) {
     response.status = 304;
     response.headers.delete("content-type");
     response.body = "";
@@ -611,7 +711,8 @@ function applySecureHeaders(request: RailsRequest, headers: Headers, options: Ac
       headers.append("set-cookie", line);
     }
   }
-  for (const [name, value] of Object.entries(secureHeaders({ optOutOfCsp: options.optOutOfCsp }))) headers.set(name, value);
+  for (const [name, value] of Object.entries(secureHeaders({ optOutOfCsp: options.optOutOfCsp })))
+    headers.set(name, value);
 }
 
 // Rack::Cors: the "*" resource matches every path, so Origin is always added to Vary.
@@ -628,17 +729,28 @@ const PUBLIC_EXCEPTION_MESSAGES: Record<number, string> = { 404: "Not Found", 42
 function publicException(request: RailsRequest, status: number): { headers: Headers; body: string } {
   const message = PUBLIC_EXCEPTION_MESSAGES[status] ?? "Internal Server Error";
   const accept = request.headers.get("accept");
-  const single = accept !== null && !accept.includes(",") && !BROWSER_LIKE_ACCEPTS.test(accept) ? accept.split(/\s*;\s*/)[0]!.trim() : "";
+  const single =
+    accept !== null && !accept.includes(",") && !BROWSER_LIKE_ACCEPTS.test(accept)
+      ? accept.split(/\s*;\s*/)[0]!.trim()
+      : "";
   const formats: Record<string, [string, () => string]> = {
     json: ["application/json", () => JSON.stringify({ status, error: message })],
     xml: [
       "application/xml",
-      () => `<?xml version="1.0" encoding="UTF-8"?>\n<hash>\n  <status type="integer">${status}</status>\n  <error>${message}</error>\n</hash>\n`,
+      () =>
+        `<?xml version="1.0" encoding="UTF-8"?>\n<hash>\n  <status type="integer">${status}</status>\n  <error>${message}</error>\n</hash>\n`,
     ],
     yaml: ["application/x-yaml", () => `---\n:status: ${status}\n:error: ${message}\n`],
   };
   const symbol =
-    ({ "application/json": "json", "text/x-json": "json", "application/jsonrequest": "json", "application/problem+json": "json" } as Record<string, string>)[single] ??
+    (
+      {
+        "application/json": "json",
+        "text/x-json": "json",
+        "application/jsonrequest": "json",
+        "application/problem+json": "json",
+      } as Record<string, string>
+    )[single] ??
     ({ "application/xml": "xml", "text/xml": "xml", "application/x-xml": "xml" } as Record<string, string>)[single] ??
     ({ "application/x-yaml": "yaml", "text/yaml": "yaml" } as Record<string, string>)[single];
   // The test environment's DebugExceptions answers a 422 with an HTML page whatever the Accept header says.
@@ -649,7 +761,10 @@ function publicException(request: RailsRequest, status: number): { headers: Head
   }
   const file = path.join(railsRoot(), "public", `${status}.html`);
   if (!existsSync(file)) return { headers: new Headers({ "x-cascade": "pass" }), body: "" };
-  return { headers: new Headers({ "content-type": "text/html; charset=utf-8" }), body: request.method === "HEAD" ? "" : readFileSync(file, "utf8") };
+  return {
+    headers: new Headers({ "content-type": "text/html; charset=utf-8" }),
+    body: request.method === "HEAD" ? "" : readFileSync(file, "utf8"),
+  };
 }
 
 // ActionDispatch::Routing::Redirect (routes.rb `redirect`): answered by the router, so no controller filter, session or
@@ -666,7 +781,8 @@ export function rackRedirect(incoming: Request, location: string, status = 301):
   applySecureHeaders(request, response.headers);
   applyCorsVary(response.headers);
   // Something in the Rack stack loads the session of a request that carries one, so the cookie store writes it back (re-encrypted).
-  if (request.cookies.has(railsSessionCookieName())) response.headers.append("set-cookie", sessionCookie(request, loadSession(request), new Date()));
+  if (request.cookies.has(railsSessionCookieName()))
+    response.headers.append("set-cookie", sessionCookie(request, loadSession(request), new Date()));
   return new Response(null, { status: response.status, headers: response.headers });
 }
 
@@ -726,7 +842,8 @@ export type PageEnvelope = { response: Response } | { headers: Headers; renderSt
 
 export async function pageEnvelope(incoming: Request, options: ActionOptions = {}): Promise<PageEnvelope> {
   const request = railsRequest(incoming);
-  if (mayTrackUtmVisit(request, domainConfig(process.env).validRequestHosts)) return { response: await forwardToRails(incoming) };
+  if (mayTrackUtmVisit(request, domainConfig(process.env).validRequestHosts))
+    return { response: await forwardToRails(incoming) };
 
   const wrap = (headers: Headers, status: number, body: string | null) => {
     applySecureHeaders(request, headers, options);
@@ -737,7 +854,12 @@ export async function pageEnvelope(incoming: Request, options: ActionOptions = {
     const chain = await beforeActions(request, options, new Date());
     if (halted(chain)) return wrap(chain.headers, chain.status, null);
     const renderState = takeRenderState(chain);
-    const { headers } = afterActions(chain, { status: 200, body: "", contentType: "text/html; charset=utf-8", inertia: true });
+    const { headers } = afterActions(chain, {
+      status: 200,
+      body: "",
+      contentType: "text/html; charset=utf-8",
+      inertia: true,
+    });
     // The page renders after this and builds the nav props from the rows as they are now; it promotes the visit then.
     if (promotesVisit(chain, 200)) renderState.promoteNavItemPath = chain.request.path;
     applySecureHeaders(request, headers, options);

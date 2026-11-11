@@ -14,6 +14,7 @@ import { authorize } from "../policies/authorize.ts";
 import { NotAuthorizedError } from "../policies/seller-context.ts";
 import { userPolicy } from "../policies/user.ts";
 import type { JsonValue } from "../search/es-json.ts";
+
 import { HandBackToRails, type ActionResult } from "./application-controller.ts";
 import { json, jsonAction } from "./json-actions.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
@@ -29,13 +30,19 @@ const SOURCE = "agent_conversation_persistence.rb";
 
 // Object#blank? of a JSON value
 const blank = (value: unknown): boolean =>
-  value === null || value === undefined || value === false || (typeof value === "string" && /^\s*$/u.test(value)) || (Array.isArray(value) && value.length === 0) || (typeof value === "object" && !Array.isArray(value) && Object.keys(value as object).length === 0);
+  value === null ||
+  value === undefined ||
+  value === false ||
+  (typeof value === "string" && /^\s*$/u.test(value)) ||
+  (Array.isArray(value) && value.length === 0) ||
+  (typeof value === "object" && !Array.isArray(value) && Object.keys(value as object).length === 0);
 
 async function handingBack<T>(run: () => Promise<T>): Promise<T> {
   try {
     return await run();
   } catch (error) {
-    if (error instanceof NotPortedError || error instanceof PageNotPortedError) throw new HandBackToRails(error.message);
+    if (error instanceof NotPortedError || error instanceof PageNotPortedError)
+      throw new HandBackToRails(error.message);
     throw error;
   }
 }
@@ -46,7 +53,8 @@ async function guarded(input: MutationInput, run: () => Promise<ActionResult>): 
   if (input.context.currentSeller === null) throw new HandBackToRails("a signed-in request without a current seller");
   const denied = await authorizeJson(input, async (context) => {
     authorize(userPolicy.viewStoreAgent, context);
-    if (!(await eligibleForStoreAgent(context.seller!, railsEnv() === "development"))) throw new NotAuthorizedError("not allowed to use_store_agent?");
+    if (!(await eligibleForStoreAgent(context.seller!, railsEnv() === "development")))
+      throw new NotAuthorizedError("not allowed to use_store_agent?");
   });
   return denied ?? run();
 }
@@ -56,13 +64,15 @@ type Metadata = Record<string, JsonValue>;
 function metadataOf(message: AiMessage): Metadata {
   const metadata = message.metadata as JsonValue;
   if (metadata === null || metadata === undefined) return {};
-  if (typeof metadata !== "object" || Array.isArray(metadata)) throw new NotPortedError("an AiMessage whose metadata is not a hash", SOURCE);
+  if (typeof metadata !== "object" || Array.isArray(metadata))
+    throw new NotPortedError("an AiMessage whose metadata is not a hash", SOURCE);
   return metadata as Metadata;
 }
 
 // reconcile_stale_agent_action!: an execution still marked as running is judged against the database clock and may be rewritten.
 function assertNothingToReconcile(metadata: Metadata): void {
-  if (!blank(metadata.proposed_action) && metadata.action_status === ACTION_STATUS_EXECUTING) throw new NotPortedError("a proposal whose execution is still marked as running", SOURCE);
+  if (!blank(metadata.proposed_action) && metadata.action_status === ACTION_STATUS_EXECUTING)
+    throw new NotPortedError("a proposal whose execution is still marked as running", SOURCE);
 }
 
 const ACTION_STATUS_UNKNOWN = "unknown";
@@ -71,9 +81,19 @@ const ACTION_STATUS_UNKNOWN = "unknown";
 function messageProps(message: AiMessage, hideExecutingAction = false): JsonValue {
   const metadata = metadataOf(message);
   assertNothingToReconcile(metadata);
-  if (hideExecutingAction && (metadata.action_status === ACTION_STATUS_EXECUTING || metadata.action_status === ACTION_STATUS_UNKNOWN)) throw new NotPortedError("a claimed action hidden from older mobile clients", SOURCE);
+  if (
+    hideExecutingAction &&
+    (metadata.action_status === ACTION_STATUS_EXECUTING || metadata.action_status === ACTION_STATUS_UNKNOWN)
+  )
+    throw new NotPortedError("a claimed action hidden from older mobile clients", SOURCE);
   const props: Record<string, JsonValue> = {};
-  for (const [key, value] of [["role", message.role], ["content", message.content], ["proposed_action", metadata.proposed_action], ["objects", metadata.objects], ["action_status", metadata.action_status]] as const) {
+  for (const [key, value] of [
+    ["role", message.role],
+    ["content", message.content],
+    ["proposed_action", metadata.proposed_action],
+    ["objects", metadata.objects],
+    ["action_status", metadata.action_status],
+  ] as const) {
     if (value !== null && value !== undefined) props[key] = value;
   }
   if (!blank(metadata.proposed_action)) props.proposal_message_id = encrypt(message.id);
@@ -107,7 +127,9 @@ export async function latestConversation(sellerId: bigint, hideExecutingAction: 
 
 // AgentConversationsController#latest
 export const agentConversationsLatest = (request: Request) =>
-  jsonAction(request, {}, {}, (input) => handingBack(() => guarded(input, () => latestConversation(input.context.currentSeller!.id, false))));
+  jsonAction(request, {}, {}, (input) =>
+    handingBack(() => guarded(input, () => latestConversation(input.context.currentSeller!.id, false))),
+  );
 
 // AgentConversationsController#action_status
 export const agentActionStatus = (request: Request) =>
@@ -115,17 +137,29 @@ export const agentActionStatus = (request: Request) =>
     handingBack(() =>
       guarded(input, async () => {
         const given = input.params.proposal_message_id;
-        if (given !== undefined && given !== null && typeof given !== "string") throw new HandBackToRails("a proposal_message_id that is not text");
+        if (given !== undefined && given !== null && typeof given !== "string")
+          throw new HandBackToRails("a proposal_message_id that is not text");
         const id = typeof given === "string" ? decrypt(given) : null;
         const message =
           id === null
             ? null
-            : await db.aiMessage.findFirst({ where: { id: BigInt(id), role: "assistant", ai_conversation: aliveConversation(input.context.currentSeller!.id) } });
+            : await db.aiMessage.findFirst({
+                where: {
+                  id: BigInt(id),
+                  role: "assistant",
+                  ai_conversation: aliveConversation(input.context.currentSeller!.id),
+                },
+              });
         const metadata = message === null ? {} : metadataOf(message);
-        if (message === null || blank(metadata.proposed_action)) return { status: 404, body: "", contentType: "application/json", paramsRead: true };
+        if (message === null || blank(metadata.proposed_action))
+          return { status: 404, body: "", contentType: "application/json", paramsRead: true };
         assertNothingToReconcile(metadata);
         const status = metadata.action_status;
-        return json({ success: true, action_status: blank(status) ? "pending" : status, objects: metadata.objects ?? [] });
+        return json({
+          success: true,
+          action_status: blank(status) ? "pending" : status,
+          objects: metadata.objects ?? [],
+        });
       }),
     ),
   );
@@ -164,7 +198,6 @@ export const agentTurnStatus = (request: Request, routeParams: Record<string, st
       guarded(input, () => turnStatus(input.context.currentSeller!.id, input.routeParams.client_turn_id!, false)),
     ),
   );
-
 
 // AgentMessagesController#create and #execute, AgentMessageStreamsController#create: `authenticate_user!` and `authorize_store_agent`, then
 // the Redis-counted `throttle_agent_requests`, which a Node answer would skip. Every request past the gates is Rails'.

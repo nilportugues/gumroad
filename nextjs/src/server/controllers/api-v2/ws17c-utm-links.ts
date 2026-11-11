@@ -7,18 +7,36 @@ import { decrypt } from "../../../lib/obfuscate-ids.ts";
 import { RecordInvalid } from "../../models/runtime/errors.ts";
 import { column, castRow, selectRows, table } from "../../models/sql.ts";
 import { findAliveUtmLink, UtmLinkDeletable, UtmLinks } from "../../models/utm-link.ts";
-import { targets, utmUrl, type Targets, type UtmLinkRow } from "../../page-props/audience/utm-links.ts";
 import { externalId, shortDomainWithProtocol } from "../../page-props/audience/support.ts";
+import { targets, utmUrl, type Targets, type UtmLinkRow } from "../../page-props/audience/utm-links.ts";
 import { HandBackToRails, type ActionResult } from "../application-controller.ts";
-import { authorize, errorWithCreatingObject, errorWithObject, halted, PUBLIC_READ_SCOPES, successWithObject, timeJson, type ApiCall } from "./ws17c-base.ts";
 import { remoteIp } from "../mutation.ts";
+
+import {
+  authorize,
+  errorWithCreatingObject,
+  errorWithObject,
+  halted,
+  PUBLIC_READ_SCOPES,
+  successWithObject,
+  timeJson,
+  type ApiCall,
+} from "./ws17c-base.ts";
 
 const GUID_COOKIE = "_gumroad_guid";
 
 // UtmLink#as_json (the public API shape)
-function utmLinkJson(seller: User, link: UtmLinkRow & { total_clicks: number; disabled_at: Date | null; updated_at: Date }, resolved: Targets): Record<string, unknown> {
-  const exists = (type: string, map: Map<number, unknown>) => link.target_resource_type === type && link.target_resource_id !== null && map.has(Number(link.target_resource_id));
-  const targetId = exists("product_page", resolved.products) || exists("post_page", resolved.posts) ? externalId(link.target_resource_id!) : null;
+function utmLinkJson(
+  seller: User,
+  link: UtmLinkRow & { total_clicks: number; disabled_at: Date | null; updated_at: Date },
+  resolved: Targets,
+): Record<string, unknown> {
+  const exists = (type: string, map: Map<number, unknown>) =>
+    link.target_resource_type === type && link.target_resource_id !== null && map.has(Number(link.target_resource_id));
+  const targetId =
+    exists("product_page", resolved.products) || exists("post_page", resolved.posts)
+      ? externalId(link.target_resource_id!)
+      : null;
   return {
     id: externalId(link.id),
     title: link.title,
@@ -47,7 +65,9 @@ async function render(seller: User, links: Row[]) {
 }
 
 async function renderOne(seller: User, id: bigint | number) {
-  const [row] = await selectRows<Row>(Prisma.sql`SELECT * FROM ${table("utm_links")} WHERE ${column("utm_links", "id")} = ${id} LIMIT 1`);
+  const [row] = await selectRows<Row>(
+    Prisma.sql`SELECT * FROM ${table("utm_links")} WHERE ${column("utm_links", "id")} = ${id} LIMIT 1`,
+  );
   return (await render(seller, [row!]))[0]!;
 }
 
@@ -114,7 +134,16 @@ export const disable = (call: ApiCall) => toggle(call, currentSecond());
 export const enable = (call: ApiCall) => toggle(call, null);
 
 // `params.permit(...)`: scalars only.
-const SCALAR_PARAMS = ["title", "target_resource_type", "target_resource_id", "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"] as const;
+const SCALAR_PARAMS = [
+  "title",
+  "target_resource_type",
+  "target_resource_id",
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_term",
+  "utm_content",
+] as const;
 function permittedParams(call: ApiCall): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const key of SCALAR_PARAMS) {
@@ -127,14 +156,20 @@ function permittedParams(call: ApiCall): Record<string, unknown> {
 const castString = (value: unknown) => (value === undefined ? undefined : value === null ? null : String(value));
 
 // SaveUtmLinkService#resolved_target_resource_id: through the seller's own association, so a foreign id becomes nil.
-export async function resolvedTargetResourceId(seller: User, type: unknown, externalIdValue: unknown): Promise<bigint | null> {
+export async function resolvedTargetResourceId(
+  seller: User,
+  type: unknown,
+  externalIdValue: unknown,
+): Promise<bigint | null> {
   if (externalIdValue == null || String(externalIdValue).trim() === "") return null;
   const id = decrypt(String(externalIdValue));
   if (id === null) return null;
   const tableName = type === "product_page" ? "links" : type === "post_page" ? "installments" : null;
   if (tableName === null) return null;
   const owner = tableName === "links" ? "user_id" : "seller_id";
-  const [row] = await selectRows<{ id: bigint }>(Prisma.sql`SELECT ${column(tableName, "id")} FROM ${table(tableName)} WHERE ${column(tableName, owner)} = ${seller.id} AND ${column(tableName, "id")} = ${id} LIMIT 1`);
+  const [row] = await selectRows<{ id: bigint }>(
+    Prisma.sql`SELECT ${column(tableName, "id")} FROM ${table(tableName)} WHERE ${column(tableName, owner)} = ${seller.id} AND ${column(tableName, "id")} = ${id} LIMIT 1`,
+  );
   return row?.id ?? null;
 }
 
@@ -146,7 +181,11 @@ export async function create(call: ApiCall): Promise<ActionResult> {
     seller_id: auth.owner.id,
     title: castString(params.title) as never,
     target_resource_type: castString(params.target_resource_type) as never,
-    target_resource_id: (await resolvedTargetResourceId(auth.owner, params.target_resource_type, params.target_resource_id)) as never,
+    target_resource_id: (await resolvedTargetResourceId(
+      auth.owner,
+      params.target_resource_type,
+      params.target_resource_id,
+    )) as never,
     utm_source: castString(params.utm_source) as never,
     utm_medium: castString(params.utm_medium) as never,
     utm_campaign: castString(params.utm_campaign) as never,
@@ -172,7 +211,8 @@ export async function update(call: ApiCall): Promise<ActionResult> {
   const params = permittedParams(call);
   const link = UtmLinks.load(castRow("UtmLink", row) as never);
   const attributes: Record<string, unknown> = {};
-  for (const key of ["title", "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"]) if (key in params) attributes[key] = castString(params[key]);
+  for (const key of ["title", "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"])
+    if (key in params) attributes[key] = castString(params[key]);
   link.assign(attributes as never);
   try {
     await UtmLinks.saveBang(link);

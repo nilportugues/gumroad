@@ -12,14 +12,29 @@ import { timingSafeEqual } from "node:crypto";
 import type { OauthAccessToken, User } from "@prisma/client";
 
 import { db } from "../../lib/db.ts";
-import { ApiUserNotFoundError, brandTeamMembership, currentApiUser, doorkeeperAuthorize, doorkeeperToken } from "../auth/api-token.ts";
+import {
+  ApiUserNotFoundError,
+  brandTeamMembership,
+  currentApiUser,
+  doorkeeperAuthorize,
+  doorkeeperToken,
+} from "../auth/api-token.ts";
 import { prismaAuthStore } from "../auth/store.ts";
 import { getConfig } from "../infra/config.ts";
 import { NotPortedError, UserFlags } from "../models/user.ts";
 import { NotPortedError as PageNotPortedError } from "../page-props/not-ported.ts";
 import { PAGE_URL_HEADER } from "../page-props/render-state.ts";
 import { esJson, type JsonValue } from "../search/es-json.ts";
-import { forwardToRails, HandBackToRails, processAction, RoutingError, type ActionOptions, type ActionResult, type Rendered } from "./application-controller.ts";
+
+import {
+  forwardToRails,
+  HandBackToRails,
+  processAction,
+  RoutingError,
+  type ActionOptions,
+  type ActionResult,
+  type Rendered,
+} from "./application-controller.ts";
 import { requestParams, type Params } from "./rails-body.ts";
 import { railsRequest, type RailsRequest } from "./rails-request.ts";
 
@@ -30,11 +45,17 @@ export const FORBIDDEN = 403;
 export const UNPROCESSABLE_ENTITY = 422;
 
 // `render json:`; `rescued` marks a before_action's halt, whose after_actions (the XSRF-TOKEN cookie) do not run.
-export const renderJson = (body: unknown, status = 200): Rendered => ({ status, body: esJson(body as JsonValue), contentType: JSON_TYPE, paramsRead: true });
+export const renderJson = (body: unknown, status = 200): Rendered => ({
+  status,
+  body: esJson(body as JsonValue),
+  contentType: JSON_TYPE,
+  paramsRead: true,
+});
 const halted = (response: Rendered): Rendered => ({ ...response, rescued: true });
 
 // Api::Mobile::BaseController#fetch_error
-export const fetchError = (message: string, status = NOT_FOUND): Rendered => halted(renderJson({ success: false, message }, status));
+export const fetchError = (message: string, status = NOT_FOUND): Rendered =>
+  halted(renderJson({ success: false, message }, status));
 
 export type MobileInput = {
   request: RailsRequest;
@@ -78,7 +99,9 @@ export async function resolveMobileAuth(token: OauthAccessToken): Promise<Mobile
 function mobileTokenValid(params: Params): boolean {
   const known = getConfig("MOBILE_TOKEN");
   if (known === undefined) throw new HandBackToRails("MOBILE_TOKEN is not configured");
-  const given = Buffer.from(typeof params.mobile_token === "string" ? params.mobile_token : params.mobile_token == null ? "" : "\0");
+  const given = Buffer.from(
+    typeof params.mobile_token === "string" ? params.mobile_token : params.mobile_token == null ? "" : "\0",
+  );
   const expected = Buffer.from(known);
   return given.length === expected.length && timingSafeEqual(given, expected);
 }
@@ -99,7 +122,9 @@ export type MobileAction = {
 const REGISTRY: MobileAction[] = [];
 
 export function registerMobile(...actions: MobileAction[]): void {
-  for (const action of actions) if (!REGISTRY.some((known) => known.method === action.method && known.pattern === action.pattern)) REGISTRY.push(action);
+  for (const action of actions)
+    if (!REGISTRY.some((known) => known.method === action.method && known.pattern === action.pattern))
+      REGISTRY.push(action);
 }
 
 function matchPattern(pattern: string, path: string): Record<string, string> | null {
@@ -113,14 +138,22 @@ function matchPattern(pattern: string, path: string): Record<string, string> | n
     })
     .join("/");
   const match = new RegExp(`^${source}$`, "u").exec(path);
-  return match === null ? null : Object.fromEntries(names.map((name, index) => [name, decodeURIComponent(match[index + 1]!)]));
+  return match === null
+    ? null
+    : Object.fromEntries(names.map((name, index) => [name, decodeURIComponent(match[index + 1]!)]));
 }
 
 // Doorkeeper::Rails::Helpers#doorkeeper_authorize!: `head 401` (WWW-Authenticate) or `head 403`, both halting the chain.
 async function authorize(token: OauthAccessToken | null, scopes: string[]): Promise<Rendered | null> {
   const result = await doorkeeperAuthorize(token, scopes);
   if (result.ok) return null;
-  return { status: result.status, body: "", contentType: "text/html", headers: Object.fromEntries(Object.entries(result.headers).map(([name, value]) => [name.toLowerCase(), value])), rescued: true };
+  return {
+    status: result.status,
+    body: "",
+    contentType: "text/html",
+    headers: Object.fromEntries(Object.entries(result.headers).map(([name, value]) => [name.toLowerCase(), value])),
+    rescued: true,
+  };
 }
 
 const READ_METHODS = ["GET", "HEAD"];
@@ -132,10 +165,17 @@ export async function mobileResponse(incoming: Request): Promise<Response> {
   const protocol = incoming.headers.get("x-forwarded-proto") ?? "http";
   const bytes = new Uint8Array(await incoming.arrayBuffer());
   const url = new URL(target, `${protocol}://${host}`);
-  const request = new Request(url, { method: incoming.method, headers: incoming.headers, body: bytes.length > 0 && !READ_METHODS.includes(incoming.method) ? bytes : undefined });
+  const request = new Request(url, {
+    method: incoming.method,
+    headers: incoming.headers,
+    body: bytes.length > 0 && !READ_METHODS.includes(incoming.method) ? bytes : undefined,
+  });
 
   const method = request.method === "HEAD" ? "GET" : request.method;
-  const found = REGISTRY.map((action) => ({ action, routeParams: action.method === method ? matchPattern(action.pattern, url.pathname) : null })).find(({ routeParams }) => routeParams !== null);
+  const found = REGISTRY.map((action) => ({
+    action,
+    routeParams: action.method === method ? matchPattern(action.pattern, url.pathname) : null,
+  })).find(({ routeParams }) => routeParams !== null);
   if (found === undefined) return forwardToRails(request);
   const { action, routeParams } = found;
 
@@ -143,7 +183,8 @@ export async function mobileResponse(incoming: Request): Promise<Response> {
   try {
     params = requestParams(url, request.headers.get("content-type"), bytes);
     // protect_from_forgery runs the action with a null session: nothing is read from, or written to, the visitor's cookies.
-    if (!READ_METHODS.includes(request.method) && !action.skipForgeryProtection && request.headers.get("cookie")) throw new HandBackToRails("a write that carries cookies");
+    if (!READ_METHODS.includes(request.method) && !action.skipForgeryProtection && request.headers.get("cookie"))
+      throw new HandBackToRails("a write that carries cookies");
   } catch (error) {
     if (error instanceof HandBackToRails) {
       console.warn(`[mobile] ${request.method} ${url.pathname} handed back to Rails: ${error.message}`);
@@ -152,14 +193,27 @@ export async function mobileResponse(incoming: Request): Promise<Response> {
     throw error;
   }
 
-  const options: ActionOptions = { ...action.options, bare: !READ_METHODS.includes(request.method) && !action.skipForgeryProtection };
+  const options: ActionOptions = {
+    ...action.options,
+    bare: !READ_METHODS.includes(request.method) && !action.skipForgeryProtection,
+  };
   return processAction(request, options, async ({ request: railsReq }) => {
-    const input: MobileInput = { request: railsReq, url, params: { ...params, ...routeParams }, routeParams: routeParams!, rawBody: bytes };
+    const input: MobileInput = {
+      request: railsReq,
+      url,
+      params: { ...params, ...routeParams },
+      routeParams: routeParams!,
+      rawBody: bytes,
+    };
     if (!mobileTokenValid(params)) return fetchError("Invalid request", UNAUTHORIZED);
     let token: OauthAccessToken | null = null;
     let auth: MobileAuth | null = null;
     try {
-      token = await doorkeeperToken({ authorization: request.headers.get("authorization"), parameters: input.params, path: railsReq.path });
+      token = await doorkeeperToken({
+        authorization: request.headers.get("authorization"),
+        parameters: input.params,
+        path: railsReq.path,
+      });
       if (action.scopes !== null) {
         const refused = await authorize(token, action.scopes);
         if (refused !== null) return refused;
@@ -179,7 +233,8 @@ export async function mobileResponse(incoming: Request): Promise<Response> {
         console.warn(`[mobile] ${request.method} ${url.pathname} handed back to Rails: ${error.message}`);
         throw new HandBackToRails(error.message);
       }
-      if (!(error instanceof HandBackToRails)) console.error(`[mobile] ${request.method} ${url.pathname} failed`, error);
+      if (!(error instanceof HandBackToRails))
+        console.error(`[mobile] ${request.method} ${url.pathname} failed`, error);
       throw error;
     }
   });

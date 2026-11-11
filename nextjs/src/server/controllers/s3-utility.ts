@@ -3,13 +3,14 @@ import { createHmac } from "node:crypto";
 
 import { Prisma } from "@prisma/client";
 
-import { NotAuthorizedError } from "../policies/seller-context.ts";
-import { s3UtilityPolicy } from "../policies/s3-utility.ts";
-import { authorize } from "../policies/authorize.ts";
-import { cdnUrlFor } from "../infra/cdn-url.ts";
 import { isConfiguredService, publicStorageUrl } from "../infra/active-storage.ts";
+import { cdnUrlFor } from "../infra/cdn-url.ts";
 import { storageConfig } from "../infra/storage.ts";
 import { selectRows, table, column } from "../models/sql.ts";
+import { authorize } from "../policies/authorize.ts";
+import { s3UtilityPolicy } from "../policies/s3-utility.ts";
+import { NotAuthorizedError } from "../policies/seller-context.ts";
+
 import { HandBackToRails, RoutingError, type ActionResult } from "./application-controller.ts";
 import { json, jsonAction, jsonSellerGuard, plain } from "./json-actions.ts";
 import type { MutationInput } from "./mutation.ts";
@@ -33,11 +34,15 @@ const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/gu, "\
 
 async function generateMultipartSignature({ params, context, request }: MutationInput): Promise<ActionResult> {
   const toSign = params.to_sign;
-  if (toSign === undefined || toSign === null || toSign === "" || (typeof toSign === "string" && !isPresent(toSign))) return json({ success: false, error: "Missing required parameter: to_sign" }, 400);
+  if (toSign === undefined || toSign === null || toSign === "" || (typeof toSign === "string" && !isPresent(toSign)))
+    return json({ success: false, error: "Missing required parameter: to_sign" }, 400);
   if (typeof toSign !== "string") return json({ success: false, error: "Invalid parameter: to_sign" }, 400);
 
   // Newlines split the body in S3's eyes, so every line that names a path must be under the seller's own prefix.
-  const owned = new RegExp(`^/${escapeRegExp(storageConfig().s3Bucket)}/\\w+/${escapeRegExp(context.currentSeller!.external_id ?? "")}/`, "u");
+  const owned = new RegExp(
+    `^/${escapeRegExp(storageConfig().s3Bucket)}/\\w+/${escapeRegExp(context.currentSeller!.external_id ?? "")}/`,
+    "u",
+  );
   for (const url of toSign.split(/[\n\r\s]/u).filter((part) => part.startsWith("/"))) {
     if (!owned.test(url)) return json({ success: false, error: "Unauthorized" }, 403);
   }
@@ -46,15 +51,26 @@ async function generateMultipartSignature({ params, context, request }: Mutation
   // `render inline:` renders the signature through ERB, and answers in the request's format
   const format = requestFormat(request);
   if (format === "other") throw new HandBackToRails("a format that is neither HTML nor JSON");
-  return { status: 200, body: signWithAwsSecretKey(toSign, secret), contentType: format === "json" ? "application/json; charset=utf-8" : "text/html; charset=utf-8", paramsRead: true };
+  return {
+    status: 200,
+    body: signWithAwsSecretKey(toSign, secret),
+    contentType: format === "json" ? "application/json; charset=utf-8" : "text/html; charset=utf-8",
+    paramsRead: true,
+  };
 }
 
 async function cdnUrlForBlob({ params, request }: MutationInput): Promise<ActionResult> {
   const key = params.key;
-  const [row] = typeof key === "string" ? await selectRows<{ service_name: string }>(Prisma.sql`SELECT ${Prisma.raw("`active_storage_blobs`.*")} FROM ${table("active_storage_blobs")} WHERE ${column("active_storage_blobs", "key")} = ${key} LIMIT 1`) : [];
+  const [row] =
+    typeof key === "string"
+      ? await selectRows<{ service_name: string }>(
+          Prisma.sql`SELECT ${Prisma.raw("`active_storage_blobs`.*")} FROM ${table("active_storage_blobs")} WHERE ${column("active_storage_blobs", "key")} = ${key} LIMIT 1`,
+        )
+      : [];
   if (!row) throw new RoutingError("Not Found");
   // A blob on another service gets a signed URL only Rails builds.
-  if (!isConfiguredService(row.service_name)) throw new HandBackToRails("a blob outside the configured storage service");
+  if (!isConfiguredService(row.service_name))
+    throw new HandBackToRails("a blob outside the configured storage service");
   const url = cdnUrlFor(publicStorageUrl(key as string))!;
   const format = requestFormat(request);
   if (format === "json") return json({ url });

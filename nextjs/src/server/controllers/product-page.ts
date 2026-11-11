@@ -9,13 +9,28 @@ import { classifyHost } from "../../lib/navigation/proxy/hosts.ts";
 import { decryptNumeric, encrypt } from "../../lib/obfuscate-ids.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { domainConfig } from "../page-props/domain.ts";
-import { type LinkRow, customDomainByHost, findLink, findUserById, userByDomain, type UserRow } from "../presenters/product-reads.ts";
-import { linkFields, longUrl, subdomainWithProtocol } from "../presenters/product.ts";
 import { assertRenderable } from "../presenters/product-page.ts";
-import { type ActionOptions, allDomain, type Chain, type FilterOutcome, HandBackToRails, RoutingError } from "./application-controller.ts";
-import { parseQuery, toQuery, type Query } from "./rails-query.ts";
-import { assertFlatQuery } from "./rails-params.ts";
+import {
+  type LinkRow,
+  customDomainByHost,
+  findLink,
+  findUserById,
+  userByDomain,
+  type UserRow,
+} from "../presenters/product-reads.ts";
+import { linkFields, longUrl, subdomainWithProtocol } from "../presenters/product.ts";
+
+import {
+  type ActionOptions,
+  allDomain,
+  type Chain,
+  type FilterOutcome,
+  HandBackToRails,
+  RoutingError,
+} from "./application-controller.ts";
 import { setCookieHeader } from "./rack-cookies.ts";
+import { assertFlatQuery } from "./rails-params.ts";
+import { parseQuery, toQuery, type Query } from "./rails-query.ts";
 
 const AFFILIATE_COOKIE_NAME_PREFIX = "_gumroad_affiliate_id_";
 // Affiliate::AFFILIATE_COOKIE_LIFETIME_DAYS
@@ -56,16 +71,25 @@ export async function fetchLeniently(permalink: string, userId: bigint | null): 
 
 // The affiliate id of ?affiliate_id= or ?a=, which AffiliateQueryParams reads as a scalar.
 function affiliateIdParam(query: Query): number | null {
-  const first = (value: string | string[] | Query | undefined) => (typeof value === "string" && value !== "" ? value : undefined);
+  const first = (value: string | string[] | Query | undefined) =>
+    typeof value === "string" && value !== "" ? value : undefined;
   const raw = first(query.affiliate_id) ?? first(query.a);
   if (raw === undefined) return null;
   const id = rubyToI(raw);
   return id === 0 ? null : id;
 }
 
-type AffiliateRow = { id: bigint; type: string | null; deleted_at: Date | null; seller_id: bigint | null; affiliate_user_id: bigint | null };
+type AffiliateRow = {
+  id: bigint;
+  type: string | null;
+  deleted_at: Date | null;
+  seller_id: bigint | null;
+  affiliate_user_id: bigint | null;
+};
 
-const affiliateColumns = ["id", "type", "deleted_at", "seller_id", "affiliate_user_id"].map((name) => column("affiliates", name));
+const affiliateColumns = ["id", "type", "deleted_at", "seller_id", "affiliate_user_id"].map((name) =>
+  column("affiliates", name),
+);
 
 // AffiliateCookie#set_affiliate_cookie
 async function setAffiliateCookie(chain: Chain, query: Query): Promise<void> {
@@ -78,7 +102,9 @@ async function setAffiliateCookie(chain: Chain, query: Query): Promise<void> {
   } catch {
     return;
   }
-  const [found] = await selectRows<AffiliateRow>(Prisma.sql`SELECT ${Prisma.join(affiliateColumns)} FROM ${table("affiliates")} WHERE ${column("affiliates", "id")} = ${id} LIMIT 1`);
+  const [found] = await selectRows<AffiliateRow>(
+    Prisma.sql`SELECT ${Prisma.join(affiliateColumns)} FROM ${table("affiliates")} WHERE ${column("affiliates", "id")} = ${id} LIMIT 1`,
+  );
   if (!found) return;
   let affiliate = found;
   // A deleted account of the seller is replaced by the affiliate user's latest alive direct one.
@@ -118,7 +144,10 @@ async function pageExists(productId: bigint): Promise<boolean> {
 }
 
 // Journey::Router::Utils.escape_segment: unreserved characters and sub-delimiters stay.
-const escapeSegment = (value: string) => encodeURIComponent(value).replace(/%(21|24|26|27|28|29|2A|2B|2C|3A|3B|3D|40)/g, (_, hex: string) => String.fromCharCode(Number.parseInt(hex, 16)));
+const escapeSegment = (value: string) =>
+  encodeURIComponent(value).replace(/%(21|24|26|27|28|29|2A|2B|2C|3A|3B|3D|40)/g, (_, hex: string) =>
+    String.fromCharCode(Number.parseInt(hex, 16)),
+  );
 
 function queryString(options: Record<string, string>): string {
   const parts = toQuery(options);
@@ -173,7 +202,10 @@ export async function productPageFilters(chain: Chain): Promise<FilterOutcome> {
   if (query.code !== undefined && typeof query.code !== "string") throw new HandBackToRails();
   const code = present(pathCode) ? pathCode : present(queryCode) ? queryCode : null;
 
-  const { product, seller, productByCustomDomain, isUserCustomDomain, domainSeller } = await fetchProductForShow(request.host, id);
+  const { product, seller, productByCustomDomain, isUserCustomDomain, domainSeller } = await fetchProductForShow(
+    request.host,
+    id,
+  );
 
   // check_banned, ensure_seller_is_not_deleted
   if (product.banned_at !== null) throw new RoutingError("Not Found");
@@ -205,8 +237,14 @@ export async function productPageFilters(chain: Chain): Promise<FilterOutcome> {
   // The action: a coffee product has its own page.
   if (product.native_type === "coffee") {
     const forwarded: Record<string, string> = {};
-    for (const name of ["wanted", "native"]) if (typeof query[name] === "string") forwarded[name] = query[name] as string;
-    return { halt: { status: 302, location: `${request.protocol}${request.hostWithPort}${COFFEE_PATH}${queryString(forwarded)}` } };
+    for (const name of ["wanted", "native"])
+      if (typeof query[name] === "string") forwarded[name] = query[name] as string;
+    return {
+      halt: {
+        status: 302,
+        location: `${request.protocol}${request.hostWithPort}${COFFEE_PATH}${queryString(forwarded)}`,
+      },
+    };
   }
 
   await assertRenderable({ chain, product, seller, query, code, isUserCustomDomain });

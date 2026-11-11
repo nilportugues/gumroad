@@ -4,19 +4,28 @@
 import { Prisma, type Purchase } from "@prisma/client";
 
 import { decryptNumeric } from "../../../lib/obfuscate-ids.ts";
+import { queueSalesExport, salesExportQuery, type SalesExportFilters } from "../../exports/sales-export.ts";
 import { performAsync } from "../../models/concerns/job-runtime.ts";
-import { followingEmails, purchasesAsJsonV2 } from "../../models/purchase-json.ts";
-import { column, selectRows, table } from "../../models/sql.ts";
 import { accessRecord } from "../../models/purchase-access-record.ts";
+import { followingEmails, purchasesAsJsonV2 } from "../../models/purchase-json.ts";
 import { loadLibraryPurchase, setLibraryFlag } from "../../models/purchase-library-writes.ts";
+import { column, selectRows, table } from "../../models/sql.ts";
 import { audiencePurchasePolicy } from "../../policies/audience-purchase.ts";
 import { addDays, civilDateInZone, timezoneId } from "../../search/civil-time.ts";
 import { PurchaseFlags } from "../../search/flags.ts";
-import { MAX_HOURLY_DATE_RANGE_DAYS, salesSummary, VALID_GROUPS, type Group } from "./sales-summary.ts";
-import { queueSalesExport, salesExportQuery, type SalesExportFilters } from "../../exports/sales-export.ts";
 import { HandBackToRails } from "../application-controller.ts";
-import { error400, errorWithObject, fromExternalId, registerApiV2, renderResponse, successWithObject, type ApiV2Input } from "./base.ts";
+
+import {
+  error400,
+  errorWithObject,
+  fromExternalId,
+  registerApiV2,
+  renderResponse,
+  successWithObject,
+  type ApiV2Input,
+} from "./base.ts";
 import { decodePageKey, paginationInfo, USEC_FORMAT } from "./pagination.ts";
+import { MAX_HOURLY_DATE_RANGE_DAYS, salesSummary, VALID_GROUPS, type Group } from "./sales-summary.ts";
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -38,7 +47,8 @@ registerApiV2({
           );
     if (sale === undefined) return errorWithObject("sale");
     // A preorder authorization sends a CustomerMailer.preorder_receipt and a gift sender also the giftee's receipt.
-    if (Number(sale.authorization) === 1 || Number(sale.sender) === 1) throw new HandBackToRails("a preorder authorization or gift sender receipt");
+    if (Number(sale.authorization) === 1 || Number(sale.sender) === 1)
+      throw new HandBackToRails("a preorder authorization or gift sender receipt");
 
     await performAsync("SendPurchaseReceiptJob", [Number(sale.id), true]);
     return renderResponse(true);
@@ -57,7 +67,8 @@ function strptimeDate(value: unknown): { date: string } | { invalid: true } {
   const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
   if (year < 1000) throw new HandBackToRails("a year before 1000");
   const real = new Date(Date.UTC(year, month - 1, day));
-  if (real.getUTCFullYear() !== year || real.getUTCMonth() !== month - 1 || real.getUTCDate() !== day) return { invalid: true };
+  if (real.getUTCFullYear() !== year || real.getUTCMonth() !== month - 1 || real.getUTCDate() !== day)
+    return { invalid: true };
   return { date: `${match[1]}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}` };
 }
 
@@ -66,19 +77,32 @@ const EXPORT_DATE = /^\d{4}-\d{1,2}-\d{1,2}(?: (?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d
 
 async function exportSales({ owner, params }: ApiV2Input) {
   const filters: SalesExportFilters = {};
-  for (const [param, key] of [["from", "startDate"], ["to", "endDate"]] as const) {
+  for (const [param, key] of [
+    ["from", "startDate"],
+    ["to", "endDate"],
+  ] as const) {
     const value = params[param];
     if (value === undefined || value === null || (typeof value === "string" && !present(value))) continue;
     const parsed = strptimeDate(value);
-    if ("invalid" in parsed) return error400(`Invalid date format provided in field '${param}'. Dates must be in the format YYYY-MM-DD.`);
+    if ("invalid" in parsed)
+      return error400(`Invalid date format provided in field '${param}'. Dates must be in the format YYYY-MM-DD.`);
     if (!EXPORT_DATE.test(value as string)) throw new HandBackToRails("a date spelling Date.parse reads differently");
     filters[key] = parsed.date;
   }
   const productParam = params.product_id;
-  if (productParam !== undefined && productParam !== null && (typeof productParam !== "string" || present(productParam))) {
+  if (
+    productParam !== undefined &&
+    productParam !== null &&
+    (typeof productParam !== "string" || present(productParam))
+  ) {
     if (typeof productParam !== "string") throw new HandBackToRails("a product_id that is not text");
     const id = fromExternalId(productParam);
-    const [product] = id === null ? [] : await selectRows<{ id: bigint }>(Prisma.sql`SELECT ${column("links", "id")} FROM ${table("links")} WHERE ${column("links", "user_id")} = ${owner.id} AND ${column("links", "id")} = ${id} LIMIT 1`);
+    const [product] =
+      id === null
+        ? []
+        : await selectRows<{ id: bigint }>(
+            Prisma.sql`SELECT ${column("links", "id")} FROM ${table("links")} WHERE ${column("links", "user_id")} = ${owner.id} AND ${column("links", "id")} = ${id} LIMIT 1`,
+          );
     if (product === undefined) return error400("Invalid product ID.");
     filters.productIds = [Number(product.id)];
   }
@@ -96,7 +120,9 @@ const rubyToI = (value: string): number => {
 const sanitizeSqlLike = (value: string) => value.replace(/[\\%_]/gu, (char) => `\\${char}`);
 
 const selectSales = (where: Prisma.Sql, tail: Prisma.Sql) =>
-  selectRows<Row>(Prisma.sql`SELECT ${Prisma.raw("`purchases`.*")}, DATE_FORMAT(${column("purchases", "created_at")}, ${USEC_FORMAT}) AS created_usec FROM ${table("purchases")} WHERE ${where}${tail}`);
+  selectRows<Row>(
+    Prisma.sql`SELECT ${Prisma.raw("`purchases`.*")}, DATE_FORMAT(${column("purchases", "created_at")}, ${USEC_FORMAT}) AS created_usec FROM ${table("purchases")} WHERE ${where}${tail}`,
+  );
 
 async function saleJson(rows: Row[], sellerId: bigint, listed: boolean): Promise<Record<string, unknown>[]> {
   if (!listed) return purchasesAsJsonV2(rows);
@@ -106,7 +132,13 @@ async function saleJson(rows: Row[], sellerId: bigint, listed: boolean): Promise
 
 async function show({ owner, routeParams }: ApiV2Input) {
   const id = fromExternalId(routeParams.id);
-  const [sale] = id === null ? [] : await selectSales(Prisma.sql`${column("purchases", "seller_id")} = ${owner.id} AND ${column("purchases", "id")} = ${id}`, Prisma.sql` LIMIT 1`);
+  const [sale] =
+    id === null
+      ? []
+      : await selectSales(
+          Prisma.sql`${column("purchases", "seller_id")} = ${owner.id} AND ${column("purchases", "id")} = ${id}`,
+          Prisma.sql` LIMIT 1`,
+        );
   if (sale === undefined) return errorWithObject("sale");
   return successWithObject("sale", (await saleJson([sale], owner.id, false))[0]);
 }
@@ -122,18 +154,21 @@ export async function index({ owner, params, request }: ApiV2Input) {
   if (!(page > 0)) return error400("Invalid page number. Page numbers start at 1.");
   for (const key of ["before", "after", "email", "name", "license_key", "product_id", "order_id", "page_key"]) {
     const value = params[key];
-    if (value !== undefined && value !== null && typeof value !== "string") throw new HandBackToRails(`a non-text ${key} parameter`);
+    if (value !== undefined && value !== null && typeof value !== "string")
+      throw new HandBackToRails(`a non-text ${key} parameter`);
   }
 
   const conditions: Prisma.Sql[] = [Prisma.sql`${column("purchases", "seller_id")} = ${owner.id}`];
   if (params.before !== undefined && params.before !== null) {
     const parsed = strptimeDate(params.before);
-    if ("invalid" in parsed) return error400("Invalid date format provided in field 'before'. Dates must be in the format YYYY-MM-DD.");
+    if ("invalid" in parsed)
+      return error400("Invalid date format provided in field 'before'. Dates must be in the format YYYY-MM-DD.");
     conditions.push(Prisma.sql`${column("purchases", "created_at")} < ${parsed.date}`);
   }
   if (params.after !== undefined && params.after !== null) {
     const parsed = strptimeDate(params.after);
-    if ("invalid" in parsed) return error400("Invalid date format provided in field 'after'. Dates must be in the format YYYY-MM-DD.");
+    if ("invalid" in parsed)
+      return error400("Invalid date format provided in field 'after'. Dates must be in the format YYYY-MM-DD.");
     conditions.push(Prisma.sql`${column("purchases", "created_at")} >= ${parsed.date}`);
   }
   if (present(params.product_id)) {
@@ -147,7 +182,8 @@ export async function index({ owner, params, request }: ApiV2Input) {
     conditions.push(Prisma.sql`${column("purchases", "id")} = ${decryptNumeric(rubyToI(params.order_id))}`);
   }
   if (present(params.email)) conditions.push(Prisma.sql`${column("purchases", "email")} = ${params.email.trim()}`);
-  if (present(params.name)) conditions.push(Prisma.sql`${column("purchases", "full_name")} LIKE ${`%${sanitizeSqlLike(params.name.trim())}%`}`);
+  if (present(params.name))
+    conditions.push(Prisma.sql`${column("purchases", "full_name")} LIKE ${`%${sanitizeSqlLike(params.name.trim())}%`}`);
   if (present(params.license_key)) {
     // sale_ids_for_license_key: the gifter's purchase when the license sits on a giftee purchase
     conditions.push(
@@ -167,14 +203,26 @@ export async function index({ owner, params, request }: ApiV2Input) {
     if (present(params.page_key)) {
       const decoded = decodePageKey(params.page_key);
       if (decoded === null) return error400("Invalid page_key.");
-      conditions.push(Prisma.sql`${column("purchases", "created_at")} <= ${decoded.at} AND ${column("purchases", "id")} < ${decoded.id}`);
+      conditions.push(
+        Prisma.sql`${column("purchases", "created_at")} <= ${decoded.at} AND ${column("purchases", "id")} < ${decoded.id}`,
+      );
     }
     tail = Prisma.sql`${order} LIMIT ${RESULTS_PER_PAGE + 1}`;
   }
-  const rows = await selectSales(Prisma.join(conditions.map((condition) => Prisma.sql`(${condition})`), " AND "), tail);
+  const rows = await selectSales(
+    Prisma.join(
+      conditions.map((condition) => Prisma.sql`(${condition})`),
+      " AND ",
+    ),
+    tail,
+  );
   const more = rows.length > RESULTS_PER_PAGE;
   const sales = await saleJson(rows.slice(0, RESULTS_PER_PAGE), owner.id, true);
-  return successWithObject("sales", sales, more ? paginationInfo(request, rows[RESULTS_PER_PAGE - 1] as { created_usec: string; id: bigint }) : {});
+  return successWithObject(
+    "sales",
+    sales,
+    more ? paginationInfo(request, rows[RESULTS_PER_PAGE - 1] as { created_usec: string; id: bigint }) : {},
+  );
 }
 
 // sales_summary_params. Date.strptime without the Date.parse of the export: a plain date or a date and trailing text.
@@ -186,14 +234,16 @@ async function summary({ owner, params }: ApiV2Input) {
     return present(value) ? value : null;
   };
   const groupParam = textParam("group_by");
-  if (groupParam !== null && !(VALID_GROUPS as readonly string[]).includes(groupParam)) return error400(`Invalid group_by. Valid values are: ${VALID_GROUPS.join(", ")}.`);
+  if (groupParam !== null && !(VALID_GROUPS as readonly string[]).includes(groupParam))
+    return error400(`Invalid group_by. Valid values are: ${VALID_GROUPS.join(", ")}.`);
   const groupBy = groupParam as Group | null;
 
   const parse = (value: string) => {
     const parsed = strptimeDate(value);
     return "invalid" in parsed ? null : parsed.date;
   };
-  const invalid = (name: string) => error400(`Invalid date format provided in field '${name}'. Dates must be in the format YYYY-MM-DD.`);
+  const invalid = (name: string) =>
+    error400(`Invalid date format provided in field '${name}'. Dates must be in the format YYYY-MM-DD.`);
   const fromText = textParam("from");
   let from = fromText === null ? null : parse(fromText);
   if (fromText !== null && from === null) return invalid("from");
@@ -215,7 +265,8 @@ async function summary({ owner, params }: ApiV2Input) {
   from ??= addDays(to, -29);
   if (from > to) return error400("'from' must be on or before 'to'.");
   const days = Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000);
-  if (groupBy === "hour" && days > MAX_HOURLY_DATE_RANGE_DAYS) return error400(`Date range cannot exceed ${MAX_HOURLY_DATE_RANGE_DAYS} days when grouping by hour.`);
+  if (groupBy === "hour" && days > MAX_HOURLY_DATE_RANGE_DAYS)
+    return error400(`Date range cannot exceed ${MAX_HOURLY_DATE_RANGE_DAYS} days when grouping by hour.`);
   return renderResponse(true, await salesSummary(owner, { from, to, groupBy }));
 }
 
@@ -223,7 +274,10 @@ async function summary({ owner, params }: ApiV2Input) {
 async function findSale(owner: { id: bigint }, externalId: string | undefined): Promise<Row | undefined> {
   const id = fromExternalId(externalId);
   if (id === null) return undefined;
-  const [sale] = await selectSales(Prisma.sql`${column("purchases", "seller_id")} = ${owner.id} AND ${column("purchases", "id")} = ${id}`, Prisma.sql` LIMIT 1`);
+  const [sale] = await selectSales(
+    Prisma.sql`${column("purchases", "seller_id")} = ${owner.id} AND ${column("purchases", "id")} = ${id}`,
+    Prisma.sql` LIMIT 1`,
+  );
   return sale;
 }
 
@@ -243,7 +297,9 @@ const toggleAccess = (revoked: boolean) =>
     const context = { user: owner, seller: owner, memberships: [] };
     const query = revoked ? audiencePurchasePolicy.revokeAccess : audiencePurchasePolicy.undoRevokeAccess;
     if (!query(context, await accessRecord(sale as Purchase))) {
-      return errorWithObject("sale", { errors: [revoked ? "Access cannot be revoked for this sale." : "Access is not revoked for this sale."] });
+      return errorWithObject("sale", {
+        errors: [revoked ? "Access cannot be revoked for this sale." : "Access is not revoked for this sale."],
+      });
     }
     await setLibraryFlag(loadLibraryPurchase(sale as Purchase, owner.timezone), "is_access_revoked", revoked);
     const [updated] = await selectSales(Prisma.sql`${column("purchases", "id")} = ${sale.id}`, Prisma.sql` LIMIT 1`);
@@ -255,8 +311,30 @@ registerApiV2(
   // Rails routes /v2/sales/summary ahead of /v2/sales/:id.
   { method: "GET", pattern: "/v2/sales/summary", scopes: ["view_sales"], run: summary },
   { method: "GET", pattern: "/v2/sales/:id", scopes: ["view_sales"], run: show },
-  { method: "PUT", pattern: "/v2/sales/:id/revoke_access", scopes: ["edit_sales"], requireScope: ["edit_sales"], run: toggleAccess(true) },
-  { method: "PUT", pattern: "/v2/sales/:id/undo_revoke_access", scopes: ["edit_sales"], requireScope: ["edit_sales"], run: toggleAccess(false) },
-  { method: "PUT", pattern: "/v2/sales/:id/mark_as_shipped", scopes: ["mark_sales_as_shipped"], run: handBackUnlessMissing("the buyer's shipment email") },
-  { method: "PUT", pattern: "/v2/sales/:id/refund", scopes: ["refund_sales", "edit_sales"], run: handBackUnlessMissing("a refund") },
+  {
+    method: "PUT",
+    pattern: "/v2/sales/:id/revoke_access",
+    scopes: ["edit_sales"],
+    requireScope: ["edit_sales"],
+    run: toggleAccess(true),
+  },
+  {
+    method: "PUT",
+    pattern: "/v2/sales/:id/undo_revoke_access",
+    scopes: ["edit_sales"],
+    requireScope: ["edit_sales"],
+    run: toggleAccess(false),
+  },
+  {
+    method: "PUT",
+    pattern: "/v2/sales/:id/mark_as_shipped",
+    scopes: ["mark_sales_as_shipped"],
+    run: handBackUnlessMissing("the buyer's shipment email"),
+  },
+  {
+    method: "PUT",
+    pattern: "/v2/sales/:id/refund",
+    scopes: ["refund_sales", "edit_sales"],
+    run: handBackUnlessMissing("a refund"),
+  },
 );
