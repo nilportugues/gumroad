@@ -1,5 +1,5 @@
-// Api::Internal::Admin::PiracyReportsController#index (the piracy agent's queue). The detail view, the state transitions and the
-// notice/counter-notice mails stay with Rails.
+// Api::Internal::Admin::PiracyReportsController#index (the piracy agent's queue). #show is in ./piracy-report-detail.ts and the writes
+// in ./piracy-report-writes.ts.
 import type { Prisma } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
@@ -9,7 +9,7 @@ import { failure, isBlank, jsonRendered, paramToS, PIRACY_SCOPE, timeJson } from
 import { defineAdminRoute } from "./registry.ts";
 
 const MAX_LIST_RESULTS = 100;
-const SOURCE = "app/controllers/api/internal/admin/piracy_reports_controller.rb";
+export const SOURCE = "app/controllers/api/internal/admin/piracy_reports_controller.rb";
 // Time.zone.parse for an ISO 8601 timestamp or date (the zone is UTC); text with no digits parses to nil, and Rails keeps the rest.
 const ISO_TIME = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d+))?)?\s*(Z|[+-]\d{2}:?\d{2})?)?$/u;
 
@@ -24,14 +24,14 @@ function parseTime(value: string): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-const dateJson = (date: Date | null) => (date === null ? null : date.toISOString().slice(0, 10));
+export const dateJson = (date: Date | null) => (date === null ? null : date.toISOString().slice(0, 10));
 
-type Report = Prisma.PiracyReportGetPayload<{ include: { seller: { select: { external_id: true } }; product: { select: { id: true } } } }>;
+export type Report = Prisma.PiracyReportGetPayload<{ include: { seller: { select: { external_id: true } }; product: { select: { id: true } } } }>;
 
 // PiracyReport#blocked_on_recipient? and #needs_review?
 const screening = (report: { state: string }) => report.state === "screening";
 
-function serializeSummary(report: Report) {
+export function serializeSummary(report: Report) {
   return {
     report_id: report.external_id,
     state: report.state,

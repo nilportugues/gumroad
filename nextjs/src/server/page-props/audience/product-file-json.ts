@@ -79,7 +79,7 @@ const s3DisplayName = (fields: S3Fields | null) =>
       : fields.filename;
 
 // ProductFile#name_displayable
-function nameDisplayable(file: ProductFile, fields: S3Fields | null): string | null {
+export function nameDisplayable(file: ProductFile, fields: S3Fields | null): string | null {
   if (present(file.display_name)) return file.display_name;
   if (isExternalLink(file)) return file.url;
   return s3DisplayName(fields);

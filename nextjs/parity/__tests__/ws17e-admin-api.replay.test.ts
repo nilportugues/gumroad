@@ -32,7 +32,7 @@ const REQUEST_DIRS = existsSync(REQUEST_ROOT)
 // The controller specs stub GUMROAD_ADMIN_ID to a fresh user's id, which a replayed server cannot reproduce: the request spec covers the legacy token.
 const LEGACY_TOKEN_CASE = /legacy|configured-bearer-token|rotation-point/;
 // Examples that change the world from inside the request (a stubbed lookup that approves the record after it was loaded): only Ruby can replay them.
-const MID_REQUEST_RACE_CASE = /after-the-request-loaded|loaded-it|after-request-loads|approved-af-e5f0bf0d/;
+const MID_REQUEST_RACE_CASE = /after-the-request-loaded|loaded-it|after-request-loads|approved-af-e5f0bf0d|started-screening-after/;
 const ROUTE_FLAGS = [
   "nextjs_admin_api_auth",
   "nextjs_admin_api_users",
@@ -44,7 +44,7 @@ const ROUTE_FLAGS = [
 ];
 // Requests the port leaves to Rails: "hands a ..." in a request spec, and the controller examples named here (a state in a compliance
 // address, a new watch). The replay asserts they reach the stand-in Rails untouched and write nothing.
-const HANDS_BACK_CASE = /hands-a-|post-watch-(?:creates-a-watched-user-record|user-id-lookup-looks-up|user-id-lookup-prefers)|get-compliance-info-returns-(?:business-kyc-fields|submitted-kyc-fields|the-latest-alive|the-trailing-characters)/;
+const HANDS_BACK_CASE = /hands-a-|post-watch-(?:creates-a-watched-user-record|user-id-lookup-looks-up|user-id-lookup-prefers)|get-compliance-info-returns-(?:business-kyc-fields|submitted-kyc-fields|the-latest-alive|the-trailing-characters)|post-resolve-records-the-outcome/;
 const API_HOST = "api.test.gumroad.com:31337";
 const FIRST_COMPILE_TIMEOUT_MS = 240_000;
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
@@ -66,6 +66,9 @@ const COMPARE = {
     "db.admin_api_tokens.inserted.*.external_id",
     "db.admin_api_tokens.inserted.*.token_hash",
     "db.admin_api_audit_logs.inserted.*.request_id",
+    // A new piracy report gets a random external id.
+    "db.piracy_reports.inserted.*.external_id",
+    "response.json.report.report_id",
     // A cursor holds the time of the row it follows, which the replay seeds relative to its own clock.
     "response.json.pagination.next",
   ],
@@ -113,7 +116,8 @@ function cursorInstant(fixturePath: string, index: number, ageMinutes: number): 
   return Date.parse(payload.created_at) + ageMinutes * 60_000;
 }
 // emails_sent_at is JSON text inside json_data, which the replay's date drift does not rewrite: users-reads.test.ts covers the field.
-const EMAIL_REMINDER_CASE = /most-recent-email-reminder-timestamp/;
+// The counter-notice example sends an absolute received_on that the notice window (sent_at - 1 day to tomorrow) outgrows within days.
+const EMAIL_REMINDER_CASE = /most-recent-email-reminder-timestamp|post-counter-notice-records-the-counter-notice/;
 
 // Only the exchanges of routes routes.json sends to Node are replayed; the rest stay with Rails.
 const SERVED_ROUTES = Object.keys(JSON.parse(readFileSync("routes.json", "utf8")) as Record<string, unknown>)

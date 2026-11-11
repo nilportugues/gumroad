@@ -17,7 +17,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | --- | ---: | ---: | ---: | ---: | ---: |
 | API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 96 | 0 | 42 | 0 |
 | Mobile API (`/mobile` on the API host) | 64 | 50 | 0 | 14 | 0 |
-| Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 23 | 0 | 59 | 3 |
+| Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 25 | 4 | 53 | 3 |
 | Internal API, Gumroad domain (`/internal`, JSON for the React Router pages) | 23 | 11 | 0 | 12 | 0 |
 
 ## API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain)
@@ -255,12 +255,12 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `GET /internal/admin/sendgrid_emails/check_status` | `Api::Internal::Admin::SendgridEmailsController#check_status` | not registered | - | n |
 | `POST /internal/admin/sendgrid_emails/remove_suppression` | `Api::Internal::Admin::SendgridEmailsController#remove_suppression` | not registered | - | n |
 | `GET /internal/admin/piracy_reports` | `Api::Internal::Admin::PiracyReportsController#index` | native | `nextjs_admin_api_piracy` | n |
-| `GET /internal/admin/piracy_reports/:id` | `Api::Internal::Admin::PiracyReportsController#show` | not registered | - | n |
-| `POST /internal/admin/piracy_reports` | `Api::Internal::Admin::PiracyReportsController#create` | not registered | - | n |
-| `POST /internal/admin/piracy_reports/:id/start_screening` | `Api::Internal::Admin::PiracyReportsController#start_screening` | not registered | - | n |
-| `POST /internal/admin/piracy_reports/:id/screen` | `Api::Internal::Admin::PiracyReportsController#screen` | not registered | - | n |
-| `POST /internal/admin/piracy_reports/:id/counter_notice` | `Api::Internal::Admin::PiracyReportsController#counter_notice` | not registered | - | n |
-| `POST /internal/admin/piracy_reports/:id/resolve` | `Api::Internal::Admin::PiracyReportsController#resolve` | not registered | - | n |
+| `GET /internal/admin/piracy_reports/:id` | `Api::Internal::Admin::PiracyReportsController#show` | native | `nextjs_admin_api_piracy` | y |
+| `POST /internal/admin/piracy_reports` | `Api::Internal::Admin::PiracyReportsController#create` | native | `nextjs_admin_api_piracy` | y |
+| `POST /internal/admin/piracy_reports/:id/start_screening` | `Api::Internal::Admin::PiracyReportsController#start_screening` | hands back | `nextjs_admin_api_piracy` | y |
+| `POST /internal/admin/piracy_reports/:id/screen` | `Api::Internal::Admin::PiracyReportsController#screen` | hands back | `nextjs_admin_api_piracy` | y |
+| `POST /internal/admin/piracy_reports/:id/counter_notice` | `Api::Internal::Admin::PiracyReportsController#counter_notice` | hands back | `nextjs_admin_api_piracy` | y |
+| `POST /internal/admin/piracy_reports/:id/resolve` | `Api::Internal::Admin::PiracyReportsController#resolve` | hands back | `nextjs_admin_api_piracy` | y |
 | `GET /internal/admin/stranded_buyers/scan` | `Api::Internal::Admin::StrandedBuyersController#scan` | not registered | - | y |
 | `POST /internal/admin/stranded_buyers/recover` | `Api::Internal::Admin::StrandedBuyersController#recover` | not registered | - | y |
 | `POST /internal/admin/stripe_restraint_notices` | `Api::Internal::Admin::StripeRestraintNoticesController#create` | not registered | - | n |

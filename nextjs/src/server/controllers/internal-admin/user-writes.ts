@@ -16,7 +16,7 @@ const WRAPPER = { key: "user", model: "User" };
 
 type WriteUser = { id: bigint; external_id: string | null; email: string | null };
 
-const toSentence = (messages: string[]) => (messages.length <= 2 ? messages.join(" and ") : `${messages.slice(0, -1).join(", ")}, and ${messages.at(-1)}`);
+export const toSentence = (messages: string[]) => (messages.length <= 2 ? messages.join(" and ") : `${messages.slice(0, -1).join(", ")}, and ${messages.at(-1)}`);
 
 // find_internal_admin_user_for_write_or_render
 export async function findUserForWrite(admin: AdminRequest, includeDeleted: boolean): Promise<{ user: WriteUser } | { refusal: ReturnType<typeof failure> }> {

@@ -13,6 +13,8 @@ import { dispatchAdmin } from "./registry.ts";
 import "./auth.ts";
 import "./campaigns.ts";
 import "./piracy-reports.ts";
+import "./piracy-report-detail.ts";
+import "./piracy-report-writes.ts";
 import "./users.ts";
 import "./user-writes.ts";
 import "./user-watch.ts";
