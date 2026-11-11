@@ -3,6 +3,10 @@
 Each workstream is sized for one worktree and one owner (person or agent). Read
 [README.md](README.md) first: the parity rules there apply to every stream.
 
+**Scope: everything ports.** Every route, page and job moves to Node. A "hands back to Rails" path (payments, mail, signed
+tokens, Stripe/PayPal, S3, throttled routes) is parity debt to be paid down, not a permanent boundary; the way to remove it is
+the same as for any other port: recorded Rails fixtures, with VCR or WebMock recordings standing in for the external service.
+
 ## Picking one up
 
 ```bash
