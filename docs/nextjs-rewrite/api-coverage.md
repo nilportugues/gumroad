@@ -16,9 +16,9 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | Namespace | Routes | Native | Hands back | Not registered | Unresolved |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 128 | 0 | 10 | 0 |
-| Mobile API (`/mobile` on the API host) | 64 | 49 | 0 | 15 | 0 |
+| Mobile API (`/mobile` on the API host) | 64 | 62 | 0 | 2 | 0 |
 | Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 54 | 4 | 24 | 3 |
-| Internal API, Gumroad domain (`/internal`, JSON for the React Router pages) | 23 | 11 | 0 | 12 | 0 |
+| Internal API, Gumroad domain (`/internal`, JSON for the React Router pages) | 23 | 20 | 0 | 3 | 0 |
 
 ## API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain)
 
@@ -174,7 +174,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `POST /mobile/purchases/:id/archive` | `Api::Mobile::PurchasesController#archive` | native | `nextjs_mobile_purchases` | y |
 | `POST /mobile/purchases/:id/unarchive` | `Api::Mobile::PurchasesController#unarchive` | native | `nextjs_mobile_purchases` | n |
 | `DELETE /mobile/purchases/:id` | `Api::Mobile::PurchasesController#destroy` | native | `nextjs_mobile_purchases` | y |
-| `GET /mobile/url_redirects/get_url_redirect_attributes/:id` | `Api::Mobile::UrlRedirectsController#url_redirect_attributes` | not registered | - | n |
+| `GET /mobile/url_redirects/get_url_redirect_attributes/:id` | `Api::Mobile::UrlRedirectsController#url_redirect_attributes` | native | `nextjs_mobile_url_redirects` | y |
 | `GET /mobile/url_redirects/fetch_placeholder_products` | `Api::Mobile::UrlRedirectsController#fetch_placeholder_products` | native | `nextjs_mobile_url_redirects` | n |
 | `GET /mobile/url_redirects/stream/:token/:product_file_id` | `Api::Mobile::UrlRedirectsController#stream` | native | `nextjs_mobile_url_redirect_delivery` | y |
 | `GET /mobile/url_redirects/hls_playlist/:token/:product_file_id/index.m3u8` | `Api::Mobile::UrlRedirectsController#hls_playlist` | native | `nextjs_mobile_url_redirect_delivery` | y |
@@ -185,8 +185,8 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `GET /mobile/sales/:id` | `Api::Mobile::SalesController#show` | native | `nextjs_mobile_sales` | y |
 | `PATCH /mobile/sales/:id` | `Api::Mobile::SalesController#update` | native | `nextjs_mobile_sales` | y |
 | `PUT /mobile/sales/:id` | `Api::Mobile::SalesController#update` | native | `nextjs_mobile_sales` | y |
-| `GET /mobile/sales/blob_url` | `Api::Mobile::SalesController#blob_url` | not registered | - | y |
-| `PATCH /mobile/sales/:id/refund` | `Api::Mobile::SalesController#refund` | not registered | - | y |
+| `GET /mobile/sales/blob_url` | `Api::Mobile::SalesController#blob_url` | native | `nextjs_mobile_sales` | y |
+| `PATCH /mobile/sales/:id/refund` | `Api::Mobile::SalesController#refund` | native | `nextjs_mobile_sales` | y |
 | `POST /mobile/sales/:id/resend_receipt` | `Api::Mobile::SalesController#resend_receipt` | native | `nextjs_mobile_sales` | y |
 | `POST /mobile/sales/:id/change_can_contact` | `Api::Mobile::SalesController#change_can_contact` | native | `nextjs_mobile_sales` | y |
 | `PUT /mobile/sales/:id/revoke_access` | `Api::Mobile::SalesController#revoke_access` | native | `nextjs_mobile_sales` | y |
@@ -206,10 +206,10 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `PUT /mobile/calls/:id` | `Api::Mobile::CallsController#update` | native | `nextjs_mobile_calls` | y |
 | `GET /mobile/accounts` | `Api::Mobile::AccountsController#index` | native | `nextjs_mobile_accounts` | y |
 | `POST /mobile/accounts` | `Api::Mobile::AccountsController#create` | native | `nextjs_mobile_accounts` | y |
-| `POST /mobile/commissions/:id/complete` | `Api::Mobile::CommissionsController#complete` | not registered | - | n |
+| `POST /mobile/commissions/:id/complete` | `Api::Mobile::CommissionsController#complete` | native | `nextjs_mobile_commissions` | y |
 | `POST /mobile/review_videos/:id/approve` | `Api::Mobile::ReviewVideosController#approve` | native | `nextjs_mobile_review_videos` | n |
 | `POST /mobile/review_videos/:id/reject` | `Api::Mobile::ReviewVideosController#reject` | native | `nextjs_mobile_review_videos` | n |
-| `POST /mobile/subscriptions/:id/cancel` | `Api::Mobile::SubscriptionsController#cancel` | not registered | - | y |
+| `POST /mobile/subscriptions/:id/cancel` | `Api::Mobile::SubscriptionsController#cancel` | native | `nextjs_mobile_subscriptions` | y |
 | `GET /mobile/analytics/data_by_date` | `Api::Mobile::AnalyticsController#data_by_date` | native | `nextjs_mobile_analytics` | y |
 | `GET /mobile/analytics/revenue_totals` | `Api::Mobile::AnalyticsController#revenue_totals` | native | `nextjs_mobile_analytics` | y |
 | `GET /mobile/analytics/by_date` | `Api::Mobile::AnalyticsController#by_date` | native | `nextjs_mobile_analytics` | y |
@@ -217,19 +217,19 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `GET /mobile/analytics/by_referral` | `Api::Mobile::AnalyticsController#by_referral` | native | `nextjs_mobile_analytics` | y |
 | `GET /mobile/analytics/products` | `Api::Mobile::AnalyticsController#products` | native | `nextjs_mobile_analytics` | y |
 | `GET /mobile/products` | `Api::Mobile::ProductsController#index` | native | `nextjs_mobile_products` | y |
-| `DELETE /mobile/products/:id` | `Api::Mobile::ProductsController#destroy` | not registered | - | y |
+| `DELETE /mobile/products/:id` | `Api::Mobile::ProductsController#destroy` | native | `nextjs_mobile_products` | y |
 | `GET /mobile/agent/meta` | `Api::Mobile::AgentController#meta` | native | `nextjs_mobile_agent_meta` | n |
-| `GET /mobile/agent/conversations/latest` | `Api::Mobile::AgentController#latest_conversation` | not registered | - | n |
-| `GET /mobile/agent/turns/:client_turn_id` | `Api::Mobile::AgentController#turn_status` | not registered | - | n |
-| `POST /mobile/agent/messages` | `Api::Mobile::AgentController#create` | not registered | - | n |
-| `POST /mobile/agent/messages/stream` | `Api::Mobile::AgentStreamsController#create` | not registered | - | n |
-| `POST /mobile/agent/actions` | `Api::Mobile::AgentController#execute` | not registered | - | n |
+| `GET /mobile/agent/conversations/latest` | `Api::Mobile::AgentController#latest_conversation` | native | `nextjs_mobile_agent` | y |
+| `GET /mobile/agent/turns/:client_turn_id` | `Api::Mobile::AgentController#turn_status` | native | `nextjs_mobile_agent` | y |
+| `POST /mobile/agent/messages` | `Api::Mobile::AgentController#create` | native | `nextjs_mobile_agent` | y |
+| `POST /mobile/agent/messages/stream` | `Api::Mobile::AgentStreamsController#create` | native | `nextjs_mobile_agent` | y |
+| `POST /mobile/agent/actions` | `Api::Mobile::AgentController#execute` | native | `nextjs_mobile_agent` | y |
 | `POST /mobile/devices` | `Api::Mobile::DevicesController#create` | native | `nextjs_mobile_devices` | y |
 | `GET /mobile/installments/:id` | `Api::Mobile::InstallmentsController#show` | native | `nextjs_mobile_installments` | y |
 | `POST /mobile/consumption_analytics` | `Api::Mobile::ConsumptionAnalyticsController#create` | native | `nextjs_mobile_consumption_analytics` | y |
 | `POST /mobile/media_locations` | `Api::Mobile::MediaLocationsController#create` | native | `nextjs_mobile_media_locations` | y |
-| `POST /mobile/sessions` | `Api::Mobile::SessionsController#create` | not registered | - | n |
-| `POST /mobile/sessions/resend_confirmation_email` | `Api::Mobile::SessionsController#resend_confirmation_email` | not registered | - | n |
+| `POST /mobile/sessions` | `Api::Mobile::SessionsController#create` | native | `nextjs_mobile_sessions` | y |
+| `POST /mobile/sessions/resend_confirmation_email` | `Api::Mobile::SessionsController#resend_confirmation_email` | native | `nextjs_mobile_sessions` | y |
 | `GET /mobile/feature_flags/:id` | `Api::Mobile::FeatureFlagsController#show` | native | `nextjs_mobile_feature_flags` | y |
 
 ## Internal API, API host (`/internal`, includes `/internal/admin`)
@@ -329,24 +329,24 @@ Unresolved:
 
 | Route | Ruby controller#action | Status | Flag | Fixture |
 | --- | --- | --- | --- | --- |
-| `POST /internal/customers/:purchase_id/single_customer_email` | `Api::Internal::Customers::SingleCustomerEmailsController#create` | not registered | - | n |
+| `POST /internal/customers/:purchase_id/single_customer_email` | `Api::Internal::Customers::SingleCustomerEmailsController#create` | native | `nextjs_internal_customer_emails` | y |
 | `GET /internal/installments/:id/audience_count` | `Api::Internal::Installments::AudienceCountsController#show` | native | `nextjs_internal_installments` | y |
 | `GET /internal/installments/:id/clicked_urls` | `Api::Internal::Installments::ClickedUrlsController#show` | native | `nextjs_internal_installments` | y |
-| `POST /internal/installments/:id/preview_email` | `Api::Internal::Installments::PreviewEmailsController#create` | not registered | - | n |
-| `GET /internal/installments/:id/non_opener_resend` | `Api::Internal::Installments::NonOpenerResendsController#show` | not registered | - | n |
+| `POST /internal/installments/:id/preview_email` | `Api::Internal::Installments::PreviewEmailsController#create` | native | `nextjs_internal_installments` | y |
+| `GET /internal/installments/:id/non_opener_resend` | `Api::Internal::Installments::NonOpenerResendsController#show` | native | `nextjs_internal_installments` | y |
 | `POST /internal/installments/:id/non_opener_resend` | `Api::Internal::Installments::NonOpenerResendsController#create` | native | `nextjs_internal_installments` | y |
-| `POST /internal/installments/:id/remaining_send` | `Api::Internal::Installments::RemainingSendsController#create` | not registered | - | n |
+| `POST /internal/installments/:id/remaining_send` | `Api::Internal::Installments::RemainingSendsController#create` | native | `nextjs_internal_installments` | y |
 | `GET /internal/installments/recipient_count` | `Api::Internal::Installments::RecipientCountsController#show` | native | `nextjs_internal_installments` | y |
 | `GET /internal/products/:product_id/product_posts` | `Api::Internal::ProductPostsController#index` | native | `nextjs_internal_product_posts` | y |
 | `GET /internal/products/:product_id/existing_product_files` | `Api::Internal::ExistingProductFilesController#index` | native | `nextjs_internal_product_files` | y |
-| `GET /internal/products/:product_id/receipt_preview` | `Api::Internal::ReceiptPreviewsController#show` | not registered | - | n |
-| `POST /internal/product_public_files` | `Api::Internal::ProductPublicFilesController#create` | not registered | - | n |
+| `GET /internal/products/:product_id/receipt_preview` | `Api::Internal::ReceiptPreviewsController#show` | native | `nextjs_internal_receipt_previews` | y |
+| `POST /internal/product_public_files` | `Api::Internal::ProductPublicFilesController#create` | native | `nextjs_internal_product_files` | y |
 | `POST /internal/product_review_videos/:product_review_video_id/approvals` | `Api::Internal::ProductReviewVideos::ApprovalsController#create` | native | `nextjs_internal_review_videos` | y |
 | `POST /internal/product_review_videos/:product_review_video_id/rejections` | `Api::Internal::ProductReviewVideos::RejectionsController#create` | native | `nextjs_internal_review_videos` | y |
 | `POST /internal/ai_product_details_generations` | `Api::Internal::AiProductDetailsGenerationsController#create` | not registered | - | n |
-| `POST /internal/agent/messages` | `Api::Internal::AgentMessagesController#create` | not registered | - | n |
-| `POST /internal/agent/messages/stream` | `Api::Internal::AgentMessageStreamsController#create` | not registered | - | n |
-| `POST /internal/agent/actions` | `Api::Internal::AgentMessagesController#execute` | not registered | - | n |
+| `POST /internal/agent/messages` | `Api::Internal::AgentMessagesController#create` | native | `nextjs_internal_agent` | y |
+| `POST /internal/agent/messages/stream` | `Api::Internal::AgentMessageStreamsController#create` | native | `nextjs_internal_agent` | y |
+| `POST /internal/agent/actions` | `Api::Internal::AgentMessagesController#execute` | native | `nextjs_internal_agent` | y |
 | `GET /internal/agent/actions/status` | `Api::Internal::AgentConversationsController#action_status` | native | `nextjs_internal_agent` | y |
 | `GET /internal/agent/conversations/latest` | `Api::Internal::AgentConversationsController#latest` | native | `nextjs_internal_agent` | y |
 | `GET /internal/agent/turns/:client_turn_id` | `Api::Internal::AgentConversationsController#turn_status` | native | `nextjs_internal_agent` | y |

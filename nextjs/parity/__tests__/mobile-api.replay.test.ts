@@ -33,6 +33,7 @@ const SPECS = [
   "mobile_sales_access_parity_spec",
   "mobile_sales_actions_parity_spec",
   "mobile_products_subscriptions_parity_spec",
+  "mobile_seller_writes_parity_spec",
 ].filter((dir) => existsSync(path.join(FIXTURES, dir)));
 const ROUTE_FLAGS = [
   "feature_flags",
@@ -47,10 +48,14 @@ const ROUTE_FLAGS = [
   "purchases",
   "sales",
   "url_redirect_delivery",
+  "url_redirects",
   "products",
   "subscriptions",
   "preorders",
   "installments",
+  "commissions",
+  "sessions",
+  "agent",
 ]
   .map((name) => `nextjs_mobile_${name}`)
   .join(",");
