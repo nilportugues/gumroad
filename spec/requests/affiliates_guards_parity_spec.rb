@@ -235,21 +235,31 @@ describe "AffiliatesController guards", type: :request do
     end
   end
 
-  %w[subscribe_posts unsubscribe_posts].each do |action|
-    describe "GET /affiliates/:id/#{action}" do
-      define_method(:action_path) { |id| public_send("#{action}_affiliate_path", id) }
+  describe "GET /affiliates/:id/subscribe_posts" do
+    it "answers not found for an id nobody owns", parity: true do
+      get subscribe_posts_affiliate_path("not-an-id")
 
-      it "answers not found for an id nobody owns", parity: true do
-        get action_path("not-an-id")
+      expect(response).to have_http_status(:not_found)
+    end
 
-        expect(response).to have_http_status(:not_found)
-      end
+    it "hands the change to Rails", parity: true do
+      get subscribe_posts_affiliate_path(direct_affiliate.external_id)
 
-      it "hands the change to Rails", parity: true do
-        get action_path(direct_affiliate.external_id)
+      expect(response).to have_http_status(:ok)
+    end
+  end
 
-        expect(response).to have_http_status(:ok)
-      end
+  describe "GET /affiliates/:id/unsubscribe_posts" do
+    it "answers not found for an id nobody owns", parity: true do
+      get unsubscribe_posts_affiliate_path("not-an-id")
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "hands the change to Rails", parity: true do
+      get unsubscribe_posts_affiliate_path(direct_affiliate.external_id)
+
+      expect(response).to have_http_status(:ok)
     end
   end
 end
