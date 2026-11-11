@@ -56,7 +56,7 @@ const redirect = (location: string, alert: string, status = FOUND): ActionResult
 });
 
 // FlagShihTzu::TRUE_VALUES
-const TRUE_VALUES: unknown[] = [true, 1, "1", "t", "T", "true", "TRUE"];
+export const TRUE_VALUES: unknown[] = [true, 1, "1", "t", "T", "true", "TRUE"];
 
 // ActiveSupport's Array#to_sentence
 export function toSentence(items: string[]): string {
