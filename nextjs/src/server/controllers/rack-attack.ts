@@ -1,5 +1,5 @@
 // The Rack::Attack counter (config/initializers/rack_attack.rb) for the routes Node serves, on the same Redis, keys, expiry and limits, so a
-// request Node answers is counted exactly once. processAction counts each request ahead of its chain; forwardToRails un-counts a request it
+// request Node answers is counted exactly once. processAction (and pageEnvelope, for a full page load) counts each request ahead of its chain; forwardToRails un-counts a request it
 // hands back (uncountRackAttack) because Rails' own middleware counts it again. This is the only counter: counting anywhere else double-counts.
 // rack-attack-throttles.test.ts fails when a routes.json entry matches a rule that is not in RULES.
 //

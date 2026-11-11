@@ -5,23 +5,10 @@ import { it } from "vitest";
 
 import { compileRouteTable } from "@/lib/navigation/proxy/route-table";
 
-// The routes Rack::Attack throttles (config/initializers/rack_attack.rb). A Node answer would skip the counter in Rails' Redis, so routes.json
-// does not list them and Rails serves them whole; src/server/controllers/rack-attack-throttles.test.ts keeps it that way. The fixtures recorded
-// for the ported handlers stay as the oracle for the day the counter is shared, but the replays have nothing to compare: they skip them here,
-// and rack-attack-routes.replay.test.ts proves the request reaches Rails whole.
-export const RAILS_ONLY_KEYS = [
-  "/signup",
-  "POST /settings/totp/confirm",
-  "POST /settings/passkeys/registration_options",
-  "POST /settings/passkeys",
-  "seller:/",
-  "product:/",
-  "/discover",
-  "/purchases",
-  "seller:/.well-known/acme-challenge/:token",
-  "product:/.well-known/acme-challenge/:token",
-  "POST /products/:product_id/marketing_actions/:id/execute.json",
-] as const;
+// Routes that routes.json must not list because Node would answer them without counting them in Rack::Attack's Redis, and the replays then skip
+// their recorded examples. The single counter (src/server/controllers/rack-attack.ts) counts every route Node serves, so none is left; the
+// list and the skip stay for the next route a throttle cannot cover.
+export const RAILS_ONLY_KEYS: readonly string[] = [];
 
 const routesJson = JSON.parse(
   readFileSync(path.join(import.meta.dirname, "..", "..", "routes.json"), "utf8"),

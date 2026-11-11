@@ -94,8 +94,8 @@ const destroy = (input: MutationInput) =>
 const ID = ":id([A-Za-z0-9_=-]+)";
 
 registerMutations(
-  { method: "POST", pattern: "/settings/passkeys/registration_options", formats: ["json"], railsOnly: "/params:/settings/passkeys/registration_options:POST", run: registrationOptions },
-  { method: "POST", pattern: "/settings/passkeys", formats: ["json"], railsOnly: "/params:/settings/passkeys:POST", run: create },
+  { method: "POST", pattern: "/settings/passkeys/registration_options", formats: ["json"], run: registrationOptions },
+  { method: "POST", pattern: "/settings/passkeys", formats: ["json"], run: create },
   { method: "PUT", pattern: `/settings/passkeys/${ID}`, formats: ["json"], run: update },
   { method: "PATCH", pattern: `/settings/passkeys/${ID}`, formats: ["json"], run: update },
   { method: "DELETE", pattern: `/settings/passkeys/${ID}`, formats: ["json"], run: destroy },

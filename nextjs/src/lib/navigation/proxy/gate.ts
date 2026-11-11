@@ -28,9 +28,14 @@ export interface RouteGate {
 // Local runs turn flags on with NEXTJS_ROUTE_FLAGS=flag_a,flag_b.
 export const envRouteGate: RouteGate = {
   async isFlagEnabled(flag) {
-    return (process.env.NEXTJS_ROUTE_FLAGS ?? "").split(",").map((name) => name.trim()).includes(flag);
+    return (process.env.NEXTJS_ROUTE_FLAGS ?? "")
+      .split(",")
+      .map((name) => name.trim())
+      .includes(flag);
   },
-  async isSignedIn() {
+  async isSignedIn(request) {
+    // "no-cookie": a request with no cookie at all has no session to read, while any other still goes to Rails.
+    if (process.env.NEXTJS_ASSUME_SIGNED_OUT === "no-cookie") return request.cookies.size === 0 ? false : null;
     return process.env.NEXTJS_ASSUME_SIGNED_OUT === "1" ? false : null;
   },
   async hostKind(request) {

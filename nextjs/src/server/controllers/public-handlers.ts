@@ -1,8 +1,6 @@
-// The small public endpoints that are not pages: RobotsController, LlmsController, FaviconsController,
+// The small public endpoints that are not pages: RobotsController, LlmsController, FaviconsController, AcmeChallengesController,
 // IndexnowKeysController, PublicController#crossdomain, GithubStarsController and HomeController#features_md. routes.json marks them with a `handler`; the
 // proxy rewrites them to /gr-public/<handler> (app/gr-public/[action]/route.ts), which lands here.
-// Not here: the ACME challenge. Rack::Attack throttles the lookups (charge_data, license_key_lookup_data, paypal_charge_data) and
-// compute_discount; processAction counts them in Rails' Redis (rack-attack.ts) before they answer.
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -14,7 +12,7 @@ import { railsLoggedInUser } from "../auth/resolve.ts";
 import { railsCache } from "../cache/rails-cache.ts";
 import { getConfig } from "../infra/config.ts";
 import { railsRoot } from "../infra/rails-env.ts";
-import { getNamespacedRedis } from "../infra/redis.ts";
+import { getNamespacedRedis, getRedis } from "../infra/redis.ts";
 import { storageConfig } from "../infra/storage.ts";
 import { isAccountActive, Users } from "../models/user.ts";
 import { domainConfig } from "../page-props/domain.ts";
@@ -78,6 +76,10 @@ const MONTH_NAMES = [
   "December",
 ];
 // AcmeChallengesController
+
+// AcmeChallengesController
+const MAX_ACME_TOKEN_LENGTH = 64;
+const VALID_ACME_TOKEN = /^[A-Za-z0-9_-]+$/u;
 
 const storefrontHost = (request: RailsRequest) => !domainConfig(process.env).validRequestHosts.includes(request.host);
 
@@ -267,12 +269,34 @@ async function analyticsScript(request: RailsRequest): Promise<Rendered> {
   };
 }
 
+// AcmeChallengesController#show
+async function acmeChallenge(token: string): Promise<Rendered> {
+  const empty = (status: number): Rendered => ({ status, body: "", contentType: "text/html", paramsRead: true });
+  if (token === "" || token.length > MAX_ACME_TOKEN_LENGTH || !VALID_ACME_TOKEN.test(token)) return empty(400);
+  let content: string | null = null;
+  try {
+    content = await getRedis("main").get(`acme_challenge:${token}`);
+  } catch {
+    // A stalled read is "no challenge staged" (REDIS_TRANSPORT_ERRORS).
+  }
+  return content === null || content === ""
+    ? empty(404)
+    : { status: 200, body: content, contentType: TEXT, paramsRead: true };
+}
+
 type Handler = {
   options?: ActionOptions;
   run(request: RailsRequest, url: URL, action: ActionContext): Promise<ActionResult>;
 };
 
 const HANDLERS: Record<string, Handler> = {
+  // The bytes are Rails' own: AcmeChallengesController#mask_token shadows the CSRF one, so the XSRF-TOKEN cookie is the first two and last two bytes of the global token around "...".
+  acme_challenge: {
+    options: {
+      xsrfCookieBytes: (token) => Buffer.concat([token.subarray(0, 2), Buffer.from("..."), token.subarray(-2)]),
+    },
+    run: (_request, url) => acmeChallenge(decodeURIComponent(url.pathname.split("/").at(-1) ?? "")),
+  },
   robots: { options: { bare: true }, run: async (request) => robots(request, await sitemapConfigs(request)) },
   llms: { run: async () => llms() },
   crossdomain: { run: async () => crossdomain() },

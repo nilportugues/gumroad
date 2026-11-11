@@ -2,12 +2,32 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it, vi } from "vitest";
 
-// The signed-out cases of the golden need no session or database: no Warden user, no OAuth token.
+// The golden cases are signed out and hold no OAuth token; the examples below set both.
+const stubs = vi.hoisted(() => ({
+  wardenUser: null as { id: bigint } | null,
+  token: null as {
+    resource_owner_id: number;
+    expires_in: number | null;
+    created_at: Date;
+    revoked_at: Date | null;
+  } | null,
+  paidCents: 0,
+}));
 vi.mock("./signed-in-filters.ts", () => ({
   resolveRequestAuth: () =>
-    Promise.resolve({ context: { loggedInUser: null }, effects: { signedOut: null }, authenticatedVia: null }),
+    Promise.resolve({
+      context: { loggedInUser: stubs.wardenUser },
+      effects: { signedOut: null },
+      authenticatedVia: stubs.wardenUser === null ? null : "session",
+    }),
 }));
-vi.mock("../../lib/db.ts", () => ({ db: { oauthAccessToken: { findFirst: () => Promise.resolve(null) } } }));
+vi.mock("../../lib/db.ts", () => ({
+  db: {
+    oauthAccessToken: { findFirst: () => Promise.resolve(stubs.token) },
+    user: { findUnique: () => Promise.resolve({ id: 7n }) },
+    payment: { aggregate: () => Promise.resolve({ _sum: { amount_cents: BigInt(stubs.paidCents) } }) },
+  },
+}));
 
 import { HandBackToRails } from "./application-controller.ts";
 import { evaluate, normalizePath, RACK_ATTACK_RULES, rackRequest, type RackStore } from "./rack-attack.ts";
@@ -152,5 +172,73 @@ describe("rules of the API v2 and mobile routes", () => {
     expect(keys).toHaveLength(5);
     for (const key of keys) await store.decrement(key);
     expect([...store.counts.values()]).toEqual([0, 0, 0, 0, 0]);
+  });
+});
+
+describe("rules that read the signed-in user, a token or the params", () => {
+  const writer = (headers: Record<string, string> = { authorization: "Bearer tok" }) =>
+    request("/v2/products/p", { method: "PUT", headers });
+  const names = (store: ReturnType<typeof memoryStore>) =>
+    [...store.counts.keys()].map((key) => key.replace(/^rack::attack:\d+:/u, ""));
+
+  it("counts a product write of a non-VIP token in the ip and token buckets", async () => {
+    stubs.token = { resource_owner_id: 7, expires_in: null, created_at: new Date(), revoked_at: null };
+    stubs.paidCents = 500_000;
+    const store = memoryStore();
+    await run(store, writer());
+    expect(names(store).filter((name) => name.startsWith("/ip:") || name.startsWith("/params:"))).toHaveLength(11);
+    expect(names(store).some((name) => name.startsWith("/vip/"))).toBe(false);
+  });
+
+  it("counts a product write of a creator past the payout threshold in the VIP buckets only", async () => {
+    stubs.token = { resource_owner_id: 7, expires_in: null, created_at: new Date(), revoked_at: null };
+    stubs.paidCents = 500_001;
+    const store = memoryStore();
+    await run(store, writer());
+    expect(names(store)).toHaveLength(11);
+    expect(names(store).every((name) => name.startsWith("/vip/"))).toBe(true);
+  });
+
+  it("treats a revoked token, an unknown token and a missing token as non-VIP", async () => {
+    stubs.paidCents = 600_000;
+    stubs.token = { resource_owner_id: 7, expires_in: null, created_at: new Date(), revoked_at: new Date(0) };
+    const revoked = memoryStore();
+    await run(revoked, writer());
+    stubs.token = null;
+    const unknown = memoryStore();
+    await run(unknown, writer());
+    const missing = memoryStore();
+    await run(missing, writer({}));
+    for (const store of [revoked, unknown, missing])
+      expect(names(store).some((name) => name.startsWith("/vip/"))).toBe(false);
+  });
+
+  it("keys the totp rule on the Warden user, and on nothing when signed out for a passkey rule", async () => {
+    stubs.wardenUser = { id: 42n };
+    const signedIn = memoryStore();
+    await run(signedIn, request("/settings/totp/confirm", { method: "POST" }));
+    await run(signedIn, request("/settings/passkeys", { method: "POST" }));
+    expect(names(signedIn).filter((name) => name.includes(":42"))).toHaveLength(12);
+    stubs.wardenUser = null;
+    const signedOut = memoryStore();
+    await run(signedOut, request("/settings/passkeys", { method: "POST" }));
+    await run(signedOut, request("/products/p/marketing_actions/m/execute.json", { method: "POST" }));
+    expect(names(signedOut)).toEqual([]);
+  });
+
+  it("counts an unparseable request in invalid_params and skips the rules that read params", async () => {
+    const store = memoryStore();
+    await run(store, request(`/follow?seller_id=%zz`, { method: "POST" }));
+    expect(names(store).filter((name) => name.startsWith("invalid_params"))).toHaveLength(7);
+    expect(names(store).some((name) => name.includes("/follow"))).toBe(true);
+    expect(names(store).some((name) => name.startsWith("/ip/params:/follow"))).toBe(false);
+  });
+
+  it("trips invalid_params at the sixth request of a minute", async () => {
+    const store = memoryStore();
+    let tripped = null;
+    for (let index = 0; index < 6; index += 1)
+      tripped = await run(store, request("/anything?a=%", { ip: "203.0.113.5" }));
+    expect(tripped).toEqual({ name: "invalid_params", period: 60, epochTime: NOW });
   });
 });
