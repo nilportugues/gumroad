@@ -3,17 +3,32 @@
 //
 // A callback that gets past those checks carries a code, and the exchange for a token spends it; sign-in, sign-up and the Stripe account
 // lookup that follow cannot be redone by Rails once Node has made the call. Those callbacks go to Rails whole, before anything is asked
-// of the provider. Twitter (OAuth 1), YouTube, Instagram and TikTok (funnel events, feature flags) and Apple (signed cookie, ES256 client
-// secret, POST callback) are not registered.
+// of the provider. Twitter (OAuth 1) and Apple (signed cookie, ES256 client secret, POST callback) are not registered.
+//
+// YouTube, Instagram and TikTok (the social connects) add three things to the same phases: a feature flag that each strategy checks in the
+// middleware (a disabled one answers before the provider is asked), the `attempted` funnel event, and a failure action that records
+// `failed`, flashes and returns to the page the connect started from (SocialConnectReturn).
 import { randomBytes } from "node:crypto";
 
+import { type ResolvedAuth, railsLoggedInUser } from "../auth/resolve.ts";
 import { getConfig } from "../infra/config.ts";
+import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
+import { recordSocialConnectEvent } from "../models/social-connect-funnel.ts";
 import { domainConfig } from "../page-props/domain.ts";
+import { loadSellerContext } from "../policies/seller-context.ts";
+import { settingsSocialConnectionsPolicy } from "../policies/settings/social-connections.ts";
 
-import { type ActionOptions, type ActionResult, HandBackToRails } from "./application-controller.ts";
+import {
+  type ActionOptions,
+  type ActionResult,
+  type Chain,
+  HandBackToRails,
+  type Redirected,
+} from "./application-controller.ts";
 import { type MutationInput, registerMutations } from "./mutation.ts";
 import { requestFormat } from "./rails-params.ts";
 import { isPresent } from "./rails-request.ts";
+import { resolveRequestAuth } from "./signed-in-filters.ts";
 
 const PASSTHRU_PROVIDERS = ["twitter", "stripe_connect", "google_oauth2", "youtube", "instagram", "tiktok", "apple"];
 const PASSTHRU_BODY = "Not found. Authentication passthru.";
@@ -24,6 +39,17 @@ const ASYNC_LINK_TWITTER_STATE = "async_link_twitter_account";
 const STATE_BYTES = 24;
 const FOUND = 302;
 const NOT_FOUND = 404;
+const LOGIN_PATH = "/login";
+const SOCIAL_CONNECTIONS_PATH = "/settings/social_connections";
+const SOCIAL_CONNECT_RETURN = "social_connect_return";
+// SocialConnectReturn::RETURN_LIFETIME
+const RETURN_LIFETIME_SECONDS = 15 * 60;
+const SANITIZED_ERROR_LIMIT = 64;
+const UNAVAILABLE = "social_connect_unavailable";
+const YOUTUBE_SCOPE = "email,profile,https://www.googleapis.com/auth/youtube.readonly";
+const INSTAGRAM_SCOPE = "instagram_business_basic";
+const TIKTOK_SCOPE = "user.info.basic,user.info.profile,user.info.stats";
+const TIKTOK_ALWAYS_SHOW_AUTHORIZATION = "1";
 
 type Strategy = {
   name: string;
@@ -34,6 +60,10 @@ type Strategy = {
   authorizeUrl: string;
   // The callback URL the provider is told: Google's has no query string either, so both are `full_host + callback_path`.
   authorizeParams(input: MutationInput, state: string, callbackUrl: string): Record<string, string | null>;
+  // The query string of the redirect to the provider: Faraday's sorted one unless the strategy builds its own.
+  encodeQuery?: (params: Record<string, string | null>) => string;
+  // A strategy that connects a social account to a signed-in seller (lib/omni_auth/strategies).
+  social?: { provider: string; label: string; flag: string; configured?: () => boolean };
 };
 
 // omniauth-google-oauth2's AUTHORIZE_OPTIONS: a request parameter of these names overrides the option.
@@ -76,31 +106,108 @@ function googleScope(raw: string): string {
     .join(" ");
 }
 
+// omniauth-google-oauth2's authorize_params over the options the strategy was configured with.
+function googleAuthorizeParams(
+  input: MutationInput,
+  options: Record<string, string>,
+  callbackUrl: string,
+): Record<string, string | null> {
+  const params: Record<string, string | null> = { ...options };
+  for (const key of GOOGLE_OVERRIDABLE) {
+    const value = stringParam(input, key);
+    if (value !== undefined && value !== "") params[key] = value;
+  }
+  params.scope = googleScope(params.scope ?? GOOGLE_SCOPE);
+  params.access_type ??= "offline";
+  if (params.openid_realm !== undefined) {
+    params["openid.realm"] = params.openid_realm;
+    delete params.openid_realm;
+  }
+  return {
+    redirect_uri: callbackUrl,
+    ...params,
+    response_type: "code",
+    client_id: getConfig("GOOGLE_CLIENT_ID") ?? null,
+  };
+}
+
+// Rack::Utils.escape (URI.encode_www_form_component): letters, digits and "*-._" stay, a space is a plus.
+function rackEscape(value: string): string {
+  return [...Buffer.from(value, "utf8")]
+    .map((byte) => {
+      const char = String.fromCharCode(byte);
+      if (/[a-zA-Z0-9*._-]/u.test(char)) return char;
+      return char === " " ? "+" : `%${byte.toString(16).toUpperCase().padStart(2, "0")}`;
+    })
+    .join("");
+}
+
+// Rack::Utils.build_query keeps the insertion order; a nil value is the bare key.
+function rackQuery(params: Record<string, string | null>): string {
+  return Object.entries(params)
+    .map(([key, value]) => (value === null ? rackEscape(key) : `${rackEscape(key)}=${rackEscape(value)}`))
+    .join("&");
+}
+
 const STRATEGIES: Record<string, Strategy> = {
   google_oauth2: {
     name: "google_oauth2",
     kind: "GoogleOauth2",
     checksState: true,
     authorizeUrl: "https://accounts.google.com/o/oauth2/auth",
-    authorizeParams(input, state, callbackUrl) {
-      const params: Record<string, string | null> = { state, scope: GOOGLE_SCOPE };
-      for (const key of GOOGLE_OVERRIDABLE) {
-        const value = stringParam(input, key);
-        if (value !== undefined && value !== "") params[key] = value;
-      }
-      params.scope = googleScope(params.scope ?? GOOGLE_SCOPE);
-      params.access_type ??= "offline";
-      if (params.openid_realm !== undefined) {
-        params["openid.realm"] = params.openid_realm;
-        delete params.openid_realm;
-      }
-      return {
-        redirect_uri: callbackUrl,
-        ...params,
-        response_type: "code",
-        client_id: getConfig("GOOGLE_CLIENT_ID") ?? null,
-      };
+    authorizeParams: (input, state, callbackUrl) =>
+      googleAuthorizeParams(input, { state, scope: GOOGLE_SCOPE }, callbackUrl),
+  },
+  youtube: {
+    name: "youtube",
+    kind: "Youtube",
+    checksState: true,
+    authorizeUrl: "https://accounts.google.com/o/oauth2/auth",
+    social: { provider: "youtube", label: "YouTube", flag: "youtube_connect" },
+    authorizeParams: (input, state, callbackUrl) =>
+      googleAuthorizeParams(
+        input,
+        { state, scope: YOUTUBE_SCOPE, prompt: "select_account", access_type: "online" },
+        callbackUrl,
+      ),
+  },
+  instagram: {
+    name: "instagram",
+    kind: "Instagram",
+    checksState: true,
+    authorizeUrl: "https://www.instagram.com/oauth/authorize",
+    social: { provider: "instagram", label: "Instagram", flag: "instagram_connect" },
+    authorizeParams: (_input, state, callbackUrl) => ({
+      redirect_uri: callbackUrl,
+      state,
+      scope: INSTAGRAM_SCOPE,
+      enable_fb_login: "false",
+      force_reauth: "true",
+      response_type: "code",
+      client_id: getConfig("INSTAGRAM_APP_ID") ?? null,
+    }),
+  },
+  tiktok: {
+    name: "tiktok",
+    kind: "Tiktok",
+    checksState: true,
+    authorizeUrl: "https://www.tiktok.com/v2/auth/authorize/",
+    social: {
+      provider: "tiktok",
+      label: "TikTok",
+      flag: "tiktok_connect",
+      configured: () => isPresent(getConfig("TIKTOK_CLIENT_KEY")),
     },
+    encodeQuery: rackQuery,
+    // The strategy's own request_phase: the parameters in the order it adds them, `client_id` swapped for `client_key`.
+    authorizeParams: (_input, state, callbackUrl) => ({
+      state,
+      scope: TIKTOK_SCOPE,
+      client_key: getConfig("TIKTOK_CLIENT_KEY") ?? null,
+      response_type: "code",
+      disable_auto_auth: TIKTOK_ALWAYS_SHOW_AUTHORIZATION,
+      redirect_uri: callbackUrl,
+    }),
   },
   stripe_connect: {
     name: "stripe_connect",
@@ -189,9 +296,23 @@ function assertHtml(input: MutationInput): void {
 // OmniAuth::Strategy#request_call then the strategy's request_phase. The CSRF token was checked on the way in (omniauth-rails_csrf_protection
 // raises otherwise, and Rails answers that in the failure action, which Node leaves to Rails). Provider failures of this phase do not exist.
 function requestPhase(strategy: Strategy) {
-  return (input: MutationInput): Promise<ActionResult> => {
+  return async (input: MutationInput): Promise<ActionResult> => {
     assertHtml(input);
     const { session } = input.chain;
+    const { social } = strategy;
+    // The request phase runs in the middleware, ahead of any controller filter: `env["warden"].user` is the session's user, and the
+    // chain of this route is bare, so the visitor is resolved here. What Devise would write on the way (remember cookie, ended session)
+    // is Rails' to do.
+    const auth = social ? await resolveRequestAuth(input.request, input.chain.now) : null;
+    if (auth && (auth.authenticatedVia === "remember_cookie" || auth.effects.signOut))
+      throw new HandBackToRails("a visitor Devise signs in or out on the way");
+
+    const params = queryParams(input.url);
+    const enabled = social && auth ? await connectEnabled(strategy, auth) : true;
+    // `fail!(:social_connect_unavailable)` ends in the failure action, a controller, which this bare chain is not.
+    if (!enabled && isPresent(params[SOCIAL_CONNECT_RETURN]))
+      throw new HandBackToRails("a disabled social connect that carries a return token");
+
     const state = randomBytes(STATE_BYTES).toString("hex");
     const authorize = strategy.authorizeParams(input, state, `${fullHost()}${callbackPath(strategy)}`);
     // Google takes the state from a request parameter when there is one, and stores that one.
@@ -199,20 +320,70 @@ function requestPhase(strategy: Strategy) {
 
     const origin = stringParam(input, "origin");
     const referer = input.request.headers.get("referer");
-    session.data["omniauth.params"] = queryParams(input.url);
+    session.data["omniauth.params"] = params;
+    // OmniAuth.config.before_request_phase
+    const warden = auth?.context.loggedInUser;
+    if (social && warden)
+      await recordSocialConnectEvent({
+        userId: warden.id,
+        stage: "attempted",
+        provider: social.provider,
+        surface: "omniauth",
+        now: () => input.chain.now,
+      });
     if (origin !== undefined) session.data["omniauth.origin"] = origin;
     else if (referer !== null && !new RegExp(`${requestPath(strategy)}$`, "mu").test(referer))
       session.data["omniauth.origin"] = referer;
-    session.data["omniauth.state"] = sentState;
 
-    const location = `${strategy.authorizeUrl}?${faradayQuery(authorize)}`;
     // Rack::Response#redirect: no content type.
-    return Promise.resolve({
+    if (!enabled) {
+      const flagOff = railsLoggedInUser(auth!.context) ? SOCIAL_CONNECTIONS_PATH : LOGIN_PATH;
+      return { status: FOUND, body: `Redirecting to ${flagOff}...`, contentType: "", headers: { location: flagOff } };
+    }
+    session.data["omniauth.state"] = sentState;
+    const location = `${strategy.authorizeUrl}?${(strategy.encodeQuery ?? faradayQuery)(authorize)}`;
+    return {
       status: FOUND,
       body: `Redirecting to ${location}...`,
       contentType: "",
       headers: { location },
-    });
+    };
+  };
+}
+
+// The strategy's `youtube_connect_enabled?` (and its Instagram and TikTok twins): the flag for the signed-in user, or the impersonated
+// seller when a team member is impersonating. TikTok is also off until a client key is configured.
+async function connectEnabled(strategy: Strategy, auth: ResolvedAuth): Promise<boolean> {
+  const { social } = strategy;
+  if (!social || (social.configured && !social.configured())) return false;
+  const actor = railsLoggedInUser(auth.context);
+  return isFeatureEnabled(social.flag, actor ? userActor(actor.id) : null);
+}
+
+const isHash = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
+
+const sessionHash = (chain: Chain, key: string): Record<string, unknown> => {
+  const value = chain.session.data[key];
+  return isHash(value) ? value : {};
+};
+
+const presentString = (value: unknown): value is string => typeof value === "string" && isPresent(value);
+
+// The callback of a disabled social connect that has no return token to fail with is answered by the strategy itself, ahead of every
+// controller filter: a redirect with the session cookie and nothing else.
+function unavailableCallback(strategy: Strategy) {
+  return async (chain: Chain): Promise<Redirected | null> => {
+    if (requestFormat(chain.request) !== "html") return null;
+    if (chain.auth.effects.signOut) throw new HandBackToRails("a visitor Devise signs out on the way");
+    if (await connectEnabled(strategy, chain.auth)) return null;
+    if (presentString(sessionHash(chain, "omniauth.params")[SOCIAL_CONNECT_RETURN])) return null;
+    // A session that no page ever gave a CSRF token is written without one by the middleware; the chain would add it.
+    if (typeof chain.session.data._csrf_token !== "string") throw new HandBackToRails("a session without a CSRF token");
+    delete chain.session.data["omniauth.origin"];
+    delete chain.session.data["omniauth.params"];
+    const location = railsLoggedInUser(chain.auth.context) ? SOCIAL_CONNECTIONS_PATH : LOGIN_PATH;
+    return { status: FOUND, location, middleware: `Redirecting to ${location}...` };
   };
 }
 
@@ -254,19 +425,83 @@ function failure(strategy: Strategy, input: MutationInput, type: string, reason:
   };
 }
 
+// SocialConnectReturn#consume_social_connect_return, the `before_action` of the failure action: the destination a verified return
+// names. The session entry is spent whether or not it checks out.
+async function consumeSocialConnectReturn(
+  chain: Chain,
+  omniauthParams: Record<string, unknown>,
+): Promise<string | null> {
+  const stored = chain.session.data[SOCIAL_CONNECT_RETURN];
+  delete chain.session.data.social_connect_return;
+  const token = omniauthParams[SOCIAL_CONNECT_RETURN];
+  if (!isHash(stored) || typeof token !== "string") return null;
+  const { context } = chain.auth;
+  const user = railsLoggedInUser(context);
+  if (!user || user.id !== context.currentSeller?.id || stored.user_id !== Number(user.id)) return null;
+  if (!settingsSocialConnectionsPolicy.show(await loadSellerContext(context))) return null;
+  const age = typeof stored.created_at === "number" ? Math.floor(chain.now.getTime() / 1000) - stored.created_at : -1;
+  if (!Number.isInteger(stored.created_at) || age < 0 || age > RETURN_LIFETIME_SECONDS) return null;
+  if (typeof stored.token !== "string" || stored.token !== token) return null;
+  return presentString(stored.destination) ? stored.destination : null;
+}
+
+// `value.to_s.downcase.gsub(/[^a-z0-9._-]/, "").presence&.truncate(64, omission: "")`
+function sanitizeOauthError(value: string): string | null {
+  const cleaned = value.toLowerCase().replace(/[^a-z0-9._-]/gu, "");
+  return cleaned === "" ? null : cleaned.slice(0, SANITIZED_ERROR_LIMIT);
+}
+
+// User::OmniauthCallbacksController#failure for YouTube, Instagram and TikTok.
+async function socialFailure(
+  strategy: Strategy,
+  input: MutationInput,
+  type: string,
+  omniauthParams: Record<string, unknown>,
+): Promise<ActionResult> {
+  const { chain } = input;
+  const social = strategy.social!;
+  const destination = await consumeSocialConnectReturn(chain, omniauthParams);
+  const user = railsLoggedInUser(chain.auth.context);
+  const error = stringParam(input, "error");
+  if (user)
+    await recordSocialConnectEvent({
+      userId: user.id,
+      stage: "failed",
+      provider: social.provider,
+      surface: "omniauth",
+      extra: sanitizeOauthError(error !== undefined && isPresent(error) ? error : type),
+      now: () => chain.now,
+    });
+  return {
+    status: FOUND,
+    location: user ? (destination ?? SOCIAL_CONNECTIONS_PATH) : LOGIN_PATH,
+    flash: { alert: `Couldn't connect ${social.label}. Please try again.` },
+  };
+}
+
 function callbackPhase(strategy: Strategy) {
-  return (input: MutationInput): Promise<ActionResult> => {
+  return async (input: MutationInput): Promise<ActionResult> => {
     assertHtml(input);
     // Work on a copy: a request that is handed back must leave the session as Rails will find it.
     const chain = input.chain;
     const saved = { ...chain.session.data };
-    const failed = callbackFailure(strategy, input);
-    if (failed === null) {
-      chain.session.data = saved;
-      throw new HandBackToRails("a callback with a code to exchange");
-    }
+    const omniauthParams = sessionHash(chain, "omniauth.params");
     try {
-      return Promise.resolve(failure(strategy, input, failed.type, failed.reason));
+      if (strategy.social) {
+        // The strategy's own check comes before OAuth2's: a disabled connect with a return token fails with that token to return to.
+        // (Without one, `unavailableCallback` has already answered.)
+        if (!(await connectEnabled(strategy, chain.auth))) {
+          delete chain.session.data["omniauth.origin"];
+          delete chain.session.data["omniauth.params"];
+          if (!presentString(omniauthParams[SOCIAL_CONNECT_RETURN]))
+            throw new HandBackToRails("a disabled social connect the middleware should have answered");
+          return await socialFailure(strategy, input, UNAVAILABLE, omniauthParams);
+        }
+      }
+      const failed = callbackFailure(strategy, input);
+      if (failed === null) throw new HandBackToRails("a callback with a code to exchange");
+      if (strategy.social) return await socialFailure(strategy, input, failed.type, omniauthParams);
+      return failure(strategy, input, failed.type, failed.reason);
     } catch (error) {
       chain.session.data = saved;
       throw error;
@@ -289,6 +524,12 @@ registerMutations(
   })),
   ...Object.values(STRATEGIES).flatMap((strategy) => [
     { method: "POST", pattern: requestPath(strategy), options: BARE, run: requestPhase(strategy) },
-    { method: "GET", pattern: callbackPath(strategy), skipForgeryProtection: true, run: callbackPhase(strategy) },
+    {
+      method: "GET",
+      pattern: callbackPath(strategy),
+      skipForgeryProtection: true,
+      ...(strategy.social ? { options: { prepended: unavailableCallback(strategy) } } : {}),
+      run: callbackPhase(strategy),
+    },
   ]),
 );
