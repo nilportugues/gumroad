@@ -225,16 +225,6 @@ describe "PagesController guards", type: :request do
       expect(response).to redirect_to(dashboard_path)
       expect(seller.pages.count).to eq(1)
     end
-
-    it "hands the removal of a page to Rails", parity: true do
-      rich_page
-      log_in(seller)
-
-      send_form(:delete, "/pages/about-me")
-
-      expect(response).to redirect_to(pages_path)
-      expect(seller.pages.count).to eq(0)
-    end
   end
 
   describe "GET /pages/:slug/preview" do

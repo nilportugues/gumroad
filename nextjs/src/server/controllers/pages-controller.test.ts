@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   guardRedirect: vi.fn<() => unknown>(),
   policy: vi.fn<() => boolean>(),
   selectRows: vi.fn(),
+  execute: vi.fn(),
+  touch: vi.fn(),
 }));
 
 vi.mock("./mutation.ts", () => ({
@@ -38,9 +40,12 @@ vi.mock("../models/sql.ts", async () => {
     column: (tableName: string, name: string) => Prisma.raw(`${tableName}.${name}`),
     table: (name: string) => Prisma.raw(name),
     selectRows: mocks.selectRows,
+    execute: mocks.execute,
   };
 });
+vi.mock("../models/runtime/transaction.ts", () => ({ transaction: (run: () => unknown) => run() }));
 vi.mock("../models/user.ts", () => ({
+  Users: { load: (row: unknown) => row, touch: mocks.touch },
   rubyStrip: (value: string) => value.replace(/^[\0\t\n\v\f\r ]+|[\0\t\n\v\f\r ]+$/gu, ""),
 }));
 
@@ -51,7 +56,11 @@ const find = (method: string, pattern: string) => {
   return (input: MutationInput) => spec.run(input);
 };
 const input = (params: Record<string, unknown> = {}, slug?: string) =>
-  ({ params, routeParams: slug === undefined ? {} : { slug } }) as unknown as MutationInput;
+  ({
+    params,
+    routeParams: slug === undefined ? {} : { slug },
+    context: { currentSeller: { id: 3n } },
+  }) as unknown as MutationInput;
 const withErrors = (location: string, inertiaErrors: Record<string, string>) => ({
   status: 302,
   location,
@@ -188,8 +197,15 @@ describe("DELETE /pages/:slug", () => {
     expect(await run(input({}, "profile"))).toEqual({ status: 302, location: "/pages" });
   });
 
-  it("hands the removal of a page to Rails", async () => {
-    await expect(run(input({}, "about-me"))).rejects.toBeInstanceOf(HandBackToRails);
+  it("deletes the page and touches the seller", async () => {
+    mocks.selectRows.mockResolvedValue([{ id: 8n, custom_html: null }]);
+    expect(await run(input({}, "about-me"))).toEqual({
+      status: 303,
+      location: "/pages",
+      flash: { notice: "Page deleted!" },
+    });
+    expect(mocks.execute).toHaveBeenCalledTimes(1);
+    expect(mocks.touch).toHaveBeenCalledWith({ id: 3n }, { deferred: true });
   });
 });
 
