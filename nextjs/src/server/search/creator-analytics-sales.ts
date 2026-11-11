@@ -36,7 +36,7 @@ type Bucket = { key: Record<string, unknown>; doc_count: number; total: { value:
 type Query = { bool: Record<string, JsonValue[]> };
 
 // Time#strftime("%Y-%m-%dT%H:%M") of an epoch-millisecond bucket key, in the zone.
-function hourKey(epochMs: number, iana: string): string {
+export function hourKey(epochMs: number, iana: string): string {
   const seconds = Math.trunc(epochMs / 1000);
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: iana, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23" }).formatToParts(new Date(seconds * 1000));
   const part = (type: string) => parts.find((entry) => entry.type === type)!.value;
