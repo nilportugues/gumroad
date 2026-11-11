@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import {
   json as canonicalJson,
   cookieValue,
@@ -144,6 +146,29 @@ function unescapeHtml(text: string): string {
     .replaceAll("&amp;", "&");
 }
 
+// Keep in sync with HTTP_HEADERS_KEPT in spec/support/parity/recorder.rb.
+export const HTTP_HEADERS_KEPT = ["idempotency-key", "stripe-account", "paypal-request-id", "authorization"] as const;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+const CREDENTIAL_DIGEST_LENGTH = 16;
+
+// The recorder's view of an outbound call's headers: only the ones that matter, a random key as `<uuid>`, a credential as a
+// digest of its value.
+export function keptHttpHeaders(headers: Headers | Record<string, string>): Record<string, string> {
+  const get = (name: string) => (headers instanceof Headers ? headers.get(name) : (headers[name] ?? null));
+  const out: Record<string, string> = {};
+  for (const name of HTTP_HEADERS_KEPT) {
+    const value = get(name);
+    if (!value) continue;
+    out[name] =
+      name === "authorization"
+        ? `sha256:${createHash("sha256").update(value).digest("hex").slice(0, CREDENTIAL_DIGEST_LENGTH)}`
+        : UUID_PATTERN.test(value)
+          ? "<uuid>"
+          : value;
+  }
+  return out;
+}
+
 export type FetchInterceptor = { calls: () => CapturedHttp[]; restore: () => void };
 
 // Serves the port the responses Rails got (the fixture is the cassette) and records what the
@@ -160,6 +185,11 @@ export function interceptFetch(recorded: CapturedHttp[], now: Date): FetchInterc
     const call: CapturedHttp = { method: request.method, url: request.url, response: {} };
     if (contentType) call.contentType = contentType;
     if (body) call.body = body;
+    // Only for fixtures that carry them: an older recording has no headers to compare against.
+    if (recorded.some((candidate) => candidate.headers !== undefined)) {
+      const headers = keptHttpHeaders(request.headers);
+      if (Object.keys(headers).length) call.headers = headers;
+    }
     calls.push(canonicalJson(call, now) as unknown as CapturedHttp);
 
     const index = unused.findIndex((candidate) => candidate.method === call.method && candidate.url === call.url);

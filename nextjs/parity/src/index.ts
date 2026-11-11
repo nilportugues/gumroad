@@ -7,3 +7,4 @@ export * from "./golden";
 export * from "./http";
 export * from "./replay";
 export * from "./session";
+export * from "./stand-in";

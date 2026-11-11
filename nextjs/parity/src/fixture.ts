@@ -52,6 +52,9 @@ export type CapturedHttp = {
   method: string;
   url: string;
   contentType?: string;
+  // Idempotency-Key, Stripe-Account, PayPal-Request-Id and a digest of Authorization (HTTP_HEADERS_KEPT in recorder.rb), lower-cased
+  // names. A random per-attempt key is `<uuid>`. Absent from fixtures recorded before the timeline existed.
+  headers?: Record<string, string>;
   body?: string;
   // Served back to the port during replay; not compared.
   response: { status?: number; contentType?: string; body?: string };
@@ -86,7 +89,14 @@ export type CapturedExchange = {
 // The documents of an Elasticsearch index that has no table behind it, by model name (times as tokens).
 export type ElasticsearchSeed = Record<string, { source: Record<string, Json> }[]>;
 
+// One step of the request, in the order Rails took it: a write (`op` on `table`, from the SQL the request ran) or a pointer
+// into `http` or `jobs`. Recorded only for requests that made an outbound call.
+export type TimelineEvent =
+  | { type: "db"; op: "insert" | "update" | "delete" | "replace"; table: string }
+  | { type: "http" | "job"; index: number };
+
 export type Exchange = CapturedExchange & {
+  timeline?: TimelineEvent[];
   seed: Seed;
   request: FixtureRequest;
   redis?: Record<string, RedisEntry>;
