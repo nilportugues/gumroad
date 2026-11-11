@@ -1,12 +1,18 @@
-// Api::V2::SalesController (app/controllers/api/v2/sales_controller.rb): #resend_receipt, #export (the row and the job; the CSV is built by the worker), and the reads #index and #show, which render
-// Purchase#as_json(version: 2) (models/purchase-json.ts). #refund moves money and belongs to phase 2.
-import { Prisma } from "@prisma/client";
+// Api::V2::SalesController (app/controllers/api/v2/sales_controller.rb): #resend_receipt, #export (the row and the job; the CSV is built by the worker), the reads #index, #show and #summary, which render
+// Purchase#as_json(version: 2) (models/purchase-json.ts), and #revoke_access / #undo_revoke_access. #refund moves money and #mark_as_shipped
+// mails the buyer: both answer their 404 here and hand every other request back before a write.
+import { Prisma, type Purchase } from "@prisma/client";
 
 import { decryptNumeric } from "../../../lib/obfuscate-ids.ts";
 import { performAsync } from "../../models/concerns/job-runtime.ts";
 import { followingEmails, purchasesAsJsonV2 } from "../../models/purchase-json.ts";
 import { column, selectRows, table } from "../../models/sql.ts";
+import { accessRecord } from "../../models/purchase-access-record.ts";
+import { loadLibraryPurchase, setLibraryFlag } from "../../models/purchase-library-writes.ts";
+import { audiencePurchasePolicy } from "../../policies/audience-purchase.ts";
+import { addDays, civilDateInZone, timezoneId } from "../../search/civil-time.ts";
 import { PurchaseFlags } from "../../search/flags.ts";
+import { MAX_HOURLY_DATE_RANGE_DAYS, salesSummary, VALID_GROUPS, type Group } from "./sales-summary.ts";
 import { queueSalesExport, salesExportQuery, type SalesExportFilters } from "../../exports/sales-export.ts";
 import { HandBackToRails } from "../application-controller.ts";
 import { error400, errorWithObject, fromExternalId, registerApiV2, renderResponse, successWithObject, type ApiV2Input } from "./base.ts";
@@ -170,17 +176,87 @@ async function index({ owner, params, request }: ApiV2Input) {
   return successWithObject("sales", sales, more ? paginationInfo(request, rows[RESULTS_PER_PAGE - 1] as { created_usec: string; id: bigint }) : {});
 }
 
+// sales_summary_params. Date.strptime without the Date.parse of the export: a plain date or a date and trailing text.
+async function summary({ owner, params }: ApiV2Input) {
+  const textParam = (name: string) => {
+    const value = params[name];
+    if (value === undefined || value === null) return null;
+    if (typeof value !== "string") throw new HandBackToRails(`a non-text ${name} parameter`);
+    return present(value) ? value : null;
+  };
+  const groupParam = textParam("group_by");
+  if (groupParam !== null && !(VALID_GROUPS as readonly string[]).includes(groupParam)) return error400(`Invalid group_by. Valid values are: ${VALID_GROUPS.join(", ")}.`);
+  const groupBy = groupParam as Group | null;
+
+  const parse = (value: string) => {
+    const parsed = strptimeDate(value);
+    return "invalid" in parsed ? null : parsed.date;
+  };
+  const invalid = (name: string) => error400(`Invalid date format provided in field '${name}'. Dates must be in the format YYYY-MM-DD.`);
+  const fromText = textParam("from");
+  let from = fromText === null ? null : parse(fromText);
+  if (fromText !== null && from === null) return invalid("from");
+  const toText = textParam("to");
+  let to: string;
+  if (toText !== null) {
+    const parsed = parse(toText);
+    if (parsed === null) return invalid("to");
+    to = parsed;
+  } else {
+    try {
+      // ActiveSupport::TimeZone[current_resource_owner.timezone].today
+      to = civilDateInZone(Date.now(), timezoneId(owner.timezone));
+    } catch (error) {
+      if (error instanceof Error && error.name === "NotPortedError") throw new HandBackToRails(error.message);
+      throw error;
+    }
+  }
+  from ??= addDays(to, -29);
+  if (from > to) return error400("'from' must be on or before 'to'.");
+  const days = Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000);
+  if (groupBy === "hour" && days > MAX_HOURLY_DATE_RANGE_DAYS) return error400(`Date range cannot exceed ${MAX_HOURLY_DATE_RANGE_DAYS} days when grouping by hour.`);
+  return renderResponse(true, await salesSummary(owner, { from, to, groupBy }));
+}
+
+// current_resource_owner.sales.find_by_external_id
+async function findSale(owner: { id: bigint }, externalId: string | undefined): Promise<Row | undefined> {
+  const id = fromExternalId(externalId);
+  if (id === null) return undefined;
+  const [sale] = await selectSales(Prisma.sql`${column("purchases", "seller_id")} = ${owner.id} AND ${column("purchases", "id")} = ${id}`, Prisma.sql` LIMIT 1`);
+  return sale;
+}
+
+// A route that moves money or sends mail: the 404 is Node's, the rest is Rails's before anything is written.
+const handBackUnlessMissing = (what: string) =>
+  async function run({ owner, routeParams }: ApiV2Input) {
+    if ((await findSale(owner, routeParams.id)) === undefined) return errorWithObject("sale");
+    throw new HandBackToRails(what);
+  };
+
+// #revoke_access / #undo_revoke_access: the write of the customers page and the mobile app, then the sale as it now reads.
+const toggleAccess = (revoked: boolean) =>
+  async function run({ owner, routeParams }: ApiV2Input) {
+    const sale = await findSale(owner, routeParams.id);
+    if (sale === undefined) return errorWithObject("sale");
+    // sale_purchase_policy: the token's owner acting on their own account
+    const context = { user: owner, seller: owner, memberships: [] };
+    const query = revoked ? audiencePurchasePolicy.revokeAccess : audiencePurchasePolicy.undoRevokeAccess;
+    if (!query(context, await accessRecord(sale as Purchase))) {
+      return errorWithObject("sale", { errors: [revoked ? "Access cannot be revoked for this sale." : "Access is not revoked for this sale."] });
+    }
+    await setLibraryFlag(loadLibraryPurchase(sale as Purchase, owner.timezone), "is_access_revoked", revoked);
+    const [updated] = await selectSales(Prisma.sql`${column("purchases", "id")} = ${sale.id}`, Prisma.sql` LIMIT 1`);
+    return successWithObject("sale", (await saleJson([updated!], owner.id, false))[0]);
+  };
+
 registerApiV2(
   { method: "POST", pattern: "/v2/sales/exports", scopes: ["view_sales"], run: exportSales },
   { method: "GET", pattern: "/v2/sales", scopes: ["view_sales"], run: index },
-  // Rails routes /v2/sales/summary ahead of /v2/sales/:id; until the summary is served it must not be read as a sale id.
-  {
-    method: "GET",
-    pattern: "/v2/sales/summary",
-    scopes: ["view_sales"],
-    async run() {
-      throw new HandBackToRails("the sales summary");
-    },
-  },
+  // Rails routes /v2/sales/summary ahead of /v2/sales/:id.
+  { method: "GET", pattern: "/v2/sales/summary", scopes: ["view_sales"], run: summary },
   { method: "GET", pattern: "/v2/sales/:id", scopes: ["view_sales"], run: show },
+  { method: "PUT", pattern: "/v2/sales/:id/revoke_access", scopes: ["edit_sales"], requireScope: ["edit_sales"], run: toggleAccess(true) },
+  { method: "PUT", pattern: "/v2/sales/:id/undo_revoke_access", scopes: ["edit_sales"], requireScope: ["edit_sales"], run: toggleAccess(false) },
+  { method: "PUT", pattern: "/v2/sales/:id/mark_as_shipped", scopes: ["mark_sales_as_shipped"], run: handBackUnlessMissing("the buyer's shipment email") },
+  { method: "PUT", pattern: "/v2/sales/:id/refund", scopes: ["refund_sales", "edit_sales"], run: handBackUnlessMissing("a refund") },
 );

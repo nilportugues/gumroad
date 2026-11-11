@@ -15,7 +15,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 
 | Namespace | Routes | Native | Hands back | Not registered | Unresolved |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 92 | 0 | 46 | 0 |
+| API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 96 | 0 | 42 | 0 |
 | Mobile API (`/mobile` on the API host) | 64 | 39 | 0 | 25 | 0 |
 | Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 23 | 0 | 59 | 3 |
 | Internal API, Gumroad domain (`/internal`, JSON for the React Router pages) | 23 | 11 | 0 | 12 | 0 |
@@ -143,14 +143,14 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `POST /v2/workflows/:workflow_id/emails` | `Api::V2::Workflows::EmailsController#create` | native | `nextjs_api_v2_workflows` | y |
 | `PUT /v2/workflows/:workflow_id/emails/:email_id` | `Api::V2::Workflows::EmailsController#update` | native | `nextjs_api_v2_workflows` | y |
 | `POST /v2/sales/exports` | `Api::V2::SalesController#export` | native | `nextjs_api_v2_sales` | y |
-| `GET /v2/sales/summary` | `Api::V2::SalesController#summary` | native | `nextjs_api_v2_sales` | n |
+| `GET /v2/sales/summary` | `Api::V2::SalesController#summary` | native | `nextjs_api_v2_sales` | y |
 | `GET /v2/sales` | `Api::V2::SalesController#index` | native | `nextjs_api_v2_sales` | y |
 | `GET /v2/sales/:id` | `Api::V2::SalesController#show` | native | `nextjs_api_v2_sales` | y |
-| `PUT /v2/sales/:id/mark_as_shipped` | `Api::V2::SalesController#mark_as_shipped` | not registered | - | y |
-| `PUT /v2/sales/:id/refund` | `Api::V2::SalesController#refund` | not registered | - | y |
+| `PUT /v2/sales/:id/mark_as_shipped` | `Api::V2::SalesController#mark_as_shipped` | native | `nextjs_api_v2_sales` | y |
+| `PUT /v2/sales/:id/refund` | `Api::V2::SalesController#refund` | native | `nextjs_api_v2_sales` | y |
 | `POST /v2/sales/:id/resend_receipt` | `Api::V2::SalesController#resend_receipt` | native | `nextjs_api_v2_sales` | n |
-| `PUT /v2/sales/:id/revoke_access` | `Api::V2::SalesController#revoke_access` | not registered | - | n |
-| `PUT /v2/sales/:id/undo_revoke_access` | `Api::V2::SalesController#undo_revoke_access` | not registered | - | n |
+| `PUT /v2/sales/:id/revoke_access` | `Api::V2::SalesController#revoke_access` | native | `nextjs_api_v2_sales` | y |
+| `PUT /v2/sales/:id/undo_revoke_access` | `Api::V2::SalesController#undo_revoke_access` | native | `nextjs_api_v2_sales` | y |
 | `GET /v2/payouts` | `Api::V2::PayoutsController#index` | native | `nextjs_api_v2_payouts` | y |
 | `GET /v2/payouts/:id` | `Api::V2::PayoutsController#show` | native | `nextjs_api_v2_payouts` | y |
 | `GET /v2/payouts/upcoming` | `Api::V2::PayoutsController#upcoming` | native | `nextjs_api_v2_payouts` | n |
