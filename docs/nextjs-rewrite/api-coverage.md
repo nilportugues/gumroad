@@ -15,7 +15,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 
 | Namespace | Routes | Native | Hands back | Not registered | Unresolved |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 96 | 0 | 42 | 0 |
+| API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 101 | 0 | 37 | 0 |
 | Mobile API (`/mobile` on the API host) | 64 | 50 | 0 | 14 | 0 |
 | Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 41 | 4 | 37 | 3 |
 | Internal API, Gumroad domain (`/internal`, JSON for the React Router pages) | 23 | 11 | 0 | 12 | 0 |
@@ -28,11 +28,11 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `POST /v2/files/complete` | `Api::V2::FilesController#complete` | not registered | - | n |
 | `POST /v2/files/abort` | `Api::V2::FilesController#abort` | not registered | - | n |
 | `POST /v2/direct_uploads` | `Api::V2::DirectUploadsController#create` | not registered | - | n |
-| `POST /v2/licenses/verify` | `Api::V2::LicensesController#verify` | not registered | - | y |
-| `PUT /v2/licenses/enable` | `Api::V2::LicensesController#enable` | not registered | - | y |
-| `PUT /v2/licenses/disable` | `Api::V2::LicensesController#disable` | not registered | - | y |
-| `PUT /v2/licenses/decrement_uses_count` | `Api::V2::LicensesController#decrement_uses_count` | not registered | - | y |
-| `PUT /v2/licenses/rotate` | `Api::V2::LicensesController#rotate` | not registered | - | y |
+| `POST /v2/licenses/verify` | `Api::V2::LicensesController#verify` | native | `nextjs_api_v2_licenses` | y |
+| `PUT /v2/licenses/enable` | `Api::V2::LicensesController#enable` | native | `nextjs_api_v2_licenses` | y |
+| `PUT /v2/licenses/disable` | `Api::V2::LicensesController#disable` | native | `nextjs_api_v2_licenses` | y |
+| `PUT /v2/licenses/decrement_uses_count` | `Api::V2::LicensesController#decrement_uses_count` | native | `nextjs_api_v2_licenses` | y |
+| `PUT /v2/licenses/rotate` | `Api::V2::LicensesController#rotate` | native | `nextjs_api_v2_licenses` | y |
 | `GET /v2/user` | `Api::V2::UsersController#show` | native | `nextjs_api_v2_user` | y |
 | `GET /v2/user/theme` | `Api::V2::UsersController#theme` | native | `nextjs_api_v2_user` | y |
 | `GET /v2/user/profile_layout` | `Api::V2::UsersController#profile_layout` | native | `nextjs_api_v2_user` | y |

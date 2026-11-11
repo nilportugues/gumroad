@@ -35,6 +35,7 @@ const WS17C_SPEC_DIRS = [
   "payouts_media",
   "sales_exports",
   "links",
+  "licenses",
 ].map((name) => `${name}_parity_spec`);
 const SPECS = existsSync(FIXTURES)
   ? readdirSync(FIXTURES).filter(
@@ -57,6 +58,7 @@ const ROUTE_FLAGS = [
   "payouts",
   "sales",
   "products",
+  "licenses",
 ]
   .map((name) => `nextjs_api_v2_${name}`)
   .join(",");
@@ -153,6 +155,7 @@ const COMPARE = {
     "db.users.updated.*.changes.updated_at",
     "db.installments.updated.*.changes.updated_at",
     "db.installment_rules.updated.*.changes.updated_at",
+    "db.licenses.updated.*.changes.updated_at",
     // The first request to a route compiles it, and a delete stamps the replay's clock plus that compile.
     "db.installments.updated.*.changes.deleted_at",
     // An instant in 2099 is masked as whole hours from now, so the minute of the hour moves it by one.
@@ -280,6 +283,8 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
         }
         driftDates = !name.includes("answers-a-tools-list-call");
         const paginates = name.includes("paginates-with-a-page-key");
+        // License#generate_serial is random: both sides mint a key of the same shape, and the response carries the one saved.
+        const rotates = name.includes("-rotate-gives-");
         const createsUtmLink =
           (Object.keys(expected.db ?? {}).includes("utm_links") && name.includes("-creates-")) ||
           name.includes("-ignores-a-utm-parameter");
@@ -291,7 +296,9 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
           fixture,
           index,
           replayOptions(
-            createsUtmLink
+            rotates
+              ? ["response.json.purchase.license_key", "db.licenses.updated.*.changes.serial"]
+              : createsUtmLink
               ? [
                   "response.json.utm_link.short_url",
                   "db.utm_links.inserted.*.permalink",
@@ -319,6 +326,13 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
           const body = result.exchanges[0]!.actual.response.json as { next_page_key: string; next_page_url: string };
           expect(body.next_page_key).toMatch(/^\d{20}-\d+$/);
           expect(body.next_page_url).toBe(`/v2/emails?page_key=${body.next_page_key}&type=draft`);
+        }
+        if (rotates) {
+          const serial = (result.exchanges[0]!.actual.db as { licenses: { updated: { changes: { serial: [string, string] } }[] } }).licenses
+            .updated[0]!.changes.serial[1];
+          expect(serial).toMatch(/^[0-9A-F]{8}(-[0-9A-F]{8}){3}$/);
+          const purchase = (result.exchanges[0]!.actual.response.json as { purchase?: { license_key: string } }).purchase;
+          if (purchase) expect(purchase.license_key).toBe(serial);
         }
         if (createsUtmLink) {
           const inserted = (

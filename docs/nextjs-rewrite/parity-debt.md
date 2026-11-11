@@ -262,9 +262,9 @@ fixture or golden that covers the behaviour, or with the covering check not run.
    Fixtures exist (`seller_json_mutations_signed_in_spec` x11, `mobile_api_parity_spec` x4) but the replays have
    not been run; `ws12b.replay.test.ts` and `mobile-api.replay.test.ts` cover them. `Licenses` writes a
    PaperTrail version (`disabled_at`, `serial`) that the replay cannot compare (above). `License#rotate!`, license
-   creation and the public API `licenses#verify|enable|disable|decrement_uses_count|rotate` are not ported (they
-   need `Purchase#payload_for_ping_notification`); `controllers/api/v2/licenses_controller_spec` has 53 recorded
-   fixtures and no replay or Node handler, so nothing proves those today.
+   creation are not ported. The public API `licenses#verify|enable|disable|decrement_uses_count|rotate` run in
+   Node for a plain purchase (`nextjs_api_v2_licenses`, 71 request-spec fixtures replayed by `api-v2-ws17c.replay`);
+   the 53 `controllers/api/v2/licenses_controller_spec` fixtures still have no replay.
 7. **Everything above the line is replay-unverified.** Step 0 below replays all 1,759 existing fixtures. Until
    then treat even "proven by replay" in `workstreams.md` as unconfirmed here.
 
