@@ -1,10 +1,12 @@
-// ConnectionsController#unlink_youtube, #unlink_instagram and #unlink_tiktok (app/controllers/connections_controller.rb). The profile
-// settings page posts them as JSON. #unlink_twitter saves the whole User (validations, callbacks, search indexing) and stays in Rails.
+// ConnectionsController#unlink_twitter, #unlink_youtube, #unlink_instagram and #unlink_tiktok (app/controllers/connections_controller.rb).
+// The profile settings page posts them as JSON.
 import { Prisma } from "@prisma/client";
 
 import { railsLoggedInUser } from "../auth/resolve.ts";
-import { notAllowedMessage, ADD_EMAIL_MESSAGE } from "../page-props/settings/guard.ts";
 import { column, execute, selectRows, table } from "../models/sql.ts";
+import { RecordInvalid } from "../models/runtime/errors.ts";
+import { findUser, Users } from "../models/user.ts";
+import { notAllowedMessage, ADD_EMAIL_MESSAGE } from "../page-props/settings/guard.ts";
 import { authorize } from "../policies/authorize.ts";
 import { loadSellerContext, NotAuthorizedError } from "../policies/seller-context.ts";
 import { settingsProfilePolicy } from "../policies/settings/profile.ts";
@@ -44,7 +46,32 @@ async function destroyIdentity(input: MutationInput, tableName: string): Promise
   return json({ success: true });
 }
 
+// User::SocialTwitter::TWITTER_PROPERTIES
+const TWITTER_PROPERTIES = [
+  "twitter_user_id",
+  "twitter_handle",
+  "twitter_oauth_token",
+  "twitter_oauth_secret",
+] as const;
+
+// `current_seller.save!` runs the User validations and callbacks; its `rescue => e` answers the message as JSON.
+async function unlinkTwitter(input: MutationInput): Promise<ActionResult> {
+  const denied = await guarded(input);
+  if (denied) return denied;
+  const seller = await findUser(input.context.currentSeller!.id);
+  if (seller === null) throw new HandBackToRails("a seller that vanished");
+  for (const property of TWITTER_PROPERTIES) seller.set(property, null);
+  try {
+    await Users.saveBang(seller);
+  } catch (error) {
+    if (!(error instanceof RecordInvalid)) throw error;
+    return json({ success: false, error_message: error.message });
+  }
+  return json({ success: true });
+}
+
 registerMutations(
+  { method: "POST", pattern: "/settings/connections/unlink_twitter", formats: ["json"], run: unlinkTwitter },
   ...(["youtube", "instagram", "tiktok"] as const).map((provider) => ({
     method: "POST",
     pattern: `/settings/connections/unlink_${provider}`,

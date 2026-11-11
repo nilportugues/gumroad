@@ -23,6 +23,7 @@ import { LinkFlags } from "../../models/link.ts";
 import { customStyles, withDefaults } from "../../models/seller-profile-styles.ts";
 import { column, selectRows, table } from "../../models/sql.ts";
 import {
+  isAccountActive,
   isCompliant,
   isFlagSet,
   nameOrUsername,
@@ -85,6 +86,16 @@ export async function setNoindexForUnprovenStorefront(chain: Chain, seller: User
     Prisma.sql`SELECT 1 FROM ${table("purchases")} WHERE ${column("purchases", "seller_id")} = ${seller.id} AND ${column("purchases", "purchase_state")} = 'successful' AND ${column("purchases", "price_cents")} != 0 LIMIT 1`,
   );
   if (!sale) chain.headers.set("x-robots-tag", "noindex");
+}
+
+// CustomDomainConfig#set_user for `/:username/...` on the Gumroad domain, then #error_if_user_not_found.
+async function sellerOfUsername(encoded: string): Promise<User> {
+  const name = decodeURIComponent(encoded);
+  const user =
+    (await db.user.findFirst({ where: { username: name }, orderBy: { id: "asc" } })) ??
+    (await db.user.findFirst({ where: { external_id: name }, orderBy: { id: "asc" } }));
+  if (!user || !isAccountActive(Users.load(user)) || user.username === null) throw new RoutingError("Not Found");
+  return user;
 }
 
 async function storefrontFilters(
@@ -416,6 +427,30 @@ export const PROFILE_PAGES: Record<string, PageSpec> = {
       await setFaviconMetaTags(action.meta, seller);
       action.meta.set({ title: `Subscribe to ${present(seller.name) ? seller.name : username(Users.load(seller))}` });
       return { creator_profile: await creatorProfile(seller, false) };
+    },
+  },
+  // UsersController#subscribe_preview on the Gumroad domain: the page SubscribePreviewGeneratorService screenshots.
+  "/:username/subscribe_preview": {
+    component: "Users/SubscribePreview",
+    options: {
+      filters: async (chain): Promise<FilterOutcome> => {
+        requireHtmlPage(chain);
+        const seller = await sellerOfUsername(chain.request.path.split("/")[1] ?? "");
+        await setNoindexForUnprovenStorefront(chain, seller);
+        await assertNoShareCard(seller);
+        // The props carry a resized variant of the avatar, which comes from Active Storage.
+        if (await avatarAttachmentOf(seller.id)) throw new HandBackToRails();
+        return { state: {} };
+      },
+    },
+    props: async ({ username }, action) => {
+      const seller = await sellerOfUsername(username!);
+      await setUserPageMeta(action.meta, seller);
+      return {
+        avatar_url: await avatarUrl(seller),
+        title: nameOrUsername(Users.load(seller)),
+        bio: present(seller.bio) ? seller.bio : null,
+      };
     },
   },
   "seller:/affiliates": {

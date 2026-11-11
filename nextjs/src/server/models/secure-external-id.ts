@@ -64,6 +64,13 @@ export function secureExternalId(model: string, id: bigint | number, scope: stri
 // `Model.decrypt_id(token, scope:)`: the id of a record of class `model`, or null for a token that is not
 // well-formed, is for another model or scope, has expired, or does not decrypt under its key version.
 export function decryptSecureExternalId(model: string, token: unknown, scope: string, now: Date = new Date()): string | null {
+  const id = decryptSecureExternalPayload(model, token, scope, now);
+  return id === null ? null : String(id);
+}
+
+// The same check, for a token whose "id" is a JSON value rather than a number (`encrypt_id([user.id, digest], scope:)`): the value as
+// it was encrypted, or null.
+export function decryptSecureExternalPayload(model: string, token: unknown, scope: string, now: Date = new Date()): unknown {
   if (typeof token !== "string") return null;
   const config = readConfig();
   try {
@@ -81,7 +88,7 @@ export function decryptSecureExternalId(model: string, token: unknown, scope: st
     const inner = JSON.parse(JSON.parse(plain) as string) as { model?: unknown; id?: unknown; exp?: unknown; scp?: unknown };
     if (inner.model !== model || inner.scp !== scope) return null;
     if (typeof inner.exp === "number" && Math.trunc(now.getTime() / 1000) > inner.exp) return null;
-    return inner.id === undefined || inner.id === null ? null : String(inner.id);
+    return inner.id === undefined ? null : inner.id;
   } catch {
     return null;
   }
