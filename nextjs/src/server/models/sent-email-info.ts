@@ -21,7 +21,9 @@ export const SentEmailInfos = defineModel<SentEmailInfo>({
 
 // `SentEmailInfo.key_exists?(key)`
 export async function sentEmailKeyExists(key: string): Promise<boolean> {
-  const rows = await selectRows(Prisma.sql`SELECT 1 AS one FROM ${table(SENT_EMAIL_INFOS)} WHERE ${column(SENT_EMAIL_INFOS, "key")} = ${key} LIMIT 1`);
+  const rows = await selectRows(
+    Prisma.sql`SELECT 1 AS one FROM ${table(SENT_EMAIL_INFOS)} WHERE ${column(SENT_EMAIL_INFOS, "key")} = ${key} LIMIT 1`,
+  );
   return rows.length > 0;
 }
 
@@ -36,7 +38,7 @@ export async function setSentEmailKey(key: string, now?: () => Date): Promise<tr
   }
 }
 
-export type MailerArgument = number | bigint | string | boolean | null;
+export type MailerArgument = number | bigint | string | boolean | null | MailerArgument[];
 
 // String#inspect for strings whose escapes are trivial: printable ASCII without a quote, a
 // backslash or an interpolation lead-in (`#{`, `#$`, `#@`).
@@ -51,14 +53,18 @@ function inspect(argument: MailerArgument): string {
   if (argument === null) return "nil";
   if (typeof argument === "string") return inspectString(argument);
   if (typeof argument === "boolean") return String(argument);
-  if (typeof argument === "number" && !Number.isSafeInteger(argument)) throw new NotPortedError("Float#inspect", "sent_email_info.rb:21");
+  if (Array.isArray(argument)) return `[${argument.map(inspect).join(", ")}]`;
+  if (typeof argument === "number" && !Number.isSafeInteger(argument))
+    throw new NotPortedError("Float#inspect", "sent_email_info.rb:21");
   return String(argument);
 }
 
 // `SentEmailInfo.mailer_key_digest(mailer_class, mailer_method, *args)`: SHA1 of
 // "#{mailer_class}.#{mailer_method}#{args}".
 export function mailerKeyDigest(mailerClass: string, mailerMethod: string, ...args: MailerArgument[]): string {
-  return createHash("sha1").update(`${mailerClass}.${mailerMethod}[${args.map(inspect).join(", ")}]`).digest("hex");
+  return createHash("sha1")
+    .update(`${mailerClass}.${mailerMethod}[${args.map(inspect).join(", ")}]`)
+    .digest("hex");
 }
 
 // `SentEmailInfo.mailer_exists?`
@@ -67,7 +73,13 @@ export function mailerExists(mailerClass: string, mailerMethod: string, ...args:
 }
 
 // `SentEmailInfo.ensure_mailer_uniqueness`: runs `block` only for the caller that recorded the key.
-export async function ensureMailerUniqueness(mailerClass: string, mailerMethod: string, args: MailerArgument[], block: () => Promise<void>, now?: () => Date): Promise<void> {
+export async function ensureMailerUniqueness(
+  mailerClass: string,
+  mailerMethod: string,
+  args: MailerArgument[],
+  block: () => Promise<void>,
+  now?: () => Date,
+): Promise<void> {
   const digest = mailerKeyDigest(mailerClass, mailerMethod, ...args);
   if (!(await sentEmailKeyExists(digest)) && (await setSentEmailKey(digest, now))) await block();
 }

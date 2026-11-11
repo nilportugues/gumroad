@@ -113,6 +113,7 @@ import { sendLastPostJob } from "./send-last-post-job.ts";
 import { sendMarketingXReconnectEmailJob } from "./send-marketing-x-reconnect-email-job.ts";
 import { sendPreorderSellerSummaryWorker } from "./send-preorder-seller-summary-worker.ts";
 import { sendPurchaseReceiptJob } from "./send-purchase-receipt-job.ts";
+import { sendWishlistUpdatedEmailsJob } from "./send-wishlist-updated-emails-job.ts";
 import { sendWorkflowInstallmentWorker } from "./send-workflow-installment-worker.ts";
 import {
   createStripeApplePayDomainWorker,
@@ -264,6 +265,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   RegenerateSalesRelatedProductsInfosJob: regenerateSalesRelatedProductsInfosJob,
   UpdateSalesRelatedProductsInfosJob: updateSalesRelatedProductsInfosJob,
   UpdateTaxonomyStatsJob: updateTaxonomyStatsJob,
+  SendWishlistUpdatedEmailsJob: sendWishlistUpdatedEmailsJob,
   SendFeatureAnnouncementCampaignJob: sendFeatureAnnouncementCampaignJob,
   SendPreorderSellerSummaryWorker: sendPreorderSellerSummaryWorker,
   SubmitToIndexnowJob: submitToIndexnowJob,
