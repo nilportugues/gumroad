@@ -7,9 +7,9 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 | Measure | Done | Total | Share |
 | --- | ---: | ---: | ---: |
-| Routes served natively (counted, static check) | 830 | 978 | 84.9% |
-| Routes registered in routes.json (counted; upper bound, adds the 7 listed under "hands back") | 837 | 978 | 85.6% |
-| Routes weighted by difficulty (counted routes, estimated weights) | 1595 | 1857 | 85.9% |
+| Routes served natively (counted, static check) | 831 | 978 | 85.0% |
+| Routes registered in routes.json (counted; upper bound, adds the 6 listed under "hands back") | 837 | 978 | 85.6% |
+| Routes weighted by difficulty (counted routes, estimated weights) | 1596 | 1857 | 85.9% |
 | Same, registered in routes.json (upper bound) | 1602 | 1857 | 86.3% |
 | Rails Inertia pages with Node props (counted, string match) | 102 | 114 | 89.5% |
 | Sidekiq job classes running in Node (counted) | 125 | 296 | 42.2% |
@@ -42,14 +42,14 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 | WS-13 Audience, emails, workflows | 53 | 50 | 0 | 3 | 94.3% | 106 | 100 | 94.3% |
 | WS-14 Discover and search | 4 | 3 | 0 | 1 | 75.0% | 5 | 4 | 80.0% |
 | WS-15 Analytics and exports | 23 | 20 | 0 | 3 | 87.0% | 26 | 21 | 80.8% |
-| WS-16 Library and content delivery | 39 | 38 | 1 | 0 | 97.4% | 51 | 50 | 98.0% |
+| WS-16 Library and content delivery | 39 | 39 | 0 | 0 | 100.0% | 51 | 51 | 100.0% |
 | WS-17 Public and mobile API | 199 | 187 | 0 | 12 | 94.0% | 359 | 338 | 94.2% |
 | WS-18 Admin | 86 | 83 | 0 | 3 | 96.5% | 254 | 249 | 98.0% |
 | WS-19 AI, MCP and moderation | 36 | 33 | 0 | 3 | 91.7% | 108 | 99 | 91.7% |
 | WS-20 Checkout and orders | 71 | 52 | 0 | 19 | 73.2% | 222 | 160 | 72.1% |
 | WS-21 Payment processors | 8 | 8 | 0 | 0 | 100.0% | 32 | 32 | 100.0% |
 | WS-23 Balances and payouts | 25 | 25 | 0 | 0 | 100.0% | 74 | 74 | 100.0% |
-| **All** | 978 | 830 | 7 | 141 | 84.9% | 1857 | 1595 | 85.9% |
+| **All** | 978 | 831 | 6 | 141 | 85.0% | 1857 | 1596 | 85.9% |
 
 ## Sensitivity to the weights
 
@@ -57,16 +57,16 @@ The weights are the soft part of this inventory, so here is the headline under o
 
 | Scheme | Native weight | Total weight | Share |
 | --- | ---: | ---: | ---: |
-| Every route counts 1 (the plain route share) | 830 | 978 | 84.9% |
-| Verb only: GET 1, other verbs 2 | 1213 | 1427 | 85.0% |
-| Rubric weights 1 to 4 (the headline) | 1595 | 1857 | 85.9% |
-| Rubric weights doubled per step: 1, 2, 4, 8 | 1888 | 2194 | 86.1% |
+| Every route counts 1 (the plain route share) | 831 | 978 | 85.0% |
+| Verb only: GET 1, other verbs 2 | 1214 | 1427 | 85.1% |
+| Rubric weights 1 to 4 (the headline) | 1596 | 1857 | 85.9% |
+| Rubric weights doubled per step: 1, 2, 4, 8 | 1889 | 2194 | 86.1% |
 
 ## By weight
 
 | Weight | Routes | Native | Native % |
 | ---: | ---: | ---: | ---: |
-| 1 | 386 | 318 | 82.4% |
+| 1 | 386 | 319 | 82.6% |
 | 2 | 330 | 279 | 84.5% |
 | 3 | 237 | 213 | 89.9% |
 | 4 | 25 | 20 | 80.0% |
@@ -144,7 +144,6 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `SellerPlanController` | WS-10 Settings and account | 1 | 0 | 0 | 1 | 1 (1) | 1 |
 | `TestController` | WS-11 Help, pages, blog, profiles | 1 | 0 | 0 | 1 | 1 (1) | 1 |
 | `ThirdPartyAnalyticsController` | WS-11 Help, pages, blog, profiles | 2 | 1 | 0 | 1 | 1 (2) | 1 |
-| `UrlRedirectsController` | WS-16 Library and content delivery | 23 | 22 | 1 | 0 | 1/2 (27) | 1 |
 | `UsersController` | WS-10 Settings and account | 18 | 17 | 0 | 1 | 1/2 (20) | 1 |
 | `Admin::BaseController` | WS-18 Admin | 3 | 3 | 0 | 0 | 1/2 (4) | 0 |
 | `AffiliateRedirectController` | WS-12 Products and bundles | 2 | 2 | 0 | 0 | 1 (2) | 0 |
@@ -337,6 +336,7 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `ThumbnailsController` | WS-12 Products and bundles | 2 | 2 | 0 | 0 | 2 (4) | 0 |
 | `TiktokCallbacksController` | WS-10 Settings and account | 1 | 1 | 0 | 0 | 2 (2) | 0 |
 | `TwoFactorAuthenticationController` | WS-10 Settings and account | 7 | 7 | 0 | 0 | 1/2 (12) | 0 |
+| `UrlRedirectsController` | WS-16 Library and content delivery | 23 | 23 | 0 | 0 | 1/2 (27) | 0 |
 | `UserPagesController` | WS-10 Settings and account | 3 | 3 | 0 | 0 | 1 (3) | 0 |
 | `User::InvalidateActiveSessionsController` | WS-10 Settings and account | 1 | 1 | 0 | 0 | 2 (2) | 0 |
 | `Users::FeatureAnnouncementsController` | WS-10 Settings and account | 2 | 2 | 0 | 0 | 1/2 (3) | 0 |
@@ -357,7 +357,6 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 - `GET /products/:product_id/remaining_call_availabilities` (`Products::RemainingCallAvailabilitiesController#index`)
 - `GET /products/:product_id/available_offer_codes` (`Products::AvailableOfferCodesController#index`)
 - `GET /products/:product_id/builds` (`Products::BuildsController#index`)
-- `GET /media_urls/:id` (`UrlRedirectsController#media_urls`)
 - `GET /users/auth/stripe_connect/callback` (`User::OmniauthCallbacksController#stripe_connect`)
 - `GET /users/auth/google_oauth2/callback` (`User::OmniauthCallbacksController#google_oauth2`)
 
