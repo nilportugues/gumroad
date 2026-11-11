@@ -137,6 +137,22 @@ describe "Dashboard home when signed in", type: :request, elasticsearch_wait_for
     expect(inertia_props_of(response).dig("creator_home", "sales").map { _1["name"] }).to eq(["Unsold two", "Unsold one"])
   end
 
+  it "shows an Unsplash thumbnail on the product card and none for a deleted thumbnail", parity: true do
+    pictured = create(:product, user: seller, name: "Pictured")
+    bare = create(:product, user: seller, name: "Bare")
+    create(:unsplash_thumbnail, product: pictured, unsplash_url: "https://images.example.com/photo.jpg")
+    create(:unsplash_thumbnail, product: bare).mark_deleted!
+    # The purchase factory charges a card; the card is not what this example is about.
+    [[pictured, 1, 900], [pictured, 3, 900], [bare, 2, 500]].each do |product, days_ago, price_cents|
+      build(:purchase, link: product, seller:, price_cents:, created_at: at_midday(days_ago), purchase_state: "successful").save!(validate: false)
+    end
+    sign_in_with_indexed_sales
+
+    get dashboard_path
+
+    expect(inertia_props_of(response).dig("creator_home", "sales").map { _1["thumbnail"] }).to eq(["https://images.example.com/photo.jpg", nil])
+  end
+
   it "counts a deleted product that sold in the ranking but does not show it", parity: true do
     gone = create(:product, user: seller, name: "Gone")
     kept = create(:product, user: seller, name: "Kept")

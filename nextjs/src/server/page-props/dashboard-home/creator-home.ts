@@ -1,7 +1,7 @@
 // CreatorHomePresenter#creator_home_props (app/presenters/creator_home_presenter.rb) for GET /dashboard.
 //
-// Handed back to Rails (HandBackToRails) for what the port does not read: a product card whose product has an alive
-// thumbnail (Active Storage URL), a Stripe compliance request whose verification error needs the P.O. Box check, a
+// Handed back to Rails (HandBackToRails) for what the port does not read: a product card whose alive thumbnail is an
+// uploaded file (Active Storage URL; an Unsplash thumbnail renders), a Stripe compliance request whose verification error needs the P.O. Box check, a
 // seller whose payout destination is a Stripe or PayPal Connect account, and a seller whose balance stats are
 // cached (a large seller past the caching threshold).
 import { Prisma, type User } from "@prisma/client";
@@ -28,9 +28,10 @@ import { aggregationValue, type Aggregations } from "../../search/purchase-sales
 import { PurchaseSearchService } from "../../search/purchase-search.ts";
 import { productsForCreatorAnalytics, sellerToday } from "../analytics/seller-analytics.ts";
 import { taxCenterEnabled } from "../dashboard/tax-center.ts";
+import { thumbnailUrl } from "../buyer/products.ts";
 import { NotPortedError } from "../not-ported.ts";
 import { balanceStatsCacheApplies } from "../payouts/payouts.ts";
-import { verificationErrorMessage } from "../settings/verification-error-message.ts";
+import { ADDRESS_MISMATCH_ERROR_CODES, verificationErrorMessage } from "../settings/verification-error-message.ts";
 import { activeBankAccount } from "../signed-in/reads.ts";
 
 export const ACTIVITY_ITEMS_LIMIT = 10;
@@ -110,6 +111,16 @@ type ProductCard = {
   last_30: number;
 };
 
+// `product.thumbnail_alive&.url`
+export async function cardThumbnail(productId: bigint): Promise<string | null> {
+  try {
+    return await thumbnailUrl(productId);
+  } catch (error) {
+    if (error instanceof NotPortedError) throw new HandBackToRails();
+    throw error;
+  }
+}
+
 async function productCard(
   product: { id: bigint; name: string | null; unique_permalink: string | null },
   dailyTotals: number[],
@@ -142,7 +153,7 @@ async function productCard(
   return {
     id: product.unique_permalink!,
     name: product.name,
-    thumbnail: null,
+    thumbnail: await cardThumbnail(product.id),
     sales: sales ?? 0,
     revenue,
     visits: views.count,
@@ -204,12 +215,6 @@ async function bestSellingProducts(seller: User, now: Date): Promise<ProductCard
     // Link#alive?
     if (!product || product.purchase_disabled_at !== null || product.banned_at !== null || product.deleted_at !== null)
       continue;
-    if (
-      await exists(
-        Prisma.sql`SELECT 1 FROM ${table("thumbnails")} WHERE ${column("thumbnails", "product_id")} = ${product.id} AND ${column("thumbnails", "deleted_at")} IS NULL LIMIT 1`,
-      )
-    )
-      throw new HandBackToRails();
     const days = daysByProduct.get(productId);
     cards.push(
       await productCard(
@@ -325,7 +330,14 @@ export async function stripeVerificationMessage(seller: User): Promise<string | 
   for (const request of requests) {
     let text: string | null;
     try {
-      text = verificationErrorMessage(jsonAttr({ json_data: request.json_data }, "verification_error"));
+      const verificationError: unknown = jsonAttr({ json_data: request.json_data }, "verification_error");
+      // The dashboard has no recorded P.O. Box case; only the payments page does.
+      const code =
+        typeof verificationError === "object" && verificationError !== null
+          ? (verificationError as Record<string, unknown>).code
+          : null;
+      if (typeof code === "string" && ADDRESS_MISMATCH_ERROR_CODES.includes(code)) throw new HandBackToRails();
+      text = await verificationErrorMessage(verificationError, seller.id);
     } catch (error) {
       if (error instanceof NotPortedError) throw new HandBackToRails();
       throw error;

@@ -9,7 +9,7 @@ const PO_BOX_ADDRESS_DEADLOCK_MESSAGE =
   "The address on your document doesn't match the address on your account. Your registered address appears to be a P.O. Box, which our payment partner can't accept on the account itself, so a document showing that P.O. Box will never match and uploading it again won't help. Please contact support and we'll sort out together which address and document will work for you.";
 
 // UserComplianceInfoRequest::ADDRESS_MISMATCH_ERROR_CODES
-const ADDRESS_MISMATCH_ERROR_CODES = ["verification_document_address_mismatch", "verification_failed_address_match"];
+export const ADDRESS_MISMATCH_ERROR_CODES = ["verification_document_address_mismatch", "verification_failed_address_match"];
 
 const MESSAGES_BY_CODE: Record<string, string> = {
   verification_directors_mismatch:
