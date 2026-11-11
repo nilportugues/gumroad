@@ -154,7 +154,8 @@ export type MobilePurchaseInput = {
   productRating: number | null;
   // Purchase#amount_refunded_cents (sum of effective refunds)
   amountRefundedCents: number;
-  includeProductUpdates: boolean;
+  // Purchase#update_json_data_for_mobile (see models/purchase-product-updates.ts); null leaves the key out, as include_product_updates: false does
+  productUpdatesData: Record<string, unknown>[] | null;
 };
 
 // Port of app/models/purchase.rb (Purchase#json_data_for_mobile) for a purchase with no url_redirect, preorder or subscription,
@@ -162,8 +163,6 @@ export type MobilePurchaseInput = {
 export function purchaseJsonDataForMobile(input: MobilePurchaseInput): Record<string, unknown> {
   const { purchase, seller, purchaser } = input;
   assertSimpleMoneyShape(purchase);
-  // update_json_data_for_mobile: the product-updates preloader is not ported
-  if (input.includeProductUpdates) throw new NotPortedError("Purchase#update_json_data_for_mobile");
   if (isFlag(purchase, "is_gift_sender_purchase") || isFlag(purchase, "is_gift_receiver_purchase"))
     throw new NotPortedError("a gift purchase");
   if (purchase.created_at == null) throw new NotPortedError("a purchase without created_at");
@@ -171,6 +170,7 @@ export function purchaseJsonDataForMobile(input: MobilePurchaseInput): Record<st
   const json: Record<string, unknown> = linkAsJsonMobile(input.link);
   json.purchase_id = encrypt(purchase.id);
   json.purchased_at = jsonTime(purchase.created_at);
+  if (input.productUpdatesData !== null) json.product_updates_data = input.productUpdatesData;
   if (purchaser) json.user_id = purchaser.external_id;
   json.is_archived = isFlag(purchase, "is_archived");
   json.custom_delivery_url = null;

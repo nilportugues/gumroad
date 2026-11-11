@@ -74,12 +74,32 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
       expect(response.parsed_body["products"].size).to eq(1)
     end
 
-    it "hands a read of the buyer's own purchase to Rails", parity: true do
+    it "serves the buyer's own purchase with no product updates", parity: true do
       purchase = library_purchase
 
       get "/mobile/purchases/purchase_attributes/#{purchase.external_id}", params: auth(buyer)
 
       expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["product"]).to include("purchase_id" => purchase.external_id, "product_updates_data" => [])
+    end
+
+    it "does not find a refunded purchase", parity: true do
+      purchase = purchase_row(link: product, seller:, purchaser: buyer, email: buyer.email, purchase_state: "successful", stripe_refunded: true)
+
+      get "/mobile/purchases/purchase_attributes/#{purchase.external_id}", params: auth(buyer)
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body["message"]).to eq("Could not find purchase")
+    end
+
+    it "hands a read of a purchase whose seller has a post to Rails", parity: true do
+      purchase = library_purchase
+      create(:installment, link: product, published_at: Time.current, shown_on_profile: true, send_emails: false)
+
+      get "/mobile/purchases/purchase_attributes/#{purchase.external_id}", params: auth(buyer)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["product"]["product_updates_data"].size).to eq(1)
     end
 
     it "hands an archive of the buyer's own purchase to Rails", parity: true do

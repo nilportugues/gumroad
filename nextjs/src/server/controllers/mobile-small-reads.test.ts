@@ -51,9 +51,9 @@ describe("GET /mobile/preorders/preorder_attributes/:id", () => {
     expect(status(await run(input({ id: "5" }), null))).toBe(404);
   });
 
-  it("hands back a preorder that exists", async () => {
-    selectRows.mockResolvedValue([{ 1: 1 }]);
-    await expect(run(input({ id: "5" }), null)).rejects.toThrow(/preorder that exists/u);
+  it("hands back a charged preorder", async () => {
+    selectRows.mockResolvedValue([{ id: 5n, state: "charge_successful", preorder_link_id: 2n }]);
+    await expect(run(input({ id: "5" }), null)).rejects.toThrow(/charged preorder/u);
   });
 });
 

@@ -255,7 +255,7 @@ describe("Purchase#json_data_for_mobile", () => {
       purchaser: buyer,
       productRating: null,
       amountRefundedCents: 0,
-      includeProductUpdates: false,
+      productUpdatesData: null,
       ...overrides,
     });
 
@@ -301,8 +301,15 @@ describe("Purchase#json_data_for_mobile", () => {
     expect(mobile({ seller: { ...seller, flags: 1n << 6n } }).refund_fee_notice_shown).toBe(true);
   });
 
-  it("refuses product updates, gifts and subscriptions", () => {
-    expect(() => mobile({ includeProductUpdates: true })).toThrow(/not ported/u);
+  it("leaves product_updates_data out unless it is given, and puts it after purchased_at", () => {
+    expect(mobile()).not.toHaveProperty("product_updates_data");
+    const keys = Object.keys(mobile({ productUpdatesData: [] }));
+    expect(mobile({ productUpdatesData: [] }).product_updates_data).toEqual([]);
+    expect(keys.indexOf("product_updates_data")).toBe(keys.indexOf("purchased_at") + 1);
+    expect(keys.indexOf("user_id")).toBe(keys.indexOf("product_updates_data") + 1);
+  });
+
+  it("refuses gifts and subscriptions", () => {
     expect(() => mobile({}, purchase({ flags: GIFT_SENDER_BIT }))).toThrow(/not ported/u);
     expect(() => mobile({}, purchase({ subscription_id: 4n }))).toThrow(/not ported/u);
   });

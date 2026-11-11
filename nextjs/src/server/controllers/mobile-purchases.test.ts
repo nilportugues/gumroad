@@ -2,13 +2,30 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { MobileAction, MobileAuth, MobileInput } from "./mobile-api.ts";
 
-const { actions, selectRows, process, creatorAppPurchasesJson, findLink, linkOptions } = vi.hoisted(() => ({
+const {
+  actions,
+  selectRows,
+  process,
+  creatorAppPurchasesJson,
+  findLink,
+  linkOptions,
+  db,
+  preloadProductUpdatesData,
+  purchaseJsonDataForMobile,
+} = vi.hoisted(() => ({
   actions: [] as MobileAction[],
   selectRows: vi.fn(),
   process: vi.fn(),
   creatorAppPurchasesJson: vi.fn(),
   findLink: vi.fn(),
   linkOptions: vi.fn(),
+  db: {
+    purchase: { findFirst: vi.fn() },
+    link: { findUnique: vi.fn() },
+    user: { findUnique: vi.fn() },
+  },
+  preloadProductUpdatesData: vi.fn(),
+  purchaseJsonDataForMobile: vi.fn(),
 }));
 
 vi.mock("./mobile-api.ts", async (original) => ({
@@ -19,9 +36,17 @@ vi.mock("../models/sql.ts", async (original) => ({
   ...(await original<typeof import("../models/sql.ts")>()),
   selectRows,
 }));
-vi.mock("../presenters/mobile-serializer-reads.ts", () => ({ creatorAppPurchasesJson }));
 vi.mock("../presenters/product-reads.ts", () => ({ findLink }));
 vi.mock("../presenters/product-props.ts", () => ({ linkOptions }));
+vi.mock("../../lib/db.ts", () => ({ db }));
+vi.mock("../models/purchase-product-updates.ts", () => ({ preloadProductUpdatesData }));
+vi.mock("../page-props/signed-in/presenters.ts", () => ({ avatarUrl: async () => "https://example.com/avatar.png" }));
+vi.mock("../page-props/buyer/users.ts", () => ({ profileUrl: () => "https://seller.example.com" }));
+vi.mock("../presenters/mobile-serializers.ts", () => ({ purchaseJsonDataForMobile }));
+vi.mock("../presenters/mobile-serializer-reads.ts", () => ({
+  creatorAppPurchasesJson,
+  thumbnailUrlsByProduct: async () => new Map([[2n, "https://example.com/thumb.png"]]),
+}));
 vi.mock("../search/purchase-search.ts", () => ({ PurchaseSearchService: { process } }));
 vi.mock("../../lib/obfuscate-ids.ts", () => ({
   decrypt: (value: string) => (/^\d+$/u.test(value) ? Number(value) : null),
@@ -44,6 +69,11 @@ beforeEach(() => {
   creatorAppPurchasesJson.mockReset();
   findLink.mockReset();
   linkOptions.mockReset();
+  db.purchase.findFirst.mockReset();
+  db.link.findUnique.mockReset();
+  db.user.findUnique.mockReset();
+  preloadProductUpdatesData.mockReset();
+  purchaseJsonDataForMobile.mockReset();
 });
 
 describe("registration", () => {
@@ -124,7 +154,6 @@ describe("GET /mobile/purchases/search", () => {
 
 describe("purchase member actions", () => {
   it.each([
-    ["GET", "/mobile/purchases/purchase_attributes/:id"],
     ["POST", "/mobile/purchases/:id/archive"],
     ["POST", "/mobile/purchases/:id/unarchive"],
     ["DELETE", "/mobile/purchases/:id"],
@@ -144,6 +173,99 @@ describe("purchase member actions", () => {
     const result = await find("DELETE", "/mobile/purchases/:id").run(input({ id: "not-an-id" }), authFor());
     expect(status(result)).toBe(404);
     expect(selectRows).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /mobile/purchases/purchase_attributes/:id", () => {
+  const run = find("GET", "/mobile/purchases/purchase_attributes/:id").run;
+  const purchase = (extra = {}) => ({
+    id: 12n,
+    purchaser_id: 7n,
+    seller_id: 9n,
+    link_id: 2n,
+    purchase_state: "successful",
+    stripe_refunded: null,
+    chargeback_date: null,
+    subscription_id: null,
+    preorder_id: null,
+    ...extra,
+  });
+  const link = { id: 2n, user_id: 9n };
+  const creator = { id: 9n, username: "seller" };
+
+  // The statements in order: url redirect, refunds, product review, asset previews.
+  function stub({ purchaseRow = purchase() as object | null, rows = [[], [], [], []] as unknown[][] } = {}) {
+    db.purchase.findFirst.mockResolvedValue(purchaseRow);
+    db.link.findUnique.mockResolvedValue(link);
+    db.user.findUnique.mockResolvedValue(creator);
+    for (const result of rows) selectRows.mockResolvedValueOnce(result);
+    preloadProductUpdatesData.mockResolvedValue(new Map([[12n, []]]));
+    purchaseJsonDataForMobile.mockReturnValue({ name: "Product", product_updates_data: [] });
+  }
+
+  it("serves a plain purchase with the product updates the preloader answers", async () => {
+    stub();
+    const result = await run(input({ id: "12" }), authFor());
+    expect(body(result)).toEqual({ success: true, product: { name: "Product", product_updates_data: [] } });
+    expect(db.purchase.findFirst).toHaveBeenCalledWith({ where: { id: 12n, purchaser_id: 7n } });
+    expect(preloadProductUpdatesData).toHaveBeenCalledWith([purchase()]);
+    expect(purchaseJsonDataForMobile.mock.calls[0]![0]).toMatchObject({
+      productUpdatesData: [],
+      purchaser: expect.objectContaining({ id: 7n }),
+      link: { thumbnailOrCoverUrl: "https://example.com/thumb.png", hasAlivePreviews: false },
+    });
+  });
+
+  it("tells the serializer when the product has asset previews", async () => {
+    stub({ rows: [[], [], [], [{ "1": 1 }]] });
+    await run(input({ id: "12" }), authFor());
+    expect(purchaseJsonDataForMobile.mock.calls[0]![0]).toMatchObject({ link: { hasAlivePreviews: true } });
+  });
+
+  it("refuses an unconfirmed account", async () => {
+    expect(status(await run(input({ id: "12" }), authFor(false)))).toBe(403);
+  });
+
+  it("answers 404 for a purchase that is not the buyer's and for an id that does not decrypt", async () => {
+    stub({ purchaseRow: null });
+    const result = await run(input({ id: "12" }), authFor());
+    expect(status(result)).toBe(404);
+    expect(body(result)).toEqual({ success: false, message: "Could not find purchase" });
+    expect(status(await run(input({ id: "nope" }), authFor()))).toBe(404);
+  });
+
+  it.each([
+    ["refunded", { stripe_refunded: true }],
+    ["charged back", { chargeback_date: new Date() }],
+    ["not successful", { purchase_state: "failed" }],
+    ["a gift receiver's", { purchase_state: "gift_receiver_purchase_successful" }],
+  ])("answers 404 for a %s purchase without a subscription", async (_name, extra) => {
+    stub({ purchaseRow: purchase(extra) });
+    expect(status(await run(input({ id: "12" }), authFor()))).toBe(404);
+  });
+
+  it.each([
+    ["a membership purchase", { subscription_id: 3n }, []],
+    ["a preorder purchase", { preorder_id: 3n }, []],
+    ["a purchase with a url redirect", {}, [[{ "1": 1 }]]],
+  ])("hands %s to Rails", async (_name, extra, rows) => {
+    stub({ purchaseRow: purchase(extra), rows });
+    await expect(run(input({ id: "12" }), authFor())).rejects.toThrow();
+    expect(purchaseJsonDataForMobile).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["refunds", [[], [{ "1": 1 }]]],
+    ["a review", [[], [], [{ "1": 1 }]]],
+  ])("hands a purchase with %s to Rails", async (_name, rows) => {
+    stub({ rows });
+    await expect(run(input({ id: "12" }), authFor())).rejects.toThrow();
+  });
+
+  it("hands the purchase to Rails when the preloader cannot answer", async () => {
+    stub();
+    preloadProductUpdatesData.mockRejectedValue(new Error("Purchase.product_installments is not ported"));
+    await expect(run(input({ id: "12" }), authFor())).rejects.toThrow(/not ported/u);
   });
 });
 
