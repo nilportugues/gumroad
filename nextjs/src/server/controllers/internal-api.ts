@@ -41,6 +41,7 @@ import {
   type Rendered,
 } from "./application-controller.ts";
 import { agentActionStatus, agentConversationsLatest, agentTurnStatus } from "./internal-agent.ts";
+import { agentCustomHtmlPreview } from "./internal-agent-previews.ts";
 import { productPosts } from "./internal-product-posts.ts";
 import { json, jsonAction } from "./json-actions.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
@@ -651,6 +652,7 @@ const GET_ROUTES: GetRoute[] = [
   { pattern: "/internal/agent/conversations/latest", run: (request) => agentConversationsLatest(request) },
   { pattern: "/internal/agent/actions/status", run: (request) => agentActionStatus(request) },
   { pattern: "/internal/agent/turns/:client_turn_id", run: agentTurnStatus },
+  { pattern: "/internal/agent/custom_html_previews/:token", run: agentCustomHtmlPreview },
 ];
 
 function matchRoute(pattern: string, path: string): Record<string, string> | null {

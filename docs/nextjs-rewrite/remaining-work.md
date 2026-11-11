@@ -7,10 +7,10 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 | Measure | Done | Total | Share |
 | --- | ---: | ---: | ---: |
-| Routes served natively (counted, static check) | 865 | 978 | 88.4% |
-| Routes registered in routes.json (counted; upper bound, adds the 9 listed under "hands back") | 874 | 978 | 89.4% |
-| Routes weighted by difficulty (counted routes, estimated weights) | 1654 | 1857 | 89.1% |
-| Same, registered in routes.json (upper bound) | 1663 | 1857 | 89.6% |
+| Routes served natively (counted, static check) | 867 | 978 | 88.7% |
+| Routes registered in routes.json (counted; upper bound, adds the 9 listed under "hands back") | 876 | 978 | 89.6% |
+| Routes weighted by difficulty (counted routes, estimated weights) | 1657 | 1857 | 89.2% |
+| Same, registered in routes.json (upper bound) | 1666 | 1857 | 89.7% |
 | Rails Inertia pages with Node props (counted, string match) | 102 | 114 | 89.5% |
 | Sidekiq job classes running in Node (counted) | 139 | 296 | 47.0% |
 
@@ -28,7 +28,7 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 - The route share counts endpoints, and an endpoint is one row whether it is a health check or a purchase. The weighted share corrects that only as far as my weights are right.
 - Neither number measures the code under the routes. A route is counted native as soon as Node serves its common path, while its hard branches (see "Known partial hand-backs") still go to Rails. The shares therefore overstate how much of the work is finished, most for checkout, payouts, and the mobile and MCP APIs.
-- Code volume cross-check (counted, not a completion measure): Node has 129,308 non-test lines under `src/server` and `src/worker`; Rails has 197,057 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
+- Code volume cross-check (counted, not a completion measure): Node has 129,494 non-test lines under `src/server` and `src/worker`; Rails has 197,057 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
 - 299 distinct rollout flags gate the routes in routes.json; none is enabled in production.
 
 ## By workstream
@@ -43,13 +43,13 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 | WS-14 Discover and search | 4 | 3 | 0 | 1 | 75.0% | 5 | 4 | 80.0% |
 | WS-15 Analytics and exports | 23 | 23 | 0 | 0 | 100.0% | 26 | 26 | 100.0% |
 | WS-16 Library and content delivery | 39 | 38 | 1 | 0 | 97.4% | 51 | 50 | 98.0% |
-| WS-17 Public and mobile API | 199 | 191 | 0 | 8 | 96.0% | 359 | 345 | 96.1% |
+| WS-17 Public and mobile API | 199 | 193 | 0 | 6 | 97.0% | 359 | 348 | 96.9% |
 | WS-18 Admin | 86 | 83 | 0 | 3 | 96.5% | 254 | 249 | 98.0% |
 | WS-19 AI, MCP and moderation | 36 | 36 | 0 | 0 | 100.0% | 108 | 108 | 100.0% |
 | WS-20 Checkout and orders | 71 | 53 | 0 | 18 | 74.6% | 222 | 163 | 73.4% |
 | WS-21 Payment processors | 8 | 8 | 0 | 0 | 100.0% | 32 | 32 | 100.0% |
 | WS-23 Balances and payouts | 25 | 25 | 0 | 0 | 100.0% | 74 | 74 | 100.0% |
-| **All** | 978 | 865 | 9 | 104 | 88.4% | 1857 | 1654 | 89.1% |
+| **All** | 978 | 867 | 9 | 102 | 88.7% | 1857 | 1657 | 89.2% |
 
 ## Sensitivity to the weights
 
@@ -57,17 +57,17 @@ The weights are the soft part of this inventory, so here is the headline under o
 
 | Scheme | Native weight | Total weight | Share |
 | --- | ---: | ---: | ---: |
-| Every route counts 1 (the plain route share) | 865 | 978 | 88.4% |
-| Verb only: GET 1, other verbs 2 | 1264 | 1427 | 88.6% |
-| Rubric weights 1 to 4 (the headline) | 1654 | 1857 | 89.1% |
-| Rubric weights doubled per step: 1, 2, 4, 8 | 1952 | 2194 | 89.0% |
+| Every route counts 1 (the plain route share) | 867 | 978 | 88.7% |
+| Verb only: GET 1, other verbs 2 | 1267 | 1427 | 88.8% |
+| Rubric weights 1 to 4 (the headline) | 1657 | 1857 | 89.2% |
+| Rubric weights doubled per step: 1, 2, 4, 8 | 1955 | 2194 | 89.1% |
 
 ## By weight
 
 | Weight | Routes | Native | Native % |
 | ---: | ---: | ---: | ---: |
-| 1 | 386 | 334 | 86.5% |
-| 2 | 330 | 293 | 88.8% |
+| 1 | 386 | 335 | 86.8% |
+| 2 | 330 | 294 | 89.1% |
 | 3 | 237 | 218 | 92.0% |
 | 4 | 25 | 20 | 80.0% |
 
@@ -92,7 +92,6 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `Logins::PasskeysController` | WS-10 Settings and account | 2 | 0 | 0 | 2 | 2 (4) | 4 |
 | `Settings::PasskeysController` | WS-10 Settings and account | 4 | 2 | 0 | 2 | 2 (8) | 4 |
 | `Api::Internal::Admin::UsersController` | WS-18 Admin | 26 | 25 | 0 | 1 | 3 (78) | 3 |
-| `Api::Internal::AgentCustomHtmlPreviewsController` | WS-17 Public and mobile API | 2 | 0 | 0 | 2 | 1/2 (3) | 3 |
 | `CheckoutController` | WS-20 Checkout and orders | 2 | 1 | 0 | 1 | 3 (6) | 3 |
 | `Checkout::ReturnsController` | WS-20 Checkout and orders | 1 | 0 | 0 | 1 | 3 (3) | 3 |
 | `Integrations::DiscordController` | WS-10 Settings and account | 4 | 3 | 0 | 1 | 3 (12) | 3 |
@@ -155,6 +154,7 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `Api::Internal::Admin::UrlRedirectsController` | WS-18 Admin | 3 | 3 | 0 | 0 | 3 (9) | 0 |
 | `Api::Internal::Admin::WhoamiController` | WS-18 Admin | 1 | 1 | 0 | 0 | 3 (3) | 0 |
 | `Api::Internal::AgentConversationsController` | WS-17 Public and mobile API | 3 | 3 | 0 | 0 | 1 (3) | 0 |
+| `Api::Internal::AgentCustomHtmlPreviewsController` | WS-17 Public and mobile API | 2 | 2 | 0 | 0 | 1/2 (3) | 0 |
 | `Api::Internal::AgentMessageStreamsController` | WS-17 Public and mobile API | 1 | 1 | 0 | 0 | 2 (2) | 0 |
 | `Api::Internal::AgentMessagesController` | WS-17 Public and mobile API | 2 | 2 | 0 | 0 | 2 (4) | 0 |
 | `Api::Internal::Customers::SingleCustomerEmailsController` | WS-17 Public and mobile API | 1 | 1 | 0 | 0 | 2 (2) | 0 |
@@ -401,8 +401,9 @@ Copied by hand from workstreams.md, parity-debt.md and parity-tasks.md as of 202
 - WS-11 profiles: custom HTML pages, a tiered-membership card, wishlist owners without a subdomain, unknown section types and nested visitor params hand back. `GET /features.md` runs in Node for a cookie-less request; the other `home#*` ERB pages, the `/js/gumroad*` embeds and `POST /custom_domain/verify` are not ported.
 - WS-14 discover: the root page's random `recommended_products`, curated lists for visitors with cart products or purchases and the Black Friday page hand back; one recommended-wishlists example is handed back by the replay (E6).
 - WS-15 customers page: a commission completion in progress that holds a processor reference, and review videos with an unprocessed thumbnail variant, hand back.
-- WS-16 content delivery: `stream`, `read`, `play` and `captions.vtt` past the access gate hand back; download pages that list files, rich content, posts, integrations, licenses or polls hand back; signed-URL bytes are unproven against Rails.
+- WS-16 content delivery: `stream`, `read`, `play` and `captions.vtt` past the access gate hand back; download pages that list files, rich content, posts, integrations, licenses or polls hand back; signed-URL bytes: the S3 presign of the test environment's minio and the CloudFront signature are reproduced byte for byte from Rails' fixtures (`signed-urls-fixtures.test.ts`), the Cloudflare `verify` token and the production bucket, key and distribution choice are not.
 - WS-17 mobile and v2: mobile purchases index/search/show, sales show and all mobile writes hand back; v2 `GET /v2/payouts/upcoming`, `include_transactions` and card or European bank destinations hand back; v2 licenses are not served in Node.
+- WS-17 store agent previews: `POST /internal/agent/custom_html_preview` answers its gates and every proposal refused before sanitizing (including the snippet matcher's counts); a preview that renders (`Ai::PageSanitizer`, `Pages::Interpolator`, `Pages::ProfileData`, `Pages::DefaultProfileDocument`), a cleared page and a guarded undo hand back. `GET /internal/agent/custom_html_previews/:token` runs whole. The throttled `Api::V2::LinksController` create/update/comps/preview_custom_html, `Api::V2::MediaController#create` and `POST /internal/ai_product_details_generations` stay in Rails with Rack::Attack.
 - WS-19 MCP: all tool bodies except `get_account`, `list_payouts`, `get_customers` and `get_sales_totals` (country, day, week and month breakdowns excluded) hand back, as do OAuth client registration and `ProductFileIngest`; the moderation logic exists but is wired to no route.
 - WS-10 settings writes: floats, custom domains and some string-typed pixel ids hand back; password, team invitations, 2FA setup, passkeys, login/signup POSTs and OAuth callbacks are only partly ported (see the not registered rows).
 - WS-13 receipt mailer: gift receiver, free-trial and subscription receipts and preorders hand back; posts and workflow emails with files that have thumbnails throw `NotPortedError`.
@@ -417,7 +418,7 @@ Copied by hand from workstreams.md, parity-debt.md and parity-tasks.md as of 202
 
 - Flag rollout: every converted route is behind a Flipper flag and none is enabled in production (workstreams.md). Enabling each means the shadow period README.md requires, lowest blast radius first (reads, JSON writes, then the money flags).
 - Shadow traffic: no GET mirroring or rolled-back write comparison has run in staging or production.
-- Parity proof for money and security paths: the unproven items of parity-debt.md section 4 (signed CloudFront/S3 URL bytes, receipt rental redirects, the `$` flags) are open even where the route is native.
+- Parity proof for money and security paths: the unproven items of parity-debt.md section 4 (Cloudflare signed URLs and the production key, bucket and distribution choice, receipt rental redirects, the `$` flags) are open even where the route is native.
 - Open parity tasks (parity-tasks.md): E2 to E5 (customers-page and surcharge cases ported without a recording), E6 (taxonomy routing 404 for one discover example), E8 (lint debt), E9 (`api-coverage.test.ts` and `lint:baseline` in CI for every branch).
 - Production cutover: per-route flag flips, a written rollback plan per money stream (WS-20 to WS-23), and the database, Redis and Sidekiq bridges under production load.
 - WS-30: port every remaining Sidekiq class and cron entry, then remove the Sidekiq bridge; `critical` (receipts) moves last.
