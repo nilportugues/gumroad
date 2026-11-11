@@ -79,7 +79,7 @@ const squish = (value: string) => value.replace(/\s+/gu, " ").trim();
 const hostUrl = (chain: Chain) => new URL(`${chain.request.protocol}${chain.request.hostWithPort}`);
 
 // ApplicationController#set_noindex_header_for_unproven_storefront
-async function setNoindexForUnprovenStorefront(chain: Chain, seller: User): Promise<void> {
+export async function setNoindexForUnprovenStorefront(chain: Chain, seller: User): Promise<void> {
   if (isCompliant(Users.load(seller))) return;
   const [sale] = await selectRows(
     Prisma.sql`SELECT 1 FROM ${table("purchases")} WHERE ${column("purchases", "seller_id")} = ${seller.id} AND ${column("purchases", "purchase_state")} = 'successful' AND ${column("purchases", "price_cents")} != 0 LIMIT 1`,
