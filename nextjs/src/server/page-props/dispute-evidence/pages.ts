@@ -1,5 +1,5 @@
 // Purchases::DisputeEvidenceController#show and #success (DisputeEvidencePagePresenter): the seller's
-// page for answering a chargeback. The form submission (#update) stays in Rails.
+// page for answering a chargeback. #update is in controllers/dispute-evidence-mutations.ts.
 import type { Charge, Dispute, DisputeEvidence, Link, Purchase, User } from "@prisma/client";
 
 import * as Routes from "@/lib/navigation/routes";
@@ -113,7 +113,7 @@ const iso8601 = (value: Date) => value.toISOString().replace(/\.\d+Z$/u, "Z");
 
 // set_purchase (the purchase and the seller who owns it), then set_dispute_evidence. A missing dispute
 // or evidence raises NoMethodError on nil, a 500.
-async function load(requestedId: string): Promise<(Loaded & { seller: User; scoped: boolean }) | null> {
+export async function loadDisputeEvidence(requestedId: string): Promise<(Loaded & { seller: User; scoped: boolean }) | null> {
   const { purchase, scoped } = await findPurchase(requestedId);
   if (!purchase) return null;
   const seller = await db.user.findUnique({ where: { id: purchase.seller_id ?? -1n } });
@@ -142,13 +142,13 @@ function needsRedirect(evidence: DisputeEvidence): string | null {
 }
 
 // authenticate_user!, set_purchase, set_dispute_evidence, check_if_needs_redirect (not for #success), then
-// the action's set_noindex_header.
-function filters(checkRedirect: boolean): ActionOptions["filters"] {
+// the action's set_noindex_header (#show and #success only).
+export function disputeEvidenceFilters(checkRedirect: boolean, noindex = true): ActionOptions["filters"] {
   return signedInFilters({
     requireAccountEmail: false,
     authorize: () => true,
     beforeAction: async (chain, context): Promise<Redirected | null> => {
-      const loaded = await load(decode(PATH.exec(chain.request.path)![1]!));
+      const loaded = await loadDisputeEvidence(decode(PATH.exec(chain.request.path)![1]!));
       if (!loaded) throw new RoutingError("Not Found");
       const dashboard = (flash: string) => ({ status: 302, location: Routes.dashboard_url(urlOptions(chain)), flash: { alert: flash }, rescued: true });
       if (!roleOwnerFor(context, loaded.seller)) {
@@ -158,7 +158,7 @@ function filters(checkRedirect: boolean): ActionOptions["filters"] {
       }
       const message = checkRedirect ? needsRedirect(loaded.evidence) : null;
       if (message) return dashboard(message);
-      chain.headers.set("x-robots-tag", "noindex");
+      if (noindex) chain.headers.set("x-robots-tag", "noindex");
       return null;
     },
   });
@@ -226,18 +226,18 @@ function dueAtFormatted(value: Date | null): string | null {
 export const DISPUTE_EVIDENCE_PAGES: Record<string, PageSpec> = {
   "/purchases/:purchase_id/dispute_evidence": {
     component: "Purchases/DisputeEvidence/Show",
-    options: { filters: filters(true) },
+    options: { filters: disputeEvidenceFilters(true) },
     props: async ({ purchase_id }, { meta }) => {
       meta.set({ title: "Submit additional information" });
-      return showProps((await load(purchase_id!))!);
+      return showProps((await loadDisputeEvidence(purchase_id!))!);
     },
   },
   "/purchases/:purchase_id/dispute_evidence/success": {
     component: "Purchases/DisputeEvidence/Success",
-    options: { filters: filters(false) },
+    options: { filters: disputeEvidenceFilters(false) },
     props: async ({ purchase_id }, { meta }) => {
       meta.set({ title: "Submit additional information" });
-      const loaded = (await load(purchase_id!))!;
+      const loaded = (await loadDisputeEvidence(purchase_id!))!;
       return {
         seller_response_due_at_formatted: dueAtFormatted(sellerResponseDueAt(loaded.evidence.seller_contacted_at)),
         purchase_for_dispute_evidence_id: loaded.routeId,
