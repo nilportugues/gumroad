@@ -116,6 +116,45 @@ describe "Mobile API products, subscriptions, preorders and installments", type:
       expect(response).to have_http_status(:not_found)
       expect(response.parsed_body["message"]).to eq("Could not find preorder")
     end
+
+    describe "an authorized preorder" do
+      let(:buyer) { create(:user) }
+      let(:product) { create(:product, user: seller, price_cents: 600, is_in_preorder_state: true) }
+      let(:preorder_link) { create(:preorder_link, link: product, release_at: Time.utc(2030, 1, 15, 12)) }
+      let(:preorder) { create(:preorder, preorder_link:, seller:, purchaser: buyer, state: "authorization_successful") }
+
+      before do
+        purchase_row(:preorder_authorization_purchase, link: product, seller:, purchaser: buyer, email: buyer.email, preorder:, is_preorder_authorization: true)
+      end
+
+      it "serves the authorization purchase and the release date", parity: true do
+        get "/mobile/preorders/preorder_attributes/#{preorder.external_id}", params: { mobile_token: }
+
+        expect(response.parsed_body["product"]).to include(
+          "name" => product.name,
+          "purchase_id" => be_present,
+          "product_updates_data" => [],
+          "is_archived" => false,
+          "preorder_data" => { "external_id" => preorder.external_id, "release_at" => "2030-01-15T12:00:00Z" }
+        )
+      end
+
+      it "serves an archived authorization purchase", parity: true do
+        preorder.purchases.first.update_columns(flags: preorder.purchases.first.flags | (1 << 16))
+
+        get "/mobile/preorders/preorder_attributes/#{preorder.external_id}", params: { mobile_token: }
+
+        expect(response.parsed_body["product"]).to include("is_archived" => true)
+      end
+
+      it "hands a preorder whose seller has posts to Rails", parity: true do
+        create(:installment, link: product, published_at: Time.current)
+
+        get "/mobile/preorders/preorder_attributes/#{preorder.external_id}", params: { mobile_token: }
+
+        expect(response).to have_http_status(:ok)
+      end
+    end
   end
 
   describe "installments" do
