@@ -139,6 +139,7 @@ import { updateCurrenciesWorker } from "./update-currencies-worker.ts";
 import { updatePurchasingPowerParityFactorsWorker } from "./update-purchasing-power-parity-factors-worker.ts";
 import { updateSalesRelatedProductsInfosJob } from "./update-sales-related-products-infos-job.ts";
 import { updateSellerRefundEligibilityJob } from "./update-seller-refund-eligibility-job.ts";
+import { updateTaxonomyStatsJob } from "./update-taxonomy-stats-job.ts";
 import { updateUtmLinkStatsJob } from "./update-utm-link-stats-job.ts";
 import { warmSellerReputationSummaryJob } from "./warm-seller-reputation-summary-job.ts";
 import { recalculateRecentWishlistFollowerCountJob } from "./wishlist-jobs.ts";
@@ -259,6 +260,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   DeleteUnusedPublicFilesJob: deleteUnusedPublicFilesJob,
   RegenerateSalesRelatedProductsInfosJob: regenerateSalesRelatedProductsInfosJob,
   UpdateSalesRelatedProductsInfosJob: updateSalesRelatedProductsInfosJob,
+  UpdateTaxonomyStatsJob: updateTaxonomyStatsJob,
   DeleteProductRichContentWorker: deleteProductRichContentWorker,
   RemoveSuspendedAccountFollowsWorker: removeSuspendedAccountFollowsWorker,
   RefundPurchaseWorker: refundPurchaseWorker,

@@ -3702,7 +3702,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "UpdateUserBalanceStatsCacheWorker": {
     "file": "app/sidekiq/update_user_balance_stats_cache_worker.rb",
