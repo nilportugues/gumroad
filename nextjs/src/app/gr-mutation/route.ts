@@ -7,6 +7,7 @@ import "@/server/controllers/settings-mutations";
 import "@/server/controllers/settings-team-mutations";
 import "@/server/controllers/settings-team-invitations";
 import "@/server/controllers/settings-totp-mutations";
+import "@/server/controllers/settings-passkeys-mutations";
 import "@/server/controllers/settings-payments-mutations";
 import "@/server/controllers/settings-guardians-mutations";
 import "@/server/controllers/settings-beneficial-owners";
