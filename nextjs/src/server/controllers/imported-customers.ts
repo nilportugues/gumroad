@@ -1,5 +1,5 @@
-// ImportedCustomersController#index and #destroy (app/controllers/imported_customers_controller.rb). `unsubscribe` renders an
-// ERB view and stays in Rails.
+// ImportedCustomersController#index, #destroy and the 404 of #unsubscribe (app/controllers/imported_customers_controller.rb).
+// `unsubscribe` toggles the customer and renders an ERB view, so a customer that exists goes to Rails whole, before the write.
 import { Prisma, type ImportedCustomer } from "@prisma/client";
 
 import { decrypt } from "../../lib/obfuscate-ids.ts";
@@ -10,11 +10,12 @@ import { NotPortedError } from "../models/user.ts";
 import { authorize } from "../policies/authorize.ts";
 import { importedCustomerPolicy } from "../policies/imported-customer.ts";
 import { loadSellerContext } from "../policies/seller-context.ts";
-import { type ActionContext, type ActionResult, HandBackToRails, processAction } from "./application-controller.ts";
+import { type ActionContext, type ActionResult, HandBackToRails, processAction, RoutingError } from "./application-controller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { assertFlatQuery, requestFormat } from "./rails-params.ts";
 import { queryParam } from "./rails-request.ts";
 import { authorizeJson, json } from "./seller-json.ts";
+import { requireHtml } from "./users-controller.ts";
 
 // CustomersController::CUSTOMERS_PER_PAGE
 const CUSTOMERS_PER_PAGE = 20;
@@ -73,4 +74,20 @@ async function destroy(input: MutationInput): Promise<ActionResult> {
   return json({ success: true, message: "Deleted!", imported_customer: await importedCustomerJson(customer.attributes, null) });
 }
 
-registerMutations({ method: "DELETE", pattern: "/imported_customers/:id", json: true, run: destroy });
+async function unsubscribe(input: MutationInput): Promise<ActionResult> {
+  requireHtml(input);
+  const id = decrypt(input.routeParams.id!);
+  const [row] =
+    id === null
+      ? []
+      : await selectRows(
+          Prisma.sql`SELECT ${column("imported_customers", "id")} FROM ${table("imported_customers")} WHERE ${column("imported_customers", "id")} = ${id} LIMIT 1`,
+        );
+  if (row === undefined) throw new RoutingError("Not Found");
+  throw new HandBackToRails("an imported customer to unsubscribe, which renders an ERB view");
+}
+
+registerMutations(
+  { method: "DELETE", pattern: "/imported_customers/:id", json: true, run: destroy },
+  { method: "GET", pattern: "/imported_customers/unsubscribe/:id", skipForgeryProtection: true, run: unsubscribe },
+);

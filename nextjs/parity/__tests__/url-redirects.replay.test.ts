@@ -40,7 +40,7 @@ const SPEC_BUCKET = "gumroad-specs";
 // it is recorded as an age that only holds when the replay's clock is pinned too.
 const PARITY_NOW = Date.parse("2026-11-09T22:00:00Z");
 const ROUTE_FLAGS =
-  "nextjs_consumption_analytics,nextjs_media_locations,nextjs_mobile_consumption_analytics,nextjs_mobile_media_locations,nextjs_mobile_url_redirect_delivery,nextjs_mobile_url_redirects,nextjs_url_redirect_confirm,nextjs_url_redirect_delivery,nextjs_url_redirect_download_archive,nextjs_url_redirect_download_page,nextjs_url_redirect_download_product_files,nextjs_url_redirect_expired,nextjs_url_redirect_hls_playlist,nextjs_url_redirect_membership_inactive,nextjs_url_redirect_play,nextjs_url_redirect_read,nextjs_url_redirect_rental_expired,nextjs_url_redirect_show,nextjs_url_redirect_smil,nextjs_url_redirect_stream,nextjs_url_redirect_subtitle_files,nextjs_url_redirect_writes";
+  "nextjs_consumption_analytics,nextjs_media_locations,nextjs_mobile_consumption_analytics,nextjs_mobile_media_locations,nextjs_mobile_url_redirect_delivery,nextjs_mobile_url_redirects,nextjs_url_redirect_check_purchaser,nextjs_url_redirect_confirm,nextjs_url_redirect_delivery,nextjs_url_redirect_download_archive,nextjs_url_redirect_download_page,nextjs_url_redirect_download_product_files,nextjs_url_redirect_expired,nextjs_url_redirect_hls_playlist,nextjs_url_redirect_membership_inactive,nextjs_url_redirect_play,nextjs_url_redirect_read,nextjs_url_redirect_rental_expired,nextjs_url_redirect_show,nextjs_url_redirect_smil,nextjs_url_redirect_stream,nextjs_url_redirect_subtitle_files,nextjs_url_redirect_writes";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
@@ -296,7 +296,7 @@ describe.skipIf(!url)("url redirect delivery", () => {
           const request = fixture.exchanges[index]!.request;
           expect(handedBack).toHaveLength(1);
           expect(handedBack[0]).toMatchObject({ method: request.method, url: request.path });
-          expect(JSON.parse(handedBack[0]!.body)).toEqual(JSON.parse(request.body ?? "{}"));
+          expect(JSON.parse(handedBack[0]!.body || "{}")).toEqual(JSON.parse(request.body ?? "{}"));
           expect(Object.keys(handed.exchanges[0]!.actual.db ?? {})).toEqual([]);
           return;
         }

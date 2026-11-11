@@ -1,4 +1,6 @@
-// WorkflowsController#create, #update and #destroy (app/controllers/workflows_controller.rb).
+// WorkflowsController#create, #update and #destroy (app/controllers/workflows_controller.rb), and the guards of
+// Workflows::EmailsController#update: its saves go through Workflow::SaveInstallmentsService (moderation, schedule intents, preview
+// mail), which is not ported, so a request that passes them goes to Rails whole, before any write.
 import { Prisma, type Link, type Workflow } from "@prisma/client";
 
 import * as Routes from "@/lib/navigation/routes";
@@ -13,7 +15,7 @@ import { domainConfig } from "../page-props/domain.ts";
 import { sellerGuard } from "../page-props/audience/seller-guard.ts";
 import { authorize, type PolicyQuery } from "../policies/authorize.ts";
 import { workflowPolicy } from "../policies/workflow.ts";
-import { RoutingError, type ActionResult } from "./application-controller.ts";
+import { HandBackToRails, RoutingError, type ActionResult } from "./application-controller.ts";
 import { railsSegment, registerMutations, type MutationInput } from "./mutation.ts";
 
 const SEE_OTHER = 303;
@@ -85,7 +87,24 @@ async function manage(input: MutationInput, loaded: Loaded): Promise<ActionResul
   return { status: FOUND, location, flash: { alert: result.error ?? "" }, inertiaErrors: { base: [result.error] } };
 }
 
+async function updateEmails(input: MutationInput): Promise<ActionResult> {
+  const denied = await sellerGuard(
+    { context: input.context, config: domainConfig(process.env), url: input.url, params: input.routeParams, urlOptions: input.urlOptions },
+    async (sellerContext) => {
+      // `@workflow.link.user` raises NoMethodError in Rails for a workflow whose product row is gone.
+      await setWorkflow(sellerContext.seller!.id, input.routeParams.workflow_id!).catch((error: unknown) => {
+        if (error instanceof TypeError) throw new HandBackToRails("a workflow whose product row is missing");
+        throw error;
+      });
+      authorize(workflowPolicy.update, sellerContext);
+    },
+  );
+  if (denied) return denied;
+  throw new HandBackToRails("an email save, which Workflow::SaveInstallmentsService performs");
+}
+
 registerMutations(
+  { method: "PATCH", pattern: "/workflows/:workflow_id/emails", run: updateEmails },
   {
     method: "POST",
     pattern: "/workflows",

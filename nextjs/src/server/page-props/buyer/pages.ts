@@ -111,6 +111,8 @@ export const BUYER_PAGES: Record<string, PageSpec> = {
   },
   // LibraryController#index. `purchase_id` (post-checkout analytics) in a non-USD or buyer-local currency goes to Rails in the filters.
   "/library": { component: "Library/Index", options: LIBRARY_OPTIONS, props: (_, action) => libraryPage(action) },
+  // `get "/read", to: "library#index"`: the same action under another path.
+  "/read": { component: "Library/Index", options: LIBRARY_OPTIONS, props: (_, action) => libraryPage(action) },
   "/library/purchase/:id": { component: "Library/Index", options: LIBRARY_OPTIONS, props: (_, action) => libraryPage(action) },
   // ReviewsController#index: ReviewsPresenter.new(current_seller)
   "/reviews": {

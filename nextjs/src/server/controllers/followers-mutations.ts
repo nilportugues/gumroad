@@ -1,7 +1,12 @@
-// FollowersController#destroy and #confirm (app/controllers/followers_controller.rb): a seller removing a subscriber from the
-// subscribers page, and the link in the confirmation email.
+// FollowersController#destroy, #confirm, #cancel and #new (app/controllers/followers_controller.rb): a seller removing a subscriber
+// from the subscribers page, the links in the confirmation and unsubscribe emails, and the `/:username/follow` link.
+//
+// #cancel renders an Inertia page after its write for an HTML request, which a mutation cannot do: only the JSON answer and the 404
+// are served here, and an HTML request for a follow that exists goes to Rails whole, before the write. #create and #from_embed_form
+// are throttled by Rack::Attack and stay in Rails.
 import { Prisma } from "@prisma/client";
 
+import { encrypt } from "../../lib/obfuscate-ids.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
 import {
   confirmBang,
@@ -20,7 +25,10 @@ import { authorize } from "../policies/authorize.ts";
 import { loadSellerContext, NotAuthorizedError } from "../policies/seller-context.ts";
 
 import { HandBackToRails, RoutingError, type ActionResult } from "./application-controller.ts";
+import { json } from "./json-actions.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
+import { requestFormat } from "./rails-params.ts";
+import { profileUser } from "./users-controller.ts";
 
 const SEE_OTHER = 303;
 
@@ -90,7 +98,54 @@ async function confirm(input: MutationInput): Promise<ActionResult> {
   return { status: 302, location: profileUrl, flash: { notice: "Thanks for the follow!" } };
 }
 
+async function cancel(input: MutationInput): Promise<ActionResult> {
+  const format = requestFormat(input.request);
+  if (format === "other") throw new HandBackToRails("a format whose content type is not modelled");
+  const follower = await findByExternalId(input.routeParams.id!);
+  if (follower === null) {
+    // fetch_follower answers JSON with e404_json, which is not reproduced.
+    if (format === "json") throw new HandBackToRails("an unknown follow requested as JSON");
+    throw new RoutingError("Not Found");
+  }
+  if (format === "html") throw new HandBackToRails("the cancel page, which renders after the write");
+
+  try {
+    await withOptOutLockWait(() => markDeletedBang(follower));
+  } catch (error) {
+    handBackFailedOptOut(error);
+  }
+  return json({ success: true, follower_id: encrypt(follower.get("id")) });
+}
+
+// `redirect_to @user.profile_url`, after CustomDomainConfig#set_user.
+async function newFollow(input: MutationInput): Promise<ActionResult> {
+  const format = requestFormat(input.request);
+  if (format === "other") throw new HandBackToRails("a format whose content type is not modelled");
+  const user = await profileUser(input).catch((error: unknown) => {
+    // error_if_user_not_found answers JSON with e404_json.
+    if (error instanceof RoutingError && format === "json")
+      throw new HandBackToRails("an unknown account requested as JSON");
+    throw error;
+  });
+  // `URI(nil)` raises in Rails.
+  const profileUrl = subdomainWithProtocol(Users.load(user));
+  if (profileUrl === null) throw new HandBackToRails("a seller without a subdomain");
+  return { status: 302, location: profileUrl };
+}
+
 registerMutations(
+  {
+    method: "GET",
+    pattern: "/follow/:id/cancel",
+    skipForgeryProtection: true,
+    run: cancel,
+  },
+  {
+    method: "GET",
+    pattern: "/:username/follow",
+    skipForgeryProtection: true,
+    run: newFollow,
+  },
   {
     method: "DELETE",
     pattern: "/followers/:id",
