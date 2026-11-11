@@ -1,0 +1,229 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { HandBackToRails } from "./application-controller.ts";
+import type { MutationInput, MutationSpec } from "./mutation.ts";
+
+const mocks = vi.hoisted(() => ({
+  specs: [] as MutationSpec[],
+  guardRedirect: vi.fn<() => unknown>(),
+  policy: vi.fn<() => boolean>(),
+  selectRows: vi.fn(),
+}));
+
+vi.mock("./mutation.ts", () => ({
+  registerMutations: (...registered: MutationSpec[]) => void mocks.specs.push(...registered),
+}));
+vi.mock("./users-controller.ts", () => ({ requireHtml: () => undefined }));
+vi.mock("../page-props/domain.ts", () => ({ domainConfig: () => ({}) }));
+vi.mock("../page-props/audience/seller-guard.ts", () => ({
+  sellerGuard: async (_input: unknown, authorization: (context: unknown) => Promise<void>) => {
+    const denied = mocks.guardRedirect();
+    if (denied) return denied;
+    await authorization({ seller: { id: 3n } });
+    return null;
+  },
+}));
+vi.mock("../policies/authorize.ts", () => ({
+  authorize: (query: () => boolean) => {
+    if (!query()) throw new Error("not authorized");
+  },
+}));
+vi.mock("../policies/page.ts", () => {
+  const policy = () => mocks.policy();
+  return { pagePolicy: { create: policy, update: policy, destroy: policy, preview: policy, products: policy } };
+});
+vi.mock("../models/sql.ts", async () => {
+  const { Prisma } = await import("@prisma/client");
+  return {
+    column: (tableName: string, name: string) => Prisma.raw(`${tableName}.${name}`),
+    table: (name: string) => Prisma.raw(name),
+    selectRows: mocks.selectRows,
+  };
+});
+vi.mock("../models/user.ts", () => ({
+  rubyStrip: (value: string) => value.replace(/^[\0\t\n\v\f\r ]+|[\0\t\n\v\f\r ]+$/gu, ""),
+}));
+
+await import("./pages-controller.ts");
+
+const find = (method: string, pattern: string) => {
+  const spec = mocks.specs.find((candidate) => candidate.method === method && candidate.pattern === pattern)!;
+  return (input: MutationInput) => spec.run(input);
+};
+const input = (params: Record<string, unknown> = {}, slug?: string) =>
+  ({ params, routeParams: slug === undefined ? {} : { slug } }) as unknown as MutationInput;
+const withErrors = (location: string, inertiaErrors: Record<string, string>) => ({
+  status: 302,
+  location,
+  inertiaErrors,
+});
+const BLANK = { title: "", content: "" };
+
+type Row = { custom_html: string | null } | null;
+
+// Answers the lookups by what they ask for: the root page when the SQL names `slug IS NULL`.
+function database({ page = null, root = null }: { page?: Row; root?: Row } = {}) {
+  mocks.selectRows.mockImplementation((query: { sql: string }) => {
+    if (query.sql.includes("IS NULL")) return root === null ? [] : [root];
+    return page === null ? [] : [page];
+  });
+}
+
+beforeEach(() => {
+  vi.resetAllMocks();
+  mocks.guardRedirect.mockReturnValue(null);
+  mocks.policy.mockReturnValue(true);
+  database({ page: { custom_html: null } });
+});
+
+describe("POST /pages", () => {
+  const run = find("POST", "/pages");
+
+  it("returns the redirect of the guard", async () => {
+    mocks.guardRedirect.mockReturnValue({ status: 302, location: "/dashboard" });
+    expect(await run(input(BLANK))).toEqual({ status: 302, location: "/dashboard" });
+  });
+
+  it("refuses a blank title and content", async () => {
+    expect(await run(input({ title: "  ", content: "　" }))).toEqual(
+      withErrors("/pages/new", { title: "can't be blank" }),
+    );
+  });
+
+  it("refuses a request with neither title nor content", async () => {
+    expect(await run(input())).toEqual(withErrors("/pages/new", { title: "can't be blank" }));
+  });
+
+  it("lists the search field errors before the title error, as the validations run", async () => {
+    const result = await run(input({ ...BLANK, seo_title: "t".repeat(71), seo_description: "d".repeat(321) }));
+    expect(Object.keys((result as { inertiaErrors: object }).inertiaErrors)).toEqual([
+      "seo_title",
+      "seo_description",
+      "title",
+    ]);
+  });
+
+  it("counts a search field after it is squished", async () => {
+    const result = await run(input({ ...BLANK, seo_title: `${"t ".repeat(35)}   `, seo_description: "   " }));
+    expect(result).toEqual(withErrors("/pages/new", { title: "can't be blank" }));
+  });
+
+  it("counts the characters of a search field, not its bytes", async () => {
+    const result = await run(input({ ...BLANK, seo_title: "é".repeat(70) }));
+    expect(result).toEqual(withErrors("/pages/new", { title: "can't be blank" }));
+  });
+
+  it("hands a page with a title to Rails", async () => {
+    await expect(run(input({ title: "About me", content: "" }))).rejects.toThrow(/moderated/u);
+  });
+
+  it("hands a page with content and no title to Rails", async () => {
+    await expect(run(input({ title: "", content: "<p>Hello</p>" }))).rejects.toThrow(/moderated/u);
+  });
+
+  it("hands a title that is not text to Rails", async () => {
+    await expect(run(input({ title: ["About me"], content: "" }))).rejects.toThrow(/not text/u);
+  });
+
+  it("hands a search field that is not text to Rails", async () => {
+    await expect(run(input({ ...BLANK, seo_title: 5 }))).rejects.toThrow(/not text/u);
+  });
+});
+
+describe("PATCH /pages/:slug", () => {
+  const run = find("PATCH", "/pages/:slug");
+
+  it("is registered for PUT too", () => {
+    expect(mocks.specs.some((spec) => spec.method === "PUT" && spec.pattern === "/pages/:slug")).toBe(true);
+  });
+
+  it("sends an unknown slug back to the list before the policy is asked", async () => {
+    database();
+    expect(await run(input(BLANK, "nothing"))).toEqual({ status: 302, location: "/pages", rescued: true });
+    expect(mocks.policy).not.toHaveBeenCalled();
+  });
+
+  it("refuses a blank title and content, back to the edit page", async () => {
+    expect(await run(input(BLANK, "about-me"))).toEqual(
+      withErrors("/pages/about-me/edit", { title: "can't be blank" }),
+    );
+  });
+
+  it("hands a valid edit to Rails", async () => {
+    await expect(run(input({ title: "About us", content: "x" }, "about-me"))).rejects.toThrow(/moderated/u);
+  });
+
+  it("hands a custom HTML page to Rails", async () => {
+    database({ page: { custom_html: "<main></main>" } });
+    await expect(run(input({ seo_title: "x" }, "landing"))).rejects.toThrow(/custom HTML page/u);
+  });
+
+  it("sends the profile entry with nothing to write to the list", async () => {
+    expect(await run(input({}, "profile"))).toEqual({ status: 302, location: "/pages" });
+  });
+
+  it("hands the search fields of the profile to Rails", async () => {
+    await expect(run(input({ seo_title: "Home" }, "profile"))).rejects.toThrow(/seller profile/u);
+  });
+
+  it("hands the removal of the custom HTML of the profile to Rails", async () => {
+    await expect(run(input({ remove_custom_html: true }, "profile"))).rejects.toThrow(/custom HTML of the profile/u);
+    await expect(run(input({ remove_custom_html: "false" }, "profile"))).rejects.toThrow(/custom HTML of the profile/u);
+  });
+
+  it("treats a false removal flag as absent", async () => {
+    expect(await run(input({ remove_custom_html: false }, "profile"))).toEqual({ status: 302, location: "/pages" });
+  });
+});
+
+describe("DELETE /pages/:slug", () => {
+  const run = find("DELETE", "/pages/:slug");
+
+  it("sends an unknown slug back to the list", async () => {
+    database();
+    expect(await run(input({}, "nothing"))).toEqual({ status: 302, location: "/pages", rescued: true });
+  });
+
+  it("leaves the profile entry alone", async () => {
+    expect(await run(input({}, "profile"))).toEqual({ status: 302, location: "/pages" });
+  });
+
+  it("hands the removal of a page to Rails", async () => {
+    await expect(run(input({}, "about-me"))).rejects.toBeInstanceOf(HandBackToRails);
+  });
+});
+
+describe("GET /pages/:slug/preview", () => {
+  const run = find("GET", "/pages/:slug/preview");
+
+  it("answers 404 to a profile with no custom HTML", async () => {
+    database();
+    expect(await run(input({}, "profile"))).toMatchObject({ status: 404, body: "" });
+  });
+
+  it("answers 404 to a profile whose custom HTML is blank", async () => {
+    database({ root: { custom_html: "  " } });
+    expect(await run(input({}, "profile"))).toMatchObject({ status: 404 });
+  });
+
+  it("hands the profile takeover to Rails", async () => {
+    database({ root: { custom_html: "<main></main>" } });
+    await expect(run(input({}, "profile"))).rejects.toBeInstanceOf(HandBackToRails);
+  });
+
+  it("hands a rich text page to Rails", async () => {
+    await expect(run(input({}, "about-me"))).rejects.toBeInstanceOf(HandBackToRails);
+  });
+});
+
+describe("GET /pages/:slug/products", () => {
+  const run = find("GET", "/pages/:slug/products");
+
+  it("answers 404 to a page that is not the profile", async () => {
+    expect(await run(input({}, "about-me"))).toMatchObject({ status: 404, body: "" });
+  });
+
+  it("hands the profile to Rails", async () => {
+    await expect(run(input({}, "profile"))).rejects.toBeInstanceOf(HandBackToRails);
+  });
+});
