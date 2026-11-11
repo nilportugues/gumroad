@@ -2970,7 +2970,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SendPaypalTopupNotificationJob": {
     "file": "app/sidekiq/send_paypal_topup_notification_job.rb",

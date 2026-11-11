@@ -113,6 +113,7 @@ import { sendCommunityChatRecapNotificationsJob } from "./send-community-chat-re
 import { sendFeatureAnnouncementCampaignJob } from "./send-feature-announcement-campaign-job.ts";
 import { sendLastPostJob } from "./send-last-post-job.ts";
 import { sendMarketingXReconnectEmailJob } from "./send-marketing-x-reconnect-email-job.ts";
+import { sendPaymentReminderWorker } from "./send-payment-reminder-worker.ts";
 import { sendPreorderSellerSummaryWorker } from "./send-preorder-seller-summary-worker.ts";
 import { sendPurchaseReceiptJob } from "./send-purchase-receipt-job.ts";
 import { sendWishlistUpdatedEmailsJob } from "./send-wishlist-updated-emails-job.ts";
@@ -271,6 +272,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   "Radar::RemoveValueListItemJob": radarRemoveValueListItemJob,
   ExpiringCreditCardMessageWorker: expiringCreditCardMessageWorker,
   SendWishlistUpdatedEmailsJob: sendWishlistUpdatedEmailsJob,
+  SendPaymentReminderWorker: sendPaymentReminderWorker,
   SendFeatureAnnouncementCampaignJob: sendFeatureAnnouncementCampaignJob,
   SendPreorderSellerSummaryWorker: sendPreorderSellerSummaryWorker,
   SubmitToIndexnowJob: submitToIndexnowJob,

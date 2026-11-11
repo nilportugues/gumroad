@@ -128,4 +128,5 @@ export const PORTED_JOBS: readonly string[] = [
   "RefundPurchaseWorker",
   "UpdateUserBalanceStatsCacheWorker",
   "BackfillTaggingsCountOnTagsJob",
+  "SendPaymentReminderWorker",
 ];
