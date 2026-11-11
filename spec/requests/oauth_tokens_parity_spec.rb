@@ -5,6 +5,10 @@ require "spec_helper"
 # The token, revoke and introspect endpoints of Oauth::TokensController, recorded for the Next.js port (PARITY_RECORD=1) and replayed by
 # nextjs/parity/__tests__/oauth-tokens.replay.test.ts, which sends the last request of each example. An example named "hands ..." is one
 # Node leaves to Rails: the replay asserts it reached Rails and wrote nothing.
+#
+# POST /oauth/token and the muse, claude and chatgpt token aliases are not served by Node at all: Rack::Attack's `oauth_token/ip`
+# throttle (3000 a minute per IP, with backoff tiers) counts them in Rails' Redis, and Node has no way to share that counter without
+# counting a handed-back request twice. The examples for them are all "hands ...".
 describe "OAuth tokens", type: :request do
   let(:owner) { create(:user) }
   let(:resource_owner) { create(:user) }
@@ -26,29 +30,29 @@ describe "OAuth tokens", type: :request do
     Doorkeeper::AccessGrant.create!(application:, resource_owner_id: resource_owner.id, redirect_uri: application.redirect_uri, expires_in: 600, scopes: "view_profile", **attributes)
   end
 
-  describe "POST /oauth/token" do
+  describe "POST /ifttt/v1/oauth2/token" do
     it "answers unsupported_grant_type for a grant the server does not offer", parity: true do
-      post "/oauth/token", params: { grant_type: "password", client_id: public_app.uid, username: "a", password: "b" }
+      post "/ifttt/v1/oauth2/token", params: { grant_type: "password", client_id: public_app.uid, username: "a", password: "b" }
 
       expect(response).to have_http_status(:bad_request)
       expect(response.parsed_body["error"]).to eq("unsupported_grant_type")
     end
 
     it "echoes the state of a request for an unsupported grant", parity: true do
-      post "/oauth/token", params: { grant_type: "made_up", state: "abc 123", client_id: public_app.uid }
+      post "/ifttt/v1/oauth2/token", params: { grant_type: "made_up", state: "abc 123", client_id: public_app.uid }
 
       expect(response.parsed_body).to include("error" => "unsupported_grant_type", "state" => "abc 123")
     end
 
     it "asks for the code when grant_type is blank", parity: true do
-      post "/oauth/token", params: { client_id: public_app.uid, redirect_uri: public_app.redirect_uri }
+      post "/ifttt/v1/oauth2/token", params: { client_id: public_app.uid, redirect_uri: public_app.redirect_uri }
 
       expect(response).to have_http_status(:bad_request)
       expect(response.parsed_body["error_description"]).to eq("Missing required parameter: code.")
     end
 
     it "asks for the redirect URI of an authorization code exchange", parity: true do
-      post "/oauth/token", params: { grant_type: "authorization_code", code: grant_for(public_app).token, client_id: public_app.uid }
+      post "/ifttt/v1/oauth2/token", params: { grant_type: "authorization_code", code: grant_for(public_app).token, client_id: public_app.uid }
 
       expect(response.parsed_body["error_description"]).to eq("Missing required parameter: redirect_uri.")
     end
@@ -56,44 +60,44 @@ describe "OAuth tokens", type: :request do
     it "asks for the code verifier of a code issued with a challenge", parity: true do
       grant = grant_for(public_app, code_challenge: "challenge", code_challenge_method: "S256")
 
-      post "/oauth/token", params: { grant_type: "authorization_code", code: grant.token, client_id: public_app.uid, redirect_uri: public_app.redirect_uri }
+      post "/ifttt/v1/oauth2/token", params: { grant_type: "authorization_code", code: grant.token, client_id: public_app.uid, redirect_uri: public_app.redirect_uri }
 
       expect(response.parsed_body["error_description"]).to eq("Missing required parameter: code_verifier.")
     end
 
     it "answers invalid_client for an unknown client", parity: true do
-      post "/oauth/token", params: { grant_type: "authorization_code", code: grant_for(public_app).token, client_id: "unknown", redirect_uri: public_app.redirect_uri }
+      post "/ifttt/v1/oauth2/token", params: { grant_type: "authorization_code", code: grant_for(public_app).token, client_id: "unknown", redirect_uri: public_app.redirect_uri }
 
       expect(response).to have_http_status(:unauthorized)
       expect(response.headers["WWW-Authenticate"]).to start_with("Bearer realm=\"Doorkeeper\", error=\"invalid_client\"")
     end
 
     it "answers invalid_client for a confidential client with the wrong secret", parity: true do
-      post "/oauth/token", params: { grant_type: "authorization_code", code: grant_for(confidential_app).token, client_id: confidential_app.uid, client_secret: "wrong", redirect_uri: confidential_app.redirect_uri }
+      post "/ifttt/v1/oauth2/token", params: { grant_type: "authorization_code", code: grant_for(confidential_app).token, client_id: confidential_app.uid, client_secret: "wrong", redirect_uri: confidential_app.redirect_uri }
 
       expect(response).to have_http_status(:unauthorized)
     end
 
     it "answers invalid_client for a confidential client with no secret", parity: true do
-      post "/oauth/token", params: { grant_type: "authorization_code", code: grant_for(confidential_app).token, client_id: confidential_app.uid, redirect_uri: confidential_app.redirect_uri }
+      post "/ifttt/v1/oauth2/token", params: { grant_type: "authorization_code", code: grant_for(confidential_app).token, client_id: confidential_app.uid, redirect_uri: confidential_app.redirect_uri }
 
       expect(response).to have_http_status(:unauthorized)
     end
 
     it "reads the client from a Basic header", parity: true do
-      post "/oauth/token", params: { grant_type: "authorization_code", code: "unknown", redirect_uri: confidential_app.redirect_uri }, headers: basic(confidential_app)
+      post "/ifttt/v1/oauth2/token", params: { grant_type: "authorization_code", code: "unknown", redirect_uri: confidential_app.redirect_uri }, headers: basic(confidential_app)
 
       expect(response.parsed_body["error"]).to eq("invalid_grant")
     end
 
     it "prefers the Basic header to client_id", parity: true do
-      post "/oauth/token", params: { grant_type: "authorization_code", code: "unknown", client_id: "ignored", redirect_uri: confidential_app.redirect_uri }, headers: basic(confidential_app)
+      post "/ifttt/v1/oauth2/token", params: { grant_type: "authorization_code", code: "unknown", client_id: "ignored", redirect_uri: confidential_app.redirect_uri }, headers: basic(confidential_app)
 
       expect(response.parsed_body["error"]).to eq("invalid_grant")
     end
 
     it "answers invalid_grant for a code that does not exist", parity: true do
-      post "/oauth/token", params: { grant_type: "authorization_code", code: "unknown", client_id: public_app.uid, redirect_uri: public_app.redirect_uri }
+      post "/ifttt/v1/oauth2/token", params: { grant_type: "authorization_code", code: "unknown", client_id: public_app.uid, redirect_uri: public_app.redirect_uri }
 
       expect(response).to have_http_status(:bad_request)
       expect(response.parsed_body["error"]).to eq("invalid_grant")
@@ -102,7 +106,7 @@ describe "OAuth tokens", type: :request do
     it "answers invalid_grant for a code granted to another application", parity: true do
       other_public = create(:oauth_application, owner:, confidential: false)
 
-      post "/oauth/token", params: { grant_type: "authorization_code", code: grant_for(other_public).token, client_id: public_app.uid, redirect_uri: public_app.redirect_uri }
+      post "/ifttt/v1/oauth2/token", params: { grant_type: "authorization_code", code: grant_for(other_public).token, client_id: public_app.uid, redirect_uri: public_app.redirect_uri }
 
       expect(response.parsed_body["error"]).to eq("invalid_grant")
     end
@@ -110,7 +114,7 @@ describe "OAuth tokens", type: :request do
     it "answers invalid_grant for an expired code", parity: true do
       grant = grant_for(public_app, created_at: 2.hours.ago)
 
-      post "/oauth/token", params: { grant_type: "authorization_code", code: grant.token, client_id: public_app.uid, redirect_uri: public_app.redirect_uri }
+      post "/ifttt/v1/oauth2/token", params: { grant_type: "authorization_code", code: grant.token, client_id: public_app.uid, redirect_uri: public_app.redirect_uri }
 
       expect(response.parsed_body["error"]).to eq("invalid_grant")
     end
@@ -118,19 +122,19 @@ describe "OAuth tokens", type: :request do
     it "answers invalid_grant for a revoked code", parity: true do
       grant = grant_for(public_app, revoked_at: 1.minute.ago)
 
-      post "/oauth/token", params: { grant_type: "authorization_code", code: grant.token, client_id: public_app.uid, redirect_uri: public_app.redirect_uri }
+      post "/ifttt/v1/oauth2/token", params: { grant_type: "authorization_code", code: grant.token, client_id: public_app.uid, redirect_uri: public_app.redirect_uri }
 
       expect(response.parsed_body["error"]).to eq("invalid_grant")
     end
 
     it "accepts the parameters as a JSON body", parity: true do
-      post "/oauth/token", params: { grant_type: "authorization_code", code: "unknown", client_id: public_app.uid, redirect_uri: public_app.redirect_uri }.to_json, headers: { "Content-Type" => "application/json" }
+      post "/ifttt/v1/oauth2/token", params: { grant_type: "authorization_code", code: "unknown", client_id: public_app.uid, redirect_uri: public_app.redirect_uri }.to_json, headers: { "Content-Type" => "application/json" }
 
       expect(response.parsed_body["error"]).to eq("invalid_grant")
     end
 
     it "hands a valid authorization code back to Rails", parity: true do
-      post "/oauth/token", params: { grant_type: "authorization_code", code: grant_for(public_app).token, client_id: public_app.uid, redirect_uri: public_app.redirect_uri }
+      post "/ifttt/v1/oauth2/token", params: { grant_type: "authorization_code", code: grant_for(public_app).token, client_id: public_app.uid, redirect_uri: public_app.redirect_uri }
 
       expect(response).to have_http_status(:ok)
       expect(Doorkeeper::AccessToken.count).to eq(1)
@@ -146,26 +150,26 @@ describe "OAuth tokens", type: :request do
     end
 
     it "hands a client_id that is not a string back to Rails", parity: true do
-      post "/oauth/token", params: { grant_type: "authorization_code", code: "unknown", client_id: [public_app.uid], redirect_uri: public_app.redirect_uri }.to_json, headers: { "Content-Type" => "application/json" }
+      post "/ifttt/v1/oauth2/token", params: { grant_type: "authorization_code", code: "unknown", client_id: [public_app.uid], redirect_uri: public_app.redirect_uri }.to_json, headers: { "Content-Type" => "application/json" }
 
       expect(response).to have_http_status(:unauthorized)
     end
 
     it "hands a Basic header that is not plain Base64 back to Rails", parity: true do
-      post "/oauth/token", params: { grant_type: "authorization_code", code: "unknown", redirect_uri: public_app.redirect_uri }, headers: { "Authorization" => "Basic !!!!" }
+      post "/ifttt/v1/oauth2/token", params: { grant_type: "authorization_code", code: "unknown", redirect_uri: public_app.redirect_uri }, headers: { "Authorization" => "Basic !!!!" }
 
       expect(response).to have_http_status(:unauthorized)
     end
 
     it "answers invalid_client for a client_credentials grant from an unknown client", parity: true do
-      post "/oauth/token", params: { grant_type: "client_credentials", client_id: "unknown", client_secret: "secret" }
+      post "/ifttt/v1/oauth2/token", params: { grant_type: "client_credentials", client_id: "unknown", client_secret: "secret" }
 
       expect(response).to have_http_status(:unauthorized)
       expect(response.parsed_body["error"]).to eq("invalid_client")
     end
 
     it "answers invalid_client for a client_credentials grant with the wrong secret", parity: true do
-      post "/oauth/token", params: { grant_type: "client_credentials", client_id: confidential_app.uid, client_secret: "wrong" }
+      post "/ifttt/v1/oauth2/token", params: { grant_type: "client_credentials", client_id: confidential_app.uid, client_secret: "wrong" }
 
       expect(response.parsed_body["error"]).to eq("invalid_client")
     end
@@ -173,14 +177,14 @@ describe "OAuth tokens", type: :request do
     it "answers unauthorized_client for a client_credentials grant from a dynamically registered client", parity: true do
       dynamic_app = create(:oauth_application, owner:, confidential: false, mcp_dynamic_client: true)
 
-      post "/oauth/token", params: { grant_type: "client_credentials", client_id: dynamic_app.uid }
+      post "/ifttt/v1/oauth2/token", params: { grant_type: "client_credentials", client_id: dynamic_app.uid }
 
       expect(response).to have_http_status(:unauthorized)
       expect(response.parsed_body["error"]).to eq("unauthorized_client")
     end
 
     it "hands a client_credentials grant that would issue a token back to Rails", parity: true do
-      post "/oauth/token", params: { grant_type: "client_credentials", client_id: confidential_app.uid, client_secret: confidential_app.secret, scope: "view_profile" }
+      post "/ifttt/v1/oauth2/token", params: { grant_type: "client_credentials", client_id: confidential_app.uid, client_secret: confidential_app.secret, scope: "view_profile" }
 
       expect(response).to have_http_status(:ok)
     end
@@ -199,12 +203,73 @@ describe "OAuth tokens", type: :request do
       expect(response).to have_http_status(:bad_request)
     end
 
-    %w[/claude/v1/oauth2/token /muse/v1/oauth2/token /chatgpt/v1/oauth2/token /ifttt/v1/oauth2/token /notion/oauth2/token].each do |path|
-      it "answers #{path} like the token endpoint", parity: true do
-        post path, params: { grant_type: "authorization_code", code: "unknown", client_id: public_app.uid, redirect_uri: public_app.redirect_uri }
+    it "answers the Notion token endpoint like the token endpoint", parity: true do
+      post "/notion/oauth2/token", params: { grant_type: "authorization_code", code: "unknown", client_id: public_app.uid, redirect_uri: public_app.redirect_uri }
 
-        expect(response.parsed_body["error"]).to eq("invalid_grant")
+      expect(response.parsed_body["error"]).to eq("invalid_grant")
+    end
+  end
+
+  # Rack::Attack's `oauth_token/ip` rule counts these four paths per client IP in Redis, and a request Node answers never reaches
+  # that counter, so Node does not register them.
+  describe "POST /oauth/token and the muse, claude and chatgpt aliases" do
+    let(:ip) { "203.0.113.77" }
+
+    def exhaust_token_throttle
+      Rack::Attack.cache.store.flushdb
+      Rack::Attack.reset!
+      3000.times do
+        Rack::Attack.configuration.throttled?(
+          Rack::Attack::Request.new(Rack::MockRequest.env_for("/oauth/token", method: "POST", input: "", "HTTP_CF_CONNECTING_IP" => ip))
+        )
       end
+    end
+
+    after do
+      Rack::Attack.cache.store.flushdb
+      Rack::Attack.reset!
+    end
+
+    it "hands a failing code exchange on /oauth/token back to Rails", parity: true do
+      post "/oauth/token", params: { grant_type: "authorization_code", code: "unknown", client_id: public_app.uid, redirect_uri: public_app.redirect_uri }
+
+      expect(response.parsed_body["error"]).to eq("invalid_grant")
+    end
+
+    it "hands a failing code exchange on the muse alias back to Rails", parity: true do
+      post "/muse/v1/oauth2/token", params: { grant_type: "authorization_code", code: "unknown", client_id: public_app.uid, redirect_uri: public_app.redirect_uri }
+
+      expect(response.parsed_body["error"]).to eq("invalid_grant")
+    end
+
+    it "hands a failing code exchange on the claude alias back to Rails", parity: true do
+      post "/claude/v1/oauth2/token", params: { grant_type: "authorization_code", code: "unknown", client_id: public_app.uid, redirect_uri: public_app.redirect_uri }
+
+      expect(response.parsed_body["error"]).to eq("invalid_grant")
+    end
+
+    it "hands a failing code exchange on the chatgpt alias back to Rails", parity: true do
+      post "/chatgpt/v1/oauth2/token", params: { grant_type: "authorization_code", code: "unknown", client_id: public_app.uid, redirect_uri: public_app.redirect_uri }
+
+      expect(response.parsed_body["error"]).to eq("invalid_grant")
+    end
+
+    it "hands a request past the per-IP limit on /oauth/token back to Rails", parity: true do
+      exhaust_token_throttle
+
+      post "/oauth/token", params: { grant_type: "authorization_code", code: "unknown", client_id: public_app.uid, redirect_uri: public_app.redirect_uri }, headers: { "CF-Connecting-IP" => ip }
+
+      expect(response).to have_http_status(:too_many_requests)
+      expect(response.body).to eq("Retry later\n")
+      expect(response.headers["Retry-After"]).to be_present
+    end
+
+    it "hands a request past the per-IP limit on the claude alias back to Rails", parity: true do
+      exhaust_token_throttle
+
+      post "/claude/v1/oauth2/token", params: { grant_type: "authorization_code", code: "unknown", client_id: public_app.uid, redirect_uri: public_app.redirect_uri }, headers: { "CF-Connecting-IP" => ip }
+
+      expect(response).to have_http_status(:too_many_requests)
     end
   end
 

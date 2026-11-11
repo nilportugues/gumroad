@@ -1,7 +1,7 @@
 {
   "version": 1,
   "spec": "spec/requests/oauth_tokens_parity_spec.rb",
-  "example": "OAuth tokens POST /oauth/token answers invalid_client for a client_credentials grant with the wrong secret",
+  "example": "OAuth tokens POST /oauth/token and the muse, claude and chatgpt aliases hands a request past the per-IP limit on the claude alias back to Rails",
   "sessionCookie": "_gumroad_app_session_test",
   "secretKeyBase": "parity-replay-secret-key-base",
   "recordedOn": "2026-11-11",
@@ -65,9 +65,9 @@
             "rows": [
               {
                 "id": 1,
-                "name": "app21",
-                "uid": "Zs7qCX_ZwYMQvFsDr70LPH7AhgipUQhrsOmFa7LR8HQ",
-                "secret": "ZjmpaWI2slPV9Ku4ALbE5s188AE1QP9HUKLtbpb5gs8",
+                "name": "app32",
+                "uid": "qgA4-9zLrvDl7hNkcRc52dIJ39Ks8Gewi9v2wHpGvLk",
+                "secret": "Wg1PyNb0rzXcLikNXfMp0C9qwiqwlhvmWtj7vkbl1BQ",
                 "redirect_uri": "https://foo",
                 "created_at": "<now>",
                 "updated_at": "<now>",
@@ -76,7 +76,7 @@
                 "affiliate_basis_points": null,
                 "deleted_at": null,
                 "scopes": "view_profile edit_products",
-                "confidential": 1,
+                "confidential": 0,
                 "device_authorization_enabled": 0,
                 "is_first_party_agent_app": 0,
                 "mcp_dynamic_client": 0
@@ -185,20 +185,20 @@
             "rows": [
               {
                 "id": 1,
-                "email": "edgar6c734ef3_59@gumroad.com",
-                "encrypted_password": "$2a$04$mHt5NTMIDHzgADttRSPsPOfyi2.NCy1rIAZ49m2a8DqIFWTCazYny",
+                "email": "edgar53c45ff6_83@gumroad.com",
+                "encrypted_password": "$2a$04$eXl6dYEZ7KjPv6FhEx7qsOEp6ZnT1yJ0Nr6DtsC1ON6MnItj1liUy",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": null,
                 "sign_in_count": 0,
                 "current_sign_in_at": null,
                 "last_sign_in_at": null,
-                "current_sign_in_ip": "170.218.101.56",
-                "last_sign_in_ip": "88.62.173.189",
+                "current_sign_in_ip": "190.118.1.129",
+                "last_sign_in_ip": "149.240.76.61",
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "name": null,
-                "payment_address": "edgar86ae32d7_60@gumroad.com",
+                "payment_address": "edgarc983416a_84@gumroad.com",
                 "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
@@ -210,7 +210,7 @@
                 "payment_notification": 1,
                 "currency_type": "usd",
                 "bio": null,
-                "username": "edgareadc566f30",
+                "username": "edgar15c79c8742",
                 "credit_card_id": null,
                 "profile_picture_url": null,
                 "country": null,
@@ -223,8 +223,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "2968387681841",
-                "account_created_ip": "227.231.235.140",
+                "external_id": "7137866770530",
+                "account_created_ip": "38.192.118.43",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -242,7 +242,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "CXA5IGBQIVN2PA6V3IHISTSUC4WFFEGS",
+                "otp_secret_key": "DOJKEI4S3KGZIXNGHYFCH3YCZ7AT37CW",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -299,42 +299,30 @@
       "request": {
         "source": "request",
         "method": "POST",
-        "path": "/oauth/token",
+        "path": "/claude/v1/oauth2/token",
         "headers": {
           "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
+          "cf-connecting-ip": "203.0.113.77",
           "content-type": "application/x-www-form-urlencoded",
           "host": "app.test.gumroad.com:31337"
         },
         "remoteIp": "127.0.0.1",
-        "body": "grant_type=client_credentials&client_id=Zs7qCX_ZwYMQvFsDr70LPH7AhgipUQhrsOmFa7LR8HQ&client_secret=wrong"
+        "body": "grant_type=authorization_code&code=unknown&client_id=qgA4-9zLrvDl7hNkcRc52dIJ39Ks8Gewi9v2wHpGvLk&redirect_uri=https%3A%2F%2Ffoo"
       },
       "response": {
-        "status": 401,
+        "status": 429,
         "headers": {
-          "cache-control": "no-store",
-          "content-type": "application/json; charset=utf-8",
+          "cache-control": "no-cache",
+          "content-type": "text/plain",
+          "retry-after": "34",
           "vary": "Origin",
-          "www-authenticate": "Bearer realm=\"Doorkeeper\", error=\"invalid_client\", error_description=\"Client authentication failed due to unknown client, no client authentication included, or unsupported authentication method.\"",
           "x-content-type-options": "nosniff",
           "x-download-options": "noopen",
           "x-original-headers-class": "Rack::Headers",
           "x-permitted-cross-domain-policies": "none",
           "x-xss-protection": "1; mode=block"
         },
-        "cookies": {
-          "_gumroad_app_session_test": {
-            "value": "65ZmBLQUJl6ERDUCjV0GVsj9QMXP3EhcznBt8sF02TqI2nmk8paKKOvpph1VrMDJt1cm2/0ThaH7b4NlyDdT0QsMW8Ms4n84hGAouXBzCGrOpSP6eTaDno9CPheGBW2+4dwH2qsVWx5OptGgDLeaT3nchB1ad5L0pukVeX//cgSem5dhr7iO8QuGfpIbDpSwC/FeduuOXEs5XGfYVrtvWEUm9yOb9LY=--SOGVCulqcN6zVQEt--UwHx9Z7elgi6aR9IyB+T1g==",
-            "domain": "gumroad.com",
-            "path": "/",
-            "expires": "<now+87672h>",
-            "httponly": true,
-            "samesite": "lax"
-          }
-        },
-        "json": {
-          "error": "invalid_client",
-          "error_description": "Client authentication failed due to unknown client, no client authentication included, or unsupported authentication method."
-        }
+        "body": "Retry later\n"
       },
       "db": {},
       "jobs": [],

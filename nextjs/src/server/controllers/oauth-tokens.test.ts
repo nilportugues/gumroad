@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const models = vi.hoisted(() => ({
@@ -16,7 +18,7 @@ vi.mock("./mutation.ts", () => ({ registerMutations: vi.fn() }));
 
 import type { Rendered } from "./application-controller.ts";
 import type { MutationInput } from "./mutation.ts";
-import { clientCredentials, createToken, introspect, revoke } from "./oauth-tokens.ts";
+import { clientCredentials, createToken, introspect, revoke, TOKEN_PATHS } from "./oauth-tokens.ts";
 
 const input = (
   params: Record<string, unknown>,
@@ -69,6 +71,24 @@ describe("client credentials", () => {
 
   it("hands a client_id that is not a string back", () => {
     expect(() => clientCredentials(input({ client_id: ["a"] }))).toThrow(/not ported/u);
+  });
+});
+
+describe("registered token paths", () => {
+  // config/initializers/rack_attack.rb: `oauth_token/ip` counts these in Rails' Redis; Node must never answer them.
+  it("leaves the paths Rack::Attack throttles to Rails", () => {
+    expect(TOKEN_PATHS).toEqual(["/ifttt/v1/oauth2/token", "/notion/oauth2/token"]);
+  });
+
+  it("keeps routes.json free of the throttled token paths", () => {
+    const routes = JSON.parse(readFileSync(new URL("../../../routes.json", import.meta.url), "utf8")) as Record<
+      string,
+      unknown
+    >;
+    const throttled = ["/oauth/token", "/muse/v1/oauth2/token", "/claude/v1/oauth2/token", "/chatgpt/v1/oauth2/token"];
+    expect(
+      Object.keys(routes).filter((key) => throttled.some((path) => key.endsWith(` ${path}`) || key === path)),
+    ).toEqual([]);
   });
 });
 
