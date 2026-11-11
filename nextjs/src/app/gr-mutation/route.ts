@@ -59,6 +59,7 @@ import "@/server/controllers/subscription-magic-links-mutations";
 import "@/server/controllers/users-controller";
 import "@/server/controllers/dispute-evidence-mutations";
 import "@/server/controllers/links-mutations";
+import "@/server/controllers/purchase-invoices";
 import "@/server/controllers/affiliate-requests-mutations";
 import "@/server/controllers/affiliates-mutations";
 import "@/server/controllers/purchases-controller";
