@@ -419,6 +419,8 @@ module Parity
           "url" => uri.to_s,
           "contentType" => request_headers["content-type"],
           "body" => signature.body.presence,
+          # Only an OAuth 1.0a header: its signature is what a replay has to reproduce. Basic and Bearer credentials stay out of the fixtures.
+          "authorization" => (request_headers["authorization"] if request_headers["authorization"].to_s.start_with?("OAuth ")),
           "response" => {
             "status" => Array(response&.status).first,
             "contentType" => response_headers["content-type"],

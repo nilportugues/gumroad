@@ -53,6 +53,8 @@ export type CapturedHttp = {
   url: string;
   contentType?: string;
   body?: string;
+  // The Authorization header of an OAuth 1.0a call, which a replay compares.
+  authorization?: string;
   // Served back to the port during replay; not compared.
   response: { status?: number; contentType?: string; body?: string };
 };
