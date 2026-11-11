@@ -11,7 +11,7 @@ import { type AdminRequest, failure, isBlank, jsonRendered, paramToS, recordAdmi
 import { defineAdminRoute } from "./registry.ts";
 
 const SOURCE = "app/controllers/api/internal/admin/users_controller.rb";
-const USER_ID_REQUIRED_MESSAGE = "user_id is required for mutating admin actions. Use /internal/admin/users/info to look up the user_id by email or username.";
+export const USER_ID_REQUIRED_MESSAGE = "user_id is required for mutating admin actions. Use /internal/admin/users/info to look up the user_id by email or username.";
 const WRAPPER = { key: "user", model: "User" };
 
 type WriteUser = { id: bigint; external_id: string | null; email: string | null };

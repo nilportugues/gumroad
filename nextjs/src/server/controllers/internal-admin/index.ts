@@ -29,6 +29,10 @@ import "./licenses.ts";
 import "./sendgrid-emails.ts";
 import "./risk-recovery.ts";
 import "./payouts.ts";
+import "./payout-reads.ts";
+import "./users-search.ts";
+import "./user-write-guards.ts";
+import "./stripe-restraint.ts";
 
 export async function internalAdminResponse(incoming: Request): Promise<Response> {
   const target = incoming.headers.get(PAGE_URL_HEADER);

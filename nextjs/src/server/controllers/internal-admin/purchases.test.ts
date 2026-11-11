@@ -37,8 +37,8 @@ describe("purchase routes", () => {
     expect(findAdminRoute("POST", "/internal/admin/purchases/resend_all_receipts")).not.toBeNull();
   });
 
-  it("leaves the reassignment to Rails", () => {
-    expect(findAdminRoute("POST", "/internal/admin/purchases/reassign")).toBeNull();
+  it("registers the reassignment for its guards, which hand the move to Rails", () => {
+    expect(findAdminRoute("POST", "/internal/admin/purchases/reassign")).not.toBeNull();
   });
 });
 
