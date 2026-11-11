@@ -88,6 +88,7 @@ import "@/server/controllers/collaborator-incomings-mutations";
 import "@/server/controllers/collaborators-main-mutations";
 import "@/server/controllers/bundle-mutations";
 import "@/server/controllers/product-review-set";
+import "@/server/controllers/product-build-player-files";
 import "@/server/controllers/product-files-utility";
 import "@/server/controllers/product-review-videos";
 import "@/server/controllers/asset-previews-thumbnails";
