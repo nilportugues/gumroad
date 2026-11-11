@@ -18,7 +18,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 132 | 0 | 6 | 0 |
 | Mobile API (`/mobile` on the API host) | 64 | 63 | 0 | 1 | 0 |
 | Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 77 | 4 | 1 | 3 |
-| Internal API, Gumroad domain (`/internal`, JSON for the React Router pages) | 23 | 20 | 0 | 3 | 0 |
+| Internal API, Gumroad domain (`/internal`, JSON for the React Router pages) | 23 | 22 | 0 | 1 | 0 |
 
 ## API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain)
 
@@ -350,5 +350,5 @@ Unresolved:
 | `GET /internal/agent/actions/status` | `Api::Internal::AgentConversationsController#action_status` | native | `nextjs_internal_agent` | y |
 | `GET /internal/agent/conversations/latest` | `Api::Internal::AgentConversationsController#latest` | native | `nextjs_internal_agent` | y |
 | `GET /internal/agent/turns/:client_turn_id` | `Api::Internal::AgentConversationsController#turn_status` | native | `nextjs_internal_agent` | y |
-| `POST /internal/agent/custom_html_preview` | `Api::Internal::AgentCustomHtmlPreviewsController#create` | not registered | - | n |
-| `GET /internal/agent/custom_html_previews/:token` | `Api::Internal::AgentCustomHtmlPreviewsController#show` | not registered | - | n |
+| `POST /internal/agent/custom_html_preview` | `Api::Internal::AgentCustomHtmlPreviewsController#create` | native | `nextjs_internal_agent` | y |
+| `GET /internal/agent/custom_html_previews/:token` | `Api::Internal::AgentCustomHtmlPreviewsController#show` | native | `nextjs_internal_agent` | y |
