@@ -50,6 +50,9 @@ describe "Discover", type: :request do
   # Taxonomy pages only route on the discover host (DiscoverDomainConstraint).
   before do
     host! VALID_DISCOVER_REQUEST_HOST
+    # The taxonomy is seeded outside the example (`rake taxonomy:seed`). On an empty table every taxonomy path 404s, and
+    # DiscoverTaxonomyConstraint memoises the empty list for the whole process.
+    raise "Taxonomy table is empty: run `rake taxonomy:seed` in the test database before recording" if Taxonomy.none?
     make_taxonomy_stats
     ES_MODELS.each do |model|
       model.index_name("#{model.name.parameterize}-ws83")
