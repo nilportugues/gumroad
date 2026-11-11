@@ -487,6 +487,52 @@ describe "Settings mutations when signed in", type: :request do
         expect(response).to have_http_status(:unauthorized)
         expect(membership.reload.role).to eq(TeamMembership::ROLE_MARKETING)
       end
+
+      it "lists the owner, the members and the pending invitations", parity: true do
+        create(:team_invitation, seller:, email: "invitee@example.com", role: TeamInvitation::ROLES.first)
+        log_in(seller)
+
+        send_json(:get, settings_team_members_path(format: :json))
+
+        expect(response).to have_http_status(:ok)
+        expect(response.parsed_body["member_infos"].pluck("type")).to eq(%w[owner membership invitation])
+      end
+
+      it "lists the team to a member with the options of their role", parity: true do
+        member_with_role(TeamMembership::ROLE_SUPPORT)
+
+        send_json(:get, settings_team_members_path(format: :json))
+
+        expect(response).to have_http_status(:ok)
+        expect(response.parsed_body["member_infos"].pluck("type")).to include("membership")
+      end
+
+      it "answers 403 JSON to a seller without an email address when listing the team", parity: true do
+        log_in(seller)
+        seller.update_columns(email: nil, unconfirmed_email: nil)
+
+        send_json(:get, settings_team_members_path(format: :json))
+
+        expect(response).to have_http_status(:forbidden)
+      end
+
+      it "hands a request without a team_membership hash to Rails", parity: true do
+        log_in(seller)
+
+        send_json(:put, settings_team_member_path(membership.external_id, format: :json), {})
+
+        expect(response).to have_http_status(:bad_request)
+      end
+
+      it "hands a removal of a member of the Gumroad account to Rails", parity: true do
+        seller.update_columns(email: ApplicationMailer::ADMIN_EMAIL)
+        log_in(seller)
+
+        send_json(:delete, settings_team_member_path(membership.external_id, format: :json))
+
+        expect(response.parsed_body).to eq("success" => true)
+        expect(membership.reload.deleted?).to be(true)
+      end
     end
   end
 end

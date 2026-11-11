@@ -1,5 +1,5 @@
-// Settings::DismissAiProductGenerationPromosController#create and Settings::Team::MembersController#update, #destroy and #restore
-// (app/controllers/settings/). All are Sellers::BaseController JSON actions, so a request that does not ask for JSON goes to Rails.
+// Settings::DismissAiProductGenerationPromosController#create and Settings::Team::MembersController#index, #update, #destroy and
+// #restore (app/controllers/settings/). All are Sellers::BaseController JSON actions, so a request that does not ask for JSON goes to Rails.
 //
 // A membership change that fails validation raises RecordInvalid, which processAction answers with Rails' 422 page.
 //
@@ -13,8 +13,10 @@ import { sellerMembershipById, TeamMembershipDeletable, TeamMemberships } from "
 import { findUserBang, setFlag, Users } from "../models/user.ts";
 import { eligibleForAiProductGeneration } from "../page-props/seller-products/new-page.ts";
 import { notAllowedMessage } from "../page-props/settings/guard.ts";
+import { teamMemberInfos } from "../page-props/settings/presenter.ts";
 import { NotAuthorizedError, type SellerContext } from "../policies/seller-context.ts";
 import { settingsTeamMembershipPolicy } from "../policies/settings/team-membership.ts";
+import { settingsTeamUserPolicy } from "../policies/settings/team-user.ts";
 import { userPolicy } from "../policies/user.ts";
 
 import { HandBackToRails, type ActionResult } from "./application-controller.ts";
@@ -100,6 +102,12 @@ export function permittedRole(params: Record<string, unknown>): { role?: string 
 
 const success = () => jsonResponse({ success: true }, 200, true);
 
+// `authorize [:settings, :team, current_seller], :show?`, then `Settings::TeamPresenter#member_infos`.
+const indexMembers = (input: MutationInput) =>
+  sellerJsonAction(input, settingsTeamUserPolicy.show, async (sellerContext) =>
+    jsonResponse({ success: true, member_infos: await teamMemberInfos(sellerContext) }),
+  );
+
 const updateMember = (input: MutationInput) =>
   memberAction(input, settingsTeamMembershipPolicy.update, async (membership) => {
     await TeamMemberships.updateBang(membership, permittedRole(input.params));
@@ -121,7 +129,9 @@ const restoreMember = (input: MutationInput) =>
     return success();
   });
 
+// `skipForgeryProtection`: Rails does not verify a GET's token.
 registerMutations(
+  { method: "GET", pattern: "/settings/team/members.json", skipForgeryProtection: true, run: indexMembers },
   { method: "POST", pattern: "/settings/dismiss_ai_product_generation_promo", formats: ["json"], run: dismissAiPromo },
   { method: "PUT", pattern: MEMBER, formats: ["json"], run: updateMember },
   { method: "PATCH", pattern: MEMBER, formats: ["json"], run: updateMember },
