@@ -7,6 +7,7 @@ import { checkoutUpsellPolicy } from "../policies/checkout-upsell.ts";
 
 import { remoteIp } from "./audience/events.ts";
 import { sellerGuard } from "./audience/seller-guard.ts";
+import { checkoutArrival, checkoutStyle, paymentProps, requestParamsOf } from "./checkout/arrivals.ts";
 import { cartProps, checkoutProps, emptyCartPaymentProps, type CheckoutCart } from "./checkout/checkout.ts";
 import { listParams, upsellsPageProps } from "./checkout/upsells.ts";
 import { optional } from "./lazy-props.ts";
@@ -28,28 +29,31 @@ export const CHECKOUT_PAGES: Record<string, PageSpec> = {
       return upsellsPageProps(context.currentSeller!.id, listParams(url.search.replace(/^\?/u, "")));
     },
   },
-  // The filter has handed back everything with a product in it, so the cart holds nothing.
+  // The filter has handed back a cart with lines or stored codes, and whatever the URL adds that the port cannot prove.
   "/checkout": {
     component: "Checkout/Show",
     options: CHECKOUT_OPTIONS,
     analyticsEnabled: true,
     props: async (_, action) => {
       const user = railsLoggedInUser(action.context);
+      const ip = remoteIp(action.headers);
+      const arrival = await checkoutArrival(requestParamsOf(action.url.search.replace(/^\?/u, "")), user, ip);
       return {
         cart: cartProps((action.state.cart as CheckoutCart | null) ?? null),
         checkout: await checkoutProps({
           user,
-          remoteIp: remoteIp(action.headers),
+          remoteIp: ip,
           protocol: action.config.protocol,
           discoverDomain: action.config.discoverDomain,
+          arrival,
         }),
-        checkout_payment: emptyCartPaymentProps(),
+        checkout_payment: arrival.add_products.length === 0 ? emptyCartPaymentProps() : await paymentProps(arrival, ip),
         // The filter hands back a partial reload that asks for it.
         recommended_products: optional(() => {
           throw new NotPortedError("Checkout recommended_products (RecommendedProducts::CheckoutService)");
         }),
         stripe_fonts_css_source: sellerFontsCssSource(),
-        checkout_style: null,
+        checkout_style: await checkoutStyle(arrival),
       };
     },
   },

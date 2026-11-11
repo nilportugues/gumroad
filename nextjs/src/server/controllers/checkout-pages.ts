@@ -1,10 +1,19 @@
 // CheckoutController#show's before_action (`process_cart_id_param`) and the decision of what the port can render.
 // Anything it cannot prove goes to Rails whole, ahead of any write: the cart merge is the only write on this page.
 import { Prisma } from "@prisma/client";
+import type { User } from "@prisma/client";
 
 import { railsLoggedInUser } from "../auth/resolve.ts";
 import { decryptSecureExternalId } from "../models/secure-external-id.ts";
 import { selectRows } from "../models/sql.ts";
+import { remoteIp } from "../page-props/audience/events.ts";
+import {
+  checkoutArrival,
+  checkoutStyle,
+  hasArrivalParams,
+  paymentProps,
+  requestParamsOf,
+} from "../page-props/checkout/arrivals.ts";
 import {
   fetchCart,
   storedDiscountCodeCount,
@@ -12,6 +21,7 @@ import {
   cartStateOf,
 } from "../page-props/checkout/checkout.ts";
 import { domainConfig } from "../page-props/domain.ts";
+import { NotPortedError } from "../page-props/not-ported.ts";
 
 import { HandBackToRails, type ActionOptions, type Chain, type FilterOutcome } from "./application-controller.ts";
 import { assertFlatQuery, requestFormat } from "./rails-params.ts";
@@ -21,8 +31,6 @@ import { isPresent, queryParam } from "./rails-request.ts";
 const CART_LOGIN_SCOPE = "cart_login";
 const LOGIN_REQUIRED_MESSAGE = "Please log in to complete checkout.";
 const GUID_COOKIE = "_gumroad_guid";
-// Params that put a product on the page (CheckoutPresenter#checkout_arrival_props).
-const ARRIVAL_PARAMS = ["product", "wishlist", "gift_wishlist_product"];
 const RECOMMENDED_PRODUCTS_PROP = "recommended_products";
 
 // The browser's guid as `cookies[:_gumroad_guid]` reads it in the action: the cookie, else the one set_gumroad_guid minted.
@@ -73,6 +81,25 @@ async function processCartIdParam(chain: Chain): Promise<FilterOutcome | null> {
   return redirect;
 }
 
+// Builds what the URL puts on the page once, ahead of any answer, so that a product, wishlist or payment lane the port cannot prove
+// is handed to Rails whole. The props build it again.
+async function assertArrivalRenderable(chain: Chain, user: User | null): Promise<void> {
+  const params = requestParamsOf(chain.request.queryString);
+  if (!hasArrivalParams(params)) return;
+  try {
+    const ip = remoteIp(chain.request.headers);
+    const arrival = await checkoutArrival(params, user, ip);
+    if (arrival.add_products.length > 0) {
+      await paymentProps(arrival, ip);
+      await checkoutStyle(arrival);
+    }
+  } catch (error) {
+    if (error instanceof NotPortedError || (error instanceof Error && error.name === "NotPortedError"))
+      throw new HandBackToRails();
+    throw error;
+  }
+}
+
 // The page holds nothing the port cannot render: no product from the URL, and a cart without lines or stored codes.
 async function checkoutFilters(chain: Chain): Promise<FilterOutcome> {
   if (!chain.request.headers.has("x-inertia") && requestFormat(chain.request) !== "html") throw new HandBackToRails();
@@ -81,15 +108,18 @@ async function checkoutFilters(chain: Chain): Promise<FilterOutcome> {
   const redirected = await processCartIdParam(chain);
   if (redirected) return redirected;
 
-  for (const name of ARRIVAL_PARAMS) if (queryParam(chain.request, name) !== undefined) throw new HandBackToRails();
   // InertiaRails.optional: only a partial reload that names it computes the recommendations.
   const partial = chain.request.headers.get("x-inertia-partial-data") ?? "";
   if (partial.split(",").some((name) => name.trim() === RECOMMENDED_PRODUCTS_PROP)) throw new HandBackToRails();
 
   const user = railsLoggedInUser(chain.auth.context);
   const cart = await fetchCart(user?.id ?? null, browserGuid(chain));
-  if (cart === null) return { state: { cart: null } };
+  if (cart === null) {
+    await assertArrivalRenderable(chain, user);
+    return { state: { cart: null } };
+  }
   if (storedDiscountCodeCount(cart) > 0 || (await visibleCartProductCount(cart.id)) > 0) throw new HandBackToRails();
+  await assertArrivalRenderable(chain, user);
   return { state: { cart: cartStateOf(cart) } };
 }
 

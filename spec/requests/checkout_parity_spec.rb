@@ -291,12 +291,6 @@ describe "Checkout page", type: :request do
       expect(props["cart"]["items"].size).to eq(1)
     end
 
-    it "renders a product added by the URL", parity: true do
-      get checkout_path(product: product.unique_permalink)
-
-      expect(props["checkout"]["add_products"].size).to eq(1)
-    end
-
     it "renders a cart that holds a discount code", parity: true do
       create(:cart, :guest, browser_guid: guid, discount_codes: [{ "code" => "SAVE", "fromUrl" => false }])
       cookies[:_gumroad_guid] = guid

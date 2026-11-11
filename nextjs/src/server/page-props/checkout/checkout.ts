@@ -15,6 +15,7 @@ import { getRedis } from "../../infra/redis.ts";
 import { LinkFlags } from "../../models/link.ts";
 import { alpha2ByName } from "../../models/compliance-countries.ts";
 import { selectRows } from "../../models/sql.ts";
+import type { Arrival } from "./arrivals.ts";
 import DATA from "./checkout-data.generated.json" with { type: "json" };
 
 const MONEY_SITE_KEY = "RECAPTCHA_MONEY_SITE_KEY";
@@ -146,7 +147,19 @@ export function savedCardProps(card: CreditCardRow) {
 }
 
 // CheckoutPresenter#checkout_props. `remoteIp` is request.remote_ip.
-export async function checkoutProps({ user, remoteIp, protocol, discoverDomain }: { user: User | null; remoteIp: string | null; protocol: string; discoverDomain: string }) {
+export async function checkoutProps({
+  user,
+  remoteIp,
+  protocol,
+  discoverDomain,
+  arrival = { clear_cart: false, add_products: [] },
+}: {
+  user: User | null;
+  remoteIp: string | null;
+  protocol: string;
+  discoverDomain: string;
+  arrival?: Arrival;
+}) {
   const geo = geoIpLookup(remoteIp);
   const detectedCountry = geo?.countryName ?? null;
   const country = user?.country ?? detectedCountry;
@@ -167,9 +180,9 @@ export async function checkoutProps({ user, remoteIp, protocol, discoverDomain }
     state: user?.state ?? detectedState,
     address: user ? { street: user.street_address, zip: user.zip_code, city: user.city } : null,
     saved_credit_card: await savedCard(user),
-    gift: null,
-    clear_cart: false,
-    add_products: [],
+    gift: arrival.gift ?? null,
+    clear_cart: arrival.clear_cart,
+    add_products: arrival.add_products,
     max_allowed_cart_products: DATA.maxAllowedCartProducts,
     cart_save_debounce_ms: DATA.cartSaveDebounceMs,
     tip_options: await tipOptions(),
