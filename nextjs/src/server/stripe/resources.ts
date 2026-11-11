@@ -6,7 +6,12 @@ import type Stripe from "stripe";
 import { type RequestOptions, stripeClient } from "./client.ts";
 import { cgiEscape, type StripeParams } from "./encode.ts";
 
-async function call<T>(method: "get" | "post" | "delete", path: string, params: StripeParams, opts: RequestOptions): Promise<T> {
+async function call<T>(
+  method: "get" | "post" | "delete",
+  path: string,
+  params: StripeParams,
+  opts: RequestOptions,
+): Promise<T> {
   const client = opts.client ?? stripeClient();
   const response = await client.request(method, path, params, opts);
   return response.data as T;
@@ -37,7 +42,9 @@ function escapeId(id: string | null | undefined): string {
 export const Account = {
   // A nil id retrieves the platform's own account (`/v1/account`).
   retrieve: (id: IdOrParams | null | undefined, opts: RequestOptions = {}) =>
-    id == null ? call<Stripe.Account>("get", "/v1/account", {}, opts) : retrieve<Stripe.Account>("/v1/accounts")(id, opts),
+    id == null
+      ? call<Stripe.Account>("get", "/v1/account", {}, opts)
+      : retrieve<Stripe.Account>("/v1/accounts")(id, opts),
   update: (id: string | null | undefined, params: StripeParams = {}, opts: RequestOptions = {}) =>
     call<Stripe.Account>("post", `/v1/accounts/${escapeId(id)}`, params, opts),
 };
@@ -52,21 +59,42 @@ export const Balance = {
 };
 
 export const Transfer = {
-  create: (params: StripeParams, opts: RequestOptions = {}) => call<Stripe.Transfer>("post", "/v1/transfers", params, opts),
+  create: (params: StripeParams, opts: RequestOptions = {}) =>
+    call<Stripe.Transfer>("post", "/v1/transfers", params, opts),
   retrieve: retrieve<Stripe.Transfer>("/v1/transfers"),
-  list: (filters: StripeParams = {}, opts: RequestOptions = {}) => call<Stripe.ApiList<Stripe.Transfer>>("get", "/v1/transfers", filters, opts),
+  list: (filters: StripeParams = {}, opts: RequestOptions = {}) =>
+    call<Stripe.ApiList<Stripe.Transfer>>("get", "/v1/transfers", filters, opts),
   createReversal: (id: string, params: StripeParams = {}, opts: RequestOptions = {}) =>
     call<Stripe.TransferReversal>("post", `/v1/transfers/${cgiEscape(id)}/reversals`, params, opts),
 };
 
 export const PaymentMethodDomain = {
-  create: (params: StripeParams, opts: RequestOptions = {}) => call<Stripe.PaymentMethodDomain>("post", "/v1/payment_method_domains", params, opts),
+  create: (params: StripeParams, opts: RequestOptions = {}) =>
+    call<Stripe.PaymentMethodDomain>("post", "/v1/payment_method_domains", params, opts),
   validate: (id: string, params: StripeParams = {}, opts: RequestOptions = {}) =>
     call<Stripe.PaymentMethodDomain>("post", `/v1/payment_method_domains/${cgiEscape(id)}/validate`, params, opts),
 };
 
+// Stripe::Radar::ValueList and Stripe::Radar::ValueListItem.
+export const RadarValueList = {
+  list: (filters: StripeParams = {}, opts: RequestOptions = {}) =>
+    call<Stripe.ApiList<Stripe.Radar.ValueList>>("get", "/v1/radar/value_lists", filters, opts),
+  create: (params: StripeParams, opts: RequestOptions = {}) =>
+    call<Stripe.Radar.ValueList>("post", "/v1/radar/value_lists", params, opts),
+};
+
+export const RadarValueListItem = {
+  list: (filters: StripeParams = {}, opts: RequestOptions = {}) =>
+    call<Stripe.ApiList<Stripe.Radar.ValueListItem>>("get", "/v1/radar/value_list_items", filters, opts),
+  create: (params: StripeParams, opts: RequestOptions = {}) =>
+    call<Stripe.Radar.ValueListItem>("post", "/v1/radar/value_list_items", params, opts),
+  delete: (id: string, params: StripeParams = {}, opts: RequestOptions = {}) =>
+    call<Stripe.Radar.DeletedValueListItem>("delete", `/v1/radar/value_list_items/${cgiEscape(id)}`, params, opts),
+};
+
 export const ApplePayDomain = {
-  create: (params: StripeParams, opts: RequestOptions = {}) => call<Stripe.ApplePayDomain>("post", "/v1/apple_pay/domains", params, opts),
+  create: (params: StripeParams, opts: RequestOptions = {}) =>
+    call<Stripe.ApplePayDomain>("post", "/v1/apple_pay/domains", params, opts),
   retrieve: retrieve<Stripe.ApplePayDomain>("/v1/apple_pay/domains"),
   delete: (id: string, params: StripeParams = {}, opts: RequestOptions = {}) =>
     call<Stripe.DeletedApplePayDomain>("delete", `/v1/apple_pay/domains/${cgiEscape(id)}`, params, opts),

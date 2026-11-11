@@ -76,6 +76,7 @@ import {
   updatePurchaseHealthcheckThresholdJob,
 } from "./purchase-reads-jobs.ts";
 import { purgeOldDeletedAssetPreviewsWorker } from "./purge-old-deleted-asset-previews-worker.ts";
+import { radarAddValueListItemJob, radarRemoveValueListItemJob } from "./radar-value-list-jobs.ts";
 import { rebuildGmailAbuseFilterJob } from "./rebuild-gmail-abuse-filter-job.ts";
 import { recoverAusBacktaxFromStripeAccountJob } from "./recover-aus-backtax-from-stripe-account-job.ts";
 import { refreshClosedTierDiscoverPricesJob } from "./refresh-closed-tier-discover-prices-job.ts";
@@ -266,6 +267,8 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   RegenerateSalesRelatedProductsInfosJob: regenerateSalesRelatedProductsInfosJob,
   UpdateSalesRelatedProductsInfosJob: updateSalesRelatedProductsInfosJob,
   UpdateTaxonomyStatsJob: updateTaxonomyStatsJob,
+  "Radar::AddValueListItemJob": radarAddValueListItemJob,
+  "Radar::RemoveValueListItemJob": radarRemoveValueListItemJob,
   ExpiringCreditCardMessageWorker: expiringCreditCardMessageWorker,
   SendWishlistUpdatedEmailsJob: sendWishlistUpdatedEmailsJob,
   SendFeatureAnnouncementCampaignJob: sendFeatureAnnouncementCampaignJob,

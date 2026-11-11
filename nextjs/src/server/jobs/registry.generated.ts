@@ -1979,7 +1979,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "Radar::RemoveValueListItemJob": {
     "file": "app/sidekiq/radar/remove_value_list_item_job.rb",
@@ -1992,7 +1992,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "Radar::SyncValueListsJob": {
     "file": "app/sidekiq/radar/sync_value_lists_job.rb",
