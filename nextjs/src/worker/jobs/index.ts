@@ -28,6 +28,7 @@ import {
 } from "./delete-old-records-jobs.ts";
 import { deleteOldVersionsRecordsWorker } from "./delete-old-versions-records-worker.ts";
 import { deleteProductFilesArchivesWorker } from "./delete-product-files-archives-worker.ts";
+import { refreshClosedTierDiscoverPricesJob } from "./refresh-closed-tier-discover-prices-job.ts";
 import { deleteProductRichContentWorker } from "./delete-product-rich-content-worker.ts";
 import { deleteWishlistProductsJob } from "./delete-wishlist-products-job.ts";
 import { dispatchPendingWorkflowInstallmentScheduleIntentsJob } from "./dispatch-workflow-intents-job.ts";
@@ -246,6 +247,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   DeleteExpiredOauthDeviceAuthorizationsJob: deleteExpiredOauthDeviceAuthorizationsJob,
   FlushDeliveredEmailInfosJob: flushDeliveredEmailInfosJob,
   DeleteProductFilesArchivesWorker: deleteProductFilesArchivesWorker,
+  RefreshClosedTierDiscoverPricesJob: refreshClosedTierDiscoverPricesJob,
   DeleteProductRichContentWorker: deleteProductRichContentWorker,
   RemoveSuspendedAccountFollowsWorker: removeSuspendedAccountFollowsWorker,
   RefundPurchaseWorker: refundPurchaseWorker,

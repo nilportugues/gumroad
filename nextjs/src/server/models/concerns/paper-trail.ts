@@ -6,7 +6,7 @@
 //
 // Callbacks registered, as ModelConfig#setup does for the default `on: [:create, :update, :destroy, :touch]`:
 //   after_create → record_create, after_update → record_update, before_destroy → record_destroy.
-// The runtime has no `touch`, so on_touch is not ported.
+// plus `after_touch → record_update(is_touch: true)`, whose version has an `object` and no `object_changes`.
 import { AsyncLocalStorage } from "node:async_hooks";
 
 import { Prisma } from "@prisma/client";
@@ -223,7 +223,7 @@ function notable(changed: string[], record: ModelRecord, config: Resolved) {
 // Builds the `versions` row PaperTrail would insert, or null when an update is not notable.
 // Create and update run in after_* callbacks and read saved_changes; destroy runs before_destroy
 // and reads the database values.
-export function buildVersion(event: VersionEvent, record: ModelRecord, config: Resolved, now: Date): VersionRow | null {
+export function buildVersion(event: VersionEvent, record: ModelRecord, config: Resolved, now: Date, isTouch = false): VersionRow | null {
   const request = currentRequest();
   const eventName = (record.ivars.paper_trail_event as string | undefined) ?? event;
   let object: string | null = null;
@@ -250,9 +250,13 @@ export function buildVersion(event: VersionEvent, record: ModelRecord, config: R
       record,
       config,
     );
-    if (event === "update" && !changedNotably) return null;
+    // A touch with no saved changes is always notable (Events::Update#changed_notably?).
+    if (event === "update" && !changedNotably && !(isTouch && saved.length === 0)) return null;
     const changes = saved.filter(([k]) => notablyChanged.includes(k));
-    if (event === "update") {
+    if (event === "update" && isTouch) {
+      // Touch applies its change before the callback, so the record's own values are the "before".
+      object = encodeObject(record, config, (k) => record.attributeInDatabase(k));
+    } else if (event === "update") {
       object = encodeObject(record, config, (k) => record.attributeBeforeLastSave(k));
       objectChanges = encodeChanges(changes, config);
     } else if (changedNotably) {
@@ -283,6 +287,7 @@ export function buildVersion(event: VersionEvent, record: ModelRecord, config: R
 export type PaperTrailCallbacks<R extends Row> = {
   afterCreate: Callback<R>[];
   afterUpdate: Callback<R>[];
+  afterTouch: Callback<R>[];
   beforeDestroy: Callback<R>[];
 };
 
@@ -299,10 +304,10 @@ export function hasPaperTrail<R extends Row>(prismaModel: Prisma.ModelName, opti
       columnTypes: options.columnTypes ?? columnTypesFromPrisma(prismaModel),
     });
 
-  const record = (event: VersionEvent) => async (r: ModelRecord<R>, { tx }: CallbackContext) => {
+  const record = (event: VersionEvent, isTouch = false) => async (r: ModelRecord<R>, { tx }: CallbackContext) => {
     if (!enabledFor(options.itemType)) return;
     if (event === "destroy" && r.newRecord) return;
-    const data = buildVersion(event, r as unknown as ModelRecord, config(), new Date());
+    const data = buildVersion(event, r as unknown as ModelRecord, config(), new Date(), isTouch);
     if (!data) return;
     try {
       await tx.version.create({ data: data as Prisma.VersionUncheckedCreateInput });
@@ -316,6 +321,7 @@ export function hasPaperTrail<R extends Row>(prismaModel: Prisma.ModelName, opti
   return {
     afterCreate: [{ name: "paper_trail.record_create", run: record("create") }],
     afterUpdate: [{ name: "paper_trail.record_update", run: record("update") }],
+    afterTouch: [{ name: "paper_trail.record_update (touch)", run: record("update", true) }],
     beforeDestroy: [{ name: "paper_trail.record_destroy", run: record("destroy") }],
   };
 }

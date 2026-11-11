@@ -2216,7 +2216,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RefreshCustomDomainRoutabilityWorker": {
     "file": "app/sidekiq/refresh_custom_domain_routability_worker.rb",

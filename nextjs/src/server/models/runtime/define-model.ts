@@ -50,6 +50,7 @@ export type ModelDefinition<R extends Row> = {
   afterCreate?: Callback<R>[];
   afterUpdate?: Callback<R>[];
   afterSave?: Callback<R>[];
+  afterTouch?: Callback<R>[];
   beforeDestroy?: Callback<R>[];
   afterDestroy?: Callback<R>[];
   // before_commit
@@ -242,6 +243,32 @@ export function defineModel<R extends Row>(def: ModelDefinition<R>) {
     );
   }
 
+  // Persistence#touch with no names: updated_at alone is written, the change is applied at once (Dirty#_touch_row) and
+  // after_touch runs inside the transaction. A touch that would set other pending changes aside is not ported.
+  async function touch(record: ModelRecord<R>, options: { now?: () => Date } = {}): Promise<boolean> {
+    if (!record.persisted) throw new Error(`cannot touch on a new or destroyed record object`);
+    const now = options.now ?? (() => new Date());
+    const columns = getFields().filter((f) => UPDATE_TIMESTAMP_COLUMNS.includes(f.name));
+    if (columns.length === 0) return true;
+    return transaction(
+      async (tx) => {
+        const p = participant(record, "update");
+        const current = now();
+        for (const f of columns) record.set(f.name, timestampFor(current, f.datetimePrecision) as R[keyof R & string]);
+        const touched = columns.map((f) => f.name);
+        if (record.changedAttributeNames().some((name) => !touched.includes(name))) {
+          throw new Error(`touch with pending changes to ${def.rubyClass} is not ported`);
+        }
+        await def.delegate(tx).update({ where: { id: record.get("id") }, data: writableAttributes(record, touched) });
+        record.changesApplied();
+        p.triggered = true;
+        await runChain(def.afterTouch, record, "update", { tx, now });
+        return true;
+      },
+      { returningStatus: true },
+    );
+  }
+
   async function saveBang(record: ModelRecord<R>, options: SaveOptions = {}): Promise<ModelRecord<R>> {
     if (await save(record, options)) return record;
     if (!record.errors.isEmpty()) throw new RecordInvalid(record.errors);
@@ -315,6 +342,7 @@ export function defineModel<R extends Row>(def: ModelDefinition<R>) {
     // `valid?` outside a save still runs inside a transaction so uniqueness checks see a client.
     valid: (record: ModelRecord<R>) => transaction((tx) => valid(record, { tx })),
     save,
+    touch,
     saveBang,
     async create(attributes: Partial<R>, options?: SaveOptions) {
       const record = build(attributes);

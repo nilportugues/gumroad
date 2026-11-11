@@ -816,6 +816,7 @@ export const Links = defineModel<Link>({
       },
     },
   ],
+  afterTouch: [...paperTrail.afterTouch],
   afterUpdate: [
     ...paperTrail.afterUpdate,
     {
