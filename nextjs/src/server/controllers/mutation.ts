@@ -39,6 +39,8 @@ export type MutationInput = {
   params: Params;
   // request.raw_post.
   rawBody: Uint8Array;
+  // The path and query as the proxy forwarded them, before `new URL` resolved dot segments (Rails sees `a/../b` as it was sent).
+  rawTarget?: string;
 };
 
 export type MutationSpec = {
@@ -78,6 +80,11 @@ function matchPattern(pattern: string, path: string): Record<string, string> | n
       if (constrained) {
         names.push(constrained[1]!);
         return `(${constrained[2]})${constrained[3]!.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}`;
+      }
+      // `*path`: the rest of the path, as a Rails glob captures it.
+      if (segment.startsWith("*")) {
+        names.push(segment.slice(1));
+        return "(.+)";
       }
       if (!segment.startsWith(":")) return segment.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
       names.push(segment.slice(1));
@@ -160,7 +167,7 @@ export async function mutationResponse(incoming: Request): Promise<Response> {
         whodunnit: user === null ? null : String(user.id),
         controllerInfo: { remote_ip: remoteIp(railsReq), request_path: railsReq.path, request_uuid: railsReq.headers.get("x-request-id") ?? randomUUID() },
       };
-      return await withPaperTrailRequest(paperTrail, () => candidate.run({ request: railsReq, context, peekState, chain, url: actionUrl, urlOptions: defaultUrlOptions(actionUrl, config), routeParams: routeParams!, params, rawBody: bytes }));
+      return await withPaperTrailRequest(paperTrail, () => candidate.run({ request: railsReq, context, peekState, chain, url: actionUrl, urlOptions: defaultUrlOptions(actionUrl, config), routeParams: routeParams!, params, rawBody: bytes, rawTarget: target }));
     } catch (error) {
       // A NotPortedError is thrown before the first write of its transaction, so Rails can take the request whole.
       if (error instanceof NotPortedError || error instanceof PageNotPortedError) {
