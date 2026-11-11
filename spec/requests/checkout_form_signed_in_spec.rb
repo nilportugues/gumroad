@@ -299,15 +299,29 @@ describe "Checkout form settings when signed in", type: :request do
       expect(inertia_props_of(response)["cart_item"]["product"]["bundle_products"].map { _1["name"] }).to eq(["Bundle Product 1", "Bundle Product 2"])
     end
 
-    it "hands a seller whose newest products share a creation time to Rails", parity: true do
+    it "previews whichever of two products created in the same second the database lists first", parity: true do
       create(:product, user: seller, name: "One", created_at: Time.utc(2025, 1, 2))
       create(:product, user: seller, name: "Two", created_at: Time.utc(2025, 1, 2))
       log_in(seller)
 
       get checkout_form_path
 
-      expect(response).to be_successful
+      props = inertia_props_of(response)
+      expect(props["cart_item"]["product"]["name"]).to eq(props["products"].first["name"])
     end
+
+    it "lists three products created in the same second, and the older one after them", parity: true do
+      create(:product, user: seller, name: "Old", created_at: Time.utc(2025, 1, 1))
+      %w[Gamma Alpha Beta].each { create(:product, user: seller, name: _1, created_at: Time.utc(2025, 1, 2)) }
+      log_in(seller)
+
+      get checkout_form_path
+
+      props = inertia_props_of(response)
+      expect(props["products"].last["name"]).to eq("Old")
+      expect(props["cart_item"]["product"]["name"]).to eq(props["products"].first["name"])
+    end
+
 
     it "hands a seller with a connected PayPal account to Rails", parity: true do
       create(:merchant_account_paypal, user: seller)

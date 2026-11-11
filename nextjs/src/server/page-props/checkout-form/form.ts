@@ -120,12 +120,11 @@ function legalEntityCode(info: ComplianceInfoRow): string | null {
 // The seller's products, newest first, and the cart item and card Rails builds from the newest one.
 async function checkoutPreview(seller: User) {
   // `seller.products.visible.order(created_at: :desc)`
-  const products = await selectRows<{ id: bigint; name: string | null; flags: bigint | number; created_at: Date }>(
-    Prisma.sql`SELECT ${column("links", "id")}, ${column("links", "name")}, ${column("links", "flags")}, ${column("links", "created_at")} FROM ${table("links")} WHERE ${column("links", "user_id")} = ${seller.id} AND ${column("links", "deleted_at")} IS NULL ORDER BY ${column("links", "created_at")} DESC`,
+  const products = await selectRows<{ id: bigint; name: string | null; flags: bigint | number }>(
+    Prisma.sql`SELECT ${table("links")}.* FROM ${table("links")} WHERE ${column("links", "user_id")} = ${seller.id} AND ${column("links", "deleted_at")} IS NULL ORDER BY ${column("links", "created_at")} DESC`,
   );
-  // Rows created in the same second have no defined order, and the first one is the checkout preview.
-  if (products.length > 1 && String(products[0]!.created_at) === String(products[1]!.created_at))
-    throw new NotPortedError("Checkout::FormPresenter#form_props with two newest products created at the same time");
+  // Products created in the same second have no ORDER BY tie-break, so the first one (the preview) is whichever MySQL returns. Selecting
+  // `links.*` with Rails' exact statement leaves it the same plan, hence the same order, over the same rows.
   const newest = products[0] === undefined ? null : await findLink(products[0].id);
   return {
     products,
