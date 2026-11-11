@@ -475,6 +475,24 @@ describe "Checkout upsells when signed in", type: :request do
         expect(response.parsed_body["product"]["require_shipping"]).to eq(true)
       end
 
+      it "answers a buy-and-rent product at its buy price with the rental price beside it", parity: true do
+        product.update!(purchase_type: :buy_and_rent, rental_price_cents: 300)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body).to include("price" => 1000, "rent" => false)
+        expect(response.parsed_body["product"]["rental"]).to eq("price_cents" => 300, "rent_only" => false)
+      end
+
+      it "answers a rent-only product at its rental price", parity: true do
+        product.update!(purchase_type: :rent_only, rental_price_cents: 300)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body).to include("price" => 300, "rent" => false)
+        expect(response.parsed_body["product"]).to include("price_cents" => 300, "rental" => { "price_cents" => 300, "rent_only" => true })
+      end
+
       it "answers not found for another seller's product", parity: true do
         get cart_item_checkout_upsells_path(product_id: create(:product).external_id), headers: accept_json
 

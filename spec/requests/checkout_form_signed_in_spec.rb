@@ -220,6 +220,15 @@ describe "Checkout form settings when signed in", type: :request do
       expect(cart_item).to include("price" => 300, "recurrence" => "monthly")
     end
 
+    it "previews a rental product", parity: true do
+      create(:product, user: seller, name: "Film", price_cents: 1500, purchase_type: :buy_and_rent, rental_price_cents: 400, created_at: Time.utc(2025, 1, 2))
+      log_in(seller)
+
+      get checkout_form_path
+
+      expect(inertia_props_of(response)["cart_item"]["product"]["rental"]).to eq("price_cents" => 400, "rent_only" => false)
+    end
+
     it "previews a legacy subscription", parity: true do
       create(:subscription_product, user: seller, name: "Legacy", price_cents: 700, created_at: Time.utc(2025, 1, 2))
       log_in(seller)

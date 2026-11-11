@@ -2,8 +2,8 @@
 // buyer: Checkout::FormPresenter#form_props and Checkout::UpsellsController#cart_item (`logged_in_user: nil, ip: nil`, empty params).
 //
 // What Rails derives from the Stripe/PayPal lanes, a signed URL, a random token or a variant of the product this port does not read
-// throws NotPortedError, so the caller hands the request back before anything is sent: memberships (tier prices, restart token),
-// rentals, physical products (shippable countries), PPP, a seller with a merchant account, an uploaded thumbnail or avatar, and a
+// throws NotPortedError, so the caller hands the request back before anything is sent: the restart token of a membership,
+// physical products (shippable countries), PPP, a seller with a merchant account, an uploaded thumbnail or avatar, and a
 // seller on buyer-local currency.
 import { Prisma, type User } from "@prisma/client";
 
@@ -53,7 +53,6 @@ import { buyerCurrencyDisplayProps, longUrl, subdomainWithProtocol } from "./pro
 // PaypalMerchantAccountManager::COUNTRY_CODES_NOT_SUPPORTED_BY_PCP
 const PCP_UNSUPPORTED_COUNTRY_CODES = ["DZ", "BR", "CN", "EG", "IN", "IL", "JP", "FM", "MA", "TR"];
 const NATIVE_TYPE_COFFEE = "coffee";
-const BUY_ONLY = 0;
 const RENTAL_PRICE_FLAG = 1;
 const decryptId = (external: string) => BigInt(decrypt(external)!);
 
@@ -340,8 +339,6 @@ async function crossSellProps(row: LinkRow, selectedOptionName: string | null): 
 export async function checkoutProduct(row: LinkRow, request: CheckoutRequest = {}) {
   const { cartParams = {}, includeCrossSells = true } = request;
   const seller = (await findUserById(row.user_id!))!;
-  if (row.purchase_type !== BUY_ONLY && row.purchase_type !== null)
-    throw new NotPortedError("Link#cart_item for a rental product");
   if (flag(row, "is_physical")) throw new NotPortedError("Link#shippable_country_codes for a physical product");
   if (await pppEnabled(row, seller)) throw new NotPortedError("Link#cart_item with purchasing power parity on");
 
