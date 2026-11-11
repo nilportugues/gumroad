@@ -11,14 +11,21 @@ import { type Comment, Prisma } from "@prisma/client";
 
 import { deliverLater } from "../mail/active-job.ts";
 import { mailRoute } from "../mail/delivery.ts";
-import { currentJobsRuntime } from "./concerns/job-runtime.ts";
-import { hasPaperTrail } from "./concerns/paper-trail.ts";
+
 import { isAdult } from "./concerns/adult-keyword-detector.ts";
 import { deletable } from "./concerns/deletable.ts";
+import { currentJobsRuntime } from "./concerns/job-runtime.ts";
+import { hasPaperTrail } from "./concerns/paper-trail.ts";
 import { loadBelongsTo } from "./concerns/rails-validations.ts";
 import { defineModel, type Callback, type CallbackContext } from "./runtime/define-model.ts";
 import type { ModelRecord } from "./runtime/record.ts";
-import { isBlank, validatesFormatOf, validatesLengthOf, validatesNumericalityOf, validatesPresenceOf } from "./runtime/validators.ts";
+import {
+  isBlank,
+  validatesFormatOf,
+  validatesLengthOf,
+  validatesNumericalityOf,
+  validatesPresenceOf,
+} from "./runtime/validators.ts";
 import { column, selectRows, table } from "./sql.ts";
 import { NotPortedError, UserFlags } from "./user.ts";
 
@@ -59,7 +66,12 @@ export const CONTENT_MODERATION_AUTHOR_NAME = "ContentModeration";
 export const CONTENT_MODERATION_ADMIN_COMMENT_DEDUP_WINDOW = { minutes: 5 } as const;
 
 // The tables `commentable_object_exists` checks; any other commentable_type fails without a query.
-const COMMENTABLE_TABLES: Record<string, string> = { Installment: "installments", Link: "links", Purchase: "purchases", User: "users" };
+const COMMENTABLE_TABLES: Record<string, string> = {
+  Installment: "installments",
+  Link: "links",
+  Purchase: "purchases",
+  User: "users",
+};
 
 // Ancestry.default_primary_key_format is "[0-9]+", joined by the "/" delimiter.
 const ANCESTRY_FORMAT = /^[0-9]+(?:\/[0-9]+)*$/u;
@@ -90,19 +102,36 @@ const RUBY_STRIP_TRAILING = /[\0\t\n\v\f\r ]+$/u;
 const THREE_OR_MORE_LINEBREAKS = /(?:(?=(\r\n|[\n\v\f\r\u0085\u2028\u2029]))\1){3,}/gu;
 
 export function normalizeContent(text: string): string {
-  return text.replace(RUBY_STRIP_LEADING, "").replace(RUBY_STRIP_TRAILING, "").replace(THREE_OR_MORE_LINEBREAKS, "$1$1");
+  return text
+    .replace(RUBY_STRIP_LEADING, "")
+    .replace(RUBY_STRIP_TRAILING, "")
+    .replace(THREE_OR_MORE_LINEBREAKS, "$1$1");
 }
 
 const contentChanged = (record: CommentRecord) => record.attributeChanged("content");
 
 function refuseUnported(record: CommentRecord): void {
   if (record.persisted && record.untracked(() => record.attributeChanged("ancestry")))
-    throw new NotPortedError("Moving a comment (ancestry's update_descendants_with_new_ancestry)", "ancestry 4.3.3 instance_methods.rb:9");
+    throw new NotPortedError(
+      "Moving a comment (ancestry's update_descendants_with_new_ancestry)",
+      "ancestry 4.3.3 instance_methods.rb:9",
+    );
   if (record.persisted && record.untracked(() => record.attributeChanged("json_data")))
-    throw new NotPortedError("Writing json_data on a stored comment (JsonData#merge_json_data_with_current_row)", "app/models/concerns/json_data.rb");
+    throw new NotPortedError(
+      "Writing json_data on a stored comment (JsonData#merge_json_data_with_current_row)",
+      "app/models/concerns/json_data.rb",
+    );
   // Only a post answers `seller` the way notify_seller_of_new_comment reads it.
-  if (record.newRecord && record.get("comment_type") === COMMENT_TYPES.USER_SUBMITTED && isRoot(record) && record.get("commentable_type") !== "Installment")
-    throw new NotPortedError("notify_seller_of_new_comment for a non-post commentable", "app/models/comment.rb:102 notify_seller_of_new_comment");
+  if (
+    record.newRecord &&
+    record.get("comment_type") === COMMENT_TYPES.USER_SUBMITTED &&
+    isRoot(record) &&
+    record.get("commentable_type") !== "Installment"
+  )
+    throw new NotPortedError(
+      "notify_seller_of_new_comment for a non-post commentable",
+      "app/models/comment.rb:102 notify_seller_of_new_comment",
+    );
 }
 
 // Ancestry#cache_depth, a before_validation and again a before_save.
@@ -121,7 +150,9 @@ async function commentableObjectExists(record: CommentRecord, ctx: CallbackConte
   // `Model.exists?(nil)` is false without a query.
   let exists = false;
   if (target && id != null) {
-    const rows = await ctx.tx.$queryRaw<unknown[]>(Prisma.sql`SELECT 1 AS one FROM ${table(target)} WHERE ${column(target, "id")} = ${id} LIMIT 1`);
+    const rows = await ctx.tx.$queryRaw<unknown[]>(
+      Prisma.sql`SELECT 1 AS one FROM ${table(target)} WHERE ${column(target, "id")} = ${id} LIMIT 1`,
+    );
     exists = rows.length > 0;
   }
   if (!exists) record.errors.add("base", "object to annotate does not exist");
@@ -147,7 +178,11 @@ export const commentMailer = {
 // The belongs_to readers outside the transaction; a nil association raises NoMethodError in Ruby.
 async function findOne(tableName: string, id: unknown, method: string): Promise<Record<string, unknown>> {
   const [row] =
-    id == null ? [] : await selectRows<Record<string, unknown>>(Prisma.sql`SELECT ${Prisma.raw(`\`${tableName}\`.*`)} FROM ${table(tableName)} WHERE ${column(tableName, "id")} = ${id} LIMIT 1`);
+    id == null
+      ? []
+      : await selectRows<Record<string, unknown>>(
+          Prisma.sql`SELECT ${Prisma.raw(`\`${tableName}\`.*`)} FROM ${table(tableName)} WHERE ${column(tableName, "id")} = ${id} LIMIT 1`,
+        );
   if (!row) throw new TypeError(`undefined method '${method}' for nil`);
   return row;
 }
@@ -178,7 +213,8 @@ export const Comments = defineModel<Comment>({
     {
       name: "ancestry_exclude_self",
       run(record) {
-        if (record.get("id") != null && ancestorIds(record).includes(Number(record.get("id")))) record.errors.add("base", "Comment cannot be a descendant of itself.");
+        if (record.get("id") != null && ancestorIds(record).includes(Number(record.get("id"))))
+          record.errors.add("base", "Comment cannot be a descendant of itself.");
       },
     },
     validatesNumericalityOf<Comment>(["ancestry_depth"], { greater_than_or_equal_to: 0, only_integer: true }),
@@ -190,7 +226,8 @@ export const Comments = defineModel<Comment>({
       on: "create",
       run(record) {
         const value = depth(record);
-        if (value > MAX_ALLOWED_DEPTH) record.errors.add("depth", "less_than_or_equal_to", { count: MAX_ALLOWED_DEPTH, value });
+        if (value > MAX_ALLOWED_DEPTH)
+          record.errors.add("depth", "less_than_or_equal_to", { count: MAX_ALLOWED_DEPTH, value });
       },
     },
     { name: "commentable_object_exists", on: "create", run: commentableObjectExists },
@@ -198,7 +235,8 @@ export const Comments = defineModel<Comment>({
     {
       name: "author_name_or_author_id_is_present",
       run(record) {
-        if (isBlank(record.get("author_name")) && isBlank(record.get("author_id"))) record.errors.add("base", "author_name or author_id must be present");
+        if (isBlank(record.get("author_name")) && isBlank(record.get("author_id")))
+          record.errors.add("base", "author_name or author_id must be present");
       },
     },
   ],
@@ -228,7 +266,10 @@ export const Comments = defineModel<Comment>({
     {
       name: "apply_orphan_strategy",
       run() {
-        throw new NotPortedError("Comment#destroy (ancestry's orphan strategy :destroy)", "ancestry 4.3.3 instance_methods.rb:24");
+        throw new NotPortedError(
+          "Comment#destroy (ancestry's orphan strategy :destroy)",
+          "ancestry 4.3.3 instance_methods.rb:24",
+        );
       },
     },
     ...paperTrail.beforeDestroy,

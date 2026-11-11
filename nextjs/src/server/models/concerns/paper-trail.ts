@@ -13,6 +13,7 @@ import { Prisma } from "@prisma/client";
 
 import type { Callback, CallbackContext } from "../runtime/define-model.ts";
 import type { ModelRecord, Row } from "../runtime/record.ts";
+
 import { RubyHash } from "./psych.ts";
 import { jsonFloatToS } from "./ruby-json-float.ts";
 import { floatValue, isRubyFloat, RubyFloat, RubySymbol } from "./ruby-values.ts";
@@ -131,7 +132,10 @@ export function activeSupportJsonEncode(value: unknown, options: { escape?: bool
   if (value instanceof Date) return encodeTime(value);
   if (Prisma.Decimal.isDecimal(value)) return encodeDecimal(value);
   if (Array.isArray(value)) return `[${value.map(encode).join(",")}]`;
-  const entries = value instanceof RubyHash ? value.entries.map(([k, v]) => [hashKey(k), v] as const) : Object.entries(value as object);
+  const entries =
+    value instanceof RubyHash
+      ? value.entries.map(([k, v]) => [hashKey(k), v] as const)
+      : Object.entries(value as object);
   return `{${entries.map(([k, v]) => `${encodeString(k, escape)}:${encode(v)}`).join(",")}}`;
 }
 
@@ -156,7 +160,9 @@ function encodeAttribute(type: ColumnType | undefined, value: unknown): string {
     case "datetime":
       return value instanceof Date ? encodeTime(value) : activeSupportJsonEncode(value);
     case "float":
-      return typeof value === "number" || value instanceof RubyFloat ? encodeFloat(floatValue(value)) : activeSupportJsonEncode(value);
+      return typeof value === "number" || value instanceof RubyFloat
+        ? encodeFloat(floatValue(value))
+        : activeSupportJsonEncode(value);
     case "decimal":
       return encodeDecimal(value);
     default:
@@ -206,7 +212,10 @@ function encodeObject(record: ModelRecord, config: Resolved, valueOf: (name: str
 
 function encodeChanges(changes: [string, [unknown, unknown]][], config: Resolved): string {
   return `{${changes
-    .map(([k, [a, b]]) => `${encodeString(k)}:[${encodeAttribute(config.columnTypes[k], a)},${encodeAttribute(config.columnTypes[k], b)}]`)
+    .map(
+      ([k, [a, b]]) =>
+        `${encodeString(k)}:[${encodeAttribute(config.columnTypes[k], a)},${encodeAttribute(config.columnTypes[k], b)}]`,
+    )
     .join(",")}}`;
 }
 
@@ -216,14 +225,22 @@ function notable(changed: string[], record: ModelRecord, config: Resolved) {
   const notablyChanged = config.only.length === 0 ? cani : cani.filter((k) => config.only.includes(k));
   const ignoredChanged = changed.some((k) => config.ignore.includes(k) || config.skip.includes(k));
   const timestamps = UPDATE_TIMESTAMPS.filter((k) => k in record.attributes);
-  const changedNotably = ignoredChanged ? notablyChanged.some((k) => !timestamps.includes(k)) : notablyChanged.length > 0;
+  const changedNotably = ignoredChanged
+    ? notablyChanged.some((k) => !timestamps.includes(k))
+    : notablyChanged.length > 0;
   return { notablyChanged, changedNotably };
 }
 
 // Builds the `versions` row PaperTrail would insert, or null when an update is not notable.
 // Create and update run in after_* callbacks and read saved_changes; destroy runs before_destroy
 // and reads the database values.
-export function buildVersion(event: VersionEvent, record: ModelRecord, config: Resolved, now: Date, isTouch = false): VersionRow | null {
+export function buildVersion(
+  event: VersionEvent,
+  record: ModelRecord,
+  config: Resolved,
+  now: Date,
+  isTouch = false,
+): VersionRow | null {
   const request = currentRequest();
   const eventName = (record.ivars.paper_trail_event as string | undefined) ?? event;
   let object: string | null = null;
@@ -293,7 +310,10 @@ export type PaperTrailCallbacks<R extends Row> = {
 
 // Spread these first into the model definition: has_paper_trail is declared at the top of every
 // versioned model, so its callbacks run before the model's own.
-export function hasPaperTrail<R extends Row>(prismaModel: Prisma.ModelName, options: PaperTrailOptions): PaperTrailCallbacks<R> {
+export function hasPaperTrail<R extends Row>(
+  prismaModel: Prisma.ModelName,
+  options: PaperTrailOptions,
+): PaperTrailCallbacks<R> {
   let resolved: Resolved | null = null;
   const config = () =>
     (resolved ??= {
@@ -304,19 +324,21 @@ export function hasPaperTrail<R extends Row>(prismaModel: Prisma.ModelName, opti
       columnTypes: options.columnTypes ?? columnTypesFromPrisma(prismaModel),
     });
 
-  const record = (event: VersionEvent, isTouch = false) => async (r: ModelRecord<R>, { tx }: CallbackContext) => {
-    if (!enabledFor(options.itemType)) return;
-    if (event === "destroy" && r.newRecord) return;
-    const data = buildVersion(event, r as unknown as ModelRecord, config(), new Date(), isTouch);
-    if (!data) return;
-    try {
-      await tx.version.create({ data: data as Prisma.VersionUncheckedCreateInput });
-    } catch (error) {
-      // version_error_behavior :legacy raises on create and only logs on update and destroy.
-      if (event === "create") throw error;
-      console.error(`PaperTrail ${event} version for ${options.itemType} could not be saved`, error);
-    }
-  };
+  const record =
+    (event: VersionEvent, isTouch = false) =>
+    async (r: ModelRecord<R>, { tx }: CallbackContext) => {
+      if (!enabledFor(options.itemType)) return;
+      if (event === "destroy" && r.newRecord) return;
+      const data = buildVersion(event, r as unknown as ModelRecord, config(), new Date(), isTouch);
+      if (!data) return;
+      try {
+        await tx.version.create({ data: data as Prisma.VersionUncheckedCreateInput });
+      } catch (error) {
+        // version_error_behavior :legacy raises on create and only logs on update and destroy.
+        if (event === "create") throw error;
+        console.error(`PaperTrail ${event} version for ${options.itemType} could not be saved`, error);
+      }
+    };
 
   return {
     afterCreate: [{ name: "paper_trail.record_create", run: record("create") }],

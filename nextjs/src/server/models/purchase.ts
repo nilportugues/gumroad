@@ -4,13 +4,18 @@
 // WS-34's search document (search/documents/purchase.ts) has its own reads of the same table.
 import { Prisma, type Purchase } from "@prisma/client";
 
+import { PurchaseFlags } from "../search/flags.ts";
+
 import { ago, truncateToSeconds } from "./concerns/ruby-time.ts";
 import { RecordNotFound } from "./runtime/errors.ts";
 import { uncached } from "./runtime/query-cache.ts";
 import { castRow, column, selectRows, table } from "./sql.ts";
-import { PurchaseFlags } from "../search/flags.ts";
+import {
+  URL_REDIRECTS,
+  TIME_TO_WATCH_RENTED_PRODUCT_AFTER_FIRST_PLAY,
+  TIME_TO_WATCH_RENTED_PRODUCT_AFTER_PURCHASE,
+} from "./url-redirect.ts";
 import { NotPortedError } from "./user.ts";
-import { URL_REDIRECTS, TIME_TO_WATCH_RENTED_PRODUCT_AFTER_FIRST_PLAY, TIME_TO_WATCH_RENTED_PRODUCT_AFTER_PURCHASE } from "./url-redirect.ts";
 
 export const PURCHASES = "purchases";
 // ActiveRecord::Batches::DEFAULT_BATCH_SIZE
@@ -92,10 +97,15 @@ export async function inProgressCreatedBetween(range: { begin: Date; end: Date }
 // CreateMissingPurchaseEventsWorker's relation, walked the way `find_each` does: successful purchases
 // created on `day` (a `YYYY-MM-DD` string; Date#to_s) and not preorders, with no events row. `each`
 // creates the missing event, so the next batch is keyed on the last id rather than re-read from the start.
-export async function successfulWithoutEventsEach(day: string, nextDay: string, each: (purchase: Purchase) => Promise<void>): Promise<void> {
+export async function successfulWithoutEventsEach(
+  day: string,
+  nextDay: string,
+  each: (purchase: Purchase) => Promise<void>,
+): Promise<void> {
   let after: bigint | number | null = null;
   for (;;) {
-    const idCondition: Prisma.Sql = after === null ? Prisma.empty : Prisma.sql` AND ${column(PURCHASES, "id")} > ${after}`;
+    const idCondition: Prisma.Sql =
+      after === null ? Prisma.empty : Prisma.sql` AND ${column(PURCHASES, "id")} > ${after}`;
     const batch: Purchase[] = await firstBatch({
       joins: Prisma.sql`LEFT OUTER JOIN ${table("events")} ON ${column("events", "purchase_id")} = ${column(PURCHASES, "id")} `,
       where: Prisma.sql`${purchaseScopes.successful()} AND (purchases.created_at >= ${day} and purchases.created_at < ${nextDay}) AND (purchases.preorder_id is null and events.id is null)${idCondition}`,
@@ -111,9 +121,11 @@ export const isRefunded = (purchase: Purchase) => purchase.stripe_refunded === t
 // Purchase#chargedback?
 export const isChargedback = (purchase: Purchase) => purchase.chargeback_date != null;
 // Purchase#chargedback_not_reversed?
-export const isChargedbackNotReversed = (purchase: Purchase) => isChargedback(purchase) && !PurchaseFlags.isSet(purchase.flags, "chargeback_reversed");
+export const isChargedbackNotReversed = (purchase: Purchase) =>
+  isChargedback(purchase) && !PurchaseFlags.isSet(purchase.flags, "chargeback_reversed");
 // Purchase#chargedback_not_reversed_or_refunded?
-export const isChargedbackNotReversedOrRefunded = (purchase: Purchase) => isChargedbackNotReversed(purchase) || isRefunded(purchase);
+export const isChargedbackNotReversedOrRefunded = (purchase: Purchase) =>
+  isChargedbackNotReversed(purchase) || isRefunded(purchase);
 
 // Purchase::Reviews::COUNTS_REVIEWS_STATES
 const COUNTS_REVIEWS_STATES = ["successful", "gift_receiver_purchase_successful", "not_charged"];

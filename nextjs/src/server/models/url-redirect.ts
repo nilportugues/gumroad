@@ -6,6 +6,7 @@ import { Prisma, type UrlRedirect } from "@prisma/client";
 
 import { defineFlags } from "../../lib/flags.ts";
 import { PurchaseFlags } from "../search/flags.ts";
+
 import { defineModel } from "./runtime/define-model.ts";
 import type { ModelRecord } from "./runtime/record.ts";
 import { validatesPresenceOf } from "./runtime/validators.ts";
@@ -69,7 +70,9 @@ export const UrlRedirects = defineModel<UrlRedirect>({
         if (token == null) return;
         const where = [Prisma.sql`${column(URL_REDIRECTS, "token")} = CAST(${token} AS BINARY)`];
         if (record.persisted) where.push(Prisma.sql`${column(URL_REDIRECTS, "id")} != ${record.get("id")}`);
-        const rows = await tx.$queryRaw<unknown[]>(Prisma.sql`SELECT 1 AS one FROM ${table(URL_REDIRECTS)} WHERE ${Prisma.join(where, " AND ")} LIMIT 1`);
+        const rows = await tx.$queryRaw<unknown[]>(
+          Prisma.sql`SELECT 1 AS one FROM ${table(URL_REDIRECTS)} WHERE ${Prisma.join(where, " AND ")} LIMIT 1`,
+        );
         if (rows.length > 0) record.errors.add("token", "taken", { value: token });
       },
     },
@@ -79,23 +82,36 @@ export const UrlRedirects = defineModel<UrlRedirect>({
 
 // Purchase#create_url_redirect! for a loaded purchase: the existing redirect, a new one, or null where
 // Ruby returns without creating one.
-export async function createUrlRedirectForPurchase(purchase: { id: bigint; link_id: bigint | null; flags: bigint | number }, options?: { now?: () => Date }): Promise<UrlRedirect | ModelRecord<UrlRedirect> | null> {
+export async function createUrlRedirectForPurchase(
+  purchase: { id: bigint; link_id: bigint | null; flags: bigint | number },
+  options?: { now?: () => Date },
+): Promise<UrlRedirect | ModelRecord<UrlRedirect> | null> {
   const existing = await findUrlRedirectForPurchase(purchase.id);
   if (existing) return existing;
-  if (PurchaseFlags.isSet(purchase.flags, "is_gift_sender_purchase") || PurchaseFlags.isSet(purchase.flags, "is_commission_completion_purchase")) return null;
+  if (
+    PurchaseFlags.isSet(purchase.flags, "is_gift_sender_purchase") ||
+    PurchaseFlags.isSet(purchase.flags, "is_commission_completion_purchase")
+  )
+    return null;
 
   // `UrlRedirect.create!(purchase: self, link:, ...)` evaluates `link` first.
-  if (purchase.link_id !== null) await selectRows(Prisma.sql`SELECT ${Prisma.raw("`links`.*")} FROM ${table("links")} WHERE ${column("links", "id")} = ${purchase.link_id} LIMIT 1`);
-  return UrlRedirects.createBang({
-    uses: 0,
-    expires_at: null,
-    purchase_id: purchase.id,
-    link_id: purchase.link_id,
-    flags: Number(UrlRedirectFlags.set(0, "is_rental", PurchaseFlags.isSet(purchase.flags, "is_rental"))),
-    installment_id: null,
-    subscription_id: null,
-    preorder_id: null,
-    imported_customer_id: null,
-    rental_first_viewed_at: null,
-  }, options);
+  if (purchase.link_id !== null)
+    await selectRows(
+      Prisma.sql`SELECT ${Prisma.raw("`links`.*")} FROM ${table("links")} WHERE ${column("links", "id")} = ${purchase.link_id} LIMIT 1`,
+    );
+  return UrlRedirects.createBang(
+    {
+      uses: 0,
+      expires_at: null,
+      purchase_id: purchase.id,
+      link_id: purchase.link_id,
+      flags: Number(UrlRedirectFlags.set(0, "is_rental", PurchaseFlags.isSet(purchase.flags, "is_rental"))),
+      installment_id: null,
+      subscription_id: null,
+      preorder_id: null,
+      imported_customer_id: null,
+      rental_first_viewed_at: null,
+    },
+    options,
+  );
 }

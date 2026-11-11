@@ -8,17 +8,42 @@
 // record, and each method sends the statements the Ruby method does, in order. Nothing here writes.
 // Golden: worker/jobs/__fixtures__/subscription-reminder-jobs.golden.json (the `price:` and
 // `missing charge:` cases); the arithmetic: offer-code-pricing-vectors.golden.json.
-import { Prisma, type BaseVariant, type BasePrice, type InstallmentPlanSnapshot, type License, type Link, type OfferCode, type ProductInstallmentPlan, type Purchase, type PurchaseOfferCodeDiscount, type Subscription, type Tip, type User } from "@prisma/client";
+import {
+  Prisma,
+  type BaseVariant,
+  type BasePrice,
+  type InstallmentPlanSnapshot,
+  type License,
+  type Link,
+  type OfferCode,
+  type ProductInstallmentPlan,
+  type Purchase,
+  type PurchaseOfferCodeDiscount,
+  type Subscription,
+  type Tip,
+  type User,
+} from "@prisma/client";
 
 import { defineFlags } from "../../lib/flags.ts";
-import LINK_DATA from "./link-data.generated.json" with { type: "json" };
-import { rubyRound, rubyToI } from "./concerns/ruby-numeric.ts";
-import { amountOff, applicableToVariants, isCents, nilReceiver, OfferCodeFlags, OfferCodeRecord, originalPrice, VariantRecord, type Amounts } from "./offer-code.ts";
 import { PurchaseFlags } from "../search/flags.ts";
-import { findById, findOneBy } from "./row-reads.ts";
-import { PURCHASES } from "./purchase.ts";
+
 import { alpha2ByName } from "./compliance-countries.ts";
+import { rubyRound, rubyToI } from "./concerns/ruby-numeric.ts";
+import LINK_DATA from "./link-data.generated.json" with { type: "json" };
+import {
+  amountOff,
+  applicableToVariants,
+  isCents,
+  nilReceiver,
+  OfferCodeFlags,
+  OfferCodeRecord,
+  originalPrice,
+  VariantRecord,
+  type Amounts,
+} from "./offer-code.ts";
+import { PURCHASES } from "./purchase.ts";
 import { getFactor } from "./purchasing-power-parity.ts";
+import { findById, findOneBy } from "./row-reads.ts";
 import { castRow, column, quoteName, selectRows, table } from "./sql.ts";
 import type { SubscriptionRecord } from "./subscription.ts";
 import { NotPortedError, UserFlags } from "./user.ts";
@@ -33,7 +58,11 @@ const star = (name: string) => Prisma.raw(`${quoteName(name)}.*`);
 const PriceFlags = defineFlags("prices", { 1: "is_rental" }, { queryMode: "bit_operator" });
 
 // The two Link flags a price reads (link.ts has the whole mapping, and the model runtime with it).
-const LinkFlags = defineFlags("links", { 19: "is_tiered_membership", 27: "purchasing_power_parity_disabled" }, { queryMode: "bit_operator" });
+const LinkFlags = defineFlags(
+  "links",
+  { 19: "is_tiered_membership", 27: "purchasing_power_parity_disabled" },
+  { queryMode: "bit_operator" },
+);
 
 const nullOperand = (method: string): never => {
   throw nilReceiver(method);
@@ -66,7 +95,8 @@ export function installmentPayments(totalPriceCents: number, numberOfInstallment
 }
 
 // `installment_payments[nth] || installment_payments.last`
-export const installmentPaymentAt = (payments: number[], nth: number): number | undefined => payments[nth] ?? payments.at(-1);
+export const installmentPaymentAt = (payments: number[], nth: number): number | undefined =>
+  payments[nth] ?? payments.at(-1);
 
 // Purchase#fetch_installment_payments_from_snapshot_or_plan, then `[nth] || last`: the instalment of
 // the nth charge, from the snapshot of the plan the buyer signed up to or, without one, the
@@ -79,7 +109,10 @@ export function installmentPaymentFor(input: {
 }): number | undefined {
   const { snapshot, plan } = input;
   if (snapshot === null && plan === null) throw nilReceiver("calculate_installment_payment_price_cents");
-  const [total, count] = snapshot !== null ? [snapshot.total_price_cents, snapshot.number_of_installments] : [input.totalPriceCents, plan!.number_of_installments];
+  const [total, count] =
+    snapshot !== null
+      ? [snapshot.total_price_cents, snapshot.number_of_installments]
+      : [input.totalPriceCents, plan!.number_of_installments];
   if (count < 1) throw new NotPortedError("a plan with no instalments", "product_installment_plan.rb:60");
   return installmentPaymentAt(installmentPayments(total, count), input.nth);
 }
@@ -121,7 +154,8 @@ export type PricingInput = {
 };
 
 // Whether the price is multiplied by the purchase's purchasing power parity factor.
-export const appliesPppFactor = (input: Pick<PricingInput, "isPpp" | "pppEnabled" | "code">) => input.isPpp && input.pppEnabled && input.code === null;
+export const appliesPppFactor = (input: Pick<PricingInput, "isPpp" | "pppEnabled" | "code">) =>
+  input.isPpp && input.pppEnabled && input.code === null;
 
 // Purchase#minimum_paid_price_cents up to the split into installments: the total the instalments
 // divide (`minimum_price_cents`).
@@ -130,7 +164,9 @@ export function minimumPriceBeforeSplit(input: PricingInput): number {
   const oncePerCartFixed = code !== null && isCents(code) && isOncePerCart(code);
   const amountOffOf = (price: number) => (!input.codeApplies || code === null ? 0 : amountOff(code, price));
 
-  let minimumPriceCents = oncePerCartFixed ? unit * quantity - amountOffOf(unit * quantity) : (unit - amountOffOf(unit)) * quantity;
+  let minimumPriceCents = oncePerCartFixed
+    ? unit * quantity - amountOffOf(unit * quantity)
+    : (unit - amountOffOf(unit)) * quantity;
   // Offer codes may exceed the price; the floor comes before the split into instalments.
   if (code !== null && minimumPriceCents < 0) minimumPriceCents = 0;
   if (oncePerCartFixed) minimumPriceCents = currencyMinimumOrZero(minimumPriceCents, input.minPrice());
@@ -143,12 +179,17 @@ export function minimumPriceBeforeSplit(input: PricingInput): number {
 }
 
 // Whether the split into instalments is read at all (`calculate_installment_payment_price_cents`).
-export const splitsIntoInstallments = (input: Pick<PricingInput, "isCommissionCompletion" | "isCommissionProduct" | "isInstallmentPayment">) =>
-  !input.isCommissionCompletion && !input.isCommissionProduct && input.isInstallmentPayment;
+export const splitsIntoInstallments = (
+  input: Pick<PricingInput, "isCommissionCompletion" | "isCommissionProduct" | "isInstallmentPayment">,
+) => !input.isCommissionCompletion && !input.isCommissionProduct && input.isInstallmentPayment;
 
 // The rest of Purchase#minimum_paid_price_cents. `installmentPayment` is the buyer's instalment, when
 // the price is split.
-export function minimumPaidPrice(input: PricingInput, minimumPriceCents: number, installmentPayment: number | undefined): number {
+export function minimumPaidPrice(
+  input: PricingInput,
+  minimumPriceCents: number,
+  installmentPayment: number | undefined,
+): number {
   let minimumPrice: number | undefined = minimumPriceCents;
   if (input.isCommissionCompletion) minimumPrice *= 1 - COMMISSION_DEPOSIT_PROPORTION;
   else if (input.isCommissionProduct) minimumPrice *= COMMISSION_DEPOSIT_PROPORTION;
@@ -170,7 +211,9 @@ export class DiscountRecord {
   }
 
   offerCode(): Promise<OfferCodeRecord | null> {
-    this.offerCodeLoad ??= findById<OfferCode>("OfferCode", this.row.offer_code_id).then((row) => (row === null ? null : new OfferCodeRecord(row)));
+    this.offerCodeLoad ??= findById<OfferCode>("OfferCode", this.row.offer_code_id).then((row) =>
+      row === null ? null : new OfferCodeRecord(row),
+    );
     return this.offerCodeLoad;
   }
 }
@@ -269,7 +312,9 @@ export class PurchaseRecord {
   // `has_and_belongs_to_many :variant_attributes`
   variantAttributes(): Promise<VariantRecord[]> {
     return this.loaded("variant_attributes", async () =>
-      (await selectRows(Prisma.sql`SELECT ${star("base_variants")} ${this.variantAttributesJoin()}`)).map((row) => new VariantRecord(castRow<BaseVariant>("BaseVariant", row))),
+      (await selectRows(Prisma.sql`SELECT ${star("base_variants")} ${this.variantAttributesJoin()}`)).map(
+        (row) => new VariantRecord(castRow<BaseVariant>("BaseVariant", row)),
+      ),
     );
   }
 
@@ -310,15 +355,21 @@ export class PurchaseRecord {
         if (variant.row.type === "Sku") throw nilReceiver("prices", "an instance of Sku");
         // Purchase#subscription_duration: `price_for_recurrence&.recurrence`
         const recurrence = (await this.priceForRecurrence())?.recurrence ?? null;
-        const recurrenceIs = recurrence === null ? Prisma.sql`${column("prices", "recurrence")} IS NULL` : Prisma.sql`${column("prices", "recurrence")} = ${recurrence}`;
+        const recurrenceIs =
+          recurrence === null
+            ? Prisma.sql`${column("prices", "recurrence")} IS NULL`
+            : Prisma.sql`${column("prices", "recurrence")} = ${recurrence}`;
         const [price] = await selectRows(
           Prisma.sql`SELECT ${star("prices")} FROM ${table("prices")} WHERE ${column("prices", "variant_id")} = ${variant.row.id} AND ${column("prices", "deleted_at")} IS NULL AND ${Prisma.sql`(${PriceFlags.condition("is_rental", false)})`} AND ${recurrenceIs} LIMIT 1`,
         );
-        sum += price ? castRow<BasePrice>("BasePrice", price).price_cents ?? 0 : 0;
+        sum += price ? (castRow<BasePrice>("BasePrice", price).price_cents ?? 0) : 0;
       }
       return sum;
     }
-    return (await this.variantAttributes()).reduce((total, variant) => total + (variant.row.price_difference_cents ?? 0), 0);
+    return (await this.variantAttributes()).reduce(
+      (total, variant) => total + (variant.row.price_difference_cents ?? 0),
+      0,
+    );
   }
 
   // Purchase#minimum_paid_price_cents_per_unit_before_discount
@@ -382,7 +433,8 @@ export class PurchaseRecord {
       const discount = (await this.purchaseOfferCodeDiscount())!.row;
       if (discount.once_per_cart && !discount.offer_code_is_percent) {
         if (discount.pre_discount_displayed_price_cents != null) return discount.pre_discount_displayed_price_cents;
-        const discountedProductPrice = (this.row.displayed_price_cents ?? nullOperand("-")) - ((await this.tip())?.value_cents ?? 0);
+        const discountedProductPrice =
+          (this.row.displayed_price_cents ?? nullOperand("-")) - ((await this.tip())?.value_cents ?? 0);
         if (discountedProductPrice === 0) return discount.pre_discount_minimum_price_cents * this.quantity;
         return discountedProductPrice + discount.offer_code_amount;
       }
@@ -409,7 +461,14 @@ export class PurchaseRecord {
     return this.loaded("purchasing_power_parity_factor", async () => {
       const seller = await this.loaded("seller", () => findById<User>("User", this.row.seller_id));
       // A missing seller fails on `seller.min_ppp_factor`, after the Redis read.
-      return getFactor(alpha2ByName(this.row.ip_country), seller ?? { get purchasing_power_parity_limit(): never { return nullOperand("min_ppp_factor"); } });
+      return getFactor(
+        alpha2ByName(this.row.ip_country),
+        seller ?? {
+          get purchasing_power_parity_limit(): never {
+            return nullOperand("min_ppp_factor");
+          },
+        },
+      );
     });
   }
 
@@ -420,9 +479,19 @@ export class PurchaseRecord {
     // `subscription&.purchases&.successful&.count || 0`
     const nth = subscription === null ? 0 : await successfulPurchasesCount(subscription.id);
     const option = subscription === null ? null : await subscription.lastPaymentOption();
-    const snapshot = option === null ? null : await subscription!.loaded(`snapshot:${String(option.id)}`, () => findOneBy<InstallmentPlanSnapshot>("InstallmentPlanSnapshot", "payment_option_id", option.id));
+    const snapshot =
+      option === null
+        ? null
+        : await subscription!.loaded(`snapshot:${String(option.id)}`, () =>
+            findOneBy<InstallmentPlanSnapshot>("InstallmentPlanSnapshot", "payment_option_id", option.id),
+          );
     // `installment_plan || subscription&.last_payment_option&.installment_plan`, read when there is no snapshot
-    const plan = snapshot !== null || option === null ? null : await subscription!.loaded(`plan:${String(option.id)}`, () => findById<ProductInstallmentPlan>("ProductInstallmentPlan", option.product_installment_plan_id));
+    const plan =
+      snapshot !== null || option === null
+        ? null
+        : await subscription!.loaded(`plan:${String(option.id)}`, () =>
+            findById<ProductInstallmentPlan>("ProductInstallmentPlan", option.product_installment_plan_id),
+          );
     return installmentPaymentFor({ totalPriceCents, nth, snapshot, plan });
   }
 
@@ -431,11 +500,14 @@ export class PurchaseRecord {
   async minimumPaidPriceCents(): Promise<number> {
     if (this.flag("is_gift_receiver_purchase")) return 0;
     const perceived = perceivedPriceCents(this.row);
-    if (perceived !== null && this.flag("is_commission_completion_purchase")) return Math.max(rubyToI(perceived) - ((await this.tip())?.value_cents ?? 0), 0);
+    if (perceived !== null && this.flag("is_commission_completion_purchase"))
+      return Math.max(rubyToI(perceived) - ((await this.tip())?.value_cents ?? 0), 0);
 
     // is_recurring_subscription_charge: `subscription.present? && !original && !gift_receiver`
-    if ((await this.subscription()) !== null && !this.flag("is_original_subscription_purchase")) throw new NotPortedError("Purchase#minimum_paid_price_cents of a recurring charge", "purchase.rb:1957");
-    if (this.row.preorder_id != null && !this.flag("is_preorder_authorization")) throw new NotPortedError("Purchase#minimum_paid_price_cents of a pre-order charge", "purchase.rb:1959");
+    if ((await this.subscription()) !== null && !this.flag("is_original_subscription_purchase"))
+      throw new NotPortedError("Purchase#minimum_paid_price_cents of a recurring charge", "purchase.rb:1957");
+    if (this.row.preorder_id != null && !this.flag("is_preorder_authorization"))
+      throw new NotPortedError("Purchase#minimum_paid_price_cents of a pre-order charge", "purchase.rb:1959");
 
     const unitPriceCents = await this.minimumPaidPriceCentsPerUnitBeforeDiscount();
     const code = await this.offerCodeForPricing();
@@ -453,14 +525,18 @@ export class PurchaseRecord {
       codeApplies,
       minPrice: () => currencyMinPrice(link ?? nullOperand("currency")),
       isCommissionCompletion,
-      isCommissionProduct: !isCommissionCompletion && (link ?? nullOperand("native_type")).native_type === NATIVE_TYPE_COMMISSION,
+      isCommissionProduct:
+        !isCommissionCompletion && (link ?? nullOperand("native_type")).native_type === NATIVE_TYPE_COMMISSION,
       isInstallmentPayment: this.flag("is_installment_payment"),
       isPpp,
-      pppEnabled: isPpp && (await this.linkPurchasingPowerParityEnabled(link ?? nullOperand("purchasing_power_parity_enabled?"))),
+      pppEnabled:
+        isPpp && (await this.linkPurchasingPowerParityEnabled(link ?? nullOperand("purchasing_power_parity_enabled?"))),
     };
     if (appliesPppFactor(input)) input.pppFactor = await this.purchasingPowerParityFactor();
     const total = minimumPriceBeforeSplit(input);
-    const installmentPayment = splitsIntoInstallments(input) ? await this.calculateInstallmentPaymentPriceCents(total) : undefined;
+    const installmentPayment = splitsIntoInstallments(input)
+      ? await this.calculateInstallmentPaymentPriceCents(total)
+      : undefined;
     return minimumPaidPrice(input, total, installmentPayment);
   }
 }
@@ -474,9 +550,11 @@ function perceivedPriceCents(row: Pick<Purchase, "json_data">): number | string 
   } catch {
     throw new NotPortedError("json_data that is not JSON", "json_data.rb:38");
   }
-  if (data === null || typeof data !== "object" || Array.isArray(data)) throw new NotPortedError("json_data that is not a Hash", "json_data.rb:38");
+  if (data === null || typeof data !== "object" || Array.isArray(data))
+    throw new NotPortedError("json_data that is not a Hash", "json_data.rb:38");
   const value = (data as Record<string, unknown>).perceived_price_cents;
   if (value === undefined || value === null || value === "" || value === false) return null;
-  if (typeof value !== "number" && typeof value !== "string") throw new NotPortedError("a perceived_price_cents that is not a number", "purchase.rb:94");
+  if (typeof value !== "number" && typeof value !== "string")
+    throw new NotPortedError("a perceived_price_cents that is not a number", "purchase.rb:94");
   return value;
 }

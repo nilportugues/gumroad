@@ -6,29 +6,42 @@
 // handoff is refused, and hands the job back to Rails: the post has files (UrlRedirect), is a
 // follower or audience post of a seller in the newsletter cutover, or post-email-api.ts and the post
 // template do not cover it.
-import { Prisma, type Follower, type InstallmentRule, type Purchase, type Subscription, type User } from "@prisma/client";
+import {
+  Prisma,
+  type Follower,
+  type InstallmentRule,
+  type Purchase,
+  type Subscription,
+  type User,
+} from "@prisma/client";
 
 import { HandBackToRuby } from "../jobs/hand-back.ts";
+import { PostEmailNotPortedError } from "../mail/post-email-template.ts";
+import { PurchaseFlags } from "../search/flags.ts";
+
 import { performAsync } from "./concerns/job-runtime.ts";
 import { InstallmentPost } from "./installment-post.ts";
-import { isChargedbackNotReversedOrRefunded } from "./purchase.ts";
+import { LockUnavailable, processPostEmail, type PostEmailDeps, type Recipient } from "./post-email-api.ts";
 import { PurchaseRecord } from "./purchase-pricing.ts";
-import { PurchaseFlags } from "../search/flags.ts";
+import { isChargedbackNotReversedOrRefunded } from "./purchase.ts";
 import { findById, findOneBy } from "./row-reads.ts";
 import { RecordNotFound } from "./runtime/errors.ts";
 import { connectedTo, uncached } from "./runtime/query-cache.ts";
 import { transaction } from "./runtime/transaction.ts";
 import { column, execute, isRecordNotUnique, selectRows, table } from "./sql.ts";
 import { SubscriptionRecord, defaultSubscriptionDeps, type SubscriptionDeps } from "./subscription.ts";
-import { PostEmailNotPortedError } from "../mail/post-email-template.ts";
-import { LockUnavailable, processPostEmail, type PostEmailDeps, type Recipient } from "./post-email-api.ts";
-import type { WorkflowRecord } from "./workflow.ts";
 import { SEND_WORKFLOW_INSTALLMENT_WORKER } from "./workflow-scheduling.ts";
+import type { WorkflowRecord } from "./workflow.ts";
 
 type Rule = InstallmentRule;
 
 // Purchase::ALL_SUCCESS_STATES
-const ALL_SUCCESS_STATES = ["preorder_authorization_successful", "successful", "not_charged", "gift_receiver_purchase_successful"];
+const ALL_SUCCESS_STATES = [
+  "preorder_authorization_successful",
+  "successful",
+  "not_charged",
+  "gift_receiver_purchase_successful",
+];
 // The seed of the official newsletter seller (Onetime::MigrateNewsletterSubscribersToFeatureAnnouncements)
 const NEWSLETTER_SELLER_EXTERNAL_ID = "6282492303727";
 const CHARGEBACK_REVERSED_FLAG = 512;
@@ -37,9 +50,13 @@ const SEND_WORKFLOW_INSTALLMENT_RESCHEDULE_JOB = "SendWorkflowInstallmentResched
 
 export type SendDeps = PostEmailDeps & { subscriptionDeps: SubscriptionDeps };
 
-export const defaultSendDeps = (base: PostEmailDeps): SendDeps => ({ ...base, subscriptionDeps: { now: base.now, featureActive: defaultSubscriptionDeps.featureActive } });
+export const defaultSendDeps = (base: PostEmailDeps): SendDeps => ({
+  ...base,
+  subscriptionDeps: { now: base.now, featureActive: defaultSubscriptionDeps.featureActive },
+});
 
-const present = (value: string | null | undefined): value is string => value !== null && value !== undefined && !/^[\t\n\v\f\r ]*$/u.test(value);
+const present = (value: string | null | undefined): value is string =>
+  value !== null && value !== undefined && !/^[\t\n\v\f\r ]*$/u.test(value);
 
 // ----- FeatureAnnouncementNewsletterCutover
 
@@ -62,9 +79,13 @@ async function needsNewsletterAdmission(post: InstallmentPost): Promise<boolean>
   if (sellerId === null) return false;
   return connectedTo("writing", () =>
     uncached(async () => {
-      const [official] = await selectRows<{ id: bigint }>(Prisma.sql`SELECT ${column("users", "id")} FROM ${table("users")} WHERE ${column("users", "external_id")} = ${NEWSLETTER_SELLER_EXTERNAL_ID} LIMIT 1`);
+      const [official] = await selectRows<{ id: bigint }>(
+        Prisma.sql`SELECT ${column("users", "id")} FROM ${table("users")} WHERE ${column("users", "external_id")} = ${NEWSLETTER_SELLER_EXTERNAL_ID} LIMIT 1`,
+      );
       if (official !== undefined && BigInt(sellerId) === BigInt(official.id)) return true;
-      const rows = await selectRows(Prisma.sql`SELECT 1 AS one FROM ${table("feature_announcement_newsletter_cutovers")} WHERE ${column("feature_announcement_newsletter_cutovers", "seller_id")} = ${sellerId} LIMIT 1`);
+      const rows = await selectRows(
+        Prisma.sql`SELECT 1 AS one FROM ${table("feature_announcement_newsletter_cutovers")} WHERE ${column("feature_announcement_newsletter_cutovers", "seller_id")} = ${sellerId} LIMIT 1`,
+      );
       return rows.length > 0;
     }),
   );
@@ -74,13 +95,21 @@ async function needsNewsletterAdmission(post: InstallmentPost): Promise<boolean>
 
 // `SentPostEmail.ensure_uniqueness(post:, email:, source:)`: the claim is written only while the row it was read
 // from still holds the address, under a share lock; a claim somebody else holds skips the send.
-export async function ensureUniqueness(post: InstallmentPost, email: string | null, source: { table: string; id: bigint | number }, deps: SendDeps, send: () => Promise<void>): Promise<void> {
+export async function ensureUniqueness(
+  post: InstallmentPost,
+  email: string | null,
+  source: { table: string; id: bigint | number },
+  deps: SendDeps,
+  send: () => Promise<void>,
+): Promise<void> {
   if (!present(email)) return;
   let claimed: boolean;
   try {
     claimed = await connectedTo("writing", () =>
       transaction(async () => {
-        const [row] = await selectRows<{ email: string | null }>(Prisma.sql`SELECT ${column(source.table, "email")} FROM ${table(source.table)} WHERE ${column(source.table, "id")} = ${source.id} LIMIT 1 FOR SHARE`);
+        const [row] = await selectRows<{ email: string | null }>(
+          Prisma.sql`SELECT ${column(source.table, "email")} FROM ${table(source.table)} WHERE ${column(source.table, "id")} = ${source.id} LIMIT 1 FOR SHARE`,
+        );
         if (row?.email !== email) return false;
         // before_validation :downcase_email
         const now = deps.now();
@@ -103,14 +132,17 @@ export async function ensureUniqueness(post: InstallmentPost, email: string | nu
 
 // `SentPostEmail.where(post_id: id, email:).delete_all`
 async function deleteClaim(post: InstallmentPost, email: string): Promise<void> {
-  await execute(Prisma.sql`DELETE FROM ${table("sent_post_emails")} WHERE ${column("sent_post_emails", "post_id")} = ${post.id} AND ${column("sent_post_emails", "email")} = ${email}`);
+  await execute(
+    Prisma.sql`DELETE FROM ${table("sent_post_emails")} WHERE ${column("sent_post_emails", "post_id")} = ${post.id} AND ${column("sent_post_emails", "email")} = ${email}`,
+  );
 }
 
 // ----- send_email
 
 async function sendEmail(post: InstallmentPost, recipient: Recipient, deps: SendDeps): Promise<void> {
   try {
-    if (await needsNewsletterAdmission(post)) throw new PostEmailNotPortedError("a newsletter post of a seller in the feature announcement cutover");
+    if (await needsNewsletterAdmission(post))
+      throw new PostEmailNotPortedError("a newsletter post of a seller in the feature announcement cutover");
     await processPostEmail(
       {
         post,
@@ -158,10 +190,20 @@ export async function refuseFiles(post: InstallmentPost, recipient: Recipient): 
 
 // Purchase::ALL_SUCCESS_STATES, not_fully_refunded, not_chargedback_or_chargedback_reversed and the subscription scope,
 // from the email_infos of this post (`already_emailed_workflow_purchase?`).
-async function alreadyEmailed(post: InstallmentPost, sale: Purchase, scope: "no_or_active_subscription" | "inactive_subscription"): Promise<boolean> {
-  const emailCondition = sale.email === null ? Prisma.sql`${column("purchases", "email")} IS NULL` : Prisma.sql`${column("purchases", "email")} = ${sale.email}`;
+async function alreadyEmailed(
+  post: InstallmentPost,
+  sale: Purchase,
+  scope: "no_or_active_subscription" | "inactive_subscription",
+): Promise<boolean> {
+  const emailCondition =
+    sale.email === null
+      ? Prisma.sql`${column("purchases", "email")} IS NULL`
+      : Prisma.sql`${column("purchases", "email")} = ${sale.email}`;
   const states = Prisma.join(ALL_SUCCESS_STATES, ", ");
-  const subscriptionCondition = scope === "no_or_active_subscription" ? Prisma.raw("(subscriptions.deactivated_at IS NULL)") : Prisma.raw("(subscriptions.deactivated_at IS NOT NULL)");
+  const subscriptionCondition =
+    scope === "no_or_active_subscription"
+      ? Prisma.raw("(subscriptions.deactivated_at IS NULL)")
+      : Prisma.raw("(subscriptions.deactivated_at IS NOT NULL)");
   const rows = await selectRows(
     Prisma.sql`SELECT 1 AS one FROM ${table("email_infos")} INNER JOIN ${table("purchases")} ON ${column("purchases", "id")} = ${column("email_infos", "purchase_id")} LEFT OUTER JOIN subscriptions ON subscriptions.id = purchases.subscription_id WHERE ${column("email_infos", "type")} = ${"CreatorContactingCustomersEmailInfo"} AND ${column("email_infos", "installment_id")} = ${post.id} AND ${emailCondition} AND ${column("purchases", "seller_id")} = ${sale.seller_id} AND ${column("purchases", "purchase_state")} IN (${states}) AND ${subscriptionCondition} AND ${Prisma.raw("(purchases.stripe_refunded IS NULL OR purchases.stripe_refunded = 0)")} AND ${Prisma.raw(`(purchases.chargeback_date IS NULL OR (purchases.chargeback_date IS NOT NULL AND purchases.flags & '${CHARGEBACK_REVERSED_FLAG}' != 0))`)} LIMIT 1`,
   );
@@ -177,20 +219,31 @@ async function latestEventAt(subscriptionId: bigint, eventType: number): Promise
 }
 
 // `workflow_delivery_reference_time(sale)`: the purchase time, moved by the time a membership was lapsed.
-export async function workflowDeliveryReferenceTime(post: InstallmentPost, sale: Purchase, subscription: SubscriptionRecord | null): Promise<Date> {
+export async function workflowDeliveryReferenceTime(
+  post: InstallmentPost,
+  sale: Purchase,
+  subscription: SubscriptionRecord | null,
+): Promise<Date> {
   if (sale.created_at === null) throw new TypeError("undefined method 'created_at' for nil");
   const workflow = await post.workflow();
   if (workflow !== null && subscription !== null) {
     const restarted = await latestEventAt(subscription.id, 1);
     // last_deactivated_at: the subscription's own column, else its latest deactivated event
-    const deactivated = restarted === null ? null : (subscription.row.deactivated_at ?? (await latestEventAt(subscription.id, 0)));
-    if (restarted !== null && deactivated !== null) return new Date(sale.created_at.getTime() + (restarted.getTime() - deactivated.getTime()));
+    const deactivated =
+      restarted === null ? null : (subscription.row.deactivated_at ?? (await latestEventAt(subscription.id, 0)));
+    if (restarted !== null && deactivated !== null)
+      return new Date(sale.created_at.getTime() + (restarted.getTime() - deactivated.getTime()));
   }
   return sale.created_at;
 }
 
 // `expected_delivery_time(sale)`: the reference time plus the rule's delay.
-async function expectedDeliveryTime(post: InstallmentPost, rule: Rule | null, sale: Purchase, subscription: SubscriptionRecord | null): Promise<Date> {
+async function expectedDeliveryTime(
+  post: InstallmentPost,
+  rule: Rule | null,
+  sale: Purchase,
+  subscription: SubscriptionRecord | null,
+): Promise<Date> {
   if (sale.created_at === null) throw new TypeError("undefined method 'created_at' for nil");
   if (rule === null) return sale.created_at;
   if (rule.delayed_delivery_time === null) throw new TypeError("nil can't be coerced into Integer");
@@ -206,7 +259,12 @@ async function appliesToPurchase(workflow: WorkflowRecord | null, sale: Purchase
   return workflow === null || (await workflow.appliesToPurchase(sale));
 }
 
-export async function sendInstallmentFromWorkflowForPurchase(post: InstallmentPost, purchaseId: bigint, rescheduleReferenceTime: string | null, deps: SendDeps): Promise<void> {
+export async function sendInstallmentFromWorkflowForPurchase(
+  post: InstallmentPost,
+  purchaseId: bigint,
+  rescheduleReferenceTime: string | null,
+  deps: SendDeps,
+): Promise<void> {
   const loaded = await findById<Purchase>("Purchase", purchaseId);
   if (loaded === null) throw new RecordNotFound(`Couldn't find Purchase with 'id'=${String(purchaseId)}`);
   let subscription: SubscriptionRecord | null = null;
@@ -215,7 +273,12 @@ export async function sendInstallmentFromWorkflowForPurchase(post: InstallmentPo
     if (row !== null) subscription = new SubscriptionRecord(row, deps.subscriptionDeps);
   }
   // is_recurring_subscription_charge
-  if (subscription !== null && !PurchaseFlags.isSet(loaded.flags, "is_original_subscription_purchase") && !PurchaseFlags.isSet(loaded.flags, "is_gift_receiver_purchase")) return;
+  if (
+    subscription !== null &&
+    !PurchaseFlags.isSet(loaded.flags, "is_original_subscription_purchase") &&
+    !PurchaseFlags.isSet(loaded.flags, "is_gift_receiver_purchase")
+  )
+    return;
   if (await post.memberCancellationTrigger()) return;
 
   let sale = loaded;
@@ -240,7 +303,11 @@ export async function sendInstallmentFromWorkflowForPurchase(post: InstallmentPo
     const args: (number | bigint | null | string)[] = [post.id, rule!.version, Number(sale.id), null];
     const rescheduling = present(rescheduleReferenceTime);
     if (rescheduling) args.push(null, null, rescheduleReferenceTime);
-    await performAsync(rescheduling ? SEND_WORKFLOW_INSTALLMENT_RESCHEDULE_JOB : SEND_WORKFLOW_INSTALLMENT_WORKER, args as never, { at: new Date(expected.getTime() + MINUTE_MS) });
+    await performAsync(
+      rescheduling ? SEND_WORKFLOW_INSTALLMENT_RESCHEDULE_JOB : SEND_WORKFLOW_INSTALLMENT_WORKER,
+      args as never,
+      { at: new Date(expected.getTime() + MINUTE_MS) },
+    );
     return;
   }
   await ensureUniqueness(post, sale.email, { table: "purchases", id: sale.id }, deps, async () => {
@@ -250,7 +317,11 @@ export async function sendInstallmentFromWorkflowForPurchase(post: InstallmentPo
   });
 }
 
-export async function sendInstallmentFromWorkflowForMemberCancellation(post: InstallmentPost, subscriptionId: bigint, deps: SendDeps): Promise<void> {
+export async function sendInstallmentFromWorkflowForMemberCancellation(
+  post: InstallmentPost,
+  subscriptionId: bigint,
+  deps: SendDeps,
+): Promise<void> {
   if (!(await post.memberCancellationTrigger())) return;
   const row = await findById<Subscription>("Subscription", subscriptionId);
   if (row === null) throw new RecordNotFound(`Couldn't find Subscription with 'id'=${String(subscriptionId)}`);
@@ -269,7 +340,11 @@ export async function sendInstallmentFromWorkflowForMemberCancellation(post: Ins
   });
 }
 
-export async function sendInstallmentFromWorkflowForFollower(post: InstallmentPost, followerId: number, deps: SendDeps): Promise<void> {
+export async function sendInstallmentFromWorkflowForFollower(
+  post: InstallmentPost,
+  followerId: number,
+  deps: SendDeps,
+): Promise<void> {
   const follower = await findOneBy<Follower>("Follower", "id", followerId, true);
   // Followers removed as duplicates may still be queued; an unconfirmed or deleted one is not a recipient.
   if (follower === null || follower.deleted_at !== null || follower.confirmed_at === null) return;
@@ -280,7 +355,11 @@ export async function sendInstallmentFromWorkflowForFollower(post: InstallmentPo
   });
 }
 
-export async function sendInstallmentFromWorkflowForAffiliateUser(post: InstallmentPost, affiliateUserId: bigint, deps: SendDeps): Promise<void> {
+export async function sendInstallmentFromWorkflowForAffiliateUser(
+  post: InstallmentPost,
+  affiliateUserId: bigint,
+  deps: SendDeps,
+): Promise<void> {
   const user = await findById<User>("User", affiliateUserId);
   if (user === null) return;
   await ensureUniqueness(post, user.email, { table: "users", id: user.id }, deps, async () => {

@@ -11,8 +11,9 @@
 import { Prisma } from "@prisma/client";
 
 import { castRow, column, quoteName, selectRows, table, tableName } from "../sql.ts";
-import { clearQueryCache } from "./query-cache.ts";
+
 import { AbortChain, RecordInvalid, RecordNotDestroyed, RecordNotFound, RecordNotSaved } from "./errors.ts";
+import { clearQueryCache } from "./query-cache.ts";
 import { ASSOCIATION_CACHE, ModelRecord, type Row } from "./record.ts";
 import { participate, transaction, type Action, type Tx } from "./transaction.ts";
 
@@ -68,19 +69,21 @@ const UPDATE_TIMESTAMP_COLUMNS = ["updated_at", "updated_on"];
 function scalarFields(model: Prisma.ModelName): ScalarField[] {
   const dmmf = Prisma.dmmf.datamodel.models.find((m) => m.name === model);
   if (!dmmf) throw new Error(`Unknown Prisma model ${model}`);
-  return dmmf.fields
-    .filter((f) => f.kind === "scalar" || f.kind === "enum")
-    // Generated columns are owned by MySQL and must never be written.
-    .filter((f) => !f.documentation?.startsWith("GENERATED"))
-    .map((f) => {
-      const literal = f.hasDefaultValue && (typeof f.default !== "object" || f.default === null) ? f.default : null;
-      let value: unknown = literal;
-      if (literal !== null && f.type === "BigInt") value = BigInt(literal as number);
-      if (literal !== null && f.type === "Decimal") value = new Prisma.Decimal(literal as string);
-      const native = f.nativeType as [string, string[]] | null | undefined;
-      const precision = f.type === "DateTime" && native?.[0] === "DateTime" ? Number(native[1][0] ?? 6) : null;
-      return { name: f.name, default: value, datetimePrecision: precision, json: f.type === "Json" };
-    });
+  return (
+    dmmf.fields
+      .filter((f) => f.kind === "scalar" || f.kind === "enum")
+      // Generated columns are owned by MySQL and must never be written.
+      .filter((f) => !f.documentation?.startsWith("GENERATED"))
+      .map((f) => {
+        const literal = f.hasDefaultValue && (typeof f.default !== "object" || f.default === null) ? f.default : null;
+        let value: unknown = literal;
+        if (literal !== null && f.type === "BigInt") value = BigInt(literal as number);
+        if (literal !== null && f.type === "Decimal") value = new Prisma.Decimal(literal as string);
+        const native = f.nativeType as [string, string[]] | null | undefined;
+        const precision = f.type === "DateTime" && native?.[0] === "DateTime" ? Number(native[1][0] ?? 6) : null;
+        return { name: f.name, default: value, datetimePrecision: precision, json: f.type === "Json" };
+      })
+  );
 }
 
 // Rails truncates (never rounds) to the column precision; MySQL would round. JS dates only
@@ -101,7 +104,12 @@ function applies<R extends Row>(cb: Callback<R>, record: ModelRecord<R>, action:
   return true;
 }
 
-async function runChain<R extends Row>(chain: Callback<R>[] | undefined, record: ModelRecord<R>, action: Action, ctx: CallbackContext) {
+async function runChain<R extends Row>(
+  chain: Callback<R>[] | undefined,
+  record: ModelRecord<R>,
+  action: Action,
+  ctx: CallbackContext,
+) {
   for (const cb of chain ?? []) {
     if (applies(cb, record, action)) await cb.run(record, ctx);
   }
@@ -140,7 +148,8 @@ export function defineModel<R extends Row>(def: ModelDefinition<R>) {
     return participate(record, action, () => ({
       identity: () => `${def.rubyClass}#${String(record.get("id"))}`,
       prepare: async (finalAction) => {
-        for (const cb of def.beforeCommit ?? []) if (applies(cb, record, finalAction as Action)) await cb.run(record, { tx: null as unknown as Tx });
+        for (const cb of def.beforeCommit ?? [])
+          if (applies(cb, record, finalAction as Action)) await cb.run(record, { tx: null as unknown as Tx });
       },
       commit: async (finalAction) => {
         // committed! clears the record's trigger flags when it finishes, and `on:` is checked per
@@ -175,7 +184,11 @@ export function defineModel<R extends Row>(def: ModelDefinition<R>) {
 
   function writableAttributes(record: ModelRecord<R>, names: string[]): Partial<R> {
     const out: Record<string, unknown> = {};
-    const jsonColumns = new Set(getFields().filter((f) => f.json).map((f) => f.name));
+    const jsonColumns = new Set(
+      getFields()
+        .filter((f) => f.json)
+        .map((f) => f.name),
+    );
     for (const name of names) {
       if (name === "id" && record.get(name) == null) continue;
       const value = record.get(name);
@@ -201,12 +214,18 @@ export function defineModel<R extends Row>(def: ModelDefinition<R>) {
             if (def.recordTimestamps !== false) {
               const current = now();
               for (const f of getFields()) {
-                if (TIMESTAMP_COLUMNS.includes(f.name) && record.get(f.name) == null) record.set(f.name, timestampFor(current, f.datetimePrecision) as R[keyof R & string]);
+                if (TIMESTAMP_COLUMNS.includes(f.name) && record.get(f.name) == null)
+                  record.set(f.name, timestampFor(current, f.datetimePrecision) as R[keyof R & string]);
               }
             }
             await runChain(def.beforeCreate, record, action, ctx);
             // partial_inserts is off by default: Rails inserts every column.
-            const inserted = await def.delegate(tx).create({ data: writableAttributes(record, getFields().map((f) => f.name)) });
+            const inserted = await def.delegate(tx).create({
+              data: writableAttributes(
+                record,
+                getFields().map((f) => f.name),
+              ),
+            });
             record.syncFromDatabase({ id: inserted.id } as unknown as Partial<R>);
             record.newRecord = false;
             record.changesApplied();
@@ -219,14 +238,18 @@ export function defineModel<R extends Row>(def: ModelDefinition<R>) {
               if (def.recordTimestamps === false || !record.hasChangesToSave()) return;
               const current = now();
               for (const f of getFields()) {
-                if (UPDATE_TIMESTAMP_COLUMNS.includes(f.name) && !record.attributeChanged(f.name)) record.set(f.name, timestampFor(current, f.datetimePrecision) as R[keyof R & string]);
+                if (UPDATE_TIMESTAMP_COLUMNS.includes(f.name) && !record.attributeChanged(f.name))
+                  record.set(f.name, timestampFor(current, f.datetimePrecision) as R[keyof R & string]);
               }
             };
             recordUpdateTimestamps();
             await runChain(def.beforeUpdate, record, action, ctx);
             recordUpdateTimestamps();
             const changed = record.changedAttributeNames();
-            if (changed.length > 0) await def.delegate(tx).update({ where: { id: record.get("id") }, data: writableAttributes(record, changed) });
+            if (changed.length > 0)
+              await def
+                .delegate(tx)
+                .update({ where: { id: record.get("id") }, data: writableAttributes(record, changed) });
             record.changesApplied();
             // _update_record sets @_trigger_update_callback even when nothing changed.
             p.triggered = true;
@@ -247,7 +270,10 @@ export function defineModel<R extends Row>(def: ModelDefinition<R>) {
   // after_touch runs inside the transaction. A touch that would set other pending changes aside is not ported.
   // `deferred` is `touch_later`, which a `belongs_to touch: true` parent gets: recorded in golden to leave the attributes in column order,
   // where a direct touch lists updated_at first.
-  async function touch(record: ModelRecord<R>, options: { now?: () => Date; deferred?: boolean } = {}): Promise<boolean> {
+  async function touch(
+    record: ModelRecord<R>,
+    options: { now?: () => Date; deferred?: boolean } = {},
+  ): Promise<boolean> {
     if (!record.persisted) throw new Error(`cannot touch on a new or destroyed record object`);
     const now = options.now ?? (() => new Date());
     const columns = getFields().filter((f) => UPDATE_TIMESTAMP_COLUMNS.includes(f.name));

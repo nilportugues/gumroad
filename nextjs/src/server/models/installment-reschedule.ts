@@ -8,17 +8,18 @@
 import { Prisma, type Follower, type InstallmentRule, type Purchase, type Subscription } from "@prisma/client";
 
 import type { JsonValue } from "../jobs/sidekiq/ruby-json.ts";
+
 import { type AudienceMemberRow, firstAudienceMember, type FilterParams } from "./audience-member.ts";
 import { performAsync } from "./concerns/job-runtime.ts";
-import { InstallmentPost } from "./installment-post.ts";
 import { audienceMembersFilterParams } from "./installment-audience.ts";
+import { InstallmentPost } from "./installment-post.ts";
 import { workflowDeliveryReferenceTime } from "./installment-send.ts";
+import { nilReceiver } from "./offer-code.ts";
 import { PurchaseRecord } from "./purchase-pricing.ts";
 import { findById, findOneBy, recordIdFrom } from "./row-reads.ts";
 import { castRow, column, columnIn, selectRows, table } from "./sql.ts";
 import { SubscriptionRecord, type SubscriptionDeps } from "./subscription.ts";
 import { NotPortedError } from "./user.ts";
-import { nilReceiver } from "./offer-code.ts";
 
 const SECOND_MS = 1000;
 const RESCHEDULE_JOB = "SendWorkflowInstallmentRescheduleJob";
@@ -31,7 +32,12 @@ export class FanoutNotEnqueuedError extends Error {
   }
 }
 
-export type RecipientIds = { purchaseId: JsonValue | undefined; followerId: JsonValue | undefined; affiliateUserId: JsonValue | undefined; subscriptionId: JsonValue | undefined };
+export type RecipientIds = {
+  purchaseId: JsonValue | undefined;
+  followerId: JsonValue | undefined;
+  affiliateUserId: JsonValue | undefined;
+  subscriptionId: JsonValue | undefined;
+};
 export type RescheduleDeps = { now: () => Date; subscriptionDeps: SubscriptionDeps };
 
 // `present?` of a job argument.
@@ -43,29 +49,47 @@ export function present(value: JsonValue | undefined): boolean {
   return true;
 }
 
-const exactlyOne = (ids: RecipientIds) => [ids.purchaseId, ids.followerId, ids.affiliateUserId, ids.subscriptionId].filter(present).length === 1;
+const exactlyOne = (ids: RecipientIds) =>
+  [ids.purchaseId, ids.followerId, ids.affiliateUserId, ids.subscriptionId].filter(present).length === 1;
 
 // `Time.zone.iso8601(string)`, for the UTC form `Time#iso8601` writes.
 function parseReferenceTime(value: string): Date {
-  if (!UTC_ISO8601.test(value)) throw new NotPortedError(`a reschedule reference time that is not ISO 8601 UTC (${JSON.stringify(value)})`, "send_workflow_installment_worker.rb");
+  if (!UTC_ISO8601.test(value))
+    throw new NotPortedError(
+      `a reschedule reference time that is not ISO 8601 UTC (${JSON.stringify(value)})`,
+      "send_workflow_installment_worker.rb",
+    );
   const time = new Date(value);
-  if (Number.isNaN(time.getTime())) throw new NotPortedError(`a reschedule reference time that is not a time (${JSON.stringify(value)})`, "send_workflow_installment_worker.rb");
+  if (Number.isNaN(time.getTime()))
+    throw new NotPortedError(
+      `a reschedule reference time that is not a time (${JSON.stringify(value)})`,
+      "send_workflow_installment_worker.rb",
+    );
   return time;
 }
 
 // `time.change(usec: 0).iso8601`
-const iso8601 = (time: Date) => new Date(Math.floor(time.getTime() / SECOND_MS) * SECOND_MS).toISOString().replace(".000Z", "Z");
+const iso8601 = (time: Date) =>
+  new Date(Math.floor(time.getTime() / SECOND_MS) * SECOND_MS).toISOString().replace(".000Z", "Z");
 const wholeSeconds = (time: Date) => Math.floor(time.getTime() / SECOND_MS);
 
 // `SentPostEmail.exists?(post: installment, email:)`
 async function sentPostEmailExists(post: InstallmentPost, email: string | null): Promise<boolean> {
-  const emailCondition = email === null ? Prisma.sql`${column("sent_post_emails", "email")} IS NULL` : Prisma.sql`${column("sent_post_emails", "email")} = ${email}`;
-  const rows = await selectRows(Prisma.sql`SELECT 1 AS one FROM ${table("sent_post_emails")} WHERE ${column("sent_post_emails", "post_id")} = ${post.id} AND ${emailCondition} LIMIT 1`);
+  const emailCondition =
+    email === null
+      ? Prisma.sql`${column("sent_post_emails", "email")} IS NULL`
+      : Prisma.sql`${column("sent_post_emails", "email")} = ${email}`;
+  const rows = await selectRows(
+    Prisma.sql`SELECT 1 AS one FROM ${table("sent_post_emails")} WHERE ${column("sent_post_emails", "post_id")} = ${post.id} AND ${emailCondition} LIMIT 1`,
+  );
   return rows.length > 0;
 }
 
 // `Purchase.find_by(id:)&.original_purchase`: the sale and the subscription it belongs to.
-async function originalPurchaseOf(purchaseId: JsonValue | undefined, deps: RescheduleDeps): Promise<{ sale: Purchase; subscription: SubscriptionRecord | null } | null> {
+async function originalPurchaseOf(
+  purchaseId: JsonValue | undefined,
+  deps: RescheduleDeps,
+): Promise<{ sale: Purchase; subscription: SubscriptionRecord | null } | null> {
   const loaded = await findById<Purchase>("Purchase", recordIdFrom(purchaseId, "Purchase.find_by"));
   if (loaded === null) return null;
   if (loaded.subscription_id === null) return { sale: loaded, subscription: null };
@@ -77,7 +101,11 @@ async function originalPurchaseOf(purchaseId: JsonValue | undefined, deps: Resch
 }
 
 // `purchase.subscription` of a purchase read a second time: the same row, which the query cache answers.
-async function subscriptionOf(sale: Purchase, known: SubscriptionRecord | null, deps: RescheduleDeps): Promise<SubscriptionRecord | null> {
+async function subscriptionOf(
+  sale: Purchase,
+  known: SubscriptionRecord | null,
+  deps: RescheduleDeps,
+): Promise<SubscriptionRecord | null> {
   if (sale.subscription_id === null) return null;
   if (known !== null && known.id === sale.subscription_id) return known;
   const row = await findById<Subscription>("Subscription", sale.subscription_id);
@@ -85,14 +113,19 @@ async function subscriptionOf(sale: Purchase, known: SubscriptionRecord | null, 
 }
 
 // `current_audience_member_and_match(installment:, email:, filters:)`
-async function currentAudienceMemberAndMatch(post: InstallmentPost, email: string | null, filters: FilterParams | null): Promise<{ member: AudienceMemberRow; match: AudienceMemberRow } | null> {
+async function currentAudienceMemberAndMatch(
+  post: InstallmentPost,
+  email: string | null,
+  filters: FilterParams | null,
+): Promise<{ member: AudienceMemberRow; match: AudienceMemberRow } | null> {
   if (email === null) return null;
   const [member] = await selectRows<AudienceMemberRow>(
     Prisma.sql`SELECT ${Prisma.raw("`audience_members`.*")} FROM ${table("audience_members")} WHERE ${column("audience_members", "seller_id")} = ${post.row.seller_id} AND ${column("audience_members", "email")} = ${email.toLowerCase()} LIMIT 1`,
   );
   if (member === undefined) return null;
   const params = filters ?? (await audienceMembersFilterParams(post));
-  if (post.row.seller_id === null) throw new NotPortedError("an installment without a seller", "send_workflow_installment_worker.rb");
+  if (post.row.seller_id === null)
+    throw new NotPortedError("an installment without a seller", "send_workflow_installment_worker.rb");
   const match = await firstAudienceMember(post.row.seller_id, params, { withIds: true, ids: [Number(member.id)] });
   return match === null ? null : { member, match };
 }
@@ -110,7 +143,8 @@ function createdWithinDates(filters: FilterParams, createdAt: Date | null): bool
   const after = filters.created_after ? new Date(filters.created_after) : null;
   const before = filters.created_before ? new Date(filters.created_before) : null;
   if (after === null && before === null) return true;
-  if (createdAt === null) throw new NotPortedError("a recipient without created_at", "send_workflow_installment_worker.rb");
+  if (createdAt === null)
+    throw new NotPortedError("a recipient without created_at", "send_workflow_installment_worker.rb");
   if (after !== null && createdAt.getTime() <= after.getTime()) return false;
   if (before !== null && createdAt.getTime() >= before.getTime()) return false;
   return true;
@@ -118,36 +152,81 @@ function createdWithinDates(filters: FilterParams, createdAt: Date | null): bool
 
 // `DirectAffiliate.alive.where(...)` rows, in the columns ActiveRecord lists
 type AffiliateRow = { id: number; created_at: Date | null; flags: number };
-const AFFILIATE_COLUMNS = ["id", "seller_id", "affiliate_user_id", "affiliate_basis_points", "created_at", "updated_at", "deleted_at", "flags", "destination_url", "type"];
+const AFFILIATE_COLUMNS = [
+  "id",
+  "seller_id",
+  "affiliate_user_id",
+  "affiliate_basis_points",
+  "created_at",
+  "updated_at",
+  "deleted_at",
+  "flags",
+  "destination_url",
+  "type",
+];
 
 // `affiliate_reference_times(installment:, member:, current_match:, affiliate_user_id:)`
-async function affiliateReferenceTimes(post: InstallmentPost, member: AudienceMemberRow, match: AudienceMemberRow, affiliateUserId: bigint): Promise<Date[]> {
+async function affiliateReferenceTimes(
+  post: InstallmentPost,
+  member: AudienceMemberRow,
+  match: AudienceMemberRow,
+  affiliateUserId: bigint,
+): Promise<Date[]> {
   const filters = await audienceMembersFilterParams(post);
-  const ids = [...new Set((detailsOf(member).affiliates ?? []).map((affiliate) => affiliate.id).filter((id): id is number => typeof id === "number"))];
-  const columns = Prisma.join(AFFILIATE_COLUMNS.map((name) => column("affiliates", name)), ", ");
-  const sellerCondition = post.row.seller_id === null ? Prisma.sql`${column("affiliates", "seller_id")} IS NULL` : Prisma.sql`${column("affiliates", "seller_id")} = ${post.row.seller_id}`;
+  const ids = [
+    ...new Set(
+      (detailsOf(member).affiliates ?? [])
+        .map((affiliate) => affiliate.id)
+        .filter((id): id is number => typeof id === "number"),
+    ),
+  ];
+  const columns = Prisma.join(
+    AFFILIATE_COLUMNS.map((name) => column("affiliates", name)),
+    ", ",
+  );
+  const sellerCondition =
+    post.row.seller_id === null
+      ? Prisma.sql`${column("affiliates", "seller_id")} IS NULL`
+      : Prisma.sql`${column("affiliates", "seller_id")} = ${post.row.seller_id}`;
   const rows = await selectRows(
     Prisma.sql`SELECT ${columns} FROM ${table("affiliates")} WHERE ${column("affiliates", "type")} = ${"DirectAffiliate"} AND ${column("affiliates", "deleted_at")} IS NULL AND ${columnIn("affiliates", "id", ids)} AND ${sellerCondition} AND ${column("affiliates", "affiliate_user_id")} = ${affiliateUserId}`,
   );
-  let affiliates = rows.map((row) => castRow<AffiliateRow & Record<string, unknown>>("Affiliate", row)).filter((affiliate) => (affiliate.flags & 2) !== 0);
+  let affiliates = rows
+    .map((row) => castRow<AffiliateRow & Record<string, unknown>>("Affiliate", row))
+    .filter((affiliate) => (affiliate.flags & 2) !== 0);
   affiliates = affiliates.filter((affiliate) => createdWithinDates(filters, affiliate.created_at));
-  if (match.affiliate_id !== null && match.affiliate_id !== undefined) affiliates = affiliates.filter((affiliate) => affiliate.id === match.affiliate_id);
+  if (match.affiliate_id !== null && match.affiliate_id !== undefined)
+    affiliates = affiliates.filter((affiliate) => affiliate.id === match.affiliate_id);
   if (affiliates.length === 0) return [];
   const productIds = filters.affiliate_product_ids ?? [];
-  const productCondition = productIds.length > 0 ? Prisma.sql` AND ${columnIn("affiliates_links", "link_id", productIds)}` : Prisma.empty;
+  const productCondition =
+    productIds.length > 0 ? Prisma.sql` AND ${columnIn("affiliates_links", "link_id", productIds)}` : Prisma.empty;
   const times = await selectRows<{ created_at: Date }>(
-    Prisma.sql`SELECT ${column("affiliates_links", "created_at")} FROM ${table("affiliates_links")} WHERE ${columnIn("affiliates_links", "affiliate_id", affiliates.map((affiliate) => affiliate.id))}${productCondition} AND ${column("affiliates_links", "created_at")} IS NOT NULL`,
+    Prisma.sql`SELECT ${column("affiliates_links", "created_at")} FROM ${table("affiliates_links")} WHERE ${columnIn(
+      "affiliates_links",
+      "affiliate_id",
+      affiliates.map((affiliate) => affiliate.id),
+    )}${productCondition} AND ${column("affiliates_links", "created_at")} IS NOT NULL`,
   );
   return times.map((row) => new Date(Math.floor(new Date(row.created_at).getTime() / SECOND_MS) * SECOND_MS));
 }
 
 // `current_recipient_reference_time(installment:, purchase_id:, ...)`: the time the recipient's delay counts from today.
-export async function currentRecipientReferenceTime(post: InstallmentPost, ids: RecipientIds, deps: RescheduleDeps): Promise<string | null> {
+export async function currentRecipientReferenceTime(
+  post: InstallmentPost,
+  ids: RecipientIds,
+  deps: RescheduleDeps,
+): Promise<string | null> {
   if (!exactlyOne(ids)) return null;
   let reference: Date | null = null;
   if (present(ids.purchaseId)) {
     const original = await originalPurchaseOf(ids.purchaseId, deps);
-    if (original !== null) reference = await workflowDeliveryReferenceTime(post, original.sale, await subscriptionOf(original.sale, original.subscription, deps));
+    if (original !== null)
+      reference = await workflowDeliveryReferenceTime(
+        post,
+        original.sale,
+        await subscriptionOf(original.sale, original.subscription, deps),
+      );
   } else if (present(ids.followerId)) {
     const [row] = await selectRows<{ confirmed_at: Date }>(
       Prisma.sql`SELECT ${column("followers", "confirmed_at")} FROM ${table("followers")} WHERE ${column("followers", "deleted_at")} IS NULL AND ${column("followers", "confirmed_at")} IS NOT NULL AND ${column("followers", "id")} = ${recordIdFrom(ids.followerId, "Follower.where")} AND ${column("followers", "followed_id")} = ${post.row.seller_id} LIMIT 1`,
@@ -155,7 +234,9 @@ export async function currentRecipientReferenceTime(post: InstallmentPost, ids: 
     reference = row === undefined ? null : new Date(row.confirmed_at);
   } else if (present(ids.affiliateUserId)) {
     const userId = recordIdFrom(ids.affiliateUserId, "User.where");
-    const [user] = await selectRows<{ email: string | null }>(Prisma.sql`SELECT ${column("users", "email")} FROM ${table("users")} WHERE ${column("users", "id")} = ${userId} LIMIT 1`);
+    const [user] = await selectRows<{ email: string | null }>(
+      Prisma.sql`SELECT ${column("users", "email")} FROM ${table("users")} WHERE ${column("users", "id")} = ${userId} LIMIT 1`,
+    );
     const filters = await audienceMembersFilterParams(post);
     const audience = await currentAudienceMemberAndMatch(post, user?.email ?? null, withoutDates(filters));
     if (audience !== null) {
@@ -172,7 +253,12 @@ export async function currentRecipientReferenceTime(post: InstallmentPost, ids: 
 }
 
 // `recipient_matches_current_audience?(installment:, purchase_id:, ..., reschedule_reference_time:)`
-export async function recipientMatchesCurrentAudience(post: InstallmentPost, ids: RecipientIds, referenceTimeText: string, deps: RescheduleDeps): Promise<boolean> {
+export async function recipientMatchesCurrentAudience(
+  post: InstallmentPost,
+  ids: RecipientIds,
+  referenceTimeText: string,
+  deps: RescheduleDeps,
+): Promise<boolean> {
   if (!exactlyOne(ids)) return false;
   const reference = parseReferenceTime(referenceTimeText);
   if (post.flag("is_for_new_customers_of_workflow")) {
@@ -181,7 +267,12 @@ export async function recipientMatchesCurrentAudience(post: InstallmentPost, ids
   }
 
   if (present(ids.subscriptionId)) {
-    const row = await findOneBy<Subscription>("Subscription", "id", recordIdFrom(ids.subscriptionId, "Subscription.find_by"), true);
+    const row = await findOneBy<Subscription>(
+      "Subscription",
+      "id",
+      recordIdFrom(ids.subscriptionId, "Subscription.find_by"),
+      true,
+    );
     if (row === null) return false;
     const subscription = new SubscriptionRecord(row, deps.subscriptionDeps);
     // cancelled?: no longer alive, and a cancellation was recorded
@@ -209,7 +300,9 @@ export async function recipientMatchesCurrentAudience(post: InstallmentPost, ids
 
   if (present(ids.affiliateUserId)) {
     const userId = recordIdFrom(ids.affiliateUserId, "User.where");
-    const [user] = await selectRows<{ email: string | null }>(Prisma.sql`SELECT ${column("users", "email")} FROM ${table("users")} WHERE ${column("users", "id")} = ${userId} LIMIT 1`);
+    const [user] = await selectRows<{ email: string | null }>(
+      Prisma.sql`SELECT ${column("users", "email")} FROM ${table("users")} WHERE ${column("users", "id")} = ${userId} LIMIT 1`,
+    );
     const email = user?.email ?? null;
     if (email === null || (await sentPostEmailExists(post, email))) return false;
     const filters = await audienceMembersFilterParams(post);
@@ -245,10 +338,29 @@ async function activeFollower(post: InstallmentPost, followerId: JsonValue | und
 }
 
 // `reschedule_with_current_rule(...)`
-export async function rescheduleWithCurrentRule(post: InstallmentPost, rule: InstallmentRule, version: number, ids: RecipientIds, referenceTimeText: string | null): Promise<void> {
+export async function rescheduleWithCurrentRule(
+  post: InstallmentPost,
+  rule: InstallmentRule,
+  version: number,
+  ids: RecipientIds,
+  referenceTimeText: string | null,
+): Promise<void> {
   if (referenceTimeText === null || rule.version < version) return;
-  if (rule.delayed_delivery_time === null) throw new NotPortedError("an installment rule without a delay", "installment_rule.rb");
+  if (rule.delayed_delivery_time === null)
+    throw new NotPortedError("an installment rule without a delay", "installment_rule.rb");
   const deliverAt = new Date(parseReferenceTime(referenceTimeText).getTime() + rule.delayed_delivery_time * SECOND_MS);
-  const jid = await performAsync(RESCHEDULE_JOB, [post.id, rule.version, ids.purchaseId ?? null, ids.followerId ?? null, ids.affiliateUserId ?? null, ids.subscriptionId ?? null, referenceTimeText], { at: deliverAt });
+  const jid = await performAsync(
+    RESCHEDULE_JOB,
+    [
+      post.id,
+      rule.version,
+      ids.purchaseId ?? null,
+      ids.followerId ?? null,
+      ids.affiliateUserId ?? null,
+      ids.subscriptionId ?? null,
+      referenceTimeText,
+    ],
+    { at: deliverAt },
+  );
   if (!jid) throw new FanoutNotEnqueuedError("Sidekiq did not enqueue the workflow installment");
 }

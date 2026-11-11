@@ -6,23 +6,37 @@ import { randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
 
 import { decrypt } from "../../lib/obfuscate-ids.ts";
-import { column, execute, selectRows, table } from "./sql.ts";
+
 import { transaction } from "./runtime/transaction.ts";
+import { column, execute, selectRows, table } from "./sql.ts";
 
 const LOCK_WAIT_SECONDS = 5;
 // 60.years.to_i
 const SIXTY_YEARS_IN_SECONDS = 1_893_417_120;
 // Doorkeeper.configuration.public_scopes.join(" ")
-export const DEFAULT_APPLICATION_SCOPES = "edit_products edit_emails view_sales mark_sales_as_shipped edit_sales revenue_share ifttt view_profile edit_profile view_payouts view_tax_data account";
+export const DEFAULT_APPLICATION_SCOPES =
+  "edit_products edit_emails view_sales mark_sales_as_shipped edit_sales revenue_share ifttt view_profile edit_profile view_payouts view_tax_data account";
 export const AGENT_APP_NAME = "Gumroad Store Agent (internal)";
 
-export type OauthApplicationRow = { id: number; name: string; uid: string; secret: string; redirect_uri: string; owner_id: number | null; scopes: string; deleted_at: Date | null };
+export type OauthApplicationRow = {
+  id: number;
+  name: string;
+  uid: string;
+  secret: string;
+  redirect_uri: string;
+  owner_id: number | null;
+  scopes: string;
+  deleted_at: Date | null;
+};
 
 export const generateUniqueToken = (): string => randomBytes(32).toString("base64url");
 const wholeSeconds = (date: Date) => new Date(Math.floor(date.getTime() / 1000) * 1000);
 
 // `current_seller.oauth_applications.alive.find_by_external_id(id)`
-export async function findSellerApplication(sellerId: bigint | number, externalId: string): Promise<OauthApplicationRow | null> {
+export async function findSellerApplication(
+  sellerId: bigint | number,
+  externalId: string,
+): Promise<OauthApplicationRow | null> {
   const id = decrypt(externalId);
   if (id === null) return null;
   const [row] = await selectRows<OauthApplicationRow>(
@@ -34,7 +48,9 @@ export async function findSellerApplication(sellerId: bigint | number, externalI
 // `SELECT ? = ? COLLATE utf8mb4_unicode_ci`: the database decides, as the controller does.
 export async function reservedAgentApplicationName(name: string): Promise<boolean> {
   if (name === "") return false;
-  const [row] = await selectRows<Record<string, unknown>>(Prisma.sql`SELECT ${name} = ${AGENT_APP_NAME} COLLATE utf8mb4_unicode_ci AS reserved`);
+  const [row] = await selectRows<Record<string, unknown>>(
+    Prisma.sql`SELECT ${name} = ${AGENT_APP_NAME} COLLATE utf8mb4_unicode_ci AS reserved`,
+  );
   return Number(row?.reserved) === 1;
 }
 
@@ -52,7 +68,8 @@ export async function withApplicationLock<T>(applicationId: number, shared: bool
       return fn();
     });
   } finally {
-    if (previous != null && String(previous) !== "") await execute(Prisma.raw(`SET SESSION innodb_lock_wait_timeout = ${Math.trunc(Number(previous))}`));
+    if (previous != null && String(previous) !== "")
+      await execute(Prisma.raw(`SET SESSION innodb_lock_wait_timeout = ${Math.trunc(Number(previous))}`));
   }
 }
 
@@ -89,16 +106,22 @@ export async function markApplicationDeleted(application: OauthApplicationRow, n
   const id = application.id;
   await withApplicationLock(id, false, async () => {
     for (const t of ["oauth_access_grants", "oauth_access_tokens"]) {
-      await execute(Prisma.sql`UPDATE ${table(t)} SET ${column(t, "revoked_at")} = ${deletedAt} WHERE ${column(t, "application_id")} = ${id} AND ${column(t, "revoked_at")} IS NULL`);
+      await execute(
+        Prisma.sql`UPDATE ${table(t)} SET ${column(t, "revoked_at")} = ${deletedAt} WHERE ${column(t, "application_id")} = ${id} AND ${column(t, "revoked_at")} IS NULL`,
+      );
     }
     const d = "oauth_device_authorizations";
     await execute(
       Prisma.sql`UPDATE ${table(d)} SET ${column(d, "status")} = 'denied', ${column(d, "denied_at")} = ${now()}, ${column(d, "updated_at")} = ${now()} WHERE ${column(d, "oauth_application_id")} = ${id} AND ${column(d, "status")} IN ('pending', 'approved')`,
     );
     const r = "resource_subscriptions";
-    await execute(Prisma.sql`UPDATE ${table(r)} SET ${column(r, "deleted_at")} = ${deletedAt} WHERE ${column(r, "oauth_application_id")} = ${id} AND ${column(r, "deleted_at")} IS NULL`);
+    await execute(
+      Prisma.sql`UPDATE ${table(r)} SET ${column(r, "deleted_at")} = ${deletedAt} WHERE ${column(r, "oauth_application_id")} = ${id} AND ${column(r, "deleted_at")} IS NULL`,
+    );
     const a = "oauth_applications";
-    await execute(Prisma.sql`UPDATE ${table(a)} SET ${column(a, "deleted_at")} = ${deletedAt}, ${column(a, "updated_at")} = ${deletedAt} WHERE ${column(a, "id")} = ${id}`);
+    await execute(
+      Prisma.sql`UPDATE ${table(a)} SET ${column(a, "deleted_at")} = ${deletedAt}, ${column(a, "updated_at")} = ${deletedAt} WHERE ${column(a, "id")} = ${id}`,
+    );
   });
 }
 
@@ -110,14 +133,21 @@ export async function revokeAccessFor(applicationId: number, userId: number | bi
       Prisma.sql`UPDATE ${table(d)} SET ${column(d, "status")} = 'denied', ${column(d, "denied_at")} = ${now()}, ${column(d, "updated_at")} = ${now()} WHERE ${column(d, "oauth_application_id")} = ${applicationId} AND ${column(d, "resource_owner_id")} = ${userId} AND ${column(d, "status")} = 'approved'`,
     );
     const t = "oauth_access_tokens";
-    await execute(Prisma.sql`UPDATE ${table(t)} SET ${column(t, "revoked_at")} = ${wholeSeconds(now())} WHERE ${column(t, "resource_owner_id")} = ${userId} AND ${column(t, "application_id")} = ${applicationId} AND ${column(t, "revoked_at")} IS NULL`);
+    await execute(
+      Prisma.sql`UPDATE ${table(t)} SET ${column(t, "revoked_at")} = ${wholeSeconds(now())} WHERE ${column(t, "resource_owner_id")} = ${userId} AND ${column(t, "application_id")} = ${applicationId} AND ${column(t, "revoked_at")} IS NULL`,
+    );
     const r = "resource_subscriptions";
-    await execute(Prisma.sql`UPDATE ${table(r)} SET ${column(r, "deleted_at")} = ${wholeSeconds(now())} WHERE ${column(r, "user_id")} = ${userId} AND ${column(r, "oauth_application_id")} = ${applicationId} AND ${column(r, "deleted_at")} IS NULL`);
+    await execute(
+      Prisma.sql`UPDATE ${table(r)} SET ${column(r, "deleted_at")} = ${wholeSeconds(now())} WHERE ${column(r, "user_id")} = ${userId} AND ${column(r, "oauth_application_id")} = ${applicationId} AND ${column(r, "deleted_at")} IS NULL`,
+    );
   });
 }
 
 // OauthApplication.authorized_for(user).find_by_external_id(id)
-export async function findAuthorizedApplication(userId: number | bigint, externalId: string): Promise<{ id: number } | null> {
+export async function findAuthorizedApplication(
+  userId: number | bigint,
+  externalId: string,
+): Promise<{ id: number } | null> {
   const id = decrypt(externalId);
   if (id === null) return null;
   const [row] = await selectRows<{ id: number }>(
@@ -126,22 +156,31 @@ export async function findAuthorizedApplication(userId: number | bigint, externa
   return row ?? null;
 }
 
-export async function insertApplication(attrs: { name: string; redirectUri: string; ownerId: number | bigint }, now: () => Date): Promise<number> {
+export async function insertApplication(
+  attrs: { name: string; redirectUri: string; ownerId: number | bigint },
+  now: () => Date,
+): Promise<number> {
   const a = "oauth_applications";
   const at = wholeSeconds(now());
   return transaction(async () => {
-  await execute(
-    Prisma.sql`INSERT INTO ${table(a)} (${column(a, "name")}, ${column(a, "uid")}, ${column(a, "secret")}, ${column(a, "redirect_uri")}, ${column(a, "created_at")}, ${column(a, "updated_at")}, ${column(a, "owner_id")}, ${column(a, "owner_type")}, ${column(a, "scopes")}, ${column(a, "confidential")}) VALUES (${attrs.name}, ${generateUniqueToken()}, ${generateUniqueToken()}, ${attrs.redirectUri}, ${at}, ${at}, ${attrs.ownerId}, 'User', ${DEFAULT_APPLICATION_SCOPES}, 0)`,
-  );
-  const [row] = await selectRows<{ id: number }>(Prisma.sql`SELECT LAST_INSERT_ID() AS id`);
-  return Number(row!.id);
+    await execute(
+      Prisma.sql`INSERT INTO ${table(a)} (${column(a, "name")}, ${column(a, "uid")}, ${column(a, "secret")}, ${column(a, "redirect_uri")}, ${column(a, "created_at")}, ${column(a, "updated_at")}, ${column(a, "owner_id")}, ${column(a, "owner_type")}, ${column(a, "scopes")}, ${column(a, "confidential")}) VALUES (${attrs.name}, ${generateUniqueToken()}, ${generateUniqueToken()}, ${attrs.redirectUri}, ${at}, ${at}, ${attrs.ownerId}, 'User', ${DEFAULT_APPLICATION_SCOPES}, 0)`,
+    );
+    const [row] = await selectRows<{ id: number }>(Prisma.sql`SELECT LAST_INSERT_ID() AS id`);
+    return Number(row!.id);
   });
 }
 
-export async function updateApplication(id: number, changes: { name?: string; redirect_uri?: string }, now: () => Date): Promise<void> {
+export async function updateApplication(
+  id: number,
+  changes: { name?: string; redirect_uri?: string },
+  now: () => Date,
+): Promise<void> {
   const entries = Object.entries(changes);
   if (entries.length === 0) return;
   const a = "oauth_applications";
   const sets = entries.map(([name, value]) => Prisma.sql`${column(a, name)} = ${value}`);
-  await execute(Prisma.sql`UPDATE ${table(a)} SET ${Prisma.join([...sets, Prisma.sql`${column(a, "updated_at")} = ${wholeSeconds(now())}`])} WHERE ${column(a, "id")} = ${id}`);
+  await execute(
+    Prisma.sql`UPDATE ${table(a)} SET ${Prisma.join([...sets, Prisma.sql`${column(a, "updated_at")} = ${wholeSeconds(now())}`])} WHERE ${column(a, "id")} = ${id}`,
+  );
 }
