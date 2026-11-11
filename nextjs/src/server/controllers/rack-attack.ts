@@ -4,6 +4,8 @@
 // rack-attack-throttles.test.ts fails when a routes.json entry matches a rule that is not in RULES.
 //
 // Rack::Attack runs every rule in declaration order and stops at the first one over its limit, so a tripped rule leaves the later ones uncounted.
+import { createHash } from "node:crypto";
+
 import { db } from "../../lib/db.ts";
 import { railsEnv } from "../infra/rails-env.ts";
 import { getRedis } from "../infra/redis.ts";
@@ -12,6 +14,7 @@ import { isValidEmailFormat } from "../models/user.ts";
 import { HandBackToRails, rackResponse } from "./application-controller.ts";
 import { parseBody, parseNestedQuery, type Params } from "./rails-body.ts";
 import { type RailsRequest, railsRequest } from "./rails-request.ts";
+import { resolveRequestAuth } from "./signed-in-filters.ts";
 
 const EXPONENTIAL_BACKOFF_BASE = 8;
 const SECONDS_PER_MINUTE = 60;
@@ -33,7 +36,14 @@ export type RackRequest = {
   mediaType: string | null;
   // `req.env["HTTP_AUTHORIZATION"]`.
   authorization: string | null;
+  // `req.params` raises Rack::QueryParser::InvalidParameterError or QueryLimitError: the `invalid_params` rule counts it, and every rule that
+  // reads a parameter skips it (rackParams throws RackParamsInvalid) as the exponential-backoff wrapper's rescue does.
+  invalidParams: boolean;
+  // `req.env["warden"]&.user&.id`: the signed-in user's id, resolved when a rule asks for it.
+  wardenUserId(): Promise<string | null>;
 };
+
+class RackParamsInvalid extends Error {}
 
 export type Throttle = {
   name: string;
@@ -115,7 +125,10 @@ const isHash = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value);
 
 // Rack::Request#params: the query string, then the form body over it.
-const rackParams = (request: RackRequest): Params => ({ ...request.query, ...request.form });
+const rackParams = (request: RackRequest): Params => {
+  if (request.invalidParams) throw new RackParamsInvalid();
+  return { ...request.query, ...request.form };
+};
 
 // `"#{value}"` for the values a parameter can hold.
 function interpolate(value: unknown): string {
@@ -148,6 +161,7 @@ function pageNumber(page: unknown): number {
 }
 
 async function passwordResetRecipient(request: RackRequest): Promise<string> {
+  if (request.invalidParams) throw new RackParamsInvalid();
   const body = request.mediaType?.includes("json") ? request.json : request.form;
   const params = isHash(body) ? { ...body, ...request.query } : request.query;
   const userParams = params.user;
@@ -187,6 +201,21 @@ const PRODUCTS_PATH = /^\/(api\/)?v2\/products(\.\w+)?$/u;
 const PRODUCTS_COMPS_PATH = /^\/(api\/)?v2\/products\/comps(\.\w+)?$/u;
 const PRODUCT_PREVIEW_PATH = /^\/(api\/)?v2\/products\/[^/]+\/preview_custom_html(\.\w+)?$/u;
 const MEDIA_PATH = /^\/(api\/)?v2\/media(\.\w+)?$/u;
+const PRODUCT_WRITE_PATH = /^\/(api\/)?v2\/products\/[^/]+(\.\w+)?$/u;
+const AFFILIATE_REQUESTS_PATH = /^\/[\p{L}\p{N}]+\/affiliate_requests$/u;
+const ACME_CHALLENGE_PREFIX = "/.well-known/acme-challenge/";
+const HELP_CONTACT_PATH = /^\/help\/contact(?:\.[^/]+)?$/u;
+const OAUTH_DEVICE_CODE_PATH = /^\/oauth\/device\/code(?:\.[^/]+)?$/u;
+const OAUTH_DEVICE_PATH = /^\/oauth\/device(?:\.[^/]+)?$/u;
+const OAUTH_TOKEN_PATH = /^\/oauth\/token(?:\.[^/]+)?$/u;
+const OAUTH_TOKEN_ALIASES_PATH = /^(?:\/oauth\/token|\/(?:muse|claude|chatgpt)\/v1\/oauth2\/token)(?:\.[^/]+)?$/u;
+const PASSKEY_REGISTRATION_OPTIONS_PATH = /^\/settings\/passkeys\/registration_options(?:\.[^/]+)?$/u;
+const PASSKEYS_PATH = /^\/settings\/passkeys(?:\.[^/]+)?$/u;
+const MARKETING_EXECUTE_PATH = /^\/products\/[^/]+\/marketing_actions\/[^/]+\/execute(?:\.[^/]+)?$/u;
+const PASSKEY_LOGIN_OPTIONS_PATH = /^\/login\/passkey\/options(?:\.[^/]+)?$/u;
+const PASSKEY_LOGIN_PATH = /^\/login\/passkey(?:\.[^/]+)?$/u;
+const DEVICE_CODE_GRANT = "urn:ietf:params:oauth:grant-type:device_code";
+const VIP_GROSS_PAID_PAYOUTS_THRESHOLD_CENTS = 500_000;
 
 // Ruby's Regexp#to_s of those path regexps, which names the rules `throttle_by_ip` and `throttle_by_params` register.
 const RUBY_PATH = {
@@ -196,6 +225,9 @@ const RUBY_PATH = {
   productsComps: "(?-mix:\\A\\/(api\\/)?v2\\/products\\/comps(\\.\\w+)?\\z)",
   productPreview: "(?-mix:\\A\\/(api\\/)?v2\\/products\\/[^\\/]+\\/preview_custom_html(\\.\\w+)?\\z)",
   media: "(?-mix:\\A\\/(api\\/)?v2\\/media(\\.\\w+)?\\z)",
+  productWrite: "(?-mix:\\A\\/(api\\/)?v2\\/products\\/[^\\/]+(\\.\\w+)?\\z)",
+  affiliateRequests: "(?-mix:\\A\\/[[:alnum:]]+\\/affiliate_requests\\z)",
+  acmeChallenge: "(?-mix:\\A\\/\\.well-known\\/acme-challenge\\/)",
 } as const;
 
 const API_V2_TOKEN_MAX_LEVEL = 6;
@@ -233,6 +265,74 @@ function loginParam(request: RackRequest): string | null {
   return /^[\t\n\v\f\r ]*$/u.test(login) ? null : login;
 }
 
+// Rack::Attack.vip_token?, without the 10 minute Rails.cache entry: a creator who crosses the payout threshold counts as a VIP here up to
+// that long before Rails' cached answer flips (parity-debt.md).
+async function vipToken(token: string | null): Promise<boolean> {
+  if (token === null || token.trim() === "") return false;
+  const access = await db.oauthAccessToken.findFirst({ where: { token } });
+  if (access?.resource_owner_id == null) return false;
+  const now = Date.now();
+  const expired = access.expires_in !== null && now > access.created_at.getTime() + access.expires_in * 1000;
+  const revoked = access.revoked_at !== null && access.revoked_at.getTime() <= now;
+  if (expired || revoked) return false;
+  const owner = await db.user.findUnique({ where: { id: BigInt(access.resource_owner_id) }, select: { id: true } });
+  if (owner === null) return false;
+  const paid = await db.payment.aggregate({
+    _sum: { amount_cents: true },
+    where: { user_id: owner.id, state: "completed" },
+  });
+  return Number(paid._sum.amount_cents ?? 0) > VIP_GROSS_PAID_PAYOUTS_THRESHOLD_CENTS;
+}
+
+// `vip_product_writer`, memoized per request as `req.memoize(:vip_product_writer)` is.
+const vipWriters = new WeakMap<RackRequest, Promise<boolean>>();
+function vipProductWriter(request: RackRequest): Promise<boolean> {
+  if (!vipWriters.has(request)) vipWriters.set(request, vipToken(v2Token(request)));
+  return vipWriters.get(request)!;
+}
+
+// throttle_by_ip and throttle_by_params with `only_if:` on the product write path: the VIP lookup runs only once the path and verb match.
+const productWriteIp =
+  (method: string, vip: boolean): Throttle["discriminator"] =>
+  async (request) =>
+    request.method === method && PRODUCT_WRITE_PATH.test(request.path) && (await vipProductWriter(request)) === vip
+      ? `${request.path}:${request.remoteIp}`
+      : null;
+const productWriteToken =
+  (method: string, vip: boolean): Throttle["discriminator"] =>
+  async (request) =>
+    request.method === method && PRODUCT_WRITE_PATH.test(request.path) && (await vipProductWriter(request)) === vip
+      ? `${request.path}:${v2Token(request) ?? ""}`
+      : null;
+
+// throttle_by_ip on a string path with an optional verb: the identifier is the address alone.
+const stringPathIp =
+  (path: string, method: string | null): Throttle["discriminator"] =>
+  (request) =>
+    request.path === path && (method === null || request.method === method) ? request.remoteIp : null;
+
+// A path regexp with its verbs, keyed on the address alone (`req.remote_ip if req.path.match?(...) && req.post?`).
+const regexpIp =
+  (path: RegExp, methods: readonly string[]): Throttle["discriminator"] =>
+  (request) =>
+    path.test(request.path) && methods.includes(request.method) ? request.remoteIp : null;
+
+// `req.env["warden"]&.user&.id if <path> && req.post?`: no signed-in user is no bucket.
+const wardenRule =
+  (path: RegExp): Throttle["discriminator"] =>
+  (request) =>
+    path.test(request.path) && request.method === "POST" ? request.wardenUserId() : null;
+
+// oauth_device_token/ip/device_code: the address and the SHA256 of the submitted device code, for the device-code grant on POST /oauth/token.
+function deviceCodeBucket(request: RackRequest): string | null {
+  if (!OAUTH_TOKEN_PATH.test(request.path) || request.method !== "POST") return null;
+  if (request.invalidParams) throw new RackParamsInvalid();
+  const body = request.mediaType?.includes("json") ? request.json : request.form;
+  const params = isHash(body) ? { ...body, ...request.query } : request.query;
+  if (params.grant_type !== DEVICE_CODE_GRANT) return null;
+  return `${request.remoteIp}:${createHash("sha256").update(interpolate(params.device_code)).digest("hex")}`;
+}
+
 const PRODUCTION_PATH_RULES = [
   ["/ip:/login:post", "/login", "POST"],
   ["/ip:/login.json", "/login.json", null],
@@ -241,6 +341,14 @@ const PRODUCTION_PATH_RULES = [
 ] as const;
 
 const RULES: Throttle[] = [
+  // 5 per minute, with tiers to 7: a request whose params Rack cannot parse.
+  ...backoff(
+    "invalid_params",
+    5,
+    60,
+    7,
+    memoized((request) => (request.invalidParams ? `${request.path}:${request.remoteIp}` : null)),
+  ),
   ...productionOnly(
     PRODUCTION_PATH_RULES.flatMap(([name, path, method]) =>
       backoff(
@@ -264,6 +372,7 @@ const RULES: Throttle[] = [
     ),
   ),
   ...productionOnly(backoff("/ip:/follow_from_embed_form", 3, 20, 5, memoized(exactPathIp("/follow_from_embed_form")))),
+  ...productionOnly(backoff("/ip:/users/auth/facebook", 3, 20, 5, memoized(exactPathIp("/users/auth/facebook")))),
   ...productionOnly(
     backoff(
       "/ip:/settings:put",
@@ -273,8 +382,22 @@ const RULES: Throttle[] = [
       memoized((request) => (request.method === "PUT" && request.path === "/settings" ? request.remoteIp : null)),
     ),
   ),
+  ...productionOnly(
+    ["/sellers/brand_accounts", "/sellers/brand_accounts.json"].flatMap((path) =>
+      backoff(`/ip:${path}:post`, 3, 20, 5, memoized(stringPathIp(path, "POST"))),
+    ),
+  ),
+  ...backoff("/ip:/", 60, 30, 5, memoized(exactPathIp("/"))),
+  ...["/api/mobile/purchases/index.json", "/mobile/purchases/index.json"].flatMap((path) =>
+    backoff(`/ip:${path}`, 60, 30, 5, memoized(exactPathIp(path))),
+  ),
   ...backoff("/ip:/discover", 60, 30, 5, memoized(exactPathIp("/discover"))),
+  ...backoff("/ip:/discover_search", 60, 30, 5, memoized(exactPathIp("/discover_search"))),
   ...backoff("/ip:/offer_codes/compute_discount", 60, 30, 5, memoized(exactPathIp("/offer_codes/compute_discount"))),
+  ...["/purchases", "/stripe/setup_intents"].flatMap((path) =>
+    backoff(`/ip:${path}`, 40, 60, 5, memoized(exactPathIp(path))),
+  ),
+  ...backoff("/ip:/settings/credit_card", 3, 20, 5, memoized(exactPathIp("/settings/credit_card"))),
   ...backoff(
     "mobile_url_redirect_download/token",
     60,
@@ -286,6 +409,9 @@ const RULES: Throttle[] = [
       return match ? `${match.token}/${match.file}` : null;
     }),
   ),
+  // throttle_by_ip_for_period: one counter, no tiers.
+  { name: "/ip/period:/purchases", limit: 50, period: 3600, discriminator: exactPathIp("/purchases") },
+  ...backoff("help_center_contact/ip", 3, 60, 1, memoized(regexpIp(HELP_CONTACT_PATH, ["POST"]))),
   ...GROUPED_RECEIPT_PATHS.flatMap((path) =>
     backoff(
       `/ip:${path}`,
@@ -296,6 +422,16 @@ const RULES: Throttle[] = [
     ),
   ),
   ...backoff("/params:grouped_receipt:email", 6, 60, 6, memoized(groupedReceiptRecipient)),
+  ...backoff("oauth_device_code/ip", 20, 60, 5, memoized(regexpIp(OAUTH_DEVICE_CODE_PATH, ["POST"]))),
+  ...backoff("oauth_device_authorization_lookup/ip", 30, 60, 5, memoized(regexpIp(OAUTH_DEVICE_PATH, ["GET", "HEAD"]))),
+  ...backoff("oauth_device_authorization_decision/ip", 10, 60, 5, memoized(regexpIp(OAUTH_DEVICE_PATH, ["POST"]))),
+  ...backoff(
+    "oauth_token/ip",
+    3000,
+    60,
+    5,
+    memoized((request) => (OAUTH_TOKEN_ALIASES_PATH.test(request.path) ? request.remoteIp : null)),
+  ),
   ...backoff(
     "oauth_dynamic_registration/ip",
     20,
@@ -305,6 +441,7 @@ const RULES: Throttle[] = [
       MCP_REGISTRATION_PATH.test(request.path) && request.method === "POST" ? request.remoteIp : null,
     ),
   ),
+  { name: "oauth_device_token/ip/device_code", limit: 120, period: 60, discriminator: deviceCodeBucket },
   ...backoff(
     "/ip/params:/follow:post",
     3,
@@ -362,6 +499,35 @@ const RULES: Throttle[] = [
       ),
     ),
   ),
+  // throttle_by_params: a signed-out request is counted under the empty identifier.
+  ...backoff(
+    "/params:/settings/totp/confirm:post",
+    10,
+    60,
+    6,
+    memoized(async (request) =>
+      request.path === "/settings/totp/confirm" && request.method === "POST"
+        ? ((await request.wardenUserId()) ?? "")
+        : null,
+    ),
+  ),
+  ...backoff(
+    "/params:/settings/passkeys/registration_options:POST",
+    10,
+    60,
+    6,
+    memoized(wardenRule(PASSKEY_REGISTRATION_OPTIONS_PATH)),
+  ),
+  ...backoff("/params:/settings/passkeys:POST", 10, 60, 6, memoized(wardenRule(PASSKEYS_PATH))),
+  ...backoff(
+    "/params:/products/:id/marketing_actions/:id/execute:POST",
+    5,
+    60,
+    6,
+    memoized(wardenRule(MARKETING_EXECUTE_PATH)),
+  ),
+  ...backoff("/ip:/login/passkey/options:POST", 10, 60, 6, memoized(regexpIp(PASSKEY_LOGIN_OPTIONS_PATH, ["POST"]))),
+  ...backoff("/ip:/login/passkey:POST", 10, 60, 6, memoized(regexpIp(PASSKEY_LOGIN_PATH, ["POST"]))),
   ...backoff(
     "password_reset/ip",
     3,
@@ -390,6 +556,7 @@ const RULES: Throttle[] = [
   },
   // A plain `throttle`, no tiers: it stops a botnet rotating addresses against one account.
   { name: "logins/login", limit: 3, period: 20, discriminator: loginParam },
+  ...backoff(`/ip:${RUBY_PATH.affiliateRequests}:post`, 10, 60, 5, memoized(ipRule(AFFILIATE_REQUESTS_PATH, "POST"))),
   ...backoff("/ip:(?-mix:\\A\\/posts\\/.+\\/comments\\z):post", 5, 60, 5, memoized(ipRule(COMMENTS_PATH, "POST"))),
   ...backoff("/ip:(?-mix:\\A\\/posts\\/.+\\/comments\\/.+\\z):put", 5, 60, 5, memoized(ipRule(COMMENT_PATH, "PUT"))),
   ...backoff(
@@ -406,8 +573,45 @@ const RULES: Throttle[] = [
     period: 60,
     discriminator: ipRule(CHAT_MESSAGES_PATH, "POST"),
   },
+  {
+    name: "/ip/period:/internal/ai_product_details_generations:post",
+    limit: 10,
+    period: 60,
+    discriminator: stringPathIp("/internal/ai_product_details_generations", "POST"),
+  },
+  {
+    name: `/ip/period:${RUBY_PATH.acmeChallenge}`,
+    limit: 120,
+    period: 60,
+    discriminator: (request) =>
+      request.path.startsWith(ACME_CHALLENGE_PREFIX) ? `${request.path}:${request.remoteIp}` : null,
+  },
   ...backoff(`/ip:${RUBY_PATH.products}:post`, 10, 60, 5, memoized(ipRule(PRODUCTS_PATH, "POST"))),
   ...backoff(`/ip:${RUBY_PATH.productsComps}:get`, 30, 60, 5, memoized(ipRule(PRODUCTS_COMPS_PATH, "GET"))),
+  ...["put", "patch"].flatMap((verb) => [
+    ...backoff(`/ip:${RUBY_PATH.productWrite}:${verb}`, 30, 60, 5, memoized(productWriteIp(verb.toUpperCase(), false))),
+    ...backoff(
+      `/params:${RUBY_PATH.productWrite}:${verb}`,
+      30,
+      60,
+      API_V2_TOKEN_MAX_LEVEL,
+      memoized(productWriteToken(verb.toUpperCase(), false)),
+    ),
+    ...backoff(
+      `/vip/ip:${RUBY_PATH.productWrite}:${verb}`,
+      150,
+      60,
+      5,
+      memoized(productWriteIp(verb.toUpperCase(), true)),
+    ),
+    ...backoff(
+      `/vip/params:${RUBY_PATH.productWrite}:${verb}`,
+      150,
+      60,
+      API_V2_TOKEN_MAX_LEVEL,
+      memoized(productWriteToken(verb.toUpperCase(), true)),
+    ),
+  ]),
   ...backoff(
     `/params:${RUBY_PATH.productsComps}:get`,
     30,
@@ -490,12 +694,29 @@ const normalizeDiscriminator = (discriminator: string) =>
 // ActionDispatch::RemoteIp skips these trusted proxies when it walks X-Forwarded-For from the right.
 const PRIVATE_ADDRESS = /^(?:127\.|10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|::1$|fc|fd)/u;
 
+// Rack::QueryParser raises InvalidParameterError for a `%` that does not start a hex escape (invalid UTF-8 is left alone), and QueryLimitError
+// past PARAMS_LIMIT pairs or PARAM_DEPTH_LIMIT nested brackets. `req.params` then raises, which the `invalid_params` rule counts.
+const PARAMS_LIMIT = 4096;
+const PARAM_DEPTH_LIMIT = 32;
+const BAD_PERCENT_ESCAPE = /%(?![0-9A-Fa-f]{2})/u;
+function unparseable(encoded: string): boolean {
+  const pairs = encoded.split("&").filter((pair) => pair !== "");
+  if (pairs.length > PARAMS_LIMIT) return true;
+  return pairs.some((pair) => {
+    if (BAD_PERCENT_ESCAPE.test(pair)) return true;
+    const key = pair.split("=", 1)[0]!;
+    return key.replace(/%5B/giu, "[").split("[").length - 1 >= PARAM_DEPTH_LIMIT;
+  });
+}
+
 export function rackRequest(request: Request, bytes: Uint8Array): RackRequest {
   const rails: RailsRequest = railsRequest(request);
   const contentType = request.headers.get("content-type");
   const mediaType = contentType === null ? null : contentType.split(";")[0]!.trim().toLowerCase();
   const isForm = mediaType === "application/x-www-form-urlencoded";
   const forwarded = (request.headers.get("x-forwarded-for") ?? "").split(",").map((entry) => entry.trim());
+  const invalidParams = unparseable(rails.queryString) || (isForm && unparseable(Buffer.from(bytes).toString("utf8")));
+  let wardenUser: Promise<string | null> | undefined;
   return {
     method: rails.method,
     path: normalizePath(rails.path),
@@ -506,11 +727,19 @@ export function rackRequest(request: Request, bytes: Uint8Array): RackRequest {
       [...forwarded].reverse().find((entry) => entry !== "" && !PRIVATE_ADDRESS.test(entry)) ??
       forwarded.find((entry) => entry !== "") ??
       "",
-    query: parseNestedQuery(rails.queryString),
-    form: isForm ? parseBody(contentType, bytes) : {},
+    query: invalidParams ? {} : parseNestedQuery(rails.queryString),
+    form: isForm && !invalidParams ? parseBody(contentType, bytes) : {},
     json: mediaType?.includes("json") ? jsonBody(bytes) : {},
     mediaType,
     authorization: request.headers.get("authorization"),
+    invalidParams,
+    // A remember-me cookie signs a user in only inside the controller, after Rack::Attack has run, so it is no Warden user here.
+    wardenUserId: () =>
+      (wardenUser ??= resolveRequestAuth(rails, new Date()).then((auth) => {
+        if (auth.authenticatedVia === "remember_cookie") return null;
+        const user = auth.context.loggedInUser ?? auth.effects.signedOut?.user ?? null;
+        return user === null ? null : String(user.id);
+      })),
   };
 }
 
@@ -524,7 +753,14 @@ export async function evaluate(
 ): Promise<Throttled | null> {
   if (LOCALHOST_ADDRESSES.has(request.remoteIp)) return null;
   for (const rule of rules) {
-    const raw = await rule.discriminator(request);
+    let raw: string | null;
+    try {
+      raw = await rule.discriminator(request);
+    } catch (error) {
+      // The rescue of throttle_with_exponential_backoff: a rule that cannot read the params skips the request.
+      if (error instanceof RackParamsInvalid) continue;
+      throw error;
+    }
     if (raw === null) continue;
     // Without a client address the rules cannot key the request the way Rails does.
     if (request.remoteIp === "") throw new HandBackToRails("a request with no client address");

@@ -1,7 +1,15 @@
 import { readFileSync } from "node:fs";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
+// The signed-out cases of the golden need no session or database: no Warden user, no OAuth token.
+vi.mock("./signed-in-filters.ts", () => ({
+  resolveRequestAuth: () =>
+    Promise.resolve({ context: { loggedInUser: null }, effects: { signedOut: null }, authenticatedVia: null }),
+}));
+vi.mock("../../lib/db.ts", () => ({ db: { oauthAccessToken: { findFirst: () => Promise.resolve(null) } } }));
+
+import { HandBackToRails } from "./application-controller.ts";
 import { evaluate, normalizePath, RACK_ATTACK_RULES, rackRequest, type RackStore } from "./rack-attack.ts";
 
 // parity/golden/rack-attack-throttles.json comes from rack_attack.rb itself (scripts/golden/rack-attack-throttles.rb): every throttle in
@@ -13,6 +21,7 @@ type Golden = {
     name: string;
     method: string;
     path: string;
+    query?: string;
     authorization?: string | null;
     at: number;
     ip: string;
@@ -68,12 +77,25 @@ describe("golden of rack_attack.rb", () => {
     );
   });
 
-  for (const entry of golden.counts) {
+  // Rack parses a key or value that is not valid UTF-8 without raising and counts nothing; Node's parser does not read it, so it hands the request back.
+  const HANDED_BACK = new Set(["invalid utf-8"]);
+  for (const entry of golden.counts.filter(({ name }) => HANDED_BACK.has(name))) {
+    it(`hands ${entry.name} back to Rails, which counts nothing for it`, () => {
+      expect(Object.keys(entry.keys)).toEqual([]);
+      expect(() => request(`${entry.path}?${entry.query}`)).toThrow(HandBackToRails);
+    });
+  }
+
+  for (const entry of golden.counts.filter(({ name }) => !HANDED_BACK.has(name))) {
     it(`writes the keys and expiries Rack::Attack writes for ${entry.name}`, async () => {
       const store = memoryStore();
       const headers: Record<string, string> = {};
       if (entry.authorization) headers.authorization = entry.authorization;
-      const rack = request(entry.path, { method: entry.method, headers, ip: entry.ip });
+      const rack = request(entry.query === undefined ? entry.path : `${entry.path}?${entry.query}`, {
+        method: entry.method,
+        headers,
+        ip: entry.ip,
+      });
       expect(await run(store, rack, entry.at)).toBeNull();
       expect(Object.fromEntries(store.counts)).toEqual(
         Object.fromEntries(Object.entries(entry.keys).map(([key, { value }]) => [key, value])),
