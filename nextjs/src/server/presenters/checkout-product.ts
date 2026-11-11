@@ -17,6 +17,7 @@ import { CONTINENT_SHIPPING_COUNTRIES } from "../infra/continent-shipping-countr
 import { CustomFieldFlags } from "../models/custom-field.ts";
 import { LinkFlags } from "../models/link.ts";
 import { column, selectRows, table } from "../models/sql.ts";
+import { currencyMinPrice } from "../models/purchase-pricing.ts";
 import { discountForDisplay } from "../models/upsell.ts";
 import { aliveUserComplianceInfoRow } from "../models/user-compliance-info.ts";
 import { UserFlags } from "../models/user.ts";
@@ -247,7 +248,12 @@ async function buyPrices(row: LinkRow, variant: VariantRow | null): Promise<Pric
 }
 
 // Link#cart_item(params) for a buy-only product, a legacy subscription or a membership.
-async function cartItem(row: LinkRow, options: Awaited<ReturnType<typeof linkOptions>>, params: CartParams) {
+async function cartItem(
+  row: LinkRow,
+  seller: UserRow,
+  options: Awaited<ReturnType<typeof linkOptions>>,
+  params: CartParams,
+) {
   const tiered = flag(row, "is_tiered_membership");
   let requested = options.find((o) => o.id === params.option) ?? null;
   // A closed tier reports quantity 0, but selecting it here would add a zero-quantity item.
@@ -277,13 +283,10 @@ async function cartItem(row: LinkRow, options: Awaited<ReturnType<typeof linkOpt
       );
   }
   const listed = recurrence?.price_cents ?? (await listedPriceCents(row)) ?? 0;
-  return {
-    option,
-    rental: false,
-    recurrence: recurrence?.recurrence ?? null,
-    // [customizable ? params[:price].to_i : 0, (recurrence&.price_cents || price_cents.to_i) + price_difference_cents].max
-    price: Math.max(0, listed + (option?.price_difference_cents ?? 0)),
-  };
+  // [customizable ? params[:price].to_i : 0, (recurrence&.price_cents || price_cents.to_i) + price_difference_cents].max
+  let price = Math.max(0, listed + (option?.price_difference_cents ?? 0));
+  if ((await pppEnabled(row, seller)) && price !== 0 && price < currencyMinPrice(row)) price = currencyMinPrice(row);
+  return { option, rental: false, recurrence: recurrence?.recurrence ?? null, price };
 }
 
 async function bundleProductProps(bundleProducts: Awaited<ReturnType<typeof aliveBundleProducts>>) {
@@ -394,14 +397,13 @@ async function shippableCountryCodes(row: LinkRow): Promise<string[]> {
 export async function checkoutProduct(row: LinkRow, request: CheckoutRequest = {}) {
   const { cartParams = {}, includeCrossSells = true } = request;
   const seller = (await findUserById(row.user_id!))!;
-  if (await pppEnabled(row, seller)) throw new NotPortedError("Link#cart_item with purchasing power parity on");
 
   const shippableCountries = await shippableCountryCodes(row);
   const upsell = await availableUpsell(row);
   const offeredVariantIds = await upsellOfferedVariantIds(row, upsell);
   const bundleProducts = await aliveBundleProducts(row.id);
   const options = await linkOptions(row);
-  const item = await cartItem(row, options, cartParams);
+  const item = await cartItem(row, seller, options, cartParams);
   const [creatorAvatar, thumbnail] = [
     present(seller.username) ? await avatarUrl(seller as unknown as User) : null,
     await thumbnailUrl(row.id),

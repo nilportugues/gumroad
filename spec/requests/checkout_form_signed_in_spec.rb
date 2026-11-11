@@ -236,6 +236,17 @@ describe "Checkout form settings when signed in", type: :request do
       expect(cart_item).to include("price" => 300, "recurrence" => "monthly")
     end
 
+    it "previews a product of a seller with purchasing power parity on", parity: true do
+      seller.update!(purchasing_power_parity_enabled: true, purchasing_power_parity_limit: 40)
+      create(:product, user: seller, name: "Cheap", price_cents: 150, created_at: Time.utc(2025, 1, 2))
+      log_in(seller)
+
+      get checkout_form_path
+
+      expect(inertia_props_of(response)["cart_item"]).to include("price" => 150)
+      expect(inertia_props_of(response)["cart_item"]["product"]["ppp_details"]).to be_nil
+    end
+
     it "previews a rental product", parity: true do
       create(:product, user: seller, name: "Film", price_cents: 1500, purchase_type: :buy_and_rent, rental_price_cents: 400, created_at: Time.utc(2025, 1, 2))
       log_in(seller)

@@ -546,6 +546,53 @@ describe "Checkout upsells when signed in", type: :request do
         expect(response.parsed_body["product"]["rental"]).to eq("price_cents" => 300, "rent_only" => false)
       end
 
+      it "answers a product of a seller with purchasing power parity on at its price", parity: true do
+        seller.update!(purchasing_power_parity_enabled: true, purchasing_power_parity_limit: 40)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body).to include("price" => 1000)
+        expect(response.parsed_body["product"]["ppp_details"]).to be_nil
+      end
+
+      it "raises a price below the currency minimum for a seller with purchasing power parity on", parity: true do
+        seller.update!(purchasing_power_parity_enabled: true, purchasing_power_parity_limit: 40)
+        product.prices.update_all(price_cents: 50)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body).to include("price" => 99)
+      end
+
+      it "leaves a free product free for a seller with purchasing power parity on", parity: true do
+        seller.update!(purchasing_power_parity_enabled: true, purchasing_power_parity_limit: 40)
+        product.prices.update_all(price_cents: 0)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body).to include("price" => 0)
+      end
+
+      it "keeps a price below the minimum when the product opts out of purchasing power parity", parity: true do
+        seller.update!(purchasing_power_parity_enabled: true, purchasing_power_parity_limit: 40)
+        product.update!(purchasing_power_parity_disabled: true)
+        product.prices.update_all(price_cents: 50)
+
+        get cart_item_checkout_upsells_path(product_id: product.external_id), headers: accept_json
+
+        expect(response.parsed_body).to include("price" => 50)
+      end
+
+      it "raises a yen price below the minimum for a seller with purchasing power parity on", parity: true do
+        seller.update!(purchasing_power_parity_enabled: true, purchasing_power_parity_limit: 40)
+        yen = create(:product, user: seller, name: "Yen", price_currency_type: "jpy", price_cents: 150, created_at: Time.utc(2025, 1, 2))
+        yen.prices.update_all(price_cents: 20)
+
+        get cart_item_checkout_upsells_path(product_id: yen.external_id), headers: accept_json
+
+        expect(response.parsed_body).to include("price" => 99)
+      end
+
       it "answers a rent-only product at its rental price", parity: true do
         product.update!(purchase_type: :rent_only, rental_price_cents: 300)
 
