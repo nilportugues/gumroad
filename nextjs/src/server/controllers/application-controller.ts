@@ -77,6 +77,9 @@ export type Redirected = {
   flash?: Record<string, string>;
   inertiaErrors?: Record<string, unknown>;
   cookies?: string[];
+  // With `prepended`: a redirect that a Rack middleware answers (OmniAuth's `redirect`), not a controller. The location goes out
+  // as given; this is the body ("Redirecting to ...") and the response has no content type.
+  middleware?: string;
 };
 // inertia_rails' middleware swapping the response for a bare 409 when the client's asset version is
 // stale. The controller still ran, so its cookies (written by ActionDispatch::Cookies, outside that
@@ -471,13 +474,14 @@ export async function beforeActions(
 
 // A redirect from a filter that runs before debug_headers: the session cookie and nothing else.
 function haltWithoutDebugHeaders(chain: Chain, redirect: Redirected): ControllerResponse {
-  const headers = new Headers({
-    location: redirectLocation(chain.request, redirect.location),
-    "content-type": "text/html; charset=utf-8",
-  });
+  const headers = new Headers(
+    redirect.middleware === undefined
+      ? { location: redirectLocation(chain.request, redirect.location), "content-type": "text/html; charset=utf-8" }
+      : { location: redirect.location },
+  );
   commitSession({ ...chain, headers });
   for (const cookie of chain.cookies) headers.append("set-cookie", cookie);
-  return { status: redirect.status, headers, body: "" };
+  return { status: redirect.status, headers, body: redirect.middleware ?? "" };
 }
 
 // invalidate_session_if_necessary's Devise sign_out: forget_me!, the remember cookie, the session.

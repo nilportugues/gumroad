@@ -23,10 +23,18 @@ export type SocialConnection = { name: string; connected: boolean; provider?: st
 
 const eventName = (stage: string) => `social_connect_${stage}`;
 
-type RecordOptions = { userId: bigint; stage: string; provider: string; surface: string; once?: boolean; now: () => Date };
+type RecordOptions = { userId: bigint; stage: string; provider: string; surface: string; extra?: string | null; once?: boolean; now: () => Date };
+const REFERRER_LIMIT = 190;
+const TRUNCATION = "...";
+
+// `extra.to_s.presence&.truncate(190)`
+function referrerOf(extra: string | null): string | null {
+  if (extra === null || extra.trim() === "") return null;
+  return extra.length > REFERRER_LIMIT ? `${extra.slice(0, REFERRER_LIMIT - TRUNCATION.length)}${TRUNCATION}` : extra;
+}
 
 // SocialConnectFunnel.record!, for a user that is present.
-export async function recordSocialConnectEvent({ userId, stage, provider, surface, once = false, now }: RecordOptions): Promise<void> {
+export async function recordSocialConnectEvent({ userId, stage, provider, surface, extra = null, once = false, now }: RecordOptions): Promise<void> {
   if (!(SOCIAL_CONNECT_STAGES as readonly string[]).includes(stage)) return;
   if (!(SOCIAL_CONNECT_PROVIDERS as readonly string[]).includes(provider)) return;
   if (!(SOCIAL_CONNECT_SURFACES as readonly string[]).includes(surface)) return;
@@ -38,7 +46,7 @@ export async function recordSocialConnectEvent({ userId, stage, provider, surfac
       );
       if (existing) return;
     }
-    await Events.createBang({ event_name: name, user_id: Number(userId), parent_referrer: provider, view_url: surface, referrer: null } as never, { now });
+    await Events.createBang({ event_name: name, user_id: Number(userId), parent_referrer: provider, view_url: surface, referrer: referrerOf(extra) } as never, { now });
   } catch (error) {
     console.error(`SocialConnectFunnel ${stage}/${provider} failed for user ${String(userId)}: ${(error as Error).name}: ${(error as Error).message}`);
   }
