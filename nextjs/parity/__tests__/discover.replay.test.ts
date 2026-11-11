@@ -31,9 +31,8 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests/discover_parity_spec";
-// A signed-in seller is the service's current_seller, and a buyer's cart or purchases make curated products. The
-// category wishlists example seeds no taxonomy on its products, so Rails fails on the empty `FIELD(id, )` list.
-const HANDED_BACK = /buyer-who-has-purchased|wishlists-for-a-category/;
+// A buyer's cart or purchases make curated products, which the port hands back to Rails.
+const HANDED_BACK = /buyer-who-has-purchased/;
 const RAILS_ANSWER = "rails answered";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
