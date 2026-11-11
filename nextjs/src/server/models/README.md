@@ -135,6 +135,16 @@ but `banned_at`, a product without `unique_permalink`, a non-USD price whose rat
 (`validate_bundle_content_eligibility`). Money messages come from `link-data.generated.json`,
 which `scripts/golden/link-writes.rb` writes from the app's own formatter.
 
+`link-metrics.ts` ports the five metrics `ProductCachedValue` caches: `successful_sales_count`,
+`monthly_recurring_revenue` and `total_usd_cents` (Elasticsearch requests through
+`PurchaseSearchService`), `remaining_for_sale_count` (variants, tiers, bundles and the stock
+counters) and `revenue_pending` (`pending_balance` over the active fixed-length subscriptions).
+Golden: `__fixtures__/link-metrics.golden.json` (`scripts/golden/link-metrics.rb`), 75 cases run by
+the real app over a seeded database and a real purchases index, each holding the statements, the
+Elasticsearch requests with their answers and the value Ruby returned. Hands back with
+`NotPortedError`: a tier closed to new purchases on a tiered membership (a Flipper feature) and a
+bundle variant that is not a `Variant`.
+
 ### `CustomDomain` (`custom-domain.ts`)
 
 Ported for `mark_deleted!` on an alive domain (golden: the suspension cases of
