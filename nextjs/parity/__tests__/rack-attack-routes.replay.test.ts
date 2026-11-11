@@ -42,7 +42,6 @@ const ROUTE_FLAGS = [
   "nextjs_users_profile_routes",
   "nextjs_links_search",
   "nextjs_public_lookup_data",
-  "nextjs_checkout_offer_codes",
   "nextjs_mobile_url_redirect_delivery",
   "nextjs_acme_challenge",
   "nextjs_api_v2_sales",
@@ -136,10 +135,6 @@ const CASES = [
   [
     "/paypal_charge_data",
     "requests/public_data_parity_spec/public-lookup-data-get-paypal-charge-data-reports-failure-for-an-unknown-invoice",
-  ],
-  [
-    "/offer_codes/compute_discount",
-    "requests/offer_codes_compute_discount_parity_spec/offer-codes-compute-discount-rejects-an-unknown-code-as-invalid-offer",
   ],
   [
     "/mobile/url_redirects/download/:token/:product_file_id",

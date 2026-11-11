@@ -33,7 +33,6 @@ export const RAILS_ONLY_KEYS = [
   "/charge_data",
   "/license_key_lookup_data",
   "/paypal_charge_data",
-  "/offer_codes/compute_discount",
   "/mobile/url_redirects/download/:token/:product_file_id",
   "seller:/.well-known/acme-challenge/:token",
   "product:/.well-known/acme-challenge/:token",

@@ -786,7 +786,12 @@ export function rackRedirect(incoming: Request, location: string, status = 301):
   return new Response(null, { status: response.status, headers: response.headers });
 }
 
+// Requests whose answer is Rails'; Rack::Attack's counter in Rails already counted them, so a Node-side count must be undone.
+const FORWARDED = new WeakSet<Request>();
+export const forwarded = (request: Request): boolean => FORWARDED.has(request);
+
 export async function forwardToRails(request: Request): Promise<Response> {
+  FORWARDED.add(request);
   const source = new URL(request.url);
   const target = new URL(`${source.pathname}${source.search}`, getRequiredConfig("RAILS_ORIGIN"));
   const headers = new Headers(request.headers);

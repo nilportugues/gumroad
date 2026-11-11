@@ -1,8 +1,8 @@
 // The small public endpoints that are not pages: RobotsController, LlmsController, FaviconsController,
 // IndexnowKeysController, PublicController#crossdomain, GithubStarsController and HomeController#features_md. routes.json marks them with a `handler`; the
 // proxy rewrites them to /gr-public/<handler> (app/gr-public/[action]/route.ts), which lands here.
-// Not here: the ACME challenge and the ported but unrouted charge_data, license_key_lookup_data, paypal_charge_data and compute_discount
-// (public-data.ts, offer-codes.ts). Rack::Attack throttles them in Rails' Redis, and a Node answer would skip that counter.
+// Not here: the ACME challenge and the ported but unrouted charge_data, license_key_lookup_data and paypal_charge_data (public-data.ts).
+// Rack::Attack throttles them in Rails' Redis, and a Node answer would skip that counter; compute_discount counts it (rack-attack.ts).
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -10,6 +10,7 @@ import path from "node:path";
 import { db } from "../../lib/db.ts";
 import { classifyHost } from "../../lib/navigation/proxy/hosts.ts";
 import { railsMessageVerifierGenerate, railsMessageVerifierVerified } from "../auth/message-verifier.ts";
+import { railsLoggedInUser } from "../auth/resolve.ts";
 import { railsCache } from "../cache/rails-cache.ts";
 import { getConfig } from "../infra/config.ts";
 import { railsRoot } from "../infra/rails-env.ts";
@@ -20,6 +21,7 @@ import { domainConfig } from "../page-props/domain.ts";
 import { PAGE_URL_HEADER } from "../page-props/render-state.ts";
 import { avatarUrl } from "../page-props/signed-in/presenters.ts";
 import { userByDomain } from "../page-props/storefront/seller-host.ts";
+import { esJson } from "../search/es-json.ts";
 
 import { apiV2Response } from "./api-v2/base.ts";
 import "./api-v2/index.ts";
@@ -36,11 +38,10 @@ import { impersonate, redirectToStripeDashboard } from "./internal-admin/admin-w
 import { internalAdminResponse } from "./internal-admin/index.ts";
 import { internalResponse } from "./internal-api.ts";
 import { mobileResponse } from "./mobile-api.ts";
+import { computeDiscount } from "./offer-codes.ts";
+import { throttled, throttleByIp, type Tier } from "./rack-attack.ts";
 import { assertFlatQuery } from "./rails-params.ts";
 import { queryParam, type RailsRequest, railsRequest } from "./rails-request.ts";
-
-import { esJson } from "../search/es-json.ts";
-
 import { urlRedirectsAction } from "./url-redirects/deliveries.ts";
 import { utmLinkRedirect } from "./utm-link-tracking.ts";
 import { wishlistUnsubscribe } from "./wishlist-unsubscribe.ts";
@@ -268,6 +269,8 @@ async function analyticsScript(request: RailsRequest): Promise<Rendered> {
 
 type Handler = {
   options?: ActionOptions;
+  // The Rack::Attack tiers Rails counts this route in (config/initializers/rack_attack.rb).
+  throttles?: Tier[];
   run(request: RailsRequest, url: URL, action: ActionContext): Promise<ActionResult>;
 };
 
@@ -289,6 +292,12 @@ const HANDLERS: Record<string, Handler> = {
   analytics_js: { run: (request) => analyticsScript(request) },
   admin_impersonate: { run: (request, url, action) => impersonate(request, url, action) },
   admin_stripe_dashboard: { run: (request, url, action) => redirectToStripeDashboard(request, url, action) },
+  // OfferCodesController#compute_discount
+  compute_discount: {
+    // throttle_by_ip path: "/offer_codes/compute_discount", requests: 60, period: 30.seconds
+    throttles: throttleByIp("/offer_codes/compute_discount", 60, 30),
+    run: (request, _url, action) => computeDiscount(request, railsLoggedInUser(action.context)),
+  },
   url_redirects: { run: (_request, _url, action) => urlRedirectsAction(action) },
   discord_oauth_redirect: { run: (request) => discordHandlers.discord_oauth_redirect(request) },
   discord_join_server: { run: (request, _url, action) => discordHandlers.discord_join_server(request, action) },
@@ -311,5 +320,7 @@ export async function publicHandlerResponse(incoming: Request, name: string): Pr
   const protocol = incoming.headers.get("x-forwarded-proto") ?? "http";
   const url = new URL(target, `${protocol}://${host}`);
   const request = new Request(url, { method: incoming.method, headers: incoming.headers });
-  return processAction(request, handler.options ?? {}, (action) => handler.run(railsRequest(request), url, action));
+  const respond = () =>
+    processAction(request, handler.options ?? {}, (action) => handler.run(railsRequest(request), url, action));
+  return handler.throttles === undefined ? respond() : throttled(request, handler.throttles, respond);
 }

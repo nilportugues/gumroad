@@ -218,6 +218,20 @@ const ALLOWED: { route: string; rule: string; reason: string; check?: () => void
       ).toContain("search"),
   },
   {
+    route: "/offer_codes/compute_discount",
+    rule: "/offer_codes/compute_discount",
+    reason:
+      "public-handlers.ts counts the route in Rack::Attack's own Redis keys (controllers/rack-attack.ts: same name, window, expiry and limits) before it answers, uncounts a request it hands back, and answers 429 past the limit",
+    check: () => {
+      expect(rackAttack).toMatch(
+        /throttle_by_ip path: "\/offer_codes\/compute_discount",\s+requests: 60, +period: 30\.seconds/u,
+      );
+      expect(readFileSync(path.join(nextjsRoot, "src/server/controllers/public-handlers.ts"), "utf8")).toContain(
+        'throttleByIp("/offer_codes/compute_discount", 60, 30)',
+      );
+    },
+  },
+  {
     route: "/*taxonomy",
     rule: "*",
     reason:
@@ -375,12 +389,7 @@ const GROUPS: Record<string, string[]> = {
     "seller:/landing/products",
     "/products/search",
   ],
-  "checkout lookups (grouped receipt, compute_discount)": [
-    "/charge_data",
-    "/license_key_lookup_data",
-    "/paypal_charge_data",
-    "/offer_codes/compute_discount",
-  ],
+  "checkout lookups (grouped receipt)": ["/charge_data", "/license_key_lookup_data", "/paypal_charge_data"],
   "mobile download token": ["/mobile/url_redirects/download/:token/:product_file_id"],
   "ACME challenge": ["seller:/.well-known/acme-challenge/:token", "product:/.well-known/acme-challenge/:token"],
   "API v2 (sales index past page 10, user custom HTML writes and previews)": [
