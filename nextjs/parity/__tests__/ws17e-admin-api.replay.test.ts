@@ -32,7 +32,7 @@ const REQUEST_DIRS = existsSync(REQUEST_ROOT)
 // The controller specs stub GUMROAD_ADMIN_ID to a fresh user's id, which a replayed server cannot reproduce: the request spec covers the legacy token.
 const LEGACY_TOKEN_CASE = /legacy|configured-bearer-token|rotation-point/;
 // Examples that change the world from inside the request (a stubbed lookup that approves the record after it was loaded): only Ruby can replay them.
-const MID_REQUEST_RACE_CASE = /after-the-request-loaded|loaded-it|after-request-loads|approved-af-e5f0bf0d|started-screening-after/;
+const MID_REQUEST_RACE_CASE = /after-the-request-loaded|loaded-it|after-request-loads|approved-af-e5f0bf0d|becomes-s-b6572bdb|started-screening-after/;
 const ROUTE_FLAGS = [
   "nextjs_admin_api_auth",
   "nextjs_admin_api_users",
@@ -44,7 +44,102 @@ const ROUTE_FLAGS = [
 ];
 // Requests the port leaves to Rails: "hands a ..." in a request spec, and the controller examples named here (a state in a compliance
 // address, a new watch). The replay asserts they reach the stand-in Rails untouched and write nothing.
-const HANDS_BACK_CASE = /hands-a-|post-watch-(?:creates-a-watched-user-record|user-id-lookup-looks-up|user-id-lookup-prefers)|get-compliance-info-returns-(?:business-kyc-fields|submitted-kyc-fields|the-latest-alive|the-trailing-characters)|post-resolve-records-the-outcome/;
+const HANDS_BACK_CASE = /hands-(?:a|an|the|warnings)-|post-watch-(?:creates-a-watched-user-record|user-id-lookup-looks-up|user-id-lookup-prefers)|get-compliance-info-returns-(?:business-kyc-fields|submitted-kyc-fields|the-latest-alive|the-trailing-characters)|post-resolve-records-the-outcome/;
+// Controller examples that run the action a port only guards (the write itself, a Stripe-charged purchase, a social or radar case the read
+// does not reproduce): the port answers them with the hand-back, which the replay asserts the same way. Matched on the example's id.
+const HANDED_CONTROLLER_EXAMPLES = new Set([
+  "api-internal-admin-featureannouncementcampaignscontroller-the-lifecycle-previews-approves-the-previewed-copy-and-starts-88c9e87a",
+  "api-internal-admin-featureannouncementcampaignscontroller-the-lifecycle-previews-the-digest-of-the-copy-it-rendered-when-eb9fe53a",
+  "api-internal-admin-userscontroller-get-purchases-accepts-every-state-defined-on-the-purchase-state-machine-including-pre-f59a5026",
+  "api-internal-admin-userscontroller-get-purchases-filters-by-a-created-at-window-using-iso-8601-timestamps",
+  "api-internal-admin-userscontroller-get-purchases-filters-by-a-single-purchase-state",
+  "api-internal-admin-userscontroller-get-purchases-filters-by-chargedback-false",
+  "api-internal-admin-userscontroller-get-purchases-filters-by-chargedback-true",
+  "api-internal-admin-userscontroller-get-purchases-filters-by-has-affiliate-true",
+  "api-internal-admin-userscontroller-get-purchases-filters-by-has-early-fraud-warning-false",
+  "api-internal-admin-userscontroller-get-purchases-filters-by-has-early-fraud-warning-true",
+  "api-internal-admin-userscontroller-get-purchases-filters-by-ip-address",
+  "api-internal-admin-userscontroller-get-purchases-filters-by-multiple-purchase-states-from-a-comma-separated-list",
+  "api-internal-admin-userscontroller-get-purchases-filters-by-stripe-fingerprint",
+  "api-internal-admin-userscontroller-get-purchases-paginates-purchases-with-a-cursor",
+  "api-internal-admin-userscontroller-get-purchases-returns-purchases-matched-by-purchaser-id-and-by-email-newest-first",
+  "api-internal-admin-userscontroller-get-purchases-scopes-results-to-the-requested-user",
+  "api-internal-admin-userscontroller-get-purchases-serializes-each-row-with-the-shared-purchase-payload",
+  "api-internal-admin-userscontroller-get-purchases-skips-the-email-branch-when-the-user-has-no-email-so-null-email-purchas-3c577e79",
+  "api-internal-admin-userscontroller-get-radar-stats-returns-seller-radar-aggregates-with-cursor-paginated-recent-efws",
+  "api-internal-admin-userscontroller-get-social-connections-reports-currently-linked-from-the-user-s-live-instagram-identi-2cb33f3d",
+  "api-internal-admin-userscontroller-get-social-connections-reports-currently-linked-from-the-user-s-live-tiktok-identity",
+  "api-internal-admin-userscontroller-get-social-connections-reports-currently-linked-from-the-user-s-live-youtube-identity",
+  "api-internal-admin-userscontroller-get-social-connections-returns-only-the-latest-dated-shadow-evidence-without-evaluati-aab9f574",
+  "api-internal-admin-userscontroller-post-add-credit-claws-back-credit-with-a-negative-amount-without-emailing-the-user",
+  "api-internal-admin-userscontroller-post-add-credit-creates-a-credit-with-the-reason-and-notifies-the-user",
+  "api-internal-admin-userscontroller-post-add-credit-records-an-audit-log-attributed-to-the-actor",
+  "api-internal-admin-userscontroller-post-add-credit-user-id-lookup-looks-up-the-user-by-user-id",
+  "api-internal-admin-userscontroller-post-add-credit-user-id-lookup-prefers-user-id-over-email-when-both-are-provided",
+  "api-internal-admin-userscontroller-post-flag-for-tos-violation-does-not-let-a-seller-clear-an-admin-takedown-by-unpublis-48118125",
+  "api-internal-admin-userscontroller-post-flag-for-tos-violation-does-not-let-a-seller-republish-an-admin-taken-down-membe-6fa68305",
+  "api-internal-admin-userscontroller-post-flag-for-tos-violation-flags-the-user-for-a-policy-violation-and-creates-user-an-ff143115",
+  "api-internal-admin-userscontroller-post-flag-for-tos-violation-records-the-admin-api-audit-log-with-the-tos-flag-action-1902585c",
+  "api-internal-admin-userscontroller-post-flag-for-tos-violation-returns-422-when-the-state-machine-rejects-the-flag-witho-6e67fb23",
+  "api-internal-admin-userscontroller-post-flag-for-tos-violation-returns-422-when-the-state-machine-rejects-the-flag",
+  "api-internal-admin-userscontroller-post-flag-for-tos-violation-still-takes-the-product-down-when-the-user-is-already-fla-e7fcf37b",
+  "api-internal-admin-userscontroller-post-flag-for-tos-violation-takes-down-both-listings-when-two-reports-race-on-an-init-8c0bba25",
+  "api-internal-admin-userscontroller-post-flag-for-tos-violation-unpublishes-rather-than-deletes-a-membership-so-existing-fd632c71",
+  "api-internal-admin-userscontroller-post-mark-compliant-keeps-the-existing-sibling-account-compliant-side-effect",
+  "api-internal-admin-userscontroller-post-mark-compliant-marks-the-user-compliant-and-creates-separate-audit-and-note-comm-02010071",
+  "api-internal-admin-userscontroller-post-mark-compliant-returns-422-without-marking-the-user-compliant-when-the-note-is-i-dabfe8ee",
+  "api-internal-admin-userscontroller-post-mark-compliant-user-id-lookup-looks-up-the-user-by-user-id",
+  "api-internal-admin-userscontroller-post-mark-compliant-user-id-lookup-prefers-user-id-over-email-when-both-are-provided",
+  "api-internal-admin-userscontroller-post-mark-compliant-when-the-user-is-suspended-lifts-the-suspension-when-clear-suspen-c07e0290",
+  "api-internal-admin-userscontroller-post-mark-compliant-when-the-user-s-payouts-are-paused-by-an-admin-leaves-a-payout-pa-1f5c3099",
+  "api-internal-admin-userscontroller-post-mark-compliant-when-the-user-s-payouts-are-paused-by-an-admin-leaves-the-payout-0f8100ac",
+  "api-internal-admin-userscontroller-post-refund-all-for-fraud-counts-only-refundable-purchases-excludes-refunded-and-char-65d081b1",
+  "api-internal-admin-userscontroller-post-refund-all-for-fraud-queues-the-bulk-refund-without-buyer-blocking-by-default",
+  "api-internal-admin-userscontroller-post-refund-all-for-fraud-queues-with-buyer-blocking-when-block-buyers-is-true",
+  "api-internal-admin-userscontroller-post-refund-all-for-fraud-records-the-admin-api-audit-log-with-block-buyers-in-the-pa-7402cd93",
+  "api-internal-admin-userscontroller-post-refund-all-for-fraud-returns-409-when-a-bulk-refund-run-is-already-queued-unique-34b29209",
+  "api-internal-admin-userscontroller-post-refund-all-for-fraud-returns-409-with-the-current-count-when-expected-purchase-c-3c8bd907",
+  "api-internal-admin-userscontroller-post-refund-all-for-fraud-treats-non-true-block-buyers-values-including-no-as-false",
+  "api-internal-admin-userscontroller-post-refund-balance-enqueues-a-refund-worker-when-the-expected-values-match",
+  "api-internal-admin-userscontroller-post-reset-password-sends-reset-password-instructions-and-returns-success",
+  "api-internal-admin-userscontroller-post-reset-password-with-a-user-lookup-helper-stubbed-user-id-lookup-looks-up-the-use-44d23780",
+  "api-internal-admin-userscontroller-post-reset-password-with-a-user-lookup-helper-stubbed-user-id-lookup-prefers-user-id-7c0975af",
+  "api-internal-admin-userscontroller-post-restore-bank-payout-rail-restores-the-bank-rail-clears-the-paypal-address-and-re-556184db",
+  "api-internal-admin-userscontroller-post-restore-bank-payout-rail-returns-422-for-an-invalid-note-without-restoring-anyth-4beba2d7",
+  "api-internal-admin-userscontroller-post-restore-bank-payout-rail-returns-422-when-the-user-still-has-an-active-bank-acco-d68ee91e",
+  "api-internal-admin-userscontroller-post-restore-bank-payout-rail-returns-422-without-restoring-a-rail-a-google-or-apple-e4cc5a7e",
+  "api-internal-admin-userscontroller-post-restore-bank-payout-rail-returns-422-without-restoring-a-rail-from-a-different-c-9fa7d6bc",
+  "api-internal-admin-userscontroller-post-restore-bank-payout-rail-user-id-lookup-looks-up-the-user-by-user-id",
+  "api-internal-admin-userscontroller-post-restore-bank-payout-rail-user-id-lookup-prefers-user-id-over-email-when-both-are-238145ee",
+  "api-internal-admin-userscontroller-post-suspend-for-fraud-creates-an-extra-suspension-note-when-one-is-provided",
+  "api-internal-admin-userscontroller-post-suspend-for-fraud-returns-422-when-the-state-machine-rejects-the-suspension",
+  "api-internal-admin-userscontroller-post-suspend-for-fraud-returns-422-when-the-user-is-suspended-for-a-different-reason",
+  "api-internal-admin-userscontroller-post-suspend-for-fraud-returns-422-without-suspending-the-user-when-the-suspension-no-4b926e43",
+  "api-internal-admin-userscontroller-post-suspend-for-fraud-suspends-the-user-for-fraud-and-creates-an-audit-comment-attri-0f3d6dd6",
+  "api-internal-admin-userscontroller-post-suspend-for-fraud-user-id-lookup-looks-up-the-user-by-user-id",
+  "api-internal-admin-userscontroller-post-suspend-for-fraud-user-id-lookup-prefers-user-id-over-email-when-both-are-provid-3c2966ca",
+  "api-internal-admin-userscontroller-post-suspend-for-tos-violation-creates-an-extra-suspension-note-when-one-is-provided",
+  "api-internal-admin-userscontroller-post-suspend-for-tos-violation-records-the-admin-api-audit-log-with-the-tos-suspensio-90133ff4",
+  "api-internal-admin-userscontroller-post-suspend-for-tos-violation-returns-422-when-the-state-machine-rejects-the-suspens-db81cf80",
+  "api-internal-admin-userscontroller-post-suspend-for-tos-violation-returns-422-when-the-user-is-suspended-for-fraud",
+  "api-internal-admin-userscontroller-post-suspend-for-tos-violation-returns-422-without-suspending-the-user-when-the-note-bf560ef6",
+  "api-internal-admin-userscontroller-post-suspend-for-tos-violation-suspends-the-user-for-a-policy-violation-and-creates-a-90fe7b1b",
+  "api-internal-admin-userscontroller-post-suspend-for-tos-violation-user-id-lookup-looks-up-the-user-by-user-id",
+  "api-internal-admin-userscontroller-post-suspend-for-tos-violation-user-id-lookup-prefers-user-id-over-email-when-both-ar-25dc736a",
+  "api-internal-admin-userscontroller-post-two-factor-authentication-disables-two-factor-authentication-and-destroys-the-to-044dd2ef",
+  "api-internal-admin-userscontroller-post-two-factor-authentication-enables-two-factor-authentication",
+  "api-internal-admin-userscontroller-post-two-factor-authentication-treats-ruby-false-as-a-valid-disable-request",
+  "api-internal-admin-userscontroller-post-two-factor-authentication-user-id-lookup-looks-up-the-user-by-user-id",
+  "api-internal-admin-userscontroller-post-two-factor-authentication-user-id-lookup-prefers-user-id-over-email-when-both-ar-1bd867cc",
+  "api-internal-admin-userscontroller-post-update-email-accepts-expected-email-when-it-matches-the-target-user",
+  "api-internal-admin-userscontroller-post-update-email-returns-422-when-the-new-email-collides-with-an-existing-user",
+  "api-internal-admin-userscontroller-post-update-email-updates-the-email-and-returns-the-pending-confirmation-state",
+  "api-internal-admin-userscontroller-post-update-email-uses-user-id-as-the-lookup-key-when-current-email-is-also-provided",
+  "api-internal-admin-userscontroller-get-purchases-serializes-nil-seller-fields-when-a-purchase-has-no-seller",
+  "internal-admin-api-payout-reads-and-the-writes-that-stay-in-front-of-rails-get-feature-announcement-campaigns-id-preview-f22f1257",
+]);
+const handsBack = (name: string) =>
+  HANDS_BACK_CASE.test(name) || HANDED_CONTROLLER_EXAMPLES.has(name.replace(/^[a-z_]+: /u, "").replace(/ #\d+$/u, ""));
 const API_HOST = "api.test.gumroad.com:31337";
 const FIRST_COMPILE_TIMEOUT_MS = 240_000;
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
@@ -111,6 +206,7 @@ const CURSOR_PAGES: [RegExp, number][] = [
   [/applies-a-granted-cursor-to-the-received-scope.* #2/u, 4320],
   [/pages-the-affiliates-with-a-signed-cursor #2/u, 120],
   [/pages-the-purchases-that-share-an-ip-address-with-a-signed-cursor #2/u, 60],
+  [/get-purchases-paginates-purchases-with-a-cursor #2/u, 120],
 ];
 // The cursor is `urlsafe(base64(json_string)--hmac)`.
 function cursorInstant(fixturePath: string, index: number, ageMinutes: number): number {
@@ -254,15 +350,21 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
   it.each(cases)(
     "%s",
     async (_name, fixturePath, index, fromRequestSpec) => {
-      if (HANDS_BACK_CASE.test(_name)) {
+      const pageAge = CURSOR_PAGES.find(([pattern]) => pattern.test(_name))?.[1];
+      const pinned = pageAge !== undefined;
+      if (handsBack(_name)) {
         handedBack.length = 0;
+        if (pageAge !== undefined) vi.useFakeTimers({ now: cursorInstant(fixturePath, index, pageAge), toFake: ["Date"], shouldAdvanceTime: true });
         const handed = await replayFixtureExchange(fixturePath, index, {
+          ...(pinned ? { driftDates: false } : {}),
           sql,
           redis: redisSeeder(redis),
           transport: httpTransport(server.baseUrl),
           interceptHttp: false,
           jobs: redisJobs(redis),
           rewriteRequest: (request) => ({ ...request, headers: withApiHost(request.headers) }),
+        }).finally(() => {
+          if (pinned) vi.useRealTimers();
         });
         const request = loadFixture(fixturePath).exchanges[index]!.request;
         expect(handedBack).toHaveLength(1);
@@ -272,8 +374,6 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
         expect(Object.keys(handed.exchanges[0]!.actual.db ?? {}).filter((table) => table !== "admin_api_tokens")).toEqual([]);
         return;
       }
-      const pageAge = CURSOR_PAGES.find(([pattern]) => pattern.test(_name))?.[1];
-      const pinned = pageAge !== undefined;
       if (pageAge !== undefined) vi.useFakeTimers({ now: cursorInstant(fixturePath, index, pageAge), toFake: ["Date"], shouldAdvanceTime: true });
       const result = await replayFixtureExchange(fixturePath, index, {
         ...(pinned ? { driftDates: false } : {}),

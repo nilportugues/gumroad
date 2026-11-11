@@ -1,6 +1,6 @@
 // Api::Internal::Admin::PurchasesController's writes. Everything that moves money (#refund, #refund_for_fraud, #refund_taxes),
 // sends mail (#resend_receipt, #resend_all_receipts), calls Stripe or PayPal, or runs Subscription#cancel!, Purchase#block_buyer! and
-// Purchase::ReassignByEmailService stays with Rails (#reassign is not served at all). What Node answers are the guards in front of
+// Purchase::ReassignByEmailService stays with Rails (#reassign answers its three refusals before the service touches a row). What Node answers are the guards in front of
 // them: the 400 and 404 refusals, the 422 states of a purchase that cannot be refunded, and the cancel_subscription states that need
 // no cancelling. A request that clears them goes to Rails before anything is written.
 import { Prisma } from "@prisma/client";
@@ -24,6 +24,8 @@ import {
 import { defineAdminRoute } from "./registry.ts";
 
 const WRAPPER = { key: "purchase", model: "Purchase" };
+// String#casecmp folds ASCII letters only.
+const asciiFold = (value: string) => value.replace(/[A-Z]/gu, (letter) => letter.toLowerCase());
 const NOT_FOUND_MESSAGE = "Purchase not found or email doesn't match";
 const AMOUNT_MESSAGE = "amount_cents must be a positive integer";
 const MS_PER_DAY = 86_400_000;
@@ -229,6 +231,22 @@ defineAdminRoute(
         const refusal = alreadyRefunded(purchase) ?? (await noChargeToRefund(purchase));
         if (refusal !== null) return refusal;
         throw new NotPortedError("a refund for fraud (Purchase#refund_for_fraud_and_block_buyer!)", SOURCE);
+      });
+    },
+  },
+  {
+    method: "POST",
+    pattern: "/internal/admin/purchases/reassign",
+    run: (admin) => {
+      const from = strippedParam(admin.params.from);
+      const to = strippedParam(admin.params.to);
+      return recordAdminWrite(admin, { action: "purchases.reassign", target: null, wrapper: WRAPPER }, async () => {
+        // Purchase::ReassignByEmailService#perform up to the first row it would change.
+        if (from === "" || to === "") return failure("Both 'from' and 'to' email addresses are required", 400);
+        if (asciiFold(from) === asciiFold(to)) return failure("from and to emails are the same", 422);
+        const [match] = await selectRows<{ id: bigint }>(Prisma.sql`SELECT id FROM purchases WHERE email = ${from} LIMIT 1`);
+        if (match === undefined) return failure(`No purchases found for email: ${from}`, 404);
+        throw new NotPortedError("a purchase reassignment (Purchase::ReassignByEmailService)", SOURCE);
       });
     },
   },

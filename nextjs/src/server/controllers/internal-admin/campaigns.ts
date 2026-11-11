@@ -1,5 +1,5 @@
 // Api::Internal::Admin::FeatureAnnouncementCampaignsController (index, show, create, update, approve, deliver, cancel) and the parts of
-// FeatureAnnouncementCampaign they use. #preview renders FeatureAnnouncementMailer (Premailer), which Node does not: Rails keeps it.
+// FeatureAnnouncementCampaign they use. #preview renders FeatureAnnouncementMailer (Premailer), which Node does not: it answers the token and lookup refusals, Rails the rest.
 import { createHash } from "node:crypto";
 
 import { db } from "../../../lib/db.ts";
@@ -8,6 +8,7 @@ import { NotPortedError } from "../../models/user.ts";
 import { esJson } from "../../search/es-json.ts";
 import { type AdminRequest, failure, halted, jsonRendered, paramToS, recordAdminWrite, requirePerActorToken, timeJson } from "./base.ts";
 import { emailFormatValid } from "./email-format.ts";
+import { handBack } from "./hand-back.ts";
 import { defineAdminRoute } from "./registry.ts";
 
 const MAX_LIST_RESULTS = 100;
@@ -143,6 +144,13 @@ defineAdminRoute(
         const deliveries = rows.map((row) => ({ state: row.state, reason: row.reason, count: Number(row.count_all) }));
         return jsonRendered({ success: true, campaign: await serialize(campaign), deliveries });
       }),
+  },
+  {
+    method: "GET",
+    pattern: "/internal/admin/feature_announcement_campaigns/:id/preview",
+    // A preview writes nothing, so it skips the token's usage stamp too.
+    recordsUse: () => false,
+    run: (admin) => withCampaign(admin, () => handBack("a rendered announcement email", SOURCE)),
   },
   {
     method: "POST",

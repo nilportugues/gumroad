@@ -70,6 +70,20 @@ export function lastEmailSentAt(jsonData: string | null): string | null {
   return timeJson(new Date(last));
 }
 
+// RefundUnpaidPurchasesWorker.unpaid_balance_summary_for: what is still refundable on purchases credited to an unpaid balance.
+export async function unpaidBalanceSummary(userId: bigint): Promise<{ count: number; total: number }> {
+  const rows = await selectRows<{ refundable: Prisma.Decimal | number | bigint }>(Prisma.sql`
+    SELECT COALESCE(purchases.price_cents, 0) + COALESCE(purchases.gumroad_tax_cents, 0) - COALESCE(SUM(refunds.amount_cents), 0) - COALESCE(SUM(refunds.gumroad_tax_cents), 0) AS refundable
+    FROM purchases
+    LEFT OUTER JOIN refunds ON refunds.purchase_id = purchases.id AND (refunds.status IS NULL OR refunds.status NOT IN (${Prisma.join(TERMINAL_REFUND_STATUSES)}) OR COALESCE(refunds.json_data->>'$.balance_reversed_on_failure', 'false') != 'true')
+    WHERE purchases.seller_id = ${userId}
+      AND purchases.purchase_success_balance_id IN (SELECT id FROM balances WHERE user_id = ${userId} AND state = 'unpaid')
+      AND purchases.purchase_state = 'successful'
+      AND (purchases.stripe_refunded IS NULL OR purchases.stripe_refunded = 0)
+    GROUP BY purchases.id, purchases.price_cents, purchases.gumroad_tax_cents`);
+  return { count: rows.length, total: rows.reduce((sum, row) => sum + Number(row.refundable), 0) };
+}
+
 defineAdminRoute(
   {
     method: "GET",
@@ -184,18 +198,8 @@ defineAdminRoute(
       const found = await findUserForRead(admin, false);
       if ("refusal" in found) return found.refusal;
       const { user } = found;
-      // RefundUnpaidPurchasesWorker.unpaid_balance_summary_for: what is still refundable on purchases credited to an unpaid balance.
-      const rows = await selectRows<{ refundable: Prisma.Decimal | number | bigint }>(Prisma.sql`
-        SELECT COALESCE(purchases.price_cents, 0) + COALESCE(purchases.gumroad_tax_cents, 0) - COALESCE(SUM(refunds.amount_cents), 0) - COALESCE(SUM(refunds.gumroad_tax_cents), 0) AS refundable
-        FROM purchases
-        LEFT OUTER JOIN refunds ON refunds.purchase_id = purchases.id AND (refunds.status IS NULL OR refunds.status NOT IN (${Prisma.join(TERMINAL_REFUND_STATUSES)}) OR COALESCE(refunds.json_data->>'$.balance_reversed_on_failure', 'false') != 'true')
-        WHERE purchases.seller_id = ${user.id}
-          AND purchases.purchase_success_balance_id IN (SELECT id FROM balances WHERE user_id = ${user.id} AND state = 'unpaid')
-          AND purchases.purchase_state = 'successful'
-          AND (purchases.stripe_refunded IS NULL OR purchases.stripe_refunded = 0)
-        GROUP BY purchases.id, purchases.price_cents, purchases.gumroad_tax_cents`);
-      const total = rows.reduce((sum, row) => sum + Number(row.refundable), 0);
-      return jsonRendered(successPayload(user, { count: rows.length, total, total_amount_cents: total, currency: "usd" }));
+      const { count, total } = await unpaidBalanceSummary(user.id);
+      return jsonRendered(successPayload(user, { count, total, total_amount_cents: total, currency: "usd" }));
     },
   },
 );
