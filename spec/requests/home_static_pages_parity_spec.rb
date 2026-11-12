@@ -106,7 +106,7 @@ describe "Home static pages", type: :request do
       expect(response.body).to include("Dashboard")
     end
 
-    it "hands a visitor on the page without a cached star count to Rails", parity: true do
+    it "renders a visitor on the page without a cached star count", parity: true do
       Rails.cache.delete(stars_key)
       stub_request(:get, "https://api.github.com/repos/antiwork/gumroad")
         .to_return(status: 200, body: { stargazers_count: 4242 }.to_json, headers: { "Content-Type" => "application/json" })

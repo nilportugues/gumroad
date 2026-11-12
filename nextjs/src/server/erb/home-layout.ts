@@ -503,17 +503,27 @@ function readGithubIconPath(): string {
 }
 
 function githubStarsLink(stars: number | null): string {
-  if (stars === null) throw new NotPortedError("the nav without a cached GitHub star count");
-  const star = /<svg xmlns="http:\/\/www.w3.org\/2000\/svg" viewBox="0 0 24 24" width="18"[\s\S]*?<\/svg>/u.exec(
-    readView("home/shared/_nav.html.erb"),
-  )![0];
+  const icon = (width: number) =>
+    new RegExp(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="${width}"[\\s\\S]*?</svg>`, "u").exec(
+      readView("home/shared/_nav.html.erb"),
+    )![0];
   const classes =
     "flex gap-1.5 rounded-full p-1.5 border border-black no-underline dark:border-white/35 hover:bg-gray-100 dark:hover:bg-gray-700 text-black dark:text-white hover:-translate-x-[2px] hover:-translate-y-[2px] hover:shadow-[2px_2px_0_0_rgba(0,0,0,1)] dark:hover:shadow-[2px_2px_0_0_rgba(255,255,255,0.35)] transition-all duration-100";
-  const content = `
+  // A star count GitHub failed to give (cached as nil) leaves the name and an arrow.
+  const content =
+    stars === null
+      ? `
+      ${GITHUB_ICON_PATH}
+        <div class="flex items-center gap-1.5">
+          <span class="text-base leading-none font-medium">GitHub</span>
+          ${icon(14)}
+        </div>
+`
+      : `
       ${GITHUB_ICON_PATH}
         <div class="flex items-center gap-1.5 whitespace-nowrap">
           <span class="text-base leading-none font-medium">${numberToSi(stars)}</span>
-          ${star}
+          ${icon(18)}
         </div>
 `;
   return html(

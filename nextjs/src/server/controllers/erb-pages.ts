@@ -27,11 +27,42 @@ import type { RailsRequest } from "./rails-request.ts";
 const GITHUB_STARS_CACHE_KEY = "github_stars_antiwork/gumroad";
 const HTML = "text/html; charset=utf-8";
 
-// GithubStarsController.cached_count: a miss makes Rails call the GitHub API, and a cached nil renders another nav, so both stay
-// Rails'.
-async function cachedGithubStars(): Promise<number> {
-  const stars = await railsCache().read(GITHUB_STARS_CACHE_KEY);
-  if (typeof stars !== "number") throw new HandBackToRails("the nav without a cached GitHub star count");
+const GITHUB_STARS_TTL_SECONDS = 60 * 60;
+const GITHUB_STARS_RACE_CONDITION_TTL_SECONDS = 10;
+const GITHUB_REQUEST_TIMEOUT_MS = 5000;
+// The origin is a variable only so a replay can stand in for GitHub (as TAXJAR_ENDPOINT does for TaxJar).
+const githubApiOrigin = () => process.env.GITHUB_API_ORIGIN?.trim() || "https://api.github.com";
+
+// GithubStarsController.fetch_stars. Any failure answers nil, which the cache stores and the nav renders without a count.
+async function fetchGithubStars(): Promise<number | null> {
+  try {
+    const response = await fetch(`${githubApiOrigin()}/repos/antiwork/gumroad`, {
+      headers: { "X-GitHub-Api-Version": "2022-11-28" },
+      signal: AbortSignal.timeout(GITHUB_REQUEST_TIMEOUT_MS),
+    });
+    const json = response.ok && /json/iu.test(response.headers.get("content-type") ?? "");
+    const parsed: unknown = json ? await response.json() : null;
+    const stars =
+      typeof parsed === "object" && parsed !== null ? (parsed as { stargazers_count?: unknown }).stargazers_count : null;
+    // A count that is not an Integer would print differently from `number_to_si`'s Integer path.
+    if (stars != null && (typeof stars !== "number" || !Number.isSafeInteger(stars)))
+      throw new HandBackToRails("a GitHub star count that is not an integer");
+    return stars ?? null;
+  } catch (error) {
+    if (error instanceof HandBackToRails) throw error;
+    return null;
+  }
+}
+
+// GithubStarsController.cached_count
+async function cachedGithubStars(): Promise<number | null> {
+  const stars = await railsCache().fetch(
+    GITHUB_STARS_CACHE_KEY,
+    { expiresIn: GITHUB_STARS_TTL_SECONDS, raceConditionTtl: GITHUB_STARS_RACE_CONDITION_TTL_SECONDS },
+    () => fetchGithubStars(),
+  );
+  // Rails.cache.fetch answers whatever a Ruby writer stored; only an Integer prints.
+  if (stars !== null && typeof stars !== "number") throw new HandBackToRails("a GitHub star count that is not an integer");
   return stars;
 }
 

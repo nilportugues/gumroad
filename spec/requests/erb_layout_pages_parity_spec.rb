@@ -74,7 +74,7 @@ describe "ERB layout pages", type: :request do
       expect(response).to be_successful
     end
 
-    it "hands a visitor on the page without a cached star count to Rails", parity: true do
+    it "renders a visitor on the page without a cached star count", parity: true do
       Rails.cache.delete(stars_key)
       stub_request(:get, "https://api.github.com/repos/antiwork/gumroad")
         .to_return(status: 200, body: { stargazers_count: 4242 }.to_json, headers: { "Content-Type" => "application/json" })
@@ -85,7 +85,7 @@ describe "ERB layout pages", type: :request do
       expect(response.body).to include("4.2K")
     end
 
-    it "hands a visitor whose star count lookup failed to Rails", parity: true do
+    it "renders a visitor whose star count lookup failed", parity: true do
       Rails.cache.write(stars_key, nil)
 
       get "/gumclaw"
