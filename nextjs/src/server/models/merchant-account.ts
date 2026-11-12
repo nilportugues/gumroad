@@ -10,6 +10,7 @@ import { deletable } from "./concerns/deletable.ts";
 import { afterCommitEverywhere, performAsync } from "./concerns/job-runtime.ts";
 import { mergeJsonDataWithCurrentRow } from "./concerns/json-data.ts";
 import { loadBelongsTo, type BelongsTo } from "./concerns/rails-validations.ts";
+import { findById } from "./row-reads.ts";
 import { defineModel } from "./runtime/define-model.ts";
 import type { ModelRecord } from "./runtime/record.ts";
 import { isBlank, validatesPresenceOf, validatesUniquenessOf } from "./runtime/validators.ts";
@@ -89,19 +90,18 @@ function recommendationPayoutAccountUserId(attributes: Record<string, unknown>):
   return connected ? attributes.user_id : null;
 }
 
-// MerchantAccount#user_has_another_payout_method?
+// MerchantAccount#user_has_another_payout_method?: `User.find_by(id:)` loads the whole row, and `active_bank_account`
+// (`bank_accounts.alive.first`) is only asked when the payment address is blank.
 async function userHasAnotherPayoutMethod(userId: unknown, accountId: unknown): Promise<boolean> {
-  const [user] = await selectRows<{ payment_address: string | null }>(
-    Prisma.sql`SELECT ${column("users", "payment_address")} FROM ${table("users")} WHERE ${column("users", "id")} = ${userId} LIMIT 1`,
-  );
+  const user = await findById<{ payment_address: string | null }>("User", BigInt(String(userId)));
   if (!user) return false;
   if (!isBlank(user.payment_address)) return true;
   const banks = await selectRows(
-    Prisma.sql`SELECT 1 AS present FROM ${table("bank_accounts")} WHERE ${column("bank_accounts", "user_id")} = ${userId} AND ${column("bank_accounts", "deleted_at")} IS NULL LIMIT 1`,
+    Prisma.sql`SELECT ${Prisma.raw("`bank_accounts`.*")} FROM ${table("bank_accounts")} WHERE ${column("bank_accounts", "user_id")} = ${BigInt(String(userId))} AND ${column("bank_accounts", "deleted_at")} IS NULL ORDER BY ${column("bank_accounts", "id")} ASC LIMIT 1`,
   );
   if (banks.length > 0) return true;
   const others = await selectRows<MerchantAccountRow>(
-    Prisma.sql`SELECT ${Prisma.raw("`merchant_accounts`.*")} FROM ${table("merchant_accounts")} WHERE ${column("merchant_accounts", "user_id")} = ${userId} AND ${column("merchant_accounts", "deleted_at")} IS NULL AND ${column("merchant_accounts", "charge_processor_alive_at")} IS NOT NULL AND ${column("merchant_accounts", "charge_processor_deleted_at")} IS NULL AND ${column("merchant_accounts", "id")} != ${accountId}`,
+    Prisma.sql`SELECT ${Prisma.raw("`merchant_accounts`.*")} FROM ${table("merchant_accounts")} WHERE ${column("merchant_accounts", "user_id")} = ${BigInt(String(userId))} AND ${column("merchant_accounts", "deleted_at")} IS NULL AND ${column("merchant_accounts", "charge_processor_alive_at")} IS NOT NULL AND ${column("merchant_accounts", "charge_processor_deleted_at")} IS NULL AND ${column("merchant_accounts", "id")} != ${BigInt(String(accountId))}`,
   );
   return others.some(
     (account) => account.charge_processor_id === PAYPAL_CHARGE_PROCESSOR_ID || isStripeConnectAccount(account),

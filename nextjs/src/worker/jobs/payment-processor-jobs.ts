@@ -24,6 +24,7 @@ import { findPurchaseBang, purchaseIdFrom } from "../../server/models/purchase.t
 import { findByIdBang, findOneBy, recordIdFrom } from "../../server/models/row-reads.ts";
 import { isBlank } from "../../server/models/runtime/validators.ts";
 import { column, columnIn, findInBatches, selectRows, table } from "../../server/models/sql.ts";
+import { handleStripeAccountDeauthorized } from "../../server/models/stripe-account-deauthorized.ts";
 import { NotPortedError } from "../../server/models/user.ts";
 import { stripePlatformAccountId } from "../../server/stripe/config.ts";
 import { Payout } from "../../server/stripe/resources.ts";
@@ -131,25 +132,37 @@ function isConnectedAccountEvent(params: Record<string, unknown>): boolean {
   return !isBlank(accountId) && accountId !== stripePlatformAccountId();
 }
 
+// `stripe_connect_account_id` of a connected-account event, when it is a String: `params[:user_id].present? ? user_id : account`.
+function connectedAccountId(params: Record<string, unknown>): string | null {
+  const id = isBlank(params.user_id) ? params.account : params.user_id;
+  return typeof id === "string" ? id : null;
+}
+
 // Every handled event ends in a charge processor call, a Stripe API read or a ledger write, except the
 // ones the handler logs and drops and the platform-account events nothing routes. `params[:type].to_s`: a
 // type that is not a String (a Number, an Array, null) never starts with a prefix; a payload that is not
-// an object fails in `to_hash`, which Node leaves to Ruby.
-export const handleStripeEventWorker = modelJob({ min: 1 }, async ([params]) => {
-  await beforeSideEffects(() => {
+// an object fails in `to_hash`, which Node leaves to Ruby. A deauthorization of a connected account is
+// served whole (stripe-account-deauthorized.ts); every other handled event goes to Rails.
+export const handleStripeEventWorkerWith = modelJob({ min: 1 }, async ([params], deps) => {
+  const deauthorized = await beforeSideEffects(() => {
     if (params === null || typeof params !== "object" || Array.isArray(params))
       throw new NotPortedError("StripeEventHandler#initialize", "params is not a Hash");
     const event = params as Record<string, unknown>;
     const type = event.type;
-    if (typeof type !== "string" || !HANDLED_EVENT_PREFIXES.some((prefix) => type.startsWith(prefix))) return;
+    if (typeof type !== "string" || !HANDLED_EVENT_PREFIXES.some((prefix) => type.startsWith(prefix))) return null;
     if (!isConnectedAccountEvent(event) && PLATFORM_ACCOUNT_NOOP_PREFIXES.some((prefix) => type.startsWith(prefix)))
-      return;
+      return null;
+    const accountId = connectedAccountId(event);
+    if (type === "account.application.deauthorized" && isConnectedAccountEvent(event) && accountId !== null)
+      return accountId;
     throw new NotPortedError(
       "StripeEventHandler#handle_stripe_event",
       "stripe_event_handler.rb:handle_stripe_event (charge processor, Stripe API reads and ledger writes)",
     );
   });
-})();
+  if (deauthorized !== null) await handleStripeAccountDeauthorized(deauthorized, deps.now);
+});
+export const handleStripeEventWorker = handleStripeEventWorkerWith();
 
 // ---------------------------------------------------------------------------------------------
 // ExecuteScheduledPayoutsJob
