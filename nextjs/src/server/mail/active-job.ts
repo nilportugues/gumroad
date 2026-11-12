@@ -26,11 +26,14 @@ export type ActiveJobArgument =
   | string
   | ActiveJobArgument[]
   | { readonly globalId: { readonly model: string; readonly id: number | bigint } }
+  // A Ruby Date, as ISO 8601 `YYYY-MM-DD`.
+  | { readonly date: string }
   | { readonly symbolKeys: Readonly<Record<string, ActiveJobArgument>> }
   // Keyword arguments (a ruby2_keywords-flagged Hash), as `Mailer.method(key: value)` passes them.
   | { readonly keywords: Readonly<Record<string, ActiveJobArgument>> };
 
 export const record = (model: string, id: number | bigint): ActiveJobArgument => ({ globalId: { model, id } });
+export const rubyDate = (isoDate: string): ActiveJobArgument => ({ date: isoDate });
 export const symbolHash = (hash: Record<string, ActiveJobArgument>): ActiveJobArgument => ({ symbolKeys: hash });
 export const keywordArgs = (hash: Record<string, ActiveJobArgument>): ActiveJobArgument => ({ keywords: hash });
 
@@ -40,6 +43,7 @@ export function serializeArgument(argument: ActiveJobArgument): JsonValue {
     return argument;
   }
   if (Array.isArray(argument)) return argument.map(serializeArgument);
+  if ("date" in argument) return { _aj_serialized: "ActiveJob::Serializers::DateSerializer", value: argument.date };
   if ("globalId" in argument) return { _aj_globalid: `gid://${GLOBAL_ID_APP}/${argument.globalId.model}/${argument.globalId.id}` };
   const hash = "keywords" in argument ? argument.keywords : argument.symbolKeys;
   for (const key of Object.keys(hash)) if (key.startsWith("_aj_")) throw new Error(`reserved ActiveJob key ${key}`);

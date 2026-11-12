@@ -282,7 +282,7 @@ describe "Links controller guards", type: :request do
   end
 
   describe "disabling downloads for all files" do
-    it "hands the change of an owner's product to Rails", parity: true do
+    it "counts nothing for a product without files", parity: true do
       product
       log_in(seller)
 
@@ -290,6 +290,72 @@ describe "Links controller guards", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body).to include("success" => true, "disabled_count" => 0)
+    end
+
+    it "turns downloads off for the eligible files and counts the rest", parity: true, parity_timeline: true do
+      pdf = create(:readable_document, link: product, position: 2)
+      video = create(:streamable_video, link: product, position: 1)
+      create(:non_readable_document, link: product, position: 3)
+      create(:streamable_video, link: product, stream_only: true, position: 4)
+      log_in(seller)
+
+      send_json(:post, disable_downloads_for_all_files_link_path(product.unique_permalink))
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body).to include("success" => true, "disabled_count" => 2, "already_disabled_count" => 1, "ineligible_count" => 1)
+      expect(response.parsed_body["disabled_file_ids"]).to eq([video.external_id, pdf.external_id])
+    end
+
+    it "hands the change of two flipped files that share a position to Rails", parity: true do
+      create(:streamable_video, link: product)
+      create(:readable_document, link: product)
+      log_in(seller)
+
+      send_json(:post, disable_downloads_for_all_files_link_path(product.unique_permalink))
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body).to include("disabled_count" => 2)
+    end
+
+    it "changes nothing when no file can change", parity: true, parity_timeline: true do
+      create(:streamable_video, link: product, stream_only: true)
+      create(:non_readable_document, link: product)
+      log_in(seller)
+
+      send_json(:post, disable_downloads_for_all_files_link_path(product.unique_permalink))
+
+      expect(response.parsed_body).to include("disabled_count" => 0, "already_disabled_count" => 1, "ineligible_count" => 1)
+    end
+
+    it "hands the change of a product with a ready folder archive to Rails", parity: true do
+      video = create(:streamable_video, link: product)
+      text = create(:non_readable_document, link: product)
+      folder_id = SecureRandom.uuid
+      create(:rich_content, entity: product, description: [
+               { "type" => "fileEmbedGroup", "attrs" => { "name" => "folder", "uid" => folder_id }, "content" => [
+                 { "type" => "fileEmbed", "attrs" => { "id" => video.external_id, "uid" => SecureRandom.uuid } },
+                 { "type" => "fileEmbed", "attrs" => { "id" => text.external_id, "uid" => SecureRandom.uuid } },
+               ] }
+             ])
+      archive = product.product_files_archives.create!(folder_id:, product_files: [video, text])
+      archive.mark_in_progress!
+      archive.mark_ready!
+      log_in(seller)
+
+      send_json(:post, disable_downloads_for_all_files_link_path(product.unique_permalink))
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body).to include("disabled_count" => 1)
+    end
+
+    it "hands the change of a stamped PDF to Rails", parity: true do
+      pdf = create(:readable_document, link: product)
+      pdf.update!(pdf_stamp_enabled: true)
+      log_in(seller)
+
+      send_json(:post, disable_downloads_for_all_files_link_path(product.unique_permalink))
+
+      expect(response).to have_http_status(:ok)
     end
 
     it "answers 404 for a product of another seller", parity: true do
@@ -397,21 +463,92 @@ describe "Links controller guards", type: :request do
     let(:membership) { create(:membership_product, user: seller, unique_permalink: "samplemem") }
     let(:tier) { membership.tiers.first }
 
-    it "hands the email for an existing tier to Rails", parity: true do
+    def send_sample(body)
+      send_json(:post, sample_membership_price_change_email_path(membership.unique_permalink), body)
+    end
+
+    it "queues the email for an existing tier", parity: true, parity_mail_jobs: true do
       log_in(seller)
 
-      send_json(:post, sample_membership_price_change_email_path(membership.unique_permalink), { tier_id: tier.external_id, amount: "5", recurrence: "monthly" })
+      send_sample({ tier_id: tier.external_id, amount: "5", recurrence: "monthly" })
 
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body).to eq("success" => true)
     end
 
+    it "queues the email with the effective date and a custom message", parity: true, parity_mail_jobs: true do
+      log_in(seller)
+
+      send_sample({ tier_id: tier.external_id, amount: "12.5", recurrence: "yearly", effective_date: "2030-03-04", custom_message: "Prices go up" })
+
+      expect(response.parsed_body).to eq("success" => true)
+    end
+
+    it "queues the email without a message when the custom message is blank", parity: true, parity_mail_jobs: true do
+      tier.update!(subscription_price_change_effective_date: 1.year.from_now.to_date, subscription_price_change_message: "Stored message")
+      log_in(seller)
+
+      send_sample({ tier_id: tier.external_id, amount: "3", recurrence: "monthly", custom_message: "   " })
+
+      expect(response.parsed_body).to eq("success" => true)
+    end
+
+    it "rounds a fractional amount to cents", parity: true, parity_mail_jobs: true do
+      log_in(seller)
+
+      send_sample({ tier_id: tier.external_id, amount: "4.995", recurrence: "monthly" })
+
+      expect(response.parsed_body).to eq("success" => true)
+    end
+
+    it "queues the email for a tier of a single unit currency product", parity: true, parity_mail_jobs: true do
+      membership.update_columns(price_currency_type: "jpy")
+      log_in(seller)
+
+      send_sample({ tier_id: tier.external_id, amount: "500", recurrence: "monthly" })
+
+      expect(response.parsed_body).to eq("success" => true)
+    end
+
+    it "answers 422 for an amount that is not a price", parity: true, parity_mail_jobs: true do
+      log_in(seller)
+
+      send_sample({ tier_id: tier.external_id, amount: "five", recurrence: "monthly" })
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body).to eq("success" => false, "error" => "Invalid amount")
+    end
+
+    it "answers 422 for an amount above the maximum price", parity: true, parity_mail_jobs: true do
+      log_in(seller)
+
+      send_sample({ tier_id: tier.external_id, amount: "99999999999", recurrence: "monthly" })
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
     it "hands a request without a tier to Rails", parity: true do
       log_in(seller)
 
-      send_json(:post, sample_membership_price_change_email_path(membership.unique_permalink), { amount: "5", recurrence: "monthly" })
+      send_sample({ amount: "5", recurrence: "monthly" })
 
       expect(response).to have_http_status(:bad_request)
+    end
+
+    it "hands a request without an amount to Rails", parity: true do
+      log_in(seller)
+
+      send_sample({ tier_id: tier.external_id, recurrence: "monthly" })
+
+      expect(response).to have_http_status(:bad_request)
+    end
+
+    it "hands a custom message with markup to Rails", parity: true, parity_mail_jobs: true do
+      log_in(seller)
+
+      send_sample({ tier_id: tier.external_id, amount: "5", recurrence: "monthly", custom_message: "<b>Hello</b> &amp; welcome" })
+
+      expect(response.parsed_body).to eq("success" => true)
     end
 
     it "answers 404 for a tier that does not exist", parity: true do

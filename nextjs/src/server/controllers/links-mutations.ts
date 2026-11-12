@@ -1,12 +1,17 @@
 // The parts of LinksController that Node answers without a model port behind them: the product page's iframe endpoints, the
-// 404/401/403 guards of the actions that stay in Rails (update, publish, release_preorder, disable_downloads_for_all_files,
-// price_check, send_sample_price_change_email), `card`, which has no action, and the empty answers of `search`. Whatever
-// passes a guard goes to Rails whole, before anything is written.
+// 404/401/403 guards of the actions that stay in Rails (update, publish, release_preorder, price_check), `card`, which has no
+// action, and the empty answers of `search`. Whatever passes a guard goes to Rails whole, before anything is written.
+// disable_downloads_for_all_files and send_sample_price_change_email run in Node for the shapes their recordings prove.
 import { Prisma } from "@prisma/client";
 
 import { decrypt } from "../../lib/obfuscate-ids.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
 import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
+import { keywordArgs, record, rubyDate, deliverLater } from "../mail/active-job.ts";
+import { mailRoute } from "../mail/delivery.ts";
+import { currentJobsRuntime } from "../models/concerns/job-runtime.ts";
+import { priceCentsFromUnits } from "../models/price-units.ts";
+import { disableDownloadsForAllFiles as disableDownloads } from "../models/product-disable-downloads.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { UserFlags } from "../models/user.ts";
 import { authorize } from "../policies/authorize.ts";
@@ -18,7 +23,7 @@ import { HandBackToRails, RoutingError, type ActionResult, type Rendered } from 
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { fetchProductForShow } from "./product-page.ts";
 import { find } from "./products-mutations.ts";
-import { accountEmailRequired, authorizeJson, json, notFoundJson } from "./seller-json.ts";
+import { accountEmailRequired, authorizeJson, json, notFoundJson, UNPROCESSABLE_ENTITY } from "./seller-json.ts";
 
 // ProfileSectionsPresenter::DEFAULT_PRODUCTS_SECTION_ID
 const DEFAULT_PRODUCTS_SECTION_ID = "default-products";
@@ -103,14 +108,30 @@ function guardedAction(authorization: "update" | "create", options?: { requireAc
   };
 }
 
-type ProductRow = { id: bigint; user_id: bigint | null; flags: bigint };
+// `Product::DisableDownloadsForAllFiles`, after `authorize @product`; a flip it cannot prove is a NotPortedError before any write.
+async function disableDownloadsForAllFiles(input: MutationInput): Promise<ActionResult> {
+  const found = await find(input, "access", (context, product, collaborating) =>
+    authorize((c, p) => linkPolicy.update(c, p, collaborating), context, product),
+  );
+  if (found.halt) return found.halt;
+  const result = await disableDownloads(found.product.get("id"));
+  return json({
+    success: true,
+    disabled_count: result.disabled_file_ids.length,
+    disabled_file_ids: result.disabled_file_ids,
+    already_disabled_count: result.already_disabled_count,
+    ineligible_count: result.ineligible_count,
+  });
+}
+
+type ProductRow = { id: bigint; user_id: bigint | null; flags: bigint; price_currency_type: string | null };
 
 // FetchProductByUniquePermalink: `Link.find_by(unique_permalink:) || e404`, deleted products included.
 async function fetchByUniquePermalink(input: MutationInput): Promise<ProductRow> {
   const permalink = input.routeParams.id;
   const [row] = present(permalink)
     ? await selectRows<ProductRow>(
-        Prisma.sql`SELECT ${column("links", "id")}, ${column("links", "user_id")}, ${column("links", "flags")} FROM ${table("links")} WHERE ${column("links", "unique_permalink")} = ${permalink} LIMIT 1`,
+        Prisma.sql`SELECT ${column("links", "id")}, ${column("links", "user_id")}, ${column("links", "flags")}, ${column("links", "price_currency_type")} FROM ${table("links")} WHERE ${column("links", "unique_permalink")} = ${permalink} LIMIT 1`,
       )
     : [];
   if (!row) throw new RoutingError("Not Found");
@@ -141,6 +162,18 @@ async function priceCheck(input: MutationInput): Promise<ActionResult> {
   throw new HandBackToRails("PriceCheckerService asks an LLM");
 }
 
+// `strip_tags(custom_message).present?` is decidable without the sanitizer only for plain printable ASCII.
+const PLAIN_MESSAGE = /^[\x20-\x7e\n\t]*$/u;
+const MARKUP_CHARACTERS = /[<>&]/u;
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/u;
+
+function isoDate(value: string): string | null {
+  const match = ISO_DATE.exec(value);
+  if (!match) return null;
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  return date.toISOString().slice(0, 10) === value ? value : null;
+}
+
 async function sendSamplePriceChangeEmail(input: MutationInput): Promise<ActionResult> {
   const guard = await uniquePermalinkGuard(input, "update");
   if (guard.halt) return guard.halt;
@@ -153,11 +186,59 @@ async function sendSamplePriceChangeEmail(input: MutationInput): Promise<ActionR
   const [tier] =
     id === null
       ? []
-      : await selectRows(
-          Prisma.sql`SELECT 1 FROM ${table("base_variants")} INNER JOIN ${table("variant_categories")} ON ${column("variant_categories", "id")} = ${column("base_variants", "variant_category_id")} WHERE ${column("base_variants", "type")} = 'Variant' AND ${column("base_variants", "id")} = ${id} AND ${column("variant_categories", "link_id")} = ${guard.product.id} AND ${column("variant_categories", "deleted_at")} IS NULL AND ${column("variant_categories", "title")} = 'Tier' LIMIT 1`,
+      : await selectRows<{ subscription_price_change_effective_date: Date | null }>(
+          Prisma.sql`SELECT ${column("base_variants", "subscription_price_change_effective_date")} FROM ${table("base_variants")} INNER JOIN ${table("variant_categories")} ON ${column("variant_categories", "id")} = ${column("base_variants", "variant_category_id")} WHERE ${column("base_variants", "type")} = 'Variant' AND ${column("base_variants", "id")} = ${id} AND ${column("variant_categories", "link_id")} = ${guard.product.id} AND ${column("variant_categories", "deleted_at")} IS NULL AND ${column("variant_categories", "title")} = 'Tier' LIMIT 1`,
         );
-  if (!tier) return notFoundJson();
-  throw new HandBackToRails("the sample price change email");
+  if (!tier || id === null) return notFoundJson();
+
+  const { amount, recurrence, effective_date: effectiveParam, custom_message: messageParam } = input.params;
+  if (typeof amount !== "string" || !present(amount))
+    throw new HandBackToRails("an amount that params.require rejects");
+  const price = priceCentsFromUnits(amount, guard.product.price_currency_type);
+  if (price === "unsupported") throw new HandBackToRails("an amount the port cannot price");
+  if (price === null) return json({ success: false, error: "Invalid amount" }, UNPROCESSABLE_ENTITY);
+
+  // Date.parse and the remaining params.require run after the amount, inside the mailer call.
+  let effectiveDate: string | null;
+  if (effectiveParam === undefined || effectiveParam === null || effectiveParam === "") {
+    const stored = tier.subscription_price_change_effective_date;
+    effectiveDate = stored === null ? null : stored.toISOString().slice(0, 10);
+  } else if (typeof effectiveParam === "string" && present(effectiveParam)) {
+    effectiveDate = isoDate(effectiveParam);
+    if (effectiveDate === null) throw new HandBackToRails("an effective_date Date.parse reads differently");
+  } else {
+    throw new HandBackToRails("an effective_date that is not an ISO date");
+  }
+  if (typeof recurrence !== "string" || !present(recurrence))
+    throw new HandBackToRails("a recurrence that params.require rejects");
+  let customMessage: string | null = null;
+  if (messageParam !== undefined && messageParam !== null) {
+    if (typeof messageParam !== "string" || !PLAIN_MESSAGE.test(messageParam) || MARKUP_CHARACTERS.test(messageParam))
+      throw new HandBackToRails("a custom message strip_tags would rewrite");
+    customMessage = present(messageParam) ? messageParam : null;
+  }
+  const user = railsLoggedInUser(input.context);
+  if (user === null) throw new HandBackToRails("a visitor who is not signed in");
+
+  await deliverLater(
+    currentJobsRuntime(),
+    {
+      mailer: "CustomerLowPriorityMailer",
+      method: "sample_subscription_price_change_notification",
+      args: [
+        keywordArgs({
+          user: record("User", user.id),
+          tier: record("Variant", id),
+          effective_date: effectiveDate === null ? null : rubyDate(effectiveDate),
+          recurrence,
+          new_price: price,
+          custom_message: customMessage,
+        }),
+      ],
+    },
+    mailRoute("CustomerLowPriorityMailer", "sample_subscription_price_change_notification"),
+  );
+  return json({ success: true });
 }
 
 // ----- LinksController#search: the answers that need no Elasticsearch
@@ -210,7 +291,12 @@ registerMutations(
     json: true,
     run: guardedAction("create", { requireAccountEmail: false }),
   },
-  { method: "POST", pattern: "/links/:id/disable_downloads_for_all_files", json: true, run: guardedAction("update") },
+  {
+    method: "POST",
+    pattern: "/links/:id/disable_downloads_for_all_files",
+    json: true,
+    run: disableDownloadsForAllFiles,
+  },
   { method: "POST", pattern: "/products/:id/release_preorder", json: true, run: guardedAction("create") },
   { method: "POST", pattern: "/products/:id/price_check", json: true, run: priceCheck },
   { method: "POST", pattern: "/links/:id/send_sample_price_change_email", json: true, run: sendSamplePriceChangeEmail },
