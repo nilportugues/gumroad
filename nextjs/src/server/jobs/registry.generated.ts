@@ -561,7 +561,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "CreateMissingDisputeEvidenceJob": {
     "file": "app/sidekiq/create_missing_dispute_evidence_job.rb",
