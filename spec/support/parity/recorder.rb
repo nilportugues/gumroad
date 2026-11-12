@@ -42,6 +42,7 @@ module Parity
     # What an upload to the bucket carries beyond the common set: the checksum Active Storage sends so S3 verifies the bytes, and the
     # headers that decide how a browser serves the object. Recorded only for calls to the storage endpoint.
     HTTP_STORAGE_HEADERS_KEPT = %w[content-md5 content-disposition x-amz-acl cache-control].freeze
+    DROPPED_CALL = :dropped
     UUID_PATTERN = /\A\h{8}-\h{4}-\h{4}-\h{4}-\h{12}\z/
     CREDENTIAL_DIGEST_LENGTH = 16
 
@@ -167,6 +168,15 @@ module Parity
       return unless @capturing
 
       @http << [signature, response]
+      @timeline << { "type" => "http", "index" => @http.size - 1 }
+    end
+
+    # A call whose connection the stub dropped before any response (WebMock raises, so `after_request` never fires). It is
+    # recorded like an answered call, with `response.dropped`, so a replay can drop the connection at the same point.
+    def record_dropped_http(signature)
+      return unless @capturing
+
+      @http << [signature, DROPPED_CALL]
       @timeline << { "type" => "http", "index" => @http.size - 1 }
     end
 
@@ -476,6 +486,8 @@ module Parity
         uri = signature.uri.dup
         uri.port = nil if uri.port == uri.default_port
         request_headers = (signature.headers || {}).transform_keys(&:downcase)
+        dropped = DROPPED_CALL.equal?(response)
+        response = nil if dropped
         response_headers = (response&.headers || {}).transform_keys(&:downcase)
         call = {
           "method" => signature.method.to_s.upcase,
@@ -486,6 +498,7 @@ module Parity
           # Only an OAuth 1.0a header: its signature is what a replay has to reproduce. Basic and Bearer credentials stay out of the fixtures.
           "authorization" => (request_headers["authorization"] if request_headers["authorization"].to_s.start_with?("OAuth ")),
           "response" => {
+            "dropped" => (true if dropped),
             "status" => Array(response&.status).first,
             "contentType" => response_headers["content-type"],
             **body_json(response&.body, keep_empty: true),

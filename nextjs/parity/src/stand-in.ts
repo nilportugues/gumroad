@@ -99,6 +99,8 @@ export async function startStandIn(reader: SqlExecutor): Promise<StandIn> {
         const index = unused.findIndex((candidate) => candidate.method === method && candidate.url === url);
         if (index === -1) return void response.writeHead(599).end(`parity: no recorded answer for ${method} ${url}`);
         const [answer] = unused.splice(index, 1);
+        // A recorded dropped connection: no status line, no body, as when the peer resets the socket.
+        if (answer!.response.dropped) return void request.socket.destroy();
         response.writeHead(
           answer!.response.status ?? 200,
           answer!.response.contentType ? { "content-type": answer!.response.contentType } : {},
