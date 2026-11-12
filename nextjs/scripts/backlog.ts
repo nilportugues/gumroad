@@ -309,6 +309,10 @@ function build(): string {
   out.push("");
   out.push(`${n(remainingRoutes.length)} routes: ${n(remainingRoutes.filter((r) => r.status === "hands back").length)} listed in \`routes.json\` without Node code (hands back) and ${n(remainingRoutes.filter((r) => r.status === "not registered").length)} not registered (Rails serves them).`);
   out.push("");
+  out.push(
+    "Known scanner false positives (the static check cannot see these): `GET /products/:product_id/{other_refund_policies,available_offer_codes,builds}` are App Router routes already, and the Google OmniAuth callback runs in Node through the shared phases handler (`nextjs_omniauth_phases`) although its route is built from the strategy name. So at least 4 of the rows below are served; the true remainder is correspondingly smaller. The reverse error also exists: a route counted native can still refuse most of its shapes, which is why section 5 matters more than this table.",
+  );
+  out.push("");
   out.push("| Route | Controller#action | Status | Workstream |");
   out.push("| --- | --- | --- | --- |");
   for (const row of remainingRoutes.sort((a, b) => b.weight - a.weight || `${a.controller}#${a.action}`.localeCompare(`${b.controller}#${b.action}`))) {

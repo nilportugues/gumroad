@@ -18,6 +18,8 @@ How to read it. Routes, pages and job classes are the headline units, but a rout
 
 37 routes: 8 listed in `routes.json` without Node code (hands back) and 29 not registered (Rails serves them).
 
+Known scanner false positives (the static check cannot see these): `GET /products/:product_id/{other_refund_policies,available_offer_codes,builds}` are App Router routes already, and the Google OmniAuth callback runs in Node through the shared phases handler (`nextjs_omniauth_phases`) although its route is built from the strategy name. So at least 4 of the rows below are served; the true remainder is correspondingly smaller. The reverse error also exists: a route counted native can still refuse most of its shapes, which is why section 5 matters more than this table.
+
 | Route | Controller#action | Status | Workstream |
 | --- | --- | --- | --- |
 | `POST /orders/:id/confirm` | `orders#confirm` | not registered | WS-20 Checkout and orders |
