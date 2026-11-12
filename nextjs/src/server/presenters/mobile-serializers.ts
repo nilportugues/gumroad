@@ -158,7 +158,10 @@ export type MobilePurchaseInput = {
   // Purchase#update_json_data_for_mobile (see models/purchase-product-updates.ts); null leaves the key out, as include_product_updates: false does
   productUpdatesData: Record<string, unknown>[] | null;
   // UrlRedirect#product_json_data's own keys; present when the purchase has a url redirect
-  urlRedirect?: { urlRedirectExternalId: string; urlRedirectToken: string; fileData: unknown[] };
+  // fileData is null for a membership that is no longer alive: UrlRedirect#product_json_data leaves the key out.
+  urlRedirect?: { urlRedirectExternalId: string; urlRedirectToken: string; fileData: unknown[] | null };
+  // Purchase#json_data_for_mobile's subscription_data; present when the purchase belongs to a subscription
+  subscriptionData?: { id: string; subscribed_at: string | null; ended_at: string | null; ended_reason: string | null };
   // Preorder#mobile_json_data: the purchase that supplies purchase_id, purchased_at, user_id, is_archived and the product updates is the
   // preorder's authorization or latest charge, not necessarily this one. That branch has no custom_delivery_url, and an uncharged
   // preorder adds preorder_data.
@@ -173,7 +176,10 @@ export type MobilePurchaseInput = {
 // without include_sale_details.
 export function purchaseJsonDataForMobile(input: MobilePurchaseInput): Record<string, unknown> {
   const { purchase, seller, purchaser } = input;
-  assertSimpleMoneyShape(purchase);
+  // The fields below print no recurrence label, so only the currency and a price are needed.
+  if (purchase.displayed_price_currency_type !== "usd")
+    throw new NotPortedError("a purchase priced in a currency other than USD");
+  if (purchase.price_cents == null) throw new NotPortedError("a purchase without a price");
   if (isFlag(purchase, "is_gift_sender_purchase") || isFlag(purchase, "is_gift_receiver_purchase"))
     throw new NotPortedError("a gift purchase");
   if (purchase.created_at == null) throw new NotPortedError("a purchase without created_at");
@@ -185,7 +191,7 @@ export function purchaseJsonDataForMobile(input: MobilePurchaseInput): Record<st
   if (input.urlRedirect) {
     json.url_redirect_external_id = input.urlRedirect.urlRedirectExternalId;
     json.url_redirect_token = input.urlRedirect.urlRedirectToken;
-    json.file_data = input.urlRedirect.fileData;
+    if (input.urlRedirect.fileData !== null) json.file_data = input.urlRedirect.fileData;
   }
   json.purchase_id = encrypt(source.id);
   json.purchased_at = jsonTime(source.created_at);
@@ -204,6 +210,7 @@ export function purchaseJsonDataForMobile(input: MobilePurchaseInput): Record<st
   } else {
     json.custom_delivery_url = null;
   }
+  if (input.subscriptionData) json.subscription_data = input.subscriptionData;
   json.purchase_email = presence(purchase.email) ?? presence(purchaser?.email);
   json.quantity = purchase.quantity;
   json.order_id = encryptNumeric(Number(purchase.id));

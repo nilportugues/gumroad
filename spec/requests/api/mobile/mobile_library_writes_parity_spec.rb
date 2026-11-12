@@ -229,6 +229,18 @@ describe "Mobile API library writes", type: :request, parity_timeline: true do
     end
   end
 
+  # The library writes of a membership purchase stay in Rails: `save!` revalidates the row and a subscription purchase asks the card
+  # processor again ("We couldn't charge your card"), so no recording here proves the write of a valid one.
+  it "hands an archive of a membership purchase to Rails", parity: true do
+    membership = create(:membership_product, user: seller)
+    original = purchase_row(link: membership, seller:, purchaser: buyer, email: buyer.email, purchase_state: "successful", is_original_subscription_purchase: true, subscription: create(:subscription, link: membership, user: buyer), stripe_transaction_id: "ch_#{SecureRandom.hex(6)}", stripe_fingerprint: "fp_library", charge_processor_id: StripeChargeProcessor.charge_processor_id, merchant_account:)
+
+    post "/mobile/purchases/#{original.external_id}/archive", params: auth(buyer)
+
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(original.reload.is_archived).to eq(false)
+  end
+
   describe "with a preorder" do
     let(:preorder_product) { create(:product, user: seller, price_cents: 600, is_in_preorder_state: true) }
     let(:preorder_link) { create(:preorder_link, link: preorder_product, release_at: Time.utc(2030, 1, 15, 12)) }

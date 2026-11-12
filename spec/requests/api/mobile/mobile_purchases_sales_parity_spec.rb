@@ -127,7 +127,7 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
         expect(response).to have_http_status(:bad_request)
       end
 
-      it "hands a library with a membership to Rails", parity: true do
+      it "lists a library with a membership", parity: true do
         membership = create(:membership_product, user: seller)
         purchase_row(link: membership, seller:, purchase_state: "successful", is_original_subscription_purchase: true, subscription: create(:subscription, link: membership, user: buyer), purchaser: buyer, email: buyer.email)
 
@@ -245,6 +245,93 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
         get "/mobile/purchases/search", params: auth(buyer)
 
         expect(response.parsed_body["sellers"].size).to eq(2)
+      end
+    end
+
+    describe "memberships" do
+      let(:membership) { create(:membership_product, user: seller) }
+      let(:subscription) { create(:subscription, link: membership, user: buyer) }
+      let(:original) { purchase_row(link: membership, seller:, purchaser: buyer, email: buyer.email, purchase_state: "successful", is_original_subscription_purchase: true, subscription:) }
+
+      def product_json = response.parsed_body["product"]
+
+      it "reads a live membership with its subscription data", parity: true do
+        get "/mobile/purchases/purchase_attributes/#{original.external_id}", params: auth(buyer)
+
+        expect(product_json["subscription_data"]).to eq("id" => subscription.external_id, "subscribed_at" => subscription.created_at.as_json, "ended_at" => nil, "ended_reason" => nil)
+      end
+
+      it "reports a cancelled membership as cancelled", parity: true do
+        subscription.update_columns(cancelled_at: 2.hours.ago, deactivated_at: 2.hours.ago)
+
+        get "/mobile/purchases/purchase_attributes/#{original.external_id}", params: auth(buyer)
+
+        expect(product_json["subscription_data"]).to include("ended_reason" => "cancelled")
+        expect(product_json["subscription_data"]["ended_at"]).to be_present
+      end
+
+      it "reports a membership whose payment failed", parity: true do
+        subscription.update_columns(failed_at: 3.hours.ago, deactivated_at: 3.hours.ago)
+
+        get "/mobile/purchases/purchase_attributes/#{original.external_id}", params: auth(buyer)
+
+        expect(product_json["subscription_data"]).to include("ended_reason" => "failed_payment")
+      end
+
+      it "reports a membership that reached its end", parity: true do
+        subscription.update_columns(ended_at: 4.hours.ago, deactivated_at: 4.hours.ago)
+
+        get "/mobile/purchases/purchase_attributes/#{original.external_id}", params: auth(buyer)
+
+        expect(product_json["subscription_data"]).to include("ended_reason" => "fixed_subscription_period_ended")
+      end
+
+      it "hands a membership whose cancellation is still in the future to Rails", parity: true do
+        create(:url_redirect, purchase: original, link: membership)
+        subscription.update_columns(cancelled_at: 3.days.from_now)
+
+        get "/mobile/purchases/purchase_attributes/#{original.external_id}", params: auth(buyer)
+
+        expect(product_json).to have_key("file_data")
+      end
+
+      it "leaves file_data out for a membership that ended", parity: true do
+        create(:url_redirect, purchase: original, link: membership)
+        subscription.update_columns(ended_at: 4.hours.ago, deactivated_at: 4.hours.ago)
+
+        get "/mobile/purchases/purchase_attributes/#{original.external_id}", params: auth(buyer)
+
+        expect(product_json).to include("url_redirect_token" => be_present)
+        expect(product_json).not_to have_key("file_data")
+      end
+
+      it "reads the review of the original purchase from a renewal", parity: true do
+        create(:product_review, purchase: original, link: membership, rating: 3)
+        renewal = purchase_row(link: membership, seller:, purchaser: buyer, email: buyer.email, purchase_state: "successful", subscription:)
+
+        get "/mobile/purchases/purchase_attributes/#{renewal.external_id}", params: auth(buyer)
+
+        expect(product_json).to include("product_rating" => 3, "purchase_id" => renewal.external_id)
+      end
+
+      it "reads a refunded renewal of a cancelled membership", parity: true do
+        original
+        subscription.update_columns(cancelled_at: 1.hour.ago, deactivated_at: 1.hour.ago)
+        renewal = purchase_row(link: membership, seller:, purchaser: buyer, email: buyer.email, purchase_state: "successful", subscription:, stripe_refunded: true)
+
+        get "/mobile/purchases/purchase_attributes/#{renewal.external_id}", params: auth(buyer)
+
+        expect(product_json).to include("refunded" => true)
+      end
+
+      it "hands a live membership with files and a tier to Rails", parity: true do
+        create(:readable_document, link: membership, position: 0)
+        create(:url_redirect, purchase: original, link: membership)
+        original.variant_attributes << membership.tiers.first
+
+        get "/mobile/purchases/purchase_attributes/#{original.external_id}", params: auth(buyer)
+
+        expect(product_json).to have_key("file_data")
       end
     end
 

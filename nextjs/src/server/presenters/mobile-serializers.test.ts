@@ -342,8 +342,20 @@ describe("Purchase#json_data_for_mobile", () => {
     expect(keys.indexOf("preorder_data")).toBe(keys.indexOf("is_archived") + 1);
   });
 
-  it("refuses gifts and subscriptions", () => {
+  it("refuses gifts and other currencies", () => {
     expect(() => mobile({}, purchase({ flags: GIFT_SENDER_BIT }))).toThrow(/not ported/u);
-    expect(() => mobile({}, purchase({ subscription_id: 4n }))).toThrow(/not ported/u);
+    expect(() => mobile({}, purchase({ displayed_price_currency_type: "eur" }))).toThrow(/not ported/u);
+  });
+
+  it("puts subscription_data before purchase_email and leaves file_data out for a membership that ended", () => {
+    const subscriptionData = { id: "sub1", subscribed_at: "2026-11-02T15:00:00Z", ended_at: null, ended_reason: null };
+    const json = mobile({
+      subscriptionData,
+      urlRedirect: { urlRedirectExternalId: "ur1", urlRedirectToken: "tok", fileData: null },
+    });
+    expect(json).toMatchObject({ subscription_data: subscriptionData, url_redirect_token: "tok" });
+    expect(json).not.toHaveProperty("file_data");
+    const keys = Object.keys(json);
+    expect(keys.indexOf("purchase_email")).toBe(keys.indexOf("subscription_data") + 1);
   });
 });

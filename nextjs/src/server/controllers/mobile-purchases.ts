@@ -5,7 +5,7 @@
 // purchase_attributes, archive, unarchive and destroy of a purchase that is not a membership or a gift (refunds, a review, a url
 // redirect and a preorder are serialized) whose seller and product have no post. Everything else (the rest of those, a non-empty
 // library page, sales#show) goes to Rails whole, because the posts of the product-updates preloader are not ported.
-import { Prisma, type Purchase, type User } from "@prisma/client";
+import { Prisma, type Purchase, type Subscription, type User } from "@prisma/client";
 
 import { db } from "../../lib/db.ts";
 import { decrypt, encrypt } from "../../lib/obfuscate-ids.ts";
@@ -27,6 +27,7 @@ import { jsonTime, purchaseJsonDataForMobile } from "../presenters/mobile-serial
 import { urlRedirectMobileData } from "../presenters/mobile-url-redirect.ts";
 import { linkOptions } from "../presenters/product-props.ts";
 import { findLink } from "../presenters/product-reads.ts";
+import { PurchaseFlags } from "../search/flags.ts";
 import { PurchaseSearchService } from "../search/purchase-search.ts";
 
 import { HandBackToRails } from "./application-controller.ts";
@@ -287,6 +288,29 @@ async function preorderSource(purchase: Purchase, productId: bigint, purchaser: 
   };
 }
 
+// Subscription#alive? (include_pending_cancellation: true)
+const subscriptionAlive = (subscription: Subscription, now: Date): boolean => {
+  if (subscription.failed_at !== null || subscription.ended_at !== null) return false;
+  return subscription.cancelled_at === null || subscription.cancelled_at > now;
+};
+
+// Subscription#termination_reason
+function terminationReason(subscription: Subscription): string | null {
+  if (subscription.deactivated_at === null) return null;
+  if (subscription.failed_at !== null) return "failed_payment";
+  if (subscription.ended_at !== null) return "fixed_subscription_period_ended";
+  if (subscription.cancelled_at !== null) return "cancelled";
+  return null;
+}
+
+// Purchase#json_data_for_mobile's subscription_data
+const subscriptionData = (subscription: Subscription) => ({
+  id: encrypt(subscription.id),
+  subscribed_at: jsonTime(subscription.created_at),
+  ended_at: jsonTime(subscription.deactivated_at),
+  ended_reason: terminationReason(subscription),
+});
+
 // Rows a page of purchases shares (products, users, a product's creator-side fields), read once. `refunds`, `ratings` and `updates` are
 // the batched reads of a listing; a single purchase reads its own.
 type Shared = {
@@ -318,10 +342,27 @@ async function plainPurchaseJson(
   auth: MobileAuth | null,
   { includeProductUpdates = true, shared = newShared() }: { includeProductUpdates?: boolean; shared?: Shared } = {},
 ) {
-  if (purchase.subscription_id !== null) throw new HandBackToRails("the subscription_data of a membership purchase");
+  const subscription =
+    purchase.subscription_id === null
+      ? null
+      : await db.subscription.findUnique({ where: { id: purchase.subscription_id } });
+  if (purchase.subscription_id !== null && subscription === null)
+    throw new NotPortedError("a purchase whose subscription row is missing");
   const amountRefundedCents =
     (shared.refunds ?? (await amountRefundedCentsByPurchase([purchase.id]))).get(purchase.id) ?? 0;
-  const productRating = (shared.ratings ?? (await ratingByPurchase([purchase.id]))).get(purchase.id) ?? null;
+  // Purchase#original_product_review: a membership's review sits on its true original purchase (the first original by id)
+  let reviewHolderId = purchase.id;
+  if (subscription !== null) {
+    const [original] = await selectRows<{ id: bigint }>(
+      Prisma.sql`SELECT ${column("purchases", "id")} FROM ${table("purchases")} WHERE ${column("purchases", "subscription_id")} = ${subscription.id} AND ${PurchaseFlags.condition("is_original_subscription_purchase", true)} ORDER BY ${column("purchases", "id")} ASC LIMIT 1`,
+    );
+    if (original === undefined) throw new NotPortedError("a subscription without an original purchase");
+    reviewHolderId = BigInt(original.id);
+  }
+  const productRating =
+    (subscription === null && shared.ratings ? shared.ratings : await ratingByPurchase([reviewHolderId])).get(
+      reviewHolderId,
+    ) ?? null;
 
   const userById = (id: bigint) => shared.memo(`user:${id}`, () => db.user.findUnique({ where: { id } }));
   const link =
@@ -336,17 +377,22 @@ async function plainPurchaseJson(
   const redirects = await db.urlRedirect.findMany({ where: { purchase_id: purchase.id }, take: 2 });
   // has_one :url_redirect reads an arbitrary row when there are several
   if (redirects.length > 1) throw new HandBackToRails("a purchase with several url redirects");
+  const redirect = redirects[0];
+  if (redirect?.installment_id != null) throw new NotPortedError("a url redirect of a post");
+  // UrlRedirect#product_json_data leaves file_data out for a membership that is no longer alive
   const urlRedirect =
-    redirects[0] === undefined
+    redirect === undefined
       ? undefined
-      : await urlRedirectMobileData({
-          redirect: redirects[0],
-          purchase,
-          purchaser: libraryOwner(auth),
-          subscription: null,
-          product: link,
-          seller,
-        });
+      : subscription !== null && !subscriptionAlive(subscription, new Date())
+        ? { urlRedirectExternalId: encrypt(redirect.id), urlRedirectToken: redirect.token, fileData: null }
+        : await urlRedirectMobileData({
+            redirect,
+            purchase,
+            purchaser: libraryOwner(auth),
+            subscription: null,
+            product: link,
+            seller,
+          });
   const preorder =
     urlRedirect === undefined && purchase.preorder_id !== null
       ? await preorderSource(purchase, link.id, libraryOwner(auth))
@@ -381,6 +427,7 @@ async function plainPurchaseJson(
         amountRefundedCents,
         productUpdatesData: productUpdates,
         urlRedirect,
+        subscriptionData: subscription === null ? undefined : subscriptionData(subscription),
         // The write left this row as it is; the preorder's source purchase is read after it, so it is this row when it is the same one.
         preorder:
           preorder === undefined
@@ -407,6 +454,8 @@ const libraryFlagAction =
     if (refused) return refused;
     const purchase = await fetchPurchase(input, auth);
     if (purchase === null) return fetchError("Could not find purchase");
+    // `save!` revalidates a subscription purchase against the card processor; no recording proves the write of a valid one.
+    if (purchase.subscription_id !== null) throw new HandBackToRails("a library write of a membership purchase");
     const plain = await plainPurchaseJson(purchase, auth);
     const record = loadLibraryPurchase(purchase, plain.seller.timezone);
     await setLibraryFlag(record, flag, value);

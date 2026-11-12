@@ -108,7 +108,6 @@ export type UrlRedirectMobileData = { urlRedirectExternalId: string; urlRedirect
 export async function urlRedirectMobileData(loaded: Loaded & { purchase: Purchase }): Promise<UrlRedirectMobileData> {
   const { redirect, purchase } = loaded;
   if (redirect.installment_id !== null) throw new NotPortedError("a url redirect of a post");
-  if (purchase.subscription_id !== null) throw new NotPortedError("the file_data of a membership");
   const files = await aliveProductFiles(loaded);
   // UrlRedirect#latest_mobile_media_locations_by_product_file_id: only the locations of alive files they fit
   const locations = new Map<bigint, MediaLocation>();
