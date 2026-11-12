@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 # Regenerates qr-tables.ts and qr-svg.golden.json: bundle exec ruby nextjs/src/lib/__fixtures__/generate-qr-svg-golden.rb nextjs/src/lib/qr-tables.ts nextjs/src/lib/__fixtures__/qr-svg.golden.json
 require "erb"
 require "rqrcode_core"
