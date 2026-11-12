@@ -113,6 +113,7 @@ export async function refundPurchase(input: MutationInput): Promise<ActionResult
   if (UserFlags.isSet(user.flags, "is_team_member")) throw new HandBackToRails("a refund by a Gumroad team member");
 
   if (UserFlags.isSet(seller.flags, "refunds_disabled")) return failure(REFUNDS_DISABLED);
+  if (purchase.price_cents === null) throw new HandBackToRails("a purchase with no price");
   if (BigInt(purchase.price_cents) > (await unpaidBalanceCents(seller.id))) return failure(BALANCE_INSUFFICIENT);
 
   throw new HandBackToRails("a refund, which moves money through the processor");

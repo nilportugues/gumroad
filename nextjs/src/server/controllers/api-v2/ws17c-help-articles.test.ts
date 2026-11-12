@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { ApiCall } from "./ws17c-base.ts";
+import type { Rendered } from "../application-controller.ts";
 
 const { search, index: allArticles } = vi.hoisted(() => ({
   search: vi.fn((_query: string) => [{ slug: "found" }]),
@@ -18,7 +19,7 @@ vi.mock("../../page-props/help-center.ts", () => ({ findArticleBySlug: vi.fn() }
 const { index } = await import("./ws17c-help-articles.ts");
 
 const run = (query: unknown) =>
-  index({ params: query === undefined ? {} : { query }, routeParams: {} } as unknown as ApiCall);
+  index({ params: query === undefined ? {} : { query }, routeParams: {} } as unknown as ApiCall) as Promise<Rendered>;
 const slugs = async (query: unknown) =>
   (JSON.parse(String((await run(query)).body)) as { help_articles: { slug: string }[] }).help_articles.map(
     (article) => article.slug,
