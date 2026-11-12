@@ -7,6 +7,7 @@ import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { deriveRailsCookieSecrets, readEncryptedCookie } from "@/server/auth/rails-cookies";
 import { closeAllRedis } from "@/server/infra/redis";
 
 import type { JobsChannel, RawJob } from "../src/channels";
@@ -142,6 +143,8 @@ const COMPARE = {
     "db.blocked_customer_objects.updated.*.changes.updated_at",
     "db.billing_details.updated.*.changes.updated_at",
     "db.team_memberships.updated.*.changes.updated_at",
+    // The join's cookie is encrypted with a random IV: assertJoin reads it back.
+    "response.cookies.current_seller_id.value",
     "db.webauthn_credentials.updated.*.changes.updated_at",
     // An invitation expires at the end of the day a week out: the recorded offset from the request depends on the hour it was
     // recorded at. assertSend checks the day and the microseconds.
@@ -287,7 +290,7 @@ describe.skipIf(!url)("mutations of the settings pages", () => {
 
   // What the comparison skips for a send: the mail job (class, queue and arguments), the expiry and the throttle's retry time.
   async function assertSend(name: string, actual: CapturedExchange) {
-    if (!name.startsWith("settings_team_invitations_signed_in_spec")) return;
+    if (!name.startsWith("settings_team_invitations_signed_in_spec") || name.includes("joins-")) return;
     const mailEmail = Object.entries(MAIL_CASES).find(([fragment]) => name.includes(fragment))?.[1];
     if (mailEmail === undefined) {
       expect(mailJobs).toHaveLength(0);
@@ -323,6 +326,26 @@ describe.skipIf(!url)("mutations of the settings pages", () => {
     const [low, high] = name.includes("hourly") ? [3400, 3500] : [79_000, 79_200];
     expect(retryAfter).toBeGreaterThanOrEqual(low);
     expect(retryAfter).toBeLessThanOrEqual(high);
+  }
+
+  // The mail job of a join (TeamMailer.invitation_accepted for the membership it created) and the account the cookie switches to.
+  async function assertJoin(name: string, actual: CapturedExchange) {
+    if (!name.startsWith("settings_team_invitations_signed_in_spec") || !name.includes("joins-")) return;
+    expect(mailJobs).toHaveLength(1);
+    const wrapped = (mailJobs[0]!.args as { arguments: unknown[] }[])[0]!;
+    const [mailer, method, , params] = wrapped.arguments as [
+      string,
+      string,
+      string,
+      { args: { _aj_globalid: string }[] },
+    ];
+    expect([mailer, method]).toEqual(["TeamMailer", "invitation_accepted"]);
+    const id = /^gid:\/\/gumroad\/TeamMembership\/(\d+)$/u.exec(params.args[0]!._aj_globalid)?.[1];
+    const membership = await client.teamMembership.findUniqueOrThrow({ where: { id: BigInt(id!) } });
+    const cookie = actual.response.cookies?.current_seller_id?.value as string | undefined;
+    expect(readEncryptedCookie(deriveRailsCookieSecrets(SECRET_KEY_BASE), "current_seller_id", cookie)).toBe(
+      Number(membership.seller_id),
+    );
   }
 
   it("finds the fixtures", () => {
@@ -373,6 +396,7 @@ describe.skipIf(!url)("mutations of the settings pages", () => {
         const result = await replayFixtureExchange(fixture, index, options);
         assertParity(result);
         await assertSend(_name, result.exchanges[0]!.actual);
+        await assertJoin(_name, result.exchanges[0]!.actual);
       } catch (error) {
         const logs = server
           .output()

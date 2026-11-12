@@ -129,3 +129,12 @@ export async function deliverInvite(invitationId: number | bigint): Promise<void
     mailRoute("TeamMailer", "invite"),
   );
 }
+
+// `TeamMailer.invitation_accepted(team_membership).deliver_later`
+export async function deliverInvitationAccepted(membershipId: number | bigint): Promise<void> {
+  await deliverLater(
+    currentJobsRuntime(),
+    { mailer: "TeamMailer", method: "invitation_accepted", args: [record("TeamMembership", membershipId)] },
+    mailRoute("TeamMailer", "invitation_accepted"),
+  );
+}

@@ -4,8 +4,8 @@ require "spec_helper"
 
 # Settings::Team::InvitationsController the way the team page calls it (JSON body, the CSRF token in a header) and the emailed accept
 # link, recorded for the Next.js port (PARITY_RECORD=1) and replayed by nextjs/parity/__tests__/settings-mutations.replay.test.ts, which
-# sends the last request of each example. The examples named "hands ..." are the requests Node leaves to Rails: the join of the team
-# and a mailbox only Mail::AddressList can read.
+# sends the last request of each example. The examples named "hands ..." are the requests Node leaves to Rails: the join of the Gumroad
+# account's team (it flags the member) and a mailbox only Mail::AddressList can read.
 describe "Settings team invitations when signed in", type: :request do
   include Parity::AudienceSignedIn
 
@@ -477,13 +477,40 @@ describe "Settings team invitations when signed in", type: :request do
       expect(flash[:alert]).to eq("Your current role as Support cannot perform this action.")
     end
 
-    it "hands a join of the team to Rails", parity: true do
+    it "joins the team, keeps an owner membership for the invitee and switches to the seller's account", parity: true do
       log_in(invitee)
 
       accept
 
       expect(response).to redirect_to(dashboard_url(host: DOMAIN))
       expect(flash[:notice]).to eq("Welcome to the team at teaminvites!")
+      membership = seller.seller_memberships.find_by!(user: invitee)
+      expect(membership.role).to eq(invitation.role)
+      expect(membership.last_accessed_at).to be_present
+      expect(invitee.user_memberships.role_owner.count).to eq(1)
+      expect(invitation.reload).to be_accepted.and be_deleted
+      expect(response.get_header("set-cookie").to_s).to include("current_seller_id=")
+      mail = ActiveJob::Base.queue_adapter.enqueued_jobs.select { _1["arguments"].first(2) == %w[TeamMailer invitation_accepted] }.sole
+      expect(mail["queue_name"]).to eq("default")
+    end
+
+    it "joins with the role of the invitation", parity: true do
+      invitation.update_column(:role, TeamMembership::ROLE_MARKETING)
+      log_in(invitee)
+
+      accept
+
+      expect(seller.seller_memberships.find_by!(user: invitee).role).to eq(TeamMembership::ROLE_MARKETING)
+    end
+
+    it "hands a join of the Gumroad account's team to Rails", parity: true do
+      seller.update_columns(email: ApplicationMailer::ADMIN_EMAIL)
+      log_in(invitee)
+
+      accept
+
+      expect(flash[:notice]).to eq("Welcome to the team at teaminvites!")
+      expect(invitee.reload.is_team_member).to be(true)
     end
   end
 end

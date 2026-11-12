@@ -3,20 +3,14 @@ import type { TeamMembership } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 
 import { decrypt } from "../../lib/obfuscate-ids.ts";
-import { writeEncryptedCookie } from "../auth/rails-cookies.ts";
-import { CURRENT_SELLER_COOKIE_NAME, railsCookieSecrets } from "../auth/rails-session-config.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
 import { prismaAuthStore } from "../auth/store.ts";
-import { advance } from "../models/concerns/ruby-time.ts";
 import { castRow, column, selectRows, table } from "../models/sql.ts";
 import { TeamMemberships } from "../models/team-membership.ts";
 
-import { allDomain, HandBackToRails } from "./application-controller.ts";
+import { HandBackToRails } from "./application-controller.ts";
 import { registerMutations } from "./mutation.ts";
-import { setCookieHeader } from "./rack-cookies.ts";
-
-// ActiveSupport's 20.years, for `cookies.permanent`.
-const PERMANENT_COOKIE_YEARS = 20;
+import { switchSellerAccount } from "./switch-seller-account.ts";
 
 registerMutations({
   method: "POST",
@@ -40,26 +34,14 @@ registerMutations({
         : (await prismaAuthStore.switchableMemberships(user.id)).find((candidate) => Number(candidate.id) === id);
     if (membership === undefined) return { status: 204, body: "", contentType: "" };
 
-    const now = new Date();
     const [row] = await selectRows<TeamMembership>(
       Prisma.sql`SELECT ${Prisma.raw("`team_memberships`.*")} FROM ${table("team_memberships")} WHERE ${column("team_memberships", "id")} = ${membership.id} LIMIT 1`,
     );
-    await TeamMemberships.updateBang(
+    const cookie = await switchSellerAccount(
+      request.host,
       TeamMemberships.load(castRow<TeamMembership>("TeamMembership", row!)),
-      { last_accessed_at: now },
-      { now: () => now },
+      new Date(),
     );
-
-    const expires = advance(now, { years: PERMANENT_COOKIE_YEARS });
-    const cookie = setCookieHeader(CURRENT_SELLER_COOKIE_NAME, {
-      value: writeEncryptedCookie(railsCookieSecrets(), CURRENT_SELLER_COOKIE_NAME, Number(membership.seller_id), {
-        expiresAt: expires,
-      }),
-      domain: allDomain(request.host),
-      path: "/",
-      expires,
-      sameSite: "lax",
-    });
     return { status: 204, body: "", contentType: "", cookies: [cookie] };
   },
 });
