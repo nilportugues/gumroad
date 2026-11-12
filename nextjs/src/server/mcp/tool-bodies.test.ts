@@ -616,7 +616,7 @@ describe("get_sales_totals", () => {
 
 describe("toolBody", () => {
   it("leaves a tool that is not ported to Rails", async () => {
-    await expect(toolBody("expire_discount_code", { code: "x" }, context("account"))).resolves.toBeUndefined();
+    await expect(toolBody("add_cover", { id: "x" }, context("account"))).resolves.toBeUndefined();
   });
 });
 
@@ -665,7 +665,7 @@ describe("tools/call through the session", () => {
   });
 
   it("still hands back a tool that is not ported", async () => {
-    await expect(session("account").handle(call("expire_discount_code", { code: "x" }))).rejects.toBeInstanceOf(
+    await expect(session("account").handle(call("add_cover", { id: "x", url: "https://example.com/a.png" }))).rejects.toBeInstanceOf(
       HandBackToRails,
     );
   });

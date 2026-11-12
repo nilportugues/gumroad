@@ -117,7 +117,9 @@ async function runChain<R extends Row>(
 
 const runningCommits = new WeakMap<object, { action: Action | null }>();
 
-export type SaveOptions = { validate?: boolean; now?: () => Date };
+// `context` is `save(context: :name)`: validations declared `on: :create`/`:update` do not run under it, and `if:`/`unless:` read it from
+// `record.validationContext` (OfferCode's price check skips `:expiring`).
+export type SaveOptions = { validate?: boolean; now?: () => Date; context?: string };
 
 export function defineModel<R extends Row>(def: ModelDefinition<R>) {
   let fields: ScalarField[] | null = null;
@@ -134,12 +136,19 @@ export function defineModel<R extends Row>(def: ModelDefinition<R>) {
     return new ModelRecord<R>(row, { newRecord: false });
   }
 
-  async function valid(record: ModelRecord<R>, ctx: CallbackContext): Promise<boolean> {
-    const action: Action = record.newRecord ? "create" : "update";
-    record.errors.clear();
-    await runChain(def.beforeValidation, record, action, ctx);
-    await runChain(def.validations, record, action, ctx);
-    await runChain(def.afterValidation, record, action, ctx);
+  async function valid(record: ModelRecord<R>, ctx: CallbackContext, context?: string): Promise<boolean> {
+    // Validations#valid?(context): a custom context replaces the default :create/:update one, so `on:` callbacks do not match it.
+    const action = (context ?? (record.newRecord ? "create" : "update")) as Action;
+    const outer = record.validationContext;
+    record.validationContext = context ?? action;
+    try {
+      record.errors.clear();
+      await runChain(def.beforeValidation, record, action, ctx);
+      await runChain(def.validations, record, action, ctx);
+      await runChain(def.afterValidation, record, action, ctx);
+    } finally {
+      record.validationContext = outer;
+    }
     return record.errors.isEmpty();
   }
 
@@ -207,7 +216,7 @@ export function defineModel<R extends Row>(def: ModelDefinition<R>) {
         const ctx = { tx, now };
         const action: Action = record.newRecord ? "create" : "update";
         const p = participant(record, action);
-        if (options.validate !== false && !(await valid(record, ctx))) return false;
+        if (options.validate !== false && !(await valid(record, ctx, options.context))) return false;
         try {
           await runChain(def.beforeSave, record, action, ctx);
           if (record.newRecord) {
@@ -369,7 +378,7 @@ export function defineModel<R extends Row>(def: ModelDefinition<R>) {
       });
     },
     // `valid?` outside a save still runs inside a transaction so uniqueness checks see a client.
-    valid: (record: ModelRecord<R>) => transaction((tx) => valid(record, { tx })),
+    valid: (record: ModelRecord<R>, context?: string) => transaction((tx) => valid(record, { tx }, context)),
     save,
     touch,
     saveBang,

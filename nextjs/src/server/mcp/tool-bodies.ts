@@ -29,6 +29,7 @@ import {
   assertPlainCode,
   assertPlainProducts,
   buildOfferCode,
+  EXPIRING_CONTEXT,
   loadOfferCode,
   OfferCodes,
   productsOfOfferCode,
@@ -1458,6 +1459,35 @@ async function updateDiscountCode(args: Hash, context: ToolContext): Promise<Has
   return { discount_code: await discountCodePayload(row.id, (context.now ?? (() => new Date()))()) };
 }
 
+// DISCOUNT_MIN_VALIDITY_WINDOW
+const DISCOUNT_MIN_VALIDITY_SECONDS = 1;
+
+// tool_expire_discount_code for a plain code. `save!(context: :expiring)` skips the price validation, so a code whose products no
+// longer take its discount can still be ended; the other validations run as in an update.
+async function expireDiscountCode(args: Hash, context: ToolContext): Promise<Hash> {
+  const { row } = await findDiscountCode(args, context);
+  await assertPlainCode(row);
+  const now = new Date((context.now ?? (() => new Date()))());
+  now.setMilliseconds(0);
+  if (row.expires_at !== null && row.expires_at <= now)
+    return { discount_code: await discountCodePayload(row.id, now), message: "Already expired." };
+
+  const start = row.valid_at ?? row.created_at ?? now;
+  const latestStart = new Date(now.getTime() - DISCOUNT_MIN_VALIDITY_SECONDS * 1000);
+  const record = loadOfferCode(row);
+  let failure: string | undefined;
+  await transaction(async () => {
+    const attributes = { valid_at: start < latestStart ? start : latestStart, expires_at: now };
+    if (!(await OfferCodes.update(record, attributes, { now: context.now, context: EXPIRING_CONTEXT })))
+      failure = toSentence(record.errors.fullMessages());
+  });
+  if (failure !== undefined) throw new ToolError(failure);
+  return {
+    discount_code: await discountCodePayload(row.id, now),
+    message: "Expired. Buyers can no longer use this code.",
+  };
+}
+
 export type SubscriptionRow = {
   id: bigint;
   link_id: bigint | null;
@@ -1806,6 +1836,9 @@ export async function toolBody(name: string, args: Hash, context: ToolContext): 
     case "update_discount_code":
       requireScopes(context.token, ["edit_products", "account"]);
       return updateDiscountCode(args, context);
+    case "expire_discount_code":
+      requireScopes(context.token, ["edit_products", "account"]);
+      return expireDiscountCode(args, context);
     case "publish_product":
       requireScopes(context.token, ["edit_products", "account"]);
       return setPublication(args, context, true);

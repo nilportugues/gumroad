@@ -134,4 +134,29 @@ describe("defineModel lifecycle", () => {
     expect(db.writes).toEqual([{ model: "follower", op: "delete", id: 9 }]);
     expect(record.destroyed).toBe(true);
   });
+  it("runs the validations a context does not exclude and skips on: create/update ones under a custom context", async () => {
+    const failing = (name: string, extra: Partial<Callback<Follower>> = {}): Callback<Follower> => ({
+      name,
+      run: (record) => void (log.push(`${name} context=${record.validationContext}`), record.errors.add("base", name)),
+      ...extra,
+    });
+    const Followers = model({
+      beforeValidation: [],
+      validations: [
+        failing("always"),
+        failing("not_expiring", { unless: (record) => record.validationContext === "expiring" }),
+        failing("only_on_update", { on: "update" }),
+      ],
+      afterValidation: [],
+    });
+    const record = Followers.load({ id: 5, followed_id: 1, email: "a@example.com", created_at: null, updated_at: null, follower_user_id: null, source: null, source_product_id: null, confirmed_at: null, deleted_at: null });
+
+    expect(await Followers.save(record, { context: "expiring" })).toBe(false);
+    expect(log.filter((l) => l.includes("context="))).toEqual(["always context=expiring"]);
+    expect(record.validationContext).toBeNull();
+
+    log.length = 0;
+    expect(await Followers.save(record)).toBe(false);
+    expect(log.filter((l) => l.includes("context="))).toEqual(["always context=update", "not_expiring context=update", "only_on_update context=update"]);
+  });
 });

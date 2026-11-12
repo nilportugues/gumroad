@@ -266,6 +266,7 @@ async function reindexAssociatedProducts(record: OfferCodeWrite): Promise<void> 
 }
 
 const APPLICABILITY_CHANGED = "applicability_changed";
+export const EXPIRING_CONTEXT = "expiring";
 
 export const OfferCodes = defineModel<OfferCode>({
   rubyClass: "OfferCode",
@@ -322,7 +323,12 @@ export const OfferCodes = defineModel<OfferCode>({
     }),
     { name: "max_purchase_count_is_greater_than_or_equal_to_inventory_sold", run: maxPurchaseCountCoversUses },
     { name: "expires_at_is_after_valid_at", run: expiresAfterValid },
-    { name: "price_validation", run: priceValidation },
+    // `unless: validation_context == :expiring`: ending a code is never refused by prices it already fails.
+    {
+      name: "price_validation",
+      run: priceValidation,
+      unless: (record) => record.validationContext === EXPIRING_CONTEXT,
+    },
     { name: "validate_not_used_as_default_discount", run: notUsedAsDefaultDiscount },
     // validate_cancellation_discount_*, validate_existing_customer_settings, validate_new_customer_settings, validate_ownership_duration_tiers,
     // validate_excluded_products and validate_option_scope return at once for a plain code.
