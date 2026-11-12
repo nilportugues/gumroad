@@ -115,6 +115,7 @@ import {
 } from "./reindex-seller-offer-codes-job.ts";
 import { releaseChargebackRatePayoutPauseForSellerJob } from "./release-chargeback-rate-payout-pause-for-seller-job.ts";
 import { removeSuspendedAccountFollowsWorker } from "./remove-suspended-account-follows-worker.ts";
+import { retryStripeJpAddressResyncForSellerJob } from "./retry-stripe-jp-address-resync-for-seller-job.ts";
 import { retryStripeJpAddressResyncsJob } from "./retry-stripe-jp-address-resyncs-job.ts";
 import { blockSuspendedAccountIpWorker, checkPaymentAddressWorker } from "./risk-jobs.ts";
 import { scheduleWorkflowInstallmentJob } from "./schedule-workflow-installment-job.ts";
@@ -328,6 +329,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   RecordProductFileMissingFromStorageJob: recordProductFileMissingFromStorageJob,
   UpdatePurchaseEmailToMatchAccountWorker: updatePurchaseEmailToMatchAccountWorker,
   ReleaseChargebackRatePayoutPauseForSellerJob: releaseChargebackRatePayoutPauseForSellerJob,
+  RetryStripeJpAddressResyncForSellerJob: retryStripeJpAddressResyncForSellerJob,
 };
 
 // `sidekiq_retry_in` and `sidekiq_retries_exhausted` blocks of ported jobs, keyed by Ruby class name.

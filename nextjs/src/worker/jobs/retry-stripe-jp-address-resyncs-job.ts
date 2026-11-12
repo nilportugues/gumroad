@@ -7,15 +7,15 @@
 import { Prisma, type UserComplianceInfoRequest } from "@prisma/client";
 
 import { beforeSideEffects } from "../../server/jobs/hand-back.ts";
+import { performAsync } from "../../server/models/concerns/job-runtime.ts";
 import { toHash, jsonGet } from "../../server/models/concerns/json-data.ts";
 import { RubyHash } from "../../server/models/concerns/psych.ts";
 import { rubyToI } from "../../server/models/concerns/ruby-numeric.ts";
 import { RubyArgumentError, timeIso8601 } from "../../server/models/concerns/ruby-time-parse.ts";
 import { floatValue, isRubyFloat } from "../../server/models/concerns/ruby-values.ts";
 import { rubyJsonParse } from "../../server/models/concerns/serialized-columns.ts";
-import { performAsync } from "../../server/models/concerns/job-runtime.ts";
-import { column, findInBatches } from "../../server/models/sql.ts";
 import { isBlank } from "../../server/models/runtime/validators.ts";
+import { column, findInBatches } from "../../server/models/sql.ts";
 import { NotPortedError } from "../../server/models/user.ts";
 
 import { modelJob } from "./support/job-deps.ts";
@@ -40,7 +40,8 @@ class RubyTypeError extends Error {
 // The class name Ruby prints in "no implicit conversion of X into String".
 function conversionName(value: Json): string {
   if (value === true || value === false) return String(value);
-  if (typeof value === "number" || typeof value === "bigint") return Number.isInteger(value) || typeof value === "bigint" ? "Integer" : "Float";
+  if (typeof value === "number" || typeof value === "bigint")
+    return Number.isInteger(value) || typeof value === "bigint" ? "Integer" : "Float";
   if (isRubyFloat(value)) return "Float";
   if (Array.isArray(value)) return "Array";
   return "Hash";
@@ -68,28 +69,36 @@ function attempts(hash: RubyHash): number | bigint {
   if (typeof count === "bigint") return count;
   if (isRubyFloat(count)) {
     const float = floatValue(count);
-    if (!Number.isFinite(float)) throw new NotPortedError("Float#to_i of a non-finite value", "retry_stripe_jp_address_resyncs_job.rb:21");
+    if (!Number.isFinite(float))
+      throw new NotPortedError("Float#to_i of a non-finite value", "retry_stripe_jp_address_resyncs_job.rb:21");
     return Math.trunc(float);
   }
   return rubyToI(count ?? null);
 }
 
 // `RetryStripeJpAddressResyncsJob.due_for_retry?`
-function dueForRetry(request: UserComplianceInfoRequest, now: Date): boolean {
+export function dueForRetry(request: UserComplianceInfoRequest, now: Date): boolean {
   try {
     const hash = jsonDataOf(request);
     if (attempts(hash) >= MAX_ATTEMPTS) return false;
 
     const last = jsonGet(hash, "address_resync_at");
     if (isBlank(last) || (last instanceof RubyHash && last.entries.length === 0)) return true;
-    if (typeof last !== "string") throw new RubyTypeError(`no implicit conversion of ${conversionName(last as Json)} into String`);
+    if (typeof last !== "string")
+      throw new RubyTypeError(`no implicit conversion of ${conversionName(last as Json)} into String`);
     let parsed;
     try {
       parsed = timeIso8601(last);
     } catch (error) {
       // A year before 1000 is either refused (counted as due) or long past (due): due either way. A later year is not ported.
       const year = /^[ \t\n\v\f\r]*(-?\d+)-/u.exec(last)?.[1];
-      if (error instanceof Error && error.name === "NotPortedError" && year !== undefined && BigInt(year) < MIN_PORTED_YEAR) return true;
+      if (
+        error instanceof Error &&
+        error.name === "NotPortedError" &&
+        year !== undefined &&
+        BigInt(year) < MIN_PORTED_YEAR
+      )
+        return true;
       throw error;
     }
     // Time arithmetic keeps the microseconds the millisecond clock drops.

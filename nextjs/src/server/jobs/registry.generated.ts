@@ -2655,7 +2655,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RetryStripeJpAddressResyncsJob": {
     "file": "app/sidekiq/retry_stripe_jp_address_resyncs_job.rb",
