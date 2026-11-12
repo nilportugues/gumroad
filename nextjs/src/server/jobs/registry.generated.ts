@@ -2539,7 +2539,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RenewCustomDomainSslCertificates": {
     "file": "app/sidekiq/renew_custom_domain_ssl_certificates.rb",

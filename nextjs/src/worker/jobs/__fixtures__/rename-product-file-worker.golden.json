@@ -1,0 +1,5523 @@
+{
+  "cases": [
+    {
+      "name": "a file that does not exist",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 99 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {},
+      "job": "RenameProductFileWorker",
+      "args": [
+        99
+      ],
+      "transfers": [],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    },
+    {
+      "name": "a file id of nil",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` IS NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "product_files": {
+          "fields": [
+            "id",
+            "link_id",
+            "url",
+            "filetype",
+            "filegroup",
+            "size",
+            "bitrate",
+            "framerate",
+            "pagelength",
+            "duration",
+            "width",
+            "height",
+            "flags",
+            "json_data",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "position",
+            "installment_id",
+            "display_name",
+            "deleted_from_cdn_at",
+            "description",
+            "folder_id",
+            "stampable_pdf",
+            "isbn"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/sample.pdf",
+              "pdf",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "RenameProductFileWorker",
+      "args": [
+        null
+      ],
+      "transfers": [],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    },
+    {
+      "name": "a file already marked deleted from the cdn",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/sample.pdf",
+                "pdf",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "other",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "product_files": {
+          "fields": [
+            "id",
+            "link_id",
+            "url",
+            "filetype",
+            "filegroup",
+            "size",
+            "bitrate",
+            "framerate",
+            "pagelength",
+            "duration",
+            "width",
+            "height",
+            "flags",
+            "json_data",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "position",
+            "installment_id",
+            "display_name",
+            "deleted_from_cdn_at",
+            "description",
+            "folder_id",
+            "stampable_pdf",
+            "isbn"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/sample.pdf",
+              "pdf",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              "other",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "RenameProductFileWorker",
+      "args": [
+        1
+      ],
+      "transfers": [],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    },
+    {
+      "name": "a file id given as a digit string",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/sample.pdf",
+                "pdf",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "sample",
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "product_files": {
+          "fields": [
+            "id",
+            "link_id",
+            "url",
+            "filetype",
+            "filegroup",
+            "size",
+            "bitrate",
+            "framerate",
+            "pagelength",
+            "duration",
+            "width",
+            "height",
+            "flags",
+            "json_data",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "position",
+            "installment_id",
+            "display_name",
+            "deleted_from_cdn_at",
+            "description",
+            "folder_id",
+            "stampable_pdf",
+            "isbn"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/sample.pdf",
+              "pdf",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              "sample",
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "RenameProductFileWorker",
+      "args": [
+        "1"
+      ],
+      "transfers": [],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    },
+    {
+      "name": "a file id given as a float",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/sample.pdf",
+                "pdf",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "sample",
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "product_files": {
+          "fields": [
+            "id",
+            "link_id",
+            "url",
+            "filetype",
+            "filegroup",
+            "size",
+            "bitrate",
+            "framerate",
+            "pagelength",
+            "duration",
+            "width",
+            "height",
+            "flags",
+            "json_data",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "position",
+            "installment_id",
+            "display_name",
+            "deleted_from_cdn_at",
+            "description",
+            "folder_id",
+            "stampable_pdf",
+            "isbn"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/sample.pdf",
+              "pdf",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              "sample",
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "RenameProductFileWorker",
+      "args": [
+        1.0
+      ],
+      "transfers": [],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    },
+    {
+      "name": "a file id given as a word",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "product_files": {
+          "fields": [
+            "id",
+            "link_id",
+            "url",
+            "filetype",
+            "filegroup",
+            "size",
+            "bitrate",
+            "framerate",
+            "pagelength",
+            "duration",
+            "width",
+            "height",
+            "flags",
+            "json_data",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "position",
+            "installment_id",
+            "display_name",
+            "deleted_from_cdn_at",
+            "description",
+            "folder_id",
+            "stampable_pdf",
+            "isbn"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/sample.pdf",
+              "pdf",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              "sample",
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "RenameProductFileWorker",
+      "args": [
+        "abc"
+      ],
+      "transfers": [],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    },
+    {
+      "name": "a file hosted elsewhere without a display name",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "https://files.example.com/a.pdf",
+                "pdf",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "product_files": {
+          "fields": [
+            "id",
+            "link_id",
+            "url",
+            "filetype",
+            "filegroup",
+            "size",
+            "bitrate",
+            "framerate",
+            "pagelength",
+            "duration",
+            "width",
+            "height",
+            "flags",
+            "json_data",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "position",
+            "installment_id",
+            "display_name",
+            "deleted_from_cdn_at",
+            "description",
+            "folder_id",
+            "stampable_pdf",
+            "isbn"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "https://files.example.com/a.pdf",
+              "pdf",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "RenameProductFileWorker",
+      "args": [
+        1
+      ],
+      "transfers": [],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    },
+    {
+      "name": "a file hosted elsewhere with an empty display name",
+      "error": {
+        "class": "NoMethodError",
+        "message": "undefined method 'presigned_url' for nil"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "https://files.example.com/a.pdf",
+                "pdf",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "",
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "product_files": {
+          "fields": [
+            "id",
+            "link_id",
+            "url",
+            "filetype",
+            "filegroup",
+            "size",
+            "bitrate",
+            "framerate",
+            "pagelength",
+            "duration",
+            "width",
+            "height",
+            "flags",
+            "json_data",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "position",
+            "installment_id",
+            "display_name",
+            "deleted_from_cdn_at",
+            "description",
+            "folder_id",
+            "stampable_pdf",
+            "isbn"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "https://files.example.com/a.pdf",
+              "pdf",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              "",
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "RenameProductFileWorker",
+      "args": [
+        1
+      ],
+      "transfers": [],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    },
+    {
+      "name": "a file with no url and no display name",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "pdf",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "product_files": {
+          "fields": [
+            "id",
+            "link_id",
+            "url",
+            "filetype",
+            "filegroup",
+            "size",
+            "bitrate",
+            "framerate",
+            "pagelength",
+            "duration",
+            "width",
+            "height",
+            "flags",
+            "json_data",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "position",
+            "installment_id",
+            "display_name",
+            "deleted_from_cdn_at",
+            "description",
+            "folder_id",
+            "stampable_pdf",
+            "isbn"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              null,
+              "pdf",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "RenameProductFileWorker",
+      "args": [
+        1
+      ],
+      "transfers": [],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    },
+    {
+      "name": "a file with an empty url and no display name",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "",
+                "pdf",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "product_files": {
+          "fields": [
+            "id",
+            "link_id",
+            "url",
+            "filetype",
+            "filegroup",
+            "size",
+            "bitrate",
+            "framerate",
+            "pagelength",
+            "duration",
+            "width",
+            "height",
+            "flags",
+            "json_data",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "position",
+            "installment_id",
+            "display_name",
+            "deleted_from_cdn_at",
+            "description",
+            "folder_id",
+            "stampable_pdf",
+            "isbn"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "",
+              "pdf",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "RenameProductFileWorker",
+      "args": [
+        1
+      ],
+      "transfers": [],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    },
+    {
+      "name": "a file hosted elsewhere with a display name",
+      "error": {
+        "class": "NoMethodError",
+        "message": "undefined method 'presigned_url' for nil"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "https://files.example.com/a.pdf",
+                "pdf",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "renamed",
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "product_files": {
+          "fields": [
+            "id",
+            "link_id",
+            "url",
+            "filetype",
+            "filegroup",
+            "size",
+            "bitrate",
+            "framerate",
+            "pagelength",
+            "duration",
+            "width",
+            "height",
+            "flags",
+            "json_data",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "position",
+            "installment_id",
+            "display_name",
+            "deleted_from_cdn_at",
+            "description",
+            "folder_id",
+            "stampable_pdf",
+            "isbn"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "https://files.example.com/a.pdf",
+              "pdf",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              "renamed",
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "RenameProductFileWorker",
+      "args": [
+        1
+      ],
+      "transfers": [],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    },
+    {
+      "name": "a namespaced file whose display name matches",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/sample.pdf",
+                "pdf",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "sample",
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "product_files": {
+          "fields": [
+            "id",
+            "link_id",
+            "url",
+            "filetype",
+            "filegroup",
+            "size",
+            "bitrate",
+            "framerate",
+            "pagelength",
+            "duration",
+            "width",
+            "height",
+            "flags",
+            "json_data",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "position",
+            "installment_id",
+            "display_name",
+            "deleted_from_cdn_at",
+            "description",
+            "folder_id",
+            "stampable_pdf",
+            "isbn"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/sample.pdf",
+              "pdf",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              "sample",
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "RenameProductFileWorker",
+      "args": [
+        1
+      ],
+      "transfers": [],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    },
+    {
+      "name": "a namespaced file whose display name differs",
+      "error": {
+        "class": "ActiveRecord::RecordInvalid",
+        "message": "Validation failed: A file needs to either belong to a product or an installment"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/sample.pdf",
+                "pdf",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "renamed",
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `active_storage_attachments`.* FROM `active_storage_attachments` WHERE `active_storage_attachments`.`record_id` = 1 AND `active_storage_attachments`.`record_type` = 'ProductFile' AND `active_storage_attachments`.`name` = 'thumbnail' LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "name",
+              "record_type",
+              "record_id",
+              "blob_id",
+              "created_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "ROLLBACK",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "product_files": {
+          "fields": [
+            "id",
+            "link_id",
+            "url",
+            "filetype",
+            "filegroup",
+            "size",
+            "bitrate",
+            "framerate",
+            "pagelength",
+            "duration",
+            "width",
+            "height",
+            "flags",
+            "json_data",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "position",
+            "installment_id",
+            "display_name",
+            "deleted_from_cdn_at",
+            "description",
+            "folder_id",
+            "stampable_pdf",
+            "isbn"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/sample.pdf",
+              "pdf",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              "renamed",
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "RenameProductFileWorker",
+      "args": [
+        1
+      ],
+      "transfers": [
+        [
+          "https://storage.example.com/signed",
+          "renamed.pdf"
+        ]
+      ],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    },
+    {
+      "name": "a namespaced file whose display name keeps the extension",
+      "error": {
+        "class": "ActiveRecord::RecordInvalid",
+        "message": "Validation failed: A file needs to either belong to a product or an installment"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/sample.pdf",
+                "pdf",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "renamed.pdf",
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `active_storage_attachments`.* FROM `active_storage_attachments` WHERE `active_storage_attachments`.`record_id` = 1 AND `active_storage_attachments`.`record_type` = 'ProductFile' AND `active_storage_attachments`.`name` = 'thumbnail' LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "name",
+              "record_type",
+              "record_id",
+              "blob_id",
+              "created_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "ROLLBACK",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "product_files": {
+          "fields": [
+            "id",
+            "link_id",
+            "url",
+            "filetype",
+            "filegroup",
+            "size",
+            "bitrate",
+            "framerate",
+            "pagelength",
+            "duration",
+            "width",
+            "height",
+            "flags",
+            "json_data",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "position",
+            "installment_id",
+            "display_name",
+            "deleted_from_cdn_at",
+            "description",
+            "folder_id",
+            "stampable_pdf",
+            "isbn"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/sample.pdf",
+              "pdf",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              "renamed.pdf",
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "RenameProductFileWorker",
+      "args": [
+        1
+      ],
+      "transfers": [
+        [
+          "https://storage.example.com/signed",
+          "renamed.pdf"
+        ]
+      ],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    },
+    {
+      "name": "a namespaced file without a display name",
+      "error": {
+        "class": "NoMethodError",
+        "message": "undefined method 'ends_with?' for nil"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/sample.pdf",
+                "pdf",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "product_files": {
+          "fields": [
+            "id",
+            "link_id",
+            "url",
+            "filetype",
+            "filegroup",
+            "size",
+            "bitrate",
+            "framerate",
+            "pagelength",
+            "duration",
+            "width",
+            "height",
+            "flags",
+            "json_data",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "position",
+            "installment_id",
+            "display_name",
+            "deleted_from_cdn_at",
+            "description",
+            "folder_id",
+            "stampable_pdf",
+            "isbn"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/sample.pdf",
+              "pdf",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "RenameProductFileWorker",
+      "args": [
+        1
+      ],
+      "transfers": [],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    },
+    {
+      "name": "a namespaced file with an empty display name",
+      "error": {
+        "class": "ActiveRecord::RecordInvalid",
+        "message": "Validation failed: A file needs to either belong to a product or an installment"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/sample.pdf",
+                "pdf",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "",
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `active_storage_attachments`.* FROM `active_storage_attachments` WHERE `active_storage_attachments`.`record_id` = 1 AND `active_storage_attachments`.`record_type` = 'ProductFile' AND `active_storage_attachments`.`name` = 'thumbnail' LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "name",
+              "record_type",
+              "record_id",
+              "blob_id",
+              "created_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "ROLLBACK",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "product_files": {
+          "fields": [
+            "id",
+            "link_id",
+            "url",
+            "filetype",
+            "filegroup",
+            "size",
+            "bitrate",
+            "framerate",
+            "pagelength",
+            "duration",
+            "width",
+            "height",
+            "flags",
+            "json_data",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "position",
+            "installment_id",
+            "display_name",
+            "deleted_from_cdn_at",
+            "description",
+            "folder_id",
+            "stampable_pdf",
+            "isbn"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/sample.pdf",
+              "pdf",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              "",
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "RenameProductFileWorker",
+      "args": [
+        1
+      ],
+      "transfers": [
+        [
+          "https://storage.example.com/signed",
+          ".pdf"
+        ]
+      ],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    },
+    {
+      "name": "a namespaced file whose display name differs in case",
+      "error": {
+        "class": "ActiveRecord::RecordInvalid",
+        "message": "Validation failed: A file needs to either belong to a product or an installment"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/sample.pdf",
+                "pdf",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "Sample",
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `active_storage_attachments`.* FROM `active_storage_attachments` WHERE `active_storage_attachments`.`record_id` = 1 AND `active_storage_attachments`.`record_type` = 'ProductFile' AND `active_storage_attachments`.`name` = 'thumbnail' LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "name",
+              "record_type",
+              "record_id",
+              "blob_id",
+              "created_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "ROLLBACK",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "product_files": {
+          "fields": [
+            "id",
+            "link_id",
+            "url",
+            "filetype",
+            "filegroup",
+            "size",
+            "bitrate",
+            "framerate",
+            "pagelength",
+            "duration",
+            "width",
+            "height",
+            "flags",
+            "json_data",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "position",
+            "installment_id",
+            "display_name",
+            "deleted_from_cdn_at",
+            "description",
+            "folder_id",
+            "stampable_pdf",
+            "isbn"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/sample.pdf",
+              "pdf",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              "Sample",
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "RenameProductFileWorker",
+      "args": [
+        1
+      ],
+      "transfers": [
+        [
+          "https://storage.example.com/signed",
+          "Sample.pdf"
+        ]
+      ],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    },
+    {
+      "name": "a namespaced file with no extension whose display name matches",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/README",
+                "pdf",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "README",
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "product_files": {
+          "fields": [
+            "id",
+            "link_id",
+            "url",
+            "filetype",
+            "filegroup",
+            "size",
+            "bitrate",
+            "framerate",
+            "pagelength",
+            "duration",
+            "width",
+            "height",
+            "flags",
+            "json_data",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "position",
+            "installment_id",
+            "display_name",
+            "deleted_from_cdn_at",
+            "description",
+            "folder_id",
+            "stampable_pdf",
+            "isbn"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/README",
+              "pdf",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              "README",
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "RenameProductFileWorker",
+      "args": [
+        1
+      ],
+      "transfers": [],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    },
+    {
+      "name": "a namespaced file with a dotfile name",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/.hidden",
+                "pdf",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                ".hidden",
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "product_files": {
+          "fields": [
+            "id",
+            "link_id",
+            "url",
+            "filetype",
+            "filegroup",
+            "size",
+            "bitrate",
+            "framerate",
+            "pagelength",
+            "duration",
+            "width",
+            "height",
+            "flags",
+            "json_data",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "position",
+            "installment_id",
+            "display_name",
+            "deleted_from_cdn_at",
+            "description",
+            "folder_id",
+            "stampable_pdf",
+            "isbn"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/.hidden",
+              "pdf",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              ".hidden",
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "RenameProductFileWorker",
+      "args": [
+        1
+      ],
+      "transfers": [],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    },
+    {
+      "name": "a namespaced file with dots in its name",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/a.b.tar.gz",
+                "pdf",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "a.b.tar",
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "product_files": {
+          "fields": [
+            "id",
+            "link_id",
+            "url",
+            "filetype",
+            "filegroup",
+            "size",
+            "bitrate",
+            "framerate",
+            "pagelength",
+            "duration",
+            "width",
+            "height",
+            "flags",
+            "json_data",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "position",
+            "installment_id",
+            "display_name",
+            "deleted_from_cdn_at",
+            "description",
+            "folder_id",
+            "stampable_pdf",
+            "isbn"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/a.b.tar.gz",
+              "pdf",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              "a.b.tar",
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "RenameProductFileWorker",
+      "args": [
+        1
+      ],
+      "transfers": [],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    },
+    {
+      "name": "a namespaced file with a trailing dot in its name",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/file.",
+                "pdf",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "file",
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "product_files": {
+          "fields": [
+            "id",
+            "link_id",
+            "url",
+            "filetype",
+            "filegroup",
+            "size",
+            "bitrate",
+            "framerate",
+            "pagelength",
+            "duration",
+            "width",
+            "height",
+            "flags",
+            "json_data",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "position",
+            "installment_id",
+            "display_name",
+            "deleted_from_cdn_at",
+            "description",
+            "folder_id",
+            "stampable_pdf",
+            "isbn"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/file.",
+              "pdf",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              "file",
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "RenameProductFileWorker",
+      "args": [
+        1
+      ],
+      "transfers": [],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    },
+    {
+      "name": "a namespaced file with a trailing dot and the full display name",
+      "error": {
+        "class": "ActiveRecord::RecordInvalid",
+        "message": "Validation failed: A file needs to either belong to a product or an installment"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/file.",
+                "pdf",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "file.",
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `active_storage_attachments`.* FROM `active_storage_attachments` WHERE `active_storage_attachments`.`record_id` = 1 AND `active_storage_attachments`.`record_type` = 'ProductFile' AND `active_storage_attachments`.`name` = 'thumbnail' LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "name",
+              "record_type",
+              "record_id",
+              "blob_id",
+              "created_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "ROLLBACK",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "product_files": {
+          "fields": [
+            "id",
+            "link_id",
+            "url",
+            "filetype",
+            "filegroup",
+            "size",
+            "bitrate",
+            "framerate",
+            "pagelength",
+            "duration",
+            "width",
+            "height",
+            "flags",
+            "json_data",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "position",
+            "installment_id",
+            "display_name",
+            "deleted_from_cdn_at",
+            "description",
+            "folder_id",
+            "stampable_pdf",
+            "isbn"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/file.",
+              "pdf",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              "file.",
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "RenameProductFileWorker",
+      "args": [
+        1
+      ],
+      "transfers": [
+        [
+          "https://storage.example.com/signed",
+          "file."
+        ]
+      ],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    },
+    {
+      "name": "a namespaced file without a file type whose display name matches",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/sample.pdf",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "sample",
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "product_files": {
+          "fields": [
+            "id",
+            "link_id",
+            "url",
+            "filetype",
+            "filegroup",
+            "size",
+            "bitrate",
+            "framerate",
+            "pagelength",
+            "duration",
+            "width",
+            "height",
+            "flags",
+            "json_data",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "position",
+            "installment_id",
+            "display_name",
+            "deleted_from_cdn_at",
+            "description",
+            "folder_id",
+            "stampable_pdf",
+            "isbn"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/sample.pdf",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              "sample",
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "RenameProductFileWorker",
+      "args": [
+        1
+      ],
+      "transfers": [],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    },
+    {
+      "name": "a namespaced file without a file type or a display name",
+      "error": {
+        "class": "NoMethodError",
+        "message": "undefined method 'ends_with?' for nil"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/sample.pdf",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "product_files": {
+          "fields": [
+            "id",
+            "link_id",
+            "url",
+            "filetype",
+            "filegroup",
+            "size",
+            "bitrate",
+            "framerate",
+            "pagelength",
+            "duration",
+            "width",
+            "height",
+            "flags",
+            "json_data",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "position",
+            "installment_id",
+            "display_name",
+            "deleted_from_cdn_at",
+            "description",
+            "folder_id",
+            "stampable_pdf",
+            "isbn"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/sample.pdf",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "RenameProductFileWorker",
+      "args": [
+        1
+      ],
+      "transfers": [],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    },
+    {
+      "name": "a file hosted elsewhere with a display name and no file type",
+      "error": {
+        "class": "TypeError",
+        "message": "no implicit conversion of nil into String"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "https://files.example.com/a.pdf",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "renamed",
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "product_files": {
+          "fields": [
+            "id",
+            "link_id",
+            "url",
+            "filetype",
+            "filegroup",
+            "size",
+            "bitrate",
+            "framerate",
+            "pagelength",
+            "duration",
+            "width",
+            "height",
+            "flags",
+            "json_data",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "position",
+            "installment_id",
+            "display_name",
+            "deleted_from_cdn_at",
+            "description",
+            "folder_id",
+            "stampable_pdf",
+            "isbn"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "https://files.example.com/a.pdf",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              "renamed",
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "RenameProductFileWorker",
+      "args": [
+        1
+      ],
+      "transfers": [],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    },
+    {
+      "name": "a file hosted elsewhere with a display name and a blank file type",
+      "error": {
+        "class": "TypeError",
+        "message": "no implicit conversion of nil into String"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "https://files.example.com/a.pdf",
+                "",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "renamed",
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "product_files": {
+          "fields": [
+            "id",
+            "link_id",
+            "url",
+            "filetype",
+            "filegroup",
+            "size",
+            "bitrate",
+            "framerate",
+            "pagelength",
+            "duration",
+            "width",
+            "height",
+            "flags",
+            "json_data",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "position",
+            "installment_id",
+            "display_name",
+            "deleted_from_cdn_at",
+            "description",
+            "folder_id",
+            "stampable_pdf",
+            "isbn"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "https://files.example.com/a.pdf",
+              "",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              "renamed",
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "RenameProductFileWorker",
+      "args": [
+        1
+      ],
+      "transfers": [],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    },
+    {
+      "name": "a file without a url but with a display name",
+      "error": {
+        "class": "NoMethodError",
+        "message": "undefined method 'presigned_url' for nil"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "pdf",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "renamed",
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "product_files": {
+          "fields": [
+            "id",
+            "link_id",
+            "url",
+            "filetype",
+            "filegroup",
+            "size",
+            "bitrate",
+            "framerate",
+            "pagelength",
+            "duration",
+            "width",
+            "height",
+            "flags",
+            "json_data",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "position",
+            "installment_id",
+            "display_name",
+            "deleted_from_cdn_at",
+            "description",
+            "folder_id",
+            "stampable_pdf",
+            "isbn"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              null,
+              "pdf",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              "renamed",
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "RenameProductFileWorker",
+      "args": [
+        1
+      ],
+      "transfers": [],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    },
+    {
+      "name": "a file whose url is the storage prefix",
+      "error": {
+        "class": "ActiveSupport::DelegationError",
+        "message": "user delegated to with_product_files_owner, but with_product_files_owner is nil"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/",
+                "pdf",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "x",
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "product_files": {
+          "fields": [
+            "id",
+            "link_id",
+            "url",
+            "filetype",
+            "filegroup",
+            "size",
+            "bitrate",
+            "framerate",
+            "pagelength",
+            "duration",
+            "width",
+            "height",
+            "flags",
+            "json_data",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "position",
+            "installment_id",
+            "display_name",
+            "deleted_from_cdn_at",
+            "description",
+            "folder_id",
+            "stampable_pdf",
+            "isbn"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "http://localhost:9000/gumroad-specs/",
+              "pdf",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              "x",
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "RenameProductFileWorker",
+      "args": [
+        1
+      ],
+      "transfers": [],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    },
+    {
+      "name": "a namespaced file with a slash in its name",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/dir/sample.pdf",
+                "pdf",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "dir/sample",
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "product_files": {
+          "fields": [
+            "id",
+            "link_id",
+            "url",
+            "filetype",
+            "filegroup",
+            "size",
+            "bitrate",
+            "framerate",
+            "pagelength",
+            "duration",
+            "width",
+            "height",
+            "flags",
+            "json_data",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "position",
+            "installment_id",
+            "display_name",
+            "deleted_from_cdn_at",
+            "description",
+            "folder_id",
+            "stampable_pdf",
+            "isbn"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/dir/sample.pdf",
+              "pdf",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              "dir/sample",
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "RenameProductFileWorker",
+      "args": [
+        1
+      ],
+      "transfers": [],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    },
+    {
+      "name": "a namespaced file with a unicode name",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/café.pdf",
+                "pdf",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "café",
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "product_files": {
+          "fields": [
+            "id",
+            "link_id",
+            "url",
+            "filetype",
+            "filegroup",
+            "size",
+            "bitrate",
+            "framerate",
+            "pagelength",
+            "duration",
+            "width",
+            "height",
+            "flags",
+            "json_data",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "position",
+            "installment_id",
+            "display_name",
+            "deleted_from_cdn_at",
+            "description",
+            "folder_id",
+            "stampable_pdf",
+            "isbn"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/café.pdf",
+              "pdf",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              "café",
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "RenameProductFileWorker",
+      "args": [
+        1
+      ],
+      "transfers": [],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    },
+    {
+      "name": "a namespaced file under the storage prefix only",
+      "error": {
+        "class": "ActiveSupport::DelegationError",
+        "message": "user delegated to with_product_files_owner, but with_product_files_owner is nil"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/ext/short/original/sample.pdf",
+                "pdf",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "sample",
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "product_files": {
+          "fields": [
+            "id",
+            "link_id",
+            "url",
+            "filetype",
+            "filegroup",
+            "size",
+            "bitrate",
+            "framerate",
+            "pagelength",
+            "duration",
+            "width",
+            "height",
+            "flags",
+            "json_data",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "position",
+            "installment_id",
+            "display_name",
+            "deleted_from_cdn_at",
+            "description",
+            "folder_id",
+            "stampable_pdf",
+            "isbn"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "http://localhost:9000/gumroad-specs/attachments/ext/short/original/sample.pdf",
+              "pdf",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              "sample",
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "RenameProductFileWorker",
+      "args": [
+        1
+      ],
+      "transfers": [],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    },
+    {
+      "name": "a file under the storage prefix that is not namespaced",
+      "error": {
+        "class": "ActiveSupport::DelegationError",
+        "message": "user delegated to with_product_files_owner, but with_product_files_owner is nil"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/ext/original/sample.pdf",
+                "pdf",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "sample",
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "product_files": {
+          "fields": [
+            "id",
+            "link_id",
+            "url",
+            "filetype",
+            "filegroup",
+            "size",
+            "bitrate",
+            "framerate",
+            "pagelength",
+            "duration",
+            "width",
+            "height",
+            "flags",
+            "json_data",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "position",
+            "installment_id",
+            "display_name",
+            "deleted_from_cdn_at",
+            "description",
+            "folder_id",
+            "stampable_pdf",
+            "isbn"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "http://localhost:9000/gumroad-specs/attachments/ext/original/sample.pdf",
+              "pdf",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              "sample",
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "RenameProductFileWorker",
+      "args": [
+        1
+      ],
+      "transfers": [],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    },
+    {
+      "name": "a file under the storage prefix that is not namespaced and has no display name",
+      "error": {
+        "class": "ActiveSupport::DelegationError",
+        "message": "user delegated to with_product_files_owner, but with_product_files_owner is nil"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/ext/original/sample.pdf",
+                "pdf",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "product_files": {
+          "fields": [
+            "id",
+            "link_id",
+            "url",
+            "filetype",
+            "filegroup",
+            "size",
+            "bitrate",
+            "framerate",
+            "pagelength",
+            "duration",
+            "width",
+            "height",
+            "flags",
+            "json_data",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "position",
+            "installment_id",
+            "display_name",
+            "deleted_from_cdn_at",
+            "description",
+            "folder_id",
+            "stampable_pdf",
+            "isbn"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "http://localhost:9000/gumroad-specs/attachments/ext/original/sample.pdf",
+              "pdf",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "RenameProductFileWorker",
+      "args": [
+        1
+      ],
+      "transfers": [],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    },
+    {
+      "name": "another file is deleted from the cdn",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 2 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                2,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/sample.pdf",
+                "pdf",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "sample",
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "product_files": {
+          "fields": [
+            "id",
+            "link_id",
+            "url",
+            "filetype",
+            "filegroup",
+            "size",
+            "bitrate",
+            "framerate",
+            "pagelength",
+            "duration",
+            "width",
+            "height",
+            "flags",
+            "json_data",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "position",
+            "installment_id",
+            "display_name",
+            "deleted_from_cdn_at",
+            "description",
+            "folder_id",
+            "stampable_pdf",
+            "isbn"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/sample.pdf",
+              "pdf",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              "x",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              2,
+              1,
+              "http://localhost:9000/gumroad-specs/attachments/ext/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original/sample.pdf",
+              "pdf",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              "sample",
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "RenameProductFileWorker",
+      "args": [
+        2
+      ],
+      "transfers": [],
+      "s3_base_url": "http://localhost:9000/gumroad-specs/"
+    }
+  ]
+}
