@@ -14,7 +14,7 @@ import { esRecorder } from "../search/__fixtures__/job-harness.ts";
 import { withJobsRuntime } from "./concerns/job-runtime.ts";
 import { resetLinkCollaborators, setLinkCollaborators } from "./link.ts";
 import { resetPayoutReadCollaborators, setPayoutReadCollaborators } from "./payout-reads.ts";
-import { markBalancesProcessing, PAYOUT_TYPE_INSTANT, PAYOUT_TYPE_STANDARD } from "./payouts.ts";
+import { claimPayoutGroups, markBalancesProcessing, PAYOUT_TYPE_INSTANT, PAYOUT_TYPE_STANDARD } from "./payouts.ts";
 import { setSellerProfileCacheForTesting } from "./seller-profile.ts";
 import { findUserBang, resetUserCollaborators, setUserCollaborators } from "./user.ts";
 
@@ -126,6 +126,25 @@ describe("mark_balances_processing claim", () => {
       expect(
         (result as { balances: { get(name: string): unknown }[] }).balances.map((b) => Number(b.get("id"))),
       ).toEqual(ids);
+    });
+  }
+});
+
+describe("a withheld ledger", () => {
+  const HOLDS = [
+    "a negative ledger is withheld and noted once",
+    "a negative ledger already noted adds no second note",
+    "a group the claim leaves non-positive is released",
+  ];
+  for (const name of HOLDS) {
+    it(name, async () => {
+      const c = byName(name);
+      const { sql, error, result } = await run(c, c.statements, async () =>
+        claimPayoutGroups(await seller(), PAYOUT_DATE, { now }),
+      );
+      expect(sql.log).toEqual(sql.expected);
+      expect(error).toBeNull();
+      expect(result).toEqual([]);
     });
   }
 });

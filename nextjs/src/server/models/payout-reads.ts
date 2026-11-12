@@ -126,9 +126,13 @@ export async function getPayoutDetails(user: UserRecord, held: HeldBalance[]): P
 const accountCurrency = (account: MerchantAccountRow) =>
   String((account as unknown as { currency: unknown }).currency ?? "");
 
-// `filter_aggregate_payable_balances`, which only ever drops Gumroad-held money for a destination that is not in USD.
-export async function filterAggregatePayableBalances(user: UserRecord, payable: HeldBalance[]): Promise<HeldBalance[]> {
-  if (payable.length === 0) return payable;
+// `filter_aggregate_payable_balances`, which only ever drops Gumroad-held money for a destination that is not in USD. Returns the
+// destination it read with the balances.
+export async function filterAggregatePayableBalances(
+  user: UserRecord,
+  payable: HeldBalance[],
+): Promise<{ payable: HeldBalance[]; merchantAccount: MerchantAccountRow | null }> {
+  if (payable.length === 0) return { payable, merchantAccount: null };
   const { merchantAccount } = await getPayoutDetails(user, payable);
   if (merchantAccount === null)
     throw new NotPortedError(
@@ -140,12 +144,12 @@ export async function filterAggregatePayableBalances(user: UserRecord, payable: 
       "a payout destination that is not in USD",
       `${PROCESSOR_REF} filter_aggregate_payable_balances`,
     );
-  return payable;
+  return { payable, merchantAccount };
 }
 
 // `payable_balances_for_processor(user, unpaid, STRIPE)`. A balance the processor would not claim stays in the ledger and
 // brings reads Node has not been shown, so it is refused here, after only the reads Rails sends.
-export async function payableBalancesForProcessor(user: UserRecord, unpaid: BalanceRecord[]): Promise<HeldBalance[]> {
+export async function payableBalancesForProcessor(user: UserRecord, unpaid: BalanceRecord[]) {
   const held: HeldBalance[] = [];
   for (const balance of unpaid) held.push(await holdOf(balance));
   const payable = held.filter((entry) => isBalancePayable(entry));

@@ -15,6 +15,7 @@ import { mailRoute } from "../mail/delivery.ts";
 import { isAdult } from "./concerns/adult-keyword-detector.ts";
 import { deletable } from "./concerns/deletable.ts";
 import { currentJobsRuntime } from "./concerns/job-runtime.ts";
+import { mergeJsonDataWithCurrentRow } from "./concerns/json-data.ts";
 import { hasPaperTrail } from "./concerns/paper-trail.ts";
 import { loadBelongsTo } from "./concerns/rails-validations.ts";
 import { defineModel, type Callback, type CallbackContext } from "./runtime/define-model.ts";
@@ -115,11 +116,6 @@ function refuseUnported(record: CommentRecord): void {
     throw new NotPortedError(
       "Moving a comment (ancestry's update_descendants_with_new_ancestry)",
       "ancestry 4.3.3 instance_methods.rb:9",
-    );
-  if (record.persisted && record.untracked(() => record.attributeChanged("json_data")))
-    throw new NotPortedError(
-      "Writing json_data on a stored comment (JsonData#merge_json_data_with_current_row)",
-      "app/models/concerns/json_data.rb",
     );
   // Only a post answers `seller` the way notify_seller_of_new_comment reads it.
   if (
@@ -243,11 +239,7 @@ export const Comments = defineModel<Comment>({
   beforeSave: [
     // Again here for save(validate: false), which skips before_validation.
     { name: "refuse what is not ported", run: refuseUnported },
-    {
-      name: "merge_json_data_with_current_row",
-      if: (record) => record.persisted && record.attributeChanged("json_data"),
-      run: refuseUnported,
-    },
+    mergeJsonDataWithCurrentRow<Comment>("comments"),
     cacheDepth,
     {
       name: "trim_extra_newlines",
