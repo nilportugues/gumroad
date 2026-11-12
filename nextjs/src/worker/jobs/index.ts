@@ -213,6 +213,7 @@ import { updateBundlePurchasesContentJob } from "./update-bundle-purchases-conte
 import { staleTransientSuppressionSweepJob } from "./stale-transient-suppression-sweep-job.ts";
 import { resendConfirmationEmailJob } from "./resend-confirmation-email-job.ts";
 import { pdfUnstampableNotifierJob } from "./pdf-unstampable-notifier-job.ts";
+import { generateLargeSellersAnalyticsCacheWorker } from "./generate-large-sellers-analytics-cache-worker.ts";
 import { sendSignedPiracyNoticesJob } from "./send-signed-piracy-notices-job.ts";
 import { renewCustomDomainSslCertificates } from "./renew-custom-domain-ssl-certificates.ts";
 import { sendPaypalTopupNotificationJob } from "./send-paypal-topup-notification-job.ts";
@@ -366,6 +367,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   StaleTransientSuppressionSweepJob: staleTransientSuppressionSweepJob,
   ResendConfirmationEmailJob: resendConfirmationEmailJob,
   PdfUnstampableNotifierJob: pdfUnstampableNotifierJob,
+  GenerateLargeSellersAnalyticsCacheWorker: generateLargeSellersAnalyticsCacheWorker,
   SendSignedPiracyNoticesJob: sendSignedPiracyNoticesJob,
   RenewCustomDomainSslCertificates: renewCustomDomainSslCertificates,
   SendPaypalTopupNotificationJob: sendPaypalTopupNotificationJob,

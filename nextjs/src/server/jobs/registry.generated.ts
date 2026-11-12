@@ -1387,7 +1387,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "recurringLockMaxAttempt": 2700,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "GenerateMerchantCenterFeedWorker": {
     "file": "app/sidekiq/generate_merchant_center_feed_worker.rb",
