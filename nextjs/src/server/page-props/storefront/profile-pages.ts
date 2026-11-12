@@ -278,7 +278,10 @@ async function assertSectionsSupported(chain: Chain, seller: User): Promise<void
     where: { seller_id: seller.id, product_id: null },
     select: { type: true },
   });
-  if (sections.some((section) => !SUPPORTED_SECTION_TYPES.includes(section.type))) throw new HandBackToRails();
+  if (sections.some((section) => section.type === null)) throw new HandBackToRails();
+  // STI: a `type` that names no SellerProfileSection subclass raises ActiveRecord::SubclassNotFound when the rows load.
+  const unknown = sections.find((section) => !SUPPORTED_SECTION_TYPES.includes(section.type!));
+  if (unknown) throw new Error(`Invalid single-table inheritance type: ${unknown.type}`);
   const productsShown =
     sections.some((section) =>
       [PRODUCTS_SECTION_TYPE, FEATURED_PRODUCT_SECTION_TYPE, WISHLISTS_SECTION_TYPE].includes(section.type),

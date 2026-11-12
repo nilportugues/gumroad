@@ -307,6 +307,33 @@ describe "Storefront profile products", type: :request, elasticsearch_wait_for_r
     expect(inertia_props["sections"].first["search_results"]["products"].map { _1["name"] }).to eq(["Beta course"])
   end
 
+  describe "a section whose type is no section class" do
+    # The test environment re-raises what Rails does not rescue; production answers the 500 page, which is what is recorded.
+    def get_profile_as_production(headers: {})
+      previous = Rails.application.env_config["action_dispatch.show_exceptions"]
+      Rails.application.env_config["action_dispatch.show_exceptions"] = :all
+      get "/", headers:
+    ensure
+      Rails.application.env_config["action_dispatch.show_exceptions"] = previous
+    end
+
+    before do
+      SellerProfileSection.insert_all([{ seller_id: seller.id, type: "SellerProfileBogusSection", header: "Bogus", json_data: "{}", created_at: Time.current, updated_at: Time.current }])
+    end
+
+    it "answers 500 for the page", parity: true do
+      get_profile_as_production
+
+      expect(response).to have_http_status(:internal_server_error)
+    end
+
+    it "answers 500 for the Inertia visit", parity: true do
+      get_profile_as_production(headers: { "X-Inertia" => "true", "X-Requested-With" => "XMLHttpRequest" })
+
+      expect(response).to have_http_status(:internal_server_error)
+    end
+  end
+
   it "serves the seller's reputation summary while the flag is on", parity: true do
     Feature.activate_user(:seller_reputation_summary, seller)
     first = product("Alpha ebook", display_product_reviews: true)
