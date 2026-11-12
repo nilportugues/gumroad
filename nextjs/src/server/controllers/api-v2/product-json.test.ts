@@ -64,10 +64,6 @@ describe("products the v2 API serializer hands back to Rails", () => {
     },
   );
 
-  it("hands back a product with a taxonomy category", async () => {
-    await expect(check([product({ taxonomy_id: 3n })])).rejects.toBeInstanceOf(HandBackToRails);
-  });
-
   it("hands back a tiered membership and a bundle", async () => {
     await expect(check([product({ flags: mocks.flags.is_tiered_membership })])).rejects.toBeInstanceOf(HandBackToRails);
     await expect(check([product({ flags: mocks.flags.is_bundle })])).rejects.toBeInstanceOf(HandBackToRails);

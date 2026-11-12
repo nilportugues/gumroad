@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "spec": "spec/requests/api/v2/products_throttled_parity_spec.rb",
-  "example": "API v2 throttled routes POST /v2/products hands a creation with blank upload fields back to Rails",
+  "spec": "spec/requests/api/v2/product_create_parity_spec.rb",
+  "example": "API v2 product create files the product under other when the taxonomy is blank",
   "sessionCookie": "_gumroad_app_session_test",
   "secretKeyBase": "parity-replay-secret-key-base",
-  "recordedOn": "2026-11-11",
+  "recordedOn": "2026-11-12",
   "exchanges": [
     {
       "seed": {
@@ -74,7 +74,7 @@
                 "id": 1,
                 "resource_owner_id": 1,
                 "application_id": 1,
-                "token": "ILm1i-2LPPL0l4RhKkRvYzOCbpVGMcp-tKd-aKjUqMI",
+                "token": "qrPXsHemcCc9DLXPTnKiK3lmZbROECmmZMukiuXrZJ0",
                 "refresh_token": null,
                 "expires_in": null,
                 "revoked_at": null,
@@ -110,9 +110,9 @@
             "rows": [
               {
                 "id": 1,
-                "name": "app12",
-                "uid": "OxXBmaTDm92stxrydZ3ZviL_sRt7gYPmIm3saHMA_VY",
-                "secret": "9qbSCeD1XMbyFetELFUH41RWF1OZFG-vRytq8t5isdw",
+                "name": "app11",
+                "uid": "4taLezsiF3QW79cUOtlYBB5D8FinOM4rj_szjLjtDOo",
+                "secret": "54o7EOnE1FA2ZNqutmZqW7VzSKvW2D9ZyhQ3dtCppFE",
                 "redirect_uri": "https://foo",
                 "created_at": "<now>",
                 "updated_at": "<now>",
@@ -162,6 +162,42 @@
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "max_refund_period_in_days": 30
+              }
+            ]
+          },
+          "taxonomies": {
+            "columns": {
+              "id": "bigint",
+              "parent_id": "bigint",
+              "slug": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "parent_id": null,
+                "slug": "other"
+              }
+            ]
+          },
+          "taxonomy_hierarchies": {
+            "columns": {
+              "ancestor_id": "bigint",
+              "descendant_id": "bigint",
+              "generations": "int"
+            },
+            "primaryKey": [
+              "ancestor_id",
+              "descendant_id",
+              "generations"
+            ],
+            "rows": [
+              {
+                "ancestor_id": 1,
+                "descendant_id": 1,
+                "generations": 0
               }
             ]
           },
@@ -240,20 +276,20 @@
             "rows": [
               {
                 "id": 1,
-                "email": "throttled@example.com",
-                "encrypted_password": "$2a$04$4A0DqOFOF.R0KXCIbFxuZeHNafvuYKja854oeBR46MJUh6WbGYjVO",
+                "email": "edgar3eb54a8a_41@gumroad.com",
+                "encrypted_password": "$2a$04$N6SE0yuE61ygeCRZZIr.K.iopB3crSwzpbhSMImDYSA2w4xp5CikC",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": null,
                 "sign_in_count": 0,
                 "current_sign_in_at": null,
                 "last_sign_in_at": null,
-                "current_sign_in_ip": "100.194.82.199",
-                "last_sign_in_ip": "86.66.42.238",
+                "current_sign_in_ip": "220.114.172.189",
+                "last_sign_in_ip": "102.129.208.240",
                 "created_at": "<now>",
                 "updated_at": "<now>",
-                "name": "Throttled",
-                "payment_address": "edgar817c665d_34@gumroad.com",
+                "name": null,
+                "payment_address": "edgar86296aba_42@gumroad.com",
                 "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
@@ -265,7 +301,7 @@
                 "payment_notification": 1,
                 "currency_type": "usd",
                 "bio": null,
-                "username": "throttled",
+                "username": "edgar17c7461321",
                 "credit_card_id": null,
                 "profile_picture_url": null,
                 "country": null,
@@ -278,8 +314,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "3514185290253",
-                "account_created_ip": "208.101.203.151",
+                "external_id": "434824303691",
+                "account_created_ip": "205.37.220.105",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -297,7 +333,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "SE2B73G6EAF3DK7Q3XKOA2IJBTGMQQFK",
+                "otp_secret_key": "IGNNQ3NHWHGUSFHSRPZ3Z2LWKRN652K6",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -308,20 +344,20 @@
               },
               {
                 "id": 2,
-                "email": "edgar354679b1_35@gumroad.com",
-                "encrypted_password": "$2a$04$e0DcEt4QtUUDaxFCT24PHekc31ZfmkWAf/aXJWsQLV6X5HSw6hvNK",
+                "email": "edgar388ef317_43@gumroad.com",
+                "encrypted_password": "$2a$04$mVTmVL3iDMbutn8QrIo4/eOhCb4VRzDHrgnfabXm0Mq7gkcWzbe1e",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": null,
                 "sign_in_count": 0,
                 "current_sign_in_at": null,
                 "last_sign_in_at": null,
-                "current_sign_in_ip": "150.244.253.171",
-                "last_sign_in_ip": "159.59.126.156",
+                "current_sign_in_ip": "184.201.87.153",
+                "last_sign_in_ip": "62.53.110.104",
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "name": null,
-                "payment_address": "edgarfb4f0a24_36@gumroad.com",
+                "payment_address": "edgare987739e_44@gumroad.com",
                 "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
@@ -333,7 +369,7 @@
                 "payment_notification": 1,
                 "currency_type": "usd",
                 "bio": null,
-                "username": "edgar49384e0712",
+                "username": "edgar1a052a9522",
                 "credit_card_id": null,
                 "profile_picture_url": null,
                 "country": null,
@@ -346,8 +382,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "8456030702052",
-                "account_created_ip": "103.233.243.103",
+                "external_id": "3496486758528",
+                "account_created_ip": "150.87.235.229",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -365,7 +401,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "R3V4U7TLOS3P4K3U2KMNFD2UNY5I4XY3",
+                "otp_secret_key": "CWRH63TCED7PMBOL2HVAIA5TRX7JGNCR",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -382,6 +418,7 @@
           "oauth_access_tokens": 2,
           "oauth_applications": 2,
           "refund_policies": 3,
+          "taxonomies": 2,
           "users": 3
         }
       },
@@ -426,13 +463,12 @@
         "path": "/v2/products",
         "headers": {
           "accept": "application/json",
-          "authorization": "Bearer ILm1i-2LPPL0l4RhKkRvYzOCbpVGMcp-tKd-aKjUqMI",
-          "cf-connecting-ip": "203.0.113.55",
+          "authorization": "Bearer qrPXsHemcCc9DLXPTnKiK3lmZbROECmmZMukiuXrZJ0",
           "content-type": "application/json",
           "host": "api.test.gumroad.com:31337"
         },
         "remoteIp": "127.0.0.1",
-        "body": "{\"name\":\"Book\",\"price\":100,\"file\":\"\",\"preview\":{},\"thumbnail\":[]}"
+        "body": "{\"name\":\"Notebook\",\"price\":500,\"taxonomy_id\":\"\"}"
       },
       "response": {
         "status": 200,
@@ -451,7 +487,7 @@
         "json": {
           "success": true,
           "product": {
-            "name": "Book",
+            "name": "Notebook",
             "description": null,
             "require_shipping": false,
             "preview_url": null,
@@ -461,16 +497,16 @@
             "subscription_duration": null,
             "id": "1UokxkyxJ__gd-gssE0g7w==",
             "url": null,
-            "price": 100,
+            "price": 500,
             "currency": "usd",
-            "taxonomy_id": null,
-            "category": null,
-            "category_label": null,
-            "short_url": "http://throttled.test.gumroad.com:31337/l/a",
-            "landing_url": "http://throttled.test.gumroad.com:31337/l/a",
+            "taxonomy_id": 1,
+            "category": "other",
+            "category_label": "Other",
+            "short_url": "http://edgar17c7461321.test.gumroad.com:31337/l/p",
+            "landing_url": "http://edgar17c7461321.test.gumroad.com:31337/l/p",
             "thumbnail_url": null,
             "tags": [],
-            "formatted_price": "$1",
+            "formatted_price": "$5",
             "published": true,
             "file_info": {},
             "max_purchase_count": null,
@@ -504,8 +540,8 @@
             {
               "id": 1,
               "user_id": 1,
-              "name": "Book",
-              "unique_permalink": "a",
+              "name": "Notebook",
+              "unique_permalink": "p",
               "preview_url": null,
               "description": null,
               "purchase_type": 0,
@@ -513,7 +549,7 @@
               "updated_at": "<now>",
               "purchase_disabled_at": null,
               "deleted_at": null,
-              "price_cents": 100,
+              "price_cents": 500,
               "price_currency_type": "usd",
               "customizable_price": null,
               "max_purchase_count": null,
@@ -551,7 +587,7 @@
               "free_trial_duration_unit": null,
               "free_trial_duration_amount": null,
               "content_updated_at": null,
-              "taxonomy_id": null,
+              "taxonomy_id": 1,
               "native_type": "digital",
               "discover_fee_per_thousand": 100,
               "support_email": null,
@@ -566,7 +602,7 @@
             {
               "id": 1,
               "link_id": 1,
-              "price_cents": 100,
+              "price_cents": 500,
               "currency": "usd",
               "recurrence": null,
               "created_at": "<now>",
@@ -629,11 +665,11 @@
           "method": "PUT",
           "url": "http://elasticsearch:9200/link-test/_doc/1",
           "contentType": "application/json",
-          "body": "{\"user_id\":1,\"is_physical\":false,\"tags\":[],\"creator_name\":\"Throttled\",\"sales_volume\":0.0,\"created_at\":\"<now>\",\"average_rating\":0.0,\"reviews_count\":0,\"is_subscription\":false,\"is_bundle\":false,\"filetypes\":[],\"price_cents\":100,\"available_price_cents\":[100],\"updated_at\":\"<now>\",\"creator_external_id\":\"3514185290253\",\"content_updated_at\":null,\"total_fee_cents\":0.0,\"past_year_fee_cents\":0.0,\"staff_picked_at\":null,\"offer_codes\":[],\"taxonomy_attribute_filters\":[],\"name\":\"Book\",\"rated_as_adult\":false,\"description\":null,\"is_recommendable\":false,\"is_alive_on_profile\":false,\"is_alive\":false,\"taxonomy_id\":null,\"is_preorder\":false,\"display_product_reviews\":true,\"is_call\":false,\"native_type\":\"digital\",\"price_currency_type\":\"usd\",\"customizable_price\":false}",
+          "body": "{\"user_id\":1,\"is_physical\":false,\"tags\":[],\"creator_name\":\"edgar17c7461321\",\"sales_volume\":0.0,\"created_at\":\"<now>\",\"average_rating\":0.0,\"reviews_count\":0,\"is_subscription\":false,\"is_bundle\":false,\"filetypes\":[],\"price_cents\":500,\"available_price_cents\":[500],\"updated_at\":\"<now>\",\"creator_external_id\":\"434824303691\",\"content_updated_at\":null,\"total_fee_cents\":0.0,\"past_year_fee_cents\":0.0,\"staff_picked_at\":null,\"offer_codes\":[],\"taxonomy_attribute_filters\":[],\"name\":\"Notebook\",\"rated_as_adult\":false,\"description\":null,\"is_recommendable\":false,\"is_alive_on_profile\":false,\"is_alive\":false,\"taxonomy_id\":1,\"is_preorder\":false,\"display_product_reviews\":true,\"is_call\":false,\"native_type\":\"digital\",\"price_currency_type\":\"usd\",\"customizable_price\":false}",
           "response": {
-            "status": 201,
+            "status": 200,
             "contentType": "application/json; charset=UTF-8",
-            "body": "{\"_index\":\"link-test\",\"_type\":\"_doc\",\"_id\":\"1\",\"_version\":92,\"result\":\"created\",\"_shards\":{\"total\":1,\"successful\":1,\"failed\":0},\"_seq_no\":1296,\"_primary_term\":1}"
+            "body": "{\"_index\":\"link-test\",\"_type\":\"_doc\",\"_id\":\"1\",\"_version\":72,\"result\":\"updated\",\"_shards\":{\"total\":1,\"successful\":1,\"failed\":0},\"_seq_no\":2632,\"_primary_term\":1}"
           }
         },
         {
@@ -655,8 +691,58 @@
           "response": {
             "status": 200,
             "contentType": "application/json; charset=UTF-8",
-            "body": "{\"_index\":\"link-test\",\"_type\":\"_doc\",\"_id\":\"1\",\"_version\":93,\"result\":\"updated\",\"_shards\":{\"total\":1,\"successful\":1,\"failed\":0},\"_seq_no\":1297,\"_primary_term\":1}"
+            "body": "{\"_index\":\"link-test\",\"_type\":\"_doc\",\"_id\":\"1\",\"_version\":73,\"result\":\"updated\",\"_shards\":{\"total\":1,\"successful\":1,\"failed\":0},\"_seq_no\":2633,\"_primary_term\":1}"
           }
+        }
+      ],
+      "timeline": [
+        {
+          "type": "db",
+          "op": "insert",
+          "table": "links"
+        },
+        {
+          "type": "db",
+          "op": "insert",
+          "table": "prices"
+        },
+        {
+          "type": "db",
+          "op": "update",
+          "table": "links"
+        },
+        {
+          "type": "http",
+          "index": 0
+        },
+        {
+          "type": "http",
+          "index": 1
+        },
+        {
+          "type": "http",
+          "index": 2
+        },
+        {
+          "type": "http",
+          "index": 3
+        },
+        {
+          "type": "http",
+          "index": 4
+        },
+        {
+          "type": "db",
+          "op": "update",
+          "table": "links"
+        },
+        {
+          "type": "job",
+          "index": 0
+        },
+        {
+          "type": "http",
+          "index": 5
         }
       ]
     }

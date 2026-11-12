@@ -16,6 +16,7 @@ import {
 import { findLink, findUserById } from "../../presenters/product-reads.ts";
 import { longUrl } from "../../presenters/product.ts";
 import { HandBackToRails } from "../application-controller.ts";
+import { categoriesById } from "./categories.ts";
 
 import { variantRichContentJson } from "./product-resources.ts";
 import { externalId, timeJson } from "./records.ts";
@@ -53,7 +54,6 @@ export async function assertProductJsonSupported(links: Link[], { owner, scopes 
     throw new HandBackToRails("sales_count and sales_usd_cents come from Elasticsearch");
   const ids = links.map((link) => link.id);
   for (const link of links) {
-    if (link.taxonomy_id !== null) throw new HandBackToRails("a product with a taxonomy category");
     if (flag(link, "is_tiered_membership")) throw new HandBackToRails("a tiered membership");
     if (flag(link, "is_bundle")) throw new HandBackToRails("a bundle");
     if (
@@ -220,6 +220,8 @@ export async function productsApiJson(links: Link[], options: ProductJsonOptions
   const data = await loadRowData(links);
   await assertThumbnailsSupported(data);
   const seller = await findUserById(owner.id);
+  // Product::AsJson#category_for_api: the category the product's taxonomy belongs to, from the presenter's table.
+  const categories = links.some((link) => link.taxonomy_id !== null) ? await categoriesById() : undefined;
   const result: Record<string, unknown>[] = [];
   for (const link of links) {
     assertPriceSupported(link, data);
@@ -239,9 +241,10 @@ export async function productsApiJson(links: Link[], options: ProductJsonOptions
       url: null,
       price: await defaultPriceCents(record),
       currency: link.price_currency_type,
-      taxonomy_id: null,
-      category: null,
-      category_label: null,
+      taxonomy_id: link.taxonomy_id === null ? null : Number(link.taxonomy_id),
+      category: (link.taxonomy_id === null ? undefined : categories?.get(String(link.taxonomy_id)))?.path ?? null,
+      category_label:
+        (link.taxonomy_id === null ? undefined : categories?.get(String(link.taxonomy_id)))?.label ?? null,
       short_url: longUrl(row!, seller!),
       landing_url: longUrl(row!, seller!),
       thumbnail_url: thumbnailJson(link, data)?.url || null,

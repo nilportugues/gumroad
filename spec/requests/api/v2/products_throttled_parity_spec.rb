@@ -27,8 +27,8 @@ describe "API v2 throttled routes", type: :request do
 
   def counters = redis.keys("rack::attack:*").sort.to_h { |key| [key.sub(/\Arack::attack:\d+:/, ""), redis.get(key).to_i] }
 
-  def call(verb, path, params: {}, scopes: nil, tok: nil, **options)
-    api_call(verb, path, token: tok || (scopes ? api_token(seller, scopes:) : token), params:, as: verb == :get ? nil : :json, headers: ip_headers, **options)
+  def call(verb, path, params: {}, scopes: nil, tok: nil, headers: {}, **options)
+    api_call(verb, path, token: tok || (scopes ? api_token(seller, scopes:) : token), params:, as: verb == :get ? nil : :json, headers: ip_headers.merge(headers), **options)
   end
 
   def message = response.parsed_body["message"]
@@ -112,12 +112,6 @@ describe "API v2 throttled routes", type: :request do
       call(:post, "/products", params: { name: "Book", thumbnail: ["x"] })
 
       expect(message).to eq("'thumbnail' is not an accepted parameter on POST /v2/products. Thumbnails can only be set after the product is created. Create the product first, then POST to /v2/products/:id/thumbnail with a signed_blob_id.")
-    end
-
-    it "hands a creation with blank upload fields back to Rails", parity: true do
-      call(:post, "/products", params: { name: "Book", price: 100, file: "", preview: {}, thumbnail: [] })
-
-      expect(response.parsed_body["success"]).to be true
     end
 
     it "refuses a taxonomy that does not exist", parity: true do
@@ -214,13 +208,6 @@ describe "API v2 throttled routes", type: :request do
       call(:post, "/products", params: { name: "Book" }, scopes: "view_public")
 
       expect(response).to have_http_status(:forbidden)
-    end
-
-    it "hands a product creation back to Rails", parity: true do
-      call(:post, "/products", params: { name: "Notebook", price: 500, tags: ["paper"] })
-
-      expect(response.parsed_body).to include("success" => true)
-      expect(response.parsed_body.dig("product", "name")).to eq("Notebook")
     end
 
     describe "the Rack::Attack throttle" do
@@ -688,6 +675,292 @@ describe "API v2 throttled routes", type: :request do
           call(:put, draft_path, params: { tags: ["a,b"] })
 
           expect(response.parsed_body["success"]).to be false
+        end
+      end
+
+      # The columns and the summary an update assigns beside the price: each saved with the product, in the action's transaction.
+      describe "the pay-what-you-want price" do
+        it "turns pay-what-you-want on with a suggested price", parity: true, parity_timeline: true do
+          call(:put, draft_path, params: { customizable_price: true, suggested_price_cents: 800 })
+
+          expect(response.parsed_body.dig("product", "customizable_price")).to be true
+          expect(draft.reload.suggested_price_cents).to eq(800)
+        end
+
+        it "turns pay-what-you-want off", parity: true, parity_timeline: true do
+          draft.update!(customizable_price: true)
+
+          call(:patch, draft_path, params: { customizable_price: false })
+
+          expect(draft.reload.customizable_price).to be false
+        end
+
+        it "clears the suggested price", parity: true do
+          draft.update!(customizable_price: true, suggested_price_cents: 800)
+
+          call(:put, draft_path, params: { suggested_price_cents: nil })
+
+          expect(draft.reload.suggested_price_cents).to be_nil
+        end
+
+        it "reads the suggested price from text", parity: true do
+          call(:put, draft_path, params: { customizable_price: true, suggested_price_cents: "900" })
+
+          expect(draft.reload.suggested_price_cents).to eq(900)
+        end
+
+        it "refuses a suggested price under the price", parity: true, parity_timeline: true do
+          call(:put, draft_path, params: { customizable_price: true, suggested_price_cents: 50 })
+
+          expect(message).to eq("The suggested price you entered was too low.")
+        end
+
+        it "changes the price and the suggested price together", parity: true, parity_timeline: true do
+          call(:put, draft_path, params: { price: 300, customizable_price: true, suggested_price_cents: 600 })
+
+          expect(response.parsed_body.dig("product", "price")).to eq(300)
+          expect(draft.reload.suggested_price_cents).to eq(600)
+        end
+
+        it "changes the pay-what-you-want setting of a published product", parity: true do
+          call(:put, path, params: { customizable_price: true })
+
+          expect(product.reload.customizable_price).to be true
+        end
+
+        it "hands a flag given as text back to Rails", parity: true do
+          call(:put, draft_path, params: { customizable_price: "true" })
+
+          expect(response.parsed_body["success"]).to be true
+        end
+
+        it "hands a suggested price with cents back to Rails", parity: true do
+          call(:put, draft_path, params: { customizable_price: true, suggested_price_cents: "8.5" })
+
+          expect(response).to have_http_status(:ok)
+        end
+
+        it "hands a suggested price past the integer range back to Rails", parity: true do
+          call(:put, draft_path, params: { customizable_price: true, suggested_price_cents: 3_000_000_000 })
+
+          expect(response).to have_http_status(:ok)
+        end
+      end
+
+      describe "the purchase limit" do
+        it "limits the purchases of a draft", parity: true, parity_timeline: true do
+          call(:put, draft_path, params: { max_purchase_count: 10 })
+
+          expect(response.parsed_body.dig("product", "max_purchase_count")).to eq(10)
+          expect(draft.reload.max_purchase_count).to eq(10)
+        end
+
+        it "limits the purchases of a published product", parity: true do
+          call(:put, path, params: { max_purchase_count: 25 })
+
+          expect(product.reload.max_purchase_count).to eq(25)
+        end
+
+        it "removes the limit", parity: true do
+          draft.update!(max_purchase_count: 10)
+
+          call(:put, draft_path, params: { max_purchase_count: nil })
+
+          expect(draft.reload.max_purchase_count).to be_nil
+        end
+
+        it "removes the limit with an empty string", parity: true do
+          draft.update!(max_purchase_count: 10)
+
+          call(:put, draft_path, params: { max_purchase_count: "" })
+
+          expect(draft.reload.max_purchase_count).to be_nil
+        end
+
+        it "reads the limit from text", parity: true do
+          call(:put, draft_path, params: { max_purchase_count: "7" })
+
+          expect(draft.reload.max_purchase_count).to eq(7)
+        end
+
+        it "brings a limit past the range down to the maximum", parity: true do
+          call(:put, draft_path, params: { max_purchase_count: 20_000_000 })
+
+          expect(draft.reload.max_purchase_count).to eq(10_000_000)
+        end
+
+        it "brings a negative limit up to zero", parity: true do
+          call(:put, draft_path, params: { max_purchase_count: -4 })
+
+          expect(draft.reload.max_purchase_count).to eq(0)
+        end
+
+        it "accepts a limit equal to the number sold", parity: true do
+          draft.update_columns(sales_count_for_inventory_cache: 3)
+
+          call(:put, draft_path, params: { max_purchase_count: 3 })
+
+          expect(draft.reload.max_purchase_count).to eq(3)
+        end
+
+        it "refuses a limit under the number sold", parity: true do
+          draft.update_columns(sales_count_for_inventory_cache: 3)
+
+          call(:put, draft_path, params: { max_purchase_count: 2 })
+
+          expect(message).to eq("Sorry, you cannot limit the number of purchases to that amount.")
+          expect(draft.reload.max_purchase_count).to be_nil
+        end
+
+        it "hands a limit with a fraction back to Rails", parity: true do
+          call(:put, draft_path, params: { max_purchase_count: "2.5" })
+
+          expect(response).to have_http_status(:ok)
+        end
+      end
+
+      describe "the quantity" do
+        it "lets buyers choose a quantity", parity: true, parity_timeline: true do
+          call(:put, draft_path, params: { quantity_enabled: true })
+
+          expect(draft.reload.quantity_enabled).to be true
+        end
+
+        it "stops buyers choosing a quantity", parity: true do
+          draft.update!(quantity_enabled: true)
+
+          call(:put, draft_path, params: { quantity_enabled: false })
+
+          expect(draft.reload.quantity_enabled).to be false
+        end
+
+        it "hands a quantity flag given as text back to Rails", parity: true do
+          call(:put, draft_path, params: { quantity_enabled: "1" })
+
+          expect(response.parsed_body["success"]).to be true
+        end
+      end
+
+      describe "the taxonomy" do
+        let(:taxonomy) { create(:taxonomy, parent: create(:taxonomy)) }
+
+        it "files a draft under a taxonomy", parity: true, parity_timeline: true do
+          call(:put, draft_path, params: { taxonomy_id: taxonomy.id })
+
+          expect(response.parsed_body.dig("product", "taxonomy_id")).to eq(taxonomy.id)
+          expect(response.parsed_body.dig("product", "category")).to be_present
+          expect(draft.reload.taxonomy_id).to eq(taxonomy.id)
+        end
+
+        it "reads the taxonomy from text", parity: true do
+          call(:put, path, params: { taxonomy_id: taxonomy.id.to_s })
+
+          expect(product.reload.taxonomy_id).to eq(taxonomy.id)
+        end
+
+        it "moves a product from one taxonomy to another", parity: true do
+          draft.update!(taxonomy: create(:taxonomy))
+
+          call(:put, draft_path, params: { taxonomy_id: taxonomy.id })
+
+          expect(draft.reload.taxonomy_id).to eq(taxonomy.id)
+        end
+
+        it "takes a draft out of its taxonomy with a blank id", parity: true do
+          draft.update!(taxonomy:)
+
+          call(:put, draft_path, params: { taxonomy_id: "" })
+
+          expect(draft.reload.taxonomy_id).to be_nil
+        end
+
+        it "takes a draft out of its taxonomy with a null id", parity: true do
+          draft.update!(taxonomy:)
+
+          call(:put, draft_path, params: { taxonomy_id: nil })
+
+          expect(draft.reload.taxonomy_id).to be_nil
+        end
+
+        it "saves the taxonomy it already has", parity: true do
+          draft.update!(taxonomy:)
+
+          call(:put, draft_path, params: { taxonomy_id: taxonomy.id })
+
+          expect(response.parsed_body["success"]).to be true
+        end
+      end
+
+      describe "the receipt text and the summary" do
+        it "saves the custom receipt", parity: true, parity_timeline: true do
+          call(:put, draft_path, params: { custom_receipt: "Thanks for the pencil" })
+
+          expect(response.parsed_body.dig("product", "custom_receipt")).to eq("Thanks for the pencil")
+          expect(draft.reload.custom_receipt).to eq("Thanks for the pencil")
+        end
+
+        it "clears the custom receipt", parity: true do
+          draft.update!(custom_receipt: "Old")
+
+          call(:put, draft_path, params: { custom_receipt: nil })
+
+          expect(draft.reload.custom_receipt).to be_nil
+        end
+
+        it "saves the summary of a draft", parity: true, parity_timeline: true do
+          call(:put, draft_path, params: { custom_summary: "Sixty pages" })
+
+          expect(response.parsed_body.dig("product", "custom_summary")).to eq("Sixty pages")
+          expect(draft.reload.custom_summary).to eq("Sixty pages")
+        end
+
+        it "saves the summary of a published product", parity: true do
+          call(:put, path, params: { custom_summary: "Soft lead" })
+
+          expect(product.reload.custom_summary).to eq("Soft lead")
+        end
+
+        it "clears the summary", parity: true do
+          draft.update!(json_data: { "custom_summary" => "Old" })
+
+          call(:put, draft_path, params: { custom_summary: nil })
+
+          expect(draft.reload.custom_summary).to be_nil
+        end
+
+        it "saves the summary it already has", parity: true do
+          draft.update!(json_data: { "custom_summary" => "Same" })
+
+          call(:put, draft_path, params: { custom_summary: "Same" })
+
+          expect(response.parsed_body["success"]).to be true
+        end
+
+        it "saves the summary with a name and a price", parity: true, parity_timeline: true do
+          call(:put, draft_path, params: { name: "Pen", price: 400, custom_summary: "Blue ink", custom_receipt: "Enjoy" })
+
+          expect(response.parsed_body.dig("product", "name")).to eq("Pen")
+          expect(draft.reload.custom_summary).to eq("Blue ink")
+        end
+
+        it "hands a summary that is not text back to Rails", parity: true do
+          call(:put, draft_path, params: { custom_summary: ["a"] })
+
+          expect(response).to have_http_status(:ok)
+        end
+
+        it "hands a receipt that is not text back to Rails", parity: true do
+          call(:put, draft_path, params: { custom_receipt: { a: 1 } })
+
+          expect(response).to have_http_status(:ok)
+        end
+      end
+
+      describe "the custom permalink" do
+        it "hands a custom permalink back to Rails", parity: true do
+          call(:put, draft_path, params: { custom_permalink: "pencil-case" })
+
+          expect(draft.reload.custom_permalink).to eq("pencil-case")
         end
       end
     end

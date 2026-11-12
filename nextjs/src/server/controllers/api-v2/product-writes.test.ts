@@ -23,6 +23,7 @@ vi.mock("../../models/link.ts", async () => {
       {
         1: "product_refund_policy_enabled",
         2: "is_recurring_billing",
+        14: "quantity_enabled",
         16: "is_adult",
         17: "display_product_reviews",
         19: "is_tiered_membership",
@@ -77,13 +78,38 @@ describe("PUT /v2/products/:id with simple attributes", () => {
     expect(mocks.updateBang.mock.calls[0]![1]).toEqual({ flags: (1n << 15n) | (1n << 21n), name: "Pen" });
   });
 
+  it("assigns the columns of the other attributes with the product", async () => {
+    await run({
+      customizable_price: true,
+      suggested_price_cents: "900",
+      max_purchase_count: null,
+      quantity_enabled: true,
+      taxonomy_id: "",
+      custom_receipt: "Thanks",
+    });
+    expect(mocks.updateBang.mock.calls[0]![1]).toEqual({
+      flags: 1n << 13n,
+      customizable_price: true,
+      suggested_price_cents: 900,
+      max_purchase_count: null,
+      taxonomy_id: null,
+      custom_receipt: "Thanks",
+    });
+  });
+
   it("saves a request with no attributes without changing any", async () => {
     await run({});
     expect(mocks.updateBang.mock.calls[0]![1]).toEqual({ flags: 0n });
   });
 
   it.each([
-    ["a taxonomy_id, even a blank one", { taxonomy_id: "" }],
+    ["a taxonomy_id that is a list", { taxonomy_id: [1] }],
+    ["a custom_summary that is a list", { custom_summary: ["a"] }],
+    ["a custom_receipt that is a hash", { custom_receipt: { a: 1 } }],
+    ["a customizable_price given as text", { customizable_price: "true" }],
+    ["a suggested_price_cents with a fraction", { suggested_price_cents: "8.5" }],
+    ["a max_purchase_count outside the integer range", { max_purchase_count: 3_000_000_000 }],
+    ["a custom_permalink", { custom_permalink: "pen" }],
     ["a description that is not text", { description: 5 }],
     ["a description that holds markup Nokogiri rewrites", { description: "<ul><li>a</li></ul>" }],
     ["a name that is not text", { name: 5 }],

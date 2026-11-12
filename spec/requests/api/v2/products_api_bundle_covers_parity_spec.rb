@@ -186,14 +186,6 @@ describe "API v2 bundle contents, covers, enable and custom HTML edit", type: :r
 
       expect(response.parsed_body["message"]).to eq("The product was not found.")
     end
-
-    it "hands a publish back to Rails", parity: true do
-      product.update_columns(purchase_disabled_at: 1.day.ago)
-
-      api_call(:put, "/products/#{product.external_id}/enable", token:)
-
-      expect(response.parsed_body["product"]).to include("published" => true)
-    end
   end
 
   describe "POST custom_html/edit" do

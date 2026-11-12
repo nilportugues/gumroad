@@ -78,9 +78,12 @@ const ATTRIBUTE_TO_SEARCH_FIELDS: Record<string, string[]> = {
   purchase_disabled_at: ["is_recommendable", "is_alive_on_profile", "is_alive"],
   deleted_at: ["is_recommendable", "is_alive_on_profile", "is_alive"],
   banned_at: ["is_recommendable", "is_alive_on_profile", "is_alive"],
+  max_purchase_count: ["is_recommendable"],
+  taxonomy_id: ["taxonomy_id", "taxonomy_attribute_filters", "is_recommendable"],
   archived: ["is_recommendable", "is_alive_on_profile"],
   display_product_reviews: ["display_product_reviews", "is_recommendable"],
   is_adult: ["rated_as_adult"],
+  customizable_price: ["customizable_price"],
 };
 // The columns an update may change; Rails' own callbacks also write updated_at and json_data. `flags` is ported for PORTED_FLAG_BITS only.
 const PORTED_CHANGES = [
@@ -92,16 +95,23 @@ const PORTED_CHANGES = [
   "description",
   "draft",
   "first_published_at",
+  "customizable_price",
+  "suggested_price_cents",
+  "max_purchase_count",
+  "taxonomy_id",
+  "custom_receipt",
 ];
-// The only json_data keys a ported update writes: `attr_json_data_accessor :sections, :main_section_index`, and the inferred taxonomy values.
-const PORTED_JSON_DATA_KEYS = ["sections", "main_section_index", "inferred_taxonomy_attribute_values"];
+// The only json_data keys a ported update writes: `attr_json_data_accessor :sections, :main_section_index, :custom_summary`, and the inferred taxonomy values.
+const PORTED_JSON_DATA_KEYS = ["sections", "main_section_index", "custom_summary", "inferred_taxonomy_attribute_values"];
 const ARCHIVED_BIT = 1n << 4n;
 // Flag N is bit N - 1: archived, is_adult, display_product_reviews, should_show_sales_count and transcode_videos_on_purchase (set by a publish).
 const IS_ADULT_BIT = 1n << 15n;
 const DISPLAY_PRODUCT_REVIEWS_BIT = 1n << 16n;
 const SHOULD_SHOW_SALES_COUNT_BIT = 1n << 21n;
 const TRANSCODE_VIDEOS_ON_PURCHASE_BIT = 1n << 23n;
+const QUANTITY_ENABLED_BIT = 1n << 13n;
 const PORTED_FLAG_BITS =
+  QUANTITY_ENABLED_BIT |
   ARCHIVED_BIT |
   IS_ADULT_BIT |
   DISPLAY_PRODUCT_REVIEWS_BIT |
@@ -536,8 +546,21 @@ const validations: Callback<Link>[] = [
       if (duplicate) link.errors.add("custom_permalink", "is already used by another one of your products");
     },
   },
-  // custom_permalink_of_licensed_product and max_purchase_count_is_greater_than_or_equal_to_inventory_sold
-  // only run when custom_permalink, is_licensed or max_purchase_count change.
+  {
+    // Product::Validations#max_purchase_count_is_greater_than_or_equal_to_inventory_sold; `sales_count_for_inventory` reads the column fresh.
+    name: "max_purchase_count_is_greater_than_or_equal_to_inventory_sold",
+    async run(link) {
+      if (!link.attributeChanged("max_purchase_count")) return;
+      const max = link.get("max_purchase_count");
+      if (max == null) return;
+      const [row] = await selectRows<{ sold: number | null }>(
+        Prisma.sql`SELECT ${column("links", "sales_count_for_inventory_cache")} AS sold FROM ${table("links")} WHERE ${column("links", "id")} = ${link.get("id")} LIMIT 1`,
+      );
+      if (!(max >= Number(row?.sold ?? 0)))
+        link.errors.add("base", "Sorry, you cannot limit the number of purchases to that amount.");
+    },
+  },
+  // custom_permalink_of_licensed_product only runs when custom_permalink or is_licensed change.
   {
     name: "free_trial_only_enabled_if_recurring_billing",
     run(link) {

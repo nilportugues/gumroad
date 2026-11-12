@@ -10,9 +10,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { closeAllRedis } from "@/server/infra/redis";
 
 import type { JobsChannel, RawJob } from "../src/channels";
+import { compareExchange } from "../src/compare";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { recreateIndex, replayIndexName } from "../src/elasticsearch";
-import { loadFixture } from "../src/fixture";
+import { loadFixture, type CapturedExchange, type Exchange } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { fillFirstThrottle, rackAttackCounters } from "../src/rack-attack";
 import { withoutRailsOnly } from "../src/rails-only";
@@ -49,7 +50,31 @@ const WS17C_SPEC_DIRS = [
   "thumbnails",
   "product_builds_writes",
   "tax_forms_download",
+  "product_create",
 ].map((name) => `${name}_parity_spec`);
+// A new product's permalink is a random letter (Link#generate_unique_permalink): the one Rails drew is replaced by Node's wherever the
+// recording shows it, in the rows and in the product's URLs, before the exchange is compared.
+function reconcilePermalink(
+  exchange: { expected: Exchange; actual: CapturedExchange; differences: unknown[] },
+  compare: Parameters<typeof compareExchange>[2],
+) {
+  const drawn = (side: { db?: Record<string, { inserted?: Record<string, unknown>[] }> }) =>
+    side.db?.links?.inserted?.[0]?.unique_permalink as string | undefined;
+  const was = drawn(exchange.expected);
+  const now = drawn(exchange.actual);
+  if (was === undefined || now === undefined || was === now) return;
+  const urlEnd = new RegExp(`(/l/)${was}(?![A-Za-z0-9_-])`, "gu");
+  const swap = (value: unknown): unknown => {
+    if (typeof value === "string") return value === was ? now : value.replace(urlEnd, `$1${now}`);
+    if (Array.isArray(value)) return value.map(swap);
+    if (value !== null && typeof value === "object")
+      return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, swap(entry)]));
+    return value;
+  };
+  exchange.expected = swap(exchange.expected) as Exchange;
+  exchange.differences = compareExchange(exchange.expected, exchange.actual, compare);
+}
+
 const SPECS = existsSync(FIXTURES)
   ? readdirSync(FIXTURES).filter(
       (dir) =>
@@ -342,10 +367,25 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
     expect(cases.length).toBeGreaterThan(0);
   });
 
+  // The first request to a route compiles it (10 s or more), which would age the seeded timestamps past the replayer's tolerance
+  // (<now+10s> against <now>). Each route is replayed once, unchecked, ahead of its first fixture, so a filtered run is as steady as a full one.
+  const warmed = new Set<string>();
+  async function warmRoute(file: string, index: number) {
+    const { method, path: requestPath } = loadFixture(file).exchanges[index]!.request;
+    const route = `${method} ${requestPath.replace(/[?].*/u, "").replace(/\/[^/]*(?:==|[a-z]\d)[^/]*(?=\/|$)/gu, "/:id")}`;
+    if (warmed.has(route)) return;
+    warmed.add(route);
+    seedClock = undefined;
+    afterRedisReset = undefined;
+    await replayFixtureExchange(loadFixture(file), index, replayOptions()).catch(() => undefined);
+    handedBack.length = 0;
+  }
+
   it.each(cases)(
     "%s",
     async (name, file, index) => {
       try {
+        await warmRoute(file, index);
         seedClock = undefined;
         afterRedisReset = undefined;
         const fixture = loadFixture(file);
@@ -405,6 +445,7 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
                         : [],
           ),
         );
+        reconcilePermalink(result.exchanges[0]!, replayOptions().compare);
         assertParity(result);
         if (validity) {
           const offerCode = (result.exchanges[0]!.actual.response.json as { offer_code: Record<string, unknown> })
