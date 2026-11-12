@@ -1,6 +1,6 @@
 // Upsell as the dashboard and the public API read it: #as_json (OfferCode#configured_discount_for_display included) and the model
 // service the dashboard's writes go through.
-import { Prisma, type Link, type OfferCode, type Upsell, type UpsellVariant } from "@prisma/client";
+import { Prisma, type Link, type OfferCode, type Upsell, type UpsellVariant, type User } from "@prisma/client";
 
 import { encrypt } from "../../lib/obfuscate-ids.ts";
 
@@ -29,12 +29,12 @@ type NamedRow = { id: bigint | number; name: string | null };
 
 // OfferCode#configured_discount_for_display, which is OfferCode#discount until the code is tiered.
 // With `anonymous`, OfferCode#discount_for_display(buyer: nil): an existing-customers code has nothing to show.
-// With `buyerPresent`, OfferCode#evaluate_for_buyer, which is the same discount until the code looks at the buyer's purchases
-// (an existing-customers or tiered code); those are handed back.
+// With a `buyer`, OfferCode#evaluate_for_buyer: the same discount until the code looks at the buyer's purchases (an existing-customers
+// or tiered code), then nil or the tier their months of ownership reach. `product` is the product the offer sells.
 export async function discountForDisplay(
   upsell: Pick<Upsell, "offer_code_id">,
   anonymous = false,
-  buyerPresent = false,
+  buyer: { user: User; product: Link; now?: Date } | null = null,
 ) {
   if (upsell.offer_code_id === null) return null;
   const [row] = await selectRows(
@@ -43,9 +43,14 @@ export async function discountForDisplay(
   if (row === undefined) return null;
   const code = castRow<OfferCode>("OfferCode", row);
   if (anonymous && code.existing_customers_only) return null;
-  if (buyerPresent && (code.existing_customers_only || tiersOf(code.ownership_duration_tiers).length > 0))
-    throw new NotPortedError("An offer code that depends on the buyer's purchases", "OfferCode#evaluate_for_buyer");
   const record = new OfferCodeRecord(code);
+  const tiered = tiersOf(code.ownership_duration_tiers).length > 0;
+  let tierPercents: number | null = null;
+  if (buyer !== null && (code.existing_customers_only || tiered)) {
+    const evaluated = await record.evaluateForBuyer(buyer.user, buyer.product, null, buyer.now ?? new Date());
+    if (evaluated === null) return null;
+    if (tiered && evaluated.type === "percent") tierPercents = evaluated.percents;
+  }
   const cents = code.amount_percentage == null;
   const json: Record<string, unknown> = {
     ...(cents ? { type: "fixed", cents: code.amount_cents } : { type: "percent", percents: code.amount_percentage }),
@@ -74,9 +79,9 @@ export async function discountForDisplay(
     json.once_per_cart_amount_cents = code.amount_cents;
     json.once_per_cart_has_usage_limit = code.max_purchase_count != null;
   }
-  const tiers = tiersOf(code.ownership_duration_tiers);
-  if (tiers.length === 0) return json;
-  const percentages = normalizeTiers(tiers).map((tier) => tier.amount_percentage);
+  if (!tiered) return json;
+  if (buyer !== null) return { ...json, type: "percent", percents: tierPercents };
+  const percentages = normalizeTiers(tiersOf(code.ownership_duration_tiers)).map((tier) => tier.amount_percentage);
   return {
     ...json,
     type: "percent",

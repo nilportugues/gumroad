@@ -4,7 +4,7 @@
 // What Rails derives from the Stripe/PayPal lanes, a signed URL, a random token or a variant of the product this port does not read
 // throws NotPortedError, so the caller hands the request back before anything is sent: PPP, a thumbnail or avatar variant Rails has not
 // processed yet, custom fields linked against their ids, and a seller on buyer-local currency.
-import { Prisma, type User } from "@prisma/client";
+import { Prisma, type Link, type User } from "@prisma/client";
 
 import { decrypt, encrypt as externalId } from "../../lib/obfuscate-ids.ts";
 import { autoLink } from "../html/rinku.ts";
@@ -407,6 +407,13 @@ async function bundleProductProps(bundleProducts: Awaited<ReturnType<typeof aliv
   return props;
 }
 
+// The signed-in buyer and the product an offer sells, for OfferCode#evaluate_for_buyer.
+async function evaluatingBuyer(buyerId: bigint | null, product: LinkRow) {
+  if (buyerId === null) return null;
+  const buyer = await findUserById(buyerId);
+  return buyer === null ? null : { user: buyer as unknown as User, product: product as unknown as Link };
+}
+
 // The cross-sells CheckoutPresenter#checkout_product lists for a buyer who has bought nothing, which keeps every one whose product and
 // offered variant can still be sold.
 async function crossSellProps(
@@ -440,7 +447,7 @@ async function crossSellProps(
         buyerId,
         ip,
       }),
-      discount: await discountForDisplay(crossSell, buyerId === null, buyerId !== null),
+      discount: await discountForDisplay(crossSell, buyerId === null, await evaluatingBuyer(buyerId, offered)),
       ratings: flag(offered, "display_product_reviews") ? await reviewSummary(offered) : null,
     });
   }
@@ -641,7 +648,7 @@ export async function checkoutProduct(row: LinkRow, request: CheckoutRequest = {
         : {
             id: externalId(acceptedOffer.id),
             variant_id: acceptedVariant === null ? null : externalId(acceptedVariant.id),
-            discount: await discountForDisplay(acceptedOffer, buyerId === null, buyerId !== null),
+            discount: await discountForDisplay(acceptedOffer, buyerId === null, await evaluatingBuyer(buyerId, row)),
           },
   };
   if (arrival && flag(row, "is_recurring_billing"))
