@@ -66,6 +66,8 @@ describe "Sign in with Apple", type: :request do
 
   def link_apple_identity(owner = user)
     owner.user_external_authentications.create!(provider: "apple", uid: apple_sub)
+    # Sign-in stamps updated_at; a row that is not seconds old keeps the change clear of the replay's "<now>" tolerance.
+    owner.update_columns(updated_at: 1.hour.ago)
     owner
   end
 
