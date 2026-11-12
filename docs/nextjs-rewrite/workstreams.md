@@ -292,3 +292,5 @@ unported presenter), a free worktree picks up the next Sidekiq job here instead 
 When `routes.json` covers every route and no job is left in Ruby: switch Prisma Migrate on with a
 baseline migration taken from the current schema, delete Rails, Ruby specs whose parity fixtures are
 captured, and the Gemfile.
+
+**Payments hand-backs (fifth pass, `nextjs/ws-payments-1`):** refund success, instant payout and Stripe account creation remain handed back; the failure paths after the first Stripe call are unrecorded, so none can be ported without a throw or a hand-back after a call. The blockers are listed in parity-debt.md.
