@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "spec": "spec/requests/api/v2/products_api_bundle_covers_parity_spec.rb",
-  "example": "API v2 bundle contents, covers, enable and custom HTML edit PUT enable hands a publish back to Rails",
+  "spec": "spec/requests/api/v2/product_enable_parity_spec.rb",
+  "example": "API v2 product enable enables a product that has a taxonomy and shows its category",
   "sessionCookie": "_gumroad_app_session_test",
   "secretKeyBase": "parity-replay-secret-key-base",
-  "recordedOn": "2026-11-11",
+  "recordedOn": "2026-11-12",
   "exchanges": [
     {
       "seed": {
@@ -118,12 +118,12 @@
               {
                 "id": 1,
                 "user_id": 1,
-                "name": "The Works of Edgar Gumstein",
-                "unique_permalink": "w",
+                "name": "Pencil",
+                "unique_permalink": "t",
                 "preview_url": null,
-                "description": "des",
+                "description": "Writes",
                 "purchase_type": 0,
-                "created_at": "<now>",
+                "created_at": "<now-48h>",
                 "updated_at": "<now>",
                 "purchase_disabled_at": "<now-24h>",
                 "deleted_at": null,
@@ -165,7 +165,7 @@
                 "free_trial_duration_unit": null,
                 "free_trial_duration_amount": null,
                 "content_updated_at": null,
-                "taxonomy_id": null,
+                "taxonomy_id": 2,
                 "native_type": "digital",
                 "discover_fee_per_thousand": 100,
                 "support_email": null,
@@ -197,7 +197,7 @@
                 "id": 1,
                 "resource_owner_id": 1,
                 "application_id": 1,
-                "token": "drC3nP_ctH5OjucTMWvd1P376__VvaUKJAt4KltlDfM",
+                "token": "fsCiDWgya1h-lgWDsdREX1gmWmH3Lq154ILe3Z0bhYU",
                 "refresh_token": null,
                 "expires_in": null,
                 "revoked_at": null,
@@ -233,9 +233,9 @@
             "rows": [
               {
                 "id": 1,
-                "name": "app26",
-                "uid": "Qb9htdjhVVdEV5Z-pJFsaK5uV9jsEHd2QEkR-Pf527g",
-                "secret": "2Rqnifo1MaYET6P9oHrAVDkY66HBiy3MKUVXbKSyUTs",
+                "name": "app1",
+                "uid": "Bnid8z5FwFnCzUuazcPPUmPR-Fp6R6uY-0mnqqXLh5o",
+                "secret": "5uhU55rkEIhnQRYfKv8gwMEoASjtXb9wIP3hqFS7Hlg",
                 "redirect_uri": "https://foo",
                 "created_at": "<now>",
                 "updated_at": "<now>",
@@ -321,6 +321,57 @@
               }
             ]
           },
+          "taxonomies": {
+            "columns": {
+              "id": "bigint",
+              "parent_id": "bigint",
+              "slug": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "parent_id": null,
+                "slug": "taxonomy-1"
+              },
+              {
+                "id": 2,
+                "parent_id": 1,
+                "slug": "taxonomy-2"
+              }
+            ]
+          },
+          "taxonomy_hierarchies": {
+            "columns": {
+              "ancestor_id": "bigint",
+              "descendant_id": "bigint",
+              "generations": "int"
+            },
+            "primaryKey": [
+              "ancestor_id",
+              "descendant_id",
+              "generations"
+            ],
+            "rows": [
+              {
+                "ancestor_id": 1,
+                "descendant_id": 1,
+                "generations": 0
+              },
+              {
+                "ancestor_id": 1,
+                "descendant_id": 2,
+                "generations": 1
+              },
+              {
+                "ancestor_id": 2,
+                "descendant_id": 2,
+                "generations": 0
+              }
+            ]
+          },
           "users": {
             "columns": {
               "id": "bigint",
@@ -396,20 +447,20 @@
             "rows": [
               {
                 "id": 1,
-                "email": "edgar9186de64_105@gumroad.com",
-                "encrypted_password": "$2a$04$69u6pCUMnhU1zZcXiV8RweyYyncwF.nnv0fNbhBrnEuux1mM4zGy.",
+                "email": "edgar4b7a0212_1@gumroad.com",
+                "encrypted_password": "$2a$04$lWUXW9F2.sYX4RP7pojxducdCzG6bu2DDWxtvkJc2d0tdzL4ixLZm",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": null,
                 "sign_in_count": 0,
                 "current_sign_in_at": null,
                 "last_sign_in_at": null,
-                "current_sign_in_ip": "69.21.32.108",
-                "last_sign_in_ip": "112.154.214.20",
+                "current_sign_in_ip": "53.155.30.222",
+                "last_sign_in_ip": "218.104.229.87",
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "name": null,
-                "payment_address": "edgarad0bbbc8_106@gumroad.com",
+                "payment_address": "edgard0d1ef6b_2@gumroad.com",
                 "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
@@ -421,7 +472,7 @@
                 "payment_notification": 1,
                 "currency_type": "usd",
                 "bio": null,
-                "username": "edgarc4be306e53",
+                "username": "edgar56fb24bb1",
                 "credit_card_id": null,
                 "profile_picture_url": null,
                 "country": null,
@@ -434,8 +485,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "5961448127112",
-                "account_created_ip": "174.152.183.118",
+                "external_id": "3993323874350",
+                "account_created_ip": "111.110.150.49",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -453,7 +504,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "DWZ3J66D4SUD5OFGRVIDZULYYWUPEIXM",
+                "otp_secret_key": "6KPGLTM5D2HXB5GLART4WEPP7HRXZPPC",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -464,20 +515,20 @@
               },
               {
                 "id": 2,
-                "email": "edgar18a0c91d_107@gumroad.com",
-                "encrypted_password": "$2a$04$Y6qcoCt6shE3nFiHAZSQdeE0gMAX/aKfuDGnkDSOXgcS24RlbVuCa",
+                "email": "edgarb818197c_3@gumroad.com",
+                "encrypted_password": "$2a$04$L1bPcJpt.jA8oSTlIsIV4ORT30Bs2ONjWjvvqEH5I75Ed3qHi8ZF.",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": null,
                 "sign_in_count": 0,
                 "current_sign_in_at": null,
                 "last_sign_in_at": null,
-                "current_sign_in_ip": "209.76.61.159",
-                "last_sign_in_ip": "31.47.180.192",
+                "current_sign_in_ip": "182.63.236.6",
+                "last_sign_in_ip": "106.231.183.201",
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "name": null,
-                "payment_address": "edgar216f58a9_108@gumroad.com",
+                "payment_address": "edgarbdde346b_4@gumroad.com",
                 "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
@@ -489,7 +540,7 @@
                 "payment_notification": 1,
                 "currency_type": "usd",
                 "bio": null,
-                "username": "edgar9b7bac9e54",
+                "username": "edgar6a3d0de02",
                 "credit_card_id": null,
                 "profile_picture_url": null,
                 "country": null,
@@ -502,8 +553,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "5256696217875",
-                "account_created_ip": "148.79.218.181",
+                "external_id": "4548129612725",
+                "account_created_ip": "108.182.181.31",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -521,7 +572,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "XNJBTANM5K4JU6YMNMQ5JNAUYLXQWAOM",
+                "otp_secret_key": "F6EOJZCSCBLVSHOUSPZAQP6OX26I4NL4",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -540,6 +591,7 @@
           "oauth_applications": 2,
           "prices": 2,
           "refund_policies": 3,
+          "taxonomies": 3,
           "users": 3
         }
       },
@@ -584,7 +636,7 @@
         "path": "/v2/products/1UokxkyxJ__gd-gssE0g7w==/enable",
         "headers": {
           "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
-          "authorization": "Bearer drC3nP_ctH5OjucTMWvd1P376__VvaUKJAt4KltlDfM",
+          "authorization": "Bearer fsCiDWgya1h-lgWDsdREX1gmWmH3Lq154ILe3Z0bhYU",
           "content-type": "application/x-www-form-urlencoded",
           "host": "api.test.gumroad.com:31337"
         },
@@ -607,8 +659,8 @@
         "json": {
           "success": true,
           "product": {
-            "name": "The Works of Edgar Gumstein",
-            "description": "des",
+            "name": "Pencil",
+            "description": "Writes",
             "require_shipping": false,
             "preview_url": null,
             "custom_receipt": null,
@@ -619,11 +671,11 @@
             "url": null,
             "price": 100,
             "currency": "usd",
-            "taxonomy_id": null,
-            "category": null,
-            "category_label": null,
-            "short_url": "http://edgarc4be306e53.test.gumroad.com:31337/l/w",
-            "landing_url": "http://edgarc4be306e53.test.gumroad.com:31337/l/w",
+            "taxonomy_id": 2,
+            "category": "taxonomy-1/taxonomy-2",
+            "category_label": "taxonomy-2",
+            "short_url": "http://edgar56fb24bb1.test.gumroad.com:31337/l/t",
+            "landing_url": "http://edgar56fb24bb1.test.gumroad.com:31337/l/t",
             "thumbnail_url": null,
             "tags": [],
             "formatted_price": "$1",
@@ -711,8 +763,27 @@
           "response": {
             "status": 200,
             "contentType": "application/json; charset=UTF-8",
-            "body": "{\"_index\":\"link-test\",\"_type\":\"_doc\",\"_id\":\"1\",\"_version\":382,\"result\":\"noop\",\"_shards\":{\"total\":0,\"successful\":0,\"failed\":0},\"_seq_no\":6032,\"_primary_term\":2}"
+            "body": "{\"_index\":\"link-test\",\"_type\":\"_doc\",\"_id\":\"1\",\"_version\":7,\"result\":\"updated\",\"_shards\":{\"total\":1,\"successful\":1,\"failed\":0},\"_seq_no\":2829,\"_primary_term\":1}"
           }
+        }
+      ],
+      "timeline": [
+        {
+          "type": "http",
+          "index": 0
+        },
+        {
+          "type": "db",
+          "op": "update",
+          "table": "links"
+        },
+        {
+          "type": "job",
+          "index": 0
+        },
+        {
+          "type": "http",
+          "index": 1
         }
       ]
     }

@@ -42,6 +42,15 @@ describe "API v2 product enable", type: :request, parity_timeline: true do
     expect(product.reload.purchase_disabled_at).to be_nil
   end
 
+  it "enables a product that has a taxonomy and shows its category", parity: true do
+    product.update!(taxonomy: create(:taxonomy, parent: create(:taxonomy)))
+
+    enable
+
+    expect(response.parsed_body["product"]).to include("published" => true)
+    expect(response.parsed_body["product"]["category"]).to be_present
+  end
+
   it "enables a product by its permalink through the api prefix", parity: true do
     api_call(:put, "/products/#{product.unique_permalink}/enable", token:, api_host: false)
 
