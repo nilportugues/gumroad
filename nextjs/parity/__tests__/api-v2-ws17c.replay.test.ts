@@ -13,9 +13,9 @@ import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { recreateIndex, replayIndexName } from "../src/elasticsearch";
 import { loadFixture } from "../src/fixture";
+import { startNextServer, type NextServer } from "../src/next-server";
 import { fillFirstThrottle, rackAttackCounters } from "../src/rack-attack";
 import { withoutRailsOnly } from "../src/rails-only";
-import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
 
@@ -42,6 +42,8 @@ const WS17C_SPEC_DIRS = [
   "files",
   "media_destroy",
   "offer_codes_writes",
+  "variants_writes",
+  "product_enable",
   "upsells_writes",
   "resource_subscriptions_writes",
   "thumbnails",
@@ -91,7 +93,9 @@ const FALLBACK_JOBS = new Set(["SendToElasticsearchWorker"]);
 // the identical pushes Rails recorded collapse to one.
 const UNIQUE_JOBS = new Set(["ReindexSellerOfferCodesJob"]);
 const dedupeUnique = <T extends { class: string; args: unknown; queue?: string }>(jobs: T[]): T[] =>
-  jobs.filter((job, i) => !UNIQUE_JOBS.has(job.class) || jobs.findIndex((other) => jobKey(other) === jobKey(job)) === i);
+  jobs.filter(
+    (job, i) => !UNIQUE_JOBS.has(job.class) || jobs.findIndex((other) => jobKey(other) === jobKey(job)) === i,
+  );
 
 // An instant in 2099 is masked as whole hours from now, which moves by one with the minute of the hour. The requests below name the
 // instants literally, so the replay compares the hours with a tolerance of one instead.
@@ -207,9 +211,13 @@ const COMPARE = {
     "db.installments.updated.*.changes.updated_at",
     "db.installment_rules.updated.*.changes.updated_at",
     "db.offer_codes.updated.*.changes.updated_at",
+    "db.base_variants.updated.*.changes.updated_at",
+    "db.links.updated.*.changes.updated_at",
     "db.licenses.updated.*.changes.updated_at",
     // The first request to a route compiles it, and a delete stamps the replay's clock plus that compile.
     "db.installments.updated.*.changes.deleted_at",
+    "db.base_variants.updated.*.changes.deleted_at",
+    "db.product_variant_deletion_audits.inserted.*.created_at",
     // An instant in 2099 is masked as whole hours from now, so the minute of the hour moves it by one.
     "response.json.email.scheduled_at",
     "db.installment_rules.inserted.*.to_be_published_at",
@@ -375,25 +383,26 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
             validity
               ? VALIDITY_FIELDS
               : rotates
-              ? ["response.json.purchase.license_key", "db.licenses.updated.*.changes.serial"]
-              : createsUtmLink
-              ? [
-                  "response.json.utm_link.short_url",
-                  "db.utm_links.inserted.*.permalink",
-                  "db.utm_links.inserted.*.browser_guid",
-                ]
-              : paginates
-                ? ["response.json.next_page_key", "response.json.next_page_url"]
-                : iftttSales
-                  ? ["response.json.data.*.meta.timestamp"]
-                  : tripsThrottle
-                    ? ["response.headers.retry-after"]
-                    : [],
+                ? ["response.json.purchase.license_key", "db.licenses.updated.*.changes.serial"]
+                : createsUtmLink
+                  ? [
+                      "response.json.utm_link.short_url",
+                      "db.utm_links.inserted.*.permalink",
+                      "db.utm_links.inserted.*.browser_guid",
+                    ]
+                  : paginates
+                    ? ["response.json.next_page_key", "response.json.next_page_url"]
+                    : iftttSales
+                      ? ["response.json.data.*.meta.timestamp"]
+                      : tripsThrottle
+                        ? ["response.headers.retry-after"]
+                        : [],
           ),
         );
         assertParity(result);
         if (validity) {
-          const offerCode = (result.exchanges[0]!.actual.response.json as { offer_code: Record<string, unknown> }).offer_code;
+          const offerCode = (result.exchanges[0]!.actual.response.json as { offer_code: Record<string, unknown> })
+            .offer_code;
           for (const [key, iso] of [
             ["valid_at", validity[1]],
             ["expires_at", validity[2]],
@@ -411,7 +420,11 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
         if (name.includes("-counts-a-refusal")) {
           // Every tier of `oauth_dynamic_registration/ip` counted the request once, under the key Rack::Attack uses.
           const counters = await rackAttackCounters(redis);
-          expect(Object.keys(counters).map((key) => key.replace(/^rack::attack:\d+:/u, "")).sort()).toEqual(
+          expect(
+            Object.keys(counters)
+              .map((key) => key.replace(/^rack::attack:\d+:/u, ""))
+              .sort(),
+          ).toEqual(
             ["", "/2", "/3", "/4", "/5"].map((tier) => `oauth_dynamic_registration/ip${tier}:203.0.113.55`).sort(),
           );
           expect(Object.values(counters)).toEqual([1, 1, 1, 1, 1]);
@@ -432,10 +445,12 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
           expect(body.next_page_url).toBe(`/v2/emails?page_key=${body.next_page_key}&type=draft`);
         }
         if (rotates) {
-          const serial = (result.exchanges[0]!.actual.db as { licenses: { updated: { changes: { serial: [string, string] } }[] } }).licenses
-            .updated[0]!.changes.serial[1];
+          const serial = (
+            result.exchanges[0]!.actual.db as { licenses: { updated: { changes: { serial: [string, string] } }[] } }
+          ).licenses.updated[0]!.changes.serial[1];
           expect(serial).toMatch(/^[0-9A-F]{8}(-[0-9A-F]{8}){3}$/u);
-          const purchase = (result.exchanges[0]!.actual.response.json as { purchase?: { license_key: string } }).purchase;
+          const purchase = (result.exchanges[0]!.actual.response.json as { purchase?: { license_key: string } })
+            .purchase;
           if (purchase) expect(purchase.license_key).toBe(serial);
         }
         if (createsUtmLink) {

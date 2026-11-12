@@ -1,10 +1,12 @@
-// Api::V2::LinksController: #index, #show, #disable, #destroy and #update_sections. #create, #update, #enable, #comps, #preview_custom_html
-// and #edit_custom_html stay in Rails: they publish (S3, transcoding, mail), upload files, search Elasticsearch or run the HTML sanitizer.
+// Api::V2::LinksController: #index, #show, #enable, #disable, #destroy and #update_sections. #create, #update, #comps, #preview_custom_html
+// and #edit_custom_html stay in Rails: they upload files, search Elasticsearch or run the HTML sanitizer. #enable publishes in Node when the
+// publication needs nothing outside the database (models/link-publish.ts); every other product goes to Rails whole.
 import { Prisma, type Link } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
 import { decrypt } from "../../../lib/obfuscate-ids.ts";
 import { setJsonDataForAttr } from "../../models/concerns/json-data.ts";
+import { assertPlainPublish, publishBang } from "../../models/link-publish.ts";
 import { Links, productSections } from "../../models/link.ts";
 import { RecordInvalid } from "../../models/runtime/errors.ts";
 import { castRow, column, execute, selectRows, table } from "../../models/sql.ts";
@@ -15,6 +17,7 @@ import {
   type ApiV2Input,
   EDIT_PRODUCTS_SCOPES,
   error400,
+  errorWithObject,
   loadProduct,
   PUBLIC_READ_SCOPES,
   registerApiV2,
@@ -22,6 +25,7 @@ import {
   successWithObject,
   toSentence,
 } from "./base.ts";
+import { hasApplicableOfferCodes } from "./offer-codes.ts";
 import { decodePageKey, paginationInfo, USEC_FORMAT } from "./pagination.ts";
 import { productsApiJson } from "./product-json.ts";
 
@@ -89,6 +93,19 @@ async function disable(input: ApiV2Input) {
     { now: () => now },
   );
   return successWithObject("product", await apiJson(input, await reloaded(productOf(input))));
+}
+
+async function enable(input: ApiV2Input) {
+  const product = productOf(input);
+  // validate_product_price_against_all_offer_codes? checks every code that applies to the product.
+  if (await hasApplicableOfferCodes(input.owner, product))
+    throw new HandBackToRails("an enable of a product with discount codes");
+  await assertPlainPublish(product, input.owner);
+  // The response serializes the product: refuse what Node cannot before the write.
+  await apiJson(input, product);
+  const refused = await publishBang(product, input.owner);
+  if (refused !== null) return errorWithObject("product", { errors: [refused] });
+  return successWithObject("product", await apiJson(input, await reloaded(product)));
 }
 
 async function destroy(input: ApiV2Input) {
@@ -207,6 +224,13 @@ registerApiV2(
     scopes: EDIT_PRODUCTS_SCOPES,
     before: loadProduct("id"),
     run: disable,
+  },
+  {
+    method: "PUT",
+    pattern: "/v2/products/:id/enable",
+    scopes: EDIT_PRODUCTS_SCOPES,
+    before: loadProduct("id"),
+    run: enable,
   },
   {
     method: "DELETE",

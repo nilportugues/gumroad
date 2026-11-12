@@ -3,7 +3,8 @@
 require "spec_helper"
 
 # Api::V2::LinksController#index, #show, #disable, #destroy and #update_sections through the full Rack stack, recorded for the Next.js port
-# (PARITY_RECORD=1). #create, #update, #enable, #comps and the custom HTML writes publish, upload, search or sanitize, so they stay in Rails.
+# (PARITY_RECORD=1). #enable is in product_enable_parity_spec.rb; #create, #update, #comps and the custom HTML writes upload, search or
+# sanitize, so they stay in Rails.
 describe "API v2 products", type: :request do
   let(:seller) { create(:user, username: "dude", name: "Dude", email: "dude@example.com") }
   let(:application) { create(:oauth_application, owner: create(:user)) }
@@ -275,13 +276,6 @@ describe "API v2 products", type: :request do
     it "hands back a product with a tiered membership to Rails", parity: true do
       membership = create(:membership_product, user: seller)
       put "/v2/products/#{membership.external_id}/sections", params: { sections: [] }.to_json, headers: json_headers
-    end
-  end
-
-  describe "the routes that stay in Rails" do
-    it "hands back an enable to Rails", parity: true do
-      product.update_columns(purchase_disabled_at: 1.day.ago)
-      put "/v2/products/#{product.external_id}/enable", headers: auth
     end
   end
 end

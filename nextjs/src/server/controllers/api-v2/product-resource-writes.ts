@@ -1,11 +1,22 @@
 // Api::V2::CustomFieldsController and VariantCategoriesController: the writes Node serves. Anything it cannot prove (a parameter that is
 // not a string) goes to Rails before the first write.
-import type { CustomField, Link } from "@prisma/client";
+import type { BaseVariant, CustomField, Link } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
 import { HTTP_URI_REGEXP as URI_REGEXP } from "../../../lib/ruby-uri-regexp.ts";
 import { invalidateProductCache } from "../../models/link.ts";
-import { recordVariantCategoryDeletion, requestIdOf } from "../../models/product-variant-deletion-audit.ts";
+import {
+  recordVariantCategoryDeletion,
+  recordVariantDeletion,
+  requestIdOf,
+} from "../../models/product-variant-deletion-audit.ts";
+import {
+  assertPlainVariant,
+  assertPlainVariantProduct,
+  buildVariant,
+  loadVariantRecord,
+  Variants,
+} from "../../models/variant-writes.ts";
 import { NotPortedError } from "../../page-props/not-ported.ts";
 
 import {
@@ -17,8 +28,15 @@ import {
   registerApiV2,
   successWithObject,
 } from "./base.ts";
-import { findVariantCategory, loadVariant, loadVariantCategory, productCustomFields } from "./product-resources.ts";
+import {
+  findVariantCategory,
+  loadVariant,
+  loadVariantCategory,
+  productCustomFields,
+  successWithVariant,
+} from "./product-resources.ts";
 import { customFieldJson, externalId, variantCategoryJson } from "./records.ts";
+import { rubyToI } from "./ruby-params.ts";
 
 const productOf = (input: ApiV2Input): Link => input.state.product;
 
@@ -286,46 +304,110 @@ async function updateVariantCategory(input: ApiV2Input) {
 // ---------------------------------------------------------------------------------------------------------------------
 // Api::V2::VariantsController#create, #update and #destroy
 //
-// Served: the before_actions (token scope, product, category and version lookups) and the destroy of a version that is already deleted,
-// which writes nothing. Handed to Rails whole, before any write: every save (the version's validations, price callbacks and rich content)
-// and the deletion of a live version (it takes a row lock, touches the product and records the deletion audit).
+// Served: the before_actions (token scope, product, category and version lookups) and the saves of a version of a plain product
+// (models/variant-writes.ts). Handed to Rails whole, before any write: a tier, a call or coffee product, a free product, a version with
+// prices of its own, a parameter the port does not cast like Ruby, and an update that carries `rich_content` (it rewrites pages and files).
 const VARIANTS = "/v2/products/:link_id/variant_categories/:variant_category_id/variants";
-const handBack = (reason: string): Promise<never> => Promise.reject(new NotPortedError(reason));
-const SAVE_REASON = "saving a version, which validates its price and name and may rewrite its rich content";
+const INTEGER_COLUMN_LIMIT = 2 ** 31 - 1;
+const VARCHAR_LIMIT = 255;
+
+// ActiveModel's Integer cast: blank is nil, a string reads as String#to_i. A value of another type, or outside the column, stays in Rails.
+function castInteger(value: unknown): number | null {
+  if (value === undefined || value === null) return null;
+  let integer: bigint;
+  if (typeof value === "string") {
+    if (blank(value)) return null;
+    integer = rubyToI(value);
+  } else if (typeof value === "number" && Number.isSafeInteger(value)) integer = BigInt(value);
+  else throw new NotPortedError("a version amount that is not text or a whole number");
+  if (integer > BigInt(INTEGER_COLUMN_LIMIT) || integer < -BigInt(INTEGER_COLUMN_LIMIT))
+    throw new NotPortedError("a version amount outside the column's range");
+  return Number(integer);
+}
+
+function castString(value: unknown): string | null {
+  if (value === null) return null;
+  if (typeof value !== "string" || [...value].length > VARCHAR_LIMIT)
+    throw new NotPortedError("a version name or description that is not text, or too long for its column");
+  return value;
+}
+
+// `params.permit(:price_difference_cents, :description, :name, :max_purchase_count)`: only the keys the request names.
+function permittedVariantAttributes(params: Record<string, unknown>): Partial<BaseVariant> {
+  const attributes: Partial<BaseVariant> = {};
+  if ("price_difference_cents" in params)
+    attributes.price_difference_cents = castInteger(params.price_difference_cents);
+  if ("description" in params) attributes.description = castString(params.description);
+  if ("name" in params) attributes.name = castString(params.name);
+  if ("max_purchase_count" in params) attributes.max_purchase_count = castInteger(params.max_purchase_count);
+  return attributes;
+}
+
+const errorsOf = (record: { errors: { fullMessages(): string[] } }) => ({ errors: record.errors.fullMessages() });
+
+async function createVariant(input: ApiV2Input) {
+  const product = productOf(input);
+  await assertPlainVariantProduct(product);
+  const attributes = permittedVariantAttributes(input.params);
+  const record = buildVariant({ ...attributes, variant_category_id: input.state.variantCategory.id });
+  if (!(await Variants.save(record))) return errorWithCreatingObject("variant", errorsOf(record));
+  return successWithVariant(product, record.attributes as BaseVariant);
+}
+
+async function updateVariant(input: ApiV2Input) {
+  const product = productOf(input);
+  if ("rich_content" in input.params) throw new NotPortedError("the rich content of a version");
+  await assertPlainVariantProduct(product);
+  const row: BaseVariant = input.state.variant;
+  await assertPlainVariant(row);
+  const attributes = permittedVariantAttributes(input.params);
+  const record = loadVariantRecord(row);
+  record.assign(attributes);
+  if (!(await Variants.save(record))) return errorWithObject("variant", errorsOf(record));
+  return successWithVariant(product, record.attributes as BaseVariant);
+}
+
+// A retry, or a request that lost the race, finds the row deleted under the lock: nothing is written or audited.
+async function destroyVariant(input: ApiV2Input) {
+  const product = productOf(input);
+  const row: BaseVariant = input.state.variant;
+  if (row.deleted_at !== null) return successWithObject("variant", null);
+  await assertPlainVariantProduct(product);
+  await assertPlainVariant(row);
+  const record = loadVariantRecord(row);
+  let deleted = false;
+  await Variants.withLock(record, async () => {
+    if (record.get("deleted_at") !== null) return;
+    // update_attribute: no validations, every callback; deliberately not mark_deleted, which also enqueues the rich content and archive cleanup.
+    record.set("deleted_at", new Date());
+    await Variants.save(record, { validate: false });
+    deleted = true;
+  });
+  if (deleted)
+    await recordVariantDeletion(db, {
+      actorUserId: input.owner.id,
+      productId: product.id,
+      deletedVariantExternalId: externalId(row.id),
+      requestId: requestIdOf(input.request.headers.get("x-request-id")),
+    });
+  return successWithObject("variant", null);
+}
 
 registerApiV2(
-  {
-    method: "POST",
-    pattern: VARIANTS,
-    scopes: EDIT_PRODUCTS_SCOPES,
-    before: loadVariantCategory,
-    run: () => handBack(SAVE_REASON),
-  },
+  { method: "POST", pattern: VARIANTS, scopes: EDIT_PRODUCTS_SCOPES, before: loadVariantCategory, run: createVariant },
   {
     method: "PATCH",
     pattern: `${VARIANTS}/:id`,
     scopes: EDIT_PRODUCTS_SCOPES,
     before: loadVariant,
-    run: () => handBack(SAVE_REASON),
+    run: updateVariant,
   },
-  {
-    method: "PUT",
-    pattern: `${VARIANTS}/:id`,
-    scopes: EDIT_PRODUCTS_SCOPES,
-    before: loadVariant,
-    run: () => handBack(SAVE_REASON),
-  },
+  { method: "PUT", pattern: `${VARIANTS}/:id`, scopes: EDIT_PRODUCTS_SCOPES, before: loadVariant, run: updateVariant },
   {
     method: "DELETE",
     pattern: `${VARIANTS}/:id`,
     scopes: EDIT_PRODUCTS_SCOPES,
     before: loadVariant,
-    // A retry, or a request that lost the race: `with_lock` re-reads the row and finds it deleted, so nothing is written or audited.
-    run: (input) => {
-      const variant = input.state.variant as { deleted_at: Date | null };
-      return variant.deleted_at === null
-        ? handBack("deleting a live version, which audits the deletion")
-        : Promise.resolve(successWithObject("variant", null));
-    },
+    run: destroyVariant,
   },
 );
