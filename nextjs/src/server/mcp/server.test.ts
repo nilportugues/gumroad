@@ -17,7 +17,12 @@ const NO_HEADERS: RpcHeaders = { protocolVersion: null, method: null, name: null
 const session = (headers: Partial<RpcHeaders> = {}, modernServed = false) =>
   new RpcSession({ ...NO_HEADERS, ...headers }, async () => modernServed);
 
-const toolCall = (name: string, args: Record<string, unknown> = {}) => ({ jsonrpc: "2.0", id: "tool", method: "tools/call", params: { name, arguments: args } });
+const toolCall = (name: string, args: Record<string, unknown> = {}) => ({
+  jsonrpc: "2.0",
+  id: "tool",
+  method: "tools/call",
+  params: { name, arguments: args },
+});
 
 const modern = (method: string, params: Record<string, unknown> = {}) => ({
   jsonrpc: "2.0",
@@ -46,13 +51,21 @@ describe("legacy wire bytes", () => {
   });
 
   it("keeps the version header alone as a legacy request", async () => {
-    const reply = await session({ protocolVersion: LEGACY_PROTOCOL_VERSION }).handle({ jsonrpc: "2.0", id: 1, method: "initialize" });
+    const reply = await session({ protocolVersion: LEGACY_PROTOCOL_VERSION }).handle({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+    });
 
     expect(JSON.stringify(reply)).toBe(golden("legacy-initialize.golden.json"));
   });
 
   it("treats a revision declared only in the header as undeclared", async () => {
-    const reply = await session({ protocolVersion: MODERN_PROTOCOL_VERSION }).handle({ jsonrpc: "2.0", id: 1, method: "initialize" });
+    const reply = await session({ protocolVersion: MODERN_PROTOCOL_VERSION }).handle({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+    });
 
     expect(JSON.stringify(reply)).toBe(golden("legacy-initialize.golden.json"));
   });
@@ -60,7 +73,11 @@ describe("legacy wire bytes", () => {
 
 describe("JSON-RPC messages", () => {
   it("answers ping with an empty result", async () => {
-    expect(await session().handle({ jsonrpc: "2.0", id: "ok", method: "ping" })).toEqual({ jsonrpc: "2.0", id: "ok", result: {} });
+    expect(await session().handle({ jsonrpc: "2.0", id: "ok", method: "ping" })).toEqual({
+      jsonrpc: "2.0",
+      id: "ok",
+      result: {},
+    });
   });
 
   it.each(["ping", "tools/list", "unknown_notification"])("does not reply to the %s notification", async (method) => {
@@ -76,36 +93,61 @@ describe("JSON-RPC messages", () => {
   });
 
   it("reports a tool call with non-object params as -32602", async () => {
-    expect(await session().handle({ jsonrpc: "2.0", id: 9, method: "tools/call", params: [] })).toMatchObject({ id: 9, error: { code: -32602 } });
+    expect(await session().handle({ jsonrpc: "2.0", id: 9, method: "tools/call", params: [] })).toMatchObject({
+      id: 9,
+      error: { code: -32602 },
+    });
   });
 
   it("answers nothing to an unsolicited client response", async () => {
     expect(await session().handle({ jsonrpc: "2.0", id: "client", result: {} })).toBeNull();
-    expect(await session().handle({ jsonrpc: "2.0", id: "client", error: { code: -32601, message: "Unknown method" } })).toBeNull();
+    expect(
+      await session().handle({ jsonrpc: "2.0", id: "client", error: { code: -32601, message: "Unknown method" } }),
+    ).toBeNull();
   });
 
   it("rejects a malformed client response", async () => {
-    expect(await session().handle({ jsonrpc: "2.0", id: "client", result: [] })).toMatchObject({ id: "client", error: { code: -32600 } });
-    expect(await session().handle({ jsonrpc: "2.0", id: "client", error: { code: "bad", message: "No" } })).toMatchObject({ error: { code: -32600 } });
+    expect(await session().handle({ jsonrpc: "2.0", id: "client", result: [] })).toMatchObject({
+      id: "client",
+      error: { code: -32600 },
+    });
+    expect(
+      await session().handle({ jsonrpc: "2.0", id: "client", error: { code: "bad", message: "No" } }),
+    ).toMatchObject({ error: { code: -32600 } });
   });
 
   it.each([[], {}, null, true, 42, "ping"])("reports %j as an invalid request with a null id", async (body) => {
-    expect(await session().handle(body)).toEqual({ jsonrpc: "2.0", id: null, error: { code: -32600, message: "Invalid Request" } });
+    expect(await session().handle(body)).toEqual({
+      jsonrpc: "2.0",
+      id: null,
+      error: { code: -32600, message: "Invalid Request" },
+    });
   });
 
   it.each([1.5, null, true, {}, []])("refuses the invalid ID %j before dispatching", async (id) => {
-    expect(await session().handle({ jsonrpc: "2.0", id, method: "ping" })).toMatchObject({ id: null, error: { code: -32600 } });
+    expect(await session().handle({ jsonrpc: "2.0", id, method: "ping" })).toMatchObject({
+      id: null,
+      error: { code: -32600 },
+    });
   });
 
-  it.each([{ jsonrpc: null }, { jsonrpc: "1.0" }, { method: null }, { method: 12 }, { result: {} }, { error: { code: -1, message: "no" } }])(
-    "rejects the envelope %j",
-    async (invalid) => {
-      expect(await session().handle({ ...toolCall("unpublish_product", { id: "x" }), ...invalid })).toMatchObject({ error: { code: -32600 } });
-    },
-  );
+  it.each([
+    { jsonrpc: null },
+    { jsonrpc: "1.0" },
+    { method: null },
+    { method: 12 },
+    { result: {} },
+    { error: { code: -1, message: "no" } },
+  ])("rejects the envelope %j", async (invalid) => {
+    expect(await session().handle({ ...toolCall("unpublish_product", { id: "x" }), ...invalid })).toMatchObject({
+      error: { code: -32600 },
+    });
+  });
 
   it("rejects params that are not an object", async () => {
-    expect(await session().handle({ jsonrpc: "2.0", id: 3, method: "ping", params: null })).toMatchObject({ error: { code: -32602 } });
+    expect(await session().handle({ jsonrpc: "2.0", id: 3, method: "ping", params: null })).toMatchObject({
+      error: { code: -32602 },
+    });
   });
 
   it("answers each message of a batch under its own ID and leaves notifications out", async () => {
@@ -129,11 +171,20 @@ describe("JSON-RPC messages", () => {
   });
 
   it("answers a batch of notifications with nothing", async () => {
-    expect(await session().handle([{ jsonrpc: "2.0", method: "notifications/initialized" }, { jsonrpc: "2.0", method: "ping" }])).toBeNull();
+    expect(
+      await session().handle([
+        { jsonrpc: "2.0", method: "notifications/initialized" },
+        { jsonrpc: "2.0", method: "ping" },
+      ]),
+    ).toBeNull();
   });
 
   it("answers an empty batch with one invalid request", async () => {
-    expect(await session().handle([])).toEqual({ jsonrpc: "2.0", id: null, error: { code: -32600, message: "Invalid Request" } });
+    expect(await session().handle([])).toEqual({
+      jsonrpc: "2.0",
+      id: null,
+      error: { code: -32600, message: "Invalid Request" },
+    });
   });
 });
 
@@ -147,7 +198,10 @@ describe("tools/call before the tool runs", () => {
     [{ name: "list_sales", arguments: { payment: "some" } }, "payment must be one of: paid, free"],
     [{ name: "list_products", arguments: { sort: "x" } }, "Unknown argument: sort"],
     [{ name: "create_bundle", arguments: { name: "A" } }, "price_cents is required"],
-    [{ name: "create_bundle", arguments: { name: "A", price_cents: 1, product_ids: "x" } }, "product_ids must be an array"],
+    [
+      { name: "create_bundle", arguments: { name: "A", price_cents: 1, product_ids: "x" } },
+      "product_ids must be an array",
+    ],
   ])("answers %j with -32602 and the Rails message %s", async (params, message) => {
     expect(await session().handle({ jsonrpc: "2.0", id: "tool", method: "tools/call", params })).toEqual({
       jsonrpc: "2.0",
@@ -157,7 +211,13 @@ describe("tools/call before the tool runs", () => {
   });
 
   it("does not reply to a notification whose arguments are invalid", async () => {
-    expect(await session().handle({ jsonrpc: "2.0", method: "tools/call", params: { name: "list_products", arguments: { sort: "x" } } })).toBeNull();
+    expect(
+      await session().handle({
+        jsonrpc: "2.0",
+        method: "tools/call",
+        params: { name: "list_products", arguments: { sort: "x" } },
+      }),
+    ).toBeNull();
   });
 
   // The limit range is checked by the tool, after the argument types, so 0 is valid here and Rails answers it.
@@ -170,7 +230,9 @@ describe("tools/call before the tool runs", () => {
   });
 
   it("hands a tool call with a name that is not a string back to Rails", async () => {
-    await expect(session().handle({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: 7 } })).rejects.toBeInstanceOf(HandBackToRails);
+    await expect(
+      session().handle({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: 7 } }),
+    ).rejects.toBeInstanceOf(HandBackToRails);
   });
 });
 
@@ -194,7 +256,9 @@ describe("the 2026-07-28 revision", () => {
   });
 
   it("adds the modern envelope to tools/list without changing the tools", async () => {
-    const reply = (await session(modernHeaders("tools/list"), true).handle(modern("tools/list"))) as { result: Record<string, unknown> };
+    const reply = (await session(modernHeaders("tools/list"), true).handle(modern("tools/list"))) as {
+      result: Record<string, unknown>;
+    };
 
     expect(reply.result).toMatchObject({ resultType: "complete", ttlMs: 0, cacheScope: "private" });
     const tools = reply.result.tools as Array<Record<string, unknown>>;
@@ -204,7 +268,9 @@ describe("the 2026-07-28 revision", () => {
 
   it("serves a tool call whose name header repeats the tool name up to the tool", async () => {
     const request = { ...modern("tools/call", { name: "list_sales", arguments: {} }) };
-    await expect(session(modernHeaders("tools/call", "list_sales"), true).handle(request)).rejects.toBeInstanceOf(HandBackToRails);
+    await expect(session(modernHeaders("tools/call", "list_sales"), true).handle(request)).rejects.toBeInstanceOf(
+      HandBackToRails,
+    );
   });
 
   it("answers initialize and ping with -32601 on the modern revision", async () => {
@@ -217,13 +283,20 @@ describe("the 2026-07-28 revision", () => {
   });
 
   it("accepts a modern notification with no body", async () => {
-    const request = { jsonrpc: "2.0", method: "notifications/initialized", params: { _meta: { "io.modelcontextprotocol/protocolVersion": MODERN_PROTOCOL_VERSION } } };
+    const request = {
+      jsonrpc: "2.0",
+      method: "notifications/initialized",
+      params: { _meta: { "io.modelcontextprotocol/protocolVersion": MODERN_PROTOCOL_VERSION } },
+    };
 
     expect(await session(modernHeaders("notifications/initialized"), true).handle(request)).toBeNull();
   });
 
   it("rejects a header and _meta that disagree", async () => {
-    const reply = await session({ ...modernHeaders("server/discover"), protocolVersion: LEGACY_PROTOCOL_VERSION }, true).handle(modern("server/discover"));
+    const reply = await session(
+      { ...modernHeaders("server/discover"), protocolVersion: LEGACY_PROTOCOL_VERSION },
+      true,
+    ).handle(modern("server/discover"));
 
     expect(reply).toEqual({
       jsonrpc: "2.0",
@@ -243,17 +316,25 @@ describe("the 2026-07-28 revision", () => {
   });
 
   it("rejects a modern request without the method header", async () => {
-    expect(await session({ protocolVersion: MODERN_PROTOCOL_VERSION }, true).handle(modern("server/discover"))).toMatchObject({ error: { code: -32020 } });
+    expect(
+      await session({ protocolVersion: MODERN_PROTOCOL_VERSION }, true).handle(modern("server/discover")),
+    ).toMatchObject({ error: { code: -32020 } });
   });
 
   it("rejects a modern tool call whose name header does not match", async () => {
-    const reply = await session(modernHeaders("tools/call", "list_payouts"), true).handle(modern("tools/call", { name: "list_sales", arguments: {} }));
+    const reply = await session(modernHeaders("tools/call", "list_payouts"), true).handle(
+      modern("tools/call", { name: "list_sales", arguments: {} }),
+    );
 
     expect(reply).toMatchObject({ error: { code: -32020, data: { header: "list_payouts", name: "list_sales" } } });
   });
 
   it("rejects a modern tool call with no name header", async () => {
-    expect(await session(modernHeaders("tools/call"), true).handle(modern("tools/call", { name: "list_sales", arguments: {} }))).toMatchObject({
+    expect(
+      await session(modernHeaders("tools/call"), true).handle(
+        modern("tools/call", { name: "list_sales", arguments: {} }),
+      ),
+    ).toMatchObject({
       error: { code: -32020 },
     });
   });
@@ -266,13 +347,20 @@ describe("the 2026-07-28 revision", () => {
       params: { _meta: { "io.modelcontextprotocol/protocolVersion": "2025-11-25" } },
     });
 
-    expect(reply).toMatchObject({ error: { code: -32022, data: { supported: [LEGACY_PROTOCOL_VERSION, MODERN_PROTOCOL_VERSION], requested: "2025-11-25" } } });
+    expect(reply).toMatchObject({
+      error: {
+        code: -32022,
+        data: { supported: [LEGACY_PROTOCOL_VERSION, MODERN_PROTOCOL_VERSION], requested: "2025-11-25" },
+      },
+    });
   });
 
   it("keeps the modern revision unsupported while the flag is off", async () => {
     const reply = await session(modernHeaders("server/discover"), false).handle(modern("server/discover"));
 
-    expect(reply).toMatchObject({ error: { code: -32022, data: { supported: [LEGACY_PROTOCOL_VERSION], requested: MODERN_PROTOCOL_VERSION } } });
+    expect(reply).toMatchObject({
+      error: { code: -32022, data: { supported: [LEGACY_PROTOCOL_VERSION], requested: MODERN_PROTOCOL_VERSION } },
+    });
     expect(rpcHttpStatus(reply, "modern")).toBe(400);
   });
 
@@ -334,7 +422,14 @@ describe("recordProtocolTelemetry", () => {
 
     await recordProtocolTelemetry("muse", new Map([["undeclared|ping", 2]]), redis as never, now);
 
-    expect(redis.eval).toHaveBeenCalledWith(expect.stringContaining("HINCRBY"), 1, "mcp:protocol_requests:2026-11-09", "7776000", "muse|undeclared|ping", "2");
+    expect(redis.eval).toHaveBeenCalledWith(
+      expect.stringContaining("HINCRBY"),
+      1,
+      "mcp:protocol_requests:2026-11-09",
+      "7776000",
+      "muse|undeclared|ping",
+      "2",
+    );
   });
 
   it.each([
@@ -357,7 +452,9 @@ describe("recordProtocolTelemetry", () => {
     };
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    await expect(recordProtocolTelemetry("chatgpt", new Map([["undeclared|ping", 1]]), redis as never, now)).resolves.toBeUndefined();
+    await expect(
+      recordProtocolTelemetry("chatgpt", new Map([["undeclared|ping", 1]]), redis as never, now),
+    ).resolves.toBeUndefined();
     expect(warn).toHaveBeenCalledWith("mcp_protocol_telemetry_failed Error");
     warn.mockRestore();
   });

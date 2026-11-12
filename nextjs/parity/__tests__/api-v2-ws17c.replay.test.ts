@@ -11,7 +11,7 @@ import { closeAllRedis } from "@/server/infra/redis";
 
 import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
-import { recreateIndex, replayIndexName } from "../src/elasticsearch";
+import { recreateIndex, reindexPurchases, replayIndexName } from "../src/elasticsearch";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { fillFirstThrottle, rackAttackCounters } from "../src/rack-attack";
@@ -35,6 +35,7 @@ const WS17C_SPEC_DIRS = [
   "help_articles",
   "mcp",
   "mcp_register",
+  "mcp_products",
   "payouts_media",
   "sales_exports",
   "links",
@@ -368,6 +369,19 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
         const tripsThrottle = name.includes("-past-the-per-ip-limit");
         if (tripsThrottle) handedBack.length = 0;
         if (tripsThrottle) afterRedisReset = async () => void (await fillFirstThrottle(redis, expected.request));
+        // successful_sales_count and total_usd_cents search the purchases index, which Rails filled as the sales were made.
+        if (name.includes("-reports-the-sales-figures-")) {
+          afterRedisReset = async () => {
+            const es = new ElasticsearchClient({ node: process.env.ELASTICSEARCH_HOST ?? "http://localhost:9200" });
+            const purchases = {
+              model: "Purchase",
+              name: replayIndexName("purchases", process.env.ES_INDEX_SUFFIX ?? ""),
+            } as const;
+            await recreateIndex(es, purchases);
+            await reindexPurchases(es, purchases.name, sql);
+            await es.close();
+          };
+        }
         const validity = VALIDITY_INSTANTS.find(([fragment]) => name.includes(fragment));
         const pinned = PINNED_CLOCKS.find(([fragment]) => name.includes(fragment));
         driftDates = !pinned && !name.includes("answers-a-tools-list-call");

@@ -5,12 +5,15 @@ import { HandBackToRails } from "../controllers/application-controller.ts";
 
 import { RpcSession } from "./server.ts";
 import {
+  FloatValue,
   toolBody,
+  toolText,
   ToolError,
   ToolRpcError,
   type CustomerReader,
   type PayoutReader,
   type PayoutRow,
+  type ProductFileRow,
   type ProductListRow,
   type ProductsReader,
   type SaleRow,
@@ -809,7 +812,12 @@ const productRow = (id: number, attributes: Partial<ProductListRow> = {}): Produ
 const productsContext = (rows: ProductListRow[], scopes = "view_public") => ({
   user: user(),
   token: token(scopes),
-  products: { list: vi.fn<ProductsReader["list"]>().mockResolvedValue(rows) },
+  products: {
+    list: vi.fn<ProductsReader["list"]>().mockResolvedValue(rows),
+    find: vi.fn<ProductsReader["find"]>(),
+    files: vi.fn<ProductsReader["files"]>(),
+    covers: vi.fn<ProductsReader["covers"]>(),
+  },
 });
 
 describe("list_products", () => {
@@ -858,5 +866,95 @@ describe("list_products", () => {
       productRow(1, { buy_price_count: 2 }),
     ])
       await expect(toolBody("list_products", {}, productsContext([row]))).rejects.toBeInstanceOf(HandBackToRails);
+  });
+});
+
+const detailContext = (scopes: string, row: ProductListRow | null, description: string | null = "Draw more") => {
+  const context = productsContext([], scopes);
+  context.products.find.mockResolvedValue(row === null ? null : { ...row, description });
+  context.products.files.mockResolvedValue([]);
+  context.products.covers.mockResolvedValue([]);
+  return Object.assign(context, {
+    productStats: vi.fn().mockResolvedValue({ sales_count: 3, sales_usd_cents: 2500 }),
+  });
+};
+
+describe("get_product", () => {
+  it("adds the description and covers, and the sales figures only to a token with a sales scope", async () => {
+    const without = detailContext("view_public", productRow(1));
+    without.products.covers.mockResolvedValue([
+      { guid: "cover1", unsplash_url: "https://i.example.com/a", has_oembed: false },
+    ]);
+    expect(await toolBody("get_product", { id: "sketchpk" }, without)).toEqual({
+      product: expect.objectContaining({
+        permalink: "sketchpk",
+        description: "Draw more",
+        covers: [{ id: "cover1", url: "https://i.example.com/a", type: "unsplash" }],
+      }),
+    });
+    expect(without.productStats).not.toHaveBeenCalled();
+
+    const sales = detailContext("view_public view_sales", productRow(1));
+    expect(await toolBody("get_product", { id: "sketchpk" }, sales)).toEqual({
+      product: expect.objectContaining({ sales_count: 3, sales_usd_cents: 2500 }),
+    });
+  });
+
+  it("refuses a blank id, answers a missing product as a tool error and hands back what it cannot read", async () => {
+    await expect(toolBody("get_product", { id: " " }, detailContext("view_public", null))).rejects.toMatchObject({
+      code: -32602,
+      message: "id is required",
+    });
+    await expect(toolBody("get_product", { id: "nope" }, detailContext("view_public", null))).rejects.toBeInstanceOf(
+      ToolError,
+    );
+    const covered = detailContext("view_public", productRow(1));
+    covered.products.covers.mockResolvedValue([{ guid: "c", unsplash_url: null, has_oembed: false }]);
+    await expect(toolBody("get_product", { id: "x" }, covered)).rejects.toBeInstanceOf(HandBackToRails);
+    await expect(
+      toolBody("get_product", { id: "x" }, detailContext("view_public", productRow(1, { flags: BigInt(1 << 25) }))),
+    ).rejects.toBeInstanceOf(HandBackToRails);
+  });
+});
+
+const fileRow = (id: number, attributes: Partial<ProductFileRow> = {}): ProductFileRow => ({
+  id: BigInt(id),
+  display_name: null,
+  url: null,
+  filetype: "link",
+  size: null,
+  position: id,
+  ...attributes,
+});
+
+describe("list_files", () => {
+  it("names each file the way the product page does", async () => {
+    const context = detailContext("edit_products", productRow(1));
+    context.products.files.mockResolvedValue([
+      fileRow(1, { display_name: "Guide", filetype: "pdf", size: 2048n }),
+      fileRow(2, { url: "https://example.com/x" }),
+    ]);
+    const body = (await toolBody("list_files", { id: "sketchpk" }, context)) as { files: Record<string, unknown>[] };
+    expect(body.files).toEqual([
+      { id: expect.any(String), name: "Guide", type: "PDF", size_bytes: 2048, position: 1 },
+      { id: expect.any(String), name: "https://example.com/x", type: "URL", size_bytes: 0, position: 2 },
+    ]);
+  });
+
+  it("hands back files that share a position", async () => {
+    const context = detailContext("edit_products", productRow(1));
+    context.products.files.mockResolvedValue([fileRow(1, { position: 0 }), fileRow(2, { position: 0 })]);
+    await expect(toolBody("list_files", { id: "x" }, context)).rejects.toBeInstanceOf(HandBackToRails);
+  });
+});
+
+describe("toolText", () => {
+  it("prints a Ruby Float with its fraction and leaves an integer and a lookalike string alone", () => {
+    const marker = "float:abc:0.5";
+    expect(toolText({ whole: new FloatValue(1500), part: new FloatValue(0.25), count: 3, note: marker })).toBe(
+      JSON.stringify({ whole: "@", part: "@", count: 3, note: marker }, null, 2)
+        .replace('"whole": "@"', '"whole": 1500.0')
+        .replace('"part": "@"', '"part": 0.25'),
+    );
   });
 });
