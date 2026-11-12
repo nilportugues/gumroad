@@ -2,16 +2,8 @@
 // Google account and calendars, behind an OAuth code. #oauth_redirect renders the application layout (integrations-oauth-redirect.ts).
 import { getConfig } from "../infra/config.ts";
 import { outboundFetch } from "../infra/outbound-http.ts";
-import {
-  digParsed,
-  isHash,
-  isPresent,
-  parseHttpParty,
-  postForm,
-  urlEncode,
-  type ParsedResponse,
-} from "../services/http-party.ts";
-import { Ratelimit } from "../services/ratelimit.ts";
+import { rateLimited, refreshToken } from "../services/google-calendar-api.ts";
+import { digParsed, isHash, isPresent, parseHttpParty, postForm, urlEncode } from "../services/http-party.ts";
 
 import { HandBackToRails } from "./application-controller.ts";
 import { jsonResponse } from "./json-seller.ts";
@@ -20,9 +12,6 @@ import { registerMutations } from "./mutation.ts";
 const OAUTH_URL = "https://oauth2.googleapis.com";
 const API_URL = "https://www.googleapis.com";
 const OAUTH_REDIRECT_PATH = "/integrations/google_calendar/oauth_redirect";
-const RATE_LIMIT_KEY = "GOOGLE_CALENDAR_API_RATE_LIMIT";
-const RATE_LIMIT_THRESHOLD = 10_000;
-const RATE_LIMIT_INTERVAL_SECONDS = 60;
 const HTTP_UNAUTHORIZED = 401;
 
 const failure = () => jsonResponse({ success: false }, 200, true);
@@ -34,36 +23,13 @@ function stringParam(value: unknown, name: string): string | undefined {
   return value;
 }
 
-// GoogleCalendarApi#rate_limited_call
-async function rateLimited(call: () => Promise<ParsedResponse>): Promise<ParsedResponse> {
-  const ratelimit = new Ratelimit(RATE_LIMIT_KEY);
-  return ratelimit.execWithinThreshold(
-    RATE_LIMIT_KEY,
-    { threshold: RATE_LIMIT_THRESHOLD, interval: RATE_LIMIT_INTERVAL_SECONDS },
-    async () => {
-      await ratelimit.add(RATE_LIMIT_KEY);
-      return call();
-    },
-  );
-}
-
-// GoogleCalendarApi#oauth_token and #refresh_token
+// GoogleCalendarApi#oauth_token
 const oauthToken = async (code: string | undefined, redirectUri: string) =>
   parseHttpParty(
     await postForm(`${OAUTH_URL}/token`, [
       ["grant_type", "authorization_code"],
       ["code", code],
       ["redirect_uri", redirectUri],
-      ["client_id", getConfig("GOOGLE_CLIENT_ID")],
-      ["client_secret", getConfig("GOOGLE_CLIENT_SECRET")],
-    ]),
-  );
-
-const refreshToken = async (token: string | undefined) =>
-  parseHttpParty(
-    await postForm(`${OAUTH_URL}/token`, [
-      ["grant_type", "refresh_token"],
-      ["refresh_token", token],
       ["client_id", getConfig("GOOGLE_CLIENT_ID")],
       ["client_secret", getConfig("GOOGLE_CLIENT_SECRET")],
     ]),

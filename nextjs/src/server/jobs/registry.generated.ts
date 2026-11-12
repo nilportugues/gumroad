@@ -885,7 +885,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "recurringLockMaxAttempt": 1800,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "DetectLegalEntityCountryDriftJob": {
     "file": "app/sidekiq/detect_legal_entity_country_drift_job.rb",
@@ -1004,7 +1004,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "EnqueueMarketingXReconnectEmailJob": {
     "file": "app/sidekiq/enqueue_marketing_x_reconnect_email_job.rb",
@@ -1487,7 +1487,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "HandleGrmcCallbackJob": {
     "file": "app/sidekiq/handle_grmc_callback_job.rb",
@@ -1559,7 +1559,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "HandleSendgridEventJob": {
     "file": "app/sidekiq/handle_sendgrid_event_job.rb",
@@ -1571,7 +1571,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "HandleSnsAwsConfigEventWorker": {
     "file": "app/sidekiq/handle_sns_aws_config_event_worker.rb",
@@ -2204,7 +2204,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RefreshClosedTierDiscoverPricesJob": {
     "file": "app/sidekiq/refresh_closed_tier_discover_prices_job.rb",
@@ -2283,7 +2283,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RefreshSitemapMonthlyWorker": {
     "file": "app/sidekiq/refresh_sitemap_monthly_worker.rb",
@@ -2295,7 +2295,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RefreshUserProductsRecommendationEligibilityJob": {
     "file": "app/sidekiq/refresh_user_products_recommendation_eligibility_job.rb",
@@ -2326,7 +2326,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RefundAllForFraudWorker": {
     "file": "app/sidekiq/refund_all_for_fraud_worker.rb",
