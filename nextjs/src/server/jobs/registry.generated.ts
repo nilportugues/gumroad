@@ -1328,7 +1328,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": true,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "GenerateFeesByCreatorLocationReportJob": {
     "file": "app/sidekiq/generate_fees_by_creator_location_report_job.rb",
