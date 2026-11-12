@@ -444,7 +444,7 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
         expected.jobs = dedupeUnique(expected.jobs);
         // successful_sales_count, total_usd_cents and get_analytics search the purchases and page view indices, which Rails
         // filled as the sales were made and the views recorded.
-        if (name.includes("-reports-the-sales-figures-") || name.includes("-get-analytics-")) {
+        if (name.includes("-reports-the-sales-figures-") || name.includes("-get-analytics-") || name.includes("-with-the-churn-breakdown-")) {
           afterRedisReset = async () => {
             const es = new ElasticsearchClient({ node: process.env.ELASTICSEARCH_HOST ?? "http://localhost:9200" });
             const suffix = process.env.ES_INDEX_SUFFIX ?? "";

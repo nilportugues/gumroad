@@ -216,15 +216,35 @@ describe "API v2 MCP product tools", type: :request, elasticsearch_wait_for_refr
         analytics({ breakdown: "referrer", product_id: "iconset" })
       end
 
-      it "hands back two products with the same number of views", parity: true do
+      it "keeps two products with the same number of views in the order the report lists them", parity: true do
         view(other_product, 5)
         view(other_product, 6)
         analytics
       end
 
-      it "hands back a referrer breakdown with two referrers that have the same number of views", parity: true do
+      it "keeps two referrers with the same number of views in the order they were first seen", parity: true do
         view(product, 7, referrer_domain: "twitter.com")
         view(other_product, 7, referrer_domain: "google.com")
+        analytics({ breakdown: "referrer" })
+      end
+    end
+
+    # Ruby's sort_by is an insertion sort up to 16 rows and an unstable quicksort beyond, so ties only show past that.
+    context "with more products than the insertion sort takes" do
+      before do
+        18.times do |index|
+          letter = ("a".ord + index).chr
+          item = create(:product, user: seller, name: "Pack #{index}", unique_permalink: "pack#{letter}x")
+          (index % 3 + 1).times { |day| view(item, day + 2, referrer_domain: "site#{letter}.example.com") }
+        end
+        EsClient.indices.refresh(index: ProductPageView.index_name)
+      end
+
+      it "orders the products with equal views as Ruby's sort_by does", parity: true do
+        analytics
+      end
+
+      it "orders the referrers with equal views as Ruby's sort_by does", parity: true do
         analytics({ breakdown: "referrer" })
       end
     end
@@ -367,10 +387,6 @@ describe "API v2 MCP product tools", type: :request, elasticsearch_wait_for_refr
       subscriptions({ limit: 0 })
     end
 
-    it "hands back the churn breakdown", parity: true do
-      subscriptions({ breakdown: "churn" })
-    end
-
     it "hands back a subscription whose renewals a card mandate disabled", parity: true do
       subscription = subscribe("ada@example.com", 2)
       subscription.update_columns(flags: subscription.flags | Subscription.flag_mapping["flags"][:renewal_disabled_due_to_indian_card_mandate])
@@ -385,6 +401,95 @@ describe "API v2 MCP product tools", type: :request, elasticsearch_wait_for_refr
 
     it "hands back a token without a sales scope", parity: true do
       subscriptions({}, "view_public")
+    end
+  end
+
+  # CreatorAnalytics::Churn reads the purchases index, and the rows are literal 2026 instants (mid-afternoon UTC, the same day in the
+  # seller's zone) so the replay reads the same months whatever day it runs.
+  describe "get_subscriptions with the churn breakdown", elasticsearch_wait_for_refresh: true do
+    let(:seller) { create(:user, username: "dude", name: "Dude", created_at: Time.utc(2025, 6, 1)) }
+    let!(:club) { create(:product, :is_subscription, user: seller, name: "Club", unique_permalink: "clubpass") }
+    let!(:lab) { create(:product, :is_subscription, user: seller, name: "Lab", unique_permalink: "labpass") }
+    let(:quarter) { { breakdown: "churn", start_date: "2026-01-01", end_date: "2026-03-31" } }
+
+    before { Purchase.__elasticsearch__.create_index!(force: true) }
+
+    def at(month, day) = Time.utc(2026, month, day, 18)
+
+    def member(product, started, left: nil, price_cents: 500)
+      price = create(:price, link: product, price_cents:, recurrence: BasePrice::Recurrence::MONTHLY)
+      subscription = create(:subscription, link: product, user: nil, price:, cancelled_at: left, deactivated_at: left)
+      subscription.update_columns(created_at: started)
+      sell(product, email: "member#{subscription.id}@example.com", price_cents:, is_original_subscription_purchase: true, subscription_id: subscription.id, created_at: started)
+    end
+
+    def churn(arguments = {}, scopes = "view_sales")
+      index_model_records(Purchase)
+      call_tool("get_subscriptions", quarter.merge(arguments), scopes:)
+    end
+
+    before do
+      member(club, Time.utc(2025, 12, 5, 18))
+      member(club, Time.utc(2025, 12, 20, 18), left: at(1, 14))
+      member(club, at(1, 8))
+      member(club, at(1, 22), left: at(2, 10))
+      member(club, at(2, 3), left: at(2, 25), price_cents: 1200)
+      member(lab, Time.utc(2025, 11, 2, 18), left: at(3, 9), price_cents: 900)
+      member(lab, at(3, 4))
+    end
+
+    it "reports churn by month for all subscription products", parity: true do
+      churn
+    end
+
+    it "reports churn for one product", parity: true do
+      churn({ product_id: "clubpass" })
+    end
+
+    it "reports churn for a product by its external id with the account scope", parity: true do
+      churn({ product_id: lab.external_id }, "account")
+    end
+
+    it "reports a rate that is a whole number as a float", parity: true do
+      churn({ start_date: "2026-02-01", end_date: "2026-02-28", product_id: "clubpass" })
+    end
+
+    it "clamps a range that starts before the first activity", parity: true do
+      churn({ start_date: "2025-01-01", end_date: "2025-12-31" })
+    end
+
+    it "still reports the months of subscription products that were deleted", parity: true do
+      [club, lab].each { |item| item.update_columns(deleted_at: Time.utc(2026, 3, 20)) }
+      churn
+    end
+
+    it "reports a product that is not a subscription product with no rows", parity: true do
+      other = create(:product, user: seller, name: "One-off", unique_permalink: "oneoffpk")
+      churn({ product_id: other.external_id })
+    end
+
+    it "answers a range that has not started without reading the source", parity: true do
+      churn({ start_date: "2099-01-01", end_date: "2099-02-01" })
+    end
+
+    it "refuses a start date after the end date", parity: true do
+      churn({ start_date: "2026-03-10", end_date: "2026-03-01" })
+    end
+
+    it "refuses a range of more than a year", parity: true do
+      churn({ start_date: "2024-01-01", end_date: "2026-03-31" })
+    end
+
+    it "hands back a date that is not YYYY-MM-DD", parity: true do
+      churn({ start_date: "yesterday" })
+    end
+
+    it "reports a product that does not exist as a tool error", parity: true do
+      churn({ product_id: "nope" })
+    end
+
+    it "hands back a token without a sales scope", parity: true do
+      churn({}, "view_public")
     end
   end
 end

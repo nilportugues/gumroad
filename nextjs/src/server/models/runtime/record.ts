@@ -29,6 +29,8 @@ export class ModelRecord<R extends Row = Row> {
   savedChanges: Partial<Record<keyof R & string, Change>> = {};
   // Free-form per-instance state that Ruby keeps in instance variables (attr_accessor etc.).
   readonly ivars: Record<string, unknown> = {};
+  // ActiveModel::Validations#validation_context: the `context:` a save was given, readable by `if:`/`unless:` while the validations run.
+  validationContext: string | null = null;
   #attributes: R;
   #inDatabase: R;
   // ActiveModel::LazyAttributeSet: a loaded record materializes an attribute when it is written or

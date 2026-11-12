@@ -259,4 +259,33 @@ describe "API v2 MCP product writes", type: :request, parity_timeline: true do
       update({ name: "Pen" }, scopes: "view_sales")
     end
   end
+
+  # Tools whose write or call order the recordings do not prove: the cover and file tools fetch a URL and run Active Storage analysis, and
+  # the bundle tools save a product, its taxonomy and its members across several tables. Each goes to Rails whole.
+  describe "tools that stay in Rails" do
+    let!(:pencil) { create(:product, user: seller, name: "Pencil", unique_permalink: "pencilpk") }
+
+    it "hands a cover from a URL back to Rails", parity: true do
+      stub_request(:get, "https://images.example.com/cover.png").to_return(status: 404)
+      call_tool("add_cover", { id: "pencilpk", url: "https://images.example.com/cover.png" })
+    end
+
+    it "hands a file from a URL back to Rails", parity: true do
+      stub_request(:get, "https://files.example.com/guide.pdf").to_return(status: 404)
+      call_tool("add_file", { id: "pencilpk", url: "https://files.example.com/guide.pdf" })
+    end
+
+    it "hands a new bundle back to Rails", parity: true do
+      call_tool("create_bundle", { name: "Desk set", price_cents: 900, product_ids: ["pencilpk"] })
+    end
+
+    it "hands a change to the products of a bundle back to Rails", parity: true do
+      bundle = create(:product, :bundle, user: seller, name: "Desk set", unique_permalink: "deskset")
+      call_tool("update_bundle", { id: bundle.external_id, product_ids: ["pencilpk"] })
+    end
+
+    it "hands a registration of an OAuth client back to Rails", parity: true do
+      post "/muse/v1/oauth2/register", params: { redirect_uris: ["https://client.example.com/callback"] }.to_json, headers: rpc
+    end
+  end
 end

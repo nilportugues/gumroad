@@ -246,9 +246,92 @@ describe "API v2 MCP discount codes", type: :request, parity_timeline: true do
   end
 
   describe "expire_discount_code" do
-    it "hands an expiry back to Rails", parity: true do
-      create(:offer_code, user: seller, code: "TENOFF", universal: true, products: [], currency_type: nil, amount_percentage: 10, amount_cents: nil)
-      call_tool("expire_discount_code", { code: "TENOFF" })
+    let!(:universal) { create(:offer_code, user: seller, code: "TENOFF", universal: true, products: [], currency_type: nil, amount_percentage: 10, amount_cents: nil, created_at: 2.days.ago, updated_at: 2.days.ago) }
+    let!(:scoped) { create(:offer_code, user: seller, code: "PENCIL", products: [product], amount_cents: 100, created_at: 2.days.ago, updated_at: 2.days.ago) }
+
+    def expire_code(arguments, **options) = call_tool("expire_discount_code", arguments, **options)
+
+    it "ends a code for all products now", parity: true do
+      expire_code({ code: "TENOFF" })
+
+      expect(universal.reload.expires_at).to be_within(5.seconds).of(Time.current)
+    end
+
+    it "ends a code for one product now", parity: true do
+      expire_code({ code: "PENCIL", product_id: "pencilpk" })
+
+      expect(scoped.reload.expires_at).to be_present
+    end
+
+    it "moves the start of a code that has not started yet back before its end", parity: true do
+      universal.update_columns(valid_at: 3.days.from_now)
+      expire_code({ code: "TENOFF" })
+
+      expect(universal.reload.valid_at).to be < universal.expires_at
+    end
+
+    it "keeps the start of a code that started long ago", parity: true do
+      universal.update_columns(valid_at: 1.day.ago)
+      expire_code({ code: "TENOFF" })
+
+      expect(universal.reload.valid_at).to be_within(5.seconds).of(1.day.ago)
+    end
+
+    it "ends a code whose end date is still ahead", parity: true do
+      universal.update_columns(valid_at: 1.day.ago, expires_at: 10.days.from_now)
+      expire_code({ code: "TENOFF" })
+    end
+
+    it "strips the code it looks for", parity: true do
+      expire_code({ code: "  TENOFF \n" })
+
+      expect(universal.reload.expires_at).to be_present
+    end
+
+    it "ends a code whose discount the product price no longer takes, skipping the price check", parity: true do
+      product.prices.alive.first.update_columns(price_cents: 150)
+      expect(scoped.reload).not_to be_valid
+      expire_code({ code: "PENCIL", product_id: "pencilpk" })
+
+      expect(scoped.reload.expires_at).to be_present
+    end
+
+    it "ends a code on a membership", parity: true do
+      membership = create(:membership_product, user: seller, unique_permalink: "clubpk")
+      build(:offer_code, user: seller, code: "CLUB", products: [membership], amount_percentage: 10, amount_cents: nil, currency_type: nil, created_at: 2.days.ago, updated_at: 2.days.ago).save!(validate: false)
+      expire_code({ code: "CLUB", product_id: "clubpk" })
+    end
+
+    it "reports a code that has already expired and changes nothing", parity: true do
+      universal.update_columns(valid_at: 3.days.ago, expires_at: 1.day.ago)
+      expire_code({ code: "TENOFF" })
+    end
+
+    it "reports a code that expired in the current second as already expired", parity: true do
+      universal.update_columns(valid_at: 3.days.ago, expires_at: Time.current.change(usec: 0))
+      expire_code({ code: "TENOFF" })
+    end
+
+    it "does not find a code that covers all products when a product is given", parity: true do
+      expire_code({ code: "TENOFF", product_id: "pencilpk" })
+    end
+
+    it "does not find a deleted code", parity: true do
+      universal.update_columns(deleted_at: 1.hour.ago)
+      expire_code({ code: "TENOFF" })
+    end
+
+    it "refuses a blank code", parity: true do
+      expire_code({ code: " " })
+    end
+
+    it "hands a code with duration tiers back to Rails", parity: true do
+      universal.update_columns(ownership_duration_tiers: [{ "months" => 0, "amount_percentage" => 10 }, { "months" => 3, "amount_percentage" => 20 }])
+      expire_code({ code: "TENOFF" })
+    end
+
+    it "hands a call without the edit scope back to Rails", parity: true do
+      expire_code({ code: "TENOFF" }, scopes: "view_sales")
     end
   end
 end
