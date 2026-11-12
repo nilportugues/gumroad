@@ -1,9 +1,11 @@
 // Link creation for LinksController#create: the save callback chain of a new product, as far as recorded examples prove it
 // (spec/requests/links_create_parity_spec.rb). Kept apart from link.ts, whose `Links` model refuses a new record.
 //
-// Served: a non-recurring digital, course, ebook or audiobook priced in USD, with an optional description. Everything else a Link
-// save can do on create (tiers, physical shipping, calls, coffee, commissions, bundles, other currencies and their exchange rates,
-// the custom summary, AI generation) throws NotPortedError from `parseCreateParams` or `assertCreatable`, before any write.
+// Served: digital, course, ebook, audiobook, membership (with its default tier), coffee (with its suggested amount) and bundle products,
+// in any configured currency whose exchange rate is in Redis, physical products for sellers who qualify without a sales lookup, with an
+// optional description and custom summary, and the profile sections that add new products. Everything else a Link save can do on create
+// (calls, commissions, installment plans, AI generation, the mobile web view, recurring digital products) throws NotPortedError from
+// `parseCreateParams` or from inside the save, which rolls back: nothing is written.
 import { randomInt } from "node:crypto";
 
 import { Prisma, type Link } from "@prisma/client";
@@ -13,7 +15,7 @@ import { ProductRecord } from "../search/documents/product.ts";
 import { performProductIndexing } from "../search/product-indexing.ts";
 
 import { isAdult } from "./concerns/adult-keyword-detector.ts";
-import { afterCommitEverywhere } from "./concerns/job-runtime.ts";
+import { afterCommitEverywhere, performAsync } from "./concerns/job-runtime.ts";
 import { mergeJsonDataWithCurrentRow } from "./concerns/json-data.ts";
 import { hasPaperTrail } from "./concerns/paper-trail.ts";
 import { RubyHash, type YamlValue } from "./concerns/psych.ts";
@@ -21,6 +23,7 @@ import { rubyJsonGenerate } from "./concerns/serialized-columns.ts";
 import LINK_DATA from "./link-data.generated.json" with { type: "json" };
 import {
   DEFAULT_BOOSTED_DISCOVER_FEE_PER_THOUSAND,
+  getUsdCents,
   invalidateProductCache,
   LinkFlags,
   LinkInvalid,
@@ -29,7 +32,7 @@ import {
   type LinkRecord,
 } from "./link.ts";
 import { defineModel, type Callback } from "./runtime/define-model.ts";
-import type { Errors } from "./runtime/errors.ts";
+import { Errors } from "./runtime/errors.ts";
 import { withExecutor } from "./runtime/query-cache.ts";
 import { isBlank, rubyLength } from "./runtime/validators.ts";
 import { column, execute, selectRows, table } from "./sql.ts";
@@ -39,12 +42,20 @@ import { MAX_PRICE_USD_CENTS_UNLESS_VERIFIED, NotPortedError, UserFlags } from "
 const MAX_PRICE_CENTS = 2_147_483_647;
 const USD = "usd";
 const PRICE_TOO_LARGE = "Sorry, the price entered is too large.";
+const NO_PRICE = "New products should be created with a price";
+const CURRENCIES = LINK_DATA.currencies as Record<
+  string,
+  { min_price: number; min_price_formatted: string; single_unit: boolean }
+>;
 // Product::NativeTypeTemplates::DEFAULT_ATTRIBUTES_FOR_TYPE for the types served here.
 const CUSTOM_ATTRIBUTES: Record<string, { name: string; value: string }[]> = {
   ebook: [{ name: "Pages", value: "" }],
   audiobook: [{ name: "Length", value: "" }],
 };
-export const SERVED_NATIVE_TYPES = ["digital", "course", "ebook", "audiobook"];
+export const SERVED_NATIVE_TYPES = ["digital", "course", "ebook", "audiobook", "membership", "coffee", "bundle"];
+// `enum :subscription_duration`: the stored integer is the position.
+const SUBSCRIPTION_DURATIONS = ["monthly", "yearly", "quarterly", "biannually", "every_two_years"];
+const DEFAULT_TIERED_MEMBERSHIP_RECURRENCE = "monthly";
 // The attributes the new product form sends. `number_of_content_pages` and `release_at_date` are not in `link_params`, so Rails drops them.
 const FORM_KEYS = [
   "name",
@@ -59,16 +70,32 @@ const FORM_KEYS = [
   "ai_prompt",
 ];
 const DROPPED_KEYS = ["number_of_content_pages", "release_at_date"];
-// The smallest Product::CreationLimit#daily_creation_limit: below it no seller is stopped, whatever their risk state.
-const SMALLEST_DAILY_CREATION_LIMIT = 10;
 const DAY_MS = 24 * 60 * 60 * 1000;
+// Product::CreationLimit#default_daily_creation_limit
+const COMPLIANT_DAILY_CREATION_LIMIT = 100;
+const DEFAULT_DAILY_CREATION_LIMIT = 10;
+// User::MIN_ACCOUNT_AGE_FOR_PHYSICAL_PRODUCTS
+const MIN_ACCOUNT_AGE_FOR_PHYSICAL_PRODUCTS_MS = 90 * DAY_MS;
+const ARCHIVED_FLAG = 1n << 4n;
+const IS_PHYSICAL_FLAG = 1n << 7n;
+// Ruby's String#blank?: Unicode white space only (JavaScript's trim() also strips U+FEFF).
+const RUBY_BLANK = /^[\t\n\v\f\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]*$/u;
 
 export type CreateParams = {
   name: string | null;
-  priceRange: string;
+  // null: the form sent no price, which Rails leaves unassigned.
+  priceRange: string | null;
   nativeType: string;
   description: string | null;
+  currency: string;
+  isPhysical: boolean;
+  // The membership's recurrence, null when the form sent none.
+  subscriptionDuration: string | null;
+  customSummary: string | null;
 };
+
+// A RecordInvalid raised for a record other than the product (a variant): the product's own errors stay empty.
+export class RelatedRecordInvalid extends Error {}
 
 const text = (value: unknown, what: string): string | null => {
   if (value === undefined || value === null) return null;
@@ -88,47 +115,103 @@ export function parseCreateParams(raw: unknown): CreateParams {
     throw new NotPortedError(`the link attributes ${unknown.join(", ")}`, "app/controllers/links_controller.rb:1428");
 
   // `params[:link][:is_physical]` is truthy for any non-nil, non-false value, including the string "false".
-  if (link.is_physical !== undefined && link.is_physical !== null && link.is_physical !== false)
-    throw new NotPortedError("a physical product", "app/controllers/links_controller.rb:91");
-  if (link.is_recurring_billing !== undefined && link.is_recurring_billing !== false)
-    throw new NotPortedError("a recurring product", "app/models/link.rb:2309");
-  if (link.subscription_duration !== undefined && link.subscription_duration !== null)
-    throw new NotPortedError("a subscription duration", "app/models/link.rb:477");
-  if (link.price_currency_type !== undefined && link.price_currency_type !== USD)
-    throw new NotPortedError("a currency other than USD", "app/helpers/currency_helper.rb:96");
-  if (link.custom_summary !== undefined && link.custom_summary !== null && link.custom_summary !== "")
-    throw new NotPortedError("a custom summary", "app/controllers/links_controller.rb:107");
-  if (link.ai_prompt !== undefined && link.ai_prompt !== null && link.ai_prompt !== "")
-    throw new NotPortedError("an AI prompt", "app/controllers/links_controller.rb:124");
+  if (![undefined, null, false, true].includes(link.is_physical as boolean | null | undefined))
+    throw new NotPortedError("an is_physical that is not true or false", "app/controllers/links_controller.rb:91");
+  const isPhysical = link.is_physical === true;
+  if (![undefined, false, true].includes(link.is_recurring_billing as boolean | undefined))
+    throw new NotPortedError("an is_recurring_billing that is not true or false", "app/models/link.rb:2309");
+  const isRecurring = link.is_recurring_billing === true;
+
+  let subscriptionDuration: string | null = null;
+  const duration = link.subscription_duration;
+  // The enum casts a blank value to nil and raises ArgumentError for an unknown one.
+  if (duration !== undefined && duration !== null && duration !== "") {
+    if (typeof duration !== "string" || !SUBSCRIPTION_DURATIONS.includes(duration))
+      throw new NotPortedError("a subscription duration the enum refuses", "app/models/link.rb:315");
+    subscriptionDuration = duration;
+  }
+
+  let currency = USD;
+  if (link.price_currency_type !== undefined) {
+    if (typeof link.price_currency_type !== "string" || link.price_currency_type === "")
+      throw new NotPortedError("a blank currency", "app/models/link.rb:328");
+    currency = link.price_currency_type.toLowerCase();
+    if (!(currency in CURRENCIES))
+      throw new NotPortedError("a currency Rails has no configuration for", "app/models/link.rb:920");
+  }
 
   const nativeType = link.native_type;
   if (typeof nativeType !== "string" || !SERVED_NATIVE_TYPES.includes(nativeType))
     throw new NotPortedError(`the native type ${JSON.stringify(nativeType)}`, "app/models/link.rb:466");
+  // A tiered membership is is_recurring_billing; any other pairing (a recurring digital product, a one-off membership) is unproven.
+  if (isRecurring !== (nativeType === "membership"))
+    throw new NotPortedError(
+      "a recurring flag that does not match the native type",
+      "app/controllers/links_controller.rb:112",
+    );
+  if (subscriptionDuration !== null && nativeType !== "membership")
+    throw new NotPortedError("a subscription duration on a product that is not a membership", "app/models/link.rb:477");
+  if (isPhysical && nativeType !== "digital")
+    throw new NotPortedError(
+      "a physical product of a native type other than digital",
+      "app/controllers/links_controller.rb:91",
+    );
+  if (nativeType === "membership" && CURRENCIES[currency]!.single_unit)
+    throw new NotPortedError("a membership priced in a single-unit currency", "app/models/link.rb:489");
+
+  // Generation runs for a present prompt only.
+  if (link.ai_prompt !== undefined && link.ai_prompt !== null) {
+    if (typeof link.ai_prompt !== "string" || !RUBY_BLANK.test(link.ai_prompt))
+      throw new NotPortedError("an AI prompt", "app/controllers/links_controller.rb:124");
+  }
+
+  let customSummary: string | null = null;
+  if (link.custom_summary !== undefined && link.custom_summary !== null) {
+    if (typeof link.custom_summary !== "string")
+      throw new NotPortedError("a custom summary that is not text", "app/controllers/links_controller.rb:107");
+    if (!RUBY_BLANK.test(link.custom_summary)) {
+      if (/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/u.test(link.custom_summary))
+        throw new NotPortedError("a custom summary JSON.dump would refuse", "app/models/link.rb:1522");
+      customSummary = link.custom_summary;
+    }
+  }
 
   const price = link.price_range;
-  // `return unless price` leaves the product without a price, which associate_price refuses.
-  if (price === undefined || price === null)
-    throw new NotPortedError("a product without a price", "app/modules/product/prices.rb:398");
-  let priceRange: string;
-  if (typeof price === "string") priceRange = price;
+  let priceRange: string | null;
+  // `return unless price` leaves the product without a price.
+  if (price === undefined || price === null) priceRange = null;
+  else if (typeof price === "string") priceRange = price;
   else if (typeof price === "number" && Number.isFinite(price) && !String(price).includes("e"))
     priceRange = String(price);
   else throw new NotPortedError("a price that is neither text nor a plain number", "app/modules/product/prices.rb:76");
+  // A custom summary saves the product once before the action's rescue: a LinkInvalid there is not rescued, and a recurrence
+  // Price#recurrence_validation refuses breaks the first save.
+  if (customSummary !== null && priceRange === null)
+    throw new NotPortedError("a custom summary without a price", "app/controllers/links_controller.rb:107");
+  if (customSummary !== null && nativeType === "membership" && subscriptionDuration === null)
+    throw new NotPortedError("a membership with a custom summary and no recurrence", "app/models/price.rb:25");
 
   return {
     name: text(link.name, "name"),
     priceRange,
     nativeType,
     description: text(link.description, "description"),
+    currency,
+    isPhysical,
+    subscriptionDuration,
+    customSummary,
   };
 }
 
-// BasePrice::Shared#clean_price and CurrencyHelper#string_to_price_cents for USD (not a single-unit currency).
-export function cleanPriceCents(priceString: string): bigint {
-  let clean = priceString.replace(/[^-0-9.,]/gu, "");
-  // Euro style: a comma two places from the end is the decimal mark.
-  if (clean.lastIndexOf(",") !== -1 && clean.lastIndexOf(",") === clean.length - 3)
-    clean = clean.replaceAll(".", "").replaceAll(",", ".");
+// BasePrice::Shared#clean_price and CurrencyHelper#string_to_price_cents. A single-unit currency (yen) skips the comma handling and has no cents.
+export function cleanPriceCents(priceString: string, singleUnit = false): bigint {
+  let clean = priceString;
+  if (!singleUnit) {
+    clean = clean.replace(/[^-0-9.,]/gu, "");
+    // Euro style: a comma two places from the end is the decimal mark.
+    if (clean.lastIndexOf(",") !== -1 && clean.lastIndexOf(",") === clean.length - 3)
+      clean = clean.replaceAll(".", "").replaceAll(",", ".");
+  }
   clean = clean.replace(/[^-0-9.]/gu, "");
   let sanitized = clean;
   if ((sanitized.match(/\./gu) ?? []).length > 1) {
@@ -140,10 +223,11 @@ export function cleanPriceCents(priceString: string): bigint {
   const match = /^(-?)(\d+)(?:\.(\d+))?$/u.exec(sanitized);
   if (!match) throw new NotPortedError("a price BigDecimal may refuse", "app/helpers/currency_helper.rb:77");
   const [, sign, whole, fraction = ""] = match;
-  const digits = fraction.padEnd(3, "0");
-  let cents = BigInt(whole!) * 100n + BigInt(digits.slice(0, 2));
+  const places = singleUnit ? 0 : 2;
+  const digits = fraction.padEnd(places + 1, "0");
+  let cents = BigInt(whole!) * 10n ** BigInt(places) + (places === 0 ? 0n : BigInt(digits.slice(0, places)));
   // BigDecimal#round rounds half away from zero.
-  if (Number(digits[2]) >= 5) cents += 1n;
+  if (Number(digits[places]) >= 5) cents += 1n;
   return sign === "-" ? -cents : cents;
 }
 
@@ -162,36 +246,52 @@ export function errorsToHash(errors: Errors): [string, string[]][] {
   return [...grouped];
 }
 
-// Everything the port declines to model about this seller's account, asked before the first write.
-export async function assertCreatable(seller: {
+export type SellerAccount = {
   id: bigint;
-  isTeamMember: boolean;
+  flags: bigint;
+  verified: boolean | null;
+  confirmed_at: Date | null;
+  created_at: Date | null;
+  user_risk_state: string | null;
   json_data: string | null;
-}): Promise<void> {
-  const sections = await selectRows<{ json_data: string | Record<string, unknown> | null }>(
-    Prisma.sql`SELECT ${column("seller_profile_sections", "json_data")} FROM ${table("seller_profile_sections")} WHERE ${column("seller_profile_sections", "type")} = 'SellerProfileProductsSection' AND ${column("seller_profile_sections", "seller_id")} = ${seller.id}`,
-  );
-  for (const { json_data } of sections) {
-    if (json_data === null) continue;
-    const hash = typeof json_data === "string" ? (JSON.parse(json_data) as Record<string, unknown>) : json_data;
-    if (hash.add_new_products === true)
-      throw new NotPortedError("a products section that adds new products", "app/models/link.rb:2283");
+};
+
+// `user.daily_product_creation_limit` (a json_data accessor): the seller's own limit, null when unset.
+export function dailyProductCreationLimit(jsonData: string | null): number | null {
+  if (!jsonData?.includes("daily_product_creation_limit")) return null;
+  let hash: unknown;
+  try {
+    hash = JSON.parse(jsonData);
+  } catch {
+    throw new NotPortedError("a seller json_data that is not JSON", "app/models/user.rb:258");
   }
-  if (seller.isTeamMember) return;
-  // Product::CreationLimit: `daily_product_creation_limit` is a json_data accessor and the default depends on the risk state.
-  if (seller.json_data?.includes("daily_product_creation_limit"))
-    throw new NotPortedError(
-      "a seller with a daily product creation limit",
-      "app/modules/product/creation_limit.rb:56",
-    );
-  const [row] = await selectRows<Record<string, unknown>>(
-    Prisma.sql`SELECT COUNT(*) FROM ${table("links")} WHERE ${column("links", "user_id")} = ${seller.id} AND ${column("links", "created_at")} >= ${new Date(Date.now() - DAY_MS)} AND ${column("links", "deleted_at")} IS NULL`,
+  const value = (hash as Record<string, unknown> | null)?.daily_product_creation_limit;
+  if (value === undefined || value === null || value === false) return null;
+  if (typeof value !== "number" || !Number.isInteger(value))
+    throw new NotPortedError("a daily product creation limit that is not a whole number", "app/models/user.rb:258");
+  return value;
+}
+
+export type PhysicalVerdict = "allowed" | "forbidden";
+
+// User#can_create_physical_products? up to the lookups that need Elasticsearch (the sales total). Past them the request goes to Rails.
+export async function canCreatePhysicalProducts(seller: SellerAccount, now: Date): Promise<PhysicalVerdict> {
+  const suspended = ["suspended_for_tos_violation", "suspended_for_fraud"].includes(seller.user_risk_state ?? "");
+  if (seller.confirmed_at === null || suspended) return "forbidden";
+  if (UserFlags.isSet(seller.flags, "DEPRECATED_can_create_physical_products")) return "allowed";
+  const [row] = await selectRows(
+    Prisma.sql`SELECT 1 AS one FROM ${table("links")} WHERE ${column("links", "user_id")} = ${seller.id} AND ${column("links", "deleted_at")} IS NULL AND ${column("links", "banned_at")} IS NULL AND ${column("links", "flags")} & ${IS_PHYSICAL_FLAG} > 0 LIMIT 1`,
   );
-  if (Number(Object.values(row ?? {})[0] ?? 0) >= SMALLEST_DAILY_CREATION_LIMIT)
-    throw new NotPortedError(
-      "a seller near the daily product creation limit",
-      "app/modules/product/creation_limit.rb:43",
-    );
+  if (row) return "allowed";
+  if (
+    seller.created_at !== null &&
+    seller.created_at.getTime() > now.getTime() - MIN_ACCOUNT_AGE_FOR_PHYSICAL_PRODUCTS_MS
+  )
+    return "forbidden";
+  throw new NotPortedError(
+    "the payouts and sales total behind User#can_create_physical_products?",
+    "app/models/user.rb:1730",
+  );
 }
 
 async function exists(query: Prisma.Sql): Promise<boolean> {
@@ -217,6 +317,7 @@ async function generateUniquePermalink(sellerId: bigint): Promise<string> {
 }
 
 const paperTrail = hasPaperTrail<Link>("Link", { itemType: "Link" });
+const nowOf = (ctx: { now?: () => Date }) => (ctx.now ?? (() => new Date()))();
 
 // ProductIndexingService.perform(product:, action: "index", on_failure: :async), after commit.
 function enqueueSearchIndex(link: LinkRecord, now: () => Date): Promise<void> {
@@ -231,6 +332,120 @@ function enqueueSearchIndex(link: LinkRecord, now: () => Date): Promise<void> {
   );
 }
 
+async function lastInsertId(): Promise<bigint> {
+  const [row] = await selectRows<{ id: bigint }>(Prisma.sql`SELECT LAST_INSERT_ID() AS id`);
+  return BigInt(row!.id);
+}
+
+async function insertVariantCategory(linkId: bigint, title: string): Promise<bigint> {
+  await execute(
+    Prisma.sql`INSERT INTO ${table("variant_categories")} (${column("variant_categories", "link_id")}, ${column("variant_categories", "deleted_at")}, ${column("variant_categories", "title")}, ${column("variant_categories", "flags")}) VALUES (${linkId}, NULL, ${title}, 0)`,
+  );
+  return lastInsertId();
+}
+
+async function insertVariant(
+  categoryId: bigint,
+  name: string,
+  priceDifferenceCents: number | null,
+  now: Date,
+): Promise<bigint> {
+  await execute(
+    Prisma.sql`INSERT INTO ${table("base_variants")} (${column("base_variants", "variant_category_id")}, ${column("base_variants", "price_difference_cents")}, ${column("base_variants", "name")}, ${column("base_variants", "deleted_at")}, ${column("base_variants", "created_at")}, ${column("base_variants", "updated_at")}, ${column("base_variants", "type")}, ${column("base_variants", "flags")}, ${column("base_variants", "position_in_category")}, ${column("base_variants", "sales_count_for_inventory_cache")}) VALUES (${categoryId}, ${priceDifferenceCents}, ${name}, NULL, ${now}, ${now}, 'Variant', 0, 0, 0)`,
+  );
+  return lastInsertId();
+}
+
+async function insertPrice(
+  price: {
+    linkId: bigint | null;
+    variantId: bigint | null;
+    cents: number;
+    currency: string;
+    recurrence: string | null;
+  },
+  now: Date,
+): Promise<void> {
+  await execute(
+    Prisma.sql`INSERT INTO ${table("prices")} (${column("prices", "link_id")}, ${column("prices", "price_cents")}, ${column("prices", "currency")}, ${column("prices", "recurrence")}, ${column("prices", "created_at")}, ${column("prices", "updated_at")}, ${column("prices", "deleted_at")}, ${column("prices", "flags")}, ${column("prices", "variant_id")}, ${column("prices", "suggested_price_cents")}) VALUES (${price.linkId}, ${price.cents}, ${price.currency}, ${price.recurrence}, ${now}, ${now}, NULL, 0, ${price.variantId}, NULL)`,
+  );
+}
+
+// Link#initialize_tier_if_needed: the "Tier" category with an "Untitled" tier, priced at the product's price, and the zero price
+// the product keeps beside it (Variant::Prices#save_recurring_prices!). `subscription_duration ||=` stays in memory: the column keeps
+// what the form sent.
+async function initializeTier(link: LinkRecord, ctx: { now?: () => Date }): Promise<void> {
+  const now = nowOf(ctx);
+  const linkId = link.get("id");
+  const duration = SUBSCRIPTION_DURATIONS[link.get("subscription_duration")!] ?? DEFAULT_TIERED_MEMBERSHIP_RECURRENCE;
+  const currency = link.get("price_currency_type")!;
+  const cents = Number(link.get("price_cents") ?? 0);
+  const categoryId = await insertVariantCategory(linkId, "Tier");
+  await Links.touch(link, { now: ctx.now, deferred: true });
+  const variantId = await insertVariant(categoryId, "Untitled", null, now);
+  await insertPrice({ linkId: null, variantId, cents, currency, recurrence: duration }, now);
+  // Variant#set_customizable_price: update_column, so updated_at stays.
+  if (cents === 0)
+    await execute(
+      Prisma.sql`UPDATE ${table("base_variants")} SET ${column("base_variants", "customizable_price")} = TRUE WHERE ${column("base_variants", "id")} = ${variantId}`,
+    );
+  await insertPrice({ linkId, variantId: null, cents: 0, currency, recurrence: duration }, now);
+  await afterCommitEverywhere(() => invalidateProductCache(linkId, ctx.now));
+}
+
+// Link#add_to_profile_sections: every products section of the seller that adds new products shows the new one. A saved profile is
+// row-locked first, as User#with_profile_sections_lock does.
+async function addToProfileSections(link: LinkRecord, ctx: { now?: () => Date }): Promise<void> {
+  const sellerId = link.get("user_id")!;
+  const [profile] = await selectRows(
+    Prisma.sql`SELECT ${column("seller_profiles", "id")} FROM ${table("seller_profiles")} WHERE ${column("seller_profiles", "seller_id")} = ${sellerId} LIMIT 1`,
+  );
+  if (profile)
+    await selectRows(
+      Prisma.sql`SELECT ${column("seller_profiles", "id")} FROM ${table("seller_profiles")} WHERE ${column("seller_profiles", "seller_id")} = ${sellerId} LIMIT 1 FOR UPDATE`,
+    );
+  const sections = await selectRows<{ id: bigint; json_data: string | Record<string, unknown> | null }>(
+    Prisma.sql`SELECT ${column("seller_profile_sections", "id")}, ${column("seller_profile_sections", "json_data")} FROM ${table("seller_profile_sections")} WHERE ${column("seller_profile_sections", "type")} = 'SellerProfileProductsSection' AND ${column("seller_profile_sections", "seller_id")} = ${sellerId} ORDER BY ${column("seller_profile_sections", "id")}`,
+  );
+  for (const section of sections) {
+    const hash =
+      typeof section.json_data === "string"
+        ? (JSON.parse(section.json_data) as Record<string, unknown>)
+        : (section.json_data ?? {});
+    if (!hash.add_new_products) continue;
+    const shown = hash.shown_products;
+    if (hash.add_new_products !== true || !Array.isArray(shown) || shown.some((id) => !Number.isSafeInteger(id)))
+      throw new NotPortedError("a products section whose json_data is not the schema's", "app/models/link.rb:2283");
+    hash.shown_products = [...(shown as unknown[]), Number(link.get("id"))];
+    await execute(
+      Prisma.sql`UPDATE ${table("seller_profile_sections")} SET ${column("seller_profile_sections", "json_data")} = ${JSON.stringify(hash)}, ${column("seller_profile_sections", "updated_at")} = ${nowOf(ctx)} WHERE ${column("seller_profile_sections", "id")} = ${section.id}`,
+    );
+  }
+}
+
+// Link#initialize_suggested_amount_if_needed!: the "Suggested Amounts" category holding the entered price, then `update!(price_cents: 0,
+// customizable_price: true)`, which on a saved product rewrites the Price row and leaves the column alone.
+async function initializeSuggestedAmount(link: LinkRecord, ctx: { now?: () => Date }): Promise<void> {
+  if (link.get("native_type") !== "coffee") return;
+  const now = nowOf(ctx);
+  const linkId = link.get("id");
+  const cents = Number(link.get("price_cents") ?? 0);
+  const categoryId = await insertVariantCategory(linkId, "Suggested Amounts");
+  await Links.touch(link, { now: ctx.now, deferred: true });
+  // BaseVariant#price_difference_cents_validation
+  if (cents <= 0) throw new RelatedRecordInvalid("Price difference cents must be greater than 0");
+  await insertVariant(categoryId, "", cents, now);
+  await execute(
+    Prisma.sql`UPDATE ${table("prices")} SET ${column("prices", "price_cents")} = 0, ${column("prices", "updated_at")} = ${now} WHERE ${column("prices", "link_id")} = ${linkId} AND ${column("prices", "currency")} = ${link.get("price_currency_type")} AND ${column("prices", "recurrence")} IS NULL AND ${column("prices", "deleted_at")} IS NULL`,
+  );
+  await execute(
+    Prisma.sql`UPDATE ${table("links")} SET ${column("links", "customizable_price")} = TRUE, ${column("links", "updated_at")} = ${now} WHERE ${column("links", "id")} = ${linkId}`,
+  );
+  link.set("customizable_price", true);
+  link.clearAttributeChanges(["customizable_price", "updated_at"]);
+  await afterCommitEverywhere(() => invalidateProductCache(linkId, ctx.now));
+}
+
 const beforeValidation: Callback<Link>[] = [
   {
     name: "set_unique_permalink",
@@ -243,11 +458,31 @@ const beforeValidation: Callback<Link>[] = [
 
 const validations: Callback<Link>[] = [
   {
+    // Product::CreationLimit, included ahead of the model's own validations.
+    name: "validate_daily_product_creation_limit",
+    async run(link, ctx) {
+      const limit = link.ivars.dailyCreationLimit as number | null;
+      if (limit === null) return;
+      const [row] = await selectRows<Record<string, unknown>>(
+        Prisma.sql`SELECT COUNT(*) FROM ${table("links")} WHERE ${column("links", "user_id")} = ${link.get("user_id")} AND ${column("links", "created_at")} >= ${new Date(nowOf(ctx).getTime() - DAY_MS)} AND ${column("links", "deleted_at")} IS NULL`,
+      );
+      if (Number(Object.values(row ?? {})[0] ?? 0) >= limit)
+        link.errors.add("base", `Sorry, you can only create ${limit} products per day.`);
+    },
+  },
+  {
     name: "validates :name, presence: true, length: { maximum: 255 }",
     run(link) {
       const name = link.get("name");
       if (isBlank(name)) link.errors.add("name", "blank");
       if (rubyLength(name) > MAX_NAME_LENGTH) link.errors.add("name", "too_long", { count: MAX_NAME_LENGTH });
+    },
+  },
+  {
+    // Product::Prices#default_price_cents reads the column until the product is saved.
+    name: "validates :default_price_cents, presence: true",
+    run(link) {
+      if (link.get("price_cents") == null) link.errors.add("default_price_cents", "blank");
     },
   },
   {
@@ -257,17 +492,21 @@ const validations: Callback<Link>[] = [
     },
   },
   {
-    // price_must_be_within_range: only the USD branch is served.
+    // BasePrice::Shared#price_must_be_within_range
     name: "price_must_be_within_range",
-    run(link, _ctx) {
-      const cents = Number(link.get("price_cents"));
-      if (cents === 0) return;
-      const config = LINK_DATA.currencies[USD];
-      if (cents > MAX_PRICE_CENTS) link.errors.add("base", PRICE_TOO_LARGE);
-      else if (cents < config.min_price)
+    async run(link) {
+      const cents = link.get("price_cents");
+      if (cents == null || Number(cents) === 0) return;
+      const currency = link.get("price_currency_type")!;
+      const config = CURRENCIES[currency]!;
+      const price = Number(cents);
+      if (price > MAX_PRICE_CENTS) link.errors.add("base", PRICE_TOO_LARGE);
+      else if (price < config.min_price)
         link.errors.add("base", `Sorry, a product must be at least ${config.min_price_formatted}.`);
-      else if (link.ivars.sellerMaxProductPrice != null && cents > (link.ivars.sellerMaxProductPrice as number))
-        link.errors.add("base", "Sorry, we don't support pricing products above $5,000.");
+      else if (link.ivars.sellerMaxProductPrice != null) {
+        if ((await getUsdCents(currency, price)) > (link.ivars.sellerMaxProductPrice as number))
+          link.errors.add("base", "Sorry, we don't support pricing products above $5,000.");
+      }
     },
   },
   {
@@ -279,6 +518,19 @@ const validations: Callback<Link>[] = [
           break;
         }
       }
+    },
+  },
+  {
+    // Product::Validations#one_coffee_per_user
+    name: "one_coffee_per_user",
+    async run(link) {
+      if (link.get("native_type") !== "coffee") return;
+      if (
+        await exists(
+          Prisma.sql`SELECT 1 AS one FROM ${table("links")} WHERE ${column("links", "user_id")} = ${link.get("user_id")} AND ${column("links", "deleted_at")} IS NULL AND ${column("links", "flags")} & ${ARCHIVED_FLAG} = 0 AND ${column("links", "native_type")} = 'coffee' LIMIT 1`,
+        )
+      )
+        link.errors.add("base", "You can only have one coffee product.");
     },
   },
 ];
@@ -312,13 +564,27 @@ export const LinkCreations = defineModel<Link>({
   afterCreate: [
     ...paperTrail.afterCreate,
     {
-      // The autosave of `prices << price`: the Price row, then the belongs_to touch on the product and its cache invalidation.
+      // The autosave of `prices << price` (associate_price; a tiered membership gets its prices on the tier): the Price row, then the
+      // belongs_to touch on the product and its cache invalidation.
       name: "autosave_prices",
       async run(link, ctx) {
-        const now = (ctx.now ?? (() => new Date()))();
-        await execute(
-          Prisma.sql`INSERT INTO ${table("prices")} (${column("prices", "link_id")}, ${column("prices", "price_cents")}, ${column("prices", "currency")}, ${column("prices", "recurrence")}, ${column("prices", "created_at")}, ${column("prices", "updated_at")}, ${column("prices", "deleted_at")}, ${column("prices", "flags")}, ${column("prices", "variant_id")}, ${column("prices", "suggested_price_cents")}) VALUES (${link.get("id")}, ${link.get("price_cents")}, ${USD}, NULL, ${now}, ${now}, NULL, 0, NULL, NULL)`,
-        );
+        // A membership saved before the action marks it tiered (the custom summary's first save) keeps a plain recurring Price.
+        if (link.ivars.tiered === true && link.ivars.untieredFirstSave !== true) return;
+        const now = nowOf(ctx);
+        const duration =
+          link.ivars.untieredFirstSave === true ? SUBSCRIPTION_DURATIONS[link.get("subscription_duration")!]! : null;
+        // The failed first save of a physical product with a custom summary already built a Price; the second save builds another.
+        for (let copy = 0; copy < (link.ivars.priceCopies as number); copy++)
+          await insertPrice(
+            {
+              linkId: link.get("id"),
+              variantId: null,
+              cents: Number(link.get("price_cents")),
+              currency: link.get("price_currency_type")!,
+              recurrence: duration,
+            },
+            now,
+          );
         await Links.touch(link, { now: ctx.now, deferred: true });
         await afterCommitEverywhere(() => invalidateProductCache(link.get("id"), ctx.now));
       },
@@ -327,46 +593,105 @@ export const LinkCreations = defineModel<Link>({
       name: "enqueue_search_index!",
       run: (link, ctx) => enqueueSearchIndex(link, ctx.now ?? (() => new Date())),
     },
+    {
+      name: "initialize_tier_if_needed",
+      async run(link, ctx) {
+        if (link.ivars.tiered === true && link.ivars.untieredFirstSave !== true) await initializeTier(link, ctx);
+      },
+    },
+    { name: "add_to_profile_sections", run: addToProfileSections },
+    { name: "initialize_suggested_amount_if_needed!", run: initializeSuggestedAmount },
   ],
 });
 
 export type CreateOutcome =
-  | { created: true; link: LinkRecord; priceCents: number }
+  | { created: true; link: LinkRecord; priceCents: number | null }
   | { created: false; errors: Errors };
 
+export type CreateSeller = SellerAccount & { isTeamMember: boolean };
+
 // LinksController#create from `current_seller.links.build` to `save!`.
-export async function createLink(
-  seller: { id: bigint; flags: bigint; verified: boolean | null },
-  params: CreateParams,
-  now?: () => Date,
-): Promise<CreateOutcome> {
-  const cents = cleanPriceCents(params.priceRange);
-  if (cents > BigInt(MAX_PRICE_CENTS)) throw new LinkInvalid(PRICE_TOO_LARGE);
-  const customizable = params.priceRange.endsWith("+") || cents === 0n;
+export async function createLink(seller: CreateSeller, params: CreateParams, now?: () => Date): Promise<CreateOutcome> {
+  const singleUnit = CURRENCIES[params.currency]!.single_unit;
+  let cents: bigint | null = null;
+  let customizable = false;
+  if (params.priceRange !== null) {
+    cents = cleanPriceCents(params.priceRange, singleUnit);
+    if (cents > BigInt(MAX_PRICE_CENTS)) throw new LinkInvalid(PRICE_TOO_LARGE);
+    // Product::Prices#write_customizable_price runs before the action marks the product tiered, so a membership gets it too.
+    customizable = params.priceRange.endsWith("+") || cents === 0n;
+  }
+  const membership = params.nativeType === "membership";
+  if (cents === null && !membership) {
+    // Link#associate_price adds the error and raises LinkInvalid, which the action rescues.
+    const errors = new Errors();
+    errors.add("base", NO_PRICE);
+    return { created: false, errors };
+  }
+
   const customAttributes = CUSTOM_ATTRIBUTES[params.nativeType];
   const taxonomy = (
     await selectRows<{ id: bigint }>(
       Prisma.sql`SELECT ${column("taxonomies", "id")} FROM ${table("taxonomies")} WHERE ${column("taxonomies", "slug")} = 'other' LIMIT 1`,
     )
   )[0];
+  const jsonData: [string, YamlValue][] = [];
+  if (params.customSummary !== null) jsonData.push(["custom_summary", params.customSummary]);
+  if (customAttributes) jsonData.push(["custom_attributes", customAttributes as unknown as YamlValue]);
+  if (params.nativeType === "coffee") jsonData.push(["custom_button_text_option", "donate_prompt"]);
+
+  let flags = LinkFlags.set(0n, "display_product_reviews", true);
+  if (params.isPhysical) flags = LinkFlags.set(flags, "is_physical", true);
+  if (membership) {
+    for (const flag of [
+      "is_recurring_billing",
+      "is_tiered_membership",
+      "should_show_all_posts",
+      "should_include_last_post",
+    ] as const)
+      flags = LinkFlags.set(flags, flag, true);
+  }
+  if (params.nativeType === "bundle") flags = LinkFlags.set(flags, "is_bundle", true);
+
   const link = LinkCreations.build({
     user_id: seller.id,
     name: params.name,
     description: params.description,
     native_type: params.nativeType,
-    price_cents: Number(cents),
-    price_currency_type: USD,
+    price_cents: cents === null ? null : Number(cents),
+    price_currency_type: params.currency,
     customizable_price: customizable,
+    subscription_duration:
+      params.subscriptionDuration === null ? null : SUBSCRIPTION_DURATIONS.indexOf(params.subscriptionDuration),
+    require_shipping: params.isPhysical,
     draft: true,
     purchase_disabled_at: (now ?? (() => new Date()))(),
     taxonomy_id: taxonomy?.id ?? null,
-    flags: LinkFlags.set(0n, "display_product_reviews", true),
-    json_data: rubyJsonGenerate(
-      new RubyHash(customAttributes ? [["custom_attributes", customAttributes as unknown as YamlValue]] : []),
-    ),
+    flags,
+    json_data: rubyJsonGenerate(new RubyHash(jsonData)),
   } as Partial<Link>);
   link.ivars.sellerMaxProductPrice = seller.verified ? null : MAX_PRICE_USD_CENTS_UNLESS_VERIFIED;
   link.ivars.sellerDiscoverBoost = UserFlags.isSet(seller.flags, "discover_boost_enabled");
-  if (!(await LinkCreations.save(link, { now }))) return { created: false, errors: link.errors };
-  return { created: true, link, priceCents: Number(cents) };
+  link.ivars.tiered = membership;
+  link.ivars.priceCopies = params.isPhysical && params.customSummary !== null ? 2 : 1;
+  // With a custom summary the action saves the product before it marks it tiered.
+  link.ivars.untieredFirstSave = membership && params.customSummary !== null;
+  link.ivars.dailyCreationLimit = seller.isTeamMember
+    ? null
+    : (dailyProductCreationLimit(seller.json_data) ??
+      (seller.user_risk_state === "compliant" ? COMPLIANT_DAILY_CREATION_LIMIT : DEFAULT_DAILY_CREATION_LIMIT));
+  try {
+    if (!(await LinkCreations.save(link, { now }))) return { created: false, errors: link.errors };
+  } catch (error) {
+    if (error instanceof RelatedRecordInvalid) return { created: false, errors: link.errors };
+    throw error;
+  }
+  // The second save of a product with a custom summary flips draft and purchase_disabled_at, which submits it to IndexNow. For a
+  // physical product the first save fails (no require_shipping yet), so the only save is the create and nothing is submitted.
+  if (params.customSummary !== null && !params.isPhysical)
+    await performAsync("SubmitToIndexnowJob", [[link.get("id")]]);
+  // `@product.price_cents` is the saved Price row once the product is persisted: zero for a tier-priced membership and for coffee.
+  const tiered = membership && params.customSummary === null;
+  const priceCents = tiered || params.nativeType === "coffee" ? 0 : Number(link.get("price_cents"));
+  return { created: true, link, priceCents };
 }

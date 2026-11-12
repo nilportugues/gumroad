@@ -19,6 +19,11 @@ describe("cleanPriceCents", () => {
     expect(cleanPriceCents(text)).toBe(cents);
   });
 
+  it("reads yen without cents or comma handling", () => {
+    expect(cleanPriceCents("1,500", true)).toBe(1500n);
+    expect(cleanPriceCents("500.5", true)).toBe(501n);
+  });
+
   it("refuses text BigDecimal would raise on", () => {
     expect(() => cleanPriceCents("1-2")).toThrow(NotPortedError);
   });
@@ -42,18 +47,46 @@ describe("parseCreateParams", () => {
       priceRange: "5",
       nativeType: "digital",
       description: null,
+      currency: "usd",
+      isPhysical: false,
+      subscriptionDuration: null,
+      customSummary: null,
+    });
+  });
+
+  it("reads a membership, a lowercase currency, a custom summary and a missing price", () => {
+    const membership = {
+      ...form,
+      native_type: "membership",
+      is_recurring_billing: true,
+      subscription_duration: "yearly",
+    };
+    expect(parseCreateParams({ ...membership, price_currency_type: "EUR", custom_summary: "Short" })).toMatchObject({
+      currency: "eur",
+      subscriptionDuration: "yearly",
+      customSummary: "Short",
+    });
+    expect(parseCreateParams({ ...form, price_range: undefined, custom_summary: "  " })).toMatchObject({
+      priceRange: null,
+      customSummary: null,
     });
   });
 
   it.each([
-    ["a physical product", { is_physical: true }],
     ["the string false for is_physical, which Rails reads as true", { is_physical: "false" }],
-    ["a membership", { native_type: "membership", is_recurring_billing: true }],
-    ["another currency", { price_currency_type: "eur" }],
+    ["a physical membership", { is_physical: true, native_type: "membership", is_recurring_billing: true }],
+    ["a recurring digital product", { is_recurring_billing: true }],
+    ["a membership that is not recurring", { native_type: "membership" }],
+    [
+      "an unknown subscription duration",
+      { native_type: "membership", is_recurring_billing: true, subscription_duration: "weekly" },
+    ],
+    ["a currency without configuration", { price_currency_type: "xyz" }],
+    ["a membership in yen", { native_type: "membership", is_recurring_billing: true, price_currency_type: "jpy" }],
     ["an AI prompt", { ai_prompt: "write it" }],
-    ["a custom summary", { custom_summary: "x" }],
+    ["a custom summary without a price", { custom_summary: "x", price_range: null }],
+    ["a native type that is not served", { native_type: "call" }],
     ["a permitted attribute the form never sends", { unique_permalink: "abc" }],
-    ["a missing price", { price_range: null }],
     ["an exponent price", { price_range: 1e21 }],
   ])("hands back %s", (_name, extra) => {
     expect(() => parseCreateParams({ ...form, ...extra })).toThrow(NotPortedError);

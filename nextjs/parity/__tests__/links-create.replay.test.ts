@@ -110,6 +110,7 @@ const COMPARE = {
     "db.users.updated.*.changes.updated_at",
     // The seed is stamped with the replay's clock, so a row Rails touched seconds after the factory made it is not touched in the same second.
     "db.links.updated.*.changes.updated_at",
+    "db.seller_profile_sections.updated.*.changes.updated_at",
     // Delayed jobs are scheduled seconds ahead of the clock, which the replay normalizes to the nearest bucket.
     "jobs.*.at",
     "http",

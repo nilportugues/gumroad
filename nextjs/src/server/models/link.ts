@@ -276,7 +276,7 @@ async function loadUser(link: LinkRecord, ctx: CallbackContext): Promise<Row | n
 }
 
 // CurrencyHelper#get_usd_cents. A rate missing from Redis is fetched over HTTP by query_rate.
-async function getUsdCents(currencyType: string, quantity: number): Promise<number> {
+export async function getUsdCents(currencyType: string, quantity: number): Promise<number> {
   if (currencyType === "usd") return quantity;
   const code = currencyType.toUpperCase();
   const rate = await collaborators.redis().get(`currencies:${code}`);

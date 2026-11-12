@@ -22,6 +22,9 @@ describe "Creating a product", type: :request do
   before do
     host! DOMAIN
     create(:taxonomy, slug: "other") unless Taxonomy.exists?(slug: "other")
+    # The rates UpdateCurrenciesWorker keeps in Redis; a price above the unverified maximum is converted with them.
+    rates = Redis::Namespace.new(:currencies, redis: $redis)
+    { "EUR" => "0.9", "GBP" => "0.8", "JPY" => "150.0" }.each { |code, rate| rates.set(code, rate) }
   end
 
   def team_member(role)
@@ -223,74 +226,377 @@ describe "Creating a product", type: :request do
     expect(seller.links.count).to eq(0)
   end
 
-  it "hands a physical product to Rails", parity: true do
-    create_product(attributes.merge(is_physical: true))
 
-    expect(response).to have_http_status(:see_other).or have_http_status(:forbidden)
+  describe "physical products" do
+    it "answers 403 for a seller who may not sell physical products", parity: true do
+      create_product(attributes.merge(is_physical: true))
+
+      expect(response).to have_http_status(:forbidden)
+      expect(seller.links.count).to eq(0)
+    end
+
+    it "creates a physical product for a seller flagged to sell them", parity: true do
+      seller.update!(DEPRECATED_can_create_physical_products: true)
+      create_product(attributes.merge(is_physical: true))
+
+      expect(response).to have_http_status(:see_other)
+      expect(seller.links.last).to have_attributes(is_physical: true, require_shipping: true)
+    end
+
+    it "creates a physical product for a seller who already lists one", parity: true do
+      create(:physical_product, user: seller)
+      create_product(attributes.merge(is_physical: true))
+
+      expect(response).to have_http_status(:see_other)
+    end
+
+    it "answers 403 for an unconfirmed seller", parity: true do
+      seller.update!(DEPRECATED_can_create_physical_products: true)
+      seller.update_columns(confirmed_at: nil)
+      create_product(attributes.merge(is_physical: true))
+
+      expect(response).to have_http_status(:forbidden)
+    end
+
+    it "hands a physical product to Rails when the seller's sales decide", parity: true do
+      seller.update!(created_at: 90.days.ago)
+      create_product(attributes.merge(is_physical: true))
+
+      expect(response).to have_http_status(:see_other).or have_http_status(:forbidden)
+    end
   end
 
-  it "hands a membership to Rails", parity: true do
-    create_product(attributes.merge(native_type: "membership", is_recurring_billing: true, subscription_duration: "monthly"))
+  describe "memberships" do
+    let(:membership) { attributes.merge(native_type: "membership", is_recurring_billing: true, subscription_duration: "monthly") }
 
-    expect(response).to have_http_status(:see_other)
+    it "creates a monthly membership with its default tier", parity: true do
+      create_product(membership)
+
+      expect(response).to have_http_status(:see_other)
+      expect(seller.links.last.tiers.count).to eq(1)
+    end
+
+    %w[yearly quarterly biannually every_two_years].each do |duration|
+      it "creates a #{duration.tr('_', ' ')} membership", parity: true do
+        create_product(membership.merge(subscription_duration: duration))
+
+        expect(seller.links.last.subscription_duration).to eq(duration)
+      end
+    end
+
+    it "defaults the recurrence of a membership sent without one", parity: true do
+      create_product(membership.merge(subscription_duration: nil))
+
+      expect(response).to have_http_status(:see_other)
+    end
+
+    it "creates a free membership", parity: true do
+      create_product(membership.merge(price_range: "0"))
+
+      expect(seller.links.last.tiers.first.prices.alive.pluck(:price_cents)).to eq([0])
+    end
+
+    it "creates a membership priced with a plus", parity: true do
+      create_product(membership.merge(price_range: "5+"))
+
+      expect(response).to have_http_status(:see_other)
+    end
+
+    it "creates a membership for a seller with a boosted discover fee", parity: true do
+      seller.update!(discover_boost_enabled: true)
+      create_product(membership)
+
+      expect(seller.links.last.discover_fee_per_thousand).to eq(300)
+    end
+
+    it "refuses a membership under the minimum price", parity: true do
+      create_product(membership.merge(price_range: "0.50"))
+
+      expect(response).to have_http_status(:found)
+    end
+
+    it "refuses a membership with a blank name", parity: true do
+      create_product(membership.merge(name: ""))
+
+      expect(response).to have_http_status(:found)
+      expect(seller.links.count).to eq(0)
+    end
   end
 
-  it "hands a coffee product to Rails", parity: true do
-    seller.update!(created_at: 60.days.ago)
-    create_product(attributes.merge(native_type: "coffee", price_range: "3"))
+  describe "coffee" do
+    before { seller.update!(created_at: 60.days.ago) }
 
-    expect(response).to have_http_status(:see_other)
+    it "creates a coffee product with its suggested amount", parity: true do
+      create_product(attributes.merge(native_type: "coffee", price_range: "3"))
+
+      expect(response).to have_http_status(:see_other)
+      expect(seller.links.last.variant_categories.first.title).to eq("Suggested Amounts")
+    end
+
+    it "refuses a free coffee product", parity: true do
+      create_product(attributes.merge(native_type: "coffee", price_range: "0"))
+
+      expect(response).to have_http_status(:found)
+    end
+
+    it "refuses a coffee product under the minimum price", parity: true do
+      create_product(attributes.merge(native_type: "coffee", price_range: "0.50"))
+
+      expect(response).to have_http_status(:found)
+    end
   end
 
-  it "hands a bundle to Rails", parity: true do
-    create_product(attributes.merge(native_type: "bundle", price_range: "3"))
+  describe "second coffee product" do
+    before { seller.update!(created_at: 60.days.ago) }
 
-    expect(response).to have_http_status(:see_other)
+    it "refuses a second coffee product", parity: true do
+      create(:product, user: seller, native_type: "coffee", name: "Coffee")
+      create_product(attributes.merge(native_type: "coffee", price_range: "3"))
+
+      expect(response).to have_http_status(:found)
+    end
+
+    it "creates a coffee product when the earlier one was deleted", parity: true do
+      create(:product, user: seller, native_type: "coffee", name: "Coffee", deleted_at: 1.day.ago)
+      create_product(attributes.merge(native_type: "coffee", price_range: "3"))
+
+      expect(response).to have_http_status(:see_other)
+    end
   end
 
-  it "hands a product priced in another currency to Rails", parity: true do
-    create_product(attributes.merge(price_currency_type: "eur"))
+  describe "bundles" do
+    it "creates a bundle", parity: true do
+      create_product(attributes.merge(native_type: "bundle", price_range: "3"))
 
-    expect(response).to have_http_status(:see_other)
+      expect(response).to have_http_status(:see_other)
+      expect(seller.links.last.is_bundle).to be(true)
+    end
   end
 
-  it "hands a product with a custom summary to Rails", parity: true do
-    create_product(attributes.merge(custom_summary: "In one line"))
+  describe "custom summary" do
+    it "creates a product with a custom summary and submits it to IndexNow", parity: true do
+      create_product(attributes.merge(custom_summary: "In one line"))
 
-    expect(response).to have_http_status(:see_other)
+      expect(seller.links.last.custom_summary).to eq("In one line")
+    end
+
+    it "creates an ebook with a custom summary", parity: true do
+      create_product(attributes.merge(native_type: "ebook", custom_summary: "Short"))
+
+      expect(seller.links.last.json_data.keys).to eq(%w[custom_summary custom_attributes])
+    end
+
+    it "creates a membership with a custom summary", parity: true do
+      create_product(attributes.merge(native_type: "membership", is_recurring_billing: true, subscription_duration: "monthly", custom_summary: "Short"))
+
+      expect(response).to have_http_status(:see_other)
+    end
+
+    it "creates a coffee product with a custom summary", parity: true do
+      seller.update!(created_at: 60.days.ago)
+      create_product(attributes.merge(native_type: "coffee", price_range: "3", custom_summary: "Short"))
+
+      expect(response).to have_http_status(:see_other)
+    end
+
+    it "creates a physical product with a custom summary", parity: true do
+      seller.update!(DEPRECATED_can_create_physical_products: true)
+      create_product(attributes.merge(is_physical: true, custom_summary: "Short"))
+
+      expect(response).to have_http_status(:see_other)
+    end
+
+    it "sends the seller back when a product with a custom summary is invalid", parity: true do
+      create_product(attributes.merge(name: "", custom_summary: "Short"))
+
+      expect(response).to have_http_status(:found)
+      expect(seller.links.count).to eq(0)
+    end
   end
 
-  it "hands a product with an AI prompt to Rails", parity: true do
-    create_product(attributes.merge(ai_prompt: "an ebook about birds"))
+  describe "AI prompt" do
+    it "hands a product with an AI prompt to Rails", parity: true do
+      create_product(attributes.merge(ai_prompt: "an ebook about birds"))
 
-    expect(response).to have_http_status(:see_other)
+      expect(response).to have_http_status(:see_other)
+    end
   end
 
-  it "hands a product without a price to Rails", parity: true do
-    create_product(attributes.except(:price_range))
+  describe "missing price" do
+    it "sends the seller back when the form sends no price", parity: true do
+      create_product(attributes.except(:price_range))
 
-    expect(response).to have_http_status(:found)
+      expect(response).to have_http_status(:found)
+      expect(seller.links.count).to eq(0)
+    end
+
+    it "sends the seller back when the form sends a null price", parity: true do
+      create_product(attributes.merge(price_range: nil))
+
+      expect(response).to have_http_status(:found)
+    end
+
+    it "sends the seller back when a membership is sent without a price", parity: true do
+      create_product(attributes.except(:price_range).merge(native_type: "membership", is_recurring_billing: true, subscription_duration: "monthly"))
+
+      expect(response).to have_http_status(:found)
+    end
   end
 
-  it "hands a request from the mobile app web view to Rails", parity: true do
-    log_in(seller)
-    post "/links?display=mobile_app", params: { link: attributes }.to_json, headers: headers.merge("X-CSRF-Token" => csrf_token)
+  describe "other currencies" do
+    it "creates a product priced in euros", parity: true do
+      create_product(attributes.merge(price_currency_type: "eur"))
 
-    expect(response).to have_http_status(:see_other)
+      expect(seller.links.last.price_currency_type).to eq("eur")
+    end
+
+    it "creates a product priced in a single-unit currency", parity: true do
+      create_product(attributes.merge(price_currency_type: "jpy", price_range: "500"))
+
+      expect(seller.links.last.price_cents).to eq(500)
+    end
+
+    it "reads an uppercase currency code", parity: true do
+      create_product(attributes.merge(price_currency_type: "GBP", price_range: "3"))
+
+      expect(seller.links.last.price_currency_type).to eq("gbp")
+    end
+
+    it "creates a membership priced in euros", parity: true do
+      create_product(attributes.merge(price_currency_type: "eur", native_type: "membership", is_recurring_billing: true, subscription_duration: "monthly"))
+
+      expect(response).to have_http_status(:see_other)
+    end
+
+    it "refuses a euro price over the unverified maximum", parity: true do
+      create_product(attributes.merge(price_currency_type: "eur", price_range: "6000"))
+
+      expect(response).to have_http_status(:found)
+    end
+
+    it "refuses a euro price under the minimum", parity: true do
+      create_product(attributes.merge(price_currency_type: "eur", price_range: "0.50"))
+
+      expect(response).to have_http_status(:found)
+    end
   end
 
-  it "hands the product of a seller whose profile adds new products to its sections to Rails", parity: true do
-    create(:seller_profile_products_section, seller:, add_new_products: true)
-    create_product
+  describe "mobile app web view" do
+    it "hands a request from the mobile app web view to Rails", parity: true do
+      log_in(seller)
+      post "/links?display=mobile_app", params: { link: attributes }.to_json, headers: headers.merge("X-CSRF-Token" => csrf_token)
 
-    expect(response).to have_http_status(:see_other)
+      expect(response).to have_http_status(:see_other)
+    end
   end
 
-  it "hands a product of a seller near the daily creation limit to Rails", parity: true do
-    seller.update!(is_team_member: false)
-    10.times { |index| create(:product, user: seller, name: "Earlier #{index}") }
-    create_product
+  describe "profile sections" do
+    it "adds the new product to a products section that adds new products", parity: true do
+      section = create(:seller_profile_products_section, seller:, add_new_products: true)
+      create_product
 
-    expect(response).to have_http_status(:see_other)
+      expect(section.reload.shown_products).to eq([seller.links.last.id])
+    end
+
+    it "adds the new product to every section that adds new products and leaves the others", parity: true do
+      first = create(:seller_profile_products_section, seller:, add_new_products: true)
+      other = create(:seller_profile_products_section, seller:, add_new_products: false)
+      second = create(:seller_profile_products_section, seller:, add_new_products: true)
+      create_product
+
+      id = seller.links.last.id
+      expect([first.reload.shown_products, other.reload.shown_products, second.reload.shown_products]).to eq([[id], [], [id]])
+    end
+
+    it "appends to the products a section already shows", parity: true do
+      earlier = create(:product, user: seller, name: "Earlier")
+      section = create(:seller_profile_products_section, seller:, add_new_products: true, shown_products: [earlier.id])
+      create_product
+
+      expect(section.reload.shown_products.first).to eq(earlier.id)
+    end
+
+    it "adds the product of a seller with a saved profile, which takes the profile row lock", parity: true do
+      create(:seller_profile, seller:)
+      create(:seller_profile_products_section, seller:, add_new_products: true)
+      create_product
+
+      expect(response).to have_http_status(:see_other)
+    end
+
+    it "adds a membership to a section that adds new products", parity: true do
+      section = create(:seller_profile_products_section, seller:, add_new_products: true)
+      create_product(attributes.merge(native_type: "membership", is_recurring_billing: true, subscription_duration: "monthly"))
+
+      expect(section.reload.shown_products).to eq([seller.links.last.id])
+    end
+  end
+
+  describe "daily creation limit", :enforce_product_creation_limit do
+    it "refuses the product of a seller who is not compliant and has created ten in a day", parity: true do
+      seller.update!(is_team_member: false)
+      10.times { |index| create(:product, user: seller, name: "Earlier #{index}") }
+      seller.update_columns(user_risk_state: "not_reviewed")
+      create_product
+
+      expect(response).to have_http_status(:found)
+      expect(seller.links.count).to eq(10)
+    end
+
+    it "creates the product of a seller who is not compliant and has created nine", parity: true do
+      seller.update!(is_team_member: false)
+      9.times { |index| create(:product, user: seller, name: "Earlier #{index}") }
+      seller.update_columns(user_risk_state: "not_reviewed")
+      create_product
+
+      expect(response).to have_http_status(:see_other)
+    end
+
+    it "does not count products created more than a day ago or deleted", parity: true do
+      seller.update!(is_team_member: false)
+      6.times { |index| create(:product, user: seller, name: "Old #{index}", created_at: 2.days.ago) }
+      4.times { |index| create(:product, user: seller, name: "Gone #{index}", deleted_at: 1.hour.ago) }
+      seller.update_columns(user_risk_state: "not_reviewed")
+      create_product
+
+      expect(response).to have_http_status(:see_other)
+    end
+
+    it "stops a seller at the limit set on their account", parity: true do
+      seller.update!(is_team_member: false)
+      2.times { |index| create(:product, user: seller, name: "Earlier #{index}") }
+      seller.daily_product_creation_limit = 2
+      seller.save!
+      create_product
+
+      expect(response).to have_http_status(:found)
+    end
+
+    it "lets a seller create up to the limit set on their account", parity: true do
+      seller.update!(is_team_member: false)
+      2.times { |index| create(:product, user: seller, name: "Earlier #{index}") }
+      seller.daily_product_creation_limit = 3
+      seller.save!
+      create_product
+
+      expect(response).to have_http_status(:see_other)
+    end
+
+    it "never limits a team member", parity: true do
+      12.times { |index| create(:product, user: seller, name: "Earlier #{index}") }
+      seller.update_columns(user_risk_state: "not_reviewed")
+      create_product
+
+      expect(response).to have_http_status(:see_other)
+    end
+
+    it "creates the product of a compliant seller past ten in a day", parity: true do
+      seller.update!(is_team_member: false)
+      10.times { |index| create(:product, user: seller, name: "Earlier #{index}") }
+      seller.update_columns(user_risk_state: "compliant")
+      create_product
+
+      expect(response).to have_http_status(:see_other)
+    end
   end
 end
