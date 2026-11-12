@@ -332,6 +332,50 @@ describe "Authentication mutations", type: :request do
       expect(response).to redirect_to(two_factor_authentication_path)
     end
 
+    describe "with a recovery code" do
+      let!(:credential) { create(:totp_credential, user:, confirmed_at: Time.current) }
+      let!(:codes) { credential.generate_recovery_codes }
+
+      before do
+        credential.update_columns(updated_at: 1.day.ago)
+        start_two_factor
+        post "/two-factor/switch_to_recovery", params: { authenticity_token: csrf_token, user_id: user.encrypted_external_id }
+      end
+
+      def redeem(code)
+        post "/two-factor", params: { authenticity_token: csrf_token, token: code, user_id: user.encrypted_external_id }
+      end
+
+      it "signs in with a recovery code and burns it", parity: true do
+        redeem(codes.first)
+
+        expect(response).to redirect_to("/dashboard")
+        expect(credential.reload.recovery_codes.size).to eq(codes.size - 1)
+      end
+
+      it "accepts a lowercase code with dashes", parity: true do
+        redeem(codes.second.downcase.insert(4, "-"))
+
+        expect(response).to redirect_to("/dashboard")
+        expect(credential.reload.recovery_codes.size).to eq(codes.size - 1)
+      end
+
+      it "refuses a code that matches none", parity: true do
+        redeem("ABCD1234")
+
+        expect(response).to redirect_to(two_factor_authentication_path)
+        expect(credential.reload.recovery_codes.size).to eq(codes.size)
+      end
+
+      it "refuses a code that was already used", parity: true do
+        credential.redeem_recovery_code(codes.first)
+        credential.update_columns(updated_at: 1.day.ago)
+        redeem(codes.first)
+
+        expect(response).to redirect_to(two_factor_authentication_path)
+      end
+    end
+
     it "switches to the authenticator", parity: true do
       create(:totp_credential, user:, confirmed_at: Time.current)
       start_two_factor

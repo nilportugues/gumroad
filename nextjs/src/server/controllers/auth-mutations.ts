@@ -2,9 +2,9 @@
 // actions. Devise's sign-in and sign-out live in auth-session.ts; the rest of the Devise session bookkeeping is the session and
 // cookie jar the request chain already carries.
 //
-// Whatever the port cannot prove goes to Rails before the first write: a signed-in visitor posting the login form, an unconfirmed
-// account (Devise's activatable hook refuses it), a guest cart to merge, a recovery code (it burns the code) and parameters that are
-// not plain strings.
+// Whatever the port cannot prove goes to Rails before the first write: a guest cart it cannot merge faithfully, an emailed code
+// that would confirm the account, parameters that are not plain strings and recovery codes that are not bcrypt hashes.
+import { Prisma } from "@prisma/client";
 import { compare } from "bcryptjs";
 
 import { db } from "../../lib/db.ts";
@@ -15,6 +15,8 @@ import { prismaAuthStore } from "../auth/store.ts";
 import { isBlank } from "../html/text-helper.ts";
 import { railsEnv } from "../infra/rails-env.ts";
 import { currentJobsRuntime } from "../models/concerns/job-runtime.ts";
+import { transaction } from "../models/runtime/transaction.ts";
+import { column, execute, selectRows, table } from "../models/sql.ts";
 import { sendAuthenticationToken } from "../models/two-factor-authentication.ts";
 import { findUser, isConfirmed, isFlagSet, passwordIsPwned, type UserRecord } from "../models/user.ts";
 import { domainConfig } from "../page-props/domain.ts";
@@ -275,14 +277,36 @@ async function twoFactorUser({ chain, params, request }: MutationInput): Promise
   return { user };
 }
 
-// TotpCredential#redeem_recovery_code burns the code it matches; the port only recognises that case.
-async function recoveryCodeMatches(userId: bigint, token: string): Promise<boolean> {
+// BCrypt::Password.new raises InvalidHash for anything else, which Rails does not rescue.
+const BCRYPT_HASH = /^\$2[abxy]\$\d{2}\$[./A-Za-z0-9]{53}$/u;
+
+// TotpCredential#redeem_recovery_code: under the row lock, the first hash the normalized code matches is removed from the list.
+async function redeemRecoveryCode(userId: bigint, token: string, now: Date): Promise<boolean> {
   const credential = await db.totpCredential.findUnique({ where: { user_id: userId } });
-  if (!credential?.recovery_codes) return false;
-  const codes = JSON.parse(credential.recovery_codes) as string[];
+  if (credential === null) return false;
   const normalized = token.toUpperCase().replaceAll("-", "").trim();
-  for (const hash of codes) if (await compare(normalized, hash)) return true;
-  return false;
+  return transaction(async () => {
+    const [locked] = await selectRows<{ recovery_codes: string | null }>(
+      Prisma.sql`SELECT ${column("totp_credentials", "recovery_codes")} FROM ${table("totp_credentials")} WHERE ${column("totp_credentials", "id")} = ${credential.id} LIMIT 1 FOR UPDATE`,
+    );
+    const parsed: unknown = locked?.recovery_codes ? JSON.parse(locked.recovery_codes) : null;
+    if (!Array.isArray(parsed) || parsed.length === 0) return false;
+    if (!parsed.every((hash) => typeof hash === "string" && BCRYPT_HASH.test(hash)))
+      throw new HandBackToRails("recovery codes that are not bcrypt hashes");
+    let matching = -1;
+    for (const [index, hash] of (parsed as string[]).entries()) {
+      if (await compare(normalized, hash)) {
+        matching = index;
+        break;
+      }
+    }
+    if (matching === -1) return false;
+    parsed.splice(matching, 1);
+    await execute(
+      Prisma.sql`UPDATE ${table("totp_credentials")} SET ${column("totp_credentials", "recovery_codes")} = ${JSON.stringify(parsed)}, ${column("totp_credentials", "updated_at")} = ${now} WHERE ${column("totp_credentials", "id")} = ${credential.id}`,
+    );
+    return true;
+  });
 }
 
 async function validTwoFactorToken(chain: Chain, user: UserRecord, token: string | null): Promise<boolean> {
@@ -300,8 +324,7 @@ async function validTwoFactorToken(chain: Chain, user: UserRecord, token: string
         return true;
       return defaultToken;
     }
-    if (token !== null && (await recoveryCodeMatches(user.get("id"), token)))
-      throw new HandBackToRails("a recovery code");
+    if (token !== null && (await redeemRecoveryCode(user.get("id"), token, chain.now))) return true;
     return defaultToken;
   }
   // token_authenticated?
@@ -314,13 +337,14 @@ async function validTwoFactorToken(chain: Chain, user: UserRecord, token: string
 async function verifyAuthTokenAndRedirect(input: MutationInput, user: UserRecord): Promise<ActionResult> {
   const { chain, params } = input;
   const token = stringParam(params.token);
+  // A recovery code is burnt by the check below, so every hand-back has to come before it.
+  assertNothingToConfirm(chain, user);
+  const cartMerge = await planGuestCart(chain, user);
   if (!(await validTwoFactorToken(chain, user, token))) {
     return { status: 303, location: TWO_FACTOR_PATH, flash: { warning: "Invalid token, please try again." } };
   }
 
   // sign_in_with_two_factor_authentication
-  assertNothingToConfirm(chain, user);
-  const cartMerge = await planGuestCart(chain, user);
   const ip = clientIp(input);
   const cookies = await signIn(chain, user, { remember: false, remoteIp: ip });
   cookies.push(twoFactorAuthCookie(user, chain.now));
@@ -365,7 +389,7 @@ registerMutations(
     method: "POST",
     pattern: "/two-factor",
     options: TWO_FACTOR_OPTIONS,
-   
+
     run: (input) => twoFactor(input, (user) => verifyAuthTokenAndRedirect(input, user)),
   },
   {
@@ -373,14 +397,14 @@ registerMutations(
     pattern: "/two-factor/verify",
     options: TWO_FACTOR_OPTIONS,
     skipForgeryProtection: true,
-   
+
     run: (input) => twoFactor(input, (user) => verifyAuthTokenAndRedirect(input, user)),
   },
   {
     method: "POST",
     pattern: "/two-factor/resend_authentication_token",
     options: TWO_FACTOR_OPTIONS,
-   
+
     run: (input) =>
       twoFactor(input, async (user) => {
         if (twoFactorMethod(input.chain) !== "email")
@@ -393,7 +417,7 @@ registerMutations(
     method: "POST",
     pattern: "/two-factor/switch_to_email",
     options: TWO_FACTOR_OPTIONS,
-   
+
     run: (input) =>
       twoFactor(input, async (user) => {
         input.chain.session.data[TWO_FACTOR_METHOD_SESSION_KEY] = "email";
@@ -405,7 +429,7 @@ registerMutations(
     method: "POST",
     pattern: "/two-factor/switch_to_recovery",
     options: TWO_FACTOR_OPTIONS,
-   
+
     run: (input) =>
       twoFactor(input, async () => {
         input.chain.session.data[TWO_FACTOR_METHOD_SESSION_KEY] = "recovery";
@@ -416,7 +440,7 @@ registerMutations(
     method: "POST",
     pattern: "/two-factor/switch_to_authenticator",
     options: TWO_FACTOR_OPTIONS,
-   
+
     run: (input) =>
       twoFactor(input, async () => {
         input.chain.session.data[TWO_FACTOR_METHOD_SESSION_KEY] = "totp";

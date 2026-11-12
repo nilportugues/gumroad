@@ -14,6 +14,8 @@ const models = vi.hoisted(() => ({
   lockAccessGrant: vi.fn(),
   lockAccessToken: vi.fn(),
   transaction: vi.fn(),
+  brandTokenValid: vi.fn(),
+  copyTeamMembership: vi.fn(),
 }));
 const locks = vi.hoisted(() => ({ withApplicationLock: vi.fn() }));
 
@@ -60,6 +62,7 @@ beforeEach(() => {
   models.findAliveApplicationByUid.mockResolvedValue(null);
   models.findAccessToken.mockResolvedValue(null);
   models.findAccessGrant.mockResolvedValue(null);
+  models.brandTokenValid.mockResolvedValue(true);
   models.transaction.mockImplementation((run: () => unknown) => run());
   locks.withApplicationLock.mockImplementation((_id: number, _shared: boolean, run: () => unknown) => run());
   models.lockAccessGrant.mockImplementation((id: number) => Promise.resolve({ id, revoked_at: null }));
@@ -355,11 +358,35 @@ describe("token endpoint", () => {
     });
   });
 
-  it("hands a brand account token back", async () => {
+  it("refuses a brand token whose team membership is no longer active, writing nothing", async () => {
     models.findAccessToken.mockResolvedValue({ ...oldToken, team_membership_id: 9 });
-    await expect(createToken(input({ grant_type: "refresh_token", refresh_token: "r" }))).rejects.toThrow(
-      /brand account/u,
+    models.brandTokenValid.mockResolvedValue(false);
+    const result = await createToken(input({ grant_type: "refresh_token", refresh_token: "r" }));
+    expect(body(result)).toEqual({
+      error: "invalid_grant",
+      error_description: "The team membership behind this token is no longer active",
+    });
+    expect(models.revokeAccessToken).not.toHaveBeenCalled();
+    expect(models.insertAccessToken).not.toHaveBeenCalled();
+  });
+
+  it("gives the refreshed token of a brand account the membership of the one it replaces, after the insert", async () => {
+    models.findApplicationByUid.mockResolvedValue(publicApp);
+    models.findApplicationById.mockResolvedValue(publicApp);
+    models.findAccessToken.mockResolvedValue({ ...oldToken, team_membership_id: 9 });
+    await createToken(input({ grant_type: "refresh_token", refresh_token: "r", client_id: "pub" }));
+    expect(models.copyTeamMembership).toHaveBeenCalledWith("new-token", 9);
+    expect(models.insertAccessToken.mock.invocationCallOrder[0]).toBeLessThan(
+      models.copyTeamMembership.mock.invocationCallOrder[0]!,
     );
+  });
+
+  it("does not touch the membership of a refreshed token that has none", async () => {
+    models.findApplicationByUid.mockResolvedValue(publicApp);
+    models.findApplicationById.mockResolvedValue(publicApp);
+    models.findAccessToken.mockResolvedValue(oldToken);
+    await createToken(input({ grant_type: "refresh_token", refresh_token: "r", client_id: "pub" }));
+    expect(models.copyTeamMembership).not.toHaveBeenCalled();
   });
 
   it("answers invalid_scope for a client_credentials grant that asks for what the application lacks", async () => {
