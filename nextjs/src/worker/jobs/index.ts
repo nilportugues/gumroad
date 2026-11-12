@@ -68,6 +68,7 @@ import {
 import { blockEmailDomainsWorker, blockObjectWorker, unblockObjectWorker } from "./platform-block-jobs.ts";
 import { chargeSuccessfulPreordersWorker } from "./charge-successful-preorders-worker.ts";
 import { renameProductFileWorker } from "./rename-product-file-worker.ts";
+import { deleteProductFilesWorker } from "./delete-product-files-worker.ts";
 import { processPaymentWorker } from "./process-payment-worker.ts";
 import {
   refreshMerchantAccountProductsRecommendationEligibilityJob,
@@ -182,6 +183,7 @@ import {
 } from "./workflow-jobs.ts";
 
 export const JOB_HANDLERS: Record<string, JobHandler> = {
+  DeleteProductFilesWorker: deleteProductFilesWorker,
   RenameProductFileWorker: renameProductFileWorker,
   ChargeSuccessfulPreordersWorker: chargeSuccessfulPreordersWorker,
   RefreshCustomDomainRoutabilityWorker: refreshCustomDomainRoutabilityWorker,
