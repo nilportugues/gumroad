@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import type { Chain } from "./application-controller.ts";
-import { erasedCookies, OVERRIDE_ON_CLOSE_CODE, OVERRIDE_WINDOW_ACTIONS_CODE } from "./third-party-analytics.ts";
 import { railsRequest } from "./rails-request.ts";
+import { erasedCookies, OVERRIDE_ON_CLOSE_CODE, OVERRIDE_WINDOW_ACTIONS_CODE } from "./third-party-analytics.ts";
 
 const request = (cookie?: string) =>
   railsRequest(new Request("http://analytics.test.gumroad.com/profile/seller", cookie ? { headers: { cookie } } : {}));

@@ -62,4 +62,9 @@ async function createFromEmail(input: MutationInput): Promise<ActionResult> {
   return { status: FOUND, location: PRODUCTS_PATH, flash: { alert: STALE_LINK } };
 }
 
-registerMutations({ method: "GET", pattern: "/bundles/create_from_email", skipForgeryProtection: true, run: createFromEmail });
+registerMutations({
+  method: "GET",
+  pattern: "/bundles/create_from_email",
+  skipForgeryProtection: true,
+  run: createFromEmail,
+});

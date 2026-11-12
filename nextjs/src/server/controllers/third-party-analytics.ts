@@ -41,5 +41,11 @@ export async function profile(username: string, action: ActionContext): Promise<
   );
   const snippets = rows.map((row) => row.analytics_code ?? "").join("\n");
   const body = OVERRIDE_WINDOW_ACTIONS_CODE + snippets + OVERRIDE_ON_CLOSE_CODE;
-  return { status: 200, body: page(body), contentType: "text/html; charset=utf-8", paramsRead: true, cookies: erasedCookies(action) };
+  return {
+    status: 200,
+    body: page(body),
+    contentType: "text/html; charset=utf-8",
+    paramsRead: true,
+    cookies: erasedCookies(action),
+  };
 }

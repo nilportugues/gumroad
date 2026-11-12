@@ -188,12 +188,12 @@ describe.skipIf(!url)("rest sweep 4", () => {
   }, FIRST_COMPILE_TIMEOUT_MS);
 
   afterAll(async () => {
-    await server?.stop();
-    await new Promise((resolve) => rails?.close(resolve));
+    await server.stop();
+    await new Promise((resolve) => rails.close(resolve));
     await closeAllRedis();
-    await redis?.quit();
-    await es?.close();
-    await client?.$disconnect();
+    await redis.quit();
+    await es.close();
+    await client.$disconnect();
     process.env = saved;
   });
 
@@ -261,7 +261,8 @@ describe.skipIf(!url)("rest sweep 4", () => {
         const result = await replayFixtureExchange(fixture, index, options(name));
         assertParity(result);
         const exchange = result.exchanges[0]!;
-        if (!name.includes("404")) expect(masked(exchange.actual.response.body)).toBe(masked(exchange.expected.response.body));
+        if (!name.includes("404"))
+          expect(masked(exchange.actual.response.body)).toBe(masked(exchange.expected.response.body));
         expect(mailJobs).toHaveLength(0);
       } catch (error) {
         const logs = server

@@ -10,9 +10,6 @@ import { encrypt, encryptNumeric } from "../../lib/obfuscate-ids.ts";
 import { rubyRoundHalfUp } from "../../lib/ruby-round.ts";
 import { HandBackToRails } from "../controllers/application-controller.ts";
 import { RubyFloat } from "../jobs/sidekiq/ruby-json.ts";
-import { rubyInspect } from "../models/concerns/ruby-values.ts";
-import { BaseVariantFlags } from "../models/base-variant.ts";
-import { LinkFlags } from "../models/link.ts";
 import {
   COUNTRIES_THAT_COLLECT_TAX_ON_ALL_PRODUCTS,
   COUNTRIES_THAT_COLLECT_TAX_ON_DIGITAL_PRODUCTS,
@@ -21,6 +18,9 @@ import {
   NORWAY_VAT_APPLICABLE_COUNTRY_CODES,
   taxNameFor,
 } from "../mail/mailers/receipt-tax.ts";
+import { BaseVariantFlags } from "../models/base-variant.ts";
+import { rubyInspect } from "../models/concerns/ruby-values.ts";
+import { LinkFlags } from "../models/link.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { PurchaseFlags } from "../search/flags.ts";
 
@@ -258,7 +258,8 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
     ))
       affiliateEmails.set(String(row.id), presence(row.unconfirmed_email) ?? presence(row.email));
     // An affiliate whose row or user is gone reads as no affiliate in Rails; not proven here.
-    if (affiliateEmails.size !== affiliateIds.length) throw new HandBackToRails("a sale whose affiliate or its user is missing");
+    if (affiliateEmails.size !== affiliateIds.length)
+      throw new HandBackToRails("a sale whose affiliate or its user is missing");
   }
 
   // charged_using_stripe_connect_account?: the merchant account belongs to a seller.
@@ -372,8 +373,10 @@ function purchaseFields(
   // Purchase#variant_extra_cost_dollars: the price differences, nil counting as nothing.
   const variantsPriceDollars = dollars(lookups.variant?.price_difference_cents ?? 0);
   // Purchase#has_tax_label?, #tax_label(include_tax_rate: false): the named tax of the rate's country, else "Sales tax".
-  const hasTaxLabel = flagSet(purchase, "was_purchase_taxable") || purchase.gumroad_tax_cents > 0 || purchase.tax_cents > 0;
-  const taxCountry = purchase.zip_tax_rate_id === null ? null : (lookups.taxCountries.get(String(purchase.zip_tax_rate_id)) ?? null);
+  const hasTaxLabel =
+    flagSet(purchase, "was_purchase_taxable") || purchase.gumroad_tax_cents > 0 || purchase.tax_cents > 0;
+  const taxCountry =
+    purchase.zip_tax_rate_id === null ? null : (lookups.taxCountries.get(String(purchase.zip_tax_rate_id)) ?? null);
   const namedTax =
     taxCountry !== null &&
     [
@@ -439,10 +442,11 @@ function purchaseFields(
     "Variants Price ($)": variantsPriceDollars,
     "Giftee Email": null,
     // Sku#custom_name_or_external_id
-    "SKU ID": sku === undefined ? null : presence(sku.custom_sku) ?? encrypt(sku.id),
+    "SKU ID": sku === undefined ? null : (presence(sku.custom_sku) ?? encrypt(sku.id)),
     Quantity: purchase.quantity,
     Recurrence: null,
-    Affiliate: purchase.affiliate_id === null ? null : (lookups.affiliateEmails.get(String(purchase.affiliate_id)) ?? null),
+    Affiliate:
+      purchase.affiliate_id === null ? null : (lookups.affiliateEmails.get(String(purchase.affiliate_id)) ?? null),
     "Affiliate commission ($)":
       purchase.affiliate_credit_cents === null ? null : dollars(purchase.affiliate_credit_cents),
     "Discover?": flagSet(purchase, "was_product_recommended") ? 1 : 0,
