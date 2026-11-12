@@ -43,6 +43,7 @@ import { detectFailingPaypalRailsJob } from "./detect-failing-paypal-rails-job.t
 import { disputeEvidenceDueSoonReminderJob } from "./dispute-evidence-due-soon-reminder-job.ts";
 import { elasticsearchIndexerWorker } from "./elasticsearch-indexer-worker.ts";
 import { enforceRefundPolicyForSellerJob } from "./enforce-refund-policy-for-seller-job.ts";
+import { alertOnBlockedEstablishedBuyersJob } from "./alert-on-blocked-established-buyers-job.ts";
 import { enqueueMarketingXReconnectEmailJob } from "./enqueue-marketing-x-reconnect-email-job.ts";
 import { expireTranscodedVideosJob } from "./expire-transcoded-videos-job.ts";
 import { expiringCreditCardMessageWorker } from "./expiring-credit-card-message-worker.ts";
@@ -204,7 +205,9 @@ import { updatePurchasingPowerParityFactorsWorker } from "./update-purchasing-po
 import { updateSalesRelatedProductsInfosJob } from "./update-sales-related-products-infos-job.ts";
 import { updateSellerRefundEligibilityJob } from "./update-seller-refund-eligibility-job.ts";
 import { updateTaxonomyStatsJob } from "./update-taxonomy-stats-job.ts";
+import { stripePayoutsPausedEmailJob } from "./stripe-payouts-paused-email-job.ts";
 import { updateUtmLinkStatsJob } from "./update-utm-link-stats-job.ts";
+import { utmLinkSaleAttributionJob } from "./utm-link-sale-attribution-job.ts";
 import { warmSellerReputationSummaryJob } from "./warm-seller-reputation-summary-job.ts";
 import { recalculateRecentWishlistFollowerCountJob } from "./wishlist-jobs.ts";
 import {
@@ -340,6 +343,9 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   UpdatePurchasingPowerParityFactorsWorker: updatePurchasingPowerParityFactorsWorker,
   UpdateSellerRefundEligibilityJob: updateSellerRefundEligibilityJob,
   UpdateUtmLinkStatsJob: updateUtmLinkStatsJob,
+  UtmLinkSaleAttributionJob: utmLinkSaleAttributionJob,
+  StripePayoutsPausedEmailJob: stripePayoutsPausedEmailJob,
+  AlertOnBlockedEstablishedBuyersJob: alertOnBlockedEstablishedBuyersJob,
   WarmSellerReputationSummaryJob: warmSellerReputationSummaryJob,
   FightDisputeJob: fightDisputeJob,
   PayoutUsersWorker: payoutUsersWorker,
