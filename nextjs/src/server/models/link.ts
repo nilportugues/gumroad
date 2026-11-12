@@ -26,7 +26,13 @@ import {
 } from "./concerns/json-data.ts";
 import { hasPaperTrail } from "./concerns/paper-trail.ts";
 import { RubyHash, type YamlValue } from "./concerns/psych.ts";
-import { loadBelongsTo, validatesUniqueness, type BelongsTo } from "./concerns/rails-validations.ts";
+import {
+  associationCache,
+  loadBelongsTo,
+  setAssociation,
+  validatesUniqueness,
+  type BelongsTo,
+} from "./concerns/rails-validations.ts";
 import { rubyJsonGenerate, rubyJsonParse } from "./concerns/serialized-columns.ts";
 import LINK_DATA from "./link-data.generated.json" with { type: "json" };
 import { freshScope, PRODUCT_CACHED_VALUES, ProductCachedValues } from "./product-cached-value.ts";
@@ -85,8 +91,8 @@ const PORTED_CHANGES = [
   "draft",
   "first_published_at",
 ];
-// The only json_data keys a ported update writes: `attr_json_data_accessor :sections, :main_section_index`.
-const PORTED_JSON_DATA_KEYS = ["sections", "main_section_index"];
+// The only json_data keys a ported update writes: `attr_json_data_accessor :sections, :main_section_index`, and the inferred taxonomy values.
+const PORTED_JSON_DATA_KEYS = ["sections", "main_section_index", "inferred_taxonomy_attribute_values"];
 const ARCHIVED_BIT = 1n << 4n;
 // Flag N is bit N - 1: archived, is_adult, display_product_reviews, should_show_sales_count and transcode_videos_on_purchase (set by a publish).
 const IS_ADULT_BIT = 1n << 15n;
@@ -734,9 +740,15 @@ const validations: Callback<Link>[] = [
   {
     name: "validates_associated :installment_plan",
     async run(link) {
-      const [plan] = await selectRows<{ number_of_installments: number | null }>(
-        Prisma.sql`SELECT ${Prisma.raw("`product_installment_plans`.*")} FROM ${table("product_installment_plans")} WHERE ${column("product_installment_plans", "link_id")} = ${link.get("id")} AND ${column("product_installment_plans", "deleted_at")} IS NULL LIMIT 1`,
-      );
+      // The has_one stays loaded (nil included) on the instance, so a second save of it asks nothing.
+      const cached = associationCache(link).get("installment_plan");
+      let plan = cached?.row as { number_of_installments: number | null } | null | undefined;
+      if (plan === undefined) {
+        [plan = null] = await selectRows<{ number_of_installments: number | null }>(
+          Prisma.sql`SELECT ${Prisma.raw("`product_installment_plans`.*")} FROM ${table("product_installment_plans")} WHERE ${column("product_installment_plans", "link_id")} = ${link.get("id")} AND ${column("product_installment_plans", "deleted_at")} IS NULL LIMIT 1`,
+        );
+        setAssociation(link, "installment_plan", link.get("id"), plan);
+      }
       if (!plan) return;
       const message = await installmentPlanError(link, plan);
       if (message !== null) link.errors.add("installment_plan", "invalid", { message });

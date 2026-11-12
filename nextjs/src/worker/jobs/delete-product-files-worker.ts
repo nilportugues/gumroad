@@ -1,15 +1,14 @@
 // Port of app/sidekiq/delete_product_files_worker.rb: a product whose deletion was undone or with a successful sale (one sales
 // search) finishes early; a search answer Ruby cannot read fails with its NoMethodError. Each file is soft-deleted through
 // ProductFile#delete! (models/product-file-writes.ts: validations, PaperTrail, cache invalidation, HLS renditions, subtitle files).
-// A product that has a taxonomy, or inferred taxonomy values to clear, hands back after its files are read and before the first
-// write: the commit callback that follows each save would then classify it (Discover::TaxonomyAttributeClassifier), which is not
-// ported, and Rails cannot resume once a file is deleted. An id Rails casts (a Float, a word) hands back before any statement.
+// The commit callback after each save classifies the product's taxonomy attributes (models/taxonomy-attribute-classifier.ts), which
+// rewrites the product's inferred values. An id Rails casts (a Float, a word) hands back before any statement.
 // Golden: __fixtures__/delete-product-files-worker.golden.json (scripts/golden/delete-product-files-worker.rb).
 import { Prisma, type Link, type ProductFile } from "@prisma/client";
 
 import { HandBackToRuby, beforeSideEffects } from "../../server/jobs/hand-back.ts";
 import { ACTIVE_SALES_SEARCH_OPTIONS } from "../../server/models/link-metrics.ts";
-import { classifierIsNoop, deleteProductFileBang, loadProductFile } from "../../server/models/product-file-writes.ts";
+import { deleteProductFileBang, loadProductFile } from "../../server/models/product-file-writes.ts";
 import { findOneBy, recordIdFrom } from "../../server/models/row-reads.ts";
 import { RecordNotFound } from "../../server/models/runtime/errors.ts";
 import { castRow, column, selectRows, table } from "../../server/models/sql.ts";
@@ -60,11 +59,6 @@ export const deleteProductFilesWorkerWith = modelJob({ min: 1 }, async ([product
     Prisma.sql`SELECT ${Prisma.raw("`product_files`.*")} FROM ${table("product_files")} WHERE ${column("product_files", "link_id")} = ${id}`,
   );
   if (files.length === 0) return;
-  if (!classifierIsNoop(product as unknown as Record<string, unknown>)) {
-    throw new HandBackToRuby(
-      "the product has a taxonomy or inferred taxonomy values for the file classifier to rewrite",
-    );
-  }
 
   for (const row of files) {
     await deleteProductFileBang(

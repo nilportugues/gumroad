@@ -13,6 +13,7 @@ import { hasPaperTrail } from "./concerns/paper-trail.ts";
 import { associationCache, loadBelongsTo, setAssociation, type BelongsTo } from "./concerns/rails-validations.ts";
 import { invalidateProductCache, enqueueLinkIndexUpdate } from "./link.ts";
 import { ProductFileFlags, s3Fields } from "./product-file.ts";
+import { classifyTaxonomyAttributes } from "./taxonomy-attribute-classifier.ts";
 import { defineModel, type CallbackContext, type SaveOptions } from "./runtime/define-model.ts";
 import type { ModelRecord, Row } from "./runtime/record.ts";
 import { isBlank, validatesPresenceOf } from "./runtime/validators.ts";
@@ -140,30 +141,6 @@ async function linkOf(record: ProductFileRecord): Promise<Row | null> {
   const link = row ? castRow<Row>("Link", row) : null;
   setAssociation(record, "link", id, link);
   return link;
-}
-
-// Link#inferred_taxonomy_attribute_values.present?, from the json_data text. Null where it is not an object Node can read.
-export function hasInferredTaxonomyValues(jsonData: string | null): boolean | null {
-  if (jsonData === null || isBlank(jsonData)) return false;
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(jsonData);
-  } catch {
-    return null;
-  }
-  if (parsed === null) return false;
-  if (typeof parsed !== "object" || Array.isArray(parsed)) return null;
-  const inferred = (parsed as Record<string, unknown>).inferred_taxonomy_attribute_values;
-  if (inferred === undefined || inferred === null || inferred === false) return false;
-  if (typeof inferred === "object") return Object.keys(inferred as object).length > 0;
-  if (typeof inferred === "string") return !isBlank(inferred);
-  return true;
-}
-
-// Discover::TaxonomyAttributeClassifier.classify! writes the product (and queries the taxonomy) when the product has a taxonomy or
-// inferred values to clear; with neither it reads nothing. Callers that cannot run the write check this before their first one.
-export function classifierIsNoop(link: Row): boolean {
-  return link.taxonomy_id == null && hasInferredTaxonomyValues((link.json_data as string | null) ?? null) === false;
 }
 
 const notPorted = (what: string): never => {
@@ -320,13 +297,14 @@ export const ProductFiles = defineModel<ProductFile>({
       run: () => notPorted("Turning PDF stamping on"),
     },
     {
-      // Discover::TaxonomyAttributeClassifier.classify!(link), a no-op for a product without a taxonomy or inferred values.
+      // Discover::TaxonomyAttributeClassifier.classify!(link): writes the product, through the instance its files were loaded from.
       name: "classify_product_taxonomy_attributes",
       on: ["create", "update"],
       if: (record) => record.get("link_id") != null,
       async run(record) {
         const link = await linkOf(record);
-        if (link !== null && !classifierIsNoop(link)) notPorted("Classifying taxonomy attributes");
+        if (link === null) throw new NoMethodError("undefined method 'taxonomy' for nil");
+        await classifyTaxonomyAttributes(link, record.ivars.now as (() => Date) | undefined);
       },
     },
     {
