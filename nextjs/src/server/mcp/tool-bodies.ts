@@ -4,11 +4,12 @@
 // get_customers with a date in an ISO 8601 form other than YYYY-MM-DD, a whole-number days_to_convert or a query timeout,
 // and get_sales_totals with a country, day, week or month breakdown (tzinfo transitions, Compliance::Countries).
 import { Prisma } from "@prisma/client";
-import type { OauthAccessToken, User } from "@prisma/client";
+import type { OauthAccessToken, ProductFile, User } from "@prisma/client";
 
 import { db } from "../../lib/db.ts";
 import { decrypt, encrypt } from "../../lib/obfuscate-ids.ts";
 import { rubyRoundHalfUp } from "../../lib/ruby-round.ts";
+import { hasApplicableOfferCodes } from "../controllers/api-v2/offer-codes.ts";
 import { HandBackToRails } from "../controllers/application-controller.ts";
 import { findByName } from "../models/compliance-countries.ts";
 import {
@@ -17,11 +18,20 @@ import {
   startOfDayIso8601,
   utcOffsetAt,
 } from "../models/concerns/rails-time-zone.ts";
-import { domainConfig } from "../page-props/domain.ts";
-import { longUrl } from "../presenters/product.ts";
-import type { LinkRow, UserRow } from "../presenters/product-reads.ts";
-import { PurchaseFlags } from "../search/flags.ts";
+import { rubyFloatToS } from "../models/concerns/ruby-values.ts";
+import { successfulSalesCount, totalUsdCents } from "../models/link-metrics.ts";
+import { assertPlainPublish, publishBang } from "../models/link-publish.ts";
+import { Links } from "../models/link.ts";
+import { s3Fields } from "../models/product-file.ts";
 import { SubscriptionFlags } from "../models/subscription.ts";
+import { CreatorAnalyticsCachingProxy } from "../page-props/analytics/caching-proxy.ts";
+import { displayExtension, nameDisplayable } from "../page-props/audience/product-file-json.ts";
+import { subscriptionStatus } from "../page-props/customers/customers.ts";
+import { domainConfig } from "../page-props/domain.ts";
+import type { LinkRow, UserRow } from "../presenters/product-reads.ts";
+import { longUrl } from "../presenters/product.ts";
+import { TimeZoneNotPortedError } from "../search/civil-time.ts";
+import { PurchaseFlags } from "../search/flags.ts";
 
 const INVALID_PARAMS = -32602;
 const MICROSECONDS_PER_SECOND = 1_000_000n;
@@ -172,9 +182,25 @@ export type ProductListRow = {
   unique_permalink: string | null;
   custom_permalink: string | null;
 };
+export type ProductDetailRow = ProductListRow & { description: string | null };
+export type ProductFileRow = {
+  id: bigint;
+  display_name: string | null;
+  url: string | null;
+  filetype: string | null;
+  size: bigint | null;
+  position: number | null;
+};
+export type CoverRow = { guid: string | null; unsplash_url: string | null; has_oembed: boolean };
 export type ProductsReader = {
   // `user.products.visible`, newest first, strictly after `after` when given, at most `limit` rows.
   list: (userId: bigint, limit: number, after: { at: string; id: bigint } | null) => Promise<ProductListRow[]>;
+  // `find_product!`'s row (null when the lookup finds nothing or the product is deleted), with its description.
+  find: (userId: bigint, id: string) => Promise<ProductDetailRow | null>;
+  // `alive_product_files` (`alive.in_order`) of a product.
+  files: (productId: bigint) => Promise<ProductFileRow[]>;
+  // `display_asset_previews` (`alive.in_order`) of a product.
+  covers: (productId: bigint) => Promise<CoverRow[]>;
 };
 
 export type ToolContext = {
@@ -185,6 +211,10 @@ export type ToolContext = {
   salesTotals?: SalesTotalsReader;
   sales?: SalesReader;
   products?: ProductsReader;
+  // Link#successful_sales_count and Link#total_usd_cents (both Elasticsearch searches).
+  analytics?: AnalyticsReader;
+  subscriptions?: SubscriptionsReader;
+  productStats?: (productId: bigint) => Promise<{ sales_count: number | null; sales_usd_cents: FloatValue | number }>;
   now?: () => Date;
 };
 
@@ -545,7 +575,7 @@ async function getCustomers(args: Hash, context: ToolContext): Promise<Hash> {
     }
   } catch (error) {
     // Rails words its own error for a query that outlives WithMaxExecutionTime.
-    if (String((error as Error)?.message).includes("maximum statement execution time exceeded"))
+    if (String((error as Error).message).includes("maximum statement execution time exceeded"))
       throw new HandBackToRails("a customers query that ran out of time");
     throw error;
   }
@@ -696,29 +726,57 @@ function totalsOf(buckets: Iterable<[number, number]>) {
   return salesMetrics(revenue, units);
 }
 
+// The columns product_payload reads. Product::Prices#price_cents reads the default Price row, not the column.
+const BUY_PRICES = Prisma.sql`FROM prices WHERE prices.link_id = links.id AND prices.deleted_at IS NULL
+        AND prices.currency = links.price_currency_type AND COALESCE(prices.flags & 1, 0) = 0`;
+const PRODUCT_COLUMNS = Prisma.sql`id, created_at, name,
+        (SELECT COUNT(*) ${BUY_PRICES}) AS buy_price_count,
+        (SELECT prices.price_cents ${BUY_PRICES} ORDER BY prices.id DESC LIMIT 1) AS buy_price_cents,
+        purchase_type, price_currency_type, customizable_price, suggested_price_cents, purchase_disabled_at, draft, flags,
+        unique_permalink, custom_permalink`;
+
+function productRow(row: Record<string, unknown>): ProductListRow {
+  return {
+    ...(row as unknown as ProductListRow),
+    id: BigInt(row.id as bigint),
+    flags: row.flags === null ? null : BigInt(row.flags as bigint),
+    buy_price_count: num(row.buy_price_count),
+    customizable_price: row.customizable_price === null ? null : Boolean(row.customizable_price),
+    draft: row.draft === null ? null : Boolean(row.draft),
+  };
+}
+
 export const readProducts: ProductsReader = {
   async list(userId, limit, after) {
     const cursor =
       after === null
         ? Prisma.empty
         : Prisma.sql`AND (links.created_at < ${after.at} OR (links.created_at = ${after.at} AND links.id < ${after.id}))`;
-    const buyPrices = Prisma.sql`FROM prices WHERE prices.link_id = links.id AND prices.deleted_at IS NULL
-        AND prices.currency = links.price_currency_type AND COALESCE(prices.flags & 1, 0) = 0`;
-    const rows = await db.$queryRaw<Record<string, unknown>[]>`SELECT id, created_at, name,
-        (SELECT COUNT(*) ${buyPrices}) AS buy_price_count,
-        (SELECT prices.price_cents ${buyPrices} ORDER BY prices.id DESC LIMIT 1) AS buy_price_cents,
-        purchase_type, price_currency_type, customizable_price, suggested_price_cents, purchase_disabled_at, draft, flags,
-        unique_permalink, custom_permalink
+    const rows = await db.$queryRaw<Record<string, unknown>[]>`SELECT ${PRODUCT_COLUMNS}
       FROM links WHERE user_id = ${userId} AND deleted_at IS NULL ${cursor}
       ORDER BY created_at DESC, id DESC LIMIT ${limit}`;
-    return rows.map((row) => ({
-      ...(row as unknown as ProductListRow),
-      id: BigInt(row.id as bigint),
-      flags: row.flags === null ? null : BigInt(row.flags as bigint),
-      buy_price_count: num(row.buy_price_count),
-      customizable_price: row.customizable_price === null ? null : Boolean(row.customizable_price),
-      draft: row.draft === null ? null : Boolean(row.draft),
-    }));
+    return rows.map(productRow);
+  },
+  async find(userId, id) {
+    const productId = await findSellerProductId(userId, id);
+    if (productId === null) return null;
+    const [row] = await db.$queryRaw<Record<string, unknown>[]>`SELECT ${PRODUCT_COLUMNS}, description
+      FROM links WHERE id = ${productId} LIMIT 1`;
+    return row === undefined ? null : { ...productRow(row), description: row.description as string | null };
+  },
+  files: (productId) =>
+    db.productFile.findMany({
+      where: { link_id: productId, deleted_at: null },
+      orderBy: [{ position: "asc" }, { id: "asc" }],
+      select: { id: true, display_name: true, url: true, filetype: true, size: true, position: true },
+    }),
+  async covers(productId) {
+    const rows = await db.assetPreview.findMany({
+      where: { link_id: productId, deleted_at: null },
+      orderBy: [{ position: "asc" }, { created_at: "asc" }, { id: "asc" }],
+      select: { guid: true, unsplash_url: true, oembed: true },
+    });
+    return rows.map((row) => ({ guid: row.guid, unsplash_url: row.unsplash_url, has_oembed: row.oembed !== null }));
   },
 };
 
@@ -728,36 +786,38 @@ const BUY_ONLY = 0;
 const IS_BUNDLE_BIT = 26n;
 const flagOn = (flags: bigint | null, position: bigint) => (((flags ?? 0n) >> (position - 1n)) & 1n) === 1n;
 
-// tool_list_products and product_payload, for products that are not tiered memberships. A tier carries its own prices,
-// recurrences and closing rules (pricing_payload), which are Rails's to read.
+// product_payload, for products that are not tiered memberships. A tier carries its own prices, recurrences and closing
+// rules (pricing_payload), which are Rails's to read.
+function productPayload(product: ProductListRow, user: User, tool: string): Hash {
+  if (flagOn(product.flags, IS_TIERED_MEMBERSHIP_BIT)) throw new HandBackToRails(`a tiered membership in ${tool}`);
+  // Rentals, recurring prices and several competing buy prices pick their default price by rules Rails owns.
+  if (
+    product.purchase_type !== BUY_ONLY ||
+    flagOn(product.flags, IS_RECURRING_BILLING_BIT) ||
+    product.buy_price_count > 1
+  )
+    throw new HandBackToRails(`a product in ${tool} whose default price is not a single buy price`);
+  const payWhatYouWant = product.customizable_price === true;
+  return {
+    id: encrypt(product.id),
+    name: product.name,
+    price_cents: product.buy_price_cents,
+    currency: product.price_currency_type,
+    pay_what_you_want: payWhatYouWant,
+    suggested_price_cents: payWhatYouWant ? product.suggested_price_cents : null,
+    published: product.purchase_disabled_at === null && product.draft !== true,
+    is_bundle: flagOn(product.flags, IS_BUNDLE_BIT),
+    url: longUrl(product as unknown as LinkRow, user as unknown as UserRow),
+    permalink: product.unique_permalink,
+  };
+}
+
+// tool_list_products
 async function listProducts(args: Hash, context: ToolContext): Promise<Hash> {
   const limit = limitFor(args, 25);
   const rows = await (context.products ?? readProducts).list(BigInt(context.user.id), limit + 1, parseCursor(args));
   const page = rows.slice(0, limit);
-  const products = page.map((product) => {
-    if (flagOn(product.flags, IS_TIERED_MEMBERSHIP_BIT))
-      throw new HandBackToRails("a tiered membership in list_products");
-    // Rentals, recurring prices and several competing buy prices pick their default price by rules Rails owns.
-    if (
-      product.purchase_type !== BUY_ONLY ||
-      flagOn(product.flags, IS_RECURRING_BILLING_BIT) ||
-      product.buy_price_count > 1
-    )
-      throw new HandBackToRails("a product in list_products whose default price is not a single buy price");
-    const payWhatYouWant = product.customizable_price === true;
-    return {
-      id: encrypt(product.id),
-      name: product.name,
-      price_cents: product.buy_price_cents,
-      currency: product.price_currency_type,
-      pay_what_you_want: payWhatYouWant,
-      suggested_price_cents: payWhatYouWant ? product.suggested_price_cents : null,
-      published: product.purchase_disabled_at === null && product.draft !== true,
-      is_bundle: flagOn(product.flags, IS_BUNDLE_BIT),
-      url: longUrl(product as unknown as LinkRow, context.user as unknown as UserRow),
-      permalink: product.unique_permalink,
-    };
-  });
+  const products = page.map((product) => productPayload(product, context.user, "list_products"));
   const last = page[page.length - 1];
   return {
     products,
@@ -765,6 +825,99 @@ async function listProducts(args: Hash, context: ToolContext): Promise<Hash> {
       ? { next_cursor: `${BigInt(last.created_at.getTime()) * 1000n}_${last.id}` }
       : {}),
   };
+}
+
+// Mcp::Server#find_product!
+async function findProduct(args: Hash, context: ToolContext): Promise<ProductDetailRow> {
+  const id = args.id;
+  if (id === undefined || id === null || (typeof id === "string" && id.trim() === ""))
+    throw new ToolRpcError("id is required", INVALID_PARAMS);
+  // An id that is not text is a type the argument check owns.
+  if (typeof id !== "string") throw new HandBackToRails("a product id that is not text");
+  const product = await (context.products ?? readProducts).find(BigInt(context.user.id), id);
+  if (product === null) throw new ToolError("The product was not found.");
+  return product;
+}
+
+// Mcp::Server#covers_payload, for covers that are Unsplash photos (their url is a column). An uploaded image or video is an
+// Active Storage blob whose url Rails signs, and an oembed has its own url.
+function coversPayload(covers: CoverRow[]): Hash[] {
+  return covers.map((cover) => {
+    if (cover.has_oembed || cover.unsplash_url === null || cover.unsplash_url.trim() === "")
+      throw new HandBackToRails("a product cover that is not an Unsplash photo");
+    return { id: cover.guid, url: cover.unsplash_url, type: "unsplash" };
+  });
+}
+
+// A Ruby Float in a payload. JSON.generate prints `1500.0` where JSON.stringify prints `1500`, and the text of a tool result
+// is that output verbatim.
+export class FloatValue {
+  constructor(readonly value: number) {}
+  toJSON(): number {
+    return this.value;
+  }
+}
+
+// JSON.pretty_generate of a payload, with each FloatValue spelled as Float#to_s.
+export function toolText(payload: Hash): string {
+  const marker = `float:${Math.random().toString(36).slice(2)}:`;
+  const text = JSON.stringify(
+    payload,
+    function (this: Record<string, unknown>, key: string, value: unknown) {
+      const original = this[key];
+      return original instanceof FloatValue ? `${marker}${rubyFloatToS(original.value)}` : value;
+    },
+    2,
+  );
+  return text.replace(new RegExp(`"${marker}([^"]+)"`, "gu"), "$1");
+}
+
+export const productStats: NonNullable<ToolContext["productStats"]> = async (productId) => {
+  const target = { id: productId } as Parameters<typeof successfulSalesCount>[0];
+  return {
+    sales_count: await successfulSalesCount(target),
+    sales_usd_cents: new FloatValue(await totalUsdCents(target)),
+  };
+};
+
+// tool_get_product
+async function getProduct(args: Hash, context: ToolContext): Promise<Hash> {
+  const product = await findProduct(args, context);
+  const payload = productPayload(product, context.user, "get_product");
+  // A bundle also lists the members it has now (BundleProduct#in_order).
+  if (flagOn(product.flags, IS_BUNDLE_BIT)) throw new HandBackToRails("get_product for a bundle");
+  const details: Hash = {
+    description: product.description,
+    covers: coversPayload(await (context.products ?? readProducts).covers(product.id)),
+  };
+  const held = (context.token.scopes ?? "").split(/\s+/u);
+  // The same rule as the public API: sales figures need a sales scope.
+  if (held.includes("view_sales") || held.includes("account"))
+    Object.assign(details, await (context.productStats ?? productStats)(product.id));
+  return { product: { ...payload, ...details } };
+}
+
+// tool_list_files
+async function listFiles(args: Hash, context: ToolContext): Promise<Hash> {
+  const product = await findProduct(args, context);
+  const payload = productPayload(product, context.user, "list_files");
+  const rows = await (context.products ?? readProducts).files(product.id);
+  // `in_order` is `ORDER BY position ASC`: rows that share a position (or have none) come back in no defined order.
+  const positions = rows.map((row) => row.position);
+  if (new Set(positions).size !== positions.length) throw new HandBackToRails("product files that share a position");
+  const owner = context.user.external_id;
+  const files = rows.map((row) => {
+    const file = row as unknown as ProductFile;
+    const fields = s3Fields(row.url, owner);
+    return {
+      id: encrypt(row.id),
+      name: nameDisplayable(file, fields),
+      type: displayExtension(file, fields),
+      size_bytes: row.size === null ? 0 : Number(row.size),
+      position: row.position,
+    };
+  });
+  return { product: payload, files };
 }
 
 const ISO_TIME = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}):(\d{2})(Z|[+-]\d{2}:\d{2})?)?$/u;
@@ -779,7 +932,7 @@ function parseTimeArgument(value: string): string {
     .slice(1, 7)
     .map((part) => (part === undefined ? 0 : Number(part)));
   const zone = match[7];
-  const instant = new Date(Date.UTC(2000, month! - 1, day!, hour!, minute!, second!));
+  const instant = new Date(Date.UTC(2000, month! - 1, day, hour, minute, second));
   instant.setUTCFullYear(year!);
   const valid =
     year! >= 1000 &&
@@ -911,6 +1064,347 @@ async function listPayouts(args: Hash, context: ToolContext): Promise<Hash> {
   };
 }
 
+// tool_publish_product and tool_unpublish_product. Everything Node cannot follow is refused before the first write, so a
+// hand-back never follows one: the payload is built from the product as it stands, then again from the saved row.
+async function setPublication(args: Hash, context: ToolContext, publish: boolean): Promise<Hash> {
+  const found = await findProduct(args, context);
+  const tool = publish ? "publish_product" : "unpublish_product";
+  productPayload(found, context.user, tool);
+  const product = await db.link.findUniqueOrThrow({ where: { id: found.id } });
+  if (publish) {
+    // validate_product_price_against_all_offer_codes? checks every code that applies to the product.
+    if (await hasApplicableOfferCodes(context.user, product))
+      throw new HandBackToRails("a publish of a product with discount codes");
+    await assertPlainPublish(product, context.user);
+    // Link::LinkInvalid is a tool error in Mcp::Server#call_tool.
+    const refused = await publishBang(product, context.user, context.now);
+    if (refused !== null) throw new ToolError(refused);
+  } else {
+    // Link#unpublish!: `self.purchase_disabled_at ||= Time.current; save!`
+    const now = (context.now ?? (() => new Date()))();
+    await Links.updateBang(
+      Links.load(product),
+      { purchase_disabled_at: product.purchase_disabled_at ?? now },
+      { now: () => now },
+    );
+  }
+  const saved = await (context.products ?? readProducts).find(BigInt(context.user.id), encrypt(found.id));
+  return { product: productPayload(saved ?? found, context.user, tool) };
+}
+
+export type SubscriptionRow = {
+  id: bigint;
+  link_id: bigint | null;
+  product_name: string | null;
+  created_at: Date;
+  created_micros: bigint;
+  cancelled_at: Date | null;
+  failed_at: Date | null;
+  ended_at: Date | null;
+  deactivated_at: Date | null;
+  flags: bigint;
+  user_email: string | null;
+  user_unconfirmed_email: string | null;
+};
+export type SubscriptionPurchaseRow = {
+  id: bigint;
+  subscription_id: bigint;
+  purchase_state: string | null;
+  flags: bigint | null;
+  email: string | null;
+  created_micros: bigint;
+};
+export type SubscriptionsQuery = {
+  sellerId: bigint;
+  productId: bigint | null;
+  status: "alive" | "ended" | null;
+  limit: number;
+  after: { at: string; id: bigint } | null;
+  now: Date;
+};
+export type SubscriptionsReader = {
+  // The seller's non-test subscriptions, newest first (`Mcp::Server#subscriptions_payload`).
+  list: (query: SubscriptionsQuery) => Promise<SubscriptionRow[]>;
+  purchases: (subscriptionIds: bigint[]) => Promise<SubscriptionPurchaseRow[]>;
+};
+
+const microsOf = (column: string) => Prisma.raw(`TIMESTAMPDIFF(MICROSECOND, '1970-01-01', ${column})`);
+
+export const readSubscriptions: SubscriptionsReader = {
+  async list({ sellerId, productId, status, limit, after, now }) {
+    const product = productId === null ? Prisma.empty : Prisma.sql`AND subscriptions.link_id = ${productId}`;
+    // Subscription.active, whose complement is the ended list.
+    const active = Prisma.sql`subscriptions.failed_at IS NULL AND subscriptions.ended_at IS NULL
+      AND (subscriptions.cancelled_at IS NULL OR subscriptions.cancelled_at > ${utc(now)})`;
+    const state =
+      status === "alive"
+        ? Prisma.sql`AND ${active}`
+        : status === "ended"
+          ? Prisma.sql`AND NOT (${active})`
+          : Prisma.empty;
+    const cursor =
+      after === null
+        ? Prisma.empty
+        : Prisma.sql`AND (subscriptions.created_at < ${after.at} OR (subscriptions.created_at = ${after.at} AND subscriptions.id < ${after.id}))`;
+    const rows = await db.$queryRaw<Record<string, unknown>[]>`SELECT subscriptions.id, subscriptions.link_id,
+        links.name AS product_name, subscriptions.created_at, ${microsOf("subscriptions.created_at")} AS created_micros,
+        subscriptions.cancelled_at, subscriptions.failed_at, subscriptions.ended_at, subscriptions.deactivated_at,
+        subscriptions.flags, subscribers.email AS user_email, subscribers.unconfirmed_email AS user_unconfirmed_email
+      FROM subscriptions INNER JOIN links ON links.id = subscriptions.link_id
+      INNER JOIN users ON users.id = links.user_id
+      LEFT JOIN users subscribers ON subscribers.id = subscriptions.user_id
+      WHERE users.id = ${sellerId} AND ${SubscriptionFlags.condition("is_test_subscription", false)} ${product} ${state} ${cursor}
+      ORDER BY subscriptions.created_at DESC, subscriptions.id DESC LIMIT ${limit}`;
+    return rows.map((row) => ({
+      ...(row as unknown as SubscriptionRow),
+      id: BigInt(row.id as bigint),
+      link_id: row.link_id === null ? null : BigInt(row.link_id as bigint),
+      flags: BigInt(row.flags as bigint),
+      created_micros: BigInt(row.created_micros as bigint),
+    }));
+  },
+  async purchases(subscriptionIds) {
+    if (subscriptionIds.length === 0) return [];
+    const rows = await db.$queryRaw<Record<string, unknown>[]>`SELECT id, subscription_id, purchase_state, flags, email,
+        ${microsOf("created_at")} AS created_micros
+      FROM purchases WHERE subscription_id IN (${Prisma.join(subscriptionIds)})`;
+    return rows.map((row) => ({
+      ...(row as unknown as SubscriptionPurchaseRow),
+      id: BigInt(row.id as bigint),
+      subscription_id: BigInt(row.subscription_id as bigint),
+      flags: row.flags === null ? null : BigInt(row.flags as bigint),
+      created_micros: BigInt(row.created_micros as bigint),
+    }));
+  },
+};
+
+const isPurchaseFlag = (row: SubscriptionPurchaseRow, name: Parameters<typeof PurchaseFlags.isSet>[1]) =>
+  PurchaseFlags.isSet(row.flags, name);
+const presentText = (value: string | null): string | null => (value === null || value.trim() === "" ? null : value);
+
+// Mcp::Server#subscription_email
+function subscriptionEmail(row: SubscriptionRow, purchases: SubscriptionPurchaseRow[]): string | null {
+  const formEmail = presentText(row.user_unconfirmed_email) ?? presentText(row.user_email);
+  if (formEmail !== null) return formEmail;
+  const originals = purchases
+    .filter((purchase) => isPurchaseFlag(purchase, "is_original_subscription_purchase"))
+    .sort((a, b) => Number(a.id - b.id));
+  const trueOriginal = originals[0];
+  if (trueOriginal === undefined) return null;
+  // The giftee's address lives on the gift row.
+  if (isPurchaseFlag(trueOriginal, "is_gift_sender_purchase")) throw new HandBackToRails("a gifted subscription");
+  const candidates = originals.filter(
+    (purchase) => !isPurchaseFlag(purchase, "is_archived_original_subscription_purchase"),
+  );
+  // has_one :original_purchase has no order, so it is only the first row when it is the only one.
+  if (candidates.length > 1) throw new HandBackToRails("a subscription with several original purchases");
+  return (candidates[0] ?? trueOriginal).email;
+}
+
+// Subscription#status, as customers.ts reads it. A card mandate that disabled renewals changes the answer in ways that
+// need the mandate's feature flag and the next charge, which are Rails's.
+function subscriptionState(row: SubscriptionRow, purchases: SubscriptionPurchaseRow[], now: Date): string | null {
+  if (SubscriptionFlags.isSet(row.flags, "renewal_disabled_due_to_indian_card_mandate"))
+    throw new HandBackToRails("a subscription whose renewals a card mandate disabled");
+  const newest = purchases.reduce<SubscriptionPurchaseRow | undefined>(
+    (best, purchase) => (best === undefined || purchase.created_micros > best.created_micros ? purchase : best),
+    undefined,
+  );
+  // max_by keeps the first of equal timestamps, in no order this port can see.
+  if (
+    newest !== undefined &&
+    purchases.filter((purchase) => purchase.created_micros === newest.created_micros).length > 1
+  )
+    throw new HandBackToRails("a subscription whose newest purchases share a timestamp");
+  return subscriptionStatus(
+    row as unknown as Parameters<typeof subscriptionStatus>[0],
+    newest?.purchase_state ?? null,
+    now,
+  );
+}
+
+// tool_get_subscriptions, for breakdown=subscriptions. The churn breakdown reads CreatorAnalytics::Churn, whose rates are
+// Ruby Floats the port's cached payload does not keep apart from integers.
+async function getSubscriptions(args: Hash, context: ToolContext): Promise<Hash> {
+  const breakdown = "breakdown" in args ? args.breakdown : "subscriptions";
+  if (breakdown === "churn") throw new HandBackToRails("get_subscriptions churn");
+  let product: ProductDetailRow | null = null;
+  if (isPresent(args.product_id)) {
+    product = await (context.products ?? readProducts).find(BigInt(context.user.id), args.product_id);
+    if (product === null) throw new ToolError("The product was not found.");
+  }
+  const limit = limitFor(args, 25);
+  const after = parseCursor(args);
+  const status = args.status === "alive" || args.status === "ended" ? args.status : null;
+  if (args.status !== undefined && status === null) throw new HandBackToRails("a subscription status filter");
+  const now = (context.now ?? (() => new Date()))();
+  const reader = context.subscriptions ?? readSubscriptions;
+  const rows = await reader.list({
+    sellerId: BigInt(context.user.id),
+    productId: product?.id ?? null,
+    status,
+    limit: limit + 1,
+    after,
+    now,
+  });
+  const page = rows.slice(0, limit);
+  const purchases = await reader.purchases(page.map((row) => row.id));
+  const subscriptions = page.map((row) => {
+    const own = purchases.filter((purchase) => purchase.subscription_id === row.id);
+    return {
+      id: encrypt(row.id),
+      product_id: row.link_id === null ? null : encrypt(row.link_id),
+      product_name: row.product_name,
+      email: subscriptionEmail(row, own),
+      status: subscriptionState(row, own, now),
+      started_at: iso8601(row.created_at),
+      cancelled_at: row.cancelled_at === null ? null : iso8601(row.cancelled_at),
+      failed_at: row.failed_at === null ? null : iso8601(row.failed_at),
+      ended_at: row.ended_at === null ? null : iso8601(row.ended_at),
+      failed_payments: own.filter((purchase) => purchase.purchase_state === "failed").length,
+    };
+  });
+  const last = page[page.length - 1];
+  return {
+    breakdown: "subscriptions",
+    subscriptions,
+    ...(rows.length > limit && last !== undefined ? { next_cursor: `${last.created_micros}_${last.id}` } : {}),
+  };
+}
+
+const ANALYTICS_DEFAULT_DAYS = 30;
+const ANALYTICS_MAX_DAYS = 366;
+const ANALYTICS_MAX_REFERRERS = 50;
+const CONVERSION_DIGITS = 4;
+// A key a JavaScript object keeps in numeric order, ahead of the others, where a Ruby Hash keeps insertion order.
+const REORDERED_KEY = /^(?:0|[1-9]\d{0,8})$/u;
+
+export type AnalyticsSeries = Record<string, number[]>;
+export type AnalyticsReader = {
+  // CreatorAnalytics::CachingProxy#data_for_dates, with civil dates.
+  data: (user: User, start: string, end: string, by: "date" | "referral") => Promise<Hash>;
+  // `user.links.where(unique_permalink: ...)`, deleted products included.
+  names: (userId: bigint, permalinks: string[]) => Promise<Map<string, { id: bigint; name: string | null }>>;
+};
+
+export const readAnalytics: AnalyticsReader = {
+  async data(user, start, end, by) {
+    try {
+      return (await new CreatorAnalyticsCachingProxy(user).dataForDates(start, end, by)) as Hash;
+    } catch (error) {
+      if (error instanceof TimeZoneNotPortedError) throw new HandBackToRails(error.message);
+      throw error;
+    }
+  },
+  async names(userId, permalinks) {
+    const rows = await db.link.findMany({
+      where: { user_id: userId, unique_permalink: { in: permalinks } },
+      select: { id: true, name: true, unique_permalink: true },
+    });
+    return new Map(rows.map((row) => [row.unique_permalink ?? "", { id: row.id, name: row.name }]));
+  },
+};
+
+const sumOf = (series: number[]): number => series.reduce((total, value) => total + value, 0);
+// Mcp::Server#analytics_conversion
+const conversion = (sales: number, views: number): FloatValue | null =>
+  views > 0 ? new FloatValue(rubyRoundHalfUp(sales / views, CONVERSION_DIGITS)) : null;
+
+// sort_by { -views }. Ruby's sort_by is not stable, so rows with equal views come out in an order this port cannot promise.
+function sortedByViews<T extends { views: number }>(rows: T[]): T[] {
+  if (new Set(rows.map((row) => row.views)).size !== rows.length)
+    throw new HandBackToRails("get_analytics rows with equal views");
+  return rows.sort((a, b) => b.views - a.views);
+}
+
+function assertInsertionOrdered(keys: string[]): void {
+  if (keys.some((key) => REORDERED_KEY.test(key)))
+    throw new HandBackToRails("get_analytics keys that look like numbers");
+}
+
+// tool_get_analytics
+async function getAnalytics(args: Hash, context: ToolContext): Promise<Hash> {
+  const zone = context.user.timezone;
+  const now = (context.now ?? (() => new Date()))();
+  let today: CalendarDate;
+  let createdOn: string;
+  try {
+    today = parseDate(instantInTimeZoneIso8601(zone, now).slice(0, 10), "today");
+    if (context.user.created_at === null)
+      throw new HandBackToRails("get_analytics for a seller without a creation time");
+    createdOn = instantInTimeZoneIso8601(zone, context.user.created_at).slice(0, 10);
+  } catch (error) {
+    if (error instanceof InvalidTimeZoneError)
+      throw new HandBackToRails("an MCP tool for a seller with an unknown time zone");
+    throw error;
+  }
+  const end = typeof args.end_date === "string" ? parseDate(args.end_date, "end_date") : today;
+  const start =
+    typeof args.start_date === "string"
+      ? parseDate(args.start_date, "start_date")
+      : fromMs(dateMs(end) - (ANALYTICS_DEFAULT_DAYS - 1) * DAY_MS);
+  const days = (dateMs(end) - dateMs(start)) / DAY_MS;
+  if (days < 0) throw new ToolRpcError("start_date must not be after end_date", INVALID_PARAMS);
+  if (days >= ANALYTICS_MAX_DAYS)
+    throw new ToolRpcError(`The date range cannot exceed ${ANALYTICS_MAX_DAYS} days`, INVALID_PARAMS);
+
+  let permalink: string | null = null;
+  if (isPresent(args.product_id)) {
+    const product = await (context.products ?? readProducts).find(BigInt(context.user.id), args.product_id);
+    if (product === null) throw new ToolError("The product was not found.");
+    permalink = product.unique_permalink;
+  }
+  const breakdown = "breakdown" in args ? args.breakdown : "product";
+  const base = { start_date: isoDate(start), end_date: isoDate(end), time_zone: zone, currency: USD, breakdown };
+  // CachingProxy clamps ranges to [account creation, today]; a range wholly outside would be answered with another day's data.
+  if (isoDate(start) > isoDate(today) || isoDate(end) < createdOn) return { ...base, rows: [] };
+
+  const reader = context.analytics ?? readAnalytics;
+  const referrer = breakdown === "referrer";
+  const data = await reader.data(context.user, isoDate(start), isoDate(end), referrer ? "referral" : "date");
+  const wanted = (name: string) => permalink === null || name === permalink;
+
+  if (referrer) {
+    const byReferral = data.by_referral as Record<"views" | "sales" | "totals", Record<string, AnalyticsSeries>>;
+    const totals = new Map<string, { views: number; sales: number; revenue_cents: number }>();
+    for (const [type, field] of [
+      ["views", "views"],
+      ["sales", "sales"],
+      ["totals", "revenue_cents"],
+    ] as const) {
+      assertInsertionOrdered(Object.keys(byReferral[type]));
+      for (const [name, referrers] of Object.entries(byReferral[type])) {
+        if (!wanted(name)) continue;
+        assertInsertionOrdered(Object.keys(referrers));
+        for (const [referrerName, series] of Object.entries(referrers)) {
+          const row = totals.get(referrerName) ?? { views: 0, sales: 0, revenue_cents: 0 };
+          row[field] += sumOf(series);
+          totals.set(referrerName, row);
+        }
+      }
+    }
+    const rows = sortedByViews([...totals].map(([name, row]) => ({ referrer: name, ...row })))
+      .slice(0, ANALYTICS_MAX_REFERRERS)
+      .map((row) => ({ ...row, conversion_rate: conversion(row.sales, row.views) }));
+    return { ...base, rows };
+  }
+
+  const byDate = data.by_date as Record<"views" | "sales" | "totals", Record<string, number[]>>;
+  const permalinks = Object.keys(byDate.views);
+  assertInsertionOrdered(permalinks);
+  const names = await reader.names(BigInt(context.user.id), permalinks);
+  const rows = sortedByViews(
+    permalinks.filter(wanted).map((name) => ({
+      product_id: names.has(name) ? encrypt(names.get(name)!.id) : null,
+      product_name: names.get(name)?.name ?? null,
+      views: sumOf(byDate.views[name]!),
+      sales: sumOf(byDate.sales[name]!),
+      revenue_cents: sumOf(byDate.totals[name]!),
+    })),
+  ).map((row) => ({ ...row, conversion_rate: conversion(row.sales, row.views) }));
+  return { ...base, rows };
+}
+
 // The payload of a ported tool, or undefined for a tool that still runs in Rails.
 export async function toolBody(name: string, args: Hash, context: ToolContext): Promise<Hash | undefined> {
   switch (name) {
@@ -932,6 +1426,24 @@ export async function toolBody(name: string, args: Hash, context: ToolContext): 
     case "list_sales":
       requireScopes(context.token, ["view_sales", "account"]);
       return listSales(args, context);
+    case "get_product":
+      requireScopes(context.token, ["view_profile", "view_public", "edit_products", "account"]);
+      return getProduct(args, context);
+    case "publish_product":
+      requireScopes(context.token, ["edit_products", "account"]);
+      return setPublication(args, context, true);
+    case "unpublish_product":
+      requireScopes(context.token, ["edit_products", "account"]);
+      return setPublication(args, context, false);
+    case "get_subscriptions":
+      requireScopes(context.token, ["view_sales", "account"]);
+      return getSubscriptions(args, context);
+    case "get_analytics":
+      requireScopes(context.token, ["view_sales", "account"]);
+      return getAnalytics(args, context);
+    case "list_files":
+      requireScopes(context.token, ["edit_products", "account"]);
+      return listFiles(args, context);
     default:
       return undefined;
   }

@@ -8,7 +8,15 @@ import { LEGACY_PROTOCOL_VERSION, MODERN_PROTOCOL_VERSION } from "./constants.ts
 export const CONNECTORS = ["muse", "claude", "chatgpt"];
 // Every published revision, so a client declaring one we do not serve is still named.
 const VERSIONS = [LEGACY_PROTOCOL_VERSION, MODERN_PROTOCOL_VERSION, "2024-11-05", "2025-06-18", "2025-11-25"];
-const METHODS = ["initialize", "notifications/cancelled", "notifications/initialized", "ping", "server/discover", "tools/call", "tools/list"];
+const METHODS = [
+  "initialize",
+  "notifications/cancelled",
+  "notifications/initialized",
+  "ping",
+  "server/discover",
+  "tools/call",
+  "tools/list",
+];
 export const UNDECLARED = "undeclared";
 const OTHER = "other";
 const SEPARATOR = "|";
@@ -49,7 +57,12 @@ function telemetryRedis(): Redis {
 }
 
 // One write per HTTP request, best effort: telemetry never fails a connector request.
-export async function recordProtocolTelemetry(connector: string | null, counts: ReadonlyMap<string, number>, redis: Pick<Redis, "eval"> = telemetryRedis(), now = new Date()): Promise<void> {
+export async function recordProtocolTelemetry(
+  connector: string | null,
+  counts: ReadonlyMap<string, number>,
+  redis: Pick<Redis, "eval"> = telemetryRedis(),
+  now = new Date(),
+): Promise<void> {
   if (counts.size === 0 || connector === null || !CONNECTORS.includes(connector)) return;
   const pairs = [...counts].flatMap(([bucket, count]) => [`${connector}${SEPARATOR}${bucket}`, String(count)]);
   try {

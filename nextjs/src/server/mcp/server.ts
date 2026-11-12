@@ -16,7 +16,7 @@ import {
   VERSION_META_KEY,
 } from "./constants.ts";
 import { protocolBucket } from "./protocol-telemetry.ts";
-import { toolBody, ToolError, ToolRpcError, type ToolContext } from "./tool-bodies.ts";
+import { toolBody, ToolError, toolText, ToolRpcError, type ToolContext } from "./tool-bodies.ts";
 import { findTool, TOOLS, toolArgumentError } from "./tools.ts";
 
 const TRANSPORT_ERROR_CODES = [HEADER_MISMATCH, UNSUPPORTED_PROTOCOL_VERSION];
@@ -143,7 +143,7 @@ export class RpcSession {
       }
 
       notification = !("id" in body);
-      const method = body.method as string;
+      const method = body.method;
       const params = "params" in body ? body.params : {};
       if (!isHash(params)) throw new McpError("params must be an object", INVALID_PARAMS);
       this.validateModernTransport(method, params);
@@ -284,7 +284,10 @@ export class RpcSession {
       throw error;
     }
     if (payload === undefined) throw new HandBackToRails("an MCP tool call");
-    return { content: [{ type: "text", text: JSON.stringify(payload, null, 2) }], structuredContent: payload };
+    return {
+      content: [{ type: "text", text: toolText(payload) }],
+      structuredContent: JSON.parse(JSON.stringify(payload)) as Hash,
+    };
   }
 }
 
