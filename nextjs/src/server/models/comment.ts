@@ -209,7 +209,9 @@ export const Comments = defineModel<Comment>({
     {
       name: "ancestry_exclude_self",
       run(record) {
-        if (record.get("id") != null && ancestorIds(record).includes(Number(record.get("id"))))
+        // A new record has no id yet, though the generated type says it always does.
+        const id = record.get("id") as bigint | null | undefined;
+        if (id != null && ancestorIds(record).includes(Number(id)))
           record.errors.add("base", "Comment cannot be a descendant of itself.");
       },
     },
