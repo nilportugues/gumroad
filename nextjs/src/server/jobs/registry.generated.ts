@@ -2986,7 +2986,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "recurringLockMaxAttempt": 1800,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SendPostBlastEmailsJob": {
     "file": "app/sidekiq/send_post_blast_emails_job.rb",

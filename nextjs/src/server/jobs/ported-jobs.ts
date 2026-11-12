@@ -195,4 +195,5 @@ export const PORTED_JOBS: readonly string[] = [
   "ActivateIntegrationsWorker",
   "DeactivateIntegrationsWorker",
   "UpdateIntegrationsOnTierChangeWorker",
+  "SendPaypalTopupNotificationJob",
 ];
