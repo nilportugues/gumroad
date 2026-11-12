@@ -14,7 +14,7 @@ import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
 
-// Replays spec/requests/purchase_invoice_form_parity_spec.rb and purchases_product_parity_spec.rb (the GET pages whose guards run in Node; the purchase product page renders in Node): the last exchange of each fixture is sent to `next dev` with
+// Replays spec/requests/purchase_invoice_form_parity_spec.rb and purchases_product_parity_spec.rb (the GET pages whose guards run in Node; the purchase product page and the invoice form render in Node): the last exchange of each fixture is sent to `next dev` with
 // the flags on; a stand-in Rails receives whatever Node hands back.
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
@@ -42,6 +42,10 @@ const COMPARE = {
     "response.inertia.props.authenticity_token",
     "response.inertia.props._inertia_meta.2.content",
     "response.inertia.props._inertia_meta.1.content",
+    "response.json.props.csp_nonce",
+    "response.json.props.authenticity_token",
+    "response.json.props._inertia_meta.2.content",
+    "response.json.props._inertia_meta.1.content",
   ],
 };
 
