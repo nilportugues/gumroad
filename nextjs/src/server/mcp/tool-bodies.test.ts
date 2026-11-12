@@ -12,6 +12,7 @@ import {
   ToolRpcError,
   type CustomerReader,
   type PayoutReader,
+  type ToolContext,
   type PayoutRow,
   type ProductFileRow,
   type ProductListRow,
@@ -1138,10 +1139,61 @@ describe("get_subscriptions", () => {
     expect(context.subscriptions.list).toHaveBeenCalledWith(expect.objectContaining({ limit: 2, status: null }));
   });
 
-  it("hands back churn, a mandate, a gift, several original purchases and tied newest purchases", async () => {
+  describe("with the churn breakdown", () => {
+    const stats = (rate: number) => ({
+      subscriber_base: 10,
+      churned_customers_count: 2,
+      churn_rate: rate,
+      revenue_lost_cents: 500,
+    });
+    const churnContext = () => {
+      const churn = vi.fn<NonNullable<ToolContext["churn"]>>().mockResolvedValue({
+        metadata: { current_period: { start_date: "2026-01-01", end_date: "2026-03-10" } },
+        data: {
+          current_period: {
+            monthly: {
+              "2026-01-01": { total: stats(20), by_product: { clubpass: stats(20) } },
+              "2026-02-01": { total: stats(15.38), by_product: {} },
+            },
+          },
+        },
+      });
+      return { ...subscriptionsContext([], []), churn };
+    };
+
+    it("reports the months with the rate as a Float and the period the source read", async () => {
+      const context = churnContext();
+      const body = (await toolBody("get_subscriptions", { breakdown: "churn" }, context)) as Record<string, unknown>;
+
+      expect(context.churn).toHaveBeenCalledWith(context.user, "2025-04-01", "2026-03-10");
+      expect(body).toMatchObject({ breakdown: "churn", start_date: "2026-01-01", end_date: "2026-03-10" });
+      expect(toolText(body as never)).toContain('"churn_rate_percent": 20.0');
+      expect(toolText(body as never)).toContain('"churn_rate_percent": 15.38');
+    });
+
+    it("defaults to eleven months back from the first of the month", async () => {
+      const context = churnContext();
+      await toolBody("get_subscriptions", { breakdown: "churn", end_date: "2026-03-31" }, context);
+
+      expect(context.churn).toHaveBeenCalledWith(context.user, "2025-04-01", "2026-03-31");
+    });
+
+    it("answers a range that has not started without reading the source", async () => {
+      const context = churnContext();
+      const body = await toolBody(
+        "get_subscriptions",
+        { breakdown: "churn", start_date: "2026-04-01", end_date: "2026-05-01" },
+        context,
+      );
+
+      expect(body).toMatchObject({ rows: [] });
+      expect(context.churn).not.toHaveBeenCalled();
+    });
+  });
+
+  it("hands back a mandate, a gift, several original purchases and tied newest purchases", async () => {
     const hands = async (context: ReturnType<typeof subscriptionsContext>, args = {}) =>
       expect(toolBody("get_subscriptions", args, context)).rejects.toBeInstanceOf(HandBackToRails);
-    await hands(subscriptionsContext([], []), { breakdown: "churn" });
     await hands(subscriptionsContext([subscription({ flags: 1n << 7n })], [purchase(1)]));
     await hands(subscriptionsContext([subscription()], [purchase(1, { flags: (1n << 2n) | (1n << 6n) })]));
     await hands(subscriptionsContext([subscription()], [purchase(1), purchase(2)]));

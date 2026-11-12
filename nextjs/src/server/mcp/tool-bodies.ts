@@ -45,6 +45,7 @@ import { UserFlags } from "../models/user.ts";
 import { s3Fields } from "../models/product-file.ts";
 import { SubscriptionFlags } from "../models/subscription.ts";
 import { CreatorAnalyticsCachingProxy } from "../page-props/analytics/caching-proxy.ts";
+import { churnData } from "../page-props/analytics/churn.ts";
 import { displayExtension, nameDisplayable } from "../page-props/audience/product-file-json.ts";
 import { subscriptionStatus } from "../page-props/customers/customers.ts";
 import { domainConfig } from "../page-props/domain.ts";
@@ -234,6 +235,7 @@ export type ToolContext = {
   // Link#successful_sales_count and Link#total_usd_cents (both Elasticsearch searches).
   analytics?: AnalyticsReader;
   subscriptions?: SubscriptionsReader;
+  churn?: ChurnReader;
   productStats?: (productId: bigint) => Promise<{ sales_count: number | null; sales_usd_cents: FloatValue | number }>;
   now?: () => Date;
 };
@@ -1620,16 +1622,106 @@ function subscriptionState(row: SubscriptionRow, purchases: SubscriptionPurchase
   );
 }
 
-// tool_get_subscriptions, for breakdown=subscriptions. The churn breakdown reads CreatorAnalytics::Churn, whose rates are
-// Ruby Floats the port's cached payload does not keep apart from integers.
+const SUBSCRIPTION_CHURN_DEFAULT_MONTHS = 11;
+const SUBSCRIPTION_CHURN_MAX_DAYS = 366;
+
+type ChurnStats = {
+  subscriber_base: number;
+  churned_customers_count: number;
+  churn_rate: number;
+  revenue_lost_cents: number;
+};
+export type ChurnPayload = {
+  metadata: { current_period?: { start_date: string; end_date: string } };
+  data: {
+    current_period?: {
+      monthly?: Record<string, { total?: ChurnStats; by_product: Record<string, ChurnStats | undefined> }>;
+    };
+  };
+};
+export type ChurnReader = (user: User, startDate: string, endDate: string) => Promise<ChurnPayload>;
+const readChurn: ChurnReader = async (user, startDate, endDate) => {
+  try {
+    return (await churnData(user, { startDate, endDate })) as unknown as ChurnPayload;
+  } catch (error) {
+    if (error instanceof TimeZoneNotPortedError) throw new HandBackToRails(error.message);
+    throw error;
+  }
+};
+
+// `Date - n.months` (the day is clamped to the shorter month), then beginning_of_month.
+function startOfMonthsBefore(date: CalendarDate, months: number): CalendarDate {
+  const index = date.year * 12 + (date.month - 1) - months;
+  return { year: Math.floor(index / 12), month: (index % 12) + 1, day: 1 };
+}
+
+// Mcp::Server#churn_payload: CreatorAnalytics::Churn (the dashboard's source) by month, `churn_rate` a Ruby Float.
+async function getChurn(args: Hash, context: ToolContext, product: ProductDetailRow | null): Promise<Hash> {
+  const zone = context.user.timezone;
+  let today: CalendarDate;
+  try {
+    today = parseDate(instantInTimeZoneIso8601(zone, (context.now ?? (() => new Date()))()).slice(0, 10), "today");
+  } catch (error) {
+    if (error instanceof InvalidTimeZoneError)
+      throw new HandBackToRails("an MCP tool for a seller with an unknown time zone");
+    throw error;
+  }
+  const end = typeof args.end_date === "string" ? parseDate(args.end_date, "end_date") : today;
+  const start =
+    typeof args.start_date === "string"
+      ? parseDate(args.start_date, "start_date")
+      : startOfMonthsBefore(end, SUBSCRIPTION_CHURN_DEFAULT_MONTHS);
+  const days = (dateMs(end) - dateMs(start)) / DAY_MS;
+  if (days < 0) throw new ToolRpcError("start_date must not be after end_date", INVALID_PARAMS);
+  if (days >= SUBSCRIPTION_CHURN_MAX_DAYS)
+    throw new ToolRpcError(`The date range cannot exceed ${SUBSCRIPTION_CHURN_MAX_DAYS} days`, INVALID_PARAMS);
+
+  if (isoDate(start) > isoDate(today))
+    return {
+      breakdown: "churn",
+      start_date: isoDate(start),
+      end_date: isoDate(end),
+      time_zone: zone,
+      currency: USD,
+      rows: [],
+    };
+
+  const data = await (context.churn ?? readChurn)(context.user, isoDate(start), isoDate(end));
+  const monthly = data.data.current_period?.monthly ?? {};
+  const rows = Object.entries(monthly).flatMap(([month, monthStats]) => {
+    const stats = product === null ? monthStats.total : monthStats.by_product[product.unique_permalink ?? ""];
+    if (stats === undefined) return [];
+    return [
+      {
+        month,
+        subscriber_base: stats.subscriber_base,
+        churned: stats.churned_customers_count,
+        churn_rate_percent: new FloatValue(stats.churn_rate),
+        revenue_lost_cents: stats.revenue_lost_cents,
+      },
+    ];
+  });
+  // The churn source clamps the range to the seller's first sale and today, so return what it read.
+  const period = data.metadata.current_period;
+  return {
+    breakdown: "churn",
+    start_date: period?.start_date ?? isoDate(start),
+    end_date: period?.end_date ?? isoDate(end),
+    time_zone: zone,
+    currency: USD,
+    rows,
+  };
+}
+
+// tool_get_subscriptions
 async function getSubscriptions(args: Hash, context: ToolContext): Promise<Hash> {
   const breakdown = "breakdown" in args ? args.breakdown : "subscriptions";
-  if (breakdown === "churn") throw new HandBackToRails("get_subscriptions churn");
   let product: ProductDetailRow | null = null;
   if (isPresent(args.product_id)) {
     product = await (context.products ?? readProducts).find(BigInt(context.user.id), args.product_id);
     if (product === null) throw new ToolError("The product was not found.");
   }
+  if (breakdown === "churn") return getChurn(args, context, product);
   const limit = limitFor(args, 25);
   const after = parseCursor(args);
   const status = args.status === "alive" || args.status === "ended" ? args.status : null;
