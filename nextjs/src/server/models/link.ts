@@ -127,6 +127,7 @@ type CurrencyData = {
   min_price_formatted: string;
   double_min_price_in_currency: string;
   min_price_in_currency: string;
+  symbol: string;
 };
 // CURRENCY_CHOICES (config/currencies.json) and the messages Money formats from it.
 const CURRENCIES = LINK_DATA.currencies as Record<string, CurrencyData>;
@@ -224,6 +225,8 @@ const subscriptionDuration = (link: LinkRecord) =>
 export const isPublished = (link: LinkRecord) =>
   link.get("deleted_at") == null && link.get("purchase_disabled_at") == null && !link.get("draft");
 const currency = (link: LinkRecord) => CURRENCIES[link.get("price_currency_type") ?? ""];
+// Link#currency for a row: CURRENCY_CHOICES[price_currency_type].
+export const currencyOf = (type: string | null): CurrencyData | undefined => CURRENCIES[type ?? ""];
 
 const USER: BelongsTo = { name: "user", foreignKey: "user_id", targetTable: "users", targetModel: "User" };
 const DEFAULT_OFFER_CODE: BelongsTo = {

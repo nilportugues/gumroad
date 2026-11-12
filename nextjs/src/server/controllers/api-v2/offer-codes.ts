@@ -1,17 +1,34 @@
-// Api::V2::OfferCodesController (app/controllers/api/v2/offer_codes_controller.rb). Node answers the reads and the guards of the writes
-// (missing amount, unknown product or code, malformed validity period). A write that passes them runs OfferCode's validations, cache
-// invalidation and reindex callbacks, which are not ported, so Rails takes it whole.
+// Api::V2::OfferCodesController (app/controllers/api/v2/offer_codes_controller.rb). Node answers the reads, the guards of the writes
+// (missing amount, unknown product or code, malformed validity period) and the writes of a plain code (models/offer-code-writes.ts).
+// Every guard that decides a hand-back runs before the first statement, and before `offer_code.products << product`, which queues the
+// reindex at once: a request Rails must take whole has changed nothing.
+import { randomUUID } from "node:crypto";
+
 import { Prisma, type Link, type OfferCode } from "@prisma/client";
 
 import { decrypt, encrypt } from "../../../lib/obfuscate-ids.ts";
-import { OfferCodeRecord } from "../../models/offer-code.ts";
+import { withPaperTrailRequest } from "../../models/concerns/paper-trail.ts";
+import {
+  addProduct,
+  assertPlainCode,
+  assertPlainProducts,
+  buildOfferCode,
+  loadOfferCode,
+  OfferCodes,
+  productsOfOfferCode,
+  universalProducts,
+} from "../../models/offer-code-writes.ts";
+import { OfferCodeFlags, OfferCodeRecord } from "../../models/offer-code.ts";
 import { castRow, column, selectRows, table } from "../../models/sql.ts";
 import { HandBackToRails, type Rendered } from "../application-controller.ts";
+import { remoteIp } from "../mutation.ts";
+import type { Params } from "../rails-body.ts";
 
 import {
   type ApiV2Input,
   EDIT_PRODUCTS_SCOPES,
   error400,
+  errorWithCreatingObject,
   errorWithObject,
   loadProduct,
   present,
@@ -21,6 +38,7 @@ import {
   successWithObject,
 } from "./base.ts";
 import { decodePageKey, paginationInfo, USEC_FORMAT } from "./pagination.ts";
+import { blank, isHash, notPorted, rubyToI } from "./ruby-params.ts";
 
 const RESULTS_PER_PAGE = 10;
 const OFFER_CODES = "offer_codes";
@@ -183,10 +201,163 @@ export function validityPeriodError(params: ApiV2Input["params"]): Rendered | un
   return undefined;
 }
 
-// OfferCode#save and #update run validations, paper_trail, cache invalidation and the reindex of the products the code applies to.
-const writeToRails = (): never => {
-  throw new HandBackToRails("an offer code write");
-};
+// The attribute casts of the parameters the writes assign. Whatever Ruby would cast in a way the port does not follow (a boolean, a
+// fraction, a number outside the column) goes to Rails.
+const INTEGER_COLUMN_LIMIT = 2 ** 31 - 1;
+const trueParam = (value: unknown) => value === true || value === "true";
+
+// ActiveModel's Integer cast: blank is nil, a string reads as String#to_i.
+function castInteger(value: unknown): number | null {
+  if (value === undefined || value === null) return null;
+  let integer: bigint;
+  if (typeof value === "string") {
+    if (blank(value)) return null;
+    integer = rubyToI(value);
+  } else if (typeof value === "number" && Number.isSafeInteger(value)) integer = BigInt(value);
+  else return notPorted("an amount that is not text or a whole number");
+  if (integer > BigInt(INTEGER_COLUMN_LIMIT) || integer < -BigInt(INTEGER_COLUMN_LIMIT))
+    return notPorted("an amount outside the column's range");
+  return Number(integer);
+}
+
+// before_action :parse_validity_period, after validityPeriodError let the value through: Time.zone.rfc3339 of a whole-second timestamp.
+const TIMESTAMP =
+  /^[ \t\n\v\f\r]*(-?\d{4})-(\d{2})-(\d{2})(?:t|[ \t\n\v\f\r])(\d{2}):(\d{2}):(\d{2})(\.\d+)?(z|[-+]\d{2}:\d{2})[ \t\n\v\f\r]*$/iu;
+const MS_PER_MINUTE = 60_000;
+const MINUTES_PER_HOUR = 60;
+type ValidityPeriod = { valid_at?: Date | null; expires_at?: Date | null };
+function validityPeriodOf(params: Params): ValidityPeriod {
+  const out: ValidityPeriod = {};
+  for (const key of ["valid_at", "expires_at"] as const) {
+    if (!(key in params)) continue;
+    const value = params[key];
+    if (value === null || value === "") {
+      out[key] = null;
+      continue;
+    }
+    const match = TIMESTAMP.exec(String(value));
+    if (match === null) return notPorted("a validity period the port cannot read");
+    const [, year, month, day, hour, minute, second, fraction, zone] = match;
+    if (fraction !== undefined) return notPorted("a validity period with a fraction of a second");
+    const utc = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second));
+    const offset = /^([-+])(\d{2}):(\d{2})$/u.exec(zone!);
+    const minutes = offset
+      ? (offset[1] === "-" ? -1 : 1) * (Number(offset[2]) * MINUTES_PER_HOUR + Number(offset[3]))
+      : 0;
+    out[key] = new Date(utc - minutes * MS_PER_MINUTE);
+  }
+  return out;
+}
+
+// ApplicationController#set_paper_trail_whodunnit and #info_for_paper_trail: a token request holds no session, so nobody is the whodunnit.
+const withVersions = <T>({ request }: ApiV2Input, run: () => Promise<T>) =>
+  withPaperTrailRequest(
+    {
+      whodunnit: null,
+      controllerInfo: {
+        remote_ip: remoteIp(request),
+        request_path: request.path,
+        request_uuid: request.headers.get("x-request-id") ?? randomUUID(),
+      },
+    },
+    run,
+  );
+
+const withoutLookupColumn = ({ created_usec: _usec, ...row }: OfferCode & { created_usec: string }): OfferCode => row;
+const recordErrors = (record: { errors: { fullMessages(): string[] } }) => ({ errors: record.errors.fullMessages() });
+
+async function create(input: ApiV2Input) {
+  const { params, request } = input;
+  const product: Link = input.state.product;
+  const universal = trueParam(params.universal);
+  if (trueParam(params.auto_apply)) notPorted("a code applied automatically");
+  const name = params.name;
+  if (name !== undefined && name !== null && typeof name !== "string") notPorted("a name that is not text");
+  for (const key of ["amount_off", "amount_cents", "max_purchase_count", "minimum_amount_cents"])
+    if (isHash(params[key]) || Array.isArray(params[key])) notPorted("an amount that is a list or a hash");
+
+  const attributes: Partial<OfferCode> = {
+    code: (name as string | null | undefined) ?? null,
+    universal,
+    max_purchase_count: castInteger(params.max_purchase_count),
+    auto_apply: false,
+    sale_label: null,
+    minimum_amount_cents: present(params.minimum_amount_cents) ? castInteger(params.minimum_amount_cents) : null,
+    user_id: Number(product.user_id),
+    ...validityPeriodOf(params),
+  };
+  if (params.offer_type === "percent") attributes.amount_percentage = castInteger(params.amount_off) ?? 0;
+  else {
+    attributes.amount_cents = castInteger(
+      present(params.amount_cents) ? params.amount_cents : present(params.amount_off) ? params.amount_off : null,
+    );
+    attributes.currency_type = product.price_currency_type;
+  }
+  if (/^gumroad-cli\//iu.test(request.headers.get("user-agent") ?? ""))
+    attributes.flags = OfferCodeFlags.set(0n, "created_via_cli", true);
+
+  // What the validations will read, checked before anything is written.
+  await assertPlainProducts(
+    universal ? await universalProducts(product.user_id!, attributes.currency_type ?? null) : [product],
+  );
+
+  return withVersions(input, async () => {
+    const record = buildOfferCode(attributes);
+    if (!universal) await addProduct(record, product);
+    if (!(await OfferCodes.save(record))) return errorWithCreatingObject("offer_code", recordErrors(record));
+    return successWithObject("offer_code", await offerCodeJson(record.attributes as OfferCode));
+  });
+}
+
+// Reads the code and refuses, before any write, the shapes the model port does not cover.
+async function writableCode(input: ApiV2Input): Promise<{ row: OfferCode; products: Link[] }> {
+  const found = await findOfferCode(input.owner, input.state.product, input.params);
+  const row = withoutLookupColumn(found!);
+  await assertPlainCode(row);
+  const products = row.universal
+    ? await universalProducts(row.user_id, row.currency_type)
+    : await productsOfOfferCode(row.id);
+  return { row, products };
+}
+
+async function update(input: ApiV2Input) {
+  const { params } = input;
+  const { row, products } = await writableCode(input);
+  const attributes: Partial<OfferCode> = {};
+  for (const key of ["max_purchase_count", "minimum_amount_cents", "auto_apply", "sale_label"] as const) {
+    if (!(key in params)) continue;
+    const value = params[key];
+    if (isHash(value) || Array.isArray(value)) notPorted("a parameter that is a list or a hash");
+    if (key === "auto_apply") {
+      if (trueParam(value)) notPorted("a code applied automatically");
+      attributes.auto_apply = false;
+    } else if (key === "sale_label") attributes.sale_label = typeof value === "string" ? value : null;
+    else attributes[key] = castInteger(value);
+  }
+  Object.assign(attributes, validityPeriodOf(params));
+  await assertPlainProducts(products);
+
+  return withVersions(input, async () => {
+    const record = loadOfferCode(row);
+    if (!(await OfferCodes.update(record, attributes))) return errorWithObject("offer_code", recordErrors(record));
+    return successWithObject("offer_code", await offerCodeJson(record.attributes as OfferCode));
+  });
+}
+
+const DELETED_AT_PRECISION_MS = 1000;
+
+async function destroy(input: ApiV2Input) {
+  const { row } = await writableCode(input);
+  return withVersions(input, async () => {
+    const record = loadOfferCode(row);
+    const now = new Date();
+    const deletedAt = new Date(Math.floor(now.getTime() / DELETED_AT_PRECISION_MS) * DELETED_AT_PRECISION_MS);
+    // The validation failure renders `error_with_offer_code` without the record: "was not found".
+    if (!(await OfferCodes.update(record, { deleted_at: deletedAt }, { now: () => now })))
+      return errorWithObject("offer_code");
+    return successWithObject("offer_code", null);
+  });
+}
 
 async function beforeCreate(input: ApiV2Input) {
   if (!present(input.params.amount_off) && !present(input.params.amount_cents)) {
@@ -231,41 +402,41 @@ registerApiV2(
     pattern: "/v2/products/:link_id/offer_codes",
     scopes: EDIT_PRODUCTS_SCOPES,
     before: beforeCreate,
-    run: writeToRails,
+    run: create,
   },
   {
     method: "PATCH",
     pattern: "/v2/offer_codes/:id",
     scopes: EDIT_PRODUCTS_SCOPES,
     before: beforeChange(true),
-    run: writeToRails,
+    run: update,
   },
   {
     method: "PUT",
     pattern: "/v2/offer_codes/:id",
     scopes: EDIT_PRODUCTS_SCOPES,
     before: beforeChange(true),
-    run: writeToRails,
+    run: update,
   },
   {
     method: "PATCH",
     pattern: "/v2/products/:link_id/offer_codes/:id",
     scopes: EDIT_PRODUCTS_SCOPES,
     before: beforeChange(true),
-    run: writeToRails,
+    run: update,
   },
   {
     method: "PUT",
     pattern: "/v2/products/:link_id/offer_codes/:id",
     scopes: EDIT_PRODUCTS_SCOPES,
     before: beforeChange(true),
-    run: writeToRails,
+    run: update,
   },
   {
     method: "DELETE",
     pattern: "/v2/products/:link_id/offer_codes/:id",
     scopes: EDIT_PRODUCTS_SCOPES,
     before: beforeChange(false),
-    run: writeToRails,
+    run: destroy,
   },
 );
