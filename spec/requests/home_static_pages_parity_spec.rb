@@ -153,7 +153,7 @@ describe "Home static pages", type: :request do
       expect(response.body).to include('class="group/body mac"')
     end
 
-    it "hands a signed-in seller to Rails", parity: true do
+    it "renders the Dashboard link for a signed-in seller", parity: true do
       log_in(create(:user))
 
       get "/terms"

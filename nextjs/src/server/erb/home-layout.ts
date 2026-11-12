@@ -384,12 +384,16 @@ function navLink(text: string, target: string, current: boolean): string {
 }
 
 function authButton(text: string, target: string, primary: boolean): string {
+  // The Dashboard button is the primary one with its own colours, and none of the dark-mode set the other primary button adds.
+  const dashboard = text === "Dashboard";
   const classes = `flex w-full items-center justify-center h-full ${
-    primary
-      ? "lg:bg-black lg:text-white lg:hover:bg-pink"
-      : "lg:border-l-black lg:bg-white lg:text-black lg:hover:bg-pink dark:lg:border-l-white/35 dark:lg:bg-black dark:lg:text-white"
+    dashboard
+      ? "lg:bg-black lg:text-white lg:hover:bg-pink dark:lg:bg-pink dark:lg:text-black dark:lg:hover:bg-white"
+      : primary
+        ? "lg:bg-black lg:text-white lg:hover:bg-pink"
+        : "lg:border-l-black lg:bg-white lg:text-black lg:hover:bg-pink dark:lg:border-l-white/35 dark:lg:bg-black dark:lg:text-white"
   } border-black bg-black p-4 text-lg text-white no-underline transition-colors duration-200 hover:bg-pink hover:text-black lg:w-auto lg:border-l lg:py-2 lg:px-6 whitespace-nowrap ${
-    primary
+    primary && !dashboard
       ? "dark:bg-pink dark:text-black dark:hover:bg-white dark:lg:bg-pink dark:lg:text-black dark:lg:hover:bg-white"
       : "dark:lg:hover:bg-white dark:lg:hover:text-black"
   }`;
@@ -404,7 +408,6 @@ function currentPage(ctx: LayoutContext, target: string): boolean {
 }
 
 export function nav(ctx: LayoutContext): string {
-  if (ctx.signedIn) throw new NotPortedError("the nav of a signed-in visitor");
   const navLinks = html(
     contentTag(
       "div",
@@ -437,7 +440,10 @@ export function nav(ctx: LayoutContext): string {
     contentTag(
       "div",
       new SafeString(
-        authButton("Log in", PATHS.login_path!, false) + authButton("Start selling", PATHS.signup_path!, true),
+        ctx.signedIn
+          ? // dashboard_url(host: DOMAIN)
+            authButton("Dashboard", `${ctx.config.protocol}://${ctx.config.domain}/dashboard`, true)
+          : authButton("Log in", PATHS.login_path!, false) + authButton("Start selling", PATHS.signup_path!, true),
       ),
       { class: "flex flex-col lg:flex-row lg:h-full" },
     ),
@@ -507,9 +513,10 @@ function readGithubIconPath(): string {
 
 function githubStarsLink(stars: number | null): string {
   const icon = (width: number) =>
-    new RegExp(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="${width}"[\\s\\S]*?</svg>`, "u").exec(
-      readView("home/shared/_nav.html.erb"),
-    )![0];
+    new RegExp(
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="${width}"[\\s\\S]*?</svg>`,
+      "u",
+    ).exec(readView("home/shared/_nav.html.erb"))![0];
   const classes =
     "flex gap-1.5 rounded-full p-1.5 border border-black no-underline dark:border-white/35 hover:bg-gray-100 dark:hover:bg-gray-700 text-black dark:text-white hover:-translate-x-[2px] hover:-translate-y-[2px] hover:shadow-[2px_2px_0_0_rgba(0,0,0,1)] dark:hover:shadow-[2px_2px_0_0_rgba(255,255,255,0.35)] transition-all duration-100";
   // A star count GitHub failed to give (cached as nil) leaves the name and an arrow.

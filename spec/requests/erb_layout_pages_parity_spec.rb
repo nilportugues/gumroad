@@ -37,7 +37,7 @@ describe "ERB layout pages", type: :request do
       expect(response.body).to include("Technical details")
     end
 
-    it "hands a connector page for a signed-in seller to Rails", parity: true do
+    it "renders a connector page for a signed-in seller", parity: true do
       log_in(create(:user))
 
       get "/claude"
@@ -94,7 +94,7 @@ describe "ERB layout pages", type: :request do
       expect(response.body).to include(">GitHub</span>")
     end
 
-    it "hands a signed-in seller to Rails", parity: true do
+    it "renders the Dashboard link for a signed-in seller", parity: true do
       seller = create(:user)
       log_in(seller)
 

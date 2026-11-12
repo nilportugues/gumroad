@@ -20,6 +20,7 @@ import { MetaTagBuilder } from "../page-props/meta-tags.ts";
 import { NotPortedError } from "../page-props/not-ported.ts";
 import type { SharedPropsPorts } from "../page-props/ports.ts";
 import { applicationMetaTags } from "../page-props/shared.ts";
+import { signedInPresenters } from "../page-props/signed-in/presenters.ts";
 
 import { type ActionContext, HandBackToRails, type Rendered } from "./application-controller.ts";
 import { rackTopLevelParams } from "./rails-params.ts";
@@ -89,8 +90,8 @@ function pageMetaTags(meta: MetaTagBuilder, { title, description, url }: PageMet
   meta.set({ property: "og:url", content: url });
 }
 
-// No port exists for the signed-in half of the shared props; the layout only reads the seller for the analytics flags.
-const NO_PORTS = {} as SharedPropsPorts;
+// The layout reads the signed-in seller only for the third-party analytics flag.
+const PORTS = { presenters: signedInPresenters } as SharedPropsPorts;
 
 export async function renderHomePage(
   request: RailsRequest,
@@ -100,8 +101,9 @@ export async function renderHomePage(
   response: { paramsRead?: boolean; headers?: Record<string, string> } = {},
 ): Promise<Rendered> {
   const config = domainConfig(process.env);
-  // A signed-in visitor sees the Dashboard nav and the seller-aware analytics flags, none of it recorded.
-  if (railsLoggedInUser(action.context) !== null) throw new HandBackToRails("a home page for a signed-in visitor");
+  // `signed_in?` is the Warden session; an impersonating admin has one of their own.
+  if (action.context.impersonatedUser !== null) throw new HandBackToRails("a home page for an impersonated session");
+  const signedIn = railsLoggedInUser(action.context) !== null;
   const origin = `${config.protocol}://${request.hostWithPort}`;
   const githubStars = await cachedGithubStars();
   const state = action.takeRenderState();
@@ -110,7 +112,7 @@ export async function renderHomePage(
     context: action.context,
     config,
     csrfToken: formAuthenticityToken(state.csrfToken),
-    ports: NO_PORTS,
+    ports: PORTS,
   });
   pageMetaTags(meta, typeof page === "function" ? page(origin) : page);
   const nonce = generateCspNonce();
@@ -124,7 +126,7 @@ export async function renderHomePage(
     nonce,
     meta,
     githubStars,
-    signedIn: false,
+    signedIn,
     hideLayouts: true,
   };
   // A tag the ERB table does not list is a page Rails renders, not one to guess.
