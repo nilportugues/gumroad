@@ -407,7 +407,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ChargeDeclinedReminderWorker": {
     "file": "app/sidekiq/charge_declined_reminder_worker.rb",

@@ -14,6 +14,7 @@ import {
 import { cacheProductDataWorker } from "./cache-product-data-worker.ts";
 import { calculatePayoutNumbersWorker } from "./calculate-payout-numbers-worker.ts";
 import { calculateSaleNumbersWorker } from "./calculate-sale-numbers-worker.ts";
+import { cancelSubscriptionsForProductWorker } from "./cancel-subscriptions-for-product-worker.ts";
 import {
   contentModerationAdminCommentJob,
   detectLegalEntityCountryDriftJob,
@@ -332,6 +333,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   ReleaseChargebackRatePayoutPauseForSellerJob: releaseChargebackRatePayoutPauseForSellerJob,
   RetryStripeJpAddressResyncForSellerJob: retryStripeJpAddressResyncForSellerJob,
   GenerateUsernameJob: generateUsernameJob,
+  CancelSubscriptionsForProductWorker: cancelSubscriptionsForProductWorker,
 };
 
 // `sidekiq_retry_in` and `sidekiq_retries_exhausted` blocks of ported jobs, keyed by Ruby class name.
