@@ -61,7 +61,7 @@ export type ModelDefinition<R extends Row> = {
   afterRollback?: Callback<R>[];
 };
 
-type ScalarField = { name: string; default: unknown; datetimePrecision: number | null; json: boolean };
+type ScalarField = { name: string; default: unknown; datetimePrecision: number | null; json: boolean; int: boolean };
 
 const TIMESTAMP_COLUMNS = ["created_at", "created_on", "updated_at", "updated_on"];
 const UPDATE_TIMESTAMP_COLUMNS = ["updated_at", "updated_on"];
@@ -81,7 +81,13 @@ function scalarFields(model: Prisma.ModelName): ScalarField[] {
         if (literal !== null && f.type === "Decimal") value = new Prisma.Decimal(literal as string);
         const native = f.nativeType as [string, string[]] | null | undefined;
         const precision = f.type === "DateTime" && native?.[0] === "DateTime" ? Number(native[1][0] ?? 6) : null;
-        return { name: f.name, default: value, datetimePrecision: precision, json: f.type === "Json" };
+        return {
+          name: f.name,
+          default: value,
+          datetimePrecision: precision,
+          json: f.type === "Json",
+          int: f.type === "Int",
+        };
       })
   );
 }
@@ -100,7 +106,7 @@ function applies<R extends Row>(cb: Callback<R>, record: ModelRecord<R>, action:
     if (!on.includes(action)) return false;
   }
   if (cb.if && !cb.if(record)) return false;
-  if (cb.unless && cb.unless(record)) return false;
+  if (cb.unless?.(record)) return false;
   return true;
 }
 
@@ -158,7 +164,7 @@ export function defineModel<R extends Row>(def: ModelDefinition<R>) {
       identity: () => `${def.rubyClass}#${String(record.get("id"))}`,
       prepare: async (finalAction) => {
         for (const cb of def.beforeCommit ?? [])
-          if (applies(cb, record, finalAction as Action)) await cb.run(record, { tx: null as unknown as Tx });
+          if (applies(cb, record, finalAction)) await cb.run(record, { tx: null as unknown as Tx });
       },
       commit: async (finalAction) => {
         // committed! clears the record's trigger flags when it finishes, and `on:` is checked per
@@ -198,9 +204,16 @@ export function defineModel<R extends Row>(def: ModelDefinition<R>) {
         .filter((f) => f.json)
         .map((f) => f.name),
     );
+    const intColumns = new Set(
+      getFields()
+        .filter((f) => f.int)
+        .map((f) => f.name),
+    );
     for (const name of names) {
       if (name === "id" && record.get(name) == null) continue;
-      const value = record.get(name);
+      let value = record.get(name);
+      // A BigInt primary key assigned to an Int foreign key column (Credit#user_id) is the column's own type on the way in.
+      if (typeof value === "bigint" && intColumns.has(name)) value = Number(value) as unknown as typeof value;
       // ActiveRecord writes a nil JSON attribute as SQL NULL; Prisma would store the JSON literal null.
       out[name] = value === null && jsonColumns.has(name) ? Prisma.DbNull : value;
     }

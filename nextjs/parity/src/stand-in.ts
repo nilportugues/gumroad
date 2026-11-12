@@ -11,6 +11,11 @@ import { keptHttpHeaders } from "./http";
 // previous one, so a replay can prove what Rails' timeline proves: the order of the writes against the calls (nothing written
 // before a refund reaches Stripe, the ledger written after) and the headers each call carried (the idempotency key).
 
+// The URL as WebMock records it: no bare `?` for an empty query, and an indexed array key (`expand[0]`) written as `expand%5B%5D`.
+function webMockUrl(raw: string): string {
+  return raw.replace(/\?$/u, "").replace(/\[\d*\]/gu, "%5B%5D");
+}
+
 // What `outboundFetch` (src/server/infra/outbound-http.ts) sends the real URL in.
 const PARITY_ORIGINAL_URL_HEADER = "x-parity-original-url";
 
@@ -79,7 +84,7 @@ export async function startStandIn(reader: SqlExecutor): Promise<StandIn> {
     request.on("data", (chunk: Buffer) => chunks.push(chunk));
     request.on("end", () => {
       queue = queue.then(async () => {
-        const url = String(request.headers[PARITY_ORIGINAL_URL_HEADER] ?? request.url);
+        const url = webMockUrl(String(request.headers[PARITY_ORIGINAL_URL_HEADER] ?? request.url));
         const method = request.method ?? "";
         const now = await fingerprints(reader);
         const call: StandInCall = {
@@ -100,7 +105,7 @@ export async function startStandIn(reader: SqlExecutor): Promise<StandIn> {
         if (index === -1) return void response.writeHead(599).end(`parity: no recorded answer for ${method} ${url}`);
         const [answer] = unused.splice(index, 1);
         // A recorded dropped connection: no status line, no body, as when the peer resets the socket.
-        if (answer!.response.dropped) return void request.socket.destroy();
+        if (answer!.response.dropped) return void request.socket.resetAndDestroy();
         response.writeHead(
           answer!.response.status ?? 200,
           answer!.response.contentType ? { "content-type": answer!.response.contentType } : {},

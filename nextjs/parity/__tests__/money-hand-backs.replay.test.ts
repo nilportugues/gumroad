@@ -9,10 +9,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { closeAllRedis } from "@/server/infra/redis";
 
 import type { JobsChannel, RawJob } from "../src/channels";
+import { compareExchange } from "../src/compare";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
-import { loadFixture } from "../src/fixture";
+import { loadFixture, type CapturedExchange, type Exchange } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
-import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
+import { assertParity, formatReplay, httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
 import { standInDifferences, startStandIn, timelineSegments, uncommittedReader, type StandIn } from "../src/stand-in";
 
@@ -43,12 +44,20 @@ const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8"
 const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "mu").exec(envTest)?.[1];
 
 type QueuedJob = { class: string; args: unknown[]; queue: string; at?: number };
-const asJob = (item: QueuedJob): RawJob => ({
-  class: item.class,
-  args: item.args,
-  queue: item.queue,
-  ...(item.at === undefined ? {} : { at: item.at }),
-});
+// Mail goes out inside Sidekiq's ActiveJob wrapper; the recording keeps the wrapped job's class, arguments and queue.
+const asJob = (item: QueuedJob): RawJob => {
+  const wrapped = item.args[0] as { job_class?: string; arguments?: unknown[]; queue_name?: string } | undefined;
+  const unwrapped =
+    item.class === "ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper" && wrapped?.job_class
+      ? {
+          class: wrapped.job_class,
+          args: wrapped.arguments ?? [],
+          queue: wrapped.queue_name ?? item.queue,
+          activeJob: true,
+        }
+      : { class: item.class, args: item.args, queue: item.queue };
+  return { ...unwrapped, ...(item.at === undefined ? {} : { at: item.at }) };
+};
 const jobKey = (job: { class: string; args: unknown; queue?: string }) =>
   `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
 
@@ -85,6 +94,46 @@ const COMPARE = {
     "http",
   ],
 };
+
+// A payout runs for as long as the Stripe gem sleeps between retries and the recorder took to set the example up, so the stamps of
+// its rows land on either side of the 5s "<now>" window; which rows were written, in which order, is held by the timeline. A
+// comment says when the payout failed, in words, so it is compared with the time taken out.
+const INSTANT_PAYOUT_COMPARE = {
+  ...COMPARE,
+  ignore: [
+    ...COMPARE.ignore,
+    "db.*.inserted.*.created_at",
+    "db.*.inserted.*.updated_at",
+    "db.*.updated.*.changes.updated_at.*",
+    "db.comments.inserted.*.content",
+  ],
+};
+// An UPDATE that only moves updated_at to "<now>" (from a stamp at the edge of the 5s window) is whether the second ticked over: Rails recorded
+// it for some examples and Node does not see the same tick.
+function withoutClockBumps<T extends { db?: unknown }>(exchange: T): T {
+  const db = structuredClone(
+    (exchange.db ?? {}) as Record<string, { updated?: { changes: Record<string, unknown[]> }[] }>,
+  );
+  for (const [table, entry] of Object.entries(db)) {
+    if (!entry.updated) continue;
+    entry.updated = entry.updated.filter(
+      (row) =>
+        !Object.entries(row.changes).every(
+          ([column, [was, is]]) => column === "updated_at" && (was === "<now>" || was === "<now-5s>") && is === "<now>",
+        ),
+    );
+    if (entry.updated.length === 0) delete entry.updated;
+    if (Object.keys(entry).length === 0) delete db[table];
+  }
+  return { ...exchange, db };
+}
+const UTC_STAMP = /\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} UTC/gu;
+const commentContents = (exchange: { db?: unknown }) =>
+  (
+    ((exchange.db as Record<string, { inserted?: { content?: string }[] }> | undefined)?.comments?.inserted ?? []) as {
+      content?: string;
+    }[]
+  ).map((comment) => (comment.content ?? "").replace(UTC_STAMP, "<time>"));
 
 const cases = SPECS.flatMap((spec) => {
   const dir = path.join(FIXTURES, spec);
@@ -136,6 +185,8 @@ describe.skipIf(!url)("requests that call a payment processor", () => {
     server = await startNextServer({
       RAILS_ENV: "test",
       OUTBOUND_HTTP_STAND_IN: stripe.url,
+      // Only its presence is compared; the stand-in never sees a real key.
+      STRIPE_API_KEY: "sk_test_parity_stand_in",
       OBFUSCATE_IDS_CIPHER_KEY: testEnv("OBFUSCATE_IDS_CIPHER_KEY") ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
       NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS,
@@ -152,7 +203,7 @@ describe.skipIf(!url)("requests that call a payment processor", () => {
     });
   }, FIRST_COMPILE_TIMEOUT_MS);
 
-  const replayOptions = (name: string) => ({
+  const replayOptions = (name: string | typeof INSTANT_PAYOUT_COMPARE) => ({
     sql,
     redis: {
       reset: (entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0]) => redisSeeder(redis).reset(entries),
@@ -166,16 +217,21 @@ describe.skipIf(!url)("requests that call a payment processor", () => {
       loaded: Parameters<typeof reencryptCookies>[1],
       now: Date,
     ) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
-    compare: name.includes("404") ? { ignore: [...COMPARE.ignore, "response.body"] } : COMPARE,
+    compare:
+      typeof name !== "string"
+        ? name
+        : name.includes("404")
+          ? { ignore: [...COMPARE.ignore, "response.body"] }
+          : COMPARE,
   });
 
   afterAll(async () => {
-    await server?.stop();
-    rails?.close();
-    await stripe?.close();
+    await server.stop();
+    rails.close();
+    await stripe.close();
     await closeAllRedis();
-    await redis?.quit();
-    await client?.$disconnect();
+    await redis.quit();
+    await client.$disconnect();
     process.env = saved;
   });
 
@@ -221,16 +277,18 @@ describe.skipIf(!url)("requests that call a payment processor", () => {
     expect(exchange.timeline![0]).toEqual({ type: "http", index: 0 });
   });
 
-  // Rails creates the payout row and moves the balance before it asks Stripe for the payout, and finishes the row after.
-  it("records Rails reading Stripe twice, writing the payout, then creating it with a random idempotency key", () => {
+  // Rails reads Stripe twice, claims the balances and writes the payout row, reads the destination account's balance, and only then
+  // creates the payout with a random idempotency key.
+  it("records Rails reading Stripe, writing the payout, reading the destination balance, then creating it with a random idempotency key", () => {
     const [, file, index] = cases.find(([, file]) => file.includes("instant_payouts_parity_spec"))!;
     const exchange = loadFixture(file).exchanges[index]!;
     expect(exchange.http.map((call) => `${call.method} ${new URL(call.url).pathname}`)).toEqual([
       expect.stringMatching(/^GET \/v1\/accounts\/acct_\w+\/external_accounts\/ba_/u),
       "GET /v1/balance",
+      "GET /v1/balance",
       "POST /v1/payouts",
     ]);
-    expect(exchange.http[2]!.headers).toMatchObject({
+    expect(exchange.http[3]!.headers).toMatchObject({
       "idempotency-key": "<uuid>",
       "stripe-account": expect.stringMatching(/^acct_/u),
     });
@@ -238,6 +296,7 @@ describe.skipIf(!url)("requests that call a payment processor", () => {
       [],
       [],
       ["balances", "payments", "payments_balances"],
+      ["payments"],
       ["payments"],
     ]);
   });
@@ -253,20 +312,20 @@ describe.skipIf(!url)("requests that call a payment processor", () => {
     const paths = (exchange: ReturnType<typeof named>) =>
       exchange.http.map((call) => `${call.method} ${new URL(call.url).pathname}`);
 
-    const dropped = named("the-connection-drops-a-039d4a76");
-    expect(paths(dropped).slice(2)).toEqual(Array<string>(4).fill("POST /v1/payouts"));
-    expect(dropped.http.slice(2).every((call) => call.response.dropped === true)).toBe(true);
-    expect(new Set(dropped.http.slice(2).map((call) => call.headers!["idempotency-key"])).size).toBe(1);
+    const dropped = named("the-connection-drops-after-the-f26c6d71");
+    expect(paths(dropped).slice(3)).toEqual(Array<string>(4).fill("POST /v1/payouts"));
+    expect(dropped.http.slice(3).every((call) => call.response.dropped === true)).toBe(true);
+    expect(new Set(dropped.http.slice(3).map((call) => call.headers!["idempotency-key"])).size).toBe(1);
     expect(timelineSegments(dropped.timeline!).at(-1)).toEqual(["balances", "comments", "payments", "users"]);
 
-    const rateLimited = named("stripe-answers-a-rate-1fa02d00");
-    expect(paths(rateLimited).slice(2)).toEqual(["POST /v1/payouts"]);
-    expect(rateLimited.http[2]!.response.status).toBe(429);
+    const rateLimited = named("stripe-answers-a-rate-limit");
+    expect(paths(rateLimited).slice(3)).toEqual(["POST /v1/payouts"]);
+    expect(rateLimited.http[3]!.response.status).toBe(429);
 
-    const staleBank = named("stripe-answers-a-bank-238b951b");
+    const staleBank = named("stripe-answers-a-bank-account-53c07c4d");
     expect(timelineSegments(staleBank.timeline!).at(-1)).toEqual(["balances", "bank_accounts", "comments", "payments"]);
 
-    const reversed = named("the-bank-payout-fails-a-73fcf293");
+    const reversed = named("the-bank-payout-fails-and-the-i-70442b08");
     expect(
       paths(reversed)
         .slice(2)
@@ -394,7 +453,9 @@ describe.skipIf(!url)("requests that call a payment processor", () => {
       "GET /v1/balance_transactions/txn 200",
     ]);
     expect(afterCommit(reversal)).toBe(4);
-    expect(reversal.http[7]!.headers).toMatchObject({ "idempotency-key": "refund_fee_retention_reversal_1_tr_paritypayout01" });
+    expect(reversal.http[7]!.headers).toMatchObject({
+      "idempotency-key": "refund_fee_retention_reversal_1_tr_paritypayout01",
+    });
 
     const second = fixtureOf("moves on to a second transfer");
     expect(calls(second)).toEqual([
@@ -414,7 +475,9 @@ describe.skipIf(!url)("requests that call a payment processor", () => {
       "GET /v1/transfers 200",
       ...Array<string>(4).fill("POST /v1/transfers/tr/reversals 500"),
     ]);
-    expect(calls(fixtureOf("connection drops while listing"))).toEqual(Array<string>(4).fill("GET /v1/transfers dropped"));
+    expect(calls(fixtureOf("connection drops while listing"))).toEqual(
+      Array<string>(4).fill("GET /v1/transfers dropped"),
+    );
 
     expect(calls(fixtureOf("collects the retained fee with a transfer from the seller's account"))).toEqual([
       "GET /v1/transfers 200",
@@ -454,7 +517,9 @@ describe.skipIf(!url)("requests that call a payment processor", () => {
     const won = fixtureOf("reverses the transfer Stripe made when the dispute was won");
     expect(calls(won).slice(0, 2)).toEqual(["GET /v1/transfers 200", "POST /v1/transfers/tr/reversals 200"]);
     expect(won.http[7]!.headers).toMatchObject({ "idempotency-key": "dispute_win_reversal_re_parityretain01" });
-    expect(new URL(won.http[6]!.url).searchParams.get("created[gte]")).toBe(String(Date.UTC(2026, 9, 20) / 1000 - 60000));
+    expect(new URL(won.http[6]!.url).searchParams.get("created[gte]")).toBe(
+      String(Date.UTC(2026, 9, 20) / 1000 - 60000),
+    );
   });
 
   // The account row is inserted before the processor is called and filled in after.
@@ -467,6 +532,50 @@ describe.skipIf(!url)("requests that call a payment processor", () => {
       ["comments", "merchant_accounts", "tos_agreements", "users"],
       ["bank_accounts", "comments", "merchant_accounts"],
     ]);
+  });
+
+  // A shape Node does not take goes to Rails whole: no write, and no Stripe call that moves money (the reads before the claim are allowed).
+  describe("instant payout shapes Node hands back", () => {
+    const successCase = () => cases.find(([, file]) => file.includes("instant_payouts_parity_spec"))!;
+    // `extraReads` answers the balance reads a second balance adds.
+    const replayEdited = async (edit: (exchange: Exchange) => void, extraReads = 0) => {
+      const [name, file, index] = successCase();
+      const fixture = loadFixture(file);
+      edit(fixture.exchanges[index]!);
+      handedBack.length = 0;
+      const recorded = fixture.exchanges[index]!.http;
+      stripe.arm([...recorded, ...Array.from({ length: extraReads }, () => recorded[1]!)]);
+      const result = await replayFixtureExchange(fixture, index, replayOptions(name));
+      const seen = await stripe.finish();
+      return { result, seen };
+    };
+    const expectHandedBack = (
+      result: Awaited<ReturnType<typeof replayEdited>>["result"],
+      seen: { calls: { method: string }[]; writtenAfter: string[] },
+    ) => {
+      expect(handedBack).toHaveLength(1);
+      expect(Object.keys(result.exchanges[0]!.actual.db ?? {})).toEqual([]);
+      expect(seen.calls.filter((call) => call.method !== "GET")).toEqual([]);
+      expect(seen.writtenAfter).toEqual([]);
+    };
+
+    it("hands back a date that is not a YYYY-MM-DD day, before any read", async () => {
+      const { result, seen } = await replayEdited((exchange) => {
+        exchange.request.body = JSON.stringify({ date: "11/12/2026" });
+      });
+      expectHandedBack(result, seen);
+      expect(seen.calls).toEqual([]);
+    });
+
+    it("hands back balances created at the same instant, whose order Ruby leaves open", async () => {
+      const { result, seen } = await replayEdited((exchange) => {
+        const table = exchange.seed.tables.balances!;
+        // Half the recorded amount each, so both fit the instant balance Stripe reported.
+        for (const row of table.rows) Object.assign(row, { amount_cents: 50000, holding_amount_cents: 50000 });
+        table.rows.push({ ...table.rows[0]!, id: 2 });
+      }, 3);
+      expectHandedBack(result, seen);
+    });
   });
 
   it.each(cases)(
@@ -495,10 +604,30 @@ describe.skipIf(!url)("requests that call a payment processor", () => {
           return;
         }
         // A refusal Rails makes before the processor: the same response, no Stripe call, no write.
-        const result = await replayFixtureExchange(fixture, index, replayOptions(name));
-        assertParity(result);
+        const instant = name.startsWith("instant_payouts");
+        const result = await replayFixtureExchange(
+          fixture,
+          index,
+          replayOptions(instant ? INSTANT_PAYOUT_COMPARE : name),
+        );
+        if (!instant) assertParity(result);
+        if (instant) {
+          const [{ expected: want, actual }] = result.exchanges as [{ expected: Exchange; actual: CapturedExchange }];
+          const differences = compareExchange(withoutClockBumps(want), withoutClockBumps(actual), {
+            ...INSTANT_PAYOUT_COMPARE,
+            ...(fixture.sessionCookie ? { sessionCookie: fixture.sessionCookie } : {}),
+          });
+          if (differences.length > 0)
+            throw new Error(formatReplay({ ...result, exchanges: [{ expected: want, actual, differences }] }));
+          expect(commentContents(actual)).toEqual(commentContents(want));
+        }
         expect(handedBack).toEqual([]);
-        expect(standInDifferences(expected, await stripe.finish())).toEqual([]);
+        const standInDiffs = standInDifferences(
+          expected,
+          await stripe.finish(),
+          instant ? { ignoreTables: ["versions"] } : {},
+        );
+        if (standInDiffs.length > 0) throw new Error(standInDiffs.join("\n"));
       } catch (error) {
         const logs = server
           .output()

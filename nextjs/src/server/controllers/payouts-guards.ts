@@ -3,15 +3,18 @@
 // OauthCompletionsController#stripe.
 //
 // Ported: sign-in, the account email, the tax center switch, the Pundit refusals, the tax form lookups and the missing OAuth session.
-// Ported past the guards: the Stripe disconnect (a local write, no Stripe call). Handed to Rails whole, before any write or processor
-// call: the instant payout, the tax form download, the transaction report job and linking the Stripe account.
+// Ported past the guards: the Stripe disconnect (a local write, no Stripe call) and the instant payout (models/instant-payouts-service.ts;
+// a shape Node does not take is handed to Rails whole before the first write or Stripe POST). Handed to Rails whole, before any write or
+// processor call: the tax form download, the transaction report job and linking the Stripe account.
 import { Prisma } from "@prisma/client";
 
 import * as Routes from "@/lib/navigation/routes";
 
+import { notifyError } from "../infra/error-reporting.ts";
+import { INSTANT_PAYOUT_FAILED, performInstantPayouts } from "../models/instant-payouts-service.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { disconnectStripe } from "../models/stripe-merchant-account-disconnect.ts";
-import { findUserBang } from "../models/user.ts";
+import { findUserBang, NotPortedError } from "../models/user.ts";
 import { transactionReportAvailable, taxCenterEnabled } from "../page-props/dashboard/tax-center.ts";
 import { domainConfig } from "../page-props/domain.ts";
 import { settingsGuard } from "../page-props/settings/guard.ts";
@@ -26,6 +29,7 @@ import { jsonResponse, sellerJsonAction } from "./json-seller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { authorizeJson } from "./seller-json.ts";
 import { logPayoutSettingsUpdateByNonOwner } from "./settings-payments-mutations.ts";
+import { requestFormat } from "./signed-in-filters.ts";
 
 const FOUND = 302;
 const NOT_FOUND = 404;
@@ -62,11 +66,53 @@ function disconnect(input: MutationInput): Promise<ActionResult> {
   );
 }
 
-// POST /instant_payouts
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/u;
+const INSTANT_PAYOUT_NOTICE = "Instant payout initiated successfully";
+
+// `Date.parse(params.require(:date))`, for the one shape the dashboard sends. Anything else (a missing or blank param, another
+// format) goes to Rails before any read.
+function instantPayoutDate(input: MutationInput): Date {
+  const value = input.params.date;
+  const match = typeof value === "string" ? ISO_DATE.exec(value) : null;
+  if (match === null) throw new HandBackToRails("an instant payout date that is not a YYYY-MM-DD string");
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  if (date.toISOString().slice(0, 10) !== value)
+    throw new HandBackToRails("an instant payout date that is not a calendar day");
+  return date;
+}
+
+// POST /instant_payouts. Everything up to the claim of the balances only reads, so a shape Node refuses (NotPortedError), a failed
+// Stripe read or any other error there hands the whole request to Rails. Once a payment may exist nothing is thrown: an error is
+// reported and the seller is told the payout failed, because Rails would pay again.
 async function createInstantPayout(input: MutationInput): Promise<ActionResult> {
   const denied = await guard(input, instantPayoutPolicy.create);
+  // Pundit answers a refusal with 401 JSON unless the request is HTML; only the HTML redirect is ported.
+  if (denied && requestFormat(input.request) !== "html")
+    throw new HandBackToRails("a refused instant payout in another format");
   if (denied) return denied;
-  throw new HandBackToRails("an instant payout moves money to the seller's debit card");
+  const date = instantPayoutDate(input);
+  const progress = { committed: false };
+  const redirect = (flash: Record<string, string>): Redirected => ({
+    status: FOUND,
+    location: Routes.balance_url(input.urlOptions),
+    flash,
+  });
+  try {
+    const seller = await findUserBang(Number(input.context.currentSeller!.id));
+    const result = await performInstantPayouts(seller, date, {}, progress);
+    return redirect(result.success ? { notice: INSTANT_PAYOUT_NOTICE } : { alert: result.error });
+  } catch (error) {
+    if (!progress.committed)
+      throw error instanceof HandBackToRails
+        ? error
+        : new HandBackToRails(
+            error instanceof NotPortedError
+              ? error.message
+              : `an instant payout that failed before it claimed anything: ${String(error)}`,
+          );
+    notifyError(error);
+    return redirect({ alert: INSTANT_PAYOUT_FAILED });
+  }
 }
 
 // `params[:year].to_i`; null when the number is too long to hold exactly.
@@ -172,7 +218,7 @@ async function completeStripeOauth(input: MutationInput): Promise<ActionResult> 
 
 registerMutations(
   { method: "POST", pattern: "/settings/stripe/disconnect", formats: ["json"], run: disconnect },
-  { method: "POST", pattern: "/instant_payouts", run: createInstantPayout },
+  { method: "POST", pattern: "/instant_payouts", formats: ["any"], run: createInstantPayout },
   {
     method: "GET",
     pattern: "/payouts/taxes/:year/:form_type/download",

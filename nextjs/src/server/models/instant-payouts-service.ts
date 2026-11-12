@@ -33,6 +33,8 @@ export const INSTANT_PAYOUT_ABOVE_MAXIMUM =
 export const INSTANT_PAYOUT_FAILED = "Failed to process instant payout";
 
 export type InstantPayoutsResult = { success: true } | { success: false; error: string };
+// Set once a payment row may exist, from which a failure can no longer be handed back to Rails.
+export type InstantPayoutProgress = { committed: boolean };
 
 const dateOf = (balance: BalanceRecord) => balance.get("date") as unknown as Date;
 const createdAtOf = (balance: BalanceRecord) => (balance.get("created_at") as unknown as Date).getTime();
@@ -54,6 +56,7 @@ export async function performInstantPayouts(
   seller: UserRecord,
   date: Date,
   options: SaveOptions = {},
+  progress: InstantPayoutProgress = { committed: false },
 ): Promise<InstantPayoutsResult> {
   if (!(await instantPayoutsSupported(seller, options))) return { success: false, error: INSTANT_PAYOUT_NOT_ELIGIBLE };
 
@@ -70,6 +73,7 @@ export async function performInstantPayouts(
   if (batches.length > 1) throw new NotPortedError("an instant payout split into several batches", SERVICE_REF);
 
   // From here on a payment row may exist, and a bank payout may have been requested.
+  progress.committed = true;
   const payments = await createPaymentsBang(dateOf(batches[0]!.at(-1)!), seller, {
     payoutType: PAYOUT_TYPE_INSTANT,
     ...(options.now ? { now: options.now } : {}),
