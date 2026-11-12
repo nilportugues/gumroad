@@ -88,7 +88,6 @@ import { radarAddValueListItemJob, radarRemoveValueListItemJob } from "./radar-v
 import { rebuildGmailAbuseFilterJob } from "./rebuild-gmail-abuse-filter-job.ts";
 import { recordOrderChargeOutcomeJob } from "./record-order-charge-outcome-job.ts";
 import { recordProductFileMissingFromStorageJob } from "./record-product-file-missing-from-storage-job.ts";
-import { updatePurchaseEmailToMatchAccountWorker } from "./update-purchase-email-to-match-account-worker.ts";
 import { recoverAusBacktaxFromStripeAccountJob } from "./recover-aus-backtax-from-stripe-account-job.ts";
 import { refreshClosedTierDiscoverPricesJob } from "./refresh-closed-tier-discover-prices-job.ts";
 import { refreshCustomDomainRoutabilityWorker } from "./refresh-custom-domain-routability-worker.ts";
@@ -114,6 +113,7 @@ import {
   reindexSellerOfferCodesRecoveryJob,
   reindexSellerOfferCodesRecoveryJobRetriesExhausted,
 } from "./reindex-seller-offer-codes-job.ts";
+import { releaseChargebackRatePayoutPauseForSellerJob } from "./release-chargeback-rate-payout-pause-for-seller-job.ts";
 import { removeSuspendedAccountFollowsWorker } from "./remove-suspended-account-follows-worker.ts";
 import { retryStripeJpAddressResyncsJob } from "./retry-stripe-jp-address-resyncs-job.ts";
 import { blockSuspendedAccountIpWorker, checkPaymentAddressWorker } from "./risk-jobs.ts";
@@ -165,6 +165,7 @@ import { syncWatchedUsersJob } from "./sync-watched-users-job.ts";
 import type { JobHandler } from "./types.ts";
 import { updateCachedSalesRelatedProductsInfosJob } from "./update-cached-sales-related-products-infos-job.ts";
 import { updateCurrenciesWorker } from "./update-currencies-worker.ts";
+import { updatePurchaseEmailToMatchAccountWorker } from "./update-purchase-email-to-match-account-worker.ts";
 import { updatePurchasingPowerParityFactorsWorker } from "./update-purchasing-power-parity-factors-worker.ts";
 import { updateSalesRelatedProductsInfosJob } from "./update-sales-related-products-infos-job.ts";
 import { updateSellerRefundEligibilityJob } from "./update-seller-refund-eligibility-job.ts";
@@ -326,6 +327,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   CustomDomainsVerificationWorker: customDomainsVerificationWorker,
   RecordProductFileMissingFromStorageJob: recordProductFileMissingFromStorageJob,
   UpdatePurchaseEmailToMatchAccountWorker: updatePurchaseEmailToMatchAccountWorker,
+  ReleaseChargebackRatePayoutPauseForSellerJob: releaseChargebackRatePayoutPauseForSellerJob,
 };
 
 // `sidekiq_retry_in` and `sidekiq_retries_exhausted` blocks of ported jobs, keyed by Ruby class name.

@@ -2488,7 +2488,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ReleaseChargebackRatePayoutPausesJob": {
     "file": "app/sidekiq/release_chargeback_rate_payout_pauses_job.rb",
