@@ -5,10 +5,9 @@
 // redirect URI check (models/oauth-redirect-uri.ts), the grant and refresh locks, the shared application lock around a refresh and
 // the rows Doorkeeper writes (random urlsafe tokens, a revoked grant or refresh token). Dynamically registered MCP clients get
 // Gumroad's S256 and resource checks. Handed to Rails whole, before any write: a brand account token (team membership), a
-// request that carries a session cookie, and any parameter that is not a string.
+// request whose session cookie holds more than a session id, and any parameter that is not a string.
 import { createHash } from "node:crypto";
 
-import { railsSessionCookieName } from "../auth/rails-session-config.ts";
 import { withApplicationLock } from "../models/oauth-application-writes.ts";
 import {
   findByDeviceCode,
@@ -90,12 +89,6 @@ const DESCRIPTIONS: Record<string, string> = {
   revoke_unauthorized: "You are not authorized to revoke this token",
 };
 const missingParam = (name: string) => `Missing required parameter: ${name}.`;
-
-// The session middleware re-answers a session it was sent with its own bookkeeping, which Node does not reproduce.
-function assertNoSession(input: MutationInput): void {
-  if (input.request.cookies.has(railsSessionCookieName()))
-    throw new NotPortedError("a request that carries a session cookie", RUBY_FILE);
-}
 
 // An ActionController::API session holds only its session_id, and the cookie of a client that kept the one the last response set is
 // answered with that session again. A cookie carrying more (a browser signed in on the website) stays in Rails.
@@ -432,7 +425,7 @@ async function tokenFromParams(input: MutationInput): Promise<AccessTokenRow | n
 }
 
 async function revoke(input: MutationInput): Promise<ActionResult> {
-  assertNoSession(input);
+  assertPlainSession(input);
   const client = await authenticateClient(clientCredentials(input));
   if (client === null) return revocationRefusal();
   const token = await tokenFromParams(input);
@@ -480,7 +473,7 @@ function invalidToken(token: AccessTokenRow | null, now: Date): Rendered {
 // response (`OAuth::InvalidTokenResponse.new`, without the revoked or expired reason). The JSON of an accessible token carries
 // `expires_in`, counted from the clock, so it stays in Rails.
 async function tokenInfo(input: MutationInput): Promise<ActionResult> {
-  assertNoSession(input);
+  assertPlainSession(input);
   const now = new Date();
   const token = await bearerToken(input);
   if (token === null || !accessible(token, now)) return invalidToken(null, now);
@@ -492,7 +485,7 @@ async function tokenInfo(input: MutationInput): Promise<ActionResult> {
 
 // OAuth::TokenIntrospection: the caller proves itself with client credentials or a bearer token of the same application.
 async function introspect(input: MutationInput): Promise<ActionResult> {
-  assertNoSession(input);
+  assertPlainSession(input);
   const now = new Date();
   const token = await tokenFromParams(input);
   const credentials = clientCredentials(input);

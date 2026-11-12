@@ -233,6 +233,22 @@ describe "OAuth token issuance", type: :request do
     end
   end
 
+  describe "a request that sends back the session cookie of an earlier response" do
+    before { post "/oauth/token", params: { grant_type: "client_credentials", client_id: "unknown" } }
+
+    it "issues a client_credentials token", parity: true do
+      post "/oauth/token", params: { grant_type: "client_credentials", scope: "view_profile" }, headers: basic(confidential_app)
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "answers a failing code exchange", parity: true do
+      post "/oauth/token", params: { grant_type: "authorization_code", code: "unknown", redirect_uri: confidential_app.redirect_uri }, headers: basic(confidential_app)
+
+      expect(response).to have_http_status(:bad_request)
+    end
+  end
+
   describe "client_credentials" do
     it "issues an access token with no refresh token and no owner", parity: true do
       post "/oauth/token", params: { grant_type: "client_credentials", client_id: confidential_app.uid, client_secret: confidential_app.secret, scope: "view_profile" }

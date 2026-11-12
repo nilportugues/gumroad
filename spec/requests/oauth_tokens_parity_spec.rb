@@ -201,6 +201,45 @@ describe "OAuth tokens", type: :request do
 
   end
 
+  # A client that keeps the cookie of an earlier response sends back a session holding only its session id; the recording's last
+  # exchange is the one that carries the cookie.
+  describe "a request that sends back the session cookie of an earlier response" do
+    before { get "/oauth/token/info" }
+
+    it "revokes the token of a public client", parity: true do
+      token = access_token_for(public_app)
+
+      post "/oauth/revoke", params: { token: token.token, client_id: public_app.uid }
+
+      expect(response).to have_http_status(:ok)
+      expect(token.reload.revoked_at).to be_present
+    end
+
+    it "refuses a revocation from an unknown client", parity: true do
+      post "/oauth/revoke", params: { token: access_token_for(public_app).token, client_id: "unknown" }
+
+      expect(response).to have_http_status(:forbidden)
+    end
+
+    it "reports an active token to the client it was issued to", parity: true do
+      post "/oauth/introspect", params: { token: access_token_for(confidential_app).token }, headers: basic(confidential_app)
+
+      expect(response.parsed_body).to include("active" => true)
+    end
+
+    it "answers invalid_request when the caller proves nothing", parity: true do
+      post "/oauth/introspect", params: { token: access_token_for(public_app).token }
+
+      expect(response).to have_http_status(:bad_request)
+    end
+
+    it "answers invalid_token for an unknown bearer token", parity: true do
+      get "/oauth/token/info", headers: { "Authorization" => "Bearer unknown" }
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
+
   describe "POST /oauth/revoke" do
     it "refuses a request with no client", parity: true do
       post "/oauth/revoke", params: { token: access_token_for(public_app).token }
