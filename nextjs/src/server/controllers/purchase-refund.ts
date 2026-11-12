@@ -4,11 +4,14 @@
 //
 // The success path is not ported: it is a Stripe charge read, a refund create and two reads, then the ledger (refund,
 // balance transactions, credit, balance, purchase) and eight jobs. `purchases_refund_parity_spec.rb` records that order
-// (all four calls, then the writes) for whoever ports it.
+// (all four calls, then the writes) and `purchases_refund_failures_parity_spec.rb` every branch after a call. The arithmetic
+// (models/refund-ledger.ts) and the flow of funds (stripe/stripe-charge-refund.ts) are ported with goldens; parity-debt.md lists
+// what keeps the success path in Rails.
 import { Prisma, type Purchase } from "@prisma/client";
 
 import { decrypt } from "../../lib/obfuscate-ids.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
+import { AMOUNT_TOO_LARGE, chooseRefund, effectiveSums, type RefundSale } from "../models/refund-ledger.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { UserFlags } from "../models/user.ts";
 import { audiencePurchasePolicy } from "../policies/audience-purchase.ts";
@@ -65,6 +68,17 @@ async function heldByGumroad(merchantAccountId: bigint | number | null): Promise
   );
 }
 
+// What chooseRefund reads of a sale that has no refunds yet.
+const refundSale = (purchase: Purchase): RefundSale => ({
+  price_cents: purchase.price_cents ?? 0,
+  total_transaction_cents: purchase.total_transaction_cents ?? 0,
+  fee_cents: purchase.fee_cents ?? 0,
+  tax_cents: purchase.tax_cents ?? 0,
+  gumroad_tax_cents: purchase.gumroad_tax_cents ?? 0,
+  affiliate_credit_cents: purchase.affiliate_credit_cents ?? 0,
+  stripe_partially_refunded: purchase.stripe_partially_refunded,
+});
+
 const blank = (value: unknown) =>
   value === undefined || value === null || (typeof value === "string" && value.trim() === "");
 
@@ -87,9 +101,6 @@ export async function refundPurchase(input: MutationInput): Promise<ActionResult
   if (purchase.card_type === PAYPAL_CARD_TYPE)
     throw new HandBackToRails("a PayPal refund, whose expiry depends on the calendar");
 
-  // A partial refund parses the amount in the product's currency and short-circuits to a full refund in several cases.
-  if (!blank(amount)) throw new HandBackToRails("a refund with an amount, which is converted and may be partial");
-
   if (!CHARGE_PROCESSORS.includes(purchase.charge_processor_id ?? ""))
     throw new HandBackToRails("a purchase of a removed processor");
   // refund_and_save!: Purchase#refunds are summed with the `effective` scope, so a purchase with refunds hands back.
@@ -99,6 +110,19 @@ export async function refundPurchase(input: MutationInput): Promise<ActionResult
     )
   )
     throw new HandBackToRails("a purchase that already has refunds");
+
+  // Purchase::Refundable#refund!: an amount over the price is refused before any other check, and the price itself is the full
+  // refund. A partial one only changes the amount the balance check compares. A sale in another currency and anything but a plain
+  // decimal go to Rails, which converts them.
+  let partialCents: number | null = null;
+  if (!blank(amount)) {
+    if ((purchase.displayed_price_currency_type ?? "usd") !== "usd")
+      throw new HandBackToRails("a refund with an amount in a currency other than USD");
+    const choice = chooseRefund(refundSale(purchase), effectiveSums([]), amount as string);
+    if (choice === null) throw new HandBackToRails("a refund amount that BigDecimal might read differently");
+    if (choice.kind === "too_large") return failure(AMOUNT_TOO_LARGE);
+    if (choice.kind === "partial") partialCents = choice.amount_cents;
+  }
   if (purchase.stripe_transaction_id === null || purchase.stripe_transaction_id === "")
     return failure(NOTHING_TO_REFUND);
 
@@ -114,7 +138,8 @@ export async function refundPurchase(input: MutationInput): Promise<ActionResult
 
   if (UserFlags.isSet(seller.flags, "refunds_disabled")) return failure(REFUNDS_DISABLED);
   if (purchase.price_cents === null) throw new HandBackToRails("a purchase with no price");
-  if (BigInt(purchase.price_cents) > (await unpaidBalanceCents(seller.id))) return failure(BALANCE_INSUFFICIENT);
+  if (BigInt(partialCents ?? purchase.price_cents) > (await unpaidBalanceCents(seller.id)))
+    return failure(BALANCE_INSUFFICIENT);
 
   throw new HandBackToRails("a refund, which moves money through the processor");
 }

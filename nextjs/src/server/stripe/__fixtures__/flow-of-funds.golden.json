@@ -1,0 +1,1248 @@
+{
+  "cases": [
+    {
+      "name": "a plain charge",
+      "input": {
+        "charge": {
+          "destination": null,
+          "application_fee": null
+        },
+        "refund": {
+          "id": "re_1",
+          "object": "refund",
+          "amount": 100,
+          "currency": "usd",
+          "charge": "ch_1",
+          "balance_transaction": {
+            "id": "txn_r1",
+            "object": "balance_transaction",
+            "amount": -100,
+            "currency": "usd"
+          }
+        },
+        "refund_bt": {
+          "id": "txn_r1",
+          "object": "balance_transaction",
+          "amount": -100,
+          "currency": "usd"
+        }
+      },
+      "output": {
+        "id": "re_1",
+        "charge_id": "ch_1",
+        "flow_of_funds": {
+          "issued_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "settled_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "gumroad_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "merchant_account_gross_amount": {},
+          "merchant_account_net_amount": {}
+        }
+      }
+    },
+    {
+      "name": "a plain partial refund",
+      "input": {
+        "charge": {
+          "destination": null,
+          "application_fee": null
+        },
+        "refund": {
+          "id": "re_1",
+          "object": "refund",
+          "amount": 37,
+          "currency": "usd",
+          "charge": "ch_1",
+          "balance_transaction": {
+            "id": "txn_r1",
+            "object": "balance_transaction",
+            "amount": -37,
+            "currency": "usd"
+          }
+        },
+        "refund_bt": {
+          "id": "txn_r1",
+          "object": "balance_transaction",
+          "amount": -37,
+          "currency": "usd"
+        }
+      },
+      "output": {
+        "id": "re_1",
+        "charge_id": "ch_1",
+        "flow_of_funds": {
+          "issued_amount": {
+            "currency": "usd",
+            "cents": -37
+          },
+          "settled_amount": {
+            "currency": "usd",
+            "cents": -37
+          },
+          "gumroad_amount": {
+            "currency": "usd",
+            "cents": -37
+          },
+          "merchant_account_gross_amount": {},
+          "merchant_account_net_amount": {}
+        }
+      }
+    },
+    {
+      "name": "a plain refund settled in another currency",
+      "input": {
+        "charge": {
+          "destination": null,
+          "application_fee": null
+        },
+        "refund": {
+          "id": "re_1",
+          "object": "refund",
+          "amount": 100,
+          "currency": "usd",
+          "charge": "ch_1",
+          "balance_transaction": {
+            "id": "txn_r1",
+            "object": "balance_transaction",
+            "amount": -91,
+            "currency": "eur"
+          }
+        },
+        "refund_bt": {
+          "id": "txn_r1",
+          "object": "balance_transaction",
+          "amount": -91,
+          "currency": "eur"
+        }
+      },
+      "output": {
+        "id": "re_1",
+        "charge_id": "ch_1",
+        "flow_of_funds": {
+          "issued_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "settled_amount": {
+            "currency": "eur",
+            "cents": -91
+          },
+          "gumroad_amount": {
+            "currency": "eur",
+            "cents": -91
+          },
+          "merchant_account_gross_amount": {},
+          "merchant_account_net_amount": {}
+        }
+      }
+    },
+    {
+      "name": "a plain charge whose expanded application fee has an account",
+      "input": {
+        "charge": {
+          "destination": null,
+          "application_fee": {
+            "id": "fee_1",
+            "account": "acct_1"
+          }
+        },
+        "refund": {
+          "id": "re_1",
+          "object": "refund",
+          "amount": 80,
+          "currency": "usd",
+          "charge": "ch_1",
+          "balance_transaction": {
+            "id": "txn_r1",
+            "object": "balance_transaction",
+            "amount": -80,
+            "currency": "usd"
+          }
+        },
+        "refund_bt": {
+          "id": "txn_r1",
+          "object": "balance_transaction",
+          "amount": -80,
+          "currency": "usd"
+        }
+      },
+      "output": {
+        "id": "re_1",
+        "charge_id": "ch_1",
+        "flow_of_funds": {
+          "issued_amount": {
+            "currency": "usd",
+            "cents": -80
+          },
+          "settled_amount": {
+            "currency": "usd",
+            "cents": -80
+          },
+          "gumroad_amount": {
+            "currency": "usd",
+            "cents": -80
+          },
+          "merchant_account_gross_amount": {},
+          "merchant_account_net_amount": {}
+        }
+      }
+    },
+    {
+      "name": "a plain charge whose expanded application fee has no account",
+      "input": {
+        "charge": {
+          "destination": null,
+          "application_fee": {
+            "id": "fee_1",
+            "account": null
+          }
+        },
+        "refund": {
+          "id": "re_1",
+          "object": "refund",
+          "amount": 100,
+          "currency": "usd",
+          "charge": "ch_1",
+          "balance_transaction": {
+            "id": "txn_r1",
+            "object": "balance_transaction",
+            "amount": -100,
+            "currency": "usd"
+          }
+        },
+        "refund_bt": {
+          "id": "txn_r1",
+          "object": "balance_transaction",
+          "amount": -100,
+          "currency": "usd"
+        }
+      },
+      "output": {
+        "id": "re_1",
+        "charge_id": "ch_1",
+        "flow_of_funds": {
+          "issued_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "settled_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "gumroad_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "merchant_account_gross_amount": {},
+          "merchant_account_net_amount": {}
+        }
+      }
+    },
+    {
+      "name": "a plain charge with an empty destination string",
+      "input": {
+        "charge": {
+          "destination": "",
+          "application_fee": null
+        },
+        "refund": {
+          "id": "re_1",
+          "object": "refund",
+          "amount": 100,
+          "currency": "usd",
+          "charge": "ch_1",
+          "balance_transaction": {
+            "id": "txn_r1",
+            "object": "balance_transaction",
+            "amount": -100,
+            "currency": "usd"
+          }
+        },
+        "refund_bt": {
+          "id": "txn_r1",
+          "object": "balance_transaction",
+          "amount": -100,
+          "currency": "usd"
+        }
+      },
+      "output": {
+        "id": "re_1",
+        "charge_id": "ch_1",
+        "flow_of_funds": {
+          "issued_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "settled_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "gumroad_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "merchant_account_gross_amount": {},
+          "merchant_account_net_amount": {}
+        }
+      }
+    },
+    {
+      "name": "a destination charge refunding the fee",
+      "input": {
+        "charge": {
+          "destination": "acct_dest",
+          "application_fee": {
+            "id": "fee_1"
+          }
+        },
+        "refund": {
+          "id": "re_1",
+          "object": "refund",
+          "amount": 100,
+          "currency": "usd",
+          "charge": "ch_1",
+          "balance_transaction": {
+            "id": "txn_r1",
+            "object": "balance_transaction",
+            "amount": -100,
+            "currency": "usd"
+          }
+        },
+        "destination_payment_refund": {
+          "id": "pyr_1",
+          "object": "refund",
+          "amount": 70,
+          "currency": "usd",
+          "balance_transaction": {
+            "id": "txn_d1",
+            "object": "balance_transaction",
+            "amount": -70,
+            "currency": "usd"
+          }
+        },
+        "refund_bt": {
+          "id": "txn_r1",
+          "object": "balance_transaction",
+          "amount": -100,
+          "currency": "usd"
+        },
+        "fee_refund_bt": {
+          "id": "txn_f1",
+          "object": "balance_transaction",
+          "amount": -30,
+          "currency": "usd"
+        },
+        "destination_refund_bt": {
+          "id": "txn_d1",
+          "object": "balance_transaction",
+          "amount": -70,
+          "currency": "usd"
+        },
+        "destination_fee_refund": {
+          "id": "fr_1",
+          "object": "fee_refund",
+          "amount": 30,
+          "currency": "usd",
+          "balance_transaction": {
+            "id": "txn_f1",
+            "object": "balance_transaction",
+            "amount": -30,
+            "currency": "usd"
+          }
+        }
+      },
+      "output": {
+        "id": "re_1",
+        "charge_id": "ch_1",
+        "flow_of_funds": {
+          "issued_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "settled_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "gumroad_amount": {
+            "currency": "usd",
+            "cents": -30
+          },
+          "merchant_account_gross_amount": {
+            "currency": "usd",
+            "cents": -70
+          },
+          "merchant_account_net_amount": {
+            "currency": "usd",
+            "cents": -40
+          }
+        }
+      }
+    },
+    {
+      "name": "a destination charge refunding the fee in the connected account's currency",
+      "input": {
+        "charge": {
+          "destination": "acct_dest",
+          "application_fee": {
+            "id": "fee_1"
+          }
+        },
+        "refund": {
+          "id": "re_1",
+          "object": "refund",
+          "amount": 100,
+          "currency": "usd",
+          "charge": "ch_1",
+          "balance_transaction": {
+            "id": "txn_r1",
+            "object": "balance_transaction",
+            "amount": -100,
+            "currency": "usd"
+          }
+        },
+        "destination_payment_refund": {
+          "id": "pyr_1",
+          "object": "refund",
+          "amount": 64,
+          "currency": "eur",
+          "balance_transaction": {
+            "id": "txn_d1",
+            "object": "balance_transaction",
+            "amount": -64,
+            "currency": "eur"
+          }
+        },
+        "refund_bt": {
+          "id": "txn_r1",
+          "object": "balance_transaction",
+          "amount": -100,
+          "currency": "usd"
+        },
+        "fee_refund_bt": {
+          "id": "txn_f1",
+          "object": "balance_transaction",
+          "amount": -30,
+          "currency": "usd"
+        },
+        "destination_refund_bt": {
+          "id": "txn_d1",
+          "object": "balance_transaction",
+          "amount": -64,
+          "currency": "eur"
+        },
+        "destination_fee_refund": {
+          "id": "fr_1",
+          "object": "fee_refund",
+          "amount": 27,
+          "currency": "eur",
+          "balance_transaction": {
+            "id": "txn_f1",
+            "object": "balance_transaction",
+            "amount": -27,
+            "currency": "eur"
+          }
+        }
+      },
+      "output": {
+        "id": "re_1",
+        "charge_id": "ch_1",
+        "flow_of_funds": {
+          "issued_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "settled_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "gumroad_amount": {
+            "currency": "usd",
+            "cents": -30
+          },
+          "merchant_account_gross_amount": {
+            "currency": "eur",
+            "cents": -64
+          },
+          "merchant_account_net_amount": {
+            "currency": "eur",
+            "cents": -37
+          }
+        }
+      }
+    },
+    {
+      "name": "a destination charge with a fee refund in another currency than the destination refund",
+      "input": {
+        "charge": {
+          "destination": "acct_dest",
+          "application_fee": {
+            "id": "fee_1"
+          }
+        },
+        "refund": {
+          "id": "re_1",
+          "object": "refund",
+          "amount": 100,
+          "currency": "usd",
+          "charge": "ch_1",
+          "balance_transaction": {
+            "id": "txn_r1",
+            "object": "balance_transaction",
+            "amount": -100,
+            "currency": "usd"
+          }
+        },
+        "destination_payment_refund": {
+          "id": "pyr_1",
+          "object": "refund",
+          "amount": 64,
+          "currency": "eur",
+          "balance_transaction": {
+            "id": "txn_d1",
+            "object": "balance_transaction",
+            "amount": -64,
+            "currency": "eur"
+          }
+        },
+        "refund_bt": {
+          "id": "txn_r1",
+          "object": "balance_transaction",
+          "amount": -100,
+          "currency": "usd"
+        },
+        "fee_refund_bt": {
+          "id": "txn_f1",
+          "object": "balance_transaction",
+          "amount": -30,
+          "currency": "usd"
+        },
+        "destination_refund_bt": {
+          "id": "txn_d1",
+          "object": "balance_transaction",
+          "amount": -64,
+          "currency": "eur"
+        },
+        "destination_fee_refund": {
+          "id": "fr_1",
+          "object": "fee_refund",
+          "amount": 30,
+          "currency": "usd",
+          "balance_transaction": {
+            "id": "txn_f1",
+            "object": "balance_transaction",
+            "amount": -30,
+            "currency": "usd"
+          }
+        }
+      },
+      "output": {
+        "error": {
+          "class": "RuntimeError",
+          "message": "Destination Payment Application Fee Refund fr_1 should be in the same currency as the Destination Payment Refund's Balance Transaction txn_d1"
+        }
+      }
+    },
+    {
+      "name": "a destination charge without a fee refund",
+      "input": {
+        "charge": {
+          "destination": "acct_dest",
+          "application_fee": null
+        },
+        "refund": {
+          "id": "re_1",
+          "object": "refund",
+          "amount": 100,
+          "currency": "usd",
+          "charge": "ch_1",
+          "balance_transaction": {
+            "id": "txn_r1",
+            "object": "balance_transaction",
+            "amount": -100,
+            "currency": "usd"
+          }
+        },
+        "destination_payment_refund": {
+          "id": "pyr_1",
+          "object": "refund",
+          "amount": 70,
+          "currency": "usd",
+          "balance_transaction": {
+            "id": "txn_d1",
+            "object": "balance_transaction",
+            "amount": -70,
+            "currency": "usd"
+          }
+        },
+        "refund_bt": {
+          "id": "txn_r1",
+          "object": "balance_transaction",
+          "amount": -100,
+          "currency": "usd"
+        },
+        "destination_refund_bt": {
+          "id": "txn_d1",
+          "object": "balance_transaction",
+          "amount": -70,
+          "currency": "usd"
+        }
+      },
+      "output": {
+        "id": "re_1",
+        "charge_id": "ch_1",
+        "flow_of_funds": {
+          "issued_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "settled_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "gumroad_amount": {
+            "currency": "usd",
+            "cents": 30
+          },
+          "merchant_account_gross_amount": {
+            "currency": "usd",
+            "cents": -70
+          },
+          "merchant_account_net_amount": {
+            "currency": "usd",
+            "cents": -70
+          }
+        }
+      }
+    },
+    {
+      "name": "a destination charge with only the platform's fee leg",
+      "input": {
+        "charge": {
+          "destination": "acct_dest",
+          "application_fee": {
+            "id": "fee_1"
+          }
+        },
+        "refund": {
+          "id": "re_1",
+          "object": "refund",
+          "amount": 100,
+          "currency": "usd",
+          "charge": "ch_1",
+          "balance_transaction": {
+            "id": "txn_r1",
+            "object": "balance_transaction",
+            "amount": -100,
+            "currency": "usd"
+          }
+        },
+        "destination_payment_refund": {
+          "id": "pyr_1",
+          "object": "refund",
+          "amount": 70,
+          "currency": "usd",
+          "balance_transaction": {
+            "id": "txn_d1",
+            "object": "balance_transaction",
+            "amount": -70,
+            "currency": "usd"
+          }
+        },
+        "refund_bt": {
+          "id": "txn_r1",
+          "object": "balance_transaction",
+          "amount": -100,
+          "currency": "usd"
+        },
+        "fee_refund_bt": {
+          "id": "txn_f1",
+          "object": "balance_transaction",
+          "amount": -30,
+          "currency": "usd"
+        },
+        "destination_refund_bt": {
+          "id": "txn_d1",
+          "object": "balance_transaction",
+          "amount": -70,
+          "currency": "usd"
+        }
+      },
+      "output": {
+        "id": "re_1",
+        "charge_id": "ch_1",
+        "flow_of_funds": {
+          "issued_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "settled_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "gumroad_amount": {
+            "currency": "usd",
+            "cents": 30
+          },
+          "merchant_account_gross_amount": {
+            "currency": "usd",
+            "cents": -70
+          },
+          "merchant_account_net_amount": {
+            "currency": "usd",
+            "cents": -70
+          }
+        }
+      }
+    },
+    {
+      "name": "a destination charge with only the destination's fee leg",
+      "input": {
+        "charge": {
+          "destination": "acct_dest",
+          "application_fee": null
+        },
+        "refund": {
+          "id": "re_1",
+          "object": "refund",
+          "amount": 100,
+          "currency": "usd",
+          "charge": "ch_1",
+          "balance_transaction": {
+            "id": "txn_r1",
+            "object": "balance_transaction",
+            "amount": -100,
+            "currency": "usd"
+          }
+        },
+        "destination_payment_refund": {
+          "id": "pyr_1",
+          "object": "refund",
+          "amount": 70,
+          "currency": "usd",
+          "balance_transaction": {
+            "id": "txn_d1",
+            "object": "balance_transaction",
+            "amount": -70,
+            "currency": "usd"
+          }
+        },
+        "refund_bt": {
+          "id": "txn_r1",
+          "object": "balance_transaction",
+          "amount": -100,
+          "currency": "usd"
+        },
+        "destination_refund_bt": {
+          "id": "txn_d1",
+          "object": "balance_transaction",
+          "amount": -70,
+          "currency": "usd"
+        },
+        "destination_fee_refund": {
+          "id": "fr_1",
+          "object": "fee_refund",
+          "amount": 30,
+          "currency": "usd",
+          "balance_transaction": {
+            "id": "txn_f1",
+            "object": "balance_transaction",
+            "amount": -30,
+            "currency": "usd"
+          }
+        }
+      },
+      "output": {
+        "id": "re_1",
+        "charge_id": "ch_1",
+        "flow_of_funds": {
+          "issued_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "settled_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "gumroad_amount": {
+            "currency": "usd",
+            "cents": 30
+          },
+          "merchant_account_gross_amount": {
+            "currency": "usd",
+            "cents": -70
+          },
+          "merchant_account_net_amount": {
+            "currency": "usd",
+            "cents": -70
+          }
+        }
+      }
+    },
+    {
+      "name": "a destination charge made on behalf of the account",
+      "input": {
+        "charge": {
+          "destination": "acct_dest",
+          "application_fee": null,
+          "on_behalf_of": "acct_dest"
+        },
+        "refund": {
+          "id": "re_1",
+          "object": "refund",
+          "amount": 100,
+          "currency": "usd",
+          "charge": "ch_1",
+          "balance_transaction": {
+            "id": "txn_r1",
+            "object": "balance_transaction",
+            "amount": -100,
+            "currency": "usd"
+          }
+        },
+        "destination_payment_refund": {
+          "id": "pyr_1",
+          "object": "refund",
+          "amount": 70,
+          "currency": "usd",
+          "balance_transaction": {
+            "id": "txn_d1",
+            "object": "balance_transaction",
+            "amount": -70,
+            "currency": "usd"
+          }
+        },
+        "refund_bt": {
+          "id": "txn_r1",
+          "object": "balance_transaction",
+          "amount": -100,
+          "currency": "usd"
+        },
+        "destination_refund_bt": {
+          "id": "txn_d1",
+          "object": "balance_transaction",
+          "amount": -70,
+          "currency": "usd"
+        }
+      },
+      "output": {
+        "id": "re_1",
+        "charge_id": "ch_1",
+        "flow_of_funds": {
+          "issued_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "settled_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "gumroad_amount": {},
+          "merchant_account_gross_amount": {
+            "currency": "usd",
+            "cents": -70
+          },
+          "merchant_account_net_amount": {
+            "currency": "usd",
+            "cents": -70
+          }
+        }
+      }
+    },
+    {
+      "name": "a destination charge whose refund did not reach the destination",
+      "input": {
+        "charge": {
+          "destination": "acct_dest",
+          "application_fee": null
+        },
+        "refund": {
+          "id": "re_1",
+          "object": "refund",
+          "amount": 100,
+          "currency": "usd",
+          "charge": "ch_1",
+          "balance_transaction": {
+            "id": "txn_r1",
+            "object": "balance_transaction",
+            "amount": -100,
+            "currency": "usd"
+          }
+        },
+        "refund_bt": {
+          "id": "txn_r1",
+          "object": "balance_transaction",
+          "amount": -100,
+          "currency": "usd"
+        }
+      },
+      "output": {
+        "id": "re_1",
+        "charge_id": "ch_1",
+        "flow_of_funds": {
+          "issued_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "settled_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "gumroad_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "merchant_account_gross_amount": {},
+          "merchant_account_net_amount": {}
+        }
+      }
+    },
+    {
+      "name": "a destination charge whose refund did not reach the destination but has an application fee",
+      "input": {
+        "charge": {
+          "destination": "acct_dest",
+          "application_fee": {
+            "id": "fee_1",
+            "account": "acct_1"
+          }
+        },
+        "refund": {
+          "id": "re_1",
+          "object": "refund",
+          "amount": 55,
+          "currency": "usd",
+          "charge": "ch_1",
+          "balance_transaction": {
+            "id": "txn_r1",
+            "object": "balance_transaction",
+            "amount": -55,
+            "currency": "usd"
+          }
+        },
+        "refund_bt": {
+          "id": "txn_r1",
+          "object": "balance_transaction",
+          "amount": -55,
+          "currency": "usd"
+        }
+      },
+      "output": {
+        "id": "re_1",
+        "charge_id": "ch_1",
+        "flow_of_funds": {
+          "issued_amount": {
+            "currency": "usd",
+            "cents": -55
+          },
+          "settled_amount": {
+            "currency": "usd",
+            "cents": -55
+          },
+          "gumroad_amount": {
+            "currency": "usd",
+            "cents": -55
+          },
+          "merchant_account_gross_amount": {},
+          "merchant_account_net_amount": {}
+        }
+      }
+    },
+    {
+      "name": "a destination payment Stripe never credited",
+      "input": {
+        "charge": {
+          "destination": "acct_dest",
+          "application_fee": null
+        },
+        "refund": {
+          "id": "re_1",
+          "object": "refund",
+          "amount": 100,
+          "currency": "usd",
+          "charge": "ch_1",
+          "balance_transaction": {
+            "id": "txn_r1",
+            "object": "balance_transaction",
+            "amount": -100,
+            "currency": "usd"
+          }
+        },
+        "refund_bt": {
+          "id": "txn_r1",
+          "object": "balance_transaction",
+          "amount": -100,
+          "currency": "usd"
+        },
+        "uncredited": true,
+        "merchant_account_currency": "usd"
+      },
+      "output": {
+        "id": "re_1",
+        "charge_id": "ch_1",
+        "flow_of_funds": {
+          "issued_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "settled_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "gumroad_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "merchant_account_gross_amount": {
+            "currency": "usd",
+            "cents": 0
+          },
+          "merchant_account_net_amount": {
+            "currency": "usd",
+            "cents": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "an uncredited destination payment that also refunded to the destination",
+      "input": {
+        "charge": {
+          "destination": "acct_dest",
+          "application_fee": {
+            "id": "fee_1"
+          }
+        },
+        "refund": {
+          "id": "re_1",
+          "object": "refund",
+          "amount": 100,
+          "currency": "usd",
+          "charge": "ch_1",
+          "balance_transaction": {
+            "id": "txn_r1",
+            "object": "balance_transaction",
+            "amount": -91,
+            "currency": "eur"
+          }
+        },
+        "destination_payment_refund": {
+          "id": "pyr_1",
+          "object": "refund",
+          "amount": 70,
+          "currency": "usd",
+          "balance_transaction": {
+            "id": "txn_d1",
+            "object": "balance_transaction",
+            "amount": -70,
+            "currency": "usd"
+          }
+        },
+        "refund_bt": {
+          "id": "txn_r1",
+          "object": "balance_transaction",
+          "amount": -91,
+          "currency": "eur"
+        },
+        "destination_refund_bt": {
+          "id": "txn_d1",
+          "object": "balance_transaction",
+          "amount": -70,
+          "currency": "usd"
+        },
+        "uncredited": true,
+        "merchant_account_currency": "eur"
+      },
+      "output": {
+        "id": "re_1",
+        "charge_id": "ch_1",
+        "flow_of_funds": {
+          "issued_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "settled_amount": {
+            "currency": "eur",
+            "cents": -91
+          },
+          "gumroad_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "merchant_account_gross_amount": {
+            "currency": "eur",
+            "cents": 0
+          },
+          "merchant_account_net_amount": {
+            "currency": "eur",
+            "cents": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "an uncredited destination payment with no merchant account currency",
+      "input": {
+        "charge": {
+          "destination": "acct_dest",
+          "application_fee": null
+        },
+        "refund": {
+          "id": "re_1",
+          "object": "refund",
+          "amount": 100,
+          "currency": "usd",
+          "charge": "ch_1",
+          "balance_transaction": {
+            "id": "txn_r1",
+            "object": "balance_transaction",
+            "amount": -100,
+            "currency": "usd"
+          }
+        },
+        "refund_bt": {
+          "id": "txn_r1",
+          "object": "balance_transaction",
+          "amount": -100,
+          "currency": "usd"
+        },
+        "destination_payment_refund": {
+          "id": "pyr_1",
+          "object": "refund",
+          "amount": 70,
+          "currency": "usd",
+          "balance_transaction": {
+            "id": "txn_d1",
+            "object": "balance_transaction",
+            "amount": -70,
+            "currency": "usd"
+          }
+        },
+        "destination_refund_bt": {
+          "id": "txn_d1",
+          "object": "balance_transaction",
+          "amount": -70,
+          "currency": "usd"
+        },
+        "uncredited": true
+      },
+      "output": {
+        "id": "re_1",
+        "charge_id": "ch_1",
+        "flow_of_funds": {
+          "issued_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "settled_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "gumroad_amount": {
+            "currency": "usd",
+            "cents": 30
+          },
+          "merchant_account_gross_amount": {
+            "currency": "usd",
+            "cents": -70
+          },
+          "merchant_account_net_amount": {
+            "currency": "usd",
+            "cents": -70
+          }
+        }
+      }
+    },
+    {
+      "name": "an uncredited flag on a charge with no destination",
+      "input": {
+        "charge": {
+          "destination": null,
+          "application_fee": null
+        },
+        "refund": {
+          "id": "re_1",
+          "object": "refund",
+          "amount": 100,
+          "currency": "usd",
+          "charge": "ch_1",
+          "balance_transaction": {
+            "id": "txn_r1",
+            "object": "balance_transaction",
+            "amount": -100,
+            "currency": "usd"
+          }
+        },
+        "uncredited": true,
+        "merchant_account_currency": "usd",
+        "refund_bt": {
+          "id": "txn_r1",
+          "object": "balance_transaction",
+          "amount": -100,
+          "currency": "usd"
+        }
+      },
+      "output": {
+        "id": "re_1",
+        "charge_id": "ch_1",
+        "flow_of_funds": {
+          "issued_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "settled_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "gumroad_amount": {
+            "currency": "usd",
+            "cents": -100
+          },
+          "merchant_account_gross_amount": {},
+          "merchant_account_net_amount": {}
+        }
+      }
+    },
+    {
+      "name": "an unexpanded application fee on a charge with no destination",
+      "input": {
+        "charge": {
+          "destination": null,
+          "application_fee": "fee_1"
+        },
+        "refund": {
+          "id": "re_1",
+          "object": "refund",
+          "amount": 100,
+          "currency": "usd",
+          "charge": "ch_1",
+          "balance_transaction": {
+            "id": "txn_r1",
+            "object": "balance_transaction",
+            "amount": -100,
+            "currency": "usd"
+          }
+        },
+        "refund_bt": {
+          "id": "txn_r1",
+          "object": "balance_transaction",
+          "amount": -100,
+          "currency": "usd"
+        }
+      },
+      "output": {
+        "error": {
+          "class": "NoMethodError",
+          "message": "undefined method 'account' for an instance of String"
+        }
+      }
+    }
+  ]
+}
