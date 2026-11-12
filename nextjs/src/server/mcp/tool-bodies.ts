@@ -23,6 +23,7 @@ import { rubyFloatToS } from "../models/concerns/ruby-values.ts";
 import { successfulSalesCount, totalUsdCents } from "../models/link-metrics.ts";
 import { assertPlainPublish, publishBang } from "../models/link-publish.ts";
 import { createApiLink, type CreateSeller } from "../models/link-create.ts";
+import { rubySortByInteger } from "../models/concerns/ruby-sort-by.ts";
 import { Links } from "../models/link.ts";
 import {
   addProduct,
@@ -1706,12 +1707,8 @@ const sumOf = (series: number[]): number => series.reduce((total, value) => tota
 const conversion = (sales: number, views: number): FloatValue | null =>
   views > 0 ? new FloatValue(rubyRoundHalfUp(sales / views, CONVERSION_DIGITS)) : null;
 
-// sort_by { -views }. Ruby's sort_by is not stable, so rows with equal views come out in an order this port cannot promise.
-function sortedByViews<T extends { views: number }>(rows: T[]): T[] {
-  if (new Set(rows.map((row) => row.views)).size !== rows.length)
-    throw new HandBackToRails("get_analytics rows with equal views");
-  return rows.sort((a, b) => b.views - a.views);
-}
+// sort_by { -views }: Ruby's introsort for Integer keys, which leaves rows with equal views in an order of its own.
+const sortedByViews = <T extends { views: number }>(rows: T[]): T[] => rubySortByInteger(rows, (row) => -row.views);
 
 function assertInsertionOrdered(keys: string[]): void {
   if (keys.some((key) => REORDERED_KEY.test(key)))

@@ -1033,9 +1033,16 @@ describe("get_analytics", () => {
     ]);
   });
 
-  it("hands back rows with equal views, keys a JavaScript object would reorder and an unreadable date", async () => {
+  it("keeps rows with equal views in the order Ruby's sort_by leaves them", async () => {
     const tied = { by_date: { ...byDate.by_date, views: { alpha: series(2), beta: series(2) } } };
-    await expect(toolBody("get_analytics", {}, analyticsContext("date", tied))).rejects.toBeInstanceOf(HandBackToRails);
+    const body = (await toolBody("get_analytics", {}, analyticsContext("date", tied))) as {
+      rows: Record<string, unknown>[];
+    };
+
+    expect(body.rows.map((row) => row.product_name)).toEqual(["Alpha", "Beta"]);
+  });
+
+  it("hands back keys a JavaScript object would reorder and an unreadable date", async () => {
     const numeric = { by_date: { ...byDate.by_date, views: { "10": series(2), alpha: series(1) } } };
     await expect(toolBody("get_analytics", {}, analyticsContext("date", numeric))).rejects.toBeInstanceOf(
       HandBackToRails,

@@ -216,15 +216,35 @@ describe "API v2 MCP product tools", type: :request, elasticsearch_wait_for_refr
         analytics({ breakdown: "referrer", product_id: "iconset" })
       end
 
-      it "hands back two products with the same number of views", parity: true do
+      it "keeps two products with the same number of views in the order the report lists them", parity: true do
         view(other_product, 5)
         view(other_product, 6)
         analytics
       end
 
-      it "hands back a referrer breakdown with two referrers that have the same number of views", parity: true do
+      it "keeps two referrers with the same number of views in the order they were first seen", parity: true do
         view(product, 7, referrer_domain: "twitter.com")
         view(other_product, 7, referrer_domain: "google.com")
+        analytics({ breakdown: "referrer" })
+      end
+    end
+
+    # Ruby's sort_by is an insertion sort up to 16 rows and an unstable quicksort beyond, so ties only show past that.
+    context "with more products than the insertion sort takes" do
+      before do
+        18.times do |index|
+          letter = ("a".ord + index).chr
+          item = create(:product, user: seller, name: "Pack #{index}", unique_permalink: "pack#{letter}x")
+          (index % 3 + 1).times { |day| view(item, day + 2, referrer_domain: "site#{letter}.example.com") }
+        end
+        EsClient.indices.refresh(index: ProductPageView.index_name)
+      end
+
+      it "orders the products with equal views as Ruby's sort_by does", parity: true do
+        analytics
+      end
+
+      it "orders the referrers with equal views as Ruby's sort_by does", parity: true do
         analytics({ breakdown: "referrer" })
       end
     end
