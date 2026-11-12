@@ -110,7 +110,8 @@ const negated = (cents: number) => (cents === 0 ? 0 : -cents);
 // StripeChargeProcessor.external_refund_reversal_for?(reversal, refund_id)
 function externalRefundReversalFor(reversal: StripeReversal, refundId: string | null): boolean {
   const { metadata } = reversal;
-  if (blank(metadata) || Object.keys(metadata!).length === 0) return false;
+  // Stripe::StripeObject is never `blank?`, even when empty: an empty metadata still reads "" and matches a blank refund id.
+  if (blank(metadata)) return false;
   const value = metadata![EXTERNAL_REFUND_REVERSAL_METADATA_KEY];
   return refundId !== null && (value === undefined || value === null || value === false ? "" : String(value)) === refundId;
 }

@@ -114,6 +114,116 @@
       }
     },
     {
+      "name": "a US managed account with the processor fee in another currency, a partial refund",
+      "input": {
+        "sale": {
+          "price_cents": 1000,
+          "total_transaction_cents": 1000,
+          "fee_cents": 100,
+          "processor_fee_cents": 80,
+          "processor_fee_cents_currency": "eur"
+        },
+        "refund_amount_cents": 400,
+        "charged_using_gumroad_merchant_account": true,
+        "holder_of_funds": "stripe",
+        "merchant_currency": "usd"
+      },
+      "credit_amount_cents": -24,
+      "credit_merchant_account": "seller",
+      "retained_fee_cents": 24,
+      "fee_retention_pending": true,
+      "balance_transaction": {
+        "issued_amount_currency": "usd",
+        "issued_amount_gross_cents": -24,
+        "issued_amount_net_cents": -24,
+        "holding_amount_currency": "usd",
+        "holding_amount_gross_cents": -24,
+        "holding_amount_net_cents": -24
+      }
+    },
+    {
+      "name": "a US managed account with a USD processor fee currency and no fee amount, a partial refund",
+      "input": {
+        "sale": {
+          "price_cents": 1000,
+          "total_transaction_cents": 1000,
+          "fee_cents": 100,
+          "processor_fee_cents": null,
+          "processor_fee_cents_currency": "usd"
+        },
+        "refund_amount_cents": 400,
+        "charged_using_gumroad_merchant_account": true,
+        "holder_of_funds": "stripe",
+        "merchant_currency": "usd"
+      },
+      "credit_amount_cents": -24,
+      "credit_merchant_account": "seller",
+      "retained_fee_cents": 24,
+      "fee_retention_pending": true,
+      "balance_transaction": {
+        "issued_amount_currency": "usd",
+        "issued_amount_gross_cents": -24,
+        "issued_amount_net_cents": -24,
+        "holding_amount_currency": "usd",
+        "holding_amount_gross_cents": -24,
+        "holding_amount_net_cents": -24
+      }
+    },
+    {
+      "name": "Gumroad's own merchant account with the processor fee recorded, a partial refund",
+      "input": {
+        "sale": {
+          "price_cents": 1000,
+          "total_transaction_cents": 1000,
+          "fee_cents": 100,
+          "processor_fee_cents": 80,
+          "processor_fee_cents_currency": "usd"
+        },
+        "refund_amount_cents": 400,
+        "charged_using_gumroad_merchant_account": true,
+        "holder_of_funds": "gumroad",
+        "merchant_currency": "usd"
+      },
+      "credit_amount_cents": -32,
+      "credit_merchant_account": "gumroad",
+      "retained_fee_cents": 32,
+      "fee_retention_pending": null,
+      "balance_transaction": {
+        "issued_amount_currency": "usd",
+        "issued_amount_gross_cents": -32,
+        "issued_amount_net_cents": -32,
+        "holding_amount_currency": "usd",
+        "holding_amount_gross_cents": -32,
+        "holding_amount_net_cents": -32
+      }
+    },
+    {
+      "name": "Gumroad's own merchant account with no processor fee, a partial refund",
+      "input": {
+        "sale": {
+          "price_cents": 1000,
+          "total_transaction_cents": 1000,
+          "fee_cents": 100
+        },
+        "refund_amount_cents": 400,
+        "charged_using_gumroad_merchant_account": true,
+        "holder_of_funds": "gumroad",
+        "merchant_currency": "usd"
+      },
+      "credit_amount_cents": -24,
+      "credit_merchant_account": "gumroad",
+      "retained_fee_cents": 24,
+      "fee_retention_pending": null,
+      "balance_transaction": {
+        "issued_amount_currency": "usd",
+        "issued_amount_gross_cents": -24,
+        "issued_amount_net_cents": -24,
+        "holding_amount_currency": "usd",
+        "holding_amount_gross_cents": -24,
+        "holding_amount_net_cents": -24
+      }
+    },
+    {
       "name": "a managed account on a free sale",
       "input": {
         "sale": {
@@ -5187,6 +5297,7 @@
           "holding": -400
         },
         "prior_tax_cents": 100,
+        "sale_tax_cents": 100,
         "gumroad_held": false
       },
       "answers": {
@@ -5297,6 +5408,7 @@
           "holding": -500
         },
         "prior_tax_cents": 100,
+        "sale_tax_cents": 100,
         "gumroad_held": false
       },
       "answers": {
@@ -5407,6 +5519,7 @@
           "holding": -500
         },
         "prior_tax_cents": 100,
+        "sale_tax_cents": 100,
         "gumroad_held": false
       },
       "answers": {
@@ -5482,6 +5595,7 @@
           "holding": -400
         },
         "prior_tax_cents": 100,
+        "sale_tax_cents": 100,
         "gumroad_held": false
       },
       "answers": {
@@ -5607,6 +5721,7 @@
           "holding": -400
         },
         "prior_tax_cents": 100,
+        "sale_tax_cents": 100,
         "gumroad_held": false
       },
       "answers": {
@@ -5693,6 +5808,7 @@
           "holding": -400
         },
         "prior_tax_cents": 100,
+        "sale_tax_cents": 100,
         "gumroad_held": false
       },
       "answers": {
@@ -5802,6 +5918,906 @@
       }
     },
     {
+      "name": "a booked reversal of this refund with a negative amount",
+      "input": {
+        "transfer": {
+          "amount": 700,
+          "reversals": [
+            {
+              "id": "trr_p",
+              "amount": -150,
+              "currency": "usd",
+              "source_refund": "re_golden01"
+            }
+          ]
+        },
+        "balance_transaction": {
+          "issued": -400,
+          "holding_currency": "usd",
+          "holding": -400
+        },
+        "prior_tax_cents": 100,
+        "sale_tax_cents": 100,
+        "gumroad_held": false
+      },
+      "answers": {
+        "Transfer.create_reversal": [
+          {
+            "id": "trr_x",
+            "object": "transfer_reversal",
+            "amount": 250,
+            "currency": "usd",
+            "source_refund": null,
+            "metadata": {},
+            "destination_payment_refund": "pyr_golden01"
+          }
+        ],
+        "Charge.retrieve": [
+          {
+            "id": "ch_golden",
+            "transfer": "tr_golden"
+          }
+        ],
+        "Transfer.retrieve": [
+          {
+            "id": "tr_golden",
+            "object": "transfer",
+            "amount": 700,
+            "amount_reversed": 0,
+            "currency": "usd",
+            "description": null,
+            "destination": "acct_golden01",
+            "reversals": {
+              "object": "list",
+              "data": [
+                {
+                  "id": "trr_p",
+                  "amount": -150,
+                  "currency": "usd",
+                  "source_refund": "re_golden01",
+                  "object": "transfer_reversal"
+                }
+              ],
+              "has_more": false
+            }
+          }
+        ],
+        "Refund.retrieve": [
+          {
+            "id": "pyr_golden01",
+            "balance_transaction": "txn_golden01"
+          }
+        ],
+        "BalanceTransaction.retrieve": [
+          {
+            "id": "txn_golden01",
+            "net": -400
+          }
+        ]
+      },
+      "events": [
+        {
+          "call": "Charge.retrieve",
+          "id": "ch_golden"
+        },
+        {
+          "call": "Transfer.retrieve",
+          "params": {
+            "id": "tr_golden"
+          }
+        },
+        {
+          "call": "Transfer.create_reversal",
+          "id": "tr_golden",
+          "params": {
+            "amount": 250
+          }
+        },
+        {
+          "call": "Refund.retrieve",
+          "id": "pyr_golden01",
+          "options": {
+            "stripe_account": "acct_golden01"
+          }
+        },
+        {
+          "call": "BalanceTransaction.retrieve",
+          "id": "txn_golden01",
+          "options": {
+            "stripe_account": "acct_golden01"
+          }
+        }
+      ],
+      "outcome": {
+        "returned": true
+      },
+      "credit": {
+        "amount_cents": -250,
+        "balance_transaction": {
+          "issued_amount_currency": "usd",
+          "issued_amount_gross_cents": -250,
+          "issued_amount_net_cents": -250,
+          "holding_amount_currency": "cad",
+          "holding_amount_gross_cents": -400,
+          "holding_amount_net_cents": -400
+        }
+      }
+    },
+    {
+      "name": "a booked reversal larger than the excess",
+      "input": {
+        "transfer": {
+          "amount": 700,
+          "reversals": [
+            {
+              "id": "trr_p",
+              "amount": 500,
+              "currency": "usd",
+              "source_refund": "re_golden01"
+            }
+          ]
+        },
+        "balance_transaction": {
+          "issued": -400,
+          "holding_currency": "usd",
+          "holding": -400
+        },
+        "prior_tax_cents": 100,
+        "sale_tax_cents": 100,
+        "gumroad_held": false
+      },
+      "answers": {
+        "Charge.retrieve": [
+          {
+            "id": "ch_golden",
+            "transfer": "tr_golden"
+          }
+        ],
+        "Transfer.retrieve": [
+          {
+            "id": "tr_golden",
+            "object": "transfer",
+            "amount": 700,
+            "amount_reversed": 0,
+            "currency": "usd",
+            "description": null,
+            "destination": "acct_golden01",
+            "reversals": {
+              "object": "list",
+              "data": [
+                {
+                  "id": "trr_p",
+                  "amount": 500,
+                  "currency": "usd",
+                  "source_refund": "re_golden01",
+                  "object": "transfer_reversal"
+                }
+              ],
+              "has_more": false
+            }
+          }
+        ],
+        "Refund.retrieve": [
+          {
+            "id": "pyr_golden01",
+            "balance_transaction": "txn_golden01"
+          }
+        ],
+        "BalanceTransaction.retrieve": [
+          {
+            "id": "txn_golden01",
+            "net": -400
+          }
+        ]
+      },
+      "events": [
+        {
+          "call": "Charge.retrieve",
+          "id": "ch_golden"
+        },
+        {
+          "call": "Transfer.retrieve",
+          "params": {
+            "id": "tr_golden"
+          }
+        }
+      ],
+      "outcome": {
+        "returned": null
+      },
+      "credit": null
+    },
+    {
+      "name": "a reversal with empty metadata and a refund with a blank processor id",
+      "input": {
+        "transfer": {
+          "amount": 700,
+          "reversals": [
+            {
+              "id": "trr_p",
+              "amount": 150,
+              "currency": "usd",
+              "source_refund": null,
+              "metadata": {}
+            }
+          ]
+        },
+        "balance_transaction": {
+          "issued": -400,
+          "holding_currency": "usd",
+          "holding": -400
+        },
+        "prior_tax_cents": 100,
+        "sale_tax_cents": 100,
+        "gumroad_held": false,
+        "processor_refund_id": ""
+      },
+      "answers": {
+        "Transfer.create_reversal": [
+          {
+            "id": "trr_x",
+            "object": "transfer_reversal",
+            "amount": 400,
+            "currency": "usd",
+            "source_refund": null,
+            "metadata": {},
+            "destination_payment_refund": "pyr_golden01"
+          }
+        ],
+        "Charge.retrieve": [
+          {
+            "id": "ch_golden",
+            "transfer": "tr_golden"
+          }
+        ],
+        "Transfer.retrieve": [
+          {
+            "id": "tr_golden",
+            "object": "transfer",
+            "amount": 700,
+            "amount_reversed": 0,
+            "currency": "usd",
+            "description": null,
+            "destination": "acct_golden01",
+            "reversals": {
+              "object": "list",
+              "data": [
+                {
+                  "id": "trr_p",
+                  "amount": 150,
+                  "currency": "usd",
+                  "source_refund": null,
+                  "metadata": {},
+                  "object": "transfer_reversal"
+                }
+              ],
+              "has_more": false
+            }
+          }
+        ],
+        "Refund.retrieve": [
+          {
+            "id": "pyr_golden01",
+            "balance_transaction": "txn_golden01"
+          }
+        ],
+        "BalanceTransaction.retrieve": [
+          {
+            "id": "txn_golden01",
+            "net": -400
+          }
+        ]
+      },
+      "events": [
+        {
+          "call": "Charge.retrieve",
+          "id": "ch_golden"
+        },
+        {
+          "call": "Transfer.retrieve",
+          "params": {
+            "id": "tr_golden"
+          }
+        },
+        {
+          "call": "Transfer.create_reversal",
+          "id": "tr_golden",
+          "params": {
+            "amount": 250
+          }
+        },
+        {
+          "call": "Refund.retrieve",
+          "id": "pyr_golden01",
+          "options": {
+            "stripe_account": "acct_golden01"
+          }
+        },
+        {
+          "call": "BalanceTransaction.retrieve",
+          "id": "txn_golden01",
+          "options": {
+            "stripe_account": "acct_golden01"
+          }
+        }
+      ],
+      "outcome": {
+        "returned": true
+      },
+      "credit": {
+        "amount_cents": -250,
+        "balance_transaction": {
+          "issued_amount_currency": "usd",
+          "issued_amount_gross_cents": -250,
+          "issued_amount_net_cents": -250,
+          "holding_amount_currency": "cad",
+          "holding_amount_gross_cents": -400,
+          "holding_amount_net_cents": -400
+        }
+      }
+    },
+    {
+      "name": "a reversal of a different refund and one of this refund",
+      "input": {
+        "transfer": {
+          "amount": 700,
+          "reversals": [
+            {
+              "id": "trr_o",
+              "amount": 300,
+              "currency": "usd",
+              "source_refund": "re_other"
+            },
+            {
+              "id": "trr_p",
+              "amount": 150,
+              "currency": "usd",
+              "source_refund": "re_golden01"
+            }
+          ]
+        },
+        "balance_transaction": {
+          "issued": -400,
+          "holding_currency": "usd",
+          "holding": -400
+        },
+        "prior_tax_cents": 100,
+        "sale_tax_cents": 100,
+        "gumroad_held": false
+      },
+      "answers": {
+        "Transfer.create_reversal": [
+          {
+            "id": "trr_x",
+            "object": "transfer_reversal",
+            "amount": 250,
+            "currency": "usd",
+            "source_refund": null,
+            "metadata": {},
+            "destination_payment_refund": "pyr_golden01"
+          }
+        ],
+        "Charge.retrieve": [
+          {
+            "id": "ch_golden",
+            "transfer": "tr_golden"
+          }
+        ],
+        "Transfer.retrieve": [
+          {
+            "id": "tr_golden",
+            "object": "transfer",
+            "amount": 700,
+            "amount_reversed": 0,
+            "currency": "usd",
+            "description": null,
+            "destination": "acct_golden01",
+            "reversals": {
+              "object": "list",
+              "data": [
+                {
+                  "id": "trr_o",
+                  "amount": 300,
+                  "currency": "usd",
+                  "source_refund": "re_other",
+                  "object": "transfer_reversal"
+                },
+                {
+                  "id": "trr_p",
+                  "amount": 150,
+                  "currency": "usd",
+                  "source_refund": "re_golden01",
+                  "object": "transfer_reversal"
+                }
+              ],
+              "has_more": false
+            }
+          }
+        ],
+        "Refund.retrieve": [
+          {
+            "id": "pyr_golden01",
+            "balance_transaction": "txn_golden01"
+          }
+        ],
+        "BalanceTransaction.retrieve": [
+          {
+            "id": "txn_golden01",
+            "net": -400
+          }
+        ]
+      },
+      "events": [
+        {
+          "call": "Charge.retrieve",
+          "id": "ch_golden"
+        },
+        {
+          "call": "Transfer.retrieve",
+          "params": {
+            "id": "tr_golden"
+          }
+        },
+        {
+          "call": "Transfer.create_reversal",
+          "id": "tr_golden",
+          "params": {
+            "amount": 250
+          }
+        },
+        {
+          "call": "Refund.retrieve",
+          "id": "pyr_golden01",
+          "options": {
+            "stripe_account": "acct_golden01"
+          }
+        },
+        {
+          "call": "BalanceTransaction.retrieve",
+          "id": "txn_golden01",
+          "options": {
+            "stripe_account": "acct_golden01"
+          }
+        }
+      ],
+      "outcome": {
+        "returned": true
+      },
+      "credit": {
+        "amount_cents": -250,
+        "balance_transaction": {
+          "issued_amount_currency": "usd",
+          "issued_amount_gross_cents": -250,
+          "issued_amount_net_cents": -250,
+          "holding_amount_currency": "cad",
+          "holding_amount_gross_cents": -400,
+          "holding_amount_net_cents": -400
+        }
+      }
+    },
+    {
+      "name": "an exact half of a CAD partial reversal",
+      "input": {
+        "transfer": {
+          "amount": 700,
+          "currency": "cad",
+          "amount_reversed": 250
+        },
+        "balance_transaction": {
+          "issued": -450,
+          "holding_currency": "cad",
+          "holding": -600
+        },
+        "prior_tax_cents": 100,
+        "sale_tax_cents": 100,
+        "gumroad_held": false
+      },
+      "answers": {
+        "Transfer.create_reversal": [
+          {
+            "id": "trr_x",
+            "object": "transfer_reversal",
+            "amount": 450,
+            "currency": "cad",
+            "source_refund": null,
+            "metadata": {},
+            "destination_payment_refund": "pyr_golden01"
+          }
+        ],
+        "Charge.retrieve": [
+          {
+            "id": "ch_golden",
+            "transfer": "tr_golden"
+          }
+        ],
+        "Transfer.retrieve": [
+          {
+            "id": "tr_golden",
+            "object": "transfer",
+            "amount": 700,
+            "amount_reversed": 250,
+            "currency": "cad",
+            "description": null,
+            "destination": "acct_golden01",
+            "reversals": {
+              "object": "list",
+              "data": [],
+              "has_more": false
+            }
+          }
+        ],
+        "Refund.retrieve": [
+          {
+            "id": "pyr_golden01",
+            "balance_transaction": "txn_golden01"
+          }
+        ],
+        "BalanceTransaction.retrieve": [
+          {
+            "id": "txn_golden01",
+            "net": -600
+          }
+        ]
+      },
+      "events": [
+        {
+          "call": "Charge.retrieve",
+          "id": "ch_golden"
+        },
+        {
+          "call": "Transfer.retrieve",
+          "params": {
+            "id": "tr_golden"
+          }
+        },
+        {
+          "call": "Transfer.create_reversal",
+          "id": "tr_golden",
+          "params": {
+            "amount": 450
+          }
+        },
+        {
+          "call": "Refund.retrieve",
+          "id": "pyr_golden01",
+          "options": {
+            "stripe_account": "acct_golden01"
+          }
+        },
+        {
+          "call": "BalanceTransaction.retrieve",
+          "id": "txn_golden01",
+          "options": {
+            "stripe_account": "acct_golden01"
+          }
+        }
+      ],
+      "outcome": {
+        "returned": true
+      },
+      "credit": {
+        "amount_cents": -338,
+        "balance_transaction": {
+          "issued_amount_currency": "usd",
+          "issued_amount_gross_cents": -338,
+          "issued_amount_net_cents": -338,
+          "holding_amount_currency": "cad",
+          "holding_amount_gross_cents": -600,
+          "holding_amount_net_cents": -600
+        }
+      }
+    },
+    {
+      "name": "a partial reversal whose canonical share is an exact half",
+      "input": {
+        "transfer": {
+          "amount": 700,
+          "currency": "cad",
+          "amount_reversed": 450
+        },
+        "balance_transaction": {
+          "issued": -301,
+          "holding_currency": "cad",
+          "holding": -500
+        },
+        "prior_tax_cents": 100,
+        "sale_tax_cents": 100,
+        "gumroad_held": false
+      },
+      "answers": {
+        "Transfer.create_reversal": [
+          {
+            "id": "trr_x",
+            "object": "transfer_reversal",
+            "amount": 250,
+            "currency": "cad",
+            "source_refund": null,
+            "metadata": {},
+            "destination_payment_refund": "pyr_golden01"
+          }
+        ],
+        "Charge.retrieve": [
+          {
+            "id": "ch_golden",
+            "transfer": "tr_golden"
+          }
+        ],
+        "Transfer.retrieve": [
+          {
+            "id": "tr_golden",
+            "object": "transfer",
+            "amount": 700,
+            "amount_reversed": 450,
+            "currency": "cad",
+            "description": null,
+            "destination": "acct_golden01",
+            "reversals": {
+              "object": "list",
+              "data": [],
+              "has_more": false
+            }
+          }
+        ],
+        "Refund.retrieve": [
+          {
+            "id": "pyr_golden01",
+            "balance_transaction": "txn_golden01"
+          }
+        ],
+        "BalanceTransaction.retrieve": [
+          {
+            "id": "txn_golden01",
+            "net": -500
+          }
+        ]
+      },
+      "events": [
+        {
+          "call": "Charge.retrieve",
+          "id": "ch_golden"
+        },
+        {
+          "call": "Transfer.retrieve",
+          "params": {
+            "id": "tr_golden"
+          }
+        },
+        {
+          "call": "Transfer.create_reversal",
+          "id": "tr_golden",
+          "params": {
+            "amount": 250
+          }
+        },
+        {
+          "call": "Refund.retrieve",
+          "id": "pyr_golden01",
+          "options": {
+            "stripe_account": "acct_golden01"
+          }
+        },
+        {
+          "call": "BalanceTransaction.retrieve",
+          "id": "txn_golden01",
+          "options": {
+            "stripe_account": "acct_golden01"
+          }
+        }
+      ],
+      "outcome": {
+        "returned": true
+      },
+      "credit": {
+        "amount_cents": -151,
+        "balance_transaction": {
+          "issued_amount_currency": "usd",
+          "issued_amount_gross_cents": -151,
+          "issued_amount_net_cents": -151,
+          "holding_amount_currency": "cad",
+          "holding_amount_gross_cents": -500,
+          "holding_amount_net_cents": -500
+        }
+      }
+    },
+    {
+      "name": "a sale with no Gumroad tax",
+      "input": {
+        "transfer": {
+          "amount": 700
+        },
+        "balance_transaction": {
+          "issued": -400,
+          "holding_currency": "usd",
+          "holding": -400
+        },
+        "prior_tax_cents": 0,
+        "sale_tax_cents": 0,
+        "gumroad_held": false
+      },
+      "answers": {
+        "Charge.retrieve": [
+          {
+            "id": "ch_golden",
+            "transfer": "tr_golden"
+          }
+        ],
+        "Transfer.retrieve": [
+          {
+            "id": "tr_golden",
+            "object": "transfer",
+            "amount": 700,
+            "amount_reversed": 0,
+            "currency": "usd",
+            "description": null,
+            "destination": "acct_golden01",
+            "reversals": {
+              "object": "list",
+              "data": [],
+              "has_more": false
+            }
+          }
+        ],
+        "Refund.retrieve": [
+          {
+            "id": "pyr_golden01",
+            "balance_transaction": "txn_golden01"
+          }
+        ],
+        "BalanceTransaction.retrieve": [
+          {
+            "id": "txn_golden01",
+            "net": -400
+          }
+        ]
+      },
+      "events": [],
+      "outcome": {
+        "returned": null
+      },
+      "credit": null
+    },
+    {
+      "name": "VAT refunded beyond what was charged",
+      "input": {
+        "transfer": {
+          "amount": 700
+        },
+        "balance_transaction": {
+          "issued": -400,
+          "holding_currency": "usd",
+          "holding": -400
+        },
+        "prior_tax_cents": 150,
+        "sale_tax_cents": 100,
+        "gumroad_held": false
+      },
+      "answers": {
+        "Charge.retrieve": [
+          {
+            "id": "ch_golden",
+            "transfer": "tr_golden"
+          }
+        ],
+        "Transfer.retrieve": [
+          {
+            "id": "tr_golden",
+            "object": "transfer",
+            "amount": 700,
+            "amount_reversed": 0,
+            "currency": "usd",
+            "description": null,
+            "destination": "acct_golden01",
+            "reversals": {
+              "object": "list",
+              "data": [],
+              "has_more": false
+            }
+          }
+        ],
+        "Refund.retrieve": [
+          {
+            "id": "pyr_golden01",
+            "balance_transaction": "txn_golden01"
+          }
+        ],
+        "BalanceTransaction.retrieve": [
+          {
+            "id": "txn_golden01",
+            "net": -400
+          }
+        ]
+      },
+      "events": [],
+      "outcome": {
+        "returned": null
+      },
+      "credit": null
+    },
+    {
+      "name": "a failure that only reads like a full reversal",
+      "input": {
+        "transfer": {
+          "amount": 700
+        },
+        "balance_transaction": {
+          "issued": -400,
+          "holding_currency": "usd",
+          "holding": -400
+        },
+        "prior_tax_cents": 100,
+        "sale_tax_cents": 100,
+        "gumroad_held": false
+      },
+      "answers": {
+        "Transfer.create_reversal": [
+          {
+            "error": {
+              "class": "Stripe::APIError",
+              "message": "Transfer tr_x is already fully reversed."
+            }
+          }
+        ],
+        "Charge.retrieve": [
+          {
+            "id": "ch_golden",
+            "transfer": "tr_golden"
+          }
+        ],
+        "Transfer.retrieve": [
+          {
+            "id": "tr_golden",
+            "object": "transfer",
+            "amount": 700,
+            "amount_reversed": 0,
+            "currency": "usd",
+            "description": null,
+            "destination": "acct_golden01",
+            "reversals": {
+              "object": "list",
+              "data": [],
+              "has_more": false
+            }
+          }
+        ],
+        "Refund.retrieve": [
+          {
+            "id": "pyr_golden01",
+            "balance_transaction": "txn_golden01"
+          }
+        ],
+        "BalanceTransaction.retrieve": [
+          {
+            "id": "txn_golden01",
+            "net": -400
+          }
+        ]
+      },
+      "events": [
+        {
+          "call": "Charge.retrieve",
+          "id": "ch_golden"
+        },
+        {
+          "call": "Transfer.retrieve",
+          "params": {
+            "id": "tr_golden"
+          }
+        },
+        {
+          "call": "Transfer.create_reversal",
+          "id": "tr_golden",
+          "params": {
+            "amount": 400
+          }
+        }
+      ],
+      "outcome": {
+        "raised": "Stripe::APIError",
+        "message": "Transfer tr_x is already fully reversed."
+      },
+      "credit": null
+    },
+    {
       "name": "less room on the transfer than the excess",
       "input": {
         "transfer": {
@@ -5814,6 +6830,7 @@
           "holding": -400
         },
         "prior_tax_cents": 100,
+        "sale_tax_cents": 100,
         "gumroad_held": false
       },
       "answers": {
@@ -5924,6 +6941,7 @@
           "holding": -400
         },
         "prior_tax_cents": 100,
+        "sale_tax_cents": 100,
         "gumroad_held": false
       },
       "answers": {
@@ -5993,6 +7011,7 @@
           "holding": -500
         },
         "prior_tax_cents": 100,
+        "sale_tax_cents": 100,
         "gumroad_held": false
       },
       "answers": {
@@ -6102,6 +7121,7 @@
           "holding": -400
         },
         "prior_tax_cents": 100,
+        "sale_tax_cents": 100,
         "gumroad_held": false
       },
       "answers": {
@@ -6184,6 +7204,7 @@
           "holding": -400
         },
         "prior_tax_cents": 100,
+        "sale_tax_cents": 100,
         "gumroad_held": false
       },
       "answers": {
@@ -6267,6 +7288,7 @@
           "holding": -400
         },
         "prior_tax_cents": 100,
+        "sale_tax_cents": 100,
         "gumroad_held": false
       },
       "answers": {
@@ -6350,6 +7372,7 @@
           "holding": 0
         },
         "prior_tax_cents": 100,
+        "sale_tax_cents": 100,
         "gumroad_held": false
       },
       "answers": {
@@ -6411,8 +7434,8 @@
         "transfer": {
           "amount": 700
         },
-        "balance_transaction": null,
         "prior_tax_cents": 100,
+        "sale_tax_cents": 100,
         "gumroad_held": false
       },
       "answers": {
@@ -6469,6 +7492,7 @@
           "holding": -400
         },
         "prior_tax_cents": 40,
+        "sale_tax_cents": 100,
         "gumroad_held": false
       },
       "answers": {
@@ -6525,6 +7549,7 @@
           "holding": -400
         },
         "prior_tax_cents": 100,
+        "sale_tax_cents": 100,
         "gumroad_held": true
       },
       "answers": {
@@ -6994,6 +8019,617 @@
             "total": 1000,
             "tax": 0,
             "gumroad_funded": true
+          }
+        ],
+        "transfers": [
+          {
+            "id": "tr_w",
+            "amount": 700,
+            "description": "Dispute dp_golden01 won"
+          }
+        ]
+      },
+      "answers": {
+        "Transfer.list": [
+          {
+            "object": "list",
+            "data": [
+              {
+                "id": "tr_w",
+                "object": "transfer",
+                "amount": 700,
+                "amount_reversed": 0,
+                "currency": "usd",
+                "description": "Dispute dp_golden01 won",
+                "destination": "acct_golden01",
+                "reversals": {
+                  "object": "list",
+                  "data": [],
+                  "has_more": false
+                }
+              }
+            ],
+            "has_more": false
+          }
+        ],
+        "Transfer.create_reversal": [
+          {
+            "id": "trr_w",
+            "object": "transfer_reversal",
+            "amount": 1,
+            "currency": "usd",
+            "source_refund": null,
+            "metadata": {},
+            "destination_payment_refund": "pyr_golden01"
+          }
+        ]
+      },
+      "events": [
+        {
+          "call": "Transfer.list",
+          "params": {
+            "destination": "acct_golden01",
+            "created": {
+              "gte": 1792394400
+            },
+            "limit": 100
+          }
+        }
+      ],
+      "outcome": {
+        "returned": true
+      }
+    },
+    {
+      "name": "a charge of two purchases, one refunded in full and one not",
+      "input": {
+        "purchases": [
+          {
+            "price": 1000,
+            "total": 1000
+          },
+          {
+            "price": 1000,
+            "total": 1000
+          }
+        ],
+        "refunded": [
+          true,
+          false
+        ],
+        "refunds": [
+          {
+            "total": 1000,
+            "tax": 0
+          }
+        ],
+        "transfers": [
+          {
+            "id": "tr_w",
+            "amount": 700,
+            "description": "Dispute dp_golden01 won"
+          }
+        ]
+      },
+      "answers": {
+        "Transfer.list": [
+          {
+            "object": "list",
+            "data": [
+              {
+                "id": "tr_w",
+                "object": "transfer",
+                "amount": 700,
+                "amount_reversed": 0,
+                "currency": "usd",
+                "description": "Dispute dp_golden01 won",
+                "destination": "acct_golden01",
+                "reversals": {
+                  "object": "list",
+                  "data": [],
+                  "has_more": false
+                }
+              }
+            ],
+            "has_more": false
+          }
+        ],
+        "Transfer.create_reversal": [
+          {
+            "id": "trr_w",
+            "object": "transfer_reversal",
+            "amount": 1,
+            "currency": "usd",
+            "source_refund": null,
+            "metadata": {},
+            "destination_payment_refund": "pyr_golden01"
+          }
+        ]
+      },
+      "events": [
+        {
+          "call": "Transfer.list",
+          "params": {
+            "destination": "acct_golden01",
+            "created": {
+              "gte": 1792394400
+            },
+            "limit": 100
+          }
+        },
+        {
+          "call": "Transfer.create_reversal",
+          "id": "tr_w",
+          "params": {
+            "amount": 350
+          },
+          "options": {
+            "idempotency_key": "dispute_win_reversal_re_golden01"
+          }
+        }
+      ],
+      "outcome": {
+        "returned": true
+      }
+    },
+    {
+      "name": "a charge of two purchases, both refunded in full",
+      "input": {
+        "purchases": [
+          {
+            "price": 1000,
+            "total": 1000
+          },
+          {
+            "price": 1000,
+            "total": 1000
+          }
+        ],
+        "refunded": [
+          true,
+          true
+        ],
+        "refunds": [
+          {
+            "total": 1000,
+            "tax": 0
+          }
+        ],
+        "transfers": [
+          {
+            "id": "tr_w",
+            "amount": 700,
+            "description": "Dispute dp_golden01 won"
+          }
+        ]
+      },
+      "answers": {
+        "Transfer.list": [
+          {
+            "object": "list",
+            "data": [
+              {
+                "id": "tr_w",
+                "object": "transfer",
+                "amount": 700,
+                "amount_reversed": 0,
+                "currency": "usd",
+                "description": "Dispute dp_golden01 won",
+                "destination": "acct_golden01",
+                "reversals": {
+                  "object": "list",
+                  "data": [],
+                  "has_more": false
+                }
+              }
+            ],
+            "has_more": false
+          }
+        ],
+        "Transfer.create_reversal": [
+          {
+            "id": "trr_w",
+            "object": "transfer_reversal",
+            "amount": 1,
+            "currency": "usd",
+            "source_refund": null,
+            "metadata": {},
+            "destination_payment_refund": "pyr_golden01"
+          }
+        ]
+      },
+      "events": [
+        {
+          "call": "Transfer.list",
+          "params": {
+            "destination": "acct_golden01",
+            "created": {
+              "gte": 1792394400
+            },
+            "limit": 100
+          }
+        },
+        {
+          "call": "Transfer.create_reversal",
+          "id": "tr_w",
+          "params": {
+            "amount": 700
+          },
+          "options": {
+            "idempotency_key": "dispute_win_reversal_re_golden01"
+          }
+        }
+      ],
+      "outcome": {
+        "returned": true
+      }
+    },
+    {
+      "name": "a charge of two purchases, one not refunded and one partly",
+      "input": {
+        "purchases": [
+          {
+            "price": 1000,
+            "total": 1000
+          },
+          {
+            "price": 1000,
+            "total": 1000
+          }
+        ],
+        "refunded": [
+          false,
+          false
+        ],
+        "refunds": [
+          {
+            "total": 250,
+            "tax": 0
+          }
+        ],
+        "transfers": [
+          {
+            "id": "tr_w",
+            "amount": 700,
+            "description": "Dispute dp_golden01 won"
+          }
+        ]
+      },
+      "answers": {
+        "Transfer.list": [
+          {
+            "object": "list",
+            "data": [
+              {
+                "id": "tr_w",
+                "object": "transfer",
+                "amount": 700,
+                "amount_reversed": 0,
+                "currency": "usd",
+                "description": "Dispute dp_golden01 won",
+                "destination": "acct_golden01",
+                "reversals": {
+                  "object": "list",
+                  "data": [],
+                  "has_more": false
+                }
+              }
+            ],
+            "has_more": false
+          }
+        ],
+        "Transfer.create_reversal": [
+          {
+            "id": "trr_w",
+            "object": "transfer_reversal",
+            "amount": 1,
+            "currency": "usd",
+            "source_refund": null,
+            "metadata": {},
+            "destination_payment_refund": "pyr_golden01"
+          }
+        ]
+      },
+      "events": [
+        {
+          "call": "Transfer.list",
+          "params": {
+            "destination": "acct_golden01",
+            "created": {
+              "gte": 1792394400
+            },
+            "limit": 100
+          }
+        },
+        {
+          "call": "Transfer.create_reversal",
+          "id": "tr_w",
+          "params": {
+            "amount": 88
+          },
+          "options": {
+            "idempotency_key": "dispute_win_reversal_re_golden01"
+          }
+        }
+      ],
+      "outcome": {
+        "returned": true
+      }
+    },
+    {
+      "name": "a partial refund of a taxed purchase",
+      "input": {
+        "purchases": [
+          {
+            "price": 1000,
+            "total": 1100,
+            "tax": 100
+          }
+        ],
+        "refunded": [
+          false
+        ],
+        "refunds": [
+          {
+            "total": 550,
+            "tax": 50
+          }
+        ],
+        "transfers": [
+          {
+            "id": "tr_w",
+            "amount": 700,
+            "description": "Dispute dp_golden01 won"
+          }
+        ]
+      },
+      "answers": {
+        "Transfer.list": [
+          {
+            "object": "list",
+            "data": [
+              {
+                "id": "tr_w",
+                "object": "transfer",
+                "amount": 700,
+                "amount_reversed": 0,
+                "currency": "usd",
+                "description": "Dispute dp_golden01 won",
+                "destination": "acct_golden01",
+                "reversals": {
+                  "object": "list",
+                  "data": [],
+                  "has_more": false
+                }
+              }
+            ],
+            "has_more": false
+          }
+        ],
+        "Transfer.create_reversal": [
+          {
+            "id": "trr_w",
+            "object": "transfer_reversal",
+            "amount": 1,
+            "currency": "usd",
+            "source_refund": null,
+            "metadata": {},
+            "destination_payment_refund": "pyr_golden01"
+          }
+        ]
+      },
+      "events": [
+        {
+          "call": "Transfer.list",
+          "params": {
+            "destination": "acct_golden01",
+            "created": {
+              "gte": 1792394400
+            },
+            "limit": 100
+          }
+        },
+        {
+          "call": "Transfer.create_reversal",
+          "id": "tr_w",
+          "params": {
+            "amount": 350
+          },
+          "options": {
+            "idempotency_key": "dispute_win_reversal_re_golden01"
+          }
+        }
+      ],
+      "outcome": {
+        "returned": true
+      }
+    },
+    {
+      "name": "a refund whose balance needs reconciliation",
+      "input": {
+        "purchases": [
+          {
+            "price": 1000,
+            "total": 1000
+          }
+        ],
+        "refunded": [
+          true
+        ],
+        "refunds": [
+          {
+            "total": 1000,
+            "tax": 0,
+            "balance_reconciliation_needed": true
+          }
+        ],
+        "transfers": [
+          {
+            "id": "tr_w",
+            "amount": 700,
+            "description": "Dispute dp_golden01 won"
+          }
+        ]
+      },
+      "answers": {
+        "Transfer.list": [
+          {
+            "object": "list",
+            "data": [
+              {
+                "id": "tr_w",
+                "object": "transfer",
+                "amount": 700,
+                "amount_reversed": 0,
+                "currency": "usd",
+                "description": "Dispute dp_golden01 won",
+                "destination": "acct_golden01",
+                "reversals": {
+                  "object": "list",
+                  "data": [],
+                  "has_more": false
+                }
+              }
+            ],
+            "has_more": false
+          }
+        ],
+        "Transfer.create_reversal": [
+          {
+            "id": "trr_w",
+            "object": "transfer_reversal",
+            "amount": 1,
+            "currency": "usd",
+            "source_refund": null,
+            "metadata": {},
+            "destination_payment_refund": "pyr_golden01"
+          }
+        ]
+      },
+      "events": [
+        {
+          "call": "Transfer.list",
+          "params": {
+            "destination": "acct_golden01",
+            "created": {
+              "gte": 1792394400
+            },
+            "limit": 100
+          }
+        }
+      ],
+      "outcome": {
+        "returned": true
+      }
+    },
+    {
+      "name": "refunds that add up to more than the purchase",
+      "input": {
+        "purchases": [
+          {
+            "price": 1000,
+            "total": 1000
+          }
+        ],
+        "refunded": [
+          false
+        ],
+        "refunds": [
+          {
+            "total": 1000,
+            "tax": 0
+          },
+          {
+            "total": 500,
+            "tax": 0
+          }
+        ],
+        "transfers": [
+          {
+            "id": "tr_w",
+            "amount": 700,
+            "description": "Dispute dp_golden01 won"
+          }
+        ]
+      },
+      "answers": {
+        "Transfer.list": [
+          {
+            "object": "list",
+            "data": [
+              {
+                "id": "tr_w",
+                "object": "transfer",
+                "amount": 700,
+                "amount_reversed": 0,
+                "currency": "usd",
+                "description": "Dispute dp_golden01 won",
+                "destination": "acct_golden01",
+                "reversals": {
+                  "object": "list",
+                  "data": [],
+                  "has_more": false
+                }
+              }
+            ],
+            "has_more": false
+          }
+        ],
+        "Transfer.create_reversal": [
+          {
+            "id": "trr_w",
+            "object": "transfer_reversal",
+            "amount": 1,
+            "currency": "usd",
+            "source_refund": null,
+            "metadata": {},
+            "destination_payment_refund": "pyr_golden01"
+          }
+        ]
+      },
+      "events": [
+        {
+          "call": "Transfer.list",
+          "params": {
+            "destination": "acct_golden01",
+            "created": {
+              "gte": 1792394400
+            },
+            "limit": 100
+          }
+        },
+        {
+          "call": "Transfer.create_reversal",
+          "id": "tr_w",
+          "params": {
+            "amount": 700
+          },
+          "options": {
+            "idempotency_key": "dispute_win_reversal_re_golden01"
+          }
+        }
+      ],
+      "outcome": {
+        "returned": true
+      }
+    },
+    {
+      "name": "a purchase that is all tax",
+      "input": {
+        "purchases": [
+          {
+            "price": 0,
+            "total": 100,
+            "tax": 100
+          }
+        ],
+        "refunded": [
+          true
+        ],
+        "refunds": [
+          {
+            "total": 100,
+            "tax": 100
           }
         ],
         "transfers": [

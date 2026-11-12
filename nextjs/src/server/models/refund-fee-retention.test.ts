@@ -51,7 +51,8 @@ describe("refundFeeRetention against the Ruby golden of Credit.create_for_refund
       }
       expect(result).not.toBeNull();
       expect(result!.creditAmountCents).toBe(entry.credit_amount_cents);
-      expect(result!.creditMerchantAccount).toBe(entry.credit_merchant_account === "gumroad" ? "gumroad" : "sale");
+      // A sale on Gumroad's own merchant account books on that account too, but as the sale's side.
+      expect(result!.creditMerchantAccount).toBe(entry.credit_merchant_account === "gumroad" && !entry.input.charged_using_gumroad_merchant_account ? "gumroad" : "sale");
       expect(result!.retainedFeeCents).toBe(entry.retained_fee_cents);
       // The Ruby reader answers nil for a false flag.
       expect(result!.feeRetentionPending === true ? true : null).toBe(entry.fee_retention_pending);
@@ -62,7 +63,7 @@ describe("refundFeeRetention against the Ruby golden of Credit.create_for_refund
   }
 
   it("covers a Canadian account, the processor fee recorded and not, and both Connect branches", () => {
-    expect(golden.retention.length).toBeGreaterThanOrEqual(8);
+    expect(golden.retention.length).toBeGreaterThanOrEqual(12);
     expect(new Set(golden.retention.map((entry) => entry.credit_merchant_account))).toEqual(new Set(["seller", "gumroad", null]));
   });
 });
