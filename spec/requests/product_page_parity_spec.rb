@@ -305,6 +305,108 @@ describe "Product page", type: :request do
       expect(response.body).to include("https://images.example.com/book.jpg")
     end
 
+    # Rails.cache keys the cover URLs by attachment id, and the replay's Next.js process keeps its cache across fixtures while the
+    # database restarts at id 1, so each upload example takes a different attachment id.
+    def burn_attachment_ids(count)
+      count.times { |index| create(:asset_preview_jpg, link: create(:product, user: seller, name: "Spare #{index}")) }
+    end
+
+    it "renders a product whose cover is an uploaded image the retina worker has not processed", parity: true do
+      product = create(:product, user: seller, name: "Uploaded cover")
+      create(:asset_preview_jpg, link: product, guid: "pageuploadedcover")
+      ProcessAssetPreviewRetinaWorker.jobs.clear
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to be_successful
+      cover = inertia_props_of(response)["product"]["covers"].first
+      expect(cover).to include("type" => "image", "filetype" => "jpg")
+    end
+
+    it "renders a product whose cover is an uploaded image with a processed retina variant", parity: true do
+      burn_attachment_ids(1)
+      product = create(:product, user: seller, name: "Retina cover")
+      preview = create(:asset_preview_jpg, link: product, guid: "pageretinacover")
+      preview.retina_variant.processed
+      Rails.cache.clear
+      ProcessAssetPreviewRetinaWorker.jobs.clear
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to be_successful
+      cover = inertia_props_of(response)["product"]["covers"].first
+      expect(cover["url"]).not_to eq(cover["original_url"])
+      expect(ProcessAssetPreviewRetinaWorker.jobs.size).to eq(0)
+    end
+
+    it "renders a product whose cover is an uploaded GIF", parity: true do
+      burn_attachment_ids(2)
+      product = create(:product, user: seller, name: "Animated cover")
+      create(:asset_preview_gif, link: product, guid: "pagegifcover")
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to be_successful
+      cover = inertia_props_of(response)["product"]["covers"].first
+      expect(cover).to include("type" => "image", "filetype" => "gif")
+      expect(cover["url"]).to eq(cover["original_url"])
+    end
+
+    it "renders a product whose cover is a YouTube video", parity: true do
+      product = create(:product, user: seller, name: "Video cover")
+      create(:asset_preview_youtube, link: product, guid: "pageyoutubecover")
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to be_successful
+      cover = inertia_props_of(response)["product"]["covers"].first
+      expect(cover).to include("type" => "oembed", "native_width" => 356, "width" => 356, "height" => 200)
+      expect(cover["url"]).to include("enablejsapi=1")
+      expect(response.body).to include("twitter:player")
+    end
+
+    it "renders a product whose cover is a Vimeo video with a protocol-relative player and a scaled size", parity: true do
+      product = create(:product, user: seller, name: "Vimeo cover")
+      create(:asset_preview, attach: false, link: product, guid: "pagevimeocover", oembed: {
+        "html" => "<iframe src=\"//player.vimeo.com/video/76979871\" width=\"1280\" height=\"720\" frameborder=\"0\"></iframe>",
+        "info" => { "width" => 1280, "height" => 721, "thumbnail_url" => "https://i.vimeocdn.com/video/452001751_640.jpg?mw=1&x=2" }
+      })
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to be_successful
+      cover = inertia_props_of(response)["product"]["covers"].first
+      expect(cover).to include("url" => "https://player.vimeo.com/video/76979871?api=1", "width" => 670, "height" => 377)
+      expect(response.body).to include("og:image")
+    end
+
+    it "renders a product whose oEmbed cover reports a width that is not a number", parity: true do
+      product = create(:product, user: seller, name: "Odd cover")
+      create(:asset_preview, attach: false, link: product, guid: "pageoddcover", oembed: {
+        "html" => "<IFRAME SRC='https://example.com/player?x=1&y=2'></IFRAME>",
+        "info" => { "width" => "auto", "height" => "300px", "thumbnail_url" => "  https://example.com/thumb.png  " }
+      })
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to be_successful
+      cover = inertia_props_of(response)["product"]["covers"].first
+      expect(cover).to include("url" => "https://example.com/player?x=1&y=2", "thumbnail" => "https://example.com/thumb.png", "width" => nil, "height" => nil, "native_width" => 0, "native_height" => 300)
+    end
+
+    it "hands an oEmbed cover whose thumbnail Addressable would re-encode to Rails", parity: true do
+      product = create(:product, user: seller, name: "Spaced cover")
+      create(:asset_preview, attach: false, link: product, guid: "pagespacedcover", oembed: {
+        "html" => "<iframe src=\"https://example.com/player\"></iframe>",
+        "info" => { "width" => 640, "height" => 360, "thumbnail_url" => "https://example.com/a b.png" }
+      })
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to be_successful
+      expect(response.body).to include("https://example.com/a%20b.png")
+    end
+
     it "renders the waitlist of an unpublished product to a visitor", parity: true do
       product = create(:product, user: seller, name: "Coming soon", draft: true, waitlist_enabled: true)
 

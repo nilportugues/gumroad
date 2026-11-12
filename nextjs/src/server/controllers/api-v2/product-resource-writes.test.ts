@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Rendered } from "../application-controller.ts";
 
 process.env.OBFUSCATE_IDS_CIPHER_KEY ??= "ws17-test-obfuscate-key";
 process.env.OBFUSCATE_IDS_NUMERIC_CIPHER_KEY ??= "123456789";
@@ -33,7 +34,7 @@ const category = {
   updated_at: new Date(),
 };
 const run = (method: string, pattern: string, params: Record<string, unknown>, state: Record<string, unknown>) =>
-  route(method, pattern).run({ params, state: { product, ...state } } as never);
+  route(method, pattern).run({ params, state: { product, ...state } } as never) as Promise<Rendered>;
 const created = () => mocks.tx.variantCategory.create.mock.calls[0]![0].data;
 
 beforeEach(() => {

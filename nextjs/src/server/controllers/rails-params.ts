@@ -3,6 +3,7 @@
 // not ported (Mime::Type, Addressable's validations), these answer the cases they can prove and throw
 // HandBackToRails for the rest, so Rails serves what the port cannot.
 import { isInvalidUriError, rubyUriParseParts } from "../models/concerns/ruby-uri.ts";
+
 import { HandBackToRails } from "./application-controller.ts";
 import { isPresent, type RailsRequest } from "./rails-request.ts";
 
@@ -49,6 +50,38 @@ export function assertFlatQuery(query: string, arrayKeys: string[] = []): void {
   if (/(?:^|[&;])[^=&;]*(?:\[|%5B)/iu.test(rest)) throw new HandBackToRails();
 }
 
+// The top-level keys of `params` Rack builds from a query string, for a caller that reads only which keys exist and whether a flat
+// one has a value (`a` has none, `a=` has an empty string). `a[]` and `a[b]` are one level of list or hash; `a[b][c]`, a name that
+// is only brackets, and a name used both flat and nested (Rack raises a 400 for it) go to Rails. Later pairs of a flat name win.
+export type RackTopLevelParam = { nested: false; value: string | null } | { nested: true };
+
+export function rackTopLevelParams(query: string): Map<string, RackTopLevelParam> {
+  const params = new Map<string, RackTopLevelParam>();
+  const shapes = new Map<string, string>();
+  for (const pair of query.replace(/^\?/u, "").split("&")) {
+    if (pair === "") continue;
+    const index = pair.indexOf("=");
+    let name: string;
+    let value: string | null = null;
+    try {
+      name = decodeURIComponent((index === -1 ? pair : pair.slice(0, index)).replaceAll("+", " "));
+      if (index !== -1) value = decodeURIComponent(pair.slice(index + 1).replaceAll("+", " "));
+    } catch {
+      throw new HandBackToRails("a query string with an invalid percent escape");
+    }
+    const parts = /^([^[\]]+)(?:\[([^[\]]*)\])?$/u.exec(name);
+    if (!parts) throw new HandBackToRails("a query parameter name Rack nests deeper than one level");
+    const [, base = "", inner] = parts;
+    const shape = inner === undefined ? "flat" : inner === "" ? "list" : "hash";
+    const known = shapes.get(base);
+    if (known !== undefined && known !== shape)
+      throw new HandBackToRails("a query parameter used as two kinds of value");
+    shapes.set(base, shape);
+    params.set(base, shape === "flat" ? { nested: false, value } : { nested: true });
+  }
+  return params;
+}
+
 // ActionDispatch::Request#referrer
 export const referrer = (request: RailsRequest): string | null => request.headers.get("referer");
 
@@ -61,7 +94,9 @@ const HTML_TYPES = new Set(["text/html", "application/xhtml+xml", "*/*"]);
 export function requestFormat(request: RailsRequest): "html" | "json" | "other" {
   const accept = request.headers.get("accept");
   const xhr = request.headers.get("x-requested-with") === "XMLHttpRequest";
-  const usable = (xhr && (isPresent(accept) || request.headers.has("content-type"))) || (isPresent(accept) && !BROWSER_LIKE_ACCEPTS.test(accept));
+  const usable =
+    (xhr && (isPresent(accept) || request.headers.has("content-type"))) ||
+    (isPresent(accept) && !BROWSER_LIKE_ACCEPTS.test(accept));
   if (!usable) return xhr ? "other" : "html";
 
   const entries = accept!.split(",").map((entry, order) => {
@@ -85,7 +120,11 @@ const QUERY_CLASS = /^[A-Za-z0-9\-._~!$&'()*+,;=:@/?]$/u;
 // Addressable::URI.encode_component: every character outside the class, "%" included, becomes its
 // UTF-8 bytes as %XX.
 const encodeComponent = (value: string, allowed: RegExp) =>
-  [...value].map((char) => (allowed.test(char) ? char : Buffer.from(char, "utf8").toString("hex").toUpperCase().replace(/../gu, "%$&"))).join("");
+  [...value]
+    .map((char) =>
+      allowed.test(char) ? char : Buffer.from(char, "utf8").toString("hex").toUpperCase().replace(/../gu, "%$&"),
+    )
+    .join("");
 
 // RFC 3986 appendix B, which Addressable::URI.parse splits a URI with.
 const URI_SPLIT = /^(?:([^:/?#]+):)?(?:\/\/([^/?#]*))?([^?#]*)(?:\?([^#]*))?(?:#(.*))?$/su;
@@ -130,7 +169,8 @@ export function safeRedirectPath(
 
   const url = escapedUri(path);
   if (url.path === null) throw new HandBackToRails();
-  const subdomainHost = url.host !== null && new RegExp(`.*\\.${rootDomain.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}$`, "u").test(url.host);
+  const subdomainHost =
+    url.host !== null && new RegExp(`.*\\.${rootDomain.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}$`, "u").test(url.host);
   if ((allowSubdomainHost && subdomainHost) || url.host === request.host) return path;
 
   let relative = url.path.replace(/^\/+/u, "/");

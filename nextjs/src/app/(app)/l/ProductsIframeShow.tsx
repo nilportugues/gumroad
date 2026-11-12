@@ -19,7 +19,7 @@ export default function ProductsIframeShow() {
   useRunOnce(() => window.parent.postMessage({ type: "translations", translations: { close: "Close" } }, "*"));
 
   const mainRef = React.useRef<HTMLDivElement>(null);
-  const dimensions = useElementDimensions(mainRef);
+  const dimensions = useElementDimensions(mainRef as React.RefObject<HTMLElement>);
 
   React.useEffect(() => {
     if (dimensions) window.parent.postMessage({ type: "height", height: dimensions.height }, "*");

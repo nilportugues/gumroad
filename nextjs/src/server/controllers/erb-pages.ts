@@ -20,19 +20,61 @@ import { MetaTagBuilder } from "../page-props/meta-tags.ts";
 import { NotPortedError } from "../page-props/not-ported.ts";
 import type { SharedPropsPorts } from "../page-props/ports.ts";
 import { applicationMetaTags } from "../page-props/shared.ts";
+import { signedInPresenters } from "../page-props/signed-in/presenters.ts";
 
 import { type ActionContext, HandBackToRails, type Rendered } from "./application-controller.ts";
+import { rackTopLevelParams } from "./rails-params.ts";
 import type { RailsRequest } from "./rails-request.ts";
 
 const GITHUB_STARS_CACHE_KEY = "github_stars_antiwork/gumroad";
 const HTML = "text/html; charset=utf-8";
 
-// GithubStarsController.cached_count: a miss makes Rails call the GitHub API, and a cached nil renders another nav, so both stay
-// Rails'.
-async function cachedGithubStars(): Promise<number> {
-  const stars = await railsCache().read(GITHUB_STARS_CACHE_KEY);
-  if (typeof stars !== "number") throw new HandBackToRails("the nav without a cached GitHub star count");
+const GITHUB_STARS_TTL_SECONDS = 60 * 60;
+const GITHUB_STARS_RACE_CONDITION_TTL_SECONDS = 10;
+const GITHUB_REQUEST_TIMEOUT_MS = 5000;
+// The origin is a variable only so a replay can stand in for GitHub (as TAXJAR_ENDPOINT does for TaxJar).
+const githubApiOrigin = () => process.env.GITHUB_API_ORIGIN?.trim() || "https://api.github.com";
+
+// GithubStarsController.fetch_stars. Any failure answers nil, which the cache stores and the nav renders without a count.
+async function fetchGithubStars(): Promise<number | null> {
+  try {
+    const response = await fetch(`${githubApiOrigin()}/repos/antiwork/gumroad`, {
+      headers: { "X-GitHub-Api-Version": "2022-11-28" },
+      signal: AbortSignal.timeout(GITHUB_REQUEST_TIMEOUT_MS),
+    });
+    const json = response.ok && /json/iu.test(response.headers.get("content-type") ?? "");
+    const parsed: unknown = json ? await response.json() : null;
+    const stars =
+      typeof parsed === "object" && parsed !== null
+        ? (parsed as { stargazers_count?: unknown }).stargazers_count
+        : null;
+    // A count that is not an Integer would print differently from `number_to_si`'s Integer path.
+    if (stars != null && (typeof stars !== "number" || !Number.isSafeInteger(stars)))
+      throw new HandBackToRails("a GitHub star count that is not an integer");
+    return stars ?? null;
+  } catch (error) {
+    if (error instanceof HandBackToRails) throw error;
+    return null;
+  }
+}
+
+// GithubStarsController.cached_count
+async function cachedGithubStars(): Promise<number | null> {
+  const stars = await railsCache().fetch(
+    GITHUB_STARS_CACHE_KEY,
+    { expiresIn: GITHUB_STARS_TTL_SECONDS, raceConditionTtl: GITHUB_STARS_RACE_CONDITION_TTL_SECONDS },
+    () => fetchGithubStars(),
+  );
+  // Rails.cache.fetch answers whatever a Ruby writer stored; only an Integer prints.
+  if (stars !== null && typeof stars !== "number")
+    throw new HandBackToRails("a GitHub star count that is not an integer");
   return stars;
+}
+
+// `params[:as_embed]` is truthy: a flat `as_embed=` is an empty string (truthy in Ruby), a bare `as_embed` is nil, and a list or hash is truthy.
+function asEmbedParam(queryString: string): boolean {
+  const param = rackTopLevelParams(queryString).get("as_embed");
+  return param !== undefined && (param.nested || param.value !== null);
 }
 
 export type PageMeta = { title: string; description: string; url: string };
@@ -48,8 +90,8 @@ function pageMetaTags(meta: MetaTagBuilder, { title, description, url }: PageMet
   meta.set({ property: "og:url", content: url });
 }
 
-// No port exists for the signed-in half of the shared props; the layout only reads the seller for the analytics flags.
-const NO_PORTS = {} as SharedPropsPorts;
+// The layout reads the signed-in seller only for the third-party analytics flag.
+const PORTS = { presenters: signedInPresenters } as SharedPropsPorts;
 
 export async function renderHomePage(
   request: RailsRequest,
@@ -59,19 +101,18 @@ export async function renderHomePage(
   response: { paramsRead?: boolean; headers?: Record<string, string> } = {},
 ): Promise<Rendered> {
   const config = domainConfig(process.env);
-  // A signed-in visitor sees the Dashboard nav and the seller-aware analytics flags, none of it recorded.
-  if (railsLoggedInUser(action.context) !== null) throw new HandBackToRails("a home page for a signed-in visitor");
+  // `signed_in?` is the Warden session; an impersonating admin has one of their own.
+  if (action.context.impersonatedUser !== null) throw new HandBackToRails("a home page for an impersonated session");
+  const signedIn = railsLoggedInUser(action.context) !== null;
   const origin = `${config.protocol}://${request.hostWithPort}`;
   const githubStars = await cachedGithubStars();
   const state = action.takeRenderState();
-  // layouts/shared/_flash.html.erb renders a toast for it, which no example records.
-  if (Object.keys(state.flash).length > 0) throw new HandBackToRails("a home page with a flash message");
   const meta = new MetaTagBuilder();
   await applicationMetaTags(meta, {
     context: action.context,
     config,
     csrfToken: formAuthenticityToken(state.csrfToken),
-    ports: NO_PORTS,
+    ports: PORTS,
   });
   pageMetaTags(meta, typeof page === "function" ? page(origin) : page);
   const nonce = generateCspNonce();
@@ -80,11 +121,12 @@ export async function renderHomePage(
     path: request.path,
     method: request.method,
     userAgent: request.headers.get("user-agent"),
-    asEmbed: new URLSearchParams(request.queryString).has("as_embed"),
+    asEmbed: asEmbedParam(request.queryString),
+    flash: state.flash,
     nonce,
     meta,
     githubStars,
-    signedIn: false,
+    signedIn,
     hideLayouts: true,
   };
   // A tag the ERB table does not list is a page Rails renders, not one to guess.

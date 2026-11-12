@@ -66,7 +66,7 @@ const maskingTransport =
 
 export function describeErbLayoutReplay(
   title: string,
-  options: { routeFlags: string; seed: Record<string, number>; select: (name: string) => boolean; spec?: string },
+  options: { routeFlags: string; seed: Record<string, number | null>; github?: number; select: (name: string) => boolean; spec?: string },
 ) {
   const FIXTURES = path.join("parity/fixtures/requests", options.spec ?? DEFAULT_SPEC);
   const url = process.env.PARITY_DATABASE_URL;
@@ -87,6 +87,8 @@ export function describeErbLayoutReplay(
     let redis: Redis;
     let server: NextServer;
     let rails: Server;
+    let github: Server | undefined;
+    const githubRequests: { path: string; version: string }[] = [];
     const handedBack: { method: string; url: string }[] = [];
     const saved = { ...process.env };
 
@@ -104,6 +106,14 @@ export function describeErbLayoutReplay(
         });
       });
       await new Promise<void>((resolve) => rails.listen(0, "127.0.0.1", resolve));
+      // Stands in for api.github.com, as the spec's WebMock stub does for Rails.
+      if (options.github !== undefined) {
+        github = createServer((request, response) => {
+          githubRequests.push({ path: request.url ?? "", version: String(request.headers["x-github-api-version"]) });
+          response.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ stargazers_count: options.github }));
+        });
+        await new Promise<void>((resolve) => github!.listen(0, "127.0.0.1", resolve));
+      }
       server = await startNextServer({
         RAILS_ENV: "test",
         OBFUSCATE_IDS_CIPHER_KEY: obfuscateKey ?? "",
@@ -117,12 +127,14 @@ export function describeErbLayoutReplay(
         SIDEKIQ_REDIS_HOST: redisHost,
         JOBS_REDIS_URL: `redis://${redisHost}`,
         RAILS_CACHE_TEST_SEED: JSON.stringify(options.seed),
+        ...(github ? { GITHUB_API_ORIGIN: `http://127.0.0.1:${(github.address() as { port: number }).port}` } : {}),
       });
     }, FIRST_COMPILE_TIMEOUT_MS);
 
     afterAll(async () => {
       await server?.stop();
       await new Promise((resolve) => rails?.close(resolve));
+      await new Promise((resolve) => (github ? github.close(resolve) : resolve(undefined)));
       await closeAllRedis();
       await redis?.quit();
       await client?.$disconnect();
@@ -149,7 +161,7 @@ export function describeErbLayoutReplay(
             transport: maskingTransport(httpTransport(server.baseUrl)),
             rewriteRequest: (request, source, now) => reencryptCookies(request, source, SECRET_KEY_BASE, now),
             interceptHttp: false,
-            compare: COMPARE,
+            compare: options.github === undefined ? COMPARE : { ignore: [...COMPARE.ignore, "http"] },
           });
           if (name.includes("hands-a-")) {
             const request = fixture.exchanges[index]!.request;
@@ -161,6 +173,9 @@ export function describeErbLayoutReplay(
           }
           expect(handedBack).toHaveLength(0);
           assertParity(result);
+          // The one call Rails makes on a cold cache.
+          if (options.github !== undefined)
+            expect(githubRequests).toEqual([{ path: "/repos/antiwork/gumroad", version: "2022-11-28" }]);
         } catch (error) {
           const logs = server
             .output()

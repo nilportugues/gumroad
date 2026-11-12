@@ -30,6 +30,7 @@ import {
   reviewSummary,
   type ProductPageViewerInput,
 } from "./product-props.ts";
+import { addressableEscape } from "./asset-preview.ts";
 import { coverProps } from "./product-props-extras.ts";
 import { customDomainByHost, type LinkRow, type UserRow } from "./product-reads.ts";
 import { longUrl } from "./product.ts";
@@ -67,6 +68,14 @@ const DISCOVER_RECOMMENDERS = ["search", "discover"];
 const GUID_COOKIE = "_gumroad_guid";
 
 const present = (value: string | null | undefined): value is string => value != null && value.trim() !== "";
+
+type CoverMeta = {
+  url: string | null;
+  type: string;
+  thumbnail: string | null;
+  native_width: number | null;
+  native_height: number | null;
+};
 
 export type ProductPageKind = "show" | "iframe" | "profile" | "discover";
 
@@ -155,7 +164,7 @@ async function setMeta(
   seller: UserRow,
   host: string,
   customDomainUrl: string | null,
-  covers: { url: string | null }[] = [],
+  covers: CoverMeta[] = [],
 ) {
   await setHostMeta(meta, seller as unknown as User);
   meta.set({ title: row.name });
@@ -186,18 +195,35 @@ async function setMeta(
   meta.set({ property: "og:title", content: row.name });
   meta.set({ property: "og:description", content: description });
   meta.set({ property: "og:url", content: canonicalUrl });
-  // Link#social_share_image: the first cover when it is an image. `coverProps` only lets Unsplash covers through, whose url is the photo.
-  const shareImage = covers[0]?.url ?? null;
+  // Link#social_share_image: the first cover's URL when it is an Unsplash photo or an uploaded image (`preview_image_path?`), else an oEmbed cover's
+  // thumbnail escaped by Addressable, else nothing (an uploaded video's poster is the only other source, and uploads stay with Rails).
+  const main = covers[0];
+  const photo = main?.type === "unsplash" || main?.type === "image";
+  const oembed = main?.type === "oembed";
+  const shareImage = photo
+    ? main.url
+    : oembed && present(main.thumbnail ?? "")
+      ? addressableEscape(main.thumbnail!)
+      : null;
   if (present(shareImage ?? "")) {
     meta.set({ property: "og:image", content: shareImage });
     meta.set({ property: "og:image:alt", content: "" });
   }
   meta.set({ property: "og:type", content: ":product" });
   meta.set({ property: "twitter:title", content: row.name });
-  if (shareImage !== null) {
+  if (photo) {
     meta.set({ property: "twitter:card", content: "summary_large_image" });
-    meta.set({ property: "twitter:image", content: shareImage });
+    meta.set({ property: "twitter:image", content: main.url });
     meta.set({ property: "twitter:image:alt", content: "" });
+  } else if (oembed) {
+    // A player card without a thumbnail or an iframe would set a nil tag content.
+    if (main.thumbnail == null || main.url == null)
+      throw new NotPortedError("the twitter player card of an oEmbed cover without a thumbnail or an iframe");
+    meta.set({ property: "twitter:card", content: "player" });
+    meta.set({ property: "twitter:image", content: main.thumbnail });
+    meta.set({ property: "twitter:player", content: main.url });
+    meta.set({ property: "twitter:player:width", content: main.native_width });
+    meta.set({ property: "twitter:player:height", content: main.native_height });
   } else {
     meta.set({ property: "twitter:card", content: "summary" });
   }
@@ -208,6 +234,9 @@ async function setMeta(
   });
   if (present(seller.twitter_handle as string))
     meta.set({ property: "twitter:creator", content: `@${seller.twitter_handle}` });
+  // `display_asset_previews.select { |asset| asset.file.image? }`: only an uploaded image, never an Unsplash photo or an oEmbed cover.
+  for (const cover of covers)
+    if (cover.type === "image") meta.set({ tag_name: "link", rel: "preload", as: "image", href: cover.url });
   // The page imports the calendar after it mounts; only call products show one, so only they preload it.
   if (row.native_type === "call")
     meta.set({
@@ -446,7 +475,7 @@ async function build(
     seller,
     host,
     viewer.sellerCustomDomainUrl,
-    props.product.covers as { url: string | null }[],
+    props.product.covers as CoverMeta[],
   );
   // ProductPresenter#iframe_product_props is product_props alone.
   if (kind === "iframe") return props;
@@ -569,7 +598,7 @@ async function setProductPageMeta(
   host: string,
   customDomainUrl: string | null,
 ) {
-  await setMeta(meta, row, seller, host, customDomainUrl, (await coverProps(row)).covers as { url: string | null }[]);
+  await setMeta(meta, row, seller, host, customDomainUrl, (await coverProps(row)).covers as CoverMeta[]);
 }
 
 export { build as buildProductPage, guidOf, setProductPageMeta, viewerOf };

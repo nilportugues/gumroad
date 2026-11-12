@@ -124,19 +124,49 @@ describe("coverProps", () => {
     ]);
   });
 
-  it("hands back an oEmbed cover", async () => {
+  it("serializes an oEmbed cover from its document", async () => {
+    const oembed =
+      '---\nhtml: "<iframe src=\\"https://example.com/p\\"></iframe>"\ninfo:\n  width: 640\n  height: 360\n';
+    mocks.responses = [[{ id: 1n, guid: "abc", oembed, unsplash_url: null }], []];
+
+    const { covers, main_cover_id } = await coverProps(row);
+
+    expect(main_cover_id).toBe("abc");
+    expect(covers).toEqual([
+      expect.objectContaining({
+        url: "https://example.com/p",
+        type: "oembed",
+        width: 640,
+        height: 360,
+        native_width: 640,
+      }),
+    ]);
+  });
+
+  it("hands back an oEmbed cover Node cannot read exactly", async () => {
     mocks.responses = [[{ id: 1n, guid: "abc", oembed: "---\n", unsplash_url: null }], []];
 
-    await expect(coverProps(row)).rejects.toThrow("AssetPreview#as_json");
+    await expect(coverProps(row)).rejects.toThrow("is not ported");
   });
 
   it("hands back a cover with an upload", async () => {
     mocks.responses = [
       [{ id: 1n, guid: "abc", oembed: null, unsplash_url: "https://images.example.com/a.jpg" }],
-      [{ 1: 1 }],
+      [
+        {
+          record_id: 1n,
+          attachment_id: 2n,
+          blob_id: 3n,
+          key: "k",
+          filename: "a.jpg",
+          content_type: "image/jpeg",
+          service_name: "test",
+          metadata: null,
+        },
+      ],
     ];
 
-    await expect(coverProps(row)).rejects.toThrow("AssetPreview#as_json");
+    await expect(coverProps(row)).rejects.toThrow("AssetPreview#as_json for an upload");
   });
 });
 

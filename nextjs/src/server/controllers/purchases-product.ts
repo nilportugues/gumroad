@@ -9,7 +9,7 @@ import { registerMutations, type MutationInput } from "./mutation.ts";
 import { setPurchase } from "./purchase-access-writes.ts";
 import { requestFormat } from "./rails-params.ts";
 
-export async function show(input: MutationInput) {
+export async function show(input: MutationInput): Promise<never> {
   if (requestFormat(input.request) !== "html") throw new HandBackToRails("a request whose format is not HTML");
   await setPurchase(input.routeParams.purchase_id!);
   throw new HandBackToRails("the product page of a purchase, which rebuilds the product from its version");

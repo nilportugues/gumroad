@@ -29,7 +29,10 @@ export type LayoutContext = {
   path: string;
   method: string;
   userAgent: string | null;
+  // params[:as_embed] is truthy
   asEmbed: boolean;
+  // session["flash"] of the request: alert, warning, info and notice are read.
+  flash: Record<string, string>;
   nonce: string;
   meta: MetaTagBuilder;
   // GithubStarsController.cached_count
@@ -381,12 +384,16 @@ function navLink(text: string, target: string, current: boolean): string {
 }
 
 function authButton(text: string, target: string, primary: boolean): string {
+  // The Dashboard button is the primary one with its own colours, and none of the dark-mode set the other primary button adds.
+  const dashboard = text === "Dashboard";
   const classes = `flex w-full items-center justify-center h-full ${
-    primary
-      ? "lg:bg-black lg:text-white lg:hover:bg-pink"
-      : "lg:border-l-black lg:bg-white lg:text-black lg:hover:bg-pink dark:lg:border-l-white/35 dark:lg:bg-black dark:lg:text-white"
+    dashboard
+      ? "lg:bg-black lg:text-white lg:hover:bg-pink dark:lg:bg-pink dark:lg:text-black dark:lg:hover:bg-white"
+      : primary
+        ? "lg:bg-black lg:text-white lg:hover:bg-pink"
+        : "lg:border-l-black lg:bg-white lg:text-black lg:hover:bg-pink dark:lg:border-l-white/35 dark:lg:bg-black dark:lg:text-white"
   } border-black bg-black p-4 text-lg text-white no-underline transition-colors duration-200 hover:bg-pink hover:text-black lg:w-auto lg:border-l lg:py-2 lg:px-6 whitespace-nowrap ${
-    primary
+    primary && !dashboard
       ? "dark:bg-pink dark:text-black dark:hover:bg-white dark:lg:bg-pink dark:lg:text-black dark:lg:hover:bg-white"
       : "dark:lg:hover:bg-white dark:lg:hover:text-black"
   }`;
@@ -401,7 +408,6 @@ function currentPage(ctx: LayoutContext, target: string): boolean {
 }
 
 export function nav(ctx: LayoutContext): string {
-  if (ctx.signedIn) throw new NotPortedError("the nav of a signed-in visitor");
   const navLinks = html(
     contentTag(
       "div",
@@ -434,7 +440,10 @@ export function nav(ctx: LayoutContext): string {
     contentTag(
       "div",
       new SafeString(
-        authButton("Log in", PATHS.login_path!, false) + authButton("Start selling", PATHS.signup_path!, true),
+        ctx.signedIn
+          ? // dashboard_url(host: DOMAIN)
+            authButton("Dashboard", `${ctx.config.protocol}://${ctx.config.domain}/dashboard`, true)
+          : authButton("Log in", PATHS.login_path!, false) + authButton("Start selling", PATHS.signup_path!, true),
       ),
       { class: "flex flex-col lg:flex-row lg:h-full" },
     ),
@@ -503,17 +512,28 @@ function readGithubIconPath(): string {
 }
 
 function githubStarsLink(stars: number | null): string {
-  if (stars === null) throw new NotPortedError("the nav without a cached GitHub star count");
-  const star = /<svg xmlns="http:\/\/www.w3.org\/2000\/svg" viewBox="0 0 24 24" width="18"[\s\S]*?<\/svg>/u.exec(
-    readView("home/shared/_nav.html.erb"),
-  )![0];
+  const icon = (width: number) =>
+    new RegExp(
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="${width}"[\\s\\S]*?</svg>`,
+      "u",
+    ).exec(readView("home/shared/_nav.html.erb"))![0];
   const classes =
     "flex gap-1.5 rounded-full p-1.5 border border-black no-underline dark:border-white/35 hover:bg-gray-100 dark:hover:bg-gray-700 text-black dark:text-white hover:-translate-x-[2px] hover:-translate-y-[2px] hover:shadow-[2px_2px_0_0_rgba(0,0,0,1)] dark:hover:shadow-[2px_2px_0_0_rgba(255,255,255,0.35)] transition-all duration-100";
-  const content = `
+  // A star count GitHub failed to give (cached as nil) leaves the name and an arrow.
+  const content =
+    stars === null
+      ? `
+      ${GITHUB_ICON_PATH}
+        <div class="flex items-center gap-1.5">
+          <span class="text-base leading-none font-medium">GitHub</span>
+          ${icon(14)}
+        </div>
+`
+      : `
       ${GITHUB_ICON_PATH}
         <div class="flex items-center gap-1.5 whitespace-nowrap">
           <span class="text-base leading-none font-medium">${numberToSi(stars)}</span>
-          ${star}
+          ${icon(18)}
         </div>
 `;
   return html(
@@ -526,8 +546,39 @@ function githubStarsLink(stars: number | null): string {
   );
 }
 
-// layouts/shared/_flash.html.erb without a flash.
-const NO_FLASH = "";
+const FLASH_STATUS_CLASSES: Record<string, string> = {
+  danger: "border-danger bg-danger/20 text-danger",
+  warning: "border-warning bg-warning/20 text-warning",
+  info: "border-info bg-info/20 text-info",
+  success: "border-success bg-success/20 text-success",
+};
+
+// layouts/shared/_flash.html.erb: the first of alert, warning, info and notice (an empty string is truthy in Ruby) as a toast that
+// removes itself. What Erubi trims is the `<% %>` lines; the markup keeps the partial's own indentation.
+function flashPartial(ctx: LayoutContext): string {
+  const { flash } = ctx;
+  const key = ["alert", "warning", "info", "notice"].find((name) => flash[name] !== undefined);
+  if (key === undefined) return "";
+  const status = key === "alert" ? "danger" : key === "warning" ? "warning" : key === "info" ? "info" : "success";
+  return `    <div id="flash-toast"
+         class="fixed top-4 left-1/2 z-100 w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded bg-background md:max-w-sm"
+         style="transition: all 0.3s ease-out 0.5s;">
+      <div role="status" class="flex items-center gap-2 rounded border p-4 text-sm
+        ${FLASH_STATUS_CLASSES[status]}">
+        ${escapeHtml(flash[key]!)}
+      </div>
+    </div>
+    <script nonce="${ctx.nonce}">
+      setTimeout(function() {
+        var el = document.getElementById("flash-toast");
+        if (el) {
+          el.style.transform = "translateX(-50%) translateY(calc(-100% - var(--spacer-4)))";
+          setTimeout(function() { el.remove(); }, 900);
+        }
+      }, 5000);
+    </script>
+`;
+}
 
 // The line Erubi leaves where `<%= yield :style %>` or an empty vite tag was: its indentation and a newline.
 const BLANK = "  \n";
@@ -557,7 +608,6 @@ export function designSettings(config: DomainConfig, requestOrigin: string): str
 // layouts/home.html.erb wrapped in layouts/application.html.erb. `view` is the page template's output.
 export function renderHomeLayout(ctx: LayoutContext, view: string, requestOrigin: string): string {
   if (!ctx.hideLayouts) throw new NotPortedError("a home page that keeps the base entrypoint");
-  if (ctx.asEmbed) throw new NotPortedError("as_embed");
   const bodyClass = [
     "group/body",
     ...(ctx.userAgent?.includes("Macintosh") ? ["mac"] : []),
@@ -574,9 +624,9 @@ export function renderHomeLayout(ctx: LayoutContext, view: string, requestOrigin
   return `\n\n<!DOCTYPE html>
 <html lang="en">
   ${head(ctx)}
-  <body id="" class="${bodyClass.join(" ")}" style="">
+  <body id="" class="${bodyClass.join(" ")}" style="${ctx.asEmbed ? "background: transparent" : ""}">
     <div id="design-settings" data-settings="${escapeHtml(designSettings(ctx.config, requestOrigin))}" style="display: none;"></div>
-    ${NO_FLASH}
+    ${flashPartial(ctx)}
     <div class="flex flex-col lg:flex-row h-screen">
       <main class="flex-1 flex flex-col lg:h-screen overflow-y-auto">
         <div class="flex-1 flex flex-col">

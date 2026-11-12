@@ -8,7 +8,7 @@ import { getRedis } from "../infra/redis.ts";
 import { type ActionOptions, type ActionContext, HandBackToRails, type Rendered } from "./application-controller.ts";
 import { type PageMeta, renderHomePage } from "./erb-pages.ts";
 import { numberWithDelimiter } from "./number-with-delimiter.ts";
-import { assertFlatQuery } from "./rails-params.ts";
+import { rackTopLevelParams } from "./rails-params.ts";
 import type { RailsRequest } from "./rails-request.ts";
 
 // HomeController#set_edge_cache_headers: `expires_in 1.minute, public: true, "s-maxage": 5.minutes, stale_while_revalidate: 1.hour`.
@@ -131,15 +131,7 @@ const HOME_PAGES: Record<string, HomePage> = {
 // A visitor who is signed in always carries the session cookie, so the cookie test covers `user_signed_in?`.
 function edgeCacheable(request: RailsRequest): boolean {
   if (request.method !== "GET" || request.cookies.size > 0) return false;
-  try {
-    const keys = request.queryString
-      .split("&")
-      .map((pair) => decodeURIComponent((pair.split("=")[0] ?? "").replace(/\+/gu, " ")));
-    return !keys.some((key) => key.startsWith(UTM_PARAM_PREFIX));
-  } catch {
-    // A malformed escape is a 400 Rails answers.
-    return false;
-  }
+  return ![...rackTopLevelParams(request.queryString).keys()].some((key) => key.startsWith(UTM_PARAM_PREFIX));
 }
 
 // The session is skipped, no guid is minted and forgery protection is off for an edge cacheable response: the pair of `bare` filters.
@@ -148,9 +140,11 @@ export const homePageOptions = (request: RailsRequest): ActionOptions => (edgeCa
 export async function homePage(request: RailsRequest, action: ActionContext, name: string): Promise<Rendered> {
   const page = HOME_PAGES[name];
   if (page === undefined) throw new HandBackToRails(`the home page ${name}`);
-  if (request.method !== "GET") throw new HandBackToRails("a home page that is not a GET");
-  // The only query reads are edge_cacheable_request?'s; a non-flat query is Rails' to parse.
-  assertFlatQuery(request.queryString);
+  // A HEAD takes the normal path (`request.get?` is false) and its body is dropped on the way out.
+  if (request.method !== "GET" && request.method !== "HEAD")
+    throw new HandBackToRails("a home page that is not a GET or HEAD");
+  // The only query reads are edge_cacheable_request?'s and as_embed.
+  rackTopLevelParams(request.queryString);
   const cacheable = edgeCacheable(request);
   const payout = name === "about" ? await prevWeekPayout() : "";
   return renderHomePage(

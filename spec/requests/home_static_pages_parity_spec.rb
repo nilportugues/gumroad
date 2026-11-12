@@ -91,13 +91,69 @@ describe "Home static pages", type: :request do
       expect(response.headers["Cache-Control"]).not_to include("public")
     end
 
+    it "stays edge cacheable with a list and a hash in the query", parity: true do
+      get "/terms?tags[]=a&tags[]=b&filter[kind]=x"
+
+      expect(response).to be_successful
+      expect(set_cookies).to be_empty
+      expect(response.headers["Cache-Control"]).to include("s-maxage=300")
+    end
+
+    it "takes the normal path for a utm_ parameter that is a hash", parity: true do
+      get "/terms?utm_source[a]=1"
+
+      expect(response).to be_successful
+      expect(set_cookies).to include("_gumroad_guid")
+    end
+
+    it "makes the body transparent for an as_embed list", parity: true do
+      get "/terms?as_embed[]=1"
+
+      expect(response.body).to include('style="background: transparent"')
+    end
+
+    it "answers a HEAD request with the headers of the GET and no body", parity: true do
+      head "/terms"
+
+      expect(response).to be_successful
+      expect(response.body).to be_empty
+      expect(response.headers["Content-Type"]).to include("text/html")
+    end
+
+    it "makes the body transparent for as_embed", parity: true do
+      get "/terms", params: { as_embed: "true" }
+
+      expect(response.body).to include('style="background: transparent"')
+    end
+
+    it "makes the body transparent for an empty as_embed", parity: true do
+      get "/terms?as_embed="
+
+      expect(response.body).to include('style="background: transparent"')
+    end
+
+    it "leaves the body alone for an as_embed without a value", parity: true do
+      get "/terms?as_embed"
+
+      expect(response.body).to include('style=""')
+    end
+
+    it "renders the toast of a flash the previous request left", parity: true do
+      post login_path, params: { authenticity_token: csrf_token, user: { login_identifier: "nobody@example.com", password: "wrong" } }
+      expect(response).to have_http_status(:see_other)
+
+      get "/terms"
+
+      expect(response.body).to include('id="flash-toast"')
+    end
+
     it "marks the body of a Mac visitor", parity: true do
       get "/terms", headers: { "User-Agent" => "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15" }
 
       expect(response.body).to include('class="group/body mac"')
     end
 
-    it "hands a signed-in seller to Rails", parity: true do
+    it "renders the Dashboard link for a signed-in seller", parity: true do
       log_in(create(:user))
 
       get "/terms"
@@ -106,7 +162,7 @@ describe "Home static pages", type: :request do
       expect(response.body).to include("Dashboard")
     end
 
-    it "hands a visitor on the page without a cached star count to Rails", parity: true do
+    it "renders a visitor on the page without a cached star count", parity: true do
       Rails.cache.delete(stars_key)
       stub_request(:get, "https://api.github.com/repos/antiwork/gumroad")
         .to_return(status: 200, body: { stargazers_count: 4242 }.to_json, headers: { "Content-Type" => "application/json" })

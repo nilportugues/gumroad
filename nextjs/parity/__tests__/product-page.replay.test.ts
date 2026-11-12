@@ -70,6 +70,12 @@ type Case = { name: string; file: string; index: number; served: boolean; status
 const RENDERED = new Set(
   [
     "renders-a-digital-product",
+    "renders-a-product-whose-cover-is-a-youtube-video",
+    "renders-a-product-whose-cover-is-an-uploaded-gif",
+    "renders-a-product-whose-cover-is-an-uploaded-image-the-retina-worker-has-not-processe-34e98bca",
+    "renders-a-product-whose-cover-is-an-uploaded-image-with-a-processed-retina-variant",
+    "renders-a-product-whose-cover-is-a-vimeo-video-with-a-protocol-relative-player-and-a-cfb6aabe",
+    "renders-a-product-whose-oembed-cover-reports-a-width-that-is-not-a-number",
     "renders-an-ebook-with-its-book-files-in-the-structured-data",
     "renders-a-euro-product-with-its-price-converted-to-dollars-in-the-structured-data",
     "renders-a-product-by-its-custom-permalink",
@@ -199,6 +205,7 @@ describe.skipIf(!url)("Product page parity", () => {
       ELASTICSEARCH_HOST,
       ES_INDEX_SUFFIX,
       REDIS_HOST: redisHost,
+      SIDEKIQ_REDIS_HOST: redisHost,
     });
   }, FIRST_COMPILE_TIMEOUT_MS);
 
@@ -220,7 +227,13 @@ describe.skipIf(!url)("Product page parity", () => {
   it.each(cases.map((c) => [c.name, c] as const))(
     "%s",
     async (_name, c) => {
-      const compare = { ...COMPARE, ignore: [...COMPARE.ignore, ...c.ignore, ...(c.status === 404 ? ["response.body"] : [])] };
+      // Rails re-enqueues the retina job on every cover URL it reads (props, preload, og:image, twitter, structured data) because the
+      // test adapter takes no unique lock; Node's real lock keeps one. The job is asserted below instead of compared.
+      const retinaEnqueue = /retina-worker-has-not/u.test(c.name);
+      const compare = {
+        ...COMPARE,
+        ignore: [...COMPARE.ignore, ...c.ignore, ...(c.status === 404 ? ["response.body"] : []), ...(retinaEnqueue ? ["jobs"] : [])],
+      };
       const options = {
         sql,
         redis: {
@@ -262,6 +275,14 @@ describe.skipIf(!url)("Product page parity", () => {
       const result = await replayFixtureExchange(c.file, c.index, { ...options, compare });
       try {
         assertParity(result);
+        if (retinaEnqueue) {
+          const classes: string[] = [];
+          for (const key of await redis.keys("bull:*")) {
+            const data = (await redis.type(key)) === "hash" ? await redis.hget(key, "data") : null;
+            if (data !== null) classes.push((JSON.parse(JSON.parse(data).sidekiq) as { class: string }).class);
+          }
+          expect(classes).toEqual(["ProcessAssetPreviewRetinaWorker"]);
+        }
       } catch (error) {
         const logs = server.output().split("\n").filter((line) => /error|Error|at /u.test(line)).slice(-25).join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
