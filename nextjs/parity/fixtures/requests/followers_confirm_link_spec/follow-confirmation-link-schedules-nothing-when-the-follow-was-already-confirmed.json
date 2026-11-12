@@ -1,10 +1,10 @@
 {
   "version": 1,
   "spec": "spec/requests/followers_confirm_link_spec.rb",
-  "example": "Follow confirmation link hands a seller with follower workflows to Rails",
+  "example": "Follow confirmation link schedules nothing when the follow was already confirmed",
   "sessionCookie": "_gumroad_app_session_test",
   "secretKeyBase": "parity-replay-secret-key-base",
-  "recordedOn": "2026-11-11",
+  "recordedOn": "2026-11-12",
   "exchanges": [
     {
       "seed": {
@@ -40,6 +40,53 @@
               }
             ]
           },
+          "audience_members": {
+            "columns": {
+              "id": "bigint",
+              "seller_id": "bigint",
+              "email": "varchar",
+              "details": "json",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "customer": "tinyint",
+              "follower": "tinyint",
+              "affiliate": "tinyint",
+              "min_paid_cents": "int",
+              "max_paid_cents": "int",
+              "min_created_at": "datetime",
+              "max_created_at": "datetime",
+              "min_purchase_created_at": "datetime",
+              "max_purchase_created_at": "datetime",
+              "follower_created_at": "datetime",
+              "min_affiliate_created_at": "datetime",
+              "max_affiliate_created_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": 1,
+                "email": "again@example.com",
+                "details": "{\"follower\": {\"id\": 1, \"created_at\": \"2025-01-01T12:00:00Z\"}}",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "customer": 0,
+                "follower": 1,
+                "affiliate": 0,
+                "min_paid_cents": null,
+                "max_paid_cents": null,
+                "min_created_at": "<now-16327h>",
+                "max_created_at": "<now-16327h>",
+                "min_purchase_created_at": null,
+                "max_purchase_created_at": null,
+                "follower_created_at": "<now-16327h>",
+                "min_affiliate_created_at": null,
+                "max_affiliate_created_at": null
+              }
+            ]
+          },
           "followers": {
             "columns": {
               "id": "int",
@@ -60,14 +107,96 @@
               {
                 "id": 1,
                 "followed_id": 1,
-                "email": "workflow@example.com",
-                "created_at": "<now-16284h>",
+                "email": "again@example.com",
+                "created_at": "<now-16327h>",
                 "updated_at": "<now>",
                 "follower_user_id": null,
                 "source": null,
                 "source_product_id": null,
-                "confirmed_at": null,
+                "confirmed_at": "<now-16303h>",
                 "deleted_at": null
+              }
+            ]
+          },
+          "installment_rules": {
+            "columns": {
+              "id": "int",
+              "installment_id": "int",
+              "delayed_delivery_time": "int",
+              "to_be_published_at": "datetime",
+              "version": "int",
+              "deleted_at": "datetime",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "time_period": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "installment_id": 1,
+                "delayed_delivery_time": 3600,
+                "to_be_published_at": "<now+168h>",
+                "version": 1,
+                "deleted_at": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "time_period": "hour"
+              }
+            ]
+          },
+          "installments": {
+            "columns": {
+              "id": "int",
+              "link_id": "int",
+              "message": "longtext",
+              "url": "longtext",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "name": "varchar",
+              "published_at": "datetime",
+              "deleted_at": "datetime",
+              "flags": "int",
+              "seller_id": "int",
+              "installment_type": "varchar",
+              "json_data": "mediumtext",
+              "customer_count": "int",
+              "workflow_id": "int",
+              "call_to_action_text": "varchar",
+              "call_to_action_url": "varchar",
+              "cover_image_url": "varchar",
+              "base_variant_id": "int",
+              "slug": "varchar",
+              "installment_events_count": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "link_id": null,
+                "message": "<p>Hello</p>",
+                "url": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "name": "Welcome",
+                "published_at": null,
+                "deleted_at": null,
+                "flags": 1312,
+                "seller_id": 1,
+                "installment_type": "follower",
+                "json_data": "{\"workflow_trigger\":null}",
+                "customer_count": null,
+                "workflow_id": 1,
+                "call_to_action_text": null,
+                "call_to_action_url": null,
+                "cover_image_url": null,
+                "base_variant_id": null,
+                "slug": "welcome",
+                "installment_events_count": 0
               }
             ]
           },
@@ -173,20 +302,20 @@
             "rows": [
               {
                 "id": 1,
-                "email": "edgarb31e5167_9@gumroad.com",
-                "encrypted_password": "$2a$04$OZgVB/NrJRhkrzTVV/uWLuybXCtujLIMX2mCQdzqUFFw5WQYxbCqK",
+                "email": "edgar2ef01c7e_9@gumroad.com",
+                "encrypted_password": "$2a$04$AfOltBFYyPUGTqgKk.Nj3OMdolnBQ5Dqmlzm5pnLL6FjwEta9uNRu",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": null,
                 "sign_in_count": 0,
                 "current_sign_in_at": null,
                 "last_sign_in_at": null,
-                "current_sign_in_ip": "78.125.38.127",
-                "last_sign_in_ip": "193.123.92.150",
+                "current_sign_in_ip": "22.245.197.176",
+                "last_sign_in_ip": "38.159.231.100",
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "name": "Followed Seller",
-                "payment_address": "edgar0ad3179c_10@gumroad.com",
+                "payment_address": "edgar212f72f5_10@gumroad.com",
                 "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
@@ -211,8 +340,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "1442204338164",
-                "account_created_ip": "61.176.194.196",
+                "external_id": "2865922958704",
+                "account_created_ip": "153.157.14.35",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -230,7 +359,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "3UQ6U3UOHTUKN472M5BTNEJ6LK3E4STV",
+                "otp_secret_key": "WPAFVCT3666KNUXZMO3PLE4EUVDFRO2U",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -281,7 +410,10 @@
         },
         "autoIncrement": {
           "affiliates": 2,
+          "audience_members": 2,
           "followers": 2,
+          "installment_rules": 2,
+          "installments": 2,
           "refund_policies": 2,
           "users": 2,
           "workflows": 2
@@ -320,6 +452,11 @@
           "value": {
             "boolean": "true"
           }
+        },
+        "workflow_installment_rule:1:version": {
+          "type": "string",
+          "value": "1",
+          "ttl": 86400
         }
       },
       "request": {
@@ -349,13 +486,13 @@
         },
         "cookies": {
           "XSRF-TOKEN": {
-            "value": "6zpu4v0Fd-BxK_2R_Y0gGU7McJATVHAICHXZ-EDsofLIrIwmlWQ-cPD8kl6utgg7Hy6gHdgcSstbo1AWEFCXiQ",
+            "value": "SYoyCzCEUHmC6PMit21_WYYHPvlLXWjW3p4wp3a0KLQ5gVcrTCz31_fjnotiku8j8bQ_NQzgpfa5Go1C7TX_qQ",
             "path": "/",
             "samesite": "lax",
             "httponly": true
           },
           "_gumroad_app_session_test": {
-            "value": "s1U0mnkJploDIDerywqX95HiETvcesX+pIZ/uMcKyImnYuRKLCXg7k8OZ94w8AMWiIHgLGrCFr3XRX8WVIPoPQ3V9Jom+5qNzlsXsvmi72ByYKc5g9GXFml99bOKJDpSFIoGYTY0/15T/puC91XEfpPapGRNLNqtjKRZmjN2t6oLvzoGcRpShFwEwNLpb5cSwl/REUr30CrcfX2qSKwGs09FAZGehbl+GMjku/l9/v896lolJYxFfLYyqbl80ADUKZ26hAqC7yY6BhuE+9tDp6QTajXFhlOSVB6bnQbkPETD+sEyGq/Hq7zolY9S6XrQyMwFQQ7osEaNMpmzCLNnjYNtPh+hU7TbxJ58Xk+QTuo3KY3clkxTntl85TAyt21CpqvbaENpz+3Ai/qIwbIWTmhiliv7hs4d2uZVsEk7kGixp8tDjXeJelwNgbZXarHGjj92VWkezRC9q+FVo4Xu3gOul3CynNymQht9KQe3bvmj7trcpRu69fXvZVO2nyc=--ggRWtjJOxA8mwp2M--j7ejzO606c0nVk2PMv6kqA==",
+            "value": "8Xptt3FbZgeHOWefY9NCqgscQkHhJiRVgG0cUaDmLPR2FrJ6xrgnkPF+BUIOMDU82Y2+NYOYAWrLXXBIMex+Hjsvcy70RJecFh/j3xP0YugBb61GTNpY7vn5Cld8Ct4wviYm9ZOaxCpBQDoA+BjhqDzSwC5qUStjYdBYHlhP326GLOQlVHFtFb1Bs+z6RjDhg9yXvccxHiV+BLTZc4HcFynPnbm+qjP+R4OYBz47YJL7WyDqAdr24lKEABE/fTH4SJLPNzZXSQFjIqEnP/45xdz9/hD1M9ujMhfJDTuQA9bYLZ34/lC6NRcC7WfYPP+mwADQtubtkkQg/0wlNgFkkN8m4WTGdBuXvX13mAgiCxU58k0LMolzxcbv/naUr8kz2ncMHvYXHh7UxcJk1U7BUY900+ACOIJSpA8pWpQcw3falE0y2vmdMph6eqtgMibSr43iHZ+7xgO9ucpiBum4UZSKaupnuQ6M6UavWrVEPNsBDCysfPCAzYu0y60phBQ=--HQ2ujQhp4ExGWUoo--DXLLMhBegij1cxnoYyIKqg==",
             "domain": "gumroad.com",
             "path": "/",
             "expires": "<now+87672h>",
@@ -372,84 +509,8 @@
           }
         }
       },
-      "db": {
-        "audience_members": {
-          "inserted": [
-            {
-              "id": 1,
-              "seller_id": 1,
-              "email": "workflow@example.com",
-              "details": "{\"follower\": {\"id\": 1, \"created_at\": \"2025-01-01T12:00:00Z\"}}",
-              "created_at": "<now>",
-              "updated_at": "<now>",
-              "customer": 0,
-              "follower": 1,
-              "affiliate": 0,
-              "min_paid_cents": null,
-              "max_paid_cents": null,
-              "min_created_at": "<now-16284h>",
-              "max_created_at": "<now-16284h>",
-              "min_purchase_created_at": null,
-              "max_purchase_created_at": null,
-              "follower_created_at": "<now-16284h>",
-              "min_affiliate_created_at": null,
-              "max_affiliate_created_at": null
-            }
-          ]
-        },
-        "followers": {
-          "updated": [
-            {
-              "key": {
-                "id": 1
-              },
-              "changes": {
-                "updated_at": [
-                  "<now>",
-                  "<now>"
-                ],
-                "confirmed_at": [
-                  null,
-                  "<now>"
-                ]
-              }
-            }
-          ]
-        }
-      },
-      "jobs": [
-        {
-          "class": "ElasticsearchIndexerWorker",
-          "args": [
-            "index",
-            {
-              "class_name": "ConfirmedFollowerEvent",
-              "id": "ed4e27a1-10a5-4f8b-9a93-447662c0097c",
-              "body": {
-                "follower_id": 1,
-                "followed_user_id": 1,
-                "follower_user_id": null,
-                "email": "workflow@example.com",
-                "name": "added",
-                "timestamp": "<now>"
-              }
-            }
-          ],
-          "queue": "default"
-        },
-        {
-          "class": "ElasticsearchIndexerWorker",
-          "args": [
-            "index",
-            {
-              "record_id": 1,
-              "class_name": "AudienceMember"
-            }
-          ],
-          "queue": "default",
-          "at": "<now>"
-        }
-      ],
+      "db": {},
+      "jobs": [],
       "mails": [],
       "http": []
     }

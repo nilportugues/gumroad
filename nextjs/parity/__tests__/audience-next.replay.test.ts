@@ -139,6 +139,13 @@ function compareFor(file: string, name: string) {
   const ignore = [...COMPARE.ignore];
   // SecureRandom.uuid of the ConfirmedFollowerEvent job, and the audience member's details, which carry the follow's absolute created_at.
   if (name.includes("get-follow-id-cancel")) ignore.push("jobs.*.args.*.id", "db.audience_members.deleted.*.details");
+  // SecureRandom.uuid tokens of the schedule intent and of the job that carries them
+  if (name.includes("workflow-emails-save") && /publishes-the-workflow|reschedules-an-email/u.test(name))
+    ignore.push(
+      "db.workflow_installment_schedule_intents.inserted.*.token",
+      "db.workflow_installment_schedule_intents.inserted.*.dispatch_token",
+      "jobs.*.args.*",
+    );
   if (typeof body === "string" && body.startsWith(EXCEPTION_PAGE))
     ignore.push("response.headers.content-type", "response.json", "response.body", "response.cookies");
   return { ignore };

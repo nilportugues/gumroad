@@ -93,15 +93,46 @@ describe "Post comments mutations when signed in", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "hands a blank comment to Rails", parity: true do
+    it "answers 422 for a blank comment", parity: true do
       sign_in_on_main_domain(seller)
 
       send_json(:post, "/posts/#{post_record.external_id}/comments", { comment: { content: "" } })
 
       expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body).to eq("success" => false, "error" => "Content can't be blank")
     end
 
-    it "hands a root comment that notifies the seller to Rails", parity: true do
+    it "answers 422 for a comment over the length limit", parity: true do
+      sign_in_on_main_domain(seller)
+
+      send_json(:post, "/posts/#{post_record.external_id}/comments", { comment: { content: "a" * 10_001 } })
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["error"]).to start_with("Content is too long")
+    end
+
+    it "answers 422 for a reply nested deeper than the limit", parity: true do
+      parent = comment_on(post_record, author: reader)
+      4.times { |i| parent = comment_on(post_record, author: reader, content: "Level #{i + 1}", parent:) }
+      sign_in_on_main_domain(seller)
+
+      send_json(:post, "/posts/#{post_record.external_id}/comments", { comment: { content: "Too deep", parent_id: parent.external_id } })
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["error"]).to eq("Depth must be less than or equal to 4")
+    end
+
+    it "mails the seller about a root comment by a reader", parity: true, parity_mail_jobs: true do
+      sign_in_on_main_domain(reader)
+
+      send_json(:post, "/posts/#{post_record.external_id}/comments", { comment: { content: "Great post" } })
+
+      expect(response).to be_successful
+      expect(response.parsed_body["comment"]).to include("depth" => 0, "is_editable" => true)
+    end
+
+    it "does not mail a seller who turned comment emails off", parity: true, parity_mail_jobs: true do
+      seller.update!(disable_comments_email: true)
       sign_in_on_main_domain(reader)
 
       send_json(:post, "/posts/#{post_record.external_id}/comments", { comment: { content: "Great post" } })
@@ -109,13 +140,14 @@ describe "Post comments mutations when signed in", type: :request do
       expect(response).to be_successful
     end
 
-    it "hands a reader replying to a comment to Rails", parity: true do
+    it "adds a reader's reply to a comment without mailing the seller", parity: true, parity_mail_jobs: true do
       parent = comment_on(post_record, author: seller)
       sign_in_on_main_domain(reader)
 
       send_json(:post, "/posts/#{post_record.external_id}/comments", { comment: { content: "Agreed", parent_id: parent.external_id } })
 
       expect(response).to be_successful
+      expect(response.parsed_body["comment"]).to include("depth" => 1)
     end
 
     it "hands a request with a purchase id to Rails", parity: true do
@@ -156,13 +188,14 @@ describe "Post comments mutations when signed in", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "hands a blank edit to Rails", parity: true do
+    it "answers 422 for a blank edit", parity: true do
       comment = comment_on(post_record, author: reader)
       sign_in_on_main_domain(reader)
 
       send_json(:put, "/posts/#{post_record.external_id}/comments/#{comment.external_id}", { comment: { content: "" } })
 
       expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body).to eq("success" => false, "error" => "Content can't be blank")
     end
   end
 
@@ -224,14 +257,31 @@ describe "Post comments mutations when signed in", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "hands a comment with replies to Rails", parity: true do
+    it "deletes the whole subtree of a comment and tags its replies", parity: true do
       comment = comment_on(post_record, author: reader)
-      comment_on(post_record, author: seller, content: "Reply", parent: comment)
+      reply = comment_on(post_record, author: seller, content: "Reply", parent: comment)
+      comment_on(post_record, author: reader, content: "Nested reply", parent: reply)
+      comment_on(post_record, author: reader, content: "Second reply", parent: comment)
+      comment_on(post_record, author: reader, content: "Gone before", parent: comment, deleted_at: Time.utc(2025, 1, 3, 12))
+      unrelated = comment_on(post_record, author: reader, content: "Unrelated")
       sign_in_on_main_domain(seller)
 
       send_json(:delete, "/posts/#{post_record.external_id}/comments/#{comment.external_id}")
 
+      expect(response.parsed_body["deleted_comment_ids"].size).to eq(4)
+      expect(unrelated.reload.deleted_at).to be_nil
+    end
+
+    it "deletes a reply and its replies but keeps the parent", parity: true do
+      comment = comment_on(post_record, author: reader)
+      reply = comment_on(post_record, author: seller, content: "Reply", parent: comment)
+      comment_on(post_record, author: reader, content: "Nested reply", parent: reply)
+      sign_in_on_main_domain(seller)
+
+      send_json(:delete, "/posts/#{post_record.external_id}/comments/#{reply.external_id}")
+
       expect(response.parsed_body["deleted_comment_ids"].size).to eq(2)
+      expect(comment.reload.deleted_at).to be_nil
     end
 
     it "hands a signed-out visitor to Rails", parity: true do

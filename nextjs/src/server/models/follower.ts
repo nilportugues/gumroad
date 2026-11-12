@@ -4,7 +4,7 @@
 // Refused with NotPortedError rather than approximated: a follow that leaves the old newsletter of a seller with a
 // FeatureAnnouncementNewsletterCutover row (record_feature_announcements_opt_out), a follow that would become active under
 // such a seller (newsletter_not_retired), and an audience member row that is locked by another writer
-// (RefreshAudienceMemberJob fallback). Changing the email of a saved follower and `schedule_workflow_jobs` are not ported.
+// (RefreshAudienceMemberJob fallback). Changing the email of a saved follower is not ported.
 import { randomUUID } from "node:crypto";
 
 import { Prisma, type Follower } from "@prisma/client";
@@ -27,6 +27,8 @@ import { transaction } from "./runtime/transaction.ts";
 import { isBlank } from "./runtime/validators.ts";
 import { castRow, column, execute, isLockWaitTimeout, isRecordNotUnique, selectRows, table } from "./sql.ts";
 import { isValidEmailFormat, NotPortedError } from "./user.ts";
+import { SEND_WORKFLOW_INSTALLMENT_WORKER, schedulableInstallments, type WorkflowPush } from "./workflow-scheduling.ts";
+import { aliveWorkflowsOfSeller } from "./workflow.ts";
 
 export type FollowerRecord = ModelRecord<Follower>;
 
@@ -247,21 +249,39 @@ export function markDeletedBang(record: FollowerRecord) {
   return softDeletion.markDeletedBang(record);
 }
 
-// Follower#confirm!(schedule_workflow: false): `schedule_workflow_jobs` is left to the caller, which checks for the workflows first.
+const FOLLOWER_WORKFLOW_TYPES = ["follower", "audience"] as const;
+
+// Follower#schedule_workflow_jobs: the pushes, computed before the save so a rule Node cannot time still hands the request back
+// ahead of every write (Rails raises on it after the save).
+async function workflowPushes(record: FollowerRecord): Promise<WorkflowPush[]> {
+  const referenceTime = record.get("confirmed_at") as Date;
+  const pushes: WorkflowPush[] = [];
+  const workflows = (await aliveWorkflowsOfSeller(record.get("followed_id"), FOLLOWER_WORKFLOW_TYPES)).sort(
+    (a, b) => Number(a.id) - Number(b.id),
+  );
+  for (const workflow of workflows) {
+    if (!workflow.newCustomerTrigger) continue;
+    for (const { installment, rule } of await schedulableInstallments(workflow, { published: false })) {
+      if (rule.delayed_delivery_time === null)
+        throw new NotPortedError("an installment rule without a delay", "app/models/installment_rule.rb");
+      pushes.push({
+        at: new Date(referenceTime.getTime() + rule.delayed_delivery_time * 1000),
+        args: [installment.id, rule.version, null, Number(record.get("id")), null, null, iso8601(referenceTime)],
+      });
+    }
+  }
+  return pushes;
+}
+
+// Follower#confirm!
 export async function confirmBang(record: FollowerRecord): Promise<void> {
   if (record.get("confirmed_at") !== null) return;
   // Time.current.change(usec: 0)
   record.set("confirmed_at", new Date(Math.floor(Date.now() / 1000) * 1000));
   record.set("deleted_at", null);
+  const pushes = await workflowPushes(record);
   await Followers.saveBang(record);
-}
-
-// `user.workflows.alive.follower_or_audience_type.present?`: what makes `confirm!` schedule workflow emails.
-export async function hasFollowerWorkflows(sellerId: number): Promise<boolean> {
-  const rows = await selectRows<unknown>(
-    Prisma.sql`SELECT 1 AS one FROM ${table("workflows")} WHERE ${column("workflows", "seller_id")} = ${sellerId} AND ${column("workflows", "deleted_at")} IS NULL AND ${column("workflows", "workflow_type")} IN ('follower', 'audience') LIMIT 1`,
-  );
-  return rows.length > 0;
+  for (const { at, args } of pushes) await performAsync(SEND_WORKFLOW_INSTALLMENT_WORKER, args, { at });
 }
 
 // `Follower.find_by_external_id(id)`

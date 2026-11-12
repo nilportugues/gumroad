@@ -12,7 +12,6 @@ import {
   confirmBang,
   coveredByCutover,
   findByExternalId,
-  hasFollowerWorkflows,
   markDeletedBang,
   withOptOutLockWait,
 } from "../models/follower.ts";
@@ -81,10 +80,8 @@ async function confirm(input: MutationInput): Promise<ActionResult> {
   const seller = Users.load(castRow("User", row));
   if (!isAccountActive(seller)) throw new RoutingError("Not Found");
 
-  // newsletter_retired? and the cutover barrier of the save are not ported, nor is the workflow scheduling after it.
+  // newsletter_retired? and the cutover barrier of the save are not ported.
   if (await coveredByCutover(followedId)) throw new HandBackToRails("a seller in a newsletter cutover");
-  if (follower.get("confirmed_at") === null && (await hasFollowerWorkflows(followedId)))
-    throw new HandBackToRails("a seller with follower workflows to schedule");
   // `URI(nil)` raises in Rails.
   const profileUrl = subdomainWithProtocol(seller);
   if (profileUrl === null) throw new HandBackToRails("a seller without a subdomain");

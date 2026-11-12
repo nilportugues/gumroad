@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { closeAllRedis } from "@/server/infra/redis";
 
+import { unwrapActiveJob } from "../src/active-job";
 import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { loadFixture } from "../src/fixture";
@@ -73,11 +74,14 @@ async function resetAudienceIndex() {
 
 // The mail jobs of the last exchange: the request spec's test adapter never queued them, so they are asserted apart from the others.
 type MailItem = {
+  class: string;
   wrapped?: string;
   queue: string;
   args: { job_class: string; queue_name: string; arguments: unknown[] }[];
 };
 let mailJobs: MailItem[] = [];
+// A fixture recorded with `parity_mail_jobs: true` holds its mail job in `jobs`: the others keep it apart.
+let compareMailJobs = false;
 
 function redisJobs(redis: Redis): JobsChannel {
   return {
@@ -123,6 +127,9 @@ function redisJobs(redis: Redis): JobsChannel {
         const item = JSON.parse(raw) as MailItem;
         if (item.wrapped === "MailDeliveryJob") mailJobs.push(item);
       }
+      if (compareMailJobs)
+        for (const mail of mailJobs)
+          jobs.push(unwrapActiveJob({ class: mail.class, args: mail.args, queue: mail.queue } as RawJob));
       return jobs.sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
     },
   };
@@ -359,6 +366,7 @@ describe.skipIf(!url)("mutations of the emails and workflows pages", () => {
         const fixture = loadFixture(file);
         // Rails and Node push in different orders across stores: both sides are compared sorted.
         const expected = fixture.exchanges[index]!;
+        compareMailJobs = (expected.jobs ?? []).some((job) => job.activeJob === true);
         expected.jobs = [...(expected.jobs ?? [])].sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
         const { file: _file, ...options } = replayOptions(file, _name);
         if (_name.includes("hands-a-")) {
@@ -378,6 +386,8 @@ describe.skipIf(!url)("mutations of the emails and workflows pages", () => {
         const result = await replayFixtureExchange(fixture, index, options);
         assertParity(result);
         if (_name.startsWith("followers_create_parity_spec")) await assertConfirmationMail(_name, result);
+        // Recorded with the Sidekiq adapter, a comment that mails nobody leaves no mail job behind.
+        if (_name.startsWith("comments_mutations_signed_in_spec") && !compareMailJobs) expect(mailJobs).toHaveLength(0);
         if (_name.includes("confirms-an-unconfirmed-follower")) {
           const inserted = (result.exchanges.at(-1)!.actual.db as Record<string, { inserted: { details: string }[] }>)
             .audience_members!.inserted;
