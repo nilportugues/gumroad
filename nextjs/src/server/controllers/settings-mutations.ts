@@ -11,6 +11,7 @@ import type { BillingDetail } from "@prisma/client";
 import { notifyError } from "../infra/error-reporting.ts";
 import { billingDetailOfPurchaser, BillingDetails } from "../models/billing-detail.ts";
 import { activeBlockedEmails, blockEmailBang, unblockActive } from "../models/blocked-customer-object.ts";
+import { RubyFloat, rubyFloatToS } from "../models/concerns/ruby-values.ts";
 import { aliveCustomDomainOf, CustomDomainDeletable } from "../models/custom-domain.ts";
 import type { ModelRecord } from "../models/runtime/record.ts";
 import { transaction } from "../models/runtime/transaction.ts";
@@ -37,6 +38,7 @@ import { settingsThirdPartyAnalyticsUserPolicy } from "../policies/settings/thir
 
 import { HandBackToRails, type ActionResult } from "./application-controller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
+import { requestParams, type Params } from "./rails-body.ts";
 
 const SEE_OTHER = 303;
 const FOUND = 302;
@@ -48,7 +50,12 @@ const FLASH_SOMETHING_BROKE = "Something broke. We're looking into what happened
 const FLASH_BLOCK_FAILED = "Sorry, something went wrong. Please try again.";
 
 const isHash = (value: unknown): value is Record<string, unknown> =>
-  value !== null && typeof value === "object" && !Array.isArray(value);
+  value !== null && typeof value === "object" && !Array.isArray(value) && !(value instanceof RubyFloat);
+
+// The request's params with every JSON number written as a float (`5.0`, `1e2`) kept as a RubyFloat: a settings form can send one and
+// Rails casts it differently from the integer JavaScript would read.
+export const paramsWithFloats = (input: MutationInput): Params =>
+  requestParams(input.url, input.request.headers.get("content-type"), input.rawBody, true);
 const redirect = (location: string, alert: string, status = FOUND): ActionResult => ({
   status,
   location,
@@ -57,6 +64,10 @@ const redirect = (location: string, alert: string, status = FOUND): ActionResult
 
 // FlagShihTzu::TRUE_VALUES
 export const TRUE_VALUES: unknown[] = [true, 1, "1", "t", "T", "true", "TRUE"];
+
+// `TRUE_VALUES.include?(value)` compares with `==`, so only the Float 1.0 equals the Integer 1.
+export const trueValue = (value: unknown): boolean =>
+  value instanceof RubyFloat ? value.value === 1 : TRUE_VALUES.includes(value);
 
 // ActiveSupport's Array#to_sentence
 export function toSentence(items: string[]): string {
@@ -81,13 +92,14 @@ function requireUser(params: Record<string, unknown>): Record<string, unknown> {
 
 // Strong parameters' PERMITTED_SCALAR_TYPES; an array or hash under a scalar key is dropped, not an error.
 export const isPermittedScalar = (value: unknown) =>
-  value === null || ["string", "number", "boolean"].includes(typeof value);
+  value === null || value instanceof RubyFloat || ["string", "number", "boolean"].includes(typeof value);
 
 // A permitted scalar for a string column: an integer casts to its digits, true/false to "1"/"0" for a varchar column (the MySQL
-// adapter's string type) and to "t"/"f" for a text one. Floats are handed back: a JSON `1.0` is a Ruby Float, which JS cannot
-// tell from `1`.
+// adapter's string type) and to "t"/"f" for a text one, and a Float to its Float#to_s. A float only reaches here as a RubyFloat (see
+// `paramsWithFloats`); a bare number is an Integer, and one past 2**53 is handed back.
 export function stringValue(value: unknown, column: "varchar" | "text" = "varchar"): string | null {
   if (value === null || typeof value === "string") return value;
+  if (value instanceof RubyFloat && Number.isFinite(value.value)) return rubyFloatToS(value.value);
   if (typeof value === "boolean") return column === "text" ? (value ? "t" : "f") : value ? "1" : "0";
   if (typeof value === "number" && Number.isSafeInteger(value)) return String(value);
   throw new HandBackToRails("a non-string value for a string attribute");
@@ -95,8 +107,9 @@ export function stringValue(value: unknown, column: "varchar" | "text" = "varcha
 
 // The JSON-data tiktok_pixel_id keeps what the request sent (no string column cast). An integer reaches the model's
 // `tiktok_pixel_id.strip` callback, which raises and lands in the action's rescue-all.
-export function tiktokPixelIdValue(value: unknown): string | number | null {
+export function tiktokPixelIdValue(value: unknown): string | number | RubyFloat | null {
   if (typeof value === "number" && Number.isSafeInteger(value)) return value;
+  if (value instanceof RubyFloat && Number.isFinite(value.value)) return value;
   return plainStringValue(value);
 }
 
@@ -107,8 +120,9 @@ function plainStringValue(value: unknown): string | null {
 }
 
 // A snippet field stays as sent: `save_third_party_analytics` compares and keys on the raw param and casts it only when it
-// assigns a string column or looks a permalink up. Floats hand back, as in `stringValue`.
+// assigns a string column or looks a permalink up. A float hands back: the permalink lookup of a float is not recorded.
 export function snippetValue(value: unknown): string | number | boolean | null {
+  if (value instanceof RubyFloat) throw new HandBackToRails("a float for a snippet field");
   stringValue(value);
   return value as string | number | boolean | null;
 }
@@ -139,7 +153,7 @@ function permittedSnippets(value: unknown): SnippetParams[] {
 function assignAnalyticsAttributes(seller: UserRecord, user: Record<string, unknown>): void {
   for (const [key, value] of Object.entries(user)) {
     if (!PERMITTED_USER_KEYS.includes(key) || key === "snippets" || !isPermittedScalar(value)) continue;
-    if (key in FLAG_PARAMS) setFlag(seller, FLAG_PARAMS[key]!, TRUE_VALUES.includes(value));
+    if (key in FLAG_PARAMS) setFlag(seller, FLAG_PARAMS[key]!, trueValue(value));
     else if (key === "tiktok_pixel_id") setJsonDataForAttr(seller, key, tiktokPixelIdValue(value));
     else seller.set(key as (typeof COLUMN_PARAMS)[number], stringValue(value));
   }
@@ -159,7 +173,7 @@ async function updateThirdPartyAnalytics(input: MutationInput): Promise<ActionRe
   const denied = await guard(input, settingsThirdPartyAnalyticsUserPolicy.update);
   if (denied) return denied;
 
-  const user = requireUser(input.params);
+  const user = requireUser(paramsWithFloats(input));
   const snippets = permittedSnippets(user.snippets);
   const seller = await findUserBang(input.context.currentSeller!.id);
   try {
@@ -204,7 +218,7 @@ async function updateAdvanced(input: MutationInput): Promise<ActionResult> {
   const denied = await guard(input, settingsAdvancedUserPolicy.update);
   if (denied) return denied;
 
-  const user = requireUser(input.params);
+  const user = requireUser(paramsWithFloats(input));
   const { domain, blocked_customer_emails: emails } = input.params;
   if (!(domain === undefined || domain === null || typeof domain === "string"))
     throw new HandBackToRails("a domain that is not a string");
@@ -276,7 +290,9 @@ function billingDetailAttributes(params: Record<string, unknown>): Partial<Billi
     if (key in detail) attributes[key] = stringValue(detail[key], key === "additional_notes" ? "text" : "varchar");
   if ("auto_email_invoice_enabled" in detail) {
     const value = detail.auto_email_invoice_enabled;
+    // ActiveModel's Boolean type lists only the Integer 0 among its false values, so every Float, 0.0 included, is true.
     if (typeof value === "boolean") attributes.auto_email_invoice_enabled = value;
+    else if (value instanceof RubyFloat) attributes.auto_email_invoice_enabled = true;
     else if (typeof value === "string" && value !== "")
       attributes.auto_email_invoice_enabled = !BOOLEAN_FALSE_STRINGS.includes(value);
     else throw new HandBackToRails("an auto_email_invoice_enabled value that does not cast cleanly");
@@ -296,7 +312,7 @@ async function updateBillingDetail(input: MutationInput): Promise<ActionResult> 
   const denied = await guard(input, settingsBillingPolicy.update);
   if (denied) return denied;
 
-  const attributes = billingDetailAttributes(input.params);
+  const attributes = billingDetailAttributes(paramsWithFloats(input));
   const purchaserId = input.context.currentSeller!.id;
   const detail = (await billingDetailOfPurchaser(purchaserId)) ?? BillingDetails.build({ purchaser_id: purchaserId });
   detail.assign(attributes);

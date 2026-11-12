@@ -74,6 +74,52 @@ describe "Settings main when signed in", type: :request do
       expect(seller.reload).to have_attributes(purchasing_power_parity_enabled: true, purchasing_power_parity_limit: 40)
     end
 
+    it "truncates a fractional purchasing power parity limit like an integer column", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_main_path, settings(purchasing_power_parity_limit: 12.5))
+
+      expect(response).to have_http_status(:see_other)
+      expect(seller.reload.purchasing_power_parity_limit).to eq(12)
+    end
+
+    it "casts a whole-number float purchasing power parity limit", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_main_path, settings(purchasing_power_parity_limit: 40.0))
+
+      expect(response).to have_http_status(:see_other)
+      expect(seller.reload.purchasing_power_parity_limit).to eq(40)
+    end
+
+    it "reads the float 1.0 as a set flag and any other float as unset", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_main_path, settings(show_nsfw_products: 1.0, enable_payment_email: 0.5, disable_comments_email: 0.0))
+
+      expect(response).to have_http_status(:see_other)
+      expect(seller.reload).to have_attributes(show_nsfw_products: true, enable_payment_email: false, disable_comments_email: false)
+    end
+
+    it "answers a float support email with its validation error", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_main_path, settings(support_email: 12.5, show_nsfw_products: true))
+
+      expect(response).to have_http_status(:see_other)
+      expect(flash[:alert]).to include("Support email")
+      expect(seller.reload.show_nsfw_products).to eq(false)
+    end
+
+    it "answers a float timezone with the unknown time zone error", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_main_path, settings(timezone: 5.0))
+
+      expect(response).to have_http_status(:see_other)
+      expect(flash[:alert]).to include("Timezone")
+    end
+
     it "answers the purchasing power parity limit out of range with its validation error", parity: true do
       log_in(seller)
 
@@ -179,6 +225,27 @@ describe "Settings main when signed in", type: :request do
         expect(FeatureAnnouncementSubscription.find_by!(user_id: seller.id)).to have_attributes(version: 2, source: "newsletter_migration")
       end
 
+      it "reads a float version as unknown and says the subscription changed", parity: true do
+        FeatureAnnouncementSubscription.create!(user_id: seller.id, subscribed: true, source: "settings", version: 3)
+        log_in(seller)
+
+        send_form(:put, settings_main_path, announcements(false, 3.0))
+
+        expect(response).to have_http_status(:see_other)
+        expect(flash[:notice]).to eq("Your account has been updated, but Feature announcements changed elsewhere, so that setting was not saved.")
+        expect(FeatureAnnouncementSubscription.find_by!(user_id: seller.id)).to have_attributes(subscribed: true, version: 3)
+      end
+
+      it "reads a 0.0 subscription flag as subscribed because Boolean casts only the integer 0 to false", parity: true do
+        FeatureAnnouncementSubscription.create!(user_id: seller.id, subscribed: false, source: "settings", version: 3)
+        log_in(seller)
+
+        send_form(:put, settings_main_path, announcements(0.0, 3))
+
+        expect(response).to have_http_status(:see_other)
+        expect(FeatureAnnouncementSubscription.find_by!(user_id: seller.id)).to have_attributes(subscribed: true, version: 4)
+      end
+
       it "saves the rest and says so when the subscription changed since the form rendered", parity: true do
         FeatureAnnouncementSubscription.create!(user_id: seller.id, subscribed: false, source: "unsubscribe_link", version: 2)
         log_in(seller)
@@ -203,6 +270,26 @@ describe "Settings main when signed in", type: :request do
 
         expect(response).to have_http_status(:see_other)
         expect(seller.refund_policy.reload).to have_attributes(max_refund_period_in_days: 14, fine_print: nil)
+      end
+
+      it "truncates a fractional refund period like an integer column", parity: true do
+        seller.update!(refund_policy_enabled: true)
+        log_in(seller)
+
+        send_form(:put, settings_main_path, settings(seller_refund_policy: { max_refund_period_in_days: 14.5, fine_print: "" }))
+
+        expect(response).to have_http_status(:see_other)
+        expect(seller.refund_policy.reload).to have_attributes(max_refund_period_in_days: 14, fine_print: nil)
+      end
+
+      it "stores the text of a float fine print", parity: true do
+        seller.update!(refund_policy_enabled: true)
+        log_in(seller)
+
+        send_form(:put, settings_main_path, settings(seller_refund_policy: { max_refund_period_in_days: 0, fine_print: 1.5 }))
+
+        expect(response).to have_http_status(:see_other)
+        expect(seller.refund_policy.reload.fine_print).to eq("1.5")
       end
 
       it "answers a refund period outside the allowed list with the policy's validation error", parity: true do
@@ -287,15 +374,6 @@ describe "Settings main when signed in", type: :request do
 
         expect(response).to have_http_status(:see_other)
         expect(flash[:alert]).to eq("Something broke. We're looking into what happened. Sorry about this!")
-      end
-
-      it "hands a fractional purchasing power parity limit to Rails", parity: true do
-        log_in(seller)
-
-        send_form(:put, settings_main_path, settings(purchasing_power_parity_limit: 12.5))
-
-        expect(response).to have_http_status(:see_other)
-        expect(seller.reload.purchasing_power_parity_limit).to eq(12)
       end
     end
   end

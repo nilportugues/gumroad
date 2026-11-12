@@ -9,6 +9,7 @@ import { Prisma, type Link, type RefundPolicy, type User } from "@prisma/client"
 
 import { decrypt, encrypt } from "../../lib/obfuscate-ids.ts";
 import { notifyError } from "../infra/error-reporting.ts";
+import { RubyFloat } from "../models/concerns/ruby-values.ts";
 import { LinkFlags, Links } from "../models/link.ts";
 import { RefundPolicies } from "../models/refund-policy.ts";
 import { transaction } from "../models/runtime/transaction.ts";
@@ -45,7 +46,7 @@ import { HandBackToRails, type ActionResult } from "./application-controller.ts"
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { requestFormat } from "./rails-params.ts";
 import { jsonResponse } from "./seller-json-guard.ts";
-import { isPermittedScalar, stringValue, toSentence, TRUE_VALUES } from "./settings-mutations.ts";
+import { isPermittedScalar, paramsWithFloats, stringValue, toSentence, trueValue } from "./settings-mutations.ts";
 
 const SEE_OTHER = 303;
 const FOUND = 302;
@@ -82,7 +83,7 @@ const NOT_NULL_PARAMS: readonly string[] = ["locale", "timezone"];
 const PERMITTED_USER_KEYS = new Set<string>([...FLAG_PARAMS, ...STRING_PARAMS, "purchasing_power_parity_limit"]);
 
 const isHash = (value: unknown): value is Record<string, unknown> =>
-  value !== null && typeof value === "object" && !Array.isArray(value);
+  value !== null && typeof value === "object" && !Array.isArray(value) && !(value instanceof RubyFloat);
 const redirect = (alert: string): ActionResult => ({ status: FOUND, location: MAIN_PATH, flash: { alert } });
 
 // `params.require(:user)`: a non-blank hash. Anything else raises inside the action's own rescue.
@@ -100,9 +101,18 @@ function assertUnchangedIdentity(seller: UserRecord, user: Record<string, unknow
   if ("username" in user && user.username !== seller.get("username")) throw new HandBackToRails("a username change");
 }
 
-// The Integer type's cast of what the form can send; a fraction, a boolean or text with trailing garbage is Rails' call.
+// A 4-byte integer column: ActiveModel raises a RangeError past it when the row is saved.
+const MAX_INTEGER_COLUMN = 2 ** 31 - 1;
+
+// The Integer type's cast of what the form can send; a boolean or text with trailing garbage is Rails' call. A Float is truncated
+// (`Float#to_i`).
 function integerValue(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
+  if (value instanceof RubyFloat) {
+    const truncated = Math.trunc(value.value) + 0;
+    if (Number.isFinite(value.value) && Math.abs(truncated) <= MAX_INTEGER_COLUMN) return truncated;
+    throw new HandBackToRails("a float an integer column would reject as out of range");
+  }
   if (typeof value === "number" && Number.isSafeInteger(value)) return value;
   if (typeof value === "string" && /^\s*[+-]?\d+\s*$/u.test(value)) {
     const parsed = Number.parseInt(value, 10);
@@ -115,7 +125,7 @@ function integerValue(value: unknown): number | null {
 function assignAttributes(seller: UserRecord, user: Record<string, unknown>): void {
   for (const [key, value] of Object.entries(user)) {
     if (!PERMITTED_USER_KEYS.has(key) || !isPermittedScalar(value)) continue;
-    if ((FLAG_PARAMS as readonly string[]).includes(key)) setFlag(seller, key as UserFlag, TRUE_VALUES.includes(value));
+    if ((FLAG_PARAMS as readonly string[]).includes(key)) setFlag(seller, key as UserFlag, trueValue(value));
     else if (key === "purchasing_power_parity_limit") seller.set(key, integerValue(value));
     else {
       if (value === null && NOT_NULL_PARAMS.includes(key)) throw new HandBackToRails(`a null ${key}`);
@@ -124,13 +134,15 @@ function assignAttributes(seller: UserRecord, user: Record<string, unknown>): vo
   }
 }
 
-// ActiveModel::Type::Boolean.new.cast(value) || false
+// ActiveModel::Type::Boolean.new.cast(value) || false. FALSE_VALUES is a Set, so only the Integer 0 matches, never the Float 0.0.
 const BOOLEAN_FALSE_VALUES: unknown[] = [false, 0, "0", "f", "F", "false", "FALSE", "off", "OFF"];
 const castBoolean = (value: unknown) =>
   value !== null && value !== undefined && value !== "" && !BOOLEAN_FALSE_VALUES.includes(value);
 
-// `Integer(value.to_s, exception: false) || -1`. Octal and underscored spellings parse differently in Ruby; Rails' call.
+// `Integer(value.to_s, exception: false) || -1`. Octal and underscored spellings parse differently in Ruby; Rails' call. A Float's
+// text ("3.0", "1.0e+20") is never an Integer.
 function renderedVersion(value: unknown): number {
+  if (value instanceof RubyFloat) return UNKNOWN_VERSION;
   if (value === undefined || value === null || typeof value === "boolean" || value === "") return UNKNOWN_VERSION;
   if (typeof value === "number" && Number.isSafeInteger(value)) return value;
   if (typeof value === "string" && /^(?:0|-?[1-9]\d*)$/u.test(value)) return Number.parseInt(value, 10);
@@ -294,7 +306,7 @@ async function update(input: MutationInput): Promise<ActionResult> {
   const denied = await guard(input, settingsMainUserPolicy.update);
   if (denied) return denied;
 
-  const user = requireUser(input.params);
+  const user = requireUser(paramsWithFloats(input));
   const seller = await findUserBang(input.context.currentSeller!.id);
   assertUnchangedIdentity(seller, user);
 

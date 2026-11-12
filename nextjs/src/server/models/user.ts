@@ -1171,8 +1171,9 @@ const BEFORE_VALIDATION: Callback<User>[] = [
     run(record) {
       const value = tiktokPixelId(record);
       if (isBlank(value)) return;
-      // json_data keeps a JSON integer as an Integer, which has no #strip.
+      // json_data keeps a JSON number as an Integer or a Float, neither of which has #strip.
       if (Number.isInteger(value)) throw new NoMethodError("undefined method 'strip' for an instance of Integer");
+      if (isRubyFloat(value)) throw new NoMethodError("undefined method 'strip' for an instance of Float");
       if (typeof value !== "string")
         throw new NotPortedError("strip on a non-string tiktok_pixel_id", "User before_validation");
       setJsonDataForAttr(record, "tiktok_pixel_id", rubyStrip(value));

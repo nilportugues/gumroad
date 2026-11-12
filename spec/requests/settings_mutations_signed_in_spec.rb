@@ -66,6 +66,72 @@ describe "Settings mutations when signed in", type: :request do
       expect(seller.reload.facebook_pixel_id).to eq("1")
     end
 
+    it "answers a float TikTok pixel id with the generic failure and saves nothing", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, analytics(tiktok_pixel_id: 1234.5, google_analytics_id: "G-NOTSAVED"))
+
+      expect(response).to have_http_status(:see_other)
+      expect(flash[:alert]).to eq("Something broke. We're looking into what happened. Sorry about this!")
+      expect(seller.reload).to have_attributes(google_analytics_id: nil, tiktok_pixel_id: nil)
+    end
+
+    it "answers a whole-number float TikTok pixel id with the generic failure", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, analytics(tiktok_pixel_id: 1234567890.0))
+
+      expect(response).to have_http_status(:see_other)
+      expect(flash[:alert]).to eq("Something broke. We're looking into what happened. Sorry about this!")
+    end
+
+    it "answers a fractional Facebook pixel id with its validation error", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, analytics(facebook_pixel_id: 12345.5))
+
+      expect(response).to have_http_status(:see_other)
+      expect(flash[:alert]).to include("Facebook")
+      expect(seller.reload.facebook_pixel_id).to be_nil
+    end
+
+    it "keeps the point of a whole-number float Facebook pixel id", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, analytics(facebook_pixel_id: 12345.0))
+
+      expect(response).to have_http_status(:see_other)
+      expect(seller.reload.facebook_pixel_id).to be_nil
+    end
+
+    it "reads the float 1.0 as a set switch and any other float as unset", parity: true do
+      seller.update!(skip_free_sale_analytics: true)
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, analytics(disable_third_party_analytics: 1.0, skip_free_sale_analytics: 0.5))
+
+      expect(response).to have_http_status(:see_other)
+      expect(seller.reload).to have_attributes(disable_third_party_analytics: true, skip_free_sale_analytics: false)
+    end
+
+    it "hands a float snippet field to Rails", parity: true do
+      create(:product, user: seller)
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, analytics(snippets: [{ id: nil, name: 1.5, location: "receipt", code: "<script>1</script>", product: nil }]))
+
+      expect(response).to have_http_status(:see_other)
+    end
+
+    it "answers a float Google Analytics id with its validation error", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, analytics(google_analytics_id: 1.5))
+
+      expect(response).to have_http_status(:see_other)
+      expect(flash[:alert]).to include("Google Analytics")
+    end
+
     it "accepts PATCH", parity: true do
       log_in(seller)
 
@@ -209,6 +275,24 @@ describe "Settings mutations when signed in", type: :request do
       expect(seller.reload.notification_endpoint).to eq("http://t")
     end
 
+    it "casts a float ping endpoint like a text column", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_advanced_path, advanced(endpoint: 12.5))
+
+      expect(response).to have_http_status(:see_other)
+      expect(seller.reload.notification_endpoint).to eq("http://12.5")
+    end
+
+    it "casts a whole-number float ping endpoint like a text column", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_advanced_path, advanced(endpoint: 7.0))
+
+      expect(response).to have_http_status(:see_other)
+      expect(seller.reload.notification_endpoint).to eq("http://7.0")
+    end
+
     it "accepts PATCH", parity: true do
       log_in(seller)
 
@@ -331,6 +415,25 @@ describe "Settings mutations when signed in", type: :request do
 
       expect(response).to have_http_status(:see_other)
       expect(seller.reload.billing_detail).to have_attributes(business_name: "1", business_id: "0", additional_notes: "t")
+    end
+
+    it "casts float values like a varchar column and a text column", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_billing_path, billing(business_name: 12.5, business_id: 7.0, additional_notes: 0.25))
+
+      expect(response).to have_http_status(:see_other)
+      expect(seller.reload.billing_detail).to have_attributes(business_name: "12.5", business_id: "7.0", additional_notes: "0.25")
+    end
+
+    it "reads a 0.0 invoice switch as true because Boolean casts only the integer 0 to false", parity: true do
+      create(:billing_detail, purchaser: seller, auto_email_invoice_enabled: false)
+      log_in(seller)
+
+      send_form(:put, settings_billing_path, billing(auto_email_invoice_enabled: 0.0))
+
+      expect(response).to have_http_status(:see_other)
+      expect(seller.reload.billing_detail.auto_email_invoice_enabled).to eq(true)
     end
 
     it "refuses a US address without a state and keeps the errors for the form", parity: true do
