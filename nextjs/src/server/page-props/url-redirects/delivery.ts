@@ -119,7 +119,7 @@ async function gate(action: DeliveryAction, token: string, chain: Chain): Promis
 
 // Actions controllers/url-redirects/deliveries.ts carries past the gate (it runs the same before_actions itself), so they skip
 // deliveryFilters. The rest stop at the gate and go to Rails.
-const SERVED_BY_NODE = new Set<DeliveryAction>(["show", "download_product_files", "download_archive", "hls_playlist", "smil", "download_subtitle_file"]);
+const SERVED_BY_NODE = new Set<DeliveryAction>(["show", "download_product_files", "download_archive", "hls_playlist", "smil", "download_subtitle_file", "subtitle_file_vtt"]);
 
 export function deliveryResponse(incoming: Request, action: DeliveryAction): Promise<Response> {
   if (SERVED_BY_NODE.has(action)) return processAction(incoming, {}, urlRedirectsAction);

@@ -7,8 +7,9 @@ import { db } from "../../../lib/db.ts";
 import { decrypt } from "../../../lib/obfuscate-ids.ts";
 import { cgiEscape, getS3Client, signedCloudfrontUrl } from "../../infra/signed-urls.ts";
 import { storageConfig } from "../../infra/storage.ts";
+import { InvalidSubtitleEncoding, subtitleToVtt } from "../../services/subtitle-to-vtt.ts";
 import { isStreamable } from "../../models/product-file.ts";
-import { RoutingError, type ActionContext, type ActionResult, type Rendered } from "../application-controller.ts";
+import { HandBackToRails, RoutingError, type ActionContext, type ActionResult, type Rendered } from "../application-controller.ts";
 import { json } from "../json-actions.ts";
 import { requestFormat } from "../rails-params.ts";
 import { checkPermissions, createConsumptionEvent, loadRedirect, requireSellerForTestPurchase, type Loaded } from "./access.ts";
@@ -136,3 +137,36 @@ export async function downloadSubtitleFile(token: string, fileId: string, subtit
 }
 
 export const isVideo = isStreamable;
+
+const VTT_CONTENT_TYPE = "text/vtt; charset=utf-8";
+// expires_in 1.hour, public: false
+const VTT_CACHE_CONTROL = "max-age=3600, private";
+
+// #subtitle_file_vtt: the stored caption file as WebVTT. A file that went missing, or any S3 service error, is a 404 so the player
+// shows no captions instead of an error. Rails.cache memoizes the conversion for a day; that cache is not observable.
+export async function subtitleFileVtt(token: string, fileId: string, subtitleId: string, action: ActionContext): Promise<ActionResult> {
+  const loaded = await loadRedirect(token);
+  const halted = await checkPermissions({ loaded, action, actionName: "subtitle_file_vtt" });
+  if (halted) return halted;
+  const delivery = findFile(await aliveProductFiles(loaded), fileId);
+  if (!delivery) throw new RoutingError("Not Found");
+  const id = decrypt(subtitleId);
+  const subtitle = id === null ? null : await db.subtitleFile.findFirst({ where: { id: BigInt(id), product_file_id: delivery.file.id, deleted_at: null } });
+  if (!subtitle) throw new RoutingError("Not Found");
+  const fields = fieldsOf({ ...delivery.file, url: subtitle.url }, loaded);
+  if (fields === null) throw new HandBackToRails("a subtitle file that is not in S3");
+  let bytes: Uint8Array;
+  try {
+    const object = await getS3Client().send(new GetObjectCommand({ Bucket: storageConfig().s3Bucket, Key: fields.key }));
+    bytes = await object.Body!.transformToByteArray();
+  } catch (error) {
+    if ((error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode !== undefined) throw new RoutingError("Not Found");
+    throw error;
+  }
+  try {
+    return { ...plain(subtitleToVtt(bytes), VTT_CONTENT_TYPE), headers: { "cache-control": VTT_CACHE_CONTROL } };
+  } catch (error) {
+    if (error instanceof InvalidSubtitleEncoding) throw new HandBackToRails("a subtitle file that is not UTF-8");
+    throw error;
+  }
+}

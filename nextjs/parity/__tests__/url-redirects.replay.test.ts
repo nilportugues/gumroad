@@ -25,7 +25,7 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
-const SPECS = ["url_redirects_parity_spec"];
+const SPECS = ["url_redirects_parity_spec", "url_redirect_player_pages_spec"];
 // The objects the spec's files point at (SPEC_OBJECTS in the spec), in the bucket the server signs for.
 const SPEC_OBJECTS: Record<string, string> = {
   "specs/billion-dollar-company-chapter-0.pdf": "%PDF-1.4 delivery spec",
@@ -35,6 +35,15 @@ const SPEC_OBJECTS: Record<string, string> = {
   "attachments/0123456789abcdef0123456789abcdef/movie/hls/index.m3u8":
     "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000,RESOLUTION=640x360\nindex_360.m3u8\n#EXT-X-ENDLIST\n",
 };
+// PLAYER_OBJECTS in url_redirect_player_pages_spec.rb
+Object.assign(SPEC_OBJECTS, {
+  "attachments/0123456789abcdef0123456789abcdef/original/movie.mov": "player spec video",
+  "specs/player-captions.srt":
+    "\uFEFF1\r\n0:00:01,5 --> 0:00:02,000\r\nHello\r\n\r\n2\r\nnot a timing line\r\nlost\r\n\r\n3\r\n00:00:03,000 --> 00:00:04,000\r\nSecond line\r\nover two lines\r\n\r\n4\r\n00:00:05,000 --> 00:00:06,000\r\n   \r\n",
+  "specs/player-captions.vtt":
+    "WEBVTT\n\nNOTE a note\n\nintro\n00:01.000 --> 00:02.000\nPlain cue\n\n00:03.000 --> 00:04.000 align:start\nPositioned cue\n",
+  "specs/player-book.pdf": "%PDF-1.4 player spec",
+});
 const SPEC_BUCKET = "gumroad-specs";
 // The Rails spec froze its clock at 2026-11-09 22:00 UTC; a consumption event's `consumed_at` is a constant the request carries, so
 // it is recorded as an age that only holds when the replay's clock is pinned too.
