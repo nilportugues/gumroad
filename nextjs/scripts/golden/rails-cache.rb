@@ -46,6 +46,8 @@ def build(desc)
   when "bin" then [desc["v"]].pack("H*").force_encoding(Encoding::BINARY)
   when "ascii" then String.new(desc["v"], encoding: Encoding::US_ASCII)
   when "sym" then desc["v"].to_sym
+  # An ActiveSupport::TimeWithZone in the app's zone (config.time_zone is unset, so UTC).
+  when "twz" then Time.at(Integer(desc["sec"]), desc["nsec"], :nsec).utc.in_time_zone(ActiveSupport::TimeZone["UTC"])
   when "arr" then desc["v"].map { |e| build(e) }
   when "hash" then desc["v"].to_h { |k, v| [build(k), build(v)] }
   else raise "unknown #{desc}"
@@ -59,6 +61,9 @@ def describe(value)
   when Integer then { "t" => "int", "v" => value.to_s }
   when Float then { "t" => "float", "v" => [value].pack("G").unpack1("H*") }
   when Symbol then { "t" => "sym", "v" => value.to_s }
+  when ActiveSupport::TimeWithZone
+    raise "zone #{value.time_zone.name}" unless value.time_zone.name == "UTC"
+    { "t" => "twz", "sec" => value.to_i.to_s, "nsec" => value.nsec }
   when String
     case value.encoding
     when Encoding::UTF_8 then { "t" => "str", "v" => value }
@@ -85,6 +90,19 @@ marshal_values = ints + floats + [
   {}, { "a" => 1, "b" => [1, 2] }, { a: 1, b: "x" }, { url: "https://example.com/a.png", key: "abc" }, { 1 => 2, nil => true },
   [{ a: 1 }, { a: 2 }], [nil, true, false, :sym, "str", 1.5, 2**40, -0.0, 0.0, 0.0],
   [3, 40, 170],
+]
+# Times as AffiliateEarningsCache stores them (`Time.current`): whole seconds, microseconds, and nanoseconds with a
+# sub-microsecond remainder (nano_num / nano_den / submicro ivars), around the epoch, 1900 and year 9999.
+twz = ->(sec, nsec = 0) { Time.at(sec, nsec, :nsec).utc.in_time_zone(ActiveSupport::TimeZone["UTC"]) }
+marshal_values += [
+  twz.(1_761_955_200), twz.(1_761_955_200, 123_456_000), twz.(1_761_955_200, 123_456_789), twz.(1_761_955_200, 1),
+  twz.(1_761_955_200, 999_999_999), twz.(1_761_955_200, 500), twz.(1_761_955_200, 1_000), twz.(1_761_955_200, 999_000),
+  twz.(0), twz.(1), twz.(0, 5), twz.(-1), twz.(-1, 999_999_999), twz.(-2_208_988_800), twz.(-2_208_988_800, 1),
+  twz.(253_402_300_799, 999_999_999), twz.(4_102_444_800, 7), twz.(951_782_400), twz.(1_078_012_800, 1),
+  [twz.(1_761_955_200, 5), twz.(1_761_955_200, 5)], [twz.(1_761_955_200, 5), :a, twz.(1_761_955_201, 6), :a],
+  { cents: 12_345, computed_at: twz.(1_761_955_200, 123_456_789) },
+  { cents: 0, computed_at: twz.(1_761_955_200, 123_456_000) },
+  { cents: 2**40, computed_at: twz.(1_761_955_200) },
 ]
 marshal = marshal_values.map do |value|
   desc = describe(value)
@@ -124,6 +142,8 @@ entry_cases = [
   [large_text, nil, nil, 1024],
   [low_entropy, nil, "v2", 1024],
   [(1..300).map { |i| { id: i, name: "seller #{i}", cents: i * 137 } }, nil, nil, 1024],
+  [{ cents: 4_200, computed_at: twz.(1_761_955_200, 123_456_789) }, $now.to_f + 86_400, nil, 1024],
+  [{ cents: 0, computed_at: twz.(1_761_955_200, 123_456_000) }, $now.to_f + 86_400, "v1", 1024],
 ]
 entries = entry_cases.map do |value, expires_at, version, threshold|
   entry = ActiveSupport::Cache::Entry.new(value, expires_at:, version:)
@@ -265,6 +285,12 @@ steps = [
   [700, "read", "intversion", { "version" => "3" }],
   [700, "read", ["a", 1, "b"], { "version" => 4 }],
   [1000, "read", "symhash", {}],
+  [1000, "write", "affiliate/7/total_cents_earned", { "expiresIn" => 86_400 }, describe({ cents: 4_200, computed_at: twz.(1_761_955_200, 123_456_789) })],
+  [1001, "read", "affiliate/7/total_cents_earned", {}],
+  [1001, "write", "affiliate/7/total_cents_earned/computing", { "expiresIn" => 10, "unlessExist" => true }, describe(true)],
+  [1002, "write", "affiliate/7/total_cents_earned/computing", { "expiresIn" => 10, "unlessExist" => true }, describe(true)],
+  [1003, "write", "affiliate/7/total_cents_earned/computing", { "expiresIn" => 600 }, describe(true)],
+  [1004, "delete", "affiliate/7/total_cents_earned/computing", {}],
 ]
 
 store = ActiveSupport::Cache::MemCacheStore.new("127.0.0.1:11211", namespace: "rev123")

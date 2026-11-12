@@ -2191,7 +2191,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": true,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RefreshAudienceMemberJob": {
     "file": "app/sidekiq/refresh_audience_member_job.rb",
