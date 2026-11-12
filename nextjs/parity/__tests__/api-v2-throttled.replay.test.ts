@@ -38,6 +38,8 @@ const COMPARE = {
     "response.cookies.XSRF-TOKEN.value",
     "response.cookies.__profilin",
     "db.versions",
+    // The price row of an example is created in the same second as its request, so the replay's seed clock can equal the write's.
+    "db.prices.updated.*.changes.updated_at",
   ],
 };
 

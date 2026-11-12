@@ -2,17 +2,23 @@
 // chain, tags, rich content, files and their archives, publishing) is Rails': a request that passes every refusal below goes to Rails whole
 // before anything is written, and Rack::Attack's count for it is taken back by the hand-back (rack-attack.ts counts once).
 //
-// #update writes in Node for the one shape the Link model port covers: name, is_adult, display_product_reviews and should_show_sales_count
-// on a product whose rename needs no content moderation. Every other write is checked before the first statement, so a hand-back never follows one.
+// #update writes in Node for the shapes the Link model port covers: name, is_adult, display_product_reviews and should_show_sales_count, and
+// with them price (the one live USD buy price of a non-membership product), description (HTML Nokogiri leaves as it is, on a product that is
+// not published) and tags (plain lowercase names), on a product whose rename needs no content moderation. Every other write is checked
+// before the first statement, so a hand-back never follows one.
 import { Prisma, type Link } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
 import { encrypt } from "../../../lib/obfuscate-ids.ts";
 import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
 import { storageConfig } from "../../infra/storage.ts";
+import { nokogiriRoundtrip } from "../../models/html-fragment.ts";
 import LINK_DATA from "../../models/link-data.generated.json" with { type: "json" };
 import { LinkFlags, Links } from "../../models/link.ts";
+import { planBuyPriceWrite, PRICE_TOO_LARGE, writeBuyPrice } from "../../models/price-writes.ts";
+import { planTagChanges, saveTags } from "../../models/product-tags.ts";
 import { RecordInvalid } from "../../models/runtime/errors.ts";
+import { transaction } from "../../models/runtime/transaction.ts";
 import { column, selectRows, table } from "../../models/sql.ts";
 import { HandBackToRails, type Rendered } from "../application-controller.ts";
 import type { Params } from "../rails-body.ts";
@@ -320,7 +326,6 @@ async function update(input: ApiV2Input) {
 const UNPORTED_UPDATE_KEYS = [
   "custom_permalink",
   "price_currency_type",
-  "price",
   "customizable_price",
   "suggested_price_cents",
   "max_purchase_count",
@@ -328,14 +333,12 @@ const UNPORTED_UPDATE_KEYS = [
   "taxonomy_id",
   "custom_receipt",
   "has_same_rich_content_for_all_variants",
-  "description",
   "custom_summary",
   "refund_period",
   "refund_fine_print",
   "custom_html",
   "files",
   "rich_content",
-  "tags",
   "cover_ids",
 ];
 const UPDATE_FLAG_PARAMS = ["is_adult", "display_product_reviews", "should_show_sales_count"] as const;
@@ -363,13 +366,31 @@ async function updateSimpleAttributes(input: ApiV2Input, product: Link) {
   // The response serializes the product: refuse what Node cannot before the write.
   await json(product);
 
+  // Everything up to the transaction only reads.
+  let priceCents: number | undefined;
+  if (has(params, "price")) {
+    const plan = await planBuyPriceWrite(product, params.price);
+    // `price_cents=` raises LinkInvalid while the attributes are assigned, before anything is saved.
+    if ("tooLarge" in plan) return refuse(PRICE_TOO_LARGE);
+    priceCents = plan.cents;
+  }
+  const description = has(params, "description") ? plannedDescription(product, params.description) : undefined;
+  const tagWork = has(params, "tags") ? await planTagChanges(product.id, params.tags as string[]) : undefined;
+
   let flags = product.flags;
   for (const key of UPDATE_FLAG_PARAMS) if (has(params, key)) flags = LinkFlags.set(flags, key, params[key] as boolean);
   const attributes: Partial<Link> = { flags };
   if (typeof params.name === "string") attributes.name = params.name;
+  if (description !== undefined) attributes.description = description;
   const record = Links.load(product);
   try {
-    await Links.updateBang(record, attributes);
+    // The action's transaction: a refusal anywhere rolls back the price, the product and the tags together.
+    await transaction(async () => {
+      // `price_cents=` saves the Price row at once, while the attributes are assigned.
+      if (priceCents !== undefined) await writeBuyPrice(product, priceCents);
+      await Links.updateBang(record, attributes);
+      if (tagWork !== undefined) await saveTags(product.id, tagWork);
+    });
   } catch (caught) {
     if (!(caught instanceof RecordInvalid)) throw caught;
     return renderResponse(false, {
@@ -377,6 +398,18 @@ async function updateSimpleAttributes(input: ApiV2Input, product: Link) {
     });
   }
   return successWithObject("product", await json((await db.link.findUnique({ where: { id: product.id } }))!));
+}
+
+// SaveContentUpsellsService#from_html over the new and the old description: the new one comes back as Nokogiri serializes it, and the
+// upsell cards of the old one are the upsells it retires. The moderation a published product's description change needs is Ruby's.
+function plannedDescription(product: Link, value: unknown): string {
+  if (typeof value !== "string") throw new HandBackToRails("a description that is not text");
+  if (product.description === null || /upsell-card/iu.test(product.description))
+    throw new HandBackToRails("a description replacing one with upsell cards");
+  const html = nokogiriRoundtrip(value);
+  if (isPublishedProduct(product) && html !== product.description)
+    throw new HandBackToRails("a description change of a published product");
+  return html;
 }
 
 registerApiV2(

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "spec": "spec/requests/api/v2/products_throttled_parity_spec.rb",
-  "example": "API v2 throttled routes PUT and PATCH /v2/products/:id the attributes Node writes hands a name with a price back to Rails",
+  "example": "API v2 throttled routes PUT and PATCH /v2/products/:id the attributes Node writes the tags takes the counter rows in tag id order, removals first",
   "sessionCookie": "_gumroad_app_session_test",
   "secretKeyBase": "parity-replay-secret-key-base",
   "recordedOn": "2026-11-12",
@@ -197,7 +197,7 @@
                 "id": 1,
                 "resource_owner_id": 1,
                 "application_id": 1,
-                "token": "BAwPaiQjtFkhLVc9p_ZV4pRSRFfXKNTwLg2T3SFyfvM",
+                "token": "3tMZNRsrztui9TfFZg6F7jwAN_nB-6joMp6wtQxDMqc",
                 "refresh_token": null,
                 "expires_in": null,
                 "revoked_at": null,
@@ -233,9 +233,9 @@
             "rows": [
               {
                 "id": 1,
-                "name": "app60",
-                "uid": "x92OvmrGRqhNijujldVSyJbTuN82LXJy8tpArstm3IU",
-                "secret": "tDlmn9ADJkZ2ZSX_30F33DmH4p4sYCdMVTKxoMJpTis",
+                "name": "app27",
+                "uid": "WGtzTM2SCqmvvdyc3TVM_jeWsRjdS-nKIUYWFGCU-_E",
+                "secret": "S36Qby2krI4yEAg7w71MYjNL4IiqGxNb1eP3bhw3QDI",
                 "redirect_uri": "https://foo",
                 "created_at": "<now>",
                 "updated_at": "<now>",
@@ -284,6 +284,34 @@
               }
             ]
           },
+          "product_taggings": {
+            "columns": {
+              "id": "int",
+              "tag_id": "int",
+              "product_id": "int",
+              "created_at": "datetime",
+              "updated_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "tag_id": 3,
+                "product_id": 1,
+                "created_at": "<now>",
+                "updated_at": "<now>"
+              },
+              {
+                "id": 2,
+                "tag_id": 2,
+                "product_id": 1,
+                "created_at": "<now>",
+                "updated_at": "<now>"
+              }
+            ]
+          },
           "refund_policies": {
             "columns": {
               "id": "bigint",
@@ -318,6 +346,49 @@
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "max_refund_period_in_days": 30
+              }
+            ]
+          },
+          "tags": {
+            "columns": {
+              "id": "int",
+              "name": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "humanized_name": "varchar",
+              "flagged_at": "datetime",
+              "taggings_count": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "name": "mango",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "humanized_name": null,
+                "flagged_at": null,
+                "taggings_count": 0
+              },
+              {
+                "id": 2,
+                "name": "apple",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "humanized_name": null,
+                "flagged_at": null,
+                "taggings_count": 1
+              },
+              {
+                "id": 3,
+                "name": "zebra",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "humanized_name": null,
+                "flagged_at": null,
+                "taggings_count": 1
               }
             ]
           },
@@ -397,19 +468,19 @@
               {
                 "id": 1,
                 "email": "throttled@example.com",
-                "encrypted_password": "$2a$04$g7Dxz455sZDfW/UKsORRXedrM1gEAPekDdWb78aDQ.yR/J/7zDzFS",
+                "encrypted_password": "$2a$04$hta9qJXp4JC3mANtozVsKO5NqjVA4f6uC84lBj/u5mr3DkcCzyIhW",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": null,
                 "sign_in_count": 0,
                 "current_sign_in_at": null,
                 "last_sign_in_at": null,
-                "current_sign_in_ip": "149.249.102.144",
-                "last_sign_in_ip": "102.112.90.89",
+                "current_sign_in_ip": "90.125.34.2",
+                "last_sign_in_ip": "170.83.157.32",
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "name": "Throttled",
-                "payment_address": "edgar700689be_178@gumroad.com",
+                "payment_address": "edgarf35cb911_79@gumroad.com",
                 "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
@@ -434,8 +505,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "446845500812",
-                "account_created_ip": "214.196.194.220",
+                "external_id": "440508731956",
+                "account_created_ip": "196.108.96.120",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -453,7 +524,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "FRCUU6FKWZIU4SPQUGVC7XEERORYKFY4",
+                "otp_secret_key": "F4VVZY3GPXGVM2ATCM57YWOMLUBO5KCL",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -464,20 +535,20 @@
               },
               {
                 "id": 2,
-                "email": "edgarc05bb61b_179@gumroad.com",
-                "encrypted_password": "$2a$04$28.N5wSbIL8hCZzMa3sss..RzMBRSt778LUNWBtzls87eDlCftezS",
+                "email": "edgara3a70c29_80@gumroad.com",
+                "encrypted_password": "$2a$04$s8DwGfQAZHhLLVin1ShGm.I4ZcULGC/wDcacjH00vzBLFQuqv/wgW",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": null,
                 "sign_in_count": 0,
                 "current_sign_in_at": null,
                 "last_sign_in_at": null,
-                "current_sign_in_ip": "51.76.192.195",
-                "last_sign_in_ip": "190.66.164.153",
+                "current_sign_in_ip": "211.80.37.184",
+                "last_sign_in_ip": "112.77.160.190",
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "name": null,
-                "payment_address": "edgare42037c8_180@gumroad.com",
+                "payment_address": "edgar4c03fd1e_81@gumroad.com",
                 "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
@@ -489,7 +560,7 @@
                 "payment_notification": 1,
                 "currency_type": "usd",
                 "bio": null,
-                "username": "edgar9aeb28c360",
+                "username": "edgaraadf425127",
                 "credit_card_id": null,
                 "profile_picture_url": null,
                 "country": null,
@@ -502,8 +573,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "5275847124846",
-                "account_created_ip": "163.43.10.97",
+                "external_id": "6939029545729",
+                "account_created_ip": "199.108.162.149",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -521,7 +592,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "PPWODUWKI4KYYLGXBHS3WMXKUHF2S5OF",
+                "otp_secret_key": "2MCCVVXEU2ZZ75RAYJVOG65VGF4UKIVG",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -539,7 +610,9 @@
           "oauth_access_tokens": 2,
           "oauth_applications": 2,
           "prices": 2,
+          "product_taggings": 3,
           "refund_policies": 3,
+          "tags": 4,
           "users": 3
         }
       },
@@ -584,13 +657,13 @@
         "path": "/v2/products/1UokxkyxJ__gd-gssE0g7w==",
         "headers": {
           "accept": "application/json",
-          "authorization": "Bearer BAwPaiQjtFkhLVc9p_ZV4pRSRFfXKNTwLg2T3SFyfvM",
+          "authorization": "Bearer 3tMZNRsrztui9TfFZg6F7jwAN_nB-6joMp6wtQxDMqc",
           "cf-connecting-ip": "203.0.113.55",
           "content-type": "application/json",
           "host": "api.test.gumroad.com:31337"
         },
         "remoteIp": "127.0.0.1",
-        "body": "{\"name\":\"Pen\",\"price\":300}"
+        "body": "{\"tags\":[\"zebra\",\"mango\",\"pear\"]}"
       },
       "response": {
         "status": 200,
@@ -609,7 +682,7 @@
         "json": {
           "success": true,
           "product": {
-            "name": "Pen",
+            "name": "Pencil",
             "description": "This is a collection of works spanning 1984 — 1994, while I spent time in a shack in the Andes.",
             "require_shipping": false,
             "preview_url": null,
@@ -619,7 +692,7 @@
             "subscription_duration": null,
             "id": "1UokxkyxJ__gd-gssE0g7w==",
             "url": null,
-            "price": 300,
+            "price": 100,
             "currency": "usd",
             "taxonomy_id": null,
             "category": null,
@@ -627,8 +700,12 @@
             "short_url": "http://throttled.test.gumroad.com:31337/l/draft",
             "landing_url": "http://throttled.test.gumroad.com:31337/l/draft",
             "thumbnail_url": null,
-            "tags": [],
-            "formatted_price": "$3",
+            "tags": [
+              "mango",
+              "zebra",
+              "pear"
+            ],
+            "formatted_price": "$1",
             "published": true,
             "file_info": {},
             "max_purchase_count": null,
@@ -657,39 +734,65 @@
         }
       },
       "db": {
-        "links": {
-          "updated": [
+        "product_taggings": {
+          "inserted": [
             {
-              "key": {
-                "id": 1
-              },
-              "changes": {
-                "name": [
-                  "Pencil",
-                  "Pen"
-                ],
-                "updated_at": [
-                  "<now>",
-                  "<now>"
-                ]
-              }
+              "id": 3,
+              "tag_id": 1,
+              "product_id": 1,
+              "created_at": "<now>",
+              "updated_at": "<now>"
+            },
+            {
+              "id": 4,
+              "tag_id": 4,
+              "product_id": 1,
+              "created_at": "<now>",
+              "updated_at": "<now>"
+            }
+          ],
+          "deleted": [
+            {
+              "id": 2,
+              "tag_id": 2,
+              "product_id": 1,
+              "created_at": "<now>",
+              "updated_at": "<now>"
             }
           ]
         },
-        "prices": {
+        "tags": {
+          "inserted": [
+            {
+              "id": 4,
+              "name": "pear",
+              "created_at": "<now>",
+              "updated_at": "<now>",
+              "humanized_name": null,
+              "flagged_at": null,
+              "taggings_count": 1
+            }
+          ],
           "updated": [
             {
               "key": {
                 "id": 1
               },
               "changes": {
-                "price_cents": [
-                  100,
-                  300
-                ],
-                "updated_at": [
-                  "<now>",
-                  "<now>"
+                "taggings_count": [
+                  0,
+                  1
+                ]
+              }
+            },
+            {
+              "key": {
+                "id": 2
+              },
+              "changes": {
+                "taggings_count": [
+                  1,
+                  0
                 ]
               }
             }
@@ -703,40 +806,71 @@
           "method": "POST",
           "url": "http://elasticsearch:9200/link-test/_update/1",
           "contentType": "application/json",
-          "body": "{\"doc\":{\"price_cents\":300,\"available_price_cents\":[300]}}",
+          "body": "{\"doc\":{\"tags\":[\"mango\",\"zebra\",\"pear\"]}}",
           "response": {
             "status": 200,
             "contentType": "application/json; charset=UTF-8",
-            "body": "{\"_index\":\"link-test\",\"_type\":\"_doc\",\"_id\":\"1\",\"_version\":225,\"result\":\"updated\",\"_shards\":{\"total\":1,\"successful\":1,\"failed\":0},\"_seq_no\":287,\"_primary_term\":1}"
+            "body": "{\"_index\":\"link-test\",\"_type\":\"_doc\",\"_id\":\"1\",\"_version\":65,\"result\":\"updated\",\"_shards\":{\"total\":1,\"successful\":1,\"failed\":0},\"_seq_no\":2106,\"_primary_term\":1}"
           }
         },
         {
           "method": "POST",
           "url": "http://elasticsearch:9200/link-test/_update/1",
           "contentType": "application/json",
-          "body": "{\"doc\":{\"name\":\"Pen\",\"rated_as_adult\":false}}",
+          "body": "{\"doc\":{\"tags\":[\"mango\",\"zebra\",\"pear\"]}}",
           "response": {
             "status": 200,
             "contentType": "application/json; charset=UTF-8",
-            "body": "{\"_index\":\"link-test\",\"_type\":\"_doc\",\"_id\":\"1\",\"_version\":226,\"result\":\"updated\",\"_shards\":{\"total\":1,\"successful\":1,\"failed\":0},\"_seq_no\":288,\"_primary_term\":1}"
+            "body": "{\"_index\":\"link-test\",\"_type\":\"_doc\",\"_id\":\"1\",\"_version\":65,\"result\":\"noop\",\"_shards\":{\"total\":0,\"successful\":0,\"failed\":0},\"_seq_no\":2106,\"_primary_term\":1}"
+          }
+        },
+        {
+          "method": "POST",
+          "url": "http://elasticsearch:9200/link-test/_update/1",
+          "contentType": "application/json",
+          "body": "{\"doc\":{\"tags\":[\"mango\",\"zebra\",\"pear\"]}}",
+          "response": {
+            "status": 200,
+            "contentType": "application/json; charset=UTF-8",
+            "body": "{\"_index\":\"link-test\",\"_type\":\"_doc\",\"_id\":\"1\",\"_version\":65,\"result\":\"noop\",\"_shards\":{\"total\":0,\"successful\":0,\"failed\":0},\"_seq_no\":2106,\"_primary_term\":1}"
           }
         }
       ],
       "timeline": [
         {
           "type": "db",
-          "op": "update",
-          "table": "prices"
+          "op": "insert",
+          "table": "product_taggings"
         },
         {
           "type": "db",
           "op": "update",
-          "table": "links"
+          "table": "tags"
+        },
+        {
+          "type": "db",
+          "op": "delete",
+          "table": "product_taggings"
         },
         {
           "type": "db",
           "op": "update",
-          "table": "links"
+          "table": "tags"
+        },
+        {
+          "type": "db",
+          "op": "insert",
+          "table": "tags"
+        },
+        {
+          "type": "db",
+          "op": "insert",
+          "table": "product_taggings"
+        },
+        {
+          "type": "db",
+          "op": "update",
+          "table": "tags"
         },
         {
           "type": "http",
@@ -745,6 +879,10 @@
         {
           "type": "http",
           "index": 1
+        },
+        {
+          "type": "http",
+          "index": 2
         }
       ]
     }

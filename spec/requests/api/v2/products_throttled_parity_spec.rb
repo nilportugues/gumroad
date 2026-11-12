@@ -438,17 +438,258 @@ describe "API v2 throttled routes", type: :request do
         expect(response.parsed_body["success"]).to be true
       end
 
-      it "hands a name with a price back to Rails", parity: true do
-        call(:put, draft_path, params: { name: "Pen", price: 300 })
+      it "hands a name with a currency back to Rails", parity: true do
+        call(:put, draft_path, params: { name: "Pen", price_currency_type: "eur" })
 
         expect(response.parsed_body["success"]).to be true
       end
-    end
 
-    it "hands a price change with PATCH back to Rails", parity: true do
-      call(:patch, path, params: { price: 250 })
+      # The price, description and tags saves; `parity_timeline` records the order of the statements and jobs inside each.
+      describe "the price" do
+        let(:price_row) { draft.prices.alive.is_buy.last }
 
-      expect(response.parsed_body["success"]).to be true
+        it "changes the price of a published product with PATCH", parity: true, parity_timeline: true do
+          call(:patch, path, params: { price: 250 })
+
+          expect(response.parsed_body.dig("product", "price")).to eq(250)
+          expect(product.reload.price_cents).to eq(250)
+        end
+
+        it "changes the price of a draft with a name and the flags", parity: true, parity_timeline: true do
+          call(:put, draft_path, params: { name: "Pen", price: 300, is_adult: true })
+
+          expect(response.parsed_body.dig("product", "price")).to eq(300)
+        end
+
+        it "sets the price a text of digits gives", parity: true, parity_timeline: true do
+          call(:put, draft_path, params: { price: "450" })
+
+          expect(price_row.price_cents).to eq(450)
+        end
+
+        it "saves the price the product already has", parity: true, parity_timeline: true do
+          call(:put, draft_path, params: { price: draft.price_cents })
+
+          expect(response.parsed_body["success"]).to be true
+        end
+
+        it "makes the product free and pay-what-you-want", parity: true, parity_timeline: true do
+          call(:put, draft_path, params: { price: 0 })
+
+          expect(response.parsed_body.dig("product", "price")).to eq(0)
+          expect(draft.reload.customizable_price).to be true
+        end
+
+        it "refuses a price under the minimum", parity: true, parity_timeline: true do
+          call(:put, draft_path, params: { price: 50 })
+
+          expect(message).to eq("Sorry, a product must be at least $0.99.")
+          expect(price_row.price_cents).to eq(draft.price_cents)
+        end
+
+        it "refuses a price past the limit of an unverified seller", parity: true, parity_timeline: true do
+          call(:put, draft_path, params: { price: 600_000 })
+
+          expect(message).to eq("Sorry, we don't support pricing products above $5,000.")
+        end
+
+        it "refuses a price past the column", parity: true, parity_timeline: true do
+          call(:put, draft_path, params: { price: 2_147_483_648 })
+
+          expect(message).to eq("Sorry, the price entered is too large.")
+        end
+
+        it "refuses a price past the column with nothing else saved", parity: true, parity_timeline: true do
+          call(:put, draft_path, params: { name: "Pen", price: 99_999_999_999 })
+
+          expect(message).to eq("Sorry, the price entered is too large.")
+          expect(draft.reload.name).to eq("Pencil")
+        end
+
+        it "hands a price given with cents back to Rails", parity: true do
+          call(:put, draft_path, params: { price: "3.50" })
+
+          expect(response.parsed_body).to include("success")
+        end
+
+        it "hands a blank price back to Rails", parity: true do
+          call(:put, draft_path, params: { price: "" })
+
+          expect(response.parsed_body["success"]).to be false
+        end
+
+        it "hands the price of a rentable product back to Rails", parity: true do
+          draft.update!(purchase_type: :buy_and_rent, rental_price_cents: 150)
+
+          call(:put, draft_path, params: { price: 300 })
+
+          expect(response.parsed_body["success"]).to be true
+        end
+
+        it "hands the price of a product with two buy prices back to Rails", parity: true do
+          draft.prices.create!(price_cents: 500, currency: "usd", recurrence: "monthly")
+
+          call(:put, draft_path, params: { price: 300 })
+
+          expect(response.parsed_body["success"]).to be true
+        end
+
+        it "hands the price of a coffee product back to Rails", parity: true do
+          seller.update_column(:created_at, 3.months.ago)
+          coffee = create(:coffee_product, user: seller)
+
+          call(:put, "/products/#{coffee.external_id}", params: { price: 300 })
+
+          expect(response.parsed_body).to include("success" => true)
+        end
+      end
+
+      describe "the description" do
+        it "saves a description of a draft", parity: true, parity_timeline: true do
+          call(:put, draft_path, params: { description: "<p>Hello <strong>world</strong></p>" })
+
+          expect(response.parsed_body.dig("product", "description")).to eq("<p>Hello <strong>world</strong></p>")
+        end
+
+        it "saves a description with a name, the flags and a price", parity: true, parity_timeline: true do
+          call(:put, draft_path, params: { name: "Pen", description: "<p>Writes</p>", price: 700, display_product_reviews: false })
+
+          expect(draft.reload.description).to eq("<p>Writes</p>")
+        end
+
+        it "clears the description", parity: true, parity_timeline: true do
+          draft.update!(description: "<p>Old</p>")
+
+          call(:put, draft_path, params: { description: "" })
+
+          expect(draft.reload.description).to eq("")
+        end
+
+        it "saves the description the product already has", parity: true, parity_timeline: true do
+          draft.update!(description: "<p>Same</p>")
+
+          call(:put, draft_path, params: { description: "<p>Same</p>" })
+
+          expect(response.parsed_body["success"]).to be true
+        end
+
+        it "refuses a description with an adult keyword", parity: true, parity_timeline: true do
+          call(:put, draft_path, params: { description: "<p>Nude</p>" })
+
+          expect(message).to eq("Adult keywords are not allowed")
+        end
+
+        it "hands a description of a published product back to Rails", parity: true do
+          call(:put, path, params: { description: "<p>New</p>" })
+
+          expect(response.parsed_body["success"]).to be true
+        end
+
+        it "hands a description with a tag Nokogiri rewrites back to Rails", parity: true do
+          call(:put, draft_path, params: { description: "<ul><li>One</li></ul><p>a &nbsp; b" })
+
+          expect(response.parsed_body["success"]).to be true
+        end
+
+        it "hands a description with an upsell card back to Rails", parity: true do
+          call(:put, draft_path, params: { description: '<upsell-card productid="missing"></upsell-card>' })
+
+          expect(response.parsed_body["success"]).to be false
+        end
+
+        it "hands a description over one that holds an upsell card back to Rails", parity: true do
+          draft.update_column(:description, '<upsell-card id="abc"></upsell-card>')
+
+          call(:put, draft_path, params: { description: "<p>New</p>" })
+
+          expect(response.parsed_body["success"]).to be true
+        end
+      end
+
+      describe "the tags" do
+        it "adds new tags to a draft", parity: true, parity_timeline: true do
+          call(:put, draft_path, params: { tags: %w[paper pens] })
+
+          expect(response.parsed_body.dig("product", "tags")).to match_array(%w[paper pens])
+          expect(Tag.where(name: %w[paper pens]).pluck(:taggings_count)).to eq([1, 1])
+        end
+
+        it "adds a tag another product already has", parity: true, parity_timeline: true do
+          other = create(:product, user: seller, name: "Other", unique_permalink: "other")
+          other.tag!("paper")
+
+          call(:put, draft_path, params: { tags: %w[paper] })
+
+          expect(Tag.find_by(name: "paper").taggings_count).to eq(2)
+        end
+
+        it "takes the counter rows in tag id order, removals first", parity: true, parity_timeline: true do
+          Tag.create!(name: "mango")
+          Tag.create!(name: "apple")
+          Tag.create!(name: "zebra")
+          draft.tag!("zebra")
+          draft.tag!("apple")
+
+          call(:put, draft_path, params: { tags: %w[zebra mango pear] })
+
+          expect(draft.reload.tags.pluck(:name)).to match_array(%w[zebra mango pear])
+          expect(Tag.find_by(name: "apple").taggings_count).to eq(0)
+        end
+
+        it "keeps the tags the list names", parity: true, parity_timeline: true do
+          draft.tag!("paper")
+
+          call(:put, draft_path, params: { tags: %w[paper] })
+
+          expect(response.parsed_body["success"]).to be true
+          expect(Tag.find_by(name: "paper").taggings_count).to eq(1)
+        end
+
+        it "removes every tag with an empty list", parity: true, parity_timeline: true do
+          draft.tag!("paper")
+          draft.tag!("pens")
+
+          call(:put, draft_path, params: { tags: [] })
+
+          expect(draft.reload.tags).to be_empty
+        end
+
+        it "saves tags with a name and a price", parity: true, parity_timeline: true do
+          call(:put, draft_path, params: { name: "Pen", price: 800, tags: %w[ink] })
+
+          expect(draft.reload.tags.pluck(:name)).to eq(%w[ink])
+        end
+
+        it "tags a published product", parity: true, parity_timeline: true do
+          call(:patch, path, params: { tags: %w[paper] })
+
+          expect(product.reload.tags.pluck(:name)).to eq(%w[paper])
+        end
+
+        it "hands a tag with capitals back to Rails", parity: true do
+          call(:put, draft_path, params: { tags: %w[Paper] })
+
+          expect(response.parsed_body["success"]).to be true
+        end
+
+        it "hands a tag that is too short back to Rails", parity: true do
+          call(:put, draft_path, params: { tags: %w[a] })
+
+          expect(response.parsed_body["success"]).to be false
+        end
+
+        it "hands a tag that repeats back to Rails", parity: true do
+          call(:put, draft_path, params: { tags: %w[paper paper] })
+
+          expect(response.parsed_body).to include("success")
+        end
+
+        it "hands a tag with a comma back to Rails", parity: true do
+          call(:put, draft_path, params: { tags: ["a,b"] })
+
+          expect(response.parsed_body["success"]).to be false
+        end
+      end
     end
 
     describe "the Rack::Attack throttle" do

@@ -280,10 +280,62 @@ describe "API v2 offer code writes", type: :request do
       expect(response.parsed_body).to include("success")
     end
 
-    it "hands a code applied automatically to Rails", parity: true do
-      create_code({ name: "AUTO", amount_off: "50", universal: "true", auto_apply: "true", sale_label: "Sale" })
+    describe "applied automatically" do
+      it "creates a universal code applied automatically", parity: true do
+        create_code({ name: "AUTO", amount_off: "50", universal: "true", auto_apply: "true", sale_label: "Sale" })
 
-      expect(response.parsed_body["offer_code"]).to include("auto_apply" => true, "sale_label" => "Sale")
+        expect(response.parsed_body["offer_code"]).to include("auto_apply" => true, "sale_label" => "Sale")
+      end
+
+      it "strips the sale label and reads auto_apply true from a JSON body", parity: true do
+        create_code({ name: "AUTO", amount_off: "50", universal: true, auto_apply: true, sale_label: "  Flash sale  " }, as: :json)
+
+        expect(response.parsed_body["offer_code"]).to include("auto_apply" => true, "sale_label" => "Flash sale")
+      end
+
+      it "stores a blank sale label as none", parity: true do
+        create_code({ name: "AUTO", amount_off: "50", universal: "true", auto_apply: "true", sale_label: "   " })
+
+        expect(response.parsed_body["offer_code"]).to include("auto_apply" => true, "sale_label" => nil)
+      end
+
+      it "creates a percent code applied automatically", parity: true do
+        create_code({ name: "AUTOPCT", offer_type: "percent", amount_off: "25", universal: "true", auto_apply: "true" })
+
+        expect(response.parsed_body["offer_code"]).to include("auto_apply" => true, "percent_off" => 25)
+      end
+
+      it "refuses a code for one product", parity: true do
+        create_code({ name: "AUTO", amount_off: "50", auto_apply: "true" })
+
+        expect(response.parsed_body["message"]).to eq("Only a discount that applies to all products can be applied automatically.")
+      end
+
+      it "refuses a second code applied automatically", parity: true do
+        create(:universal_offer_code, user: seller, code: "ALLOFIT", amount_cents: 100, auto_apply: true)
+
+        create_code({ name: "AUTO", amount_off: "50", universal: "true", auto_apply: "true" })
+
+        expect(response.parsed_body["message"]).to eq("Another discount (ALLOFIT) is already applied automatically. Turn it off first.")
+      end
+
+      it "refuses a sale label past 32 characters", parity: true do
+        create_code({ name: "AUTO", amount_off: "50", universal: "true", auto_apply: "true", sale_label: "x" * 33 })
+
+        expect(response.parsed_body["message"]).to eq("The sale label can be at most 32 characters.")
+      end
+
+      it "refuses a sale label with angle brackets", parity: true do
+        create_code({ name: "AUTO", amount_off: "50", universal: "true", auto_apply: "true", sale_label: "<b>Sale</b>" })
+
+        expect(response.parsed_body["message"]).to eq("The sale label must be plain text.")
+      end
+
+      it "reads auto_apply false as not applied automatically", parity: true do
+        create_code({ name: "AUTO", amount_off: "50", universal: "true", auto_apply: "false", sale_label: "Sale" })
+
+        expect(response.parsed_body["offer_code"]).to include("auto_apply" => false, "sale_label" => nil)
+      end
     end
 
     it "reads a purchase limit that is not a whole number as its leading digits", parity: true do
@@ -432,12 +484,61 @@ describe "API v2 offer code writes", type: :request do
       expect(response.parsed_body["offer_code"]).to include("max_purchase_count" => 10_000_000)
     end
 
-    it "hands a code switched to automatic application to Rails", parity: true do
-      universal = create(:universal_offer_code, user: seller, code: "ALLOFIT", amount_cents: 100)
+    describe "applied automatically" do
+      let!(:universal) { create(:universal_offer_code, user: seller, code: "ALLOFIT", amount_cents: 100) }
 
-      change(:patch, "/offer_codes/#{universal.external_id}", { auto_apply: true, sale_label: "Sale" }, as: :json)
+      it "switches a universal code to automatic application", parity: true do
+        change(:patch, "/offer_codes/#{universal.external_id}", { auto_apply: true, sale_label: "Sale" }, as: :json)
 
-      expect(response.parsed_body["offer_code"]).to include("auto_apply" => true)
+        expect(response.parsed_body["offer_code"]).to include("auto_apply" => true, "sale_label" => "Sale")
+      end
+
+      it "refuses to switch a code for one product", parity: true do
+        change(:patch, "/offer_codes/#{offer_code.external_id}", { auto_apply: "true" })
+
+        expect(response.parsed_body["message"]).to eq("Only a discount that applies to all products can be applied automatically.")
+      end
+
+      it "refuses to switch a second code", parity: true do
+        create(:universal_offer_code, user: seller, code: "BLACKFRIDAY", amount_cents: 100, auto_apply: true)
+
+        change(:patch, "/offer_codes/#{universal.external_id}", { auto_apply: "true" })
+
+        expect(response.parsed_body["message"]).to eq("Another discount (BLACKFRIDAY) is already applied automatically. Turn it off first.")
+      end
+
+      it "switches automatic application off and drops the sale label", parity: true do
+        applied = create(:universal_offer_code, user: seller, code: "BLACKFRIDAY", amount_cents: 100, auto_apply: true, sale_label: "Sale")
+
+        change(:patch, "/offer_codes/#{applied.external_id}", { auto_apply: "false" })
+
+        expect(response.parsed_body["offer_code"]).to include("auto_apply" => false, "sale_label" => nil)
+      end
+
+      it "changes the sale label of a code applied automatically", parity: true do
+        applied = create(:universal_offer_code, user: seller, code: "BLACKFRIDAY", amount_cents: 100, auto_apply: true, sale_label: "Sale")
+
+        change(:patch, "/offer_codes/#{applied.external_id}", { sale_label: " Flash " })
+
+        expect(response.parsed_body["offer_code"]).to include("auto_apply" => true, "sale_label" => "Flash")
+      end
+
+      it "keeps the automatic application of a code when another limit changes", parity: true do
+        applied = create(:universal_offer_code, user: seller, code: "BLACKFRIDAY", amount_cents: 100, auto_apply: true, sale_label: "Sale")
+
+        change(:patch, "/offer_codes/#{applied.external_id}", { max_purchase_count: 7 })
+
+        expect(response.parsed_body["offer_code"]).to include("auto_apply" => true, "max_purchase_count" => 7)
+      end
+
+      it "deletes a code applied automatically", parity: true do
+        applied = create(:universal_offer_code, user: seller, code: "BLACKFRIDAY", amount_cents: 100, auto_apply: true, sale_label: "Sale")
+
+        change(:delete, "/products/#{product.external_id}/offer_codes/#{applied.external_id}")
+
+        expect(response.parsed_body["success"]).to eq(true)
+        expect(applied.reload.deleted_at).to be_present
+      end
     end
 
     it "reads a purchase limit written in exponent form as its leading digits", parity: true do
