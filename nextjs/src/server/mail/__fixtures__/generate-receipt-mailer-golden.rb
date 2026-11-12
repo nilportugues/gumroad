@@ -236,7 +236,7 @@ end
 
 # --- fixtures --------------------------------------------------------------------------------------
 TABLES = %w[users links purchases subscriptions url_redirects purchase_presentments calls refunds prices charges charge_purchases orders order_purchases
-            customer_email_infos email_infos product_files thumbnails gifts preorders base_variants base_variants_purchases purchase_custom_fields purchase_refund_policies tips cached_sales_related_products_infos bundle_products product_review_stats active_storage_attachments active_storage_blobs asset_previews custom_domains offer_codes variant_categories affiliates zip_tax_rates purchase_taxjar_infos licenses].freeze
+            customer_email_infos email_infos product_files thumbnails gifts preorders base_variants base_variants_purchases purchase_custom_fields purchase_refund_policies tips cached_sales_related_products_infos bundle_products product_review_stats active_storage_attachments active_storage_blobs asset_previews custom_domains offer_codes variant_categories affiliates zip_tax_rates purchase_taxjar_infos licenses payment_options].freeze
 def reset!
   conn = ActiveRecord::Base.connection
   TABLES.each { |t| conn.execute("DELETE FROM #{t}") if conn.table_exists?(t) }
@@ -757,6 +757,15 @@ gift_receiver("licensed", link: { flags: LICENSED }, extra: -> { insert_license(
 gift_receiver("physical", link: PHYSICAL.merge(require_shipping: true), redirect: false, purchase: SHIPPING, into: refused)
 gift_receiver("custom_receipt_text", link: { json_data: { "custom_receipt_text" => "Thanks for gifting!" } })
 gift_receiver("variant", extra: -> { insert_variant(id: 701, link_id: 301, name: "Large"); attach_variant(401, 701) })
+# The first receipt of a monthly membership: Rails renders it (subscription, price and payment-option reads, a manage
+# link instead of the unsubscribe link, an upcoming-payment section), and the port hands it back.
+ORIGINAL_SUBSCRIPTION = Purchase.flag_mapping["flags"][:is_original_subscription_purchase]
+setup(link: { flags: 2, native_type: "membership" }, purchase: PRICE.merge(flags: ORIGINAL_SUBSCRIPTION, subscription_id: 501, price_id: 701))
+insert_price(link_id: 301, price_cents: 500, recurrence: "monthly", id: 701)
+Subscription.insert!({ id: 501, link_id: 301, user_id: nil, created_at: FIXED_NOW, updated_at: FIXED_NOW })
+PaymentOption.insert!({ subscription_id: 501, price_id: 701, created_at: FIXED_NOW, updated_at: FIXED_NOW })
+refused << record_message("receipt_membership_first_charge", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
+
 # Errors.
 reset!
 errors << record_error("receipt_missing_purchase", CustomerMailer, :receipt, [404])
