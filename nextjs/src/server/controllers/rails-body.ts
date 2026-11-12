@@ -1,11 +1,14 @@
 // `request.parameters` for a mutation: the JSON body Inertia sends, or a form body in Rack's nested syntax, over the query string.
 // Whatever Rails would parse differently (a nil inside a list is cleaned by deep_munge, multipart uploads, repeated keys of a
 // nested hash) hands the request back to Rails.
+import { RubyFloat } from "../models/concerns/ruby-values.ts";
+
 import { HandBackToRails } from "./application-controller.ts";
 
 export type Params = Record<string, unknown>;
 
-const isHash = (value: unknown): value is Params => value !== null && typeof value === "object" && !Array.isArray(value);
+const isHash = (value: unknown): value is Params =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
 
 // ActionDispatch::Request::Utils.perform_deep_munge removes nils from lists.
 export function assertMunged(value: unknown): void {
@@ -59,14 +62,28 @@ export function parseNestedQuery(query: string): Params {
   return out;
 }
 
-export function parseBody(contentType: string | null, bytes: Uint8Array): Params {
+type NumberReviver = (this: unknown, key: string, value: unknown, context?: { source?: string }) => unknown;
+
+// Ruby's JSON.parse makes a Float of every number written with a point or an exponent (`5.0`, `1e2`); JSON.parse here makes both a
+// number. With `floats`, each such literal becomes a RubyFloat, and an integer past 2**53 (a Bignum there) a bigint, both read off the
+// source text the reviver is given.
+function parseJsonKeepingFloats(text: string): unknown {
+  const reviver: NumberReviver = (_key, value, context) => {
+    if (typeof value !== "number" || context?.source === undefined) return value;
+    if (/[.eE]/u.test(context.source)) return new RubyFloat(value);
+    return Number.isSafeInteger(value) ? value : BigInt(context.source);
+  };
+  return (JSON.parse as (text: string, reviver: NumberReviver) => unknown)(text, reviver);
+}
+
+export function parseBody(contentType: string | null, bytes: Uint8Array, floats = false): Params {
   const text = Buffer.from(bytes).toString("utf8");
   const type = (contentType ?? "").split(";")[0]!.trim().toLowerCase();
   if (type === "application/json") {
     if (text.trim() === "") return {};
     let parsed: unknown;
     try {
-      parsed = JSON.parse(text);
+      parsed = floats ? parseJsonKeepingFloats(text) : JSON.parse(text);
     } catch {
       throw new HandBackToRails("an invalid JSON body");
     }
@@ -80,6 +97,6 @@ export function parseBody(contentType: string | null, bytes: Uint8Array): Params
 }
 
 // query parameters, then the body (`params` merges the body over the query string)
-export function requestParams(url: URL, contentType: string | null, bytes: Uint8Array): Params {
-  return { ...parseNestedQuery(url.search.replace(/^\?/u, "")), ...parseBody(contentType, bytes) };
+export function requestParams(url: URL, contentType: string | null, bytes: Uint8Array, floats = false): Params {
+  return { ...parseNestedQuery(url.search.replace(/^\?/u, "")), ...parseBody(contentType, bytes, floats) };
 }

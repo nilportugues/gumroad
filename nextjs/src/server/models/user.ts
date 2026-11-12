@@ -670,7 +670,7 @@ export const isPayoutsPaused = (record: UserRecord) =>
 export const maxProductPrice = (record: UserRecord) =>
   record.get("verified") ? null : MAX_PRICE_USD_CENTS_UNLESS_VERIFIED;
 export const isNameInvalidForEmailDelivery = (record: UserRecord) =>
-  !isBlank(record.get("name")) && INVALID_NAME_FOR_EMAIL_DELIVERY_REGEX.test(record.get("name")!);
+  !isBlank(record.get("name")) && record.get("name")!.includes(":");
 
 // Subdomain.from_username(username)
 export function subdomainFromUsername(
@@ -1171,8 +1171,10 @@ const BEFORE_VALIDATION: Callback<User>[] = [
     run(record) {
       const value = tiktokPixelId(record);
       if (isBlank(value)) return;
-      // json_data keeps a JSON integer as an Integer, which has no #strip.
-      if (Number.isInteger(value)) throw new NoMethodError("undefined method 'strip' for an instance of Integer");
+      // json_data keeps a JSON number as an Integer or a Float, neither of which has #strip.
+      if (Number.isInteger(value) || typeof value === "bigint")
+        throw new NoMethodError("undefined method 'strip' for an instance of Integer");
+      if (isRubyFloat(value)) throw new NoMethodError("undefined method 'strip' for an instance of Float");
       if (typeof value !== "string")
         throw new NotPortedError("strip on a non-string tiktok_pixel_id", "User before_validation");
       setJsonDataForAttr(record, "tiktok_pixel_id", rubyStrip(value));

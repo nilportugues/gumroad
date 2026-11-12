@@ -185,7 +185,7 @@ const EPICS: Epic[] = [
     title: "Settings, team and admin (WS-10/18)",
     files: /settings|admin|team|brand-account|user-|account/u,
     fallback: /users?-controller|models\/user\.ts|seller-|json-seller|json-actions|custom-domain|help-center|feature-announcement|connections-mutations|piracy/u,
-    state: "mostly done; floats, custom domains, pixel ids, brand account creation and admin web UIs left",
+    state: "mostly done; verified custom domains, brand account creation and admin web UIs (Flipper, Sidekiq web) left",
     blocker: "Devise views have no HTML shell in Node.",
     scope: "Brand account creation, custom domains, Flipper UI and Sidekiq web, Devise confirmation pages.",
   },

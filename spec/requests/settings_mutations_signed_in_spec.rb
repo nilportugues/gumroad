@@ -66,6 +66,99 @@ describe "Settings mutations when signed in", type: :request do
       expect(seller.reload.facebook_pixel_id).to eq("1")
     end
 
+    it "answers a float TikTok pixel id with the generic failure and saves nothing", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, analytics(tiktok_pixel_id: 1234.5, google_analytics_id: "G-NOTSAVED"))
+
+      expect(response).to have_http_status(:see_other)
+      expect(flash[:alert]).to eq("Something broke. We're looking into what happened. Sorry about this!")
+      expect(seller.reload).to have_attributes(google_analytics_id: nil, tiktok_pixel_id: nil)
+    end
+
+    it "answers a whole-number float TikTok pixel id with the generic failure", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, analytics(tiktok_pixel_id: 1234567890.0))
+
+      expect(response).to have_http_status(:see_other)
+      expect(flash[:alert]).to eq("Something broke. We're looking into what happened. Sorry about this!")
+    end
+
+    it "answers a fractional Facebook pixel id with its validation error", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, analytics(facebook_pixel_id: 12345.5))
+
+      expect(response).to have_http_status(:see_other)
+      expect(flash[:alert]).to include("Facebook")
+      expect(seller.reload.facebook_pixel_id).to be_nil
+    end
+
+    it "keeps the point of a whole-number float Facebook pixel id", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, analytics(facebook_pixel_id: 12345.0))
+
+      expect(response).to have_http_status(:see_other)
+      expect(seller.reload.facebook_pixel_id).to be_nil
+    end
+
+    it "reads the float 1.0 as a set switch and any other float as unset", parity: true do
+      seller.update!(skip_free_sale_analytics: true)
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, analytics(disable_third_party_analytics: 1.0, skip_free_sale_analytics: 0.5))
+
+      expect(response).to have_http_status(:see_other)
+      expect(seller.reload).to have_attributes(disable_third_party_analytics: true, skip_free_sale_analytics: false)
+    end
+
+    it "hands a float snippet field to Rails", parity: true do
+      create(:product, user: seller)
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, analytics(snippets: [{ id: nil, name: 1.5, location: "receipt", code: "<script>1</script>", product: nil }]))
+
+      expect(response).to have_http_status(:see_other)
+    end
+
+    it "stores an integer Facebook pixel id past 2**53 digit for digit", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, analytics(facebook_pixel_id: 12345678901234567890))
+
+      expect(response).to have_http_status(:see_other)
+      expect(flash[:notice]).to eq("Changes saved!")
+      expect(seller.reload.facebook_pixel_id).to eq("12345678901234567890")
+    end
+
+    it "answers an integer TikTok pixel id past 2**53 with the generic failure", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, analytics(tiktok_pixel_id: 12345678901234567890))
+
+      expect(response).to have_http_status(:see_other)
+      expect(flash[:alert]).to eq("Something broke. We're looking into what happened. Sorry about this!")
+    end
+
+    it "hands a snippet field with an integer past 2**53 to Rails", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, analytics(snippets: [{ id: nil, name: 12345678901234567890, location: "receipt", code: "<script>1</script>", product: nil }]))
+
+      expect(response).to have_http_status(:see_other)
+    end
+
+    it "answers a float Google Analytics id with its validation error", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, analytics(google_analytics_id: 1.5))
+
+      expect(response).to have_http_status(:see_other)
+      expect(flash[:alert]).to include("Google Analytics")
+    end
+
     it "accepts PATCH", parity: true do
       log_in(seller)
 
@@ -209,6 +302,33 @@ describe "Settings mutations when signed in", type: :request do
       expect(seller.reload.notification_endpoint).to eq("http://t")
     end
 
+    it "casts a float ping endpoint like a text column", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_advanced_path, advanced(endpoint: 12.5))
+
+      expect(response).to have_http_status(:see_other)
+      expect(seller.reload.notification_endpoint).to eq("http://12.5")
+    end
+
+    it "casts an integer ping endpoint past 2**53 like a text column", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_advanced_path, advanced(endpoint: 12345678901234567890))
+
+      expect(response).to have_http_status(:see_other)
+      expect(seller.reload.notification_endpoint).to eq("http://12345678901234567890")
+    end
+
+    it "casts a whole-number float ping endpoint like a text column", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_advanced_path, advanced(endpoint: 7.0))
+
+      expect(response).to have_http_status(:see_other)
+      expect(seller.reload.notification_endpoint).to eq("http://7.0")
+    end
+
     it "accepts PATCH", parity: true do
       log_in(seller)
 
@@ -269,13 +389,190 @@ describe "Settings mutations when signed in", type: :request do
       expect(seller.reload.custom_domain).to be_nil
     end
 
-    it "hands a new custom domain to Rails, which verifies it over DNS", parity: true do
-      allow_any_instance_of(CustomDomain).to receive(:verify)
-      log_in(seller)
+    describe "custom domain" do
+      # Gumroad's own targets resolve and nothing else does, so no seller domain points at Gumroad (the verification stays unconfigured).
+      before do
+        allow_any_instance_of(Resolv::DNS).to receive(:getresources) do |_dns, name, _type|
+          [CUSTOM_DOMAIN_CNAME, CUSTOM_DOMAIN_STATIC_IP_HOST].include?(name) ? [double(address: "203.0.113.7")] : []
+        end
+      end
 
-      send_form(:put, settings_advanced_path, advanced(domain: "store.example.com"))
+      # The factory's save clears the certificate date (a new domain always does) and schedules a certificate, so set the date afterwards
+      # and drop the job it queued.
+      def stored_domain(**attributes)
+        create(:custom_domain, user: seller, **attributes).tap do
+          _1.update_columns(ssl_certificate_issued_at: 1.day.ago)
+          GenerateSslCertificate.jobs.clear
+        end
+      end
 
-      expect(response).to have_http_status(:see_other)
+      it "saves a custom domain that does not point at Gumroad yet and schedules its certificate", parity: true do
+        log_in(seller)
+
+        send_form(:put, settings_advanced_path, advanced(domain: "Store.Example.com"))
+
+        expect(response).to have_http_status(:see_other)
+        expect(flash[:notice]).to eq("Your account has been updated!")
+        expect(seller.reload.custom_domain).to have_attributes(domain: "store.example.com", state: "unverified", ssl_certificate_issued_at: nil)
+        expect(GenerateSslCertificate.jobs.size).to eq(1)
+      end
+
+      it "strips the spaces around the saved domain", parity: true do
+        log_in(seller)
+
+        send_form(:put, settings_advanced_path, advanced(domain: "  shop.example.org  "))
+
+        expect(response).to have_http_status(:see_other)
+        expect(seller.reload.custom_domain.domain).to eq("shop.example.org")
+      end
+
+      it "marks a verified domain unverified when it is changed to one that does not point at Gumroad", parity: true do
+        stored_domain(domain: "old.example.com", state: "verified")
+        log_in(seller)
+
+        send_form(:put, settings_advanced_path, advanced(domain: "new.example.com"))
+
+        expect(response).to have_http_status(:see_other)
+        expect(seller.reload.custom_domain).to have_attributes(domain: "new.example.com", state: "unverified", ssl_certificate_issued_at: nil)
+        expect(CustomDomain.where(user_id: seller.id).count).to eq(1)
+      end
+
+      it "keeps an unverified domain unverified and leaves its certificate alone when the name is unchanged", parity: true do
+        stored_domain(domain: "same.example.com", state: "unverified")
+        log_in(seller)
+
+        send_form(:put, settings_advanced_path, advanced(domain: "same.example.com"))
+
+        expect(response).to have_http_status(:see_other)
+        expect(seller.reload.custom_domain.ssl_certificate_issued_at).to be_present
+        expect(GenerateSslCertificate.jobs.size).to eq(0)
+      end
+
+      it "marks a verified domain unverified when the same name no longer points at Gumroad", parity: true do
+        stored_domain(domain: "same.example.com", state: "verified")
+        log_in(seller)
+
+        send_form(:put, settings_advanced_path, advanced(domain: "same.example.com"))
+
+        expect(response).to have_http_status(:see_other)
+        expect(seller.reload.custom_domain).to have_attributes(state: "unverified")
+        expect(seller.custom_domain.ssl_certificate_issued_at).to be_present
+      end
+
+      it "saves the ping endpoint and the domain together", parity: true do
+        log_in(seller)
+
+        send_form(:put, settings_advanced_path, advanced(domain: "both.example.com", endpoint: "https://example.com/ping"))
+
+        expect(response).to have_http_status(:see_other)
+        expect(seller.reload).to have_attributes(notification_endpoint: "https://example.com/ping")
+        expect(seller.custom_domain.domain).to eq("both.example.com")
+      end
+
+      it "refuses a domain another seller already uses and keeps the ping endpoint", parity: true do
+        create(:custom_domain, user: create(:user), domain: "taken.example.com")
+        log_in(seller)
+
+        send_form(:put, settings_advanced_path, advanced(domain: "taken.example.com", endpoint: "https://example.com/ping"))
+
+        expect(response).to have_http_status(:see_other)
+        expect(flash[:alert]).to eq("The custom domain is already in use.")
+        expect(seller.reload.notification_endpoint).to eq("https://example.com/ping")
+        expect(seller.custom_domain).to be_nil
+      end
+
+      it "refuses the www variant of a domain another seller already uses", parity: true do
+        create(:custom_domain, user: create(:user), domain: "www.mysite.com")
+        log_in(seller)
+
+        send_form(:put, settings_advanced_path, advanced(domain: "mysite.com"))
+
+        expect(response).to have_http_status(:see_other)
+        expect(flash[:alert]).to eq("The custom domain is already in use.")
+      end
+
+      it "refuses a label that starts with a hyphen", parity: true do
+        log_in(seller)
+
+        send_form(:put, settings_advanced_path, advanced(domain: "-shop.example.com"))
+
+        expect(response).to have_http_status(:see_other)
+        expect(flash[:alert]).to eq("-shop.example.com is not a valid domain name.")
+        expect(seller.reload.custom_domain).to be_nil
+      end
+
+      it "refuses an empty label", parity: true do
+        log_in(seller)
+
+        send_form(:put, settings_advanced_path, advanced(domain: "shop..example.com"))
+
+        expect(response).to have_http_status(:see_other)
+        expect(flash[:alert]).to eq("shop..example.com is not a valid domain name.")
+      end
+
+      it "refuses a name with a character a hostname cannot carry", parity: true do
+        log_in(seller)
+
+        send_form(:put, settings_advanced_path, advanced(domain: "my_shop.example.com"))
+
+        expect(response).to have_http_status(:see_other)
+        expect(flash[:alert]).to eq("my_shop.example.com is not a valid domain name.")
+      end
+
+      it "refuses an IP address", parity: true do
+        log_in(seller)
+
+        send_form(:put, settings_advanced_path, advanced(domain: "203.0.113.7"))
+
+        expect(response).to have_http_status(:see_other)
+        expect(flash[:alert]).to eq("203.0.113.7 is not a valid domain name.")
+      end
+
+      it "refuses a bare public suffix", parity: true do
+        log_in(seller)
+
+        send_form(:put, settings_advanced_path, advanced(domain: "com"))
+
+        expect(response).to have_http_status(:see_other)
+        expect(flash[:alert]).to eq("com is not a valid domain name.")
+      end
+
+      it "refuses a domain under Gumroad's own", parity: true do
+        log_in(seller)
+
+        send_form(:put, settings_advanced_path, advanced(domain: "shop.#{INTERNAL_GUMROAD_DOMAIN}"))
+
+        expect(response).to have_http_status(:see_other)
+        expect(flash[:alert]).to eq("shop.#{INTERNAL_GUMROAD_DOMAIN} is not a valid domain name.")
+        expect(seller.reload.custom_domain).to be_nil
+      end
+
+      it "says it twice for a domain under Gumroad's own when its port is no hostname character", parity: true do
+        log_in(seller)
+
+        send_form(:put, settings_advanced_path, advanced(domain: "shop.#{DOMAIN}"))
+
+        expect(response).to have_http_status(:see_other)
+        expect(flash[:alert]).to eq("shop.#{DOMAIN} is not a valid domain name. and shop.#{DOMAIN} is not a valid domain name.")
+      end
+
+      it "gives both messages for a Gumroad domain with a malformed label", parity: true do
+        log_in(seller)
+
+        send_form(:put, settings_advanced_path, advanced(domain: "-shop.#{DOMAIN}"))
+
+        expect(response).to have_http_status(:see_other)
+        expect(flash[:alert]).to eq("-shop.#{DOMAIN} is not a valid domain name. and -shop.#{DOMAIN} is not a valid domain name.")
+      end
+
+      it "ignores a domain made of spaces", parity: true do
+        log_in(seller)
+
+        send_form(:put, settings_advanced_path, advanced(domain: "   "))
+
+        expect(response).to have_http_status(:see_other)
+        expect(seller.reload.custom_domain).to be_nil
+      end
     end
 
     it "lets an admin save", parity: true do
@@ -331,6 +628,34 @@ describe "Settings mutations when signed in", type: :request do
 
       expect(response).to have_http_status(:see_other)
       expect(seller.reload.billing_detail).to have_attributes(business_name: "1", business_id: "0", additional_notes: "t")
+    end
+
+    it "casts float values like a varchar column and a text column", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_billing_path, billing(business_name: 12.5, business_id: 7.0, additional_notes: 0.25))
+
+      expect(response).to have_http_status(:see_other)
+      expect(seller.reload.billing_detail).to have_attributes(business_name: "12.5", business_id: "7.0", additional_notes: "0.25")
+    end
+
+    it "reads a 0.0 invoice switch as true because Boolean casts only the integer 0 to false", parity: true do
+      create(:billing_detail, purchaser: seller, auto_email_invoice_enabled: false)
+      log_in(seller)
+
+      send_form(:put, settings_billing_path, billing(auto_email_invoice_enabled: 0.0))
+
+      expect(response).to have_http_status(:see_other)
+      expect(seller.reload.billing_detail.auto_email_invoice_enabled).to eq(true)
+    end
+
+    it "casts an integer past 2**53 like a varchar column", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_billing_path, billing(business_id: 12345678901234567890))
+
+      expect(response).to have_http_status(:see_other)
+      expect(seller.reload.billing_detail.business_id).to eq("12345678901234567890")
     end
 
     it "refuses a US address without a state and keeps the errors for the form", parity: true do

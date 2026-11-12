@@ -1,9 +1,13 @@
 // Strong-parameter handling of Settings::ThirdPartyAnalyticsController, AdvancedController and Team::MembersController updates.
 import { describe, expect, it } from "vitest";
 
+import { RubyFloat } from "../models/concerns/ruby-values.ts";
+
 import { HandBackToRails } from "./application-controller.ts";
+import { parseBody } from "./rails-body.ts";
 import {
   blockedEmailLines,
+  trueValue,
   isPermittedScalar,
   snippetValue,
   stringValue,
@@ -80,6 +84,59 @@ describe("snippetValue", () => {
 
   it("hands back a float", () => {
     expect(() => snippetValue(1.5)).toThrow(HandBackToRails);
+  });
+});
+
+describe("floats in a JSON body", () => {
+  const body = (text: string) => new TextEncoder().encode(text);
+
+  it("keeps each number written with a point or an exponent as a RubyFloat and the others as numbers", () => {
+    const parsed = parseBody("application/json", body('{"a":1.0,"b":1,"c":1e2,"d":-0.5,"e":[2.5],"f":"1.0"}'), true);
+    expect(parsed.a).toEqual(new RubyFloat(1));
+    expect(parsed.b).toBe(1);
+    expect(parsed.c).toEqual(new RubyFloat(100));
+    expect(parsed.d).toEqual(new RubyFloat(-0.5));
+    expect(parsed.e).toEqual([new RubyFloat(2.5)]);
+    expect(parsed.f).toBe("1.0");
+  });
+
+  it("leaves every number a plain number without the flag", () => {
+    expect(parseBody("application/json", body('{"a":1.0,"b":2.5}'))).toEqual({ a: 1, b: 2.5 });
+  });
+
+  it("casts a float to its Float#to_s for a string column, even when it is whole", () => {
+    expect(stringValue(new RubyFloat(12.5))).toBe("12.5");
+    expect(stringValue(new RubyFloat(7))).toBe("7.0");
+    expect(stringValue(new RubyFloat(1e20), "text")).toBe("1.0e+20");
+    expect(stringValue(new RubyFloat(0.0001))).toBe("0.0001");
+    expect(isPermittedScalar(new RubyFloat(1))).toBe(true);
+  });
+
+  it("keeps a float TikTok pixel id for the model to fail on, and hands back a float snippet field", () => {
+    expect(tiktokPixelIdValue(new RubyFloat(5))).toEqual(new RubyFloat(5));
+    expect(() => snippetValue(new RubyFloat(1.5))).toThrow(HandBackToRails);
+  });
+
+  it("keeps an integer past 2**53 as a bigint, with every digit, and casts it to its digits for a string column", () => {
+    const parsed = parseBody(
+      "application/json",
+      body('{"a":12345678901234567890,"b":-12345678901234567890,"c":9007199254740991}'),
+      true,
+    );
+    expect(parsed).toEqual({ a: 12345678901234567890n, b: -12345678901234567890n, c: 9007199254740991 });
+    expect(stringValue(12345678901234567890n)).toBe("12345678901234567890");
+    expect(isPermittedScalar(12345678901234567890n)).toBe(true);
+    expect(tiktokPixelIdValue(12345678901234567890n)).toBe(12345678901234567890n);
+    expect(() => snippetValue(12345678901234567890n)).toThrow(HandBackToRails);
+    expect(trueValue(12345678901234567890n)).toBe(false);
+  });
+
+  it("reads only the float 1.0 as a true flag value", () => {
+    expect(trueValue(new RubyFloat(1))).toBe(true);
+    for (const value of [new RubyFloat(0), new RubyFloat(0.5), new RubyFloat(2), 0, false, "0"]) {
+      expect(trueValue(value)).toBe(false);
+    }
+    for (const value of [true, 1, "1", "t", "true"]) expect(trueValue(value)).toBe(true);
   });
 });
 

@@ -83,8 +83,10 @@ const spec = (method: string, pattern = "/settings") =>
 const input = (user: Record<string, unknown> | undefined, currentSeller: Record<string, unknown> = {}): MutationInput =>
   ({
     params: user === undefined ? {} : { user },
+    url: new URL("http://example.com/settings"),
+    rawBody: new TextEncoder().encode(JSON.stringify(user === undefined ? {} : { user })),
     context: { currentSeller: { id: 7n, unconfirmed_email: null, confirmed_at: new Date(), ...currentSeller } },
-    request: {},
+    request: { headers: new Headers({ "content-type": "application/json" }) },
   }) as unknown as MutationInput;
 const form = (overrides: Record<string, unknown> = {}) => ({
   email: "seller@example.com",
@@ -144,7 +146,6 @@ describe("PUT /settings", () => {
 
   it.each([
     ["a null timezone", { timezone: null }],
-    ["a fractional PPP limit", { purchasing_power_parity_limit: 12.5 }],
     ["a PPP limit with trailing text", { purchasing_power_parity_limit: "12abc" }],
     ["excluded products that are not a list", { purchasing_power_parity_excluded_product_ids: "abc" }],
     ["a support email entry without a list", { product_level_support_emails: [{ email: "a@example.com" }] }],
@@ -167,6 +168,36 @@ describe("PUT /settings", () => {
     expect(seller.set).toHaveBeenCalledWith("timezone", "UTC");
     expect(seller.set).toHaveBeenCalledWith("purchasing_power_parity_limit", 50);
     expect(seller.set).not.toHaveBeenCalledWith("ignored", expect.anything());
+  });
+
+  it.each([
+    [12.5, 12],
+    [-3.9, -3],
+    [0.9, 0],
+    [40.0, 40],
+  ])("truncates the float PPP limit %s like an integer column", async (sent, stored) => {
+    // The test input encodes the body with JSON.stringify, which drops the point of a whole float: write the literal.
+    const request = input(form({ purchasing_power_parity_limit: sent }));
+    (request as { rawBody: Uint8Array }).rawBody = new TextEncoder().encode(
+      JSON.stringify({ user: form({ purchasing_power_parity_limit: "FLOAT" }) }).replace(
+        '"FLOAT"',
+        Number.isInteger(sent) ? `${sent}.0` : String(sent),
+      ),
+    );
+
+    await update.run(request);
+
+    expect(seller.set).toHaveBeenCalledWith("purchasing_power_parity_limit", stored);
+  });
+
+  it("hands a float PPP limit past a 4-byte column to Rails", async () => {
+    const request = input(form());
+    (request as { rawBody: Uint8Array }).rawBody = new TextEncoder().encode(
+      JSON.stringify({ user: form({ purchasing_power_parity_limit: "FLOAT" }) }).replace('"FLOAT"', "3.0e10"),
+    );
+
+    await expect(update.run(request)).rejects.toBeInstanceOf(HandBackToRails);
+    expect(mocks.save).not.toHaveBeenCalled();
   });
 
   it("redirects with the model errors when the seller does not save, without touching the rest", async () => {
