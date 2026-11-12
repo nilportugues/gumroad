@@ -181,15 +181,26 @@ function queryString(options: UrlOptions): string {
 
 const protocolOf = () => domainConfig(process.env).protocol;
 
+// User#username: the external id stands in for a seller without one (a row passed without `external_id` has no stand-in).
+export function effectiveUsername(user: Pick<UserRow, "username"> & { external_id?: string | null }): string | null {
+  return present(user.username) ? user.username : (user.external_id ?? null);
+}
+
 // User#subdomain_with_protocol
-export function subdomainWithProtocol(user: Pick<UserRow, "username">): string | null {
-  if (!present(user.username)) return null;
+export function subdomainWithProtocol(
+  user: Pick<UserRow, "username"> & { external_id?: string | null },
+): string | null {
+  const username = effectiveUsername(user);
+  if (!present(username)) return null;
   const config = domainConfig(process.env);
-  return `${config.protocol}://${user.username.replaceAll("_", "-")}.${config.rootDomain}`;
+  return `${config.protocol}://${username.replaceAll("_", "-")}.${config.rootDomain}`;
 }
 
 // User#profile_url(recommended_by:): URI#query= on a URL without a path, so no slash before the query.
-export function profileUrl(seller: Pick<UserRow, "username">, recommendedBy: string | null): string | null {
+export function profileUrl(
+  seller: Pick<UserRow, "username"> & { external_id?: string | null },
+  recommendedBy: string | null,
+): string | null {
   const base = subdomainWithProtocol(seller);
   return base !== null && present(recommendedBy) ? `${base}${queryString({ recommended_by: recommendedBy })}` : base;
 }

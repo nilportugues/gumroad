@@ -315,14 +315,16 @@ describe "Checkout page arrivals", type: :request do
       expect(payment["fallback_reason"]).to eq("stripe_payment_element_flag_disabled")
     end
 
-    it "hands a seller without a username to Rails", parity: true do
-      nameless = create(:user)
+    it "names a seller without a username by their external id", parity: true do
+      nameless = create(:user, name: nil)
       nameless.update_columns(username: nil)
       stray = create(:product, user: nameless, name: "Stray", created_at: Time.utc(2025, 1, 3))
 
       get checkout_path(product: stray.unique_permalink)
 
-      expect(added.sole["product"]["creator"]["profile_url"]).to be_present
+      creator = added.sole["product"]["creator"]
+      expect(creator["name"]).to eq(nameless.external_id)
+      expect(creator["profile_url"]).to include(nameless.external_id)
     end
 
     it "hands a seller on the client-confirm payment element to Rails", parity: true do
@@ -581,14 +583,74 @@ describe "Checkout page arrivals", type: :request do
       expect(added.sole["accepted_offer"]["discount"]).to include("percents" => 25)
     end
 
-    it "hands an accepted offer whose code is for existing customers to Rails", parity: true do
+    def accepted_offer_url(code_attributes, purchases: [])
       variant_product = create(:product_with_digital_versions, user: seller, name: "Versioned", price_cents: 2000, created_at: Time.utc(2025, 1, 3))
-      code = create(:offer_code, user: seller, products: [variant_product], amount_cents: nil, amount_percentage: 25, code: "LOYAL", existing_customers_only: true, ownership_products: [product])
+      code = create(:offer_code, user: seller, products: [variant_product], amount_cents: nil, **code_attributes)
       cross_sell = create(:upsell, seller:, product: variant_product, name: "Take it", cross_sell: true, selected_products: [product], offer_code: code)
+      purchases.each do |bought, created_at|
+        build(:purchase, link: bought, purchaser: buyer, email: buyer.email, seller:, purchase_state: "successful", created_at:).save!(validate: false)
+      end
+      checkout_path(product: variant_product.unique_permalink, accepted_offer_id: cross_sell.external_id)
+    end
 
-      get checkout_path(product: variant_product.unique_permalink, accepted_offer_id: cross_sell.external_id)
+    it "shows an existing-customers discount to a buyer who owns the product it names", parity: true do
+      get accepted_offer_url({ amount_percentage: 25, code: "LOYAL", existing_customers_only: true, ownership_products: [product] }, purchases: [[product, 14.months.ago]])
 
-      expect(response).to be_successful
+      expect(added.sole["accepted_offer"]["discount"]).to include("percents" => 25)
+    end
+
+    it "shows nothing of an existing-customers discount to a buyer who owns nothing", parity: true do
+      get accepted_offer_url({ amount_percentage: 25, code: "LOYAL", existing_customers_only: true, ownership_products: [product] })
+
+      expect(added.sole["accepted_offer"]["discount"]).to be_nil
+    end
+
+    it "gives a buyer the tier their months of ownership reach", parity: true do
+      tiers = [{ "months" => 0, "amount_percentage" => 10 }, { "months" => 6, "amount_percentage" => 20 }, { "months" => 24, "amount_percentage" => 30 }]
+      get accepted_offer_url({ amount_percentage: 10, code: "TIERED", ownership_duration_tiers: tiers, existing_customers_only: true, ownership_products: [product] }, purchases: [[product, 8.months.ago]])
+
+      expect(added.sole["accepted_offer"]["discount"]).to include("percents" => 20)
+    end
+
+    it "gives a buyer with no purchase the first tier of a tiered code open to everyone", parity: true do
+      tiers = [{ "months" => 0, "amount_percentage" => 10 }, { "months" => 6, "amount_percentage" => 20 }]
+      get accepted_offer_url({ amount_percentage: 10, code: "TIERED", ownership_duration_tiers: tiers, ownership_products: [product] })
+
+      expect(added.sole["accepted_offer"]["discount"]).to include("percents" => 10)
+    end
+
+    it "evaluates the discount of a cross-sell the same way", parity: true do
+      offered = create(:product, user: seller, name: "Extra", price_cents: 500, created_at: Time.utc(2025, 1, 1))
+      code = create(:offer_code, user: seller, products: [offered], amount_cents: nil, amount_percentage: 40, code: "BACK", existing_customers_only: true, ownership_products: [product])
+      create(:upsell, seller:, product: offered, name: "Add", cross_sell: true, selected_products: [product], offer_code: code)
+      build(:purchase, link: product, purchaser: buyer, email: buyer.email, seller:, purchase_state: "successful", created_at: 3.months.ago).save!(validate: false)
+
+      get checkout_path(product: product.unique_permalink)
+
+      expect(added.sole["product"]["cross_sells"].sole["discount"]).to include("percents" => 40)
+    end
+  end
+
+  describe "as a visitor" do
+    it "shows the range of a tiered cross-sell discount", parity: true do
+      offered = create(:product, user: seller, name: "Extra", price_cents: 500, created_at: Time.utc(2025, 1, 1))
+      tiers = [{ "months" => 0, "amount_percentage" => 10 }, { "months" => 6, "amount_percentage" => 30 }]
+      code = create(:offer_code, user: seller, products: [offered], amount_cents: nil, amount_percentage: 10, code: "TIERED", ownership_duration_tiers: tiers, ownership_products: [product])
+      create(:upsell, seller:, product: offered, name: "Add", cross_sell: true, selected_products: [product], offer_code: code)
+
+      get checkout_path(product: product.unique_permalink)
+
+      expect(added.sole["product"]["cross_sells"].sole["discount"]).to include("tiered" => true, "min_percents" => 10, "max_percents" => 30)
+    end
+
+    it "shows nothing of an existing-customers cross-sell discount", parity: true do
+      offered = create(:product, user: seller, name: "Extra", price_cents: 500, created_at: Time.utc(2025, 1, 1))
+      code = create(:offer_code, user: seller, products: [offered], amount_cents: nil, amount_percentage: 40, code: "BACK", existing_customers_only: true, ownership_products: [product])
+      create(:upsell, seller:, product: offered, name: "Add", cross_sell: true, selected_products: [product], offer_code: code)
+
+      get checkout_path(product: product.unique_permalink)
+
+      expect(added.sole["product"]["cross_sells"].sole["discount"]).to be_nil
     end
   end
 

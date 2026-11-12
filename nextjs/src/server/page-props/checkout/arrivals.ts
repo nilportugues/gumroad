@@ -131,8 +131,6 @@ type Context = { buyerId: bigint | null; ip: string | null };
 async function product(row: LinkRow, context: Context, cartParams: CartParams, params: CheckoutParams) {
   const seller = row.user_id === null ? null : await findUserById(row.user_id);
   if (seller === null) throw new NotPortedError("a product without a seller");
-  // User#username answers the external id when the column is empty; the port reads the column.
-  if (!present(seller.username)) throw new NotPortedError("a seller without a username");
   return checkoutProduct(row, { cartParams, arrival: true, ...context, params });
 }
 

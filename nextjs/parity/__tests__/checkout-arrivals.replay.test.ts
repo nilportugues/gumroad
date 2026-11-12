@@ -139,7 +139,7 @@ describe.skipIf(!url)("Checkout page arrivals parity", () => {
 
   it("finds the fixtures", () => {
     expect(cases.filter((c) => !c.handedBack).length).toBeGreaterThan(55);
-    expect(cases.filter((c) => c.handedBack).length).toBe(7);
+    expect(cases.filter((c) => c.handedBack).length).toBe(5);
   });
 
   it.each(cases.map((c) => [c.name, c] as const))(

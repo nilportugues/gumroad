@@ -4,7 +4,7 @@
 // What Rails derives from the Stripe/PayPal lanes, a signed URL, a random token or a variant of the product this port does not read
 // throws NotPortedError, so the caller hands the request back before anything is sent: PPP, a thumbnail or avatar variant Rails has not
 // processed yet, custom fields linked against their ids, and a seller on buyer-local currency.
-import { Prisma, type User } from "@prisma/client";
+import { Prisma, type Link, type User } from "@prisma/client";
 
 import { decrypt, encrypt as externalId } from "../../lib/obfuscate-ids.ts";
 import { autoLink } from "../html/rinku.ts";
@@ -53,7 +53,13 @@ import {
   type PriceRow,
   type UserRow,
 } from "./product-reads.ts";
-import { buyerCurrencyDisplayProps, defaultBuyerCurrencyProps, longUrl, profileUrl } from "./product.ts";
+import {
+  buyerCurrencyDisplayProps,
+  defaultBuyerCurrencyProps,
+  effectiveUsername,
+  longUrl,
+  profileUrl,
+} from "./product.ts";
 // PaypalMerchantAccountManager::COUNTRY_CODES_NOT_SUPPORTED_BY_PCP
 const PCP_UNSUPPORTED_COUNTRY_CODES = ["DZ", "BR", "CN", "EG", "IN", "IL", "JP", "FM", "MA", "TR"];
 // PaypalMerchantAccountManager::COUNTRY_CODES_WITH_GRANDFATHERED_PCP
@@ -132,7 +138,9 @@ async function payWithPaypalEnabled(seller: UserRow): Promise<boolean> {
 const ratedAsAdult = (row: LinkRow, seller: UserRow) =>
   flag(row, "is_adult") ||
   sellerFlag(seller, "all_adult_products") ||
-  [row.name, row.description, seller.name, seller.username, seller.bio as string | null].some((text) => isAdult(text));
+  [row.name, row.description, seller.name, effectiveUsername(seller), seller.bio as string | null].some((text) =>
+    isAdult(text),
+  );
 
 // CheckoutPresenter#supports_paypal
 async function supportsPaypal(row: LinkRow, seller: UserRow): Promise<"native" | "braintree" | null> {
@@ -399,6 +407,13 @@ async function bundleProductProps(bundleProducts: Awaited<ReturnType<typeof aliv
   return props;
 }
 
+// The signed-in buyer and the product an offer sells, for OfferCode#evaluate_for_buyer.
+async function evaluatingBuyer(buyerId: bigint | null, product: LinkRow) {
+  if (buyerId === null) return null;
+  const buyer = await findUserById(buyerId);
+  return buyer === null ? null : { user: buyer as unknown as User, product: product as unknown as Link };
+}
+
 // The cross-sells CheckoutPresenter#checkout_product lists for a buyer who has bought nothing, which keeps every one whose product and
 // offered variant can still be sold.
 async function crossSellProps(
@@ -432,7 +447,7 @@ async function crossSellProps(
         buyerId,
         ip,
       }),
-      discount: await discountForDisplay(crossSell, buyerId === null, buyerId !== null),
+      discount: await discountForDisplay(crossSell, buyerId === null, await evaluatingBuyer(buyerId, offered)),
       ratings: flag(offered, "display_product_reviews") ? await reviewSummary(offered) : null,
     });
   }
@@ -536,7 +551,7 @@ export async function checkoutProduct(row: LinkRow, request: CheckoutRequest = {
   const options = await linkOptions(row);
   const item = await cartItem(row, seller, options, cartParams);
   const [creatorAvatar, thumbnail] = [
-    present(seller.username) ? await avatarUrl(seller as unknown as User) : null,
+    present(effectiveUsername(seller)) ? await avatarUrl(seller as unknown as User) : null,
     await thumbnailUrl(row.id),
   ];
   const currency = String(row.price_currency_type);
@@ -551,9 +566,9 @@ export async function checkoutProduct(row: LinkRow, request: CheckoutRequest = {
   const common = {
     permalink: row.unique_permalink,
     name: row.name,
-    creator: present(seller.username)
+    creator: present(effectiveUsername(seller))
       ? {
-          name: seller.name ?? seller.username,
+          name: seller.name ?? effectiveUsername(seller),
           profile_url: profileUrlWithReferrer,
           avatar_url: creatorAvatar,
           id: seller.external_id,
@@ -633,7 +648,7 @@ export async function checkoutProduct(row: LinkRow, request: CheckoutRequest = {
         : {
             id: externalId(acceptedOffer.id),
             variant_id: acceptedVariant === null ? null : externalId(acceptedVariant.id),
-            discount: await discountForDisplay(acceptedOffer, buyerId === null, buyerId !== null),
+            discount: await discountForDisplay(acceptedOffer, buyerId === null, await evaluatingBuyer(buyerId, row)),
           },
   };
   if (arrival && flag(row, "is_recurring_billing"))
