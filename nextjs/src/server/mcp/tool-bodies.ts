@@ -10,6 +10,7 @@ import { db } from "../../lib/db.ts";
 import { decrypt, encrypt } from "../../lib/obfuscate-ids.ts";
 import { rubyRoundHalfUp } from "../../lib/ruby-round.ts";
 import { hasApplicableOfferCodes } from "../controllers/api-v2/offer-codes.ts";
+import { isPublishedProduct, plannedDescription } from "../controllers/api-v2/product-writes.ts";
 import { HandBackToRails } from "../controllers/application-controller.ts";
 import { findByName } from "../models/compliance-countries.ts";
 import {
@@ -23,6 +24,8 @@ import { successfulSalesCount, totalUsdCents } from "../models/link-metrics.ts";
 import { assertPlainPublish, publishBang } from "../models/link-publish.ts";
 import { createApiLink, type CreateSeller } from "../models/link-create.ts";
 import { Links } from "../models/link.ts";
+import { planBuyPriceWrite, PRICE_TOO_LARGE as PRICE_WRITE_TOO_LARGE, writeBuyPrice } from "../models/price-writes.ts";
+import { RecordInvalid } from "../models/runtime/errors.ts";
 import { transaction } from "../models/runtime/transaction.ts";
 import { UserFlags } from "../models/user.ts";
 import { s3Fields } from "../models/product-file.ts";
@@ -1193,6 +1196,60 @@ async function createDraftProduct(args: Hash, context: ToolContext): Promise<Has
   };
 }
 
+const isBlankText = (value: string) => /^[\s\u0085\u180e\u200b-\u200d\u2060\ufeff]*$/u.test(value);
+
+// tool_update_product for name, description and price_cents on a product with one buy price. A permalink change (it locks the seller and
+// redirects the old slug), a description Node cannot sanitize like SaveContentUpsellsService, a rename of a published product
+// (content moderation), a product beside discount codes (the warning lists the ones the new price breaks) and a product whose price is
+// not one buy price go to Rails whole, before the first write.
+async function updateProduct(args: Hash, context: ToolContext): Promise<Hash> {
+  const found = await findProduct(args, context);
+  const changes = ["name", "description", "price_cents", "permalink"].filter((key) => key in args);
+  if (changes.length === 0)
+    throw new ToolRpcError("Pass at least one of name, description, price_cents, or permalink", INVALID_PARAMS);
+  if (changes.includes("permalink")) throw new HandBackToRails("a permalink change");
+  // The payload is built from the product as it stands: a tiered membership or a competing price goes to Rails here.
+  productPayload(found, context.user, "update_product");
+  const product = await db.link.findUniqueOrThrow({ where: { id: found.id } });
+
+  const attributes: Partial<typeof product> = {};
+  if ("name" in args) {
+    const rawName = args.name as string;
+    if (rawName.includes("\0")) throw new HandBackToRails("a name with a NUL character");
+    const name = rubyStrip(rawName);
+    if (isBlankText(name)) throw new ToolRpcError("name must not be blank", INVALID_PARAMS);
+    if (name !== product.name && isPublishedProduct(product)) throw new HandBackToRails("the rename of a published product");
+    attributes.name = name;
+  }
+  let priceCents: number | undefined;
+  if ("price_cents" in args) {
+    const price = args.price_cents as number;
+    if (price < 0) throw new ToolRpcError("price_cents must be zero or more", INVALID_PARAMS);
+    if (!Number.isSafeInteger(price)) throw new HandBackToRails("a price beyond 2^53");
+    const plan = await planBuyPriceWrite(product, price);
+    // Link#price_cents= raises LinkInvalid, which the transaction rolls back.
+    if ("tooLarge" in plan) throw new ToolError(PRICE_WRITE_TOO_LARGE);
+    priceCents = plan.cents;
+  }
+  if ("description" in args) attributes.description = plannedDescription(product, args.description);
+  if (await hasApplicableOfferCodes(context.user, product)) throw new HandBackToRails("a product beside discount codes");
+
+  const record = Links.load(product);
+  try {
+    await transaction(async () => {
+      await Links.lockBang(record);
+      if (priceCents !== undefined) await writeBuyPrice(product, priceCents, context.now);
+      await Links.updateBang(record, attributes, { now: context.now });
+    });
+  } catch (caught) {
+    if (!(caught instanceof RecordInvalid)) throw caught;
+    throw new ToolError(toSentence(record.errors.fullMessages()));
+  }
+  const saved = await (context.products ?? readProducts).find(BigInt(context.user.id), encrypt(found.id));
+  if (saved === null) throw new HandBackToRails("a product that was not found after its save");
+  return { product: { ...productPayload(saved, context.user, "update_product"), description: saved.description } };
+}
+
 export type SubscriptionRow = {
   id: bigint;
   link_id: bigint | null;
@@ -1532,6 +1589,9 @@ export async function toolBody(name: string, args: Hash, context: ToolContext): 
       return getProduct(args, context);
     case "create_draft_product":
       return createDraftProduct(args, context);
+    case "update_product":
+      requireScopes(context.token, ["edit_products", "account"]);
+      return updateProduct(args, context);
     case "publish_product":
       requireScopes(context.token, ["edit_products", "account"]);
       return setPublication(args, context, true);
