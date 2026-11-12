@@ -19,10 +19,10 @@ describe "Orders free purchase", type: :request, parity: true, parity_timeline: 
 
   before { host! DOMAIN }
 
-  around do |example|
+  around do |free_example|
     previous = ActiveJob::Base.queue_adapter
     ActiveJob::Base.queue_adapter = :sidekiq
-    example.run
+    free_example.run
   ensure
     ActiveJob::Base.queue_adapter = previous
   end
