@@ -7,10 +7,10 @@
 # `marker` entries are interleaved with the statements: the start and end of Order::CreateService#perform,
 # Purchase::CreateService#perform, Order::ChargeService#perform and of each Purchase save (so the Node tests can replay one
 # span), and `job` entries where a Sidekiq job was pushed (so the enqueue order against the writes is on record).
-# Run it like fight-dispute-job.rb, with lane 24's databases:
+# Run it like fight-dispute-job.rb but without USE_DB_WORKER_REPLICAS (Puma serves with one pool), with lane 24's databases:
 #
 #   RAILS_ENV=test DATABASE_NAME=gumroad_test_24 TEST_DATABASE_NAME=gumroad_test_24 DISABLE_TEST_REDIS_ISOLATION=1 \
-#     USE_DB_WORKER_REPLICAS=true REDIS_HOST=redis:6379/50 SIDEKIQ_REDIS_HOST=redis:6379/51 \
+#     REDIS_HOST=redis:6379/50 SIDEKIQ_REDIS_HOST=redis:6379/51 \
 #     RPUSH_REDIS_HOST=redis:6379/52 RACK_ATTACK_REDIS_HOST=redis:6379/53 DISABLE_SPRING=1 \
 #     bundle exec rails runner nextjs/scripts/golden/purchase-create.rb
 require_relative "support/rails_cases"
