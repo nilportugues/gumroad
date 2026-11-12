@@ -731,6 +731,32 @@ presented("presented_effective_refund", into: refused, extra: -> {
   Refund.insert!({ purchase_id: 401, amount_cents: 100, gumroad_tax_cents: 0, status: "succeeded", json_data: nil, created_at: FIXED_NOW, updated_at: FIXED_NOW })
 })
 
+# The receipt the person receiving a gift gets (Purchase flag 6, state gift_receiver_purchase_successful): the
+# gift_receiver_receipt template, no footer, no payment section. 401 is the receiver's purchase, 402 the gifter's.
+GIFT_RECEIVER = { flags: 32, purchase_state: "gift_receiver_purchase_successful", price_cents: 0, total_transaction_cents: 0, displayed_price_cents: 0 }.freeze
+def gift_receiver(name, into: nil, link: {}, purchase: {}, gift: {}, redirect: true, extra: nil)
+  setup(link:, purchase: GIFT_RECEIVER.merge(purchase), redirect:)
+  insert_purchase(id: 402, link_id: 301, seller_id: 201, email: "gifter@example.com", flags: 64, **PRICE)
+  Gift.insert!({ gifter_purchase_id: 402, giftee_purchase_id: 401, link_id: 301, state: "successful", giftee_email: "buyer@example.com", gifter_email: "gifter@example.com",
+                 gift_note: "Enjoy!", created_at: FIXED_NOW, updated_at: FIXED_NOW, **gift })
+  extra&.call
+  (into || $messages) << record_message("receipt_gift_receiver_#{name}", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
+end
+gift_receiver("basic")
+gift_receiver("without_note", gift: { gift_note: "" })
+gift_receiver("nil_note", gift: { gift_note: nil })
+gift_receiver("hidden_gifter", gift: { flags: 2 })
+gift_receiver("gifter_full_name", purchase: { full_name: "Gina Gifter" })
+gift_receiver("html_note", gift: { gift_note: "Tom & Jerry <3" })
+gift_receiver("multiline_note", gift: { gift_note: "Line one\n\nLine two  " })
+gift_receiver("blank_note", gift: { gift_note: " \n" })
+gift_receiver("hidden_recipient", gift: { flags: 1 }, into: refused)
+gift_receiver("priced_receiver", purchase: { price_cents: 500, total_transaction_cents: 500, displayed_price_cents: 500 }, into: refused)
+gift_receiver("without_url_redirect", redirect: false)
+gift_receiver("licensed", link: { flags: LICENSED }, extra: -> { insert_license(purchase_id: 401, link_id: 301, serial: "AAAA-BBBB") })
+gift_receiver("physical", link: PHYSICAL.merge(require_shipping: true), redirect: false, purchase: SHIPPING, into: refused)
+gift_receiver("custom_receipt_text", link: { json_data: { "custom_receipt_text" => "Thanks for gifting!" } })
+gift_receiver("variant", extra: -> { insert_variant(id: 701, link_id: 301, name: "Large"); attach_variant(401, 701) })
 # Errors.
 reset!
 errors << record_error("receipt_missing_purchase", CustomerMailer, :receipt, [404])
