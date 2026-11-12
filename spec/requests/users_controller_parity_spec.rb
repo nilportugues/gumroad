@@ -256,10 +256,37 @@ describe "UsersController", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "hands a seller with a coffee product to Rails", parity: true do
+    it "renders the coffee page of a seller with a coffee product", parity: true do
       create(:coffee_product, user: seller)
 
       get "/coffee"
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("Users/Coffee")
+    end
+
+    it "renders the coffee page of the first coffee product when another one is archived", parity: true do
+      create(:coffee_product, user: seller, name: "Archived coffee").update!(archived: true)
+      create(:coffee_product, user: seller, name: "Live coffee")
+
+      get "/coffee", params: { recommended_by: "profile" }
+
+      expect(response.body).to include("Live coffee")
+    end
+
+    it "hands the coffee page of a product with custom HTML to Rails", parity: true do
+      Feature.activate_user(:custom_html_pages, seller)
+      create(:coffee_product, user: seller, custom_html: "<section><h1>Coffee landing</h1></section>")
+
+      get "/coffee"
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "hands the coffee page of a request that names an offer code to Rails", parity: true do
+      create(:coffee_product, user: seller)
+
+      get "/coffee", params: { offer_code: "FREE" }
 
       expect(response).to have_http_status(:ok)
     end
