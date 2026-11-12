@@ -307,3 +307,6 @@ captured, and the Gemfile.
 `nextjs/ws-tail-1` (E99 long tail, lane 16): the backlog's unassigned bucket is empty (second `fallback` pattern pass in `backlog.ts`), two recorded list-valued examples are served (test pings, custom domain verification), and the rest of the tail is triaged in [parity-debt.md](parity-debt.md#e99-long-tail-triage-nextjsws-tail-1-lane-16).
 
 **Payments hand-backs (eighth pass, `nextjs/ws-payments-5`):** the user hold of a failed Stripe payout (`hold_payouts_for_unaccounted_money!`, `reverse_internal_transfer_or_hold_payouts!` without an internal transfer) is ported with a Ruby golden (`payment-hold.ts`); `Payouts.create_payments` is recorded (13 cases) but not ported, so the instant payout, its processor and handler stay handed back. See [parity-debt.md](parity-debt.md).
+
+
+**Mail and export hand-backs (`nextjs/ws13-mail-1`):** gift receiver receipt, `preorder_receipt` and the gift-sender and pre-order purchases export now run in Node; membership, free-trial and E13 subscription charge and plan-change shapes stay with Rails (see [parity-debt.md](parity-debt.md)).
