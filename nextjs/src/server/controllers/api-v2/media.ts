@@ -1,13 +1,16 @@
-// Api::V2::MediaController#index (app/controllers/api/v2/media_controller.rb) and the lookup of #destroy. #create stays in Rails: it is
-// throttled by Rack::Attack and downloads remote files. Deleting a file purges its blob from storage, so it goes to Rails too.
+// Api::V2::MediaController#index (app/controllers/api/v2/media_controller.rb), the lookup of #destroy and the refusals of #create ahead of its
+// download. #create is throttled by Rack::Attack, which Node counts ahead of the action (rack-attack.ts) and takes back when it hands the request
+// over; the SSRF-guarded download, the content moderation and the public file are Rails'. Deleting a file purges its blob from storage, so it
+// goes to Rails too.
 import { Prisma } from "@prisma/client";
 
 import { isConfiguredService, publicStorageUrl } from "../../infra/active-storage.ts";
 import { cdnUrlFor } from "../../infra/cdn-url.ts";
 import { column, selectRows, table } from "../../models/sql.ts";
+import { RISK_STATES } from "../../models/user.ts";
 import { HandBackToRails } from "../application-controller.ts";
 
-import { type ApiV2Input, errorWithObject, registerApiV2, renderResponse } from "./base.ts";
+import { type ApiV2Input, errorWithObject, json, present, registerApiV2, renderResponse } from "./base.ts";
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -69,4 +72,30 @@ registerApiV2({
   scopes: ["edit_profile"],
   requireScope: ["edit_profile"],
   run: destroy,
+});
+
+// `before_action { render_account_inactive unless current_resource_owner&.account_active? }`: alive and not suspended.
+const accountActive = (owner: ApiV2Input["owner"]) =>
+  owner.deleted_at === null && !(RISK_STATES.SUSPENDED as readonly string[]).includes(owner.user_risk_state ?? "");
+
+// CreatePublicMediaService#process starts with `url.blank? && signed_blob_id.blank?` (both read through `presence`).
+export function create({ params }: Pick<ApiV2Input, "params">) {
+  for (const key of ["url", "signed_blob_id"] as const)
+    if (present(params[key]) && typeof params[key] !== "string")
+      throw new HandBackToRails("a media source that is not text");
+  if (!present(params.url) && !present(params.signed_blob_id))
+    return renderResponse(false, { message: "Please provide a url or signed_blob_id." });
+  throw new HandBackToRails("hosting a file: the download, the moderation and the public file");
+}
+
+registerApiV2({
+  method: "POST",
+  pattern: "/v2/media",
+  scopes: ["edit_profile"],
+  requireScope: ["edit_profile"],
+  before: ({ owner }) =>
+    Promise.resolve(
+      accountActive(owner) ? undefined : json({ success: false, message: "Your account is not active." }, 403),
+    ),
+  run: create,
 });
