@@ -9,6 +9,7 @@ import type { OauthAccessToken, ProductFile, User } from "@prisma/client";
 import { db } from "../../lib/db.ts";
 import { decrypt, encrypt } from "../../lib/obfuscate-ids.ts";
 import { rubyRoundHalfUp } from "../../lib/ruby-round.ts";
+import { hasApplicableOfferCodes } from "../controllers/api-v2/offer-codes.ts";
 import { HandBackToRails } from "../controllers/application-controller.ts";
 import { findByName } from "../models/compliance-countries.ts";
 import {
@@ -19,6 +20,8 @@ import {
 } from "../models/concerns/rails-time-zone.ts";
 import { rubyFloatToS } from "../models/concerns/ruby-values.ts";
 import { successfulSalesCount, totalUsdCents } from "../models/link-metrics.ts";
+import { assertPlainPublish, publishBang } from "../models/link-publish.ts";
+import { Links } from "../models/link.ts";
 import { s3Fields } from "../models/product-file.ts";
 import { SubscriptionFlags } from "../models/subscription.ts";
 import { CreatorAnalyticsCachingProxy } from "../page-props/analytics/caching-proxy.ts";
@@ -1061,6 +1064,34 @@ async function listPayouts(args: Hash, context: ToolContext): Promise<Hash> {
   };
 }
 
+// tool_publish_product and tool_unpublish_product. Everything Node cannot follow is refused before the first write, so a
+// hand-back never follows one: the payload is built from the product as it stands, then again from the saved row.
+async function setPublication(args: Hash, context: ToolContext, publish: boolean): Promise<Hash> {
+  const found = await findProduct(args, context);
+  const tool = publish ? "publish_product" : "unpublish_product";
+  productPayload(found, context.user, tool);
+  const product = await db.link.findUniqueOrThrow({ where: { id: found.id } });
+  if (publish) {
+    // validate_product_price_against_all_offer_codes? checks every code that applies to the product.
+    if (await hasApplicableOfferCodes(context.user, product))
+      throw new HandBackToRails("a publish of a product with discount codes");
+    await assertPlainPublish(product, context.user);
+    // Link::LinkInvalid is a tool error in Mcp::Server#call_tool.
+    const refused = await publishBang(product, context.user, context.now);
+    if (refused !== null) throw new ToolError(refused);
+  } else {
+    // Link#unpublish!: `self.purchase_disabled_at ||= Time.current; save!`
+    const now = (context.now ?? (() => new Date()))();
+    await Links.updateBang(
+      Links.load(product),
+      { purchase_disabled_at: product.purchase_disabled_at ?? now },
+      { now: () => now },
+    );
+  }
+  const saved = await (context.products ?? readProducts).find(BigInt(context.user.id), encrypt(found.id));
+  return { product: productPayload(saved ?? found, context.user, tool) };
+}
+
 export type SubscriptionRow = {
   id: bigint;
   link_id: bigint | null;
@@ -1398,6 +1429,12 @@ export async function toolBody(name: string, args: Hash, context: ToolContext): 
     case "get_product":
       requireScopes(context.token, ["view_profile", "view_public", "edit_products", "account"]);
       return getProduct(args, context);
+    case "publish_product":
+      requireScopes(context.token, ["edit_products", "account"]);
+      return setPublication(args, context, true);
+    case "unpublish_product":
+      requireScopes(context.token, ["edit_products", "account"]);
+      return setPublication(args, context, false);
     case "get_subscriptions":
       requireScopes(context.token, ["view_sales", "account"]);
       return getSubscriptions(args, context);

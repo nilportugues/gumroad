@@ -36,6 +36,7 @@ const WS17C_SPEC_DIRS = [
   "mcp",
   "mcp_register",
   "mcp_products",
+  "mcp_publication",
   "payouts_media",
   "sales_exports",
   "links",

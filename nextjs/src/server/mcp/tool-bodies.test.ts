@@ -616,7 +616,7 @@ describe("get_sales_totals", () => {
 
 describe("toolBody", () => {
   it("leaves a tool that is not ported to Rails", async () => {
-    await expect(toolBody("publish_product", { id: "x" }, context("account"))).resolves.toBeUndefined();
+    await expect(toolBody("expire_discount_code", { code: "x" }, context("account"))).resolves.toBeUndefined();
   });
 });
 
@@ -665,7 +665,7 @@ describe("tools/call through the session", () => {
   });
 
   it("still hands back a tool that is not ported", async () => {
-    await expect(session("account").handle(call("publish_product", { id: "x" }))).rejects.toBeInstanceOf(
+    await expect(session("account").handle(call("expire_discount_code", { code: "x" }))).rejects.toBeInstanceOf(
       HandBackToRails,
     );
   });
@@ -1141,5 +1141,23 @@ describe("get_subscriptions", () => {
     await hands(
       subscriptionsContext([subscription()], [purchase(1), purchase(2, { flags: 0n, created_micros: 1_000_000n })]),
     );
+  });
+});
+
+describe("publish_product and unpublish_product", () => {
+  it("hand back a product Node cannot serialize, before reading or writing anything else", async () => {
+    for (const name of ["publish_product", "unpublish_product"])
+      await expect(
+        toolBody(name, { id: "x" }, detailContext("edit_products", productRow(1, { flags: BigInt(1 << 18) }))),
+      ).rejects.toBeInstanceOf(HandBackToRails);
+  });
+
+  it("answer a product that is not found as a tool error and a token without the scope as a hand-back", async () => {
+    await expect(toolBody("publish_product", { id: "x" }, detailContext("edit_products", null))).rejects.toBeInstanceOf(
+      ToolError,
+    );
+    await expect(
+      toolBody("unpublish_product", { id: "x" }, detailContext("view_public", productRow(1))),
+    ).rejects.toBeInstanceOf(HandBackToRails);
   });
 });
