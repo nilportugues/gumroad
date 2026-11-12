@@ -240,6 +240,29 @@ describe "Wishlist show page", type: :request do
     expect(props["items"].first["product"]["url"]).to be_present
   end
 
+  describe "an owner with no username" do
+    # `username` falls back to the external id, so the wishlist lives on `<external_id>.<root domain>`.
+    before { owner.update_column(:username, nil) }
+
+    it "renders on the external id subdomain", parity: true do
+      add_products(2)
+
+      visit_wishlist
+
+      expect(response).to be_successful
+      expect(props["url"]).to start_with("http://#{owner.external_id}.")
+      expect(props["user"]["profile_url"]).to eq("http://#{owner.external_id}.#{ROOT_DOMAIN}")
+    end
+
+    it "renders on the external id subdomain with the profile layout", parity: true do
+      add_products(1)
+
+      visit_wishlist(params: { layout: "profile" })
+
+      expect(response).to be_successful
+    end
+  end
+
   it "hands a discover-layout wishlist of a buyer with a cart to Rails", parity: true do
     add_products(1)
     visitor = create(:user)

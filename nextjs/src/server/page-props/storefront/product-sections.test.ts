@@ -59,9 +59,27 @@ describe("visitorSearchParams", () => {
     expect(await visitorSearchParams("query=a&query=b&sort")).toEqual({ query: "b", sort: null });
   });
 
-  it("hands a nested shape back to Rails", async () => {
-    await expect(visitorSearchParams("tags[]=a")).rejects.toBeInstanceOf(HandBackToRails);
-    await expect(visitorSearchParams("min_price%5Bx%5D=1")).rejects.toBeInstanceOf(HandBackToRails);
+  it("reads the list and hash forms of tags and filetypes", async () => {
+    expect(await visitorSearchParams("tags[]=Foo-Bar&tags%5B%5D=b&filetypes[]=PDF")).toEqual({
+      tags: ["Foo-Bar", "b"],
+      filetypes: ["PDF"],
+    });
+    expect(await visitorSearchParams("tags[a]=1&tags[a]=2&tags[b]=3")).toEqual({ tags: ["2", "3"] });
+    expect(await visitorSearchParams("tags[a]=Foo-Bar")).toEqual({ tags: ["foo bar"] });
+  });
+
+  it("hands a nested shape it cannot prove back to Rails", async () => {
+    for (const query of [
+      "min_price%5Bx%5D=1",
+      "tags=a&tags[]=b",
+      "tags[]=a&tags[x]=b",
+      "tags[1]=a",
+      "filetypes[x]=a",
+      "tags[a][b]=1",
+      "tags[]",
+      "query[]=a",
+    ])
+      await expect(visitorSearchParams(query), query).rejects.toBeInstanceOf(HandBackToRails);
   });
 });
 

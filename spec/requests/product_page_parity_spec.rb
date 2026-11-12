@@ -622,13 +622,265 @@ describe "Product page", type: :request do
       end
     end
 
-    it "hands a visitor of a storefront seller to Rails", parity: true do
-      seller.update!(product_page_storefront_enabled: true)
-      product = create(:product, user: seller)
+    describe "arriving from Discover" do
+      let(:product) { create(:product, user: seller, name: "Clicked", taxonomy: Taxonomy.create!(slug: "design")) }
 
-      get "/l/#{product.unique_permalink}"
+      before do
+        Feature.activate(:store_discover_searches)
+        cookies[:_gumroad_guid] = "discover-click-guid" unless RSpec.current_example.metadata[:signed_in]
+      end
 
-      expect(response).to be_successful
+      it "stores a search click on the product with the product's own category", parity: true do
+        expect { get "/l/#{product.unique_permalink}?recommended_by=search&query=rig+kit" }.to change(DiscoverSearch, :count).by(1)
+
+        expect(response).to be_successful
+        search = DiscoverSearch.last
+        expect(search).to have_attributes(query: "rig kit", clicked_resource: product, taxonomy_id: product.taxonomy_id, autocomplete: false)
+        expect(search.discover_search_suggestion).to be_present
+      end
+
+      it "stores a Discover click that carries no query", parity: true do
+        expect { get "/l/#{product.unique_permalink}?recommended_by=discover" }.to change(DiscoverSearch, :count).by(1)
+
+        expect(response).to be_successful
+        expect(DiscoverSearch.last.query).to be_nil
+      end
+
+      it "stores an autocomplete click without a suggestion", parity: true do
+        get "/l/#{product.unique_permalink}?recommended_by=search&query=rig&autocomplete=true"
+
+        expect(response).to be_successful
+        expect(DiscoverSearch.last).to have_attributes(autocomplete: true, discover_search_suggestion: nil)
+      end
+
+      it "stores a click of a signed-in buyer on a product without a category", parity: true, signed_in: true do
+        product.update!(taxonomy: nil)
+        host! DOMAIN
+        log_in(buyer, token_path: "/help")
+        seller_host!
+        # Logging in sets the guid the click is attributed to.
+
+        get "/l/#{product.unique_permalink}?recommended_by=search&query=rig"
+
+        expect(response).to be_successful
+        expect(DiscoverSearch.last).to have_attributes(user_id: buyer.id, taxonomy_id: nil)
+      end
+
+      it "stores a click on the Inertia visit", parity: true do
+        inertia_visit "/l/#{product.unique_permalink}?recommended_by=discover&query=kit"
+
+        expect(response).to be_successful
+        expect(DiscoverSearch.count).to eq(1)
+      end
+
+      it "stores nothing for a crawler", parity: true do
+        get "/l/#{product.unique_permalink}?recommended_by=search&query=rig", headers: { "User-Agent" => "Googlebot/2.1" }
+
+        expect(response).to be_successful
+        expect(DiscoverSearch.count).to eq(0)
+      end
+
+      it "stores nothing while the flag is off", parity: true do
+        Feature.deactivate(:store_discover_searches)
+
+        get "/l/#{product.unique_permalink}?recommended_by=search&query=rig"
+
+        expect(response).to be_successful
+        expect(DiscoverSearch.count).to eq(0)
+      end
+
+      it "stores nothing for another recommender", parity: true do
+        get "/l/#{product.unique_permalink}?recommended_by=library&query=rig"
+
+        expect(response).to be_successful
+        expect(DiscoverSearch.count).to eq(0)
+      end
+
+      it "hands a nested query back to Rails", parity: true do
+        get "/l/#{product.unique_permalink}?recommended_by=search&query[]=rig"
+
+        expect(response).to be_successful
+      end
+    end
+
+    describe "of a storefront seller", elasticsearch_wait_for_refresh: true do
+      let(:product) { create(:product, user: seller, name: "Viewed", price_cents: 700) }
+
+      before do
+        seller.update!(product_page_storefront_enabled: true)
+        Link.__elasticsearch__.create_index!(force: true)
+      end
+
+      def catalogue_page(path = "/l/#{product.unique_permalink}", **options)
+        index_model_records(Link)
+        get path, **options
+      end
+
+      def catalogue_sections
+        inertia_props_of(response)["sections"]
+      end
+
+      def show_products_section(shown, **attributes)
+        section = create(:seller_profile_products_section, seller:, header: "Shop", shown_products: shown.map(&:id), **attributes)
+        seller.seller_profile.json_data[:tabs] = [{ name: "Home", sections: [section.id] }]
+        seller.seller_profile.save!
+        section
+      end
+
+      it "shows the rest of the catalogue under the product, headed by the seller's name", parity: true do
+        create(:product, user: seller, name: "Other one", price_cents: 300)
+        create(:product, user: seller, name: "Other two", price_cents: 400)
+
+        catalogue_page
+
+        expect(response).to be_successful
+        expect(response.body).to include("Products/Profile/Show")
+        section = catalogue_sections.first
+        expect(section["header"]).to eq("More from #{seller.name_or_username}")
+        expect(section["search_results"]["products"].map { _1["name"] }).to match_array(["Other one", "Other two"])
+        expect(section["exclude_ids"]).to eq([product.external_id])
+      end
+
+      it "shows an empty catalogue when the viewed product is the only one", parity: true do
+        catalogue_page
+
+        expect(response).to be_successful
+        expect(catalogue_sections.first["search_results"]).to include("total" => 0, "products" => [])
+      end
+
+      it "leaves a sold-out product that hides its sold-out state out of the catalogue", parity: true do
+        sold_out = create(:product, user: seller, name: "Sold out", max_purchase_count: 1, hide_sold_out_variants: true)
+        build(:purchase, link: sold_out, seller:, purchase_state: "successful").save!(validate: false)
+        create(:product, user: seller, name: "Available")
+
+        catalogue_page
+
+        expect(response).to be_successful
+        expect(catalogue_sections.first["search_results"]["products"].map { _1["name"] }).to eq(["Available"])
+      end
+
+      it "shows the seller's saved products sections instead of the default one", parity: true do
+        shown = create(:product, user: seller, name: "Shown")
+        create(:product, user: seller, name: "Not shown")
+        show_products_section([shown, product])
+
+        catalogue_page
+
+        expect(response).to be_successful
+        section = catalogue_sections.first
+        expect(section["header"]).to eq("Shop")
+        expect(section["search_results"]["products"].map { _1["name"] }).to eq(["Shown"])
+        expect(section["search_results"]["total"]).to eq(1)
+      end
+
+      it "keeps a hidden header of a saved section hidden", parity: true do
+        shown = create(:product, user: seller, name: "Shown")
+        show_products_section([shown], hide_header: true)
+
+        catalogue_page
+
+        expect(response).to be_successful
+        expect(catalogue_sections.first["header"]).to be_nil
+      end
+
+      it "shrinks the total for a viewed product beyond the fetched page", parity: true do
+        product.update_columns(created_at: 10.days.ago)
+        3.times { |n| create(:product, user: seller, name: "Other #{n}", created_at: (n + 1).days.ago) }
+
+        catalogue_page("/l/#{product.unique_permalink}?size=1")
+
+        expect(response).to be_successful
+        expect(catalogue_sections.first["search_results"]["products"].map { _1["name"] }).to eq(["Other 0"])
+        expect(catalogue_sections.first["search_results"]["total"]).to eq(3)
+      end
+
+      it "shrinks the total for a viewed product on the fetched page", parity: true do
+        3.times { |n| create(:product, user: seller, name: "Other #{n}", created_at: (n + 1).days.ago) }
+
+        catalogue_page("/l/#{product.unique_permalink}?size=1")
+
+        expect(response).to be_successful
+        expect(catalogue_sections.first["search_results"]["products"]).to eq([])
+        expect(catalogue_sections.first["search_results"]["total"]).to eq(3)
+      end
+
+      it "applies the visitor's filters to the catalogue", parity: true do
+        create(:product, user: seller, name: "Alpha ebook")
+        create(:product, user: seller, name: "Beta course")
+
+        catalogue_page("/l/#{product.unique_permalink}?query=alpha&sort=price_asc")
+
+        expect(response).to be_successful
+        expect(catalogue_sections.first["search_results"]["products"].map { _1["name"] }).to eq(["Alpha ebook"])
+      end
+
+      it "shows a membership with tiers in the catalogue", parity: true do
+        create(:membership_product_with_preset_tiered_pricing, user: seller, name: "Membership")
+
+        catalogue_page
+
+        expect(response).to be_successful
+      end
+
+      it "wraps the profile layout with the catalogue as well", parity: true do
+        create(:product, user: seller, name: "Other one")
+
+        catalogue_page("/l/#{product.unique_permalink}?layout=profile")
+
+        expect(response).to be_successful
+        expect(catalogue_sections.first["search_results"]["products"].map { _1["name"] }).to eq(["Other one"])
+      end
+
+      it "answers an Inertia visit with the profile component", parity: true do
+        create(:product, user: seller, name: "Other one")
+
+        index_model_records(Link)
+        inertia_visit "/l/#{product.unique_permalink}"
+
+        expect(response.parsed_body["component"]).to eq("Products/Profile/Show")
+        expect(response.parsed_body["props"]["sections"].first["search_results"]["products"].size).to eq(1)
+      end
+
+      it "keeps the embed layout free of the catalogue", parity: true do
+        create(:product, user: seller, name: "Other one")
+
+        catalogue_page("/l/#{product.unique_permalink}?embed=true")
+
+        expect(response).to be_successful
+        expect(response.body).to include("Products/Iframe/Show")
+      end
+
+      it "keeps the discover layout free of the catalogue", parity: true do
+        Taxonomy.create!(slug: "design")
+        create(:product, user: seller, name: "Other one")
+
+        catalogue_page("/l/#{product.unique_permalink}?layout=discover")
+
+        expect(response).to be_successful
+        expect(catalogue_sections).to eq([])
+      end
+
+      it "keeps the seller's own view standalone", parity: true do
+        create(:product, user: seller, name: "Other one")
+        host! DOMAIN
+        log_in(seller, token_path: "/help")
+        seller_host!
+
+        catalogue_page
+
+        expect(response).to be_successful
+        expect(response.body).to include("Products/Show")
+        expect(catalogue_sections).to eq([])
+      end
+
+      it "hands a product that has sections of its own to Rails", parity: true do
+        section = create(:seller_profile_products_section, seller:, product:, header: "On this product", shown_products: [product.id])
+        product.update!(sections: [section.id])
+
+        catalogue_page
+
+        expect(response).to be_successful
+      end
     end
 
     it "answers an Inertia visit with the page as JSON", parity: true do

@@ -129,6 +129,16 @@ describe "Wishlists::ProductsController#index", type: :request do
     expect(items.third).to include("quantity" => 2)
   end
 
+  it "lists the cards of a wishlist whose owner has no username", parity: true do
+    owner.update_column(:username, nil)
+    create(:wishlist_product, wishlist:, product: create(:product, user: create(:user, name: "Ebook Seller"), name: "First ebook", price_cents: 500))
+
+    fetch
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body["items"].size).to eq(1)
+  end
+
   it "answers 404 for a wishlist that does not exist", parity: true do
     host! owner.subdomain
     get "/wishlists/nosuchwishlist/products", params: { page: "1" }, headers: json_headers

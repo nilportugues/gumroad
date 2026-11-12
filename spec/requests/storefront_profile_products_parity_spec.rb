@@ -200,7 +200,7 @@ describe "Storefront profile products", type: :request, elasticsearch_wait_for_r
     expect(wishlists.map { _1["thumbnails"].size }).to eq([1, 4])
   end
 
-  it "hands back a profile whose products include a membership with tiers", parity: true do
+  it "shows a membership with tiers on the profile", parity: true do
     membership = create(:membership_product_with_preset_tiered_pricing, user: seller, name: "Membership")
     show_products_section([membership])
 
@@ -241,6 +241,51 @@ describe "Storefront profile products", type: :request, elasticsearch_wait_for_r
     expect(inertia_props["sections"].first["search_results"]["products"].map { _1["name"] }).to eq(["Alpha ebook"])
   end
 
+  describe "nested visitor filters" do
+    let!(:writing) { product("Alpha ebook", price_cents: 500).tap { _1.tag!("writing") } }
+    let!(:design) { product("Beta pack", price_cents: 700).tap { _1.tag!("design") } }
+
+    before { show_products_section([writing, design], show_filters: true) }
+
+    it "reads tags[] as a list of tags", parity: true do
+      get_profile("tags" => ["writing"])
+
+      expect(response).to be_successful
+      expect(inertia_props["sections"].first["search_results"]["products"].map { _1["name"] }).to eq(["Alpha ebook"])
+    end
+
+    it "reads a hash of tags and a list of filetypes", parity: true do
+      get_profile("tags" => { "a" => "Writing", "b" => "design" }, "filetypes" => ["pdf"])
+
+      expect(response).to be_successful
+    end
+
+    it "hands back a repeated hash key", parity: true do
+      get "/?tags[a]=design&tags[a]=writing"
+
+      expect(response).to be_successful
+      expect(response.body).to include("Alpha ebook")
+    end
+
+    it "hands back a nested query", parity: true do
+      get_profile("query" => ["alpha"])
+
+      expect(response).to be_successful
+    end
+
+    it "hands back a flat tag mixed with a list", parity: true do
+      get "/?tags=writing&tags[]=design"
+
+      expect(response).to have_http_status(:bad_request)
+    end
+
+    it "hands back a hash of filetypes", parity: true do
+      get_profile("filetypes" => { "a" => "pdf" })
+
+      expect(response).to be_successful
+    end
+  end
+
   it "applies the visitor's sort and carries recommended_by into the card links", parity: true do
     first = product("Alpha ebook", price_cents: 500)
     second = product("Beta course", price_cents: 1_500)
@@ -262,12 +307,31 @@ describe "Storefront profile products", type: :request, elasticsearch_wait_for_r
     expect(inertia_props["sections"].first["search_results"]["products"].map { _1["name"] }).to eq(["Beta course"])
   end
 
-  it "hands back a visit whose search filter is a nested param", parity: true do
-    show_products_section([product("Alpha ebook")])
+  describe "a section whose type is no section class" do
+    # The test environment re-raises what Rails does not rescue; production answers the 500 page, which is what is recorded.
+    def get_profile_as_production(headers: {})
+      previous = Rails.application.env_config["action_dispatch.show_exceptions"]
+      Rails.application.env_config["action_dispatch.show_exceptions"] = :all
+      get "/", headers:
+    ensure
+      Rails.application.env_config["action_dispatch.show_exceptions"] = previous
+    end
 
-    get_profile("tags" => ["writing"])
+    before do
+      SellerProfileSection.insert_all([{ seller_id: seller.id, type: "SellerProfileBogusSection", header: "Bogus", json_data: "{}", created_at: Time.current, updated_at: Time.current }])
+    end
 
-    expect(response).to be_successful
+    it "answers 500 for the page", parity: true do
+      get_profile_as_production
+
+      expect(response).to have_http_status(:internal_server_error)
+    end
+
+    it "answers 500 for the Inertia visit", parity: true do
+      get_profile_as_production(headers: { "X-Inertia" => "true", "X-Requested-With" => "XMLHttpRequest" })
+
+      expect(response).to have_http_status(:internal_server_error)
+    end
   end
 
   it "serves the seller's reputation summary while the flag is on", parity: true do

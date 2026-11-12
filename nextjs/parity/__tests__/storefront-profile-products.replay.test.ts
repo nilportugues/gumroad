@@ -56,6 +56,12 @@ const COMPARE = {
   ],
 };
 
+// Rails' exception debug page (a production 500 the test environment cannot render) is not recorded and sets the profiler cookie.
+const debugPageIgnores = (file: string) =>
+  readFileSync(file, "utf8").includes("rails exception debug page")
+    ? { ignore: [...COMPARE.ignore, "response.cookies", "response.body", "response.json", "response.headers.content-type"] }
+    : COMPARE;
+
 const allCases = readdirSync(FIXTURE_DIR)
   .filter((file) => file.endsWith(".json"))
   .map((file) => [file.replace(/\.json$/u, ""), path.join(FIXTURE_DIR, file), loadFixture(path.join(FIXTURE_DIR, file)).exchanges.length - 1] as const);
@@ -137,7 +143,7 @@ describe.skipIf(!url)("storefront profile products parity", () => {
       transport: httpTransport(server.baseUrl),
       interceptHttp: false,
       rewriteRequest: (request, fixture, now) => reencryptCookies(request, fixture, SECRET_KEY_BASE, now),
-      compare: COMPARE,
+      compare: debugPageIgnores(file),
     });
 
   // The first request to a route compiles it, which would age the seeded timestamps past the replayer's tolerance.

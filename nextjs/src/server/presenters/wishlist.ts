@@ -68,10 +68,10 @@ export function wishlistUrl(wishlist: WishlistRow, owner: UserRow): string {
   return `${subdomainWithProtocolOf(owner)}/wishlists/${urlSlug(wishlist)}`;
 }
 
-// User#subdomain_with_protocol; a wishlist is only reachable on a host that has a username.
+// User#subdomain_with_protocol on `username`, which falls back to the external id when the column is blank.
 function subdomainWithProtocolOf(user: UserRow): string {
-  const base = subdomainWithProtocol(user);
-  if (base === null) throw new HandBackToRails("a wishlist owner without a username");
+  const base = subdomainWithProtocol(user.username?.trim() ? user : { username: user.external_id });
+  if (base === null) throw new HandBackToRails("a wishlist owner without a username or an external id");
   return base;
 }
 

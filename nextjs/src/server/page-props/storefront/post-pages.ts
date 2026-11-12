@@ -27,9 +27,23 @@ const decode = (segment: string) => {
 };
 
 // Anything but an HTML page (or an Inertia visit) is left to Rails, which negotiates the format.
-export function requireHtmlPage(chain: Chain): void {
+// `nestedKeys` are the params the page reads in their `name[]` / `name[key]` forms and checks itself.
+export function requireHtmlPage(chain: Chain, nestedKeys: string[] = []): void {
   if (!chain.request.headers.has("x-inertia") && requestFormat(chain.request) !== "html") throw new HandBackToRails();
-  assertFlatQuery(chain.request.queryString);
+  const isNestedKey = (pair: string) => {
+    try {
+      const key = decodeURIComponent(pair.split("=", 1)[0]!);
+      return nestedKeys.some((name) => key.startsWith(`${name}[`));
+    } catch {
+      return false;
+    }
+  };
+  assertFlatQuery(
+    chain.request.queryString
+      .split("&")
+      .filter((pair) => !isNestedKey(pair))
+      .join("&"),
+  );
 }
 
 // PostPresenter#set_purchase reads `purchase_id`; eligibility then depends on the purchase.

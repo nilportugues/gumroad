@@ -3,7 +3,7 @@
 //
 // Handed to Rails (HandBackToRails, decided in the filters): a featured product or wishlists section whose product
 // or card the port cannot prove (see featured-and-wishlist-sections.ts), a products section whose cards the
-// port cannot prove (see presenters/product.ts), a nested visitor search param (`tags[]=`), a nested or oversized
+// port cannot prove (see presenters/product.ts), a nested visitor search param other than the list and hash forms of `tags` and the list of `filetypes`, a nested or oversized
 // affiliate param, a seller with custom HTML pages, a seller with an uploaded subscribe preview, and any non-HTML
 // format.
 import { Prisma, type User } from "@prisma/client";
@@ -51,6 +51,8 @@ import { requireHtmlPage, setHostMeta } from "./post-pages.ts";
 import { setFaviconMetaTags } from "./post.ts";
 import {
   assertProductSectionsRender,
+  defaultProductsSectionAvailable,
+  NESTED_VISITOR_PARAMS,
   DEFAULT_PRODUCTS_SECTION_ID,
   PRODUCTS_SECTION_TYPE,
   productsSectionProps,
@@ -100,9 +102,9 @@ async function sellerOfUsername(encoded: string): Promise<User> {
 
 async function storefrontFilters(
   chain: Chain,
-  options: { noindex: boolean; affiliateCookie?: boolean; customHtml?: boolean },
+  options: { noindex: boolean; affiliateCookie?: boolean; customHtml?: boolean; visitorFilters?: boolean },
 ): Promise<User> {
-  requireHtmlPage(chain);
+  requireHtmlPage(chain, options.visitorFilters ? NESTED_VISITOR_PARAMS : []);
   const seller = await sellerOfHost(hostUrl(chain));
   if (options.affiliateCookie) {
     const cookie = await affiliateCookieForParams(chain.request, chain.now);
@@ -197,15 +199,6 @@ function presenterRequest(url: URL, headers: Headers): PresenterRequest {
   };
 }
 
-// `sections.empty? && seller.products.alive.not_archived.exists?`
-async function defaultProductsSectionAvailable(seller: User): Promise<boolean> {
-  const products = await db.link.findMany({
-    where: { user_id: seller.id, purchase_disabled_at: null, banned_at: null, deleted_at: null },
-    select: { flags: true },
-  });
-  return products.some((product) => !LinkFlags.isSet(product.flags, "archived"));
-}
-
 // ProfileSectionsPresenter#cached_sections + #section_props for the visitor shape.
 async function sectionsProps(seller: User, request: PresenterRequest, visitor: Params | null) {
   const sections = await db.sellerProfileSection.findMany({
@@ -277,7 +270,10 @@ async function assertSectionsSupported(chain: Chain, seller: User): Promise<void
     where: { seller_id: seller.id, product_id: null },
     select: { type: true },
   });
-  if (sections.some((section) => !SUPPORTED_SECTION_TYPES.includes(section.type))) throw new HandBackToRails();
+  if (sections.some((section) => section.type === null)) throw new HandBackToRails();
+  // STI: a `type` that names no SellerProfileSection subclass raises ActiveRecord::SubclassNotFound when the rows load.
+  const unknown = sections.find((section) => !SUPPORTED_SECTION_TYPES.includes(section.type!));
+  if (unknown) throw new Error(`Invalid single-table inheritance type: ${unknown.type}`);
   const productsShown =
     sections.some((section) =>
       [PRODUCTS_SECTION_TYPE, FEATURED_PRODUCT_SECTION_TYPE, WISHLISTS_SECTION_TYPE].includes(section.type),
@@ -384,7 +380,12 @@ export const PROFILE_PAGES: Record<string, PageSpec> = {
     buyerCurrencyFooter: true,
     options: {
       filters: async (chain): Promise<FilterOutcome> => {
-        const seller = await storefrontFilters(chain, { noindex: true, affiliateCookie: true, customHtml: true });
+        const seller = await storefrontFilters(chain, {
+          noindex: true,
+          affiliateCookie: true,
+          customHtml: true,
+          visitorFilters: true,
+        });
         await assertNoShareCard(seller);
         await assertSectionsSupported(chain, seller);
         return { state: {} };

@@ -268,7 +268,12 @@ const mysqlTime = (date: Date) => date.toISOString().replace("T", " ").replace("
 
 // CreateDiscoverSearch#create_discover_search!
 export async function createDiscoverSearch(
-  extras: { query: string | null; taxonomyId: bigint | null; autocomplete?: boolean },
+  extras: {
+    query: string | null;
+    taxonomyId: bigint | null;
+    autocomplete?: boolean;
+    clickedResource?: { type: string; id: bigint };
+  },
   request: DiscoverRequest,
   visitor: DiscoverVisitor,
   params: Params,
@@ -281,7 +286,7 @@ export async function createDiscoverSearch(
   const stamp = mysqlTime(now);
   await db.$transaction(async (tx) => {
     await tx.$executeRaw(
-      Prisma.sql`INSERT INTO ${table("discover_searches")} (${Prisma.raw("`query`, `taxonomy_id`, `user_id`, `ip_address`, `browser_guid`, `autocomplete`, `created_at`, `updated_at`")}) VALUES (${extras.query}, ${extras.taxonomyId}, ${visitor?.id ?? null}, ${request.remoteIp}, ${request.guid}, ${extras.autocomplete === true}, ${stamp}, ${stamp})`,
+      Prisma.sql`INSERT INTO ${table("discover_searches")} (${Prisma.raw("`query`, `taxonomy_id`, `user_id`, `ip_address`, `browser_guid`, `autocomplete`, `clicked_resource_type`, `clicked_resource_id`, `created_at`, `updated_at`")}) VALUES (${extras.query}, ${extras.taxonomyId}, ${visitor?.id ?? null}, ${request.remoteIp}, ${request.guid}, ${extras.autocomplete === true}, ${extras.clickedResource?.type ?? null}, ${extras.clickedResource?.id ?? null}, ${stamp}, ${stamp})`,
     );
     if (extras.autocomplete !== true && extras.query !== null && extras.query.trim() !== "") {
       const inserted = await tx.$queryRaw<{ id: bigint }[]>(Prisma.sql`SELECT LAST_INSERT_ID() AS id`);

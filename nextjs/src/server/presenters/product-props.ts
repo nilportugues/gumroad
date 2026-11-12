@@ -757,6 +757,8 @@ export type ProductPageViewerInput = {
   layout?: string | null;
   sellerCustomDomainUrl: string | null;
   request: PresenterRequest;
+  // The request's raw query string, which the storefront catalogue reads the visitor's filters from.
+  queryString?: string;
   // Side effects of a rendered page (the reputation snapshot's refresh job), run by whoever sends the page.
   afterRender?: (() => Promise<void>)[];
 };
