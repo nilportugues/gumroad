@@ -33,6 +33,29 @@ describe("salesExportQuery", () => {
     expect(dump(filters)).toBe(recordedQuery(name));
   });
 
+  // PurchaseExportService.export with in_seller_time_zone: the Ruby golden (scripts/golden/purchase-export-time-zone.rb) holds the
+  // instants for every zone, including midnights a DST change skips.
+  describe("in the seller's time zone", () => {
+    const golden = JSON.parse(
+      readFileSync(path.join(__dirname, "__fixtures__/purchase-export-time-zone.golden.json"), "utf8"),
+    ) as { zones: { name: string; dates: Record<string, { start: string; end: string }> }[] };
+
+    it("covers every zone", () => {
+      expect(golden.zones.length).toBeGreaterThan(100);
+    });
+
+    for (const zone of golden.zones) {
+      it(`writes ${zone.name} day boundaries as Rails does`, () => {
+        for (const [date, expected] of Object.entries(zone.dates)) {
+          const start = JSON.stringify(salesExportQuery(1, { startDate: date, timeZone: zone.name }));
+          expect([date, start]).toEqual([date, expect.stringContaining(`"gte":"${expected.start}"`)]);
+          const end = JSON.stringify(salesExportQuery(1, { endDate: date, timeZone: zone.name }));
+          expect([date, end]).toEqual([date, expect.stringContaining(`"lt":"${expected.end}"`)]);
+        }
+      });
+    }
+  });
+
   it("ends the range at the midnight after the end date, across a month and a year", () => {
     expect(dump({ endDate: "2025-12-31" })).toContain("lt: '2026-01-01T00:00:00Z'");
     expect(dump({ endDate: "2024-02-28" })).toContain("lt: '2024-02-29T00:00:00Z'");
